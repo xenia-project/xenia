@@ -16,8 +16,8 @@ Coming soon (maybe):
 
     git clone https://github.com/benvanik/xenia.git
     ./xenia-build.sh setup
-
-Open the Xcode workspace or Visual Studio solution to Build and Run.
+    ./xenia-build.sh build
+    ./bin/xenia some.xex
 
 ## Building
 
