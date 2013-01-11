@@ -1,0 +1,16 @@
+#!/bin/sh
+
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+CONFIG=release
+case "$*" in
+(*--debug*) CONFIG=debug;;
+esac
+
+EXEC=$DIR/../build/xenia/$CONFIG/xenia-info
+
+if [ ! -f "$EXEC" ]; then
+  python $DIR/../xenia-build.py build --$CONFIG
+fi
+
+$EXEC "$@"
