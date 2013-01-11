@@ -81,9 +81,12 @@
     },
     'xcode_settings': {
       'SYMROOT': '<(DEPTH)/build/xenia/',
-      'ARCHS': [ 'x86_64' ],
+      'ALWAYS_SEARCH_USER_PATHS': 'NO',
+      'ARCHS': ['x86_64'],
+      'GCC_C_LANGUAGE_STANDARD': 'c99',
       'GCC_TREAT_WARNINGS_AS_ERRORS': 'YES',
       'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',
+      'WARNING_CFLAGS': ['-Wall', '-Wendif-labels'],
     },
   },
 }

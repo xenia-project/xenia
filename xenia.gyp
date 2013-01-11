@@ -31,6 +31,13 @@
         'libraries': [
           #'!@(pkg-config --libs-only-l apr-1)',
         ],
+
+        'xcode_settings': {
+          'OTHER_LDFLAGS': [
+            '<!@(<(llvm_config) --ldflags)',
+            '<!@(<(llvm_config) --libs core)',
+          ],
+        }
       },
 
       'cflags': [
