@@ -7,12 +7,33 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#include <xenia/core/pal.h>
 
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
+typedef struct xe_pal {
+  xe_ref_t ref;
+
+} xe_pal_t;
+
+
+xe_pal_ref xe_pal_create(xe_pal_options_t options) {
+  xe_pal_ref pal = (xe_pal_ref)xe_calloc(sizeof(xe_pal_t));
+  xe_ref_init((xe_ref)pal);
+
+  //
+
+  return pal;
 }
-XE_MAIN_THUNK(xenia_run);
+
+void xe_pal_dealloc(xe_pal_ref pal) {
+  //
+}
+
+xe_pal_ref xe_pal_retain(xe_pal_ref pal) {
+  xe_ref_retain((xe_ref)pal);
+  return pal;
+}
+
+void xe_pal_release(xe_pal_ref pal) {
+  xe_ref_release((xe_ref)pal, (xe_ref_dealloc_t)xe_pal_dealloc);
+}

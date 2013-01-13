@@ -115,10 +115,21 @@ def has_bin(bin):
       'which %s' % (bin), shell=True, stdout=DEVNULL) == 0 else False
 
 
-def shell_call(command):
+def shell_call(command, throw_on_error=True):
   """Executes a shell command.
+
+  Args:
+    command: Command to execute.
+    throw_on_error: Whether to throw an error or return the status code.
+
+  Returns:
+    If throw_on_error is False the status code of the call will be returned.
   """
-  subprocess.check_call(command, shell=True)
+  if throw_on_error:
+    subprocess.check_call(command, shell=True)
+    return 0
+  else:
+    return subprocess.call(command, shell=True)
 
 
 class Command(object):
@@ -358,8 +369,11 @@ class BuildCommand(Command):
     print ''
 
     print '- building xenia in %s...' % (config)
-    shell_call('third_party/ninja/ninja -C build/xenia/%s' % (config))
+    result = shell_call('third_party/ninja/ninja -C build/xenia/%s' % (config),
+                        throw_on_error=False)
     print ''
+    if result != 0:
+      return result
 
     print 'Success!'
     return 0

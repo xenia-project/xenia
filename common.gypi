@@ -21,6 +21,15 @@
       'include/',
     ],
 
+    'defines': [
+      '__STDC_LIMIT_MACROS=1',
+      '__STDC_CONSTANT_MACROS=1',
+      '_ISOC99_SOURCE=1',
+    ],
+    'cflags': [
+      '-std=c99',
+    ],
+
     'configurations': {
       'debug': {
         'defines': [

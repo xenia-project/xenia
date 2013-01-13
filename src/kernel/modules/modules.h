@@ -7,12 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#ifndef XENIA_KERNEL_MODULES_H_
+#define XENIA_KERNEL_MODULES_H_
 
+#include "kernel/modules/xam/xam.h"
+#include "kernel/modules/xbdm/xbdm.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl.h"
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
-}
-XE_MAIN_THUNK(xenia_run);
+#endif  // XENIA_KERNEL_MODULES_H_

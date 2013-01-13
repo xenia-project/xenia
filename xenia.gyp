@@ -15,47 +15,117 @@
         'include_dirs': [
           'include/',
         ],
-        'link_settings': {
-          'libraries': [
-            '<!@(<(llvm_config) --ldflags)',
-            '<!@(<(llvm_config) --libs core)',
-          ],
-          'library_dirs': [
-            # NOTE: this doesn't actually do anything...
-            # http://code.google.com/p/gyp/issues/detail?id=130
-            '<!@(<(llvm_config) --libdir)',
-          ],
-        },
-        'linkflags': [
-        ],
-        'libraries': [
-          #'!@(pkg-config --libs-only-l apr-1)',
-        ],
+      },
 
-        'xcode_settings': {
-          'OTHER_LDFLAGS': [
-            '<!@(<(llvm_config) --ldflags)',
-            '<!@(<(llvm_config) --libs core)',
-          ],
-        }
+      'include_dirs': [
+        '.',
+        'src/',
+      ],
+
+      'includes': [
+        'src/xenia/sources.gypi',
+        'src/core/sources.gypi',
+      ],
+    },
+
+    {
+      'target_name': 'xeniakernel',
+      'product_name': 'xeniakernel',
+      'type': 'static_library',
+
+      'dependencies': [
+        'xeniacore',
+      ],
+
+      'export_dependent_settings': [
+        'xeniacore',
+      ],
+
+      'include_dirs': [
+        '.',
+        'src/',
+      ],
+
+      'includes': [
+        'src/kernel/sources.gypi',
+      ],
+    },
+
+    {
+      'target_name': 'xeniacpu',
+      'product_name': 'xeniacpu',
+      'type': 'static_library',
+
+      'dependencies': [
+        'xeniacore',
+      ],
+
+      'export_dependent_settings': [
+        'xeniacore',
+      ],
+
+      'direct_dependent_settings': {
+        'target_conditions': [
+          ['_type=="shared_library"', {
+            'cflags': [
+              '<!@(<(llvm_config) --cxxflags)'
+            ],
+          }],
+          ['_type=="executable"', {
+            'libraries': [
+              '<!@(<(llvm_config) --ldflags)',
+              '<!@(<(llvm_config) --libs core)',
+            ],
+            'library_dirs': [
+              # NOTE: this doesn't actually do anything...
+              # http://code.google.com/p/gyp/issues/detail?id=130
+              '<!@(<(llvm_config) --libdir)',
+            ],
+            'xcode_settings': {
+              'OTHER_LDFLAGS': [
+                '<!@(<(llvm_config) --ldflags)',
+                '<!@(<(llvm_config) --libs core)',
+              ],
+            },
+          }],
+        ],
       },
 
       'cflags': [
         '<!@(<(llvm_config) --cxxflags)'
       ],
 
-      'defines': [
-        '__STDC_LIMIT_MACROS=1',
-        '__STDC_CONSTANT_MACROS=1',
-      ],
-
       'include_dirs': [
         '.',
+        'src/',
         '<!@(<(llvm_config) --includedir)',
       ],
 
       'includes': [
-        'src/core/sources.gypi',
+        'src/cpu/sources.gypi',
+      ],
+    },
+
+    {
+      'target_name': 'xeniagpu',
+      'product_name': 'xeniagpu',
+      'type': 'static_library',
+
+      'dependencies': [
+        'xeniacore',
+      ],
+
+      'export_dependent_settings': [
+        'xeniacore',
+      ],
+
+      'include_dirs': [
+        '.',
+        'src/',
+      ],
+
+      'includes': [
+        'src/gpu/sources.gypi',
       ],
     },
   ],

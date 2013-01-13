@@ -7,12 +7,23 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#ifndef XENIA_CORE_REF_H_
+#define XENIA_CORE_REF_H_
+
+#include <xenia/common.h>
 
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
-}
-XE_MAIN_THUNK(xenia_run);
+typedef struct {
+  volatile int32_t count;
+} xe_ref_t;
+typedef xe_ref_t* xe_ref;
+
+typedef void (*xe_ref_dealloc_t)(xe_ref);
+
+
+void xe_ref_init(xe_ref ref);
+void xe_ref_retain(xe_ref ref);
+void xe_ref_release(xe_ref ref, xe_ref_dealloc_t dealloc);
+
+
+#endif  // XENIA_CORE_REF_H_

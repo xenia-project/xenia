@@ -7,12 +7,25 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#include <xenia/core/ref.h>
 
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
+void xe_ref_init(xe_ref_t* ref) {
+  ref->count = 1;
 }
-XE_MAIN_THUNK(xenia_run);
+
+void xe_ref_retain(xe_ref_t* ref) {
+  xe_atomic_inc_32(&ref->count);
+}
+
+void xe_ref_release(xe_ref_t* ref, xe_ref_dealloc_t dealloc) {
+  if (!ref) {
+    return;
+  }
+  if (!xe_atomic_dec_32(&ref->count)) {
+    if (dealloc) {
+      dealloc(ref);
+    }
+    xe_free(ref);
+  }
+}

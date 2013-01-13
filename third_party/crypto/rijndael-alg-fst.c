@@ -1295,7 +1295,7 @@ void rijndaelEncryptRound(const u32 rk[/*4*(Nr + 1)*/], int Nr, u8 block[16], in
     		(Te4[(s1 >>  8) & 0xff] & 0x0000ff00) ^
     		(Te4[(s2      ) & 0xff] & 0x000000ff) ^
     		rk[3];
-		
+
 		s0 = t0;
 		s1 = t1;
 		s2 = t2;

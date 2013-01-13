@@ -7,12 +7,18 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#ifndef XENIA_COMMON_H_
+#define XENIA_COMMON_H_
 
+#include <xenia/assert.h>
+#include <xenia/atomic.h>
+#include <xenia/byte_order.h>
+#include <xenia/config.h>
+#include <xenia/logging.h>
+#include <xenia/malloc.h>
+#include <xenia/platform.h>
+#include <xenia/platform_includes.h>
+#include <xenia/string.h>
+#include <xenia/types.h>
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
-}
-XE_MAIN_THUNK(xenia_run);
+#endif  // XENIA_COMMON_H_

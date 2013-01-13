@@ -23,58 +23,58 @@
 #define IMAGE_NT_SIGNATURE                  0x00004550  /* PE00 */
 
 typedef struct _IMAGE_DOS_HEADER {      /* DOS .EXE header */
-    uint16   e_magic;                     /* Magic number */
-    uint16   e_cblp;                      /* Bytes on last page of file */
-    uint16   e_cp;                        /* Pages in file */
-    uint16   e_crlc;                      /* Relocations */
-    uint16   e_cparhdr;                   /* Size of header in paragraphs */
-    uint16   e_minalloc;                  /* Minimum extra paragraphs needed */
-    uint16   e_maxalloc;                  /* Maximum extra paragraphs needed */
-    uint16   e_ss;                        /* Initial (relative) SS value */
-    uint16   e_sp;                        /* Initial SP value */
-    uint16   e_csum;                      /* Checksum */
-    uint16   e_ip;                        /* Initial IP value */
-    uint16   e_cs;                        /* Initial (relative) CS value */
-    uint16   e_lfarlc;                    /* File address of relocation table */
-    uint16   e_ovno;                      /* Overlay number */
-    uint16   e_res[4];                    /* Reserved words */
-    uint16   e_oemid;                     /* OEM identifier (for e_oeminfo) */
-    uint16   e_oeminfo;                   /* OEM information; e_oemid specific */
-    uint16   e_res2[10];                  /* Reserved words */
-    int32   e_lfanew;                    /* File address of new exe header */
+    uint16_t   e_magic;                     /* Magic number */
+    uint16_t   e_cblp;                      /* Bytes on last page of file */
+    uint16_t   e_cp;                        /* Pages in file */
+    uint16_t   e_crlc;                      /* Relocations */
+    uint16_t   e_cparhdr;                   /* Size of header in paragraphs */
+    uint16_t   e_minalloc;                  /* Minimum extra paragraphs needed */
+    uint16_t   e_maxalloc;                  /* Maximum extra paragraphs needed */
+    uint16_t   e_ss;                        /* Initial (relative) SS value */
+    uint16_t   e_sp;                        /* Initial SP value */
+    uint16_t   e_csum;                      /* Checksum */
+    uint16_t   e_ip;                        /* Initial IP value */
+    uint16_t   e_cs;                        /* Initial (relative) CS value */
+    uint16_t   e_lfarlc;                    /* File address of relocation table */
+    uint16_t   e_ovno;                      /* Overlay number */
+    uint16_t   e_res[4];                    /* Reserved words */
+    uint16_t   e_oemid;                     /* OEM identifier (for e_oeminfo) */
+    uint16_t   e_oeminfo;                   /* OEM information; e_oemid specific */
+    uint16_t   e_res2[10];                  /* Reserved words */
+    int32_t   e_lfanew;                    /* File address of new exe header */
   } IMAGE_DOS_HEADER, *PIMAGE_DOS_HEADER;
 
 typedef struct _IMAGE_OS2_HEADER {      /* OS/2 .EXE header */
-    uint16   ne_magic;                    /* Magic number */
-    int8    ne_ver;                      /* Version number */
-    int8    ne_rev;                      /* Revision number */
-    uint16   ne_enttab;                   /* Offset of Entry Table */
-    uint16   ne_cbenttab;                 /* Number of bytes in Entry Table */
-    int32   ne_crc;                      /* Checksum of whole file */
-    uint16   ne_flags;                    /* Flag word */
-    uint16   ne_autodata;                 /* Automatic data segment number */
-    uint16   ne_heap;                     /* Initial heap allocation */
-    uint16   ne_stack;                    /* Initial stack allocation */
-    int32   ne_csip;                     /* Initial CS:IP setting */
-    int32   ne_sssp;                     /* Initial SS:SP setting */
-    uint16   ne_cseg;                     /* Count of file segments */
-    uint16   ne_cmod;                     /* Entries in Module Reference Table */
-    uint16   ne_cbnrestab;                /* Size of non-resident name table */
-    uint16   ne_segtab;                   /* Offset of Segment Table */
-    uint16   ne_rsrctab;                  /* Offset of Resource Table */
-    uint16   ne_restab;                   /* Offset of resident name table */
-    uint16   ne_modtab;                   /* Offset of Module Reference Table */
-    uint16   ne_imptab;                   /* Offset of Imported Names Table */
-    int32   ne_nrestab;                  /* Offset of Non-resident Names Table */
-    uint16   ne_cmovent;                  /* Count of movable entries */
-    uint16   ne_align;                    /* Segment alignment shift count */
-    uint16   ne_cres;                     /* Count of resource segments */
-    uint8   ne_exetyp;                   /* Target Operating system */
-    uint8   ne_flagsothers;              /* Other .EXE flags */
-    uint16   ne_pretthunks;               /* offset to return thunks */
-    uint16   ne_psegrefbytes;             /* offset to segment ref. bytes */
-    uint16   ne_swaparea;                 /* Minimum code swap area size */
-    uint16   ne_expver;                   /* Expected Windows version number */
+    uint16_t   ne_magic;                    /* Magic number */
+    int8_t    ne_ver;                      /* Version number */
+    int8_t    ne_rev;                      /* Revision number */
+    uint16_t   ne_enttab;                   /* Offset of Entry Table */
+    uint16_t   ne_cbenttab;                 /* Number of bytes in Entry Table */
+    int32_t   ne_crc;                      /* Checksum of whole file */
+    uint16_t   ne_flags;                    /* Flag word */
+    uint16_t   ne_autodata;                 /* Automatic data segment number */
+    uint16_t   ne_heap;                     /* Initial heap allocation */
+    uint16_t   ne_stack;                    /* Initial stack allocation */
+    int32_t   ne_csip;                     /* Initial CS:IP setting */
+    int32_t   ne_sssp;                     /* Initial SS:SP setting */
+    uint16_t   ne_cseg;                     /* Count of file segments */
+    uint16_t   ne_cmod;                     /* Entries in Module Reference Table */
+    uint16_t   ne_cbnrestab;                /* Size of non-resident name table */
+    uint16_t   ne_segtab;                   /* Offset of Segment Table */
+    uint16_t   ne_rsrctab;                  /* Offset of Resource Table */
+    uint16_t   ne_restab;                   /* Offset of resident name table */
+    uint16_t   ne_modtab;                   /* Offset of Module Reference Table */
+    uint16_t   ne_imptab;                   /* Offset of Imported Names Table */
+    int32_t   ne_nrestab;                  /* Offset of Non-resident Names Table */
+    uint16_t   ne_cmovent;                  /* Count of movable entries */
+    uint16_t   ne_align;                    /* Segment alignment shift count */
+    uint16_t   ne_cres;                     /* Count of resource segments */
+    uint8_t   ne_exetyp;                   /* Target Operating system */
+    uint8_t   ne_flagsothers;              /* Other .EXE flags */
+    uint16_t   ne_pretthunks;               /* offset to return thunks */
+    uint16_t   ne_psegrefbytes;             /* offset to segment ref. bytes */
+    uint16_t   ne_swaparea;                 /* Minimum code swap area size */
+    uint16_t   ne_expver;                   /* Expected Windows version number */
   } IMAGE_OS2_HEADER, *PIMAGE_OS2_HEADER;
 
 /*
@@ -82,13 +82,13 @@ typedef struct _IMAGE_OS2_HEADER {      /* OS/2 .EXE header */
  */
 
 typedef struct _IMAGE_FILE_HEADER {
-    uint16    Machine;
-    uint16    NumberOfSections;
-    uint32   TimeDateStamp;
-    uint32   PointerToSymbolTable;
-    uint32   NumberOfSymbols;
-    uint16    SizeOfOptionalHeader;
-    uint16    Characteristics;
+    uint16_t    Machine;
+    uint16_t    NumberOfSections;
+    uint32_t   TimeDateStamp;
+    uint32_t   PointerToSymbolTable;
+    uint32_t   NumberOfSymbols;
+    uint16_t    SizeOfOptionalHeader;
+    uint16_t    Characteristics;
 } IMAGE_FILE_HEADER, *PIMAGE_FILE_HEADER;
 
 #define IMAGE_SIZEOF_FILE_HEADER             20
@@ -135,8 +135,8 @@ typedef struct _IMAGE_FILE_HEADER {
  */
 
 typedef struct _IMAGE_DATA_DIRECTORY {
-    uint32   VirtualAddress;
-    uint32   Size;
+    uint32_t   VirtualAddress;
+    uint32_t   Size;
 } IMAGE_DATA_DIRECTORY, *PIMAGE_DATA_DIRECTORY;
 
 #define IMAGE_NUMBEROF_DIRECTORY_ENTRIES    16
@@ -150,41 +150,41 @@ typedef struct _IMAGE_OPTIONAL_HEADER {
      * Standard fields.
      */
 
-    uint16    Magic;
-    uint8    MajorLinkerVersion;
-    uint8    MinorLinkerVersion;
-    uint32   SizeOfCode;
-    uint32   SizeOfInitializedData;
-    uint32   SizeOfUninitializedData;
-    uint32   AddressOfEntryPoint;
-    uint32   BaseOfCode;
-    uint32   BaseOfData;
+    uint16_t    Magic;
+    uint8_t    MajorLinkerVersion;
+    uint8_t    MinorLinkerVersion;
+    uint32_t   SizeOfCode;
+    uint32_t   SizeOfInitializedData;
+    uint32_t   SizeOfUninitializedData;
+    uint32_t   AddressOfEntryPoint;
+    uint32_t   BaseOfCode;
+    uint32_t   BaseOfData;
 
     /*
      * NT additional fields.
      */
 
-    uint32   ImageBase;
-    uint32   SectionAlignment;
-    uint32   FileAlignment;
-    uint16    MajorOperatingSystemVersion;
-    uint16    MinorOperatingSystemVersion;
-    uint16    MajorImageVersion;
-    uint16    MinorImageVersion;
-    uint16    MajorSubsystemVersion;
-    uint16    MinorSubsystemVersion;
-    uint32   Reserved1;
-    uint32   SizeOfImage;
-    uint32   SizeOfHeaders;
-    uint32   CheckSum;
-    uint16    Subsystem;
-    uint16    DllCharacteristics;
-    uint32   SizeOfStackReserve;
-    uint32   SizeOfStackCommit;
-    uint32   SizeOfHeapReserve;
-    uint32   SizeOfHeapCommit;
-    uint32   LoaderFlags;
-    uint32   NumberOfRvaAndSizes;
+    uint32_t   ImageBase;
+    uint32_t   SectionAlignment;
+    uint32_t   FileAlignment;
+    uint16_t    MajorOperatingSystemVersion;
+    uint16_t    MinorOperatingSystemVersion;
+    uint16_t    MajorImageVersion;
+    uint16_t    MinorImageVersion;
+    uint16_t    MajorSubsystemVersion;
+    uint16_t    MinorSubsystemVersion;
+    uint32_t   Reserved1;
+    uint32_t   SizeOfImage;
+    uint32_t   SizeOfHeaders;
+    uint32_t   CheckSum;
+    uint16_t    Subsystem;
+    uint16_t    DllCharacteristics;
+    uint32_t   SizeOfStackReserve;
+    uint32_t   SizeOfStackCommit;
+    uint32_t   SizeOfHeapReserve;
+    uint32_t   SizeOfHeapCommit;
+    uint32_t   LoaderFlags;
+    uint32_t   NumberOfRvaAndSizes;
     IMAGE_DATA_DIRECTORY DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
 } IMAGE_OPTIONAL_HEADER, *PIMAGE_OPTIONAL_HEADER;
 
@@ -202,7 +202,7 @@ typedef IMAGE_OPTIONAL_HEADER IMAGE_OPTIONAL_HEADER32;
 #endif
 
 typedef struct _IMAGE_NT_HEADERS {
-    uint32 Signature;
+    uint32_t Signature;
     IMAGE_FILE_HEADER FileHeader;
     IMAGE_OPTIONAL_HEADER OptionalHeader;
 } IMAGE_NT_HEADERS, *PIMAGE_NT_HEADERS;
@@ -210,7 +210,7 @@ typedef struct _IMAGE_NT_HEADERS {
 typedef IMAGE_NT_HEADERS IMAGE_NT_HEADERS32;
 
 #define IMAGE_FIRST_SECTION( ntheader ) ((PIMAGE_SECTION_HEADER)        \
-    ((byte*)ntheader +                                                  \
+    ((uint8_t*)ntheader +                                               \
      offsetof( IMAGE_NT_HEADERS, OptionalHeader ) +                     \
      ((PIMAGE_NT_HEADERS)(ntheader))->FileHeader.SizeOfOptionalHeader   \
     ))
@@ -267,19 +267,19 @@ typedef IMAGE_NT_HEADERS IMAGE_NT_HEADERS32;
 #define IMAGE_SIZEOF_SHORT_NAME              8
 
 typedef struct _IMAGE_SECTION_HEADER {
-    uint8    Name[IMAGE_SIZEOF_SHORT_NAME];
+    uint8_t    Name[IMAGE_SIZEOF_SHORT_NAME];
     union {
-            uint32   PhysicalAddress;
-            uint32   VirtualSize;
+            uint32_t   PhysicalAddress;
+            uint32_t   VirtualSize;
     } Misc;
-    uint32   VirtualAddress;
-    uint32   SizeOfRawData;
-    uint32   PointerToRawData;
-    uint32   PointerToRelocations;
-    uint32   PointerToLinenumbers;
-    uint16    NumberOfRelocations;
-    uint16    NumberOfLinenumbers;
-    uint32   Characteristics;
+    uint32_t   VirtualAddress;
+    uint32_t   SizeOfRawData;
+    uint32_t   PointerToRawData;
+    uint32_t   PointerToRelocations;
+    uint32_t   PointerToLinenumbers;
+    uint16_t    NumberOfRelocations;
+    uint16_t    NumberOfLinenumbers;
+    uint32_t   Characteristics;
 } IMAGE_SECTION_HEADER, *PIMAGE_SECTION_HEADER;
 
 #define IMAGE_SIZEOF_SECTION_HEADER          40
@@ -301,13 +301,13 @@ typedef struct _IMAGE_SECTION_HEADER {
 #define IMAGE_SCN_LNK_REMOVE                 0x00000800  /* Section contents will not become part of image. */
 #define IMAGE_SCN_LNK_COMDAT                 0x00001000  /* Section contents comdat. */
 
-#define IMAGE_SCN_ALIGN_1BYTES               0x00100000  
-#define IMAGE_SCN_ALIGN_2BYTES               0x00200000  
-#define IMAGE_SCN_ALIGN_4BYTES               0x00300000  
-#define IMAGE_SCN_ALIGN_8BYTES               0x00400000  
+#define IMAGE_SCN_ALIGN_1BYTES               0x00100000
+#define IMAGE_SCN_ALIGN_2BYTES               0x00200000
+#define IMAGE_SCN_ALIGN_4BYTES               0x00300000
+#define IMAGE_SCN_ALIGN_8BYTES               0x00400000
 #define IMAGE_SCN_ALIGN_16BYTES              0x00500000  /* Default alignment if no others are specified. */
-#define IMAGE_SCN_ALIGN_32BYTES              0x00600000  
-#define IMAGE_SCN_ALIGN_64BYTES              0x00700000  
+#define IMAGE_SCN_ALIGN_32BYTES              0x00600000
+#define IMAGE_SCN_ALIGN_64BYTES              0x00700000
 
 #define IMAGE_SCN_MEM_DISCARDABLE            0x02000000  /* Section can be discarded. */
 #define IMAGE_SCN_MEM_NOT_CACHED             0x04000000  /* Section is not cachable. */
@@ -323,18 +323,18 @@ typedef struct _IMAGE_SECTION_HEADER {
 
 typedef struct _IMAGE_SYMBOL {
     union {
-        uint8    ShortName[8];
+        uint8_t    ShortName[8];
         struct {
-            uint32   Short;     /* if 0, use LongName */
-            uint32   Long;      /* offset into string table */
+            uint32_t   Short;     /* if 0, use LongName */
+            uint32_t   Long;      /* offset into string table */
         } Name;
-        uint8*   LongName[2];
+        uint8_t*   LongName[2];
     } N;
-    uint32    Value;
-    int16     SectionNumber;
-    uint16    Type;
-    uint8     StorageClass;
-    uint8     NumberOfAuxSymbols;
+    uint32_t    Value;
+    int16_t     SectionNumber;
+    uint16_t    Type;
+    uint8_t     StorageClass;
+    uint8_t     NumberOfAuxSymbols;
 } IMAGE_SYMBOL;
 typedef IMAGE_SYMBOL UNALIGNED *PIMAGE_SYMBOL;
 
@@ -359,18 +359,18 @@ typedef IMAGE_SYMBOL UNALIGNED *PIMAGE_SYMBOL;
 #define IMAGE_SYM_TYPE_VOID                  1
 #define IMAGE_SYM_TYPE_CHAR                  2           /* type character. */
 #define IMAGE_SYM_TYPE_SHORT                 3           /* type short integer. */
-#define IMAGE_SYM_TYPE_INT                   4           
-#define IMAGE_SYM_TYPE_LONG                  5           
-#define IMAGE_SYM_TYPE_FLOAT                 6           
-#define IMAGE_SYM_TYPE_DOUBLE                7           
-#define IMAGE_SYM_TYPE_STRUCT                8           
-#define IMAGE_SYM_TYPE_UNION                 9           
+#define IMAGE_SYM_TYPE_INT                   4
+#define IMAGE_SYM_TYPE_LONG                  5
+#define IMAGE_SYM_TYPE_FLOAT                 6
+#define IMAGE_SYM_TYPE_DOUBLE                7
+#define IMAGE_SYM_TYPE_STRUCT                8
+#define IMAGE_SYM_TYPE_UNION                 9
 #define IMAGE_SYM_TYPE_ENUM                  10          /* enumeration. */
 #define IMAGE_SYM_TYPE_MOE                   11          /* member of enumeration. */
-#define IMAGE_SYM_TYPE_UCHAR                 12          
-#define IMAGE_SYM_TYPE_USHORT                13          
-#define IMAGE_SYM_TYPE_UINT                  14          
-#define IMAGE_SYM_TYPE_ULONG                 15          
+#define IMAGE_SYM_TYPE_UCHAR                 12
+#define IMAGE_SYM_TYPE_USHORT                13
+#define IMAGE_SYM_TYPE_UINT                  14
+#define IMAGE_SYM_TYPE_ULONG                 15
 
 /*
  * Type (derived) values.
@@ -385,7 +385,7 @@ typedef IMAGE_SYMBOL UNALIGNED *PIMAGE_SYMBOL;
  * Storage classes.
  */
 
-#define IMAGE_SYM_CLASS_END_OF_FUNCTION      (uint8 )-1
+#define IMAGE_SYM_CLASS_END_OF_FUNCTION      (uint8_t )-1
 #define IMAGE_SYM_CLASS_NULL                 0
 #define IMAGE_SYM_CLASS_AUTOMATIC            1
 #define IMAGE_SYM_CLASS_EXTERNAL             2
@@ -460,35 +460,35 @@ typedef IMAGE_SYMBOL UNALIGNED *PIMAGE_SYMBOL;
 
 typedef union _IMAGE_AUX_SYMBOL {
     struct {
-        uint32    TagIndex;                      /* struct, union, or enum tag index */
+        uint32_t    TagIndex;                      /* struct, union, or enum tag index */
         union {
             struct {
-                uint16    Linenumber;             /* declaration line number */
-                uint16    Size;                   /* size of struct, union, or enum */
+                uint16_t    Linenumber;             /* declaration line number */
+                uint16_t    Size;                   /* size of struct, union, or enum */
             } LnSz;
-           uint32    TotalSize;
+           uint32_t    TotalSize;
         } Misc;
         union {
             struct {                            /* if ISFCN, tag, or .bb */
-                uint32    PointerToLinenumber;
-                uint32    PointerToNextFunction;
+                uint32_t    PointerToLinenumber;
+                uint32_t    PointerToNextFunction;
             } Function;
             struct {                            /* if ISARY, up to 4 dimen. */
-                uint16     Dimension[4];
+                uint16_t     Dimension[4];
             } Array;
         } FcnAry;
-        uint16    TvIndex;                        /* tv index */
+        uint16_t    TvIndex;                        /* tv index */
     } Sym;
     struct {
-        uint8    Name[IMAGE_SIZEOF_SYMBOL];
+        uint8_t    Name[IMAGE_SIZEOF_SYMBOL];
     } File;
     struct {
-        uint32   Length;                         /* section length */
-        uint16    NumberOfRelocations;            /* number of relocation entries */
-        uint16    NumberOfLinenumbers;            /* number of line numbers */
-        uint32   CheckSum;                       /* checksum for communal */
-        int16    Number;                         /* section number to associate with */
-        uint8    Selection;                      /* communal selection type */
+        uint32_t   Length;                         /* section length */
+        uint16_t    NumberOfRelocations;            /* number of relocation entries */
+        uint16_t    NumberOfLinenumbers;            /* number of line numbers */
+        uint32_t   CheckSum;                       /* checksum for communal */
+        int16_t    Number;                         /* section number to associate with */
+        uint8_t    Selection;                      /* communal selection type */
     } Section;
 } IMAGE_AUX_SYMBOL;
 typedef IMAGE_AUX_SYMBOL UNALIGNED *PIMAGE_AUX_SYMBOL;
@@ -516,9 +516,9 @@ typedef IMAGE_AUX_SYMBOL UNALIGNED *PIMAGE_AUX_SYMBOL;
  */
 
 typedef struct _IMAGE_RELOCATION {
-    uint32   VirtualAddress;
-    uint32   SymbolTableIndex;
-    uint16    Type;
+    uint32_t   VirtualAddress;
+    uint32_t   SymbolTableIndex;
+    uint16_t    Type;
 } IMAGE_RELOCATION;
 typedef IMAGE_RELOCATION UNALIGNED *PIMAGE_RELOCATION;
 
@@ -604,9 +604,9 @@ typedef IMAGE_RELOCATION UNALIGNED *PIMAGE_RELOCATION;
  */
 
 typedef struct _IMAGE_BASE_RELOCATION {
-    uint32   VirtualAddress;
-    uint32   SizeOfBlock;
-/*  uint16    TypeOffset[1]; */
+    uint32_t   VirtualAddress;
+    uint32_t   SizeOfBlock;
+/*  uint16_t    TypeOffset[1]; */
 } IMAGE_BASE_RELOCATION, *PIMAGE_BASE_RELOCATION;
 
 #define IMAGE_SIZEOF_BASE_RELOCATION         8
@@ -630,10 +630,10 @@ typedef struct _IMAGE_BASE_RELOCATION {
 
 typedef struct _IMAGE_LINENUMBER {
     union {
-        uint32   SymbolTableIndex;                       /* Symbol table index of function name if Linenumber is 0. */
-        uint32   VirtualAddress;                         /* Virtual address of line number. */
+        uint32_t   SymbolTableIndex;                       /* Symbol table index of function name if Linenumber is 0. */
+        uint32_t   VirtualAddress;                         /* Virtual address of line number. */
     } Type;
-    uint16    Linenumber;                                 /* Line number. */
+    uint16_t    Linenumber;                                 /* Line number. */
 } IMAGE_LINENUMBER;
 typedef IMAGE_LINENUMBER UNALIGNED *PIMAGE_LINENUMBER;
 
@@ -648,16 +648,16 @@ typedef IMAGE_LINENUMBER UNALIGNED *PIMAGE_LINENUMBER;
 #define IMAGE_ARCHIVE_END                    "`\n"
 #define IMAGE_ARCHIVE_PAD                    "\n"
 #define IMAGE_ARCHIVE_LINKER_MEMBER          "/               "
-#define IMAGE_ARCHIVE_LONGNAMES_MEMBER       "//              " 
+#define IMAGE_ARCHIVE_LONGNAMES_MEMBER       "//              "
 
 typedef struct _IMAGE_ARCHIVE_MEMBER_HEADER {
-    uint8     Name[16];                                  /* File member name - `/' terminated. */
-    uint8     Date[12];                                  /* File member date - decimal. */
-    uint8     UserID[6];                                 /* File member user id - decimal. */
-    uint8     GroupID[6];                                /* File member group id - decimal. */
-    uint8     Mode[8];                                   /* File member mode - octal. */
-    uint8     Size[10];                                  /* File member size - decimal. */
-    uint8     EndHeader[2];                              /* String to end header. */
+    uint8_t     Name[16];                                  /* File member name - `/' terminated. */
+    uint8_t     Date[12];                                  /* File member date - decimal. */
+    uint8_t     UserID[6];                                 /* File member user id - decimal. */
+    uint8_t     GroupID[6];                                /* File member group id - decimal. */
+    uint8_t     Mode[8];                                   /* File member mode - octal. */
+    uint8_t     Size[10];                                  /* File member size - decimal. */
+    uint8_t     EndHeader[2];                              /* String to end header. */
 } IMAGE_ARCHIVE_MEMBER_HEADER, *PIMAGE_ARCHIVE_MEMBER_HEADER;
 
 #define IMAGE_SIZEOF_ARCHIVE_MEMBER_HDR      60
@@ -671,17 +671,17 @@ typedef struct _IMAGE_ARCHIVE_MEMBER_HEADER {
  */
 
 typedef struct _IMAGE_EXPORT_DIRECTORY {
-    uint32   Characteristics;
-    uint32   TimeDateStamp;
-    uint16   MajorVersion;
-    uint16   MinorVersion;
-    uint32   Name;
-    uint32   Base;
-    uint32   NumberOfFunctions;
-    uint32   NumberOfNames;
-    uint32   **AddressOfFunctions;
-    uint32   **AddressOfNames;
-    uint16   **AddressOfNameOrdinals;
+    uint32_t   Characteristics;
+    uint32_t   TimeDateStamp;
+    uint16_t   MajorVersion;
+    uint16_t   MinorVersion;
+    uint32_t   Name;
+    uint32_t   Base;
+    uint32_t   NumberOfFunctions;
+    uint32_t   NumberOfNames;
+    uint32_t   **AddressOfFunctions;
+    uint32_t   **AddressOfNames;
+    uint16_t   **AddressOfNameOrdinals;
 } IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
 
 /*
@@ -689,14 +689,14 @@ typedef struct _IMAGE_EXPORT_DIRECTORY {
  */
 
 typedef struct _IMAGE_IMPORT_BY_NAME {
-    uint16    Hint;
-    uint8    Name[1];
+    uint16_t    Hint;
+    uint8_t    Name[1];
 } IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
 
 typedef struct _IMAGE_THUNK_DATA {
     union {
-        uint32 *Function;
-        uint32 Ordinal;
+        uint32_t *Function;
+        uint32_t Ordinal;
         PIMAGE_IMPORT_BY_NAME AddressOfData;
     } u1;
 } IMAGE_THUNK_DATA, *PIMAGE_THUNK_DATA;
@@ -706,10 +706,10 @@ typedef struct _IMAGE_THUNK_DATA {
 #define IMAGE_ORDINAL(Ordinal) (Ordinal & 0xffff)
 
 typedef struct _IMAGE_IMPORT_DESCRIPTOR {
-    uint32   Characteristics;
-    uint32   TimeDateStamp;
-    uint32   ForwarderChain;
-    uint32   Name;
+    uint32_t   Characteristics;
+    uint32_t   TimeDateStamp;
+    uint32_t   ForwarderChain;
+    uint32_t   Name;
     PIMAGE_THUNK_DATA FirstThunk;
 } IMAGE_IMPORT_DESCRIPTOR, *PIMAGE_IMPORT_DESCRIPTOR;
 
@@ -719,17 +719,17 @@ typedef struct _IMAGE_IMPORT_DESCRIPTOR {
 
 typedef void (*PIMAGE_TLS_CALLBACK) (
     void* DllHandle,
-    uint32 Reason,
+    uint32_t Reason,
     void* Reserved
     );
 
 typedef struct _IMAGE_TLS_DIRECTORY {
-    uint32   StartAddressOfRawData;
-    uint32   EndAddressOfRawData;
-    uint32   *AddressOfIndex;
+    uint32_t   StartAddressOfRawData;
+    uint32_t   EndAddressOfRawData;
+    uint32_t   *AddressOfIndex;
     PIMAGE_TLS_CALLBACK *AddressOfCallBacks;
-    uint32   SizeOfZeroFill;
-    uint32   Characteristics;
+    uint32_t   SizeOfZeroFill;
+    uint32_t   Characteristics;
 } IMAGE_TLS_DIRECTORY, *PIMAGE_TLS_DIRECTORY;
 
 
@@ -752,12 +752,12 @@ typedef struct _IMAGE_TLS_DIRECTORY {
  */
 
 typedef struct _IMAGE_RESOURCE_DIRECTORY {
-    uint32   Characteristics;
-    uint32   TimeDateStamp;
-    uint16    MajorVersion;
-    uint16    MinorVersion;
-    uint16    NumberOfNamedEntries;
-    uint16    NumberOfIdEntries;
+    uint32_t   Characteristics;
+    uint32_t   TimeDateStamp;
+    uint16_t    MajorVersion;
+    uint16_t    MinorVersion;
+    uint16_t    NumberOfNamedEntries;
+    uint16_t    NumberOfIdEntries;
 /*  IMAGE_RESOURCE_DIRECTORY_ENTRY DirectoryEntries[]; */
 } IMAGE_RESOURCE_DIRECTORY, *PIMAGE_RESOURCE_DIRECTORY;
 
@@ -780,8 +780,8 @@ typedef struct _IMAGE_RESOURCE_DIRECTORY {
  */
 
 typedef struct _IMAGE_RESOURCE_DIRECTORY_ENTRY {
-    uint32   Name;
-    uint32   OffsetToData;
+    uint32_t   Name;
+    uint32_t   OffsetToData;
 } IMAGE_RESOURCE_DIRECTORY_ENTRY, *PIMAGE_RESOURCE_DIRECTORY_ENTRY;
 
 /*
@@ -794,13 +794,13 @@ typedef struct _IMAGE_RESOURCE_DIRECTORY_ENTRY {
  */
 
 typedef struct _IMAGE_RESOURCE_DIRECTORY_STRING {
-    uint16    Length;
+    uint16_t    Length;
     char    NameString[ 1 ];
 } IMAGE_RESOURCE_DIRECTORY_STRING, *PIMAGE_RESOURCE_DIRECTORY_STRING;
 
 
 typedef struct _IMAGE_RESOURCE_DIR_STRING_U {
-    uint16      Length;
+    uint16_t      Length;
     wchar_t NameString[ 1 ];
 } IMAGE_RESOURCE_DIR_STRING_U, *PIMAGE_RESOURCE_DIR_STRING_U;
 
@@ -814,10 +814,10 @@ typedef struct _IMAGE_RESOURCE_DIR_STRING_U {
  */
 
 typedef struct _IMAGE_RESOURCE_DATA_ENTRY {
-    uint32   OffsetToData;
-    uint32   Size;
-    uint32   CodePage;
-    uint32   Reserved;
+    uint32_t   OffsetToData;
+    uint32_t   Size;
+    uint32_t   CodePage;
+    uint32_t   Reserved;
 } IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;
 
 /*
@@ -825,16 +825,16 @@ typedef struct _IMAGE_RESOURCE_DATA_ENTRY {
  */
 
 typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY {
-    uint32   Characteristics;
-    uint32   TimeDateStamp;
-    uint16    MajorVersion;
-    uint16    MinorVersion;
-    uint32   GlobalFlagsClear;
-    uint32   GlobalFlagsSet;
-    uint32   CriticalSectionDefaultTimeout;
-    uint32   DeCommitFreeBlockThreshold;
-    uint32   DeCommitTotalFreeThreshold;
-    uint32   Reserved[ 8 ];
+    uint32_t   Characteristics;
+    uint32_t   TimeDateStamp;
+    uint16_t    MajorVersion;
+    uint16_t    MinorVersion;
+    uint32_t   GlobalFlagsClear;
+    uint32_t   GlobalFlagsSet;
+    uint32_t   CriticalSectionDefaultTimeout;
+    uint32_t   DeCommitFreeBlockThreshold;
+    uint32_t   DeCommitTotalFreeThreshold;
+    uint32_t   Reserved[ 8 ];
 } IMAGE_LOAD_CONFIG_DIRECTORY, *PIMAGE_LOAD_CONFIG_DIRECTORY;
 
 
@@ -846,11 +846,11 @@ typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY {
  */
 
 typedef struct _IMAGE_RUNTIME_FUNCTION_ENTRY {
-    uint32 BeginAddress;
-    uint32 EndAddress;
+    uint32_t BeginAddress;
+    uint32_t EndAddress;
     void*  ExceptionHandler;
     void*  HandlerData;
-    uint32 PrologEndAddress;
+    uint32_t PrologEndAddress;
 } IMAGE_RUNTIME_FUNCTION_ENTRY, *PIMAGE_RUNTIME_FUNCTION_ENTRY;
 
 /*
@@ -858,14 +858,14 @@ typedef struct _IMAGE_RUNTIME_FUNCTION_ENTRY {
  */
 
 typedef struct _IMAGE_DEBUG_DIRECTORY {
-    uint32   Characteristics;
-    uint32   TimeDateStamp;
-    uint16    MajorVersion;
-    uint16    MinorVersion;
-    uint32   Type;
-    uint32   SizeOfData;
-    uint32   AddressOfRawData;
-    uint32   PointerToRawData;
+    uint32_t   Characteristics;
+    uint32_t   TimeDateStamp;
+    uint16_t    MajorVersion;
+    uint16_t    MinorVersion;
+    uint32_t   Type;
+    uint32_t   SizeOfData;
+    uint32_t   AddressOfRawData;
+    uint32_t   PointerToRawData;
 } IMAGE_DEBUG_DIRECTORY, *PIMAGE_DEBUG_DIRECTORY;
 
 #define IMAGE_DEBUG_TYPE_UNKNOWN          0
@@ -879,14 +879,14 @@ typedef struct _IMAGE_DEBUG_DIRECTORY {
 #define IMAGE_DEBUG_TYPE_RESERVED7        8
 
 typedef struct _IMAGE_COFF_SYMBOLS_HEADER {
-    uint32   NumberOfSymbols;
-    uint32   LvaToFirstSymbol;
-    uint32   NumberOfLinenumbers;
-    uint32   LvaToFirstLinenumber;
-    uint32   RvaToFirstByteOfCode;
-    uint32   RvaToLastByteOfCode;
-    uint32   RvaToFirstByteOfData;
-    uint32   RvaToLastByteOfData;
+    uint32_t   NumberOfSymbols;
+    uint32_t   LvaToFirstSymbol;
+    uint32_t   NumberOfLinenumbers;
+    uint32_t   LvaToFirstLinenumber;
+    uint32_t   RvaToFirstByteOfCode;
+    uint32_t   RvaToLastByteOfCode;
+    uint32_t   RvaToFirstByteOfData;
+    uint32_t   RvaToLastByteOfData;
 } IMAGE_COFF_SYMBOLS_HEADER, *PIMAGE_COFF_SYMBOLS_HEADER;
 
 #define FRAME_FPO   0
@@ -897,16 +897,16 @@ typedef struct _IMAGE_COFF_SYMBOLS_HEADER {
 #pragma warning(disable:4214)
 #endif
 typedef struct _FPO_DATA {
-    uint32       ulOffStart;             /* offset 1st byte of function code */
-    uint32       cbProcSize;             /* # bytes in function */
-    uint32       cdwLocals;              /* # bytes in locals/4 */
-    uint16        cdwParams;              /* # bytes in params/4 */
-    uint16        cbProlog : 8;           /* # bytes in prolog */
-    uint16        cbRegs   : 3;           /* # regs saved */
-    uint16        fHasSEH  : 1;           /* TRUE if SEH in func */
-    uint16        fUseBP   : 1;           /* TRUE if EBP has been allocated */
-    uint16        reserved : 1;           /* reserved for future use */
-    uint16        cbFrame  : 2;           /* frame type */
+    uint32_t       ulOffStart;             /* offset 1st byte of function code */
+    uint32_t       cbProcSize;             /* # bytes in function */
+    uint32_t       cdwLocals;              /* # bytes in locals/4 */
+    uint16_t        cdwParams;              /* # bytes in params/4 */
+    uint16_t        cbProlog : 8;           /* # bytes in prolog */
+    uint16_t        cbRegs   : 3;           /* # regs saved */
+    uint16_t        fHasSEH  : 1;           /* TRUE if SEH in func */
+    uint16_t        fUseBP   : 1;           /* TRUE if EBP has been allocated */
+    uint16_t        reserved : 1;           /* reserved for future use */
+    uint16_t        cbFrame  : 2;           /* frame type */
 } FPO_DATA, *PFPO_DATA;
 #define SIZEOF_RFPO_DATA 16
 #ifdef _MSC_VER
@@ -916,12 +916,12 @@ typedef struct _FPO_DATA {
 #define IMAGE_DEBUG_MISC_EXENAME    1
 
 typedef struct _IMAGE_DEBUG_MISC {
-    uint32       DataType;               /* type of misc data, see defines */
-    uint32       Length;                 /* total length of record, rounded to four */
+    uint32_t       DataType;               /* type of misc data, see defines */
+    uint32_t       Length;                 /* total length of record, rounded to four */
                                         /* byte multiple. */
-    uint8        Unicode;                /* TRUE if data is unicode string */
-    uint8        Reserved[ 3 ];
-    uint8        Data[ 1 ];              /* Actual data */
+    uint8_t        Unicode;                /* TRUE if data is unicode string */
+    uint8_t        Reserved[ 3 ];
+    uint8_t        Data[ 1 ];              /* Actual data */
 } IMAGE_DEBUG_MISC, *PIMAGE_DEBUG_MISC;
 
 
@@ -946,18 +946,18 @@ typedef struct _IMAGE_DEBUG_MISC {
  */
 
 typedef struct _IMAGE_SEPARATE_DEBUG_HEADER {
-    uint16       Signature;
-    uint16       Flags;
-    uint16       Machine;
-    uint16       Characteristics;
-    uint32       TimeDateStamp;
-    uint32       CheckSum;
-    uint32       ImageBase;
-    uint32       SizeOfImage;
-    uint32       NumberOfSections;
-    uint32       ExportedNamesSize;
-    uint32       DebugDirectorySize;
-    uint32       Reserved[ 3 ];
+    uint16_t       Signature;
+    uint16_t       Flags;
+    uint16_t       Machine;
+    uint16_t       Characteristics;
+    uint32_t       TimeDateStamp;
+    uint32_t       CheckSum;
+    uint32_t       ImageBase;
+    uint32_t       SizeOfImage;
+    uint32_t       NumberOfSections;
+    uint32_t       ExportedNamesSize;
+    uint32_t       DebugDirectorySize;
+    uint32_t       Reserved[ 3 ];
 } IMAGE_SEPARATE_DEBUG_HEADER, *PIMAGE_SEPARATE_DEBUG_HEADER;
 
 #define IMAGE_SEPARATE_DEBUG_SIGNATURE 0x4944
@@ -966,21 +966,21 @@ typedef struct _IMAGE_SEPARATE_DEBUG_HEADER {
 
 
 #ifdef USES_COMPLUS20
-/* 
+/*
  * COM+ 2.0 header structure.
  */
 typedef struct IMAGE_COR20_HEADER
 {
     /* Header versioning */
-    uint32                  cb;              
-    uint16                  MajorRuntimeVersion;
-    uint16                  MinorRuntimeVersion;
-    
+    uint32_t                  cb;
+    uint16_t                  MajorRuntimeVersion;
+    uint16_t                  MinorRuntimeVersion;
+
     /* Symbol table and startup information */
-    IMAGE_DATA_DIRECTORY    MetaData;        
-    uint32                  Flags;           
-    uint32                  EntryPointToken;
-    
+    IMAGE_DATA_DIRECTORY    MetaData;
+    uint32_t                  Flags;
+    uint32_t                  EntryPointToken;
+
     /* Binding information */
     IMAGE_DATA_DIRECTORY    Resources;
     IMAGE_DATA_DIRECTORY    StrongNameSignature;
@@ -1002,7 +1002,7 @@ typedef struct IMAGE_COR20_HEADER
 
     /*@Todo: this is obsolete, being replaced by pdata in the PE header.*/
     IMAGE_DATA_DIRECTORY    IPMap;
-    
+
 } IMAGE_COR20_HEADER;
 
 #endif  /* USES_COMPLUS20 */

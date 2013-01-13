@@ -9,6 +9,46 @@
 
 #include <xenia/xenia.h>
 
-int main() {
-  return some_function(4);
+
+int xenia_info(int argc, xechar_t **argv) {
+  int result_code = 1;
+
+  xe_pal_ref pal = NULL;
+  xe_memory_ref memory = NULL;
+  xe_kernel_ref kernel = NULL;
+  xe_module_ref module = NULL;
+
+  // TODO(benvanik): real command line parsing.
+  if (argc < 2) {
+    printf("usage: xenia-info some.xex\n");
+    return 1;
+  }
+  const xechar_t *path = argv[1];
+
+  xe_pal_options_t pal_options;
+  pal = xe_pal_create(pal_options);
+  XEEXPECTNOTNULL(pal);
+
+  xe_memory_options_t memory_options;
+  memory = xe_memory_create(pal, memory_options);
+  XEEXPECTNOTNULL(memory);
+
+  xe_kernel_options_t kernel_options;
+  xe_zero_struct(&kernel_options, sizeof(kernel_options));
+  kernel = xe_kernel_create(pal, memory, kernel_options);
+  XEEXPECTNOTNULL(kernel);
+
+  module = xe_kernel_load_module(kernel, path);
+  XEEXPECTNOTNULL(module);
+
+  xe_module_dump(module);
+
+  result_code = 0;
+XECLEANUP:
+  xe_module_release(module);
+  xe_kernel_release(kernel);
+  xe_memory_release(memory);
+  xe_pal_release(pal);
+  return result_code;
 }
+XE_MAIN_THUNK(xenia_info);

@@ -7,12 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#include <xenia/gpu.h>
 
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
+void do_gpu_stuff() {
+  XELOGGPU(XT("gpu"));
 }
-XE_MAIN_THUNK(xenia_run);

@@ -7,12 +7,20 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#ifndef XENIA_KERNEL_MODULES_XBDM_TABLE_H_
+#define XENIA_KERNEL_MODULES_XBDM_TABLE_H_
+
+#include <xenia/kernel/export.h>
 
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
-}
-XE_MAIN_THUNK(xenia_run);
+#define FLAG(t)             kXEKernelExportFlag##t
+
+
+static xe_kernel_export_t xe_xbdm_export_table[] = {
+};
+
+
+#undef FLAG
+
+
+#endif  // XENIA_KERNEL_MODULES_XBDM_TABLE_H_

@@ -7,15 +7,25 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_H_
 
 #include <xenia/common.h>
-#include <xenia/cpu.h>
 #include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
 
-int some_function(int x);
+#include <xenia/kernel/export.h>
 
-#endif  // XENIA_H_
+
+struct xe_xboxkrnl;
+typedef struct xe_xboxkrnl* xe_xboxkrnl_ref;
+
+
+xe_xboxkrnl_ref xe_xboxkrnl_create(
+    xe_pal_ref pal, xe_memory_ref memory,
+    xe_kernel_export_resolver_ref export_resolver);
+
+xe_xboxkrnl_ref xe_xboxkrnl_retain(xe_xboxkrnl_ref module);
+void xe_xboxkrnl_release(xe_xboxkrnl_ref module);
+
+
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_H_

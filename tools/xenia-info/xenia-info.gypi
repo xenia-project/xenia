@@ -7,6 +7,8 @@
 
       'dependencies': [
         'xeniacore',
+        'xeniacpu',
+        'xeniakernel',
       ],
 
       'include_dirs': [

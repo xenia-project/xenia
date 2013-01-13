@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#ifndef XENIA_GPU_H_
+#define XENIA_GPU_H_
 
+#include <xenia/common.h>
+#include <xenia/core.h>
 
-int xenia_run(int argc, xechar_t **argv) {
-  do_cpu_stuff();
-  do_gpu_stuff();
-  return 0;
-}
-XE_MAIN_THUNK(xenia_run);
+void do_gpu_stuff();
+
+#endif  // XENIA_GPU_H_

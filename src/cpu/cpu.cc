@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
+#include <xenia/cpu.h>
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
@@ -16,7 +16,10 @@
 
 using namespace llvm;
 
-int some_function(int xx) {
+
+void do_cpu_stuff() {
+  XELOGCPU(XT("cpu"));
+
   LLVMContext &context = getGlobalContext();
   //IRBuilder<> builder(context);
   Module *module = new Module("my cool jit", context);
@@ -49,7 +52,8 @@ int some_function(int xx) {
 
   builder.CreateRet(tmp2);
 
+  XELOGD(XT("woo %d"), 123);
+
   module->dump();
   delete module;
-  return xx + 4;
 }
