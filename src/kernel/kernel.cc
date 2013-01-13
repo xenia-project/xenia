@@ -122,7 +122,8 @@ xe_module_ref xe_kernel_load_module(xe_kernel_ref kernel,
   }
 
   // Prepare the module.
-  XEEXPECTZERO(xe_cpu_prepare_module(kernel->cpu, module));
+  XEEXPECTZERO(xe_cpu_prepare_module(kernel->cpu, module,
+                                     kernel->export_resolver));
 
   // Stash in modules list (takes reference).
   // TODO(benvanik): stash in list.

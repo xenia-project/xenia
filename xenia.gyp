@@ -74,7 +74,7 @@
           ['_type=="executable"', {
             'libraries': [
               '<!@(<(llvm_config) --ldflags)',
-              '<!@(<(llvm_config) --libs core)',
+              '<!@(<(llvm_config) --libs all)',
             ],
             'library_dirs': [
               # NOTE: this doesn't actually do anything...
@@ -84,7 +84,7 @@
             'xcode_settings': {
               'OTHER_LDFLAGS': [
                 '<!@(<(llvm_config) --ldflags)',
-                '<!@(<(llvm_config) --libs core)',
+                '<!@(<(llvm_config) --libs all)',
               ],
             },
           }],

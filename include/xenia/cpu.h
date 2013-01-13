@@ -13,6 +13,7 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <xenia/kernel/export.h>
 #include <xenia/kernel/module.h>
 
 
@@ -33,7 +34,8 @@ void xe_cpu_release(xe_cpu_ref cpu);
 xe_pal_ref xe_cpu_get_pal(xe_cpu_ref cpu);
 xe_memory_ref xe_cpu_get_memory(xe_cpu_ref cpu);
 
-int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module);
+int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module,
+                          xe_kernel_export_resolver_ref export_resolver);
 
 int xe_cpu_execute(xe_cpu_ref cpu, uint32_t address);
 
