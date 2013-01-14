@@ -4,4 +4,8 @@
     'codegen.cc',
     'cpu.cc',
   ],
+
+  'includes': [
+    'ppc/sources.gypi',
+  ],
 }

@@ -19,6 +19,8 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
+#include <xenia/cpu/ppc.h>
+
 using namespace llvm;
 
 
@@ -54,6 +56,22 @@ llvm::Module *xe_cpu_codegen(llvm::LLVMContext& context, xe_memory_ref memory,
 
   // Add export wrappers.
   //
+
+  xe_xex2_ref xex = xe_module_get_xex(module);
+  const xe_xex2_header_t *header = xe_xex2_get_header(xex);
+  uint8_t *mem = xe_memory_addr(memory, 0);
+  uint32_t *pc = (uint32_t*)(mem + header->exe_entry_point);
+  uint32_t pcdata = XEGETUINT32BE(pc);
+  printf("data %.8X %.8X\n", header->exe_entry_point, pcdata);
+  xe_ppc_instr_type_t *instr_type = xe_ppc_get_instr_type(pcdata);
+  if (instr_type) {
+    printf("instr %.8X %s\n", header->exe_entry_point, instr_type->name);
+    xe_ppc_instr_t instr;
+    instr.data.code = pcdata;
+    printf("%d %d\n", instr.data.XFX.D, instr.data.XFX.spr);
+  } else {
+    printf("instr not found\n");
+  }
 
   Constant* c = m->getOrInsertFunction("mul_add",
   /*ret type*/                         IntegerType::get(context, 32),

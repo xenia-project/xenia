@@ -240,7 +240,7 @@ class SetupCommand(Command):
           '-G"%s"' % (generator),
           '-DCMAKE_INSTALL_PREFIX:STRING=../../../%s' % (path),
           '-DCMAKE_BUILD_TYPE:STRING=%s' % (mode),
-          '-DLLVM_TARGETS_TO_BUILD:STRING="X86"',
+          '-DLLVM_TARGETS_TO_BUILD:STRING="X86;PowerPC"',
           '-DLLVM_INCLUDE_EXAMPLES:BOOL=OFF',
           '-DLLVM_INCLUDE_TESTS:BOOL=OFF',
           '../../../third_party/llvm/',

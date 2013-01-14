@@ -29,7 +29,7 @@ xe_memory_ref xe_memory_retain(xe_memory_ref memory);
 void xe_memory_release(xe_memory_ref memory);
 
 size_t xe_memory_get_length(xe_memory_ref memory);
-void *xe_memory_addr(xe_memory_ref memory, uint32_t guest_addr);
+uint8_t *xe_memory_addr(xe_memory_ref memory, uint32_t guest_addr);
 
 
 #endif  // XENIA_CORE_MEMORY_H_

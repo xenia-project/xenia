@@ -95,6 +95,9 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #endif  // GNUC
 #endif  // !MIN
 
+#define XEBITMASK(a, b) (((unsigned) -1 >> (31 - (b))) & ~((1U << (a)) - 1))
+#define XESELECTBITS(value, a, b) ((value & XEBITMASK(a, b)) >> a)
+
 #define XEFAIL()                goto XECLEANUP
 #define XEEXPECT(expr)          if (!(expr)         ) { goto XECLEANUP; }
 #define XEEXPECTTRUE(expr)      if (!(expr)         ) { goto XECLEANUP; }
@@ -104,6 +107,23 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XEEXPECTNULL(expr)      if ( (expr) != NULL ) { goto XECLEANUP; }
 #define XEEXPECTNOTNULL(expr)   if ( (expr) == NULL ) { goto XECLEANUP; }
 #define XEIGNORE(expr)          do { (void)(expr); } while(0)
+
+
+typedef struct XECACHEALIGN {
+  union {
+    struct {
+      float     x;
+      float     y;
+      float     z;
+      float     w;
+    };
+    float       f4[4];
+    struct {
+      uint64_t  low;
+      uint64_t  high;
+    };
+  };
+} xefloat4_t;
 
 
 #endif  // XENIA_TYPES_H_

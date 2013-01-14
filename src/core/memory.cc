@@ -69,6 +69,6 @@ size_t xe_memory_get_length(xe_memory_ref memory) {
   return memory->length;
 }
 
-void* xe_memory_addr(xe_memory_ref memory, uint32_t guest_addr) {
+uint8_t *xe_memory_addr(xe_memory_ref memory, uint32_t guest_addr) {
   return (uint8_t*)memory->ptr + guest_addr;
 }
