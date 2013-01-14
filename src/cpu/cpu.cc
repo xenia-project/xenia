@@ -49,6 +49,7 @@ typedef struct xe_cpu {
 
   xe_pal_ref      pal;
   xe_memory_ref   memory;
+  xe_sdb_ref      sdb;
 
   std::vector<xe_cpu_module_entry_t> entries;
 
@@ -70,6 +71,7 @@ xe_cpu_ref xe_cpu_create(xe_pal_ref pal, xe_memory_ref memory,
 
   cpu->pal = xe_pal_retain(pal);
   cpu->memory = xe_memory_retain(memory);
+  cpu->sdb = xe_sdb_create(memory);
 
   LLVMLinkInInterpreter();
   LLVMLinkInJIT();
@@ -97,6 +99,7 @@ void xe_cpu_dealloc(xe_cpu_ref cpu) {
   delete cpu->engine;
   llvm_shutdown();
 
+  xe_sdb_release(cpu->sdb);
   xe_memory_release(cpu->memory);
   xe_pal_release(cpu->pal);
 }
@@ -116,6 +119,10 @@ xe_pal_ref xe_cpu_get_pal(xe_cpu_ref cpu) {
 
 xe_memory_ref xe_cpu_get_memory(xe_cpu_ref cpu) {
   return xe_memory_retain(cpu->memory);
+}
+
+xe_sdb_ref xe_cpu_get_sdb(xe_cpu_ref cpu) {
+  return xe_sdb_retain(cpu->sdb);
 }
 
 int xe_cpu_setup_engine(xe_cpu_ref cpu, Module *gen_module) {

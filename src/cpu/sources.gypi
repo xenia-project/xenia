@@ -3,6 +3,7 @@
   'sources': [
     'codegen.cc',
     'cpu.cc',
+    'sdb.cc',
   ],
 
   'includes': [
