@@ -24,95 +24,71 @@
 using namespace llvm;
 
 
-void xe_cpu_codegen_add_imports(xe_memory_ref memory,
-                                xe_kernel_export_resolver_ref export_resolver,
-                                xe_module_ref module, Module *m);
+// TODO(benvanik):
+typedef struct {
+  xe_codegen_options_t options;
+  xe_memory_ref memory;
+  xe_kernel_export_resolver_ref export_resolver;
+
+  xe_module_ref module;
+  xe_sdb_ref    sdb;
+
+  LLVMContext   *context;
+  Module        *shared_module;
+  Module        *gen_module;
+} xe_cpu_codegen_ctx_t;
+
+
+void xe_cpu_codegen_add_imports(xe_codegen_ctx_t *ctx);
 void xe_cpu_codegen_add_missing_import(
-    Module *m, const xe_xex2_import_library_t *library,
+    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
     const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export);
 void xe_cpu_codegen_add_import(
-    Module *m, const xe_xex2_import_library_t *library,
+    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
     const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export);
+void xe_cpu_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn);
 void xe_cpu_codegen_optimize(Module *m, Function *fn);
 
 
-llvm::Module *xe_cpu_codegen(llvm::LLVMContext& context, xe_memory_ref memory,
-                             xe_kernel_export_resolver_ref export_resolver,
-                             xe_module_ref module, Module *shared_module,
+llvm::Module *xe_cpu_codegen(xe_codegen_ctx_t *ctx,
                              xe_codegen_options_t options) {
+  LLVMContext& context = *ctx->context;
   std::string error_message;
 
   // Initialize the module.
   Module *m = new Module("generated.xex", context);
+  ctx->m = m;
   // TODO(benavnik): addModuleFlag?
 
   // Link shared module into generated module.
   // This gives us a single module that we can optimize and prevents the need
   // for foreward declarations.
-  Linker::LinkModules(m, shared_module, 0, &error_message);
+  Linker::LinkModules(m, ctx->shared_module, 0, &error_message);
 
   // Add import thunks/etc.
-  xe_cpu_codegen_add_imports(memory, export_resolver, module, m);
+  xe_cpu_codegen_add_imports(ctx);
 
   // Add export wrappers.
   //
 
-  xe_xex2_ref xex = xe_module_get_xex(module);
-  const xe_xex2_header_t *header = xe_xex2_get_header(xex);
-  uint8_t *mem = xe_memory_addr(memory, 0);
-  uint32_t *pc = (uint32_t*)(mem + header->exe_entry_point);
-  uint32_t pcdata = XEGETUINT32BE(pc);
-  printf("data %.8X %.8X\n", header->exe_entry_point, pcdata);
-  xe_ppc_instr_type_t *instr_type = xe_ppc_get_instr_type(pcdata);
-  if (instr_type) {
-    printf("instr %.8X %s\n", header->exe_entry_point, instr_type->name);
-    xe_ppc_instr_t instr;
-    instr.data.code = pcdata;
-    printf("%d %d\n", instr.data.XFX.D, instr.data.XFX.spr);
-  } else {
-    printf("instr not found\n");
+  // Add all functions/
+  xe_sdb_function_t **functions;
+  size_t function_count;
+  if (!xe_sdb_get_functions(ctx->sdb, &functions, &function_count)) {
+    for (size_t n = 0; n < function_count; n++) {
+      // kernel functions will be handled by the add imports handlers.
+      if (functions[n]->type == kXESDBFunctionUser) {
+        xe_cpu_codegen_add_function(ctx, functions[n]);
+      }
+    }
+    xe_free(functions);
   }
-
-  Constant* c = m->getOrInsertFunction("mul_add",
-  /*ret type*/                         IntegerType::get(context, 32),
-  /*args*/                             IntegerType::get(context, 32),
-                                       IntegerType::get(context, 32),
-                                       IntegerType::get(context, 32),
-  /*varargs terminated with null*/     NULL);
-
-  Function* mul_add = cast<Function>(c);
-  mul_add->setCallingConv(CallingConv::C);
-
-  Function::arg_iterator args = mul_add->arg_begin();
-  Value* x = args++;
-  x->setName("x");
-  Value* y = args++;
-  y->setName("y");
-  Value* z = args++;
-  z->setName("z");
-
-  BasicBlock* block = BasicBlock::Create(getGlobalContext(), "entry", mul_add);
-  IRBuilder<> builder(block);
-
-  Value* tmp = builder.CreateBinOp(Instruction::Mul,
-                                   x, y, "tmp");
-  Value* tmp2 = builder.CreateBinOp(Instruction::Add,
-                                    tmp, z, "tmp2");
-
-  builder.CreateRet(tmp2);
-
-  // Run the optimizer on the function.
-  // Doing this here keeps the size of the IR small and speeds up the later
-  // passes.
-  xe_cpu_codegen_optimize(m, mul_add);
 
   return m;
 }
 
-void xe_cpu_codegen_add_imports(xe_memory_ref memory,
-                                xe_kernel_export_resolver_ref export_resolver,
-                                xe_module_ref module, Module *m) {
-  xe_xex2_ref xex = xe_module_get_xex(module);
+void xe_cpu_codegen_add_imports(xe_codegen_ctx_t *ctx) {
+  xe_xex2_ref xex = xe_module_get_xex(ctx->module);
   const xe_xex2_header_t *header = xe_xex2_get_header(xex);
 
   for (size_t n = 0; n < header->import_library_count; n++) {
@@ -127,13 +103,13 @@ void xe_cpu_codegen_add_imports(xe_memory_ref memory,
       const xe_xex2_import_info_t *info = &import_infos[i];
       xe_kernel_export_t *kernel_export =
           xe_kernel_export_resolver_get_by_ordinal(
-              export_resolver, library->name, info->ordinal);
+              ctx->export_resolver, library->name, info->ordinal);
       if (!kernel_export || !xe_kernel_export_is_implemented(kernel_export)) {
         // Not implemented or known.
-        xe_cpu_codegen_add_missing_import(m, library, info, kernel_export);
+        xe_cpu_codegen_add_missing_import(ctx, library, info, kernel_export);
       } else {
         // Implemented.
-        xe_cpu_codegen_add_import(m, library, info, kernel_export);
+        xe_cpu_codegen_add_import(ctx, library, info, kernel_export);
       }
     }
 
@@ -144,12 +120,13 @@ void xe_cpu_codegen_add_imports(xe_memory_ref memory,
 }
 
 void xe_cpu_codegen_add_missing_import(
-    Module *m, const xe_xex2_import_library_t *library,
+    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
     const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export) {
+  Module *m = ctx->m;
   LLVMContext& context = m->getContext();
 
   char name[128];
-  xesnprintfa(name, XECOUNT(name), "__%s_%.8X",
+  xesnprintfa(name, XECOUNT(name), "__thunk_%s_%.8X",
               library->name, kernel_export->ordinal);
 
   // TODO(benvanik): add name as comment/alias?
@@ -173,29 +150,89 @@ void xe_cpu_codegen_add_missing_import(
     f->setCallingConv(CallingConv::C);
     f->setVisibility(GlobalValue::DefaultVisibility);
 
+    // TODO(benvanik): log errors.
     BasicBlock* block = BasicBlock::Create(context, "entry", f);
     IRBuilder<> builder(block);
     Value *tmp = builder.getInt32(0);
-    builder.getInt32(123);
     builder.CreateRet(tmp);
 
     xe_cpu_codegen_optimize(m, f);
 
     //GlobalAlias *alias = new GlobalAlias(f->getType(), GlobalValue::InternalLinkage, name, f, m);
-  //   printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
-  //          info->value_address, info->thunk_address, info->ordinal,
-  //          info->ordinal, implemented ? "  " : "!!", name);
+    // printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
+    //        info->value_address, info->thunk_address, info->ordinal,
+    //        info->ordinal, implemented ? "  " : "!!", name);
   } else {
-  //   printf("   V %.8X          %.3X (%3d) %s %s\n",
-  //          info->value_address, info->ordinal, info->ordinal,
-  //          implemented ? "  " : "!!", name);
+    // printf("   V %.8X          %.3X (%3d) %s %s\n",
+    //        info->value_address, info->ordinal, info->ordinal,
+    //        implemented ? "  " : "!!", name);
   }
 }
 
 void xe_cpu_codegen_add_import(
-    Module *m, const xe_xex2_import_library_t *library,
+    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
     const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export) {
-  //
+  // Module *m = ctx->m;
+  // LLVMContext& context = m->getContext();
+
+  // TODO(benvanik): add import thunk code.
+}
+
+void xe_cpu_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn) {
+  Module *m = ctx->m;
+  LLVMContext& context = m->getContext();
+
+  AttributeWithIndex awi[] = {
+    //AttributeWithIndex::get(context, 2, Attributes::NoCapture),
+    AttributeWithIndex::get(context,
+        AttributeSet::FunctionIndex, Attribute::NoUnwind),
+  };
+  AttributeSet attrs = AttributeSet::get(context, awi);
+
+  std::vector<Type*> args;
+  Type *return_type = Type::getInt32Ty(context);
+
+  char name[64];
+  char *pname = name;
+  if (fn->name) {
+    pname = fn->name;
+  } else {
+    xesnprintfa(name, XECOUNT(name), "fn_%.8X", fn->start_address);
+  }
+
+  FunctionType *ft = FunctionType::get(return_type,
+                                       ArrayRef<Type*>(args), false);
+  Function *f = cast<Function>(m->getOrInsertFunction(
+      StringRef(pname), ft, attrs));
+  f->setCallingConv(CallingConv::C);
+  f->setVisibility(GlobalValue::DefaultVisibility);
+
+  // TODO(benvanik): generate code!
+  BasicBlock* block = BasicBlock::Create(context, "entry", f);
+  IRBuilder<> builder(block);
+  Value *tmp = builder.getInt32(0);
+  builder.CreateRet(tmp);
+
+  // i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
+
+  uint8_t *mem = xe_memory_addr(ctx->memory, 0);
+  uint32_t *pc = (uint32_t*)(mem + fn->start_address);
+  uint32_t pcdata = XEGETUINT32BE(pc);
+  printf("data %.8X %.8X\n", fn->start_address, pcdata);
+  xe_ppc_instr_type_t *instr_type = xe_ppc_get_instr_type(pcdata);
+  if (instr_type) {
+    printf("instr %.8X %s\n", fn->start_address, instr_type->name);
+    xe_ppc_instr_t instr;
+    instr.data.code = pcdata;
+    printf("%d %d\n", instr.data.XFX.D, instr.data.XFX.spr);
+  } else {
+    printf("instr not found\n");
+  }
+
+  // Run the optimizer on the function.
+  // Doing this here keeps the size of the IR small and speeds up the later
+  // passes.
+  xe_cpu_codegen_optimize(m, f);
 }
 
 void xe_cpu_codegen_optimize(Module *m, Function *fn) {

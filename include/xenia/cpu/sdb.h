@@ -58,12 +58,20 @@ struct xe_sdb_variable {
   char      *name;
 };
 
+typedef struct {
+  int       type;
+  union {
+    xe_sdb_function_t*  function;
+    xe_sdb_variable_t*  variable;
+  };
+} xe_sdb_symbol_t;
+
 
 struct xe_sdb;
 typedef struct xe_sdb* xe_sdb_ref;
 
 
-xe_sdb_ref xe_sdb_create(xe_memory_ref memory);
+xe_sdb_ref xe_sdb_create(xe_memory_ref memory, xe_module_ref module);
 xe_sdb_ref xe_sdb_retain(xe_sdb_ref sdb);
 void xe_sdb_release(xe_sdb_ref sdb);
 
@@ -73,9 +81,10 @@ xe_sdb_variable_t* xe_sdb_insert_variable(xe_sdb_ref sdb, uint32_t address);
 xe_sdb_function_t* xe_sdb_get_function(xe_sdb_ref sdb, uint32_t address);
 xe_sdb_variable_t* xe_sdb_get_variable(xe_sdb_ref sdb, uint32_t address);
 
-void xe_sdb_dump(xe_sdb_ref sdb);
+int xe_sdb_get_functions(xe_sdb_ref sdb, xe_sdb_function_t ***out_functions,
+                         size_t *out_function_count);
 
-int xe_sdb_analyze_module(xe_sdb_ref sdb, xe_module_ref module);
+void xe_sdb_dump(xe_sdb_ref sdb);
 
 
 #endif  // XENIA_CPU_SDB_H_

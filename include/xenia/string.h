@@ -31,6 +31,7 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define xestrlenw                                       wcslen
 #define xestrcmpw                                       wcscmp
 #define xestrcasecmpw                                   _wcsicmp
+#define xsstrdupw                                       wcsdup
 #define xestrchrw                                       wcschr
 #define xestrrchrw                                      wcsrchr
 #define xestrstrw                                       wcsstr
@@ -44,6 +45,7 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define xestrlena                                       strlen
 #define xestrcmpa                                       strcmp
 #define xestrcasecmpa                                   strcasecmp
+#define xestrdupa                                       strdup
 #define xestrchra                                       strchr
 #define xestrrchra                                      strrchr
 #define xestrstra                                       strstr
@@ -62,6 +64,7 @@ typedef wchar_t xechar_t;
 #define xestrlen            xestrlenw
 #define xestrcmp            xestrcmpw
 #define xestrcasecmp        xestrcasecmpw
+#define xestrdup            xestrdupw
 #define xestrchr            xestrchrw
 #define xestrrchr           xestrrchrw
 #define xestrstr            xestrstrw
@@ -82,6 +85,7 @@ typedef char xechar_t;
 #define xestrlen            xestrlena
 #define xestrcmp            xestrcmpa
 #define xestrcasecmp        xestrcasecmpa
+#define xestrdup            xestrdupa
 #define xestrchr            xestrchra
 #define xestrrchr           xestrrchra
 #define xestrstr            xestrstra

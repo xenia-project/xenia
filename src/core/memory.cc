@@ -72,3 +72,28 @@ size_t xe_memory_get_length(xe_memory_ref memory) {
 uint8_t *xe_memory_addr(xe_memory_ref memory, uint32_t guest_addr) {
   return (uint8_t*)memory->ptr + guest_addr;
 }
+
+uint32_t xe_memory_search_aligned(xe_memory_ref memory, uint32_t start,
+                                  uint32_t end, const uint32_t *values,
+                                  const size_t value_count) {
+  XEASSERT(start <= end);
+  const uint32_t *p = (const uint32_t*)xe_memory_addr(memory, start);
+  const uint32_t *pe = (const uint32_t*)xe_memory_addr(memory, end);
+  while (p != pe) {
+    if (*p == values[0]) {
+      const uint32_t *pc = p + 1;
+      size_t matched = 1;
+      for (size_t n = 1; n < value_count; n++, pc++) {
+        if (*pc != values[n]) {
+          break;
+        }
+        matched++;
+      }
+      if (matched == value_count) {
+        return (uint32_t)((uint8_t*)p - (uint8_t*)memory->ptr);
+      }
+    }
+    p++;
+  }
+  return 0;
+}

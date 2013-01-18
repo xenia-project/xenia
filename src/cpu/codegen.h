@@ -10,6 +10,7 @@
 #ifndef XENIA_CPU_CODEGEN_H_
 #define XENIA_CPU_CODEGEN_H_
 
+#include <xenia/cpu/sdb.h>
 #include <xenia/core/memory.h>
 #include <xenia/kernel/module.h>
 
@@ -21,10 +22,19 @@ typedef struct {
   int reserved;
 } xe_codegen_options_t;
 
+typedef struct {
+  xe_memory_ref       memory;
+  xe_kernel_export_resolver_ref export_resolver;
+  xe_module_ref       module;
+  xe_sdb_ref          sdb;
 
-llvm::Module *xe_cpu_codegen(llvm::LLVMContext& context, xe_memory_ref memory,
-                             xe_kernel_export_resolver_ref export_resolver,
-                             xe_module_ref module, llvm::Module *shared_module,
+  llvm::LLVMContext   *context;
+  llvm::Module        *shared_module;
+  llvm::Module        *m;
+} xe_codegen_ctx_t;
+
+
+llvm::Module *xe_cpu_codegen(xe_codegen_ctx_t *ctx,
                              xe_codegen_options_t options);
 
 

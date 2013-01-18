@@ -30,6 +30,8 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
+#include <xenia/cpu/sdb.h>
+
 #include "cpu/codegen.h"
 #include "cpu/xethunk/xethunk.h"
 
@@ -37,9 +39,10 @@ using namespace llvm;
 
 
 typedef struct {
-  xe_module_ref module;
-  LLVMContext   *context;
-  Module        *m;
+  xe_module_ref   module;
+  xe_sdb_ref      sdb;
+  LLVMContext     *context;
+  Module          *m;
 } xe_cpu_module_entry_t;
 
 typedef struct xe_cpu {
@@ -49,7 +52,6 @@ typedef struct xe_cpu {
 
   xe_pal_ref      pal;
   xe_memory_ref   memory;
-  xe_sdb_ref      sdb;
 
   std::vector<xe_cpu_module_entry_t> entries;
 
@@ -71,7 +73,6 @@ xe_cpu_ref xe_cpu_create(xe_pal_ref pal, xe_memory_ref memory,
 
   cpu->pal = xe_pal_retain(pal);
   cpu->memory = xe_memory_retain(memory);
-  cpu->sdb = xe_sdb_create(memory);
 
   LLVMLinkInInterpreter();
   LLVMLinkInJIT();
@@ -93,13 +94,13 @@ void xe_cpu_dealloc(xe_cpu_ref cpu) {
     cpu->engine->removeModule(it->m);
     delete it->m;
     delete it->context;
+    xe_sdb_release(it->sdb);
     xe_module_release(it->module);
   }
 
   delete cpu->engine;
   llvm_shutdown();
 
-  xe_sdb_release(cpu->sdb);
   xe_memory_release(cpu->memory);
   xe_pal_release(cpu->pal);
 }
@@ -121,10 +122,6 @@ xe_memory_ref xe_cpu_get_memory(xe_cpu_ref cpu) {
   return xe_memory_retain(cpu->memory);
 }
 
-xe_sdb_ref xe_cpu_get_sdb(xe_cpu_ref cpu) {
-  return xe_sdb_retain(cpu->sdb);
-}
-
 int xe_cpu_setup_engine(xe_cpu_ref cpu, Module *gen_module) {
   if (cpu->engine) {
     // Engine already initialized - just add the module.
@@ -144,6 +141,7 @@ int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module,
   int result_code = 1;
   std::string error_message;
 
+  xe_sdb_ref sdb = NULL;
   LLVMContext *context = NULL;
   OwningPtr<MemoryBuffer> shared_module_buffer;
   Module *gen_module = NULL;
@@ -171,6 +169,7 @@ int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module,
   // TODO(benvanik): check cache for module bitcode and load.
   // if (path_exists(cache_key)) {
   //   gen_module = load_bitcode(cache_key);
+  //   sdb = load_symbol_table(cache_key);
   // }
 
   // If not found in cache, generate a new module.
@@ -183,12 +182,23 @@ int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module,
                                      &error_message);
     XEEXPECTNOTNULL(shared_module);
 
+    // Analyze the module and add its symbols to the symbol database.
+    sdb = xe_sdb_create(cpu->memory, module);
+    XEEXPECTNOTNULL(sdb);
+    xe_sdb_dump(sdb);
+
     // Build the module from the source code.
     xe_codegen_options_t codegen_options;
     xe_zero_struct(&codegen_options, sizeof(codegen_options));
-    gen_module = xe_cpu_codegen(*context, cpu->memory, export_resolver,
-                                module, shared_module,
-                                codegen_options);
+    xe_codegen_ctx_t codegen_ctx;
+    xe_zero_struct(&codegen_ctx, sizeof(codegen_ctx));
+    codegen_ctx.memory = cpu->memory;
+    codegen_ctx.export_resolver = export_resolver;
+    codegen_ctx.module = module;
+    codegen_ctx.sdb = sdb;
+    codegen_ctx.context = context;
+    codegen_ctx.shared_module = shared_module;
+    gen_module = xe_cpu_codegen(&codegen_ctx, codegen_options);
 
     // Write to cache.
     outs = new raw_fd_ostream(cache_path, error_message,
@@ -239,6 +249,7 @@ int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module,
   // Stash the module entry to allow cleanup later.
   xe_cpu_module_entry_t module_entry;
   module_entry.module   = xe_module_retain(module);
+  module_entry.sdb      = xe_sdb_retain(sdb);
   module_entry.context  = context;
   module_entry.m        = gen_module;
   cpu->entries.push_back(module_entry);
@@ -251,6 +262,7 @@ XECLEANUP:
     delete gen_module;
     delete context;
   }
+  xe_sdb_release(sdb);
   return result_code;
 }
 

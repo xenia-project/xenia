@@ -53,6 +53,9 @@
             'StackReserveSize': '2097152',
           },
         },
+        'xcode_settings': {
+          'GCC_OPTIMIZATION_LEVEL': '0',
+        },
       },
       'release': {
         'defines': [
