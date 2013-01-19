@@ -13,6 +13,15 @@
 #include <xenia/common.h>
 
 
+namespace XE_PPC_SPR {
+  enum XE_PPC_SPR_e {
+    XER                   = 1,
+    LR                    = 8,
+    CTR                   = 9,
+  };
+}  // XE_PPC_SPR
+
+
 typedef struct XECACHEALIGN64 {
   uint64_t    r[32];              // General purpose registers
   xefloat4_t  v[128];             // VMX128 vector registers
