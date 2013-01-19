@@ -198,7 +198,7 @@ int xe_cpu_prepare_module(xe_cpu_ref cpu, xe_module_ref module,
     codegen_ctx.sdb = sdb;
     codegen_ctx.context = context;
     codegen_ctx.shared_module = shared_module;
-    gen_module = xe_cpu_codegen(&codegen_ctx, codegen_options);
+    gen_module = xe_codegen(&codegen_ctx, codegen_options);
 
     // Write to cache.
     outs = new raw_fd_ostream(cache_path, error_message,

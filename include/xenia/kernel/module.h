@@ -17,7 +17,6 @@
 
 typedef struct {
   xechar_t    path[2048];
-  xechar_t    name[256];
 } xe_module_options_t;
 
 struct xe_module;
@@ -53,6 +52,8 @@ xe_module_ref xe_module_load(xe_memory_ref memory,
 xe_module_ref xe_module_retain(xe_module_ref module);
 void xe_module_release(xe_module_ref module);
 
+const xechar_t *xe_module_get_path(xe_module_ref module);
+const xechar_t *xe_module_get_name(xe_module_ref module);
 uint32_t xe_module_get_handle(xe_module_ref module);
 xe_xex2_ref xe_module_get_xex(xe_module_ref module);
 const xe_xex2_header_t *xe_module_get_xex_header(xe_module_ref module);

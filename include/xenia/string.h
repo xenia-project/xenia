@@ -94,8 +94,8 @@ typedef char xechar_t;
 #define xestrcat            xestrcata
 #define xesnprintf          xesnprintfa
 #define xevsnprintf         xevsnprintfa
-#define xestrnarrow(dest, destLength, source)   xestrCpy(dest, destLength, source)
-#define xestrwiden(dest, destLength, source)    xestrCpy(dest, destLength, source)
+#define xestrnarrow(dest, destLength, source)   xestrcpy(dest, destLength, source)
+#define xestrwiden(dest, destLength, source)    xestrcpy(dest, destLength, source)
 
 #endif  // WIN32
 

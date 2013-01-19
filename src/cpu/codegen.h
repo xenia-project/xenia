@@ -14,6 +14,7 @@
 #include <xenia/core/memory.h>
 #include <xenia/kernel/module.h>
 
+#include <llvm/DIBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 
@@ -30,12 +31,14 @@ typedef struct {
 
   llvm::LLVMContext   *context;
   llvm::Module        *shared_module;
-  llvm::Module        *m;
+  llvm::Module        *gen_module;
+  llvm::DIBuilder     *di_builder;
+  llvm::MDNode        *cu;
 } xe_codegen_ctx_t;
 
 
-llvm::Module *xe_cpu_codegen(xe_codegen_ctx_t *ctx,
-                             xe_codegen_options_t options);
+llvm::Module *xe_codegen(xe_codegen_ctx_t *ctx,
+                         xe_codegen_options_t options);
 
 
 #endif  // XENIA_CPU_CODEGEN_H_

@@ -18,6 +18,7 @@ typedef struct xe_module {
   xe_ref_t ref;
 
   xe_module_options_t options;
+  xechar_t        name[256];
 
   xe_memory_ref   memory;
   xe_kernel_export_resolver_ref export_resolver;
@@ -41,6 +42,10 @@ xe_module_ref xe_module_load(xe_memory_ref memory,
   xe_ref_init((xe_ref)module);
 
   xe_copy_struct(&module->options, &options, sizeof(xe_module_options_t));
+  xechar_t *slash = xestrrchr(options.path, '/');
+  if (slash) {
+    xestrcpy(module->name, XECOUNT(module->name), slash + 1);
+  }
 
   module->memory = xe_memory_retain(memory);
   module->export_resolver = xe_kernel_export_resolver_retain(export_resolver);
@@ -70,6 +75,14 @@ xe_module_ref xe_module_retain(xe_module_ref module) {
 
 void xe_module_release(xe_module_ref module) {
   xe_ref_release((xe_ref)module, (xe_ref_dealloc_t)xe_module_dealloc);
+}
+
+const xechar_t *xe_module_get_path(xe_module_ref module) {
+  return module->options.path;
+}
+
+const xechar_t *xe_module_get_name(xe_module_ref module) {
+  return module->name;
 }
 
 uint32_t xe_module_get_handle(xe_module_ref module) {
