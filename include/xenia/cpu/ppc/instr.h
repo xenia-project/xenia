@@ -13,6 +13,12 @@
 #include <xenia/common.h>
 
 
+namespace xe {
+namespace cpu {
+namespace ppc {
+
+
+// TODO(benvanik): rename these
 typedef enum {
   kXEPPCInstrFormatI    = 0,
   kXEPPCInstrFormatB    = 1,
@@ -47,13 +53,12 @@ typedef enum {
 } xe_ppc_instr_flag_e;
 
 
-struct xe_ppc_instr_type;
-typedef struct xe_ppc_instr_type xe_ppc_instr_type_t;
+class InstrType;
 
 
 typedef struct {
-  xe_ppc_instr_type_t *type;
-  uint32_t            address;
+  InstrType*        type;
+  uint32_t          address;
 
   union {
     uint32_t          code;
@@ -110,28 +115,36 @@ typedef struct {
     // kXEPPCInstrFormatVX
     // kXEPPCInstrFormatVXR
   } data;
-} xe_ppc_instr_t;
+} InstrData;
 
-typedef struct {
-  xe_ppc_instr_t      instr;
+class Instr {
+public:
+  InstrData   instr;
 
   // TODO(benvanik): registers changed, special bits, etc
-} xe_ppc_dec_instr_t;
-
-typedef int (*xe_ppc_emit_fn)(/* emit context */ xe_ppc_instr_t *instr);
-
-struct xe_ppc_instr_type {
-  uint32_t            opcode;
-  uint32_t            format;   // xe_ppc_instr_format_e
-  uint32_t            type;     // xe_ppc_instr_type_e
-  uint32_t            flags;    // xe_ppc_instr_flag_e
-  char                name[16];
-
-  xe_ppc_emit_fn      emit;
 };
 
-xe_ppc_instr_type_t *xe_ppc_get_instr_type(uint32_t code);
-int xe_ppc_register_instr_emit(uint32_t code, xe_ppc_emit_fn emit);
+typedef int (*InstrEmitFn)(/* emit context */ Instr* instr);
+
+class InstrType {
+public:
+  uint32_t    opcode;
+  uint32_t    format;   // xe_ppc_instr_format_e
+  uint32_t    type;     // xe_ppc_instr_type_e
+  uint32_t    flags;    // xe_ppc_instr_flag_e
+  char        name[16];
+
+  InstrEmitFn emit;
+};
+
+InstrType* GetInstrType(uint32_t code);
+int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
+
+
+}  // namespace ppc
+}  // namespace cpu
+}  // namespace xe
+
 
 #endif  // XENIA_CPU_PPC_INSTR_H_
 

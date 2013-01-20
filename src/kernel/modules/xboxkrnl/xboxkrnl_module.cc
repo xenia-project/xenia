@@ -7,11 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_H_
-#define XENIA_KERNEL_MODULES_H_
-
-#include "kernel/modules/xam/xam_module.h"
-#include "kernel/modules/xbdm/xbdm_module.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl_module.h"
 
-#endif  // XENIA_KERNEL_MODULES_H_
+#include "kernel/modules/xboxkrnl/xboxkrnl_table.h"
+
+
+using namespace xe;
+using namespace xe::kernel;
+using namespace xe::kernel::xboxkrnl;
+
+
+XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
+                               shared_ptr<ExportResolver> resolver) :
+    KernelModule(pal, memory, resolver) {
+  resolver->RegisterTable(
+      "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
+}
+
+XboxkrnlModule::~XboxkrnlModule() {
+}

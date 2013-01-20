@@ -7,97 +7,72 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/module.h>
+#include <xenia/kernel/user_module.h>
 
 #include <third_party/pe/pe_image.h>
 
 
-#define kXEModuleMaxSectionCount  32
-
-typedef struct xe_module {
-  xe_ref_t ref;
-
-  xe_module_options_t options;
-  xechar_t        name[256];
-
-  xe_memory_ref   memory;
-  xe_kernel_export_resolver_ref export_resolver;
-
-  uint32_t        handle;
-  xe_xex2_ref     xex;
-
-  size_t          section_count;
-  xe_module_pe_section_t sections[kXEModuleMaxSectionCount];
-} xe_module_t;
+using namespace xe;
+using namespace kernel;
 
 
-int xe_module_load_pe(xe_module_ref module);
+UserModule::UserModule(xe_memory_ref memory) {
+  memory_ = xe_memory_retain(memory);
+  xex_ = NULL;
+}
 
-
-xe_module_ref xe_module_load(xe_memory_ref memory,
-                             xe_kernel_export_resolver_ref export_resolver,
-                             const void *addr, const size_t length,
-                             xe_module_options_t options) {
-  xe_module_ref module = (xe_module_ref)xe_calloc(sizeof(xe_module));
-  xe_ref_init((xe_ref)module);
-
-  xe_copy_struct(&module->options, &options, sizeof(xe_module_options_t));
-  xechar_t *slash = xestrrchr(options.path, '/');
-  if (slash) {
-    xestrcpy(module->name, XECOUNT(module->name), slash + 1);
+UserModule::~UserModule() {
+  for (std::vector<PESection*>::iterator it = sections_.begin();
+       it != sections_.end(); ++it) {
+    delete *it;
   }
 
-  module->memory = xe_memory_retain(memory);
-  module->export_resolver = xe_kernel_export_resolver_retain(export_resolver);
+  xe_xex2_release(xex_);
+  xe_memory_release(memory_);
+}
+
+int UserModule::Load(const void* addr, const size_t length,
+                     const xechar_t* path) {
+  XEIGNORE(xestrcpy(path_, XECOUNT(path_), path));
+  const xechar_t *slash = xestrrchr(path, '/');
+  if (slash) {
+    XEIGNORE(xestrcpy(name_, XECOUNT(name_), slash + 1));
+  }
 
   xe_xex2_options_t xex_options;
-  module->xex = xe_xex2_load(memory, addr, length, xex_options);
-  XEEXPECTNOTNULL(module->xex);
+  xex_ = xe_xex2_load(memory_, addr, length, xex_options);
+  XEEXPECTNOTNULL(xex_);
 
-  XEEXPECTZERO(xe_module_load_pe(module));
+  XEEXPECTZERO(LoadPE());
 
-  return module;
+  return 0;
 
 XECLEANUP:
-  xe_module_release(module);
-  return NULL;
+  return 1;
 }
 
-void xe_module_dealloc(xe_module_ref module) {
-  xe_kernel_export_resolver_release(module->export_resolver);
-  xe_memory_release(module->memory);
+const xechar_t* UserModule::path() {
+  return path_;
 }
 
-xe_module_ref xe_module_retain(xe_module_ref module) {
-  xe_ref_retain((xe_ref)module);
-  return module;
+const xechar_t* UserModule::name() {
+  return name_;
 }
 
-void xe_module_release(xe_module_ref module) {
-  xe_ref_release((xe_ref)module, (xe_ref_dealloc_t)xe_module_dealloc);
+uint32_t UserModule::handle() {
+  return handle_;
 }
 
-const xechar_t *xe_module_get_path(xe_module_ref module) {
-  return module->options.path;
+xe_xex2_ref UserModule::xex() {
+  return xe_xex2_retain(xex_);
 }
 
-const xechar_t *xe_module_get_name(xe_module_ref module) {
-  return module->name;
+const xe_xex2_header_t* UserModule::xex_header() {
+  return xe_xex2_get_header(xex_);
 }
 
-uint32_t xe_module_get_handle(xe_module_ref module) {
-  return module->handle;
-}
-
-xe_xex2_ref xe_module_get_xex(xe_module_ref module) {
-  return xe_xex2_retain(module->xex);
-}
-
-const xe_xex2_header_t *xe_module_get_xex_header(xe_module_ref module) {
-  return xe_xex2_get_header(module->xex);
-}
-
-void *xe_module_get_proc_address(xe_module_ref module, const uint32_t ordinal) {
+void* UserModule::GetProcAddress(const uint32_t ordinal) {
+  XEASSERTALWAYS();
   return NULL;
 }
 
@@ -116,10 +91,10 @@ typedef struct IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY_t {
   };
 } IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY;
 
-int xe_module_load_pe(xe_module_ref module) {
-  const xe_xex2_header_t *xex_header = xe_xex2_get_header(module->xex);
-  uint8_t *mem = (uint8_t*)xe_memory_addr(module->memory, 0);
-  const uint8_t *p = mem + xex_header->exe_address;
+int UserModule::LoadPE() {
+  const xe_xex2_header_t* xex_header = xe_xex2_get_header(xex_);
+  uint8_t* mem = xe_memory_addr(memory_, 0);
+  const uint8_t* p = mem + xex_header->exe_address;
 
   // Verify DOS signature (MZ).
   const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
@@ -172,14 +147,6 @@ int xe_module_load_pe(xe_module_ref module) {
   // IAT              Import Address Table ptr
   //opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
 
-  // Verify section count not overrun.
-  // NOTE: if this ever asserts, change to a dynamic section list.
-  XEASSERT(filehdr->NumberOfSections <= kXEModuleMaxSectionCount);
-  if (filehdr->NumberOfSections > kXEModuleMaxSectionCount) {
-    return 1;
-  }
-  module->section_count = filehdr->NumberOfSections;
-
   // Quick scan to determine bounds of sections.
   size_t upper_address = 0;
   const IMAGE_SECTION_HEADER* sechdr = IMAGE_FIRST_SECTION(nthdr);
@@ -192,7 +159,7 @@ int xe_module_load_pe(xe_module_ref module) {
   // Setup/load sections.
   sechdr = IMAGE_FIRST_SECTION(nthdr);
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
-    xe_module_pe_section_t *section = &module->sections[n];
+    PESection* section = (PESection*)xe_calloc(sizeof(PESection));
     xe_copy_memory(section->name, sizeof(section->name),
                    sechdr->Name, sizeof(sechdr->Name));
     section->name[8]      = 0;
@@ -201,6 +168,7 @@ int xe_module_load_pe(xe_module_ref module) {
     section->address      = xex_header->exe_address + sechdr->VirtualAddress;
     section->size         = sechdr->Misc.VirtualSize;
     section->flags        = sechdr->Characteristics;
+    sections_.push_back(section);
   }
 
   //DumpTLSDirectory(pImageBase, pNTHeader, (PIMAGE_TLS_DIRECTORY32)0);
@@ -208,48 +176,45 @@ int xe_module_load_pe(xe_module_ref module) {
   return 0;
 }
 
-xe_module_pe_section_t *xe_module_get_section(xe_module_ref module,
-                                              const char *name) {
-  for (size_t n = 0; n < module->section_count; n++) {
-    if (xestrcmpa(module->sections[n].name, name) == 0) {
-      return &module->sections[n];
+PESection* UserModule::GetSection(const char *name) {
+  for (std::vector<PESection*>::iterator it = sections_.begin();
+       it != sections_.end(); ++it) {
+    if (!xestrcmpa((*it)->name, name)) {
+      return *it;
     }
   }
   return NULL;
 }
 
-int xe_module_get_method_hints(xe_module_ref module,
-                               xe_module_pe_method_info_t **out_method_infos,
-                               size_t *out_method_info_count) {
-  uint8_t *mem = (uint8_t*)xe_memory_addr(module->memory, 0);
+int UserModule::GetMethodHints(PEMethodInfo** out_method_infos,
+                               size_t* out_method_info_count) {
+  uint8_t* mem = xe_memory_addr(memory_, 0);
 
   *out_method_infos = NULL;
   *out_method_info_count = 0;
 
-  const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY *entry = NULL;
+  const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY* entry = NULL;
 
   // Find pdata, which contains the exception handling entries.
-  xe_module_pe_section_t *pdata = xe_module_get_section(module, ".pdata");
+  PESection* pdata = GetSection(".pdata");
   if (!pdata) {
     // No exception data to go on.
     return 0;
   }
 
   // Resolve.
-  const uint8_t *p = mem + pdata->address;
+  const uint8_t* p = mem + pdata->address;
 
   // Entry count = pdata size / sizeof(entry).
-  const size_t entry_count =
-      pdata->size / sizeof(IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY);
-  if (entry_count == 0) {
+  size_t entry_count = pdata->size / sizeof(IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY);
+  if (!entry_count) {
     // Empty?
     return 0;
   }
 
   // Allocate output.
-  xe_module_pe_method_info_t *method_infos =
-      (xe_module_pe_method_info_t*)xe_calloc(
-          entry_count * sizeof(xe_module_pe_method_info_t));
+  PEMethodInfo* method_infos = (PEMethodInfo*)xe_calloc(
+      entry_count * sizeof(PEMethodInfo));
   XEEXPECTNOTNULL(method_infos);
 
   // Parse entries.
@@ -258,7 +223,7 @@ int xe_module_get_method_hints(xe_module_ref module,
   entry = (const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY*)p;
   IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY temp_entry;
   for (size_t n = 0; n < entry_count; n++, entry++) {
-    xe_module_pe_method_info_t *method_info = &method_infos[n];
+    PEMethodInfo* method_info   = &method_infos[n];
     method_info->address        = XESWAP32BE(entry->FuncStart);
 
     // The bitfield needs to be swapped by hand.
@@ -278,12 +243,12 @@ XECLEANUP:
   return 1;
 }
 
-void xe_module_dump(xe_module_ref module) {
-  //const uint8_t *mem = (const uint8_t*)xe_memory_addr(module->memory, 0);
-  const xe_xex2_header_t *header = xe_xex2_get_header(module->xex);
+void UserModule::Dump(ExportResolver* export_resolver) {
+  //const uint8_t *mem = (const uint8_t*)xe_memory_addr(memory_, 0);
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 
   // XEX info.
-  printf("Module %s:\n\n", module->options.path);
+  printf("Module %s:\n\n", path_);
   printf("    Module Flags: %.8X\n", header->module_flags);
   printf("    System Flags: %.8X\n", header->system_flags);
   printf("\n");
@@ -320,11 +285,11 @@ void xe_module_dump(xe_module_ref module) {
   printf("      Slot Count: %d\n", header->tls_info.slot_count);
   printf("       Data Size: %db\n", header->tls_info.data_size);
   printf("         Address: %.8X, %db\n", header->tls_info.raw_data_address,
-                                           header->tls_info.raw_data_size);
+                                          header->tls_info.raw_data_size);
   printf("\n");
   printf("  Headers:\n");
   for (size_t n = 0; n < header->header_count; n++) {
-    const xe_xex2_opt_header_t *opt_header = &header->headers[n];
+    const xe_xex2_opt_header_t* opt_header = &header->headers[n];
     printf("    %.8X (%.8X, %4db) %.8X = %11d\n",
            opt_header->key, opt_header->offset, opt_header->length,
            opt_header->value, opt_header->value);
@@ -334,14 +299,14 @@ void xe_module_dump(xe_module_ref module) {
   // Resources.
   printf("Resources:\n");
   printf("  %.8X, %db\n", header->resource_info.address,
-                           header->resource_info.size);
+                          header->resource_info.size);
   printf("  TODO\n");
   printf("\n");
 
   // Section info.
   printf("Sections:\n");
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
-    const xe_xex2_section_t *section = &header->sections[n];
+    const xe_xex2_section_t* section = &header->sections[n];
     const char* type = "UNKNOWN";
     switch (section->info.type) {
     case XEX_SECTION_CODE:
@@ -354,10 +319,10 @@ void xe_module_dump(xe_module_ref module) {
       type = "RODATA ";
       break;
     }
-    const size_t start_address = header->exe_address +
-                                 (i * xe_xex2_section_length);
-    const size_t end_address = start_address + (section->info.page_count *
-                                                xe_xex2_section_length);
+    const size_t start_address =
+        header->exe_address + (i * xe_xex2_section_length);
+    const size_t end_address =
+        start_address + (section->info.page_count * xe_xex2_section_length);
     printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n",
            (int)n, type, section->info.page_count, (int)start_address,
            (int)end_address, section->info.page_count * xe_xex2_section_length);
@@ -369,7 +334,8 @@ void xe_module_dump(xe_module_ref module) {
   printf("Static Libraries:\n");
   for (size_t n = 0; n < header->static_library_count; n++) {
     const xe_xex2_static_library_t *library = &header->static_libraries[n];
-    printf("  %-8s : %d.%d.%d.%d\n", library->name, library->major,
+    printf("  %-8s : %d.%d.%d.%d\n",
+           library->name, library->major,
            library->minor, library->build, library->qfe);
   }
   printf("\n");
@@ -377,11 +343,11 @@ void xe_module_dump(xe_module_ref module) {
   // Imports.
   printf("Imports:\n");
   for (size_t n = 0; n < header->import_library_count; n++) {
-    const xe_xex2_import_library_t *library = &header->import_libraries[n];
+    const xe_xex2_import_library_t* library = &header->import_libraries[n];
 
     xe_xex2_import_info_t* import_infos;
     size_t import_info_count;
-    if (!xe_xex2_get_import_infos(module->xex, library,
+    if (!xe_xex2_get_import_infos(xex_, library,
                                   &import_infos, &import_info_count)) {
       printf(" %s - %d imports\n", library->name, (int)import_info_count);
       printf("   Version: %d.%d.%d.%d\n",
@@ -398,13 +364,12 @@ void xe_module_dump(xe_module_ref module) {
       int impl_count = 0;
       int unimpl_count = 0;
       for (size_t m = 0; m < import_info_count; m++) {
-        const xe_xex2_import_info_t *info = &import_infos[m];
-        const xe_kernel_export_t *kernel_export =
-            xe_kernel_export_resolver_get_by_ordinal(
-                module->export_resolver, library->name, info->ordinal);
+        const xe_xex2_import_info_t* info = &import_infos[m];
+        KernelExport* kernel_export =
+            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
         if (kernel_export) {
           known_count++;
-          if (xe_kernel_export_is_implemented(kernel_export)) {
+          if (kernel_export->IsImplemented()) {
             impl_count++;
           }
         } else {
@@ -423,15 +388,14 @@ void xe_module_dump(xe_module_ref module) {
 
       // Listing.
       for (size_t m = 0; m < import_info_count; m++) {
-        const xe_xex2_import_info_t *info = &import_infos[m];
-        const xe_kernel_export_t *kernel_export =
-            xe_kernel_export_resolver_get_by_ordinal(
-                module->export_resolver, library->name, info->ordinal);
+        const xe_xex2_import_info_t* info = &import_infos[m];
+        KernelExport* kernel_export = export_resolver->GetExportByOrdinal(
+            library->name, info->ordinal);
         const char *name = "UNKNOWN";
         bool implemented = false;
         if (kernel_export) {
           name = kernel_export->name;
-          implemented = xe_kernel_export_is_implemented(kernel_export);
+          implemented = kernel_export->IsImplemented();
         }
         if (info->thunk_address) {
           printf("   F %.8X %.8X %.3X (%3d) %s %s\n",

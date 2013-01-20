@@ -13,151 +13,124 @@
 #include <map>
 
 
-typedef std::map<uint32_t, xe_sdb_symbol_t> xe_sdb_symbol_map;
-typedef std::list<xe_sdb_function_t*> xe_sdb_function_queue;
-
-struct xe_sdb {
-  xe_ref_t ref;
-
-  xe_memory_ref   memory;
-
-  size_t                  function_count;
-  size_t                  variable_count;
-  xe_sdb_symbol_map       *symbols;
-  xe_sdb_function_queue   *scan_queue;
-};
+using namespace xe;
+using namespace xe::cpu;
+using namespace xe::cpu::sdb;
+using namespace xe::kernel;
 
 
-int xe_sdb_analyze_module(xe_sdb_ref sdb, xe_module_ref module);
-
-
-xe_sdb_ref xe_sdb_create(xe_memory_ref memory, xe_module_ref module) {
-  xe_sdb_ref sdb = (xe_sdb_ref)xe_calloc(sizeof(xe_sdb));
-  xe_ref_init((xe_ref)sdb);
-
-  sdb->memory = xe_memory_retain(memory);
-
-  sdb->symbols = new xe_sdb_symbol_map();
-  sdb->scan_queue = new xe_sdb_function_queue();
-
-  XEEXPECTZERO(xe_sdb_analyze_module(sdb, module));
-
-  return sdb;
-
-XECLEANUP:
-  xe_sdb_release(sdb);
-  return NULL;
+SymbolDatabase::SymbolDatabase(xe_memory_ref memory, UserModule* module) {
+  memory_ = xe_memory_retain(memory);
+  module_ = module;
 }
 
-void xe_sdb_dealloc(xe_sdb_ref sdb) {
-  // TODO(benvanik): release strdup results
-
-  for (xe_sdb_symbol_map::iterator it = sdb->symbols->begin(); it !=
-      sdb->symbols->end(); ++it) {
-    switch (it->second.type) {
-      case 0:
-        delete it->second.function;
-        break;
-      case 1:
-        delete it->second.variable;
-        break;
-    }
+SymbolDatabase::~SymbolDatabase() {
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    delete it->second;
   }
 
-  delete sdb->scan_queue;
-  delete sdb->symbols;
-
-  xe_memory_release(sdb->memory);
+  xe_memory_release(memory_);
 }
 
-xe_sdb_ref xe_sdb_retain(xe_sdb_ref sdb) {
-  xe_ref_retain((xe_ref)sdb);
-  return sdb;
+int SymbolDatabase::Analyze() {
+  // Iteratively run passes over the db.
+  // This uses a queue to do a breadth-first search of all accessible
+  // functions. Callbacks and such likely won't be hit.
+
+  const xe_xex2_header_t *header = module_->xex_header();
+
+  // Find __savegprlr_* and __restgprlr_*.
+  FindGplr();
+
+  // Add each import thunk.
+  for (size_t n = 0; n < header->import_library_count; n++) {
+    AddImports(&header->import_libraries[n]);
+  }
+
+  // Add each export root.
+  // TODO(benvanik): exports.
+  //   - insert fn or variable
+  //   - queue fn
+
+  // Add method hints, if available.
+  // Not all XEXs have these.
+  AddMethodHints();
+
+  // Queue entry point of the application.
+  FunctionSymbol* fn = GetOrInsertFunction(header->exe_entry_point);
+  fn->name = strdup("<entry>");
+
+  // Keep pumping the queue until there's nothing left to do.
+  FlushQueue();
+
+  // Do a pass over the functions to fill holes.
+  FillHoles();
+  FlushQueue();
+
+  return 0;
 }
 
-void xe_sdb_release(xe_sdb_ref sdb) {
-  xe_ref_release((xe_ref)sdb, (xe_ref_dealloc_t)xe_sdb_dealloc);
-}
-
-xe_sdb_function_t* xe_sdb_insert_function(xe_sdb_ref sdb, uint32_t address) {
-  xe_sdb_function_t *fn = xe_sdb_get_function(sdb, address);
+FunctionSymbol* SymbolDatabase::GetOrInsertFunction(uint32_t address) {
+  FunctionSymbol* fn = GetFunction(address);
   if (fn) {
     return fn;
   }
 
   printf("add fn %.8X\n", address);
-  fn = (xe_sdb_function_t*)xe_calloc(sizeof(xe_sdb_function_t));
+  fn = new FunctionSymbol();
   fn->start_address = address;
-  xe_sdb_symbol_t symbol;
-  symbol.type = 0;
-  symbol.function = fn;
-  sdb->function_count++;
-  sdb->symbols->insert(xe_sdb_symbol_map::value_type(address, symbol));
-  sdb->scan_queue->push_back(fn);
+  function_count_++;
+  symbols_.insert(SymbolMap::value_type(address, fn));
+  scan_queue_.push_back(fn);
   return fn;
 }
 
-xe_sdb_variable_t* xe_sdb_insert_variable(xe_sdb_ref sdb, uint32_t address) {
-  xe_sdb_variable_t *var = xe_sdb_get_variable(sdb, address);
+VariableSymbol* SymbolDatabase::GetOrInsertVariable(uint32_t address) {
+  VariableSymbol* var = GetVariable(address);
   if (var) {
     return var;
   }
 
   printf("add var %.8X\n", address);
-  var = (xe_sdb_variable_t*)xe_calloc(sizeof(xe_sdb_variable_t));
+  var = new VariableSymbol();
   var->address = address;
-  xe_sdb_symbol_t symbol;
-  symbol.type = 1;
-  symbol.variable = var;
-  sdb->variable_count++;
-  sdb->symbols->insert(xe_sdb_symbol_map::value_type(address, symbol));
+  variable_count_++;
+  symbols_.insert(SymbolMap::value_type(address, var));
   return var;
 }
 
-xe_sdb_function_t* xe_sdb_get_function(xe_sdb_ref sdb, uint32_t address) {
-  xe_sdb_symbol_map::iterator i = sdb->symbols->find(address);
-  if (i != sdb->symbols->end() &&
-      i->second.type == 0) {
-    return i->second.function;
+FunctionSymbol* SymbolDatabase::GetFunction(uint32_t address) {
+  SymbolMap::iterator i = symbols_.find(address);
+  if (i != symbols_.end() && i->second->symbol_type == Symbol::Function) {
+    return static_cast<FunctionSymbol*>(i->second);
   }
   return NULL;
 }
 
-xe_sdb_variable_t* xe_sdb_get_variable(xe_sdb_ref sdb, uint32_t address) {
-  xe_sdb_symbol_map::iterator i = sdb->symbols->find(address);
-  if (i != sdb->symbols->end() &&
-      i->second.type == 1) {
-    return i->second.variable;
+VariableSymbol* SymbolDatabase::GetVariable(uint32_t address) {
+  SymbolMap::iterator i = symbols_.find(address);
+  if (i != symbols_.end() && i->second->symbol_type == Symbol::Variable) {
+    return static_cast<VariableSymbol*>(i->second);
   }
   return NULL;
 }
 
-int xe_sdb_get_functions(xe_sdb_ref sdb, xe_sdb_function_t ***out_functions,
-                         size_t *out_function_count) {
-  xe_sdb_function_t **functions = (xe_sdb_function_t**)xe_malloc(
-      sizeof(xe_sdb_function_t*) * sdb->function_count);
-  int n = 0;
-  for (xe_sdb_symbol_map::iterator it = sdb->symbols->begin();
-      it != sdb->symbols->end(); ++it) {
-    switch (it->second.type) {
-      case 0:
-        functions[n++] = it->second.function;
-        break;
+int SymbolDatabase::GetAllFunctions(vector<FunctionSymbol*>& functions) {
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    if (it->second->symbol_type == Symbol::Function) {
+      functions.push_back(static_cast<FunctionSymbol*>(it->second));
     }
   }
-  *out_functions = functions;
-  *out_function_count = sdb->function_count;
   return 0;
 }
 
-void xe_sdb_dump(xe_sdb_ref sdb) {
+void SymbolDatabase::Dump() {
   uint32_t previous = 0;
-  for (xe_sdb_symbol_map::iterator it = sdb->symbols->begin();
-      it != sdb->symbols->end(); ++it) {
-    switch (it->second.type) {
-      case 0:
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    switch (it->second->symbol_type) {
+      case Symbol::Function:
         {
-          xe_sdb_function_t *fn = it->second.function;
+          FunctionSymbol* fn = static_cast<FunctionSymbol*>(it->second);
           if (previous && (int)(fn->start_address - previous) > 0) {
             printf("%.8X-%.8X (%5d) h\n", previous, fn->start_address,
                    fn->start_address - previous);
@@ -169,9 +142,9 @@ void xe_sdb_dump(xe_sdb_ref sdb) {
           previous = fn->end_address + 4;
         }
         break;
-      case 1:
+      case Symbol::Variable:
         {
-          xe_sdb_variable_t *var = it->second.variable;
+          VariableSymbol* var = static_cast<VariableSymbol*>(it->second);
           printf("%.8X v %s\n", var->address,
                  var->name ? var->name : "<unknown>");
         }
@@ -180,7 +153,7 @@ void xe_sdb_dump(xe_sdb_ref sdb) {
   }
 }
 
-int xe_sdb_find_gplr(xe_sdb_ref sdb, xe_module_ref module) {
+int SymbolDatabase::FindGplr() {
   // Special stack save/restore functions.
   // __savegprlr_14 to __savegprlr_31
   // __restgprlr_14 to __restgprlr_31
@@ -232,16 +205,16 @@ int xe_sdb_find_gplr(xe_sdb_ref sdb, xe_module_ref module) {
   };
 
   uint32_t gplr_start = 0;
-  const xe_xex2_header_t *header = xe_module_get_xex_header(module);
+  const xe_xex2_header_t* header = module_->xex_header();
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
-    const xe_xex2_section_t *section = &header->sections[n];
-    const size_t start_address = header->exe_address +
-                                 (i * xe_xex2_section_length);
-    const size_t end_address = start_address + (section->info.page_count *
-                                                xe_xex2_section_length);
+    const xe_xex2_section_t* section = &header->sections[n];
+    const size_t start_address =
+        header->exe_address + (i * xe_xex2_section_length);
+    const size_t end_address =
+        start_address + (section->info.page_count * xe_xex2_section_length);
     if (section->info.type == XEX_SECTION_CODE) {
       gplr_start = xe_memory_search_aligned(
-          sdb->memory, start_address, end_address,
+          memory_, start_address, end_address,
           code_values, XECOUNT(code_values));
       if (gplr_start) {
         break;
@@ -255,81 +228,82 @@ int xe_sdb_find_gplr(xe_sdb_ref sdb, xe_module_ref module) {
 
   // Add function stubs.
   char name[32];
-  uint32_t addr = gplr_start;
+  uint32_t address = gplr_start;
   for (int n = 14; n <= 31; n++) {
     xesnprintf(name, XECOUNT(name), "__savegprlr_%d", n);
-    xe_sdb_function_t *fn = xe_sdb_insert_function(sdb, addr);
+    FunctionSymbol* fn = GetOrInsertFunction(address);
     fn->end_address = fn->start_address + (31 - n) * 4 + 2 * 4;
     fn->name = xestrdup(name);
-    fn->type = kXESDBFunctionUser;
-    addr += 4;
+    fn->type = FunctionSymbol::User;
+    address += 4;
   }
-  addr = gplr_start + 20 * 4;
+  address = gplr_start + 20 * 4;
   for (int n = 14; n <= 31; n++) {
     xesnprintf(name, XECOUNT(name), "__restgprlr_%d", n);
-    xe_sdb_function_t *fn = xe_sdb_insert_function(sdb, addr);
+    FunctionSymbol* fn = GetOrInsertFunction(address);
     fn->end_address = fn->start_address + (31 - n) * 4 + 3 * 4;
     fn->name = xestrdup(name);
-    fn->type = kXESDBFunctionUser;
-    addr += 4;
+    fn->type = FunctionSymbol::User;
+    address += 4;
   }
 
   return 0;
 }
 
-int xe_sdb_add_imports(xe_sdb_ref sdb, xe_module_ref module,
-                       const xe_xex2_import_library_t *library) {
-  xe_xex2_ref xex = xe_module_get_xex(module);
-  xe_xex2_import_info_t *import_infos;
+int SymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
+  xe_xex2_ref xex = module_->xex();
+  xe_xex2_import_info_t* import_infos;
   size_t import_info_count;
   if (xe_xex2_get_import_infos(xex, library, &import_infos,
                                &import_info_count)) {
+    xe_xex2_release(xex);
     return 1;
   }
 
   char name[64];
   for (size_t n = 0; n < import_info_count; n++) {
-    const xe_xex2_import_info_t *info = &import_infos[n];
-    xe_sdb_variable_t *var = xe_sdb_insert_variable(sdb, info->value_address);
+    const xe_xex2_import_info_t* info = &import_infos[n];
+    VariableSymbol* var = GetOrInsertVariable(info->value_address);
     // TODO(benvanik): use kernel name
     xesnprintf(name, XECOUNT(name), "__var_%s_%.3X", library->name,
                info->ordinal);
     var->name = strdup(name);
     if (info->thunk_address) {
-      xe_sdb_function_t *fn = xe_sdb_insert_function(sdb, info->thunk_address);
+      FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
       // TODO(benvanik): use kernel name
       xesnprintf(name, XECOUNT(name), "__thunk_%s_%.3X", library->name,
                  info->ordinal);
       fn->end_address = fn->start_address + 16 - 4;
       fn->name = strdup(name);
-      fn->type = kXESDBFunctionKernel;
+      fn->type = FunctionSymbol::Kernel;
     }
   }
 
+  xe_xex2_release(xex);
   return 0;
 }
 
-int xe_sdb_add_method_hints(xe_sdb_ref sdb, xe_module_ref module) {
-  xe_module_pe_method_info_t *method_infos;
+int SymbolDatabase::AddMethodHints() {
+  PEMethodInfo* method_infos;
   size_t method_info_count;
-  if (xe_module_get_method_hints(module, &method_infos, &method_info_count)) {
+  if (module_->GetMethodHints(&method_infos, &method_info_count)) {
     return 1;
   }
 
   for (size_t n = 0; n < method_info_count; n++) {
-    xe_module_pe_method_info_t *method_info = &method_infos[n];
-    xe_sdb_function_t *fn = xe_sdb_insert_function(sdb, method_info->address);
+    PEMethodInfo* method_info = &method_infos[n];
+    FunctionSymbol* fn = GetOrInsertFunction(method_info->address);
     fn->end_address = method_info->address + method_info->total_length - 4;
-    fn->type = kXESDBFunctionUser;
+    fn->type = FunctionSymbol::User;
     // TODO(benvanik): something with prolog_length?
   }
 
   return 0;
 }
 
-int xe_sdb_analyze_function(xe_sdb_ref sdb, xe_sdb_function_t *fn) {
+int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // Ignore functions already analyzed.
-  if (fn->type != kXESDBFunctionUnknown) {
+  if (fn->type != FunctionSymbol::Unknown) {
     return 0;
   }
 
@@ -339,52 +313,21 @@ int xe_sdb_analyze_function(xe_sdb_ref sdb, xe_sdb_function_t *fn) {
   return 0;
 }
 
-int xe_sdb_flush_queue(xe_sdb_ref sdb) {
-  while (sdb->scan_queue->size()) {
-    xe_sdb_function_t *fn = sdb->scan_queue->front();
-    sdb->scan_queue->pop_front();
-    if (!xe_sdb_analyze_function(sdb, fn)) {
+int SymbolDatabase::FlushQueue() {
+  while (scan_queue_.size()) {
+    FunctionSymbol* fn = scan_queue_.front();
+    scan_queue_.pop_front();
+    if (!AnalyzeFunction(fn)) {
       return 1;
     }
   }
   return 0;
 }
 
-int xe_sdb_analyze_module(xe_sdb_ref sdb, xe_module_ref module) {
-  // Iteratively run passes over the db.
-  // This uses a queue to do a breadth-first search of all accessible
-  // functions. Callbacks and such likely won't be hit.
-
-  const xe_xex2_header_t *header = xe_module_get_xex_header(module);
-
-  // Find __savegprlr_* and __restgprlr_*.
-  xe_sdb_find_gplr(sdb, module);
-
-  // Add each import thunk.
-  for (size_t n = 0; n < header->import_library_count; n++) {
-    const xe_xex2_import_library_t *library = &header->import_libraries[n];
-    xe_sdb_add_imports(sdb, module, library);
-  }
-
-  // Add each export root.
-  // TODO(benvanik): exports.
-  //   - insert fn or variable
-  //   - queue fn
-
-  // Add method hints, if available.
-  // Not all XEXs have these.
-  xe_sdb_add_method_hints(sdb, module);
-
-  // Queue entry point of the application.
-  xe_sdb_function_t *fn = xe_sdb_insert_function(sdb, header->exe_entry_point);
-  fn->name = strdup("<entry>");
-
-  // Keep pumping the queue until there's nothing left to do.
-  xe_sdb_flush_queue(sdb);
-
-  // Do a pass over the functions to fill holes.
-  // TODO(benvanik): hole filling.
-  xe_sdb_flush_queue(sdb);
-
+int SymbolDatabase::FillHoles() {
+  // TODO(benvanik): scan all holes
+  // If 4b, check if 0x00000000 and ignore (alignment padding)
+  // If 8b, check if first value is within .text and ignore (EH entry)
+  // Else, add to scan queue as function?
   return 0;
 }

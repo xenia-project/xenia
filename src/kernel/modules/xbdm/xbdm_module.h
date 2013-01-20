@@ -7,10 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBDM_TABLE_H_
-#define XENIA_KERNEL_MODULES_XBDM_TABLE_H_
+#ifndef XENIA_KERNEL_MODULES_XBDM_MODULE_H_
+#define XENIA_KERNEL_MODULES_XBDM_MODULE_H_
+
+#include <xenia/common.h>
+#include <xenia/core.h>
 
 #include <xenia/kernel/export.h>
+#include <xenia/kernel/kernel_module.h>
 
 
 namespace xe {
@@ -18,14 +22,12 @@ namespace kernel {
 namespace xbdm {
 
 
-#define FLAG(t)             kXEKernelExportFlag##t
-
-
-static KernelExport xbdm_export_table[] = {
+class XbdmModule : public KernelModule {
+public:
+  XbdmModule(xe_pal_ref pal, xe_memory_ref memory,
+             shared_ptr<ExportResolver> resolver);
+  virtual ~XbdmModule();
 };
-
-
-#undef FLAG
 
 
 }  // namespace xbdm
@@ -33,4 +35,4 @@ static KernelExport xbdm_export_table[] = {
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBDM_TABLE_H_
+#endif  // XENIA_KERNEL_MODULES_XBDM_MODULE_H_

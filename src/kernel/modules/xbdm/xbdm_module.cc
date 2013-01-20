@@ -7,25 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XAM_H_
-#define XENIA_KERNEL_MODULES_XAM_H_
+#include "kernel/modules/xbdm/xbdm_module.h"
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-
-#include <xenia/kernel/export.h>
+#include "kernel/modules/xbdm/xbdm_table.h"
 
 
-struct xe_xam;
-typedef struct xe_xam* xe_xam_ref;
+using namespace xe;
+using namespace xe::kernel;
+using namespace xe::kernel::xbdm;
 
 
-xe_xam_ref xe_xam_create(
-    xe_pal_ref pal, xe_memory_ref memory,
-    xe_kernel_export_resolver_ref export_resolver);
+XbdmModule::XbdmModule(xe_pal_ref pal, xe_memory_ref memory,
+                       shared_ptr<ExportResolver> resolver) :
+    KernelModule(pal, memory, resolver) {
+  resolver->RegisterTable(
+      "xbdm.exe", xbdm_export_table, XECOUNT(xbdm_export_table));
+}
 
-xe_xam_ref xe_xam_retain(xe_xam_ref module);
-void xe_xam_release(xe_xam_ref module);
-
-
-#endif  // XENIA_KERNEL_MODULES_XAM_H_
+XbdmModule::~XbdmModule() {
+}

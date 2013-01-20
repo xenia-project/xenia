@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include "cpu/codegen.h"
+#include <xenia/cpu/codegen.h>
 
+#include <llvm/DIBuilder.h>
 #include <llvm/Linker.h>
 #include <llvm/PassManager.h>
 #include <llvm/DebugInfo.h>
@@ -17,90 +18,90 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include <xenia/cpu/ppc.h>
 
 using namespace llvm;
+using namespace xe;
+using namespace xe::cpu;
+using namespace xe::cpu::codegen;
+using namespace xe::cpu::ppc;
+using namespace xe::cpu::sdb;
+using namespace xe::kernel;
 
 
-void xe_codegen_add_imports(xe_codegen_ctx_t *ctx);
-void xe_codegen_add_missing_import(
-    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
-    const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export);
-void xe_codegen_add_import(
-    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
-    const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export);
-void xe_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn);
-void xe_codegen_optimize(Module *m, Function *fn);
+CodegenContext::CodegenContext(
+    xe_memory_ref memory, ExportResolver* export_resolver,
+    UserModule* module, SymbolDatabase* sdb,
+    LLVMContext* context, Module* gen_module) {
+  memory_ = xe_memory_retain(memory);
+  export_resolver_ = export_resolver;
+  module_ = module;
+  sdb_ = sdb;
+  context_ = context;
+  gen_module_ = gen_module;
+}
 
+CodegenContext::~CodegenContext() {
+  xe_memory_release(memory_);
+}
 
-llvm::Module *xe_codegen(xe_codegen_ctx_t *ctx,
-                         xe_codegen_options_t options) {
-  LLVMContext& context = *ctx->context;
+int CodegenContext::GenerateModule() {
   std::string error_message;
-
-  // Initialize the module.
-  Module *m = new Module(xe_module_get_name(ctx->module), context);
-  ctx->gen_module = m;
-  // TODO(benavnik): addModuleFlag?
-
-  // Link shared module into generated module.
-  // This gives us a single module that we can optimize and prevents the need
-  // for foreward declarations.
-  Linker::LinkModules(m, ctx->shared_module, 0, &error_message);
 
   // Setup a debug info builder.
   // This is used when creating any debug info. We may want to go more
   // fine grained than this, but for now it's something.
   xechar_t dir[2048];
-  xestrcpy(dir, XECOUNT(dir), xe_module_get_path(ctx->module));
+  XEIGNORE(xestrcpy(dir, XECOUNT(dir), module_->path()));
   xechar_t *slash = xestrrchr(dir, '/');
   if (slash) {
     *(slash + 1) = 0;
   }
-  ctx->di_builder = new DIBuilder(*m);
-  ctx->di_builder->createCompileUnit(
+  di_builder_ = new DIBuilder(*gen_module_);
+  di_builder_->createCompileUnit(
       0,
-      StringRef(xe_module_get_name(ctx->module)),
+      StringRef(module_->name()),
       StringRef(dir),
       StringRef("xenia"),
       true,
       StringRef(""),
       0);
-  ctx->cu = (MDNode*)ctx->di_builder->getCU();
+  cu_ = (MDNode*)di_builder_->getCU();
 
   // Add import thunks/etc.
-  xe_codegen_add_imports(ctx);
+  AddImports();
 
   // Add export wrappers.
   //
 
   // Add all functions.
-  xe_sdb_function_t **functions;
-  size_t function_count;
-  if (!xe_sdb_get_functions(ctx->sdb, &functions, &function_count)) {
-    for (size_t n = 0; n < function_count; n++) {
+  std::vector<FunctionSymbol*> functions;
+  if (!sdb_->GetAllFunctions(functions)) {
+    for (std::vector<FunctionSymbol*>::iterator it = functions.begin();
+         it != functions.end(); ++it) {
       // kernel functions will be handled by the add imports handlers.
-      if (functions[n]->type == kXESDBFunctionUser) {
-        xe_codegen_add_function(ctx, functions[n]);
+      if ((*it)->type == FunctionSymbol::User) {
+        AddFunction(*it);
       }
     }
-    xe_free(functions);
   }
 
-  ctx->di_builder->finalize();
+  di_builder_->finalize();
 
-  return m;
+  return 0;
 }
 
-void xe_codegen_add_imports(xe_codegen_ctx_t *ctx) {
-  xe_xex2_ref xex = xe_module_get_xex(ctx->module);
-  const xe_xex2_header_t *header = xe_xex2_get_header(xex);
+void CodegenContext::AddImports() {
+  xe_xex2_ref xex = module_->xex();
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex);
 
   for (size_t n = 0; n < header->import_library_count; n++) {
-    const xe_xex2_import_library_t *library = &header->import_libraries[n];
+    const xe_xex2_import_library_t* library = &header->import_libraries[n];
 
     xe_xex2_import_info_t* import_infos;
     size_t import_info_count;
@@ -108,16 +109,15 @@ void xe_codegen_add_imports(xe_codegen_ctx_t *ctx) {
                                       &import_infos, &import_info_count));
 
     for (size_t i = 0; i < import_info_count; i++) {
-      const xe_xex2_import_info_t *info = &import_infos[i];
-      xe_kernel_export_t *kernel_export =
-          xe_kernel_export_resolver_get_by_ordinal(
-              ctx->export_resolver, library->name, info->ordinal);
-      if (!kernel_export || !xe_kernel_export_is_implemented(kernel_export)) {
+      const xe_xex2_import_info_t* info = &import_infos[i];
+      KernelExport* kernel_export = export_resolver_->GetExportByOrdinal(
+          library->name, info->ordinal);
+      if (!kernel_export || !kernel_export->IsImplemented()) {
         // Not implemented or known.
-        xe_codegen_add_missing_import(ctx, library, info, kernel_export);
+        AddMissingImport(library, info, kernel_export);
       } else {
         // Implemented.
-        xe_codegen_add_import(ctx, library, info, kernel_export);
+        AddPresentImport(library, info, kernel_export);
       }
     }
 
@@ -127,10 +127,10 @@ void xe_codegen_add_imports(xe_codegen_ctx_t *ctx) {
   xe_xex2_release(xex);
 }
 
-void xe_codegen_add_missing_import(
-    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
-    const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export) {
-  Module *m = ctx->gen_module;
+void CodegenContext::AddMissingImport(
+    const xe_xex2_import_library_t* library,
+    const xe_xex2_import_info_t* info, KernelExport* kernel_export) {
+  Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
   char name[128];
@@ -149,11 +149,11 @@ void xe_codegen_add_missing_import(
     AttributeSet attrs = AttributeSet::get(context, awi);
 
     std::vector<Type*> args;
-    Type *return_type = Type::getInt32Ty(context);
+    Type* return_type = Type::getInt32Ty(context);
 
-    FunctionType *ft = FunctionType::get(return_type,
+    FunctionType* ft = FunctionType::get(return_type,
                                          ArrayRef<Type*>(args), false);
-    Function *f = cast<Function>(m->getOrInsertFunction(
+    Function* f = cast<Function>(m->getOrInsertFunction(
         StringRef(name), ft, attrs));
     f->setCallingConv(CallingConv::C);
     f->setVisibility(GlobalValue::DefaultVisibility);
@@ -161,10 +161,10 @@ void xe_codegen_add_missing_import(
     // TODO(benvanik): log errors.
     BasicBlock* block = BasicBlock::Create(context, "entry", f);
     IRBuilder<> builder(block);
-    Value *tmp = builder.getInt32(0);
+    Value* tmp = builder.getInt32(0);
     builder.CreateRet(tmp);
 
-    xe_codegen_optimize(m, f);
+    OptimizeFunction(m, f);
 
     //GlobalAlias *alias = new GlobalAlias(f->getType(), GlobalValue::InternalLinkage, name, f, m);
     // printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
@@ -177,17 +177,17 @@ void xe_codegen_add_missing_import(
   }
 }
 
-void xe_codegen_add_import(
-    xe_codegen_ctx_t *ctx, const xe_xex2_import_library_t *library,
-    const xe_xex2_import_info_t* info, xe_kernel_export_t *kernel_export) {
-  // Module *m = ctx->gen_module;
+void CodegenContext::AddPresentImport(
+    const xe_xex2_import_library_t* library,
+    const xe_xex2_import_info_t* info, KernelExport* kernel_export) {
+  // Module *m = gen_module_;
   // LLVMContext& context = m->getContext();
 
   // TODO(benvanik): add import thunk code.
 }
 
-void xe_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn) {
-  Module *m = ctx->gen_module;
+void CodegenContext::AddFunction(FunctionSymbol* fn) {
+  Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
   AttributeWithIndex awi[] = {
@@ -198,20 +198,20 @@ void xe_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn) {
   AttributeSet attrs = AttributeSet::get(context, awi);
 
   std::vector<Type*> args;
-  Type *return_type = Type::getInt32Ty(context);
+  Type* return_type = Type::getInt32Ty(context);
 
   char name[64];
-  char *pname = name;
+  char* pname = name;
   if (fn->name) {
     pname = fn->name;
   } else {
     xesnprintfa(name, XECOUNT(name), "fn_%.8X", fn->start_address);
   }
 
-  FunctionType *ft = FunctionType::get(return_type,
+  FunctionType* ft = FunctionType::get(return_type,
                                        ArrayRef<Type*>(args), false);
-  Function *f = cast<Function>(m->getOrInsertFunction(
-      StringRef(pname), ft, attrs));
+  Function* f = cast<Function>(
+      m->getOrInsertFunction(StringRef(pname), ft, attrs));
   f->setCallingConv(CallingConv::C);
   f->setVisibility(GlobalValue::DefaultVisibility);
 
@@ -219,21 +219,21 @@ void xe_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn) {
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
   IRBuilder<> builder(block);
   //builder.SetCurrentDebugLocation(DebugLoc::get(fn->start_address >> 8, fn->start_address & 0xFF, ctx->cu));
-  Value *tmp = builder.getInt32(0);
+  Value* tmp = builder.getInt32(0);
   builder.CreateRet(tmp);
 
   // i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
 
-  uint8_t *mem = xe_memory_addr(ctx->memory, 0);
-  uint32_t *pc = (uint32_t*)(mem + fn->start_address);
+  uint8_t* mem = xe_memory_addr(memory_, 0);
+  uint32_t* pc = (uint32_t*)(mem + fn->start_address);
   uint32_t pcdata = XEGETUINT32BE(pc);
   printf("data %.8X %.8X\n", fn->start_address, pcdata);
-  xe_ppc_instr_type_t *instr_type = xe_ppc_get_instr_type(pcdata);
+  InstrType* instr_type = ppc::GetInstrType(pcdata);
   if (instr_type) {
     printf("instr %.8X %s\n", fn->start_address, instr_type->name);
-    xe_ppc_instr_t instr;
-    instr.data.code = pcdata;
-    printf("%d %d\n", instr.data.XFX.D, instr.data.XFX.spr);
+    // xe_ppc_instr_t instr;
+    // instr.data.code = pcdata;
+    // printf("%d %d\n", instr.data.XFX.D, instr.data.XFX.spr);
   } else {
     printf("instr not found\n");
   }
@@ -241,10 +241,10 @@ void xe_codegen_add_function(xe_codegen_ctx_t *ctx, xe_sdb_function_t *fn) {
   // Run the optimizer on the function.
   // Doing this here keeps the size of the IR small and speeds up the later
   // passes.
-  xe_codegen_optimize(m, f);
+  OptimizeFunction(m, f);
 }
 
-void xe_codegen_optimize(Module *m, Function *fn) {
+void CodegenContext::OptimizeFunction(Module* m, Function* fn) {
   FunctionPassManager pm(m);
   PassManagerBuilder pmb;
   pmb.OptLevel      = 3;

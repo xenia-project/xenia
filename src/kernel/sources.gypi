@@ -2,8 +2,8 @@
 {
   'sources': [
     'export.cc',
-    'kernel.cc',
-    'module.cc',
+    'runtime.cc',
+    'user_module.cc',
     'xex2.cc',
   ],
 

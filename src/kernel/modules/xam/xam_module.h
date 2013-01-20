@@ -7,25 +7,32 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_H_
+#ifndef XENIA_KERNEL_MODULES_XAM_H_
+#define XENIA_KERNEL_MODULES_XAM_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 #include <xenia/kernel/export.h>
+#include <xenia/kernel/kernel_module.h>
 
 
-struct xe_xboxkrnl;
-typedef struct xe_xboxkrnl* xe_xboxkrnl_ref;
+namespace xe {
+namespace kernel {
+namespace xam {
 
 
-xe_xboxkrnl_ref xe_xboxkrnl_create(
-    xe_pal_ref pal, xe_memory_ref memory,
-    xe_kernel_export_resolver_ref export_resolver);
+class XamModule : public KernelModule {
+public:
+  XamModule(xe_pal_ref pal, xe_memory_ref memory,
+            shared_ptr<ExportResolver> resolver);
+  virtual ~XamModule();
+};
 
-xe_xboxkrnl_ref xe_xboxkrnl_retain(xe_xboxkrnl_ref module);
-void xe_xboxkrnl_release(xe_xboxkrnl_ref module);
+
+}  // namespace xam
+}  // namespace kernel
+}  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_H_
+#endif  // XENIA_KERNEL_MODULES_XAM_H_

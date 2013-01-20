@@ -2,7 +2,8 @@
 {
   'sources': [
     'codegen.cc',
-    'cpu.cc',
+    'exec_module.cc',
+    'processor.cc',
     'sdb.cc',
   ],
 

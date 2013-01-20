@@ -13,28 +13,47 @@
 #include <xenia/cpu/ppc/instr.h>
 
 
-typedef struct {
-  llvm::LLVMContext   *context;
-  llvm::Module        *module;
+namespace xe {
+namespace cpu {
+namespace ppc {
+
+
+class InstrContext {
+  using namespace llvm;
+public:
+  InstrContext();
+
+  Value* cia();
+  Value* nia();
+  void set_nia(Value* value);
+  Value* spr(uint32_t n);
+  void set_spr(uint32_t n, Value* value);
+
+  Value* cr();
+  void set_cr(Value* value);
+
+  Value* gpr(uint32_t n);
+  void set_gpr(uint32_t n, Value* value);
+
+  Value* get_memory_addr(uint32_t addr);
+  Value* read_memory(Value* addr, uint32_t size, bool extend);
+  void write_memory(Value* addr, uint32_t size, Value* value);
+
+  LLVMContext&  context;
+  Module&       module;
+  // TODO(benvanik): IRBuilder/etc
 
   // Address of the instruction being generated.
-  uint32_t            cia;
+  uint32_t      cia;
 
-  llvm::Value *get_cia();
-  void set_nia(llvm::Value *value);
-  llvm::Value *get_spr(uint32_t n);
-  void set_spr(uint32_t n, llvm::Value *value);
+private:
+  //
+};
 
-  llvm::Value *get_cr();
-  void set_cr(llvm::Value *value);
 
-  llvm::Value *get_gpr(uint32_t n);
-  void set_gpr(uint32_t n, llvm::Value *value);
-
-  llvm::Value *get_memory_addr(uint32_t addr);
-  llvm::Value *read_memory(llvm::Value *addr, uint32_t size, bool extend);
-  void write_memory(llvm::Value *addr, uint32_t size, llvm::Value *value);
-} xe_ppc_instr_ctx_t;
+}  // namespace ppc
+}  // namespace cpu
+}  // namespace xe
 
 
 #endif  // XENIA_CPU_PPC_INSTR_CTX_H_

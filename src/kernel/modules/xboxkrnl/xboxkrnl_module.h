@@ -7,25 +7,32 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBDM_H_
-#define XENIA_KERNEL_MODULES_XBDM_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 #include <xenia/kernel/export.h>
+#include <xenia/kernel/kernel_module.h>
 
 
-struct xe_xbdm;
-typedef struct xe_xbdm* xe_xbdm_ref;
+namespace xe {
+namespace kernel {
+namespace xboxkrnl {
 
 
-xe_xbdm_ref xe_xbdm_create(
-    xe_pal_ref pal, xe_memory_ref memory,
-    xe_kernel_export_resolver_ref export_resolver);
+class XboxkrnlModule : public KernelModule {
+public:
+  XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
+                 shared_ptr<ExportResolver> resolver);
+  virtual ~XboxkrnlModule();
+};
 
-xe_xbdm_ref xe_xbdm_retain(xe_xbdm_ref module);
-void xe_xbdm_release(xe_xbdm_ref module);
+
+}  // namespace xboxkrnl
+}  // namespace kernel
+}  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBDM_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_

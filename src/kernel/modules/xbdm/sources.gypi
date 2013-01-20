@@ -1,6 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'xbdm.cc',
+    'xbdm_module.cc',
   ],
 }

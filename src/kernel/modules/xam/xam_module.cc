@@ -7,9 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_H_
-#define XENIA_KERNEL_H_
+#include "kernel/modules/xam/xam_module.h"
 
-#include <xenia/kernel/runtime.h>
+#include "kernel/modules/xam/xam_table.h"
 
-#endif  // XENIA_KERNEL_H_
+
+using namespace xe;
+using namespace xe::kernel;
+using namespace xe::kernel::xam;
+
+
+XamModule::XamModule(xe_pal_ref pal, xe_memory_ref memory,
+                     shared_ptr<ExportResolver> resolver) :
+    KernelModule(pal, memory, resolver) {
+  resolver->RegisterTable(
+      "xam.xex", xam_export_table, XECOUNT(xam_export_table));
+}
+
+XamModule::~XamModule() {
+}

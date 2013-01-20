@@ -13,13 +13,33 @@
 #include <xenia/common.h>
 
 
-namespace XE_PPC_SPR {
-  enum XE_PPC_SPR_e {
+namespace xe {
+namespace cpu {
+namespace ppc {
+
+
+namespace SPR {
+  enum SPR_e {
     XER                   = 1,
     LR                    = 8,
     CTR                   = 9,
   };
-}  // XE_PPC_SPR
+}  // SPR
+
+
+namespace FPRF {
+  enum FPRF_e {
+    QUIET_NAN             = 0x00088000,
+    NEG_INFINITY          = 0x00090000,
+    NEG_NORMALIZED        = 0x00010000,
+    NEG_DENORMALIZED      = 0x00018000,
+    NEG_ZERO              = 0x00048000,
+    POS_ZERO              = 0x00040000,
+    POS_DENORMALIZED      = 0x00028000,
+    POS_NORMALIZED        = 0x00020000,
+    POS_INFINITY          = 0x000A0000,
+  };
+}  // FPRF
 
 
 typedef struct XECACHEALIGN64 {
@@ -88,33 +108,24 @@ typedef struct XECACHEALIGN64 {
                                   //                      11 = toward -infinity
     } bits;
   } fpscr;                        // Floating-point status and control register
-} xe_ppc_registers_t;
+
+  uint32_t get_fprf() {
+    return fpscr.value & 0x000F8000;
+  }
+  void set_fprf(const uint32_t v) {
+    fpscr.value = (fpscr.value & ~0x000F8000) | v;
+  }
+} PpcRegisters;
 
 
 typedef struct {
-  xe_ppc_registers_t      registers;
-} xe_ppc_state_t;
+  PpcRegisters      registers;
+} PpcState;
 
 
-namespace XE_PPC_FPRF {
-  enum XE_PPC_FPRF_e {
-    QUIET_NAN             = 0x00088000,
-    NEG_INFINITY          = 0x00090000,
-    NEG_NORMALIZED        = 0x00010000,
-    NEG_DENORMALIZED      = 0x00018000,
-    NEG_ZERO              = 0x00048000,
-    POS_ZERO              = 0x00040000,
-    POS_DENORMALIZED      = 0x00028000,
-    POS_NORMALIZED        = 0x00020000,
-    POS_INFINITY          = 0x000A0000,
-  };
-}  // XE_PPC_FPRF
-uint32_t xe_ppc_get_fprf(const xe_ppc_registers_t *r) {
-  return r->fpscr.value & 0x000F8000;
-}
-void xe_ppc_set_fprf(xe_ppc_registers_t *r, const uint32_t v) {
-  r->fpscr.value = (r->fpscr.value & ~0x000F8000) | v;
-}
+}  // namespace ppc
+}  // namespace cpu
+}  // namespace xe
 
 
 #endif  // XENIA_CPU_PPC_STATE_H_

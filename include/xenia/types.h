@@ -14,6 +14,14 @@
 #include <xenia/platform_includes.h>
 
 
+#include <tr1/memory>
+namespace xe {
+// TODO(benvanik): support other compilers/etc
+using namespace std;
+using namespace std::tr1;
+}  // namespace xe
+
+
 #define XE_EMPTY_MACRO          do { } while(0)
 
 #define XEUNREFERENCED(expr)    (void)(expr)

@@ -10,14 +10,18 @@
 #include <xenia/xenia.h>
 
 
+using namespace xe;
+using namespace xe::cpu;
+using namespace xe::kernel;
+
+
 int xenia_info(int argc, xechar_t **argv) {
   int result_code = 1;
 
   xe_pal_ref pal = NULL;
   xe_memory_ref memory = NULL;
-  xe_cpu_ref cpu = NULL;
-  xe_kernel_ref kernel = NULL;
-  xe_module_ref module = NULL;
+  shared_ptr<Processor> processor;
+  shared_ptr<Runtime> runtime;
 
   // TODO(benvanik): real command line parsing.
   if (argc < 2) {
@@ -36,26 +40,15 @@ int xenia_info(int argc, xechar_t **argv) {
   memory = xe_memory_create(pal, memory_options);
   XEEXPECTNOTNULL(memory);
 
-  xe_cpu_options_t cpu_options;
-  xe_zero_struct(&cpu_options, sizeof(cpu_options));
-  cpu = xe_cpu_create(pal, memory, cpu_options);
-  XEEXPECTNOTNULL(cpu);
+  processor = shared_ptr<Processor>(new Processor(pal, memory));
+  XEEXPECTZERO(processor->Setup());
 
-  xe_kernel_options_t kernel_options;
-  xe_zero_struct(&kernel_options, sizeof(kernel_options));
-  kernel = xe_kernel_create(pal, cpu, kernel_options);
-  XEEXPECTNOTNULL(kernel);
+  runtime = shared_ptr<Runtime>(new Runtime(pal, processor, XT("")));
 
-  module = xe_kernel_load_module(kernel, path);
-  XEEXPECTNOTNULL(module);
-
-  xe_module_dump(module);
+  XEEXPECTZERO(runtime->LoadModule(path));
 
   result_code = 0;
 XECLEANUP:
-  xe_module_release(module);
-  xe_kernel_release(kernel);
-  xe_cpu_release(cpu);
   xe_memory_release(memory);
   xe_pal_release(pal);
   return result_code;

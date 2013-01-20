@@ -12,16 +12,24 @@
 
 #include <xenia/core.h>
 
+#include <vector>
 
-typedef enum {
-  kXEKernelExportFlagFunction   = 1 << 0,
-  kXEKernelExportFlagVariable   = 1 << 1,
-} xe_kernel_export_flags;
+
+namespace xe {
+namespace kernel {
+
 
 typedef void (*xe_kernel_export_fn)();
 
-typedef struct {
+class KernelExport {
+public:
+  enum ExportType {
+    Function = 0,
+    Variable = 1,
+  };
+
   uint32_t      ordinal;
+  ExportType    type;
   uint32_t      flags;
   char          signature[16];
   char          name[96];
@@ -39,38 +47,46 @@ typedef struct {
       xe_kernel_export_fn shim;
     } function_data;
   };
-} xe_kernel_export_t;
 
-#define XE_DECLARE_EXPORT(module, ordinal, name, signature, flags) \
+  bool IsImplemented();
+};
+
+#define XE_DECLARE_EXPORT(module, ordinal, name, signature, type, flags) \
   { \
     ordinal, \
+    KernelExport::type, \
     flags, \
     #signature, \
     #name, \
   }
 
 
-bool xe_kernel_export_is_implemented(const xe_kernel_export_t *kernel_export);
+class ExportResolver {
+public:
+  ExportResolver();
+  ~ExportResolver();
+
+  void RegisterTable(const char* library_name, KernelExport* exports,
+                     const size_t count);
+
+  KernelExport* GetExportByOrdinal(const char* library_name,
+                                   const uint32_t ordinal);
+  KernelExport* GetExportByName(const char* library_name, const char* name);
+
+private:
+  class ExportTable {
+  public:
+    char          name[32];
+    KernelExport* exports;
+    size_t        count;
+  };
+
+  std::vector<ExportTable> tables_;
+};
 
 
-struct xe_kernel_export_resolver;
-typedef struct xe_kernel_export_resolver* xe_kernel_export_resolver_ref;
+}  // namespace kernel
+}  // namespace xe
 
-
-xe_kernel_export_resolver_ref xe_kernel_export_resolver_create();
-xe_kernel_export_resolver_ref xe_kernel_export_resolver_retain(
-    xe_kernel_export_resolver_ref resolver);
-void xe_kernel_export_resolver_release(xe_kernel_export_resolver_ref resolver);
-
-void xe_kernel_export_resolver_register_table(
-    xe_kernel_export_resolver_ref resolver, const char *library_name,
-    xe_kernel_export_t *exports, const size_t count);
-
-xe_kernel_export_t *xe_kernel_export_resolver_get_by_ordinal(
-    xe_kernel_export_resolver_ref resolver, const char *library_name,
-    const uint32_t ordinal);
-xe_kernel_export_t *xe_kernel_export_resolver_get_by_name(
-    xe_kernel_export_resolver_ref resolver, const char *library_name,
-    const char *name);
 
 #endif  // XENIA_KERNEL_EXPORT_H_

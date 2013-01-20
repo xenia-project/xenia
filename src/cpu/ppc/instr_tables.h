@@ -13,11 +13,16 @@
 #include <xenia/cpu/ppc/instr.h>
 
 
-static xe_ppc_instr_type_t *xe_ppc_instr_table_prep(
-    xe_ppc_instr_type_t *unprep, int unprep_count, int a, int b) {
+namespace xe {
+namespace cpu {
+namespace ppc {
+namespace tables {
+
+
+static InstrType* instr_table_prep(
+    InstrType* unprep, int unprep_count, int a, int b) {
   int prep_count = pow(2, b - a + 1);
-  xe_ppc_instr_type_t *prep = (xe_ppc_instr_type_t*)xe_calloc(
-      prep_count * sizeof(xe_ppc_instr_type_t));
+  InstrType* prep = (InstrType*)xe_calloc(prep_count * sizeof(InstrType));
   for (int n = 0; n < unprep_count; n++) {
     int ordinal = XESELECTBITS(unprep[n].opcode, a, b);
     prep[ordinal] = unprep[n];
@@ -42,15 +47,15 @@ static xe_ppc_instr_type_t *xe_ppc_instr_table_prep(
 //   PowerISA_V2.06B_V2_PUBLIC.pdf
 
 // Opcode = 4, index = bits 5-0 (6)
-static xe_ppc_instr_type_t xe_ppc_instr_table_4_unprep[] = {
+static InstrType instr_table_4_unprep[] = {
   // TODO: all of the vector ops
   INSTRUCTION(vperm,          0x1000002B, VA , General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_4 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_4_unprep, XECOUNT(xe_ppc_instr_table_4_unprep), 0, 5);
+static InstrType* instr_table_4 = instr_table_prep(
+    instr_table_4_unprep, XECOUNT(instr_table_4_unprep), 0, 5);
 
 // Opcode = 19, index = bits 10-1 (10)
-static xe_ppc_instr_type_t xe_ppc_instr_table_19_unprep[] = {
+static InstrType instr_table_19_unprep[] = {
   INSTRUCTION(mcrf,           0x4C000000, XL , General        , 0),
   INSTRUCTION(bclrx,          0x4C000020, XL , BranchCond     , 0),
   INSTRUCTION(crnor,          0x4C000042, XL , General        , 0),
@@ -64,11 +69,11 @@ static xe_ppc_instr_type_t xe_ppc_instr_table_19_unprep[] = {
   INSTRUCTION(cror,           0x4C000382, XL , General        , 0),
   INSTRUCTION(bcctrx,         0x4C000420, XL , BranchCond     , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_19 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_19_unprep, XECOUNT(xe_ppc_instr_table_19_unprep), 1, 10);
+static InstrType* instr_table_19 = instr_table_prep(
+    instr_table_19_unprep, XECOUNT(instr_table_19_unprep), 1, 10);
 
 // Opcode = 30, index = bits 5-1 (5)
-static xe_ppc_instr_type_t xe_ppc_instr_table_30_unprep[] = {
+static InstrType instr_table_30_unprep[] = {
   INSTRUCTION(rldiclx,        0x78000000, MD , General        , 0),
   INSTRUCTION(rldicrx,        0x78000004, MD , General        , 0),
   INSTRUCTION(rldicx,         0x78000008, MD , General        , 0),
@@ -76,11 +81,11 @@ static xe_ppc_instr_type_t xe_ppc_instr_table_30_unprep[] = {
   INSTRUCTION(rldclx,         0x78000010, MDS, General        , 0),
   INSTRUCTION(rldcrx,         0x78000012, MDS, General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_30 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_30_unprep, XECOUNT(xe_ppc_instr_table_30_unprep), 1, 5);
+static InstrType* instr_table_30 = instr_table_prep(
+    instr_table_30_unprep, XECOUNT(instr_table_30_unprep), 1, 5);
 
 // Opcode = 31, index = bits 10-1 (10)
-static xe_ppc_instr_type_t xe_ppc_instr_table_31_unprep[] = {
+static InstrType instr_table_31_unprep[] = {
   INSTRUCTION(cmp,            0x7C000000, X  , General        , 0),
   INSTRUCTION(tw,             0x7C000008, X  , General        , 0),
   INSTRUCTION(lvsl,           0x7C00000C, X  , General        , 0),
@@ -199,20 +204,20 @@ static xe_ppc_instr_type_t xe_ppc_instr_table_31_unprep[] = {
   INSTRUCTION(extswx,         0x7C0007B4, X  , General        , 0),
   INSTRUCTION(dcbz,           0x7C0007EC, X  , General        , 0), // 0x7C2007EC = DCBZ128
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_31 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_31_unprep, XECOUNT(xe_ppc_instr_table_31_unprep), 1, 10);
+static InstrType* instr_table_31 = instr_table_prep(
+    instr_table_31_unprep, XECOUNT(instr_table_31_unprep), 1, 10);
 
 // Opcode = 58, index = bits 1-0 (2)
-static xe_ppc_instr_type_t xe_ppc_instr_table_58_unprep[] = {
+static InstrType instr_table_58_unprep[] = {
   INSTRUCTION(ld,             0xE8000000, DS , General        , 0),
   INSTRUCTION(ldu,            0xE8000001, DS , General        , 0),
   INSTRUCTION(lwa,            0xE8000002, DS , General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_58 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_58_unprep, XECOUNT(xe_ppc_instr_table_58_unprep), 0, 1);
+static InstrType* instr_table_58 = instr_table_prep(
+    instr_table_58_unprep, XECOUNT(instr_table_58_unprep), 0, 1);
 
 // Opcode = 59, index = bits 5-1 (5)
-static xe_ppc_instr_type_t xe_ppc_instr_table_59_unprep[] = {
+static InstrType instr_table_59_unprep[] = {
   INSTRUCTION(fdivsx,         0xEC000024, A  , General        , 0),
   INSTRUCTION(fsubsx,         0xEC000028, A  , General        , 0),
   INSTRUCTION(faddsx,         0xEC00002A, A  , General        , 0),
@@ -224,19 +229,19 @@ static xe_ppc_instr_type_t xe_ppc_instr_table_59_unprep[] = {
   INSTRUCTION(fnmsubsx,       0xEC00003C, A  , General        , 0),
   INSTRUCTION(fnmaddsx,       0xEC00003E, A  , General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_59 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_59_unprep, XECOUNT(xe_ppc_instr_table_59_unprep), 1, 5);
+static InstrType* instr_table_59 = instr_table_prep(
+    instr_table_59_unprep, XECOUNT(instr_table_59_unprep), 1, 5);
 
 // Opcode = 62, index = bits 1-0 (2)
-static xe_ppc_instr_type_t xe_ppc_instr_table_62_unprep[] = {
+static InstrType instr_table_62_unprep[] = {
   INSTRUCTION(std,            0xF8000000, DS , General        , 0),
   INSTRUCTION(stdu,           0xF8000001, DS , General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_62 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_62_unprep, XECOUNT(xe_ppc_instr_table_62_unprep), 0, 1);
+static InstrType* instr_table_62 = instr_table_prep(
+    instr_table_62_unprep, XECOUNT(instr_table_62_unprep), 0, 1);
 
 // Opcode = 63, index = bits 10-1 (10)
-static xe_ppc_instr_type_t xe_ppc_instr_table_63_unprep[] = {
+static InstrType instr_table_63_unprep[] = {
   INSTRUCTION(fcmpu,          0xFC000000, X  , General        , 0),
   INSTRUCTION(frspx,          0xFC000018, X  , General        , 0),
   INSTRUCTION(fctiwx,         0xFC00001C, X  , General        , 0),
@@ -267,11 +272,11 @@ static xe_ppc_instr_type_t xe_ppc_instr_table_63_unprep[] = {
   INSTRUCTION(fctidzx,        0xFC00065E, X  , General        , 0),
   INSTRUCTION(fcfidx,         0xFC00069C, X  , General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table_63 = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_63_unprep, XECOUNT(xe_ppc_instr_table_63_unprep), 1, 10);
+static InstrType* instr_table_63 = instr_table_prep(
+    instr_table_63_unprep, XECOUNT(instr_table_63_unprep), 1, 10);
 
 // Main table, index = bits 31-26 (6) : (code >> 26)
-static xe_ppc_instr_type_t xe_ppc_instr_table_unprep[64] = {
+static InstrType instr_table_unprep[64] = {
   INSTRUCTION(tdi,            0x08000000, D  , General        , 0),
   INSTRUCTION(twi,            0x0C000000, D  , General        , 0),
   INSTRUCTION(mulli,          0x1C000000, D  , General        , 0),
@@ -319,12 +324,19 @@ static xe_ppc_instr_type_t xe_ppc_instr_table_unprep[64] = {
   INSTRUCTION(stfd,           0xD8000000, D  , General        , 0),
   INSTRUCTION(stfdu,          0xDC000000, D  , General        , 0),
 };
-static xe_ppc_instr_type_t *xe_ppc_instr_table = xe_ppc_instr_table_prep(
-    xe_ppc_instr_table_unprep, XECOUNT(xe_ppc_instr_table_unprep), 26, 31);
+static InstrType* instr_table = instr_table_prep(
+    instr_table_unprep, XECOUNT(instr_table_unprep), 26, 31);
 
 
 #undef FLAG
 #undef INSTRUCTION
 #undef EMPTY
+
+
+}  // namespace tables
+}  // namespace ppc
+}  // namespace cpu
+}  // namespace xe
+
 
 #endif  // XENIA_CPU_PPC_INSTR_TABLE_H_

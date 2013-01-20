@@ -12,79 +12,123 @@
 
 #include <xenia/core.h>
 
+#include <list>
+#include <map>
 #include <vector>
 
-#include <xenia/kernel/module.h>
+#include <xenia/kernel/user_module.h>
 
 
-struct xe_sdb_function;
-typedef struct xe_sdb_function xe_sdb_function_t;
-struct xe_sdb_variable;
-typedef struct xe_sdb_variable xe_sdb_variable_t;
+namespace xe {
+namespace cpu {
+namespace sdb {
 
 
-typedef struct {
-  uint32_t          address;
-  xe_sdb_function_t *source;
-  xe_sdb_function_t *target;
-} xe_sdb_function_call_t;
+class FunctionSymbol;
+class VariableSymbol;
 
-typedef struct {
-  uint32_t          address;
-  xe_sdb_function_t *source;
-  xe_sdb_variable_t *target;
-} xe_sdb_variable_access_t;
 
-typedef enum {
-  kXESDBFunctionUnknown = 0,
-  kXESDBFunctionKernel  = 1,
-  kXESDBFunctionUser    = 2,
-} xe_sdb_function_type;
-
-struct xe_sdb_function {
-  uint32_t  start_address;
-  uint32_t  end_address;
-  char      *name;
-  xe_sdb_function_type type;
-  uint32_t  flags;
-
-  std::vector<xe_sdb_function_call_t*> incoming_calls;
-  std::vector<xe_sdb_function_call_t*> outgoing_calls;
-  std::vector<xe_sdb_variable_access_t*> variable_accesses;
+class FunctionCall {
+public:
+  uint32_t        address;
+  FunctionSymbol* source;
+  FunctionSymbol* target;
 };
 
-struct xe_sdb_variable {
+class VariableAccess {
+public:
+  uint32_t        address;
+  FunctionSymbol* source;
+  VariableSymbol* target;
+};
+
+class Symbol {
+public:
+  enum SymbolType {
+    Function    = 0,
+    Variable    = 1,
+  };
+
+  virtual ~Symbol() {}
+
+  SymbolType    symbol_type;
+
+protected:
+  Symbol(SymbolType type) : symbol_type(type) {}
+};
+
+class FunctionSymbol : public Symbol {
+public:
+  enum FunctionType {
+    Unknown = 0,
+    Kernel  = 1,
+    User    = 2,
+  };
+
+  FunctionSymbol() : Symbol(Function) {}
+  virtual ~FunctionSymbol() {}
+
+  uint32_t      start_address;
+  uint32_t      end_address;
+  char          *name;
+  FunctionType  type;
+  uint32_t      flags;
+
+  vector<FunctionCall*> incoming_calls;
+  vector<FunctionCall*> outgoing_calls;
+  vector<VariableAccess*> variable_accesses;
+};
+
+class VariableSymbol : public Symbol {
+public:
+  VariableSymbol() : Symbol(Variable) {}
+  virtual ~VariableSymbol() {}
+
   uint32_t  address;
   char      *name;
 };
 
-typedef struct {
-  int       type;
-  union {
-    xe_sdb_function_t*  function;
-    xe_sdb_variable_t*  variable;
-  };
-} xe_sdb_symbol_t;
+
+class SymbolDatabase {
+public:
+  SymbolDatabase(xe_memory_ref memory, kernel::UserModule* user_module);
+  ~SymbolDatabase();
+
+  int Analyze();
+
+  FunctionSymbol* GetOrInsertFunction(uint32_t address);
+  VariableSymbol* GetOrInsertVariable(uint32_t address);
+  FunctionSymbol* GetFunction(uint32_t address);
+  VariableSymbol* GetVariable(uint32_t address);
+  Symbol* GetSymbol(uint32_t address);
+
+  int GetAllFunctions(vector<FunctionSymbol*>& functions);
+
+  void Dump();
+
+private:
+  typedef std::map<uint32_t, Symbol*> SymbolMap;
+  typedef std::list<FunctionSymbol*> FunctionList;
+
+  int FindGplr();
+  int AddImports(const xe_xex2_import_library_t *library);
+  int AddMethodHints();
+  int AnalyzeFunction(FunctionSymbol* fn);
+  int FillHoles();
+  int FlushQueue();
+
+  xe_memory_ref   memory_;
+  kernel::UserModule* module_;
+  size_t          function_count_;
+  size_t          variable_count_;
+  SymbolMap       symbols_;
+  FunctionList    scan_queue_;
+};
 
 
-struct xe_sdb;
-typedef struct xe_sdb* xe_sdb_ref;
-
-
-xe_sdb_ref xe_sdb_create(xe_memory_ref memory, xe_module_ref module);
-xe_sdb_ref xe_sdb_retain(xe_sdb_ref sdb);
-void xe_sdb_release(xe_sdb_ref sdb);
-
-xe_sdb_function_t* xe_sdb_insert_function(xe_sdb_ref sdb, uint32_t address);
-xe_sdb_variable_t* xe_sdb_insert_variable(xe_sdb_ref sdb, uint32_t address);
-
-xe_sdb_function_t* xe_sdb_get_function(xe_sdb_ref sdb, uint32_t address);
-xe_sdb_variable_t* xe_sdb_get_variable(xe_sdb_ref sdb, uint32_t address);
-
-int xe_sdb_get_functions(xe_sdb_ref sdb, xe_sdb_function_t ***out_functions,
-                         size_t *out_function_count);
-
-void xe_sdb_dump(xe_sdb_ref sdb);
+}  // namespace sdb
+}  // namespace cpu
+}  // namespace xe
 
 
 #endif  // XENIA_CPU_SDB_H_
