@@ -24,6 +24,14 @@ namespace llvm {
   class ExecutionEngine;
 }
 
+namespace xe {
+namespace cpu {
+namespace codegen {
+  class CodegenContext;
+}
+}
+}
+
 
 namespace xe {
 namespace cpu {
@@ -52,6 +60,7 @@ private:
   shared_ptr<sdb::SymbolDatabase>   sdb_;
   shared_ptr<llvm::LLVMContext>     context_;
   shared_ptr<llvm::Module>          gen_module_;
+  auto_ptr<codegen::CodegenContext> codegen_;
 };
 
 

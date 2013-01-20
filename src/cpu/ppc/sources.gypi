@@ -2,5 +2,6 @@
 {
   'sources': [
     'instr.cc',
+    'instr_context.cc',
   ],
 }

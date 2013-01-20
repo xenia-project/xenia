@@ -24,6 +24,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include <xenia/cpu/ppc.h>
+#include "cpu/ppc/instr_context.h"
 
 using namespace llvm;
 using namespace xe;
@@ -80,15 +81,21 @@ int CodegenContext::GenerateModule() {
   //
 
   // Add all functions.
+  // We do two passes - the first creates the function signature and global
+  // value (so that we can call it), the second actually builds the function.
   std::vector<FunctionSymbol*> functions;
   if (!sdb_->GetAllFunctions(functions)) {
     for (std::vector<FunctionSymbol*>::iterator it = functions.begin();
          it != functions.end(); ++it) {
       // kernel functions will be handled by the add imports handlers.
       if ((*it)->type == FunctionSymbol::User) {
-        AddFunction(*it);
+        PrepareFunction(*it);
       }
     }
+  }
+  for (std::map<FunctionSymbol*, CodegenFunction*>::iterator it =
+       functions_.begin(); it != functions_.end(); ++it) {
+    BuildFunction(it->second);
   }
 
   di_builder_->finalize();
@@ -186,7 +193,7 @@ void CodegenContext::AddPresentImport(
   // TODO(benvanik): add import thunk code.
 }
 
-void CodegenContext::AddFunction(FunctionSymbol* fn) {
+void CodegenContext::PrepareFunction(FunctionSymbol* fn) {
   Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
@@ -215,14 +222,32 @@ void CodegenContext::AddFunction(FunctionSymbol* fn) {
   f->setCallingConv(CallingConv::C);
   f->setVisibility(GlobalValue::DefaultVisibility);
 
-  // TODO(benvanik): generate code!
-  BasicBlock* block = BasicBlock::Create(context, "entry", f);
-  IRBuilder<> builder(block);
-  //builder.SetCurrentDebugLocation(DebugLoc::get(fn->start_address >> 8, fn->start_address & 0xFF, ctx->cu));
-  Value* tmp = builder.getInt32(0);
-  builder.CreateRet(tmp);
+  CodegenFunction* cgf = new CodegenFunction();
+  cgf->symbol = fn;
+  cgf->function_type = ft;
+  cgf->function = f;
+  functions_.insert(std::pair<FunctionSymbol*, CodegenFunction*>(fn, cgf));
+}
 
-  // i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
+void CodegenContext::BuildFunction(CodegenFunction* cgf) {
+  FunctionSymbol* fn = cgf->symbol;
+
+  // Setup the generation context.
+  InstrContext ic(fn, context_, gen_module_, cgf->function);
+  // for each basic block:
+  // - ic.AddBasicBlock(bb);
+
+  // Run through and generate each basic block.
+  ic.GenerateBasicBlocks();
+
+  // // TODO(benvanik): generate code!
+  // BasicBlock* block = BasicBlock::Create(*context_, "entry", cgf->function);
+  // IRBuilder<> builder(block);
+  // //builder.SetCurrentDebugLocation(DebugLoc::get(fn->start_address >> 8, fn->start_address & 0xFF, ctx->cu));
+  // Value* tmp = builder.getInt32(0);
+  // builder.CreateRet(tmp);
+
+  // // i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
 
   uint8_t* mem = xe_memory_addr(memory_, 0);
   uint32_t* pc = (uint32_t*)(mem + fn->start_address);
@@ -241,7 +266,7 @@ void CodegenContext::AddFunction(FunctionSymbol* fn) {
   // Run the optimizer on the function.
   // Doing this here keeps the size of the IR small and speeds up the later
   // passes.
-  OptimizeFunction(m, f);
+  OptimizeFunction(gen_module_, cgf->function);
 }
 
 void CodegenContext::OptimizeFunction(Module* m, Function* fn) {

@@ -69,7 +69,6 @@ int ExecModule::Prepare() {
   OwningPtr<MemoryBuffer> shared_module_buffer;
   auto_ptr<Module> shared_module;
   auto_ptr<raw_ostream> outs;
-  auto_ptr<CodegenContext> codegen;
 
   PassManager pm;
   PassManagerBuilder pmb;
@@ -116,10 +115,10 @@ int ExecModule::Prepare() {
                         &error_message);
 
     // Build the module from the source code.
-    codegen = auto_ptr<CodegenContext>(new CodegenContext(
+    codegen_ = auto_ptr<CodegenContext>(new CodegenContext(
         memory_, export_resolver_.get(), module_, sdb_.get(),
         context_.get(), gen_module_.get()));
-    XEEXPECTZERO(codegen->GenerateModule());
+    XEEXPECTZERO(codegen_->GenerateModule());
 
     // Write to cache.
     outs = auto_ptr<raw_ostream>(new raw_fd_ostream(

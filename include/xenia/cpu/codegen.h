@@ -19,6 +19,7 @@
 namespace llvm {
   class LLVMContext;
   class Module;
+  class FunctionType;
   class Function;
   class DIBuilder;
   class MDNode;
@@ -28,6 +29,14 @@ namespace llvm {
 namespace xe {
 namespace cpu {
 namespace codegen {
+
+
+class CodegenFunction {
+public:
+  sdb::FunctionSymbol*    symbol;
+  llvm::FunctionType*     function_type;
+  llvm::Function*         function;
+};
 
 
 class CodegenContext {
@@ -48,7 +57,8 @@ private:
   void AddPresentImport(
       const xe_xex2_import_library_t *library,
       const xe_xex2_import_info_t* info, kernel::KernelExport* kernel_export);
-  void AddFunction(sdb::FunctionSymbol* fn);
+  void PrepareFunction(sdb::FunctionSymbol* fn);
+  void BuildFunction(CodegenFunction* cgf);
   void OptimizeFunction(llvm::Module* m, llvm::Function* fn);
 
   xe_memory_ref memory_;
@@ -60,6 +70,8 @@ private:
   llvm::Module*       gen_module_;
   llvm::DIBuilder*    di_builder_;
   llvm::MDNode*       cu_;
+
+  std::map<sdb::FunctionSymbol*, CodegenFunction*> functions_;
 };
 
 
