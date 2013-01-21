@@ -72,7 +72,7 @@ static InstrType instr_table_19_unprep[] = {
 static InstrType* instr_table_19 = instr_table_prep(
     instr_table_19_unprep, XECOUNT(instr_table_19_unprep), 1, 10);
 
-// Opcode = 30, index = bits 5-1 (5)
+// Opcode = 30, index = bits 4-1 (4)
 static InstrType instr_table_30_unprep[] = {
   INSTRUCTION(rldiclx,        0x78000000, MD , General        , 0),
   INSTRUCTION(rldicrx,        0x78000004, MD , General        , 0),
@@ -82,7 +82,7 @@ static InstrType instr_table_30_unprep[] = {
   INSTRUCTION(rldcrx,         0x78000012, MDS, General        , 0),
 };
 static InstrType* instr_table_30 = instr_table_prep(
-    instr_table_30_unprep, XECOUNT(instr_table_30_unprep), 2, 4);
+    instr_table_30_unprep, XECOUNT(instr_table_30_unprep), 1, 4);
 
 // Opcode = 31, index = bits 10-1 (10)
 static InstrType instr_table_31_unprep[] = {

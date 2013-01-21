@@ -27,8 +27,8 @@ InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
     slot = &xe::cpu::ppc::tables::instr_table_19[XESELECTBITS(code, 1, 10)];
     break;
   case 30:
-    // Opcode = 30, index = bits 5-1 (5)
-    slot = &xe::cpu::ppc::tables::instr_table_30[XESELECTBITS(code, 1, 5)];
+    // Opcode = 30, index = bits 4-1 (4)
+    slot = &xe::cpu::ppc::tables::instr_table_30[XESELECTBITS(code, 1, 4)];
     break;
   case 31:
     // Opcode = 31, index = bits 10-1 (10)
@@ -60,8 +60,9 @@ InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
   return slot;
 }
 
-int xe::cpu::ppc::RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
+int xe::cpu::ppc::RegisterInstrEmit(uint32_t code, void* emit) {
   InstrType* instr_type = GetInstrType(code);
+  XEASSERTNOTNULL(instr_type);
   if (!instr_type) {
     return 1;
   }

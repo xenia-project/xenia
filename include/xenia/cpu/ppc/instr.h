@@ -133,15 +133,6 @@ typedef struct {
   };
 } InstrData;
 
-class Instr {
-public:
-  InstrData   instr;
-
-  // TODO(benvanik): registers changed, special bits, etc
-};
-
-typedef int (*InstrEmitFn)(/* emit context */ Instr* instr);
-
 class InstrType {
 public:
   uint32_t    opcode;
@@ -150,11 +141,11 @@ public:
   uint32_t    flags;    // xe_ppc_instr_flag_e
   char        name[16];
 
-  InstrEmitFn emit;
+  void*       emit;
 };
 
 InstrType* GetInstrType(uint32_t code);
-int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
+int RegisterInstrEmit(uint32_t code, void* emit);
 
 
 }  // namespace ppc

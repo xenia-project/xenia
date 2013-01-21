@@ -17,6 +17,8 @@
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include "cpu/codegen/emit.h"
+
 
 using namespace llvm;
 using namespace xe;
@@ -28,9 +30,16 @@ Processor::Processor(xe_pal_ref pal, xe_memory_ref memory) {
   pal_ = xe_pal_retain(pal);
   memory_ = xe_memory_retain(memory);
 
+  // TODO(benvanik): only do this once
   LLVMLinkInInterpreter();
   LLVMLinkInJIT();
   InitializeNativeTarget();
+
+  // TODO(benvanik): only do this once
+  codegen::RegisterEmitCategoryALU();
+  codegen::RegisterEmitCategoryControl();
+  codegen::RegisterEmitCategoryFPU();
+  codegen::RegisterEmitCategoryMemory();
 }
 
 Processor::~Processor() {
