@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_CODEGEN_H_
-#define XENIA_CPU_CODEGEN_H_
+#ifndef XENIA_CPU_CODEGEN_MODULE_GENERATOR_H_
+#define XENIA_CPU_CODEGEN_MODULE_GENERATOR_H_
 
 #include <xenia/cpu/sdb.h>
 #include <xenia/core/memory.h>
@@ -31,25 +31,24 @@ namespace cpu {
 namespace codegen {
 
 
-class CodegenFunction {
+class ModuleGenerator {
 public:
-  sdb::FunctionSymbol*    symbol;
-  llvm::FunctionType*     function_type;
-  llvm::Function*         function;
-};
-
-
-class CodegenContext {
-public:
-  CodegenContext(
+  ModuleGenerator(
       xe_memory_ref memory, kernel::ExportResolver* export_resolver,
       kernel::UserModule* module, sdb::SymbolDatabase* sdb,
       llvm::LLVMContext* context, llvm::Module* gen_module);
-  ~CodegenContext();
+  ~ModuleGenerator();
 
-  int GenerateModule();
+  int Generate();
 
 private:
+  class CodegenFunction {
+  public:
+    sdb::FunctionSymbol*    symbol;
+    llvm::FunctionType*     function_type;
+    llvm::Function*         function;
+  };
+
   CodegenFunction* GetCodegenFunction(uint32_t address);
 
   void AddImports();
@@ -78,4 +77,4 @@ private:
 }  // namespace xe
 
 
-#endif  // XENIA_CPU_CODEGEN_H_
+#endif  // XENIA_CPU_CODEGEN_MODULE_GENERATOR_H_

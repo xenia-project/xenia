@@ -27,7 +27,7 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
-#include <xenia/cpu/codegen.h>
+#include <xenia/cpu/codegen/module_generator.h>
 #include <xenia/cpu/sdb.h>
 
 #include "cpu/xethunk/xethunk.h"
@@ -115,10 +115,10 @@ int ExecModule::Prepare() {
                         &error_message);
 
     // Build the module from the source code.
-    codegen_ = auto_ptr<CodegenContext>(new CodegenContext(
+    codegen_ = auto_ptr<ModuleGenerator>(new ModuleGenerator(
         memory_, export_resolver_.get(), module_, sdb_.get(),
         context_.get(), gen_module_.get()));
-    XEEXPECTZERO(codegen_->GenerateModule());
+    XEEXPECTZERO(codegen_->Generate());
 
     // Write to cache.
     outs = auto_ptr<raw_ostream>(new raw_fd_ostream(

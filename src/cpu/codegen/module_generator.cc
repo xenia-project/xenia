@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/codegen.h>
+#include <xenia/cpu/codegen/module_generator.h>
 
 #include <llvm/DIBuilder.h>
 #include <llvm/Linker.h>
@@ -24,18 +24,18 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include <xenia/cpu/ppc.h>
-#include "cpu/ppc/instr_context.h"
+#include <xenia/cpu/codegen/function_generator.h>
+
 
 using namespace llvm;
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::codegen;
-using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
-CodegenContext::CodegenContext(
+ModuleGenerator::ModuleGenerator(
     xe_memory_ref memory, ExportResolver* export_resolver,
     UserModule* module, SymbolDatabase* sdb,
     LLVMContext* context, Module* gen_module) {
@@ -47,11 +47,11 @@ CodegenContext::CodegenContext(
   gen_module_ = gen_module;
 }
 
-CodegenContext::~CodegenContext() {
+ModuleGenerator::~ModuleGenerator() {
   xe_memory_release(memory_);
 }
 
-int CodegenContext::GenerateModule() {
+int ModuleGenerator::Generate() {
   std::string error_message;
 
   // Setup a debug info builder.
@@ -111,7 +111,8 @@ int CodegenContext::GenerateModule() {
   return 0;
 }
 
-CodegenFunction* CodegenContext::GetCodegenFunction(uint32_t address) {
+ModuleGenerator::CodegenFunction* ModuleGenerator::GetCodegenFunction(
+    uint32_t address) {
   std::map<uint32_t, CodegenFunction*>::iterator it = functions_.find(address);
   if (it != functions_.end()) {
     return it->second;
@@ -119,7 +120,7 @@ CodegenFunction* CodegenContext::GetCodegenFunction(uint32_t address) {
   return NULL;
 }
 
-void CodegenContext::AddMissingImport(FunctionSymbol* fn) {
+void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
   Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
@@ -158,14 +159,14 @@ void CodegenContext::AddMissingImport(FunctionSymbol* fn) {
   //        implemented ? "  " : "!!", name);
 }
 
-void CodegenContext::AddPresentImport(FunctionSymbol* fn) {
+void ModuleGenerator::AddPresentImport(FunctionSymbol* fn) {
   // Module *m = gen_module_;
   // LLVMContext& context = m->getContext();
 
   // TODO(benvanik): add import thunk code.
 }
 
-void CodegenContext::PrepareFunction(FunctionSymbol* fn) {
+void ModuleGenerator::PrepareFunction(FunctionSymbol* fn) {
   Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
@@ -177,7 +178,7 @@ void CodegenContext::PrepareFunction(FunctionSymbol* fn) {
   AttributeSet attrs = AttributeSet::get(context, awi);
 
   std::vector<Type*> args;
-  Type* return_type = Type::getInt32Ty(context);
+  Type* return_type = Type::getVoidTy(context);
 
   char name[64];
   char* pname = name;
@@ -202,16 +203,16 @@ void CodegenContext::PrepareFunction(FunctionSymbol* fn) {
       fn->start_address, cgf));
 }
 
-void CodegenContext::BuildFunction(CodegenFunction* cgf) {
+void ModuleGenerator::BuildFunction(CodegenFunction* cgf) {
   FunctionSymbol* fn = cgf->symbol;
 
   printf("%s:\n", fn->name);
 
   // Setup the generation context.
-  InstrContext ic(memory_, fn, context_, gen_module_, cgf->function);
+  FunctionGenerator fgen(memory_, fn, context_, gen_module_, cgf->function);
 
   // Run through and generate each basic block.
-  ic.GenerateBasicBlocks();
+  fgen.GenerateBasicBlocks();
 
   // Run the optimizer on the function.
   // Doing this here keeps the size of the IR small and speeds up the later
@@ -219,7 +220,7 @@ void CodegenContext::BuildFunction(CodegenFunction* cgf) {
   OptimizeFunction(gen_module_, cgf->function);
 }
 
-void CodegenContext::OptimizeFunction(Module* m, Function* fn) {
+void ModuleGenerator::OptimizeFunction(Module* m, Function* fn) {
   FunctionPassManager pm(m);
   PassManagerBuilder pmb;
   pmb.OptLevel      = 3;

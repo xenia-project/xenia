@@ -27,7 +27,7 @@ namespace llvm {
 namespace xe {
 namespace cpu {
 namespace codegen {
-  class CodegenContext;
+  class ModuleGenerator;
 }
 }
 }
@@ -53,14 +53,14 @@ private:
   int Init();
   int Uninit();
 
-  xe_memory_ref         memory_;
-  shared_ptr<kernel::ExportResolver> export_resolver_;
-  kernel::UserModule*   module_;
-  shared_ptr<llvm::ExecutionEngine> engine_;
-  shared_ptr<sdb::SymbolDatabase>   sdb_;
-  shared_ptr<llvm::LLVMContext>     context_;
-  shared_ptr<llvm::Module>          gen_module_;
-  auto_ptr<codegen::CodegenContext> codegen_;
+  xe_memory_ref                       memory_;
+  shared_ptr<kernel::ExportResolver>  export_resolver_;
+  kernel::UserModule*                 module_;
+  shared_ptr<llvm::ExecutionEngine>   engine_;
+  shared_ptr<sdb::SymbolDatabase>     sdb_;
+  shared_ptr<llvm::LLVMContext>       context_;
+  shared_ptr<llvm::Module>            gen_module_;
+  auto_ptr<codegen::ModuleGenerator>  codegen_;
 };
 
 
