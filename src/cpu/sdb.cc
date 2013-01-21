@@ -22,6 +22,14 @@ using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
+FunctionSymbol::~FunctionSymbol() {
+  delete name;
+  for (std::map<uint32_t, FunctionBlock*>::iterator it = blocks.begin();
+       it != blocks.end(); ++it) {
+    delete it->second;
+  }
+}
+
 FunctionBlock* FunctionSymbol::GetBlock(uint32_t address) {
   std::map<uint32_t, FunctionBlock*>::iterator it = blocks.find(address);
   if (it != blocks.end()) {
@@ -60,8 +68,14 @@ FunctionBlock* FunctionSymbol::SplitBlock(uint32_t address) {
   return NULL;
 }
 
-SymbolDatabase::SymbolDatabase(xe_memory_ref memory, UserModule* module) {
+VariableSymbol::~VariableSymbol() {
+  delete name;
+}
+
+SymbolDatabase::SymbolDatabase(
+    xe_memory_ref memory, ExportResolver* export_resolver, UserModule* module) {
   memory_ = xe_memory_retain(memory);
+  export_resolver_ = export_resolver;
   module_ = module;
 }
 
@@ -99,7 +113,7 @@ int SymbolDatabase::Analyze() {
 
   // Queue entry point of the application.
   FunctionSymbol* fn = GetOrInsertFunction(header->exe_entry_point);
-  fn->name = xestrdupa("<entry>");
+  fn->name = xestrdupa("start");
 
   // Keep pumping the queue until there's nothing left to do.
   FlushQueue();
@@ -240,8 +254,25 @@ void SymbolDatabase::Dump() {
 void SymbolDatabase::DumpFunctionBlocks(FunctionSymbol* fn) {
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn->blocks.begin();
        it != fn->blocks.end(); ++it) {
-    FunctionBlock* bb = it->second;
-    printf("  bb %.8X\n", bb->start_address);
+    FunctionBlock* block = it->second;
+    printf("  bb %.8X-%.8X", block->start_address, block->end_address + 4);
+    switch (block->outgoing_type) {
+      case FunctionBlock::kTargetUnknown:
+        printf(" ?\n");
+        break;
+      case FunctionBlock::kTargetBlock:
+        printf(" branch %.8X\n", block->outgoing_block->start_address);
+        break;
+      case FunctionBlock::kTargetFunction:
+        printf(" call %.8X %s\n", block->outgoing_function->start_address, block->outgoing_function->name);
+        break;
+      case FunctionBlock::kTargetLR:
+        printf(" return\n");
+        break;
+      case FunctionBlock::kTargetNone:
+        printf("\n");
+        break;
+    }
   }
 }
 
@@ -354,22 +385,36 @@ int SymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
     return 1;
   }
 
-  char name[64];
+  char name[128];
   for (size_t n = 0; n < import_info_count; n++) {
     const xe_xex2_import_info_t* info = &import_infos[n];
+
+    KernelExport* kernel_export = export_resolver_->GetExportByOrdinal(
+        library->name, info->ordinal);
+
     VariableSymbol* var = GetOrInsertVariable(info->value_address);
-    // TODO(benvanik): use kernel name
-    xesnprintf(name, XECOUNT(name), "__var_%s_%.3X", library->name,
-               info->ordinal);
+    if (kernel_export) {
+      if (info->thunk_address) {
+        xesnprintfa(name, XECOUNT(name), "__imp__%s", kernel_export->name);
+      } else {
+        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+      }
+    } else {
+      xesnprintfa(name, XECOUNT(name), "__imp__%s_%.3X", library->name,
+                  info->ordinal);
+    }
     var->name = xestrdupa(name);
     if (info->thunk_address) {
       FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
-      // TODO(benvanik): use kernel name
-      xesnprintf(name, XECOUNT(name), "__thunk_%s_%.3X", library->name,
-                 info->ordinal);
       fn->end_address = fn->start_address + 16 - 4;
-      fn->name = xestrdupa(name);
       fn->type = FunctionSymbol::Kernel;
+      if (kernel_export) {
+        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+      } else {
+        xesnprintfa(name, XECOUNT(name), "__kernel_%s_%.3X", library->name,
+                    info->ordinal);
+      }
+      fn->name = xestrdupa(name);
     }
   }
 
@@ -441,6 +486,13 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   }
 
   XELOGSDB("Analyzing function %.8X...\n", fn->start_address);
+
+  // Set a default name, if it hasn't been named already.
+  if (!fn->name) {
+    char name[32];
+    xesnprintfa(name, XECOUNT(name), "sub_%.8X", fn->start_address);
+    fn->name = xestrdup(name);
+  }
 
   InstrData i;
   FunctionBlock* block = NULL;
@@ -577,6 +629,12 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   fn->end_address = addr;
 
   // If there's spare bits at the end, split the function.
+  // TODO(benvanik): splitting?
+
+  // TODO(benvanik): find and record stack information
+  // - look for __savegprlr_* and __restgprlr_*
+  // - if present, flag function as needing a stack
+  // - record prolog/epilog lengths/stack size/etc
 
   XELOGSDB("Finished analyzing %.8X\n", fn->start_address);
   return 0;
@@ -688,8 +746,12 @@ bool SymbolDatabase::FillHoles() {
     uint32_t data_addr = XEGETUINT32BE(p + 1);
     if (data_addr) {
       VariableSymbol* var = GetOrInsertVariable(data_addr);
-      char name[32];
-      xesnprintf(name, XECOUNT(name), "__ee_data_%.8X", *it);
+      char name[128];
+      if (ee->function) {
+        xesnprintfa(name, XECOUNT(name), "__ee_data_%s", ee->function->name);
+      } else {
+        xesnprintfa(name, XECOUNT(name), "__ee_data_%.8X", *it);
+      }
       var->name = xestrdupa(name);
     }
   }

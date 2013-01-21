@@ -48,7 +48,7 @@ ExecModule::ExecModule(
   module_ = user_module;
   engine_ = engine;
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
-      new sdb::SymbolDatabase(memory_, module_));
+      new sdb::SymbolDatabase(memory_, export_resolver_.get(), module_));
 
   context_ = shared_ptr<LLVMContext>(new LLVMContext());
 }

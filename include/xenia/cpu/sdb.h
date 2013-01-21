@@ -16,6 +16,7 @@
 #include <map>
 #include <vector>
 
+#include <xenia/kernel/export.h>
 #include <xenia/kernel/user_module.h>
 
 
@@ -96,7 +97,7 @@ public:
   };
 
   FunctionSymbol() : Symbol(Function) {}
-  virtual ~FunctionSymbol() {}
+  virtual ~FunctionSymbol();
 
   FunctionBlock* GetBlock(uint32_t address);
   FunctionBlock* SplitBlock(uint32_t address);
@@ -119,7 +120,7 @@ public:
 class VariableSymbol : public Symbol {
 public:
   VariableSymbol() : Symbol(Variable) {}
-  virtual ~VariableSymbol() {}
+  virtual ~VariableSymbol();
 
   uint32_t  address;
   char      *name;
@@ -137,7 +138,8 @@ public:
 
 class SymbolDatabase {
 public:
-  SymbolDatabase(xe_memory_ref memory, kernel::UserModule* user_module);
+  SymbolDatabase(xe_memory_ref memory, kernel::ExportResolver* export_resolver,
+                 kernel::UserModule* module);
   ~SymbolDatabase();
 
   int Analyze();
@@ -170,6 +172,7 @@ private:
   bool IsRestGprLr(uint32_t addr);
 
   xe_memory_ref   memory_;
+  kernel::ExportResolver* export_resolver_;
   kernel::UserModule* module_;
   size_t          function_count_;
   size_t          variable_count_;
