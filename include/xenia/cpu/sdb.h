@@ -45,8 +45,9 @@ public:
 class Symbol {
 public:
   enum SymbolType {
-    Function    = 0,
-    Variable    = 1,
+    Function        = 0,
+    Variable        = 1,
+    ExceptionEntry  = 2,
   };
 
   virtual ~Symbol() {}
@@ -57,12 +58,28 @@ protected:
   Symbol(SymbolType type) : symbol_type(type) {}
 };
 
+class ExceptionEntrySymbol;
+
+class FunctionBlock {
+public:
+  uint32_t      start_address;
+  uint32_t      end_address;
+
+  vector<FunctionBlock*> incoming_blocks;
+  FunctionBlock*  outgoing_block;
+  uint32_t        outgoing_address;
+};
+
 class FunctionSymbol : public Symbol {
 public:
   enum FunctionType {
     Unknown = 0,
     Kernel  = 1,
     User    = 2,
+  };
+  enum Flags {
+    kFlagSaveGprLr  = 1 << 1,
+    kFlagRestGprLr  = 1 << 2,
   };
 
   FunctionSymbol() : Symbol(Function) {}
@@ -74,9 +91,13 @@ public:
   FunctionType  type;
   uint32_t      flags;
 
+  ExceptionEntrySymbol* ee;
+
   vector<FunctionCall*> incoming_calls;
   vector<FunctionCall*> outgoing_calls;
   vector<VariableAccess*> variable_accesses;
+
+  map<uint32_t, FunctionBlock*> blocks;
 };
 
 class VariableSymbol : public Symbol {
@@ -88,6 +109,15 @@ public:
   char      *name;
 };
 
+class ExceptionEntrySymbol : public Symbol {
+public:
+  ExceptionEntrySymbol() : Symbol(ExceptionEntry) {}
+  virtual ~ExceptionEntrySymbol() {}
+
+  uint32_t  address;
+  FunctionSymbol* function;
+};
+
 
 class SymbolDatabase {
 public:
@@ -96,6 +126,7 @@ public:
 
   int Analyze();
 
+  ExceptionEntrySymbol* GetOrInsertExceptionEntry(uint32_t address);
   FunctionSymbol* GetOrInsertFunction(uint32_t address);
   VariableSymbol* GetOrInsertVariable(uint32_t address);
   FunctionSymbol* GetFunction(uint32_t address);
@@ -105,6 +136,7 @@ public:
   int GetAllFunctions(vector<FunctionSymbol*>& functions);
 
   void Dump();
+  void DumpFunctionBlocks(FunctionSymbol* fn);
 
 private:
   typedef std::map<uint32_t, Symbol*> SymbolMap;
@@ -114,8 +146,11 @@ private:
   int AddImports(const xe_xex2_import_library_t *library);
   int AddMethodHints();
   int AnalyzeFunction(FunctionSymbol* fn);
-  int FillHoles();
+  bool FillHoles();
   int FlushQueue();
+
+  bool IsValueInTextRange(uint32_t value);
+  bool IsRestGprLr(uint32_t addr);
 
   xe_memory_ref   memory_;
   kernel::UserModule* module_;

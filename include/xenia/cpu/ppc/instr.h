@@ -56,6 +56,14 @@ typedef enum {
 class InstrType;
 
 
+static inline int32_t XEEXTS16(uint32_t v) {
+  return (int32_t)((int16_t)v);
+}
+static inline int32_t XEEXTS26(uint32_t v) {
+  return v & 0x02000000 ? (int32_t)v | 0xFC000000 : (int32_t)(v);
+}
+
+
 typedef struct {
   InstrType*        type;
   uint32_t          address;
@@ -98,6 +106,14 @@ typedef struct {
     // kXEPPCInstrFormatX
     // kXEPPCInstrFormatXL
     struct {
+      uint32_t        LK      : 1;
+      uint32_t                : 10;
+      uint32_t        BB      : 5;
+      uint32_t        BI      : 5;
+      uint32_t        BO      : 5;
+      uint32_t        OPCD    : 6;
+    } XL;
+    struct {
       uint32_t                : 1;
       uint32_t                : 10;
       uint32_t        spr     : 10;
@@ -114,7 +130,7 @@ typedef struct {
     // kXEPPCInstrFormatVA
     // kXEPPCInstrFormatVX
     // kXEPPCInstrFormatVXR
-  } data;
+  };
 } InstrData;
 
 class Instr {

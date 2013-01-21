@@ -196,5 +196,6 @@ int ExecModule::Uninit() {
 }
 
 void ExecModule::Dump() {
+  sdb_->Dump();
   gen_module_->dump();
 }
