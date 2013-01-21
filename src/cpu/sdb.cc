@@ -22,6 +22,44 @@ using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
+FunctionBlock* FunctionSymbol::GetBlock(uint32_t address) {
+  std::map<uint32_t, FunctionBlock*>::iterator it = blocks.find(address);
+  if (it != blocks.end()) {
+    return it->second;
+  }
+  return NULL;
+}
+
+FunctionBlock* FunctionSymbol::SplitBlock(uint32_t address) {
+  // Scan to find the block that contains the address.
+  for (std::map<uint32_t, FunctionBlock*>::iterator it = blocks.begin();
+       it != blocks.end(); ++it) {
+    FunctionBlock* block = it->second;
+    if (address == block->start_address) {
+      // No need for a split.
+      return block;
+    } else if (address >= block->start_address &&
+               address <= block->end_address + 4) {
+      // Inside this block.
+      // Since we know we are starting inside of the block we split downwards.
+      FunctionBlock* new_block = new FunctionBlock();
+      new_block->start_address = address;
+      new_block->end_address = block->end_address;
+      new_block->outgoing_type = block->outgoing_type;
+      new_block->outgoing_address = block->outgoing_address;
+      new_block->outgoing_block = block->outgoing_block;
+      blocks.insert(std::pair<uint32_t, FunctionBlock*>(address, new_block));
+      // Patch up old block.
+      block->end_address = address - 4;
+      block->outgoing_type = FunctionBlock::kTargetNone;
+      block->outgoing_address = 0;
+      block->outgoing_block = NULL;
+      return new_block;
+    }
+  }
+  return NULL;
+}
+
 SymbolDatabase::SymbolDatabase(xe_memory_ref memory, UserModule* module) {
   memory_ = xe_memory_retain(memory);
   module_ = module;
@@ -72,6 +110,14 @@ int SymbolDatabase::Analyze() {
       break;
     }
     FlushQueue();
+  }
+
+  // Run a pass over all functions and link up their extended data.
+  // This can only be performed after we have all functions and basic blocks.
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    if (it->second->symbol_type == Symbol::Function) {
+      CompleteFunctionGraph(static_cast<FunctionSymbol*>(it->second));
+    }
   }
 
   return 0;
@@ -349,11 +395,6 @@ int SymbolDatabase::AddMethodHints() {
   return 0;
 }
 
-bool SymbolDatabase::IsRestGprLr(uint32_t addr) {
-  FunctionSymbol* fn = GetFunction(addr);
-  return fn && (fn->flags & FunctionSymbol::kFlagRestGprLr);
-}
-
 int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // Ignore functions already analyzed.
   if (fn->blocks.size()) {
@@ -436,6 +477,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     if (i.code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
+      block->outgoing_type = FunctionBlock::kTargetLR;
       if (furthest_target > addr) {
         // Remaining targets within function, not end.
         XELOGSDB("ignoring blr %.8X (branch to %.8X)\n", addr, furthest_target);
@@ -448,11 +490,13 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     } else if (i.type->opcode == 0x48000000) {
       // b/ba/bl/bla
       uint32_t target = XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)addr);
+      block->outgoing_address = target;
 
       if (i.I.LK) {
         XELOGSDB("bl %.8X -> %.8X\n", addr, target);
 
-        // Queue target if needed.
+        // Queue call target if needed.
+        GetOrInsertFunction(target);
       } else {
         XELOGSDB("b %.8X -> %.8X\n", addr, target);
         // If the target is back into the function and there's no further target
@@ -478,6 +522,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     } else if (i.type->opcode == 0x40000000) {
       // bc/bca/bcl/bcla
       uint32_t target = XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)addr);
+      block->outgoing_address = target;
       if (i.B.LK) {
         XELOGSDB("bcl %.8X -> %.8X\n", addr, target);
       } else {
@@ -537,32 +582,41 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   return 0;
 }
 
-int SymbolDatabase::FlushQueue() {
-  while (scan_queue_.size()) {
-    FunctionSymbol* fn = scan_queue_.front();
-    scan_queue_.pop_front();
-    if (AnalyzeFunction(fn)) {
-      XELOGSDB("Aborting analysis!\n");
-      return 1;
+int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
+  // Find variable accesses.
+  // TODO(benvanik): data analysis to find variable accesses.
+
+  // For each basic block:
+  // - find outgoing target block or function
+  for (std::map<uint32_t, FunctionBlock*>::iterator it = fn->blocks.begin();
+       it != fn->blocks.end(); ++it) {
+    FunctionBlock* block = it->second;
+
+    // If we have some address try to see what it is.
+    if (block->outgoing_address) {
+      if (block->outgoing_address >= fn->start_address &&
+          block->outgoing_address <= fn->end_address) {
+        // Branch into a block in this function.
+        block->outgoing_type = FunctionBlock::kTargetBlock;
+        block->outgoing_block = fn->GetBlock(block->outgoing_address);
+        if (!block->outgoing_block) {
+          // Block target not found - we may need to split.
+          block->outgoing_block = fn->SplitBlock(block->outgoing_address);
+        }
+        if (!block->outgoing_block) {
+          printf("block target not found: %.8X\n", block->outgoing_address);
+        }
+      } else {
+        // Function call.
+        block->outgoing_type = FunctionBlock::kTargetFunction;
+        block->outgoing_function = GetFunction(block->outgoing_address);
+        if (!block->outgoing_function) {
+          printf("call target not found: %.8X\n", block->outgoing_address);
+        }
+      }
     }
   }
   return 0;
-}
-
-bool SymbolDatabase::IsValueInTextRange(uint32_t value) {
-  const xe_xex2_header_t* header = module_->xex_header();
-  for (size_t n = 0, i = 0; n < header->section_count; n++) {
-    const xe_xex2_section_t* section = &header->sections[n];
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
-    const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
-    if (value >= start_address && value < end_address) {
-      return section->info.type == XEX_SECTION_CODE;
-    }
-    i += section->info.page_count;
-  }
-  return false;
 }
 
 typedef struct {
@@ -647,4 +701,37 @@ bool SymbolDatabase::FillHoles() {
   }
 
   return holes.size() > 0;
+}
+
+int SymbolDatabase::FlushQueue() {
+  while (scan_queue_.size()) {
+    FunctionSymbol* fn = scan_queue_.front();
+    scan_queue_.pop_front();
+    if (AnalyzeFunction(fn)) {
+      XELOGSDB("Aborting analysis!\n");
+      return 1;
+    }
+  }
+  return 0;
+}
+
+bool SymbolDatabase::IsValueInTextRange(uint32_t value) {
+  const xe_xex2_header_t* header = module_->xex_header();
+  for (size_t n = 0, i = 0; n < header->section_count; n++) {
+    const xe_xex2_section_t* section = &header->sections[n];
+    const size_t start_address =
+        header->exe_address + (i * xe_xex2_section_length);
+    const size_t end_address =
+        start_address + (section->info.page_count * xe_xex2_section_length);
+    if (value >= start_address && value < end_address) {
+      return section->info.type == XEX_SECTION_CODE;
+    }
+    i += section->info.page_count;
+  }
+  return false;
+}
+
+bool SymbolDatabase::IsRestGprLr(uint32_t addr) {
+  FunctionSymbol* fn = GetFunction(addr);
+  return fn && (fn->flags & FunctionSymbol::kFlagRestGprLr);
 }

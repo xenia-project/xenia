@@ -62,12 +62,25 @@ class ExceptionEntrySymbol;
 
 class FunctionBlock {
 public:
+  enum TargetType {
+    kTargetUnknown  = 0,
+    kTargetBlock    = 1,
+    kTargetFunction = 2,
+    kTargetLR       = 3,
+    kTargetNone     = 4,
+  };
+
   uint32_t      start_address;
   uint32_t      end_address;
 
   vector<FunctionBlock*> incoming_blocks;
-  FunctionBlock*  outgoing_block;
-  uint32_t        outgoing_address;
+
+  TargetType        outgoing_type;
+  uint32_t          outgoing_address;
+  union {
+    FunctionSymbol* outgoing_function;
+    FunctionBlock*  outgoing_block;
+  };
 };
 
 class FunctionSymbol : public Symbol {
@@ -84,6 +97,9 @@ public:
 
   FunctionSymbol() : Symbol(Function) {}
   virtual ~FunctionSymbol() {}
+
+  FunctionBlock* GetBlock(uint32_t address);
+  FunctionBlock* SplitBlock(uint32_t address);
 
   uint32_t      start_address;
   uint32_t      end_address;
@@ -146,6 +162,7 @@ private:
   int AddImports(const xe_xex2_import_library_t *library);
   int AddMethodHints();
   int AnalyzeFunction(FunctionSymbol* fn);
+  int CompleteFunctionGraph(FunctionSymbol* fn);
   bool FillHoles();
   int FlushQueue();
 
