@@ -15,6 +15,7 @@
 #include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/LLVMContext.h>
@@ -108,6 +109,11 @@ int ExecModule::Prepare() {
         new Module(module_->name(), *context_.get()));
     // TODO(benavnik): addModuleFlag?
 
+    // Inject globals.
+    // This should be done ASAP to ensure that JITed functions can use the
+    // constant addresses.
+    XEEXPECTZERO(InjectGlobals());
+
     // Link shared module into generated module.
     // This gives us a single module that we can optimize and prevents the need
     // for foreward declarations.
@@ -165,19 +171,41 @@ XECLEANUP:
   return result_code;
 }
 
+int ExecModule::InjectGlobals() {
+  LLVMContext& context = *context_.get();
+  const DataLayout* dl = engine_->getDataLayout();
+  Type* voidPtrTy = PointerType::getUnqual(Type::getVoidTy(context));
+  Type* intPtrTy = dl->getIntPtrType(context);
+  GlobalVariable* gv;
+
+  // xe_memory_base
+  // This is the base void* pointer to the memory space.
+  gv = new GlobalVariable(
+      *gen_module_,
+      voidPtrTy,
+      true,
+      GlobalValue::ExternalLinkage,
+      0,
+      "xe_memory_base");
+  // Align to 64b - this makes SSE faster.
+  gv->setAlignment(64);
+  gv->setInitializer(ConstantExpr::getIntToPtr(
+      ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
+      voidPtrTy));
+
+  // xe_ppc_state
+  // ...
+
+  return 0;
+}
+
 int ExecModule::Init() {
   // Run static initializers. I'm not sure we'll have any, but who knows.
   engine_->runStaticConstructorsDestructors(gen_module_.get(), false);
 
-  // Prepare init options.
-  xe_module_init_options_t init_options;
-  xe_zero_struct(&init_options, sizeof(init_options));
-  init_options.memory_base = xe_memory_addr(memory_, 0);
-
   // Grab the init function and call it.
   Function* xe_module_init = gen_module_->getFunction("xe_module_init");
   std::vector<GenericValue> args;
-  args.push_back(GenericValue(&init_options));
   GenericValue ret = engine_->runFunction(xe_module_init, args);
 
   return ret.IntVal.getSExtValue();

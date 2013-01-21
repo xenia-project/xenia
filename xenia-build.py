@@ -394,7 +394,7 @@ class XethunkCommand(Command):
     print ''
 
     path = 'src/cpu/xethunk/xethunk'
-    result = shell_call('clang -emit-llvm -O0 -c %s.c -o %s.bc' % (path, path),
+    result = shell_call('clang -emit-llvm -O0 -Iinclude/ -c %s.c -o %s.bc' % (path, path),
                         throw_on_error=False)
     if result != 0:
       return result

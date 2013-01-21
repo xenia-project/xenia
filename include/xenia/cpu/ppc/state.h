@@ -10,45 +10,54 @@
 #ifndef XENIA_CPU_PPC_STATE_H_
 #define XENIA_CPU_PPC_STATE_H_
 
-#include <xenia/common.h>
+
+/**
+ * NOTE: this file is included by xethunk and as such should have a *MINIMAL*
+ * set of dependencies!
+ */
+
+#include <stdint.h>
 
 
-namespace xe {
-namespace cpu {
-namespace ppc {
+// namespace FPRF {
+//   enum FPRF_e {
+//     QUIET_NAN             = 0x00088000,
+//     NEG_INFINITY          = 0x00090000,
+//     NEG_NORMALIZED        = 0x00010000,
+//     NEG_DENORMALIZED      = 0x00018000,
+//     NEG_ZERO              = 0x00048000,
+//     POS_ZERO              = 0x00040000,
+//     POS_DENORMALIZED      = 0x00028000,
+//     POS_NORMALIZED        = 0x00020000,
+//     POS_INFINITY          = 0x000A0000,
+//   };
+// }  // FPRF
 
 
-namespace SPR {
-  enum SPR_e {
-    XER                   = 1,
-    LR                    = 8,
-    CTR                   = 9,
+typedef struct XECACHEALIGN {
+  union {
+    struct {
+      float     x;
+      float     y;
+      float     z;
+      float     w;
+    };
+    float       f4[4];
+    struct {
+      uint64_t  low;
+      uint64_t  high;
+    };
   };
-}  // SPR
-
-
-namespace FPRF {
-  enum FPRF_e {
-    QUIET_NAN             = 0x00088000,
-    NEG_INFINITY          = 0x00090000,
-    NEG_NORMALIZED        = 0x00010000,
-    NEG_DENORMALIZED      = 0x00018000,
-    NEG_ZERO              = 0x00048000,
-    POS_ZERO              = 0x00040000,
-    POS_DENORMALIZED      = 0x00028000,
-    POS_NORMALIZED        = 0x00020000,
-    POS_INFINITY          = 0x000A0000,
-  };
-}  // FPRF
+} xe_float4_t;
 
 
 typedef struct XECACHEALIGN64 {
   uint64_t    r[32];              // General purpose registers
-  xefloat4_t  v[128];             // VMX128 vector registers
+  xe_float4_t v[128];             // VMX128 vector registers
   double      f[32];              // Floating-point registers
 
-  uint32_t    pc;                 // Current PC (CIA)
-  uint32_t    npc;                // Next PC (NIA)
+  uint32_t    cia;                // Current PC (CIA)
+  uint32_t    nia;                // Next PC (NIA)
   uint64_t    xer;                // XER register
   uint64_t    lr;                 // Link register
   uint64_t    ctr;                // Count register
@@ -109,23 +118,13 @@ typedef struct XECACHEALIGN64 {
     } bits;
   } fpscr;                        // Floating-point status and control register
 
-  uint32_t get_fprf() {
-    return fpscr.value & 0x000F8000;
-  }
-  void set_fprf(const uint32_t v) {
-    fpscr.value = (fpscr.value & ~0x000F8000) | v;
-  }
-} PpcRegisters;
-
-
-typedef struct {
-  PpcRegisters      registers;
-} PpcState;
-
-
-}  // namespace ppc
-}  // namespace cpu
-}  // namespace xe
+  // uint32_t get_fprf() {
+  //   return fpscr.value & 0x000F8000;
+  // }
+  // void set_fprf(const uint32_t v) {
+  //   fpscr.value = (fpscr.value & ~0x000F8000) | v;
+  // }
+} xe_ppc_state_t;
 
 
 #endif  // XENIA_CPU_PPC_STATE_H_

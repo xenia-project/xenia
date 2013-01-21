@@ -21,15 +21,16 @@
 
 // NOTE: only headers in this directory should be included.
 #include "xethunk.h"
+#include <xenia/cpu/ppc/state.h>
 
 
-// The base pointer that all guest addresses should be relative to.
-static void* xe_memory_base;
+// Global CPU state.
+// Instructions that dereference the state use this.
+// TODO(benvanik): noalias/invariant/etc?s
+static xe_ppc_state_t* xe_ppc_state;
 
 
-int xe_module_init(xe_module_init_options_t *options) {
-  xe_memory_base = options->memory_base;
-
+int xe_module_init() {
   // TODO(benvanik): setup call table, etc?
 
   return 0;

@@ -45,9 +45,16 @@ ModuleGenerator::ModuleGenerator(
   sdb_ = sdb;
   context_ = context;
   gen_module_ = gen_module;
+  di_builder_ = NULL;
 }
 
 ModuleGenerator::~ModuleGenerator() {
+  for (std::map<uint32_t, CodegenFunction*>::iterator it =
+       functions_.begin(); it != functions_.end(); ++it) {
+    delete it->second;
+  }
+
+  delete di_builder_;
   xe_memory_release(memory_);
 }
 
@@ -59,7 +66,7 @@ int ModuleGenerator::Generate() {
   // fine grained than this, but for now it's something.
   xechar_t dir[2048];
   XEIGNORE(xestrcpy(dir, XECOUNT(dir), module_->path()));
-  xechar_t *slash = xestrrchr(dir, '/');
+  xechar_t* slash = xestrrchr(dir, '/');
   if (slash) {
     *(slash + 1) = 0;
   }

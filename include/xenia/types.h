@@ -117,21 +117,4 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XEIGNORE(expr)          do { (void)(expr); } while(0)
 
 
-typedef struct XECACHEALIGN {
-  union {
-    struct {
-      float     x;
-      float     y;
-      float     z;
-      float     w;
-    };
-    float       f4[4];
-    struct {
-      uint64_t  low;
-      uint64_t  high;
-    };
-  };
-} xefloat4_t;
-
-
 #endif  // XENIA_TYPES_H_

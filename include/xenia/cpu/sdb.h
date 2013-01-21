@@ -71,6 +71,8 @@ public:
     kTargetNone     = 4,
   };
 
+  FunctionBlock();
+
   uint32_t      start_address;
   uint32_t      end_address;
 
@@ -96,7 +98,7 @@ public:
     kFlagRestGprLr  = 1 << 2,
   };
 
-  FunctionSymbol() : Symbol(Function) {}
+  FunctionSymbol();
   virtual ~FunctionSymbol();
 
   FunctionBlock* GetBlock(uint32_t address);
@@ -120,7 +122,7 @@ public:
 
 class VariableSymbol : public Symbol {
 public:
-  VariableSymbol() : Symbol(Variable) {}
+  VariableSymbol();
   virtual ~VariableSymbol();
 
   uint32_t  address;
@@ -129,7 +131,7 @@ public:
 
 class ExceptionEntrySymbol : public Symbol {
 public:
-  ExceptionEntrySymbol() : Symbol(ExceptionEntry) {}
+  ExceptionEntrySymbol();
   virtual ~ExceptionEntrySymbol() {}
 
   uint32_t  address;

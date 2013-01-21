@@ -50,6 +50,7 @@ public:
   void Dump();
 
 private:
+  int InjectGlobals();
   int Init();
   int Uninit();
 

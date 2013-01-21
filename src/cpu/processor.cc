@@ -71,8 +71,8 @@ int Processor::Setup() {
     return 1;
   }
 
-  LLVMContext* dummy_context = new LLVMContext();
-  Module* dummy_module = new Module("dummy", *dummy_context);
+  dummy_context_ = auto_ptr<LLVMContext>(new LLVMContext());
+  Module* dummy_module = new Module("dummy", *dummy_context_.get());
 
   std::string error_message;
   engine_ = shared_ptr<ExecutionEngine>(

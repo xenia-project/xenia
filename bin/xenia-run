@@ -14,3 +14,8 @@ if [ ! -f "$EXEC" ]; then
 fi
 
 $EXEC "$@"
+
+
+# TODO(benvanik): add --valgrind and --leaks
+# xbb --debug && rm valgrind.txt && valgrind --log-file=valgrind.txt --dsymutil=yes build/xenia/debug/xenia-run "$@"
+# --track-origins=yes --leak-check=full

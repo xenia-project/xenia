@@ -17,11 +17,4 @@
 #define XENIA_CPU_XELIB_H_
 
 
-typedef struct {
-  void*   memory_base;
-
-  // TODO(benvanik): execute call thunk
-} xe_module_init_options_t;
-
-
 #endif  // XENIA_CPU_XELIB_H_

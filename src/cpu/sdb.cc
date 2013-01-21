@@ -22,6 +22,19 @@ using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
+FunctionBlock::FunctionBlock() :
+    start_address(0), end_address(0),
+    outgoing_type(kTargetUnknown), outgoing_address(0),
+    outgoing_function(0) {
+}
+
+FunctionSymbol::FunctionSymbol() :
+    Symbol(Function),
+    start_address(0), end_address(0), name(0),
+    type(Unknown), flags(0),
+    kernel_export(0), ee(0) {
+}
+
 FunctionSymbol::~FunctionSymbol() {
   delete name;
   for (std::map<uint32_t, FunctionBlock*>::iterator it = blocks.begin();
@@ -68,8 +81,18 @@ FunctionBlock* FunctionSymbol::SplitBlock(uint32_t address) {
   return NULL;
 }
 
+VariableSymbol::VariableSymbol() :
+    Symbol(Variable),
+    address(0), name(0) {
+}
+
 VariableSymbol::~VariableSymbol() {
   delete name;
+}
+
+ExceptionEntrySymbol::ExceptionEntrySymbol() :
+  Symbol(ExceptionEntry),
+  address(0), function(0) {
 }
 
 SymbolDatabase::SymbolDatabase(
@@ -419,6 +442,7 @@ int SymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
     }
   }
 
+  xe_free(import_infos);
   xe_xex2_release(xex);
   return 0;
 }
@@ -438,6 +462,7 @@ int SymbolDatabase::AddMethodHints() {
     // TODO(benvanik): something with prolog_length?
   }
 
+  xe_free(method_infos);
   return 0;
 }
 

@@ -49,6 +49,8 @@ private:
   xe_memory_ref           memory_;
   shared_ptr<llvm::ExecutionEngine> engine_;
 
+  auto_ptr<llvm::LLVMContext> dummy_context_;
+
   std::vector<ExecModule*> modules_;
 };
 
