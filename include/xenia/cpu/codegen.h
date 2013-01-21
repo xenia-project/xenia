@@ -50,13 +50,11 @@ public:
   int GenerateModule();
 
 private:
+  CodegenFunction* GetCodegenFunction(uint32_t address);
+
   void AddImports();
-  void AddMissingImport(
-      const xe_xex2_import_library_t *library,
-      const xe_xex2_import_info_t* info, kernel::KernelExport* kernel_export);
-  void AddPresentImport(
-      const xe_xex2_import_library_t *library,
-      const xe_xex2_import_info_t* info, kernel::KernelExport* kernel_export);
+  void AddMissingImport(sdb::FunctionSymbol* fn);
+  void AddPresentImport(sdb::FunctionSymbol* fn);
   void PrepareFunction(sdb::FunctionSymbol* fn);
   void BuildFunction(CodegenFunction* cgf);
   void OptimizeFunction(llvm::Module* m, llvm::Function* fn);
@@ -71,7 +69,7 @@ private:
   llvm::DIBuilder*    di_builder_;
   llvm::MDNode*       cu_;
 
-  std::map<sdb::FunctionSymbol*, CodegenFunction*> functions_;
+  std::map<uint32_t, CodegenFunction*> functions_;
 };
 
 

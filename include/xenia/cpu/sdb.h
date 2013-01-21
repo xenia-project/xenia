@@ -108,6 +108,7 @@ public:
   FunctionType  type;
   uint32_t      flags;
 
+  kernel::KernelExport* kernel_export;
   ExceptionEntrySymbol* ee;
 
   vector<FunctionCall*> incoming_calls;

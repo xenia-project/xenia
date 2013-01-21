@@ -74,9 +74,6 @@ int CodegenContext::GenerateModule() {
       0);
   cu_ = (MDNode*)di_builder_->getCU();
 
-  // Add import thunks/etc.
-  AddImports();
-
   // Add export wrappers.
   //
 
@@ -87,13 +84,24 @@ int CodegenContext::GenerateModule() {
   if (!sdb_->GetAllFunctions(functions)) {
     for (std::vector<FunctionSymbol*>::iterator it = functions.begin();
          it != functions.end(); ++it) {
-      // kernel functions will be handled by the add imports handlers.
-      if ((*it)->type == FunctionSymbol::User) {
-        PrepareFunction(*it);
+      FunctionSymbol* fn = *it;
+      switch (fn->type) {
+      case FunctionSymbol::User:
+        PrepareFunction(fn);
+        break;
+      case FunctionSymbol::Kernel:
+        if (fn->kernel_export && fn->kernel_export->IsImplemented()) {
+          AddPresentImport(fn);
+        } else {
+          AddMissingImport(fn);
+        }
+        break;
+      default:
+        break;
       }
     }
   }
-  for (std::map<FunctionSymbol*, CodegenFunction*>::iterator it =
+  for (std::map<uint32_t, CodegenFunction*>::iterator it =
        functions_.begin(); it != functions_.end(); ++it) {
     BuildFunction(it->second);
   }
@@ -103,90 +111,54 @@ int CodegenContext::GenerateModule() {
   return 0;
 }
 
-void CodegenContext::AddImports() {
-  xe_xex2_ref xex = module_->xex();
-  const xe_xex2_header_t* header = xe_xex2_get_header(xex);
-
-  for (size_t n = 0; n < header->import_library_count; n++) {
-    const xe_xex2_import_library_t* library = &header->import_libraries[n];
-
-    xe_xex2_import_info_t* import_infos;
-    size_t import_info_count;
-    XEIGNORE(xe_xex2_get_import_infos(xex, library,
-                                      &import_infos, &import_info_count));
-
-    for (size_t i = 0; i < import_info_count; i++) {
-      const xe_xex2_import_info_t* info = &import_infos[i];
-      KernelExport* kernel_export = export_resolver_->GetExportByOrdinal(
-          library->name, info->ordinal);
-      if (!kernel_export || !kernel_export->IsImplemented()) {
-        // Not implemented or known.
-        AddMissingImport(library, info, kernel_export);
-      } else {
-        // Implemented.
-        AddPresentImport(library, info, kernel_export);
-      }
-    }
-
-    xe_free(import_infos);
+CodegenFunction* CodegenContext::GetCodegenFunction(uint32_t address) {
+  std::map<uint32_t, CodegenFunction*>::iterator it = functions_.find(address);
+  if (it != functions_.end()) {
+    return it->second;
   }
-
-  xe_xex2_release(xex);
+  return NULL;
 }
 
-void CodegenContext::AddMissingImport(
-    const xe_xex2_import_library_t* library,
-    const xe_xex2_import_info_t* info, KernelExport* kernel_export) {
+void CodegenContext::AddMissingImport(FunctionSymbol* fn) {
   Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
-  char name[128];
-  xesnprintfa(name, XECOUNT(name), "__thunk_%s_%.8X",
-              library->name, kernel_export->ordinal);
+  AttributeWithIndex awi[] = {
+    //AttributeWithIndex::get(context, 2, Attributes::NoCapture),
+    AttributeWithIndex::get(context,
+        AttributeSet::FunctionIndex, Attribute::NoUnwind),
+  };
+  AttributeSet attrs = AttributeSet::get(context, awi);
 
-  // TODO(benvanik): add name as comment/alias?
-  // name = kernel_export->name;
+  std::vector<Type*> args;
+  Type* return_type = Type::getInt32Ty(context);
 
-  if (info->thunk_address) {
-    AttributeWithIndex awi[] = {
-      //AttributeWithIndex::get(context, 2, Attributes::NoCapture),
-      AttributeWithIndex::get(context,
-          AttributeSet::FunctionIndex, Attribute::NoUnwind),
-    };
-    AttributeSet attrs = AttributeSet::get(context, awi);
+  FunctionType* ft = FunctionType::get(return_type,
+                                       ArrayRef<Type*>(args), false);
+  Function* f = cast<Function>(m->getOrInsertFunction(
+      StringRef(fn->name), ft, attrs));
+  f->setCallingConv(CallingConv::C);
+  f->setVisibility(GlobalValue::DefaultVisibility);
 
-    std::vector<Type*> args;
-    Type* return_type = Type::getInt32Ty(context);
+  // TODO(benvanik): log errors.
+  BasicBlock* block = BasicBlock::Create(context, "entry", f);
+  IRBuilder<> builder(block);
+  Value* tmp = builder.getInt32(0);
+  builder.CreateRet(tmp);
 
-    FunctionType* ft = FunctionType::get(return_type,
-                                         ArrayRef<Type*>(args), false);
-    Function* f = cast<Function>(m->getOrInsertFunction(
-        StringRef(name), ft, attrs));
-    f->setCallingConv(CallingConv::C);
-    f->setVisibility(GlobalValue::DefaultVisibility);
+  OptimizeFunction(m, f);
 
-    // TODO(benvanik): log errors.
-    BasicBlock* block = BasicBlock::Create(context, "entry", f);
-    IRBuilder<> builder(block);
-    Value* tmp = builder.getInt32(0);
-    builder.CreateRet(tmp);
-
-    OptimizeFunction(m, f);
-
-    //GlobalAlias *alias = new GlobalAlias(f->getType(), GlobalValue::InternalLinkage, name, f, m);
-    // printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
-    //        info->value_address, info->thunk_address, info->ordinal,
-    //        info->ordinal, implemented ? "  " : "!!", name);
-  } else {
-    // printf("   V %.8X          %.3X (%3d) %s %s\n",
-    //        info->value_address, info->ordinal, info->ordinal,
-    //        implemented ? "  " : "!!", name);
-  }
+  //GlobalAlias *alias = new GlobalAlias(f->getType(), GlobalValue::InternalLinkage, name, f, m);
+  // printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
+  //        info->value_address, info->thunk_address, info->ordinal,
+  //        info->ordinal, implemented ? "  " : "!!", name);
+  // For values:
+  // printf("   V %.8X          %.3X (%3d) %s %s\n",
+  //        info->value_address, info->ordinal, info->ordinal,
+  //        implemented ? "  " : "!!", name);
 }
 
-void CodegenContext::AddPresentImport(
-    const xe_xex2_import_library_t* library,
-    const xe_xex2_import_info_t* info, KernelExport* kernel_export) {
+void CodegenContext::AddPresentImport(FunctionSymbol* fn) {
   // Module *m = gen_module_;
   // LLVMContext& context = m->getContext();
 
@@ -212,7 +184,7 @@ void CodegenContext::PrepareFunction(FunctionSymbol* fn) {
   if (fn->name) {
     pname = fn->name;
   } else {
-    xesnprintfa(name, XECOUNT(name), "fn_%.8X", fn->start_address);
+    xesnprintfa(name, XECOUNT(name), "sub_%.8X", fn->start_address);
   }
 
   FunctionType* ft = FunctionType::get(return_type,
@@ -226,42 +198,20 @@ void CodegenContext::PrepareFunction(FunctionSymbol* fn) {
   cgf->symbol = fn;
   cgf->function_type = ft;
   cgf->function = f;
-  functions_.insert(std::pair<FunctionSymbol*, CodegenFunction*>(fn, cgf));
+  functions_.insert(std::pair<uint32_t, CodegenFunction*>(
+      fn->start_address, cgf));
 }
 
 void CodegenContext::BuildFunction(CodegenFunction* cgf) {
   FunctionSymbol* fn = cgf->symbol;
 
+  printf("%s:\n", fn->name);
+
   // Setup the generation context.
-  InstrContext ic(fn, context_, gen_module_, cgf->function);
-  // for each basic block:
-  // - ic.AddBasicBlock(bb);
+  InstrContext ic(memory_, fn, context_, gen_module_, cgf->function);
 
   // Run through and generate each basic block.
   ic.GenerateBasicBlocks();
-
-  // // TODO(benvanik): generate code!
-  // BasicBlock* block = BasicBlock::Create(*context_, "entry", cgf->function);
-  // IRBuilder<> builder(block);
-  // //builder.SetCurrentDebugLocation(DebugLoc::get(fn->start_address >> 8, fn->start_address & 0xFF, ctx->cu));
-  // Value* tmp = builder.getInt32(0);
-  // builder.CreateRet(tmp);
-
-  // // i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
-
-  uint8_t* mem = xe_memory_addr(memory_, 0);
-  uint32_t* pc = (uint32_t*)(mem + fn->start_address);
-  uint32_t pcdata = XEGETUINT32BE(pc);
-  printf("data %.8X %.8X\n", fn->start_address, pcdata);
-  InstrType* instr_type = ppc::GetInstrType(pcdata);
-  if (instr_type) {
-    printf("instr %.8X %s\n", fn->start_address, instr_type->name);
-    // xe_ppc_instr_t instr;
-    // instr.data.code = pcdata;
-    // printf("%d %d\n", instr.data.XFX.D, instr.data.XFX.spr);
-  } else {
-    printf("instr not found\n");
-  }
 
   // Run the optimizer on the function.
   // Doing this here keeps the size of the IR small and speeds up the later

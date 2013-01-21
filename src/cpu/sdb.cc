@@ -408,6 +408,7 @@ int SymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
       FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
       fn->end_address = fn->start_address + 16 - 4;
       fn->type = FunctionSymbol::Kernel;
+      fn->kernel_export = kernel_export;
       if (kernel_export) {
         xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
       } else {
@@ -526,6 +527,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     }
 
     bool ends_block = false;
+    bool ends_fn = false;
     if (i.code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
@@ -536,7 +538,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       } else {
         // Function end point.
         XELOGSDB("function end %.8X\n", addr);
-        break;
+        ends_fn = true;
       }
       ends_block = true;
     } else if (i.type->opcode == 0x48000000) {
@@ -556,19 +558,22 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         if (target >= fn->start_address &&
             target < addr && furthest_target <= addr) {
           XELOGSDB("function end %.8X (back b)\n", addr);
-          break;
+          ends_fn = true;
         }
 
         // If the target is a __restgprlr_* method it's the end of a function.
         // Note that sometimes functions stick this in a basic block *inside*
         // of the function somewhere, so ensure we don't have any branches over
         // it.
-        if (furthest_target <= addr && IsRestGprLr(target)) {
+        if (!ends_fn &&
+            furthest_target <= addr && IsRestGprLr(target)) {
           XELOGSDB("function end %.8X (__restgprlr_*)\n", addr);
-          break;
+          ends_fn = true;
         }
 
-        furthest_target = MAX(furthest_target, target);
+        if (!ends_fn) {
+          furthest_target = MAX(furthest_target, target);
+        }
       }
       ends_block = true;
     } else if (i.type->opcode == 0x40000000) {
@@ -607,6 +612,10 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       // Finish up the one we are working on. The next loop around will create
       // a new one to scribble into.
       block = NULL;
+    }
+
+    if (ends_fn) {
+      break;
     }
 
     addr += 4;

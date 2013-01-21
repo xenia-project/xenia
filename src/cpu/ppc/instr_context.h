@@ -31,8 +31,9 @@ namespace ppc {
 
 class InstrContext {
 public:
-  InstrContext(sdb::FunctionSymbol* fn, llvm::LLVMContext* context,
-               llvm::Module* gen_module, llvm::Function* gen_fn);
+  InstrContext(xe_memory_ref memory, sdb::FunctionSymbol* fn,
+               llvm::LLVMContext* context, llvm::Module* gen_module,
+               llvm::Function* gen_fn);
   ~InstrContext();
 
   sdb::FunctionSymbol* fn();
@@ -40,7 +41,6 @@ public:
   llvm::Module* gen_module();
   llvm::Function* gen_fn();
 
-  void AddBasicBlock();
   void GenerateBasicBlocks();
   llvm::BasicBlock* GetBasicBlock(uint32_t address);
 
@@ -63,11 +63,16 @@ public:
   void write_memory(llvm::Value* addr, uint32_t size, llvm::Value* value);
 
 private:
+  void GenerateBasicBlock(sdb::FunctionBlock* block, llvm::BasicBlock* bb);
+
+  xe_memory_ref       memory_;
   sdb::FunctionSymbol* fn_;
   llvm::LLVMContext*  context_;
   llvm::Module*       gen_module_;
   llvm::Function*     gen_fn_;
   // TODO(benvanik): IRBuilder/etc
+
+  std::map<uint32_t, llvm::BasicBlock*> bbs_;
 
   // Address of the instruction being generated.
   uint32_t      cia_;
