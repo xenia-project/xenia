@@ -21,13 +21,12 @@
 
 // NOTE: only headers in this directory should be included.
 #include "xethunk.h"
-#include <xenia/cpu/ppc/state.h>
 
 
-// Global CPU state.
-// Instructions that dereference the state use this.
-// TODO(benvanik): noalias/invariant/etc?s
-static xe_ppc_state_t* xe_ppc_state;
+// Global memory base.
+// Dereference + PPC address to manipulate memory. Note that it's stored in
+// big-endian!
+extern char* xe_memory_base;
 
 
 int xe_module_init() {

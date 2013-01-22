@@ -104,6 +104,14 @@ typedef struct {
       uint32_t        OPCD    : 6;
     } DS;
     // kXEPPCInstrFormatX
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t                : 10;
+      uint32_t        B       : 5;
+      uint32_t        A       : 5;
+      uint32_t        D       : 5;
+      uint32_t        OPCD    : 6;
+    } X;
     // kXEPPCInstrFormatXL
     struct {
       uint32_t        LK      : 1;
@@ -123,6 +131,15 @@ typedef struct {
     // kXEPPCInstrFormatXFL
     // kXEPPCInstrFormatXS
     // kXEPPCInstrFormatXO
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t                : 8;
+      uint32_t        OE      : 1;
+      uint32_t        B       : 5;
+      uint32_t        A       : 5;
+      uint32_t        D       : 5;
+      uint32_t        OPCD    : 6;
+    } XO;
     // kXEPPCInstrFormatA
     // kXEPPCInstrFormatM
     // kXEPPCInstrFormatMD

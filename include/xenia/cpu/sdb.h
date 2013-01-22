@@ -68,7 +68,8 @@ public:
     kTargetBlock    = 1,
     kTargetFunction = 2,
     kTargetLR       = 3,
-    kTargetNone     = 4,
+    kTargetCTR      = 4,
+    kTargetNone     = 5,
   };
 
   FunctionBlock();
@@ -106,7 +107,7 @@ public:
 
   uint32_t      start_address;
   uint32_t      end_address;
-  char          *name;
+  char*         name;
   FunctionType  type;
   uint32_t      flags;
 
@@ -126,7 +127,7 @@ public:
   virtual ~VariableSymbol();
 
   uint32_t  address;
-  char      *name;
+  char*     name;
 };
 
 class ExceptionEntrySymbol : public Symbol {

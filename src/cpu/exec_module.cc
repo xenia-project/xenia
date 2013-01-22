@@ -126,6 +126,8 @@ int ExecModule::Prepare() {
         context_.get(), gen_module_.get()));
     XEEXPECTZERO(codegen_->Generate());
 
+    gen_module_->dump();
+
     // Write to cache.
     outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
         cache_path, error_message, raw_fd_ostream::F_Binary));
@@ -141,6 +143,7 @@ int ExecModule::Prepare() {
 
   // Run full module optimizations.
   pm.add(new DataLayout(gen_module_.get()));
+#if XE_OPTION(OPTIMIZED)
   pm.add(createVerifierPass());
   pmb.OptLevel      = 3;
   pmb.SizeLevel     = 0;
@@ -149,6 +152,7 @@ int ExecModule::Prepare() {
   pmb.LoopVectorize = true;
   pmb.populateModulePassManager(pm);
   pmb.populateLTOPassManager(pm, false, true);
+#endif  // XE_OPTION(OPTIMIZED)
   pm.add(createVerifierPass());
   pm.run(*gen_module_);
 
@@ -158,9 +162,9 @@ int ExecModule::Prepare() {
   XEEXPECTZERO(Init());
 
   // Force JIT of all functions.
-  for (Module::iterator I = gen_module_->begin(), E = gen_module_->end();
-       I != E; I++) {
-    Function* fn = &*I;
+  for (Module::iterator it = gen_module_->begin(); it != gen_module_->end();
+       ++it) {
+    Function* fn = it;
     if (!fn->isDeclaration()) {
       engine_->getPointerToFunction(fn);
     }
@@ -174,7 +178,7 @@ XECLEANUP:
 int ExecModule::InjectGlobals() {
   LLVMContext& context = *context_.get();
   const DataLayout* dl = engine_->getDataLayout();
-  Type* voidPtrTy = PointerType::getUnqual(Type::getVoidTy(context));
+  Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
   Type* intPtrTy = dl->getIntPtrType(context);
   GlobalVariable* gv;
 
@@ -182,7 +186,7 @@ int ExecModule::InjectGlobals() {
   // This is the base void* pointer to the memory space.
   gv = new GlobalVariable(
       *gen_module_,
-      voidPtrTy,
+      int8PtrTy,
       true,
       GlobalValue::ExternalLinkage,
       0,
@@ -191,10 +195,7 @@ int ExecModule::InjectGlobals() {
   gv->setAlignment(64);
   gv->setInitializer(ConstantExpr::getIntToPtr(
       ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
-      voidPtrTy));
-
-  // xe_ppc_state
-  // ...
+      int8PtrTy));
 
   return 0;
 }
@@ -224,6 +225,6 @@ int ExecModule::Uninit() {
 }
 
 void ExecModule::Dump() {
-  sdb_->Dump();
-  gen_module_->dump();
+  // sdb_->Dump();
+  // gen_module_->dump();
 }

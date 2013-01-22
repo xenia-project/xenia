@@ -24,231 +24,441 @@ namespace codegen {
 
 // Integer load (A-13)
 
-XEEMITTER(lbz,          0x88000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lbz,          0x88000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // RT <- i56.0 || MEM(EA, 1)
+
+  Value* ea = b.getInt64(XEEXTS16(i.D.SIMM));
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.D.A), ea);
+  }
+  Value* v = g.ReadMemory(ea, 1, false);
+  g.update_gpr_value(i.D.D, v);
+
+  return 0;
+}
+
+XEEMITTER(lbzu,         0x8C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // RT <- i56.0 || MEM(EA, 1)
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.D.A), b.getInt64(XEEXTS16(i.D.SIMM)));
+  Value* v = g.ReadMemory(ea, 1, false);
+  g.update_gpr_value(i.D.D, v);
+  g.update_gpr_value(i.D.A, ea);
+
+  return 0;
+}
+
+XEEMITTER(lbzux,        0x7C0000EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // EA <- (RA) + (RB)
+  // RT <- i56.0 || MEM(EA, 1)
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.X.A), g.gpr_value(i.X.B));
+  Value* v = g.ReadMemory(ea, 1, false);
+  g.update_gpr_value(i.X.D, v);
+  g.update_gpr_value(i.X.A, ea);
+
+  return 0;
+}
+
+XEEMITTER(lbzx,         0x7C0000AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- i56.0 || MEM(EA, 1)
+
+  Value* ea = g.gpr_value(i.X.B);
+  if (i.X.A) {
+    ea = b.CreateAdd(g.gpr_value(i.X.A), ea);
+  }
+  Value* v = g.ReadMemory(ea, 1, false);
+  g.update_gpr_value(i.X.D, v);
+
+  return 0;
+}
+
+XEEMITTER(ld,           0xE8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(DS || 0b00)
+  // RT <- MEM(EA, 8)
+
+  Value* ea = b.getInt64(XEEXTS16(i.DS.ds << 2));
+  if (i.DS.A) {
+    ea = b.CreateAdd(g.gpr_value(i.DS.A), ea);
+  }
+  Value* v = g.ReadMemory(ea, 8, false);
+  g.update_gpr_value(i.DS.S, v);
+
+  return 0;
+}
+
+XEEMITTER(ldu,          0xE8000001, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // EA <- (RA) + EXTS(DS || 0b00)
+  // RT <- MEM(EA, 8)
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.DS.A),
+                          b.getInt64(XEEXTS16(i.DS.ds << 2)));
+  Value* v = g.ReadMemory(ea, 8, false);
+  g.update_gpr_value(i.DS.S, v);
+  g.update_gpr_value(i.DS.A, ea);
+
+  return 0;
+}
+
+XEEMITTER(ldux,         0x7C00006A, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lbzu,         0x8C000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(ldx,          0x7C00002A, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lbzux,        0x7C0000EE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lha,          0xA8000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lbzx,         0x7C0000AE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhau,         0xAC000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(ld,           0xE8000000, DS )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhaux,        0x7C0002EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(ldux,         0x7C00006A, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhax,         0x7C0002AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(ldx,          0x7C00002A, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhz,          0xA0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // RT <- i48.0 || MEM(EA, 2)
+
+  Value* ea = b.getInt64(XEEXTS16(i.D.SIMM));
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.D.A), ea);
+  }
+  Value* v = g.ReadMemory(ea, 2, false);
+  g.update_gpr_value(i.D.D, v);
+
+  return 0;
+}
+
+XEEMITTER(lhzu,         0xA4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lha,          0xA8000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhzux,        0x7C00026E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhau,         0xAC000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhzx,         0x7C00022E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhaux,        0x7C0002EE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwa,          0xE8000002, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhax,         0x7C0002AE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwaux,        0x7C0002EA, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhz,          0xA0000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwax,         0x7C0002AA, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhzu,         0xA4000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwz,          0x80000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // RT <- i32.0 || MEM(EA, 4)
+
+  Value* ea = b.getInt64(XEEXTS16(i.D.SIMM));
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.D.A), ea);
+  }
+  Value* v = g.ReadMemory(ea, 4, false);
+  g.update_gpr_value(i.D.D, v);
+
+  return 0;
+}
+
+XEEMITTER(lwzu,         0x84000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhzux,        0x7C00026E, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwzux,        0x7C00006E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lhzx,         0x7C00022E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
+XEEMITTER(lwzx,         0x7C00002E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- i32.0 || MEM(EA, 4)
 
-XEEMITTER(lwa,          0xE8000002, DS )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
+  Value* ea = g.gpr_value(i.X.B);
+  if (i.X.A) {
+    ea = b.CreateAdd(g.gpr_value(i.X.A), ea);
+  }
+  Value* v = g.ReadMemory(ea, 4, false);
+  g.update_gpr_value(i.X.D, v);
 
-XEEMITTER(lwaux,        0x7C0002EA, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(lwax,         0x7C0002AA, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(lwz,          0x80000000, D  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(lwzu,         0x84000000, D  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(lwzux,        0x7C00006E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(lwzx,         0x7C00002E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return 0;
 }
 
 
 // Integer store (A-14)
 
-XEEMITTER(stb,          0x98000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stb,          0x98000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // MEM(EA, 1) <- (RS)[56:63]
+
+  Value* ea = b.getInt64(XEEXTS16(i.D.SIMM));
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.D.A), ea);
+  }
+  Value* v = g.gpr_value(i.D.D);
+  g.WriteMemory(ea, 1, v);
+
+  return 0;
+}
+
+XEEMITTER(stbu,         0x9C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stbu,         0x9C000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stbux,        0x7C0001EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stbux,        0x7C0001EE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stbx,         0x7C0001AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stbx,         0x7C0001AE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(std,          0xF8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(DS || 0b00)
+  // MEM(EA, 8) <- (RS)
+
+  Value* ea = b.getInt64(XEEXTS16(i.DS.ds << 2));
+  if (i.DS.A) {
+    ea = b.CreateAdd(g.gpr_value(i.DS.A), ea);
+  }
+  Value* v = g.gpr_value(i.DS.S);
+  g.WriteMemory(ea, 8, v);
+
+  return 0;
+}
+
+XEEMITTER(stdu,         0xF8000001, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // EA <- (RA) + EXTS(DS || 0b00)
+  // MEM(EA, 8) <- (RS)
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.DS.A),
+                          b.getInt64(XEEXTS16(i.DS.ds << 2)));
+  Value* v = g.gpr_value(i.DS.S);
+  g.WriteMemory(ea, 8, v);
+  g.update_gpr_value(i.DS.A, ea);
+
+  return 0;
+}
+
+XEEMITTER(stdux,        0x7C00016A, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(std,          0xF8000000, DS )(FunctionGenerator& g, InstrData& i) {
-  //const uint64 b = r(instr.DS.A);
-  //const uint64 EA = b + EXTS16(instr.DS.ds << 2);
-  //MEMSET64(EA, instr.DS.S);
+XEEMITTER(stdx,         0x7C00012A, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stdu,         0xF8000001, DS )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(sth,          0xB0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // MEM(EA, 2) <- (RS)[48:63]
+
+  Value* ea = b.getInt64(XEEXTS16(i.D.SIMM));
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.D.A), ea);
+  }
+  Value* v = g.gpr_value(i.D.D);
+  g.WriteMemory(ea, 2, v);
+
+  return 0;
+}
+
+XEEMITTER(sthu,         0xB4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // MEM(EA, 2) <- (RS)[48:63]
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.D.A),
+                          b.getInt64(XEEXTS16(i.D.SIMM)));
+  Value* v = g.gpr_value(i.D.D);
+  g.WriteMemory(ea, 2, v);
+  g.update_gpr_value(i.D.A, ea);
+
+  return 0;
+}
+
+XEEMITTER(sthux,        0x7C00036E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stdux,        0x7C00016A, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(sthx,         0x7C00032E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 2) <- (RS)[48:63]
+
+  Value* ea = g.gpr_value(i.X.B);
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.X.A), ea);
+  }
+  Value* v = g.gpr_value(i.X.D);
+  g.WriteMemory(ea, 2, v);
+
+  return 0;
+}
+
+XEEMITTER(stw,          0x90000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // MEM(EA, 4) <- (RS)[32:63]
+
+  Value* ea = b.getInt64(XEEXTS16(i.D.SIMM));
+  if (i.D.A) {
+    ea = b.CreateAdd(g.gpr_value(i.D.A), ea);
+  }
+  Value* v = g.gpr_value(i.D.D);
+  g.WriteMemory(ea, 4, v);
+
+  return 0;
+}
+
+XEEMITTER(stwu,         0x94000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // MEM(EA, 4) <- (RS)[32:63]
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.D.A),
+                          b.getInt64(XEEXTS16(i.D.SIMM)));
+  Value* v = g.gpr_value(i.D.D);
+  g.WriteMemory(ea, 4, v);
+  g.update_gpr_value(i.D.A, ea);
+
+  return 0;
+}
+
+XEEMITTER(stwux,        0x7C00016E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stdx,         0x7C00012A, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
+XEEMITTER(stwx,         0x7C00012E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 4) <- (RS)[32:63]
 
-XEEMITTER(sth,          0xB0000000, D  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
+  Value* ea = g.gpr_value(i.X.B);
+  if (i.X.A) {
+    ea = b.CreateAdd(g.gpr_value(i.X.A), ea);
+  }
+  Value* v = g.gpr_value(i.X.D);
+  g.WriteMemory(ea, 4, v);
 
-XEEMITTER(sthu,         0xB4000000, D  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(sthux,        0x7C00036E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(sthx,         0x7C00032E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(stw,          0x90000000, D  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(stwu,         0x94000000, D  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(stwux,        0x7C00016E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(stwx,         0x7C00012E, X  )(FunctionGenerator& g, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return 0;
 }
 
 
 // Integer load and store with byte reverse (A-1
 
-XEEMITTER(lhbrx,        0x7C00062C, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lhbrx,        0x7C00062C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lwbrx,        0x7C00042C, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwbrx,        0x7C00042C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(ldbrx,        0x7C000428, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(ldbrx,        0x7C000428, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(sthbrx,       0x7C00072C, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(sthbrx,       0x7C00072C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stwbrx,       0x7C00052C, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stwbrx,       0x7C00052C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stdbrx,       0x7C000528, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stdbrx,       0x7C000528, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -256,12 +466,12 @@ XEEMITTER(stdbrx,       0x7C000528, X  )(FunctionGenerator& g, InstrData& i) {
 
 // Integer load and store multiple (A-16)
 
-XEEMITTER(lmw,          0xB8000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lmw,          0xB8000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stmw,         0xBC000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stmw,         0xBC000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -269,22 +479,22 @@ XEEMITTER(stmw,         0xBC000000, D  )(FunctionGenerator& g, InstrData& i) {
 
 // Integer load and store string (A-17)
 
-XEEMITTER(lswi,         0x7C0004AA, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lswi,         0x7C0004AA, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lswx,         0x7C00042A, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lswx,         0x7C00042A, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stswi,        0x7C0005AA, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stswi,        0x7C0005AA, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stswx,        0x7C00052A, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stswx,        0x7C00052A, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -292,37 +502,37 @@ XEEMITTER(stswx,        0x7C00052A, X  )(FunctionGenerator& g, InstrData& i) {
 
 // Memory synchronization (A-18)
 
-XEEMITTER(eieio,        0x7C0006AC, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(eieio,        0x7C0006AC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(isync,        0x4C00012C, XL )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(isync,        0x4C00012C, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(ldarx,        0x7C0000A8, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(ldarx,        0x7C0000A8, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lwarx,        0x7C000028, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lwarx,        0x7C000028, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stdcx,        0x7C0001AD, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stdcx,        0x7C0001AD, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stwcx,        0x7C00012D, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stwcx,        0x7C00012D, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(sync,         0x7C0004AC, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(sync,         0x7C0004AC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -330,42 +540,42 @@ XEEMITTER(sync,         0x7C0004AC, X  )(FunctionGenerator& g, InstrData& i) {
 
 // Floating-point load (A-19)
 
-XEEMITTER(lfd,          0xC8000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfd,          0xC8000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfdu,         0xCC000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfdu,         0xCC000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfdux,        0x7C0004EE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfdux,        0x7C0004EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfdx,         0x7C0004AE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfdx,         0x7C0004AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfs,          0xC0000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfs,          0xC0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfsu,         0xC4000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfsu,         0xC4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfsux,        0x7C00046E, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfsux,        0x7C00046E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lfsx,         0x7C00042E, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(lfsx,         0x7C00042E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -373,47 +583,47 @@ XEEMITTER(lfsx,         0x7C00042E, X  )(FunctionGenerator& g, InstrData& i) {
 
 // Floating-point store (A-20)
 
-XEEMITTER(stfd,         0xD8000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfd,         0xD8000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfdu,        0xDC000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfdu,        0xDC000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfdux,       0x7C0005EE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfdux,       0x7C0005EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfdx,        0x7C0005AE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfdx,        0x7C0005AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfiwx,       0x7C0007AE, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfiwx,       0x7C0007AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfs,         0xD0000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfs,         0xD0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfsu,        0xD4000000, D  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfsu,        0xD4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfsux,       0x7C00056E, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfsux,       0x7C00056E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stfsx,        0x7C00052E, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(stfsx,        0x7C00052E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -421,33 +631,33 @@ XEEMITTER(stfsx,        0x7C00052E, X  )(FunctionGenerator& g, InstrData& i) {
 
 // Cache management (A-27)
 
-XEEMITTER(dcbf,         0x7C0000AC, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(dcbf,         0x7C0000AC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(dcbst,        0x7C00006C, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(dcbst,        0x7C00006C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(dcbt,         0x7C00022C, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(dcbt,         0x7C00022C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(dcbtst,       0x7C0001EC, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(dcbtst,       0x7C0001EC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(dcbz,         0x7C0007EC, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(dcbz,         0x7C0007EC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // or dcbz128 0x7C2007EC
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(icbi,         0x7C0007AC, X  )(FunctionGenerator& g, InstrData& i) {
+XEEMITTER(icbi,         0x7C0007AC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -459,6 +669,7 @@ void RegisterEmitCategoryMemory() {
   XEREGISTEREMITTER(lbzux,        0x7C0000EE);
   XEREGISTEREMITTER(lbzx,         0x7C0000AE);
   XEREGISTEREMITTER(ld,           0xE8000000);
+  XEREGISTEREMITTER(ldu,          0xE8000001);
   XEREGISTEREMITTER(ldux,         0x7C00006A);
   XEREGISTEREMITTER(ldx,          0x7C00002A);
   XEREGISTEREMITTER(lha,          0xA8000000);

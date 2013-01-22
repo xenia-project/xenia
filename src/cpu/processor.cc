@@ -97,7 +97,7 @@ int Processor::PrepareModule(UserModule* user_module,
 
   modules_.push_back(exec_module);
 
-  user_module->Dump(export_resolver.get());
+  //user_module->Dump(export_resolver.get());
   exec_module->Dump();
 
   return 0;

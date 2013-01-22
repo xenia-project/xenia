@@ -29,7 +29,8 @@ void RegisterEmitCategoryMemory();
 #define XEREGISTEREMITTER(name, opcode) \
   RegisterInstrEmit(opcode, (void*)InstrEmit_##name)
 
-#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
+#define XEINSTRNOTIMPLEMENTED()
+//#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
 
 
 }  // namespace codegen

@@ -13,8 +13,8 @@
  * include any other files.
  */
 
-#ifndef XENIA_CPU_XELIB_H_
-#define XENIA_CPU_XELIB_H_
+#ifndef XENIA_CPU_XETHUNK_H_
+#define XENIA_CPU_XETHUNK_H_
 
 
-#endif  // XENIA_CPU_XELIB_H_
+#endif  // XENIA_CPU_XETHUNK_H_

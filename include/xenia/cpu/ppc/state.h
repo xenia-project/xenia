@@ -19,6 +19,12 @@
 #include <stdint.h>
 
 
+#ifdef XE_THUNK
+#define XECACHEALIGN            __attribute__ ((aligned(8)))
+#define XECACHEALIGN64          __attribute__ ((aligned(64)))
+#endif
+
+
 // namespace FPRF {
 //   enum FPRF_e {
 //     QUIET_NAN             = 0x00088000,
@@ -34,7 +40,7 @@
 // }  // FPRF
 
 
-typedef struct XECACHEALIGN {
+typedef struct XECACHEALIGN xe_float4 {
   union {
     struct {
       float     x;
@@ -51,16 +57,16 @@ typedef struct XECACHEALIGN {
 } xe_float4_t;
 
 
-typedef struct XECACHEALIGN64 {
-  uint64_t    r[32];              // General purpose registers
-  xe_float4_t v[128];             // VMX128 vector registers
-  double      f[32];              // Floating-point registers
-
+typedef struct XECACHEALIGN64 xe_ppc_state {
   uint32_t    cia;                // Current PC (CIA)
   uint32_t    nia;                // Next PC (NIA)
   uint64_t    xer;                // XER register
   uint64_t    lr;                 // Link register
   uint64_t    ctr;                // Count register
+
+  uint64_t    r[32];              // General purpose registers
+  xe_float4_t v[128];             // VMX128 vector registers
+  double      f[32];              // Floating-point registers
 
   union {
     uint32_t  value;
@@ -76,6 +82,12 @@ typedef struct XECACHEALIGN64 {
       uint8_t vx          :1;     // FP invalid operation exception summary - copy of FPSCR[VX]
       uint8_t ox          :1;     // FP overflow exception - copy of FPSCR[OX]
     } cr1;
+    uint8_t cr2           :4;
+    uint8_t cr3           :4;
+    uint8_t cr4           :4;
+    uint8_t cr5           :4;
+    uint8_t cr6           :4;
+    uint8_t cr7           :4;
   } cr;                           // Condition register
 
   union {

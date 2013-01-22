@@ -149,6 +149,16 @@ int SymbolDatabase::Analyze() {
     FlushQueue();
   }
 
+  // Run over all symbols and see if any slipped through, somehow.
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    if (it->second->symbol_type == Symbol::Function) {
+      FunctionSymbol* fn = static_cast<FunctionSymbol*>(it->second);
+      if (fn->type == FunctionSymbol::Unknown) {
+        printf("UNKNOWN FN %.8X\n", fn->start_address);
+      }
+    }
+  }
+
   // Run a pass over all functions and link up their extended data.
   // This can only be performed after we have all functions and basic blocks.
   for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
@@ -290,7 +300,10 @@ void SymbolDatabase::DumpFunctionBlocks(FunctionSymbol* fn) {
         printf(" call %.8X %s\n", block->outgoing_function->start_address, block->outgoing_function->name);
         break;
       case FunctionBlock::kTargetLR:
-        printf(" return\n");
+        printf(" branch lr\n");
+        break;
+      case FunctionBlock::kTargetCTR:
+        printf(" branch ctr\n");
         break;
       case FunctionBlock::kTargetNone:
         printf("\n");
@@ -520,6 +533,11 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     fn->name = xestrdup(name);
   }
 
+  // Set type, if needed. We assume user if not set.
+  if (fn->type == FunctionSymbol::Unknown) {
+    fn->type = FunctionSymbol::User;
+  }
+
   InstrData i;
   FunctionBlock* block = NULL;
   uint32_t furthest_target = fn->start_address;
@@ -615,6 +633,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       ends_block = true;
     } else if (i.type->opcode == 0x4C000020) {
       // bclr/bclrl
+      block->outgoing_type = FunctionBlock::kTargetLR;
       if (i.XL.LK) {
         XELOGSDB("bclrl %.8X\n", addr);
       } else {
@@ -623,6 +642,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       ends_block = true;
     } else if (i.type->opcode == 0x4C000420) {
       // bcctr/bcctrl
+      block->outgoing_type = FunctionBlock::kTargetCTR;
       if (i.XL.LK) {
         XELOGSDB("bcctrl %.8X\n", addr);
       } else {

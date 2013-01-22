@@ -104,6 +104,7 @@ int ModuleGenerator::Generate() {
         }
         break;
       default:
+        XEASSERTALWAYS();
         break;
       }
     }
@@ -139,6 +140,7 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
   AttributeSet attrs = AttributeSet::get(context, awi);
 
   std::vector<Type*> args;
+  args.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
   Type* return_type = Type::getInt32Ty(context);
 
   FunctionType* ft = FunctionType::get(return_type,
@@ -147,6 +149,10 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
       StringRef(fn->name), ft, attrs));
   f->setCallingConv(CallingConv::C);
   f->setVisibility(GlobalValue::DefaultVisibility);
+
+  Function::arg_iterator fn_args = f->arg_begin();
+  Value* fn_arg = fn_args++;
+  fn_arg->setName("state");
 
   // TODO(benvanik): log errors.
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
@@ -185,22 +191,20 @@ void ModuleGenerator::PrepareFunction(FunctionSymbol* fn) {
   AttributeSet attrs = AttributeSet::get(context, awi);
 
   std::vector<Type*> args;
+  args.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
   Type* return_type = Type::getVoidTy(context);
-
-  char name[64];
-  char* pname = name;
-  if (fn->name) {
-    pname = fn->name;
-  } else {
-    xesnprintfa(name, XECOUNT(name), "sub_%.8X", fn->start_address);
-  }
 
   FunctionType* ft = FunctionType::get(return_type,
                                        ArrayRef<Type*>(args), false);
+  XEASSERTNOTNULL(fn->name);
   Function* f = cast<Function>(
-      m->getOrInsertFunction(StringRef(pname), ft, attrs));
+      m->getOrInsertFunction(StringRef(fn->name), ft, attrs));
   f->setCallingConv(CallingConv::C);
   f->setVisibility(GlobalValue::DefaultVisibility);
+
+  Function::arg_iterator fn_args = f->arg_begin();
+  Value* fn_arg = fn_args++;
+  fn_arg->setName("state");
 
   CodegenFunction* cgf = new CodegenFunction();
   cgf->symbol = fn;
@@ -216,7 +220,8 @@ void ModuleGenerator::BuildFunction(CodegenFunction* cgf) {
   printf("%s:\n", fn->name);
 
   // Setup the generation context.
-  FunctionGenerator fgen(memory_, fn, context_, gen_module_, cgf->function);
+  FunctionGenerator fgen(
+      memory_, sdb_, fn, context_, gen_module_, cgf->function);
 
   // Run through and generate each basic block.
   fgen.GenerateBasicBlocks();
@@ -229,6 +234,7 @@ void ModuleGenerator::BuildFunction(CodegenFunction* cgf) {
 
 void ModuleGenerator::OptimizeFunction(Module* m, Function* fn) {
   FunctionPassManager pm(m);
+#if XE_OPTION(OPTIMIZED)
   PassManagerBuilder pmb;
   pmb.OptLevel      = 3;
   pmb.SizeLevel     = 0;
@@ -236,6 +242,7 @@ void ModuleGenerator::OptimizeFunction(Module* m, Function* fn) {
   pmb.Vectorize     = true;
   pmb.LoopVectorize = true;
   pmb.populateFunctionPassManager(pm);
+#endif  // XE_OPTION(OPTIMIZED)
   pm.add(createVerifierPass());
   pm.run(*fn);
 }
