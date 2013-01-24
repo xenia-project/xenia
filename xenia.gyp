@@ -3,6 +3,7 @@
   'includes': [
     'common.gypi',
     'tools/tools.gypi',
+    'third_party/gflags.gypi',
   ],
 
   'targets': [
@@ -10,6 +11,13 @@
       'target_name': 'xeniacore',
       'product_name': 'xeniacore',
       'type': 'static_library',
+
+      'dependencies': [
+        'gflags',
+      ],
+      'export_dependent_settings': [
+        'gflags',
+      ],
 
       'direct_dependent_settings': {
         'include_dirs': [
@@ -36,7 +44,6 @@
       'dependencies': [
         'xeniacore',
       ],
-
       'export_dependent_settings': [
         'xeniacore',
       ],

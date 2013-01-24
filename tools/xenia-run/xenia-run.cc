@@ -9,6 +9,8 @@
 
 #include <xenia/xenia.h>
 
+#include <gflags/gflags.h>
+
 
 using namespace xe;
 using namespace xe::cpu;
@@ -70,14 +72,20 @@ int Run::Launch() {
 }
 
 int xenia_run(int argc, xechar_t **argv) {
+  std::string usage = "usage: ";
+  usage = usage + argv[0] + " some.xex";
+  google::SetUsageMessage(usage);
+  google::SetVersionString("1.0");
+  google::ParseCommandLineFlags(&argc, &argv, true);
+
   // Dummy call to keep the GPU code linking in to ensure it's working.
   do_gpu_stuff();
 
   int result_code = 1;
 
-  // TODO(benvanik): real command line parsing.
+  // Grab path.
   if (argc < 2) {
-    printf("usage: xenia-run some.xex\n");
+    google::ShowUsageWithFlags(argv[0]);
     return 1;
   }
   const xechar_t *path = argv[1];
@@ -91,9 +99,10 @@ int xenia_run(int argc, xechar_t **argv) {
 
   run->Launch();
 
-  return 0;
-
+  result_code = 0;
 XECLEANUP:
+
+  google::ShutDownCommandLineFlags();
   return result_code;
 }
 XE_MAIN_THUNK(xenia_run);

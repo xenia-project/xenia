@@ -60,6 +60,7 @@
       'release': {
         'defines': [
           'RELEASE',
+          'NDEBUG',
         ],
         'msvs_configuration_attributes': {
           'OutputDirectory': '<(DEPTH)\\build\\xenia\\release',

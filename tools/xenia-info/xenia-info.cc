@@ -9,6 +9,8 @@
 
 #include <xenia/xenia.h>
 
+#include <gflags/gflags.h>
+
 
 using namespace xe;
 using namespace xe::cpu;
@@ -16,6 +18,12 @@ using namespace xe::kernel;
 
 
 int xenia_info(int argc, xechar_t **argv) {
+  std::string usage = "usage: ";
+  usage = usage + argv[0] + " some.xex";
+  google::SetUsageMessage(usage);
+  google::SetVersionString("1.0");
+  google::ParseCommandLineFlags(&argc, &argv, true);
+
   int result_code = 1;
 
   xe_pal_ref pal = NULL;
@@ -23,9 +31,9 @@ int xenia_info(int argc, xechar_t **argv) {
   shared_ptr<Processor> processor;
   shared_ptr<Runtime> runtime;
 
-  // TODO(benvanik): real command line parsing.
+  // Grab path.
   if (argc < 2) {
-    printf("usage: xenia-info some.xex\n");
+    google::ShowUsageWithFlags(argv[0]);
     return 1;
   }
   const xechar_t *path = argv[1];
@@ -51,6 +59,8 @@ int xenia_info(int argc, xechar_t **argv) {
 XECLEANUP:
   xe_memory_release(memory);
   xe_pal_release(pal);
+
+  google::ShutDownCommandLineFlags();
   return result_code;
 }
 XE_MAIN_THUNK(xenia_info);

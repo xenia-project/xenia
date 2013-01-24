@@ -241,6 +241,10 @@ int SymbolDatabase::GetAllFunctions(vector<FunctionSymbol*>& functions) {
   return 0;
 }
 
+void SymbolDatabase::Write(const char* file_name) {
+  // TODO(benvanik): write to file.
+}
+
 void SymbolDatabase::Dump() {
   uint32_t previous = 0;
   for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {

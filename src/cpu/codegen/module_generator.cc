@@ -26,6 +26,8 @@
 #include <xenia/cpu/ppc.h>
 #include <xenia/cpu/codegen/function_generator.h>
 
+#include "cpu/cpu-private.h"
+
 
 using namespace llvm;
 using namespace xe;
@@ -234,15 +236,15 @@ void ModuleGenerator::BuildFunction(CodegenFunction* cgf) {
 
 void ModuleGenerator::OptimizeFunction(Module* m, Function* fn) {
   FunctionPassManager pm(m);
-#if XE_OPTION(OPTIMIZED)
-  PassManagerBuilder pmb;
-  pmb.OptLevel      = 3;
-  pmb.SizeLevel     = 0;
-  pmb.Inliner       = createFunctionInliningPass();
-  pmb.Vectorize     = true;
-  pmb.LoopVectorize = true;
-  pmb.populateFunctionPassManager(pm);
-#endif  // XE_OPTION(OPTIMIZED)
+  if (FLAGS_optimize_ir_functions) {
+    PassManagerBuilder pmb;
+    pmb.OptLevel      = 3;
+    pmb.SizeLevel     = 0;
+    pmb.Inliner       = createFunctionInliningPass();
+    pmb.Vectorize     = true;
+    pmb.LoopVectorize = true;
+    pmb.populateFunctionPassManager(pm);
+  }
   pm.add(createVerifierPass());
   pm.run(*fn);
 }

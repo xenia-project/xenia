@@ -31,6 +31,7 @@
 #include <xenia/cpu/codegen/module_generator.h>
 #include <xenia/cpu/sdb.h>
 
+#include "cpu/cpu-private.h"
 #include "cpu/xethunk/xethunk.h"
 
 
@@ -67,6 +68,8 @@ int ExecModule::Prepare() {
   int result_code = 1;
   std::string error_message;
 
+  char file_name[2048];
+
   OwningPtr<MemoryBuffer> shared_module_buffer;
   auto_ptr<Module> shared_module;
   auto_ptr<raw_ostream> outs;
@@ -80,7 +83,7 @@ int ExecModule::Prepare() {
   // Calculate a cache path based on the module, the CPU version, and other
   // bits.
   // TODO(benvanik): cache path calculation.
-  const char *cache_path = "build/generated.bc";
+  //const char *cache_path = "build/generated.bc";
 
   // Check the cache to see if the bitcode exists.
   // If it does, load that module directly. In the future we could also cache
@@ -104,6 +107,13 @@ int ExecModule::Prepare() {
     // Analyze the module and add its symbols to the symbol database.
     XEEXPECTZERO(sdb_->Analyze());
 
+    // Dump the symbol database.
+    if (FLAGS_dump_module_map) {
+      xesnprintf(file_name, XECOUNT(file_name),
+          "%s%s.map", FLAGS_dump_path.c_str(), module_->name());
+      sdb_->Write(file_name);
+    }
+
     // Initialize the module.
     gen_module_ = shared_ptr<Module>(
         new Module(module_->name(), *context_.get()));
@@ -126,13 +136,18 @@ int ExecModule::Prepare() {
         context_.get(), gen_module_.get()));
     XEEXPECTZERO(codegen_->Generate());
 
-    gen_module_->dump();
-
     // Write to cache.
-    outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
-        cache_path, error_message, raw_fd_ostream::F_Binary));
-    XEEXPECTTRUE(error_message.empty());
-    WriteBitcodeToFile(gen_module_.get(), *outs);
+    // TODO(benvanik): cache stuff
+
+    // Dump pre-optimized module to disk.
+    if (FLAGS_dump_module_bitcode) {
+      xesnprintf(file_name, XECOUNT(file_name),
+          "%s%s-preopt.bc", FLAGS_dump_path.c_str(), module_->name());
+      outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
+          file_name, error_message, raw_fd_ostream::F_Binary));
+      XEEXPECTTRUE(error_message.empty());
+      WriteBitcodeToFile(gen_module_.get(), *outs);
+    }
   }
 
   // Link optimizations.
@@ -143,18 +158,28 @@ int ExecModule::Prepare() {
 
   // Run full module optimizations.
   pm.add(new DataLayout(gen_module_.get()));
-#if XE_OPTION(OPTIMIZED)
-  pm.add(createVerifierPass());
-  pmb.OptLevel      = 3;
-  pmb.SizeLevel     = 0;
-  pmb.Inliner       = createFunctionInliningPass();
-  pmb.Vectorize     = true;
-  pmb.LoopVectorize = true;
-  pmb.populateModulePassManager(pm);
-  pmb.populateLTOPassManager(pm, false, true);
-#endif  // XE_OPTION(OPTIMIZED)
+  if (FLAGS_optimize_ir_modules) {
+    pm.add(createVerifierPass());
+    pmb.OptLevel      = 3;
+    pmb.SizeLevel     = 0;
+    pmb.Inliner       = createFunctionInliningPass();
+    pmb.Vectorize     = true;
+    pmb.LoopVectorize = true;
+    pmb.populateModulePassManager(pm);
+    pmb.populateLTOPassManager(pm, false, true);
+  }
   pm.add(createVerifierPass());
   pm.run(*gen_module_);
+
+  // Dump post-optimized module to disk.
+  if (FLAGS_optimize_ir_modules && FLAGS_dump_module_bitcode) {
+    xesnprintf(file_name, XECOUNT(file_name),
+        "%s%s.bc", FLAGS_dump_path.c_str(), module_->name());
+    outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
+        file_name, error_message, raw_fd_ostream::F_Binary));
+    XEEXPECTTRUE(error_message.empty());
+    WriteBitcodeToFile(gen_module_.get(), *outs);
+  }
 
   // TODO(benvanik): experiment with LLD to see if we can write out a dll.
 
@@ -225,6 +250,6 @@ int ExecModule::Uninit() {
 }
 
 void ExecModule::Dump() {
-  // sdb_->Dump();
-  // gen_module_->dump();
+  sdb_->Dump();
+  gen_module_->dump();
 }

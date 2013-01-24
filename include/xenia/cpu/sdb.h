@@ -157,6 +157,7 @@ public:
 
   int GetAllFunctions(vector<FunctionSymbol*>& functions);
 
+  void Write(const char* file_name);
   void Dump();
   void DumpFunctionBlocks(FunctionSymbol* fn);
 
