@@ -136,6 +136,10 @@ typedef struct XECACHEALIGN64 xe_ppc_state {
   // void set_fprf(const uint32_t v) {
   //   fpscr.value = (fpscr.value & ~0x000F8000) | v;
   // }
+
+  // Runtime-specific data pointer. Used on callbacks to get access to the
+  // current runtime and its data.
+  void* runtime_data;
 } xe_ppc_state_t;
 
 

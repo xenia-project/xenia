@@ -30,6 +30,8 @@
 
 #include <xenia/cpu/codegen/module_generator.h>
 #include <xenia/cpu/sdb.h>
+#include <xenia/cpu/ppc/instr.h>
+#include <xenia/cpu/ppc/state.h>
 
 #include "cpu/cpu-private.h"
 #include "cpu/xethunk/xethunk.h"
@@ -200,6 +202,26 @@ XECLEANUP:
   return result_code;
 }
 
+void XeTraceKernelCall(xe_ppc_state_t* state, uint32_t cia, uint32_t call_ia) {
+  // TODO(benvanik): get names
+  XELOGCPU("TRACE: %.8X -> k.%.8X", call_ia, cia);
+}
+
+void XeTraceUserCall(xe_ppc_state_t* state, uint32_t cia, uint32_t call_ia) {
+  // TODO(benvanik): get names
+  XELOGCPU("TRACE: %.8X -> u.%.8X", call_ia, cia);
+}
+
+void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
+  ppc::InstrType* type = ppc::GetInstrType(data);
+  XELOGCPU("TRACE: %.8X %.8X %s %s",
+      cia, data,
+      type && type->emit ? " " : "X",
+      type ? type->name : "<unknown>");
+
+  // TODO(benvanik): better disassembly, printing of current register values/etc
+}
+
 int ExecModule::InjectGlobals() {
   LLVMContext& context = *context_.get();
   const DataLayout* dl = engine_->getDataLayout();
@@ -221,6 +243,33 @@ int ExecModule::InjectGlobals() {
   gv->setInitializer(ConstantExpr::getIntToPtr(
       ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
       int8PtrTy));
+
+  // Tracing methods:
+  std::vector<Type*> traceCallArgs;
+  traceCallArgs.push_back(int8PtrTy);
+  traceCallArgs.push_back(Type::getInt32Ty(context));
+  traceCallArgs.push_back(Type::getInt32Ty(context));
+  FunctionType* traceCallTy = FunctionType::get(
+      Type::getVoidTy(context), traceCallArgs, false);
+  std::vector<Type*> traceInstructionArgs;
+  traceInstructionArgs.push_back(int8PtrTy);
+  traceInstructionArgs.push_back(Type::getInt32Ty(context));
+  traceInstructionArgs.push_back(Type::getInt32Ty(context));
+  FunctionType* traceInstructionTy = FunctionType::get(
+      Type::getVoidTy(context), traceInstructionArgs, false);
+
+  gv = new GlobalVariable(*gen_module_, traceCallTy, true,
+                          GlobalValue::ExternalLinkage, 0,
+                          "XeTraceKernelCall");
+  engine_->addGlobalMapping(gv, (void*)&XeTraceKernelCall);
+  gv = new GlobalVariable(*gen_module_, traceCallTy, true,
+                          GlobalValue::ExternalLinkage, 0,
+                          "XeTraceUserCall");
+  engine_->addGlobalMapping(gv, (void*)&XeTraceUserCall);
+  gv = new GlobalVariable(*gen_module_, traceInstructionTy, true,
+                          GlobalValue::ExternalLinkage, 0,
+                          "XeTraceInstruction");
+  engine_->addGlobalMapping(gv, (void*)&XeTraceInstruction);
 
   return 0;
 }

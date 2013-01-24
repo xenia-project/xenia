@@ -5,8 +5,11 @@ rm build/$1*
 
 ./build/xenia/release/xenia-run \
     private/$1 \
-    --optimize_ir_modules=false \
+    --optimize_ir_modules=true \
     --optimize_ir_functions=false \
+    --trace_kernel_calls=true \
+    --trace_user_calls=true \
+    --trace_instructions=false \
     2>build/run.llvm.txt 1>build/run.txt
 
 if [ ! -s build/run.llvm.txt ]; then

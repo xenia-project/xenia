@@ -177,6 +177,16 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
   // TODO(benvanik): log errors.
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
   IRBuilder<> builder(block);
+
+  if (FLAGS_trace_kernel_calls) {
+    Value* traceKernelCall = m->getGlobalVariable("XeTraceKernelCall");
+    builder.CreateCall3(
+        traceKernelCall,
+        f->arg_begin(),
+        builder.getInt32(fn->start_address),
+        builder.getInt32(0));
+  }
+
   builder.CreateRetVoid();
 
   OptimizeFunction(m, f);

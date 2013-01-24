@@ -11,6 +11,8 @@
 
 #include <xenia/cpu/ppc/state.h>
 
+#include "cpu/cpu-private.h"
+
 
 using namespace llvm;
 using namespace xe::cpu::codegen;
@@ -82,10 +84,19 @@ FunctionBlock* FunctionGenerator::fn_block() {
 void FunctionGenerator::GenerateBasicBlocks() {
   // Always add an entry block.
   BasicBlock* entry = BasicBlock::Create(*context_, "entry", gen_fn_);
+  builder_->SetInsertPoint(entry);
+
+  if (FLAGS_trace_user_calls) {
+    Value* traceUserCall = gen_module_->getGlobalVariable("XeTraceUserCall");
+    builder_->CreateCall3(
+        traceUserCall,
+        gen_fn_->arg_begin(),
+        builder_->getInt32(fn_->start_address),
+        builder_->getInt32(0));
+  }
 
   // If this function is empty, abort!
   if (!fn_->blocks.size()) {
-    builder_->SetInsertPoint(entry);
     builder_->CreateRetVoid();
     return;
   }
@@ -124,6 +135,9 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
   builder_->SetInsertPoint(bb);
   //i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
 
+  Value* traceInstruction =
+      gen_module_->getGlobalVariable("XeTraceInstruction");
+
   // Walk instructions in block.
   uint8_t* p = xe_memory_addr(memory_, 0);
   for (uint32_t ia = block->start_address; ia <= block->end_address; ia += 4) {
@@ -131,6 +145,15 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
     i.address = ia;
     i.code = XEGETUINT32BE(p + ia);
     i.type = ppc::GetInstrType(i.code);
+
+    if (FLAGS_trace_instructions) {
+      builder_->CreateCall3(
+          traceInstruction,
+          gen_fn_->arg_begin(),
+          builder_->getInt32(i.address),
+          builder_->getInt32(i.code));
+    }
+
     if (!i.type) {
       XELOGCPU("Invalid instruction at %.8X: %.8X\n", ia, i.code);
       continue;

@@ -43,8 +43,6 @@ indicate expected values.
 
 ## Codegen
 
-Make membase/state constant. Ensure optimized code uses constant value.
-
 ### Branch generation
 
 Change style to match: http://llvm.org/docs/tutorial/LangImpl5.html
@@ -85,16 +83,9 @@ OurFPM.add(createReassociatePass());
 
 ### Tracing
 
-Tracing modes:
-- off (0)
-- syscalls (1)
-- fn calls (2)
-- all instructions (3)
-
-Inject extern functions into module:
-- XeTraceKernelCall(caller_ia, cia, name, state)
-- XeTraceUserCall(caller_ia, cia, name, state)
-- XeTraceInstruction(cia, state)
+- Trace kernel export info (missing/present/etc).
+- Trace user call info (name/?).
+- Trace instruction info (disasm).
 
 ### Calling convention
 

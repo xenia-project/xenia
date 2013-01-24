@@ -13,6 +13,15 @@
 // Debugging:
 
 
+// Tracing:
+DEFINE_bool(trace_instructions, false,
+    "Trace all instructions.");
+DEFINE_bool(trace_user_calls, false,
+    "Trace all user function calls.");
+DEFINE_bool(trace_kernel_calls, false,
+    "Trace all kernel function calls.");
+
+
 // Dumping:
 DEFINE_string(dump_path, "build/",
     "Directory that dump files are placed into.");
