@@ -111,6 +111,8 @@ int ModuleGenerator::Generate() {
       }
     }
   }
+
+  // Build out all the user functions.
   for (std::map<uint32_t, CodegenFunction*>::iterator it =
        functions_.begin(); it != functions_.end(); ++it) {
     BuildFunction(it->second);
