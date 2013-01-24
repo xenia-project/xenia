@@ -203,7 +203,7 @@ Value* FunctionGenerator::LoadStateValue(uint32_t offset, Type* type,
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
   Value* statePtr = args;
-  Value* address = builder_->CreateConstInBoundsGEP1_32(
+  Value* address = builder_->CreateConstInBoundsGEP1_64(
       statePtr, offset);
   Value* ptr = builder_->CreatePointerCast(address, pointerTy);
   return builder_->CreateLoad(ptr, name);
@@ -214,7 +214,7 @@ void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
   Value* statePtr = args;
-  Value* address = builder_->CreateConstInBoundsGEP1_32(
+  Value* address = builder_->CreateConstInBoundsGEP1_64(
       statePtr, offset);
   Value* ptr = builder_->CreatePointerCast(address, pointerTy);
 

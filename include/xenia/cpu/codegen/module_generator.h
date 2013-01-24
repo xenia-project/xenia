@@ -52,6 +52,7 @@ private:
   CodegenFunction* GetCodegenFunction(uint32_t address);
 
   void AddImports();
+  llvm::Function* CreateFunctionDefinition(const char* name);
   void AddMissingImport(sdb::FunctionSymbol* fn);
   void AddPresentImport(sdb::FunctionSymbol* fn);
   void PrepareFunction(sdb::FunctionSymbol* fn);

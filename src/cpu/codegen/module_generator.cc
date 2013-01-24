@@ -132,37 +132,52 @@ ModuleGenerator::CodegenFunction* ModuleGenerator::GetCodegenFunction(
   return NULL;
 }
 
-void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
+Function* ModuleGenerator::CreateFunctionDefinition(const char* name) {
   Module* m = gen_module_;
   LLVMContext& context = m->getContext();
 
-  AttributeWithIndex awi[] = {
-    //AttributeWithIndex::get(context, 2, Attributes::NoCapture),
-    AttributeWithIndex::get(context,
-        AttributeSet::FunctionIndex, Attribute::NoUnwind),
-  };
-  AttributeSet attrs = AttributeSet::get(context, awi);
-
   std::vector<Type*> args;
   args.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
-  Type* return_type = Type::getInt32Ty(context);
+  Type* return_type = Type::getVoidTy(context);
 
   FunctionType* ft = FunctionType::get(return_type,
                                        ArrayRef<Type*>(args), false);
   Function* f = cast<Function>(m->getOrInsertFunction(
-      StringRef(fn->name), ft, attrs));
-  f->setCallingConv(CallingConv::C);
+      StringRef(name), ft));
   f->setVisibility(GlobalValue::DefaultVisibility);
 
+  // Indicate that the function will never be unwound with an exception.
+  // If we ever support native exception handling we may need to remove this.
+  f->doesNotThrow();
+
+  // May be worth trying the X86_FastCall, as we only need state in a register.
+  //f->setCallingConv(CallingConv::Fast);
+  f->setCallingConv(CallingConv::C);
+
   Function::arg_iterator fn_args = f->arg_begin();
+  // 'state'
   Value* fn_arg = fn_args++;
   fn_arg->setName("state");
+  f->setDoesNotAlias(1);
+  // 'state' should try to be in a register, if possible.
+  // TODO(benvanik): verify that's a good idea.
+  // f->getArgumentList().begin()->addAttr(
+  //     Attribute::get(context, AttrBuilder().addAttribute(Attribute::InReg)));
+
+  return f;
+};
+
+void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
+  Module *m = gen_module_;
+  LLVMContext& context = m->getContext();
+
+  // Create the function (and setup args/attributes/etc).
+  Function* f = CreateFunctionDefinition(fn->name);
 
   // TODO(benvanik): log errors.
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
   IRBuilder<> builder(block);
-  Value* tmp = builder.getInt32(0);
-  builder.CreateRet(tmp);
+  builder.CreateRetVoid();
 
   OptimizeFunction(m, f);
 
@@ -184,35 +199,16 @@ void ModuleGenerator::AddPresentImport(FunctionSymbol* fn) {
 }
 
 void ModuleGenerator::PrepareFunction(FunctionSymbol* fn) {
-  Module* m = gen_module_;
-  LLVMContext& context = m->getContext();
+  // Module* m = gen_module_;
+  // LLVMContext& context = m->getContext();
 
-  AttributeWithIndex awi[] = {
-    //AttributeWithIndex::get(context, 2, Attributes::NoCapture),
-    AttributeWithIndex::get(context,
-        AttributeSet::FunctionIndex, Attribute::NoUnwind),
-  };
-  AttributeSet attrs = AttributeSet::get(context, awi);
+  // Create the function (and setup args/attributes/etc).
+  Function* f = CreateFunctionDefinition(fn->name);
 
-  std::vector<Type*> args;
-  args.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
-  Type* return_type = Type::getVoidTy(context);
-
-  FunctionType* ft = FunctionType::get(return_type,
-                                       ArrayRef<Type*>(args), false);
-  XEASSERTNOTNULL(fn->name);
-  Function* f = cast<Function>(
-      m->getOrInsertFunction(StringRef(fn->name), ft, attrs));
-  f->setCallingConv(CallingConv::C);
-  f->setVisibility(GlobalValue::DefaultVisibility);
-
-  Function::arg_iterator fn_args = f->arg_begin();
-  Value* fn_arg = fn_args++;
-  fn_arg->setName("state");
-
+  // Setup our codegen wrapper to keep all the pointers together.
   CodegenFunction* cgf = new CodegenFunction();
   cgf->symbol = fn;
-  cgf->function_type = ft;
+  cgf->function_type = f->getFunctionType();
   cgf->function = f;
   functions_.insert(std::pair<uint32_t, CodegenFunction*>(
       fn->start_address, cgf));
