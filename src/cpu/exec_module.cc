@@ -207,6 +207,11 @@ void XeIndirectBranch(xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
   XEASSERTALWAYS();
 }
 
+void XeInvalidInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
+  // TODO(benvanik): handle better
+  XELOGCPU("INVALID INSTRUCTION %.8X %.8X", cia, data);
+}
+
 void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
   // TODO(benvanik): get names
   XELOGCPU("TRACE: %.8X -> k.%.8X", (uint32_t)call_ia, (uint32_t)cia);
@@ -260,6 +265,18 @@ int ExecModule::InjectGlobals() {
                           GlobalVariable::ExternalLinkage, 0,
                           "XeIndirectBranch");
   engine_->addGlobalMapping(gv, (void*)&XeIndirectBranch);
+
+  // Debugging methods:
+  std::vector<Type*> invalidInstructionArgs;
+  invalidInstructionArgs.push_back(int8PtrTy);
+  invalidInstructionArgs.push_back(Type::getInt32Ty(context));
+  invalidInstructionArgs.push_back(Type::getInt32Ty(context));
+  FunctionType* invalidInstructionTy = FunctionType::get(
+      Type::getVoidTy(context), invalidInstructionArgs, false);
+  gv = new GlobalVariable(*gen_module_, invalidInstructionTy, true,
+                          GlobalVariable::ExternalLinkage, 0,
+                          "XeInvalidInstruction");
+  engine_->addGlobalMapping(gv, (void*)&XeInvalidInstruction);
 
   // Tracing methods:
   std::vector<Type*> traceCallArgs;

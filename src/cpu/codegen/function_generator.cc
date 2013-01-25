@@ -199,6 +199,8 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
   builder_->SetInsertPoint(bb);
   //i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
 
+  Value* invalidInstruction =
+      gen_module_->getGlobalVariable("XeInvalidInstruction");
   Value* traceInstruction =
       gen_module_->getGlobalVariable("XeTraceInstruction");
 
@@ -220,7 +222,13 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
     }
 
     if (!i.type) {
-      XELOGCPU("Invalid instruction at %.8X: %.8X\n", ia, i.code);
+      XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
+      SpillRegisters();
+      builder_->CreateCall3(
+          invalidInstruction,
+          gen_fn_->arg_begin(),
+          builder_->getInt32(i.address),
+          builder_->getInt32(i.code));
       continue;
     }
     printf("    %.8X: %.8X %s\n", ia, i.code, i.type->name);
@@ -235,7 +243,17 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
     XEASSERTNOTNULL(emit);
     int result = emit(*this, *builder_, i);
     if (result) {
-      printf("---- error generating instruction: %.8X\n", ia);
+      // This printf is handy for sort/uniquify to find instructions.
+      //printf("unimplinstr %s\n", i.type->name);
+
+      XELOGCPU("Unimplemented instr %.8X %.8X %s",
+               ia, i.code, i.type->name);
+      SpillRegisters();
+      builder_->CreateCall3(
+          invalidInstruction,
+          gen_fn_->arg_begin(),
+          builder_->getInt32(i.address),
+          builder_->getInt32(i.code));
     }
   }
 
