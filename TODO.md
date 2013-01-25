@@ -39,6 +39,18 @@ Overflow bits can be set via the intrinsics:
 It'd be nice to avoid doing this unless absolutely required. The SDB could
 walk functions to see if they ever read or branch on the SO bit of things.
 
+Condition bits are, after each function:
+```
+if (target_reg < 0) { CR0 = b100 | XER[SO] }
+if (target_reg > 0) { CR0 = b010 | XER[SO] }
+else                { CR0 = b001 | XER[SO] }
+```
+Most PPC instructions are optimized by the compiler to have Rc=0 and not set the
+bits if possible. There are some instructions, though, that always set them.
+For those, it would be nice to remove redundant sets. Maybe LLVM will do it
+automatically due to the local cr? May need to split that up into a few locals
+(one for each bit?) to ensure deduping.
+
 `@llvm.expect.i32`/`.i64` could be used with the BH bits in branches to
 indicate expected values.
 
