@@ -10,6 +10,7 @@
 #include "cpu/codegen/emit.h"
 
 #include <xenia/cpu/codegen/function_generator.h>
+#include <xenia/cpu/ppc/state.h>
 
 
 using namespace llvm;
@@ -23,8 +24,51 @@ namespace cpu {
 namespace codegen {
 
 
-int XeEmitBranchTo(FunctionGenerator& g, IRBuilder<>& b, const char* src,
-                   uint32_t cia, bool lk) {
+int XeEmitIndirectBranchTo(
+    FunctionGenerator& g, IRBuilder<>& b, const char* src, uint32_t cia,
+    bool lk, uint32_t reg) {
+  // TODO(benvanik): run a DFA pass to see if we can detect whether this is
+  //     a normal function return that is pulling the LR from the stack that
+  //     it set in the prolog. If so, we can omit the dynamic check!
+
+  // NOTE: we avoid spilling registers until we know that the target is not
+  // a basic block within this function.
+
+  Value* target;
+  switch (reg) {
+    case kXEPPCRegLR:
+      target = g.lr_value();
+      break;
+    case kXEPPCRegCTR:
+      target = g.ctr_value();
+      break;
+    default:
+      XEASSERTALWAYS();
+      return 1;
+  }
+
+  // Dynamic test when branching to LR, which is usually used for the return.
+  // We only do this if LK=0 as returns wouldn't set LR.
+  // Ideally it's a return and we can just do a simple ret and be done.
+  // If it's not, we fall through to the full indirection logic.
+  if (!lk && reg == kXEPPCRegLR) {
+    BasicBlock* next_block = g.GetNextBasicBlock();
+    BasicBlock* mismatch_bb = BasicBlock::Create(*g.context(), "lr_mismatch",
+                                                 g.gen_fn(), next_block);
+    Value* lr_cmp = b.CreateICmpEQ(target, ++(g.gen_fn()->arg_begin()));
+    // The return block will spill registers for us.
+    b.CreateCondBr(lr_cmp, g.GetReturnBasicBlock(), mismatch_bb);
+    b.SetInsertPoint(mismatch_bb);
+  }
+
+  // Defer to the generator, which will do fancy things.
+  bool likely_local = !lk && reg == kXEPPCRegCTR;
+  return g.GenerateIndirectionBranch(cia, target, lk, likely_local);
+}
+
+int XeEmitBranchTo(
+    FunctionGenerator& g, IRBuilder<>& b, const char* src, uint32_t cia,
+    bool lk) {
   // Get the basic block and switch behavior based on outgoing type.
   FunctionBlock* fn_block = g.fn_block();
   switch (fn_block->outgoing_type) {
@@ -37,21 +81,24 @@ int XeEmitBranchTo(FunctionGenerator& g, IRBuilder<>& b, const char* src,
     }
     case FunctionBlock::kTargetFunction:
     {
+      // Spill all registers to memory.
+      // TODO(benvanik): only spill ones used by the target function? Use
+      //     calling convention flags on the function to not spill temp
+      //     registers?
+      g.SpillRegisters();
+
       Function* target_fn = g.GetFunction(fn_block->outgoing_function);
       Function::arg_iterator args = g.gen_fn()->arg_begin();
-      Value* statePtr = args;
-      b.CreateCall(target_fn, statePtr);
-      if (!lk) {
-        // Tail.
+      Value* state_ptr = args;
+      b.CreateCall2(target_fn, state_ptr, b.getInt64(cia + 4));
+      BasicBlock* next_bb = g.GetNextBasicBlock();
+      if (!lk || !next_bb) {
+        // Tail. No need to refill the local register values, just return.
         b.CreateRetVoid();
       } else {
-        BasicBlock* next_bb = g.GetNextBasicBlock();
-        if (next_bb) {
-          b.CreateBr(next_bb);
-        } else {
-          // ?
-          b.CreateRetVoid();
-        }
+        // Refill registers from state.
+        g.FillRegisters();
+        b.CreateBr(next_bb);
       }
       break;
     }
@@ -59,15 +106,13 @@ int XeEmitBranchTo(FunctionGenerator& g, IRBuilder<>& b, const char* src,
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA LR: %.8X\n", cia);
-      b.CreateRetVoid();
-      break;
+      return XeEmitIndirectBranchTo(g, b, src, cia, lk, kXEPPCRegLR);
     }
     case FunctionBlock::kTargetCTR:
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA CTR: %.8X\n", cia);
-      b.CreateRetVoid();
-      break;
+      return XeEmitIndirectBranchTo(g, b, src, cia, lk, kXEPPCRegCTR);
     }
     default:
     case FunctionBlock::kTargetNone:
@@ -95,8 +140,6 @@ XEEMITTER(bx,           0x48000000, I  )(FunctionGenerator& g, IRBuilder<>& b, I
     g.update_lr_value(b.getInt32(i.address + 4));
   }
 
-  g.FlushRegisters();
-
   return XeEmitBranchTo(g, b, "bx", i.address, i.I.LK);
 }
 
@@ -113,6 +156,10 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   // if LK then
   //   LR <- CIA + 4
 
+  // NOTE: the condition bits are reversed!
+  // 01234 (docs)
+  // 43210 (real)
+
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
   // The docs say always, though...
   if (i.B.LK) {
@@ -120,7 +167,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 
   Value* ctr_ok = NULL;
-  if (XESELECTBITS(i.B.BO, 4, 4)) {
+  if (XESELECTBITS(i.B.BO, 2, 2)) {
     // Ignore ctr.
   } else {
     // Decrement counter.
@@ -129,7 +176,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
     ctr = b.CreateSub(ctr, b.getInt64(1));
 
     // Ctr check.
-    if (XESELECTBITS(i.B.BO, 3, 3)) {
+    if (XESELECTBITS(i.B.BO, 1, 1)) {
       ctr_ok = b.CreateICmpEQ(ctr, b.getInt64(0));
     } else {
       ctr_ok = b.CreateICmpNE(ctr, b.getInt64(0));
@@ -159,7 +206,6 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
     ok = cond_ok;
   }
 
-  g.FlushRegisters();
   // Handle unconditional branches without extra fluff.
   BasicBlock* original_bb = b.GetInsertBlock();
   if (ok) {
@@ -196,6 +242,10 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   // if LK then
   //   LR <- CIA + 4
 
+  // NOTE: the condition bits are reversed!
+  // 01234 (docs)
+  // 43210 (real)
+
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
   // The docs say always, though...
   if (i.XL.LK) {
@@ -220,8 +270,6 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   if (cond_ok) {
     ok = cond_ok;
   }
-
-  g.FlushRegisters();
 
   // Handle unconditional branches without extra fluff.
   BasicBlock* original_bb = b.GetInsertBlock();
@@ -257,6 +305,10 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   // if LK then
   //   LR <- CIA + 4
 
+  // NOTE: the condition bits are reversed!
+  // 01234 (docs)
+  // 43210 (real)
+
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
   // The docs say always, though...
   if (i.XL.LK) {
@@ -264,7 +316,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 
   Value* ctr_ok = NULL;
-  if (XESELECTBITS(i.XL.BO, 4, 4)) {
+  if (XESELECTBITS(i.XL.BO, 2, 2)) {
     // Ignore ctr.
   } else {
     // Decrement counter.
@@ -273,7 +325,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
     ctr = b.CreateSub(ctr, b.getInt64(1));
 
     // Ctr check.
-    if (XESELECTBITS(i.XL.BO, 3, 3)) {
+    if (XESELECTBITS(i.XL.BO, 1, 1)) {
       ctr_ok = b.CreateICmpEQ(ctr, b.getInt64(0));
     } else {
       ctr_ok = b.CreateICmpNE(ctr, b.getInt64(0));
@@ -302,8 +354,6 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   } else if (cond_ok) {
     ok = cond_ok;
   }
-
-  g.FlushRegisters();
 
   // Handle unconditional branches without extra fluff.
   BasicBlock* original_bb = b.GetInsertBlock();

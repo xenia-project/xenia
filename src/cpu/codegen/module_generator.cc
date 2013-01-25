@@ -138,6 +138,7 @@ Function* ModuleGenerator::CreateFunctionDefinition(const char* name) {
 
   std::vector<Type*> args;
   args.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
+  args.push_back(Type::getInt64Ty(context));
   Type* return_type = Type::getVoidTy(context);
 
   FunctionType* ft = FunctionType::get(return_type,
@@ -159,10 +160,15 @@ Function* ModuleGenerator::CreateFunctionDefinition(const char* name) {
   Value* fn_arg = fn_args++;
   fn_arg->setName("state");
   f->setDoesNotAlias(1);
+  f->setDoesNotCapture(1);
   // 'state' should try to be in a register, if possible.
   // TODO(benvanik): verify that's a good idea.
   // f->getArgumentList().begin()->addAttr(
   //     Attribute::get(context, AttrBuilder().addAttribute(Attribute::InReg)));
+
+  // 'lr'
+  fn_arg = fn_args++;
+  fn_arg->setName("lr");
 
   return f;
 };
@@ -183,8 +189,8 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
     builder.CreateCall3(
         traceKernelCall,
         f->arg_begin(),
-        builder.getInt32(fn->start_address),
-        builder.getInt32(0));
+        builder.getInt64(fn->start_address),
+        ++f->arg_begin());
   }
 
   builder.CreateRetVoid();

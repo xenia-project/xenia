@@ -44,8 +44,12 @@ public:
   void GenerateBasicBlocks();
   llvm::BasicBlock* GetBasicBlock(uint32_t address);
   llvm::BasicBlock* GetNextBasicBlock();
+  llvm::BasicBlock* GetReturnBasicBlock();
 
   llvm::Function* GetFunction(sdb::FunctionSymbol* fn);
+
+  int GenerateIndirectionBranch(uint32_t cia, llvm::Value* target,
+                                bool lk, bool likely_local);
 
   llvm::Value* LoadStateValue(uint32_t offset, llvm::Type* type,
                               const char* name = "");
@@ -53,7 +57,10 @@ public:
 
   llvm::Value* cia_value();
 
-  void FlushRegisters();
+  llvm::Value* SetupRegisterLocal(uint32_t offset, llvm::Type* type,
+                                  const char* name);
+  void FillRegisters();
+  void SpillRegisters();
 
   llvm::Value* xer_value();
   void update_xer_value(llvm::Value* value);
@@ -74,6 +81,7 @@ public:
   void WriteMemory(llvm::Value* addr, uint32_t size, llvm::Value* value);
 
 private:
+  void GenerateSharedBlocks();
   void GenerateBasicBlock(sdb::FunctionBlock* block, llvm::BasicBlock* bb);
 
   xe_memory_ref         memory_;
@@ -83,6 +91,9 @@ private:
   llvm::Module*         gen_module_;
   llvm::Function*       gen_fn_;
   sdb::FunctionBlock*   fn_block_;
+  llvm::BasicBlock*     return_block_;
+  llvm::BasicBlock*     internal_indirection_block_;
+  llvm::BasicBlock*     external_indirection_block_;
   llvm::BasicBlock*     bb_;
   llvm::IRBuilder<>*    builder_;
 
@@ -92,19 +103,15 @@ private:
   uint32_t      cia_;
 
   struct {
+    llvm::Value*  indirection_target;
+    llvm::Value*  indirection_cia;
+
     llvm::Value*  xer;
-    bool          xer_dirty;
     llvm::Value*  lr;
-    bool          lr_dirty;
     llvm::Value*  ctr;
-    bool          ctr_dirty;
-
     llvm::Value*  cr;
-    bool          cr_dirty;
-
     llvm::Value*  gpr[32];
-    uint32_t      gpr_dirty_bits;
-  } values_;
+  } locals_;
 };
 
 

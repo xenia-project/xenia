@@ -49,8 +49,22 @@ FunctionGenerator::FunctionGenerator(
   gen_module_ = gen_module;
   gen_fn_ = gen_fn;
   builder_ = new IRBuilder<>(*context_);
+  fn_block_ = NULL;
+  return_block_ = NULL;
+  internal_indirection_block_ = NULL;
+  external_indirection_block_ = NULL;
+  bb_ = NULL;
 
-  xe_zero_struct(&values_, sizeof(values_));
+  locals_.indirection_target = NULL;
+  locals_.indirection_cia = NULL;
+
+  locals_.xer = NULL;
+  locals_.lr = NULL;
+  locals_.ctr = NULL;
+  locals_.cr = NULL;
+  for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
+    locals_.gpr[n] = NULL;
+  }
 }
 
 FunctionGenerator::~FunctionGenerator() {
@@ -87,12 +101,13 @@ void FunctionGenerator::GenerateBasicBlocks() {
   builder_->SetInsertPoint(entry);
 
   if (FLAGS_trace_user_calls) {
+    SpillRegisters();
     Value* traceUserCall = gen_module_->getGlobalVariable("XeTraceUserCall");
     builder_->CreateCall3(
         traceUserCall,
         gen_fn_->arg_begin(),
-        builder_->getInt32(fn_->start_address),
-        builder_->getInt32(0));
+        builder_->getInt64(fn_->start_address),
+        ++gen_fn_->arg_begin());
   }
 
   // If this function is empty, abort!
@@ -100,6 +115,11 @@ void FunctionGenerator::GenerateBasicBlocks() {
     builder_->CreateRetVoid();
     return;
   }
+
+  // Create a return block.
+  // This spills registers and returns. All non-tail returns should branch
+  // here to do the return and ensure registers are spilled.
+  return_block_ = BasicBlock::Create(*context_, "return", gen_fn_);
 
   // Pass 1 creates all of the blocks - this way we can branch to them.
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
@@ -121,6 +141,50 @@ void FunctionGenerator::GenerateBasicBlocks() {
        it != fn_->blocks.end(); ++it) {
     FunctionBlock* block = it->second;
     GenerateBasicBlock(block, GetBasicBlock(block->start_address));
+  }
+
+  // Setup the shared return/indirection/etc blocks now that we know all the
+  // blocks we need and all the registers used.
+  GenerateSharedBlocks();
+}
+
+void FunctionGenerator::GenerateSharedBlocks() {
+  IRBuilder<>& b = *builder_;
+
+  Value* indirect_branch = gen_module_->getGlobalVariable("XeIndirectBranch");
+
+  // Setup the spill block in return.
+  b.SetInsertPoint(return_block_);
+  SpillRegisters();
+  b.CreateRetVoid();
+
+  // Build indirection block on demand.
+  // We have already prepped all basic blocks, so we can build these tables now.
+  if (external_indirection_block_) {
+    // This will spill registers and call the external function.
+    // It is only meant for LK=0.
+    b.SetInsertPoint(external_indirection_block_);
+    SpillRegisters();
+    b.CreateCall3(indirect_branch,
+                  gen_fn_->arg_begin(),
+                  b.CreateLoad(locals_.indirection_target),
+                  b.CreateLoad(locals_.indirection_cia));
+    b.CreateRetVoid();
+  }
+
+  if (internal_indirection_block_) {
+    // This will not spill registers and instead try to switch on local blocks.
+    // If it fails then the external indirection path is taken.
+    // NOTE: we only generate this if a likely local branch is taken.
+    b.SetInsertPoint(internal_indirection_block_);
+    SwitchInst* switch_i = b.CreateSwitch(
+        b.CreateLoad(locals_.indirection_target),
+        external_indirection_block_,
+        bbs_.size());
+    for (std::map<uint32_t, BasicBlock*>::iterator it = bbs_.begin();
+         it != bbs_.end(); ++it) {
+      switch_i->addCase(b.getInt64(it->first), it->second);
+    }
   }
 }
 
@@ -147,6 +211,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
     i.type = ppc::GetInstrType(i.code);
 
     if (FLAGS_trace_instructions) {
+      SpillRegisters();
       builder_->CreateCall3(
           traceInstruction,
           gen_fn_->arg_begin(),
@@ -176,10 +241,6 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
 
   // If we fall through, create the branch.
   if (block->outgoing_type == FunctionBlock::kTargetNone) {
-    // Flush registers.
-    // TODO(benvanik): only do this before jumps out.
-    FlushRegisters();
-
     BasicBlock* next_bb = GetNextBasicBlock();
     XEASSERTNOTNULL(next_bb);
     builder_->CreateBr(next_bb);
@@ -212,6 +273,10 @@ BasicBlock* FunctionGenerator::GetNextBasicBlock() {
   return NULL;
 }
 
+BasicBlock* FunctionGenerator::GetReturnBasicBlock() {
+  return return_block_;
+}
+
 Function* FunctionGenerator::GetFunction(FunctionSymbol* fn) {
   Function* result = gen_module_->getFunction(StringRef(fn->name));
   if (!result) {
@@ -219,6 +284,94 @@ Function* FunctionGenerator::GetFunction(FunctionSymbol* fn) {
   }
   XEASSERTNOTNULL(result);
   return result;
+}
+
+int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
+                                                 bool lk, bool likely_local) {
+  // This function is called by the control emitters when they know that an
+  // indirect branch is required.
+  // It first tries to see if the branch is to an address within the function
+  // and, if so, uses a local switch table. If that fails because we don't know
+  // the block the function is regenerated (ACK!). If the target is external
+  // then an external call occurs.
+
+  IRBuilder<>& b = *builder_;
+  BasicBlock* next_block = GetNextBasicBlock();
+
+  BasicBlock* insert_bb = b.GetInsertBlock();
+  BasicBlock::iterator insert_bbi = b.GetInsertPoint();
+
+  // Request builds of the indirection blocks on demand.
+  // We can't build here because we don't know what registers will be needed
+  // yet, so we just create the blocks and let GenerateSharedBlocks handle it
+  // after we are done with all user instructions.
+  if (!external_indirection_block_) {
+    // Setup locals in the entry block.
+    builder_->SetInsertPoint(&gen_fn_->getEntryBlock(),
+                             gen_fn_->getEntryBlock().begin());
+    locals_.indirection_target = b.CreateAlloca(
+        b.getInt64Ty(), 0, "indirection_target");
+    locals_.indirection_cia = b.CreateAlloca(
+        b.getInt64Ty(), 0, "indirection_cia");
+
+    external_indirection_block_ = BasicBlock::Create(
+        *context_, "external_indirection_block", gen_fn_, return_block_);
+  }
+  if (likely_local && !internal_indirection_block_) {
+    internal_indirection_block_ = BasicBlock::Create(
+        *context_, "internal_indirection_block", gen_fn_, return_block_);
+  }
+
+  b.SetInsertPoint(insert_bb, insert_bbi);
+
+  // Check to see if the target address is within the function.
+  // If it is jump to that basic block. If the basic block is not found it means
+  // we have a jump inside the function that wasn't identified via static
+  // analysis. These are bad as they require function regeneration.
+  if (likely_local) {
+    // Note that we only support LK=0, as we are using shared tables.
+    XEASSERT(!lk);
+    b.CreateStore(target, locals_.indirection_target);
+    b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
+    Value* fn_ge_cmp = b.CreateICmpUGE(target, b.getInt64(fn_->start_address));
+    Value* fn_l_cmp = b.CreateICmpULT(target, b.getInt64(fn_->end_address));
+    Value* fn_target_cmp = b.CreateAnd(fn_ge_cmp, fn_l_cmp);
+    b.CreateCondBr(fn_target_cmp,
+                   internal_indirection_block_, external_indirection_block_);
+    return 0;
+  }
+
+  // If we are LK=0 jump to the shared indirection block. This prevents us
+  // from needing to fill the registers again after the call and shares more
+  // code.
+  if (!lk) {
+    b.CreateStore(target, locals_.indirection_target);
+    b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
+    b.CreateBr(external_indirection_block_);
+  } else {
+    // Slowest path - spill, call the external function, and fill.
+    // We should avoid this at all costs.
+
+    // Spill registers. We could probably share this.
+    SpillRegisters();
+
+    // TODO(benvanik): keep function pointer lookup local.
+    Value* indirect_branch = gen_module_->getGlobalVariable("XeIndirectBranch");
+    b.CreateCall3(indirect_branch,
+                  gen_fn_->arg_begin(),
+                  target,
+                  b.getInt64(cia));
+
+    if (next_block) {
+      // Only refill if not a tail call.
+      FillRegisters();
+      b.CreateBr(next_block);
+    } else {
+      b.CreateRetVoid();
+    }
+  }
+
+  return 0;
 }
 
 Value* FunctionGenerator::LoadStateValue(uint32_t offset, Type* type,
@@ -240,12 +393,6 @@ void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
   Value* address = builder_->CreateConstInBoundsGEP1_64(
       statePtr, offset);
   Value* ptr = builder_->CreatePointerCast(address, pointerTy);
-
-  // Widen to target type if needed.
-  if (!value->getType()->isIntegerTy(type->getIntegerBitWidth())) {
-    value = builder_->CreateZExt(value, type);
-  }
-
   builder_->CreateStore(value, ptr);
 }
 
@@ -253,184 +400,225 @@ Value* FunctionGenerator::cia_value() {
   return builder_->getInt32(cia_);
 }
 
-void FunctionGenerator::FlushRegisters() {
+Value* FunctionGenerator::SetupRegisterLocal(uint32_t offset, llvm::Type* type,
+                                             const char* name) {
+  // Insert into the entry block.
+  BasicBlock* insert_bb = builder_->GetInsertBlock();
+  BasicBlock::iterator insert_bbi = builder_->GetInsertPoint();
+  builder_->SetInsertPoint(&gen_fn_->getEntryBlock(),
+                           gen_fn_->getEntryBlock().begin());
+
+  Value* v = builder_->CreateAlloca(type, 0, name);
+  builder_->CreateStore(LoadStateValue(offset, type), v);
+
+  builder_->SetInsertPoint(insert_bb, insert_bbi);
+  return v;
+}
+
+void FunctionGenerator::FillRegisters() {
+  // This updates all of the local register values from the state memory.
+  // It should be called on function entry for initial setup and after any
+  // calls that may modify the registers.
+
+  if (locals_.xer) {
+    builder_->CreateStore(LoadStateValue(
+        offsetof(xe_ppc_state_t, xer),
+        builder_->getInt64Ty()), locals_.xer);
+  }
+
+  if (locals_.lr) {
+    builder_->CreateStore(LoadStateValue(
+        offsetof(xe_ppc_state_t, lr),
+        builder_->getInt64Ty()), locals_.lr);
+  }
+
+  if (locals_.ctr) {
+    builder_->CreateStore(LoadStateValue(
+        offsetof(xe_ppc_state_t, ctr),
+        builder_->getInt64Ty()), locals_.ctr);
+  }
+
+  if (locals_.cr) {
+    builder_->CreateStore(LoadStateValue(
+        offsetof(xe_ppc_state_t, cr),
+        builder_->getInt64Ty()), locals_.cr);
+  }
+
+  // Note that we skip zero.
+  for (uint32_t n = 1; n < XECOUNT(locals_.gpr); n++) {
+    if (locals_.gpr[n]) {
+      builder_->CreateStore(LoadStateValue(
+          offsetof(xe_ppc_state_t, r) + 8 * n,
+          builder_->getInt64Ty()), locals_.gpr[n]);
+    }
+  }
+}
+
+void FunctionGenerator::SpillRegisters() {
   // This flushes all local registers (if written) to the register bank and
   // resets their values.
   //
   // TODO(benvanik): only flush if actually required, or selective flushes.
 
-  // xer
+  if (locals_.xer) {
+    StoreStateValue(
+        offsetof(xe_ppc_state_t, xer),
+        builder_->getInt64Ty(),
+        builder_->CreateLoad(locals_.xer));
+  }
 
-  if (values_.lr && values_.lr_dirty) {
+  if (locals_.lr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, lr),
         builder_->getInt64Ty(),
-        values_.lr);
-    values_.lr = NULL;
-    values_.lr_dirty = false;
+        builder_->CreateLoad(locals_.lr));
   }
 
-  if (values_.ctr && values_.ctr_dirty) {
+  if (locals_.ctr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, ctr),
         builder_->getInt64Ty(),
-        values_.ctr);
-    values_.ctr = NULL;
-    values_.ctr_dirty = false;
+        builder_->CreateLoad(locals_.ctr));
   }
 
   // TODO(benvanik): don't flush across calls?
-  if (values_.cr && values_.cr_dirty) {
+  if (locals_.cr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, cr),
         builder_->getInt64Ty(),
-        values_.cr);
-    values_.cr = NULL;
-    values_.cr_dirty = false;
+        builder_->CreateLoad(locals_.cr));
   }
 
-  for (uint32_t n = 0; n < XECOUNT(values_.gpr); n++) {
-    Value* v = values_.gpr[n];
-    if (v && (values_.gpr_dirty_bits & (1 << n))) {
+  // Note that we skip zero.
+  for (uint32_t n = 1; n < XECOUNT(locals_.gpr); n++) {
+    Value* v = locals_.gpr[n];
+    if (v) {
       StoreStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,
           builder_->getInt64Ty(),
-          values_.gpr[n]);
-      values_.gpr[n] = NULL;
+          builder_->CreateLoad(locals_.gpr[n]));
     }
   }
-  values_.gpr_dirty_bits = 0;
 }
 
 Value* FunctionGenerator::xer_value() {
-  if (true) {//!values_.xer) {
-    // Fetch from register bank.
-    Value* v = LoadStateValue(
+  if (!locals_.xer) {
+    locals_.xer = SetupRegisterLocal(
         offsetof(xe_ppc_state_t, xer),
         builder_->getInt64Ty(),
-        "xer_");
-    values_.xer = v;
-    return v;
-  } else {
-    // Return local.
-    return values_.xer;
+        "xer");
   }
+  return locals_.xer;
 }
 
 void FunctionGenerator::update_xer_value(Value* value) {
-  // Widen to 64bits if needed.
+  // Ensure the register is local.
+  xer_value();
+
+  // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
     value = builder_->CreateZExt(value, builder_->getInt64Ty());
   }
-
-  values_.xer = value;
-  values_.xer_dirty = true;
+  builder_->CreateStore(value, locals_.xer);
 }
 
 Value* FunctionGenerator::lr_value() {
-  if (true) {//!values_.lr) {
-    // Fetch from register bank.
-    Value* v = LoadStateValue(
+  if (!locals_.lr) {
+    locals_.lr = SetupRegisterLocal(
         offsetof(xe_ppc_state_t, lr),
         builder_->getInt64Ty(),
-        "lr_");
-    values_.lr = v;
-    return v;
-  } else {
-    // Return local.
-    return values_.lr;
+        "lr");
   }
+  return builder_->CreateLoad(locals_.lr);
 }
 
 void FunctionGenerator::update_lr_value(Value* value) {
-  // Widen to 64bits if needed.
+  // Ensure the register is local.
+  lr_value();
+
+  // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
     value = builder_->CreateZExt(value, builder_->getInt64Ty());
   }
-
-  values_.lr = value;
-  values_.lr_dirty = true;
+  builder_->CreateStore(value, locals_.lr);
 }
 
 Value* FunctionGenerator::ctr_value() {
-  if (true) {//!values_.ctr) {
-    // Fetch from register bank.
-    Value* v = LoadStateValue(
+  if (!locals_.ctr) {
+    locals_.ctr = SetupRegisterLocal(
         offsetof(xe_ppc_state_t, ctr),
         builder_->getInt64Ty(),
-        "ctr_");
-    values_.ctr = v;
-    return v;
-  } else {
-    // Return local.
-    return values_.ctr;
+        "ctr");
   }
+  return builder_->CreateLoad(locals_.ctr);
 }
 
 void FunctionGenerator::update_ctr_value(Value* value) {
-  // Widen to 64bits if needed.
+  // Ensure the register is local.
+  ctr_value();
+
+  // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
     value = builder_->CreateZExt(value, builder_->getInt64Ty());
   }
-
-  values_.ctr = value;
-  values_.ctr_dirty = true;
+  builder_->CreateStore(value, locals_.ctr);
 }
 
 Value* FunctionGenerator::cr_value() {
-  if (true) {//!values_.cr) {
-    // Fetch from register bank.
-    Value* v = LoadStateValue(
+  if (!locals_.cr) {
+    locals_.cr = SetupRegisterLocal(
         offsetof(xe_ppc_state_t, cr),
         builder_->getInt64Ty(),
-        "cr_");
-    values_.cr = v;
-    return v;
-  } else {
-    // Return local.
-    return values_.cr;
+        "cr");
   }
+  return builder_->CreateLoad(locals_.cr);
 }
 
 void FunctionGenerator::update_cr_value(Value* value) {
-  values_.cr = value;
-  values_.cr_dirty = true;
+  // Ensure the register is local.
+  cr_value();
+
+  // Extend to 64bits if needed.
+  if (!value->getType()->isIntegerTy(64)) {
+    value = builder_->CreateZExt(value, builder_->getInt64Ty());
+  }
+  builder_->CreateStore(value, locals_.cr);
 }
 
 Value* FunctionGenerator::gpr_value(uint32_t n) {
+  XEASSERT(n >= 0 && n < 32);
   if (n == 0) {
     // Always force zero to a constant - this should help LLVM.
     return builder_->getInt64(0);
   }
-  if (true) {//!values_.gpr[n]) {
-    // Need to fetch from register bank.
+  if (!locals_.gpr[n]) {
     char name[30];
-    xesnprintfa(name, XECOUNT(name), "gpr_r%d_", n);
-    Value* v = LoadStateValue(
+    xesnprintfa(name, XECOUNT(name), "gpr_r%d", n);
+    locals_.gpr[n] = SetupRegisterLocal(
         offsetof(xe_ppc_state_t, r) + 8 * n,
         builder_->getInt64Ty(),
         name);
-    values_.gpr[n] = v;
-    return v;
-  } else {
-    // Local value, reuse.
-    return values_.gpr[n];
   }
+  return builder_->CreateLoad(locals_.gpr[n]);
 }
 
 void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
+  XEASSERT(n >= 0 && n < 32);
+
   if (n == 0) {
     // Ignore writes to zero.
     return;
   }
 
-  // Widen to 64bits if needed.
+  // Ensure the register is local.
+  gpr_value(n);
+
+  // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
     value = builder_->CreateZExt(value, builder_->getInt64Ty());
   }
 
-  values_.gpr[n] = value;
-  values_.gpr_dirty_bits |= 1 << n;
+  builder_->CreateStore(value, locals_.gpr[n]);
 }
 
 Value* FunctionGenerator::GetMembase() {

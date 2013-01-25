@@ -43,60 +43,22 @@ indicate expected values.
 
 ## Codegen
 
-### Branch generation
-
-Change style to match: http://llvm.org/docs/tutorial/LangImpl5.html
-Insert check code, then push_back the branch block and implicit else after
-its generated. This ensures ordering stays legit.
-
-### Stack variables
-
-Use stack variables for registers.
-
-- All allocas should go in the entry block.
-  - Lazily add or just add all registers/etc at the head.
-  - Must be 1 el, int64
-- Reuse through function.
-- On FlushRegisters write back to state.
-- FlushRegisters on indirect branch or call.
-
-```
-/// CreateEntryBlockAlloca - Create an alloca instruction in the entry block of
-/// the function.  This is used for mutable variables etc.
-static AllocaInst *CreateEntryBlockAlloca(Function *TheFunction,
-                                          const std::string &VarName) {
-  IRBuilder<> TmpB(&TheFunction->getEntryBlock(),
-                 TheFunction->getEntryBlock().begin());
-  return TmpB.CreateAlloca(Type::getDoubleTy(getGlobalContext()), 0,
-                           VarName.c_str());
-}
-// stash result of above and reuse
-// on first use in entry get the value from state?
-
-// Promote allocas to registers.
-OurFPM.add(createPromoteMemoryToRegisterPass());
-// Do simple "peephole" optimizations and bit-twiddling optzns.
-OurFPM.add(createInstructionCombiningPass());
-// Reassociate expressions.
-OurFPM.add(createReassociatePass());
-```
-
-### Tracing
-
-- Trace kernel export info (missing/present/etc).
-- Trace user call info (name/?).
-- Trace instruction info (disasm).
-
 ### Calling convention
 
 Experiment with fastcc? May need typedef fn ptrs to call into the JITted code.
 
-nonlazybind fn attribute to prevent lazy binding (slow down startup)
+### Function calling convention analysis
+
+Track functions to see if they follow the standard calling convention.
+This could use the hints from the EH data in the XEX. Looking specifically for
+stack prolog/epilog and branches to LR.
+
+Benefits:
+- Optimized prolog/epilog generation.
+- Local variables for stack storage (alloca/etc) instead of user memory.
+- Better return detection and fast returns.
 
 ### Indirect branches (ctr/lr)
-
-emit_control.cc XeEmitBranchTo
-Need to take the value in LR/CTR and do something with it.
 
 Return path:
 - In SDB see if the function follows the 'return' semantic:
@@ -118,32 +80,6 @@ Slow path:
 - Call out and do an SDB lookup.
 - If found, return, add to lookup table, and jump.
 - If not found, need new function codegen!
-
-
-If the indirect br looks like it may be local (no stack setup/etc?) then
-build a jump table:
-
-```
-Branch register with no link:
-switch i32 %nia, label %non_local [ i32 0x..., label %loc_...
-                                    i32 0x..., label %loc_...
-                                    i32 0x..., label %loc_... ]
-%non_local: going outside of the function
-
-Could put one of these tables at the bottom of each function and share
-it.
-This could be done via indirectbr if branchaddress is used to stash the
-address. The address must be within the function, though.
-
-Branch register with link:
-check, never local?
-```
-
-### Caching of register values in basic blocks
-
-Right now the SSA values seem to leak from the blocks somehow. All caching
-is disabled.
-
 ```
 
 ## Debugging

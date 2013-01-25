@@ -202,14 +202,19 @@ XECLEANUP:
   return result_code;
 }
 
-void XeTraceKernelCall(xe_ppc_state_t* state, uint32_t cia, uint32_t call_ia) {
-  // TODO(benvanik): get names
-  XELOGCPU("TRACE: %.8X -> k.%.8X", call_ia, cia);
+void XeIndirectBranch(xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
+  printf("INDIRECT BRANCH %.8X -> %.8X\n", (uint32_t)br_ia, (uint32_t)target);
+  XEASSERTALWAYS();
 }
 
-void XeTraceUserCall(xe_ppc_state_t* state, uint32_t cia, uint32_t call_ia) {
+void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
   // TODO(benvanik): get names
-  XELOGCPU("TRACE: %.8X -> u.%.8X", call_ia, cia);
+  XELOGCPU("TRACE: %.8X -> k.%.8X", (uint32_t)call_ia, (uint32_t)cia);
+}
+
+void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
+  // TODO(benvanik): get names
+  XELOGCPU("TRACE: %.8X -> u.%.8X", (uint32_t)call_ia, (uint32_t)cia);
 }
 
 void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
@@ -244,11 +249,23 @@ int ExecModule::InjectGlobals() {
       ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
       int8PtrTy));
 
+  // Control methods:
+  std::vector<Type*> indirectBranchArgs;
+  indirectBranchArgs.push_back(int8PtrTy);
+  indirectBranchArgs.push_back(Type::getInt64Ty(context));
+  indirectBranchArgs.push_back(Type::getInt64Ty(context));
+  FunctionType* indirectBranchTy = FunctionType::get(
+      Type::getVoidTy(context), indirectBranchArgs, false);
+  gv = new GlobalVariable(*gen_module_, indirectBranchTy, true,
+                          GlobalVariable::ExternalLinkage, 0,
+                          "XeIndirectBranch");
+  engine_->addGlobalMapping(gv, (void*)&XeIndirectBranch);
+
   // Tracing methods:
   std::vector<Type*> traceCallArgs;
   traceCallArgs.push_back(int8PtrTy);
-  traceCallArgs.push_back(Type::getInt32Ty(context));
-  traceCallArgs.push_back(Type::getInt32Ty(context));
+  traceCallArgs.push_back(Type::getInt64Ty(context));
+  traceCallArgs.push_back(Type::getInt64Ty(context));
   FunctionType* traceCallTy = FunctionType::get(
       Type::getVoidTy(context), traceCallArgs, false);
   std::vector<Type*> traceInstructionArgs;

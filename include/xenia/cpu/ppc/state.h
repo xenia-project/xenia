@@ -40,6 +40,10 @@
 // }  // FPRF
 
 
+#define kXEPPCRegLR     0xFFFF0001
+#define kXEPPCRegCTR    0xFFFF0002
+
+
 typedef struct XECACHEALIGN xe_float4 {
   union {
     struct {

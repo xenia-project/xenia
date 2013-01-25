@@ -588,6 +588,20 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         ends_fn = true;
       }
       ends_block = true;
+    } else if (i.code == 0x4E800420) {
+      // bctr -- unconditional branch to CTR.
+      // This is generally a jump to a function pointer (non-return).
+      block->outgoing_type = FunctionBlock::kTargetCTR;
+      if (furthest_target > addr) {
+        // Remaining targets within function, not end.
+        XELOGSDB("ignoring bctr %.8X (branch to %.8X)\n", addr,
+                 furthest_target);
+      } else {
+        // Function end point.
+        XELOGSDB("function end %.8X\n", addr);
+        ends_fn = true;
+      }
+      ends_block = true;
     } else if (i.type->opcode == 0x48000000) {
       // b/ba/bl/bla
       uint32_t target = XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)addr);
