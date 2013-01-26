@@ -118,8 +118,28 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(FunctionGenerator& g, IRBuilder<>& b, I
 }
 
 XEEMITTER(divwux,       0x7C000396, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // dividend[0:31] <- (RA)[32:63]
+  // divisor[0:31] <- (RB)[32:63]
+  // RT[32:63] <- dividend ÷ divisor
+  // RT[0:31] <- undefined
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  Value* dividend = b.CreateTrunc(g.gpr_value(i.XO.A), b.getInt32Ty());
+  Value* divisor = b.CreateTrunc(g.gpr_value(i.XO.B), b.getInt32Ty());
+  Value* v = b.CreateUDiv(dividend, divisor);
+  v = b.CreateZExt(v, b.getInt64Ty());
+
+  return 0;
 }
 
 XEEMITTER(mulhdx,       0x7C000092, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -148,13 +168,38 @@ XEEMITTER(mulldx,       0x7C0001D2, XO )(FunctionGenerator& g, IRBuilder<>& b, I
 }
 
 XEEMITTER(mulli,        0x1C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // prod[0:127] <- (RA) × EXTS(SI)
+  // RT <- prod[64:127]
+
+  // TODO(benvanik): ensure this has the right behavior when the value
+  // overflows. It should be truncating the result, but I'm not sure what LLVM
+  // does.
+
+  Value* v = b.CreateMul(g.gpr_value(i.D.A), b.getInt64(XEEXTS16(i.D.SIMM)));
+  g.update_gpr_value(i.D.D, b.CreateTrunc(v, b.getInt64Ty()));
+
+  return 0;
 }
 
 XEEMITTER(mullwx,       0x7C0001D6, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- (RA)[32:63] × (RB)[32:63]
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  Value* v = b.CreateMul(b.CreateSExt(g.gpr_value(i.XO.A), b.getInt64Ty()),
+                         b.CreateSExt(g.gpr_value(i.XO.B), b.getInt64Ty()));
+  g.update_gpr_value(i.XO.D, v);
+
+  return 0;
 }
 
 XEEMITTER(negx,         0x7C0000D0, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -594,6 +639,42 @@ XEEMITTER(rlwimix,      0x50000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
 }
 
 XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+  // n <- SH
+  // r <- ROTL32((RS)[32:63], n)
+  // m <- MASK(MB+32, ME+32)
+  // RA <- r & m
+
+  if (i.M.Rc) {
+    // With cr0 update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  // The compiler will generate a bunch of these for the special case of
+  // SH=0, MB=ME
+  // Which seems to just select a single bit and set cr0 for use with a branch.
+  // We can detect this and do less work.
+  if (!i.M.SH && i.M.MB == i.M.ME) {
+    Value* v = b.CreateAnd(g.gpr_value(i.M.RS), 1 << i.M.MB);
+    g.update_gpr_value(i.M.RS, v);
+    return 0;
+  }
+
+  // if mstart ≤ mstop then
+  //   mask[mstart:mstop] = ones
+  //   mask[all other bits] = zeros
+  // else
+  //   mask[mstart:63] = ones
+  //   mask[0:mstop] = ones
+  //   mask[all other bits] = zeros
+
+  // // ROTL32(x, y) = rotl(i64.(x||x), y)
+  // Value* v = b.CreateZExt(b.CreateTrunc(g.gpr_value(i.M.RS)), b.getInt64Ty());
+  // v = b.CreateOr(b.CreateLShr(v, 32), v);
+  // // (v << shift) | (v >> (64 - shift));
+  // v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
+  // v = b.CreateAnd(v, XEMASK(i.M.MB + 32, i.M.ME + 32));
+
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }

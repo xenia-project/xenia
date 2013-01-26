@@ -1,8 +1,11 @@
 ## Instructions
 
 ```
-stbu
-lwzu
+need cr0:
+andix
+orx
+mullwx
+divwux
 
 addx
 addix
@@ -11,13 +14,6 @@ addzex
 subfx
 subfex
 subficx
-
-mulli
-mullwx
-divwux
-
-andix
-orx
 
 rlwinmx
 rlwimix

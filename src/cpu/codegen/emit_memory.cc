@@ -215,8 +215,16 @@ XEEMITTER(lwz,          0x80000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
 }
 
 XEEMITTER(lwzu,         0x84000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + EXTS(D)
+  // RT <- i32.0 || MEM(EA, 4)
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.D.A), b.getInt64(XEEXTS16(i.D.SIMM)));
+  Value* v = g.ReadMemory(ea, 4, false);
+  g.update_gpr_value(i.D.D, v);
+  g.update_gpr_value(i.D.A, ea);
+
+  return 0;
 }
 
 XEEMITTER(lwzux,        0x7C00006E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -264,8 +272,16 @@ XEEMITTER(stb,          0x98000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
 }
 
 XEEMITTER(stbu,         0x9C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + EXTS(D)
+  // MEM(EA, 1) <- (RS)[56:63]
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.D.A), b.getInt64(XEEXTS16(i.D.SIMM)));
+  Value* v = g.gpr_value(i.D.D);
+  g.WriteMemory(ea, 1, v);
+  g.update_gpr_value(i.D.A, ea);
+
+  return 0;
 }
 
 XEEMITTER(stbux,        0x7C0001EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
