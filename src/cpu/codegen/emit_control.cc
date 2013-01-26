@@ -493,7 +493,7 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, I
     return 1;
   }
 
-  g.update_gpr_value(i.XFX.D, v);
+  g.update_gpr_value(i.XFX.RT, v);
 
   return 0;
 }
@@ -515,7 +515,7 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, I
   // else
   //   SPR(n) <- (RS)[32:63]
 
-  Value* v = g.gpr_value(i.XFX.D);
+  Value* v = g.gpr_value(i.XFX.RT);
 
   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
   switch (n) {

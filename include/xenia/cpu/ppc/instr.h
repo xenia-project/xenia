@@ -73,82 +73,74 @@ typedef struct {
 
     // kXEPPCInstrFormatI
     struct {
-      // TODO(benvanik): doc format update
       uint32_t        LK      : 1;
       uint32_t        AA      : 1;
       uint32_t        LI      : 24;
-      uint32_t        OPCD    : 6;
+      uint32_t                : 6;
     } I;
     // kXEPPCInstrFormatB
     struct {
-      // TODO(benvanik): doc format update
       uint32_t        LK      : 1;
       uint32_t        AA      : 1;
       uint32_t        BD      : 14;
       uint32_t        BI      : 5;
       uint32_t        BO      : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t                : 6;
     } B;
 
     // kXEPPCInstrFormatSC
     // kXEPPCInstrFormatD
     struct {
-      // TODO(benvanik): doc format update
-      uint32_t        SIMM    : 16;
-      uint32_t        A       : 5;
-      uint32_t        D       : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t        DS      : 16;
+      uint32_t        RA      : 5;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
     } D;
     // kXEPPCInstrFormatDS
     struct {
-      // TODO(benvanik): doc format update
       uint32_t                : 2;
-      uint32_t        ds      : 14;
-      uint32_t        A       : 5;
-      uint32_t        S       : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t        DS      : 14;
+      uint32_t        RA      : 5;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
     } DS;
     // kXEPPCInstrFormatX
     struct {
-      // TODO(benvanik): doc format update
       uint32_t        Rc      : 1;
       uint32_t                : 10;
-      uint32_t        B       : 5;
-      uint32_t        A       : 5;
-      uint32_t        D       : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t        RB      : 5;
+      uint32_t        RA      : 5;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
     } X;
     // kXEPPCInstrFormatXL
     struct {
-      // TODO(benvanik): doc format update
       uint32_t        LK      : 1;
       uint32_t                : 10;
       uint32_t        BB      : 5;
       uint32_t        BI      : 5;
       uint32_t        BO      : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t                : 6;
     } XL;
     // kXEPPCInstrFormatXFX
     struct {
-      // TODO(benvanik): doc format update
       uint32_t                : 1;
       uint32_t                : 10;
       uint32_t        spr     : 10;
-      uint32_t        D       : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
     } XFX;
     // kXEPPCInstrFormatXFL
     // kXEPPCInstrFormatXS
     // kXEPPCInstrFormatXO
     struct {
-      // TODO(benvanik): doc format update
       uint32_t        Rc      : 1;
       uint32_t                : 8;
       uint32_t        OE      : 1;
-      uint32_t        B       : 5;
-      uint32_t        A       : 5;
-      uint32_t        D       : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t        RB      : 5;
+      uint32_t        RA      : 5;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
     } XO;
     // kXEPPCInstrFormatA
     // kXEPPCInstrFormatM
@@ -159,7 +151,7 @@ typedef struct {
       uint32_t        SH      : 5;
       uint32_t        RA      : 5;
       uint32_t        RS      : 5;
-      uint32_t        OPCD    : 6;
+      uint32_t                : 6;
     } M;
     // kXEPPCInstrFormatMD
     // kXEPPCInstrFormatMDS
