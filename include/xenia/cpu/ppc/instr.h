@@ -62,6 +62,18 @@ static inline int32_t XEEXTS16(uint32_t v) {
 static inline int32_t XEEXTS26(uint32_t v) {
   return v & 0x02000000 ? (int32_t)v | 0xFC000000 : (int32_t)(v);
 }
+static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
+  // if mstart ≤ mstop then
+  //   mask[mstart:mstop] = ones
+  //   mask[all other bits] = zeros
+  // else
+  //   mask[mstart:63] = ones
+  //   mask[0:mstop] = ones
+  //   mask[all other bits] = zeros
+  uint64_t value =
+      (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
+  return mstart <= mstop ? value : ~value;
+}
 
 
 typedef struct {

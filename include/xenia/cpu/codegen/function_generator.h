@@ -41,6 +41,9 @@ public:
   llvm::Function* gen_fn();
   sdb::FunctionBlock* fn_block();
 
+  void PushInsertPoint();
+  void PopInsertPoint();
+
   void GenerateBasicBlocks();
   llvm::BasicBlock* GetBasicBlock(uint32_t address);
   llvm::BasicBlock* GetNextBasicBlock();
@@ -57,8 +60,7 @@ public:
 
   llvm::Value* cia_value();
 
-  llvm::Value* SetupRegisterLocal(uint32_t offset, llvm::Type* type,
-                                  const char* name);
+  llvm::Value* SetupLocal(llvm::Type* type, const char* name);
   void FillRegisters();
   void SpillRegisters();
 
@@ -69,8 +71,8 @@ public:
   llvm::Value* ctr_value();
   void update_ctr_value(llvm::Value* value);
 
-  llvm::Value* cr_value();
-  void update_cr_value(llvm::Value* value);
+  llvm::Value* cr_value(uint32_t n);
+  void update_cr_value(uint32_t n, llvm::Value* value);
 
   llvm::Value* gpr_value(uint32_t n);
   void update_gpr_value(uint32_t n, llvm::Value* value);
@@ -83,6 +85,12 @@ public:
 private:
   void GenerateSharedBlocks();
   void GenerateBasicBlock(sdb::FunctionBlock* block, llvm::BasicBlock* bb);
+
+  void setup_xer();
+  void setup_lr();
+  void setup_ctr();
+  void setup_cr(uint32_t n);
+  void setup_gpr(uint32_t n);
 
   xe_memory_ref         memory_;
   sdb::SymbolDatabase*  sdb_;
@@ -97,6 +105,9 @@ private:
   llvm::BasicBlock*     bb_;
   llvm::IRBuilder<>*    builder_;
 
+  std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock::iterator> >
+      insert_points_;
+
   std::map<uint32_t, llvm::BasicBlock*> bbs_;
 
   // Address of the instruction being generated.
@@ -109,7 +120,7 @@ private:
     llvm::Value*  xer;
     llvm::Value*  lr;
     llvm::Value*  ctr;
-    llvm::Value*  cr;
+    llvm::Value*  cr[8];
     llvm::Value*  gpr[32];
   } locals_;
 };

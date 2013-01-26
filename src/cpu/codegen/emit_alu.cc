@@ -242,23 +242,25 @@ XEEMITTER(subfzex,      0x7C000190, XO )(FunctionGenerator& g, IRBuilder<>& b, I
 
 void XeEmitCompareCore(FunctionGenerator& g, IRBuilder<>& b,
                        Value* lhs, Value* rhs, uint32_t BF, bool is_signed) {
+  // bit0 = RA < RB
+  // bit1 = RA > RB
+  // bit2 = RA = RB
+  // bit3 = XER[SO]
+  // Bits are reversed:
+  // 0123
+  // 3210
+
   Value* is_lt = is_signed ?
       b.CreateICmpSLT(lhs, rhs) : b.CreateICmpULT(lhs, rhs);
   Value* is_gt = is_signed ?
       b.CreateICmpSGT(lhs, rhs) : b.CreateICmpUGT(lhs, rhs);
-
-  Value* cp = b.CreateSelect(is_gt, b.getInt8(0x2), b.getInt8(0x1));
-  Value* c = b.CreateSelect(is_lt, b.getInt8(0x4), cp);
-  c = b.CreateZExt(c, b.getInt64Ty());
+  Value* cp = b.CreateSelect(is_gt, b.getInt8(1 << 2), b.getInt8(1 << 1));
+  Value* c = b.CreateSelect(is_lt, b.getInt8(1 << 3), cp);
 
   // TODO(benvanik): set bit 4 to XER[SO]
 
   // Insert the 4 bits into their location in the CR.
-  Value* cr = g.cr_value();
-  uint32_t mask = XEBITMASK((4 + BF) * 4, (4 + BF) * 4 + 4);
-  cr = b.CreateAnd(cr, mask);
-  cr = b.CreateOr(cr, b.CreateShl(c, (4 + BF) * 4));
-  g.update_cr_value(cr);
+  g.update_cr_value(BF, c);
 }
 
 XEEMITTER(cmp,          0x7C000000, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -659,14 +661,6 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
     g.update_gpr_value(i.M.RS, v);
     return 0;
   }
-
-  // if mstart ≤ mstop then
-  //   mask[mstart:mstop] = ones
-  //   mask[all other bits] = zeros
-  // else
-  //   mask[mstart:63] = ones
-  //   mask[0:mstop] = ones
-  //   mask[all other bits] = zeros
 
   // // ROTL32(x, y) = rotl(i64.(x||x), y)
   // Value* v = b.CreateZExt(b.CreateTrunc(g.gpr_value(i.M.RS)), b.getInt64Ty());

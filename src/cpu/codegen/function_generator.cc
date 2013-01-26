@@ -61,7 +61,9 @@ FunctionGenerator::FunctionGenerator(
   locals_.xer = NULL;
   locals_.lr = NULL;
   locals_.ctr = NULL;
-  locals_.cr = NULL;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    locals_.cr[n] = NULL;
+  }
   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     locals_.gpr[n] = NULL;
   }
@@ -93,6 +95,19 @@ llvm::Function* FunctionGenerator::gen_fn() {
 
 FunctionBlock* FunctionGenerator::fn_block() {
   return fn_block_;
+}
+
+void FunctionGenerator::PushInsertPoint() {
+  IRBuilder<>& b = *builder_;
+  insert_points_.push_back(std::pair<BasicBlock*, BasicBlock::iterator>(
+      b.GetInsertBlock(), b.GetInsertPoint()));
+}
+
+void FunctionGenerator::PopInsertPoint() {
+  IRBuilder<>& b = *builder_;
+  std::pair<BasicBlock*, BasicBlock::iterator> back = insert_points_.back();
+  b.SetInsertPoint(back.first, back.second);
+  insert_points_.pop_back();
 }
 
 void FunctionGenerator::GenerateBasicBlocks() {
@@ -132,10 +147,6 @@ void FunctionGenerator::GenerateBasicBlocks() {
     bbs_.insert(std::pair<uint32_t, BasicBlock*>(block->start_address, bb));
   }
 
-  // Entry always jumps to the first bb.
-  builder_->SetInsertPoint(entry);
-  builder_->CreateBr(bbs_.begin()->second);
-
   // Pass 2 fills in instructions.
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
        it != fn_->blocks.end(); ++it) {
@@ -152,6 +163,13 @@ void FunctionGenerator::GenerateSharedBlocks() {
   IRBuilder<>& b = *builder_;
 
   Value* indirect_branch = gen_module_->getGlobalVariable("XeIndirectBranch");
+
+  // Setup initial register fill in the entry block.
+  // We can only do this once all the locals have been created.
+  b.SetInsertPoint(&gen_fn_->getEntryBlock());
+  FillRegisters();
+  // Entry always falls through to the second block.
+  b.CreateBr(bbs_.begin()->second);
 
   // Setup the spill block in return.
   b.SetInsertPoint(return_block_);
@@ -316,8 +334,7 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
   IRBuilder<>& b = *builder_;
   BasicBlock* next_block = GetNextBasicBlock();
 
-  BasicBlock* insert_bb = b.GetInsertBlock();
-  BasicBlock::iterator insert_bbi = b.GetInsertPoint();
+  PushInsertPoint();
 
   // Request builds of the indirection blocks on demand.
   // We can't build here because we don't know what registers will be needed
@@ -325,8 +342,7 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
   // after we are done with all user instructions.
   if (!external_indirection_block_) {
     // Setup locals in the entry block.
-    builder_->SetInsertPoint(&gen_fn_->getEntryBlock(),
-                             gen_fn_->getEntryBlock().begin());
+    builder_->SetInsertPoint(&gen_fn_->getEntryBlock());
     locals_.indirection_target = b.CreateAlloca(
         b.getInt64Ty(), 0, "indirection_target");
     locals_.indirection_cia = b.CreateAlloca(
@@ -340,7 +356,7 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
         *context_, "internal_indirection_block", gen_fn_, return_block_);
   }
 
-  b.SetInsertPoint(insert_bb, insert_bbi);
+  PopInsertPoint();
 
   // Check to see if the target address is within the function.
   // If it is jump to that basic block. If the basic block is not found it means
@@ -394,42 +410,37 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
 
 Value* FunctionGenerator::LoadStateValue(uint32_t offset, Type* type,
                                          const char* name) {
+  IRBuilder<>& b = *builder_;
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
   Value* statePtr = args;
-  Value* address = builder_->CreateConstInBoundsGEP1_64(
-      statePtr, offset);
-  Value* ptr = builder_->CreatePointerCast(address, pointerTy);
-  return builder_->CreateLoad(ptr, name);
+  Value* address = b.CreateConstInBoundsGEP1_64(statePtr, offset);
+  Value* ptr = b.CreatePointerCast(address, pointerTy);
+  return b.CreateLoad(ptr, name);
 }
 
 void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
                                         Value* value) {
+  IRBuilder<>& b = *builder_;
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
   Value* statePtr = args;
-  Value* address = builder_->CreateConstInBoundsGEP1_64(
-      statePtr, offset);
-  Value* ptr = builder_->CreatePointerCast(address, pointerTy);
-  builder_->CreateStore(value, ptr);
+  Value* address = b.CreateConstInBoundsGEP1_64(statePtr, offset);
+  Value* ptr = b.CreatePointerCast(address, pointerTy);
+  b.CreateStore(value, ptr);
 }
 
 Value* FunctionGenerator::cia_value() {
   return builder_->getInt32(cia_);
 }
 
-Value* FunctionGenerator::SetupRegisterLocal(uint32_t offset, llvm::Type* type,
-                                             const char* name) {
+Value* FunctionGenerator::SetupLocal(llvm::Type* type, const char* name) {
+  IRBuilder<>& b = *builder_;
   // Insert into the entry block.
-  BasicBlock* insert_bb = builder_->GetInsertBlock();
-  BasicBlock::iterator insert_bbi = builder_->GetInsertPoint();
-  builder_->SetInsertPoint(&gen_fn_->getEntryBlock(),
-                           gen_fn_->getEntryBlock().begin());
-
-  Value* v = builder_->CreateAlloca(type, 0, name);
-  builder_->CreateStore(LoadStateValue(offset, type), v);
-
-  builder_->SetInsertPoint(insert_bb, insert_bbi);
+  PushInsertPoint();
+  b.SetInsertPoint(&gen_fn_->getEntryBlock());
+  Value* v = b.CreateAlloca(type, 0, name);
+  PopInsertPoint();
   return v;
 }
 
@@ -438,36 +449,51 @@ void FunctionGenerator::FillRegisters() {
   // It should be called on function entry for initial setup and after any
   // calls that may modify the registers.
 
+  IRBuilder<>& b = *builder_;
+
   if (locals_.xer) {
-    builder_->CreateStore(LoadStateValue(
+    b.CreateStore(LoadStateValue(
         offsetof(xe_ppc_state_t, xer),
-        builder_->getInt64Ty()), locals_.xer);
+        b.getInt64Ty()), locals_.xer);
   }
 
   if (locals_.lr) {
-    builder_->CreateStore(LoadStateValue(
+    b.CreateStore(LoadStateValue(
         offsetof(xe_ppc_state_t, lr),
-        builder_->getInt64Ty()), locals_.lr);
+        b.getInt64Ty()), locals_.lr);
   }
 
   if (locals_.ctr) {
-    builder_->CreateStore(LoadStateValue(
+    b.CreateStore(LoadStateValue(
         offsetof(xe_ppc_state_t, ctr),
-        builder_->getInt64Ty()), locals_.ctr);
+        b.getInt64Ty()), locals_.ctr);
   }
 
-  if (locals_.cr) {
-    builder_->CreateStore(LoadStateValue(
-        offsetof(xe_ppc_state_t, cr),
-        builder_->getInt64Ty()), locals_.cr);
+  // Fill the split CR values by extracting each one from the CR.
+  // This could probably be done faster via an extractvalues or something.
+  // Perhaps we could also change it to be a vector<8*i8>.
+  Value* cr = NULL;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    Value* cr_n = locals_.cr[n];
+    if (!cr_n) {
+      continue;
+    }
+    if (!cr) {
+      cr = LoadStateValue(
+          offsetof(xe_ppc_state_t, cr),
+          b.getInt64Ty());
+    }
+    b.CreateStore(
+        b.CreateTrunc(b.CreateAnd(b.CreateLShr(cr, (28 - n * 4)), 0xF),
+                      b.getInt8Ty()), cr_n);
   }
 
   // Note that we skip zero.
   for (uint32_t n = 1; n < XECOUNT(locals_.gpr); n++) {
     if (locals_.gpr[n]) {
-      builder_->CreateStore(LoadStateValue(
+      b.CreateStore(LoadStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,
-          builder_->getInt64Ty()), locals_.gpr[n]);
+          b.getInt64Ty()), locals_.gpr[n]);
     }
   }
 }
@@ -478,33 +504,49 @@ void FunctionGenerator::SpillRegisters() {
   //
   // TODO(benvanik): only flush if actually required, or selective flushes.
 
+  IRBuilder<>& b = *builder_;
+
   if (locals_.xer) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, xer),
-        builder_->getInt64Ty(),
-        builder_->CreateLoad(locals_.xer));
+        b.getInt64Ty(),
+        b.CreateLoad(locals_.xer));
   }
 
   if (locals_.lr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, lr),
-        builder_->getInt64Ty(),
-        builder_->CreateLoad(locals_.lr));
+        b.getInt64Ty(),
+        b.CreateLoad(locals_.lr));
   }
 
   if (locals_.ctr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, ctr),
-        builder_->getInt64Ty(),
-        builder_->CreateLoad(locals_.ctr));
+        b.getInt64Ty(),
+        b.CreateLoad(locals_.ctr));
   }
 
+  // Stitch together all split CR values.
   // TODO(benvanik): don't flush across calls?
-  if (locals_.cr) {
+  Value* cr = NULL;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    Value* cr_n = locals_.cr[n];
+    if (!cr_n) {
+      continue;
+    }
+    cr_n = b.CreateZExt(b.CreateLoad(cr_n), b.getInt64Ty());
+    if (!cr) {
+      cr = b.CreateShl(cr_n, n * 4);
+    } else {
+      cr = b.CreateOr(cr, b.CreateShl(cr_n, n * 4));
+    }
+  }
+  if (cr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, cr),
-        builder_->getInt64Ty(),
-        builder_->CreateLoad(locals_.cr));
+        b.getInt64Ty(),
+        cr);
   }
 
   // Note that we skip zero.
@@ -513,130 +555,177 @@ void FunctionGenerator::SpillRegisters() {
     if (v) {
       StoreStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,
-          builder_->getInt64Ty(),
-          builder_->CreateLoad(locals_.gpr[n]));
+          b.getInt64Ty(),
+          b.CreateLoad(locals_.gpr[n]));
     }
   }
 }
 
-Value* FunctionGenerator::xer_value() {
-  if (!locals_.xer) {
-    locals_.xer = SetupRegisterLocal(
-        offsetof(xe_ppc_state_t, xer),
-        builder_->getInt64Ty(),
-        "xer");
+void FunctionGenerator::setup_xer() {
+  IRBuilder<>& b = *builder_;
+
+  if (locals_.xer) {
+    return;
   }
-  return locals_.xer;
+
+  locals_.xer = SetupLocal(b.getInt64Ty(), "xer");
+}
+
+Value* FunctionGenerator::xer_value() {
+  IRBuilder<>& b = *builder_;
+
+  setup_xer();
+
+  return b.CreateLoad(locals_.xer);
 }
 
 void FunctionGenerator::update_xer_value(Value* value) {
-  // Ensure the register is local.
-  xer_value();
+  IRBuilder<>& b = *builder_;
+
+  setup_xer();
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
-    value = builder_->CreateZExt(value, builder_->getInt64Ty());
+    value = b.CreateZExt(value, b.getInt64Ty());
   }
-  builder_->CreateStore(value, locals_.xer);
+  b.CreateStore(value, locals_.xer);
+}
+
+void FunctionGenerator::setup_lr() {
+  IRBuilder<>& b = *builder_;
+
+  if (locals_.lr) {
+    return;
+  }
+
+  locals_.lr = SetupLocal(b.getInt64Ty(), "lr");
 }
 
 Value* FunctionGenerator::lr_value() {
-  if (!locals_.lr) {
-    locals_.lr = SetupRegisterLocal(
-        offsetof(xe_ppc_state_t, lr),
-        builder_->getInt64Ty(),
-        "lr");
-  }
-  return builder_->CreateLoad(locals_.lr);
+  IRBuilder<>& b = *builder_;
+
+  setup_lr();
+
+  return b.CreateLoad(locals_.lr);
 }
 
 void FunctionGenerator::update_lr_value(Value* value) {
-  // Ensure the register is local.
-  lr_value();
+  IRBuilder<>& b = *builder_;
+
+  setup_lr();
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
-    value = builder_->CreateZExt(value, builder_->getInt64Ty());
+    value = b.CreateZExt(value, b.getInt64Ty());
   }
-  builder_->CreateStore(value, locals_.lr);
+  b.CreateStore(value, locals_.lr);
+}
+
+void FunctionGenerator::setup_ctr() {
+  IRBuilder<>& b = *builder_;
+
+  if (locals_.ctr) {
+    return;
+  }
+
+  locals_.ctr = SetupLocal(b.getInt64Ty(), "ctr");
 }
 
 Value* FunctionGenerator::ctr_value() {
-  if (!locals_.ctr) {
-    locals_.ctr = SetupRegisterLocal(
-        offsetof(xe_ppc_state_t, ctr),
-        builder_->getInt64Ty(),
-        "ctr");
-  }
-  return builder_->CreateLoad(locals_.ctr);
+  IRBuilder<>& b = *builder_;
+
+  setup_ctr();
+
+  return b.CreateLoad(locals_.ctr);
 }
 
 void FunctionGenerator::update_ctr_value(Value* value) {
-  // Ensure the register is local.
-  ctr_value();
+  IRBuilder<>& b = *builder_;
+
+  setup_ctr();
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
-    value = builder_->CreateZExt(value, builder_->getInt64Ty());
+    value = b.CreateZExt(value, b.getInt64Ty());
   }
-  builder_->CreateStore(value, locals_.ctr);
+  b.CreateStore(value, locals_.ctr);
 }
 
-Value* FunctionGenerator::cr_value() {
-  if (!locals_.cr) {
-    locals_.cr = SetupRegisterLocal(
-        offsetof(xe_ppc_state_t, cr),
-        builder_->getInt64Ty(),
-        "cr");
+void FunctionGenerator::setup_cr(uint32_t n) {
+  IRBuilder<>& b = *builder_;
+
+  XEASSERT(n >= 0 && n < 8);
+  if (locals_.cr[n]) {
+    return;
   }
-  return builder_->CreateLoad(locals_.cr);
+
+  char name[32];
+  xesnprintfa(name, XECOUNT(name), "cr_f%d", n);
+  locals_.cr[n] = SetupLocal(b.getInt8Ty(), name);
 }
 
-void FunctionGenerator::update_cr_value(Value* value) {
-  // Ensure the register is local.
-  cr_value();
+Value* FunctionGenerator::cr_value(uint32_t n) {
+  IRBuilder<>& b = *builder_;
 
-  // Extend to 64bits if needed.
-  if (!value->getType()->isIntegerTy(64)) {
-    value = builder_->CreateZExt(value, builder_->getInt64Ty());
+  setup_cr(n);
+
+  Value* v = b.CreateLoad(locals_.cr[n]);
+  v = b.CreateZExt(v, b.getInt64Ty());
+  return v;
+}
+
+void FunctionGenerator::update_cr_value(uint32_t n, Value* value) {
+  IRBuilder<>& b = *builder_;
+
+  setup_cr(n);
+
+  value = b.CreateTrunc(value, b.getInt8Ty());
+  b.CreateStore(value, locals_.cr[n]);
+}
+
+void FunctionGenerator::setup_gpr(uint32_t n) {
+  IRBuilder<>& b = *builder_;
+
+  if (locals_.gpr[n]) {
+    return;
   }
-  builder_->CreateStore(value, locals_.cr);
+
+  char name[30];
+  xesnprintfa(name, XECOUNT(name), "gpr_r%d", n);
+  locals_.gpr[n] = SetupLocal(b.getInt64Ty(), name);
 }
 
 Value* FunctionGenerator::gpr_value(uint32_t n) {
+  IRBuilder<>& b = *builder_;
+
   XEASSERT(n >= 0 && n < 32);
   if (n == 0) {
     // Always force zero to a constant - this should help LLVM.
-    return builder_->getInt64(0);
+    return b.getInt64(0);
   }
-  if (!locals_.gpr[n]) {
-    char name[30];
-    xesnprintfa(name, XECOUNT(name), "gpr_r%d", n);
-    locals_.gpr[n] = SetupRegisterLocal(
-        offsetof(xe_ppc_state_t, r) + 8 * n,
-        builder_->getInt64Ty(),
-        name);
-  }
-  return builder_->CreateLoad(locals_.gpr[n]);
+
+  setup_gpr(n);
+
+  return b.CreateLoad(locals_.gpr[n]);
 }
 
 void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
-  XEASSERT(n >= 0 && n < 32);
+  IRBuilder<>& b = *builder_;
 
+  XEASSERT(n >= 0 && n < 32);
   if (n == 0) {
     // Ignore writes to zero.
     return;
   }
 
-  // Ensure the register is local.
-  gpr_value(n);
+  setup_gpr(n);
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
-    value = builder_->CreateZExt(value, builder_->getInt64Ty());
+    value = b.CreateZExt(value, b.getInt64Ty());
   }
 
-  builder_->CreateStore(value, locals_.gpr[n]);
+  b.CreateStore(value, locals_.gpr[n]);
 }
 
 Value* FunctionGenerator::GetMembase() {
@@ -649,19 +738,21 @@ Value* FunctionGenerator::memory_addr(uint32_t addr) {
 }
 
 Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
+  IRBuilder<>& b = *builder_;
+
   Type* dataTy = NULL;
   switch (size) {
     case 1:
-      dataTy = builder_->getInt8Ty();
+      dataTy = b.getInt8Ty();
       break;
     case 2:
-      dataTy = builder_->getInt16Ty();
+      dataTy = b.getInt16Ty();
       break;
     case 4:
-      dataTy = builder_->getInt32Ty();
+      dataTy = b.getInt32Ty();
       break;
     case 8:
-      dataTy = builder_->getInt64Ty();
+      dataTy = b.getInt64Ty();
       break;
     default:
       XEASSERTALWAYS();
@@ -669,25 +760,27 @@ Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  Value* address = builder_->CreateInBoundsGEP(GetMembase(), addr);
-  Value* ptr = builder_->CreatePointerCast(address, pointerTy);
-  return builder_->CreateLoad(ptr);
+  Value* address = b.CreateInBoundsGEP(GetMembase(), addr);
+  Value* ptr = b.CreatePointerCast(address, pointerTy);
+  return b.CreateLoad(ptr);
 }
 
 void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
+  IRBuilder<>& b = *builder_;
+
   Type* dataTy = NULL;
   switch (size) {
     case 1:
-      dataTy = builder_->getInt8Ty();
+      dataTy = b.getInt8Ty();
       break;
     case 2:
-      dataTy = builder_->getInt16Ty();
+      dataTy = b.getInt16Ty();
       break;
     case 4:
-      dataTy = builder_->getInt32Ty();
+      dataTy = b.getInt32Ty();
       break;
     case 8:
-      dataTy = builder_->getInt64Ty();
+      dataTy = b.getInt64Ty();
       break;
     default:
       XEASSERTALWAYS();
@@ -695,12 +788,12 @@ void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  Value* address = builder_->CreateInBoundsGEP(GetMembase(), addr);
-  Value* ptr = builder_->CreatePointerCast(address, pointerTy);
+  Value* address = b.CreateInBoundsGEP(GetMembase(), addr);
+  Value* ptr = b.CreatePointerCast(address, pointerTy);
 
   // Truncate, if required.
   if (value->getType() != dataTy) {
-    value = builder_->CreateTrunc(value, dataTy);
+    value = b.CreateTrunc(value, dataTy);
   }
-  builder_->CreateStore(value, ptr);
+  b.CreateStore(value, ptr);
 }

@@ -172,7 +172,6 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   } else {
     // Decrement counter.
     Value* ctr = g.ctr_value();
-    ctr = g.ctr_value();
     ctr = b.CreateSub(ctr, b.getInt64(1));
 
     // Ctr check.
@@ -187,8 +186,8 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (XESELECTBITS(i.B.BO, 4, 4)) {
     // Ignore cond.
   } else {
-    Value* cr = g.cr_value();
-    cr = b.CreateAnd(cr, XEBITMASK(i.B.BI, i.B.BI));
+    Value* cr = g.cr_value(i.B.BI >> 2);
+    cr = b.CreateAnd(cr, 1 << (i.B.BI >> 2));
     if (XESELECTBITS(i.B.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
     } else {
@@ -256,8 +255,8 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   if (XESELECTBITS(i.XL.BO, 4, 4)) {
     // Ignore cond.
   } else {
-    Value* cr = g.cr_value();
-    cr = b.CreateAnd(cr, XEBITMASK(i.XL.BI, i.XL.BI));
+    Value* cr = g.cr_value(i.XL.BI >> 2);
+    cr = b.CreateAnd(cr, 1 << (i.XL.BI >> 2));
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
     } else {
@@ -321,7 +320,6 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   } else {
     // Decrement counter.
     Value* ctr = g.ctr_value();
-    ctr = g.ctr_value();
     ctr = b.CreateSub(ctr, b.getInt64(1));
 
     // Ctr check.
@@ -336,8 +334,8 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   if (XESELECTBITS(i.XL.BO, 4, 4)) {
     // Ignore cond.
   } else {
-    Value* cr = g.cr_value();
-    cr = b.CreateAnd(cr, XEBITMASK(i.XL.BI, i.XL.BI));
+    Value* cr = g.cr_value(i.XL.BI >> 2);
+    cr = b.CreateAnd(cr, 1 << (i.XL.BI >> 2));
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
     } else {
