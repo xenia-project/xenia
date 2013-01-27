@@ -61,6 +61,7 @@ def discover_commands():
       'pull': PullCommand(),
       'gyp': GypCommand(),
       'build': BuildCommand(),
+      'test': TestCommand(),
       'xethunk': XethunkCommand(),
       'clean': CleanCommand(),
       'nuke': NukeCommand(),
@@ -224,6 +225,7 @@ class SetupCommand(Command):
       print ''
 
     # Binutils.
+    # TODO(benvanik): disable on Windows
     print '- binutils...'
     if not os.path.exists('build/binutils'):
       os.makedirs('build/binutils')
@@ -398,6 +400,35 @@ class BuildCommand(Command):
 
     print 'Success!'
     return 0
+
+
+class TestCommand(Command):
+  """'test' command."""
+
+  def __init__(self, *args, **kwargs):
+    super(TestCommand, self).__init__(
+        name='test',
+        help_short='Runs all tests.',
+        *args, **kwargs)
+
+  def execute(self, args, cwd):
+    print 'Testing...'
+    print ''
+
+    # First run make and update all of the test files.
+    # TOOD(benvanik): disable on Windows
+    print 'Updating test files...'
+    result = shell_call('make -C test/codegen/')
+    print ''
+    if result != 0:
+      return result
+
+    # Start the test runner.
+    print 'Launching test runner...'
+    result = shell_call('bin/xenia-test')
+    print ''
+
+    return result
 
 
 class XethunkCommand(Command):
