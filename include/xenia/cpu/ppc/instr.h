@@ -166,6 +166,17 @@ typedef struct {
       uint32_t                : 6;
     } M;
     // kXEPPCInstrFormatMD
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t        SH5     : 1;
+      uint32_t                : 3;
+      uint32_t        MB5     : 1;
+      uint32_t        MB      : 5;
+      uint32_t        SH      : 5;
+      uint32_t        RA      : 5;
+      uint32_t        RS      : 5;
+      uint32_t                : 6;
+    } MD;
     // kXEPPCInstrFormatMDS
     // kXEPPCInstrFormatVA
     // kXEPPCInstrFormatVX

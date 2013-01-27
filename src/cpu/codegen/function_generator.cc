@@ -489,7 +489,7 @@ void FunctionGenerator::FillRegisters() {
   }
 
   // Note that we skip zero.
-  for (uint32_t n = 1; n < XECOUNT(locals_.gpr); n++) {
+  for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     if (locals_.gpr[n]) {
       b.CreateStore(LoadStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,
@@ -550,7 +550,7 @@ void FunctionGenerator::SpillRegisters() {
   }
 
   // Note that we skip zero.
-  for (uint32_t n = 1; n < XECOUNT(locals_.gpr); n++) {
+  for (uint32_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     Value* v = locals_.gpr[n];
     if (v) {
       StoreStateValue(
@@ -589,6 +589,62 @@ void FunctionGenerator::update_xer_value(Value* value) {
     value = b.CreateZExt(value, b.getInt64Ty());
   }
   b.CreateStore(value, locals_.xer);
+}
+
+void FunctionGenerator::update_xer_with_overflow(Value* value) {
+  IRBuilder<>& b = *builder_;
+
+  setup_xer();
+
+  // Expects a i1 indicating overflow.
+  // Trust the caller that if it's larger than that it's already truncated.
+  if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, b.getInt64Ty());
+  }
+
+  Value* xer = xer_value();
+  xer = b.CreateAnd(xer, 0xFFFFFFFFBFFFFFFF); // clear bit 30
+  xer = b.CreateOr(xer, b.CreateShl(value, 31));
+  xer = b.CreateOr(xer, b.CreateShl(value, 30));
+  b.CreateStore(xer, locals_.xer);
+}
+
+void FunctionGenerator::update_xer_with_carry(Value* value) {
+  IRBuilder<>& b = *builder_;
+
+  setup_xer();
+
+  // Expects a i1 indicating carry.
+  // Trust the caller that if it's larger than that it's already truncated.
+  if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, b.getInt64Ty());
+  }
+
+  Value* xer = xer_value();
+  xer = b.CreateAnd(xer, 0xFFFFFFFFDFFFFFFF); // clear bit 29
+  xer = b.CreateOr(xer, b.CreateShl(value, 29));
+  b.CreateStore(xer, locals_.xer);
+}
+
+void FunctionGenerator::update_xer_with_overflow_and_carry(Value* value) {
+  IRBuilder<>& b = *builder_;
+
+  setup_xer();
+
+  // Expects a i1 indicating overflow.
+  // Trust the caller that if it's larger than that it's already truncated.
+  if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, b.getInt64Ty());
+  }
+
+  // This is effectively an update_xer_with_overflow followed by an
+  // update_xer_with_carry, but since the logic is largely the same share it.
+  Value* xer = xer_value();
+  xer = b.CreateAnd(xer, 0xFFFFFFFF9FFFFFFF); // clear bit 30 & 29
+  xer = b.CreateOr(xer, b.CreateShl(value, 31));
+  xer = b.CreateOr(xer, b.CreateShl(value, 30));
+  xer = b.CreateOr(xer, b.CreateShl(value, 29));
+  b.CreateStore(xer, locals_.xer);
 }
 
 void FunctionGenerator::setup_lr() {
@@ -679,8 +735,48 @@ void FunctionGenerator::update_cr_value(uint32_t n, Value* value) {
 
   setup_cr(n);
 
-  value = b.CreateTrunc(value, b.getInt8Ty());
+  // Truncate to 8 bits if needed.
+  // TODO(benvanik): also widen?
+  if (!value->getType()->isIntegerTy(8)) {
+    value = b.CreateTrunc(value, b.getInt8Ty());
+  }
+
   b.CreateStore(value, locals_.cr[n]);
+}
+
+void FunctionGenerator::update_cr_with_cond(
+    uint32_t n, Value* lhs, Value* rhs, bool is_signed) {
+  IRBuilder<>& b = *builder_;
+
+  // bit0 = RA < RB
+  // bit1 = RA > RB
+  // bit2 = RA = RB
+  // bit3 = XER[SO]
+  // Bits are reversed:
+  // 0123
+  // 3210
+
+  // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
+  // the need for a lot of the compares and ensures we lower to the best
+  // possible x86.
+  // Value* cmp = InlineAsm::get(
+  //     FunctionType::get(),
+  //     "cmp $0, $1                 \n"
+  //     "mov from compare registers \n",
+  //     "r,r", ??
+  //     true);
+
+  Value* is_lt = is_signed ?
+      b.CreateICmpSLT(lhs, rhs) : b.CreateICmpULT(lhs, rhs);
+  Value* is_gt = is_signed ?
+      b.CreateICmpSGT(lhs, rhs) : b.CreateICmpUGT(lhs, rhs);
+  Value* cp = b.CreateSelect(is_gt, b.getInt8(1 << 2), b.getInt8(1 << 1));
+  Value* c = b.CreateSelect(is_lt, b.getInt8(1 << 3), cp);
+
+  // TODO(benvanik): set bit 4 to XER[SO]
+
+  // Insert the 4 bits into their location in the CR.
+  update_cr_value(n, c);
 }
 
 void FunctionGenerator::setup_gpr(uint32_t n) {
@@ -699,10 +795,13 @@ Value* FunctionGenerator::gpr_value(uint32_t n) {
   IRBuilder<>& b = *builder_;
 
   XEASSERT(n >= 0 && n < 32);
-  if (n == 0) {
-    // Always force zero to a constant - this should help LLVM.
-    return b.getInt64(0);
-  }
+
+  // Actually r0 is writable, even though nobody should ever do that.
+  // Perhaps we can check usage and enable this if safe?
+  // if (n == 0) {
+  //   // Always force zero to a constant - this should help LLVM.
+  //   return b.getInt64(0);
+  // }
 
   setup_gpr(n);
 
@@ -713,10 +812,12 @@ void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
   IRBuilder<>& b = *builder_;
 
   XEASSERT(n >= 0 && n < 32);
-  if (n == 0) {
-    // Ignore writes to zero.
-    return;
-  }
+
+  // See above - r0 can be written.
+  // if (n == 0) {
+  //   // Ignore writes to zero.
+  //   return;
+  // }
 
   setup_gpr(n);
 

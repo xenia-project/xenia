@@ -1,6 +1,11 @@
 python xenia-build.py xethunk
 python xenia-build.py build
 
+if [ "$?" -ne 0 ]; then
+  echo "Build failed!"
+  exit $?
+fi
+
 ./build/xenia/release/xenia-run \
     private/$1 \
     --optimize_ir_modules=true \

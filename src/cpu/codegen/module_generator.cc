@@ -250,6 +250,7 @@ void ModuleGenerator::BuildFunction(CodegenFunction* cgf) {
 
 void ModuleGenerator::OptimizeFunction(Module* m, Function* fn) {
   FunctionPassManager pm(m);
+  //fn->dump();
   if (FLAGS_optimize_ir_functions) {
     PassManagerBuilder pmb;
     pmb.OptLevel      = 3;

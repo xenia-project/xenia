@@ -66,13 +66,20 @@ public:
 
   llvm::Value* xer_value();
   void update_xer_value(llvm::Value* value);
+  void update_xer_with_overflow(llvm::Value* value);
+  void update_xer_with_carry(llvm::Value* value);
+  void update_xer_with_overflow_and_carry(llvm::Value* value);
+
   llvm::Value* lr_value();
   void update_lr_value(llvm::Value* value);
+
   llvm::Value* ctr_value();
   void update_ctr_value(llvm::Value* value);
 
   llvm::Value* cr_value(uint32_t n);
   void update_cr_value(uint32_t n, llvm::Value* value);
+  void update_cr_with_cond(uint32_t n, llvm::Value* lhs, llvm::Value* rhs,
+                           bool is_signed);
 
   llvm::Value* gpr_value(uint32_t n);
   void update_gpr_value(uint32_t n, llvm::Value* value);

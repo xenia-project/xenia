@@ -1,33 +1,19 @@
 ## Instructions
 
-```
-need cr0:
-andix
-orx
-mullwx
-divwux
+### XER CA bit (carry)
 
-addx
-addix
-addic
-addzex
-subfx
-subfex
-subficx
+Not sure the way I'm doing this is right. addic/subficx/etc set it to the value
+of the overflow bit from the LLVM *_with_overflow intrinsic.
+
+```
+MISDECODING: andix
 
 rlwinmx
 rlwimix
 rldiclx
-extsbx
+
 slwx
 srawix
-
-# can be no-op, or @llvm.prefetch
-dcbt
-dcbtst
-
-twi # @llvm.debugtrap ?
-
 ```
 
 Overflow bits can be set via the intrinsics:

@@ -436,24 +436,159 @@ XEEMITTER(sc,           0x44000002, SC )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Trap (A-25)
 
+int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
+                Value* va, Value* vb, uint32_t TO) {
+  // if (a < b) & TO[0] then TRAP
+  // if (a > b) & TO[1] then TRAP
+  // if (a = b) & TO[2] then TRAP
+  // if (a <u b) & TO[3] then TRAP
+  // if (a >u b) & TO[4] then TRAP
+  // Bits swapped:
+  // 01234
+  // 43210
+
+  if (!TO) {
+    return 0;
+  }
+
+  BasicBlock* after_bb = BasicBlock::Create(*g.context(), "", g.gen_fn(),
+                                            g.GetNextBasicBlock());
+  BasicBlock* trap_bb = BasicBlock::Create(*g.context(), "", g.gen_fn(),
+                                           after_bb);
+
+  // Create the basic blocks (so we can chain).
+  std::vector<BasicBlock*> bbs;
+  if (TO & (1 << 4)) {
+    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+  }
+  if (TO & (1 << 3)) {
+    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+  }
+  if (TO & (1 << 2)) {
+    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+  }
+  if (TO & (1 << 1)) {
+    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+  }
+  if (TO & (1 << 0)) {
+    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+  }
+  bbs.push_back(after_bb);
+
+  // Jump to the first bb.
+  b.CreateBr(bbs.front());
+
+  // Setup each basic block.
+  std::vector<BasicBlock*>::iterator it = bbs.begin();
+  if (TO & (1 << 4)) {
+    // a < b
+    BasicBlock* bb = *(it++);
+    b.SetInsertPoint(bb);
+    Value* cmp = b.CreateICmpSLT(va, vb);
+    b.CreateCondBr(cmp, trap_bb, *it);
+  }
+  if (TO & (1 << 3)) {
+    // a > b
+    BasicBlock* bb = *(it++);
+    b.SetInsertPoint(bb);
+    Value* cmp = b.CreateICmpSGT(va, vb);
+    b.CreateCondBr(cmp, trap_bb, *it);
+  }
+  if (TO & (1 << 2)) {
+    // a = b
+    BasicBlock* bb = *(it++);
+    b.SetInsertPoint(bb);
+    Value* cmp = b.CreateICmpEQ(va, vb);
+    b.CreateCondBr(cmp, trap_bb, *it);
+  }
+  if (TO & (1 << 1)) {
+    // a <u b
+    BasicBlock* bb = *(it++);
+    b.SetInsertPoint(bb);
+    Value* cmp = b.CreateICmpULT(va, vb);
+    b.CreateCondBr(cmp, trap_bb, *it);
+  }
+  if (TO & (1 << 0)) {
+    // a >u b
+    BasicBlock* bb = *(it++);
+    b.SetInsertPoint(bb);
+    Value* cmp = b.CreateICmpUGT(va, vb);
+    b.CreateCondBr(cmp, trap_bb, *it);
+  }
+
+  // Create trap BB.
+  b.SetInsertPoint(trap_bb);
+  g.SpillRegisters();
+  // TODO(benvanik): use @llvm.debugtrap? could make debugging better
+  b.CreateCall2(g.gen_module()->getGlobalVariable("XeTrap"),
+                g.gen_fn()->arg_begin(),
+                b.getInt32(i.address));
+  b.CreateBr(after_bb);
+
+  // Resume.
+  b.SetInsertPoint(after_bb);
+
+  return 0;
+}
+
 XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // a <- (RA)
+  // b <- (RB)
+  // if (a < b) & TO[0] then TRAP
+  // if (a > b) & TO[1] then TRAP
+  // if (a = b) & TO[2] then TRAP
+  // if (a <u b) & TO[3] then TRAP
+  // if (a >u b) & TO[4] then TRAP
+  return XeEmitTrap(g, b, i,
+                    g.gpr_value(i.X.RA),
+                    g.gpr_value(i.X.RB),
+                    i.X.RT);
 }
 
 XEEMITTER(tdi,          0x08000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // a <- (RA)
+  // if (a < EXTS(SI)) & TO[0] then TRAP
+  // if (a > EXTS(SI)) & TO[1] then TRAP
+  // if (a = EXTS(SI)) & TO[2] then TRAP
+  // if (a <u EXTS(SI)) & TO[3] then TRAP
+  // if (a >u EXTS(SI)) & TO[4] then TRAP
+  return XeEmitTrap(g, b, i,
+                    g.gpr_value(i.D.RA),
+                    b.getInt64(XEEXTS16(i.D.DS)),
+                    i.D.RT);
 }
 
 XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // a <- EXTS((RA)[32:63])
+  // b <- EXTS((RB)[32:63])
+  // if (a < b) & TO[0] then TRAP
+  // if (a > b) & TO[1] then TRAP
+  // if (a = b) & TO[2] then TRAP
+  // if (a <u b) & TO[3] then TRAP
+  // if (a >u b) & TO[4] then TRAP
+  return XeEmitTrap(g, b, i,
+                    b.CreateSExt(b.CreateTrunc(g.gpr_value(i.X.RA),
+                                               b.getInt32Ty()),
+                                 b.getInt64Ty()),
+                    b.CreateSExt(b.CreateTrunc(g.gpr_value(i.X.RB),
+                                               b.getInt32Ty()),
+                                 b.getInt64Ty()),
+                    i.X.RT);
 }
 
 XEEMITTER(twi,          0x0C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // a <- EXTS((RA)[32:63])
+  // if (a < EXTS(SI)) & TO[0] then TRAP
+  // if (a > EXTS(SI)) & TO[1] then TRAP
+  // if (a = EXTS(SI)) & TO[2] then TRAP
+  // if (a <u EXTS(SI)) & TO[3] then TRAP
+  // if (a >u EXTS(SI)) & TO[4] then TRAP
+  return XeEmitTrap(g, b, i,
+                    b.CreateSExt(b.CreateTrunc(g.gpr_value(i.D.RA),
+                                               b.getInt32Ty()),
+                                 b.getInt64Ty()),
+                    b.getInt64(XEEXTS16(i.D.DS)),
+                    i.D.RT);
 }
 
 

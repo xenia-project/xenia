@@ -202,6 +202,11 @@ XECLEANUP:
   return result_code;
 }
 
+void XeTrap(xe_ppc_state_t* state, uint32_t cia) {
+  printf("TRAP");
+  XEASSERTALWAYS();
+}
+
 void XeIndirectBranch(xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
   printf("INDIRECT BRANCH %.8X -> %.8X\n", (uint32_t)br_ia, (uint32_t)target);
   XEASSERTALWAYS();
@@ -255,6 +260,16 @@ int ExecModule::InjectGlobals() {
       int8PtrTy));
 
   // Control methods:
+  std::vector<Type*> trapArgs;
+  trapArgs.push_back(int8PtrTy);
+  trapArgs.push_back(Type::getInt32Ty(context));
+  FunctionType* trapTy = FunctionType::get(
+      Type::getVoidTy(context), trapArgs, false);
+  gv = new GlobalVariable(*gen_module_, trapTy, true,
+                          GlobalVariable::ExternalLinkage, 0,
+                          "XeTrap");
+  engine_->addGlobalMapping(gv, (void*)&XeTrap);
+
   std::vector<Type*> indirectBranchArgs;
   indirectBranchArgs.push_back(int8PtrTy);
   indirectBranchArgs.push_back(Type::getInt64Ty(context));
