@@ -95,11 +95,10 @@ ExceptionEntrySymbol::ExceptionEntrySymbol() :
   address(0), function(0) {
 }
 
-SymbolDatabase::SymbolDatabase(
-    xe_memory_ref memory, ExportResolver* export_resolver, UserModule* module) {
+SymbolDatabase::SymbolDatabase(xe_memory_ref memory,
+                               ExportResolver* export_resolver) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
-  module_ = module;
 }
 
 SymbolDatabase::~SymbolDatabase() {
@@ -115,27 +114,8 @@ int SymbolDatabase::Analyze() {
   // This uses a queue to do a breadth-first search of all accessible
   // functions. Callbacks and such likely won't be hit.
 
-  const xe_xex2_header_t *header = module_->xex_header();
-
-  // Find __savegprlr_* and __restgprlr_*.
-  FindGplr();
-
-  // Add each import thunk.
-  for (size_t n = 0; n < header->import_library_count; n++) {
-    AddImports(&header->import_libraries[n]);
-  }
-
-  // Add each export root.
-  // TODO(benvanik): exports.
-  //   - insert fn or variable
-  //   - queue fn
-
-  // Add method hints, if available.
-  // Not all XEXs have these.
-  AddMethodHints();
-
   // Queue entry point of the application.
-  FunctionSymbol* fn = GetOrInsertFunction(header->exe_entry_point);
+  FunctionSymbol* fn = GetOrInsertFunction(GetEntryPoint());
   fn->name = xestrdupa("start");
 
   // Keep pumping the queue until there's nothing left to do.
@@ -314,173 +294,6 @@ void SymbolDatabase::DumpFunctionBlocks(FunctionSymbol* fn) {
         break;
     }
   }
-}
-
-int SymbolDatabase::FindGplr() {
-  // Special stack save/restore functions.
-  // __savegprlr_14 to __savegprlr_31
-  // __restgprlr_14 to __restgprlr_31
-  // http://research.microsoft.com/en-us/um/redmond/projects/invisible/src/crt/md/ppc/xxx.s.htm
-  // It'd be nice to stash these away and mark them as such to allow for
-  // special codegen.
-  static const uint32_t code_values[] = {
-    0x68FFC1F9, // __savegprlr_14
-    0x70FFE1F9, // __savegprlr_15
-    0x78FF01FA, // __savegprlr_16
-    0x80FF21FA, // __savegprlr_17
-    0x88FF41FA, // __savegprlr_18
-    0x90FF61FA, // __savegprlr_19
-    0x98FF81FA, // __savegprlr_20
-    0xA0FFA1FA, // __savegprlr_21
-    0xA8FFC1FA, // __savegprlr_22
-    0xB0FFE1FA, // __savegprlr_23
-    0xB8FF01FB, // __savegprlr_24
-    0xC0FF21FB, // __savegprlr_25
-    0xC8FF41FB, // __savegprlr_26
-    0xD0FF61FB, // __savegprlr_27
-    0xD8FF81FB, // __savegprlr_28
-    0xE0FFA1FB, // __savegprlr_29
-    0xE8FFC1FB, // __savegprlr_30
-    0xF0FFE1FB, // __savegprlr_31
-    0xF8FF8191,
-    0x2000804E,
-    0x68FFC1E9, // __restgprlr_14
-    0x70FFE1E9, // __restgprlr_15
-    0x78FF01EA, // __restgprlr_16
-    0x80FF21EA, // __restgprlr_17
-    0x88FF41EA, // __restgprlr_18
-    0x90FF61EA, // __restgprlr_19
-    0x98FF81EA, // __restgprlr_20
-    0xA0FFA1EA, // __restgprlr_21
-    0xA8FFC1EA, // __restgprlr_22
-    0xB0FFE1EA, // __restgprlr_23
-    0xB8FF01EB, // __restgprlr_24
-    0xC0FF21EB, // __restgprlr_25
-    0xC8FF41EB, // __restgprlr_26
-    0xD0FF61EB, // __restgprlr_27
-    0xD8FF81EB, // __restgprlr_28
-    0xE0FFA1EB, // __restgprlr_29
-    0xE8FFC1EB, // __restgprlr_30
-    0xF0FFE1EB, // __restgprlr_31
-    0xF8FF8181,
-    0xA603887D,
-    0x2000804E,
-  };
-
-  uint32_t gplr_start = 0;
-  const xe_xex2_header_t* header = module_->xex_header();
-  for (size_t n = 0, i = 0; n < header->section_count; n++) {
-    const xe_xex2_section_t* section = &header->sections[n];
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
-    const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
-    if (section->info.type == XEX_SECTION_CODE) {
-      gplr_start = xe_memory_search_aligned(
-          memory_, start_address, end_address,
-          code_values, XECOUNT(code_values));
-      if (gplr_start) {
-        break;
-      }
-    }
-    i += section->info.page_count;
-  }
-  if (!gplr_start) {
-    return 0;
-  }
-
-  // Add function stubs.
-  char name[32];
-  uint32_t address = gplr_start;
-  for (int n = 14; n <= 31; n++) {
-    xesnprintf(name, XECOUNT(name), "__savegprlr_%d", n);
-    FunctionSymbol* fn = GetOrInsertFunction(address);
-    fn->end_address = fn->start_address + (31 - n) * 4 + 2 * 4;
-    fn->name = xestrdupa(name);
-    fn->type = FunctionSymbol::User;
-    fn->flags |= FunctionSymbol::kFlagSaveGprLr;
-    address += 4;
-  }
-  address = gplr_start + 20 * 4;
-  for (int n = 14; n <= 31; n++) {
-    xesnprintf(name, XECOUNT(name), "__restgprlr_%d", n);
-    FunctionSymbol* fn = GetOrInsertFunction(address);
-    fn->end_address = fn->start_address + (31 - n) * 4 + 3 * 4;
-    fn->name = xestrdupa(name);
-    fn->type = FunctionSymbol::User;
-    fn->flags |= FunctionSymbol::kFlagRestGprLr;
-    address += 4;
-  }
-
-  return 0;
-}
-
-int SymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
-  xe_xex2_ref xex = module_->xex();
-  xe_xex2_import_info_t* import_infos;
-  size_t import_info_count;
-  if (xe_xex2_get_import_infos(xex, library, &import_infos,
-                               &import_info_count)) {
-    xe_xex2_release(xex);
-    return 1;
-  }
-
-  char name[128];
-  for (size_t n = 0; n < import_info_count; n++) {
-    const xe_xex2_import_info_t* info = &import_infos[n];
-
-    KernelExport* kernel_export = export_resolver_->GetExportByOrdinal(
-        library->name, info->ordinal);
-
-    VariableSymbol* var = GetOrInsertVariable(info->value_address);
-    if (kernel_export) {
-      if (info->thunk_address) {
-        xesnprintfa(name, XECOUNT(name), "__imp__%s", kernel_export->name);
-      } else {
-        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
-      }
-    } else {
-      xesnprintfa(name, XECOUNT(name), "__imp__%s_%.3X", library->name,
-                  info->ordinal);
-    }
-    var->name = xestrdupa(name);
-    if (info->thunk_address) {
-      FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
-      fn->end_address = fn->start_address + 16 - 4;
-      fn->type = FunctionSymbol::Kernel;
-      fn->kernel_export = kernel_export;
-      if (kernel_export) {
-        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
-      } else {
-        xesnprintfa(name, XECOUNT(name), "__kernel_%s_%.3X", library->name,
-                    info->ordinal);
-      }
-      fn->name = xestrdupa(name);
-    }
-  }
-
-  xe_free(import_infos);
-  xe_xex2_release(xex);
-  return 0;
-}
-
-int SymbolDatabase::AddMethodHints() {
-  PEMethodInfo* method_infos;
-  size_t method_info_count;
-  if (module_->GetMethodHints(&method_infos, &method_info_count)) {
-    return 1;
-  }
-
-  for (size_t n = 0; n < method_info_count; n++) {
-    PEMethodInfo* method_info = &method_infos[n];
-    FunctionSymbol* fn = GetOrInsertFunction(method_info->address);
-    fn->end_address = method_info->address + method_info->total_length - 4;
-    fn->type = FunctionSymbol::User;
-    // TODO(benvanik): something with prolog_length?
-  }
-
-  xe_free(method_infos);
-  return 0;
 }
 
 int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
@@ -849,7 +662,235 @@ int SymbolDatabase::FlushQueue() {
   return 0;
 }
 
-bool SymbolDatabase::IsValueInTextRange(uint32_t value) {
+bool SymbolDatabase::IsRestGprLr(uint32_t addr) {
+  FunctionSymbol* fn = GetFunction(addr);
+  return fn && (fn->flags & FunctionSymbol::kFlagRestGprLr);
+}
+
+RawSymbolDatabase::RawSymbolDatabase(
+    xe_memory_ref memory, ExportResolver* export_resolver,
+    uint32_t start_address, uint32_t end_address) :
+    SymbolDatabase(memory, export_resolver) {
+  start_address_ = start_address;
+  end_address_ = end_address;
+}
+
+RawSymbolDatabase::~RawSymbolDatabase() {
+}
+
+uint32_t RawSymbolDatabase::GetEntryPoint() {
+  return start_address_;
+}
+
+bool RawSymbolDatabase::IsValueInTextRange(uint32_t value) {
+  return value >= start_address_ && value < end_address_;
+}
+
+XexSymbolDatabase::XexSymbolDatabase(
+    xe_memory_ref memory, ExportResolver* export_resolver, UserModule* module) :
+    SymbolDatabase(memory, export_resolver) {
+  module_ = module;
+}
+
+XexSymbolDatabase::~XexSymbolDatabase() {
+}
+
+int XexSymbolDatabase::Analyze() {
+  const xe_xex2_header_t *header = module_->xex_header();
+
+  // Find __savegprlr_* and __restgprlr_*.
+  FindGplr();
+
+  // Add each import thunk.
+  for (size_t n = 0; n < header->import_library_count; n++) {
+    AddImports(&header->import_libraries[n]);
+  }
+
+  // Add each export root.
+  // TODO(benvanik): exports.
+  //   - insert fn or variable
+  //   - queue fn
+
+  // Add method hints, if available.
+  // Not all XEXs have these.
+  AddMethodHints();
+
+  return SymbolDatabase::Analyze();
+}
+
+int XexSymbolDatabase::FindGplr() {
+  // Special stack save/restore functions.
+  // __savegprlr_14 to __savegprlr_31
+  // __restgprlr_14 to __restgprlr_31
+  // http://research.microsoft.com/en-us/um/redmond/projects/invisible/src/crt/md/ppc/xxx.s.htm
+  // It'd be nice to stash these away and mark them as such to allow for
+  // special codegen.
+  static const uint32_t code_values[] = {
+    0x68FFC1F9, // __savegprlr_14
+    0x70FFE1F9, // __savegprlr_15
+    0x78FF01FA, // __savegprlr_16
+    0x80FF21FA, // __savegprlr_17
+    0x88FF41FA, // __savegprlr_18
+    0x90FF61FA, // __savegprlr_19
+    0x98FF81FA, // __savegprlr_20
+    0xA0FFA1FA, // __savegprlr_21
+    0xA8FFC1FA, // __savegprlr_22
+    0xB0FFE1FA, // __savegprlr_23
+    0xB8FF01FB, // __savegprlr_24
+    0xC0FF21FB, // __savegprlr_25
+    0xC8FF41FB, // __savegprlr_26
+    0xD0FF61FB, // __savegprlr_27
+    0xD8FF81FB, // __savegprlr_28
+    0xE0FFA1FB, // __savegprlr_29
+    0xE8FFC1FB, // __savegprlr_30
+    0xF0FFE1FB, // __savegprlr_31
+    0xF8FF8191,
+    0x2000804E,
+    0x68FFC1E9, // __restgprlr_14
+    0x70FFE1E9, // __restgprlr_15
+    0x78FF01EA, // __restgprlr_16
+    0x80FF21EA, // __restgprlr_17
+    0x88FF41EA, // __restgprlr_18
+    0x90FF61EA, // __restgprlr_19
+    0x98FF81EA, // __restgprlr_20
+    0xA0FFA1EA, // __restgprlr_21
+    0xA8FFC1EA, // __restgprlr_22
+    0xB0FFE1EA, // __restgprlr_23
+    0xB8FF01EB, // __restgprlr_24
+    0xC0FF21EB, // __restgprlr_25
+    0xC8FF41EB, // __restgprlr_26
+    0xD0FF61EB, // __restgprlr_27
+    0xD8FF81EB, // __restgprlr_28
+    0xE0FFA1EB, // __restgprlr_29
+    0xE8FFC1EB, // __restgprlr_30
+    0xF0FFE1EB, // __restgprlr_31
+    0xF8FF8181,
+    0xA603887D,
+    0x2000804E,
+  };
+
+  uint32_t gplr_start = 0;
+  const xe_xex2_header_t* header = module_->xex_header();
+  for (size_t n = 0, i = 0; n < header->section_count; n++) {
+    const xe_xex2_section_t* section = &header->sections[n];
+    const size_t start_address =
+        header->exe_address + (i * xe_xex2_section_length);
+    const size_t end_address =
+        start_address + (section->info.page_count * xe_xex2_section_length);
+    if (section->info.type == XEX_SECTION_CODE) {
+      gplr_start = xe_memory_search_aligned(
+          memory_, start_address, end_address,
+          code_values, XECOUNT(code_values));
+      if (gplr_start) {
+        break;
+      }
+    }
+    i += section->info.page_count;
+  }
+  if (!gplr_start) {
+    return 0;
+  }
+
+  // Add function stubs.
+  char name[32];
+  uint32_t address = gplr_start;
+  for (int n = 14; n <= 31; n++) {
+    xesnprintf(name, XECOUNT(name), "__savegprlr_%d", n);
+    FunctionSymbol* fn = GetOrInsertFunction(address);
+    fn->end_address = fn->start_address + (31 - n) * 4 + 2 * 4;
+    fn->name = xestrdupa(name);
+    fn->type = FunctionSymbol::User;
+    fn->flags |= FunctionSymbol::kFlagSaveGprLr;
+    address += 4;
+  }
+  address = gplr_start + 20 * 4;
+  for (int n = 14; n <= 31; n++) {
+    xesnprintf(name, XECOUNT(name), "__restgprlr_%d", n);
+    FunctionSymbol* fn = GetOrInsertFunction(address);
+    fn->end_address = fn->start_address + (31 - n) * 4 + 3 * 4;
+    fn->name = xestrdupa(name);
+    fn->type = FunctionSymbol::User;
+    fn->flags |= FunctionSymbol::kFlagRestGprLr;
+    address += 4;
+  }
+
+  return 0;
+}
+
+int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
+  xe_xex2_ref xex = module_->xex();
+  xe_xex2_import_info_t* import_infos;
+  size_t import_info_count;
+  if (xe_xex2_get_import_infos(xex, library, &import_infos,
+                               &import_info_count)) {
+    xe_xex2_release(xex);
+    return 1;
+  }
+
+  char name[128];
+  for (size_t n = 0; n < import_info_count; n++) {
+    const xe_xex2_import_info_t* info = &import_infos[n];
+
+    KernelExport* kernel_export = export_resolver_->GetExportByOrdinal(
+        library->name, info->ordinal);
+
+    VariableSymbol* var = GetOrInsertVariable(info->value_address);
+    if (kernel_export) {
+      if (info->thunk_address) {
+        xesnprintfa(name, XECOUNT(name), "__imp__%s", kernel_export->name);
+      } else {
+        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+      }
+    } else {
+      xesnprintfa(name, XECOUNT(name), "__imp__%s_%.3X", library->name,
+                  info->ordinal);
+    }
+    var->name = xestrdupa(name);
+    if (info->thunk_address) {
+      FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
+      fn->end_address = fn->start_address + 16 - 4;
+      fn->type = FunctionSymbol::Kernel;
+      fn->kernel_export = kernel_export;
+      if (kernel_export) {
+        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+      } else {
+        xesnprintfa(name, XECOUNT(name), "__kernel_%s_%.3X", library->name,
+                    info->ordinal);
+      }
+      fn->name = xestrdupa(name);
+    }
+  }
+
+  xe_free(import_infos);
+  xe_xex2_release(xex);
+  return 0;
+}
+
+int XexSymbolDatabase::AddMethodHints() {
+  PEMethodInfo* method_infos;
+  size_t method_info_count;
+  if (module_->GetMethodHints(&method_infos, &method_info_count)) {
+    return 1;
+  }
+
+  for (size_t n = 0; n < method_info_count; n++) {
+    PEMethodInfo* method_info = &method_infos[n];
+    FunctionSymbol* fn = GetOrInsertFunction(method_info->address);
+    fn->end_address = method_info->address + method_info->total_length - 4;
+    fn->type = FunctionSymbol::User;
+    // TODO(benvanik): something with prolog_length?
+  }
+
+  xe_free(method_infos);
+  return 0;
+}
+
+uint32_t XexSymbolDatabase::GetEntryPoint() {
+  const xe_xex2_header_t* header = module_->xex_header();
+  return header->exe_entry_point;
+};
+
+bool XexSymbolDatabase::IsValueInTextRange(uint32_t value) {
   const xe_xex2_header_t* header = module_->xex_header();
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
@@ -863,9 +904,4 @@ bool SymbolDatabase::IsValueInTextRange(uint32_t value) {
     i += section->info.page_count;
   }
   return false;
-}
-
-bool SymbolDatabase::IsRestGprLr(uint32_t addr) {
-  FunctionSymbol* fn = GetFunction(addr);
-  return fn && (fn->flags & FunctionSymbol::kFlagRestGprLr);
 }

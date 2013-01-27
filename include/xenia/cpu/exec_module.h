@@ -41,22 +41,25 @@ class ExecModule {
 public:
   ExecModule(
       xe_memory_ref memory, shared_ptr<kernel::ExportResolver> export_resolver,
-      kernel::UserModule* user_module,
+      const char* module_name, const char* module_path,
       shared_ptr<llvm::ExecutionEngine>& engine);
   ~ExecModule();
 
-  int Prepare();
+  int PrepareUserModule(kernel::UserModule* user_module);
+  int PrepareRawBinary(uint32_t start_address, uint32_t end_address);
 
   void Dump();
 
 private:
+  int Prepare();
   int InjectGlobals();
   int Init();
   int Uninit();
 
   xe_memory_ref                       memory_;
   shared_ptr<kernel::ExportResolver>  export_resolver_;
-  kernel::UserModule*                 module_;
+  char*                               module_name_;
+  char*                               module_path_;
   shared_ptr<llvm::ExecutionEngine>   engine_;
   shared_ptr<sdb::SymbolDatabase>     sdb_;
   shared_ptr<llvm::LLVMContext>       context_;

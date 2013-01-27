@@ -2,4 +2,5 @@
 
 ori r3, r4, 0xFFFF
 
+blr
 # REGISTER_OUT r3 0xBABE

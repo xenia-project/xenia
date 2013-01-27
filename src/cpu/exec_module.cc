@@ -46,13 +46,13 @@ using namespace xe::kernel;
 
 ExecModule::ExecModule(
     xe_memory_ref memory, shared_ptr<ExportResolver> export_resolver,
-    UserModule* user_module, shared_ptr<llvm::ExecutionEngine>& engine) {
+    const char* module_name, const char* module_path,
+    shared_ptr<llvm::ExecutionEngine>& engine) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
-  module_ = user_module;
+  module_name_ = xestrdupa(module_name);
+  module_path_ = xestrdupa(module_path);
   engine_ = engine;
-  sdb_ = shared_ptr<sdb::SymbolDatabase>(
-      new sdb::SymbolDatabase(memory_, export_resolver_.get(), module_));
 
   context_ = shared_ptr<LLVMContext>(new LLVMContext());
 }
@@ -63,7 +63,24 @@ ExecModule::~ExecModule() {
     engine_->removeModule(gen_module_.get());
   }
 
+  xe_free(module_path_);
+  xe_free(module_name_);
   xe_memory_release(memory_);
+}
+
+int ExecModule::PrepareUserModule(kernel::UserModule* user_module) {
+  sdb_ = shared_ptr<sdb::SymbolDatabase>(
+      new sdb::XexSymbolDatabase(memory_, export_resolver_.get(), user_module));
+
+  return Prepare();
+}
+
+int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
+  sdb_ = shared_ptr<sdb::SymbolDatabase>(
+      new sdb::RawSymbolDatabase(memory_, export_resolver_.get(),
+                                 start_address, end_address));
+
+  return Prepare();
 }
 
 int ExecModule::Prepare() {
@@ -112,13 +129,13 @@ int ExecModule::Prepare() {
     // Dump the symbol database.
     if (FLAGS_dump_module_map) {
       xesnprintf(file_name, XECOUNT(file_name),
-          "%s%s.map", FLAGS_dump_path.c_str(), module_->name());
+          "%s%s.map", FLAGS_dump_path.c_str(), module_name_);
       sdb_->Write(file_name);
     }
 
     // Initialize the module.
     gen_module_ = shared_ptr<Module>(
-        new Module(module_->name(), *context_.get()));
+        new Module(module_name_, *context_.get()));
     // TODO(benavnik): addModuleFlag?
 
     // Inject globals.
@@ -134,8 +151,8 @@ int ExecModule::Prepare() {
 
     // Build the module from the source code.
     codegen_ = auto_ptr<ModuleGenerator>(new ModuleGenerator(
-        memory_, export_resolver_.get(), module_, sdb_.get(),
-        context_.get(), gen_module_.get()));
+        memory_, export_resolver_.get(), module_name_, module_path_,
+        sdb_.get(), context_.get(), gen_module_.get()));
     XEEXPECTZERO(codegen_->Generate());
 
     // Write to cache.
@@ -144,7 +161,7 @@ int ExecModule::Prepare() {
     // Dump pre-optimized module to disk.
     if (FLAGS_dump_module_bitcode) {
       xesnprintf(file_name, XECOUNT(file_name),
-          "%s%s-preopt.bc", FLAGS_dump_path.c_str(), module_->name());
+          "%s%s-preopt.bc", FLAGS_dump_path.c_str(), module_name_);
       outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
           file_name, error_message, raw_fd_ostream::F_Binary));
       XEEXPECTTRUE(error_message.empty());
@@ -176,7 +193,7 @@ int ExecModule::Prepare() {
   // Dump post-optimized module to disk.
   if (FLAGS_optimize_ir_modules && FLAGS_dump_module_bitcode) {
     xesnprintf(file_name, XECOUNT(file_name),
-        "%s%s.bc", FLAGS_dump_path.c_str(), module_->name());
+        "%s%s.bc", FLAGS_dump_path.c_str(), module_name_);
     outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
         file_name, error_message, raw_fd_ostream::F_Binary));
     XEEXPECTTRUE(error_message.empty());

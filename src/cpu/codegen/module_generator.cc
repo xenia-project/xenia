@@ -39,11 +39,12 @@ using namespace xe::kernel;
 
 ModuleGenerator::ModuleGenerator(
     xe_memory_ref memory, ExportResolver* export_resolver,
-    UserModule* module, SymbolDatabase* sdb,
+    const char* module_name, const char* module_path, SymbolDatabase* sdb,
     LLVMContext* context, Module* gen_module) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
-  module_ = module;
+  module_name_ = xestrdupa(module_name);
+  module_path_ = xestrdupa(module_path);
   sdb_ = sdb;
   context_ = context;
   gen_module_ = gen_module;
@@ -57,6 +58,8 @@ ModuleGenerator::~ModuleGenerator() {
   }
 
   delete di_builder_;
+  xe_free(module_path_);
+  xe_free(module_name_);
   xe_memory_release(memory_);
 }
 
@@ -67,7 +70,7 @@ int ModuleGenerator::Generate() {
   // This is used when creating any debug info. We may want to go more
   // fine grained than this, but for now it's something.
   xechar_t dir[2048];
-  XEIGNORE(xestrcpy(dir, XECOUNT(dir), module_->path()));
+  XEIGNORE(xestrcpy(dir, XECOUNT(dir), module_path_));
   xechar_t* slash = xestrrchr(dir, '/');
   if (slash) {
     *(slash + 1) = 0;
@@ -75,7 +78,7 @@ int ModuleGenerator::Generate() {
   di_builder_ = new DIBuilder(*gen_module_);
   di_builder_->createCompileUnit(
       0,
-      StringRef(module_->name()),
+      StringRef(module_name_),
       StringRef(dir),
       StringRef("xenia"),
       true,

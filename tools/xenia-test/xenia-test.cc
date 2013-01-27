@@ -102,15 +102,14 @@ int run_test(xe_pal_ref pal, string& src_file_path) {
 
   runtime = shared_ptr<Runtime>(new Runtime(pal, processor, XT("")));
 
-  // TODO(benvanik): load test binary file into memory
-  // bin_file_path
-  // XEEXPECTZERO(runtime->LoadModule(path));
+  // Load the binary module.
+  XEEXPECTZERO(runtime->LoadBinaryModule(bin_file_path.c_str(), 0x82010000));
 
   // Setup test state from annotations.
   XEEXPECTZERO(setup_test_state(memory, processor.get(), annotations));
 
   // Execute test.
-  // TODO(benvanik): execute test
+  XEEXPECTZERO(processor->Execute(0x82010000));
 
   // Assert test state expectations.
   XEEXPECTZERO(check_test_results(memory, processor.get(), annotations));

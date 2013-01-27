@@ -66,6 +66,33 @@ const xechar_t* Runtime::command_line() {
   return command_line_;
 }
 
+int Runtime::LoadBinaryModule(const xechar_t* path, uint32_t start_address) {
+  const xechar_t* name = xestrrchr(path, '/') + 1;
+
+  // TODO(benvanik): map file from filesystem
+  xe_mmap_ref mmap = xe_mmap_open(pal_, kXEFileModeRead, path, 0, 0);
+  if (!mmap) {
+    return NULL;
+  }
+  void* addr = xe_mmap_get_addr(mmap);
+  size_t length = xe_mmap_get_length(mmap);
+
+  int result_code = 1;
+
+  XEEXPECTZERO(xe_copy_memory(xe_memory_addr(memory_, start_address),
+                              xe_memory_get_length(memory_),
+                              addr, length));
+
+  // Prepare the module.
+  XEEXPECTZERO(processor_->PrepareModule(
+      name, path, start_address, start_address + length, export_resolver_));
+
+  result_code = 0;
+XECLEANUP:
+  xe_mmap_release(mmap);
+  return result_code;
+}
+
 int Runtime::LoadModule(const xechar_t* path) {
   if (GetModule(path)) {
     return 0;

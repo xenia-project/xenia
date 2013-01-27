@@ -35,7 +35,8 @@ class ModuleGenerator {
 public:
   ModuleGenerator(
       xe_memory_ref memory, kernel::ExportResolver* export_resolver,
-      kernel::UserModule* module, sdb::SymbolDatabase* sdb,
+      const char* module_name, const char* module_path,
+      sdb::SymbolDatabase* sdb,
       llvm::LLVMContext* context, llvm::Module* gen_module);
   ~ModuleGenerator();
 
@@ -61,7 +62,8 @@ private:
 
   xe_memory_ref memory_;
   kernel::ExportResolver* export_resolver_;
-  kernel::UserModule* module_;
+  char* module_name_;
+  char* module_path_;
   sdb::SymbolDatabase* sdb_;
 
   llvm::LLVMContext*  context_;

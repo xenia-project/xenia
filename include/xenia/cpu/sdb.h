@@ -142,11 +142,10 @@ public:
 
 class SymbolDatabase {
 public:
-  SymbolDatabase(xe_memory_ref memory, kernel::ExportResolver* export_resolver,
-                 kernel::UserModule* module);
-  ~SymbolDatabase();
+  SymbolDatabase(xe_memory_ref memory, kernel::ExportResolver* export_resolver);
+  virtual ~SymbolDatabase();
 
-  int Analyze();
+  virtual int Analyze();
 
   ExceptionEntrySymbol* GetOrInsertExceptionEntry(uint32_t address);
   FunctionSymbol* GetOrInsertFunction(uint32_t address);
@@ -161,28 +160,62 @@ public:
   void Dump();
   void DumpFunctionBlocks(FunctionSymbol* fn);
 
-private:
+protected:
   typedef std::map<uint32_t, Symbol*> SymbolMap;
   typedef std::list<FunctionSymbol*> FunctionList;
 
-  int FindGplr();
-  int AddImports(const xe_xex2_import_library_t *library);
-  int AddMethodHints();
   int AnalyzeFunction(FunctionSymbol* fn);
   int CompleteFunctionGraph(FunctionSymbol* fn);
   bool FillHoles();
   int FlushQueue();
 
-  bool IsValueInTextRange(uint32_t value);
   bool IsRestGprLr(uint32_t addr);
+  virtual uint32_t GetEntryPoint() = 0;
+  virtual bool IsValueInTextRange(uint32_t value) = 0;
 
   xe_memory_ref   memory_;
   kernel::ExportResolver* export_resolver_;
-  kernel::UserModule* module_;
   size_t          function_count_;
   size_t          variable_count_;
   SymbolMap       symbols_;
   FunctionList    scan_queue_;
+};
+
+
+class RawSymbolDatabase : public SymbolDatabase {
+public:
+  RawSymbolDatabase(xe_memory_ref memory,
+                    kernel::ExportResolver* export_resolver,
+                    uint32_t start_address, uint32_t end_address);
+  virtual ~RawSymbolDatabase();
+
+private:
+  virtual uint32_t GetEntryPoint();
+  virtual bool IsValueInTextRange(uint32_t value);
+
+  uint32_t start_address_;
+  uint32_t end_address_;
+};
+
+
+class XexSymbolDatabase : public SymbolDatabase {
+public:
+  XexSymbolDatabase(xe_memory_ref memory,
+                    kernel::ExportResolver* export_resolver,
+                    kernel::UserModule* module);
+  virtual ~XexSymbolDatabase();
+
+  virtual int Analyze();
+
+private:
+  int FindGplr();
+  int AddImports(const xe_xex2_import_library_t *library);
+  int AddMethodHints();
+
+  virtual uint32_t GetEntryPoint();
+  virtual bool IsValueInTextRange(uint32_t value);
+
+  kernel::UserModule* module_;
 };
 
 

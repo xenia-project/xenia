@@ -38,6 +38,9 @@ public:
 
   int Setup();
 
+  int PrepareModule(const char* module_name, const char* module_path,
+                    uint32_t start_address, uint32_t end_address,
+                    shared_ptr<kernel::ExportResolver> export_resolver);
   int PrepareModule(kernel::UserModule* user_module,
                     shared_ptr<kernel::ExportResolver> export_resolver);
 

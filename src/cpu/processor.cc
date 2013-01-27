@@ -85,12 +85,32 @@ int Processor::Setup() {
   return 0;
 }
 
+int Processor::PrepareModule(
+    const char* module_name, const char* module_path,
+    uint32_t start_address, uint32_t end_address,
+    shared_ptr<ExportResolver> export_resolver) {
+  ExecModule* exec_module = new ExecModule(
+      memory_, export_resolver, module_name, module_path, engine_);
+
+  if (exec_module->PrepareRawBinary(start_address, end_address)) {
+    delete exec_module;
+    return 1;
+  }
+
+  modules_.push_back(exec_module);
+
+  exec_module->Dump();
+
+  return 0;
+}
+
 int Processor::PrepareModule(UserModule* user_module,
                              shared_ptr<ExportResolver> export_resolver) {
   ExecModule* exec_module = new ExecModule(
-      memory_, export_resolver, user_module, engine_);
+      memory_, export_resolver, user_module->name(), user_module->path(),
+      engine_);
 
-  if (exec_module->Prepare()) {
+  if (exec_module->PrepareUserModule(user_module)) {
     delete exec_module;
     return 1;
   }

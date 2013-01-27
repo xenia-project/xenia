@@ -44,6 +44,8 @@ public:
   shared_ptr<ExportResolver> export_resolver();
   const xechar_t* command_line();
 
+  int LoadBinaryModule(const xechar_t* path, uint32_t start_address);
+
   int LoadModule(const xechar_t* path);
   void LaunchModule(UserModule* user_module);
   UserModule* GetModule(const xechar_t* path);
