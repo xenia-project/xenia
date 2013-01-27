@@ -223,6 +223,26 @@ class SetupCommand(Command):
         return 1
       print ''
 
+    # Binutils.
+    print '- binutils...'
+    if not os.path.exists('build/binutils'):
+      os.makedirs('build/binutils')
+    os.chdir('build/binutils')
+    shell_call(' '.join([
+        '../../third_party/binutils/configure',
+        '--disable-debug',
+        '--disable-dependency-tracking',
+        '--disable-werror',
+        '--enable-interwork',
+        '--enable-multilib',
+        '--target=powerpc-none-elf',
+        '--with-gnu-ld',
+        '--with-gnu-as',
+        ]))
+    shell_call('make')
+    os.chdir(cwd)
+    print ''
+
     # LLVM.
     print '- preparing llvm...'
     #generator = 'Visual Studio 10 Win64'
