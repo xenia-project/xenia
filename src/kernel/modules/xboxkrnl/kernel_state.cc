@@ -22,8 +22,8 @@ namespace {
 
 KernelState::KernelState(xe_pal_ref pal, xe_memory_ref memory,
                          shared_ptr<ExportResolver> export_resolver) {
-  pal = xe_pal_retain(pal);
-  memory = xe_memory_retain(memory);
+  this->pal = xe_pal_retain(pal);
+  this->memory = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
 }
 

@@ -147,7 +147,7 @@ typedef struct {
     // kXEPPCInstrFormatXO
     struct {
       uint32_t        Rc      : 1;
-      uint32_t                : 8;
+      uint32_t                : 9;
       uint32_t        OE      : 1;
       uint32_t        RB      : 5;
       uint32_t        RA      : 5;
