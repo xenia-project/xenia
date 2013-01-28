@@ -13,6 +13,7 @@
 
 
 using namespace xe;
+using namespace xe::cpu;
 using namespace xe::kernel;
 
 
@@ -131,12 +132,10 @@ XECLEANUP:
 }
 
 void Runtime::LaunchModule(UserModule* user_module) {
-  //const xe_xex2_header_t *xex_header = xe_module_get_xex_header(module);
+  const xe_xex2_header_t *xex_header = user_module->xex_header();
 
   // TODO(benvanik): set as main module/etc
   // xekXexExecutableModuleHandle = xe_module_get_handle(module);
-
-  // XEEXPECTTRUE(XECPUPrepareModule(XEGetCPU(), module->xex, module->pe, module->address_space, module->address_space_size));
 
   // Setup the heap (and TLS?).
   // xex_header->exe_heap_size;
@@ -149,6 +148,19 @@ void Runtime::LaunchModule(UserModule* user_module) {
   // Wait until thread completes.
   // XLARGE_INTEGER timeout = XINFINITE;
   // xekNtWaitForSingleObjectEx(thread_handle, TRUE, &timeout);
+
+  // Simulate a thread.
+  uint32_t stack_size = xex_header->exe_stack_size;
+  if (stack_size < 16 * 1024 * 1024) {
+    stack_size = 16 * 1024 * 1024;
+  }
+  ThreadState* thread_state = processor_->AllocThread(
+      0x80000000, stack_size);
+
+  // Execute test.
+  processor_->Execute(thread_state, xex_header->exe_entry_point);
+
+  processor_->DeallocThread(thread_state);
 }
 
 UserModule* Runtime::GetModule(const xechar_t* path) {

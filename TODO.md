@@ -6,14 +6,9 @@ Not sure the way I'm doing this is right. addic/subficx/etc set it to the value
 of the overflow bit from the LLVM *_with_overflow intrinsic.
 
 ```
-MISDECODING: andix
-
 rlwinmx
 rlwimix
 rldiclx
-
-slwx
-srawix
 ```
 
 Overflow bits can be set via the intrinsics:

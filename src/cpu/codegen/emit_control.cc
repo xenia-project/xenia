@@ -173,6 +173,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
     // Decrement counter.
     Value* ctr = g.ctr_value();
     ctr = b.CreateSub(ctr, b.getInt64(1));
+    g.update_ctr_value(ctr);
 
     // Ctr check.
     if (XESELECTBITS(i.B.BO, 1, 1)) {
@@ -520,7 +521,7 @@ int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
   b.SetInsertPoint(trap_bb);
   g.SpillRegisters();
   // TODO(benvanik): use @llvm.debugtrap? could make debugging better
-  b.CreateCall2(g.gen_module()->getGlobalVariable("XeTrap"),
+  b.CreateCall2(g.gen_module()->getFunction("XeTrap"),
                 g.gen_fn()->arg_begin(),
                 b.getInt32(i.address));
   b.CreateBr(after_bb);

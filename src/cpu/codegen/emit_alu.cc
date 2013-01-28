@@ -539,7 +539,7 @@ XEEMITTER(andix,        0x70000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   // With cr0 update.
   g.update_cr_with_cond(0, v, b.getInt64(0), true);
 
-  return 1;
+  return 0;
 }
 
 XEEMITTER(andisx,       0x74000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -805,7 +805,6 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   //   g.update_cr_with_cond(0, v, b.getInt64(0), true);
   // }
 
-  printf("rlwinmx %d %d %d\n", i.M.SH, i.M.MB, i.M.ME);
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }

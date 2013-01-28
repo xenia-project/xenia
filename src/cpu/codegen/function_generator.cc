@@ -117,7 +117,7 @@ void FunctionGenerator::GenerateBasicBlocks() {
 
   if (FLAGS_trace_user_calls) {
     SpillRegisters();
-    Value* traceUserCall = gen_module_->getGlobalVariable("XeTraceUserCall");
+    Value* traceUserCall = gen_module_->getFunction("XeTraceUserCall");
     builder_->CreateCall3(
         traceUserCall,
         gen_fn_->arg_begin(),
@@ -162,7 +162,7 @@ void FunctionGenerator::GenerateBasicBlocks() {
 void FunctionGenerator::GenerateSharedBlocks() {
   IRBuilder<>& b = *builder_;
 
-  Value* indirect_branch = gen_module_->getGlobalVariable("XeIndirectBranch");
+  Value* indirect_branch = gen_module_->getFunction("XeIndirectBranch");
 
   // Setup initial register fill in the entry block.
   // We can only do this once all the locals have been created.
@@ -218,9 +218,9 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
   //i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
 
   Value* invalidInstruction =
-      gen_module_->getGlobalVariable("XeInvalidInstruction");
+      gen_module_->getFunction("XeInvalidInstruction");
   Value* traceInstruction =
-      gen_module_->getGlobalVariable("XeTraceInstruction");
+      gen_module_->getFunction("XeTraceInstruction");
 
   // Walk instructions in block.
   uint8_t* p = xe_memory_addr(memory_, 0);
@@ -390,7 +390,7 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
     SpillRegisters();
 
     // TODO(benvanik): keep function pointer lookup local.
-    Value* indirect_branch = gen_module_->getGlobalVariable("XeIndirectBranch");
+    Value* indirect_branch = gen_module_->getFunction("XeIndirectBranch");
     b.CreateCall3(indirect_branch,
                   gen_fn_->arg_begin(),
                   target,
@@ -861,6 +861,9 @@ Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
+  // Input address is always in 32-bit space.
+  addr = b.CreateAnd(addr, UINT_MAX);
+
   Value* offset_addr = b.CreateAdd(addr, b.getInt64(size));
   Value* address = b.CreateInBoundsGEP(GetMembase(), offset_addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
@@ -889,6 +892,9 @@ void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
       return;
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
+
+  // Input address is always in 32-bit space.
+  addr = b.CreateAnd(addr, UINT_MAX);
 
   Value* offset_addr = b.CreateAdd(addr, b.getInt64(size));
   Value* address = b.CreateInBoundsGEP(GetMembase(), offset_addr);

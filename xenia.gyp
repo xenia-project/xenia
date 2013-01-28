@@ -73,6 +73,10 @@
       ],
 
       'direct_dependent_settings': {
+        'include_dirs': [
+          '<!@(<(llvm_config) --includedir)',
+        ],
+
         'target_conditions': [
           ['_type=="shared_library"', {
             'cflags': [

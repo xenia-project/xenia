@@ -240,12 +240,12 @@ void XeInvalidInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
 
 void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
   // TODO(benvanik): get names
-  XELOGCPU("TRACE: %.8X -> k.%.8X", (uint32_t)call_ia, (uint32_t)cia);
+  XELOGCPU("TRACE: %.8X -> k.%.8X", (uint32_t)call_ia - 4, (uint32_t)cia);
 }
 
 void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
   // TODO(benvanik): get names
-  XELOGCPU("TRACE: %.8X -> u.%.8X", (uint32_t)call_ia, (uint32_t)cia);
+  XELOGCPU("TRACE: %.8X -> u.%.8X", (uint32_t)call_ia - 4, (uint32_t)cia);
 }
 
 void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
@@ -286,10 +286,9 @@ int ExecModule::InjectGlobals() {
   trapArgs.push_back(Type::getInt32Ty(context));
   FunctionType* trapTy = FunctionType::get(
       Type::getVoidTy(context), trapArgs, false);
-  gv = new GlobalVariable(*gen_module_, trapTy, true,
-                          GlobalVariable::ExternalLinkage, 0,
-                          "XeTrap");
-  engine_->addGlobalMapping(gv, (void*)&XeTrap);
+  engine_->addGlobalMapping(Function::Create(
+      trapTy, Function::ExternalLinkage, "XeTrap",
+      gen_module_.get()), (void*)&XeTrap);
 
   std::vector<Type*> indirectBranchArgs;
   indirectBranchArgs.push_back(int8PtrTy);
@@ -297,10 +296,9 @@ int ExecModule::InjectGlobals() {
   indirectBranchArgs.push_back(Type::getInt64Ty(context));
   FunctionType* indirectBranchTy = FunctionType::get(
       Type::getVoidTy(context), indirectBranchArgs, false);
-  gv = new GlobalVariable(*gen_module_, indirectBranchTy, true,
-                          GlobalVariable::ExternalLinkage, 0,
-                          "XeIndirectBranch");
-  engine_->addGlobalMapping(gv, (void*)&XeIndirectBranch);
+  engine_->addGlobalMapping(Function::Create(
+      indirectBranchTy, Function::ExternalLinkage, "XeIndirectBranch",
+      gen_module_.get()), (void*)&XeIndirectBranch);
 
   // Debugging methods:
   std::vector<Type*> invalidInstructionArgs;
@@ -309,10 +307,9 @@ int ExecModule::InjectGlobals() {
   invalidInstructionArgs.push_back(Type::getInt32Ty(context));
   FunctionType* invalidInstructionTy = FunctionType::get(
       Type::getVoidTy(context), invalidInstructionArgs, false);
-  gv = new GlobalVariable(*gen_module_, invalidInstructionTy, true,
-                          GlobalVariable::ExternalLinkage, 0,
-                          "XeInvalidInstruction");
-  engine_->addGlobalMapping(gv, (void*)&XeInvalidInstruction);
+  engine_->addGlobalMapping(Function::Create(
+      invalidInstructionTy, Function::ExternalLinkage, "XeInvalidInstruction",
+      gen_module_.get()), (void*)&XeInvalidInstruction);
 
   // Tracing methods:
   std::vector<Type*> traceCallArgs;
@@ -328,18 +325,15 @@ int ExecModule::InjectGlobals() {
   FunctionType* traceInstructionTy = FunctionType::get(
       Type::getVoidTy(context), traceInstructionArgs, false);
 
-  gv = new GlobalVariable(*gen_module_, traceCallTy, true,
-                          GlobalValue::ExternalLinkage, 0,
-                          "XeTraceKernelCall");
-  engine_->addGlobalMapping(gv, (void*)&XeTraceKernelCall);
-  gv = new GlobalVariable(*gen_module_, traceCallTy, true,
-                          GlobalValue::ExternalLinkage, 0,
-                          "XeTraceUserCall");
-  engine_->addGlobalMapping(gv, (void*)&XeTraceUserCall);
-  gv = new GlobalVariable(*gen_module_, traceInstructionTy, true,
-                          GlobalValue::ExternalLinkage, 0,
-                          "XeTraceInstruction");
-  engine_->addGlobalMapping(gv, (void*)&XeTraceInstruction);
+  engine_->addGlobalMapping(Function::Create(
+      traceCallTy, Function::ExternalLinkage, "XeTraceKernelCall",
+      gen_module_.get()), (void*)&XeTraceKernelCall);
+  engine_->addGlobalMapping(Function::Create(
+      traceCallTy, Function::ExternalLinkage, "XeTraceUserCall",
+      gen_module_.get()), (void*)&XeTraceUserCall);
+  engine_->addGlobalMapping(Function::Create(
+      traceInstructionTy, Function::ExternalLinkage, "XeTraceInstruction",
+      gen_module_.get()), (void*)&XeTraceInstruction);
 
   return 0;
 }

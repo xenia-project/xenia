@@ -77,7 +77,7 @@ int ModuleGenerator::Generate() {
   }
   di_builder_ = new DIBuilder(*gen_module_);
   di_builder_->createCompileUnit(
-      0,
+      dwarf::DW_LANG_C99, //0x8010,
       StringRef(module_name_),
       StringRef(dir),
       StringRef("xenia"),
@@ -196,7 +196,7 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
   IRBuilder<> builder(block);
 
   if (FLAGS_trace_kernel_calls) {
-    Value* traceKernelCall = m->getGlobalVariable("XeTraceKernelCall");
+    Value* traceKernelCall = m->getFunction("XeTraceKernelCall");
     builder.CreateCall3(
         traceKernelCall,
         f->arg_begin(),

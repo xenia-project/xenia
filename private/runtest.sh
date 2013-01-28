@@ -9,7 +9,7 @@ fi
 ./build/xenia/release/xenia-run \
     private/$1 \
     --optimize_ir_modules=true \
-    --optimize_ir_functions=false \
+    --optimize_ir_functions=true \
     --trace_kernel_calls=true \
     --trace_user_calls=false \
     --trace_instructions=false \

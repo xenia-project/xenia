@@ -99,7 +99,7 @@ int Processor::Setup() {
   std::string error_message;
   engine_ = shared_ptr<ExecutionEngine>(
       ExecutionEngine::create(dummy_module, false, &error_message,
-                              CodeGenOpt::Aggressive));
+                              CodeGenOpt::Aggressive, false));
   if (!engine_) {
     return 1;
   }
