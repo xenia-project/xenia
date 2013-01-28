@@ -14,6 +14,7 @@
 #include <llvm/PassManager.h>
 #include <llvm/DebugInfo.h>
 #include <llvm/Analysis/Verifier.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -40,7 +41,7 @@ using namespace xe::kernel;
 ModuleGenerator::ModuleGenerator(
     xe_memory_ref memory, ExportResolver* export_resolver,
     const char* module_name, const char* module_path, SymbolDatabase* sdb,
-    LLVMContext* context, Module* gen_module) {
+    LLVMContext* context, Module* gen_module, ExecutionEngine* engine) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
   module_name_ = xestrdupa(module_name);
@@ -48,6 +49,7 @@ ModuleGenerator::ModuleGenerator(
   sdb_ = sdb;
   context_ = context;
   gen_module_ = gen_module;
+  engine_ = engine;
   di_builder_ = NULL;
 }
 
@@ -196,11 +198,12 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
 
   if (FLAGS_trace_kernel_calls) {
     Value* traceKernelCall = m->getFunction("XeTraceKernelCall");
-    b.CreateCall3(
+    b.CreateCall4(
         traceKernelCall,
         f->arg_begin(),
         b.getInt64(fn->start_address),
-        ++f->arg_begin());
+        ++f->arg_begin(),
+        b.getInt64((uint64_t)fn->kernel_export));
   }
 
   b.CreateRetVoid();
@@ -221,18 +224,37 @@ void ModuleGenerator::AddPresentImport(FunctionSymbol* fn) {
   Module *m = gen_module_;
   LLVMContext& context = m->getContext();
 
-  // Add the extern.
+  const DataLayout* dl = engine_->getDataLayout();
+  Type* intPtrTy = dl->getIntPtrType(context);
+  Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
+
+  // Add the externs.
+  // We have both the shim function pointer and the shim data pointer.
   char shim_name[256];
   xesnprintfa(shim_name, XECOUNT(shim_name),
-              "__shim__%s", fn->kernel_export->name);
+              "__shim_%s", fn->kernel_export->name);
+  char shim_data_name[256];
+  xesnprintfa(shim_data_name, XECOUNT(shim_data_name),
+              "__shim_data_%s", fn->kernel_export->name);
   std::vector<Type*> shimArgs;
-  shimArgs.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
+  shimArgs.push_back(int8PtrTy);
+  shimArgs.push_back(int8PtrTy);
   FunctionType* shimTy = FunctionType::get(
       Type::getVoidTy(context), shimArgs, false);
   Function* shim = Function::Create(
       shimTy, Function::ExternalLinkage, shim_name, m);
-  // engine_->addGlobalMapping(shim,
-  //     (void*)fn->kernel_export->function_data.shim);
+
+  GlobalVariable* gv = new GlobalVariable(
+      *m, int8PtrTy, true, GlobalValue::ExternalLinkage, 0,
+      shim_data_name);
+
+  // TODO(benvanik): don't initialize on startup - move to exec_module
+  gv->setInitializer(ConstantExpr::getIntToPtr(
+      ConstantInt::get(intPtrTy,
+                       (uintptr_t)fn->kernel_export->function_data.shim_data),
+      int8PtrTy));
+  engine_->addGlobalMapping(shim,
+      (void*)fn->kernel_export->function_data.shim);
 
   // Create the function (and setup args/attributes/etc).
   Function* f = CreateFunctionDefinition(fn->name);
@@ -242,16 +264,18 @@ void ModuleGenerator::AddPresentImport(FunctionSymbol* fn) {
 
   if (FLAGS_trace_kernel_calls) {
     Value* traceKernelCall = m->getFunction("XeTraceKernelCall");
-    b.CreateCall3(
+    b.CreateCall4(
         traceKernelCall,
         f->arg_begin(),
         b.getInt64(fn->start_address),
-        ++f->arg_begin());
+        ++f->arg_begin(),
+        b.getInt64((uint64_t)fn->kernel_export));
   }
 
-  b.CreateCall(
+  b.CreateCall2(
       shim,
-      f->arg_begin());
+      f->arg_begin(),
+      b.CreateLoad(gv));
 
   b.CreateRetVoid();
 

@@ -117,23 +117,26 @@ void FunctionGenerator::PopInsertPoint() {
 }
 
 void FunctionGenerator::GenerateBasicBlocks() {
+  IRBuilder<>& b = *builder_;
+
   // Always add an entry block.
   BasicBlock* entry = BasicBlock::Create(*context_, "entry", gen_fn_);
-  builder_->SetInsertPoint(entry);
+  b.SetInsertPoint(entry);
 
   if (FLAGS_trace_user_calls) {
     SpillRegisters();
     Value* traceUserCall = gen_module_->getFunction("XeTraceUserCall");
-    builder_->CreateCall3(
+    b.CreateCall4(
         traceUserCall,
         gen_fn_->arg_begin(),
-        builder_->getInt64(fn_->start_address),
-        ++gen_fn_->arg_begin());
+        b.getInt64(fn_->start_address),
+        ++gen_fn_->arg_begin(),
+        b.getInt64((uint64_t)fn_));
   }
 
   // If this function is empty, abort!
   if (!fn_->blocks.size()) {
-    builder_->CreateRetVoid();
+    b.CreateRetVoid();
     return;
   }
 
@@ -214,13 +217,15 @@ void FunctionGenerator::GenerateSharedBlocks() {
 
 void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
                                            BasicBlock* bb) {
+  IRBuilder<>& b = *builder_;
+
   printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
 
   fn_block_ = block;
   bb_ = bb;
 
   // Move the builder to this block and setup.
-  builder_->SetInsertPoint(bb);
+  b.SetInsertPoint(bb);
   //i->setMetadata("some.name", MDNode::get(context, MDString::get(context, pname)));
 
   Value* invalidInstruction =
@@ -238,21 +243,21 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
 
     if (FLAGS_trace_instructions) {
       SpillRegisters();
-      builder_->CreateCall3(
+      b.CreateCall3(
           traceInstruction,
           gen_fn_->arg_begin(),
-          builder_->getInt32(i.address),
-          builder_->getInt32(i.code));
+          b.getInt32(i.address),
+          b.getInt32(i.code));
     }
 
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
       SpillRegisters();
-      builder_->CreateCall3(
+      b.CreateCall3(
           invalidInstruction,
           gen_fn_->arg_begin(),
-          builder_->getInt32(i.address),
-          builder_->getInt32(i.code));
+          b.getInt32(i.address),
+          b.getInt32(i.code));
       continue;
     }
     printf("    %.8X: %.8X %s\n", ia, i.code, i.type->name);
@@ -273,11 +278,11 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
                ia, i.code, i.type->name);
       SpillRegisters();
-      builder_->CreateCall3(
+      b.CreateCall3(
           invalidInstruction,
           gen_fn_->arg_begin(),
-          builder_->getInt32(i.address),
-          builder_->getInt32(i.code));
+          b.getInt32(i.address),
+          b.getInt32(i.code));
     }
   }
 
@@ -285,13 +290,13 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
   if (block->outgoing_type == FunctionBlock::kTargetNone) {
     BasicBlock* next_bb = GetNextBasicBlock();
     XEASSERTNOTNULL(next_bb);
-    builder_->CreateBr(next_bb);
+    b.CreateBr(next_bb);
   } else if (block->outgoing_type == FunctionBlock::kTargetUnknown) {
     // Hrm.
     // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
     XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit\n",
         fn_->start_address, block->start_address);
-    builder_->CreateRetVoid();
+    b.CreateRetVoid();
   }
 
   // TODO(benvanik): finish up BB
@@ -348,7 +353,7 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
   // after we are done with all user instructions.
   if (!external_indirection_block_) {
     // Setup locals in the entry block.
-    builder_->SetInsertPoint(&gen_fn_->getEntryBlock());
+    b.SetInsertPoint(&gen_fn_->getEntryBlock());
     locals_.indirection_target = b.CreateAlloca(
         b.getInt64Ty(), 0, "indirection_target");
     locals_.indirection_cia = b.CreateAlloca(

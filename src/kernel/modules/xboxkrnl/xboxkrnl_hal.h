@@ -7,40 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_THREAD_STATE_H_
-#define XENIA_CPU_THREAD_STATE_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_HAL_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_HAL_H_
 
-#include <xenia/core.h>
-
-#include <xenia/cpu/ppc.h>
+#include "kernel/modules/xboxkrnl/kernel_state.h"
 
 
 namespace xe {
-namespace cpu {
+namespace kernel {
+namespace xboxkrnl {
 
 
-class Processor;
+void RegisterHalExports(ExportResolver* export_resolver, KernelState* state);
 
 
-class ThreadState {
-public:
-  ThreadState(Processor* processor,
-              uint32_t stack_address, uint32_t stack_size);
-  ~ThreadState();
-
-  xe_ppc_state_t* ppc_state();
-
-private:
-  uint32_t stack_address_;
-  uint32_t stack_size_;
-  xe_memory_ref memory_;
-
-  xe_ppc_state_t  ppc_state_;
-};
-
-
-}  // namespace cpu
+}  // namespace xboxkrnl
+}  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_CPU_THREAD_STATE_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_HAL_H_

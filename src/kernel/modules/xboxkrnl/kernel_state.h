@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_KERNEL_STATE_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_KERNEL_STATE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -21,17 +21,18 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-class KernelState;
 
-
-class XboxkrnlModule : public KernelModule {
+class KernelState {
 public:
-  XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
-                 shared_ptr<ExportResolver> resolver);
-  virtual ~XboxkrnlModule();
+  KernelState(xe_pal_ref pal, xe_memory_ref memory,
+              shared_ptr<ExportResolver> export_resolver);
+  ~KernelState();
+
+  xe_pal_ref    pal;
+  xe_memory_ref memory;
 
 private:
-  auto_ptr<KernelState> kernel_state;
+  shared_ptr<ExportResolver> export_resolver_;
 };
 
 
@@ -39,4 +40,5 @@ private:
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
+
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_KERNEL_STATE_H_

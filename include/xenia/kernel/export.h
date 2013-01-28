@@ -23,7 +23,7 @@ namespace kernel {
 
 
 typedef void (*xe_kernel_export_impl_fn)();
-typedef void (*xe_kernel_export_shim_fn)(xe_ppc_state_t* state);
+typedef void (*xe_kernel_export_shim_fn)(xe_ppc_state_t*, void*);
 
 class KernelExport {
 public:
@@ -47,6 +47,9 @@ public:
     uint32_t    variable_ptr;
 
     struct {
+      // Second argument passed to the shim function.
+      void* shim_data;
+
       // Shimmed implementation.
       // This is called directly from generated code.
       // It should parse args, do fixups, and call the impl.
@@ -83,7 +86,7 @@ public:
   void SetVariableMapping(const char* library_name, const uint32_t ordinal,
                           uint32_t value);
   void SetFunctionMapping(const char* library_name, const uint32_t ordinal,
-                          xe_kernel_export_shim_fn shim,
+                          void* shim_data, xe_kernel_export_shim_fn shim,
                           xe_kernel_export_impl_fn impl);
 
 private:

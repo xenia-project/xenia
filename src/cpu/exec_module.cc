@@ -162,7 +162,8 @@ int ExecModule::Prepare() {
     // Build the module from the source code.
     codegen_ = auto_ptr<ModuleGenerator>(new ModuleGenerator(
         memory_, export_resolver_.get(), module_name_, module_path_,
-        sdb_.get(), context_.get(), gen_module_.get()));
+        sdb_.get(), context_.get(), gen_module_.get(),
+        engine_.get()));
     XEEXPECTZERO(codegen_->Generate());
 
     // Write to cache.
@@ -248,14 +249,16 @@ void XeInvalidInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
   XELOGCPU("INVALID INSTRUCTION %.8X %.8X", cia, data);
 }
 
-void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
-  // TODO(benvanik): get names
-  XELOGCPU("TRACE: %.8X -> k.%.8X", (uint32_t)call_ia - 4, (uint32_t)cia);
+void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
+                       KernelExport* kernel_export) {
+  XELOGCPU("TRACE: %.8X -> k.%.8X (%s)", (uint32_t)call_ia - 4, (uint32_t)cia,
+           kernel_export ? kernel_export->name : "unknown");
 }
 
-void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia) {
-  // TODO(benvanik): get names
-  XELOGCPU("TRACE: %.8X -> u.%.8X", (uint32_t)call_ia - 4, (uint32_t)cia);
+void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
+                     FunctionSymbol* fn) {
+  XELOGCPU("TRACE: %.8X -> u.%.8X (%s)", (uint32_t)call_ia - 4, (uint32_t)cia,
+           fn->name);
 }
 
 void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
@@ -271,8 +274,8 @@ void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
 int ExecModule::InjectGlobals() {
   LLVMContext& context = *context_.get();
   const DataLayout* dl = engine_->getDataLayout();
-  Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
   Type* intPtrTy = dl->getIntPtrType(context);
+  Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
   GlobalVariable* gv;
 
   // xe_memory_base
@@ -326,6 +329,7 @@ int ExecModule::InjectGlobals() {
   traceCallArgs.push_back(int8PtrTy);
   traceCallArgs.push_back(Type::getInt64Ty(context));
   traceCallArgs.push_back(Type::getInt64Ty(context));
+  traceCallArgs.push_back(Type::getInt64Ty(context));
   FunctionType* traceCallTy = FunctionType::get(
       Type::getVoidTy(context), traceCallArgs, false);
   std::vector<Type*> traceInstructionArgs;
@@ -371,10 +375,10 @@ int ExecModule::Init() {
     } else {
       if (kernel_export->is_implemented) {
         // Implemented - replace with pointer.
-        *slot = kernel_export->variable_ptr;
+        *slot = XESWAP32BE(kernel_export->variable_ptr);
       } else {
         // Not implemented - write with a dummy value.
-        *slot = 0xDEADBEEF;
+        *slot = XESWAP32BE(0xDEADBEEF);
         XELOGCPU("WARNING: imported a variable with no value: %s",
                  kernel_export->name);
       }

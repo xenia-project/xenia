@@ -9,6 +9,9 @@
 
 #include "kernel/modules/xboxkrnl/xboxkrnl_module.h"
 
+#include "kernel/modules/xboxkrnl/kernel_state.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl_hal.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl_memory.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl_table.h"
 
 
@@ -48,6 +51,14 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
   resolver->RegisterTable(
       "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
 
+  // Setup the kernel state instance.
+  // This is where all kernel objects are kept while running.
+  kernel_state = auto_ptr<KernelState>(new KernelState(pal, memory, resolver));
+
+  // Register all exported functions.
+  RegisterHalExports(resolver.get(), kernel_state.get());
+  RegisterMemoryExports(resolver.get(), kernel_state.get());
+
   // TODO(benvanik): alloc heap memory somewhere in user space
   // TODO(benvanik): tools for reading/writing to heap memory
 
@@ -55,15 +66,15 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
   // KeDebugMonitorData
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000059,
-      0);
+      0x40001000);
   // XboxHardwareInfo
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000156,
-      0);
+      0x40002000);
   // XexExecutableModuleHandle
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000193,
-      0);
+      0x40000000);
 
   // 0x0000012B, RtlImageXexHeaderField
 }

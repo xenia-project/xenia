@@ -9,6 +9,9 @@
 
 #include <xenia/cpu/thread_state.h>
 
+#include <xenia/core/memory.h>
+#include <xenia/cpu/processor.h>
+
 
 using namespace xe;
 using namespace xe::cpu;
@@ -19,10 +22,12 @@ ThreadState::ThreadState(
     uint32_t stack_address, uint32_t stack_size) {
   stack_address_ = stack_address;
   stack_size_ = stack_size;
+  memory_ = processor->memory();
 
   xe_zero_struct(&ppc_state_, sizeof(ppc_state_));
 
   // Stash pointers to common structures that callbacks may need.
+  ppc_state_.membase      = xe_memory_addr(memory_, 0);
   ppc_state_.processor    = processor;
   ppc_state_.thread_state = this;
 
@@ -31,6 +36,7 @@ ThreadState::ThreadState(
 }
 
 ThreadState::~ThreadState() {
+  xe_memory_release(memory_);
 }
 
 xe_ppc_state_t* ThreadState::ppc_state() {

@@ -23,6 +23,7 @@
 
 namespace llvm {
   class DIBuilder;
+  class ExecutionEngine;
   class Function;
   class FunctionType;
   class LLVMContext;
@@ -42,7 +43,8 @@ public:
       xe_memory_ref memory, kernel::ExportResolver* export_resolver,
       const char* module_name, const char* module_path,
       sdb::SymbolDatabase* sdb,
-      llvm::LLVMContext* context, llvm::Module* gen_module);
+      llvm::LLVMContext* context, llvm::Module* gen_module,
+      llvm::ExecutionEngine* engine);
   ~ModuleGenerator();
 
   int Generate();
@@ -76,6 +78,7 @@ private:
 
   llvm::LLVMContext*  context_;
   llvm::Module*       gen_module_;
+  llvm::ExecutionEngine* engine_;
   llvm::DIBuilder*    di_builder_;
   llvm::MDNode*       cu_;
 
