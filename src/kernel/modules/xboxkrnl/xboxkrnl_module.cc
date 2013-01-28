@@ -67,6 +67,8 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
   // TODO(benvanik): alloc heap memory somewhere in user space
   // TODO(benvanik): tools for reading/writing to heap memory
 
+  uint8_t* mem = xe_memory_addr(memory, 0);
+
   // HACK: register some dummy globals for now.
   // KeDebugMonitorData
   resolver->SetVariableMapping(
@@ -76,12 +78,21 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000156,
       0x40002000);
+
   // XexExecutableModuleHandle
+  // Games try to dereference this to get a pointer to some module struct.
+  // So far it seems like it's just in loader code, and only used to look up
+  // the XexHeaderBase for use by RtlImageXexHeaderField.
+  // We fake it so that the address passed to that looks legit.
+  // 0x80100FFC <- pointer to structure
+  // 0x80101000 <- our module structure
+  // 0x80101058 <- pointer to xex header
+  // 0x80101100 <- xex header base
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000193,
-      0x40000000);
-
-  // 0x0000012B, RtlImageXexHeaderField
+      0x80100FFC);
+  XESETUINT32BE(mem + 0x80100FFC, 0x80101000);
+  XESETUINT32BE(mem + 0x80101058, 0x80101100);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {

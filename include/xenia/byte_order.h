@@ -64,5 +64,14 @@
 #define XEGETINT64LE(p)                 ( (int64_t)XESWAP64LE(*(uint64_t*)(p)))
 #define XEGETUINT64LE(p)                ((uint64_t)XESWAP64LE(*(uint64_t*)(p)))
 
+#define XESETINT8BE(p, v)               (*(  (int8_t*)(p)) = (int8_t)v)
+#define XESETUINT8BE(p, v)              (*( (uint8_t*)(p)) = (uint8_t)v)
+#define XESETINT16BE(p, v)              (*( (int16_t*)(p)) = XESWAP16BE( (int16_t)v))
+#define XESETUINT16BE(p, v)             (*((uint16_t*)(p)) = XESWAP16BE((uint16_t)v))
+#define XESETINT32BE(p, v)              (*( (int32_t*)(p)) = XESWAP32BE( (int32_t)v))
+#define XESETUINT32BE(p, v)             (*((uint32_t*)(p)) = XESWAP32BE((uint32_t)v))
+#define XESETINT64BE(p, v)              (*( (int64_t*)(p)) = XESWAP64BE( (int64_t)v))
+#define XESETUINT64BE(p, v)             (*((uint64_t*)(p)) = XESWAP64BE((uint64_t)v))
+
 
 #endif  // XENIA_BYTE_ORDER_H_
