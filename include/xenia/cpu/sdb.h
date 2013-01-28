@@ -77,7 +77,7 @@ public:
   uint32_t      start_address;
   uint32_t      end_address;
 
-  vector<FunctionBlock*> incoming_blocks;
+  std::vector<FunctionBlock*> incoming_blocks;
 
   TargetType        outgoing_type;
   uint32_t          outgoing_address;
@@ -114,11 +114,11 @@ public:
   kernel::KernelExport* kernel_export;
   ExceptionEntrySymbol* ee;
 
-  vector<FunctionCall*> incoming_calls;
-  vector<FunctionCall*> outgoing_calls;
-  vector<VariableAccess*> variable_accesses;
+  std::vector<FunctionCall*> incoming_calls;
+  std::vector<FunctionCall*> outgoing_calls;
+  std::vector<VariableAccess*> variable_accesses;
 
-  map<uint32_t, FunctionBlock*> blocks;
+  std::map<uint32_t, FunctionBlock*> blocks;
 };
 
 class VariableSymbol : public Symbol {
@@ -154,7 +154,7 @@ public:
   VariableSymbol* GetVariable(uint32_t address);
   Symbol* GetSymbol(uint32_t address);
 
-  int GetAllFunctions(vector<FunctionSymbol*>& functions);
+  int GetAllFunctions(std::vector<FunctionSymbol*>& functions);
 
   void Write(const char* file_name);
   void Dump();

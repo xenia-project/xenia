@@ -4,6 +4,7 @@
     'common.gypi',
     'tools/tools.gypi',
     'third_party/gflags.gypi',
+    'third_party/sparsehash.gypi',
   ],
 
   'targets': [

@@ -15,6 +15,7 @@
 #include <xenia/cpu/ppc/instr.h>
 
 
+using namespace std;
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::ppc;

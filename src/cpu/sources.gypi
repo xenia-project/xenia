@@ -5,6 +5,7 @@
     'exec_module.cc',
     'processor.cc',
     'sdb.cc',
+    'thread_state.cc',
   ],
 
   'includes': [

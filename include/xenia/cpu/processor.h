@@ -12,15 +12,18 @@
 
 #include <xenia/core.h>
 
+#include <tr1/unordered_map>
 #include <vector>
 
 #include <xenia/cpu/exec_module.h>
+#include <xenia/cpu/thread_state.h>
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/user_module.h>
 
 
 namespace llvm {
   class ExecutionEngine;
+  class Function;
 }
 
 
@@ -44,10 +47,15 @@ public:
   int PrepareModule(kernel::UserModule* user_module,
                     shared_ptr<kernel::ExportResolver> export_resolver);
 
-  int Execute(uint32_t address);
   uint32_t CreateCallback(void (*callback)(void* data), void* data);
 
+  ThreadState* AllocThread(uint32_t stack_address, uint32_t stack_size);
+  void DeallocThread(ThreadState* thread_state);
+  int Execute(ThreadState* thread_state, uint32_t address);
+
 private:
+  llvm::Function* GetFunction(uint32_t address);
+
   xe_pal_ref              pal_;
   xe_memory_ref           memory_;
   shared_ptr<llvm::ExecutionEngine> engine_;
@@ -55,6 +63,8 @@ private:
   auto_ptr<llvm::LLVMContext> dummy_context_;
 
   std::vector<ExecModule*> modules_;
+
+  FunctionMap all_fns_;
 };
 
 

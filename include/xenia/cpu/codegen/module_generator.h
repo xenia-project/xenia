@@ -10,6 +10,11 @@
 #ifndef XENIA_CPU_CODEGEN_MODULE_GENERATOR_H_
 #define XENIA_CPU_CODEGEN_MODULE_GENERATOR_H_
 
+#include <xenia/common.h>
+#include <xenia/core.h>
+
+#include <tr1/unordered_map>
+
 #include <xenia/cpu/sdb.h>
 #include <xenia/core/memory.h>
 #include <xenia/kernel/export.h>
@@ -17,11 +22,11 @@
 
 
 namespace llvm {
+  class DIBuilder;
+  class Function;
+  class FunctionType;
   class LLVMContext;
   class Module;
-  class FunctionType;
-  class Function;
-  class DIBuilder;
   class MDNode;
 }
 
@@ -41,6 +46,9 @@ public:
   ~ModuleGenerator();
 
   int Generate();
+
+  void AddFunctionsToMap(
+      std::tr1::unordered_map<uint32_t, llvm::Function*>& map);
 
 private:
   class CodegenFunction {

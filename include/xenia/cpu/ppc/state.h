@@ -143,7 +143,13 @@ typedef struct XECACHEALIGN64 xe_ppc_state {
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
-  void* runtime_data;
+  void* processor;
+  void* thread_state;
+  void* runtime;
+
+  void SetRegFromString(const char* name, const char* value);
+  bool CompareRegWithString(const char* name, const char* value,
+                            char* out_value, size_t out_value_size);
 } xe_ppc_state_t;
 
 

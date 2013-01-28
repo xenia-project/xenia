@@ -413,8 +413,8 @@ Value* FunctionGenerator::LoadStateValue(uint32_t offset, Type* type,
   IRBuilder<>& b = *builder_;
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
-  Value* statePtr = args;
-  Value* address = b.CreateConstInBoundsGEP1_64(statePtr, offset);
+  Value* state_ptr = args;
+  Value* address = b.CreateInBoundsGEP(state_ptr, b.getInt32(offset));
   Value* ptr = b.CreatePointerCast(address, pointerTy);
   return b.CreateLoad(ptr, name);
 }
@@ -424,8 +424,8 @@ void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
   IRBuilder<>& b = *builder_;
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
-  Value* statePtr = args;
-  Value* address = b.CreateConstInBoundsGEP1_64(statePtr, offset);
+  Value* state_ptr = args;
+  Value* address = b.CreateInBoundsGEP(state_ptr, b.getInt32(offset));
   Value* ptr = b.CreatePointerCast(address, pointerTy);
   b.CreateStore(value, ptr);
 }
@@ -861,7 +861,8 @@ Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  Value* address = b.CreateInBoundsGEP(GetMembase(), addr);
+  Value* offset_addr = b.CreateAdd(addr, b.getInt64(size));
+  Value* address = b.CreateInBoundsGEP(GetMembase(), offset_addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
   return b.CreateLoad(ptr);
 }
@@ -889,7 +890,8 @@ void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  Value* address = b.CreateInBoundsGEP(GetMembase(), addr);
+  Value* offset_addr = b.CreateAdd(addr, b.getInt64(size));
+  Value* address = b.CreateInBoundsGEP(GetMembase(), offset_addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
 
   // Truncate, if required.

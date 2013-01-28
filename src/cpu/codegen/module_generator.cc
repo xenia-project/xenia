@@ -126,6 +126,14 @@ int ModuleGenerator::Generate() {
   return 0;
 }
 
+void ModuleGenerator::AddFunctionsToMap(
+    std::tr1::unordered_map<uint32_t, llvm::Function*>& map) {
+  for (std::map<uint32_t, CodegenFunction*>::iterator it = functions_.begin();
+       it != functions_.end(); ++it) {
+    map.insert(std::pair<uint32_t, Function*>(it->first, it->second->function));
+  }
+}
+
 ModuleGenerator::CodegenFunction* ModuleGenerator::GetCodegenFunction(
     uint32_t address) {
   std::map<uint32_t, CodegenFunction*>::iterator it = functions_.find(address);

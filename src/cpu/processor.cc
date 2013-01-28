@@ -10,6 +10,7 @@
 #include <xenia/cpu/processor.h>
 
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/ExecutionEngine/Interpreter.h>
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/IR/LLVMContext.h>
@@ -97,6 +98,7 @@ int Processor::PrepareModule(
     return 1;
   }
 
+  exec_module->AddFunctionsToMap(all_fns_);
   modules_.push_back(exec_module);
 
   exec_module->Dump();
@@ -115,6 +117,7 @@ int Processor::PrepareModule(UserModule* user_module,
     return 1;
   }
 
+  exec_module->AddFunctionsToMap(all_fns_);
   modules_.push_back(exec_module);
 
   //user_module->Dump(export_resolver.get());
@@ -123,12 +126,58 @@ int Processor::PrepareModule(UserModule* user_module,
   return 0;
 }
 
-int Processor::Execute(uint32_t address) {
-  // TODO(benvanik): implement execute.
-  return 0;
-}
-
 uint32_t Processor::CreateCallback(void (*callback)(void* data), void* data) {
   // TODO(benvanik): implement callback creation.
   return 0;
+}
+
+ThreadState* Processor::AllocThread(uint32_t stack_address,
+                                    uint32_t stack_size) {
+  ThreadState* thread_state = new ThreadState(
+      this, stack_address, stack_size);
+  return thread_state;
+}
+
+void Processor::DeallocThread(ThreadState* thread_state) {
+  delete thread_state;
+}
+
+int Processor::Execute(ThreadState* thread_state, uint32_t address) {
+  // Find the function to execute.
+  Function* f = GetFunction(address);
+  if (!f) {
+    XELOGCPU("Failed to find function %.8X to execute.\n", address);
+    return 1;
+  }
+
+  xe_ppc_state_t* ppc_state = thread_state->ppc_state();
+
+  // This could be set to anything to give us a unique identifier to track
+  // re-entrancy/etc.
+  uint32_t lr = 0xBEBEBEBE;
+
+  // Setup registers.
+  ppc_state->lr = 0xBEBEBEBE;
+
+  // Args:
+  // - i8* state
+  // - i64 lr
+  std::vector<GenericValue> args;
+  args.push_back(PTOGV(ppc_state));
+  GenericValue lr_arg;
+  lr_arg.IntVal = APInt(64, lr);
+  args.push_back(lr_arg);
+
+  GenericValue ret = engine_->runFunction(f, args);
+
+  //return (uint32_t)ret.IntVal.getSExtValue();
+  return 0;
+}
+
+Function* Processor::GetFunction(uint32_t address) {
+  FunctionMap::iterator it = all_fns_.find(address);
+  if (it != all_fns_.end()) {
+    return it->second;
+  }
+  return NULL;
 }

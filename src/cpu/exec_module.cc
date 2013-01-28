@@ -219,6 +219,10 @@ XECLEANUP:
   return result_code;
 }
 
+void ExecModule::AddFunctionsToMap(FunctionMap& map) {
+  codegen_->AddFunctionsToMap(map);
+}
+
 void XeTrap(xe_ppc_state_t* state, uint32_t cia) {
   printf("TRAP");
   XEASSERTALWAYS();

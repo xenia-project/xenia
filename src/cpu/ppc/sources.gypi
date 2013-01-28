@@ -2,5 +2,6 @@
 {
   'sources': [
     'instr.cc',
+    'state.cc',
   ],
 }

@@ -55,25 +55,47 @@ int read_annotations(xe_pal_ref pal, string& src_file_path,
 }
 
 int setup_test_state(xe_memory_ref memory, Processor* processor,
+                     ThreadState* thread_state,
                      annotations_list_t& annotations) {
+  xe_ppc_state_t* ppc_state = thread_state->ppc_state();
+
   for (annotations_list_t::iterator it = annotations.begin();
        it != annotations.end(); ++it) {
     if (it->first == "REGISTER_IN") {
-      printf("REGISTER_IN : %s\n", it->second.c_str());
+      size_t space_pos = it->second.find(" ");
+      string reg_name = it->second.substr(0, space_pos);
+      string reg_value = it->second.substr(space_pos + 1);
+      ppc_state->SetRegFromString(reg_name.c_str(), reg_value.c_str());
     }
   }
   return 0;
 }
 
 int check_test_results(xe_memory_ref memory, Processor* processor,
+                       ThreadState* thread_state,
                        annotations_list_t& annotations) {
+  xe_ppc_state_t* ppc_state = thread_state->ppc_state();
+
+  char actual_value[2048];
+
+  bool any_failed = false;
   for (annotations_list_t::iterator it = annotations.begin();
        it != annotations.end(); ++it) {
     if (it->first == "REGISTER_OUT") {
-      printf("REGISTER_OUT : %s\n", it->second.c_str());
+      size_t space_pos = it->second.find(" ");
+      string reg_name = it->second.substr(0, space_pos);
+      string reg_value = it->second.substr(space_pos + 1);
+      if (!ppc_state->CompareRegWithString(
+          reg_name.c_str(), reg_value.c_str(),
+          actual_value, XECOUNT(actual_value))) {
+        any_failed = true;
+        printf("Register %s assert failed:\n", reg_name.c_str());
+        printf("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());
+        printf("    Actual: %s == %s\n", reg_name.c_str(), actual_value);
+      }
     }
   }
-  return 0;
+  return any_failed;
 }
 
 int run_test(xe_pal_ref pal, string& src_file_path) {
@@ -89,6 +111,7 @@ int run_test(xe_pal_ref pal, string& src_file_path) {
   shared_ptr<Processor> processor;
   shared_ptr<Runtime> runtime;
   annotations_list_t annotations;
+  ThreadState* thread_state = NULL;
 
   XEEXPECTZERO(read_annotations(pal, src_file_path, annotations));
 
@@ -105,17 +128,25 @@ int run_test(xe_pal_ref pal, string& src_file_path) {
   // Load the binary module.
   XEEXPECTZERO(runtime->LoadBinaryModule(bin_file_path.c_str(), 0x82010000));
 
+  // Simulate a thread.
+  thread_state = processor->AllocThread(0x80000000, 256 * 1024 * 1024);
+
   // Setup test state from annotations.
-  XEEXPECTZERO(setup_test_state(memory, processor.get(), annotations));
+  XEEXPECTZERO(setup_test_state(memory, processor.get(), thread_state,
+                                annotations));
 
   // Execute test.
-  XEEXPECTZERO(processor->Execute(0x82010000));
+  XEEXPECTZERO(processor->Execute(thread_state, 0x82010000));
 
   // Assert test state expectations.
-  XEEXPECTZERO(check_test_results(memory, processor.get(), annotations));
+  XEEXPECTZERO(check_test_results(memory, processor.get(), thread_state,
+                                  annotations));
 
   result_code = 0;
 XECLEANUP:
+  if (processor && thread_state) {
+    processor->DeallocThread(thread_state);
+  }
   runtime.reset();
   processor.reset();
   xe_memory_release(memory);
@@ -172,12 +203,12 @@ int run_tests(const xechar_t* test_name) {
       continue;
     }
 
-    printf("Running %s... ", (*it).c_str());
+    printf("Running %s...\n", (*it).c_str());
     if (run_test(pal, *it)) {
-      printf("FAILED\n");
+      printf("TEST FAILED\n");
       failed_count++;
     } else {
-      printf("PASSED\n");
+      printf("Passed\n");
       passed_count++;
     }
   }

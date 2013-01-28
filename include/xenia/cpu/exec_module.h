@@ -13,15 +13,18 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <tr1/unordered_map>
+
 #include <xenia/cpu/sdb.h>
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/user_module.h>
 
 
 namespace llvm {
+  class ExecutionEngine;
+  class Function;
   class LLVMContext;
   class Module;
-  class ExecutionEngine;
 }
 
 namespace xe {
@@ -37,6 +40,9 @@ namespace xe {
 namespace cpu {
 
 
+typedef std::tr1::unordered_map<uint32_t, llvm::Function*> FunctionMap;
+
+
 class ExecModule {
 public:
   ExecModule(
@@ -47,6 +53,8 @@ public:
 
   int PrepareUserModule(kernel::UserModule* user_module);
   int PrepareRawBinary(uint32_t start_address, uint32_t end_address);
+
+  void AddFunctionsToMap(FunctionMap& map);
 
   void Dump();
 
@@ -65,6 +73,8 @@ private:
   shared_ptr<llvm::LLVMContext>       context_;
   shared_ptr<llvm::Module>            gen_module_;
   auto_ptr<codegen::ModuleGenerator>  codegen_;
+
+  FunctionMap fns_;
 };
 
 
