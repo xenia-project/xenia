@@ -128,6 +128,8 @@ public:
 
   uint32_t  address;
   char*     name;
+
+  kernel::KernelExport* kernel_export;
 };
 
 class ExceptionEntrySymbol : public Symbol {
@@ -154,6 +156,7 @@ public:
   VariableSymbol* GetVariable(uint32_t address);
   Symbol* GetSymbol(uint32_t address);
 
+  int GetAllVariables(std::vector<VariableSymbol*>& variables);
   int GetAllFunctions(std::vector<FunctionSymbol*>& functions);
 
   void Write(const char* file_name);

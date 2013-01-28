@@ -90,13 +90,18 @@ int XeEmitBranchTo(
       Function* target_fn = g.GetFunction(fn_block->outgoing_function);
       Function::arg_iterator args = g.gen_fn()->arg_begin();
       Value* state_ptr = args;
-      b.CreateCall2(target_fn, state_ptr, b.getInt64(cia + 4));
       BasicBlock* next_bb = g.GetNextBasicBlock();
       if (!lk || !next_bb) {
         // Tail. No need to refill the local register values, just return.
+        // We optimize this by passing in the LR from our parent instead of the
+        // next instruction. This allows the return from our callee to pop
+        // all the way up.
+        b.CreateCall2(target_fn, state_ptr, ++args);
         b.CreateRetVoid();
       } else {
+        // Will return here eventually.
         // Refill registers from state.
+        b.CreateCall2(target_fn, state_ptr, b.getInt64(cia + 4));
         g.FillRegisters();
         b.CreateBr(next_bb);
       }
@@ -188,7 +193,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
     // Ignore cond.
   } else {
     Value* cr = g.cr_value(i.B.BI >> 2);
-    cr = b.CreateAnd(cr, 1 << (i.B.BI >> 2));
+    cr = b.CreateAnd(cr, 1 << (i.B.BI & 3));
     if (XESELECTBITS(i.B.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
     } else {
@@ -257,7 +262,7 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
     // Ignore cond.
   } else {
     Value* cr = g.cr_value(i.XL.BI >> 2);
-    cr = b.CreateAnd(cr, 1 << (i.XL.BI >> 2));
+    cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
     } else {
@@ -336,7 +341,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
     // Ignore cond.
   } else {
     Value* cr = g.cr_value(i.XL.BI >> 2);
-    cr = b.CreateAnd(cr, 1 << (i.XL.BI >> 2));
+    cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
     } else {

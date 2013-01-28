@@ -17,6 +17,10 @@ using namespace xe::cpu;
 using namespace xe::kernel;
 
 
+DEFINE_bool(abort_before_entry, false,
+    "Abort execution right before launching the module.");
+
+
 class Run {
 public:
   Run();
@@ -66,6 +70,10 @@ XECLEANUP:
 }
 
 int Run::Launch() {
+  if (FLAGS_abort_before_entry) {
+    return 0;
+  }
+
   // TODO(benvanik): wait until the module thread exits
   runtime_->LaunchModule(module_);
   return 0;

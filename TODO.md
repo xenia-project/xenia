@@ -1,3 +1,7 @@
+## Kernel
+
+NtAllocateVirtualMemory
+
 ## Instructions
 
 ### XER CA bit (carry)
@@ -6,7 +10,6 @@ Not sure the way I'm doing this is right. addic/subficx/etc set it to the value
 of the overflow bit from the LLVM *_with_overflow intrinsic.
 
 ```
-rlwinmx
 rlwimix
 rldiclx
 ```

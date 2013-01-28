@@ -102,7 +102,7 @@ int ModuleGenerator::Generate() {
         PrepareFunction(fn);
         break;
       case FunctionSymbol::Kernel:
-        if (fn->kernel_export && fn->kernel_export->IsImplemented()) {
+        if (fn->kernel_export && fn->kernel_export->is_implemented) {
           AddPresentImport(fn);
         } else {
           AddMissingImport(fn);
@@ -191,20 +191,19 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
   // Create the function (and setup args/attributes/etc).
   Function* f = CreateFunctionDefinition(fn->name);
 
-  // TODO(benvanik): log errors.
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
-  IRBuilder<> builder(block);
+  IRBuilder<> b(block);
 
   if (FLAGS_trace_kernel_calls) {
     Value* traceKernelCall = m->getFunction("XeTraceKernelCall");
-    builder.CreateCall3(
+    b.CreateCall3(
         traceKernelCall,
         f->arg_begin(),
-        builder.getInt64(fn->start_address),
+        b.getInt64(fn->start_address),
         ++f->arg_begin());
   }
 
-  builder.CreateRetVoid();
+  b.CreateRetVoid();
 
   OptimizeFunction(m, f);
 
@@ -219,10 +218,44 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
 }
 
 void ModuleGenerator::AddPresentImport(FunctionSymbol* fn) {
-  // Module *m = gen_module_;
-  // LLVMContext& context = m->getContext();
+  Module *m = gen_module_;
+  LLVMContext& context = m->getContext();
 
-  // TODO(benvanik): add import thunk code.
+  // Add the extern.
+  char shim_name[256];
+  xesnprintfa(shim_name, XECOUNT(shim_name),
+              "__shim__%s", fn->kernel_export->name);
+  std::vector<Type*> shimArgs;
+  shimArgs.push_back(PointerType::getUnqual(Type::getInt8Ty(context)));
+  FunctionType* shimTy = FunctionType::get(
+      Type::getVoidTy(context), shimArgs, false);
+  Function* shim = Function::Create(
+      shimTy, Function::ExternalLinkage, shim_name, m);
+  // engine_->addGlobalMapping(shim,
+  //     (void*)fn->kernel_export->function_data.shim);
+
+  // Create the function (and setup args/attributes/etc).
+  Function* f = CreateFunctionDefinition(fn->name);
+
+  BasicBlock* block = BasicBlock::Create(context, "entry", f);
+  IRBuilder<> b(block);
+
+  if (FLAGS_trace_kernel_calls) {
+    Value* traceKernelCall = m->getFunction("XeTraceKernelCall");
+    b.CreateCall3(
+        traceKernelCall,
+        f->arg_begin(),
+        b.getInt64(fn->start_address),
+        ++f->arg_begin());
+  }
+
+  b.CreateCall(
+      shim,
+      f->arg_begin());
+
+  b.CreateRetVoid();
+
+  OptimizeFunction(m, f);
 }
 
 void ModuleGenerator::PrepareFunction(FunctionSymbol* fn) {

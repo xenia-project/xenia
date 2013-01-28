@@ -14,23 +14,6 @@ using namespace xe;
 using namespace xe::kernel;
 
 
-bool KernelExport::IsImplemented() {
-  switch (type) {
-  case Function:
-    if (function_data.impl) {
-      return true;
-    }
-    break;
-  case Variable:
-    if (variable_data) {
-      return true;
-    }
-    break;
-  }
-  return false;
-}
-
-
 ExportResolver::ExportResolver() {
 }
 
@@ -44,6 +27,13 @@ void ExportResolver::RegisterTable(
   table.exports = exports;
   table.count = count;
   tables_.push_back(table);
+
+  for (size_t n = 0; n < count; n++) {
+    exports[n].is_implemented = false;
+    exports[n].variable_ptr = 0;
+    exports[n].function_data.shim = NULL;
+    exports[n].function_data.impl = NULL;
+  }
 }
 
 KernelExport* ExportResolver::GetExportByOrdinal(const char* library_name,
@@ -68,4 +58,24 @@ KernelExport* ExportResolver::GetExportByName(const char* library_name,
   // TODO(benvanik): lookup by name.
   XEASSERTALWAYS();
   return NULL;
+}
+
+void ExportResolver::SetVariableMapping(const char* library_name,
+                                        const uint32_t ordinal,
+                                        uint32_t value) {
+  KernelExport* kernel_export = GetExportByOrdinal(library_name, ordinal);
+  XEASSERTNOTNULL(kernel_export);
+  kernel_export->is_implemented = true;
+  kernel_export->variable_ptr = value;
+}
+
+void ExportResolver::SetFunctionMapping(const char* library_name,
+                                        const uint32_t ordinal,
+                                        xe_kernel_export_shim_fn shim,
+                                        xe_kernel_export_impl_fn impl) {
+  KernelExport* kernel_export = GetExportByOrdinal(library_name, ordinal);
+  XEASSERTNOTNULL(kernel_export);
+  kernel_export->is_implemented = true;
+  kernel_export->function_data.shim = shim;
+  kernel_export->function_data.impl = impl;
 }

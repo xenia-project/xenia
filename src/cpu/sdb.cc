@@ -84,7 +84,8 @@ FunctionBlock* FunctionSymbol::SplitBlock(uint32_t address) {
 
 VariableSymbol::VariableSymbol() :
     Symbol(Variable),
-    address(0), name(0) {
+    address(0), name(0),
+    kernel_export(0) {
 }
 
 VariableSymbol::~VariableSymbol() {
@@ -211,6 +212,15 @@ VariableSymbol* SymbolDatabase::GetVariable(uint32_t address) {
     return static_cast<VariableSymbol*>(i->second);
   }
   return NULL;
+}
+
+int SymbolDatabase::GetAllVariables(std::vector<VariableSymbol*>& variables) {
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    if (it->second->symbol_type == Symbol::Variable) {
+      variables.push_back(static_cast<VariableSymbol*>(it->second));
+    }
+  }
+  return 0;
 }
 
 int SymbolDatabase::GetAllFunctions(vector<FunctionSymbol*>& functions) {
@@ -847,6 +857,7 @@ int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
                   info->ordinal);
     }
     var->name = xestrdupa(name);
+    var->kernel_export = kernel_export;
     if (info->thunk_address) {
       FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
       fn->end_address = fn->start_address + 16 - 4;

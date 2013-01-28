@@ -1,0 +1,9 @@
+
+extrwi.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000082010000 <.text>:
+    82010000:	54 a7 ef 3e 	rlwinm  r7,r5,29,28,31
+    82010004:	4e 80 00 20 	blr

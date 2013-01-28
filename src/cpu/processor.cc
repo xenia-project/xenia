@@ -43,6 +43,8 @@ namespace {
     LLVMLinkInJIT();
     InitializeNativeTarget();
 
+    llvm_start_multithreaded();
+
     // TODO(benvanik): only do this once
     codegen::RegisterEmitCategoryALU();
     codegen::RegisterEmitCategoryControl();
@@ -89,17 +91,21 @@ xe_memory_ref Processor::memory() {
 int Processor::Setup() {
   XEASSERTNULL(engine_);
 
-  if (!llvm_start_multithreaded()) {
-    return 1;
-  }
-
   dummy_context_ = auto_ptr<LLVMContext>(new LLVMContext());
   Module* dummy_module = new Module("dummy", *dummy_context_.get());
 
   std::string error_message;
-  engine_ = shared_ptr<ExecutionEngine>(
-      ExecutionEngine::create(dummy_module, false, &error_message,
-                              CodeGenOpt::Aggressive, false));
+
+  EngineBuilder builder(dummy_module);
+  builder.setEngineKind(EngineKind::JIT);
+  builder.setErrorStr(&error_message);
+  builder.setOptLevel(CodeGenOpt::None);
+  //builder.setOptLevel(CodeGenOpt::Aggressive);
+  //builder.setTargetOptions();
+  builder.setAllocateGVsWithCode(false);
+  //builder.setUseMCJIT(true);
+
+  engine_ = shared_ptr<ExecutionEngine>(builder.create());
   if (!engine_) {
     return 1;
   }
@@ -178,7 +184,7 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   uint32_t lr = 0xBEBEBEBE;
 
   // Setup registers.
-  ppc_state->lr = 0xBEBEBEBE;
+  ppc_state->lr = lr;
 
   // Args:
   // - i8* state
@@ -190,6 +196,10 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   args.push_back(lr_arg);
 
   GenericValue ret = engine_->runFunction(f, args);
+
+  // typedef void (*fnptr)(xe_ppc_state_t*, uint64_t);
+  // fnptr ptr = (fnptr)engine_->getPointerToFunction(f);
+  // ptr(ppc_state, lr);
 
   //return (uint32_t)ret.IntVal.getSExtValue();
   return 0;

@@ -15,11 +15,15 @@
 #include <vector>
 
 
+typedef struct xe_ppc_state xe_ppc_state_t;
+
+
 namespace xe {
 namespace kernel {
 
 
-typedef void (*xe_kernel_export_fn)();
+typedef void (*xe_kernel_export_impl_fn)();
+typedef void (*xe_kernel_export_shim_fn)(xe_ppc_state_t* state);
 
 class KernelExport {
 public:
@@ -34,21 +38,24 @@ public:
   char          signature[16];
   char          name[96];
 
+  bool          is_implemented;
+
   union {
     // Variable data. Only valid when kXEKernelExportFlagVariable is set.
-    void          *variable_data;
+    // This is an address in the client memory space that the variable can
+    // be found at.
+    uint32_t    variable_ptr;
 
     struct {
-      // Real function implementation (if present).
-      xe_kernel_export_fn impl;
+      // Shimmed implementation.
+      // This is called directly from generated code.
+      // It should parse args, do fixups, and call the impl.
+      xe_kernel_export_shim_fn shim;
 
-      // Shimmed implementation (call if param structs are big endian).
-      // This may be NULL if no shim is needed or present.
-      xe_kernel_export_fn shim;
+      // Real function implementation.
+      xe_kernel_export_impl_fn impl;
     } function_data;
   };
-
-  bool IsImplemented();
 };
 
 #define XE_DECLARE_EXPORT(module, ordinal, name, signature, type, flags) \
@@ -72,6 +79,12 @@ public:
   KernelExport* GetExportByOrdinal(const char* library_name,
                                    const uint32_t ordinal);
   KernelExport* GetExportByName(const char* library_name, const char* name);
+
+  void SetVariableMapping(const char* library_name, const uint32_t ordinal,
+                          uint32_t value);
+  void SetFunctionMapping(const char* library_name, const uint32_t ordinal,
+                          xe_kernel_export_shim_fn shim,
+                          xe_kernel_export_impl_fn impl);
 
 private:
   class ExportTable {

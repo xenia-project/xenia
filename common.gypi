@@ -11,7 +11,8 @@
     },
 
     # LLVM paths.
-    'llvm_path': 'build/llvm/release/',
+    # TODO(benvanik): switch based on configuration.
+    'llvm_path': 'build/llvm/debug/',
     'llvm_config': '<(llvm_path)bin/llvm-config',
   },
 

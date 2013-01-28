@@ -41,6 +41,7 @@ using namespace llvm;
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::codegen;
+using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
@@ -72,7 +73,16 @@ int ExecModule::PrepareUserModule(kernel::UserModule* user_module) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
       new sdb::XexSymbolDatabase(memory_, export_resolver_.get(), user_module));
 
-  return Prepare();
+  int result_code = Prepare();
+  if (result_code) {
+    return result_code;
+  }
+
+  // Import variables.
+  xe_xex2_ref xex = user_module->xex();
+  xe_xex2_release(xex);
+
+  return 0;
 }
 
 int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
@@ -339,6 +349,38 @@ int ExecModule::InjectGlobals() {
 }
 
 int ExecModule::Init() {
+  // Setup all kernel variables.
+  std::vector<VariableSymbol*> variables;
+  if (sdb_->GetAllVariables(variables)) {
+    return 1;
+  }
+  uint8_t* mem = xe_memory_addr(memory_, 0);
+  for (std::vector<VariableSymbol*>::iterator it = variables.begin();
+       it != variables.end(); ++it) {
+    VariableSymbol* var = *it;
+    if (!var->kernel_export) {
+      continue;
+    }
+    KernelExport* kernel_export = var->kernel_export;
+
+    // Grab, if available.
+    uint32_t* slot = (uint32_t*)(mem + var->address);
+    if (kernel_export->type == KernelExport::Function) {
+      // Not exactly sure what this should be...
+      // TODO(benvanik): find out what import variables are.
+    } else {
+      if (kernel_export->is_implemented) {
+        // Implemented - replace with pointer.
+        *slot = kernel_export->variable_ptr;
+      } else {
+        // Not implemented - write with a dummy value.
+        *slot = 0xDEADBEEF;
+        XELOGCPU("WARNING: imported a variable with no value: %s",
+                 kernel_export->name);
+      }
+    }
+  }
+
   // Run static initializers. I'm not sure we'll have any, but who knows.
   engine_->runStaticConstructorsDestructors(gen_module_.get(), false);
 

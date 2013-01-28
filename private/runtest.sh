@@ -10,9 +10,11 @@ fi
     private/$1 \
     --optimize_ir_modules=true \
     --optimize_ir_functions=true \
+    --memory_address_verification=true \
     --trace_kernel_calls=true \
-    --trace_user_calls=false \
-    --trace_instructions=false \
+    --trace_user_calls=true \
+    --trace_instructions=true \
+    --abort_before_entry=true \
     1>build/run.txt
     #2>build/run.llvm.txt \
 

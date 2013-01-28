@@ -779,12 +779,13 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
 
-  // The compiler will generate a bunch of these for the special case of
-  // SH=0, MB=ME
-  // Which seems to just select a single bit and set cr0 for use with a branch.
+  // The compiler will generate a bunch of these for the special case of SH=0.
+  // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.
-  if (!i.M.SH && i.M.MB == i.M.ME) {
-    Value* v = b.CreateAnd(g.gpr_value(i.M.RS), 1 << i.M.MB);
+  if (!i.M.SH) {
+    Value* v = b.CreateAnd(b.CreateTrunc(g.gpr_value(i.M.RS), b.getInt32Ty()),
+                           b.getInt32(XEMASK(i.M.MB + 32, i.M.ME + 32)));
+    v = b.CreateZExt(v, b.getInt64Ty());
     g.update_gpr_value(i.M.RA, v);
     if (i.M.Rc) {
       // With cr0 update.
@@ -793,20 +794,20 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
     return 0;
   }
 
-  // // ROTL32(x, y) = rotl(i64.(x||x), y)
-  // Value* v = b.CreateZExt(b.CreateTrunc(g.gpr_value(i.M.RS)), b.getInt64Ty());
-  // v = b.CreateOr(b.CreateLShr(v, 32), v);
-  // // (v << shift) | (v >> (64 - shift));
-  // v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
-  // v = b.CreateAnd(v, XEMASK(i.M.MB + 32, i.M.ME + 32));
+  // ROTL32(x, y) = rotl(i64.(x||x), y)
+  Value* v = b.CreateAnd(g.gpr_value(i.M.RS), UINT32_MAX);
+  v = b.CreateOr(b.CreateShl(v, 32), v);
+  // (v << shift) | (v >> (32 - shift));
+  v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
+  v = b.CreateAnd(v, XEMASK(i.M.MB + 32, i.M.ME + 32));
+  g.update_gpr_value(i.M.RA, v);
 
-  // if (i.M.Rc) {
-  //   // With cr0 update.
-  //   g.update_cr_with_cond(0, v, b.getInt64(0), true);
-  // }
+  if (i.M.Rc) {
+    // With cr0 update.
+    g.update_cr_with_cond(0, v, b.getInt64(0), true);
+  }
 
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return 0;
 }
 
 XEEMITTER(rlwnmx,       0x5C000000, M  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {

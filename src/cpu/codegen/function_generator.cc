@@ -9,6 +9,8 @@
 
 #include <xenia/cpu/codegen/function_generator.h>
 
+#include <llvm/IR/Intrinsics.h>
+
 #include <xenia/cpu/ppc/state.h>
 
 #include "cpu/cpu-private.h"
@@ -18,6 +20,10 @@ using namespace llvm;
 using namespace xe::cpu::codegen;
 using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
+
+
+DEFINE_bool(memory_address_verification, false,
+    "Whether to add additional checks to generated memory load/stores.");
 
 
 /**
@@ -752,9 +758,6 @@ void FunctionGenerator::update_cr_with_cond(
   // bit1 = RA > RB
   // bit2 = RA = RB
   // bit3 = XER[SO]
-  // Bits are reversed:
-  // 0123
-  // 3210
 
   // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
   // the need for a lot of the compares and ensures we lower to the best
@@ -770,8 +773,8 @@ void FunctionGenerator::update_cr_with_cond(
       b.CreateICmpSLT(lhs, rhs) : b.CreateICmpULT(lhs, rhs);
   Value* is_gt = is_signed ?
       b.CreateICmpSGT(lhs, rhs) : b.CreateICmpUGT(lhs, rhs);
-  Value* cp = b.CreateSelect(is_gt, b.getInt8(1 << 2), b.getInt8(1 << 1));
-  Value* c = b.CreateSelect(is_lt, b.getInt8(1 << 3), cp);
+  Value* cp = b.CreateSelect(is_gt, b.getInt8(1 << 1), b.getInt8(1 << 2));
+  Value* c = b.CreateSelect(is_lt, b.getInt8(1 << 0), cp);
 
   // TODO(benvanik): set bit 4 to XER[SO]
 
@@ -834,26 +837,53 @@ Value* FunctionGenerator::GetMembase() {
   return builder_->CreateLoad(v);
 }
 
-Value* FunctionGenerator::memory_addr(uint32_t addr) {
-  return NULL;
+Value* FunctionGenerator::GetMemoryAddress(Value* addr) {
+  IRBuilder<>& b = *builder_;
+
+  // Input address is always in 32-bit space.
+  addr = b.CreateAnd(addr, UINT_MAX);
+
+  // Add runtime memory address checks, if needed.
+  if (FLAGS_memory_address_verification) {
+    BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", gen_fn_);
+    BasicBlock* valid_bb = BasicBlock::Create(*context_, "", gen_fn_);
+
+    Value* gt = b.CreateICmpUGE(addr, b.getInt64(0x10000000));
+    b.CreateCondBr(gt, valid_bb, invalid_bb);
+
+    b.SetInsertPoint(invalid_bb);
+    Function* debugtrap = Intrinsic::getDeclaration(
+        gen_module_, Intrinsic::debugtrap);
+    b.CreateCall(debugtrap);
+    b.CreateBr(valid_bb);
+
+    b.SetInsertPoint(valid_bb);
+  }
+
+  // Rebase off of memory base pointer.
+  return b.CreateInBoundsGEP(GetMembase(), addr);
 }
 
 Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   IRBuilder<>& b = *builder_;
 
   Type* dataTy = NULL;
+  bool needs_swap = false;
   switch (size) {
     case 1:
       dataTy = b.getInt8Ty();
       break;
     case 2:
       dataTy = b.getInt16Ty();
+      needs_swap = true;
       break;
     case 4:
       dataTy = b.getInt32Ty();
+      needs_swap = true;
       break;
     case 8:
       dataTy = b.getInt64Ty();
+      needs_swap = true;
       break;
     default:
       XEASSERTALWAYS();
@@ -861,31 +891,41 @@ Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  // Input address is always in 32-bit space.
-  addr = b.CreateAnd(addr, UINT_MAX);
-
-  Value* offset_addr = b.CreateAdd(addr, b.getInt64(size));
-  Value* address = b.CreateInBoundsGEP(GetMembase(), offset_addr);
+  Value* address = GetMemoryAddress(addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
-  return b.CreateLoad(ptr);
+  Value* value = b.CreateLoad(ptr);
+
+  // Swap after loading.
+  // TODO(benvanik): find a way to avoid this!
+  if (needs_swap) {
+    Function* bswap = Intrinsic::getDeclaration(
+          gen_module_, Intrinsic::bswap, dataTy);
+    value = b.CreateCall(bswap, value);
+  }
+
+  return value;
 }
 
 void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
   IRBuilder<>& b = *builder_;
 
   Type* dataTy = NULL;
+  bool needs_swap = false;
   switch (size) {
     case 1:
       dataTy = b.getInt8Ty();
       break;
     case 2:
       dataTy = b.getInt16Ty();
+      needs_swap = true;
       break;
     case 4:
       dataTy = b.getInt32Ty();
+      needs_swap = true;
       break;
     case 8:
       dataTy = b.getInt64Ty();
+      needs_swap = true;
       break;
     default:
       XEASSERTALWAYS();
@@ -893,16 +933,21 @@ void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  // Input address is always in 32-bit space.
-  addr = b.CreateAnd(addr, UINT_MAX);
-
-  Value* offset_addr = b.CreateAdd(addr, b.getInt64(size));
-  Value* address = b.CreateInBoundsGEP(GetMembase(), offset_addr);
+  Value* address = GetMemoryAddress(addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
 
   // Truncate, if required.
   if (value->getType() != dataTy) {
     value = b.CreateTrunc(value, dataTy);
   }
+
+  // Swap before storing.
+  // TODO(benvanik): find a way to avoid this!
+  if (needs_swap) {
+    Function* bswap = Intrinsic::getDeclaration(
+          gen_module_, Intrinsic::bswap, dataTy);
+    value = b.CreateCall(bswap, value);
+  }
+
   b.CreateStore(value, ptr);
 }

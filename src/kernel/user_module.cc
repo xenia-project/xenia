@@ -369,7 +369,7 @@ void UserModule::Dump(ExportResolver* export_resolver) {
             export_resolver->GetExportByOrdinal(library->name, info->ordinal);
         if (kernel_export) {
           known_count++;
-          if (kernel_export->IsImplemented()) {
+          if (kernel_export->is_implemented) {
             impl_count++;
           }
         } else {
@@ -395,7 +395,7 @@ void UserModule::Dump(ExportResolver* export_resolver) {
         bool implemented = false;
         if (kernel_export) {
           name = kernel_export->name;
-          implemented = kernel_export->IsImplemented();
+          implemented = kernel_export->is_implemented;
         }
         if (info->thunk_address) {
           printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
