@@ -25,26 +25,6 @@ using namespace xe::kernel::xboxkrnl;
 
 namespace {
 
-  // bit 27 = something?
-  typedef struct {
-    uint32_t    flags;
-    uint8_t     processor_count;
-    uint8_t     unknown0;
-    uint8_t     unknown1;
-    uint8_t     unknown2;
-    uint32_t    unknown4;
-    uint16_t    unknown5;
-    uint16_t    unknown6;
-  } XboxHardwareInfo_t;
-  // XboxHardwareInfo_t XboxHardwareInfo = {
-  //   0x00000000, 3, 0, 0, 0, 0, 0, 0,
-  // };
-
-  // This should remain zero for now.
-  // The pointer returned should have a 4b value at 0x58 that is the first
-  // argument to RtlImageXexHeaderField (header base?)
-  //uint32_t XexExecutableModuleHandle = 0x00000000;
-
 }
 
 
@@ -69,17 +49,24 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
 
   uint8_t* mem = xe_memory_addr(memory, 0);
 
-  // HACK: register some dummy globals for now.
-  // KeDebugMonitorData
+  // KeDebugMonitorData (?*)
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000059,
       0x40001000);
-  // XboxHardwareInfo
+
+  // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
+  // flags       cpu#  ?     ?     ?     ?           ?       ?
+  // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
+  // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
+  // was whether an HDD was present. Not sure what the other flags are.
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000156,
-      0x40002000);
+      0x80100FED);
+  XESETUINT32BE(mem + 0x80100FED, 0x00000000);  // flags
+  XESETUINT8BE(mem  + 0x80100FEE, 0x06);        // cpu count
+  // Remaining 11b are zeroes?
 
-  // XexExecutableModuleHandle
+  // XexExecutableModuleHandle (?**)
   // Games try to dereference this to get a pointer to some module struct.
   // So far it seems like it's just in loader code, and only used to look up
   // the XexHeaderBase for use by RtlImageXexHeaderField.
@@ -93,6 +80,17 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
       0x80100FFC);
   XESETUINT32BE(mem + 0x80100FFC, 0x80101000);
   XESETUINT32BE(mem + 0x80101058, 0x80101100);
+
+  // ExLoadedCommandLine (char*)
+  // The name of the xex. Not sure this is ever really used on real devices.
+  // Perhaps it's how swap disc/etc data is sent?
+  // Always set to "default.xex" (with quotes) for now.
+  resolver->SetVariableMapping(
+      "xboxkrnl.exe", 0x000001AE,
+      0x80102000);
+  char command_line[] = "\"default.xex\"";
+  xe_copy_memory(mem + 0x80102000, 1024,
+                 command_line, XECOUNT(command_line) + 1);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {
