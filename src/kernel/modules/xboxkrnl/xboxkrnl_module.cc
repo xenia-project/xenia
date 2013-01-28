@@ -12,6 +12,9 @@
 #include "kernel/modules/xboxkrnl/kernel_state.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl_hal.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl_memory.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl_rtl.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl_threading.h"
+
 #include "kernel/modules/xboxkrnl/xboxkrnl_table.h"
 
 
@@ -58,6 +61,8 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
   // Register all exported functions.
   RegisterHalExports(resolver.get(), kernel_state.get());
   RegisterMemoryExports(resolver.get(), kernel_state.get());
+  RegisterRtlExports(resolver.get(), kernel_state.get());
+  RegisterThreadingExports(resolver.get(), kernel_state.get());
 
   // TODO(benvanik): alloc heap memory somewhere in user space
   // TODO(benvanik): tools for reading/writing to heap memory

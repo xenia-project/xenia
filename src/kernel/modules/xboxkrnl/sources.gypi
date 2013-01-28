@@ -5,5 +5,7 @@
     'xboxkrnl_hal.cc',
     'xboxkrnl_memory.cc',
     'xboxkrnl_module.cc',
+    'xboxkrnl_rtl.cc',
+    'xboxkrnl_threading.cc',
   ],
 }

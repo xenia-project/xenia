@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "kernel/modules/xboxkrnl/xboxkrnl_hal.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl_threading.h"
 
 #include "kernel/shim_utils.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl.h"
@@ -21,35 +21,27 @@ using namespace xe::kernel::xboxkrnl;
 namespace {
 
 
-void HalReturnToFirmware_shim(
+void KeGetCurrentProcessType_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  // void
-  // IN FIRMWARE_REENTRY  Routine
-
-  // Routine must be 1 'HalRebootRoutine'
-  uint32_t routine = SHIM_GET_ARG_32(0);
+  // DWORD
 
   XELOGD(
-      XT("HalReturnToFirmware(%d)"),
-      routine);
+      XT("KeGetCurrentProcessType()"));
 
-  // TODO(benvank): diediedie much more gracefully
-  // Not sure how to blast back up the stack in LLVM without exceptions, though.
-  XELOGE(XT("Game requested shutdown via HalReturnToFirmware"));
-  exit(0);
+  SHIM_SET_RETURN(X_PROCTYPE_USER);
 }
 
 
 }
 
 
-void xe::kernel::xboxkrnl::RegisterHalExports(
+void xe::kernel::xboxkrnl::RegisterThreadingExports(
     ExportResolver* export_resolver, KernelState* state) {
   #define SHIM_SET_MAPPING(ordinal, shim, impl) \
     export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
         state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
 
-  SHIM_SET_MAPPING(0x00000028, HalReturnToFirmware_shim, NULL);
+  SHIM_SET_MAPPING(0x00000066, KeGetCurrentProcessType_shim, NULL);
 
   #undef SET_MAPPING
 }
