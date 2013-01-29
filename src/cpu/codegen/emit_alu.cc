@@ -26,6 +26,14 @@ namespace codegen {
 
 // Integer arithmetic (A-3)
 
+XEDISASMR(addx,         0x7C000214, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("add",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return 0;
+}
 XEEMITTER(addx,         0x7C000214, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RD <- (RA) + (RB)
 
@@ -37,12 +45,13 @@ XEEMITTER(addx,         0x7C000214, XO )(FunctionGenerator& g, IRBuilder<>& b, I
         g.gen_module(), Intrinsic::sadd_with_overflow, b.getInt64Ty());
     Value* v = b.CreateCall2(sadd_with_overflow,
                              g.gpr_value(i.XO.RA), g.gpr_value(i.XO.RB));
-    g.update_gpr_value(i.XO.RT, b.CreateExtractValue(v, 0));
+    Value* v0 = b.CreateExtractValue(v, 0);
+    g.update_gpr_value(i.XO.RT, v0);
     g.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
     if (i.XO.Rc) {
       // With cr0 update.
-      g.update_cr_with_cond(0, v, b.getInt64(0), true);
+      g.update_cr_with_cond(0, v0, b.getInt64(0), true);
     }
 
     return 0;
@@ -291,12 +300,13 @@ XEEMITTER(subfx,        0x7C000050, XO )(FunctionGenerator& g, IRBuilder<>& b, I
         g.gen_module(), Intrinsic::ssub_with_overflow, b.getInt64Ty());
     Value* v = b.CreateCall2(ssub_with_overflow,
                              g.gpr_value(i.XO.RB), g.gpr_value(i.XO.RA));
-    g.update_gpr_value(i.XO.RT, b.CreateExtractValue(v, 0));
+    Value* v0 = b.CreateExtractValue(v, 0);
+    g.update_gpr_value(i.XO.RT, v0);
     g.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
     if (i.XO.Rc) {
       // With cr0 update.
-      g.update_cr_with_cond(0, v, b.getInt64(0), true);
+      g.update_cr_with_cond(0, v0, b.getInt64(0), true);
     }
 
     return 0;
@@ -342,9 +352,10 @@ XEEMITTER(subfex,       0x7C000110, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   Function* uadd_with_overflow = Intrinsic::getDeclaration(
       g.gen_module(), Intrinsic::uadd_with_overflow, b.getInt64Ty());
   Value* v = b.CreateCall2(uadd_with_overflow,
-                           b.CreateNot(g.gpr_value(i.XO.RA)),
+                           b.CreateNeg(g.gpr_value(i.XO.RA)),
                            b.CreateAdd(g.gpr_value(i.XO.RB), ca));
-  g.update_gpr_value(i.XO.RT, b.CreateExtractValue(v, 0));
+  Value* v0 = b.CreateExtractValue(v, 0);
+  g.update_gpr_value(i.XO.RT, v0);
 
   if (i.XO.OE) {
     // With XER update.
@@ -355,7 +366,7 @@ XEEMITTER(subfex,       0x7C000110, XO )(FunctionGenerator& g, IRBuilder<>& b, I
 
   if (i.XO.Rc) {
     // With cr0 update.
-    g.update_cr_with_cond(0, v, b.getInt64(0), true);
+    g.update_cr_with_cond(0, v0, b.getInt64(0), true);
   }
 
   return 0;
@@ -908,7 +919,7 @@ XEEMITTER(srwx,         0x7C000430, X  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 
 void RegisterEmitCategoryALU() {
-  XEREGISTEREMITTER(addx,         0x7C000214);
+  XEREGISTERINSTR(addx,         0x7C000214);
   XEREGISTEREMITTER(addcx,        0X7C000014);
   XEREGISTEREMITTER(addex,        0x7C000114);
   XEREGISTEREMITTER(addi,         0x38000000);

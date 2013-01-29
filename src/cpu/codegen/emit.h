@@ -24,10 +24,14 @@ void RegisterEmitCategoryFPU();
 void RegisterEmitCategoryMemory();
 
 
+#define XEDISASMR(name, opcode, format) int InstrDisasm_##name
 #define XEEMITTER(name, opcode, format) int InstrEmit_##name
 
+#define XEREGISTERINSTR(name, opcode) \
+  RegisterInstrDisassemble(opcode, (InstrDisassembleFn)InstrDisasm_##name); \
+  RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 #define XEREGISTEREMITTER(name, opcode) \
-  RegisterInstrEmit(opcode, (void*)InstrEmit_##name)
+  RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
 #define XEINSTRNOTIMPLEMENTED()
 //#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS

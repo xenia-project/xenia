@@ -260,7 +260,16 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
           b.getInt32(i.code));
       continue;
     }
-    printf("    %.8X: %.8X %s\n", ia, i.code, i.type->name);
+
+    if (i.type->disassemble) {
+      ppc::InstrDisasm d;
+      i.type->disassemble(i, d);
+      std::string disasm;
+      d.Dump(disasm);
+      printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
+    } else {
+      printf("    %.8X: %.8X %s\n", ia, i.code, i.type->name);
+    }
 
     // TODO(benvanik): debugging information? source/etc?
     // builder_>SetCurrentDebugLocation(DebugLoc::get(
@@ -853,7 +862,8 @@ Value* FunctionGenerator::GetMemoryAddress(Value* addr) {
     BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", gen_fn_);
     BasicBlock* valid_bb = BasicBlock::Create(*context_, "", gen_fn_);
 
-    Value* gt = b.CreateICmpUGE(addr, b.getInt64(0x10000000));
+    // The heap starts at 0x1000 - if we write below that we're boned.
+    Value* gt = b.CreateICmpUGE(addr, b.getInt64(0x00001000));
     b.CreateCondBr(gt, valid_bb, invalid_bb);
 
     b.SetInsertPoint(invalid_bb);

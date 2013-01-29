@@ -86,12 +86,24 @@ typedef struct XECACHEALIGN64 xe_ppc_state {
       uint8_t vx          :1;     // FP invalid operation exception summary - copy of FPSCR[VX]
       uint8_t ox          :1;     // FP overflow exception - copy of FPSCR[OX]
     } cr1;
-    uint8_t cr2           :4;
-    uint8_t cr3           :4;
-    uint8_t cr4           :4;
-    uint8_t cr5           :4;
-    uint8_t cr6           :4;
-    uint8_t cr7           :4;
+    struct {
+      uint8_t value       :4;
+    } cr2;
+    struct {
+      uint8_t value       :4;
+    } cr3;
+    struct {
+      uint8_t value       :4;
+    } cr4;
+    struct {
+      uint8_t value       :4;
+    } cr5;
+    struct {
+      uint8_t value       :4;
+    } cr6;
+    struct {
+      uint8_t value       :4;
+    } cr7;
   } cr;                           // Condition register
 
   union {

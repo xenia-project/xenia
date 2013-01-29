@@ -12,6 +12,9 @@
 
 #include <xenia/common.h>
 
+#include <string>
+#include <vector>
+
 
 namespace xe {
 namespace cpu {
@@ -184,6 +187,82 @@ typedef struct {
   };
 } InstrData;
 
+
+typedef struct {
+  enum RegisterSet {
+    kXER,
+    kLR,
+    kCTR,
+    kCR,    // 0-7
+    kFPSCR,
+    kGPR,   // 0-31
+    kFPR,   // 0-31
+    kVMX,   // 0-127
+  };
+
+  enum Access {
+    kRead       = 1 << 0,
+    kWrite      = 1 << 1,
+    kReadWrite  = kRead | kWrite,
+  };
+
+  RegisterSet set;
+  uint32_t    ordinal;
+  Access      access;
+} InstrRegister;
+
+
+typedef struct {
+  enum OperandType {
+    kRegister,
+    kImmediate,
+  };
+
+  OperandType type;
+  union {
+    InstrRegister reg;
+    struct {
+      bool        is_signed;
+      uint64_t    value;
+      size_t      width;
+    } imm;
+  };
+  char        display[32];
+} InstrOperand;
+
+
+class InstrDisasm {
+public:
+  enum Flags {
+    kOE = 1 << 0,
+    kRc = 1 << 1,
+    kCA = 1 << 2,
+  };
+
+  char      name[16];
+  std::vector<InstrOperand> operands;
+  std::vector<InstrRegister> special_registers;
+
+  void Init(std::string name, uint32_t flags);
+  void AddRegOperand(InstrRegister::RegisterSet set, uint32_t ordinal,
+                     InstrRegister::Access access, std::string display = "");
+  void AddSImmOperand(uint64_t value, size_t width, std::string display = "");
+  void AddUImmOperand(uint64_t value, size_t width, std::string display = "");
+  int Finish();
+
+  // TODO(benvanik): fast checks
+  uint64_t reg_mask;
+  uint64_t gpr_mask;
+  uint64_t fpr_mask;
+
+  void Dump(std::string& str, size_t pad = 8);
+};
+
+
+typedef int (*InstrDisassembleFn)(InstrData& i, InstrDisasm& d);
+typedef void* InstrEmitFn;
+
+
 class InstrType {
 public:
   uint32_t    opcode;
@@ -192,11 +271,13 @@ public:
   uint32_t    flags;    // xe_ppc_instr_flag_e
   char        name[16];
 
-  void*       emit;
+  InstrDisassembleFn disassemble;
+  InstrEmitFn        emit;
 };
 
 InstrType* GetInstrType(uint32_t code);
-int RegisterInstrEmit(uint32_t code, void* emit);
+int RegisterInstrDisassemble(uint32_t code, InstrDisassembleFn disassemble);
+int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
 
 
 }  // namespace ppc
