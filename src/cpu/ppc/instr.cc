@@ -17,9 +17,136 @@
 using namespace xe::cpu::ppc;
 
 
+void InstrAccessBits::Clear() {
+  spr = cr = gpr = fpr = 0;
+}
+
+void InstrAccessBits::Extend(InstrAccessBits& other) {
+    spr |= other.spr;
+    cr  |= other.cr;
+    gpr |= other.gpr;
+    fpr |= other.fpr;
+  }
+
+void InstrAccessBits::MarkAccess(InstrRegister& reg) {
+  uint64_t bits = 0;
+  if (reg.access & InstrRegister::kRead) {
+    bits |= 0x1;
+  }
+  if (reg.access & InstrRegister::kWrite) {
+    bits |= 0x2;
+  }
+
+  switch (reg.set) {
+    case InstrRegister::kXER:
+      spr |= bits << (2 * 0);
+      break;
+    case InstrRegister::kLR:
+      spr |= bits << (2 * 1);
+      break;
+    case InstrRegister::kCTR:
+      spr |= bits << (2 * 2);
+      break;
+    case InstrRegister::kCR:
+      cr  |= bits << (2 * reg.ordinal);
+      break;
+    case InstrRegister::kFPSCR:
+      spr |= bits << (2 * 3);
+      break;
+    case InstrRegister::kGPR:
+      gpr |= bits << (2 * reg.ordinal);
+      break;
+    case InstrRegister::kFPR:
+      fpr |= bits << (2 * reg.ordinal);
+      break;
+    default:
+    case InstrRegister::kVMX:
+      XEASSERTALWAYS();
+      break;
+  }
+}
+
+void InstrAccessBits::Dump(std::string& out_str) {
+  std::stringstream str;
+  if (spr) {
+    uint64_t spr_t = spr;
+    if (spr_t & 0x3) {
+      str << "XER [";
+      str << ((spr_t & 1) ? "R" : " ");
+      str << ((spr_t & 2) ? "W" : " ");
+      str << "] ";
+    }
+    spr_t >>= 2;
+    if (spr_t & 0x3) {
+      str << "LR [";
+      str << ((spr_t & 1) ? "R" : " ");
+      str << ((spr_t & 2) ? "W" : " ");
+      str << "] ";
+    }
+    spr_t >>= 2;
+    if (spr_t & 0x3) {
+      str << "CTR [";
+      str << ((spr_t & 1) ? "R" : " ");
+      str << ((spr_t & 2) ? "W" : " ");
+      str << "] ";
+    }
+    spr_t >>= 2;
+    if (spr_t & 0x3) {
+      str << "FPCSR [";
+      str << ((spr_t & 1) ? "R" : " ");
+      str << ((spr_t & 2) ? "W" : " ");
+      str << "] ";
+    }
+    spr_t >>= 2;
+  }
+
+  if (cr) {
+    uint64_t cr_t = cr;
+    for (size_t n = 0; n < 8; n++) {
+      if (cr_t & 0x3) {
+        str << "cr" << n << " [";
+        str << ((cr_t & 1) ? "R" : " ");
+        str << ((cr_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      cr_t >>= 2;
+    }
+  }
+
+  if (gpr) {
+    uint64_t gpr_t = gpr;
+    for (size_t n = 0; n < 32; n++) {
+      if (gpr_t & 0x3) {
+        str << "r" << n << " [";
+        str << ((gpr_t & 1) ? "R" : " ");
+        str << ((gpr_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      gpr_t >>= 2;
+    }
+  }
+
+  if (fpr) {
+    uint64_t fpr_t = fpr;
+    for (size_t n = 0; n < 32; n++) {
+      if (fpr_t & 0x3) {
+        str << "f" << n << " [";
+        str << ((fpr_t & 1) ? "R" : " ");
+        str << ((fpr_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      fpr_t >>= 2;
+    }
+  }
+
+  out_str = str.str();
+}
+
+
 void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
   operands.clear();
   special_registers.clear();
+  access_bits.Clear();
 
   if (flags & InstrDisasm::kOE) {
     name += "o";
@@ -173,11 +300,16 @@ void InstrDisasm::AddUImmOperand(uint64_t value, size_t width,
 }
 
 int InstrDisasm::Finish() {
-  // TODO(benvanik): setup fast checks
-  reg_mask = 0;
-  gpr_mask = 0;
-  fpr_mask = 0;
-
+  for (std::vector<InstrOperand>::iterator it = operands.begin();
+       it != operands.end(); ++it) {
+    if (it->type == InstrOperand::kRegister) {
+      access_bits.MarkAccess(it->reg);
+    }
+  }
+  for (std::vector<InstrRegister>::iterator it = special_registers.begin();
+       it != special_registers.end(); ++it) {
+    access_bits.MarkAccess(*it);
+  }
   return 0;
 }
 

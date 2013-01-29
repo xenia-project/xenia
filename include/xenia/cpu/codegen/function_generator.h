@@ -91,7 +91,8 @@ public:
 
 private:
   void GenerateSharedBlocks();
-  void GenerateBasicBlock(sdb::FunctionBlock* block, llvm::BasicBlock* bb);
+  void PrepareBasicBlock(sdb::FunctionBlock* block);
+  void GenerateBasicBlock(sdb::FunctionBlock* block);
 
   void setup_xer();
   void setup_lr();
@@ -118,8 +119,9 @@ private:
   std::map<uint32_t, llvm::BasicBlock*> bbs_;
 
   // Address of the instruction being generated.
-  uint32_t      cia_;
+  uint32_t        cia_;
 
+  ppc::InstrAccessBits access_bits_;
   struct {
     llvm::Value*  indirection_target;
     llvm::Value*  indirection_cia;

@@ -61,6 +61,8 @@ FunctionGenerator::FunctionGenerator(
   external_indirection_block_ = NULL;
   bb_ = NULL;
 
+  access_bits_.Clear();
+
   locals_.indirection_target = NULL;
   locals_.indirection_cia = NULL;
 
@@ -146,21 +148,18 @@ void FunctionGenerator::GenerateBasicBlocks() {
   return_block_ = BasicBlock::Create(*context_, "return", gen_fn_);
 
   // Pass 1 creates all of the blocks - this way we can branch to them.
+  // We also track registers used so that when know which ones to fill/spill.
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
        it != fn_->blocks.end(); ++it) {
     FunctionBlock* block = it->second;
-
-    char name[32];
-    xesnprintfa(name, XECOUNT(name), "loc_%.8X", block->start_address);
-    BasicBlock* bb = BasicBlock::Create(*context_, name, gen_fn_);
-    bbs_.insert(std::pair<uint32_t, BasicBlock*>(block->start_address, bb));
+    PrepareBasicBlock(block);
   }
 
   // Pass 2 fills in instructions.
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
        it != fn_->blocks.end(); ++it) {
     FunctionBlock* block = it->second;
-    GenerateBasicBlock(block, GetBasicBlock(block->start_address));
+    GenerateBasicBlock(block);
   }
 
   // Setup the shared return/indirection/etc blocks now that we know all the
@@ -215,9 +214,48 @@ void FunctionGenerator::GenerateSharedBlocks() {
   }
 }
 
-void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
-                                           BasicBlock* bb) {
+void FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
+  // Create the basic block that will end up getting filled during
+  // generation.
+  char name[32];
+  xesnprintfa(name, XECOUNT(name), "loc_%.8X", block->start_address);
+  BasicBlock* bb = BasicBlock::Create(*context_, name, gen_fn_);
+  bbs_.insert(std::pair<uint32_t, BasicBlock*>(block->start_address, bb));
+
+  // Scan and disassemble each instruction in the block to get accurate
+  // register access bits. In the future we could do other optimization checks
+  // in this pass.
+  // TODO(benvanik): perhaps we want to stash this for each basic block?
+  // We could use this for faster checking of cr/ca checks/etc.
+  InstrAccessBits access_bits;
+  uint8_t* p = xe_memory_addr(memory_, 0);
+  for (uint32_t ia = block->start_address; ia <= block->end_address; ia += 4) {
+    InstrData i;
+    i.address = ia;
+    i.code = XEGETUINT32BE(p + ia);
+    i.type = ppc::GetInstrType(i.code);
+
+    // Ignore unknown or ones with no disassembler fn.
+    if (!i.type || !i.type->disassemble) {
+      continue;
+    }
+
+    ppc::InstrDisasm d;
+    i.type->disassemble(i, d);
+
+    // Accumulate access bits.
+    access_bits.Extend(d.access_bits);
+  }
+
+  // Add in access bits to function access bits.
+  access_bits_.Extend(access_bits);
+}
+
+void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
   IRBuilder<>& b = *builder_;
+
+  BasicBlock* bb = GetBasicBlock(block->start_address);
+  XEASSERTNOTNULL(bb);
 
   printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
 
@@ -268,7 +306,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block,
       d.Dump(disasm);
       printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
     } else {
-      printf("    %.8X: %.8X %s\n", ia, i.code, i.type->name);
+      printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
     }
 
     // TODO(benvanik): debugging information? source/etc?

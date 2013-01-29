@@ -845,12 +845,22 @@ XEEMITTER(dcbst,        0x7C00006C, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(dcbt,         0x7C00022C, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("dcbt", "Data Cache Block Touch", 0);
+  // TODO
+  return d.Finish();
+}
 XEEMITTER(dcbt,         0x7C00022C, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // No-op for now.
   // TODO(benvanik): use @llvm.prefetch
   return 0;
 }
 
+XEDISASMR(dcbtst,       0x7C0001EC, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("dcbtst", "Data Cache Block Touch for Store", 0);
+  // TODO
+  return d.Finish();
+}
 XEEMITTER(dcbtst,       0x7C0001EC, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // No-op for now.
   // TODO(benvanik): use @llvm.prefetch
@@ -947,8 +957,8 @@ void RegisterEmitCategoryMemory() {
   XEREGISTEREMITTER(stfsx,        0x7C00052E);
   XEREGISTEREMITTER(dcbf,         0x7C0000AC);
   XEREGISTEREMITTER(dcbst,        0x7C00006C);
-  XEREGISTEREMITTER(dcbt,         0x7C00022C);
-  XEREGISTEREMITTER(dcbtst,       0x7C0001EC);
+  XEREGISTERINSTR(dcbt,         0x7C00022C);
+  XEREGISTERINSTR(dcbtst,       0x7C0001EC);
   XEREGISTEREMITTER(dcbz,         0x7C0007EC);
   XEREGISTEREMITTER(icbi,         0x7C0007AC);
 }

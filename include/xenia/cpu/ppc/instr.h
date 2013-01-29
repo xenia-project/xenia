@@ -250,6 +250,25 @@ typedef struct {
 } InstrOperand;
 
 
+class InstrAccessBits {
+public:
+  InstrAccessBits() : spr(0), cr(0), gpr(0), fpr(0) {}
+
+  // Bitmasks derived from the accesses to registers.
+  // Format is 2 bits for each register, even bits indicating reads and odds
+  // indicating writes.
+  uint64_t spr;   // fpcsr/ctr/lr/xer
+  uint64_t cr;    // cr7/6/5/4/3/2/1/0
+  uint64_t gpr;   // r31-0
+  uint64_t fpr;   // f31-0
+
+  void Clear();
+  void Extend(InstrAccessBits& other);
+  void MarkAccess(InstrRegister& reg);
+  void Dump(std::string& out_str);
+};
+
+
 class InstrDisasm {
 public:
   enum Flags {
@@ -263,6 +282,7 @@ public:
   char      info[64];
   std::vector<InstrOperand> operands;
   std::vector<InstrRegister> special_registers;
+  InstrAccessBits access_bits;
 
   void Init(std::string name, std::string info, uint32_t flags);
   void AddLR(InstrRegister::Access access);
@@ -273,11 +293,6 @@ public:
   void AddSImmOperand(uint64_t value, size_t width, std::string display = "");
   void AddUImmOperand(uint64_t value, size_t width, std::string display = "");
   int Finish();
-
-  // TODO(benvanik): fast checks
-  uint64_t reg_mask;
-  uint64_t gpr_mask;
-  uint64_t fpr_mask;
 
   void Dump(std::string& str, size_t pad = 8);
 };
