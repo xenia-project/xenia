@@ -54,6 +54,8 @@ void RtlImageXexHeaderField_shim(
     case XEX_HEADER_DEFAULT_HEAP_SIZE:
       // TODO(benvanik): pull from running module
       // This is header->exe_heap_size.
+      //SHIM_SET_MEM_32(0x80101104, [some value]);
+      //return_value = 0x80101104;
       return_value = 0;
       break;
     default:
@@ -66,6 +68,10 @@ void RtlImageXexHeaderField_shim(
   SHIM_SET_RETURN(return_value);
 }
 
+
+//RtlInitializeCriticalSection
+//RtlEnterCriticalSection
+//RtlLeaveCriticalSection
 
 }
 

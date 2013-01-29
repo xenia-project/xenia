@@ -35,11 +35,12 @@ void NtAllocateVirtualMemory_shim(
   uint32_t base_addr_value    = SHIM_MEM_32(base_addr_ptr);
   uint32_t region_size_ptr    = SHIM_GET_ARG_32(1);
   uint32_t region_size_value  = SHIM_MEM_32(region_size_ptr);
-  // X_MEM_*
-  uint32_t allocation_type    = SHIM_GET_ARG_32(2);
-  // X_PAGE_*
-  uint32_t protect_bits       = SHIM_GET_ARG_32(3);
+  uint32_t allocation_type    = SHIM_GET_ARG_32(2); // X_MEM_* bitmask
+  uint32_t protect_bits       = SHIM_GET_ARG_32(3); // X_PAGE_* bitmask
   uint32_t unknown            = SHIM_GET_ARG_32(4);
+
+  // I've only seen zero.
+  XEASSERT(unknown == 0);
 
   XELOGD(
       XT("NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)"),
@@ -47,17 +48,52 @@ void NtAllocateVirtualMemory_shim(
       region_size_ptr, region_size_value,
       allocation_type, protect_bits, unknown);
 
-  // TODO(benvanik): alloc memory
+  // This allocates memory from the kernel heap, which is initialized on startup
+  // and shared by both the kernel implementation and user code.
+  // The xe_memory_ref object is used to actually get the memory, and although
+  // it's simple today we could extend it to do better things in the future.
 
-  // Possible return codes:
-  // X_STATUS_UNSUCCESSFUL
-  // X_STATUS_INVALID_PAGE_PROTECTION
-  // X_STATUS_ACCESS_DENIED
-  // X_STATUS_ALREADY_COMMITTED
-  // X_STATUS_INVALID_HANDLE
-  // X_STATUS_INVALID_PAGE_PROTECTION
-  // X_STATUS_NO_MEMORY
-  SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);
+  // Must request a size.
+  if (!region_size_value) {
+    SHIM_SET_RETURN(X_STATUS_INVALID_PARAMETER);
+    return;
+  }
+  // Check allocation type.
+  if (!(allocation_type & (X_MEM_COMMIT | X_MEM_RESET | X_MEM_RESERVE))) {
+    SHIM_SET_RETURN(X_STATUS_INVALID_PARAMETER);
+    return;
+  }
+  // If MEM_RESET is set only MEM_RESET can be set.
+  if (allocation_type & X_MEM_RESET && (allocation_type & ~X_MEM_RESET)) {
+    SHIM_SET_RETURN(X_STATUS_INVALID_PARAMETER);
+    return;
+  }
+  // Don't allow games to set execute bits.
+  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
+      X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
+    SHIM_SET_RETURN(X_STATUS_ACCESS_DENIED);
+    return;
+  }
+
+  // Adjust size.
+  uint32_t adjusted_size = region_size_value;
+  // TODO(benvanik): adjust based on page size flags/etc?
+
+  // Allocate.
+  uint32_t flags = 0;
+  uint32_t addr = xe_memory_heap_alloc(
+      state->memory, base_addr_value, adjusted_size, flags);
+  if (!addr) {
+    // Failed - assume no memory available.
+    SHIM_SET_RETURN(X_STATUS_NO_MEMORY);
+    return;
+  }
+
+  // Stash back.
+  // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
+  SHIM_SET_MEM_32(base_addr_ptr, addr);
+  SHIM_SET_MEM_32(region_size_ptr, adjusted_size);
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
 }
 
 void NtFreeVirtualMemory_shim(
@@ -76,19 +112,28 @@ void NtFreeVirtualMemory_shim(
   uint32_t free_type          = SHIM_GET_ARG_32(2);
   uint32_t unknown            = SHIM_GET_ARG_32(3);
 
+  // I've only seen zero.
+  XEASSERT(unknown == 0);
+
   XELOGD(
       XT("NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)"),
       base_addr_ptr, base_addr_value,
       region_size_ptr, region_size_value,
       free_type, unknown);
 
-  // TODO(benvanik): free memory
+  // Free.
+  uint32_t flags = 0;
+  uint32_t freed_size = xe_memory_heap_free(state->memory, base_addr_value,
+                                            flags);
+  if (!freed_size) {
+    SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);
+    return;
+  }
 
-  // Possible return codes:
-  // X_STATUS_UNSUCCESSFUL
-  // X_STATUS_ACCESS_DENIED
-  // X_STATUS_INVALID_HANDLE
-  SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);
+  // Stash back.
+  SHIM_SET_MEM_32(base_addr_ptr, base_addr_value);
+  SHIM_SET_MEM_32(region_size_ptr, freed_size);
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
 }
 
 

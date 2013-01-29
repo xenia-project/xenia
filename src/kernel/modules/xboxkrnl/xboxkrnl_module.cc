@@ -50,9 +50,12 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
   uint8_t* mem = xe_memory_addr(memory, 0);
 
   // KeDebugMonitorData (?*)
+  // I'm not sure what this is for, but games make sure it's not null and
+  // exit if it is.
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000059,
-      0x40001000);
+      0x80102100);
+  XESETUINT32BE(mem + 0x80102100, 0x1);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?

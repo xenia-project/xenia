@@ -11,6 +11,17 @@
 
 #include <sys/mman.h>
 
+#define MSPACES                 1
+#define USE_LOCKS               1
+#define USE_DL_PREFIX           1
+#define HAVE_MORECORE           0
+#define HAVE_MMAP               0
+#define HAVE_MREMAP             0
+#define malloc_getpagesize      4096
+#define DEFAULT_GRANULARITY     64 * 1024
+#define DEFAULT_TRIM_THRESHOLD  MAX_SIZE_T
+#include <third_party/dlmalloc/malloc.c.h>
+
 
 /**
  * Memory map:
@@ -32,10 +43,15 @@ struct xe_memory {
 
   size_t    length;
   void      *ptr;
+
+  mspace    heap;
 };
 
 
 xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options) {
+  uint32_t offset;
+  uint32_t mspace_size;
+
   xe_memory_ref memory = (xe_memory_ref)xe_calloc(sizeof(xe_memory));
   xe_ref_init((xe_ref)memory);
 
@@ -45,14 +61,25 @@ xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options) {
   XEEXPECTNOTNULL(memory->ptr);
   XEEXPECT(memory->ptr != MAP_FAILED);
 
+  // Allocate the mspace for our heap.
+  // We skip the first page to make writes to 0 easier to find.
+  offset = 64 * 1024;
+  mspace_size = 512 * 1024 * 1024 - offset;
+  memory->heap = create_mspace_with_base(
+      (uint8_t*)memory->ptr + offset, mspace_size, 0);
+
   return memory;
 
 XECLEANUP:
+  if (memory->heap) {
+    destroy_mspace(memory->heap);
+  }
   xe_memory_release(memory);
   return NULL;
 }
 
 void xe_memory_dealloc(xe_memory_ref memory) {
+  destroy_mspace(memory->heap);
   munmap(memory->ptr, memory->length);
 }
 
@@ -96,4 +123,37 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, uint32_t start,
     p++;
   }
   return 0;
+}
+
+// TODO(benvanik): reserve/commit states/large pages/etc
+
+uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_addr,
+                              uint32_t size, uint32_t flags) {
+  if (base_addr) {
+    return base_addr;
+  }
+  XEASSERT(base_addr == 0);
+  XEASSERT(flags == 0);
+
+  uint8_t* p = (uint8_t*)mspace_malloc(memory->heap, size);
+  if (!p) {
+    return 0;
+  }
+
+  return (uint32_t)((uintptr_t)p - (uintptr_t)memory->ptr);
+}
+
+uint32_t xe_memory_heap_free(xe_memory_ref memory, uint32_t addr,
+                             uint32_t flags) {
+  XEASSERT(flags == 0);
+
+  uint8_t* p = (uint8_t*)memory->ptr + addr;
+  size_t real_size = mspace_usable_size(p);
+  if (!real_size) {
+    return 0;
+  }
+
+  mspace_free(memory->heap, p);
+
+  return (uint32_t)real_size;
 }

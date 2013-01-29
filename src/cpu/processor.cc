@@ -194,14 +194,15 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   GenericValue lr_arg;
   lr_arg.IntVal = APInt(64, lr);
   args.push_back(lr_arg);
-
   GenericValue ret = engine_->runFunction(f, args);
+  // return (uint32_t)ret.IntVal.getSExtValue();
 
+  // Faster, somewhat.
+  // Messes with the stack in such a way as to cause Xcode to behave oddly.
   // typedef void (*fnptr)(xe_ppc_state_t*, uint64_t);
   // fnptr ptr = (fnptr)engine_->getPointerToFunction(f);
   // ptr(ppc_state, lr);
 
-  //return (uint32_t)ret.IntVal.getSExtValue();
   return 0;
 }
 

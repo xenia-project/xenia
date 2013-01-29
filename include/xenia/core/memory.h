@@ -35,5 +35,12 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, uint32_t start,
                                   uint32_t end, const uint32_t *values,
                                   const size_t value_count);
 
+// These methods slice off memory from the virtual address space.
+// They should only be used by kernel modules that know what they are doing.
+uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_addr,
+                              uint32_t size, uint32_t flags);
+uint32_t xe_memory_heap_free(xe_memory_ref memory, uint32_t addr,
+                             uint32_t flags);
+
 
 #endif  // XENIA_CORE_MEMORY_H_
