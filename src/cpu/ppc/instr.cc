@@ -38,9 +38,28 @@ void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
       InstrRegister::kXER, 0, InstrRegister::kReadWrite
     });
   }
+  if (flags & InstrDisasm::kLR) {
+    name += "l";
+    special_registers.push_back((InstrRegister){
+      InstrRegister::kLR, 0, InstrRegister::kWrite
+    });
+  }
+
   XEIGNORE(xestrcpya(this->name, XECOUNT(this->name), name.c_str()));
 
   XEIGNORE(xestrcpya(this->info, XECOUNT(this->info), info.c_str()));
+}
+
+void InstrDisasm::AddLR(InstrRegister::Access access) {
+  special_registers.push_back((InstrRegister){
+    InstrRegister::kLR, 0, access
+  });
+}
+
+void InstrDisasm::AddCTR(InstrRegister::Access access) {
+  special_registers.push_back((InstrRegister){
+    InstrRegister::kCTR, 0, access
+  });
 }
 
 void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
@@ -137,16 +156,16 @@ void InstrDisasm::AddUImmOperand(uint64_t value, size_t width,
     const size_t max_count = XECOUNT(o.display);
     switch (width) {
       case 1:
-        xesnprintfa(o.display, max_count, "%.2X", (uint8_t)value);
+        xesnprintfa(o.display, max_count, "0x%.2X", (uint8_t)value);
         break;
       case 2:
-        xesnprintfa(o.display, max_count, "%.4X", (uint16_t)value);
+        xesnprintfa(o.display, max_count, "0x%.4X", (uint16_t)value);
         break;
       case 4:
-        xesnprintfa(o.display, max_count, "%.8X", (uint32_t)value);
+        xesnprintfa(o.display, max_count, "0x%.8X", (uint32_t)value);
         break;
       case 8:
-        xesnprintfa(o.display, max_count, "%.16llX", value);
+        xesnprintfa(o.display, max_count, "0x%.16llX", value);
         break;
     }
   }

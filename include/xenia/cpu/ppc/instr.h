@@ -256,7 +256,7 @@ public:
     kOE = 1 << 0,
     kRc = 1 << 1,
     kCA = 1 << 2,
-    kCR = 1 << 3,
+    kLR = 1 << 4,
   };
 
   char      name[16];
@@ -265,6 +265,8 @@ public:
   std::vector<InstrRegister> special_registers;
 
   void Init(std::string name, std::string info, uint32_t flags);
+  void AddLR(InstrRegister::Access access);
+  void AddCTR(InstrRegister::Access access);
   void AddCR(uint32_t bf, InstrRegister::Access access);
   void AddRegOperand(InstrRegister::RegisterSet set, uint32_t ordinal,
                      InstrRegister::Access access, std::string display = "");

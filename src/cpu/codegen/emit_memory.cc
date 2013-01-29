@@ -24,6 +24,17 @@ namespace codegen {
 
 // Integer load (A-13)
 
+XEDISASMR(lbz,          0x88000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lbz", "Load Byte and Zero", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(lbz,          0x88000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -42,6 +53,13 @@ XEEMITTER(lbz,          0x88000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(lbzu,         0x8C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lbzu", "Load Byte and Zero with Update", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(lbzu,         0x8C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i56.0 || MEM(EA, 1)
@@ -55,6 +73,13 @@ XEEMITTER(lbzu,         0x8C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(lbzux,        0x7C0000EE, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lbzux", "Load Byte and Zero with Update Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(lbzux,        0x7C0000EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- i56.0 || MEM(EA, 1)
@@ -68,6 +93,17 @@ XEEMITTER(lbzux,        0x7C0000EE, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(lbzx,         0x7C0000AE, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lbzx", "Load Byte and Zero Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(lbzx,         0x7C0000AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -86,6 +122,17 @@ XEEMITTER(lbzx,         0x7C0000AE, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(ld,           0xE8000000, DS )(InstrData& i, InstrDisasm& d) {
+  d.Init("ld", "Load Doubleword", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.DS.RT, InstrRegister::kWrite);
+  if (i.DS.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.DS.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.DS.DS << 2), 2);
+  return d.Finish();
+}
 XEEMITTER(ld,           0xE8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -104,6 +151,13 @@ XEEMITTER(ld,           0xE8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(ldu,          0xE8000001, DS )(InstrData& i, InstrDisasm& d) {
+  d.Init("ldu", "Load Doubleword with Update", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.DS.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.DS.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.DS.DS << 2), 2);
+  return d.Finish();
+}
 XEEMITTER(ldu,          0xE8000001, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(DS || 0b00)
   // RT <- MEM(EA, 8)
@@ -148,6 +202,17 @@ XEEMITTER(lhax,         0x7C0002AE, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(lhz,          0xA0000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lhz", "Load Halfword and Zero", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(lhz,          0xA0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -196,6 +261,17 @@ XEEMITTER(lwax,         0x7C0002AA, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(lwz,          0x80000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lwz", "Load Word and Zero", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(lwz,          0x80000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -214,6 +290,13 @@ XEEMITTER(lwz,          0x80000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(lwzu,         0x84000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lwzu", "Load Word and Zero with Udpate", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(lwzu,         0x84000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i32.0 || MEM(EA, 4)
@@ -232,6 +315,17 @@ XEEMITTER(lwzux,        0x7C00006E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(lwzx,         0x7C00002E, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lwzx", "Load Word and Zero Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(lwzx,         0x7C00002E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -253,6 +347,17 @@ XEEMITTER(lwzx,         0x7C00002E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Integer store (A-14)
 
+XEDISASMR(stb,          0x98000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stb", "Store Byte", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(stb,          0x98000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -271,6 +376,13 @@ XEEMITTER(stb,          0x98000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(stbu,         0x9C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stbu", "Store Byte with Update", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(stbu,         0x9C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 1) <- (RS)[56:63]
@@ -294,6 +406,17 @@ XEEMITTER(stbx,         0x7C0001AE, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(std,          0xF8000000, DS )(InstrData& i, InstrDisasm& d) {
+  d.Init("std", "Store Doubleword", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.DS.RT, InstrRegister::kRead);
+  if (i.DS.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.DS.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.DS.DS << 2), 2);
+  return d.Finish();
+}
 XEEMITTER(std,          0xF8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -312,6 +435,13 @@ XEEMITTER(std,          0xF8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(stdu,         0xF8000001, DS )(InstrData& i, InstrDisasm& d) {
+  d.Init("stdu", "Store Doubleword with Update", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.DS.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.DS.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.DS.DS << 2), 2);
+  return d.Finish();
+}
 XEEMITTER(stdu,         0xF8000001, DS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(DS || 0b00)
   // MEM(EA, 8) <- (RS)
@@ -336,6 +466,17 @@ XEEMITTER(stdx,         0x7C00012A, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(sth,          0xB0000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("sth", "Store Halfword", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(sth,          0xB0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -354,6 +495,13 @@ XEEMITTER(sth,          0xB0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(sthu,         0xB4000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("sthu", "Store Halfword with Update", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(sthu,         0xB4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 2) <- (RS)[48:63]
@@ -373,6 +521,17 @@ XEEMITTER(sthux,        0x7C00036E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(sthx,         0x7C00032E, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("sth", "Store Halfword Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(sthx,         0x7C00032E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -391,6 +550,17 @@ XEEMITTER(sthx,         0x7C00032E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(stw,          0x90000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stw", "Store Word", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(stw,          0x90000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -409,6 +579,13 @@ XEEMITTER(stw,          0x90000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(stwu,         0x94000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stwu", "Store Word with Update", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kReadWrite);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(stwu,         0x94000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 4) <- (RS)[32:63]
@@ -428,6 +605,17 @@ XEEMITTER(stwux,        0x7C00016E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(stwx,         0x7C00012E, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stwx", "Store Word Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(stwx,         0x7C00012E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
@@ -682,45 +870,45 @@ XEEMITTER(icbi,         0x7C0007AC, X  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 
 void RegisterEmitCategoryMemory() {
-  XEREGISTEREMITTER(lbz,          0x88000000);
-  XEREGISTEREMITTER(lbzu,         0x8C000000);
-  XEREGISTEREMITTER(lbzux,        0x7C0000EE);
-  XEREGISTEREMITTER(lbzx,         0x7C0000AE);
-  XEREGISTEREMITTER(ld,           0xE8000000);
-  XEREGISTEREMITTER(ldu,          0xE8000001);
+  XEREGISTERINSTR(lbz,          0x88000000);
+  XEREGISTERINSTR(lbzu,         0x8C000000);
+  XEREGISTERINSTR(lbzux,        0x7C0000EE);
+  XEREGISTERINSTR(lbzx,         0x7C0000AE);
+  XEREGISTERINSTR(ld,           0xE8000000);
+  XEREGISTERINSTR(ldu,          0xE8000001);
   XEREGISTEREMITTER(ldux,         0x7C00006A);
   XEREGISTEREMITTER(ldx,          0x7C00002A);
   XEREGISTEREMITTER(lha,          0xA8000000);
   XEREGISTEREMITTER(lhau,         0xAC000000);
   XEREGISTEREMITTER(lhaux,        0x7C0002EE);
   XEREGISTEREMITTER(lhax,         0x7C0002AE);
-  XEREGISTEREMITTER(lhz,          0xA0000000);
+  XEREGISTERINSTR(lhz,          0xA0000000);
   XEREGISTEREMITTER(lhzu,         0xA4000000);
   XEREGISTEREMITTER(lhzux,        0x7C00026E);
   XEREGISTEREMITTER(lhzx,         0x7C00022E);
   XEREGISTEREMITTER(lwa,          0xE8000002);
   XEREGISTEREMITTER(lwaux,        0x7C0002EA);
   XEREGISTEREMITTER(lwax,         0x7C0002AA);
-  XEREGISTEREMITTER(lwz,          0x80000000);
-  XEREGISTEREMITTER(lwzu,         0x84000000);
+  XEREGISTERINSTR(lwz,          0x80000000);
+  XEREGISTERINSTR(lwzu,         0x84000000);
   XEREGISTEREMITTER(lwzux,        0x7C00006E);
-  XEREGISTEREMITTER(lwzx,         0x7C00002E);
-  XEREGISTEREMITTER(stb,          0x98000000);
-  XEREGISTEREMITTER(stbu,         0x9C000000);
+  XEREGISTERINSTR(lwzx,         0x7C00002E);
+  XEREGISTERINSTR(stb,          0x98000000);
+  XEREGISTERINSTR(stbu,         0x9C000000);
   XEREGISTEREMITTER(stbux,        0x7C0001EE);
   XEREGISTEREMITTER(stbx,         0x7C0001AE);
-  XEREGISTEREMITTER(std,          0xF8000000);
-  XEREGISTEREMITTER(stdu,         0xF8000001);
+  XEREGISTERINSTR(std,          0xF8000000);
+  XEREGISTERINSTR(stdu,         0xF8000001);
   XEREGISTEREMITTER(stdux,        0x7C00016A);
   XEREGISTEREMITTER(stdx,         0x7C00012A);
-  XEREGISTEREMITTER(sth,          0xB0000000);
-  XEREGISTEREMITTER(sthu,         0xB4000000);
+  XEREGISTERINSTR(sth,          0xB0000000);
+  XEREGISTERINSTR(sthu,         0xB4000000);
   XEREGISTEREMITTER(sthux,        0x7C00036E);
-  XEREGISTEREMITTER(sthx,         0x7C00032E);
-  XEREGISTEREMITTER(stw,          0x90000000);
-  XEREGISTEREMITTER(stwu,         0x94000000);
+  XEREGISTERINSTR(sthx,         0x7C00032E);
+  XEREGISTERINSTR(stw,          0x90000000);
+  XEREGISTERINSTR(stwu,         0x94000000);
   XEREGISTEREMITTER(stwux,        0x7C00016E);
-  XEREGISTEREMITTER(stwx,         0x7C00012E);
+  XEREGISTERINSTR(stwx,         0x7C00012E);
   XEREGISTEREMITTER(lhbrx,        0x7C00062C);
   XEREGISTEREMITTER(lwbrx,        0x7C00042C);
   XEREGISTEREMITTER(ldbrx,        0x7C000428);
