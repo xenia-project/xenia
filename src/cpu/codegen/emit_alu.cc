@@ -27,12 +27,12 @@ namespace codegen {
 // Integer arithmetic (A-3)
 
 XEDISASMR(addx,         0x7C000214, XO )(InstrData& i, InstrDisasm& d) {
-  d.Init("add",
+  d.Init("add", "Add",
          i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
   d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
   d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
-  return 0;
+  return d.Finish();
 }
 XEEMITTER(addx,         0x7C000214, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RD <- (RA) + (RB)
@@ -69,16 +69,44 @@ XEEMITTER(addx,         0x7C000214, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 }
 
-XEEMITTER(addcx,        0X7C000014, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEDISASMR(addcx,        0x7C000014, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("addcx", "Add Carrying",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
+XEEMITTER(addcx,        0x7C000014, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(addex,        0x7C000114, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("adde", "Add Extended",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(addex,        0x7C000114, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(addi,         0x38000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("addi", "Add Immediate", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddSImmOperand(0, 4);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(addi,         0x38000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   RT <- EXTS(SI)
@@ -94,6 +122,13 @@ XEEMITTER(addi,         0x38000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(addic,        0x30000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("addic", "Add Immediate Carrying", InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(addic,        0x30000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
 
@@ -107,11 +142,30 @@ XEEMITTER(addic,        0x30000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(addicx,       0x34000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("addic", "Add Immediate Carrying and Record",
+         InstrDisasm::kRc | InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(addicx,       0x34000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(addis,        0x3C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("addis", "Add Immediate Shifted", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  } else {
+    d.AddSImmOperand(0, 4);
+  }
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(addis,        0x3C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if RA = 0 then
   //   RT <- EXTS(SI) || i16.0
@@ -127,11 +181,27 @@ XEEMITTER(addis,        0x3C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(addmex,       0x7C0001D4, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("addme", "Add to Minus One Extended",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(addmex,       0x7C0001D4, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(addzex,       0x7C000194, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("addze", "Add to Zero Extended",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(addzex,       0x7C000194, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RT <- (RA) + CA
 
@@ -158,21 +228,53 @@ XEEMITTER(addzex,       0x7C000194, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(divdx,        0x7C0003D2, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("divd", "Divide Doubleword",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(divdx,        0x7C0003D2, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(divdux,       0x7C000392, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("divdu", "Divide Doubleword Unsigned",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(divdux,       0x7C000392, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(divwx,        0x7C0003D6, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("divw", "Divide Word",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(divwx,        0x7C0003D6, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(divwux,       0x7C000396, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("divwu", "Divide Word Unsigned",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(divwux,       0x7C000396, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // dividend[0:31] <- (RA)[32:63]
   // divisor[0:31] <- (RB)[32:63]
@@ -224,31 +326,76 @@ XEEMITTER(divwux,       0x7C000396, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(mulhdx,       0x7C000092, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("mulhd", "Multiply High Doubleword", i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(mulhdx,       0x7C000092, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(mulhdux,      0x7C000012, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("mulhdu", "Multiply High Doubleword Unsigned",
+         i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(mulhdux,      0x7C000012, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(mulhwx,       0x7C000096, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("mulhw", "Multiply High Word", i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(mulhwx,       0x7C000096, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(mulhwux,      0x7C000016, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("mulhwu", "Multiply High Word Unsigned",
+         i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(mulhwux,      0x7C000016, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(mulldx,       0x7C0001D2, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("mulld", "Multiply Low Doubleword",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(mulldx,       0x7C0001D2, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(mulli,        0x1C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("mulli", "Multiply Low Immediate", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(mulli,        0x1C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // prod[0:127] <- (RA) × EXTS(SI)
   // RT <- prod[64:127]
@@ -263,6 +410,14 @@ XEEMITTER(mulli,        0x1C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(mullwx,       0x7C0001D6, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("mullw", "Multiply Low Word",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(mullwx,       0x7C0001D6, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RT <- (RA)[32:63] × (RB)[32:63]
 
@@ -284,11 +439,26 @@ XEEMITTER(mullwx,       0x7C0001D6, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(negx,         0x7C0000D0, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("neg", "Negate",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(negx,         0x7C0000D0, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(subfx,        0x7C000050, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("subf", "Subtract From",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(subfx,        0x7C000050, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RT <- ¬(RA) + (RB) + 1
 
@@ -324,11 +494,27 @@ XEEMITTER(subfx,        0x7C000050, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 }
 
+XEDISASMR(subfcx,       0x7C000010, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("subfc", "Subtract From Carrying",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(subfcx,       0x7C000010, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(subficx,      0x20000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("subfic", "Subtract From Immediate Carrying", InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(subficx,      0x20000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RT <- ¬(RA) + EXTS(SI) + 1
 
@@ -342,6 +528,15 @@ XEEMITTER(subficx,      0x20000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(subfex,       0x7C000110, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("subfe", "Subtract From Extended",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(subfex,       0x7C000110, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RT <- ¬(RA) + (RB) + CA
 
@@ -372,11 +567,27 @@ XEEMITTER(subfex,       0x7C000110, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(subfmex,      0x7C0001D0, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("subfme", "Subtract From Minus One Extended",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(subfmex,      0x7C0001D0, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(subfzex,      0x7C000190, XO )(InstrData& i, InstrDisasm& d) {
+  d.Init("subfze", "Subtract From Zero Extended",
+         i.XO.OE ? InstrDisasm::kOE : 0 | i.XO.Rc ? InstrDisasm::kRc : 0 |
+         InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(subfzex,      0x7C000190, XO )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -385,6 +596,15 @@ XEEMITTER(subfzex,      0x7C000190, XO )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Integer compare (A-4)
 
+XEDISASMR(cmp,          0x7C000000, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("cmp", "Compare", 0);
+  d.AddCR(i.X.RT >> 2, InstrRegister::kWrite);
+  d.AddUImmOperand(i.X.RT >> 2, 1);
+  d.AddUImmOperand(i.X.RT & 1, 1);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(cmp,          0x7C000000, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if L = 0 then
   //   a <- EXTS((RA)[32:63])
@@ -418,6 +638,15 @@ XEEMITTER(cmp,          0x7C000000, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(cmpi,         0x2C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("cmpi", "Compare Immediate", 0);
+  d.AddCR(i.D.RT >> 2, InstrRegister::kWrite);
+  d.AddUImmOperand(i.D.RT >> 2, 1);
+  d.AddUImmOperand(i.D.RT & 1, 1);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
+  return d.Finish();
+}
 XEEMITTER(cmpi,         0x2C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if L = 0 then
   //   a <- EXTS((RA)[32:63])
@@ -447,6 +676,15 @@ XEEMITTER(cmpi,         0x2C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(cmpl,         0x7C000040, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("cmpl", "Compare Logical", 0);
+  d.AddCR(i.X.RT >> 2, InstrRegister::kWrite);
+  d.AddUImmOperand(i.X.RT >> 2, 1);
+  d.AddUImmOperand(i.X.RT & 1, 1);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(cmpl,         0x7C000040, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if L = 0 then
   //   a <- i32.0 || (RA)[32:63]
@@ -480,6 +718,15 @@ XEEMITTER(cmpl,         0x7C000040, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(cmpli,        0x28000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("cmpli", "Compare Logical Immediate", 0);
+  d.AddCR(i.D.RT >> 2, InstrRegister::kWrite);
+  d.AddUImmOperand(i.D.RT >> 2, 1);
+  d.AddUImmOperand(i.D.RT & 1, 1);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  d.AddSImmOperand(i.D.DS, 2);
+  return d.Finish();
+}
 XEEMITTER(cmpli,        0x28000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if L = 0 then
   //   a <- i32.0 || (RA)[32:63]
@@ -512,6 +759,13 @@ XEEMITTER(cmpli,        0x28000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Integer logical (A-5)
 
+XEDISASMR(andx,         0x7C000038, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("and", "AND", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(andx,         0x7C000038, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) & (RB)
 
@@ -526,6 +780,13 @@ XEEMITTER(andx,         0x7C000038, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(andcx,        0x7C000078, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("andc", "AND with Complement", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(andcx,        0x7C000078, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) & ¬(RB)
 
@@ -541,6 +802,14 @@ XEEMITTER(andcx,        0x7C000078, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(andix,        0x70000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("andi", "AND Immediate", 0);
+  d.AddCR(0, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.D.DS, 2);
+  return d.Finish();
+}
 XEEMITTER(andix,        0x70000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) & (i48.0 || UI)
 
@@ -553,6 +822,14 @@ XEEMITTER(andix,        0x70000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(andisx,       0x74000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("andi", "AND Immediate Shifted", 0);
+  d.AddCR(0, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.D.DS, 2);
+  return d.Finish();
+}
 XEEMITTER(andisx,       0x74000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) & (i32.0 || UI || i16.0)
 
@@ -565,11 +842,25 @@ XEEMITTER(andisx,       0x74000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(cntlzdx,      0x7C000074, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("cntlzd", "Count Leading Zeros Doubleword",
+         i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(cntlzdx,      0x7C000074, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(cntlzwx,      0x7C000034, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("cntlzw", "Count Leading Zeros Word",
+         i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(cntlzwx,      0x7C000034, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- 32
   // do while n < 64
@@ -597,11 +888,24 @@ XEEMITTER(cntlzwx,      0x7C000034, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(eqvx,         0x7C000238, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("eqv", "Equivalent", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(eqvx,         0x7C000238, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(extsbx,       0x7C000774, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("extsb", "Extend Sign Byte", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(extsbx,       0x7C000774, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // s <- (RS)[56]
   // RA[56:63] <- (RS)[56:63]
@@ -620,21 +924,47 @@ XEEMITTER(extsbx,       0x7C000774, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(extshx,       0x7C000734, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("extsh", "Extend Sign Halfword", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(extshx,       0x7C000734, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(extswx,       0x7C0007B4, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("extsw", "Extend Sign Word", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(extswx,       0x7C0007B4, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(nandx,        0x7C0003B8, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("nand", "NAND", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(nandx,        0x7C0003B8, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(norx,         0x7C0000F8, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("nor", "NOR", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(norx,         0x7C0000F8, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- ¬((RS) | (RB))
 
@@ -650,6 +980,13 @@ XEEMITTER(norx,         0x7C0000F8, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(orx,          0x7C000378, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("or", "OR", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(orx,          0x7C000378, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) | (RB)
 
@@ -664,11 +1001,29 @@ XEEMITTER(orx,          0x7C000378, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(orcx,         0x7C000338, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("orc", "OR with Complement", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(orcx,         0x7C000338, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(ori,          0x60000000, D  )(InstrData& i, InstrDisasm& d) {
+  if (!i.D.RA && !i.D.RT && !i.D.DS) {
+    d.Init("no-op", "OR Immediate", 0);
+  } else {
+    d.Init("ori", "OR Immediate", 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+    d.AddUImmOperand(i.D.DS, 2);
+  }
+  return d.Finish();
+}
 XEEMITTER(ori,          0x60000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) | (i48.0 || UI)
 
@@ -678,6 +1033,13 @@ XEEMITTER(ori,          0x60000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(oris,         0x64000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("oris", "OR Immediate Shifted", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.D.DS, 2);
+  return d.Finish();
+}
 XEEMITTER(oris,         0x64000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) | (i32.0 || UI || i16.0)
 
@@ -687,6 +1049,13 @@ XEEMITTER(oris,         0x64000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(xorx,         0x7C000278, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("xor", "XOR", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(xorx,         0x7C000278, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) XOR (RB)
 
@@ -701,6 +1070,17 @@ XEEMITTER(xorx,         0x7C000278, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(xori,         0x68000000, D  )(InstrData& i, InstrDisasm& d) {
+  if (!i.D.RA && !i.D.RT && !i.D.DS) {
+    d.Init("xnop", "XOR Immediate", 0);
+  } else {
+    d.Init("xori", "XOR Immediate", 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+    d.AddUImmOperand(i.D.DS, 2);
+  }
+  return d.Finish();
+}
 XEEMITTER(xori,         0x68000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) XOR (i48.0 || UI)
 
@@ -710,6 +1090,13 @@ XEEMITTER(xori,         0x68000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(xoris,        0x6C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("xoris", "XOR Immediate Shifted", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.D.DS, 2);
+  return d.Finish();
+}
 XEEMITTER(xoris,        0x6C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // RA <- (RS) XOR (i32.0 || UI || i16.0)
 
@@ -722,21 +1109,57 @@ XEEMITTER(xoris,        0x6C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Integer rotate (A-6)
 
+XEDISASMR(rldclx,       0x78000010, MDS)(InstrData& i, InstrDisasm& d) {
+  d.Init("rldcl", "Rotate Left Doubleword then Clear Left",
+         i.MDS.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RB, InstrRegister::kRead);
+  d.AddUImmOperand((i.MDS.MB5 << 5) | i.MDS.MB, 1);
+  return d.Finish();
+}
 XEEMITTER(rldclx,       0x78000010, MDS)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(rldcrx,       0x78000012, MDS)(InstrData& i, InstrDisasm& d) {
+  d.Init("rldcr", "Rotate Left Doubleword then Clear Right",
+         i.MDS.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RB, InstrRegister::kRead);
+  d.AddUImmOperand((i.MDS.MB5 << 5) | i.MDS.MB, 1);
+  return d.Finish();
+}
 XEEMITTER(rldcrx,       0x78000012, MDS)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(rldicx,       0x78000008, MD )(InstrData& i, InstrDisasm& d) {
+  d.Init("rldic", "Rotate Left Doubleword Immediate then Clear",
+         i.MD.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+  return d.Finish();
+}
 XEEMITTER(rldicx,       0x78000008, MD )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(rldiclx,      0x78000000, MD )(InstrData& i, InstrDisasm& d) {
+  d.Init("rldicl", "Rotate Left Doubleword Immediate then Clear Left",
+         i.MD.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+  return d.Finish();
+}
 XEEMITTER(rldiclx,      0x78000000, MD )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- sh[5] || sh[0:4]
   // r <- ROTL64((RS), n)
@@ -765,16 +1188,44 @@ XEEMITTER(rldiclx,      0x78000000, MD )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(rldicrx,      0x78000004, MD )(InstrData& i, InstrDisasm& d) {
+  d.Init("rldicr", "Rotate Left Doubleword Immediate then Clear Right",
+         i.MD.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+  return d.Finish();
+}
 XEEMITTER(rldicrx,      0x78000004, MD )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(rldimix,      0x7800000C, MD )(InstrData& i, InstrDisasm& d) {
+  d.Init("rldimi", "Rotate Left Doubleword Immediate then Mask Insert",
+         i.MD.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+  return d.Finish();
+}
 XEEMITTER(rldimix,      0x7800000C, MD )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(rlwimix,      0x50000000, M  )(InstrData& i, InstrDisasm& d) {
+  d.Init("rlwimi", "Rotate Left Word Immediate then Mask Insert",
+         i.M.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.M.SH, 1);
+  d.AddUImmOperand(i.M.MB, 1);
+  d.AddUImmOperand(i.M.ME, 1);
+  return d.Finish();
+}
 XEEMITTER(rlwimix,      0x50000000, M  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], n)
@@ -784,6 +1235,16 @@ XEEMITTER(rlwimix,      0x50000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(rlwinmx,      0x54000000, M  )(InstrData& i, InstrDisasm& d) {
+  d.Init("rlwinm", "Rotate Left Word Immediate then AND with Mask",
+         i.M.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.M.SH, 1);
+  d.AddUImmOperand(i.M.MB, 1);
+  d.AddUImmOperand(i.M.ME, 1);
+  return d.Finish();
+}
 XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], n)
@@ -794,7 +1255,7 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.
   if (!i.M.SH) {
-    Value* v = b.CreateAnd(b.CreateTrunc(g.gpr_value(i.M.RS), b.getInt32Ty()),
+    Value* v = b.CreateAnd(b.CreateTrunc(g.gpr_value(i.M.RT), b.getInt32Ty()),
                            b.getInt32(XEMASK(i.M.MB + 32, i.M.ME + 32)));
     v = b.CreateZExt(v, b.getInt64Ty());
     g.update_gpr_value(i.M.RA, v);
@@ -806,7 +1267,7 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 
   // ROTL32(x, y) = rotl(i64.(x||x), y)
-  Value* v = b.CreateAnd(g.gpr_value(i.M.RS), UINT32_MAX);
+  Value* v = b.CreateAnd(g.gpr_value(i.M.RT), UINT32_MAX);
   v = b.CreateOr(b.CreateShl(v, 32), v);
   // (v << shift) | (v >> (32 - shift));
   v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
@@ -821,6 +1282,16 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(rlwnmx,       0x5C000000, M  )(InstrData& i, InstrDisasm& d) {
+  d.Init("rlwnm", "Rotate Left Word then AND with Mask",
+         i.M.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.SH, InstrRegister::kRead);
+  d.AddUImmOperand(i.M.MB, 1);
+  d.AddUImmOperand(i.M.ME, 1);
+  return d.Finish();
+}
 XEEMITTER(rlwnmx,       0x5C000000, M  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -829,11 +1300,25 @@ XEEMITTER(rlwnmx,       0x5C000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Integer shift (A-7)
 
+XEDISASMR(sldx,         0x7C000036, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("sld", "Shift Left Doubleword", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(sldx,         0x7C000036, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(slwx,         0x7C000030, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("slw", "Shift Left Word", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(slwx,         0x7C000030, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- (RB)[59:63]
   // r <- ROTL32((RS)[32:63], n)
@@ -855,21 +1340,53 @@ XEEMITTER(slwx,         0x7C000030, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(sradx,        0x7C000634, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("srad", "Shift Right Algebraic Doubleword",
+         i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(sradx,        0x7C000634, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(sradix,       0x7C000674, XS )(InstrData& i, InstrDisasm& d) {
+  d.Init("sradi", "Shift Right Algebraic Doubleword Immediate",
+         i.XS.Rc ? InstrDisasm::kRc : 0 | InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.XS.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.XS.RT, InstrRegister::kRead);
+  d.AddUImmOperand((i.XS.SH5 << 5) | i.XS.SH, 1);
+  return d.Finish();
+}
 XEEMITTER(sradix,       0x7C000674, XS )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(srawx,        0x7C000630, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("sraw", "Shift Right Algebraic Word",
+         i.X.Rc ? InstrDisasm::kRc : 0 | InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(srawx,        0x7C000630, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(srawix,       0x7C000670, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("srawi", "Shift Right Algebraic Word Immediate",
+         i.X.Rc ? InstrDisasm::kRc : 0 | InstrDisasm::kCA);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.X.RB, 1);
+  return d.Finish();
+}
 XEEMITTER(srawix,       0x7C000670, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], 64-n)
@@ -907,11 +1424,25 @@ XEEMITTER(srawix,       0x7C000670, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(srdx,         0x7C000436, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("srd", "Shift Right Doubleword", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(srdx,         0x7C000436, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
+XEDISASMR(srwx,         0x7C000430, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("srw", "Shift Right Word", i.X.Rc ? InstrDisasm::kRc : 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(srwx,         0x7C000430, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -920,72 +1451,72 @@ XEEMITTER(srwx,         0x7C000430, X  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(addx,         0x7C000214);
-  XEREGISTEREMITTER(addcx,        0X7C000014);
-  XEREGISTEREMITTER(addex,        0x7C000114);
-  XEREGISTEREMITTER(addi,         0x38000000);
-  XEREGISTEREMITTER(addic,        0x30000000);
-  XEREGISTEREMITTER(addicx,       0x34000000);
-  XEREGISTEREMITTER(addis,        0x3C000000);
-  XEREGISTEREMITTER(addmex,       0x7C0001D4);
-  XEREGISTEREMITTER(addzex,       0x7C000194);
-  XEREGISTEREMITTER(divdx,        0x7C0003D2);
-  XEREGISTEREMITTER(divdux,       0x7C000392);
-  XEREGISTEREMITTER(divwx,        0x7C0003D6);
-  XEREGISTEREMITTER(divwux,       0x7C000396);
-  XEREGISTEREMITTER(mulhdx,       0x7C000092);
-  XEREGISTEREMITTER(mulhdux,      0x7C000012);
-  XEREGISTEREMITTER(mulhwx,       0x7C000096);
-  XEREGISTEREMITTER(mulhwux,      0x7C000016);
-  XEREGISTEREMITTER(mulldx,       0x7C0001D2);
-  XEREGISTEREMITTER(mulli,        0x1C000000);
-  XEREGISTEREMITTER(mullwx,       0x7C0001D6);
-  XEREGISTEREMITTER(negx,         0x7C0000D0);
-  XEREGISTEREMITTER(subfx,        0x7C000050);
-  XEREGISTEREMITTER(subfcx,       0x7C000010);
-  XEREGISTEREMITTER(subficx,      0x20000000);
-  XEREGISTEREMITTER(subfex,       0x7C000110);
-  XEREGISTEREMITTER(subfmex,      0x7C0001D0);
-  XEREGISTEREMITTER(subfzex,      0x7C000190);
-  XEREGISTEREMITTER(cmp,          0x7C000000);
-  XEREGISTEREMITTER(cmpi,         0x2C000000);
-  XEREGISTEREMITTER(cmpl,         0x7C000040);
-  XEREGISTEREMITTER(cmpli,        0x28000000);
-  XEREGISTEREMITTER(andx,         0x7C000038);
-  XEREGISTEREMITTER(andcx,        0x7C000078);
-  XEREGISTEREMITTER(andix,        0x70000000);
-  XEREGISTEREMITTER(andisx,       0x74000000);
-  XEREGISTEREMITTER(cntlzdx,      0x7C000074);
-  XEREGISTEREMITTER(cntlzwx,      0x7C000034);
-  XEREGISTEREMITTER(eqvx,         0x7C000238);
-  XEREGISTEREMITTER(extsbx,       0x7C000774);
-  XEREGISTEREMITTER(extshx,       0x7C000734);
-  XEREGISTEREMITTER(extswx,       0x7C0007B4);
-  XEREGISTEREMITTER(nandx,        0x7C0003B8);
-  XEREGISTEREMITTER(norx,         0x7C0000F8);
-  XEREGISTEREMITTER(orx,          0x7C000378);
-  XEREGISTEREMITTER(orcx,         0x7C000338);
-  XEREGISTEREMITTER(ori,          0x60000000);
-  XEREGISTEREMITTER(oris,         0x64000000);
-  XEREGISTEREMITTER(xorx,         0x7C000278);
-  XEREGISTEREMITTER(xori,         0x68000000);
-  XEREGISTEREMITTER(xoris,        0x6C000000);
-  XEREGISTEREMITTER(rldclx,       0x78000010);
-  XEREGISTEREMITTER(rldcrx,       0x78000012);
-  XEREGISTEREMITTER(rldicx,       0x78000008);
-  XEREGISTEREMITTER(rldiclx,      0x78000000);
-  XEREGISTEREMITTER(rldicrx,      0x78000004);
-  XEREGISTEREMITTER(rldimix,      0x7800000C);
-  XEREGISTEREMITTER(rlwimix,      0x50000000);
-  XEREGISTEREMITTER(rlwinmx,      0x54000000);
-  XEREGISTEREMITTER(rlwnmx,       0x5C000000);
-  XEREGISTEREMITTER(sldx,         0x7C000036);
-  XEREGISTEREMITTER(slwx,         0x7C000030);
-  XEREGISTEREMITTER(sradx,        0x7C000634);
-  XEREGISTEREMITTER(sradix,       0x7C000674);
-  XEREGISTEREMITTER(srawx,        0x7C000630);
-  XEREGISTEREMITTER(srawix,       0x7C000670);
-  XEREGISTEREMITTER(srdx,         0x7C000436);
-  XEREGISTEREMITTER(srwx,         0x7C000430);
+  XEREGISTERINSTR(addcx,        0X7C000014);
+  XEREGISTERINSTR(addex,        0x7C000114);
+  XEREGISTERINSTR(addi,         0x38000000);
+  XEREGISTERINSTR(addic,        0x30000000);
+  XEREGISTERINSTR(addicx,       0x34000000);
+  XEREGISTERINSTR(addis,        0x3C000000);
+  XEREGISTERINSTR(addmex,       0x7C0001D4);
+  XEREGISTERINSTR(addzex,       0x7C000194);
+  XEREGISTERINSTR(divdx,        0x7C0003D2);
+  XEREGISTERINSTR(divdux,       0x7C000392);
+  XEREGISTERINSTR(divwx,        0x7C0003D6);
+  XEREGISTERINSTR(divwux,       0x7C000396);
+  XEREGISTERINSTR(mulhdx,       0x7C000092);
+  XEREGISTERINSTR(mulhdux,      0x7C000012);
+  XEREGISTERINSTR(mulhwx,       0x7C000096);
+  XEREGISTERINSTR(mulhwux,      0x7C000016);
+  XEREGISTERINSTR(mulldx,       0x7C0001D2);
+  XEREGISTERINSTR(mulli,        0x1C000000);
+  XEREGISTERINSTR(mullwx,       0x7C0001D6);
+  XEREGISTERINSTR(negx,         0x7C0000D0);
+  XEREGISTERINSTR(subfx,        0x7C000050);
+  XEREGISTERINSTR(subfcx,       0x7C000010);
+  XEREGISTERINSTR(subficx,      0x20000000);
+  XEREGISTERINSTR(subfex,       0x7C000110);
+  XEREGISTERINSTR(subfmex,      0x7C0001D0);
+  XEREGISTERINSTR(subfzex,      0x7C000190);
+  XEREGISTERINSTR(cmp,          0x7C000000);
+  XEREGISTERINSTR(cmpi,         0x2C000000);
+  XEREGISTERINSTR(cmpl,         0x7C000040);
+  XEREGISTERINSTR(cmpli,        0x28000000);
+  XEREGISTERINSTR(andx,         0x7C000038);
+  XEREGISTERINSTR(andcx,        0x7C000078);
+  XEREGISTERINSTR(andix,        0x70000000);
+  XEREGISTERINSTR(andisx,       0x74000000);
+  XEREGISTERINSTR(cntlzdx,      0x7C000074);
+  XEREGISTERINSTR(cntlzwx,      0x7C000034);
+  XEREGISTERINSTR(eqvx,         0x7C000238);
+  XEREGISTERINSTR(extsbx,       0x7C000774);
+  XEREGISTERINSTR(extshx,       0x7C000734);
+  XEREGISTERINSTR(extswx,       0x7C0007B4);
+  XEREGISTERINSTR(nandx,        0x7C0003B8);
+  XEREGISTERINSTR(norx,         0x7C0000F8);
+  XEREGISTERINSTR(orx,          0x7C000378);
+  XEREGISTERINSTR(orcx,         0x7C000338);
+  XEREGISTERINSTR(ori,          0x60000000);
+  XEREGISTERINSTR(oris,         0x64000000);
+  XEREGISTERINSTR(xorx,         0x7C000278);
+  XEREGISTERINSTR(xori,         0x68000000);
+  XEREGISTERINSTR(xoris,        0x6C000000);
+  XEREGISTERINSTR(rldclx,       0x78000010);
+  XEREGISTERINSTR(rldcrx,       0x78000012);
+  XEREGISTERINSTR(rldicx,       0x78000008);
+  XEREGISTERINSTR(rldiclx,      0x78000000);
+  XEREGISTERINSTR(rldicrx,      0x78000004);
+  XEREGISTERINSTR(rldimix,      0x7800000C);
+  XEREGISTERINSTR(rlwimix,      0x50000000);
+  XEREGISTERINSTR(rlwinmx,      0x54000000);
+  XEREGISTERINSTR(rlwnmx,       0x5C000000);
+  XEREGISTERINSTR(sldx,         0x7C000036);
+  XEREGISTERINSTR(slwx,         0x7C000030);
+  XEREGISTERINSTR(sradx,        0x7C000634);
+  XEREGISTERINSTR(sradix,       0x7C000674);
+  XEREGISTERINSTR(srawx,        0x7C000630);
+  XEREGISTERINSTR(srawix,       0x7C000670);
+  XEREGISTERINSTR(srdx,         0x7C000436);
+  XEREGISTERINSTR(srwx,         0x7C000430);
 }
 
 

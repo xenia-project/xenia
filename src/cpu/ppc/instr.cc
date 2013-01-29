@@ -17,7 +17,7 @@
 using namespace xe::cpu::ppc;
 
 
-void InstrDisasm::Init(std::string name, uint32_t flags) {
+void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
   operands.clear();
   special_registers.clear();
 
@@ -39,6 +39,14 @@ void InstrDisasm::Init(std::string name, uint32_t flags) {
     });
   }
   XEIGNORE(xestrcpya(this->name, XECOUNT(this->name), name.c_str()));
+
+  XEIGNORE(xestrcpya(this->info, XECOUNT(this->info), info.c_str()));
+}
+
+void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
+  special_registers.push_back((InstrRegister){
+    InstrRegister::kCR, bf, access
+  });
 }
 
 void InstrDisasm::AddRegOperand(

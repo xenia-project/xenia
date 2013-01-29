@@ -147,6 +147,15 @@ typedef struct {
     } XFX;
     // kXEPPCInstrFormatXFL
     // kXEPPCInstrFormatXS
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t        SH5     : 1;
+      uint32_t                : 9;
+      uint32_t        SH      : 5;
+      uint32_t        RA      : 5;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
+    } XS;
     // kXEPPCInstrFormatXO
     struct {
       uint32_t        Rc      : 1;
@@ -165,7 +174,7 @@ typedef struct {
       uint32_t        MB      : 5;
       uint32_t        SH      : 5;
       uint32_t        RA      : 5;
-      uint32_t        RS      : 5;
+      uint32_t        RT      : 5;
       uint32_t                : 6;
     } M;
     // kXEPPCInstrFormatMD
@@ -177,10 +186,20 @@ typedef struct {
       uint32_t        MB      : 5;
       uint32_t        SH      : 5;
       uint32_t        RA      : 5;
-      uint32_t        RS      : 5;
+      uint32_t        RT      : 5;
       uint32_t                : 6;
     } MD;
     // kXEPPCInstrFormatMDS
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t                : 4;
+      uint32_t        MB5     : 1;
+      uint32_t        MB      : 5;
+      uint32_t        RB      : 5;
+      uint32_t        RA      : 5;
+      uint32_t        RT      : 5;
+      uint32_t                : 6;
+    } MDS;
     // kXEPPCInstrFormatVA
     // kXEPPCInstrFormatVX
     // kXEPPCInstrFormatVXR
@@ -237,13 +256,16 @@ public:
     kOE = 1 << 0,
     kRc = 1 << 1,
     kCA = 1 << 2,
+    kCR = 1 << 3,
   };
 
   char      name[16];
+  char      info[64];
   std::vector<InstrOperand> operands;
   std::vector<InstrRegister> special_registers;
 
-  void Init(std::string name, uint32_t flags);
+  void Init(std::string name, std::string info, uint32_t flags);
+  void AddCR(uint32_t bf, InstrRegister::Access access);
   void AddRegOperand(InstrRegister::RegisterSet set, uint32_t ordinal,
                      InstrRegister::Access access, std::string display = "");
   void AddSImmOperand(uint64_t value, size_t width, std::string display = "");
