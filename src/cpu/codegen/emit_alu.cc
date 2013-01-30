@@ -1272,8 +1272,9 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.
   if (!i.M.SH) {
-    Value* v = b.CreateAnd(b.CreateTrunc(g.gpr_value(i.M.RT), b.getInt32Ty()),
-                           b.getInt32(XEMASK(i.M.MB + 32, i.M.ME + 32)));
+    Value* v = b.CreateAnd(
+        b.CreateTrunc(g.gpr_value(i.M.RT), b.getInt32Ty()),
+        b.getInt32((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
     v = b.CreateZExt(v, b.getInt64Ty());
     g.update_gpr_value(i.M.RA, v);
     if (i.M.Rc) {

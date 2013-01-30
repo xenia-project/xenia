@@ -19,6 +19,7 @@
             'defines': [
               'GFLAGS_DLL_DECL=',
               'GFLAGS_DLL_DEFINE_FLAG=',
+              'GFLAGS_DLL_DECLARE_FLAG=',
             ],
           }],
         ],
@@ -48,6 +49,7 @@
           'defines': [
             'GFLAGS_DLL_DECL=',
             'GFLAGS_DLL_DEFINE_FLAG=',
+            'GFLAGS_DLL_DECLARE_FLAG=',
           ],
         }],
       ],

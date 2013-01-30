@@ -74,18 +74,18 @@
 
       'direct_dependent_settings': {
         'include_dirs': [
-          '<!@(<(llvm_config) --includedir)',
+          '<@(llvm_includedir)',
         ],
 
         'target_conditions': [
           ['_type=="shared_library"', {
             'cflags': [
-              '<!@(<(llvm_config) --cxxflags)'
+              '<(llvm_cxxflags)',
             ],
           }],
           ['_type=="executable"', {
             'libraries': [
-              #'<!@(<(llvm_config) --libs all)',
+              '<@(llvm_libs)',
             ],
             'library_dirs': [
               # NOTE: this doesn't actually do anything...
@@ -94,8 +94,8 @@
             ],
             'xcode_settings': {
               'OTHER_LDFLAGS': [
-                '<!@(<(llvm_config) --ldflags)',
-                '<!@(<(llvm_config) --libs all)',
+                #'<!@(<(llvm_config) --ldflags)',
+                #'<!@(<(llvm_config) --libs all)',
               ],
             },
           }],
@@ -103,13 +103,13 @@
       },
 
       'cflags': [
-        '<!@(<(llvm_config) --cxxflags)'
+        '<(llvm_cxxflags)',
       ],
 
       'include_dirs': [
         '.',
         'src/',
-        '<!@(<(llvm_config) --includedir)',
+        '<(llvm_includedir)',
       ],
 
       'includes': [
