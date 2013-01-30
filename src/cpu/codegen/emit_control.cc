@@ -275,6 +275,7 @@ XEDISASMR(bcctrx,       0x4C000420, XL )(InstrData& i, InstrDisasm& d) {
   }
   d.AddUImmOperand(i.XL.BO, 1);
   d.AddUImmOperand(i.XL.BI, 1);
+  d.AddCTR(InstrRegister::kRead);
   return d.Finish();
 }
 XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -352,6 +353,7 @@ XEDISASMR(bclrx,        0x4C000020, XL )(InstrData& i, InstrDisasm& d) {
   }
   d.AddUImmOperand(i.XL.BO, 1);
   d.AddUImmOperand(i.XL.BI, 1);
+  d.AddLR(InstrRegister::kRead);
   return d.Finish();
 }
 XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
@@ -591,6 +593,12 @@ int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
   return 0;
 }
 
+XEDISASMR(td,           0x7C000088, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("td", "Trap Doubleword", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- (RA)
   // b <- (RB)
@@ -605,6 +613,11 @@ XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, I
                     i.X.RT);
 }
 
+XEDISASMR(tdi,          0x08000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("tdi", "Trap Doubleword Immediate", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(tdi,          0x08000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
@@ -618,6 +631,12 @@ XEEMITTER(tdi,          0x08000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
                     i.D.RT);
 }
 
+XEDISASMR(tw,           0x7C000008, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("tw", "Trap Word", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
@@ -636,6 +655,11 @@ XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, I
                     i.X.RT);
 }
 
+XEDISASMR(twi,          0x0C000000, D  )(InstrData& i, InstrDisasm& d) {
+  d.Init("twi", "Trap Word Immediate", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(twi,          0x0C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
@@ -782,10 +806,10 @@ void RegisterEmitCategoryControl() {
   XEREGISTEREMITTER(crxor,        0x4C000182);
   XEREGISTEREMITTER(mcrf,         0x4C000000);
   XEREGISTEREMITTER(sc,           0x44000002);
-  XEREGISTEREMITTER(td,           0x7C000088);
-  XEREGISTEREMITTER(tdi,          0x08000000);
-  XEREGISTEREMITTER(tw,           0x7C000008);
-  XEREGISTEREMITTER(twi,          0x0C000000);
+  XEREGISTERINSTR(td,           0x7C000088);
+  XEREGISTERINSTR(tdi,          0x08000000);
+  XEREGISTERINSTR(tw,           0x7C000008);
+  XEREGISTERINSTR(twi,          0x0C000000);
   XEREGISTEREMITTER(mfcr,         0x7C000026);
   XEREGISTERINSTR(mfspr,        0x7C0002A6);
   XEREGISTEREMITTER(mftb,         0x7C0002E6);

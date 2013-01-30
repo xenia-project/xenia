@@ -155,6 +155,9 @@ void FunctionGenerator::GenerateBasicBlocks() {
     PrepareBasicBlock(block);
   }
 
+  // Setup all local variables now that we know what we need.
+  SetupLocals();
+
   // Pass 2 fills in instructions.
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
        it != fn_->blocks.end(); ++it) {
@@ -240,8 +243,11 @@ void FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
       continue;
     }
 
+    // We really need to know the registers modified, so die if we've been lazy
+    // and haven't implemented the disassemble method yet.
     ppc::InstrDisasm d;
-    i.type->disassemble(i, d);
+    XEASSERTNOTNULL(i.type->disassemble);
+    XEASSERTZERO(i.type->disassemble(i, d));
 
     // Accumulate access bits.
     access_bits.Extend(d.access_bits);
@@ -488,8 +494,43 @@ void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
   b.CreateStore(value, ptr);
 }
 
-Value* FunctionGenerator::cia_value() {
-  return builder_->getInt32(cia_);
+void FunctionGenerator::SetupLocals() {
+  IRBuilder<>& b = *builder_;
+
+  uint64_t spr_t = access_bits_.spr;
+  if (spr_t & 0x3) {
+    locals_.xer = SetupLocal(b.getInt64Ty(), "xer");
+  }
+  spr_t >>= 2;
+  if (spr_t & 0x3) {
+    locals_.lr = SetupLocal(b.getInt64Ty(), "lr");
+  }
+  spr_t >>= 2;
+  if (spr_t & 0x3) {
+    locals_.ctr = SetupLocal(b.getInt64Ty(), "ctr");
+  }
+  spr_t >>= 2;
+  // TODO: FPCSR
+
+  char name[32];
+
+  uint64_t cr_t = access_bits_.cr;
+  for (int n = 0; n < 8; n++) {
+    if (cr_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "cr%d", n);
+      locals_.cr[n] = SetupLocal(b.getInt8Ty(), name);
+    }
+    cr_t >>= 2;
+  }
+
+  uint64_t gpr_t = access_bits_.gpr;
+  for (int n = 0; n < 32; n++) {
+    if (gpr_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "r%d", n);
+      locals_.gpr[n] = SetupLocal(b.getInt64Ty(), name);
+    }
+    gpr_t >>= 2;
+  }
 }
 
 Value* FunctionGenerator::SetupLocal(llvm::Type* type, const char* name) {
@@ -502,10 +543,17 @@ Value* FunctionGenerator::SetupLocal(llvm::Type* type, const char* name) {
   return v;
 }
 
+Value* FunctionGenerator::cia_value() {
+  return builder_->getInt32(cia_);
+}
+
 void FunctionGenerator::FillRegisters() {
   // This updates all of the local register values from the state memory.
   // It should be called on function entry for initial setup and after any
   // calls that may modify the registers.
+
+  // TODO(benvanik): use access flags to see if we need to do reads/writes.
+  // Though LLVM may do a better job than we can, except across calls.
 
   IRBuilder<>& b = *builder_;
 
@@ -619,28 +667,15 @@ void FunctionGenerator::SpillRegisters() {
   }
 }
 
-void FunctionGenerator::setup_xer() {
-  IRBuilder<>& b = *builder_;
-
-  if (locals_.xer) {
-    return;
-  }
-
-  locals_.xer = SetupLocal(b.getInt64Ty(), "xer");
-}
-
 Value* FunctionGenerator::xer_value() {
+  XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
-
-  setup_xer();
-
   return b.CreateLoad(locals_.xer);
 }
 
 void FunctionGenerator::update_xer_value(Value* value) {
+  XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
-
-  setup_xer();
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
@@ -650,9 +685,8 @@ void FunctionGenerator::update_xer_value(Value* value) {
 }
 
 void FunctionGenerator::update_xer_with_overflow(Value* value) {
+  XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
-
-  setup_xer();
 
   // Expects a i1 indicating overflow.
   // Trust the caller that if it's larger than that it's already truncated.
@@ -668,9 +702,8 @@ void FunctionGenerator::update_xer_with_overflow(Value* value) {
 }
 
 void FunctionGenerator::update_xer_with_carry(Value* value) {
+  XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
-
-  setup_xer();
 
   // Expects a i1 indicating carry.
   // Trust the caller that if it's larger than that it's already truncated.
@@ -685,9 +718,8 @@ void FunctionGenerator::update_xer_with_carry(Value* value) {
 }
 
 void FunctionGenerator::update_xer_with_overflow_and_carry(Value* value) {
+  XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
-
-  setup_xer();
 
   // Expects a i1 indicating overflow.
   // Trust the caller that if it's larger than that it's already truncated.
@@ -705,28 +737,15 @@ void FunctionGenerator::update_xer_with_overflow_and_carry(Value* value) {
   b.CreateStore(xer, locals_.xer);
 }
 
-void FunctionGenerator::setup_lr() {
-  IRBuilder<>& b = *builder_;
-
-  if (locals_.lr) {
-    return;
-  }
-
-  locals_.lr = SetupLocal(b.getInt64Ty(), "lr");
-}
-
 Value* FunctionGenerator::lr_value() {
+  XEASSERTNOTNULL(locals_.lr);
   IRBuilder<>& b = *builder_;
-
-  setup_lr();
-
   return b.CreateLoad(locals_.lr);
 }
 
 void FunctionGenerator::update_lr_value(Value* value) {
+  XEASSERTNOTNULL(locals_.lr);
   IRBuilder<>& b = *builder_;
-
-  setup_lr();
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
@@ -735,28 +754,16 @@ void FunctionGenerator::update_lr_value(Value* value) {
   b.CreateStore(value, locals_.lr);
 }
 
-void FunctionGenerator::setup_ctr() {
-  IRBuilder<>& b = *builder_;
-
-  if (locals_.ctr) {
-    return;
-  }
-
-  locals_.ctr = SetupLocal(b.getInt64Ty(), "ctr");
-}
-
 Value* FunctionGenerator::ctr_value() {
+  XEASSERTNOTNULL(locals_.ctr);
   IRBuilder<>& b = *builder_;
-
-  setup_ctr();
 
   return b.CreateLoad(locals_.ctr);
 }
 
 void FunctionGenerator::update_ctr_value(Value* value) {
+  XEASSERTNOTNULL(locals_.ctr);
   IRBuilder<>& b = *builder_;
-
-  setup_ctr();
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {
@@ -765,23 +772,10 @@ void FunctionGenerator::update_ctr_value(Value* value) {
   b.CreateStore(value, locals_.ctr);
 }
 
-void FunctionGenerator::setup_cr(uint32_t n) {
-  IRBuilder<>& b = *builder_;
-
-  XEASSERT(n >= 0 && n < 8);
-  if (locals_.cr[n]) {
-    return;
-  }
-
-  char name[32];
-  xesnprintfa(name, XECOUNT(name), "cr_f%d", n);
-  locals_.cr[n] = SetupLocal(b.getInt8Ty(), name);
-}
-
 Value* FunctionGenerator::cr_value(uint32_t n) {
+  XEASSERT(n >= 0 && n < 8);
+  XEASSERTNOTNULL(locals_.cr[n]);
   IRBuilder<>& b = *builder_;
-
-  setup_cr(n);
 
   Value* v = b.CreateLoad(locals_.cr[n]);
   v = b.CreateZExt(v, b.getInt64Ty());
@@ -789,9 +783,9 @@ Value* FunctionGenerator::cr_value(uint32_t n) {
 }
 
 void FunctionGenerator::update_cr_value(uint32_t n, Value* value) {
+  XEASSERT(n >= 0 && n < 8);
+  XEASSERTNOTNULL(locals_.cr[n]);
   IRBuilder<>& b = *builder_;
-
-  setup_cr(n);
 
   // Truncate to 8 bits if needed.
   // TODO(benvanik): also widen?
@@ -834,22 +828,10 @@ void FunctionGenerator::update_cr_with_cond(
   update_cr_value(n, c);
 }
 
-void FunctionGenerator::setup_gpr(uint32_t n) {
-  IRBuilder<>& b = *builder_;
-
-  if (locals_.gpr[n]) {
-    return;
-  }
-
-  char name[30];
-  xesnprintfa(name, XECOUNT(name), "gpr_r%d", n);
-  locals_.gpr[n] = SetupLocal(b.getInt64Ty(), name);
-}
-
 Value* FunctionGenerator::gpr_value(uint32_t n) {
-  IRBuilder<>& b = *builder_;
-
   XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.gpr[n]);
+  IRBuilder<>& b = *builder_;
 
   // Actually r0 is writable, even though nobody should ever do that.
   // Perhaps we can check usage and enable this if safe?
@@ -858,23 +840,19 @@ Value* FunctionGenerator::gpr_value(uint32_t n) {
   //   return b.getInt64(0);
   // }
 
-  setup_gpr(n);
-
   return b.CreateLoad(locals_.gpr[n]);
 }
 
 void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
-  IRBuilder<>& b = *builder_;
-
   XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.gpr[n]);
+  IRBuilder<>& b = *builder_;
 
   // See above - r0 can be written.
   // if (n == 0) {
   //   // Ignore writes to zero.
   //   return;
   // }
-
-  setup_gpr(n);
 
   // Extend to 64bits if needed.
   if (!value->getType()->isIntegerTy(64)) {

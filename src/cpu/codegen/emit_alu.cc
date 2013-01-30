@@ -311,7 +311,9 @@ XEEMITTER(divwux,       0x7C000396, XO )(FunctionGenerator& g, IRBuilder<>& b, I
   g.update_gpr_value(i.XO.RT, v);
 
   // If we are OE=1 we need to clear the overflow bit.
-  g.update_xer_with_overflow(b.getInt1(0));
+  if (i.XO.OE) {
+    g.update_xer_with_overflow(b.getInt1(0));
+  }
 
   if (i.XO.Rc) {
     // With cr0 update.
@@ -1018,10 +1020,10 @@ XEDISASMR(ori,          0x60000000, D  )(InstrData& i, InstrDisasm& d) {
     d.Init("no-op", "OR Immediate", 0);
   } else {
     d.Init("ori", "OR Immediate", 0);
-    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
-    d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
-    d.AddUImmOperand(i.D.DS, 2);
   }
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+  d.AddUImmOperand(i.D.DS, 2);
   return d.Finish();
 }
 XEEMITTER(ori,          0x60000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {

@@ -93,12 +93,7 @@ private:
   void GenerateSharedBlocks();
   void PrepareBasicBlock(sdb::FunctionBlock* block);
   void GenerateBasicBlock(sdb::FunctionBlock* block);
-
-  void setup_xer();
-  void setup_lr();
-  void setup_ctr();
-  void setup_cr(uint32_t n);
-  void setup_gpr(uint32_t n);
+  void SetupLocals();
 
   xe_memory_ref         memory_;
   sdb::SymbolDatabase*  sdb_;
