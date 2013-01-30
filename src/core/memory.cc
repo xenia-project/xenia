@@ -9,7 +9,9 @@
 
 #include <xenia/core/memory.h>
 
+#if !XE_PLATFORM(WIN32)
 #include <sys/mman.h>
+#endif  // WIN32
 
 #define MSPACES                 1
 #define USE_LOCKS               1
@@ -56,10 +58,17 @@ xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options) {
   xe_ref_init((xe_ref)memory);
 
   memory->length = 0xC0000000;
+
+#if XE_PLATFORM(WIN32)
+  memory->ptr = VirtualAlloc(0, memory->length,
+                             MEM_COMMIT | MEM_RESERVE,
+                             PAGE_READWRITE);
+#else
   memory->ptr = mmap(0, memory->length, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANON, -1, 0);
-  XEEXPECTNOTNULL(memory->ptr);
   XEEXPECT(memory->ptr != MAP_FAILED);
+#endif  // WIN32
+  XEEXPECTNOTNULL(memory->ptr);
 
   // Allocate the mspace for our heap.
   // We skip the first page to make writes to 0 easier to find.
@@ -71,16 +80,20 @@ xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options) {
   return memory;
 
 XECLEANUP:
-  if (memory->heap) {
-    destroy_mspace(memory->heap);
-  }
   xe_memory_release(memory);
   return NULL;
 }
 
 void xe_memory_dealloc(xe_memory_ref memory) {
-  destroy_mspace(memory->heap);
+  if (memory->heap) {
+    destroy_mspace(memory->heap);
+  }
+
+#if XE_PLATFORM(WIN32)
+  XEIGNORE(VirtualFree(memory->ptr, memory->length, MEM_RELEASE));
+#else
   munmap(memory->ptr, memory->length);
+#endif  // WIN32
 }
 
 xe_memory_ref xe_memory_retain(xe_memory_ref memory) {
