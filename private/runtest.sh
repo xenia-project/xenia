@@ -14,7 +14,7 @@ fi
     --trace_kernel_calls=true \
     --trace_user_calls=true \
     --trace_instructions=false \
-    --abort_before_entry=true \
+    \#--abort_before_entry=true \
     1>build/run.txt
     #2>build/run.llvm.txt \
 

@@ -84,20 +84,20 @@
             ],
           }],
           ['_type=="executable"', {
-            'libraries': [
-              '<@(llvm_libs)',
+            'conditions': [
+              ['OS != "mac"', {
+                'libraries': [
+                  '<@(llvm_libs)',
+                ],
+              }],
+              ['OS == "mac"', {
+                'xcode_settings': {
+                  'OTHER_LDFLAGS': [
+                    '<!@(<(llvm_config) --libs all)',
+                  ],
+                },
+              }],
             ],
-            'library_dirs': [
-              # NOTE: this doesn't actually do anything...
-              # http://code.google.com/p/gyp/issues/detail?id=130
-              #'<!@(<(llvm_config) --libdir)',
-            ],
-            'xcode_settings': {
-              'OTHER_LDFLAGS': [
-                #'<!@(<(llvm_config) --ldflags)',
-                #'<!@(<(llvm_config) --libs all)',
-              ],
-            },
           }],
         ],
       },

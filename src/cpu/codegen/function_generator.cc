@@ -602,7 +602,7 @@ void FunctionGenerator::FillRegisters() {
   }
 
   // Note that we skip zero.
-  for (int n = 0; n < XECOUNT(locals_.gpr); n++) {
+  for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     if (locals_.gpr[n]) {
       b.CreateStore(LoadStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,

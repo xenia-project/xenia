@@ -132,11 +132,17 @@
           'SYMROOT': '<(DEPTH)/build/xenia/',
           'ALWAYS_SEARCH_USER_PATHS': 'NO',
           'ARCHS': ['x86_64'],
+          #'CLANG_CXX_LANGUAGE_STANDARD': 'c++0x',
+          'COMBINE_HIDPI_IMAGES': 'YES',
           'GCC_C_LANGUAGE_STANDARD': 'c99',
+          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
           'GCC_TREAT_WARNINGS_AS_ERRORS': 'YES',
           'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',
+          'GCC_VERSION': 'com.apple.compilers.llvm.clang.1_0',
           'WARNING_CFLAGS': ['-Wall', '-Wendif-labels'],
-          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
+          'LIBRARY_SEARCH_PATHS': [
+            '<@(llvm_libdir)',
+          ],
         },
 
         'defines': [
