@@ -91,7 +91,7 @@ public:
 
 private:
   void GenerateSharedBlocks();
-  void PrepareBasicBlock(sdb::FunctionBlock* block);
+  int PrepareBasicBlock(sdb::FunctionBlock* block);
   void GenerateBasicBlock(sdb::FunctionBlock* block);
   void SetupLocals();
 

@@ -152,7 +152,7 @@ void FunctionGenerator::GenerateBasicBlocks() {
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
        it != fn_->blocks.end(); ++it) {
     FunctionBlock* block = it->second;
-    PrepareBasicBlock(block);
+    XEIGNORE(PrepareBasicBlock(block));
   }
 
   // Setup all local variables now that we know what we need.
@@ -217,7 +217,7 @@ void FunctionGenerator::GenerateSharedBlocks() {
   }
 }
 
-void FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
+int FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
   // Create the basic block that will end up getting filled during
   // generation.
   char name[32];
@@ -247,7 +247,11 @@ void FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
     // and haven't implemented the disassemble method yet.
     ppc::InstrDisasm d;
     XEASSERTNOTNULL(i.type->disassemble);
-    XEASSERTZERO(i.type->disassemble(i, d));
+    int result_code = i.type->disassemble(i, d);
+    XEASSERTZERO(result_code);
+    if (result_code) {
+      return result_code;
+    }
 
     // Accumulate access bits.
     access_bits.Extend(d.access_bits);
@@ -255,6 +259,8 @@ void FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
 
   // Add in access bits to function access bits.
   access_bits_.Extend(access_bits);
+
+  return 0;
 }
 
 void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {

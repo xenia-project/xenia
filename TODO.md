@@ -1,23 +1,70 @@
+## Loader
+
+Set all function variable addresses to the thunks. Since we handle the thunks
+specially the variables are just used as function pointer storage.
+
 ## Kernel
 
-NtAllocateVirtualMemory
+Ordered:
+```
+RtlInitializeCriticalSection/RtlInitializeCriticalSectionAndSpinCount
+RtlEnterCriticalSection/RtlLeaveCriticalSection
+XexCheckExecutablePrivilege
+XGetAVPack
+ExGetXConfigSetting
+KeTlsAlloc
+KeTlsSetValue
+```
+
+Others:
+```
+NtQueryVirtualMemory
+
+KeTlsAlloc/KeTlsFree/KeTlsGetValue/KeTlsSetValue
+
+NtWaitForSingleObjectEx
+
+RtlInitUnicodeString/RtlFreeUnicodeString
+RtlInitAnsiString/RtlFreeAnsiString
+RtlUnicodeStringToAnsiString
+
+RtlCompareMemoryUlong
+RtlNtStatusToDosError
+RtlRaiseException
+
+NtCreateFile/NtOpenFile
+NtReadFile/NtReadFileScatter
+NtQueryFullAttributesFile
+NtQueryInformationFile/NtSetInformationFile
+NtQueryDirectoryFile/NtQueryVolumeInformationFile
+
+NtDuplicateObject
+
+KeBugCheck:
+// VOID
+// _In_  ULONG BugCheckCode
+```
 
 ## Instructions
-
-### XER CA bit (carry)
-
-Not sure the way I'm doing this is right. addic/subficx/etc set it to the value
-of the overflow bit from the LLVM *_with_overflow intrinsic.
 
 ```
 rlwimix
 rldiclx
 ```
 
+### XER CA bit (carry)
+
+Not sure the way I'm doing this is right. addic/subficx/etc set it to the value
+of the overflow bit from the LLVM *_with_overflow intrinsic.
+
+### Overflow
+
 Overflow bits can be set via the intrinsics:
 `llvm.sadd.with.overflow`/etc
 It'd be nice to avoid doing this unless absolutely required. The SDB could
 walk functions to see if they ever read or branch on the SO bit of things.
+
+### Conditions
 
 Condition bits are, after each function:
 ```
@@ -31,8 +78,14 @@ For those, it would be nice to remove redundant sets. Maybe LLVM will do it
 automatically due to the local cr? May need to split that up into a few locals
 (one for each bit?) to ensure deduping.
 
+### Branch Hinting
+
 `@llvm.expect.i32`/`.i64` could be used with the BH bits in branches to
 indicate expected values.
+
+### Data Caching
+
+dcbt and dcbtst could use LLVM intrinsic @llvm.prefetch.
 
 ## Codegen
 

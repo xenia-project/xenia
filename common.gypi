@@ -12,7 +12,7 @@
 
     # LLVM paths.
     # TODO(benvanik): switch based on configuration.
-    'llvm_path': 'build/llvm/debug/',
+    'llvm_path': 'build/llvm/release/',
     'llvm_config': '<(llvm_path)bin/llvm-config',
   },
 
@@ -101,6 +101,7 @@
       'GCC_TREAT_WARNINGS_AS_ERRORS': 'YES',
       'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',
       'WARNING_CFLAGS': ['-Wall', '-Wendif-labels'],
+      'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
     },
   },
 }
