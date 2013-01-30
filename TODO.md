@@ -9,8 +9,6 @@ Ordered:
 ```
 RtlInitializeCriticalSection/RtlInitializeCriticalSectionAndSpinCount
 RtlEnterCriticalSection/RtlLeaveCriticalSection
-XexCheckExecutablePrivilege
-XGetAVPack
 ExGetXConfigSetting
 KeTlsAlloc
 KeTlsSetValue

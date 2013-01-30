@@ -7,22 +7,23 @@
  ******************************************************************************
  */
 
-#include "kernel/modules/xbdm/xbdm_module.h"
+#ifndef XENIA_KERNEL_MODULES_XAM_INFO_H_
+#define XENIA_KERNEL_MODULES_XAM_INFO_H_
 
-#include "kernel/modules/xbdm/xbdm_table.h"
-
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xbdm;
+#include "kernel/modules/xam/xam_state.h"
 
 
-XbdmModule::XbdmModule(xe_pal_ref pal, xe_memory_ref memory,
-                       shared_ptr<ExportResolver> resolver) :
-    KernelModule(pal, memory, resolver) {
-  resolver->RegisterTable(
-      "xbdm.exe", xbdm_export_table, XECOUNT(xbdm_export_table));
-}
+namespace xe {
+namespace kernel {
+namespace xam {
 
-XbdmModule::~XbdmModule() {
-}
+
+void RegisterInfoExports(ExportResolver* export_resolver, XamState* state);
+
+
+}  // namespace xam
+}  // namespace kernel
+}  // namespace xe
+
+
+#endif  // XENIA_KERNEL_MODULES_XAM_INFO_H_

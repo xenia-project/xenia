@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_MODULES_H_
 
 #include "kernel/modules/xam/xam_module.h"
-#include "kernel/modules/xbdm/xbdm_module.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl_module.h"
+#include "kernel/modules/xboxkrnl/module.h"
 
 #endif  // XENIA_KERNEL_MODULES_H_

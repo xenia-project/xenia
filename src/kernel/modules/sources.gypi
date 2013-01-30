@@ -2,7 +2,6 @@
 {
   'includes': [
     'xam/sources.gypi',
-    'xbdm/sources.gypi',
     'xboxkrnl/sources.gypi',
   ],
 }

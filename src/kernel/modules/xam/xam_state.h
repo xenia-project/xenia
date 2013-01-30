@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBDM_MODULE_H_
-#define XENIA_KERNEL_MODULES_XBDM_MODULE_H_
+#ifndef XENIA_KERNEL_MODULES_XAM_XAM_STATE_H_
+#define XENIA_KERNEL_MODULES_XAM_XAM_STATE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -19,20 +19,26 @@
 
 namespace xe {
 namespace kernel {
-namespace xbdm {
+namespace xam {
 
 
-class XbdmModule : public KernelModule {
+class XamState {
 public:
-  XbdmModule(xe_pal_ref pal, xe_memory_ref memory,
-             shared_ptr<ExportResolver> resolver);
-  virtual ~XbdmModule();
+  XamState(xe_pal_ref pal, xe_memory_ref memory,
+           shared_ptr<ExportResolver> export_resolver);
+  ~XamState();
+
+  xe_pal_ref    pal;
+  xe_memory_ref memory;
+
+private:
+  shared_ptr<ExportResolver> export_resolver_;
 };
 
 
-}  // namespace xbdm
+}  // namespace xam
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBDM_MODULE_H_
+#endif  // XENIA_KERNEL_MODULES_XAM_XAM_STATE_H_

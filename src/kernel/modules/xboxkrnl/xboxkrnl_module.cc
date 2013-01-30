@@ -9,13 +9,10 @@
 
 #include "kernel/modules/xboxkrnl/xboxkrnl_module.h"
 
-#include "kernel/modules/xboxkrnl/kernel_state.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl_hal.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl_memory.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl_rtl.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl_threading.h"
+#include <xenia/kernel/xex2.h>
 
-#include "kernel/modules/xboxkrnl/xboxkrnl_table.h"
+#include "kernel/shim_utils.h"
+#include "kernel/modules/xboxkrnl/xboxkrnl.h"
 
 
 using namespace xe;
@@ -25,76 +22,87 @@ using namespace xe::kernel::xboxkrnl;
 
 namespace {
 
+
+// void ExGetXConfigSetting_shim(
+//     xe_ppc_state_t* ppc_state, KernelState* state) {
+//   // ?
+//   SHIM_SET_RETURN(0);
+// }
+
+
+void XexCheckExecutablePrivilege_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // BOOL
+  // DWORD Privilege
+
+  uint32_t privilege = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      XT("XexCheckExecutablePrivilege(%.8X)"),
+      privilege);
+
+  // Privilege is bit position in xe_xex2_system_flags enum - so:
+  // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
+  uint32_t mask = 1 << privilege;
+
+  // TODO(benvanik): pull from xex header:
+  // XEKernelModuleRef module = XEKernelGetExecutableModule(XEGetKernel());
+  // const XEXHeader* xexhdr = XEKernelModuleGetXEXHeader(module);
+  // return xexhdr->systemFlags & mask;
+
+  if (mask == XEX_SYSTEM_PAL50_INCOMPATIBLE) {
+    // Only one we've seen.
+  } else {
+    XELOGW(XT("XexCheckExecutablePrivilege: %.8X is NOT IMPLEMENTED"),
+           privilege);
+  }
+
+  SHIM_SET_RETURN(0);
 }
 
 
-XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
-                               shared_ptr<ExportResolver> resolver) :
-    KernelModule(pal, memory, resolver) {
-  resolver->RegisterTable(
-      "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
+void XexGetModuleHandle_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // BOOL
+  // LPCSZ ModuleName
+  // LPHMODULE ModuleHandle
 
-  // Setup the kernel state instance.
-  // This is where all kernel objects are kept while running.
-  kernel_state = auto_ptr<KernelState>(new KernelState(pal, memory, resolver));
+  uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
+  const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
+  uint32_t module_handle_ptr = SHIM_GET_ARG_32(1);
 
-  // Register all exported functions.
-  RegisterHalExports(resolver.get(), kernel_state.get());
-  RegisterMemoryExports(resolver.get(), kernel_state.get());
-  RegisterRtlExports(resolver.get(), kernel_state.get());
-  RegisterThreadingExports(resolver.get(), kernel_state.get());
+  XELOGD(
+      XT("XexGetModuleHandle(%s, %.8X)"),
+      module_name, module_handle_ptr);
 
-  // TODO(benvanik): alloc heap memory somewhere in user space
-  // TODO(benvanik): tools for reading/writing to heap memory
+  XEASSERTALWAYS();
 
-  uint8_t* mem = xe_memory_addr(memory, 0);
+  // TODO(benvanik): get module
+  // XEKernelModuleRef module = XEKernelGetModuleByName(XEGetKernel(), ModuleName);
+  // if (!module) {
+    SHIM_SET_RETURN(0);
+  //   return;
+  // }
 
-  // KeDebugMonitorData (?*)
-  // I'm not sure what this is for, but games make sure it's not null and
-  // exit if it is.
-  resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x00000059,
-      0x80102100);
-  XESETUINT32BE(mem + 0x80102100, 0x1);
-
-  // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
-  // flags       cpu#  ?     ?     ?     ?           ?       ?
-  // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
-  // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
-  // was whether an HDD was present. Not sure what the other flags are.
-  resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x00000156,
-      0x80100FED);
-  XESETUINT32BE(mem + 0x80100FED, 0x00000000);  // flags
-  XESETUINT8BE(mem  + 0x80100FEE, 0x06);        // cpu count
-  // Remaining 11b are zeroes?
-
-  // XexExecutableModuleHandle (?**)
-  // Games try to dereference this to get a pointer to some module struct.
-  // So far it seems like it's just in loader code, and only used to look up
-  // the XexHeaderBase for use by RtlImageXexHeaderField.
-  // We fake it so that the address passed to that looks legit.
-  // 0x80100FFC <- pointer to structure
-  // 0x80101000 <- our module structure
-  // 0x80101058 <- pointer to xex header
-  // 0x80101100 <- xex header base
-  resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x00000193,
-      0x80100FFC);
-  XESETUINT32BE(mem + 0x80100FFC, 0x80101000);
-  XESETUINT32BE(mem + 0x80101058, 0x80101100);
-
-  // ExLoadedCommandLine (char*)
-  // The name of the xex. Not sure this is ever really used on real devices.
-  // Perhaps it's how swap disc/etc data is sent?
-  // Always set to "default.xex" (with quotes) for now.
-  resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x000001AE,
-      0x80102000);
-  char command_line[] = "\"default.xex\"";
-  xe_copy_memory(mem + 0x80102000, 1024,
-                 command_line, XECOUNT(command_line) + 1);
+  // SHIM_SET_MEM_32(module_handle_ptr, module->handle());
+  // SHIM_SET_RETURN(1);
 }
 
-XboxkrnlModule::~XboxkrnlModule() {
+
+}
+
+
+void xe::kernel::xboxkrnl::RegisterModuleExports(
+    ExportResolver* export_resolver, KernelState* state) {
+  #define SHIM_SET_MAPPING(ordinal, shim, impl) \
+    export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
+        state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
+
+  //SHIM_SET_MAPPING(0x00000010, ExGetXConfigSetting_shim, NULL);
+
+  SHIM_SET_MAPPING(0x00000194, XexCheckExecutablePrivilege_shim, NULL);
+
+  SHIM_SET_MAPPING(0x00000195, XexGetModuleHandle_shim, NULL);
+
+  #undef SET_MAPPING
 }

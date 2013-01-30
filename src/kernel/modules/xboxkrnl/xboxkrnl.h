@@ -75,6 +75,10 @@ typedef uint32_t X_HANDLE;
 #define X_PROCTYPE_SYSTEM 2
 
 
+// TLS specials.
+#define X_TLS_OUT_OF_INDEXES      UINT32_MAX  // (-1)
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

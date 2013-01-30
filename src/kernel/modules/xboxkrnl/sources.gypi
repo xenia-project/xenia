@@ -2,6 +2,7 @@
 {
   'sources': [
     'kernel_state.cc',
+    'module.cc',
     'xboxkrnl_hal.cc',
     'xboxkrnl_memory.cc',
     'xboxkrnl_module.cc',

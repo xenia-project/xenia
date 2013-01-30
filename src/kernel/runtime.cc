@@ -28,8 +28,6 @@ Runtime::Runtime(xe_pal_ref pal, shared_ptr<cpu::Processor> processor,
   kernel_modules_.push_back(
       new xboxkrnl::XboxkrnlModule(pal_, memory_, export_resolver_));
   kernel_modules_.push_back(
-      new xbdm::XbdmModule(pal_, memory_, export_resolver_));
-  kernel_modules_.push_back(
       new xam::XamModule(pal_, memory_, export_resolver_));
 }
 

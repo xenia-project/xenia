@@ -7,23 +7,36 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_IMPL_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_IMPL_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
 
-#include "kernel/modules/xboxkrnl/kernel_state.h"
+#include <xenia/common.h>
+#include <xenia/core.h>
+
+#include <xenia/kernel/export.h>
+#include <xenia/kernel/kernel_module.h>
 
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
+class KernelState;
 
-void RegisterModuleExports(ExportResolver* export_resolver, KernelState* state);
+
+class XboxkrnlModule : public KernelModule {
+public:
+  XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
+                 shared_ptr<ExportResolver> resolver);
+  virtual ~XboxkrnlModule();
+
+private:
+  auto_ptr<KernelState> kernel_state;
+};
 
 
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
 
-
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_IMPL_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_

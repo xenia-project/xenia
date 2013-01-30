@@ -7,31 +7,27 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBDM_TABLE_H_
-#define XENIA_KERNEL_MODULES_XBDM_TABLE_H_
-
-#include <xenia/kernel/export.h>
+#include "kernel/modules/xam/xam_state.h"
 
 
-namespace xe {
-namespace kernel {
-namespace xbdm {
+using namespace xe;
+using namespace xe::kernel;
+using namespace xe::kernel::xam;
 
 
-#define FLAG(t)             kXEKernelExportFlag##t
+namespace {
+
+}
 
 
-static KernelExport xbdm_export_table[] = {
-  { 0 },
-};
+XamState::XamState(xe_pal_ref pal, xe_memory_ref memory,
+                   shared_ptr<ExportResolver> export_resolver) {
+  this->pal = xe_pal_retain(pal);
+  this->memory = xe_memory_retain(memory);
+  export_resolver_ = export_resolver;
+}
 
-
-#undef FLAG
-
-
-}  // namespace xbdm
-}  // namespace kernel
-}  // namespace xe
-
-
-#endif  // XENIA_KERNEL_MODULES_XBDM_TABLE_H_
+XamState::~XamState() {
+  xe_memory_release(memory);
+  xe_pal_release(pal);
+}

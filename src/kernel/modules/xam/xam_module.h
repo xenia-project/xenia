@@ -21,12 +21,17 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+class XamState;
+
 
 class XamModule : public KernelModule {
 public:
   XamModule(xe_pal_ref pal, xe_memory_ref memory,
             shared_ptr<ExportResolver> resolver);
   virtual ~XamModule();
+
+private:
+  auto_ptr<XamState> xam_state;
 };
 
 
