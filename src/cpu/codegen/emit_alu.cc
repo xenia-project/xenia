@@ -1207,7 +1207,7 @@ XEEMITTER(rldicrx,      0x78000004, MD )(FunctionGenerator& g, IRBuilder<>& b, I
 XEDISASMR(rldimix,      0x7800000C, MD )(InstrData& i, InstrDisasm& d) {
   d.Init("rldimi", "Rotate Left Doubleword Immediate then Mask Insert",
          i.MD.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kReadWrite);
   d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
   d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
   d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
@@ -1221,7 +1221,7 @@ XEEMITTER(rldimix,      0x7800000C, MD )(FunctionGenerator& g, IRBuilder<>& b, I
 XEDISASMR(rlwimix,      0x50000000, M  )(InstrData& i, InstrDisasm& d) {
   d.Init("rlwimi", "Rotate Left Word Immediate then Mask Insert",
          i.M.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.M.RA, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.M.RA, InstrRegister::kReadWrite);
   d.AddRegOperand(InstrRegister::kGPR, i.M.RT, InstrRegister::kRead);
   d.AddUImmOperand(i.M.SH, 1);
   d.AddUImmOperand(i.M.MB, 1);
@@ -1233,8 +1233,23 @@ XEEMITTER(rlwimix,      0x50000000, M  )(FunctionGenerator& g, IRBuilder<>& b, I
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
   // RA <- r&m | (RA)&¬m
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+
+  // ROTL32(x, y) = rotl(i64.(x||x), y)
+  Value* v = b.CreateAnd(g.gpr_value(i.M.RT), UINT32_MAX);
+  v = b.CreateOr(b.CreateShl(v, 32), v);
+  // (v << shift) | (v >> (32 - shift));
+  v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
+  uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
+  v = b.CreateAnd(v, m);
+  v = b.CreateOr(v, b.CreateAnd(g.gpr_value(i.M.RA), ~m));
+  g.update_gpr_value(i.M.RA, v);
+
+  if (i.M.Rc) {
+    // With cr0 update.
+    g.update_cr_with_cond(0, v, b.getInt64(0), true);
+  }
+
+  return 0;
 }
 
 XEDISASMR(rlwinmx,      0x54000000, M  )(InstrData& i, InstrDisasm& d) {
