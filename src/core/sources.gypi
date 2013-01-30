@@ -15,6 +15,7 @@
     }],
     ['OS == "win"', {
       'sources': [
+        'mmap_win.cc',
       ],
     }],
   ],
