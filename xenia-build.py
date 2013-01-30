@@ -18,6 +18,12 @@ def main():
   # Add self to the root search path.
   sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+  # Augment path to include our fancy things.
+  os.environ['PATH'] += os.pathsep + os.pathsep.join([
+      os.path.abspath('third_party/ninja/'),
+      os.path.abspath('third_party/gyp/')
+      ])
+
   # Check python version.
   if sys.version_info < (2, 7):
     print 'ERROR: python 2.7+ required'
@@ -112,9 +118,15 @@ def run_command(command, args, cwd):
 def has_bin(bin):
   """Checks whether the given binary is present.
   """
-  DEVNULL = open(os.devnull, 'wb')
-  return True if subprocess.call(
-      'which %s' % (bin), shell=True, stdout=DEVNULL) == 0 else False
+  for path in os.environ["PATH"].split(os.pathsep):
+    path = path.strip('"')
+    exe_file = os.path.join(path, bin)
+    if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+      return True
+    exe_file = exe_file + '.exe'
+    if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+      return True
+  return None
 
 
 def shell_call(command, throw_on_error=True):
@@ -170,7 +182,7 @@ def post_update_deps(config):
     config: 'debug' or 'release'.
   """
   print '- building llvm...'
-  shell_call('third_party/ninja/ninja -C build/llvm/%s-obj/ install' % (config))
+  shell_call('ninja -C build/llvm/%s-obj/ install' % (config))
   print ''
 
 
@@ -206,9 +218,14 @@ class SetupCommand(Command):
       print ''
 
     # Run the ninja bootstrap to build it, if it's missing.
-    if not os.path.exists('third_party/ninja/ninja'):
+    if (not os.path.exists('third_party/ninja/ninja') and
+       not os.path.exists('third_party/ninja/ninja.exe')):
       print '- preparing ninja...'
-      shell_call('python third_party/ninja/bootstrap.py')
+      # Windows needs --x64 to force building the 64-bit ninja.
+      extra_args = ''
+      if sys.platform == 'win32':
+        extra_args = '--x64'
+      shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
       print ''
 
     # Ensure cmake is present.
@@ -221,34 +238,43 @@ class SetupCommand(Command):
       else:
         print 'ERROR: need to install cmake, use:'
         print 'http://www.cmake.org/cmake/resources/software.html'
+        print 'Run the Windows installer, select the \'Add to system path\''
+        print 'option and restart your command prompt to ensure it\'s on the'
+        print 'PATH.'
         return 1
       print ''
 
     # Binutils.
     # TODO(benvanik): disable on Windows
     print '- binutils...'
-    if not os.path.exists('build/binutils'):
-      os.makedirs('build/binutils')
-    os.chdir('build/binutils')
-    shell_call(' '.join([
-        '../../third_party/binutils/configure',
-        '--disable-debug',
-        '--disable-dependency-tracking',
-        '--disable-werror',
-        '--enable-interwork',
-        '--enable-multilib',
-        '--target=powerpc-none-elf',
-        '--with-gnu-ld',
-        '--with-gnu-as',
-        ]))
-    shell_call('make')
-    os.chdir(cwd)
+    if sys.platform == 'win32':
+      print 'WARNING: ignoring binutils on Windows... don\'t change tests!'
+    else:
+      if not os.path.exists('build/binutils'):
+        os.makedirs('build/binutils')
+      os.chdir('build/binutils')
+      shell_call(' '.join([
+          '../../third_party/binutils/configure',
+          '--disable-debug',
+          '--disable-dependency-tracking',
+          '--disable-werror',
+          '--enable-interwork',
+          '--enable-multilib',
+          '--target=powerpc-none-elf',
+          '--with-gnu-ld',
+          '--with-gnu-as',
+          ]))
+      shell_call('make')
+      os.chdir(cwd)
     print ''
 
     # LLVM.
     print '- preparing llvm...'
-    #generator = 'Visual Studio 10 Win64'
-    generator = 'Ninja'
+    generator = ''
+    if False:#sys.platform == 'win32':
+      generator = 'Visual Studio 10 Win64'
+    else:
+      generator = 'Ninja'
     def prepareLLVM(path, obj_path, mode):
       os.chdir(cwd)
       if not os.path.exists(path):
@@ -257,7 +283,6 @@ class SetupCommand(Command):
         os.makedirs(obj_path)
       os.chdir(obj_path)
       shell_call(' '.join([
-          'PATH=$PATH:../../../third_party/ninja/',
           'cmake',
           '-G"%s"' % (generator),
           '-DCMAKE_INSTALL_PREFIX:STRING=../../../%s' % (path),
@@ -322,7 +347,7 @@ def run_gyp(format):
     format: gyp -f value.
   """
   shell_call(' '.join([
-      'third_party/gyp/gyp',
+      'gyp',
       '-f %s' % (format),
       # Set the VS version.
       # TODO(benvanik): allow user to set?
@@ -392,7 +417,7 @@ class BuildCommand(Command):
     print ''
 
     print '- building xenia in %s...' % (config)
-    result = shell_call('third_party/ninja/ninja -C build/xenia/%s' % (config),
+    result = shell_call('ninja -C build/xenia/%s' % (config),
                         throw_on_error=False)
     print ''
     if result != 0:

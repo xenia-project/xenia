@@ -36,9 +36,17 @@ Windows SDK, the full DirectX SDK, and the Kinect SDK.
 * [Windows SDK](http://www.microsoft.com/download/en/details.aspx?id=8279)
 * [DirectX SDK](http://msdn.microsoft.com/en-us/directx/)
 * [Kinect SDK](http://www.kinectforwindows.org/download/)
-* [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html#latestsrc)
-* [Python 2.6](http://www.python.org/getit/releases/2.6/)
-* [CMake](http://www.cmake.org/cmake/resources/software.html)
+* [Python 2.7](http://www.python.org/download/releases/2.7.3/)
+
+Make sure that Python is on your PATH.
+Use the Visual Studio 2010 x64 command prompt.
+
+There's a bug in VC++ that breaks with an internal error when building LLVM.
+Change line 87 of include/llvm/ADT/StringExtras.h:
+```
+-static inline std::string utostr(uint64_t X, bool isNeg = false) {
++static __declspec(noinline) std::string utostr(uint64_t X, bool isNeg = false) {
+```
 
 #### OS X
 
@@ -83,7 +91,7 @@ Xcode to build or debug your projects you'll need to run this after you change
 gyp/gypi files.
 
     xb gyp
-    
+
 #### xethunk
 
 Updates the checked-in `src/cpu/xethunk/xethunk.bc` and `xethunk.ll` files.
