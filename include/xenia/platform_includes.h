@@ -19,6 +19,8 @@
 #endif
 #include <SDKDDKVer.h>
 #include <windows.h>
+#undef min
+#undef max
 #endif  // WINCE || WIN32
 
 #if XE_PLATFORM(XBOX360)
@@ -46,6 +48,15 @@
 #include <errno.h>
 #include <string>
 #include <assert.h>
+#include <stdint.h>
+
+#if XE_COMPILER(MSVC)
+#include <memory>
+#include <unordered_map>
+#else
+#include <tr1/memory>
+#include <tr1/unordered_map>
+#endif  // MSVC
 
 
 #endif  // XENIA_PLATFORM_INCLUDES_H_

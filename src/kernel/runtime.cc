@@ -85,8 +85,13 @@ int Runtime::LoadBinaryModule(const xechar_t* path, uint32_t start_address) {
                               addr, length));
 
   // Prepare the module.
+  char name_a[2048];
+  XEEXPECTTRUE(xestrnarrow(name_a, XECOUNT(name_a), name));
+  char path_a[2048];
+  XEEXPECTTRUE(xestrnarrow(path_a, XECOUNT(path_a), path));
   XEEXPECTZERO(processor_->PrepareModule(
-      name, path, start_address, start_address + length, export_resolver_));
+      name_a, path_a, start_address, start_address + length,
+      export_resolver_));
 
   result_code = 0;
 XECLEANUP:

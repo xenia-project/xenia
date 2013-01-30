@@ -13,7 +13,6 @@
 #include <xenia/platform.h>
 #include <xenia/platform_includes.h>
 
-#include <tr1/memory>
 namespace xe {
 // TODO(benvanik): support other compilers/etc
 using std::auto_ptr;

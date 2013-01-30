@@ -12,7 +12,6 @@
 
 #include <xenia/core.h>
 
-#include <tr1/unordered_map>
 #include <vector>
 
 #include <xenia/cpu/exec_module.h>

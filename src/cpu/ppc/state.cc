@@ -15,7 +15,7 @@
 namespace {
 
 uint64_t ParseInt64(const char* value) {
-  return strtoull(value, NULL, 0);
+  return xestrtoulla(value, NULL, 0);
 }
 
 }

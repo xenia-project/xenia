@@ -22,6 +22,7 @@ namespace xbdm {
 
 
 static KernelExport xbdm_export_table[] = {
+  0,
 };
 
 

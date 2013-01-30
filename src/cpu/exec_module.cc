@@ -138,8 +138,8 @@ int ExecModule::Prepare() {
 
     // Dump the symbol database.
     if (FLAGS_dump_module_map) {
-      xesnprintf(file_name, XECOUNT(file_name),
-          "%s%s.map", FLAGS_dump_path.c_str(), module_name_);
+      xesnprintfa(file_name, XECOUNT(file_name),
+                  "%s%s.map", FLAGS_dump_path.c_str(), module_name_);
       sdb_->Write(file_name);
     }
 
@@ -171,8 +171,8 @@ int ExecModule::Prepare() {
 
     // Dump pre-optimized module to disk.
     if (FLAGS_dump_module_bitcode) {
-      xesnprintf(file_name, XECOUNT(file_name),
-          "%s%s-preopt.bc", FLAGS_dump_path.c_str(), module_name_);
+      xesnprintfa(file_name, XECOUNT(file_name),
+                  "%s%s-preopt.bc", FLAGS_dump_path.c_str(), module_name_);
       outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
           file_name, error_message, raw_fd_ostream::F_Binary));
       XEEXPECTTRUE(error_message.empty());
@@ -203,8 +203,8 @@ int ExecModule::Prepare() {
 
   // Dump post-optimized module to disk.
   if (FLAGS_optimize_ir_modules && FLAGS_dump_module_bitcode) {
-    xesnprintf(file_name, XECOUNT(file_name),
-        "%s%s.bc", FLAGS_dump_path.c_str(), module_name_);
+    xesnprintfa(file_name, XECOUNT(file_name),
+                "%s%s.bc", FLAGS_dump_path.c_str(), module_name_);
     outs = auto_ptr<raw_ostream>(new raw_fd_ostream(
         file_name, error_message, raw_fd_ostream::F_Binary));
     XEEXPECTTRUE(error_message.empty());
@@ -397,7 +397,7 @@ int ExecModule::Init() {
       } else {
         // Not implemented - write with a dummy value.
         *slot = XESWAP32BE(0xDEADBEEF);
-        XELOGCPU("WARNING: imported a variable with no value: %s",
+        XELOGCPU(XT("WARNING: imported a variable with no value: %s"),
                  kernel_export->name);
       }
     }
@@ -411,7 +411,7 @@ int ExecModule::Init() {
   std::vector<GenericValue> args;
   GenericValue ret = engine_->runFunction(xe_module_init, args);
 
-  return ret.IntVal.getSExtValue();
+  return static_cast<int>(ret.IntVal.getSExtValue());
 }
 
 int ExecModule::Uninit() {

@@ -364,8 +364,10 @@ def run_all_gyps():
   """Runs all gyp configurations.
   """
   run_gyp('ninja')
-  run_gyp('xcode')
-  run_gyp('msvs')
+  if sys.platform == 'darwin':
+    run_gyp('xcode')
+  elif sys.platform == 'win32':
+    run_gyp('msvs')
 
 
 class GypCommand(Command):

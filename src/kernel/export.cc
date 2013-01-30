@@ -41,7 +41,7 @@ KernelExport* ExportResolver::GetExportByOrdinal(const char* library_name,
                                                  const uint32_t ordinal) {
   for (std::vector<ExportTable>::iterator it = tables_.begin();
        it != tables_.end(); ++it) {
-    if (!xestrcmp(library_name, it->name)) {
+    if (!xestrcmpa(library_name, it->name)) {
       // TODO(benvanik): binary search?
       for (size_t n = 0; n < it->count; n++) {
         if (it->exports[n].ordinal == ordinal) {

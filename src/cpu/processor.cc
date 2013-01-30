@@ -135,8 +135,12 @@ int Processor::PrepareModule(
 
 int Processor::PrepareModule(UserModule* user_module,
                              shared_ptr<ExportResolver> export_resolver) {
+  char name_a[2048];
+  char path_a[2048];
+  XEIGNORE(xestrnarrow(name_a, XECOUNT(name_a), user_module->name()));
+  XEIGNORE(xestrnarrow(path_a, XECOUNT(path_a), user_module->path()));
   ExecModule* exec_module = new ExecModule(
-      memory_, export_resolver, user_module->name(), user_module->path(),
+      memory_, export_resolver, name_a, path_a,
       engine_);
 
   if (exec_module->PrepareUserModule(user_module)) {
@@ -173,7 +177,7 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   // Find the function to execute.
   Function* f = GetFunction(address);
   if (!f) {
-    XELOGCPU("Failed to find function %.8X to execute.\n", address);
+    XELOGCPU(XT("Failed to find function %.8X to execute."), address);
     return 1;
   }
 

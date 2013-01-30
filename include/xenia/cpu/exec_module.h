@@ -13,8 +13,6 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-#include <tr1/unordered_map>
-
 #include <xenia/cpu/sdb.h>
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/user_module.h>

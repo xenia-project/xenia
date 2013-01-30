@@ -61,7 +61,7 @@ XEFORCEINLINE void* xe_atomic_stack_dequeue(xe_atomic_stack_t* stack,
                                             const size_t offset) {
   void* ptr = (void*)InterlockedPopEntrySList((PSLIST_HEADER)stack);
   if (ptr) {
-    return (void*)(((byte*)ptr) - offset);
+    return (void*)(((uint8_t*)ptr) - offset);
   } else {
     return NULL;
   }

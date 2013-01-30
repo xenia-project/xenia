@@ -226,7 +226,7 @@ XECLEANUP:
 
 int xenia_test(int argc, xechar_t **argv) {
   string usage = "usage: ";
-  usage = usage + argv[0] + " some.xex";
+  usage += "xenia-test some.xex";
   google::SetUsageMessage(usage);
   google::SetVersionString("1.0");
   google::ParseCommandLineFlags(&argc, &argv, true);

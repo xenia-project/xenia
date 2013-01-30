@@ -23,15 +23,20 @@
 int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define strcpy_s(dest, destLength, source)              !(strcpy(dest, source) == dest + (destLength*0))
 #define strcat_s(dest, destLength, source)              !(strcat(dest, source) == dest + (destLength*0))
-#define _snprintf_s(dest, destLength, format, ...)      snprintf(dest, destLength, format, ##__VA_ARGS__)
+#define _snprintf_s(dest, destLength, x, format, ...)   snprintf(dest, destLength, format, ##__VA_ARGS__)
+#define xestrdupa                                       strdup
+#define xestrtoulla                                     strtoull
 #else
 #define strcasecmp                                      _stricmp
+#define xestrdupa                                       _strdup
+#define xestrtoullw                                     _wcstoui64
+#define xestrtoulla                                     _strtoui64
 #endif
 
 #define xestrlenw                                       wcslen
 #define xestrcmpw                                       wcscmp
 #define xestrcasecmpw                                   _wcsicmp
-#define xsstrdupw                                       wcsdup
+#define xestrdupw                                       wcsdup
 #define xestrchrw                                       wcschr
 #define xestrrchrw                                      wcsrchr
 #define xestrstrw                                       wcsstr
@@ -45,14 +50,13 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define xestrlena                                       strlen
 #define xestrcmpa                                       strcmp
 #define xestrcasecmpa                                   strcasecmp
-#define xestrdupa                                       strdup
 #define xestrchra                                       strchr
 #define xestrrchra                                      strrchr
 #define xestrstra                                       strstr
 #define xestrcpya(dest, destLength, source)             (strcpy_s(dest, destLength, source) == 0)
 #define xestrncpya(dest, destLength, source, count)     (strncpy_s(dest, destLength, source, count) == 0)
 #define xestrcata(dest, destLength, source)             (strcat_s(dest, destLength, source) == 0)
-#define xesnprintfa(buffer, bufferCount, format, ...)   _snprintf_s(buffer, bufferCount, format, ##__VA_ARGS__)
+#define xesnprintfa(buffer, bufferCount, format, ...)   _snprintf_s(buffer, bufferCount, bufferCount, format, ##__VA_ARGS__)
 #define xevsnprintfa(buffer, bufferCount, format, args) vsnprintf(buffer, bufferCount, format, args)
 
 #if XE_PLATFORM(WIN32)
@@ -68,6 +72,7 @@ typedef wchar_t xechar_t;
 #define xestrchr            xestrchrw
 #define xestrrchr           xestrrchrw
 #define xestrstr            xestrstrw
+#define xestrtoull          xestrtoullw
 #define xestrcpy            xestrcpyw
 #define xestrncpy           xestrncpyw
 #define xestrcat            xestrcatw
@@ -89,6 +94,7 @@ typedef char xechar_t;
 #define xestrchr            xestrchra
 #define xestrrchr           xestrrchra
 #define xestrstr            xestrstra
+#define xestrtoull          xestrtoulla
 #define xestrcpy            xestrcpya
 #define xestrncpy           xestrncpya
 #define xestrcat            xestrcata

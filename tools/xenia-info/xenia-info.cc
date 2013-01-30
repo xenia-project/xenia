@@ -19,7 +19,7 @@ using namespace xe::kernel;
 
 int xenia_info(int argc, xechar_t **argv) {
   std::string usage = "usage: ";
-  usage = usage + argv[0] + " some.xex";
+  usage += "xenia-info some.xex";
   google::SetUsageMessage(usage);
   google::SetVersionString("1.0");
   google::ParseCommandLineFlags(&argc, &argv, true);
@@ -33,7 +33,7 @@ int xenia_info(int argc, xechar_t **argv) {
 
   // Grab path.
   if (argc < 2) {
-    google::ShowUsageWithFlags(argv[0]);
+    google::ShowUsageWithFlags("xenia-info");
     return 1;
   }
   const xechar_t *path = argv[1];

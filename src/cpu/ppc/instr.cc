@@ -150,26 +150,30 @@ void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
 
   if (flags & InstrDisasm::kOE) {
     name += "o";
-    special_registers.push_back((InstrRegister){
+    InstrRegister i = {
       InstrRegister::kXER, 0, InstrRegister::kReadWrite
-    });
+    };
+    special_registers.push_back(i);
   }
   if (flags & InstrDisasm::kRc) {
     name += ".";
-    special_registers.push_back((InstrRegister){
+    InstrRegister i = {
       InstrRegister::kCR, 0, InstrRegister::kWrite
-    });
+    };
+    special_registers.push_back(i);
   }
   if (flags & InstrDisasm::kCA) {
-    special_registers.push_back((InstrRegister){
+    InstrRegister i = {
       InstrRegister::kXER, 0, InstrRegister::kReadWrite
-    });
+    };
+    special_registers.push_back(i);
   }
   if (flags & InstrDisasm::kLR) {
     name += "l";
-    special_registers.push_back((InstrRegister){
+    InstrRegister i = {
       InstrRegister::kLR, 0, InstrRegister::kWrite
-    });
+    };
+    special_registers.push_back(i);
   }
 
   XEIGNORE(xestrcpya(this->name, XECOUNT(this->name), name.c_str()));
@@ -178,31 +182,35 @@ void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
 }
 
 void InstrDisasm::AddLR(InstrRegister::Access access) {
-  special_registers.push_back((InstrRegister){
+  InstrRegister i = {
     InstrRegister::kLR, 0, access
-  });
+  };
+  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddCTR(InstrRegister::Access access) {
-  special_registers.push_back((InstrRegister){
+  InstrRegister i = {
     InstrRegister::kCTR, 0, access
-  });
+  };
+  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
-  special_registers.push_back((InstrRegister){
+  InstrRegister i = {
     InstrRegister::kCR, bf, access
-  });
+  };
+  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddRegOperand(
     InstrRegister::RegisterSet set, uint32_t ordinal,
     InstrRegister::Access access, std::string display) {
-  InstrOperand o;
-  o.type = InstrOperand::kRegister;
-  o.reg = (InstrRegister){
+  InstrRegister i = {
     set, ordinal, access
   };
+  InstrOperand o;
+  o.type = InstrOperand::kRegister;
+  o.reg = i;
   if (!display.size()) {
     std::stringstream display_out;
     switch (set) {

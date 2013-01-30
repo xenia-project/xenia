@@ -12,6 +12,12 @@
 #pragma pack (1)
 #endif
 
+// MODIFIED: on Windows a few definitions aren't in WINNT
+#ifdef IMAGE_NT_SIGNATURE
+#define IMAGE_SIZEOF_NT_OPTIONAL_HEADER      224
+#define IMAGE_FILE_MACHINE_POWERPCBE         0x01F2  // IBM PowerPC Big-Endian
+#endif
+
 /*  Skip if WINNT.H already included.  We check IMAGE_NT_SIGNATURE instead of _WINNT_,
  *  because WinCE's version of WINNT.H defines _WINNT_ but it doesn't include everything here
  */

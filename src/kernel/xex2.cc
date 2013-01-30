@@ -205,8 +205,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         size_t count = XEGETUINT32BE(pp + 0x08);
         XEASSERT(count <= max_count);
         if (count > max_count) {
-          XELOGW(XT("ignoring %zu extra entries in "
-                    "XEX_HEADER_IMPORT_LIBRARIES"), (max_count - count));
+          XELOGW(XT("ignoring %zu extra entries in ")
+                 XT("XEX_HEADER_IMPORT_LIBRARIES"), (max_count - count));
           count = max_count;
         }
         header->import_library_count = count;
@@ -259,8 +259,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         size_t count = (opt_header->length - 4) / 16;
         XEASSERT(count <= max_count);
         if (count > max_count) {
-          XELOGW(XT("ignoring %zu extra entries in "
-                    "XEX_HEADER_STATIC_LIBRARIES"), (max_count - count));
+          XELOGW(XT("ignoring %zu extra entries in ")
+                 XT("XEX_HEADER_STATIC_LIBRARIES"), (max_count - count));
           count = max_count;
         }
         header->static_library_count = count;

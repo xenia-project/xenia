@@ -173,7 +173,7 @@ FunctionSymbol* SymbolDatabase::GetOrInsertFunction(uint32_t address) {
 
   // Ignore values outside of the .text range.
   if (!IsValueInTextRange(address)) {
-    XELOGSDB("Ignoring function outside of .text: %.8X\n", address);
+    XELOGSDB(XT("Ignoring function outside of .text: %.8X"), address);
     return NULL;
   }
 
@@ -340,7 +340,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
 
   if (*((uint32_t*)(p + fn->start_address)) == 0) {
     // Function starts with 0x00000000 - we want to skip this and split.
-    XELOGSDB("function starts with 0: %.8X\n", fn->start_address);
+    XELOGSDB(XT("function starts with 0: %.8X"), fn->start_address);
     symbols_.erase(fn->start_address);
     if (!GetFunction(fn->start_address + 4)) {
       fn->start_address += 4;
@@ -352,13 +352,13 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     return 0;
   }
 
-  XELOGSDB("Analyzing function %.8X...\n", fn->start_address);
+  XELOGSDB(XT("Analyzing function %.8X..."), fn->start_address);
 
   // Set a default name, if it hasn't been named already.
   if (!fn->name) {
     char name[32];
     xesnprintfa(name, XECOUNT(name), "sub_%.8X", fn->start_address);
-    fn->name = xestrdup(name);
+    fn->name = xestrdupa(name);
   }
 
   // Set type, if needed. We assume user if not set.
@@ -378,13 +378,13 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
     if (!i.code) {
-      XELOGSDB("function end %.8X (0x00000000 read)\n", addr);
+      XELOGSDB(XT("function end %.8X (0x00000000 read)"), addr);
       break;
     }
 
     if (!i.type) {
       // Invalid instruction.
-      XELOGSDB("Invalid instruction at %.8X: %.8X\n", addr, i.code);
+      XELOGSDB(XT("Invalid instruction at %.8X: %.8X"), addr, i.code);
       return 1;
     }
 
@@ -405,10 +405,10 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_type = FunctionBlock::kTargetLR;
       if (furthest_target > addr) {
         // Remaining targets within function, not end.
-        XELOGSDB("ignoring blr %.8X (branch to %.8X)\n", addr, furthest_target);
+        XELOGSDB(XT("ignoring blr %.8X (branch to %.8X)"), addr, furthest_target);
       } else {
         // Function end point.
-        XELOGSDB("function end %.8X\n", addr);
+        XELOGSDB(XT("function end %.8X"), addr);
         ends_fn = true;
       }
       ends_block = true;
@@ -418,11 +418,11 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_type = FunctionBlock::kTargetCTR;
       if (furthest_target > addr) {
         // Remaining targets within function, not end.
-        XELOGSDB("ignoring bctr %.8X (branch to %.8X)\n", addr,
+        XELOGSDB(XT("ignoring bctr %.8X (branch to %.8X)"), addr,
                  furthest_target);
       } else {
         // Function end point.
-        XELOGSDB("function end %.8X\n", addr);
+        XELOGSDB(XT("function end %.8X"), addr);
         ends_fn = true;
       }
       ends_block = true;
@@ -432,17 +432,17 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_address = target;
 
       if (i.I.LK) {
-        XELOGSDB("bl %.8X -> %.8X\n", addr, target);
+        XELOGSDB(XT("bl %.8X -> %.8X"), addr, target);
 
         // Queue call target if needed.
         GetOrInsertFunction(target);
       } else {
-        XELOGSDB("b %.8X -> %.8X\n", addr, target);
+        XELOGSDB(XT("b %.8X -> %.8X"), addr, target);
         // If the target is back into the function and there's no further target
         // we are at the end of a function.
         if (target >= fn->start_address &&
             target < addr && furthest_target <= addr) {
-          XELOGSDB("function end %.8X (back b)\n", addr);
+          XELOGSDB(XT("function end %.8X (back b)"), addr);
           ends_fn = true;
         }
 
@@ -452,7 +452,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         // it.
         if (!ends_fn &&
             furthest_target <= addr && IsRestGprLr(target)) {
-          XELOGSDB("function end %.8X (__restgprlr_*)\n", addr);
+          XELOGSDB(XT("function end %.8X (__restgprlr_*)"), addr);
           ends_fn = true;
         }
 
@@ -466,9 +466,9 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       uint32_t target = XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)addr);
       block->outgoing_address = target;
       if (i.B.LK) {
-        XELOGSDB("bcl %.8X -> %.8X\n", addr, target);
+        XELOGSDB(XT("bcl %.8X -> %.8X"), addr, target);
       } else {
-        XELOGSDB("bc %.8X -> %.8X\n", addr, target);
+        XELOGSDB(XT("bc %.8X -> %.8X"), addr, target);
 
         furthest_target = MAX(furthest_target, target);
       }
@@ -477,18 +477,18 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       // bclr/bclrl
       block->outgoing_type = FunctionBlock::kTargetLR;
       if (i.XL.LK) {
-        XELOGSDB("bclrl %.8X\n", addr);
+        XELOGSDB(XT("bclrl %.8X"), addr);
       } else {
-        XELOGSDB("bclr %.8X\n", addr);
+        XELOGSDB(XT("bclr %.8X"), addr);
       }
       ends_block = true;
     } else if (i.type->opcode == 0x4C000420) {
       // bcctr/bcctrl
       block->outgoing_type = FunctionBlock::kTargetCTR;
       if (i.XL.LK) {
-        XELOGSDB("bcctrl %.8X\n", addr);
+        XELOGSDB(XT("bcctrl %.8X"), addr);
       } else {
-        XELOGSDB("bcctr %.8X\n", addr);
+        XELOGSDB(XT("bcctr %.8X"), addr);
       }
       ends_block = true;
     }
@@ -508,8 +508,8 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     addr += 4;
     if (fn->end_address && addr > fn->end_address) {
       // Hmm....
-      XELOGSDB("Ran over function bounds! %.8X-%.8X\n",
-             fn->start_address, fn->end_address);
+      XELOGSDB(XT("Ran over function bounds! %.8X-%.8X"),
+               fn->start_address, fn->end_address);
       break;
     }
   }
@@ -519,7 +519,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     // from someplace valid (like method hints) this may indicate an error.
     // It's also possible that we guessed in hole-filling and there's another
     // function below this one.
-    XELOGSDB("Function ran under: %.8X-%.8X ended at %.8X\n",
+    XELOGSDB(XT("Function ran under: %.8X-%.8X ended at %.8X"),
            fn->start_address, fn->end_address, addr + 4);
   }
   fn->end_address = addr;
@@ -532,7 +532,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // - if present, flag function as needing a stack
   // - record prolog/epilog lengths/stack size/etc
 
-  XELOGSDB("Finished analyzing %.8X\n", fn->start_address);
+  XELOGSDB(XT("Finished analyzing %.8X"), fn->start_address);
   return 0;
 }
 
@@ -573,10 +573,12 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
   return 0;
 }
 
+namespace {
 typedef struct {
   uint32_t start_address;
   uint32_t end_address;
 } HoleInfo;
+}
 
 bool SymbolDatabase::FillHoles() {
   // If 4b, check if 0x00000000 and ignore (alignment padding)
@@ -611,11 +613,13 @@ bool SymbolDatabase::FillHoles() {
                 ees.push_back(previous);
               } else {
                 // Probably legit.
-                holes.push_back((HoleInfo){previous, fn->start_address});
+                HoleInfo hole_info = {previous, fn->start_address};
+                holes.push_back(hole_info);
               }
             } else {
               // Probably legit.
-              holes.push_back((HoleInfo){previous, fn->start_address});
+              HoleInfo hole_info = {previous, fn->start_address};
+              holes.push_back(hole_info);
             }
           }
           previous = fn->end_address + 4;
@@ -666,7 +670,7 @@ int SymbolDatabase::FlushQueue() {
     FunctionSymbol* fn = scan_queue_.front();
     scan_queue_.pop_front();
     if (AnalyzeFunction(fn)) {
-      XELOGSDB("Aborting analysis!\n");
+      XELOGSDB(XT("Aborting analysis!"));
       return 1;
     }
   }
@@ -806,7 +810,7 @@ int XexSymbolDatabase::FindGplr() {
   char name[32];
   uint32_t address = gplr_start;
   for (int n = 14; n <= 31; n++) {
-    xesnprintf(name, XECOUNT(name), "__savegprlr_%d", n);
+    xesnprintfa(name, XECOUNT(name), "__savegprlr_%d", n);
     FunctionSymbol* fn = GetOrInsertFunction(address);
     fn->end_address = fn->start_address + (31 - n) * 4 + 2 * 4;
     fn->name = xestrdupa(name);
@@ -816,7 +820,7 @@ int XexSymbolDatabase::FindGplr() {
   }
   address = gplr_start + 20 * 4;
   for (int n = 14; n <= 31; n++) {
-    xesnprintf(name, XECOUNT(name), "__restgprlr_%d", n);
+    xesnprintfa(name, XECOUNT(name), "__restgprlr_%d", n);
     FunctionSymbol* fn = GetOrInsertFunction(address);
     fn->end_address = fn->start_address + (31 - n) * 4 + 3 * 4;
     fn->name = xestrdupa(name);
