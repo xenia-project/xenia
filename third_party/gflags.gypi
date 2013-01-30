@@ -6,14 +6,23 @@
       'type': 'static_library',
 
       'direct_dependent_settings': {
-        'include_dirs': [
-          'gflags/src/',
+        'conditions': [
+          ['OS != "win"', {
+            'include_dirs': [
+              'gflags/src/',
+            ],
+          }],
+          ['OS == "win"', {
+            'include_dirs': [
+              'gflags/src/windows/',
+            ],
+            'defines': [
+              'GFLAGS_DLL_DECL=',
+              'GFLAGS_DLL_DEFINE_FLAG=',
+            ],
+          }],
         ],
       },
-
-      'include_dirs': [
-        'gflags/src/',
-      ],
 
       'sources': [
         'gflags/src/gflags.cc',
@@ -23,9 +32,22 @@
       ],
 
       'conditions': [
+        ['OS != "win"', {
+          'include_dirs': [
+            'gflags/src/',
+          ],
+        }],
         ['OS == "win"', {
-          'sources!': [
+          'include_dirs': [
+            'gflags/src/windows/',
+            'gflags/src/',
+          ],
+          'sources+': [
             'gflags/src/windows/port.cc',
+          ],
+          'defines': [
+            'GFLAGS_DLL_DECL=',
+            'GFLAGS_DLL_DEFINE_FLAG=',
           ],
         }],
       ],
