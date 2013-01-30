@@ -85,9 +85,11 @@ public:
   void update_gpr_value(uint32_t n, llvm::Value* value);
 
   llvm::Value* GetMembase();
-  llvm::Value* GetMemoryAddress(llvm::Value* addr);
-  llvm::Value* ReadMemory(llvm::Value* addr, uint32_t size, bool extend);
-  void WriteMemory(llvm::Value* addr, uint32_t size, llvm::Value* value);
+  llvm::Value* GetMemoryAddress(uint32_t cia, llvm::Value* addr);
+  llvm::Value* ReadMemory(
+      uint32_t cia, llvm::Value* addr, uint32_t size, bool extend);
+  void WriteMemory(
+      uint32_t cia, llvm::Value* addr, uint32_t size, llvm::Value* value);
 
 private:
   void GenerateSharedBlocks();

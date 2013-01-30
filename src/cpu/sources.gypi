@@ -3,6 +3,7 @@
   'sources': [
     'cpu.cc',
     'exec_module.cc',
+    'llvm_exports.cc',
     'processor.cc',
     'sdb.cc',
     'thread_state.cc',

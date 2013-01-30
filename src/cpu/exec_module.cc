@@ -34,6 +34,7 @@
 #include <xenia/cpu/ppc/state.h>
 
 #include "cpu/cpu-private.h"
+#include "cpu/llvm_exports.h"
 #include "cpu/xethunk/xethunk.h"
 
 
@@ -217,13 +218,13 @@ int ExecModule::Prepare() {
   XEEXPECTZERO(Init());
 
   // Force JIT of all functions.
-  for (Module::iterator it = gen_module_->begin(); it != gen_module_->end();
-       ++it) {
-    Function* fn = it;
-    if (!fn->isDeclaration()) {
-      engine_->getPointerToFunction(fn);
-    }
-  }
+  // for (Module::iterator it = gen_module_->begin(); it != gen_module_->end();
+  //      ++it) {
+  //   Function* fn = it;
+  //   if (!fn->isDeclaration()) {
+  //     engine_->getPointerToFunction(fn);
+  //   }
+  // }
 
   result_code = 0;
 XECLEANUP:
@@ -232,61 +233,6 @@ XECLEANUP:
 
 void ExecModule::AddFunctionsToMap(FunctionMap& map) {
   codegen_->AddFunctionsToMap(map);
-}
-
-void XeTrap(xe_ppc_state_t* state, uint32_t cia) {
-  printf("TRAP");
-  XEASSERTALWAYS();
-}
-
-void XeIndirectBranch(xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
-  printf("INDIRECT BRANCH %.8X -> %.8X\n", (uint32_t)br_ia, (uint32_t)target);
-  XEASSERTALWAYS();
-}
-
-void XeInvalidInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
-  ppc::InstrData i;
-  i.address = cia;
-  i.code = data;
-  i.type = ppc::GetInstrType(i.code);
-
-  if (!i.type) {
-    XELOGCPU(XT("INVALID INSTRUCTION %.8X: %.8X ???"),
-             i.address, i.code);
-  } else if (i.type->disassemble) {
-    ppc::InstrDisasm d;
-    i.type->disassemble(i, d);
-    std::string disasm;
-    d.Dump(disasm);
-    XELOGCPU(XT("INVALID INSTRUCTION %.8X: %.8X %s"),
-             i.address, i.code, disasm.c_str());
-  } else {
-    XELOGCPU(XT("INVALID INSTRUCTION %.8X: %.8X %s"),
-             i.address, i.code, i.type->name);
-  }
-}
-
-void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
-                       KernelExport* kernel_export) {
-  XELOGCPU(XT("TRACE: %.8X -> k.%.8X (%s)"),
-           (uint32_t)call_ia - 4, (uint32_t)cia,
-           kernel_export ? kernel_export->name : "unknown");
-}
-
-void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
-                     FunctionSymbol* fn) {
-  XELOGCPU(XT("TRACE: %.8X -> u.%.8X (%s)"),
-           (uint32_t)call_ia - 4, (uint32_t)cia, fn->name);
-}
-
-void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
-  ppc::InstrType* type = ppc::GetInstrType(data);
-  XELOGCPU(XT("TRACE: %.8X %.8X %s %s"),
-           cia, data,
-           type && type->emit ? " " : "X",
-           type ? type->name : "<unknown>");
-
-  // TODO(benvanik): better disassembly, printing of current register values/etc
 }
 
 int ExecModule::InjectGlobals() {
@@ -311,61 +257,7 @@ int ExecModule::InjectGlobals() {
       ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
       int8PtrTy));
 
-  // Control methods:
-  std::vector<Type*> trapArgs;
-  trapArgs.push_back(int8PtrTy);
-  trapArgs.push_back(Type::getInt32Ty(context));
-  FunctionType* trapTy = FunctionType::get(
-      Type::getVoidTy(context), trapArgs, false);
-  engine_->addGlobalMapping(Function::Create(
-      trapTy, Function::ExternalLinkage, "XeTrap",
-      gen_module_.get()), (void*)&XeTrap);
-
-  std::vector<Type*> indirectBranchArgs;
-  indirectBranchArgs.push_back(int8PtrTy);
-  indirectBranchArgs.push_back(Type::getInt64Ty(context));
-  indirectBranchArgs.push_back(Type::getInt64Ty(context));
-  FunctionType* indirectBranchTy = FunctionType::get(
-      Type::getVoidTy(context), indirectBranchArgs, false);
-  engine_->addGlobalMapping(Function::Create(
-      indirectBranchTy, Function::ExternalLinkage, "XeIndirectBranch",
-      gen_module_.get()), (void*)&XeIndirectBranch);
-
-  // Debugging methods:
-  std::vector<Type*> invalidInstructionArgs;
-  invalidInstructionArgs.push_back(int8PtrTy);
-  invalidInstructionArgs.push_back(Type::getInt32Ty(context));
-  invalidInstructionArgs.push_back(Type::getInt32Ty(context));
-  FunctionType* invalidInstructionTy = FunctionType::get(
-      Type::getVoidTy(context), invalidInstructionArgs, false);
-  engine_->addGlobalMapping(Function::Create(
-      invalidInstructionTy, Function::ExternalLinkage, "XeInvalidInstruction",
-      gen_module_.get()), (void*)&XeInvalidInstruction);
-
-  // Tracing methods:
-  std::vector<Type*> traceCallArgs;
-  traceCallArgs.push_back(int8PtrTy);
-  traceCallArgs.push_back(Type::getInt64Ty(context));
-  traceCallArgs.push_back(Type::getInt64Ty(context));
-  traceCallArgs.push_back(Type::getInt64Ty(context));
-  FunctionType* traceCallTy = FunctionType::get(
-      Type::getVoidTy(context), traceCallArgs, false);
-  std::vector<Type*> traceInstructionArgs;
-  traceInstructionArgs.push_back(int8PtrTy);
-  traceInstructionArgs.push_back(Type::getInt32Ty(context));
-  traceInstructionArgs.push_back(Type::getInt32Ty(context));
-  FunctionType* traceInstructionTy = FunctionType::get(
-      Type::getVoidTy(context), traceInstructionArgs, false);
-
-  engine_->addGlobalMapping(Function::Create(
-      traceCallTy, Function::ExternalLinkage, "XeTraceKernelCall",
-      gen_module_.get()), (void*)&XeTraceKernelCall);
-  engine_->addGlobalMapping(Function::Create(
-      traceCallTy, Function::ExternalLinkage, "XeTraceUserCall",
-      gen_module_.get()), (void*)&XeTraceUserCall);
-  engine_->addGlobalMapping(Function::Create(
-      traceInstructionTy, Function::ExternalLinkage, "XeTraceInstruction",
-      gen_module_.get()), (void*)&XeTraceInstruction);
+  SetupLlvmExports(gen_module_.get(), dl, engine_.get());
 
   return 0;
 }

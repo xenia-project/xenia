@@ -874,7 +874,7 @@ Value* FunctionGenerator::GetMembase() {
   return builder_->CreateLoad(v);
 }
 
-Value* FunctionGenerator::GetMemoryAddress(Value* addr) {
+Value* FunctionGenerator::GetMemoryAddress(uint32_t cia, Value* addr) {
   IRBuilder<>& b = *builder_;
 
   // Input address is always in 32-bit space.
@@ -890,9 +890,12 @@ Value* FunctionGenerator::GetMemoryAddress(Value* addr) {
     b.CreateCondBr(gt, valid_bb, invalid_bb);
 
     b.SetInsertPoint(invalid_bb);
-    Function* debugtrap = Intrinsic::getDeclaration(
-        gen_module_, Intrinsic::debugtrap);
-    b.CreateCall(debugtrap);
+    Value* access_violation = gen_module_->getFunction("XeAccessViolation");
+    SpillRegisters();
+    b.CreateCall3(access_violation,
+                  gen_fn_->arg_begin(),
+                  b.getInt32(cia),
+                  addr);
     b.CreateBr(valid_bb);
 
     b.SetInsertPoint(valid_bb);
@@ -902,7 +905,8 @@ Value* FunctionGenerator::GetMemoryAddress(Value* addr) {
   return b.CreateInBoundsGEP(GetMembase(), addr);
 }
 
-Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
+Value* FunctionGenerator::ReadMemory(
+    uint32_t cia, Value* addr, uint32_t size, bool extend) {
   IRBuilder<>& b = *builder_;
 
   Type* dataTy = NULL;
@@ -929,7 +933,7 @@ Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  Value* address = GetMemoryAddress(addr);
+  Value* address = GetMemoryAddress(cia, addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
   Value* value = b.CreateLoad(ptr);
 
@@ -944,7 +948,8 @@ Value* FunctionGenerator::ReadMemory(Value* addr, uint32_t size, bool extend) {
   return value;
 }
 
-void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
+void FunctionGenerator::WriteMemory(
+    uint32_t cia, Value* addr, uint32_t size, Value* value) {
   IRBuilder<>& b = *builder_;
 
   Type* dataTy = NULL;
@@ -971,7 +976,7 @@ void FunctionGenerator::WriteMemory(Value* addr, uint32_t size, Value* value) {
   }
   PointerType* pointerTy = PointerType::getUnqual(dataTy);
 
-  Value* address = GetMemoryAddress(addr);
+  Value* address = GetMemoryAddress(cia, addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
 
   // Truncate, if required.

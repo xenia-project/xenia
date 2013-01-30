@@ -47,7 +47,7 @@ XEEMITTER(lbz,          0x88000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (i.D.RA) {
     ea = b.CreateAdd(g.gpr_value(i.D.RA), ea);
   }
-  Value* v = g.ReadMemory(ea, 1, false);
+  Value* v = g.ReadMemory(i.address, ea, 1, false);
   g.update_gpr_value(i.D.RT, v);
 
   return 0;
@@ -66,7 +66,7 @@ XEEMITTER(lbzu,         0x8C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   // RA <- EA
 
   Value* ea = b.CreateAdd(g.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-  Value* v = g.ReadMemory(ea, 1, false);
+  Value* v = g.ReadMemory(i.address, ea, 1, false);
   g.update_gpr_value(i.D.RT, v);
   g.update_gpr_value(i.D.RA, ea);
 
@@ -86,7 +86,7 @@ XEEMITTER(lbzux,        0x7C0000EE, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   // RA <- EA
 
   Value* ea = b.CreateAdd(g.gpr_value(i.X.RA), g.gpr_value(i.X.RB));
-  Value* v = g.ReadMemory(ea, 1, false);
+  Value* v = g.ReadMemory(i.address, ea, 1, false);
   g.update_gpr_value(i.X.RT, v);
   g.update_gpr_value(i.X.RA, ea);
 
@@ -116,7 +116,7 @@ XEEMITTER(lbzx,         0x7C0000AE, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (i.X.RA) {
     ea = b.CreateAdd(g.gpr_value(i.X.RA), ea);
   }
-  Value* v = g.ReadMemory(ea, 1, false);
+  Value* v = g.ReadMemory(i.address, ea, 1, false);
   g.update_gpr_value(i.X.RT, v);
 
   return 0;
@@ -145,7 +145,7 @@ XEEMITTER(ld,           0xE8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, I
   if (i.DS.RA) {
     ea = b.CreateAdd(g.gpr_value(i.DS.RA), ea);
   }
-  Value* v = g.ReadMemory(ea, 8, false);
+  Value* v = g.ReadMemory(i.address, ea, 8, false);
   g.update_gpr_value(i.DS.RT, v);
 
   return 0;
@@ -165,7 +165,7 @@ XEEMITTER(ldu,          0xE8000001, DS )(FunctionGenerator& g, IRBuilder<>& b, I
 
   Value* ea = b.CreateAdd(g.gpr_value(i.DS.RA),
                           b.getInt64(XEEXTS16(i.DS.DS << 2)));
-  Value* v = g.ReadMemory(ea, 8, false);
+  Value* v = g.ReadMemory(i.address, ea, 8, false);
   g.update_gpr_value(i.DS.RT, v);
   g.update_gpr_value(i.DS.RA, ea);
 
@@ -225,7 +225,7 @@ XEEMITTER(lhz,          0xA0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (i.D.RA) {
     ea = b.CreateAdd(g.gpr_value(i.D.RA), ea);
   }
-  Value* v = g.ReadMemory(ea, 2, false);
+  Value* v = g.ReadMemory(i.address, ea, 2, false);
   g.update_gpr_value(i.D.RT, v);
 
   return 0;
@@ -284,7 +284,7 @@ XEEMITTER(lwz,          0x80000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (i.D.RA) {
     ea = b.CreateAdd(g.gpr_value(i.D.RA), ea);
   }
-  Value* v = g.ReadMemory(ea, 4, false);
+  Value* v = g.ReadMemory(i.address, ea, 4, false);
   g.update_gpr_value(i.D.RT, v);
 
   return 0;
@@ -303,7 +303,7 @@ XEEMITTER(lwzu,         0x84000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   // RA <- EA
 
   Value* ea = b.CreateAdd(g.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-  Value* v = g.ReadMemory(ea, 4, false);
+  Value* v = g.ReadMemory(i.address, ea, 4, false);
   g.update_gpr_value(i.D.RT, v);
   g.update_gpr_value(i.D.RA, ea);
 
@@ -338,7 +338,7 @@ XEEMITTER(lwzx,         0x7C00002E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (i.X.RA) {
     ea = b.CreateAdd(g.gpr_value(i.X.RA), ea);
   }
-  Value* v = g.ReadMemory(ea, 4, false);
+  Value* v = g.ReadMemory(i.address, ea, 4, false);
   g.update_gpr_value(i.X.RT, v);
 
   return 0;
@@ -371,7 +371,7 @@ XEEMITTER(stb,          0x98000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
     ea = b.CreateAdd(g.gpr_value(i.D.RA), ea);
   }
   Value* v = g.gpr_value(i.D.RT);
-  g.WriteMemory(ea, 1, v);
+  g.WriteMemory(i.address, ea, 1, v);
 
   return 0;
 }
@@ -390,7 +390,7 @@ XEEMITTER(stbu,         0x9C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
 
   Value* ea = b.CreateAdd(g.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
   Value* v = g.gpr_value(i.D.RT);
-  g.WriteMemory(ea, 1, v);
+  g.WriteMemory(i.address, ea, 1, v);
   g.update_gpr_value(i.D.RA, ea);
 
   return 0;
@@ -430,7 +430,7 @@ XEEMITTER(std,          0xF8000000, DS )(FunctionGenerator& g, IRBuilder<>& b, I
     ea = b.CreateAdd(g.gpr_value(i.DS.RA), ea);
   }
   Value* v = g.gpr_value(i.DS.RT);
-  g.WriteMemory(ea, 8, v);
+  g.WriteMemory(i.address, ea, 8, v);
 
   return 0;
 }
@@ -450,7 +450,7 @@ XEEMITTER(stdu,         0xF8000001, DS )(FunctionGenerator& g, IRBuilder<>& b, I
   Value* ea = b.CreateAdd(g.gpr_value(i.DS.RA),
                           b.getInt64(XEEXTS16(i.DS.DS << 2)));
   Value* v = g.gpr_value(i.DS.RT);
-  g.WriteMemory(ea, 8, v);
+  g.WriteMemory(i.address, ea, 8, v);
   g.update_gpr_value(i.DS.RA, ea);
 
   return 0;
@@ -490,7 +490,7 @@ XEEMITTER(sth,          0xB0000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
     ea = b.CreateAdd(g.gpr_value(i.D.RA), ea);
   }
   Value* v = g.gpr_value(i.D.RT);
-  g.WriteMemory(ea, 2, v);
+  g.WriteMemory(i.address, ea, 2, v);
 
   return 0;
 }
@@ -510,7 +510,7 @@ XEEMITTER(sthu,         0xB4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   Value* ea = b.CreateAdd(g.gpr_value(i.D.RA),
                           b.getInt64(XEEXTS16(i.D.DS)));
   Value* v = g.gpr_value(i.D.RT);
-  g.WriteMemory(ea, 2, v);
+  g.WriteMemory(i.address, ea, 2, v);
   g.update_gpr_value(i.D.RA, ea);
 
   return 0;
@@ -545,7 +545,7 @@ XEEMITTER(sthx,         0x7C00032E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
     ea = b.CreateAdd(g.gpr_value(i.X.RA), ea);
   }
   Value* v = g.gpr_value(i.X.RT);
-  g.WriteMemory(ea, 2, v);
+  g.WriteMemory(i.address, ea, 2, v);
 
   return 0;
 }
@@ -574,7 +574,7 @@ XEEMITTER(stw,          0x90000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
     ea = b.CreateAdd(g.gpr_value(i.D.RA), ea);
   }
   Value* v = g.gpr_value(i.D.RT);
-  g.WriteMemory(ea, 4, v);
+  g.WriteMemory(i.address, ea, 4, v);
 
   return 0;
 }
@@ -594,7 +594,7 @@ XEEMITTER(stwu,         0x94000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   Value* ea = b.CreateAdd(g.gpr_value(i.D.RA),
                           b.getInt64(XEEXTS16(i.D.DS)));
   Value* v = g.gpr_value(i.D.RT);
-  g.WriteMemory(ea, 4, v);
+  g.WriteMemory(i.address, ea, 4, v);
   g.update_gpr_value(i.D.RA, ea);
 
   return 0;
@@ -629,7 +629,7 @@ XEEMITTER(stwx,         0x7C00012E, X  )(FunctionGenerator& g, IRBuilder<>& b, I
     ea = b.CreateAdd(g.gpr_value(i.X.RA), ea);
   }
   Value* v = g.gpr_value(i.X.RT);
-  g.WriteMemory(ea, 4, v);
+  g.WriteMemory(i.address, ea, 4, v);
 
   return 0;
 }
