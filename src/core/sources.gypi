@@ -11,11 +11,13 @@
     ['OS == "mac" or OS == "linux"', {
       'sources': [
         'mmap_posix.cc',
+        'mutex_posix.cc',
       ],
     }],
     ['OS == "win"', {
       'sources': [
         'mmap_win.cc',
+        'mutex_win.cc',
       ],
     }],
   ],

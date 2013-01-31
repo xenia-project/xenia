@@ -25,15 +25,18 @@ class Processor;
 class ThreadState {
 public:
   ThreadState(Processor* processor,
-              uint32_t stack_address, uint32_t stack_size);
+              uint32_t stack_size, uint32_t thread_state_address);
   ~ThreadState();
 
   xe_ppc_state_t* ppc_state();
 
 private:
-  uint32_t stack_address_;
   uint32_t stack_size_;
+  uint32_t thread_state_address;
   xe_memory_ref memory_;
+
+  uint32_t stack_address_;
+  uint32_t thread_state_address_;
 
   xe_ppc_state_t  ppc_state_;
 };

@@ -9,8 +9,10 @@
 
 #include "kernel/modules/xboxkrnl/xboxkrnl_threading.h"
 
+#include <xenia/kernel/xbox.h>
+
 #include "kernel/shim_utils.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl.h"
+#include "kernel/modules/xboxkrnl/objects/xthread.h"
 
 
 using namespace xe;
@@ -54,19 +56,55 @@ namespace {
 // }
 
 
-void ExCreateThread() {
-  // launch native thread
-  //
-}
-
-
 void ExCreateThread_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  // DWORD
+  // LPHANDLE Handle,
+  // DWORD    StackSize,
+  // LPDWORD  ThreadId,
+  // LPVOID   XapiThreadStartup, ?? often 0
+  // LPVOID   StartAddress,
+  // LPVOID   StartContext,
+  // DWORD    CreationFlags // 0x80?
+
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t stack_size = SHIM_GET_ARG_32(1);
+  uint32_t thread_id_ptr = SHIM_GET_ARG_32(2);
+  uint32_t xapi_thread_startup = SHIM_GET_ARG_32(3);
+  uint32_t start_address = SHIM_GET_ARG_32(4);
+  uint32_t start_context = SHIM_GET_ARG_32(5);
+  uint32_t creation_flags = SHIM_GET_ARG_32(6);
 
   XELOGD(
-      XT("ExCreateThread()"));
+      XT("ExCreateThread(%.8X, %d, %.8X, %.8X, %.8X, %.8X, %.8X)"),
+      handle_ptr,
+      stack_size,
+      thread_id_ptr,
+      xapi_thread_startup,
+      start_address,
+      start_context,
+      creation_flags);
 
-  SHIM_SET_RETURN(0);
+  XThread* thread = new XThread(
+      state, stack_size, xapi_thread_startup, start_address, start_context,
+      creation_flags);
+
+  X_STATUS result_code = thread->Create();
+  if (XFAILED(result_code)) {
+    // Failed!
+    thread->Release();
+    XELOGE(XT("Thread creation failed: %.8X"), result_code);
+    SHIM_SET_RETURN(result_code);
+    return;
+  }
+
+  if (handle_ptr) {
+    SHIM_SET_MEM_32(handle_ptr, thread->handle());
+  }
+  if (thread_id_ptr) {
+    SHIM_SET_MEM_32(thread_id_ptr, thread->thread_id());
+  }
+  SHIM_SET_RETURN(result_code);
 }
 
 
@@ -205,7 +243,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
     export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
         state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
 
-  SHIM_SET_MAPPING(0x0000000D, ExCreateThread_shim, ExCreateThread);
+  SHIM_SET_MAPPING(0x0000000D, ExCreateThread_shim, NULL);
 
   SHIM_SET_MAPPING(0x00000066, KeGetCurrentProcessType_shim, NULL);
 

@@ -7,16 +7,21 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CORE_H_
-#define XENIA_CORE_H_
+#ifndef XENIA_CORE_MUTEX_H_
+#define XENIA_CORE_MUTEX_H_
 
 #include <xenia/common.h>
 
-#include <xenia/core/file.h>
-#include <xenia/core/memory.h>
-#include <xenia/core/mmap.h>
-#include <xenia/core/mutex.h>
-#include <xenia/core/pal.h>
-#include <xenia/core/ref.h>
 
-#endif  // XENIA_CORE_H_
+typedef struct xe_mutex xe_mutex_t;
+
+
+xe_mutex_t* xe_mutex_alloc(uint32_t spin_count);
+void xe_mutex_free(xe_mutex_t* mutex);
+
+int xe_mutex_lock(xe_mutex_t* mutex);
+int xe_mutex_trylock(xe_mutex_t* mutex);
+int xe_mutex_unlock(xe_mutex_t* mutex);
+
+
+#endif  // XENIA_CORE_MUTEX_H_

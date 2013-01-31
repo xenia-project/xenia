@@ -15,7 +15,7 @@
 
 #include <xenia/cpu/sdb.h>
 #include <xenia/kernel/export.h>
-#include <xenia/kernel/user_module.h>
+#include <xenia/kernel/xex2.h>
 
 
 namespace llvm {
@@ -49,7 +49,7 @@ public:
       shared_ptr<llvm::ExecutionEngine>& engine);
   ~ExecModule();
 
-  int PrepareUserModule(kernel::UserModule* user_module);
+  int PrepareXex(xe_xex2_ref xex);
   int PrepareRawBinary(uint32_t start_address, uint32_t end_address);
 
   void AddFunctionsToMap(FunctionMap& map);

@@ -14,30 +14,36 @@
 #include <xenia/core.h>
 
 #include <xenia/kernel/export.h>
+#include <xenia/kernel/runtime.h>
 
 
 namespace xe {
 namespace kernel {
 
 
+class Runtime;
+
+
 class KernelModule {
 public:
-  KernelModule(xe_pal_ref pal, xe_memory_ref memory,
-               shared_ptr<ExportResolver> resolver) {
-    pal_ = xe_pal_retain(pal);
-    memory_ = xe_memory_retain(memory);
-    resolver_ = resolver;
+  KernelModule(Runtime* runtime) {
+    runtime_  = runtime;
+    pal_      = runtime->pal();
+    memory_   = runtime->memory();
+    export_resolver_ = runtime->export_resolver();
   }
 
   virtual ~KernelModule() {
+    export_resolver_.reset();
     xe_memory_release(memory_);
     xe_pal_release(pal_);
   }
 
 protected:
-  xe_pal_ref    pal_;
-  xe_memory_ref memory_;
-  shared_ptr<ExportResolver> resolver_;
+  Runtime*        runtime_;
+  xe_pal_ref      pal_;
+  xe_memory_ref   memory_;
+  shared_ptr<ExportResolver> export_resolver_;
 };
 
 

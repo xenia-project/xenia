@@ -8,5 +8,10 @@
     'xboxkrnl_module.cc',
     'xboxkrnl_rtl.cc',
     'xboxkrnl_threading.cc',
+    'xobject.cc',
+  ],
+
+  'includes': [
+    'objects/sources.gypi',
   ],
 }

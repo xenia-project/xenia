@@ -70,9 +70,9 @@ ExecModule::~ExecModule() {
   xe_memory_release(memory_);
 }
 
-int ExecModule::PrepareUserModule(kernel::UserModule* user_module) {
+int ExecModule::PrepareXex(xe_xex2_ref xex) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
-      new sdb::XexSymbolDatabase(memory_, export_resolver_.get(), user_module));
+      new sdb::XexSymbolDatabase(memory_, export_resolver_.get(), xex));
 
   int result_code = Prepare();
   if (result_code) {
@@ -80,8 +80,7 @@ int ExecModule::PrepareUserModule(kernel::UserModule* user_module) {
   }
 
   // Import variables.
-  xe_xex2_ref xex = user_module->xex();
-  xe_xex2_release(xex);
+  // TODO??
 
   return 0;
 }

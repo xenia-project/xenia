@@ -113,14 +113,35 @@ int Processor::Setup() {
   return 0;
 }
 
-int Processor::PrepareModule(
-    const char* module_name, const char* module_path,
-    uint32_t start_address, uint32_t end_address,
-    shared_ptr<ExportResolver> export_resolver) {
-  ExecModule* exec_module = new ExecModule(
-      memory_, export_resolver, module_name, module_path, engine_);
+int Processor::LoadBinary(const xechar_t* path, uint32_t start_address,
+                          shared_ptr<ExportResolver> export_resolver) {
+  ExecModule* exec_module = NULL;
+  const xechar_t* name = xestrrchr(path, '/') + 1;
 
-  if (exec_module->PrepareRawBinary(start_address, end_address)) {
+  // TODO(benvanik): map file from filesystem
+  xe_mmap_ref mmap = xe_mmap_open(pal_, kXEFileModeRead, path, 0, 0);
+  if (!mmap) {
+    return NULL;
+  }
+  void* addr = xe_mmap_get_addr(mmap);
+  size_t length = xe_mmap_get_length(mmap);
+
+  int result_code = 1;
+
+  XEEXPECTZERO(xe_copy_memory(xe_memory_addr(memory_, start_address),
+                              xe_memory_get_length(memory_),
+                              addr, length));
+
+  // Prepare the module.
+  char name_a[2048];
+  XEEXPECTTRUE(xestrnarrow(name_a, XECOUNT(name_a), name));
+  char path_a[2048];
+  XEEXPECTTRUE(xestrnarrow(path_a, XECOUNT(path_a), path));
+
+  exec_module = new ExecModule(
+      memory_, export_resolver, name_a, path_a, engine_);
+
+  if (exec_module->PrepareRawBinary(start_address, start_address + length)) {
     delete exec_module;
     return 1;
   }
@@ -130,20 +151,23 @@ int Processor::PrepareModule(
 
   exec_module->Dump();
 
-  return 0;
+  result_code = 0;
+XECLEANUP:
+  if (result_code) {
+    delete exec_module;
+  }
+  xe_mmap_release(mmap);
+  return result_code;
 }
 
-int Processor::PrepareModule(UserModule* user_module,
+int Processor::PrepareModule(const char* name, const char* path,
+                             xe_xex2_ref xex,
                              shared_ptr<ExportResolver> export_resolver) {
-  char name_a[2048];
-  char path_a[2048];
-  XEIGNORE(xestrnarrow(name_a, XECOUNT(name_a), user_module->name()));
-  XEIGNORE(xestrnarrow(path_a, XECOUNT(path_a), user_module->path()));
   ExecModule* exec_module = new ExecModule(
-      memory_, export_resolver, name_a, path_a,
+      memory_, export_resolver, name, path,
       engine_);
 
-  if (exec_module->PrepareUserModule(user_module)) {
+  if (exec_module->PrepareXex(xex)) {
     delete exec_module;
     return 1;
   }
@@ -151,7 +175,6 @@ int Processor::PrepareModule(UserModule* user_module,
   exec_module->AddFunctionsToMap(all_fns_);
   modules_.push_back(exec_module);
 
-  //user_module->Dump(export_resolver.get());
   exec_module->Dump();
 
   return 0;
@@ -162,10 +185,10 @@ uint32_t Processor::CreateCallback(void (*callback)(void* data), void* data) {
   return 0;
 }
 
-ThreadState* Processor::AllocThread(uint32_t stack_address,
-                                    uint32_t stack_size) {
+ThreadState* Processor::AllocThread(uint32_t stack_size,
+                                    uint32_t thread_state_address) {
   ThreadState* thread_state = new ThreadState(
-      this, stack_address, stack_size);
+      this, stack_size, thread_state_address);
   return thread_state;
 }
 
@@ -208,6 +231,16 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   // ptr(ppc_state, lr);
 
   return 0;
+}
+
+uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
+                       uint64_t arg0) {
+  xe_ppc_state_t* ppc_state = thread_state->ppc_state();
+  ppc_state->r[3] = arg0;
+  if (Execute(thread_state, address)) {
+    return 0xDEADBABE;
+  }
+  return ppc_state->r[3];
 }
 
 Function* Processor::GetFunction(uint32_t address) {

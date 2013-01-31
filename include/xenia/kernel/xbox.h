@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_H_
+#ifndef XENIA_KERNEL_XBOX_H_
+#define XENIA_KERNEL_XBOX_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -16,7 +16,6 @@
 
 namespace xe {
 namespace kernel {
-namespace xboxkrnl {
 
 
 typedef uint32_t X_HANDLE;
@@ -26,6 +25,9 @@ typedef uint32_t X_HANDLE;
 // NT_STATUS (STATUS_*)
 // http://msdn.microsoft.com/en-us/library/cc704588.aspx
 // Adding as needed.
+typedef uint32_t X_STATUS;
+#define XFAILED(s) (s & X_STATUS_UNSUCCESSFUL)
+#define XSUCCEEDED(s) !XFAILED(s)
 #define X_STATUS_SUCCESS                                ((uint32_t)0x00000000L)
 #define X_STATUS_UNSUCCESSFUL                           ((uint32_t)0xC0000001L)
 #define X_STATUS_NOT_IMPLEMENTED                        ((uint32_t)0xC0000002L)
@@ -75,13 +77,16 @@ typedef uint32_t X_HANDLE;
 #define X_PROCTYPE_SYSTEM 2
 
 
+// Thread enums.
+#define X_CREATE_SUSPENDED        0x00000004
+
+
 // TLS specials.
 #define X_TLS_OUT_OF_INDEXES      UINT32_MAX  // (-1)
 
 
-}  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_H_
+#endif  // XENIA_KERNEL_XBOX_H_

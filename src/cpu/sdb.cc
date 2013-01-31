@@ -23,6 +23,36 @@ using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
+namespace {
+
+
+// IMAGE_CE_RUNTIME_FUNCTION_ENTRY
+// http://msdn.microsoft.com/en-us/library/ms879748.aspx
+typedef struct IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY_t {
+  uint32_t      FuncStart;              // Virtual address
+  union {
+    struct {
+      uint32_t  PrologLen       : 8;    // # of prolog instructions (size = x4)
+      uint32_t  FuncLen         : 22;   // # of instructions total (size = x4)
+      uint32_t  ThirtyTwoBit    : 1;    // Always 1
+      uint32_t  ExceptionFlag   : 1;    // 1 if PDATA_EH in .text -- unknown if used
+    } Flags;
+    uint32_t    FlagsValue;             // To make byte swapping easier
+  };
+} IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY;
+
+
+class PEMethodInfo {
+public:
+  uint32_t    address;
+  size_t      total_length;   // in bytes
+  size_t      prolog_length;  // in bytes
+};
+
+
+}
+
+
 FunctionBlock::FunctionBlock() :
     start_address(0), end_address(0),
     outgoing_type(kTargetUnknown), outgoing_address(0),
@@ -405,7 +435,8 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_type = FunctionBlock::kTargetLR;
       if (furthest_target > addr) {
         // Remaining targets within function, not end.
-        XELOGSDB(XT("ignoring blr %.8X (branch to %.8X)"), addr, furthest_target);
+        XELOGSDB(XT("ignoring blr %.8X (branch to %.8X)"), addr,
+                                                           furthest_target);
       } else {
         // Function end point.
         XELOGSDB(XT("function end %.8X"), addr);
@@ -458,6 +489,11 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
 
         if (!ends_fn) {
           furthest_target = MAX(furthest_target, target);
+
+          // TODO(benvanik): perhaps queue up for a speculative check? I think
+          //     we are running over tail-call functions here that branch to
+          //     somewhere else.
+          //GetOrInsertFunction(target);
         }
       }
       ends_block = true;
@@ -467,8 +503,15 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_address = target;
       if (i.B.LK) {
         XELOGSDB(XT("bcl %.8X -> %.8X"), addr, target);
+
+        // Queue call target if needed.
+        // TODO(benvanik): see if this is correct - not sure anyone makes
+        //     function calls with bcl.
+        //GetOrInsertFunction(target);
       } else {
         XELOGSDB(XT("bc %.8X -> %.8X"), addr, target);
+
+        // TODO(benvanik): GetOrInsertFunction? it's likely a BB
 
         furthest_target = MAX(furthest_target, target);
       }
@@ -558,14 +601,16 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
           block->outgoing_block = fn->SplitBlock(block->outgoing_address);
         }
         if (!block->outgoing_block) {
-          printf("block target not found: %.8X\n", block->outgoing_address);
+          XELOGE(XT("block target not found: %.8X"), block->outgoing_address);
+          XEASSERTALWAYS();
         }
       } else {
         // Function call.
         block->outgoing_type = FunctionBlock::kTargetFunction;
         block->outgoing_function = GetFunction(block->outgoing_address);
         if (!block->outgoing_function) {
-          printf("call target not found: %.8X\n", block->outgoing_address);
+          XELOGE(XT("call target not found: %.8X"), block->outgoing_address);
+          XEASSERTALWAYS();
         }
       }
     }
@@ -702,16 +747,17 @@ bool RawSymbolDatabase::IsValueInTextRange(uint32_t value) {
 }
 
 XexSymbolDatabase::XexSymbolDatabase(
-    xe_memory_ref memory, ExportResolver* export_resolver, UserModule* module) :
+    xe_memory_ref memory, ExportResolver* export_resolver, xe_xex2_ref xex) :
     SymbolDatabase(memory, export_resolver) {
-  module_ = module;
+  xex_ = xe_xex2_retain(xex);
 }
 
 XexSymbolDatabase::~XexSymbolDatabase() {
+  xe_xex2_release(xex_);
 }
 
 int XexSymbolDatabase::Analyze() {
-  const xe_xex2_header_t *header = module_->xex_header();
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 
   // Find __savegprlr_* and __restgprlr_*.
   FindGplr();
@@ -785,7 +831,7 @@ int XexSymbolDatabase::FindGplr() {
   };
 
   uint32_t gplr_start = 0;
-  const xe_xex2_header_t* header = module_->xex_header();
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
     const size_t start_address =
@@ -833,12 +879,10 @@ int XexSymbolDatabase::FindGplr() {
 }
 
 int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
-  xe_xex2_ref xex = module_->xex();
   xe_xex2_import_info_t* import_infos;
   size_t import_info_count;
-  if (xe_xex2_get_import_infos(xex, library, &import_infos,
+  if (xe_xex2_get_import_infos(xex_, library, &import_infos,
                                &import_info_count)) {
-    xe_xex2_release(xex);
     return 1;
   }
 
@@ -878,18 +922,54 @@ int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
   }
 
   xe_free(import_infos);
-  xe_xex2_release(xex);
   return 0;
 }
 
 int XexSymbolDatabase::AddMethodHints() {
-  PEMethodInfo* method_infos;
-  size_t method_info_count;
-  if (module_->GetMethodHints(&method_infos, &method_info_count)) {
-    return 1;
+  uint8_t* mem = xe_memory_addr(memory_, 0);
+
+  const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY* entry = NULL;
+
+  // Find pdata, which contains the exception handling entries.
+  const PESection* pdata = xe_xex2_get_pe_section(xex_, ".pdata");
+  if (!pdata) {
+    // No exception data to go on.
+    return 0;
   }
 
-  for (size_t n = 0; n < method_info_count; n++) {
+  // Resolve.
+  const uint8_t* p = mem + pdata->address;
+
+  // Entry count = pdata size / sizeof(entry).
+  size_t entry_count = pdata->size / sizeof(IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY);
+  if (!entry_count) {
+    // Empty?
+    return 0;
+  }
+
+  // Allocate output.
+  PEMethodInfo* method_infos = (PEMethodInfo*)xe_calloc(
+      entry_count * sizeof(PEMethodInfo));
+  if (!method_infos) {
+    return 0;
+  }
+
+  // Parse entries.
+  // NOTE: entries are in memory as big endian, so pull them out and swap the
+  // values before using them.
+  entry = (const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY*)p;
+  IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY temp_entry;
+  for (size_t n = 0; n < entry_count; n++, entry++) {
+    PEMethodInfo* method_info   = &method_infos[n];
+    method_info->address        = XESWAP32BE(entry->FuncStart);
+
+    // The bitfield needs to be swapped by hand.
+    temp_entry.FlagsValue       = XESWAP32BE(entry->FlagsValue);
+    method_info->total_length   = temp_entry.Flags.FuncLen * 4;
+    method_info->prolog_length  = temp_entry.Flags.PrologLen * 4;
+  }
+
+  for (size_t n = 0; n < entry_count; n++) {
     PEMethodInfo* method_info = &method_infos[n];
     FunctionSymbol* fn = GetOrInsertFunction(method_info->address);
     fn->end_address = method_info->address + method_info->total_length - 4;
@@ -902,12 +982,12 @@ int XexSymbolDatabase::AddMethodHints() {
 }
 
 uint32_t XexSymbolDatabase::GetEntryPoint() {
-  const xe_xex2_header_t* header = module_->xex_header();
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
   return header->exe_entry_point;
 };
 
 bool XexSymbolDatabase::IsValueInTextRange(uint32_t value) {
-  const xe_xex2_header_t* header = module_->xex_header();
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
     const size_t start_address =

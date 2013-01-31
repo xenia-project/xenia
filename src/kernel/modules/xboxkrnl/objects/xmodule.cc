@@ -7,244 +7,124 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/user_module.h>
+#include "kernel/modules/xboxkrnl/objects/xmodule.h"
 
-#include <third_party/pe/pe_image.h>
+#include "kernel/modules/xboxkrnl/objects/xthread.h"
 
 
 using namespace xe;
-using namespace kernel;
+using namespace xe::kernel;
+using namespace xe::kernel::xboxkrnl;
 
 
-UserModule::UserModule(xe_memory_ref memory) {
-  memory_ = xe_memory_retain(memory);
-  xex_ = NULL;
+namespace {
 }
 
-UserModule::~UserModule() {
-  for (std::vector<PESection*>::iterator it = sections_.begin();
-       it != sections_.end(); ++it) {
-    delete *it;
-  }
 
-  xe_xex2_release(xex_);
-  xe_memory_release(memory_);
-}
-
-int UserModule::Load(const void* addr, const size_t length,
-                     const xechar_t* path) {
+XModule::XModule(KernelState* kernel_state, const char* path) :
+    XObject(kernel_state, kTypeModule),
+    xex_(NULL) {
   XEIGNORE(xestrcpy(path_, XECOUNT(path_), path));
   const xechar_t *slash = xestrrchr(path, '/');
   if (slash) {
     XEIGNORE(xestrcpy(name_, XECOUNT(name_), slash + 1));
   }
-
-  xe_xex2_options_t xex_options;
-  xex_ = xe_xex2_load(memory_, addr, length, xex_options);
-  XEEXPECTNOTNULL(xex_);
-
-  XEEXPECTZERO(LoadPE());
-
-  return 0;
-
-XECLEANUP:
-  return 1;
 }
 
-const xechar_t* UserModule::path() {
+XModule::~XModule() {
+  xe_xex2_release(xex_);
+}
+
+const char* XModule::path() {
   return path_;
 }
 
-const xechar_t* UserModule::name() {
+const char* XModule::name() {
   return name_;
 }
 
-uint32_t UserModule::handle() {
-  return handle_;
-}
-
-xe_xex2_ref UserModule::xex() {
+xe_xex2_ref XModule::xex() {
   return xe_xex2_retain(xex_);
 }
 
-const xe_xex2_header_t* UserModule::xex_header() {
+const xe_xex2_header_t* XModule::xex_header() {
   return xe_xex2_get_header(xex_);
 }
 
-void* UserModule::GetProcAddress(const uint32_t ordinal) {
+X_STATUS XModule::LoadFromFile(const char* path) {
+  // TODO(benvanik): load from virtual filesystem.
   XEASSERTALWAYS();
-  return NULL;
+  return X_STATUS_UNSUCCESSFUL;
 }
 
-// IMAGE_CE_RUNTIME_FUNCTION_ENTRY
-// http://msdn.microsoft.com/en-us/library/ms879748.aspx
-typedef struct IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY_t {
-  uint32_t      FuncStart;              // Virtual address
-  union {
-    struct {
-      uint32_t  PrologLen       : 8;    // # of prolog instructions (size = x4)
-      uint32_t  FuncLen         : 22;   // # of instructions total (size = x4)
-      uint32_t  ThirtyTwoBit    : 1;    // Always 1
-      uint32_t  ExceptionFlag   : 1;    // 1 if PDATA_EH in .text -- unknown if used
-    } Flags;
-    uint32_t    FlagsValue;             // To make byte swapping easier
-  };
-} IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY;
+X_STATUS XModule::LoadFromMemory(const void* addr, const size_t length) {
+  // Load the XEX into memory and decrypt.
+  xe_xex2_options_t xex_options;
+  xex_ = xe_xex2_load(kernel_state()->memory(), addr, length, xex_options);
+  XEEXPECTNOTNULL(xex_);
 
-int UserModule::LoadPE() {
-  const xe_xex2_header_t* xex_header = xe_xex2_get_header(xex_);
-  uint8_t* mem = xe_memory_addr(memory_, 0);
-  const uint8_t* p = mem + xex_header->exe_address;
+  // Prepare the module for execution.
+  XEEXPECTZERO(kernel_state()->processor()->PrepareModule(
+      name_, path_, xex_, runtime()->export_resolver()));
 
-  // Verify DOS signature (MZ).
-  const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
-  if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
-    return 1;
-  }
-
-  // Move to the NT header offset from the DOS header.
-  p += doshdr->e_lfanew;
-
-  // Verify NT signature (PE\0\0).
-  const IMAGE_NT_HEADERS32* nthdr = (const IMAGE_NT_HEADERS32*)(p);
-  if (nthdr->Signature != IMAGE_NT_SIGNATURE) {
-    return 1;
-  }
-
-  // Verify matches an Xbox PE.
-  const IMAGE_FILE_HEADER* filehdr = &nthdr->FileHeader;
-  if ((filehdr->Machine != IMAGE_FILE_MACHINE_POWERPCBE) ||
-      !(filehdr->Characteristics & IMAGE_FILE_32BIT_MACHINE)) {
-      return 1;
-  }
-  // Verify the expected size.
-  if (filehdr->SizeOfOptionalHeader != IMAGE_SIZEOF_NT_OPTIONAL_HEADER) {
-    return 1;
-  }
-
-  // Verify optional header is 32bit.
-  const IMAGE_OPTIONAL_HEADER32* opthdr = &nthdr->OptionalHeader;
-  if (opthdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-    return 1;
-  }
-  // Verify subsystem.
-  if (opthdr->Subsystem != IMAGE_SUBSYSTEM_XBOX) {
-    return 1;
-  }
-
-  // Linker version - likely 8+
-  // Could be useful for recognizing certain patterns
-  //opthdr->MajorLinkerVersion; opthdr->MinorLinkerVersion;
-
-  // Data directories of interest:
-  // EXPORT           IMAGE_EXPORT_DIRECTORY
-  // IMPORT           IMAGE_IMPORT_DESCRIPTOR[]
-  // EXCEPTION        IMAGE_CE_RUNTIME_FUNCTION_ENTRY[]
-  // BASERELOC
-  // DEBUG            IMAGE_DEBUG_DIRECTORY[]
-  // ARCHITECTURE     /IMAGE_ARCHITECTURE_HEADER/ ----- import thunks!
-  // TLS              IMAGE_TLS_DIRECTORY
-  // IAT              Import Address Table ptr
-  //opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
-
-  // Quick scan to determine bounds of sections.
-  size_t upper_address = 0;
-  const IMAGE_SECTION_HEADER* sechdr = IMAGE_FIRST_SECTION(nthdr);
-  for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
-    const size_t physical_address = opthdr->ImageBase + sechdr->VirtualAddress;
-    upper_address =
-        MAX(upper_address, physical_address + sechdr->Misc.VirtualSize);
-  }
-
-  // Setup/load sections.
-  sechdr = IMAGE_FIRST_SECTION(nthdr);
-  for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
-    PESection* section = (PESection*)xe_calloc(sizeof(PESection));
-    xe_copy_memory(section->name, sizeof(section->name),
-                   sechdr->Name, sizeof(sechdr->Name));
-    section->name[8]      = 0;
-    section->raw_address  = sechdr->PointerToRawData;
-    section->raw_size     = sechdr->SizeOfRawData;
-    section->address      = xex_header->exe_address + sechdr->VirtualAddress;
-    section->size         = sechdr->Misc.VirtualSize;
-    section->flags        = sechdr->Characteristics;
-    sections_.push_back(section);
-  }
-
-  //DumpTLSDirectory(pImageBase, pNTHeader, (PIMAGE_TLS_DIRECTORY32)0);
-  //DumpExportsSection(pImageBase, pNTHeader);
-  return 0;
-}
-
-PESection* UserModule::GetSection(const char *name) {
-  for (std::vector<PESection*>::iterator it = sections_.begin();
-       it != sections_.end(); ++it) {
-    if (!xestrcmpa((*it)->name, name)) {
-      return *it;
-    }
-  }
-  return NULL;
-}
-
-int UserModule::GetMethodHints(PEMethodInfo** out_method_infos,
-                               size_t* out_method_info_count) {
-  uint8_t* mem = xe_memory_addr(memory_, 0);
-
-  *out_method_infos = NULL;
-  *out_method_info_count = 0;
-
-  const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY* entry = NULL;
-
-  // Find pdata, which contains the exception handling entries.
-  PESection* pdata = GetSection(".pdata");
-  if (!pdata) {
-    // No exception data to go on.
-    return 0;
-  }
-
-  // Resolve.
-  const uint8_t* p = mem + pdata->address;
-
-  // Entry count = pdata size / sizeof(entry).
-  size_t entry_count = pdata->size / sizeof(IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY);
-  if (!entry_count) {
-    // Empty?
-    return 0;
-  }
-
-  // Allocate output.
-  PEMethodInfo* method_infos = (PEMethodInfo*)xe_calloc(
-      entry_count * sizeof(PEMethodInfo));
-  XEEXPECTNOTNULL(method_infos);
-
-  // Parse entries.
-  // NOTE: entries are in memory as big endian, so pull them out and swap the
-  // values before using them.
-  entry = (const IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY*)p;
-  IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY temp_entry;
-  for (size_t n = 0; n < entry_count; n++, entry++) {
-    PEMethodInfo* method_info   = &method_infos[n];
-    method_info->address        = XESWAP32BE(entry->FuncStart);
-
-    // The bitfield needs to be swapped by hand.
-    temp_entry.FlagsValue       = XESWAP32BE(entry->FlagsValue);
-    method_info->total_length   = temp_entry.Flags.FuncLen * 4;
-    method_info->prolog_length  = temp_entry.Flags.PrologLen * 4;
-  }
-
-  *out_method_infos = method_infos;
-  *out_method_info_count = entry_count;
-  return 0;
+  return X_STATUS_SUCCESS;
 
 XECLEANUP:
-  if (method_infos) {
-    xe_free(method_infos);
-  }
-  return 1;
+  return X_STATUS_UNSUCCESSFUL;
 }
 
-void UserModule::Dump(ExportResolver* export_resolver) {
-  //const uint8_t *mem = (const uint8_t*)xe_memory_addr(memory_, 0);
+X_STATUS XModule::GetSection(const char* name,
+                             uint32_t* out_data, uint32_t* out_size) {
+  const PESection* section = xe_xex2_get_pe_section(xex_, name);
+  if (!section) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  *out_data = section->address;
+  *out_size = section->size;
+  return X_STATUS_SUCCESS;
+}
+
+void* XModule::GetProcAddressByOrdinal(uint16_t ordinal) {
+  // TODO(benvanik): check export tables.
+  XELOGE(XT("GetProcAddressByOrdinal not implemented"));
+  return NULL;
+}
+
+X_STATUS XModule::Launch(uint32_t flags) {
+  const xe_xex2_header_t* header = xex_header();
+
+  // TODO(benvanik): set as main module/etc
+  // xekXexExecutableModuleHandle = xe_module_get_handle(module);
+
+  // Create a thread to run in.
+  XThread* thread = new XThread(
+      kernel_state(),
+      header->exe_stack_size,
+      0,
+      header->exe_entry_point, NULL,
+      0);
+
+  X_STATUS result = thread->Create();
+  if (XFAILED(result)) {
+    XELOGE(XT("Could not create launch thread: %.8X"), result);
+    return result;
+  }
+
+  // Wait until thread completes.
+  // XLARGE_INTEGER timeout = XINFINITE;
+  // xekNtWaitForSingleObjectEx(thread_handle, TRUE, &timeout);
+
+  while (true) {
+    sleep(1);
+  }
+
+  thread->Release();
+
+  return X_STATUS_SUCCESS;
+}
+
+void XModule::Dump() {
+  ExportResolver* export_resolver = runtime()->export_resolver().get();
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 
   // XEX info.

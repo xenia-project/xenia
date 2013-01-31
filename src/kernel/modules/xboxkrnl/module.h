@@ -26,12 +26,13 @@ class KernelState;
 
 class XboxkrnlModule : public KernelModule {
 public:
-  XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
-                 shared_ptr<ExportResolver> resolver);
+  XboxkrnlModule(Runtime* runtime);
   virtual ~XboxkrnlModule();
 
+  int LaunchModule(const xechar_t* path);
+
 private:
-  auto_ptr<KernelState> kernel_state;
+  auto_ptr<KernelState> kernel_state_;
 };
 
 

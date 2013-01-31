@@ -10,6 +10,8 @@
 #include "kernel/modules/xboxkrnl/module.h"
 
 #include "kernel/modules/xboxkrnl/kernel_state.h"
+#include "kernel/modules/xboxkrnl/objects/xmodule.h"
+
 #include "kernel/modules/xboxkrnl/xboxkrnl_hal.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl_memory.h"
 #include "kernel/modules/xboxkrnl/xboxkrnl_module.h"
@@ -29,27 +31,28 @@ namespace {
 }
 
 
-XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
-                               shared_ptr<ExportResolver> resolver) :
-    KernelModule(pal, memory, resolver) {
+XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
+    KernelModule(runtime) {
+  ExportResolver* resolver = export_resolver_.get();
+
   resolver->RegisterTable(
       "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
 
   // Setup the kernel state instance.
   // This is where all kernel objects are kept while running.
-  kernel_state = auto_ptr<KernelState>(new KernelState(pal, memory, resolver));
+  kernel_state_ = auto_ptr<KernelState>(new KernelState(runtime));
 
   // Register all exported functions.
-  RegisterHalExports(resolver.get(), kernel_state.get());
-  RegisterMemoryExports(resolver.get(), kernel_state.get());
-  RegisterModuleExports(resolver.get(), kernel_state.get());
-  RegisterRtlExports(resolver.get(), kernel_state.get());
-  RegisterThreadingExports(resolver.get(), kernel_state.get());
+  RegisterHalExports(resolver, kernel_state_.get());
+  RegisterMemoryExports(resolver, kernel_state_.get());
+  RegisterModuleExports(resolver, kernel_state_.get());
+  RegisterRtlExports(resolver, kernel_state_.get());
+  RegisterThreadingExports(resolver, kernel_state_.get());
 
   // TODO(benvanik): alloc heap memory somewhere in user space
   // TODO(benvanik): tools for reading/writing to heap memory
 
-  uint8_t* mem = xe_memory_addr(memory, 0);
+  uint8_t* mem = xe_memory_addr(memory_, 0);
 
   // KeDebugMonitorData (?*)
   // I'm not sure what this is for, but games make sure it's not null and
@@ -99,4 +102,43 @@ XboxkrnlModule::XboxkrnlModule(xe_pal_ref pal, xe_memory_ref memory,
 }
 
 XboxkrnlModule::~XboxkrnlModule() {
+}
+
+int XboxkrnlModule::LaunchModule(const xechar_t* path) {
+  // TODO(benvanik): setup the virtual filesystem map and use LoadFromFile.
+
+  xe_mmap_ref mmap = xe_mmap_open(pal_, kXEFileModeRead, path, 0, 0);
+  if (!mmap) {
+    return NULL;
+  }
+  void* addr = xe_mmap_get_addr(mmap);
+  size_t length = xe_mmap_get_length(mmap);
+
+  char path_a[2048];
+  XEIGNORE(xestrnarrow(path_a, XECOUNT(path_a), path));
+
+  // Create and load the module.
+  XModule* module = new XModule(kernel_state_.get(), path_a);
+  X_STATUS status = module->LoadFromMemory(addr, length);
+
+  // TODO(benvanik): retain memory somehow? is it needed?
+  xe_mmap_release(mmap);
+
+  if (XFAILED(status)) {
+    XELOGE(XT("Failed to load module"));
+    module->Release();
+    return 1;
+  }
+
+  // Launch the module.
+  status = module->Launch(0);
+  if (XFAILED(status)) {
+    XELOGE(XT("Failed to launch module"));
+    module->Release();
+    return 2;
+  }
+
+  module->Release();
+
+  return 0;
 }

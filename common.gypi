@@ -12,7 +12,7 @@
 
     # LLVM paths.
     # TODO(benvanik): switch based on configuration.
-    'llvm_path': 'build/llvm/release/',
+    'llvm_path': 'build/llvm/debug/',
     'llvm_config': '<(llvm_path)bin/llvm-config',
     'llvm_includedir': '<(llvm_path)/include',
     'llvm_cxxflags': [

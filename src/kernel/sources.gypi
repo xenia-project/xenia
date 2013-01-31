@@ -3,7 +3,6 @@
   'sources': [
     'export.cc',
     'runtime.cc',
-    'user_module.cc',
     'xex2.cc',
   ],
 

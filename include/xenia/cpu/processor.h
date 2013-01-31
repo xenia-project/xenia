@@ -17,7 +17,7 @@
 #include <xenia/cpu/exec_module.h>
 #include <xenia/cpu/thread_state.h>
 #include <xenia/kernel/export.h>
-#include <xenia/kernel/user_module.h>
+#include <xenia/kernel/xex2.h>
 
 
 namespace llvm {
@@ -40,17 +40,18 @@ public:
 
   int Setup();
 
-  int PrepareModule(const char* module_name, const char* module_path,
-                    uint32_t start_address, uint32_t end_address,
-                    shared_ptr<kernel::ExportResolver> export_resolver);
-  int PrepareModule(kernel::UserModule* user_module,
+  int LoadBinary(const xechar_t* path, uint32_t start_address,
+                 shared_ptr<kernel::ExportResolver> export_resolver);
+
+  int PrepareModule(const char* name, const char* path, xe_xex2_ref xex,
                     shared_ptr<kernel::ExportResolver> export_resolver);
 
   uint32_t CreateCallback(void (*callback)(void* data), void* data);
 
-  ThreadState* AllocThread(uint32_t stack_address, uint32_t stack_size);
+  ThreadState* AllocThread(uint32_t stack_size, uint32_t thread_state_address);
   void DeallocThread(ThreadState* thread_state);
   int Execute(ThreadState* thread_state, uint32_t address);
+  uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t arg0);
 
 private:
   llvm::Function* GetFunction(uint32_t address);

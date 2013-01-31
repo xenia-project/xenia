@@ -91,6 +91,10 @@ void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
            type && type->emit ? " " : "X",
            type ? type->name : "<unknown>");
 
+  if (cia == 0x82014468) {
+    printf("BREAKBREAKBREAK\n");
+  }
+
   // TODO(benvanik): better disassembly, printing of current register values/etc
 }
 

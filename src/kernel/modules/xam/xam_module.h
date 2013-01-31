@@ -26,8 +26,7 @@ class XamState;
 
 class XamModule : public KernelModule {
 public:
-  XamModule(xe_pal_ref pal, xe_memory_ref memory,
-            shared_ptr<ExportResolver> resolver);
+  XamModule(Runtime* runtime);
   virtual ~XamModule();
 
 private:

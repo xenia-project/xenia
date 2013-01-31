@@ -15,13 +15,20 @@
 #include <xenia/cpu.h>
 
 #include <xenia/kernel/export.h>
-#include <xenia/kernel/user_module.h>
 #include <xenia/kernel/xex2.h>
 
 
 namespace xe {
 namespace cpu {
   class Processor;
+}
+namespace kernel {
+namespace xboxkrnl {
+  class XboxkrnlModule;
+}
+namespace xam {
+  class XamModule;
+}
 }
 }
 
@@ -44,12 +51,7 @@ public:
   shared_ptr<ExportResolver> export_resolver();
   const xechar_t* command_line();
 
-  int LoadBinaryModule(const xechar_t* path, uint32_t start_address);
-
-  int LoadModule(const xechar_t* path);
-  void LaunchModule(UserModule* user_module);
-  UserModule* GetModule(const xechar_t* path);
-  void UnloadModule(UserModule* user_module);
+  int LaunchModule(const xechar_t* path);
 
 private:
   xe_pal_ref      pal_;
@@ -58,8 +60,8 @@ private:
   xechar_t        command_line_[2048];
   shared_ptr<ExportResolver> export_resolver_;
 
-  std::vector<KernelModule*> kernel_modules_;
-  std::map<const xechar_t*, UserModule*> user_modules_;
+  auto_ptr<xboxkrnl::XboxkrnlModule> xboxkrnl_;
+  auto_ptr<xam::XamModule> xam_;
 };
 
 

@@ -17,7 +17,7 @@
 #include <vector>
 
 #include <xenia/kernel/export.h>
-#include <xenia/kernel/user_module.h>
+#include <xenia/kernel/xex2.h>
 
 
 namespace xe {
@@ -205,7 +205,7 @@ class XexSymbolDatabase : public SymbolDatabase {
 public:
   XexSymbolDatabase(xe_memory_ref memory,
                     kernel::ExportResolver* export_resolver,
-                    kernel::UserModule* module);
+                    xe_xex2_ref xex);
   virtual ~XexSymbolDatabase();
 
   virtual int Analyze();
@@ -218,7 +218,7 @@ private:
   virtual uint32_t GetEntryPoint();
   virtual bool IsValueInTextRange(uint32_t value);
 
-  kernel::UserModule* module_;
+  xe_xex2_ref xex_;
 };
 
 

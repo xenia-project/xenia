@@ -27,6 +27,24 @@ typedef struct {
   uint32_t thunk_address;   // NULL or address of thunk
 } xe_xex2_import_info_t;
 
+enum xe_pe_section_flags_e {
+  kXEPESectionContainsCode          = 0x00000020,
+  kXEPESectionContainsDataInit      = 0x00000040,
+  kXEPESectionContainsDataUninit    = 0x00000080,
+  kXEPESectionMemoryExecute         = 0x20000000,
+  kXEPESectionMemoryRead            = 0x40000000,
+  kXEPESectionMemoryWrite           = 0x80000000,
+};
+
+class PESection {
+public:
+  char        name[9];        // 8 + 1 for \0
+  uint32_t    raw_address;
+  size_t      raw_size;
+  uint32_t    address;
+  size_t      size;
+  uint32_t    flags;          // kXEPESection*
+};
 
 xe_xex2_ref xe_xex2_load(xe_memory_ref memory,
                          const void* addr, const size_t length,
@@ -36,6 +54,7 @@ void xe_xex2_release(xe_xex2_ref xex);
 
 const xechar_t *xe_xex2_get_name(xe_xex2_ref xex);
 const xe_xex2_header_t *xe_xex2_get_header(xe_xex2_ref xex);
+const PESection* xe_xex2_get_pe_section(xe_xex2_ref xex, const char* name);
 
 int xe_xex2_get_import_infos(xe_xex2_ref xex,
                              const xe_xex2_import_library_t *library,

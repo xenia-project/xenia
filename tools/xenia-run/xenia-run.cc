@@ -26,15 +26,14 @@ public:
   Run();
   ~Run();
 
-  int Setup(const xechar_t* path);
-  int Launch();
+  int Setup();
+  int Launch(const xechar_t* path);
 
 private:
   xe_pal_ref      pal_;
   xe_memory_ref   memory_;
   shared_ptr<Processor> processor_;
   shared_ptr<Runtime>   runtime_;
-  UserModule*           module_;
 };
 
 Run::Run() {
@@ -45,7 +44,7 @@ Run::~Run() {
   xe_pal_release(pal_);
 }
 
-int Run::Setup(const xechar_t* path) {
+int Run::Setup() {
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
   pal_ = xe_pal_create(pal_options);
@@ -61,21 +60,19 @@ int Run::Setup(const xechar_t* path) {
 
   runtime_ = shared_ptr<Runtime>(new Runtime(pal_, processor_, XT("")));
 
-  XEEXPECTZERO(runtime_->LoadModule(path));
-  module_ = runtime_->GetModule(path);
-
   return 0;
 XECLEANUP:
   return 1;
 }
 
-int Run::Launch() {
+int Run::Launch(const xechar_t* path) {
   if (FLAGS_abort_before_entry) {
     return 0;
   }
 
   // TODO(benvanik): wait until the module thread exits
-  runtime_->LaunchModule(module_);
+  runtime_->LaunchModule(path);
+
   return 0;
 }
 
@@ -100,12 +97,12 @@ int xenia_run(int argc, xechar_t **argv) {
 
   auto_ptr<Run> run = auto_ptr<Run>(new Run());
 
-  result_code = run->Setup(path);
+  result_code = run->Setup();
   XEEXPECTZERO(result_code);
 
   //xe_module_dump(run->module);
 
-  run->Launch();
+  run->Launch(path);
 
   result_code = 0;
 XECLEANUP:

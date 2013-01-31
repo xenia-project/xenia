@@ -9,11 +9,14 @@
 
 #include <xenia/kernel/xex2.h>
 
+#include <vector>
+
 #include <third_party/crypto/rijndael-alg-fst.h>
 #include <third_party/crypto/rijndael-alg-fst.c>
 #include <third_party/mspack/lzx.h>
 #include <third_party/mspack/lzxd.c>
 #include <third_party/mspack/mspack.h>
+#include <third_party/pe/pe_image.h>
 
 
 typedef struct xe_xex2 {
@@ -22,6 +25,8 @@ typedef struct xe_xex2 {
   xe_memory_ref     memory;
 
   xe_xex2_header_t  header;
+
+  std::vector<PESection*>* sections;
 } xe_xex2_t;
 
 
@@ -31,6 +36,7 @@ int xe_xex2_decrypt_key(xe_xex2_header_t *header);
 int xe_xex2_read_image(xe_xex2_ref xex,
                        const uint8_t *xex_addr, const size_t xex_length,
                        xe_memory_ref memory);
+int xe_xex2_load_pe(xe_xex2_ref xex);
 
 
 xe_xex2_ref xe_xex2_load(xe_memory_ref memory,
@@ -40,12 +46,15 @@ xe_xex2_ref xe_xex2_load(xe_memory_ref memory,
   xe_ref_init((xe_ref)xex);
 
   xex->memory = xe_memory_retain(memory);
+  xex->sections = new std::vector<PESection*>();
 
   XEEXPECTZERO(xe_xex2_read_header((const uint8_t*)addr, length, &xex->header));
 
   XEEXPECTZERO(xe_xex2_decrypt_key(&xex->header));
 
   XEEXPECTZERO(xe_xex2_read_image(xex, (const uint8_t*)addr, length, memory));
+
+  XEEXPECTZERO(xe_xex2_load_pe(xex));
 
   return xex;
 
@@ -55,6 +64,11 @@ XECLEANUP:
 }
 
 void xe_xex2_dealloc(xe_xex2_ref xex) {
+  for (std::vector<PESection*>::iterator it = xex->sections->begin();
+       it != xex->sections->end(); ++it) {
+    delete *it;
+  }
+
   xe_xex2_header_t *header = &xex->header;
   xe_free(header->sections);
   if (header->file_format_info.compression_type == XEX_COMPRESSION_BASIC) {
@@ -741,6 +755,100 @@ int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
     XEASSERTALWAYS();
     return 1;
   }
+}
+
+int xe_xex2_load_pe(xe_xex2_ref xex) {
+  const xe_xex2_header_t* header = &xex->header;
+  const uint8_t* p = xe_memory_addr(xex->memory, header->exe_address);
+
+  // Verify DOS signature (MZ).
+  const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
+  if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
+    return 1;
+  }
+
+  // Move to the NT header offset from the DOS header.
+  p += doshdr->e_lfanew;
+
+  // Verify NT signature (PE\0\0).
+  const IMAGE_NT_HEADERS32* nthdr = (const IMAGE_NT_HEADERS32*)(p);
+  if (nthdr->Signature != IMAGE_NT_SIGNATURE) {
+    return 1;
+  }
+
+  // Verify matches an Xbox PE.
+  const IMAGE_FILE_HEADER* filehdr = &nthdr->FileHeader;
+  if ((filehdr->Machine != IMAGE_FILE_MACHINE_POWERPCBE) ||
+      !(filehdr->Characteristics & IMAGE_FILE_32BIT_MACHINE)) {
+      return 1;
+  }
+  // Verify the expected size.
+  if (filehdr->SizeOfOptionalHeader != IMAGE_SIZEOF_NT_OPTIONAL_HEADER) {
+    return 1;
+  }
+
+  // Verify optional header is 32bit.
+  const IMAGE_OPTIONAL_HEADER32* opthdr = &nthdr->OptionalHeader;
+  if (opthdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+    return 1;
+  }
+  // Verify subsystem.
+  if (opthdr->Subsystem != IMAGE_SUBSYSTEM_XBOX) {
+    return 1;
+  }
+
+  // Linker version - likely 8+
+  // Could be useful for recognizing certain patterns
+  //opthdr->MajorLinkerVersion; opthdr->MinorLinkerVersion;
+
+  // Data directories of interest:
+  // EXPORT           IMAGE_EXPORT_DIRECTORY
+  // IMPORT           IMAGE_IMPORT_DESCRIPTOR[]
+  // EXCEPTION        IMAGE_CE_RUNTIME_FUNCTION_ENTRY[]
+  // BASERELOC
+  // DEBUG            IMAGE_DEBUG_DIRECTORY[]
+  // ARCHITECTURE     /IMAGE_ARCHITECTURE_HEADER/ ----- import thunks!
+  // TLS              IMAGE_TLS_DIRECTORY
+  // IAT              Import Address Table ptr
+  //opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
+
+  // Quick scan to determine bounds of sections.
+  size_t upper_address = 0;
+  const IMAGE_SECTION_HEADER* sechdr = IMAGE_FIRST_SECTION(nthdr);
+  for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
+    const size_t physical_address = opthdr->ImageBase + sechdr->VirtualAddress;
+    upper_address =
+        MAX(upper_address, physical_address + sechdr->Misc.VirtualSize);
+  }
+
+  // Setup/load sections.
+  sechdr = IMAGE_FIRST_SECTION(nthdr);
+  for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
+    PESection* section = (PESection*)xe_calloc(sizeof(PESection));
+    xe_copy_memory(section->name, sizeof(section->name),
+                   sechdr->Name, sizeof(sechdr->Name));
+    section->name[8]      = 0;
+    section->raw_address  = sechdr->PointerToRawData;
+    section->raw_size     = sechdr->SizeOfRawData;
+    section->address      = header->exe_address + sechdr->VirtualAddress;
+    section->size         = sechdr->Misc.VirtualSize;
+    section->flags        = sechdr->Characteristics;
+    xex->sections->push_back(section);
+  }
+
+  //DumpTLSDirectory(pImageBase, pNTHeader, (PIMAGE_TLS_DIRECTORY32)0);
+  //DumpExportsSection(pImageBase, pNTHeader);
+  return 0;
+}
+
+const PESection* xe_xex2_get_pe_section(xe_xex2_ref xex, const char* name) {
+  for (std::vector<PESection*>::iterator it = xex->sections->begin();
+       it != xex->sections->end(); ++it) {
+    if (!xestrcmpa((*it)->name, name)) {
+      return *it;
+    }
+  }
+  return NULL;
 }
 
 int xe_xex2_get_import_infos(xe_xex2_ref xex,

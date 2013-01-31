@@ -126,10 +126,11 @@ int run_test(xe_pal_ref pal, string& src_file_path) {
   runtime = shared_ptr<Runtime>(new Runtime(pal, processor, XT("")));
 
   // Load the binary module.
-  XEEXPECTZERO(runtime->LoadBinaryModule(bin_file_path.c_str(), 0x82010000));
+  XEEXPECTZERO(processor->LoadBinary(bin_file_path.c_str(), 0x82010000,
+                                     runtime->export_resolver()));
 
   // Simulate a thread.
-  thread_state = processor->AllocThread(0x80000000, 256 * 1024 * 1024);
+  thread_state = processor->AllocThread(256 * 1024 * 1024, 0);
 
   // Setup test state from annotations.
   XEEXPECTZERO(setup_test_state(memory, processor.get(), thread_state,
@@ -157,6 +158,10 @@ int discover_tests(string& test_path,
                    vector<string>& test_files) {
   // TODO(benvanik): use PAL instead of this
   DIR* d = opendir(test_path.c_str());
+  if (!d) {
+    XELOGE(XT("Unable to find test path %s"), test_path.c_str());
+    return 1;
+  }
   struct dirent* dir;
   while ((dir = readdir(d))) {
     if (dir->d_type == DT_REG) {

@@ -16,7 +16,6 @@
 #include <xenia/cpu/sdb.h>
 #include <xenia/core/memory.h>
 #include <xenia/kernel/export.h>
-#include <xenia/kernel/user_module.h>
 
 
 namespace llvm {

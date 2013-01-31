@@ -87,6 +87,7 @@ int XeEmitBranchTo(
       //     registers?
       g.SpillRegisters();
 
+      XEASSERTNOTNULL(fn_block->outgoing_function);
       Function* target_fn = g.GetFunction(fn_block->outgoing_function);
       Function::arg_iterator args = g.gen_fn()->arg_begin();
       Value* state_ptr = args;

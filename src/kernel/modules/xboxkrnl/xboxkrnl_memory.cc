@@ -9,8 +9,9 @@
 
 #include "kernel/modules/xboxkrnl/xboxkrnl_memory.h"
 
+#include <xenia/kernel/xbox.h>
+
 #include "kernel/shim_utils.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl.h"
 
 
 using namespace xe;
@@ -82,7 +83,7 @@ void NtAllocateVirtualMemory_shim(
   // Allocate.
   uint32_t flags = 0;
   uint32_t addr = xe_memory_heap_alloc(
-      state->memory, base_addr_value, adjusted_size, flags);
+      state->memory(), base_addr_value, adjusted_size, flags);
   if (!addr) {
     // Failed - assume no memory available.
     SHIM_SET_RETURN(X_STATUS_NO_MEMORY);
@@ -123,7 +124,7 @@ void NtFreeVirtualMemory_shim(
 
   // Free.
   uint32_t flags = 0;
-  uint32_t freed_size = xe_memory_heap_free(state->memory, base_addr_value,
+  uint32_t freed_size = xe_memory_heap_free(state->memory(), base_addr_value,
                                             flags);
   if (!freed_size) {
     SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);

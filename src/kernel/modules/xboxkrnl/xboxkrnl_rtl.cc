@@ -9,10 +9,10 @@
 
 #include "kernel/modules/xboxkrnl/xboxkrnl_rtl.h"
 
+#include <xenia/kernel/xbox.h>
 #include <xenia/kernel/xex2.h>
 
 #include "kernel/shim_utils.h"
-#include "kernel/modules/xboxkrnl/xboxkrnl.h"
 
 
 using namespace xe;

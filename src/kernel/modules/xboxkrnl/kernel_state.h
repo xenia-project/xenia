@@ -15,6 +15,7 @@
 
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/kernel_module.h>
+#include <xenia/kernel/xbox.h>
 
 
 namespace xe {
@@ -22,17 +23,35 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+class XObject;
+
+
 class KernelState {
 public:
-  KernelState(xe_pal_ref pal, xe_memory_ref memory,
-              shared_ptr<ExportResolver> export_resolver);
+  KernelState(Runtime* runtime);
   ~KernelState();
 
-  xe_pal_ref    pal;
-  xe_memory_ref memory;
+  XObject* GetObject(X_HANDLE handle);
+
+  Runtime* runtime();
+  xe_pal_ref pal();
+  xe_memory_ref memory();
+  cpu::Processor* processor();
 
 private:
-  shared_ptr<ExportResolver> export_resolver_;
+  X_HANDLE InsertObject(XObject* obj);
+  void RemoveObject(XObject* obj);
+
+  Runtime*      runtime_;
+  xe_pal_ref    pal_;
+  xe_memory_ref memory_;
+  shared_ptr<cpu::Processor> processor_;
+
+  xe_mutex_t* objects_mutex_;
+  X_HANDLE next_handle_;
+  std::tr1::unordered_map<X_HANDLE, XObject*> objects_;
+
+  friend class XObject;
 };
 
 

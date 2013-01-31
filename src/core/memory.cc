@@ -9,12 +9,14 @@
 
 #include <xenia/core/memory.h>
 
+#include <xenia/core/mutex.h>
+
 #if !XE_PLATFORM(WIN32)
 #include <sys/mman.h>
 #endif  // WIN32
 
 #define MSPACES                 1
-#define USE_LOCKS               1
+#define USE_LOCKS               0
 #define USE_DL_PREFIX           1
 #define HAVE_MORECORE           0
 #define HAVE_MMAP               0
@@ -43,10 +45,11 @@
 struct xe_memory {
   xe_ref_t ref;
 
-  size_t    length;
-  void      *ptr;
+  size_t      length;
+  void*       ptr;
 
-  mspace    heap;
+  xe_mutex_t* heap_mutex;
+  mspace      heap;
 };
 
 
@@ -70,6 +73,9 @@ xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options) {
 #endif  // WIN32
   XEEXPECTNOTNULL(memory->ptr);
 
+  memory->heap_mutex = xe_mutex_alloc(0);
+  XEEXPECTNOTNULL(memory->heap_mutex);
+
   // Allocate the mspace for our heap.
   // We skip the first page to make writes to 0 easier to find.
   offset = 64 * 1024;
@@ -85,8 +91,15 @@ XECLEANUP:
 }
 
 void xe_memory_dealloc(xe_memory_ref memory) {
-  if (memory->heap) {
+  if (memory->heap_mutex && memory->heap) {
+    xe_mutex_lock(memory->heap_mutex);
     destroy_mspace(memory->heap);
+    memory->heap = NULL;
+    xe_mutex_unlock(memory->heap_mutex);
+  }
+  if (memory->heap_mutex) {
+    xe_mutex_free(memory->heap_mutex);
+    memory->heap_mutex = NULL;
   }
 
 #if XE_PLATFORM(WIN32)
@@ -148,7 +161,9 @@ uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_addr,
   XEASSERT(base_addr == 0);
   XEASSERT(flags == 0);
 
+  XEIGNORE(xe_mutex_lock(memory->heap_mutex));
   uint8_t* p = (uint8_t*)mspace_malloc(memory->heap, size);
+  XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
   if (!p) {
     return 0;
   }
@@ -166,7 +181,9 @@ uint32_t xe_memory_heap_free(xe_memory_ref memory, uint32_t addr,
     return 0;
   }
 
+  XEIGNORE(xe_mutex_lock(memory->heap_mutex));
   mspace_free(memory->heap, p);
+  XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
 
   return (uint32_t)real_size;
 }
