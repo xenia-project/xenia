@@ -13,6 +13,7 @@
 #include <xenia/kernel/xex2.h>
 
 #include "kernel/shim_utils.h"
+#include "kernel/modules/xboxkrnl/objects/xthread.h"
 
 
 using namespace xe;
@@ -395,8 +396,8 @@ void RtlEnterCriticalSection_shim(
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
-  // TODO(benvanik): get current thread ID.
-  uint32_t thread_id = 0;
+  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
+  uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
 
 spin:
@@ -434,8 +435,8 @@ void RtlTryEnterCriticalSection_shim(
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
-  // TODO(benvanik): get current thread ID.
-  uint32_t thread_id = 0;
+  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
+  uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
 
   if (xe_atomic_cas_32(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.

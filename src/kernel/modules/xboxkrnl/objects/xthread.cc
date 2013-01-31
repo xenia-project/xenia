@@ -58,6 +58,10 @@ XThread::~XThread() {
   }
 }
 
+uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
+  return XEGETUINT32BE(thread_state_block + 0x14C);
+}
+
 uint32_t XThread::thread_id() {
   return thread_id_;
 }
