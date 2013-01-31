@@ -7,6 +7,7 @@
   ],
 
   'includes': [
+    'fs/sources.gypi',
     'modules/sources.gypi',
   ],
 }

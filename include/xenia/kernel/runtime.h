@@ -16,6 +16,7 @@
 
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/xex2.h>
+#include <xenia/kernel/fs/filesystem.h>
 
 
 namespace xe {
@@ -45,20 +46,24 @@ public:
           const xechar_t* command_line);
   ~Runtime();
 
+  const xechar_t* command_line();
+
   xe_pal_ref pal();
   xe_memory_ref memory();
   shared_ptr<cpu::Processor> processor();
   shared_ptr<ExportResolver> export_resolver();
-  const xechar_t* command_line();
+  shared_ptr<fs::FileSystem> filesystem();
 
   int LaunchModule(const xechar_t* path);
 
 private:
+  xechar_t        command_line_[2048];
+
   xe_pal_ref      pal_;
   xe_memory_ref   memory_;
   shared_ptr<cpu::Processor> processor_;
-  xechar_t        command_line_[2048];
   shared_ptr<ExportResolver> export_resolver_;
+  shared_ptr<fs::FileSystem> filesystem_;
 
   auto_ptr<xboxkrnl::XboxkrnlModule> xboxkrnl_;
   auto_ptr<xam::XamModule> xam_;
