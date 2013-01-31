@@ -23,60 +23,6 @@ using namespace xe::kernel::xboxkrnl;
 namespace {
 
 
-void RtlImageXexHeaderField_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
-  // PVOID
-  // PVOID XexHeaderBase
-  // DWORD ImageField
-
-  uint32_t xex_header_base    = SHIM_GET_ARG_32(0);
-  uint32_t image_field        = SHIM_GET_ARG_32(1);
-
-  // NOTE: this is totally faked!
-  // We set the XexExecutableModuleHandle pointer to a block that has at offset
-  // 0x58 a pointer to our XexHeaderBase. If the value passed doesn't match
-  // then die.
-  // The only ImageField I've seen in the wild is
-  // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
-
-  XELOGD(
-      XT("RtlImageXexHeaderField(%.8X, %.8X)"),
-      xex_header_base, image_field);
-
-  if (xex_header_base != 0x80101100) {
-    XELOGE(XT("RtlImageXexHeaderField with non-magic base NOT IMPLEMENTED"));
-    SHIM_SET_RETURN(0);
-    return;
-  }
-
-  // TODO(benvanik): pull from xex header
-  // module = GetExecutableModule() || (user defined one)
-  // header = module->xex_header()
-  // for (n = 0; n < header->header_count; n++) {
-  //   if (header->headers[n].key == ImageField) {
-  //     return value? or offset?
-  //   }
-  // }
-
-  uint32_t return_value = 0;
-  switch (image_field) {
-    case XEX_HEADER_DEFAULT_HEAP_SIZE:
-      // TODO(benvanik): pull from running module
-      // This is header->exe_heap_size.
-      //SHIM_SET_MEM_32(0x80101104, [some value]);
-      //return_value = 0x80101104;
-      return_value = 0;
-      break;
-    default:
-      XELOGE(XT("RtlImageXexHeaderField header field %.8X NOT IMPLEMENTED"),
-             image_field);
-      SHIM_SET_RETURN(0);
-      return;
-  }
-
-  SHIM_SET_RETURN(return_value);
-}
-
 // http://msdn.microsoft.com/en-us/library/ff561778
 void RtlCompareMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
@@ -178,6 +124,186 @@ void RtlFillMemoryUlong_shim(
 }
 
 
+// typedef struct _STRING {
+//   USHORT Length;
+//   USHORT MaximumLength;
+//   PCHAR  Buffer;
+// } ANSI_STRING, *PANSI_STRING;
+
+
+// http://msdn.microsoft.com/en-us/library/ff561918
+void RtlInitAnsiString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Out_     PANSI_STRING DestinationString,
+  // _In_opt_  PCSZ SourceString
+
+  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
+  uint32_t source_ptr = SHIM_GET_ARG_32(1);
+
+  const char* source = source_ptr ? (char*)SHIM_MEM_ADDR(source_ptr) : NULL;
+  XELOGD(XT("RtlInitAnsiString(%.8X, %.8X = %s)"),
+         destination_ptr, source_ptr, source ? source : "<null>");
+
+  uint16_t length = source ? (uint16_t)xestrlena(source) : 0;
+  SHIM_SET_MEM_16(destination_ptr + 0, length * 2);
+  SHIM_SET_MEM_16(destination_ptr + 2, length * 2);
+  SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
+}
+
+
+// http://msdn.microsoft.com/en-us/library/ff561899
+void RtlFreeAnsiString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Inout_  PANSI_STRING AnsiString
+
+  uint32_t string_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(XT("RtlFreeAnsiString(%.8X)"), string_ptr);
+
+  //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
+  // TODO(benvanik): free the buffer
+  XELOGE(XT("RtlFreeAnsiString leaking buffer"));
+
+  SHIM_SET_MEM_16(string_ptr + 0, 0);
+  SHIM_SET_MEM_16(string_ptr + 2, 0);
+  SHIM_SET_MEM_32(string_ptr + 4, 0);
+}
+
+
+// typedef struct _UNICODE_STRING {
+//   USHORT Length;
+//   USHORT MaximumLength;
+//   PWSTR  Buffer;
+// } UNICODE_STRING, *PUNICODE_STRING;
+
+
+// http://msdn.microsoft.com/en-us/library/ff561934
+void RtlInitUnicodeString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Out_     PUNICODE_STRING DestinationString,
+  // _In_opt_  PCWSTR SourceString
+
+  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
+  uint32_t source_ptr = SHIM_GET_ARG_32(1);
+
+  const wchar_t* source =
+      source_ptr ? (const wchar_t*)SHIM_MEM_ADDR(source_ptr) : NULL;
+  XELOGD(XT("RtlInitUnicodeString(%.8X, %.8X = %ls)"),
+         destination_ptr, source_ptr, source ? source : L"<null>");
+
+  uint16_t length = source ? (uint16_t)xestrlenw(source) : 0;
+  SHIM_SET_MEM_16(destination_ptr + 0, length * 2);
+  SHIM_SET_MEM_16(destination_ptr + 2, length * 2);
+  SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
+}
+
+
+// http://msdn.microsoft.com/en-us/library/ff561903
+void RtlFreeUnicodeString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Inout_  PUNICODE_STRING UnicodeString
+
+  uint32_t string_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(XT("RtlFreeUnicodeString(%.8X)"), string_ptr);
+
+  //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
+  // TODO(benvanik): free the buffer
+  XELOGE(XT("RtlFreeUnicodeString leaking buffer"));
+
+  SHIM_SET_MEM_16(string_ptr + 0, 0);
+  SHIM_SET_MEM_16(string_ptr + 2, 0);
+  SHIM_SET_MEM_32(string_ptr + 4, 0);
+}
+
+
+// http://msdn.microsoft.com/en-us/library/ff562969
+void RtlUnicodeStringToAnsiString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // NTSTATUS
+  // _Inout_  PANSI_STRING DestinationString,
+  // _In_     PCUNICODE_STRING SourceString,
+  // _In_     BOOLEAN AllocateDestinationString
+
+  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
+  uint32_t source_ptr = SHIM_GET_ARG_32(1);
+  uint32_t alloc_dest = SHIM_GET_ARG_32(2);
+
+  XELOGD(XT("RtlUnicodeStringToAnsiString(%.8X, %.8X, %d)"),
+         destination_ptr, source_ptr, alloc_dest);
+
+  XELOGE(XT("RtlUnicodeStringToAnsiString not yet implemented"));
+
+  if (alloc_dest) {
+    // Allocate a new buffer to place the string into.
+    //SHIM_SET_MEM_32(destination_ptr + 4, buffer_ptr);
+  } else {
+    // Reuse the buffer in the target.
+    //uint32_t buffer_size = SHIM_MEM_16(destination_ptr + 2);
+  }
+
+  SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);
+}
+
+
+void RtlImageXexHeaderField_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // PVOID
+  // PVOID XexHeaderBase
+  // DWORD ImageField
+
+  uint32_t xex_header_base    = SHIM_GET_ARG_32(0);
+  uint32_t image_field        = SHIM_GET_ARG_32(1);
+
+  // NOTE: this is totally faked!
+  // We set the XexExecutableModuleHandle pointer to a block that has at offset
+  // 0x58 a pointer to our XexHeaderBase. If the value passed doesn't match
+  // then die.
+  // The only ImageField I've seen in the wild is
+  // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
+
+  XELOGD(
+      XT("RtlImageXexHeaderField(%.8X, %.8X)"),
+      xex_header_base, image_field);
+
+  if (xex_header_base != 0x80101100) {
+    XELOGE(XT("RtlImageXexHeaderField with non-magic base NOT IMPLEMENTED"));
+    SHIM_SET_RETURN(0);
+    return;
+  }
+
+  // TODO(benvanik): pull from xex header
+  // module = GetExecutableModule() || (user defined one)
+  // header = module->xex_header()
+  // for (n = 0; n < header->header_count; n++) {
+  //   if (header->headers[n].key == ImageField) {
+  //     return value? or offset?
+  //   }
+  // }
+
+  uint32_t return_value = 0;
+  switch (image_field) {
+    case XEX_HEADER_DEFAULT_HEAP_SIZE:
+      // TODO(benvanik): pull from running module
+      // This is header->exe_heap_size.
+      //SHIM_SET_MEM_32(0x80101104, [some value]);
+      //return_value = 0x80101104;
+      return_value = 0;
+      break;
+    default:
+      XELOGE(XT("RtlImageXexHeaderField header field %.8X NOT IMPLEMENTED"),
+             image_field);
+      SHIM_SET_RETURN(0);
+      return;
+  }
+
+  SHIM_SET_RETURN(return_value);
+}
+
 
 //RtlInitializeCriticalSection
 //RtlEnterCriticalSection
@@ -195,6 +321,12 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING(0x0000011A, RtlCompareMemory_shim, NULL);
   SHIM_SET_MAPPING(0x0000011B, RtlCompareMemoryUlong_shim, NULL);
   SHIM_SET_MAPPING(0x00000126, RtlFillMemoryUlong_shim, NULL);
+
+  SHIM_SET_MAPPING(0x0000012C, RtlInitAnsiString_shim, NULL);
+  SHIM_SET_MAPPING(0x00000127, RtlFreeAnsiString_shim, NULL);
+  SHIM_SET_MAPPING(0x0000012D, RtlInitUnicodeString_shim, NULL);
+  SHIM_SET_MAPPING(0x00000128, RtlFreeUnicodeString_shim, NULL);
+  SHIM_SET_MAPPING(0x00000142, RtlUnicodeStringToAnsiString_shim, NULL);
 
   SHIM_SET_MAPPING(0x0000012B, RtlImageXexHeaderField_shim, NULL);
 

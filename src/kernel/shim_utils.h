@@ -24,7 +24,9 @@ namespace kernel {
 
 #define SHIM_MEM_ADDR(a)      (ppc_state->membase + a)
 
+#define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a));
 #define SHIM_MEM_32(a)        (uint32_t)XEGETUINT32BE(SHIM_MEM_ADDR(a));
+#define SHIM_SET_MEM_16(a, v) (*(uint16_t*)SHIM_MEM_ADDR(a)) = XESWAP16(v)
 #define SHIM_SET_MEM_32(a, v) (*(uint32_t*)SHIM_MEM_ADDR(a)) = XESWAP32(v)
 
 #define SHIM_GPR_32(n)        (uint32_t)(ppc_state->r[n])

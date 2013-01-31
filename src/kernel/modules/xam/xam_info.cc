@@ -9,6 +9,8 @@
 
 #include "kernel/modules/xam/xam_info.h"
 
+#include <xenia/kernel/xbox.h>
+
 #include "kernel/shim_utils.h"
 #include "kernel/modules/xam/xam_module.h"
 
@@ -32,6 +34,33 @@ void XGetAVPack_shim(
 }
 
 
+void XGetGameRegion_shim(
+    xe_ppc_state_t* ppc_state, XamState* state) {
+  XELOGD(XT("XGetGameRegion()"));
+
+  SHIM_SET_RETURN(XEX_REGION_ALL);
+}
+
+
+void XGetLanguage_shim(
+    xe_ppc_state_t* ppc_state, XamState* state) {
+  XELOGD(XT("XGetLanguage()"));
+
+  uint32_t desired_language = X_LANGUAGE_ENGLISH;
+
+  // Switch the language based on game region.
+  // TODO(benvanik): pull from xex header.
+  uint32_t game_region = XEX_REGION_NTSCU;
+  if (game_region & XEX_REGION_NTSCU) {
+    desired_language = X_LANGUAGE_ENGLISH;
+  } else if (game_region & XEX_REGION_NTSCJ) {
+    desired_language = X_LANGUAGE_JAPANESE;
+  }
+  // Add more overrides?
+
+  SHIM_SET_RETURN(desired_language);
+}
+
 }
 
 
@@ -42,6 +71,8 @@ void xe::kernel::xam::RegisterInfoExports(
         state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
 
   SHIM_SET_MAPPING(0x000003CB, XGetAVPack_shim, NULL);
+  SHIM_SET_MAPPING(0x000003CC, XGetGameRegion_shim, NULL);
+  SHIM_SET_MAPPING(0x000003CD, XGetLanguage_shim, NULL);
 
   #undef SET_MAPPING
 }

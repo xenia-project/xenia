@@ -40,6 +40,7 @@ public:
 
 private:
   X_STATUS PlatformCreate();
+  void PlatformDestroy();
   X_STATUS PlatformExit(int exit_code);
 
   struct {

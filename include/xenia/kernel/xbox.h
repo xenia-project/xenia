@@ -85,6 +85,11 @@ typedef uint32_t X_STATUS;
 #define X_TLS_OUT_OF_INDEXES      UINT32_MAX  // (-1)
 
 
+// Languages.
+#define X_LANGUAGE_ENGLISH        1
+#define X_LANGUAGE_JAPANESE       2
+
+
 }  // namespace kernel
 }  // namespace xe
 

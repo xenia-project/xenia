@@ -43,7 +43,7 @@ XThread::XThread(KernelState* kernel_state,
 }
 
 XThread::~XThread() {
-  // TODO(benvanik): if executing, kill it?
+  PlatformDestroy();
 
   if (processor_state_) {
     kernel_state()->processor()->DeallocThread(processor_state_);
@@ -156,6 +156,11 @@ X_STATUS XThread::PlatformCreate() {
   return X_STATUS_SUCCESS;
 }
 
+void XThread::PlatformDestroy() {
+  CloseHandle(reinterpret_cast<HANDLE>(thread_handle_));
+  thread_handle_ = NULL;
+}
+
 X_STATUS XThread::PlatformExit(int exit_code) {
   // NOTE: does not return.
   ExitThread(exit_code);
@@ -205,6 +210,10 @@ X_STATUS XThread::PlatformCreate() {
     case EPERM:
       return X_STATUS_INVALID_PARAMETER;
   }
+}
+
+void XThread::PlatformDestroy() {
+  // No-op?
 }
 
 X_STATUS XThread::PlatformExit(int exit_code) {

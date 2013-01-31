@@ -9,28 +9,24 @@ Ordered:
 ```
 RtlInitializeCriticalSection/RtlInitializeCriticalSectionAndSpinCount
 RtlEnterCriticalSection/RtlLeaveCriticalSection
-ExGetXConfigSetting
-KeTlsAlloc
-KeTlsSetValue
+NtCreateEvent
+NtClose
+NtWaitForSingleObjectEx
+RtlFreeAnsiString/RtlFreeUnicodeString
+RtlUnicodeStringToAnsiString
 ```
 
 Others:
 ```
-NtQueryVirtualMemory
-
-KeTlsAlloc/KeTlsFree/KeTlsGetValue/KeTlsSetValue
-
+NtCreateEvent
 NtWaitForSingleObjectEx
-
-RtlInitUnicodeString/RtlFreeUnicodeString
-RtlInitAnsiString/RtlFreeAnsiString
-RtlUnicodeStringToAnsiString
 
 RtlCompareMemoryUlong
 RtlNtStatusToDosError
 RtlRaiseException
 
 NtCreateFile/NtOpenFile
+NtClose
 NtReadFile/NtReadFileScatter
 NtQueryFullAttributesFile
 NtQueryInformationFile/NtSetInformationFile
