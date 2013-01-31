@@ -305,9 +305,182 @@ void RtlImageXexHeaderField_shim(
 }
 
 
-//RtlInitializeCriticalSection
-//RtlEnterCriticalSection
-//RtlLeaveCriticalSection
+// Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
+// on the 360 (32b vs. 28b). This means that we can't do in-place splatting of
+// the critical sections. Also, the 360 never calls RtlDeleteCriticalSection
+// so we can't clean up the native handles.
+//
+// Because of this, we reimplement it poorly. Hooray.
+// We have 28b to work with so we need to be careful. We map our struct directly
+// into guest memory, as it should be opaque and so long as our size is right
+// the user code will never know.
+//
+// This would be good to put in xethunk for inlining.
+//
+// Ref: http://msdn.microsoft.com/en-us/magazine/cc164040.aspx
+// Ref: http://svn.reactos.org/svn/reactos/trunk/reactos/lib/rtl/critical.c?view=markup
+
+
+// This structure tries to match the one on the 360 as best I can figure out.
+// Unfortunately some games have the critical sections pre-initialized in
+// their embedded data and InitializeCriticalSection will never be called.
+namespace {
+#pragma pack(push, 1)
+typedef struct {
+  uint8_t     unknown0;
+  uint8_t     spin_count_div_256; // * 256
+  uint8_t     unknown0b;
+  uint8_t     unknown0c;
+  uint32_t    unknown1;         // maybe the handle to the event?
+  uint32_t    unknown2;         // head of queue, pointing to this offset
+  uint32_t    unknown3;         // tail of queue?
+  int32_t     lock_count;       // -1 -> 0 on first lock
+  uint16_t    recursion_count;  //  0 -> 1 on first lock
+  uint32_t    owning_thread_id; // 0 unless locked
+} X_RTL_CRITICAL_SECTION;
+#pragma pack(pop)
+}
+
+
+void RtlInitializeCriticalSection_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Out_  LPCRITICAL_SECTION lpCriticalSection
+
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(XT("RtlInitializeCriticalSection(%.8X)"), cs_ptr);
+
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  cs->spin_count_div_256  = 0;
+  cs->lock_count          = -1;
+  cs->recursion_count     = 0;
+  cs->owning_thread_id    = 0;
+}
+
+
+void RtlInitializeCriticalSectionAndSpinCount_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // NTSTATUS
+  // _Out_  LPCRITICAL_SECTION lpCriticalSection,
+  // _In_   DWORD dwSpinCount
+
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+  uint32_t spin_count = SHIM_GET_ARG_32(1);
+
+  XELOGD(XT("RtlInitializeCriticalSectionAndSpinCount(%.8X, %d)"),
+         cs_ptr, spin_count);
+
+  // Spin count is rouned up to 256 intervals then packed in.
+  uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
+
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  cs->spin_count_div_256  = spin_count_div_256;
+  cs->lock_count          = -1;
+  cs->recursion_count     = 0;
+  cs->owning_thread_id    = 0;
+
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+}
+
+
+void RtlEnterCriticalSection_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
+
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(XT("RtlEnterCriticalSection(%.8X)"), cs_ptr);
+
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+
+  // TODO(benvanik): get current thread ID.
+  uint32_t thread_id = 0;
+  uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
+
+spin:
+  if (xe_atomic_inc_32(&cs->lock_count)) {
+    // If this thread already owns the CS increment the recursion count.
+    if (cs->owning_thread_id == thread_id) {
+      ++cs->recursion_count;
+      return;
+    }
+
+    // Thread was locked - spin wait.
+    if (--spin_wait_remaining) {
+      goto spin;
+    }
+
+    // All out of spin waits, create a full waiter.
+    // TODO(benvanik): contention - do a real wait!
+    XELOGE(XT("RtlEnterCriticalSection tried to really lock!"));
+  }
+
+  // Now own the lock.
+  cs->owning_thread_id  = thread_id;
+  cs->recursion_count   = 1;
+}
+
+
+void RtlTryEnterCriticalSection_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // DWORD
+  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
+
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(XT("RtlTryEnterCriticalSection(%.8X)"), cs_ptr);
+
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+
+  // TODO(benvanik): get current thread ID.
+  uint32_t thread_id = 0;
+
+  if (xe_atomic_cas_32(-1, 0, &cs->lock_count)) {
+    // Able to steal the lock right away.
+    cs->owning_thread_id  = thread_id;
+    cs->recursion_count   = 1;
+    SHIM_SET_RETURN(1);
+    return;
+  } else if (cs->owning_thread_id == thread_id) {
+    xe_atomic_inc_32(&cs->lock_count);
+    ++cs->recursion_count;
+    SHIM_SET_RETURN(1);
+    return;
+  }
+
+  SHIM_SET_RETURN(0);
+}
+
+
+void RtlLeaveCriticalSection_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  // VOID
+  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
+
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(XT("RtlLeaveCriticalSection(%.8X)"), cs_ptr);
+
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+
+  // Drop recursion count - if we are still not zero'ed return.
+  uint32_t recursion_count = --cs->recursion_count;
+  if (recursion_count) {
+    xe_atomic_dec_32(&cs->lock_count);
+    return;
+  }
+
+  // Unlock!
+  cs->owning_thread_id  = 0;
+  if (xe_atomic_dec_32(&cs->lock_count) != -1) {
+    // There were waiters - wake one of them.
+    // TODO(benvanik): wake a waiter.
+    XELOGE(XT("RtlLeaveCriticalSection would have woken a waiter"));
+  }
+}
+
 
 }
 
@@ -329,6 +502,12 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING(0x00000142, RtlUnicodeStringToAnsiString_shim, NULL);
 
   SHIM_SET_MAPPING(0x0000012B, RtlImageXexHeaderField_shim, NULL);
+
+  SHIM_SET_MAPPING(0x0000012E, RtlInitializeCriticalSection_shim, NULL);
+  SHIM_SET_MAPPING(0x0000012F, RtlInitializeCriticalSectionAndSpinCount_shim, NULL);
+  SHIM_SET_MAPPING(0x00000125, RtlEnterCriticalSection_shim, NULL);
+  SHIM_SET_MAPPING(0x00000141, RtlTryEnterCriticalSection_shim, NULL);
+  SHIM_SET_MAPPING(0x00000130, RtlLeaveCriticalSection_shim, NULL);
 
   #undef SET_MAPPING
 }
