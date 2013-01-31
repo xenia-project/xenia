@@ -24,6 +24,8 @@ namespace xboxkrnl {
 
 
 class XObject;
+class XModule;
+class XThread;
 
 
 class KernelState {
@@ -31,12 +33,16 @@ public:
   KernelState(Runtime* runtime);
   ~KernelState();
 
-  XObject* GetObject(X_HANDLE handle);
-
   Runtime* runtime();
   xe_pal_ref pal();
   xe_memory_ref memory();
   cpu::Processor* processor();
+
+  XObject* GetObject(X_HANDLE handle);
+
+  XModule* GetModule(const char* name);
+  XModule* GetExecutableModule();
+  void SetExecutableModule(XModule* module);
 
 private:
   X_HANDLE InsertObject(XObject* obj);
@@ -47,9 +53,13 @@ private:
   xe_memory_ref memory_;
   shared_ptr<cpu::Processor> processor_;
 
+  XModule*      executable_module_;
+
   xe_mutex_t* objects_mutex_;
   X_HANDLE next_handle_;
   std::tr1::unordered_map<X_HANDLE, XObject*> objects_;
+  std::tr1::unordered_map<X_HANDLE, XModule*> modules_;
+  std::tr1::unordered_map<X_HANDLE, XThread*> threads_;
 
   friend class XObject;
 };

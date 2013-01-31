@@ -10,6 +10,8 @@
 #include "kernel/modules/xboxkrnl/kernel_state.h"
 
 #include "kernel/modules/xboxkrnl/xobject.h"
+#include "kernel/modules/xboxkrnl/objects/xmodule.h"
+#include "kernel/modules/xboxkrnl/objects/xthread.h"
 
 
 using namespace xe;
@@ -24,6 +26,7 @@ namespace {
 
 KernelState::KernelState(Runtime* runtime) :
     runtime_(runtime),
+    executable_module_(NULL),
     next_handle_(0) {
   pal_        = runtime->pal();
   memory_     = runtime->memory();
@@ -34,6 +37,11 @@ KernelState::KernelState(Runtime* runtime) :
 }
 
 KernelState::~KernelState() {
+  if (executable_module_) {
+    executable_module_->Release();
+    executable_module_ = NULL;
+  }
+
   // Delete all objects.
   // We first copy the list to another list so that the deletion of the objects
   // doesn't mess up iteration.
@@ -44,6 +52,8 @@ KernelState::~KernelState() {
     all_objects.push_back(it->second);
   }
   objects_.clear();
+  modules_.clear();
+  threads_.clear();
   xe_mutex_unlock(objects_mutex_);
   for (std::vector<XObject*>::iterator it = all_objects.begin();
        it != all_objects.end(); ++it) {
@@ -90,6 +100,9 @@ XObject* KernelState::GetObject(X_HANDLE handle) {
   std::tr1::unordered_map<X_HANDLE, XObject*>::iterator it =
       objects_.find(handle);
   XObject* value = it != objects_.end() ? it->second : NULL;
+  if (value) {
+    value->Retain();
+  }
   xe_mutex_unlock(objects_mutex_);
   return value;
 }
@@ -98,6 +111,16 @@ X_HANDLE KernelState::InsertObject(XObject* obj) {
   xe_mutex_lock(objects_mutex_);
   X_HANDLE handle = 0x00001000 + (++next_handle_);
   objects_.insert(std::pair<X_HANDLE, XObject*>(handle, obj));
+  switch (obj->type()) {
+    case XObject::kTypeModule:
+      modules_.insert(std::pair<X_HANDLE, XModule*>(
+          handle, static_cast<XModule*>(obj)));
+      break;
+    case XObject::kTypeThread:
+      threads_.insert(std::pair<X_HANDLE, XThread*>(
+          handle, static_cast<XThread*>(obj)));
+      break;
+  }
   xe_mutex_unlock(objects_mutex_);
   return handle;
 }
@@ -106,4 +129,36 @@ void KernelState::RemoveObject(XObject* obj) {
   xe_mutex_lock(objects_mutex_);
   objects_.erase(obj->handle());
   xe_mutex_unlock(objects_mutex_);
+}
+
+XModule* KernelState::GetModule(const char* name) {
+  XModule* found = NULL;
+  xe_mutex_lock(objects_mutex_);
+  for (std::tr1::unordered_map<X_HANDLE, XModule*>::iterator it =
+       modules_.begin(); it != modules_.end(); ++it) {
+    if (xestrcmpa(name, it->second->name()) == 0) {
+      found = it->second;
+      found->Retain();
+    }
+  }
+  xe_mutex_unlock(objects_mutex_);
+  return found;
+}
+
+XModule* KernelState::GetExecutableModule() {
+  if (executable_module_) {
+    executable_module_->Retain();
+    return executable_module_;
+  }
+  return NULL;
+}
+
+void KernelState::SetExecutableModule(XModule* module) {
+  if (executable_module_ && executable_module_ != module) {
+    executable_module_->Release();
+  }
+  executable_module_ = module;
+  if (executable_module_) {
+    executable_module_->Retain();
+  }
 }

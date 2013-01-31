@@ -13,6 +13,7 @@
 #include <xenia/kernel/xex2.h>
 
 #include "kernel/shim_utils.h"
+#include "kernel/modules/xboxkrnl/objects/xmodule.h"
 
 
 using namespace xe;
@@ -45,19 +46,20 @@ void XexCheckExecutablePrivilege_shim(
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
-  // TODO(benvanik): pull from xex header:
-  // XEKernelModuleRef module = XEKernelGetExecutableModule(XEGetKernel());
-  // const XEXHeader* xexhdr = XEKernelModuleGetXEXHeader(module);
-  // return xexhdr->systemFlags & mask;
-
-  if (mask == XEX_SYSTEM_PAL50_INCOMPATIBLE) {
-    // Only one we've seen.
-  } else {
-    XELOGW(XT("XexCheckExecutablePrivilege: %.8X is NOT IMPLEMENTED"),
-           privilege);
+  XModule* module = state->GetExecutableModule();
+  if (!module) {
+    SHIM_SET_RETURN(0);
+    return;
   }
+  xe_xex2_ref xex = module->xex();
 
-  SHIM_SET_RETURN(0);
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex);
+  uint32_t result = (header->system_flags & mask) > 0;
+
+  xe_xex2_release(xex);
+  module->Release();
+
+  SHIM_SET_RETURN(result);
 }
 
 
@@ -75,18 +77,28 @@ void XexGetModuleHandle_shim(
       XT("XexGetModuleHandle(%s, %.8X)"),
       module_name, module_handle_ptr);
 
-  XEASSERTALWAYS();
-
-  // TODO(benvanik): get module
-  // XEKernelModuleRef module = XEKernelGetModuleByName(XEGetKernel(), ModuleName);
-  // if (!module) {
+  XModule* module = state->GetModule(module_name);
+  if (!module) {
     SHIM_SET_RETURN(0);
-  //   return;
-  // }
+    return;
+  }
 
-  // SHIM_SET_MEM_32(module_handle_ptr, module->handle());
-  // SHIM_SET_RETURN(1);
+  // NOTE: we don't retain the handle for return.
+  SHIM_SET_MEM_32(module_handle_ptr, module->handle());
+  SHIM_SET_RETURN(1);
+
+  module->Release();
 }
+
+
+// void XexGetModuleSection_shim(
+//     xe_ppc_state_t* ppc_state, KernelState* state) {
+// }
+
+
+// void XexGetProcedureAddress_shim(
+//     xe_ppc_state_t* ppc_state, KernelState* state) {
+// }
 
 
 }
@@ -103,6 +115,8 @@ void xe::kernel::xboxkrnl::RegisterModuleExports(
   SHIM_SET_MAPPING(0x00000194, XexCheckExecutablePrivilege_shim, NULL);
 
   SHIM_SET_MAPPING(0x00000195, XexGetModuleHandle_shim, NULL);
+  // SHIM_SET_MAPPING(0x00000196, XexGetModuleSection_shim, NULL);
+  // SHIM_SET_MAPPING(0x00000197, XexGetProcedureAddress_shim, NULL);
 
   #undef SET_MAPPING
 }
