@@ -14,6 +14,7 @@
 
 using namespace xe;
 using namespace xe::cpu;
+using namespace xe::dbg;
 using namespace xe::kernel;
 
 
@@ -34,6 +35,7 @@ private:
   xe_memory_ref   memory_;
   shared_ptr<Processor> processor_;
   shared_ptr<Runtime>   runtime_;
+  shared_ptr<Debugger>  debugger_;
 };
 
 Run::Run() {
@@ -49,6 +51,8 @@ int Run::Setup() {
   xe_zero_struct(&pal_options, sizeof(pal_options));
   pal_ = xe_pal_create(pal_options);
   XEEXPECTNOTNULL(pal_);
+
+  debugger_ = shared_ptr<Debugger>(new Debugger(pal_));
 
   xe_memory_options_t memory_options;
   xe_zero_struct(&memory_options, sizeof(memory_options));
@@ -83,6 +87,13 @@ int Run::Launch(const xechar_t* path) {
   const xechar_t* dot = xestrrchr(abs_path, '.');
   if (!dot) {
     XELOGE(XT("Invalid input path; no extension found"));
+    return 1;
+  }
+
+  // Run the debugger.
+  // This may pause waiting for connections.
+  if (debugger_->Startup()) {
+    XELOGE(XT("Debugger failed to startup"));
     return 1;
   }
 

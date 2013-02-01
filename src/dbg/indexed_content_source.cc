@@ -7,14 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#include <xenia/dbg/indexed_content_source.h>
 
-#include <xenia/common.h>
-#include <xenia/cpu.h>
-#include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+using namespace xe;
+using namespace xe::dbg;
+
+
+IndexedContentSource::IndexedContentSource() :
+    ContentSource(kTypeIndexed) {
+}
+
+IndexedContentSource::~IndexedContentSource() {
+}
+
+int IndexedContentSource::DispatchRequest(Client* client,
+                                          const uint8_t* data, size_t length) {
+  //
+  return 1;
+}

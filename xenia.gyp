@@ -34,6 +34,7 @@
       'includes': [
         'src/xenia/sources.gypi',
         'src/core/sources.gypi',
+        'src/dbg/sources.gypi',
       ],
     },
 

@@ -7,14 +7,40 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#ifndef XENIA_KERNEL_DBG_CONTENT_SOURCE_H_
+#define XENIA_KERNEL_DBG_CONTENT_SOURCE_H_
 
 #include <xenia/common.h>
-#include <xenia/cpu.h>
 #include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+#include <xenia/dbg/client.h>
+
+
+namespace xe {
+namespace dbg {
+
+
+class ContentSource {
+public:
+  enum Type {
+    kTypeIndexed,
+  };
+
+  ContentSource(Type type);
+  virtual ~ContentSource();
+
+  Type type();
+
+  virtual int DispatchRequest(Client* client,
+                              const uint8_t* data, size_t length) = 0;
+
+protected:
+  Type  type_;
+};
+
+
+}  // namespace dbg
+}  // namespace xe
+
+
+#endif  // XENIA_KERNEL_DBG_CONTENT_SOURCE_H_

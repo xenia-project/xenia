@@ -7,14 +7,36 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#ifndef XENIA_KERNEL_DBG_WS_LISTENER_H_
+#define XENIA_KERNEL_DBG_WS_LISTENER_H_
 
 #include <xenia/common.h>
-#include <xenia/cpu.h>
 #include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+#include "dbg/listener.h"
+
+
+namespace xe {
+namespace dbg {
+
+
+class WsListener : public Listener {
+public:
+  WsListener(xe_pal_ref pal, uint32_t port);
+  virtual ~WsListener();
+
+  virtual int Setup();
+  virtual int WaitForClient();
+
+protected:
+  uint32_t port_;
+
+  int socket_id_;
+};
+
+
+}  // namespace dbg
+}  // namespace xe
+
+
+#endif  // XENIA_KERNEL_DBG_WS_LISTENER_H_

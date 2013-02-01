@@ -7,14 +7,32 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#ifndef XENIA_KERNEL_DBG_LISTENER_H_
+#define XENIA_KERNEL_DBG_LISTENER_H_
 
 #include <xenia/common.h>
-#include <xenia/cpu.h>
 #include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+
+namespace xe {
+namespace dbg {
+
+
+class Listener {
+public:
+  Listener(xe_pal_ref pal);
+  virtual ~Listener();
+
+  virtual int Setup() = 0;
+  virtual int WaitForClient() = 0;
+
+protected:
+  xe_pal_ref pal_;
+};
+
+
+}  // namespace dbg
+}  // namespace xe
+
+
+#endif  // XENIA_KERNEL_DBG_LISTENER_H_

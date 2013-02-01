@@ -7,14 +7,21 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#include <xenia/dbg/content_source.h>
 
-#include <xenia/common.h>
-#include <xenia/cpu.h>
-#include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+using namespace xe;
+using namespace xe::dbg;
+
+
+ContentSource::ContentSource(Type type) :
+    type_(type) {
+}
+
+ContentSource::~ContentSource() {
+}
+
+
+ContentSource::Type ContentSource::type() {
+  return type_;
+}

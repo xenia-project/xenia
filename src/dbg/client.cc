@@ -7,14 +7,21 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#include <xenia/dbg/client.h>
 
-#include <xenia/common.h>
-#include <xenia/cpu.h>
-#include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+using namespace xe;
+using namespace xe::dbg;
+
+
+Client::Client() {
+}
+
+Client::~Client() {
+}
+
+void Client::Write(const uint8_t* buffer, const size_t length) {
+  const uint8_t* buffers[] = {buffer};
+  const size_t lengths[] = {length};
+  Write(buffers, lengths, 1);
+}

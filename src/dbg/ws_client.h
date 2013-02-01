@@ -7,14 +7,34 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_H_
-#define XENIA_H_
+#ifndef XENIA_KERNEL_DBG_WS_CLIENT_H_
+#define XENIA_KERNEL_DBG_WS_CLIENT_H_
 
 #include <xenia/common.h>
-#include <xenia/cpu.h>
 #include <xenia/core.h>
-#include <xenia/gpu.h>
-#include <xenia/kernel.h>
-#include <xenia/dbg/debugger.h>
 
-#endif  // XENIA_H_
+#include <xenia/dbg/client.h>
+
+
+namespace xe {
+namespace dbg {
+
+
+class WsClient : public Client {
+public:
+  WsClient(int socket_id);
+  virtual ~WsClient();
+
+  virtual void Write(const uint8_t** buffers, const size_t* lengths,
+                     size_t count);
+
+protected:
+  int socket_id_;
+};
+
+
+}  // namespace dbg
+}  // namespace xe
+
+
+#endif  // XENIA_KERNEL_DBG_WS_CLIENT_H_
