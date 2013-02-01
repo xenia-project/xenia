@@ -165,6 +165,7 @@ int SymbolDatabase::Analyze() {
   // This can only be performed after we have all functions and basic blocks.
   bool needs_another_pass = false;
   do {
+    needs_another_pass = false;
     for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end();
          ++it) {
       if (it->second->symbol_type == Symbol::Function) {
@@ -736,13 +737,17 @@ bool SymbolDatabase::FillHoles() {
     }
   }
 
+  bool any_functions_added = false;
   for (std::vector<HoleInfo>::iterator it = holes.begin(); it != holes.end();
        ++it) {
     FunctionSymbol* fn = GetOrInsertFunction(it->start_address);
-    fn->end_address = it->end_address;
+    if (!fn->end_address) {
+      fn->end_address = it->end_address;
+      any_functions_added = true;
+    }
   }
 
-  return holes.size() > 0;
+  return any_functions_added;
 }
 
 int SymbolDatabase::FlushQueue() {
