@@ -24,6 +24,8 @@ using namespace xe::cpu::sdb;
 
 DEFINE_bool(memory_address_verification, false,
     "Whether to add additional checks to generated memory load/stores.");
+DEFINE_bool(log_codegen, false,
+    "Log codegen to stdout.");
 
 
 /**
@@ -74,6 +76,10 @@ FunctionGenerator::FunctionGenerator(
   }
   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     locals_.gpr[n] = NULL;
+  }
+
+  if (FLAGS_log_codegen) {
+    printf("%s:\n", fn->name);
   }
 }
 
@@ -269,7 +275,9 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
   BasicBlock* bb = GetBasicBlock(block->start_address);
   XEASSERTNOTNULL(bb);
 
-  printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
+  if (FLAGS_log_codegen) {
+    printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
+  }
 
   fn_block_ = block;
   bb_ = bb;
@@ -311,14 +319,16 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
       continue;
     }
 
-    if (i.type->disassemble) {
-      ppc::InstrDisasm d;
-      i.type->disassemble(i, d);
-      std::string disasm;
-      d.Dump(disasm);
-      printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
-    } else {
-      printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
+    if (FLAGS_log_codegen) {
+      if (i.type->disassemble) {
+        ppc::InstrDisasm d;
+        i.type->disassemble(i, d);
+        std::string disasm;
+        d.Dump(disasm);
+        printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
+      } else {
+        printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
+      }
     }
 
     // TODO(benvanik): debugging information? source/etc?

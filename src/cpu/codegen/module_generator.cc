@@ -301,8 +301,6 @@ void ModuleGenerator::PrepareFunction(FunctionSymbol* fn) {
 void ModuleGenerator::BuildFunction(CodegenFunction* cgf) {
   FunctionSymbol* fn = cgf->symbol;
 
-  printf("%s:\n", fn->name);
-
   // Setup the generation context.
   FunctionGenerator fgen(
       memory_, sdb_, fn, context_, gen_module_, cgf->function);

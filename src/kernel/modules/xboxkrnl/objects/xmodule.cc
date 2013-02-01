@@ -120,8 +120,11 @@ void* XModule::GetProcAddressByOrdinal(uint16_t ordinal) {
 X_STATUS XModule::Launch(uint32_t flags) {
   const xe_xex2_header_t* header = xex_header();
 
+  XELOGI(XT("Launching module..."));
+
   // Set as the main module, while running.
   kernel_state()->SetExecutableModule(this);
+  fflush(stdout);
 
   // Create a thread to run in.
   XThread* thread = new XThread(
