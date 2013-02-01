@@ -13,6 +13,8 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <vector>
+
 #include <xenia/kernel/fs/entry.h>
 
 
@@ -40,7 +42,9 @@ public:
   Entry* ResolvePath(const char* path);
 
 private:
-  xe_pal_ref pal_;
+  xe_pal_ref            pal_;
+  std::vector<Device*>  devices_;
+  std::tr1::unordered_map<std::string, std::string> symlinks_;
 };
 
 

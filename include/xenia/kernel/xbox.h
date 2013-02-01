@@ -34,6 +34,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_ACCESS_VIOLATION                       ((uint32_t)0xC0000005L)
 #define X_STATUS_INVALID_HANDLE                         ((uint32_t)0xC0000008L)
 #define X_STATUS_INVALID_PARAMETER                      ((uint32_t)0xC000000DL)
+#define X_STATUS_NO_SUCH_FILE                           ((uint32_t)0xC000000FL)
 #define X_STATUS_NO_MEMORY                              ((uint32_t)0xC0000017L)
 #define X_STATUS_ALREADY_COMMITTED                      ((uint32_t)0xC0000021L)
 #define X_STATUS_ACCESS_DENIED                          ((uint32_t)0xC0000022L)

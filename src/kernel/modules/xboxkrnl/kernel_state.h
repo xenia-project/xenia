@@ -16,6 +16,7 @@
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/kernel_module.h>
 #include <xenia/kernel/xbox.h>
+#include <xenia/kernel/fs/filesystem.h>
 
 
 namespace xe {
@@ -37,6 +38,7 @@ public:
   xe_pal_ref pal();
   xe_memory_ref memory();
   cpu::Processor* processor();
+  fs::FileSystem* filesystem();
 
   XObject* GetObject(X_HANDLE handle);
 
@@ -52,6 +54,7 @@ private:
   xe_pal_ref    pal_;
   xe_memory_ref memory_;
   shared_ptr<cpu::Processor> processor_;
+  shared_ptr<fs::FileSystem> filesystem_;
 
   XModule*      executable_module_;
 

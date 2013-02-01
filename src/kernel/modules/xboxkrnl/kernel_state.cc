@@ -31,6 +31,7 @@ KernelState::KernelState(Runtime* runtime) :
   pal_        = runtime->pal();
   memory_     = runtime->memory();
   processor_  = runtime->processor();
+  filesystem_ = runtime->filesystem();
 
   objects_mutex_ = xe_mutex_alloc(0);
   XEASSERTNOTNULL(objects_mutex_);
@@ -65,6 +66,7 @@ KernelState::~KernelState() {
   xe_mutex_free(objects_mutex_);
   objects_mutex_ = NULL;
 
+  filesystem_.reset();
   processor_.reset();
   xe_memory_release(memory_);
   xe_pal_release(pal_);
@@ -84,6 +86,10 @@ xe_memory_ref KernelState::memory() {
 
 cpu::Processor* KernelState::processor() {
   return processor_.get();
+}
+
+fs::FileSystem* KernelState::filesystem() {
+  return filesystem_.get();
 }
 
 // TODO(benvanik): invesitgate better handle storage/structure.

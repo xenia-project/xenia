@@ -45,6 +45,22 @@ const char* Entry::name() {
 }
 
 
+MemoryMapping::MemoryMapping(uint8_t* address, size_t length) :
+    address_(address), length_(length) {
+}
+
+MemoryMapping::~MemoryMapping() {
+}
+
+uint8_t* MemoryMapping::address() {
+  return address_;
+}
+
+size_t MemoryMapping::length() {
+  return length_;
+}
+
+
 FileEntry::FileEntry(Device* device, const char* path) :
     Entry(kTypeFile, device, path) {
 }

@@ -97,7 +97,7 @@ int ExecModule::Prepare() {
   int result_code = 1;
   std::string error_message;
 
-  char file_name[2048];
+  char file_name[XE_MAX_PATH];
 
   OwningPtr<MemoryBuffer> shared_module_buffer;
   auto_ptr<Module> shared_module;

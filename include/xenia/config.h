@@ -26,6 +26,7 @@
 #define XE_OPTION_LOG_SDB               1
 #define XE_OPTION_LOG_GPU               1
 #define XE_OPTION_LOG_KERNEL            1
+#define XE_OPTION_LOG_FS                1
 
 
 // TODO(benvanik): make this a runtime option

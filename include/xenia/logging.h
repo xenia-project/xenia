@@ -74,6 +74,11 @@ void xe_log_line(const xechar_t* file_path, const uint32_t line_number,
 #else
 #define XELOGKERNEL(fmt, ...) XE_EMPTY_MACRO
 #endif
+#if XE_OPTION(LOG_FS)
+#define XELOGFS(fmt, ...) XELOGCORE('F', fmt, ##__VA_ARGS__)
+#else
+#define XELOGFS(fmt, ...) XE_EMPTY_MACRO
+#endif
 
 
 #endif  // XENIA_LOGGING_H_

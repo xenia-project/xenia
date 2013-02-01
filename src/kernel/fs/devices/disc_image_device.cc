@@ -15,8 +15,9 @@ using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
 
-DiscImageDevice::DiscImageDevice(xe_pal_ref pal, const xechar_t* local_path) :
-    Device(pal) {
+DiscImageDevice::DiscImageDevice(xe_pal_ref pal, const char* path,
+                                 const xechar_t* local_path) :
+    Device(pal, path) {
   local_path_ = xestrdup(local_path);
 }
 
@@ -25,5 +26,11 @@ DiscImageDevice::~DiscImageDevice() {
 }
 
 Entry* DiscImageDevice::ResolvePath(const char* path) {
+  // The filesystem will have stripped our prefix off already, so the path will
+  // be in the form:
+  // some\PATH.foo
+
+  XELOGFS(XT("DiscImageDevice::ResolvePath(%s)"), path);
+
   return NULL;
 }

@@ -71,7 +71,7 @@ int ModuleGenerator::Generate() {
   // Setup a debug info builder.
   // This is used when creating any debug info. We may want to go more
   // fine grained than this, but for now it's something.
-  char dir[2048];
+  char dir[XE_MAX_PATH];
   XEIGNORE(xestrcpya(dir, XECOUNT(dir), module_path_));
   char* slash = xestrrchra(dir, '/');
   if (slash) {

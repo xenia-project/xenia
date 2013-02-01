@@ -104,36 +104,24 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
 XboxkrnlModule::~XboxkrnlModule() {
 }
 
-int XboxkrnlModule::LaunchModule(const xechar_t* path) {
-  // TODO(benvanik): setup the virtual filesystem map and use LoadFromFile.
+int XboxkrnlModule::LaunchModule(const char* path) {
+  // Create and register the module. We keep it local to this function and
+  // dispose it on exit.
+  XModule* module = new XModule(kernel_state_.get(), path);
 
-  xe_mmap_ref mmap = xe_mmap_open(pal_, kXEFileModeRead, path, 0, 0);
-  if (!mmap) {
-    return NULL;
-  }
-  void* addr = xe_mmap_get_addr(mmap);
-  size_t length = xe_mmap_get_length(mmap);
-
-  char path_a[2048];
-  XEIGNORE(xestrnarrow(path_a, XECOUNT(path_a), path));
-
-  // Create and load the module.
-  XModule* module = new XModule(kernel_state_.get(), path_a);
-  X_STATUS status = module->LoadFromMemory(addr, length);
-
-  // TODO(benvanik): retain memory somehow? is it needed?
-  xe_mmap_release(mmap);
-
-  if (XFAILED(status)) {
-    XELOGE(XT("Failed to load module"));
+  // Load the module into memory from the filesystem.
+  X_STATUS result_code = module->LoadFromFile(path);
+  if (XFAILED(result_code)) {
+    XELOGE(XT("Failed to load module %s: %.8X"), path, result_code);
     module->Release();
     return 1;
   }
 
   // Launch the module.
-  status = module->Launch(0);
-  if (XFAILED(status)) {
-    XELOGE(XT("Failed to launch module"));
+  // NOTE: this won't return until the module exits.
+  result_code = module->Launch(0);
+  if (XFAILED(result_code)) {
+    XELOGE(XT("Failed to launch module %s: %.8X"), path, result_code);
     module->Release();
     return 2;
   }

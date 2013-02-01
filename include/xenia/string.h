@@ -31,7 +31,7 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define xestrdupa                                       _strdup
 #define xestrtoullw                                     _wcstoui64
 #define xestrtoulla                                     _strtoui64
-#endif
+#endif  // !WIN32
 
 #define xestrlenw                                       wcslen
 #define xestrcmpw                                       wcscmp
@@ -40,6 +40,7 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define xestrchrw                                       wcschr
 #define xestrrchrw                                      wcsrchr
 #define xestrstrw                                       wcsstr
+#define xestrcasestrw                                   ??
 #define xestrcpyw(dest, destLength, source)             (wcscpy_s(dest, destLength, source) == 0)
 #define xestrncpyw(dest, destLength, source, count)     (wcsncpy_s(dest, destLength, source, count) == 0)
 #define xestrcatw(dest, destLength, source)             (wcscat_s(dest, destLength, source) == 0)
@@ -53,6 +54,7 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define xestrchra                                       strchr
 #define xestrrchra                                      strrchr
 #define xestrstra                                       strstr
+#define xestrcasestra                                   strcasestr
 #define xestrcpya(dest, destLength, source)             (strcpy_s(dest, destLength, source) == 0)
 #define xestrncpya(dest, destLength, source, count)     (strncpy_s(dest, destLength, source, count) == 0)
 #define xestrcata(dest, destLength, source)             (strcat_s(dest, destLength, source) == 0)
@@ -72,6 +74,7 @@ typedef wchar_t xechar_t;
 #define xestrchr            xestrchrw
 #define xestrrchr           xestrrchrw
 #define xestrstr            xestrstrw
+#define xestrcasestr        xestrcasestrw
 #define xestrtoull          xestrtoullw
 #define xestrcpy            xestrcpyw
 #define xestrncpy           xestrncpyw
@@ -94,6 +97,7 @@ typedef char xechar_t;
 #define xestrchr            xestrchra
 #define xestrrchr           xestrrchra
 #define xestrstr            xestrstra
+#define xestrcasestr        xestrcasestra
 #define xestrtoull          xestrtoulla
 #define xestrcpy            xestrcpya
 #define xestrncpy           xestrncpya
@@ -109,8 +113,10 @@ typedef char xechar_t;
 
 #if XE_LIKE(WIN32)
 #define XE_PATH_SEPARATOR   ((xechar_t)'\\')
+#define XE_MAX_PATH         _MAX_PATH
 #else
 #define XE_PATH_SEPARATOR   ((xechar_t)'/')
+#define XE_MAX_PATH         PATH_MAX
 #endif  // WIN32
 
 #endif  // XENIA_STRING_H_

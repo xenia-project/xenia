@@ -29,7 +29,7 @@ public:
   XboxkrnlModule(Runtime* runtime);
   virtual ~XboxkrnlModule();
 
-  int LaunchModule(const xechar_t* path);
+  int LaunchModule(const char* path);
 
 private:
   auto_ptr<KernelState> kernel_state_;

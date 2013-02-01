@@ -133,9 +133,9 @@ int Processor::LoadBinary(const xechar_t* path, uint32_t start_address,
                               addr, length));
 
   // Prepare the module.
-  char name_a[2048];
+  char name_a[XE_MAX_PATH];
   XEEXPECTTRUE(xestrnarrow(name_a, XECOUNT(name_a), name));
-  char path_a[2048];
+  char path_a[XE_MAX_PATH];
   XEEXPECTTRUE(xestrnarrow(path_a, XECOUNT(path_a), path));
 
   exec_module = new ExecModule(

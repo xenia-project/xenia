@@ -63,6 +63,79 @@ shared_ptr<FileSystem> Runtime::filesystem() {
   return filesystem_;
 }
 
-int Runtime::LaunchModule(const xechar_t* path) {
-  return xboxkrnl_->LaunchModule(path);
+int Runtime::LaunchXexFile(const xechar_t* path) {
+  // We create a virtual filesystem pointing to its directory and symlink
+  // that to the game filesystem.
+  // e.g., /my/files/foo.xex will get a local fs at:
+  // \\Device\\Harddisk0\\Partition1
+  // and then get that symlinked to game:\, so
+  // -> game:\foo.xex
+
+  int result_code = 0;
+
+  // Get just the filename (foo.xex).
+  const xechar_t* file_name = xestrrchr(path, XE_PATH_SEPARATOR);
+  if (file_name) {
+    // Skip slash.
+    file_name++;
+  } else {
+    // No slash found, whole thing is a file.
+    file_name = path;
+  }
+
+  // Get the parent path of the file.
+  xechar_t parent_path[XE_MAX_PATH];
+  XEIGNORE(xestrcpy(parent_path, XECOUNT(parent_path), path));
+  parent_path[file_name - path] = 0;
+
+  // Register the local directory in the virtual filesystem.
+  result_code = filesystem_->RegisterLocalDirectoryDevice(
+      "\\Device\\Harddisk1\\Partition0", parent_path);
+  if (result_code) {
+    XELOGE(XT("Unable to mount local directory %s"), parent_path);
+    return result_code;
+  }
+
+  // Create symlinks to the device.
+  filesystem_->CreateSymbolicLink(
+      "game:", "\\Device\\Harddisk1\\Partition0");
+  filesystem_->CreateSymbolicLink(
+      "d:", "\\Device\\Harddisk1\\Partition0");
+
+  // Get the file name of the module to load from the filesystem.
+  char fs_path[XE_MAX_PATH];
+  XEIGNORE(xestrcpya(fs_path, XECOUNT(fs_path), "game:\\"));
+  char* fs_path_ptr = fs_path + xestrlena(fs_path);
+  *fs_path_ptr = 0;
+#if XE_WCHAR
+  XEIGNORE(xestrnarrow(fs_path_ptr, XECOUNT(fs_path), file_name));
+#else
+  XEIGNORE(xestrcpya(fs_path_ptr, XECOUNT(fs_path), file_name));
+#endif
+
+  // Launch the game.
+  return xboxkrnl_->LaunchModule(fs_path);
+}
+
+int Runtime::LaunchDiscImage(const xechar_t* path) {
+  int result_code = 0;
+
+  // Register the disc image in the virtual filesystem.
+  result_code = filesystem_->RegisterDiscImageDevice(
+      "\\Device\\Cdrom0", path);
+  if (result_code) {
+    XELOGE(XT("Unable to mount disc image %s"), path);
+    return result_code;
+  }
+
+  // Create symlinks to the device.
+  filesystem_->CreateSymbolicLink(
+      "game:",
+      "\\Device\\Cdrom0");
+  filesystem_->CreateSymbolicLink(
+      "d:",
+      "\\Device\\Cdrom0");
+
+  // Launch the game.
+  return xboxkrnl_->LaunchModule("game:\\default.xex");
 }

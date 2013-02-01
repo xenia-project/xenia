@@ -45,12 +45,29 @@ private:
 };
 
 
+class MemoryMapping {
+public:
+  MemoryMapping(uint8_t* address, size_t length);
+  virtual ~MemoryMapping();
+
+  uint8_t* address();
+  size_t length();
+
+private:
+  uint8_t*    address_;
+  size_t      length_;
+};
+
+
 class FileEntry : public Entry {
 public:
   FileEntry(Device* device, const char* path);
   virtual ~FileEntry();
 
-  //virtual void Query();
+  //virtual void Query() = 0;
+
+  virtual MemoryMapping* CreateMemoryMapping(
+      xe_file_mode file_mode, const size_t offset, const size_t length) = 0;
 };
 
 
@@ -59,7 +76,7 @@ public:
   DirectoryEntry(Device* device, const char* path);
   virtual ~DirectoryEntry();
 
-  //virtual void Query();
+  //virtual void Query() = 0;
 };
 
 

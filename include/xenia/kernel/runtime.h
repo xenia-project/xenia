@@ -54,10 +54,11 @@ public:
   shared_ptr<ExportResolver> export_resolver();
   shared_ptr<fs::FileSystem> filesystem();
 
-  int LaunchModule(const xechar_t* path);
+  int LaunchXexFile(const xechar_t* path);
+  int LaunchDiscImage(const xechar_t* path);
 
 private:
-  xechar_t        command_line_[2048];
+  xechar_t        command_line_[XE_MAX_PATH];
 
   xe_pal_ref      pal_;
   xe_memory_ref   memory_;

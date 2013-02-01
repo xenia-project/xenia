@@ -70,10 +70,32 @@ int Run::Launch(const xechar_t* path) {
     return 0;
   }
 
-  // TODO(benvanik): wait until the module thread exits
-  runtime_->LaunchModule(path);
+  // Normalize the path and make absolute.
+  // TODO(benvanik): move this someplace common.
+  xechar_t abs_path[XE_MAX_PATH];
+#if XE_PLATFORM(WIN32)
+  _wfullpath(abs_path, path, XECOUNT(abs_path));
+#else
+  realpath(path, abs_path);
+#endif  // WIN32
 
-  return 0;
+  // Grab file extension.
+  const xechar_t* dot = xestrrchr(abs_path, '.');
+  if (!dot) {
+    XELOGE(XT("Invalid input path; no extension found"));
+    return 1;
+  }
+
+  // Launch based on file type.
+  // This is a silly guess based on file extension.
+  // NOTE: the runtime launch routine will wait until the module exits.
+  if (xestrcmp(dot, XT(".xex")) == 0) {
+    // Treat as a naked xex file.
+    return runtime_->LaunchXexFile(abs_path);
+  } else {
+    // Assume a disc image.
+    return runtime_->LaunchDiscImage(abs_path);
+  }
 }
 
 int xenia_run(int argc, xechar_t **argv) {

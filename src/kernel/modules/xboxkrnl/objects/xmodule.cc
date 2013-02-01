@@ -24,10 +24,13 @@ namespace {
 XModule::XModule(KernelState* kernel_state, const char* path) :
     XObject(kernel_state, kTypeModule),
     xex_(NULL) {
-  XEIGNORE(xestrcpy(path_, XECOUNT(path_), path));
+  XEIGNORE(xestrcpya(path_, XECOUNT(path_), path));
   const xechar_t *slash = xestrrchr(path, '/');
+  if (!slash) {
+    slash = xestrrchr(path, '\\');
+  }
   if (slash) {
-    XEIGNORE(xestrcpy(name_, XECOUNT(name_), slash + 1));
+    XEIGNORE(xestrcpya(name_, XECOUNT(name_), slash + 1));
   }
 }
 
@@ -52,9 +55,33 @@ const xe_xex2_header_t* XModule::xex_header() {
 }
 
 X_STATUS XModule::LoadFromFile(const char* path) {
-  // TODO(benvanik): load from virtual filesystem.
-  XEASSERTALWAYS();
-  return X_STATUS_UNSUCCESSFUL;
+  // Resolve the file to open.
+  // TODO(benvanik): make this code shared?
+  fs::Entry* fs_entry = kernel_state()->filesystem()->ResolvePath(path);
+  if (!fs_entry) {
+    XELOGE(XT("File not found: %s"), path);
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  if (fs_entry->type() != fs::Entry::kTypeFile) {
+    XELOGE(XT("Invalid file type: %s"), path);
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  fs::FileEntry* fs_file = static_cast<fs::FileEntry*>(fs_entry);
+
+  // Map into memory.
+  fs::MemoryMapping* mmap = fs_file->CreateMemoryMapping(kXEFileModeRead, 0, 0);
+  if (!mmap) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  // Load the module.
+  X_STATUS return_code = LoadFromMemory(mmap->address(), mmap->length());
+
+  // Unmap memory and cleanup.
+  delete mmap;
+  delete fs_entry;
+
+  return return_code;
 }
 
 X_STATUS XModule::LoadFromMemory(const void* addr, const size_t length) {

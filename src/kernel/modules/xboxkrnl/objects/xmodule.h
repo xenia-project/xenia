@@ -48,7 +48,7 @@ private:
   int LoadPE();
 
   char            name_[256];
-  char            path_[2048];
+  char            path_[XE_MAX_PATH];
 
   xe_xex2_ref     xex_;
 };

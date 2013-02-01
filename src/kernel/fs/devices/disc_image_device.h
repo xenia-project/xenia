@@ -23,7 +23,7 @@ namespace fs {
 
 class DiscImageDevice : public Device {
 public:
-  DiscImageDevice(xe_pal_ref pal, const xechar_t* local_path);
+  DiscImageDevice(xe_pal_ref pal, const char* path, const xechar_t* local_path);
   virtual ~DiscImageDevice();
 
   virtual Entry* ResolvePath(const char* path);
