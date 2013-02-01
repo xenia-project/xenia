@@ -21,15 +21,22 @@ namespace kernel {
 namespace fs {
 
 
+class GDFX;
+
+
 class DiscImageDevice : public Device {
 public:
   DiscImageDevice(xe_pal_ref pal, const char* path, const xechar_t* local_path);
   virtual ~DiscImageDevice();
 
+  int Init();
+
   virtual Entry* ResolvePath(const char* path);
 
 private:
   xechar_t*   local_path_;
+  xe_mmap_ref mmap_;
+  GDFX*       gdfx_;
 };
 
 

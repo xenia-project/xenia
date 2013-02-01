@@ -48,7 +48,10 @@ int FileSystem::RegisterLocalDirectoryDevice(
 
 int FileSystem::RegisterDiscImageDevice(
     const char* path, const xechar_t* local_path) {
-  Device* device = new DiscImageDevice(pal_, path, local_path);
+  DiscImageDevice* device = new DiscImageDevice(pal_, path, local_path);
+  if (device->Init()) {
+    return 1;
+  }
   return RegisterDevice(path, device);
 }
 

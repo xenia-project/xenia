@@ -89,7 +89,7 @@ xe_mmap_ref xe_mmap_open(xe_pal_ref pal, const xe_file_mode mode,
     size_t map_length = GetFileSize(file_handle, NULL);
     mmap->length = map_length;
   }
-  
+
   return mmap;
 
 XECLEANUP:
@@ -123,7 +123,7 @@ void xe_mmap_release(xe_mmap_ref mmap) {
   xe_ref_release((xe_ref)mmap, (xe_ref_dealloc_t)xe_mmap_dealloc);
 }
 
-void* xe_mmap_get_addr(xe_mmap_ref mmap) {
+uint8_t* xe_mmap_get_addr(xe_mmap_ref mmap) {
   return mmap->addr;
 }
 

@@ -4,6 +4,7 @@
     'device.cc',
     'entry.cc',
     'filesystem.cc',
+    'gdfx.cc',
   ],
 
   'includes': [

@@ -92,8 +92,8 @@ void xe_mmap_release(xe_mmap_ref mmap) {
   xe_ref_release((xe_ref)mmap, (xe_ref_dealloc_t)xe_mmap_dealloc);
 }
 
-void* xe_mmap_get_addr(xe_mmap_ref mmap) {
-  return mmap->addr;
+uint8_t* xe_mmap_get_addr(xe_mmap_ref mmap) {
+  return (uint8_t*)mmap->addr;
 }
 
 size_t xe_mmap_get_length(xe_mmap_ref mmap) {

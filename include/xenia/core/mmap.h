@@ -25,7 +25,7 @@ xe_mmap_ref xe_mmap_open(xe_pal_ref pal, const xe_file_mode mode,
                          const size_t offset, const size_t length);
 xe_mmap_ref xe_mmap_retain(xe_mmap_ref mmap);
 void xe_mmap_release(xe_mmap_ref mmap);
-void *xe_mmap_get_addr(xe_mmap_ref mmap);
+uint8_t* xe_mmap_get_addr(xe_mmap_ref mmap);
 size_t xe_mmap_get_length(xe_mmap_ref mmap);
 
 
