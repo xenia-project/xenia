@@ -154,30 +154,33 @@ int SymbolDatabase::Analyze() {
   FlushQueue();
 
   // Do a pass over the functions to fill holes. A few times. Just to be safe.
-  while (true) {
+  for (size_t n = 0; n < 4; n++) {
     if (!FillHoles()) {
       break;
     }
     FlushQueue();
   }
 
-  // Run over all symbols and see if any slipped through, somehow.
-  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
-    if (it->second->symbol_type == Symbol::Function) {
-      FunctionSymbol* fn = static_cast<FunctionSymbol*>(it->second);
-      if (fn->type == FunctionSymbol::Unknown) {
-        printf("UNKNOWN FN %.8X\n", fn->start_address);
-      }
-    }
-  }
-
   // Run a pass over all functions and link up their extended data.
   // This can only be performed after we have all functions and basic blocks.
-  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
-    if (it->second->symbol_type == Symbol::Function) {
-      CompleteFunctionGraph(static_cast<FunctionSymbol*>(it->second));
+  bool needs_another_pass = false;
+  do {
+    for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end();
+         ++it) {
+      if (it->second->symbol_type == Symbol::Function) {
+        if (fn->type == FunctionSymbol::Unknown) {
+          XELOGE(XT("UNKNOWN FN %.8X"), fn->start_address);
+        }
+        if (CompleteFunctionGraph(static_cast<FunctionSymbol*>(it->second))) {
+          needs_another_pass = true;
+        }
+      }
     }
-  }
+
+    if (needs_another_pass) {
+      FlushQueue();
+    }
+  } while (needs_another_pass);
 
   return 0;
 }
@@ -346,6 +349,10 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   if (fn->type == FunctionSymbol::Kernel) {
     return 0;
   }
+  // Ignore bad inserts?
+  if (fn->start_address == fn->end_address) {
+    return 0;
+  }
 
   // This is a simple basic block analyizer. It walks the start address to the
   // end address looking for branches. Each span of instructions between
@@ -368,12 +375,25 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
 
   uint8_t* p = xe_memory_addr(memory_, 0);
 
-  if (*((uint32_t*)(p + fn->start_address)) == 0) {
+  if (XEGETUINT32LE(p + fn->start_address) == 0) {
     // Function starts with 0x00000000 - we want to skip this and split.
-    XELOGSDB(XT("function starts with 0: %.8X"), fn->start_address);
     symbols_.erase(fn->start_address);
-    if (!GetFunction(fn->start_address + 4)) {
-      fn->start_address += 4;
+    // Scan ahead until the first non-zero or the end of the valid range.
+    size_t next_addr = fn->start_address + 4;
+    while (true) {
+      if (!IsValueInTextRange(next_addr)) {
+        // Ran out of the range. Abort.
+        delete fn;
+        return 0;
+      }
+      if (XEGETUINT32LE(p + next_addr)) {
+        // Not a zero, maybe valid!
+        break;
+      }
+      next_addr += 4;
+    }
+    if (!GetFunction(next_addr + 4)) {
+      fn->start_address = next_addr;
       symbols_.insert(SymbolMap::value_type(fn->start_address, fn));
       scan_queue_.push_back(fn);
     } else {
@@ -412,12 +432,6 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       break;
     }
 
-    if (!i.type) {
-      // Invalid instruction.
-      XELOGSDB(XT("Invalid instruction at %.8X: %.8X"), addr, i.code);
-      return 1;
-    }
-
     // Create a new basic block, if needed.
     if (!block) {
       block = new FunctionBlock();
@@ -429,7 +443,12 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
 
     bool ends_block = false;
     bool ends_fn = false;
-    if (i.code == 0x4E800020) {
+    if (!i.type) {
+      // Invalid instruction.
+      // We can just ignore it because there's (very little)/no chance it'll
+      // affect flow control.
+      XELOGSDB(XT("Invalid instruction at %.8X: %.8X"), addr, i.code);
+    } else if (i.code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
       block->outgoing_type = FunctionBlock::kTargetLR;
@@ -583,6 +602,10 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
   // Find variable accesses.
   // TODO(benvanik): data analysis to find variable accesses.
 
+  // A list of function targets that were undefined.
+  // This will run another analysis pass and it'd be best to avoid this.
+  std::vector<uint32_t> new_fns;
+
   // For each basic block:
   // - find outgoing target block or function
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn->blocks.begin();
@@ -609,12 +632,24 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
         block->outgoing_type = FunctionBlock::kTargetFunction;
         block->outgoing_function = GetFunction(block->outgoing_address);
         if (!block->outgoing_function) {
-          XELOGE(XT("call target not found: %.8X"), block->outgoing_address);
-          XEASSERTALWAYS();
+          XELOGE(XT("call target not found: %.8X -> %.8X"),
+                 block->end_address, block->outgoing_address);
+          new_fns.push_back(block->outgoing_address);
         }
       }
     }
   }
+
+  if (new_fns.size()) {
+    XELOGW(XT("Repeat analysis required to find %d new functions"),
+           (uint32_t)new_fns.size());
+    for (std::vector<uint32_t>::iterator it = new_fns.begin();
+        it != new_fns.end(); ++it) {
+      GetOrInsertFunction(*it);
+    }
+    return 1;
+  }
+
   return 0;
 }
 

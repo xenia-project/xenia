@@ -164,7 +164,7 @@ public:
   void DumpFunctionBlocks(FunctionSymbol* fn);
 
 protected:
-  typedef std::map<uint32_t, Symbol*> SymbolMap;
+  typedef std::tr1::unordered_map<uint32_t, Symbol*> SymbolMap;
   typedef std::list<FunctionSymbol*> FunctionList;
 
   int AnalyzeFunction(FunctionSymbol* fn);
