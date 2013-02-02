@@ -12,6 +12,14 @@ Coming soon (maybe):
 
 * Everything!
 
+## Disclaimer
+
+The goal of this project is to experiment, research, and educate on the topic
+of emulation of modern devices and operating systems. <b>It is not for enabling
+illegal activity</b>. All information is obtained via reverse engineering of
+legally purchased devices and games and information made public on the internet
+(you'd be surprised what's indexed on Google...).
+
 ## Quickstart
 
     git clone https://github.com/benvanik/xenia.git
