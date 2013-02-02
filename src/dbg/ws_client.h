@@ -13,7 +13,12 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <vector>
+
 #include <xenia/dbg/client.h>
+
+
+struct wslay_event_msg;
 
 
 namespace xe {
@@ -25,11 +30,23 @@ public:
   WsClient(int socket_id);
   virtual ~WsClient();
 
-  virtual void Write(const uint8_t** buffers, const size_t* lengths,
-                     size_t count);
+  int socket_id();
 
-protected:
-  int socket_id_;
+  virtual int Setup();
+
+  virtual void Write(uint8_t** buffers, size_t* lengths, size_t count);
+
+private:
+  int PerformHandshake();
+  void EventThread();
+
+  int           socket_id_;
+
+  int           notify_rd_id_;
+  int           notify_wr_id_;
+  xe_mutex_t*   mutex_;
+
+  std::vector<struct wslay_event_msg> pending_messages_;
 };
 
 

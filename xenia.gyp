@@ -1,23 +1,26 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'includes': [
-    'common.gypi',
     'tools/tools.gypi',
     'third_party/gflags.gypi',
     'third_party/sparsehash.gypi',
+    'third_party/wslay.gypi',
   ],
 
   'targets': [
     {
       'target_name': 'xeniacore',
       'product_name': 'xeniacore',
-      'type': 'static_library',
+      'type': '<(library)',
 
       'dependencies': [
         'gflags',
+        'wslay',
+        './third_party/openssl/openssl.gyp:openssl',
       ],
       'export_dependent_settings': [
         'gflags',
+        'wslay',
       ],
 
       'direct_dependent_settings': {
@@ -41,7 +44,7 @@
     {
       'target_name': 'xeniakernel',
       'product_name': 'xeniakernel',
-      'type': 'static_library',
+      'type': '<(library)',
 
       'dependencies': [
         'xeniacore',
@@ -63,7 +66,7 @@
     {
       'target_name': 'xeniacpu',
       'product_name': 'xeniacpu',
-      'type': 'static_library',
+      'type': '<(library)',
 
       'dependencies': [
         'xeniacore',
@@ -121,7 +124,7 @@
     {
       'target_name': 'xeniagpu',
       'product_name': 'xeniagpu',
-      'type': 'static_library',
+      'type': '<(library)',
 
       'dependencies': [
         'xeniacore',

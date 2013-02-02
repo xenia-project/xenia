@@ -2,6 +2,14 @@
 {
   'default_configuration': 'release',
 
+  'conditions': [
+    ['OS == "mac"', {
+      'variables': {
+        'is_clang': 1
+      }
+    }],
+  ],
+
   'variables': {
     'configurations': {
       'debug': {
@@ -9,6 +17,9 @@
       'release': {
       },
     },
+
+    'library%': 'static_library',
+    'target_arch%': 'x64',
 
     # LLVM paths.
     # TODO(benvanik): switch based on configuration.
@@ -64,7 +75,6 @@
     ],
   },
 
-
   'target_defaults': {
     'include_dirs': [
       'include/',
@@ -74,6 +84,9 @@
       '__STDC_LIMIT_MACROS=1',
       '__STDC_CONSTANT_MACROS=1',
       '_ISOC99_SOURCE=1',
+
+      'OPENSSL_NO_INLINE_ASM',
+      'OPENSSL_NO_NEXTPROTONEG',
     ],
     'cflags': [
       '-std=c99',
@@ -134,9 +147,9 @@
           'ARCHS': ['x86_64'],
           #'CLANG_CXX_LANGUAGE_STANDARD': 'c++0x',
           'COMBINE_HIDPI_IMAGES': 'YES',
-          'GCC_C_LANGUAGE_STANDARD': 'c99',
+          'GCC_C_LANGUAGE_STANDARD': 'gnu99',
           'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
-          'GCC_TREAT_WARNINGS_AS_ERRORS': 'YES',
+          #'GCC_TREAT_WARNINGS_AS_ERRORS': 'YES',
           'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',
           'GCC_VERSION': 'com.apple.compilers.llvm.clang.1_0',
           'WARNING_CFLAGS': ['-Wall', '-Wendif-labels'],

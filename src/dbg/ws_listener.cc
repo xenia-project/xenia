@@ -42,6 +42,9 @@ int WsListener::Setup() {
   opt_value = 1;
   setsockopt(socket_id_, SOL_SOCKET, SO_KEEPALIVE,
              &opt_value, sizeof(opt_value));
+  opt_value = 1;
+  setsockopt(socket_id_, SOL_SOCKET, SO_REUSEADDR,
+             &opt_value, sizeof(opt_value));
   opt_value = 0;
   setsockopt(socket_id_, IPPROTO_TCP, TCP_NODELAY,
              &opt_value, sizeof(opt_value));
@@ -50,8 +53,10 @@ int WsListener::Setup() {
   socket_addr.sin_family      = AF_INET;
   socket_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   socket_addr.sin_port        = htons(port_);
-  if (bind(socket_id_, (struct sockaddr*)&socket_addr,
-           sizeof(socket_addr)) < 0) {
+  int r = bind(socket_id_, (struct sockaddr*)&socket_addr,
+               sizeof(socket_addr));
+  if (r < 0) {
+    XELOGE(XT("Could not bind listen socket: %d"), errno);
     return 1;
   }
 
@@ -78,9 +83,13 @@ int WsListener::WaitForClient() {
   inet_ntop(AF_INET, &client_ip, client_ip_str, XECOUNT(client_ip_str));
   XELOGI(XT("Debugger connected from %s"), client_ip_str);
 
-  //WsClient* client = new WsClient(client_socket_id);
-
-  // TODO(benvanik): add to list for cleanup
+  // Create the client object.
+  // Note that the client will delete itself when done.
+  WsClient* client = new WsClient(client_socket_id);
+  if (client->Setup()) {
+    // Client failed to setup - abort.
+    return 1;
+  }
 
   return 0;
 }

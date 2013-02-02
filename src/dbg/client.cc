@@ -20,8 +20,8 @@ Client::Client() {
 Client::~Client() {
 }
 
-void Client::Write(const uint8_t* buffer, const size_t length) {
-  const uint8_t* buffers[] = {buffer};
-  const size_t lengths[] = {length};
+void Client::Write(uint8_t* buffer, size_t length) {
+  uint8_t* buffers[] = {buffer};
+  size_t lengths[] = {length};
   Write(buffers, lengths, 1);
 }

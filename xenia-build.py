@@ -348,6 +348,7 @@ def run_gyp(format):
   """
   shell_call(' '.join([
       'gyp',
+      '--include=common.gypi',
       '-f %s' % (format),
       # Set the VS version.
       # TODO(benvanik): allow user to set?

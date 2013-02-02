@@ -16,3 +16,9 @@
 [submodule "third_party/sparsehash"]
 	path = third_party/sparsehash
 	url = https://github.com/benvanik/sparsehash.git
+[submodule "third_party/wslay"]
+	path = third_party/wslay
+	url = https://github.com/benvanik/wslay.git
+[submodule "third_party/openssl"]
+	path = third_party/openssl
+	url = https://github.com/benvanik/openssl.git

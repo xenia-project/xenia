@@ -3,7 +3,7 @@
   'targets': [
     {
       'target_name': 'gflags',
-      'type': 'static_library',
+      'type': '<(library)',
 
       'direct_dependent_settings': {
         'conditions': [

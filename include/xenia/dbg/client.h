@@ -23,9 +23,10 @@ public:
   Client();
   virtual ~Client();
 
-  void Write(const uint8_t* buffer, const size_t length);
-  virtual void Write(const uint8_t** buffers, const size_t* lengths,
-                     size_t count) = 0;
+  virtual int Setup() = 0;
+
+  void Write(uint8_t* buffer, size_t length);
+  virtual void Write(uint8_t** buffers, size_t* lengths, size_t count) = 0;
 
 protected:
 };
