@@ -9,6 +9,8 @@
 
 #include "kernel/modules/xboxkrnl/module.h"
 
+#include <gflags/gflags.h>
+
 #include "kernel/modules/xboxkrnl/kernel_state.h"
 #include "kernel/modules/xboxkrnl/objects/xmodule.h"
 
@@ -24,6 +26,10 @@
 using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
+
+
+DEFINE_bool(abort_before_entry, false,
+    "Abort execution right before launching the module.");
 
 
 namespace {
@@ -115,6 +121,12 @@ int XboxkrnlModule::LaunchModule(const char* path) {
     XELOGE(XT("Failed to load module %s: %.8X"), path, result_code);
     module->Release();
     return 1;
+  }
+
+  if (FLAGS_abort_before_entry) {
+    XELOGI(XT("--abort_before_entry causing an early exit"));
+    module->Release();
+    return 0;
   }
 
   // Launch the module.

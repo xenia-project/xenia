@@ -18,10 +18,6 @@ using namespace xe::dbg;
 using namespace xe::kernel;
 
 
-DEFINE_bool(abort_before_entry, false,
-    "Abort execution right before launching the module.");
-
-
 class Run {
 public:
   Run();
@@ -70,10 +66,6 @@ XECLEANUP:
 }
 
 int Run::Launch(const xechar_t* path) {
-  if (FLAGS_abort_before_entry) {
-    return 0;
-  }
-
   // Normalize the path and make absolute.
   // TODO(benvanik): move this someplace common.
   xechar_t abs_path[XE_MAX_PATH];
