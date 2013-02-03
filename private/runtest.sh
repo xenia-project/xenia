@@ -8,6 +8,9 @@ fi
 
 ./build/xenia/release/xenia-run \
     private/$1 \
+    --dump_path=build/ \
+    --dump_module_map=true \
+    --dump_module_bitcode=true \
     --optimize_ir_modules=true \
     --optimize_ir_functions=true \
     --memory_address_verification=true \

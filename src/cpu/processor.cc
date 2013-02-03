@@ -175,8 +175,6 @@ int Processor::PrepareModule(const char* name, const char* path,
   exec_module->AddFunctionsToMap(all_fns_);
   modules_.push_back(exec_module);
 
-  exec_module->Dump();
-
   return 0;
 }
 

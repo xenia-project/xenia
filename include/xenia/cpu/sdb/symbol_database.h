@@ -32,22 +32,23 @@ public:
 
   virtual int Analyze();
 
+  Symbol* GetSymbol(uint32_t address);
   ExceptionEntrySymbol* GetOrInsertExceptionEntry(uint32_t address);
   FunctionSymbol* GetOrInsertFunction(uint32_t address);
   VariableSymbol* GetOrInsertVariable(uint32_t address);
   FunctionSymbol* GetFunction(uint32_t address);
   VariableSymbol* GetVariable(uint32_t address);
-  Symbol* GetSymbol(uint32_t address);
 
   int GetAllVariables(std::vector<VariableSymbol*>& variables);
   int GetAllFunctions(std::vector<FunctionSymbol*>& functions);
 
-  void Write(const char* file_name);
-  void Dump();
-  void DumpFunctionBlocks(FunctionSymbol* fn);
+  void ReadMap(const char* file_name);
+  void WriteMap(const char* file_name);
+  void Dump(FILE* file);
+  void DumpFunctionBlocks(FILE* file, FunctionSymbol* fn);
 
 protected:
-  typedef std::tr1::unordered_map<uint32_t, Symbol*> SymbolMap;
+  typedef std::map<uint32_t, Symbol*> SymbolMap;
   typedef std::list<FunctionSymbol*> FunctionList;
 
   int AnalyzeFunction(FunctionSymbol* fn);

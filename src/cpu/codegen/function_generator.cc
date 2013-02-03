@@ -79,7 +79,7 @@ FunctionGenerator::FunctionGenerator(
   }
 
   if (FLAGS_log_codegen) {
-    printf("%s:\n", fn->name);
+    printf("%s:\n", fn->name());
   }
 }
 
@@ -394,10 +394,10 @@ BasicBlock* FunctionGenerator::GetReturnBasicBlock() {
 }
 
 Function* FunctionGenerator::GetFunction(FunctionSymbol* fn) {
-  Function* result = gen_module_->getFunction(StringRef(fn->name));
+  Function* result = gen_module_->getFunction(StringRef(fn->name()));
   if (!result) {
     XELOGE(XT("Static function not found: %.8X %s"),
-           fn->start_address, fn->name);
+           fn->start_address, fn->name());
   }
   XEASSERTNOTNULL(result);
   return result;

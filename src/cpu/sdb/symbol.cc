@@ -20,21 +20,47 @@ using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
+Symbol::Symbol(SymbolType type) :
+    symbol_type(type),
+    name_(NULL) {
+}
+
+Symbol::~Symbol() {
+  xe_free(name_);
+}
+
+const char* Symbol::name() {
+  return name_;
+}
+
+void Symbol::set_name(const char* value) {
+  if (name_ == value) {
+    return;
+  }
+  if (name_) {
+    xe_free(name_);
+  }
+  if (value) {
+    name_ = xestrdupa(value);
+  }
+}
+
+
 FunctionBlock::FunctionBlock() :
     start_address(0), end_address(0),
     outgoing_type(kTargetUnknown), outgoing_address(0),
     outgoing_function(0) {
 }
 
+
 FunctionSymbol::FunctionSymbol() :
     Symbol(Function),
-    start_address(0), end_address(0), name(0),
+    start_address(0), end_address(0),
     type(Unknown), flags(0),
     kernel_export(0), ee(0) {
 }
 
 FunctionSymbol::~FunctionSymbol() {
-  delete name;
   for (std::map<uint32_t, FunctionBlock*>::iterator it = blocks.begin();
        it != blocks.end(); ++it) {
     delete it->second;
@@ -79,15 +105,16 @@ FunctionBlock* FunctionSymbol::SplitBlock(uint32_t address) {
   return NULL;
 }
 
+
 VariableSymbol::VariableSymbol() :
     Symbol(Variable),
-    address(0), name(0),
+    address(0),
     kernel_export(0) {
 }
 
 VariableSymbol::~VariableSymbol() {
-  delete name;
 }
+
 
 ExceptionEntrySymbol::ExceptionEntrySymbol() :
   Symbol(ExceptionEntry),

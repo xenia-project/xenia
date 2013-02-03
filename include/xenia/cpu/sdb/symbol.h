@@ -49,12 +49,17 @@ public:
     ExceptionEntry  = 2,
   };
 
-  virtual ~Symbol() {}
+  virtual ~Symbol();
 
   SymbolType    symbol_type;
 
+  const char* name();
+  void set_name(const char* value);
+
 protected:
-  Symbol(SymbolType type) : symbol_type(type) {}
+  Symbol(SymbolType type);
+
+  char*   name_;
 };
 
 class ExceptionEntrySymbol;
@@ -105,7 +110,6 @@ public:
 
   uint32_t      start_address;
   uint32_t      end_address;
-  char*         name;
   FunctionType  type;
   uint32_t      flags;
 
@@ -125,7 +129,6 @@ public:
   virtual ~VariableSymbol();
 
   uint32_t  address;
-  char*     name;
 
   kernel::KernelExport* kernel_export;
 };

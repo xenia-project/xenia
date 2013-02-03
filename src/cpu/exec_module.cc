@@ -136,11 +136,16 @@ int ExecModule::Prepare() {
     // Analyze the module and add its symbols to the symbol database.
     XEEXPECTZERO(sdb_->Analyze());
 
+    // Load a specified module map and diff.
+    if (FLAGS_load_module_map.size()) {
+      sdb_->ReadMap(FLAGS_load_module_map.c_str());
+    }
+
     // Dump the symbol database.
     if (FLAGS_dump_module_map) {
       xesnprintfa(file_name, XECOUNT(file_name),
                   "%s%s.map", FLAGS_dump_path.c_str(), module_name_);
-      sdb_->Write(file_name);
+      sdb_->WriteMap(file_name);
     }
 
     // Initialize the module.
@@ -318,5 +323,5 @@ int ExecModule::Uninit() {
 }
 
 void ExecModule::Dump() {
-  sdb_->Dump();
+  sdb_->Dump(stdout);
 }

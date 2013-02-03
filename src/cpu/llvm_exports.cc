@@ -81,7 +81,7 @@ void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
 void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
                      FunctionSymbol* fn) {
   XELOGCPU(XT("TRACE: %.8X -> u.%.8X (%s)"),
-           (uint32_t)call_ia - 4, (uint32_t)cia, fn->name);
+           (uint32_t)call_ia - 4, (uint32_t)cia, fn->name());
 }
 
 void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {

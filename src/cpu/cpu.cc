@@ -10,9 +10,6 @@
 #include "cpu/cpu-private.h"
 
 
-// Debugging:
-
-
 // Tracing:
 DEFINE_bool(trace_instructions, false,
     "Trace all instructions.");
@@ -20,6 +17,12 @@ DEFINE_bool(trace_user_calls, false,
     "Trace all user function calls.");
 DEFINE_bool(trace_kernel_calls, false,
     "Trace all kernel function calls.");
+
+
+// Debugging:
+DEFINE_string(load_module_map, "",
+    "Loads a .map for symbol names and to diff with the generated symbol "
+    "database.");
 
 
 // Dumping:

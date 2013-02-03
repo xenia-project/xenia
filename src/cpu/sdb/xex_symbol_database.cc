@@ -163,7 +163,7 @@ int XexSymbolDatabase::FindGplr() {
     xesnprintfa(name, XECOUNT(name), "__savegprlr_%d", n);
     FunctionSymbol* fn = GetOrInsertFunction(address);
     fn->end_address = fn->start_address + (31 - n) * 4 + 2 * 4;
-    fn->name = xestrdupa(name);
+    fn->set_name(name);
     fn->type = FunctionSymbol::User;
     fn->flags |= FunctionSymbol::kFlagSaveGprLr;
     address += 4;
@@ -173,7 +173,7 @@ int XexSymbolDatabase::FindGplr() {
     xesnprintfa(name, XECOUNT(name), "__restgprlr_%d", n);
     FunctionSymbol* fn = GetOrInsertFunction(address);
     fn->end_address = fn->start_address + (31 - n) * 4 + 3 * 4;
-    fn->name = xestrdupa(name);
+    fn->set_name(name);
     fn->type = FunctionSymbol::User;
     fn->flags |= FunctionSymbol::kFlagRestGprLr;
     address += 4;
@@ -208,7 +208,7 @@ int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
       xesnprintfa(name, XECOUNT(name), "__imp__%s_%.3X", library->name,
                   info->ordinal);
     }
-    var->name = xestrdupa(name);
+    var->set_name(name);
     var->kernel_export = kernel_export;
     if (info->thunk_address) {
       FunctionSymbol* fn = GetOrInsertFunction(info->thunk_address);
@@ -221,7 +221,7 @@ int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
         xesnprintfa(name, XECOUNT(name), "__kernel_%s_%.3X", library->name,
                     info->ordinal);
       }
-      fn->name = xestrdupa(name);
+      fn->set_name(name);
     }
   }
 

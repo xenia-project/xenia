@@ -9,6 +9,9 @@
 
 #include <xenia/cpu/sdb/symbol_database.h>
 
+#include <fstream>
+#include <sstream>
+
 #include <xenia/cpu/ppc/instr.h>
 
 
@@ -41,7 +44,7 @@ int SymbolDatabase::Analyze() {
 
   // Queue entry point of the application.
   FunctionSymbol* fn = GetOrInsertFunction(GetEntryPoint());
-  fn->name = xestrdupa("start");
+  fn->set_name("start");
 
   // Keep pumping the queue until there's nothing left to do.
   FlushQueue();
@@ -77,6 +80,14 @@ int SymbolDatabase::Analyze() {
   } while (needs_another_pass);
 
   return 0;
+}
+
+Symbol* SymbolDatabase::GetSymbol(uint32_t address) {
+  SymbolMap::iterator i = symbols_.find(address);
+  if (i != symbols_.end()) {
+    return i->second;
+  }
+  return NULL;
 }
 
 ExceptionEntrySymbol* SymbolDatabase::GetOrInsertExceptionEntry(
@@ -159,81 +170,6 @@ int SymbolDatabase::GetAllFunctions(vector<FunctionSymbol*>& functions) {
   return 0;
 }
 
-void SymbolDatabase::Write(const char* file_name) {
-  // TODO(benvanik): write to file.
-}
-
-void SymbolDatabase::Dump() {
-  uint32_t previous = 0;
-  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
-    switch (it->second->symbol_type) {
-      case Symbol::Function:
-        {
-          FunctionSymbol* fn = static_cast<FunctionSymbol*>(it->second);
-          if (previous && (int)(fn->start_address - previous) > 0) {
-            if (fn->start_address - previous > 4 ||
-                *((uint32_t*)xe_memory_addr(memory_, previous)) != 0) {
-              printf("%.8X-%.8X (%5d) h\n", previous, fn->start_address,
-                     fn->start_address - previous);
-            }
-          }
-          printf("%.8X-%.8X (%5d) f %s\n", fn->start_address,
-                 fn->end_address + 4,
-                 fn->end_address - fn->start_address + 4,
-                 fn->name ? fn->name : "<unknown>");
-          previous = fn->end_address + 4;
-          DumpFunctionBlocks(fn);
-        }
-        break;
-      case Symbol::Variable:
-        {
-          VariableSymbol* var = static_cast<VariableSymbol*>(it->second);
-          printf("%.8X v %s\n", var->address,
-                 var->name ? var->name : "<unknown>");
-        }
-        break;
-      case Symbol::ExceptionEntry:
-        {
-          ExceptionEntrySymbol* ee = static_cast<ExceptionEntrySymbol*>(
-              it->second);
-          printf("%.8X-%.8X (%5d) e of %.8X\n",
-                 ee->address, ee->address + 8, 8,
-                 ee->function ? ee->function->start_address : 0);
-          previous = ee->address + 8 + 4;
-        }
-        break;
-    }
-  }
-}
-
-void SymbolDatabase::DumpFunctionBlocks(FunctionSymbol* fn) {
-  for (std::map<uint32_t, FunctionBlock*>::iterator it = fn->blocks.begin();
-       it != fn->blocks.end(); ++it) {
-    FunctionBlock* block = it->second;
-    printf("  bb %.8X-%.8X", block->start_address, block->end_address + 4);
-    switch (block->outgoing_type) {
-      case FunctionBlock::kTargetUnknown:
-        printf(" ?\n");
-        break;
-      case FunctionBlock::kTargetBlock:
-        printf(" branch %.8X\n", block->outgoing_block->start_address);
-        break;
-      case FunctionBlock::kTargetFunction:
-        printf(" call %.8X %s\n", block->outgoing_function->start_address, block->outgoing_function->name);
-        break;
-      case FunctionBlock::kTargetLR:
-        printf(" branch lr\n");
-        break;
-      case FunctionBlock::kTargetCTR:
-        printf(" branch ctr\n");
-        break;
-      case FunctionBlock::kTargetNone:
-        printf("\n");
-        break;
-    }
-  }
-}
-
 int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // Ignore functions already analyzed.
   if (fn->blocks.size()) {
@@ -299,10 +235,10 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   XELOGSDB(XT("Analyzing function %.8X..."), fn->start_address);
 
   // Set a default name, if it hasn't been named already.
-  if (!fn->name) {
+  if (!fn->name()) {
     char name[32];
     xesnprintfa(name, XECOUNT(name), "sub_%.8X", fn->start_address);
-    fn->name = xestrdupa(name);
+    fn->set_name(name);
   }
 
   // Set type, if needed. We assume user if not set.
@@ -622,11 +558,11 @@ bool SymbolDatabase::FillHoles() {
       VariableSymbol* var = GetOrInsertVariable(data_addr);
       char name[128];
       if (ee->function) {
-        xesnprintfa(name, XECOUNT(name), "__ee_data_%s", ee->function->name);
+        xesnprintfa(name, XECOUNT(name), "__ee_data_%s", ee->function->name());
       } else {
         xesnprintfa(name, XECOUNT(name), "__ee_data_%.8X", *it);
       }
-      var->name = xestrdupa(name);
+      var->set_name(name);
     }
   }
 
@@ -658,4 +594,155 @@ int SymbolDatabase::FlushQueue() {
 bool SymbolDatabase::IsRestGprLr(uint32_t addr) {
   FunctionSymbol* fn = GetFunction(addr);
   return fn && (fn->flags & FunctionSymbol::kFlagRestGprLr);
+}
+
+void SymbolDatabase::ReadMap(const char* file_name) {
+  std::ifstream infile(file_name);
+
+  // Skip until '  Address'. Skip the next blank line.
+  std::string line;
+  while (std::getline(infile, line)) {
+    if (line.find("  Address") == 0) {
+      // Skip the next line.
+      std::getline(infile, line);
+      break;
+    }
+  }
+
+  std::stringstream sstream;
+  std::string ignore;
+  std::string name;
+  std::string addr_str;
+  std::string type_str;
+  while (std::getline(infile, line)) {
+    // Remove newline.
+    while (line.size() &&
+           (line[line.size() - 1] == '\r' ||
+            line[line.size() - 1] == '\n')) {
+      line.erase(line.end() - 1);
+    }
+
+    // End when we hit the first whitespace.
+    if (line.size() == 0) {
+      break;
+    }
+
+    // Line is [ws][ignore][ws][name][ws][hex addr][ws][(f)][ws][library]
+    sstream.clear();
+    sstream.str(line);
+    sstream >> std::ws;
+    sstream >> ignore;
+    sstream >> std::ws;
+    sstream >> name;
+    sstream >> std::ws;
+    sstream >> addr_str;
+    sstream >> std::ws;
+    sstream >> type_str;
+
+    uint32_t addr = (uint32_t)strtol(addr_str.c_str(), NULL, 16);
+    if (!addr) {
+      continue;
+    }
+
+    Symbol* symbol = GetSymbol(addr);
+    if (symbol) {
+      // Symbol found - set name.
+      // We could check the type, but it's not needed.
+      symbol->set_name(name.c_str());
+    } else {
+      if (type_str == "f") {
+        // Function was not found via analysis.
+        // We don't want to add it here as that would make us require maps to
+        // get working.
+        XELOGSDB(XT("MAP DIFF: function %.8X %s not found during analysis"),
+                 addr, name.c_str());
+      } else {
+        // Add a new variable.
+        // This is just helpful, but changes no behavior.
+        VariableSymbol* var = GetOrInsertVariable(addr);
+        var->set_name(name.c_str());
+      }
+    }
+  }
+}
+
+void SymbolDatabase::WriteMap(const char* file_name) {
+  FILE* file = fopen(file_name, "wt");
+  Dump(file);
+  fclose(file);
+}
+
+void SymbolDatabase::Dump(FILE* file) {
+  uint32_t previous = 0;
+  for (SymbolMap::iterator it = symbols_.begin(); it != symbols_.end(); ++it) {
+    switch (it->second->symbol_type) {
+      case Symbol::Function:
+      {
+        FunctionSymbol* fn = static_cast<FunctionSymbol*>(it->second);
+        if (previous && (int)(fn->start_address - previous) > 0) {
+          if (fn->start_address - previous > 4 ||
+              *((uint32_t*)xe_memory_addr(memory_, previous)) != 0) {
+            fprintf(file, "%.8X-%.8X (%5d) h\n", previous, fn->start_address,
+                    fn->start_address - previous);
+          }
+        }
+        fprintf(file, "%.8X-%.8X (%5d) f %s\n",
+                fn->start_address,
+                fn->end_address + 4,
+                fn->end_address - fn->start_address + 4,
+                fn->name() ? fn->name() : "<unknown>");
+        previous = fn->end_address + 4;
+        DumpFunctionBlocks(file, fn);
+      }
+        break;
+      case Symbol::Variable:
+      {
+        VariableSymbol* var = static_cast<VariableSymbol*>(it->second);
+        fprintf(file, "%.8X v %s\n", var->address,
+               var->name() ? var->name() : "<unknown>");
+      }
+        break;
+      case Symbol::ExceptionEntry:
+      {
+        ExceptionEntrySymbol* ee = static_cast<ExceptionEntrySymbol*>(
+            it->second);
+        fprintf(file, "%.8X-%.8X (%5d) e of %.8X\n",
+               ee->address, ee->address + 8, 8,
+               ee->function ? ee->function->start_address : 0);
+        previous = ee->address + 8 + 4;
+      }
+        break;
+    }
+  }
+}
+
+void SymbolDatabase::DumpFunctionBlocks(FILE* file, FunctionSymbol* fn) {
+  for (std::map<uint32_t, FunctionBlock*>::iterator it = fn->blocks.begin();
+       it != fn->blocks.end(); ++it) {
+    FunctionBlock* block = it->second;
+    fprintf(file, "  bb %.8X-%.8X",
+            block->start_address, block->end_address + 4);
+    switch (block->outgoing_type) {
+      case FunctionBlock::kTargetUnknown:
+        fprintf(file, " ?\n");
+        break;
+      case FunctionBlock::kTargetBlock:
+        fprintf(file, " branch %.8X\n", block->outgoing_block->start_address);
+        break;
+      case FunctionBlock::kTargetFunction:
+        fprintf(file, " call %.8X %s\n",
+               block->outgoing_function->start_address,
+               block->outgoing_function->name());
+        break;
+      case FunctionBlock::kTargetLR:
+        fprintf(file, " branch lr\n");
+        break;
+      case FunctionBlock::kTargetCTR:
+        fprintf(file, " branch ctr\n");
+        break;
+      case FunctionBlock::kTargetNone:
+        fprintf(file, "\n");
+        break;
+    }
+  }
 }

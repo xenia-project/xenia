@@ -191,7 +191,7 @@ void ModuleGenerator::AddMissingImport(FunctionSymbol* fn) {
   LLVMContext& context = m->getContext();
 
   // Create the function (and setup args/attributes/etc).
-  Function* f = CreateFunctionDefinition(fn->name);
+  Function* f = CreateFunctionDefinition(fn->name());
 
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
   IRBuilder<> b(block);
@@ -257,7 +257,7 @@ void ModuleGenerator::AddPresentImport(FunctionSymbol* fn) {
       (void*)fn->kernel_export->function_data.shim);
 
   // Create the function (and setup args/attributes/etc).
-  Function* f = CreateFunctionDefinition(fn->name);
+  Function* f = CreateFunctionDefinition(fn->name());
 
   BasicBlock* block = BasicBlock::Create(context, "entry", f);
   IRBuilder<> b(block);
@@ -287,7 +287,7 @@ void ModuleGenerator::PrepareFunction(FunctionSymbol* fn) {
   // LLVMContext& context = m->getContext();
 
   // Create the function (and setup args/attributes/etc).
-  Function* f = CreateFunctionDefinition(fn->name);
+  Function* f = CreateFunctionDefinition(fn->name());
 
   // Setup our codegen wrapper to keep all the pointers together.
   CodegenFunction* cgf = new CodegenFunction();
