@@ -9,6 +9,8 @@
 
 #include "dbg/ws_client.h"
 
+#include <xenia/dbg/debugger.h>
+
 #include <fcntl.h>
 #include <poll.h>
 #include <arpa/inet.h>
@@ -26,8 +28,8 @@ using namespace xe;
 using namespace xe::dbg;
 
 
-WsClient::WsClient(int socket_id) :
-    Client(),
+WsClient::WsClient(Debugger* debugger, int socket_id) :
+    Client(debugger),
     socket_id_(socket_id) {
   mutex_ = xe_mutex_alloc(1000);
 
@@ -65,9 +67,24 @@ int WsClient::Setup() {
   setsockopt(socket_id_, IPPROTO_TCP, TCP_NODELAY,
              &opt_value, sizeof(opt_value));
 
-  // launch thread/etc
-  EventThread();
+  // TODO(benvanik): win32 support - put simple threads in PAL
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  pthread_t thread_handle;
+  int result_code = pthread_create(
+      &thread_handle,
+      &attr,
+      &StartCallbackPthreads,
+      this);
+  pthread_attr_destroy(&attr);
 
+  return result_code;
+}
+
+void* WsClient::StartCallbackPthreads(void* param) {
+  WsClient* thread = reinterpret_cast<WsClient*>(param);
+  thread->EventThread();
   return 0;
 }
 
@@ -126,27 +143,18 @@ void WsClientOnMsgCallback(wslay_event_context_ptr ctx,
     return;
   }
 
+  WsClient* client = reinterpret_cast<WsClient*>(user_data);
   switch (arg->opcode) {
     case WSLAY_TEXT_FRAME:
-      // arg->msg, arg->msg_length
+      XELOGW(XT("Text frame ignored; use binary messages"));
       break;
     case WSLAY_BINARY_FRAME:
-      // arg->msg, arg->msg_length
+      client->OnMessage(arg->msg, arg->msg_length);
       break;
     default:
       // Unknown opcode - some frame stuff?
       break;
   }
-
-  // TODO(benvanik): dispatch
-
-  // WsClient* client = reinterpret_cast<WsClient*>(user_data);
-  // char hello[] = "HELLO";
-  // size_t len = sizeof(hello);
-  // uint8_t* bs[] = {(uint8_t*)&hello};
-  // size_t lens[] = {len};
-  // client->Write((uint8_t**)bs, lens, 1);
-  // printf("on msg %d, %ld\n", arg->opcode, arg->msg_length);
 }
 
 std::string EncodeBase64(const uint8_t* input, size_t length) {

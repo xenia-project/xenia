@@ -27,7 +27,7 @@ namespace dbg {
 
 class WsClient : public Client {
 public:
-  WsClient(int socket_id);
+  WsClient(Debugger* debugger, int socket_id);
   virtual ~WsClient();
 
   int socket_id();
@@ -37,6 +37,8 @@ public:
   virtual void Write(uint8_t** buffers, size_t* lengths, size_t count);
 
 private:
+  static void* StartCallbackPthreads(void* param);
+
   int PerformHandshake();
   void EventThread();
 

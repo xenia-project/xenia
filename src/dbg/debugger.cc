@@ -30,13 +30,18 @@ Debugger::Debugger(xe_pal_ref pal) {
   pal_ = xe_pal_retain(pal);
 
   listener_ = auto_ptr<Listener>(new WsListener(
-                                                pal_, FLAGS_remote_debug_port));
+      this, pal_, FLAGS_remote_debug_port));
 }
 
 Debugger::~Debugger() {
-  for (std::map<char*, ContentSource*>::iterator it = content_sources_.begin();
-       it != content_sources_.end(); ++it) {
-    xe_free(it->first);
+  for (std::vector<Client*>::iterator it = clients_.begin();
+       it != clients_.end(); ++it) {
+    delete *it;
+  }
+  clients_.clear();
+
+  for (std::map<uint32_t, ContentSource*>::iterator it =
+       content_sources_.begin(); it != content_sources_.end(); ++it) {
     delete it->second;
   }
   content_sources_.clear();
@@ -44,10 +49,9 @@ Debugger::~Debugger() {
   xe_pal_release(pal_);
 }
 
-void Debugger::RegisterContentSource(std::string& name,
-                                     ContentSource* content_source) {
-  content_sources_.insert(std::pair<char*, ContentSource*>(
-      xestrdupa(name.c_str()), content_source));
+void Debugger::RegisterContentSource(ContentSource* content_source) {
+  content_sources_.insert(std::pair<uint32_t, ContentSource*>(
+      content_source->source_id(), content_source));
 }
 
 int Debugger::Startup() {
@@ -69,12 +73,54 @@ int Debugger::Startup() {
   return 0;
 }
 
-int Debugger::DispatchRequest(Client* client, const char* source_name,
-                              const uint8_t* data, size_t length) {
-  std::map<char*, ContentSource*>::iterator it =
-      content_sources_.find((char*)source_name);
+void Debugger::Broadcast(uint32_t source_id,
+                         const uint8_t* data, size_t length) {
+  uint32_t header[] = {
+    0x00000001,
+    source_id,
+    0,
+    length,
+  };
+  uint8_t* buffers[] = {
+    (uint8_t*)header,
+    (uint8_t*)data,
+  };
+  size_t lengths[] = {
+    sizeof(header),
+    length,
+  };
+  for (std::vector<Client*>::iterator it = clients_.begin();
+       it != clients_.end(); ++it) {
+    Client* client = *it;
+    client->Write(buffers, lengths, XECOUNT(buffers));
+  }
+}
+
+void Debugger::AddClient(Client* client) {
+  clients_.push_back(client);
+}
+
+void Debugger::RemoveClient(Client* client) {
+  for (std::vector<Client*>::iterator it = clients_.begin();
+       it != clients_.end(); ++it) {
+    if (*it == client) {
+      clients_.erase(it);
+      return;
+    }
+  }
+}
+
+int Debugger::Dispatch(Client* client, const uint8_t* data, size_t length) {
+  uint32_t type       = XEGETUINT32LE(data + 0);
+  uint32_t source_id  = XEGETUINT32LE(data + 4);
+  uint32_t request_id = XEGETUINT32LE(data + 8);
+  uint32_t size       = XEGETUINT32LE(data + 12);
+
+  std::map<uint32_t, ContentSource*>::iterator it =
+      content_sources_.find(source_id);
   if (it == content_sources_.end()) {
+    XELOGW(XT("Content source %d not found, ignoring message"), source_id);
     return 1;
   }
-  return it->second->DispatchRequest(client, data, length);
+  return it->second->Dispatch(client, type, request_id, data + 16, size);
 }

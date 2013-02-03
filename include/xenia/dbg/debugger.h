@@ -14,6 +14,7 @@
 #include <xenia/core.h>
 
 #include <map>
+#include <vector>
 
 
 namespace xe {
@@ -30,20 +31,24 @@ public:
   Debugger(xe_pal_ref pal);
   virtual ~Debugger();
 
-  void RegisterContentSource(std::string& name, ContentSource* content_source);
+  void RegisterContentSource(ContentSource* content_source);
 
   int Startup();
 
+  void Broadcast(uint32_t source_id, const uint8_t* data, size_t length);
+
 private:
-  int DispatchRequest(Client* client, const char* source_name,
-                      const uint8_t* data, size_t length);
+  void AddClient(Client* client);
+  void RemoveClient(Client* client);
+  int Dispatch(Client* client, const uint8_t* data, size_t length);
 
   friend class Client;
 
 private:
   xe_pal_ref pal_;
   auto_ptr<Listener> listener_;
-  std::map<char*, ContentSource*> content_sources_;
+  std::vector<Client*> clients_;
+  std::map<uint32_t, ContentSource*> content_sources_;
 };
 
 

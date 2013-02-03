@@ -22,20 +22,17 @@ namespace dbg {
 
 class ContentSource {
 public:
-  enum Type {
-    kTypeIndexed,
-  };
-
-  ContentSource(Type type);
+  ContentSource(Debugger* debugger, uint32_t source_id);
   virtual ~ContentSource();
 
-  Type type();
+  uint32_t source_id();
 
-  virtual int DispatchRequest(Client* client,
-                              const uint8_t* data, size_t length) = 0;
+  virtual int Dispatch(Client* client, uint8_t type, uint32_t request_id,
+                       const uint8_t* data, size_t length) = 0;
 
 protected:
-  Type  type_;
+  Debugger* debugger_;
+  uint32_t  source_id_;
 };
 
 

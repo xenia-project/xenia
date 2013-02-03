@@ -4,7 +4,6 @@
     'client.cc',
     'content_source.cc',
     'debugger.cc',
-    'indexed_content_source.cc',
     'listener.cc',
     'ws_client.cc',
     'ws_listener.cc',

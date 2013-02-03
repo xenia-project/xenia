@@ -9,15 +9,24 @@
 
 #include <xenia/dbg/client.h>
 
+#include <xenia/dbg/debugger.h>
+
 
 using namespace xe;
 using namespace xe::dbg;
 
 
-Client::Client() {
+Client::Client(Debugger* debugger) :
+    debugger_(debugger) {
+  debugger_->AddClient(this);
 }
 
 Client::~Client() {
+  debugger_->RemoveClient(this);
+}
+
+void Client::OnMessage(const uint8_t* data, size_t length) {
+  debugger_->Dispatch(this, data, length);
 }
 
 void Client::Write(uint8_t* buffer, size_t length) {

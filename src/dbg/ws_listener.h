@@ -20,9 +20,12 @@ namespace xe {
 namespace dbg {
 
 
+class Debugger;
+
+
 class WsListener : public Listener {
 public:
-  WsListener(xe_pal_ref pal, uint32_t port);
+  WsListener(Debugger* debugger, xe_pal_ref pal, uint32_t port);
   virtual ~WsListener();
 
   virtual int Setup();

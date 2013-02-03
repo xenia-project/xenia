@@ -14,14 +14,13 @@ using namespace xe;
 using namespace xe::dbg;
 
 
-ContentSource::ContentSource(Type type) :
-    type_(type) {
+ContentSource::ContentSource(Debugger* debugger, uint32_t source_id) :
+    debugger_(debugger), source_id_(source_id) {
 }
 
 ContentSource::~ContentSource() {
 }
 
-
-ContentSource::Type ContentSource::type() {
-  return type_;
+uint32_t ContentSource::source_id() {
+  return source_id_;
 }

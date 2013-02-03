@@ -18,17 +18,22 @@ namespace xe {
 namespace dbg {
 
 
+class Debugger;
+
+
 class Client {
 public:
-  Client();
+  Client(Debugger* debugger);
   virtual ~Client();
 
   virtual int Setup() = 0;
 
+  void OnMessage(const uint8_t* data, size_t length);
   void Write(uint8_t* buffer, size_t length);
   virtual void Write(uint8_t** buffers, size_t* lengths, size_t count) = 0;
 
 protected:
+  Debugger* debugger_;
 };
 
 

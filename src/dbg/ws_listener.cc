@@ -20,8 +20,8 @@ using namespace xe;
 using namespace xe::dbg;
 
 
-WsListener::WsListener(xe_pal_ref pal, uint32_t port) :
-    Listener(pal),
+WsListener::WsListener(Debugger* debugger, xe_pal_ref pal, uint32_t port) :
+    Listener(debugger, pal),
     port_(port) {
 
 }
@@ -85,7 +85,7 @@ int WsListener::WaitForClient() {
 
   // Create the client object.
   // Note that the client will delete itself when done.
-  WsClient* client = new WsClient(client_socket_id);
+  WsClient* client = new WsClient(debugger_, client_socket_id);
   if (client->Setup()) {
     // Client failed to setup - abort.
     return 1;

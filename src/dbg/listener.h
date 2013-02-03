@@ -18,16 +18,20 @@ namespace xe {
 namespace dbg {
 
 
+class Debugger;
+
+
 class Listener {
 public:
-  Listener(xe_pal_ref pal);
+  Listener(Debugger* debugger, xe_pal_ref pal);
   virtual ~Listener();
 
   virtual int Setup() = 0;
   virtual int WaitForClient() = 0;
 
 protected:
-  xe_pal_ref pal_;
+  Debugger*   debugger_;
+  xe_pal_ref  pal_;
 };
 
 
