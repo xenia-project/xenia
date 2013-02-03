@@ -5,12 +5,12 @@
     'exec_module.cc',
     'llvm_exports.cc',
     'processor.cc',
-    'sdb.cc',
     'thread_state.cc',
   ],
 
   'includes': [
     'codegen/sources.gypi',
     'ppc/sources.gypi',
+    'sdb/sources.gypi',
   ],
 }
