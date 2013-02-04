@@ -1084,7 +1084,9 @@ XEEMITTER(stwcx,        0x7C00012D, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   }
   Value* v = g.gpr_value(i.D.RT);
   g.WriteMemory(i.address, ea, 4, v, /* release */ true);
-  // TODO(benvanik): update CR0
+
+  // We always succeed.
+  g.update_cr_value(0, b.getInt64(1 << 2));
 
   return 0;
 }
