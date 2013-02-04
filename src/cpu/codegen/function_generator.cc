@@ -77,6 +77,9 @@ FunctionGenerator::FunctionGenerator(
   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     locals_.gpr[n] = NULL;
   }
+  for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    locals_.fpr[n] = NULL;
+  }
 
   if (FLAGS_log_codegen) {
     printf("%s:\n", fn->name());
@@ -548,6 +551,15 @@ void FunctionGenerator::SetupLocals() {
     }
     gpr_t >>= 2;
   }
+
+  uint64_t fpr_t = access_bits_.fpr;
+  for (int n = 0; n < 32; n++) {
+    if (fpr_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "f%d", n);
+      locals_.fpr[n] = SetupLocal(b.getDoubleTy(), name);
+    }
+    fpr_t >>= 2;
+  }
 }
 
 Value* FunctionGenerator::SetupLocal(llvm::Type* type, const char* name) {
@@ -611,12 +623,19 @@ void FunctionGenerator::FillRegisters() {
                       b.getInt8Ty()), cr_n);
   }
 
-  // Note that we skip zero.
   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     if (locals_.gpr[n]) {
       b.CreateStore(LoadStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,
           b.getInt64Ty()), locals_.gpr[n]);
+    }
+  }
+
+  for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    if (locals_.fpr[n]) {
+      b.CreateStore(LoadStateValue(
+          offsetof(xe_ppc_state_t, f) + 8 * n,
+          b.getDoubleTy()), locals_.fpr[n]);
     }
   }
 }
@@ -672,7 +691,6 @@ void FunctionGenerator::SpillRegisters() {
         cr);
   }
 
-  // Note that we skip zero.
   for (uint32_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     Value* v = locals_.gpr[n];
     if (v) {
@@ -680,6 +698,16 @@ void FunctionGenerator::SpillRegisters() {
           offsetof(xe_ppc_state_t, r) + 8 * n,
           b.getInt64Ty(),
           b.CreateLoad(locals_.gpr[n]));
+    }
+  }
+
+  for (uint32_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    Value* v = locals_.fpr[n];
+    if (v) {
+      StoreStateValue(
+          offsetof(xe_ppc_state_t, f) + 8 * n,
+          b.getDoubleTy(),
+          b.CreateLoad(locals_.fpr[n]));
     }
   }
 }
@@ -879,6 +907,21 @@ void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
   b.CreateStore(value, locals_.gpr[n]);
 }
 
+Value* FunctionGenerator::fpr_value(uint32_t n) {
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.fpr[n]);
+  IRBuilder<>& b = *builder_;
+  return b.CreateLoad(locals_.fpr[n]);
+}
+
+void FunctionGenerator::update_fpr_value(uint32_t n, Value* value) {
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.fpr[n]);
+  IRBuilder<>& b = *builder_;
+  value = b.CreateFPExtOrFPTrunc(value, b.getDoubleTy());
+  b.CreateStore(value, locals_.fpr[n]);
+}
+
 Value* FunctionGenerator::GetMembase() {
   Value* v = gen_module_->getGlobalVariable("xe_memory_base");
   return builder_->CreateLoad(v);
@@ -916,7 +959,7 @@ Value* FunctionGenerator::GetMemoryAddress(uint32_t cia, Value* addr) {
 }
 
 Value* FunctionGenerator::ReadMemory(
-    uint32_t cia, Value* addr, uint32_t size, bool extend) {
+    uint32_t cia, Value* addr, uint32_t size, bool acquire) {
   IRBuilder<>& b = *builder_;
 
   Type* dataTy = NULL;
@@ -945,7 +988,13 @@ Value* FunctionGenerator::ReadMemory(
 
   Value* address = GetMemoryAddress(cia, addr);
   Value* ptr = b.CreatePointerCast(address, pointerTy);
-  Value* value = b.CreateLoad(ptr);
+  LoadInst* load_value = b.CreateLoad(ptr);
+  if (acquire) {
+    load_value->setAlignment(size);
+    load_value->setVolatile(true);
+    load_value->setAtomic(Acquire);
+  }
+  Value* value = load_value;
 
   // Swap after loading.
   // TODO(benvanik): find a way to avoid this!
@@ -959,7 +1008,7 @@ Value* FunctionGenerator::ReadMemory(
 }
 
 void FunctionGenerator::WriteMemory(
-    uint32_t cia, Value* addr, uint32_t size, Value* value) {
+    uint32_t cia, Value* addr, uint32_t size, Value* value, bool release) {
   IRBuilder<>& b = *builder_;
 
   Type* dataTy = NULL;
@@ -1002,5 +1051,10 @@ void FunctionGenerator::WriteMemory(
     value = b.CreateCall(bswap, value);
   }
 
-  b.CreateStore(value, ptr);
+  StoreInst* store_value = b.CreateStore(value, ptr);
+  if (release) {
+    store_value->setAlignment(size);
+    store_value->setVolatile(true);
+    store_value->setAtomic(Release);
+  }
 }

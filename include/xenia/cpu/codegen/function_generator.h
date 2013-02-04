@@ -83,13 +83,16 @@ public:
 
   llvm::Value* gpr_value(uint32_t n);
   void update_gpr_value(uint32_t n, llvm::Value* value);
+  llvm::Value* fpr_value(uint32_t n);
+  void update_fpr_value(uint32_t n, llvm::Value* value);
 
   llvm::Value* GetMembase();
   llvm::Value* GetMemoryAddress(uint32_t cia, llvm::Value* addr);
   llvm::Value* ReadMemory(
-      uint32_t cia, llvm::Value* addr, uint32_t size, bool extend);
+      uint32_t cia, llvm::Value* addr, uint32_t size, bool acquire = false);
   void WriteMemory(
-      uint32_t cia, llvm::Value* addr, uint32_t size, llvm::Value* value);
+      uint32_t cia, llvm::Value* addr, uint32_t size, llvm::Value* value,
+      bool release = false);
 
 private:
   void GenerateSharedBlocks();
@@ -128,6 +131,7 @@ private:
     llvm::Value*  ctr;
     llvm::Value*  cr[8];
     llvm::Value*  gpr[32];
+    llvm::Value*  fpr[32];
   } locals_;
 };
 
