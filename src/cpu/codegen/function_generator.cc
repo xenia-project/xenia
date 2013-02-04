@@ -341,9 +341,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
     typedef int (*InstrEmitter)(FunctionGenerator& g, IRBuilder<>& b,
                                 InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
-    XEASSERTNOTNULL(emit);
-    int result = emit(*this, *builder_, i);
-    if (result) {
+    if (!i.type->emit || emit(*this, *builder_, i)) {
       // This printf is handy for sort/uniquify to find instructions.
       //printf("unimplinstr %s\n", i.type->name);
 

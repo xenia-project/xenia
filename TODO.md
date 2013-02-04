@@ -42,20 +42,40 @@ KeBugCheck:
 ## Instructions
 
 ```
-rlwimix
-rldiclx
 lwarx
 stwcx
-lfd
-lfdx
-lfs
-lfsu
-lfsx
-stfd
-stfiwx
-stfs
-stfsu
-stfsx
+
+addcx
+addicx
+divwx
+extswx
+faddx
+fcfidx
+fcmpu
+fctiwzx
+fdivx
+fmaddsx
+fmrx
+fmulsx
+fmulx
+fnegx
+frspx
+mulldx
+negx
+rlwimix
+rldiclx
+rldicrx
+sradx
+srdx
+srwx
+subfcx
+subfzex
+
+new:
+extldi
+mfmsr
+mtmsrd
+srdi
 ```
 
 ### XER CA bit (carry)
@@ -133,6 +153,17 @@ Slow path:
 - If found, return, add to lookup table, and jump.
 - If not found, need new function codegen!
 ```
+
+## Linking/multicore processing
+
+Need to split up processing of functions.
+ModuleGenerator::Generate's BuildFunction loop is the real time hog here.
+Spin up N threads. Each as a module and steals functions from the queue to
+generate. After the module hits a certain size it's dumped to disk and another
+is created.
+Afterwards, all modules are loaded lazily and linked together. The final one
+is writen out and loaded again lazily.
+JIT works on that.
 
 ## Debugging
 

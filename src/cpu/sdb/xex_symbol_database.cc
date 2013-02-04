@@ -200,12 +200,12 @@ int XexSymbolDatabase::AddImports(const xe_xex2_import_library_t* library) {
     VariableSymbol* var = GetOrInsertVariable(info->value_address);
     if (kernel_export) {
       if (info->thunk_address) {
-        xesnprintfa(name, XECOUNT(name), "__imp__%s", kernel_export->name);
+        xesnprintfa(name, XECOUNT(name), "__imp_%s", kernel_export->name);
       } else {
         xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
       }
     } else {
-      xesnprintfa(name, XECOUNT(name), "__imp__%s_%.3X", library->name,
+      xesnprintfa(name, XECOUNT(name), "__imp_%s_%.3X", library->name,
                   info->ordinal);
     }
     var->set_name(name);

@@ -415,8 +415,7 @@ int xe_xex2_decrypt_key(xe_xex2_header_t *header) {
   // Guess key based on file info.
   // TODO: better way to finding out which key to use?
   const uint8_t *xexkey;
-  if (header->file_format_info.compression_type == XEX_COMPRESSION_NORMAL &&
-      header->file_format_info.encryption_type == XEX_ENCRYPTION_NORMAL) {
+  if (header->file_format_info.encryption_type == XEX_ENCRYPTION_NORMAL) {
     xexkey = xe_xex2_retail_key;
   } else {
     xexkey = xe_xex2_devkit_key;
