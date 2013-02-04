@@ -251,14 +251,55 @@ XEEMITTER(lwa,          0xE8000002, DS )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
+XEDISASMR(lwaux,        0x7C0002EA, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lwaux", "Load Word Algebraic with Update Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(lwaux,        0x7C0002EA, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + (RB)
+  // RT <- EXTS(MEM(EA, 4))
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.X.RA), g.gpr_value(i.X.RB));
+  Value* v = b.CreateSExt(g.ReadMemory(i.address, ea, 4, false),
+                          b.getInt64Ty());
+  g.update_gpr_value(i.X.RT, v);
+  g.update_gpr_value(i.X.RA, ea);
+
+  return 0;
 }
 
+XEDISASMR(lwax,         0x7C0002AA, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("lwax", "Load Word Algebraic Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(lwax,         0x7C0002AA, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- EXTS(MEM(EA, 4))
+
+  Value* ea = g.gpr_value(i.X.RB);
+  if (i.X.RA) {
+    ea = b.CreateAdd(g.gpr_value(i.X.RA), ea);
+  }
+  Value* v = b.CreateSExt(g.ReadMemory(i.address, ea, 4, false),
+                          b.getInt64Ty());
+  g.update_gpr_value(i.X.RT, v);
+
+  return 0;
 }
 
 XEDISASMR(lwz,          0x80000000, D  )(InstrData& i, InstrDisasm& d) {
@@ -396,14 +437,53 @@ XEEMITTER(stbu,         0x9C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(stbux,        0x7C0001EE, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stbux", "Store Byte with Update Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(stbux,        0x7C0001EE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + (RB)
+  // MEM(EA, 1) <- (RS)[56:63]
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.X.RA), g.gpr_value(i.X.RB));
+  Value* v = g.gpr_value(i.X.RT);
+  g.WriteMemory(i.address, ea, 1, v);
+  g.update_gpr_value(i.X.RA, ea);
+
+  return 0;
 }
 
+XEDISASMR(stbx,         0x7C0001AE, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stbx", "Store Byte Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.DS.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(stbx,         0x7C0001AE, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 1) <- (RS)[56:63]
+
+  Value* ea = g.gpr_value(i.X.RB);
+  if (i.D.RA) {
+    ea = b.CreateAdd(g.gpr_value(i.X.RA), ea);
+  }
+  Value* v = g.gpr_value(i.X.RT);
+  g.WriteMemory(i.address, ea, 1, v);
+
+  return 0;
 }
 
 XEDISASMR(std,          0xF8000000, DS )(InstrData& i, InstrDisasm& d) {
@@ -516,9 +596,24 @@ XEEMITTER(sthu,         0xB4000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(sthux,        0x7C00036E, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("sthux", "Store Halfword with Update Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(sthux,        0x7C00036E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + (RB)
+  // MEM(EA, 2) <- (RS)[48:63]
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.X.RA), g.gpr_value(i.X.RB));
+  Value* v = g.gpr_value(i.X.RT);
+  g.WriteMemory(i.address, ea, 2, v);
+  g.update_gpr_value(i.X.RA, ea);
+
+  return 0;
 }
 
 XEDISASMR(sthx,         0x7C00032E, X  )(InstrData& i, InstrDisasm& d) {
@@ -600,9 +695,24 @@ XEEMITTER(stwu,         0x94000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
+XEDISASMR(stwux,        0x7C00016E, X  )(InstrData& i, InstrDisasm& d) {
+  d.Init("stwux", "Store Word with Update Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
+}
 XEEMITTER(stwux,        0x7C00016E, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + (RB)
+  // MEM(EA, 4) <- (RS)[32:63]
+  // RA <- EA
+
+  Value* ea = b.CreateAdd(g.gpr_value(i.X.RA), g.gpr_value(i.X.RB));
+  Value* v = g.gpr_value(i.X.RT);
+  g.WriteMemory(i.address, ea, 4, v);
+  g.update_gpr_value(i.X.RA, ea);
+
+  return 0;
 }
 
 XEDISASMR(stwx,         0x7C00012E, X  )(InstrData& i, InstrDisasm& d) {
