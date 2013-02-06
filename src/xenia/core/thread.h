@@ -7,17 +7,27 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CORE_H_
-#define XENIA_CORE_H_
+#ifndef XENIA_CORE_THREAD_H_
+#define XENIA_CORE_THREAD_H_
 
 #include <xenia/common.h>
-
-#include <xenia/core/file.h>
-#include <xenia/core/memory.h>
-#include <xenia/core/mmap.h>
-#include <xenia/core/mutex.h>
 #include <xenia/core/pal.h>
 #include <xenia/core/ref.h>
-#include <xenia/core/thread.h>
 
-#endif  // XENIA_CORE_H_
+
+struct xe_thread;
+typedef struct xe_thread* xe_thread_ref;
+
+
+typedef void (*xe_thread_callback)(void* param);
+
+
+xe_thread_ref xe_thread_create(
+    xe_pal_ref pal, const char* name, xe_thread_callback callback, void* param);
+xe_thread_ref xe_thread_retain(xe_thread_ref thread);
+void xe_thread_release(xe_thread_ref thread);
+
+int xe_thread_start(xe_thread_ref thread);
+
+
+#endif  // XENIA_CORE_THREAD_H_

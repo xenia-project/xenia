@@ -37,10 +37,12 @@ public:
   virtual void Write(uint8_t** buffers, size_t* lengths, size_t count);
 
 private:
-  static void* StartCallbackPthreads(void* param);
+  static void StartCallback(void* param);
 
   int PerformHandshake();
   void EventThread();
+
+  xe_thread_ref thread_;
 
   int           socket_id_;
 

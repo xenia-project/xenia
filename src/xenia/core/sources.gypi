@@ -11,6 +11,8 @@
     'pal.h',
     'ref.cc',
     'ref.h',
+    'thread.cc',
+    'thread.h',
   ],
 
   'conditions': [

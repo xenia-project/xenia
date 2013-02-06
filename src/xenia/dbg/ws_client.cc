@@ -30,6 +30,7 @@ using namespace xe::dbg;
 
 WsClient::WsClient(Debugger* debugger, int socket_id) :
     Client(debugger),
+    thread_(NULL),
     socket_id_(socket_id) {
   mutex_ = xe_mutex_alloc(1000);
 
@@ -49,6 +50,8 @@ WsClient::~WsClient() {
   xe_mutex_unlock(mutex);
   xe_mutex_free(mutex);
 
+  xe_thread_release(thread_);
+
   close(notify_rd_id_);
   close(notify_wr_id_);
 }
@@ -67,25 +70,16 @@ int WsClient::Setup() {
   setsockopt(socket_id_, IPPROTO_TCP, TCP_NODELAY,
              &opt_value, sizeof(opt_value));
 
-  // TODO(benvanik): win32 support - put simple threads in PAL
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-  pthread_t thread_handle;
-  int result_code = pthread_create(
-      &thread_handle,
-      &attr,
-      &StartCallbackPthreads,
-      this);
-  pthread_attr_destroy(&attr);
-
-  return result_code;
+  xe_pal_ref pal = debugger_->pal();
+  thread_ = xe_thread_create(pal, "Debugger Client",
+                             StartCallback, this);
+  xe_pal_release(pal);
+  return xe_thread_start(thread_);
 }
 
-void* WsClient::StartCallbackPthreads(void* param) {
-  WsClient* thread = reinterpret_cast<WsClient*>(param);
-  thread->EventThread();
-  return 0;
+void WsClient::StartCallback(void* param) {
+  WsClient* client = reinterpret_cast<WsClient*>(param);
+  client->EventThread();
 }
 
 namespace {

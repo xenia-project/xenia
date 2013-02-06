@@ -48,6 +48,10 @@ Debugger::~Debugger() {
   xe_pal_release(pal_);
 }
 
+xe_pal_ref Debugger::pal() {
+  return xe_pal_retain(pal_);
+}
+
 void Debugger::RegisterContentSource(ContentSource* content_source) {
   content_sources_.insert(std::pair<uint32_t, ContentSource*>(
       content_source->source_id(), content_source));

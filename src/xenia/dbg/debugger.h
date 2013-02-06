@@ -31,6 +31,8 @@ public:
   Debugger(xe_pal_ref pal);
   virtual ~Debugger();
 
+  xe_pal_ref pal();
+
   void RegisterContentSource(ContentSource* content_source);
 
   int Startup();
