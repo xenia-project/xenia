@@ -124,7 +124,7 @@ void xe_mmap_release(xe_mmap_ref mmap) {
 }
 
 uint8_t* xe_mmap_get_addr(xe_mmap_ref mmap) {
-  return mmap->addr;
+  return reinterpret_cast<uint8_t*>(mmap->addr);
 }
 
 size_t xe_mmap_get_length(xe_mmap_ref mmap) {

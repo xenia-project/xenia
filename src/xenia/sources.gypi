@@ -13,6 +13,7 @@
     'malloc.h',
     'platform.h',
     'platform_includes.h',
+    'string.cc',
     'string.h',
     'types.h',
     'xenia.h',

@@ -49,7 +49,7 @@ typedef OSQueueHead xe_atomic_stack_t;
     ((void)InterlockedExchangeAdd((volatile LONG*)value, amount))
 #define xe_atomic_sub_32(amount, value) \
     ((void)InterlockedExchangeSubtract((volatile unsigned*)value, amount))
-#define xe_atomic_vas_32(oldValue, newValue, value) \
+#define xe_atomic_cas_32(oldValue, newValue, value) \
     (InterlockedCompareExchange((volatile LONG*)value, newValue, oldValue) == oldValue)
 
 typedef SLIST_HEADER xe_atomic_stack_t;

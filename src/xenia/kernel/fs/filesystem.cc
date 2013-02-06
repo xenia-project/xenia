@@ -91,8 +91,8 @@ Entry* FileSystem::ResolvePath(const char* path) {
     if (xestrcasestra(path, it->first.c_str()) == path) {
       // Found symlink, fixup.
       const char* after_path = path + it->first.size();
-      XEIGNORE(xesnprintf(full_path, XECOUNT(full_path), "%s%s",
-                          it->second.c_str(), after_path));
+      XEIGNORE(xesnprintfa(full_path, XECOUNT(full_path), "%s%s",
+                           it->second.c_str(), after_path));
       break;
     }
   }

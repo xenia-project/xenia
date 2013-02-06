@@ -13,7 +13,7 @@
     'xboxkrnl_module.h',
     'xboxkrnl_rtl.cc',
     'xboxkrnl_rtl.h',
-    'xboxkrnl_tableh',
+    'xboxkrnl_table.h',
     'xboxkrnl_threading.cc',
     'xboxkrnl_threading.h',
     'xobject.cc',

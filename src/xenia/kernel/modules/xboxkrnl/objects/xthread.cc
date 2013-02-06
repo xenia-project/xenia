@@ -148,9 +148,9 @@ X_STATUS XThread::PlatformCreate() {
       creation_params_.stack_size,
       (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
       this,
-      creation_params.creation_flags,
+      creation_params_.creation_flags,
       NULL);
-  if (!handle) {
+  if (!thread_handle_) {
     uint32_t last_error = GetLastError();
     // TODO(benvanik): translate?
     XELOGE(XT("CreateThread failed with %d"), last_error);

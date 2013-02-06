@@ -25,9 +25,9 @@ XModule::XModule(KernelState* kernel_state, const char* path) :
     XObject(kernel_state, kTypeModule),
     xex_(NULL) {
   XEIGNORE(xestrcpya(path_, XECOUNT(path_), path));
-  const xechar_t *slash = xestrrchr(path, '/');
+  const char* slash = xestrrchra(path, '/');
   if (!slash) {
-    slash = xestrrchr(path, '\\');
+    slash = xestrrchra(path, '\\');
   }
   if (slash) {
     XEIGNORE(xestrcpya(name_, XECOUNT(name_), slash + 1));
@@ -145,7 +145,11 @@ X_STATUS XModule::Launch(uint32_t flags) {
   // xekNtWaitForSingleObjectEx(thread_handle, TRUE, &timeout);
 
   while (true) {
+#if XE_PLATFORM(WIN32)
+    Sleep(1000);
+#else
     sleep(1);
+#endif  // WIN32
   }
 
   kernel_state()->SetExecutableModule(NULL);

@@ -224,7 +224,7 @@ void KeTlsSetValue_shim(
   int result_code = 0;
 
 #if XE_PLATFORM(WIN32)
-  result_code = TlsSetValue(tls_index, tls_value);
+  result_code = TlsSetValue(tls_index, (LPVOID)tls_value);
 #else
   result_code = pthread_setspecific(tls_index, (void*)tls_value) == 0;
 #endif  // WIN32
