@@ -472,7 +472,7 @@ class XethunkCommand(Command):
     print 'Building xethunk...'
     print ''
 
-    path = 'src/cpu/xethunk/xethunk'
+    path = 'src/xenia/cpu/xethunk/xethunk'
     result = shell_call('clang -emit-llvm -O0 -c %s.c -o %s.bc' % (path, path),
                         throw_on_error=False)
     if result != 0:

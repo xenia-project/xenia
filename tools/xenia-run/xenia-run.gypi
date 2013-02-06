@@ -6,10 +6,7 @@
       'type': 'executable',
 
       'dependencies': [
-        'xeniacore',
-        'xeniacpu',
-        'xeniagpu',
-        'xeniakernel',
+        'xenia',
       ],
 
       'include_dirs': [

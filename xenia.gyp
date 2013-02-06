@@ -9,8 +9,8 @@
 
   'targets': [
     {
-      'target_name': 'xeniacore',
-      'product_name': 'xeniacore',
+      'target_name': 'xenia',
+      'product_name': 'xenia',
       'type': '<(library)',
 
       'dependencies': [
@@ -25,59 +25,7 @@
 
       'direct_dependent_settings': {
         'include_dirs': [
-          'include/',
-        ],
-      },
-
-      'include_dirs': [
-        '.',
-        'src/',
-      ],
-
-      'includes': [
-        'src/xenia/sources.gypi',
-        'src/core/sources.gypi',
-        'src/dbg/sources.gypi',
-      ],
-    },
-
-    {
-      'target_name': 'xeniakernel',
-      'product_name': 'xeniakernel',
-      'type': '<(library)',
-
-      'dependencies': [
-        'xeniacore',
-      ],
-      'export_dependent_settings': [
-        'xeniacore',
-      ],
-
-      'include_dirs': [
-        '.',
-        'src/',
-      ],
-
-      'includes': [
-        'src/kernel/sources.gypi',
-      ],
-    },
-
-    {
-      'target_name': 'xeniacpu',
-      'product_name': 'xeniacpu',
-      'type': '<(library)',
-
-      'dependencies': [
-        'xeniacore',
-      ],
-
-      'export_dependent_settings': [
-        'xeniacore',
-      ],
-
-      'direct_dependent_settings': {
-        'include_dirs': [
+          'src/',
           '<@(llvm_includedir)',
         ],
 
@@ -117,30 +65,7 @@
       ],
 
       'includes': [
-        'src/cpu/sources.gypi',
-      ],
-    },
-
-    {
-      'target_name': 'xeniagpu',
-      'product_name': 'xeniagpu',
-      'type': '<(library)',
-
-      'dependencies': [
-        'xeniacore',
-      ],
-
-      'export_dependent_settings': [
-        'xeniacore',
-      ],
-
-      'include_dirs': [
-        '.',
-        'src/',
-      ],
-
-      'includes': [
-        'src/gpu/sources.gypi',
+        'src/xenia/sources.gypi',
       ],
     },
   ],
