@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_DBG_CONTENT_SOURCE_H_
-#define XENIA_KERNEL_DBG_CONTENT_SOURCE_H_
+#ifndef XENIA_DBG_CONTENT_SOURCE_H_
+#define XENIA_DBG_CONTENT_SOURCE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -40,4 +40,4 @@ protected:
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_DBG_CONTENT_SOURCE_H_
+#endif  // XENIA_DBG_CONTENT_SOURCE_H_

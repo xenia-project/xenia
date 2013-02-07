@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_DBG_WS_CLIENT_H_
-#define XENIA_KERNEL_DBG_WS_CLIENT_H_
+#ifndef XENIA_DBG_WS_CLIENT_H_
+#define XENIA_DBG_WS_CLIENT_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -58,4 +58,4 @@ private:
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_DBG_WS_CLIENT_H_
+#endif  // XENIA_DBG_WS_CLIENT_H_

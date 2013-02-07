@@ -106,7 +106,7 @@ int xenia_run(int argc, xechar_t **argv) {
   usage += "xenia-run some.xex";
   google::SetUsageMessage(usage);
   google::SetVersionString("1.0");
-  //google::ParseCommandLineFlags(&argc, &argv, true);
+  google::ParseCommandLineFlags(&argc, &argv, true);
 
   // Dummy call to keep the GPU code linking in to ensure it's working.
   do_gpu_stuff();

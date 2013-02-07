@@ -33,11 +33,12 @@ Debugger::Debugger(xe_pal_ref pal) {
 }
 
 Debugger::~Debugger() {
-  for (std::vector<Client*>::iterator it = clients_.begin();
-       it != clients_.end(); ++it) {
+  std::vector<Client*> clients(clients_.begin(), clients_.end());
+  clients_.clear();
+  for (std::vector<Client*>::iterator it = clients.begin();
+       it != clients.end(); ++it) {
     delete *it;
   }
-  clients_.clear();
 
   for (std::map<uint32_t, ContentSource*>::iterator it =
        content_sources_.begin(); it != content_sources_.end(); ++it) {

@@ -16,7 +16,6 @@
       'dependencies': [
         'gflags',
         'wslay',
-        './third_party/openssl/openssl.gyp:openssl',
       ],
       'export_dependent_settings': [
         'gflags',

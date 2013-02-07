@@ -10,6 +10,7 @@
 #include <xenia/dbg/ws_client.h>
 
 #include <xenia/dbg/debugger.h>
+#include <xenia/dbg/simple_sha1.h>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -17,11 +18,6 @@
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <wslay/wslay.h>
-
-#include <openssl/bio.h>
-#include <openssl/buffer.h>
-#include <openssl/hmac.h>
-#include <openssl/sha.h>
 
 
 using namespace xe;
@@ -152,18 +148,31 @@ void WsClientOnMsgCallback(wslay_event_context_ptr ctx,
 }
 
 std::string EncodeBase64(const uint8_t* input, size_t length) {
-  // Good god what a horrible API.
-  BIO* b64 = BIO_new(BIO_f_base64());
-  BIO* bmem = BIO_new(BIO_s_mem());
-  b64 = BIO_push(b64, bmem);
-  BIO_write(b64, input, length);
-  XEIGNORE(BIO_flush(b64));
-  BUF_MEM* bptr;
-  BIO_get_mem_ptr(b64, &bptr);
-  std::string result(bptr->data, bptr->length);
-  BIO_free_all(b64);
-  // Strip the last character, which is a \n.
-  result.erase(result.size() - 1);
+  static const char b64[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string result;
+  size_t remaining = length;
+  size_t n = 0;
+  while (remaining) {
+    result.push_back(b64[input[n] >> 2]);
+    result.push_back(b64[((input[n] & 0x03) << 4) |
+                         ((input[n + 1] & 0xf0) >> 4)]);
+    remaining--;
+    if (remaining) {
+      result.push_back(b64[((input[n + 1] & 0x0f) << 2) |
+                           ((input[n + 2] & 0xc0) >> 6)]);
+      remaining--;
+    } else {
+      result.push_back('=');
+    }
+    if (remaining) {
+      result.push_back(b64[input[n + 2] & 0x3f]);
+      remaining--;
+    } else {
+      result.push_back('=');
+    }
+    n += 3;
+  }
   return result;
 }
 
