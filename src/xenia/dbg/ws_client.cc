@@ -12,11 +12,6 @@
 #include <xenia/dbg/debugger.h>
 #include <xenia/dbg/simple_sha1.h>
 
-#include <fcntl.h>
-#include <poll.h>
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
 #include <wslay/wslay.h>
 
 
@@ -30,26 +25,25 @@ WsClient::WsClient(Debugger* debugger, int socket_id) :
     socket_id_(socket_id) {
   mutex_ = xe_mutex_alloc(1000);
 
-  int notify_ids[2];
-  socketpair(PF_LOCAL, SOCK_STREAM, 0, notify_ids);
-  notify_rd_id_ = notify_ids[0];
-  notify_wr_id_ = notify_ids[1];
+  loop_ = xe_socket_loop_create(socket_id);
 }
 
 WsClient::~WsClient() {
   xe_mutex_t* mutex = mutex_;
   xe_mutex_lock(mutex);
+
   mutex_ = NULL;
-  shutdown(socket_id_, SHUT_WR);
-  close(socket_id_);
+
+  xe_socket_close(socket_id_);
   socket_id_ = 0;
+
+  xe_socket_loop_destroy(loop_);
+  loop_ = NULL;
+
   xe_mutex_unlock(mutex);
   xe_mutex_free(mutex);
 
   xe_thread_release(thread_);
-
-  close(notify_rd_id_);
-  close(notify_wr_id_);
 }
 
 int WsClient::socket_id() {
@@ -58,13 +52,8 @@ int WsClient::socket_id() {
 
 int WsClient::Setup() {
   // Prep the socket.
-  int opt_value;
-  opt_value = 1;
-  setsockopt(socket_id_, SOL_SOCKET, SO_KEEPALIVE,
-             &opt_value, sizeof(opt_value));
-  opt_value = 1;
-  setsockopt(socket_id_, IPPROTO_TCP, TCP_NODELAY,
-             &opt_value, sizeof(opt_value));
+  xe_socket_set_keepalive(socket_id_, true);
+  xe_socket_set_nodelay(socket_id_, true);
 
   xe_pal_ref pal = debugger_->pal();
   thread_ = xe_thread_create(pal, "Debugger Client",
@@ -85,18 +74,12 @@ ssize_t WsClientSendCallback(wslay_event_context_ptr ctx,
                              void* user_data) {
   WsClient* client = reinterpret_cast<WsClient*>(user_data);
 
-  int sflags = 0;
-#ifdef MSG_MORE
-  if (flags & WSLAY_MSG_MORE) {
-    sflags |= MSG_MORE;
-  }
-#endif  // MSG_MORE
-
+  int error_code = 0;
   ssize_t r;
-  while ((r = send(client->socket_id(), data, len, sflags)) == -1 &&
-         errno == EINTR);
+  while ((r = xe_socket_send(client->socket_id(), data, len, 0,
+                             &error_code)) == -1 && error_code == EINTR);
   if (r == -1) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
       wslay_event_set_error(ctx, WSLAY_ERR_WOULDBLOCK);
     } else {
       wslay_event_set_error(ctx, WSLAY_ERR_CALLBACK_FAILURE);
@@ -109,11 +92,13 @@ ssize_t WsClientRecvCallback(wslay_event_context_ptr ctx,
                              uint8_t* data, size_t len, int flags,
                              void* user_data) {
   WsClient* client = reinterpret_cast<WsClient*>(user_data);
+
+  int error_code = 0;
   ssize_t r;
-  while ((r = recv(client->socket_id(), data, len, 0)) == -1 &&
-         errno == EINTR);
+  while ((r = xe_socket_recv(client->socket_id(), data, len, 0,
+                             &error_code)) == -1 && error_code == EINTR);
   if (r == -1) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
       wslay_event_set_error(ctx, WSLAY_ERR_WOULDBLOCK);
     } else {
       wslay_event_set_error(ctx, WSLAY_ERR_CALLBACK_FAILURE);
@@ -180,13 +165,14 @@ std::string EncodeBase64(const uint8_t* input, size_t length) {
 
 int WsClient::PerformHandshake() {
   std::string headers;
-  char buffer[4096];
+  uint8_t buffer[4096];
+  int error_code = 0;
   ssize_t r;
   while (true) {
-    while ((r = read(socket_id_, buffer, sizeof(buffer))) == -1 &&
-           errno == EINTR);
+    while ((r = xe_socket_recv(socket_id_, buffer, sizeof(buffer), 0,
+                               &error_code)) == -1 && error_code == EINTR);
     if (r == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      if (error_code == EWOULDBLOCK || error_code == EAGAIN) {
         if (!headers.size()) {
           // Nothing read yet - spin.
           continue;
@@ -241,10 +227,12 @@ int WsClient::PerformHandshake() {
   size_t write_offset = 0;
   size_t write_length = response.size();
   while (true) {
-    while ((r = write(socket_id_, response.c_str() + write_offset,
-                      write_length)) == -1 && errno == EINTR);
+    while ((r = xe_socket_send(socket_id_,
+                               (uint8_t*)response.c_str() + write_offset,
+                               write_length, 0, &error_code)) == -1 &&
+           error_code == EINTR);
     if (r == -1) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
         break;
       } else {
         XELOGE(XT("HTTP response write failure"));
@@ -263,20 +251,8 @@ int WsClient::PerformHandshake() {
 }
 
 void WsClient::EventThread() {
-  int r;
-
   // Enable non-blocking IO on the socket.
-  int flags;
-  while ((flags = fcntl(socket_id_, F_GETFL, 0)) == -1 &&
-         errno == EINTR);
-  if (flags == -1) {
-    return;
-  }
-  while ((r = fcntl(socket_id_, F_SETFL, flags | O_NONBLOCK)) == -1 &&
-         errno == EINTR);
-  if (r == -1) {
-    return;
-  }
+  xe_socket_set_nonblock(socket_id_, true);
 
   // First run the HTTP handshake.
   // This will fail if the connection is not for websockets.
@@ -299,26 +275,17 @@ void WsClient::EventThread() {
   wslay_event_context_ptr ctx;
   wslay_event_context_server_init(&ctx, &callbacks, this);
 
-  // Event for waiting on input.
-  struct pollfd events[2];
-  xe_zero_struct(&events, sizeof(events));
-  events[0].fd      = socket_id_;
-  events[0].events  = POLLIN;
-  events[1].fd      = notify_rd_id_;
-  events[1].events  = POLLIN;
-
   // Loop forever.
-  while(wslay_event_want_read(ctx) || wslay_event_want_write(ctx)) {
+  while (wslay_event_want_read(ctx) || wslay_event_want_write(ctx)) {
     // Wait on the event.
-    while ((r = poll(events, XECOUNT(events), -1)) == -1 && errno == EINTR);
-    if (r == -1) {
+    if (xe_socket_loop_poll(loop_,
+                            wslay_event_want_read(ctx),
+                            wslay_event_want_write(ctx))) {
       break;
     }
 
     // Handle any self-generated events to queue messages.
-    if (events[1].revents) {
-      uint8_t dummy;
-      XEIGNORE(recv(notify_rd_id_, &dummy, 1, 0));
+    if (xe_socket_loop_check_queued_write(loop_)) {
       xe_mutex_lock(mutex_);
       for (std::vector<struct wslay_event_msg>::iterator it =
            pending_messages_.begin(); it != pending_messages_.end(); it++) {
@@ -327,26 +294,14 @@ void WsClient::EventThread() {
       }
       pending_messages_.clear();
       xe_mutex_unlock(mutex_);
-      events[1].revents = 0;
-      events[1].events = POLL_IN;
     }
 
     // Handle websocket messages.
-    struct pollfd* event = &events[0];
-    if (((event->revents & POLLIN) && wslay_event_recv(ctx)) ||
-        ((event->revents & POLLOUT) && wslay_event_send(ctx)) ||
-        ((event->revents & (POLLERR | POLLHUP | POLLNVAL)))) {
+    if ((xe_socket_loop_check_socket_recv(loop_) && wslay_event_recv(ctx)) ||
+        (xe_socket_loop_check_socket_send(loop_) && wslay_event_send(ctx))) {
       // Error handling the event.
       XELOGE(XT("Error handling WebSocket data"));
       break;
-    }
-    event->revents = 0;
-    event->events = 0;
-    if (wslay_event_want_read(ctx)) {
-      event->events |= POLLIN;
-    }
-    if (wslay_event_want_write(ctx)) {
-      event->events |= POLLOUT;
     }
   }
 
@@ -394,7 +349,6 @@ void WsClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
 
   if (needs_signal) {
     // Notify the poll().
-    uint8_t b = 0xFF;
-    write(notify_wr_id_, &b, 1);
+    xe_socket_loop_set_queued_write(loop_);
   }
 }

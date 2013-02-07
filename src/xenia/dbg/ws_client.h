@@ -30,7 +30,7 @@ public:
   WsClient(Debugger* debugger, int socket_id);
   virtual ~WsClient();
 
-  int socket_id();
+  socket_t socket_id();
 
   virtual int Setup();
 
@@ -44,12 +44,9 @@ private:
 
   xe_thread_ref thread_;
 
-  int           socket_id_;
-
-  int           notify_rd_id_;
-  int           notify_wr_id_;
-  xe_mutex_t*   mutex_;
-
+  socket_t          socket_id_;
+  xe_socket_loop_t* loop_;
+  xe_mutex_t*       mutex_;
   std::vector<struct wslay_event_msg> pending_messages_;
 };
 

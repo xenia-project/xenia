@@ -34,7 +34,7 @@ public:
 protected:
   uint32_t port_;
 
-  int socket_id_;
+  socket_t socket_id_;
 };
 
 

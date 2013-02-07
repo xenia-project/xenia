@@ -11,6 +11,7 @@
     'pal.h',
     'ref.cc',
     'ref.h',
+    'socket.h',
     'thread.cc',
     'thread.h',
   ],
@@ -20,12 +21,14 @@
       'sources': [
         'mmap_posix.cc',
         'mutex_posix.cc',
+        'socket_posix.cc',
       ],
     }],
     ['OS == "win"', {
       'sources': [
         'mmap_win.cc',
         'mutex_win.cc',
+        'socket_win.cc',
       ],
     }],
   ],

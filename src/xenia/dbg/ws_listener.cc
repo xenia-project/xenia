@@ -9,10 +9,6 @@
 
 #include <xenia/dbg/ws_listener.h>
 
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-
 #include <xenia/dbg/ws_client.h>
 
 
@@ -28,40 +24,29 @@ WsListener::WsListener(Debugger* debugger, xe_pal_ref pal, uint32_t port) :
 
 WsListener::~WsListener() {
   if (socket_id_) {
-    close(socket_id_);
+    xe_socket_close(socket_id_);
   }
 }
 
 int WsListener::Setup() {
-  socket_id_ = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (socket_id_ < 1) {
+  xe_socket_init();
+
+  socket_id_ = xe_socket_create_tcp();
+  if (socket_id_ == XE_INVALID_SOCKET) {
     return 1;
   }
 
-  int opt_value;
-  opt_value = 1;
-  setsockopt(socket_id_, SOL_SOCKET, SO_KEEPALIVE,
-             &opt_value, sizeof(opt_value));
-  opt_value = 1;
-  setsockopt(socket_id_, SOL_SOCKET, SO_REUSEADDR,
-             &opt_value, sizeof(opt_value));
-  opt_value = 0;
-  setsockopt(socket_id_, IPPROTO_TCP, TCP_NODELAY,
-             &opt_value, sizeof(opt_value));
+  xe_socket_set_keepalive(socket_id_, true);
+  xe_socket_set_reuseaddr(socket_id_, true);
+  xe_socket_set_nodelay(socket_id_, true);
 
-  struct sockaddr_in socket_addr;
-  socket_addr.sin_family      = AF_INET;
-  socket_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  socket_addr.sin_port        = htons(port_);
-  int r = bind(socket_id_, (struct sockaddr*)&socket_addr,
-               sizeof(socket_addr));
-  if (r < 0) {
+  if (xe_socket_bind(socket_id_, port_)) {
     XELOGE(XT("Could not bind listen socket: %d"), errno);
     return 1;
   }
 
-  if (listen(socket_id_, 5) < 0) {
-    close(socket_id_);
+  if (xe_socket_listen(socket_id_)) {
+    xe_socket_close(socket_id_);
     return 1;
   }
 
@@ -70,22 +55,16 @@ int WsListener::Setup() {
 
 int WsListener::WaitForClient() {
   // Accept the first connection we get.
-  struct sockaddr_in client_addr;
-  socklen_t client_count = sizeof(client_addr);
-  int client_socket_id = accept(socket_id_, (struct sockaddr*)&client_addr,
-                                &client_count);
-  if (client_socket_id < 0) {
+  xe_socket_connection_t client_info;
+  if (xe_socket_accept(socket_id_, &client_info)) {
     return 1;
   }
 
-  int client_ip = client_addr.sin_addr.s_addr;
-  char client_ip_str[INET_ADDRSTRLEN];
-  inet_ntop(AF_INET, &client_ip, client_ip_str, XECOUNT(client_ip_str));
-  XELOGI(XT("Debugger connected from %s"), client_ip_str);
+  XELOGI(XT("Debugger connected from %s"), client_info.addr);
 
   // Create the client object.
   // Note that the client will delete itself when done.
-  WsClient* client = new WsClient(debugger_, client_socket_id);
+  WsClient* client = new WsClient(debugger_, client_info.socket);
   if (client->Setup()) {
     // Client failed to setup - abort.
     return 1;
