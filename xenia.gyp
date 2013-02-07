@@ -37,9 +37,10 @@
           }],
           ['_type=="executable"', {
             'conditions': [
-              ['OS != "mac"', {
+              ['OS == "win"', {
                 'libraries': [
                   '<@(llvm_libs)',
+                  'wsock32',
                 ],
               }],
               ['OS == "mac"', {

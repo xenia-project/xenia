@@ -88,6 +88,15 @@
       'OPENSSL_NO_INLINE_ASM',
       'OPENSSL_NO_NEXTPROTONEG',
     ],
+
+    'conditions': [
+      ['OS == "win"', {
+        'defines': [
+          '_WIN64=1',
+        ],
+      }],
+    ],
+
     'cflags': [
       '-std=c99',
     ],
@@ -115,7 +124,10 @@
             #'WarnAsError': 'true',
             'DebugInformationFormat': '3',
             'ExceptionHandling': '1', # /EHsc
-            'AdditionalOptions': ['/MP'],
+            'AdditionalOptions': [
+              '/MP',
+              '/TP', # Compile as C++
+            ],
           },
           #'VCLibrarianTool': {
           #  'AdditionalLibraryDirectories!':

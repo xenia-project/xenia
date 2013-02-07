@@ -31,6 +31,7 @@
         ['OS == "win"', {
           'defines': [
             'HAVE_WINSOCK2_H=1',
+            'ssize_t=unsigned long long',
           ],
         }],
       ],
@@ -41,11 +42,17 @@
       ],
 
       'sources': [
+        'wslay/lib/includes/wslay/wslay.h',
         'wslay/lib/wslay_event.c',
+        'wslay/lib/wslay_event.h',
         'wslay/lib/wslay_frame.c',
+        'wslay/lib/wslay_frame.h',
         'wslay/lib/wslay_net.c',
+        'wslay/lib/wslay_net.h',
         'wslay/lib/wslay_queue.c',
+        'wslay/lib/wslay_queue.h',
         'wslay/lib/wslay_stack.c',
+        'wslay/lib/wslay_stack.h',
       ],
     }
   ]
