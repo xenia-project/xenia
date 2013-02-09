@@ -12,6 +12,11 @@
 #include <xenia/dbg/debugger.h>
 #include <xenia/dbg/simple_sha1.h>
 
+#if XE_PLATFORM(WIN32)
+// Required for wslay.
+typedef SSIZE_T ssize_t;
+#endif  // WIN32
+
 #include <wslay/wslay.h>
 
 
@@ -69,13 +74,13 @@ void WsClient::StartCallback(void* param) {
 
 namespace {
 
-ssize_t WsClientSendCallback(wslay_event_context_ptr ctx,
+int64_t WsClientSendCallback(wslay_event_context_ptr ctx,
                              const uint8_t* data, size_t len, int flags,
                              void* user_data) {
   WsClient* client = reinterpret_cast<WsClient*>(user_data);
 
   int error_code = 0;
-  ssize_t r;
+  int64_t r;
   while ((r = xe_socket_send(client->socket_id(), data, len, 0,
                              &error_code)) == -1 && error_code == EINTR);
   if (r == -1) {
@@ -88,13 +93,13 @@ ssize_t WsClientSendCallback(wslay_event_context_ptr ctx,
   return r;
 }
 
-ssize_t WsClientRecvCallback(wslay_event_context_ptr ctx,
+int64_t WsClientRecvCallback(wslay_event_context_ptr ctx,
                              uint8_t* data, size_t len, int flags,
                              void* user_data) {
   WsClient* client = reinterpret_cast<WsClient*>(user_data);
 
   int error_code = 0;
-  ssize_t r;
+  int64_t r;
   while ((r = xe_socket_recv(client->socket_id(), data, len, 0,
                              &error_code)) == -1 && error_code == EINTR);
   if (r == -1) {
@@ -167,7 +172,7 @@ int WsClient::PerformHandshake() {
   std::string headers;
   uint8_t buffer[4096];
   int error_code = 0;
-  ssize_t r;
+  int64_t r;
   while (true) {
     while ((r = xe_socket_recv(socket_id_, buffer, sizeof(buffer), 0,
                                &error_code)) == -1 && error_code == EINTR);
@@ -279,8 +284,8 @@ void WsClient::EventThread() {
   while (wslay_event_want_read(ctx) || wslay_event_want_write(ctx)) {
     // Wait on the event.
     if (xe_socket_loop_poll(loop_,
-                            wslay_event_want_read(ctx),
-                            wslay_event_want_write(ctx))) {
+                            !!wslay_event_want_read(ctx),
+                            !!wslay_event_want_write(ctx))) {
       break;
     }
 

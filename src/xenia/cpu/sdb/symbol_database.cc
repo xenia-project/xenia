@@ -209,7 +209,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     // Function starts with 0x00000000 - we want to skip this and split.
     symbols_.erase(fn->start_address);
     // Scan ahead until the first non-zero or the end of the valid range.
-    size_t next_addr = fn->start_address + 4;
+    uint32_t next_addr = fn->start_address + 4;
     while (true) {
       if (!IsValueInTextRange(next_addr)) {
         // Ran out of the range. Abort.

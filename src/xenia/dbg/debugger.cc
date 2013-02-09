@@ -83,7 +83,7 @@ void Debugger::Broadcast(uint32_t source_id,
     0x00000001,
     source_id,
     0,
-    length,
+    (uint32_t)length,
   };
   uint8_t* buffers[] = {
     (uint8_t*)header,

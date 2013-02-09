@@ -20,6 +20,7 @@ void xe_socket_init() {
 }
 
 socket_t xe_socket_create_tcp() {
+  return 0;
 }
 
 void xe_socket_close(socket_t socket) {
@@ -38,21 +39,25 @@ void xe_socket_set_nonblock(socket_t socket, bool value) {
 }
 
 int xe_socket_bind(socket_t socket, uint32_t port) {
+  return 0;
 }
 
 int xe_socket_listen(socket_t socket) {
+  return 0;
 }
 
 int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
   return 0;
 }
 
-ssize_t xe_socket_send(socket_t socket, const uint8_t* data, size_t length,
+int64_t xe_socket_send(socket_t socket, const uint8_t* data, size_t length,
                        int flags, int* out_error_code) {
+  return 0;
 }
 
-ssize_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
+int64_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
                        int* out_error_code) {
+  return 0;
 }
 
 struct xe_socket_loop {
@@ -81,10 +86,13 @@ void xe_socket_loop_set_queued_write(xe_socket_loop_t* loop) {
 }
 
 bool xe_socket_loop_check_queued_write(xe_socket_loop_t* loop) {
+  return false;
 }
 
 bool xe_socket_loop_check_socket_recv(xe_socket_loop_t* loop) {
+  return false;
 }
 
 bool xe_socket_loop_check_socket_send(xe_socket_loop_t* loop) {
+  return false;
 }

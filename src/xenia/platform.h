@@ -139,15 +139,21 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #define XE_ALIGNMENT            16
 #endif  // 32BIT
 
-#if XE_LIKE(WIN32)
-#define XE_MAIN_THUNK(name) \
+#if XE_LIKE(WIN32) && !defined(XE_CHAR)
+int xe_main_thunk(
+    int argc, wchar_t* argv[],
+    void* user_main, const char* usage);
+#define XE_MAIN_THUNK(NAME, USAGE) \
     int wmain(int argc, wchar_t *argv[]) { \
-      return name(argc, (xechar_t**)argv); \
+      return xe_main_thunk(argc, argv, NAME, USAGE); \
     }
 #else
-#define XE_MAIN_THUNK(name) \
+int xe_main_thunk(
+    int argc, char** argv,
+    void* user_main, const char* usage);
+#define XE_MAIN_THUNK(NAME, USAGE) \
     int main(int argc, char **argv) { \
-      return name(argc, argv); \
+      return xe_main_thunk(argc, argv, NAME, USAGE); \
     }
 #endif  // WIN32
 

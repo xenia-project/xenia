@@ -87,6 +87,7 @@ X_STATUS XModule::LoadFromFile(const char* path) {
 X_STATUS XModule::LoadFromMemory(const void* addr, const size_t length) {
   // Load the XEX into memory and decrypt.
   xe_xex2_options_t xex_options;
+  xe_zero_struct(&xex_options, sizeof(xex_options));
   xex_ = xe_xex2_load(kernel_state()->memory(), addr, length, xex_options);
   XEEXPECTNOTNULL(xex_);
 

@@ -103,14 +103,14 @@ int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
   return 0;
 }
 
-ssize_t xe_socket_send(socket_t socket, const uint8_t* data, size_t length,
+int64_t xe_socket_send(socket_t socket, const uint8_t* data, size_t length,
                        int flags, int* out_error_code) {
   ssize_t result = send(socket, data, length, flags);
   *out_error_code = errno;
   return result;
 }
 
-ssize_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
+int64_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
                        int* out_error_code) {
   ssize_t result = recv(socket, data, length, flags);
   *out_error_code = errno;

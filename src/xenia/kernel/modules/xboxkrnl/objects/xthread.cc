@@ -141,8 +141,6 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 }
 
 X_STATUS XThread::PlatformCreate() {
-  XEASSERTALWAYS();
-
   thread_handle_ = CreateThread(
       NULL,
       creation_params_.stack_size,
@@ -235,7 +233,7 @@ void XThread::Execute() {
   }
 
   // Run user code.
-  int exit_code = kernel_state()->processor()->Execute(
+  int exit_code = (int)kernel_state()->processor()->Execute(
       processor_state_,
       creation_params_.start_address, creation_params_.start_context);
 

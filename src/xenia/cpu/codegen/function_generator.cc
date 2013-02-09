@@ -623,7 +623,7 @@ void FunctionGenerator::FillRegisters() {
   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
     if (locals_.gpr[n]) {
       b.CreateStore(LoadStateValue(
-          offsetof(xe_ppc_state_t, r) + 8 * n,
+          (uint32_t)offsetof(xe_ppc_state_t, r) + 8 * n,
           b.getInt64Ty()), locals_.gpr[n]);
     }
   }
@@ -631,7 +631,7 @@ void FunctionGenerator::FillRegisters() {
   for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
     if (locals_.fpr[n]) {
       b.CreateStore(LoadStateValue(
-          offsetof(xe_ppc_state_t, f) + 8 * n,
+          (uint32_t)offsetof(xe_ppc_state_t, f) + 8 * n,
           b.getDoubleTy()), locals_.fpr[n]);
     }
   }

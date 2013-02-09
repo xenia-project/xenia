@@ -70,7 +70,11 @@ int Run::Launch(const xechar_t* path) {
   // TODO(benvanik): move this someplace common.
   xechar_t abs_path[XE_MAX_PATH];
 #if XE_PLATFORM(WIN32)
+#if XE_WCHAR
   _wfullpath(abs_path, path, XECOUNT(abs_path));
+#else
+  _fullpath(abs_path, path, sizeof(abs_path));
+#endif  // XE_WCHAR
 #else
   realpath(path, abs_path);
 #endif  // WIN32
@@ -102,12 +106,6 @@ int Run::Launch(const xechar_t* path) {
 }
 
 int xenia_run(int argc, xechar_t **argv) {
-  std::string usage = "usage: ";
-  usage += "xenia-run some.xex";
-  google::SetUsageMessage(usage);
-  google::SetVersionString("1.0");
-  google::ParseCommandLineFlags(&argc, &argv, true);
-
   // Dummy call to keep the GPU code linking in to ensure it's working.
   do_gpu_stuff();
 
@@ -135,4 +133,4 @@ XECLEANUP:
   google::ShutDownCommandLineFlags();
   return result_code;
 }
-XE_MAIN_THUNK(xenia_run);
+XE_MAIN_THUNK(xenia_run, "xenia-run some.xex");

@@ -88,8 +88,13 @@ Entry* LocalDirectoryDevice::ResolvePath(const char* path) {
   XELOGFS(XT("LocalDirectoryDevice::ResolvePath(%s)"), path);
 
   xechar_t full_path[XE_MAX_PATH];
+#if XE_WCHAR
+  xesnprintf(full_path, XECOUNT(full_path), XT("%ls%c%hs"),
+             local_path_, XE_PATH_SEPARATOR, path);
+#else
   xesnprintf(full_path, XECOUNT(full_path), XT("%s%c%s"),
              local_path_, XE_PATH_SEPARATOR, path);
+#endif  // XE_WCHAR
 
   // Swap around path separators.
   if (XE_PATH_SEPARATOR != '\\') {

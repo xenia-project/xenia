@@ -122,12 +122,12 @@ size_t xe_memory_get_length(xe_memory_ref memory) {
   return memory->length;
 }
 
-uint8_t *xe_memory_addr(xe_memory_ref memory, uint32_t guest_addr) {
+uint8_t *xe_memory_addr(xe_memory_ref memory, size_t guest_addr) {
   return (uint8_t*)memory->ptr + guest_addr;
 }
 
-uint32_t xe_memory_search_aligned(xe_memory_ref memory, uint32_t start,
-                                  uint32_t end, const uint32_t *values,
+uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
+                                  size_t end, const uint32_t *values,
                                   const size_t value_count) {
   XEASSERT(start <= end);
   const uint32_t *p = (const uint32_t*)xe_memory_addr(memory, start);

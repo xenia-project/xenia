@@ -42,8 +42,8 @@ typedef struct IMAGE_XBOX_RUNTIME_FUNCTION_ENTRY_t {
 class PEMethodInfo {
 public:
   uint32_t    address;
-  size_t      total_length;   // in bytes
-  size_t      prolog_length;  // in bytes
+  uint32_t    total_length;   // in bytes
+  uint32_t    prolog_length;  // in bytes
 };
 
 

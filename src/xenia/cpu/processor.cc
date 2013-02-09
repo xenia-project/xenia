@@ -141,7 +141,8 @@ int Processor::LoadBinary(const xechar_t* path, uint32_t start_address,
   exec_module = new ExecModule(
       memory_, export_resolver, name_a, path_a, engine_);
 
-  if (exec_module->PrepareRawBinary(start_address, start_address + length)) {
+  if (exec_module->PrepareRawBinary(start_address,
+                                    start_address + (uint32_t)length)) {
     delete exec_module;
     return 1;
   }

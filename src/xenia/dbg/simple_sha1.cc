@@ -9,6 +9,11 @@
 
 #include <xenia/dbg/simple_sha1.h>
 
+#if XE_PLATFORM(WIN32)
+#include <winsock2.h>
+#else
+#endif  // WIN32
+
 
 using namespace xe;
 using namespace xe::dbg;
@@ -211,7 +216,7 @@ void xe::dbg::SHA1(const uint8_t* data, size_t length, uint8_t out_hash[20]) {
     { 0 }
   };
 
-  SHA1_Update(&ctx, data, length);
+  SHA1_Update(&ctx, data, (unsigned long)length);
 
   uint32_t padlen[2] = {
     htonl((uint32_t)(ctx.size >> 29)),

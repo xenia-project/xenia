@@ -16,10 +16,11 @@
 #include <xenia/config.h>
 #include <xenia/platform.h>
 #include <xenia/platform_includes.h>
+#include <xenia/string.h>
 #include <xenia/types.h>
 
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER(MSVC) && XE_WCHAR
 // http://msdn.microsoft.com/en-us/library/b0084kay.aspx
 #if !defined(__WFILE__)
 #define WIDEN2(x)           L##x

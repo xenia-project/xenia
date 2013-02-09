@@ -40,9 +40,9 @@ class PESection {
 public:
   char        name[9];        // 8 + 1 for \0
   uint32_t    raw_address;
-  size_t      raw_size;
+  uint32_t    raw_size;
   uint32_t    address;
-  size_t      size;
+  uint32_t    size;
   uint32_t    flags;          // kXEPESection*
 };
 

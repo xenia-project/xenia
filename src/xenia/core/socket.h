@@ -37,9 +37,9 @@ typedef struct {
 } xe_socket_connection_t;
 int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info);
 
-ssize_t xe_socket_send(socket_t socket, const uint8_t* data, size_t length,
+int64_t xe_socket_send(socket_t socket, const uint8_t* data, size_t length,
                        int flags, int* out_error_code);
-ssize_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
+int64_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
                        int* out_error_code);
 
 typedef struct xe_socket_loop xe_socket_loop_t;

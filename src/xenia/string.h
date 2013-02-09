@@ -38,7 +38,7 @@ char* xestrcasestra(const char* str, const char* substr);
 #define xestrlenw                                       wcslen
 #define xestrcmpw                                       wcscmp
 #define xestrcasecmpw                                   _wcsicmp
-#define xestrdupw                                       wcsdup
+#define xestrdupw                                       _wcsdup
 #define xestrchrw                                       wcschr
 #define xestrrchrw                                      wcsrchr
 #define xestrstrw                                       wcsstr
@@ -62,11 +62,12 @@ char* xestrcasestra(const char* str, const char* substr);
 #define xesnprintfa(buffer, bufferCount, format, ...)   _snprintf_s(buffer, bufferCount, bufferCount, format, ##__VA_ARGS__)
 #define xevsnprintfa(buffer, bufferCount, format, args) vsnprintf(buffer, bufferCount, format, args)
 
-#if XE_PLATFORM(WIN32)
+#if !defined(XE_CHAR) && XE_PLATFORM(WIN32)
 
 typedef wchar_t xechar_t;
 #define XE_WCHAR            1
 #define XETEXT(s)           L ## s
+#define XESTRFORMAT         L"%ls"
 
 #define xestrlen            xestrlenw
 #define xestrcmp            xestrcmpw
@@ -90,6 +91,7 @@ typedef wchar_t xechar_t;
 typedef char xechar_t;
 #define XE_CHAR             1
 #define XETEXT(s)           s
+#define XESTRFORMAT         "%s"
 
 #define xestrlen            xestrlena
 #define xestrcmp            xestrcmpa
@@ -111,6 +113,7 @@ typedef char xechar_t;
 #endif  // WIN32
 
 #define XT XETEXT
+#define XTS XESTRFORMAT
 
 #if XE_LIKE(WIN32)
 #define XE_PATH_SEPARATOR   ((xechar_t)'\\')

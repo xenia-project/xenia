@@ -38,7 +38,7 @@ xe_file_ref xe_file_open(xe_pal_ref pal, const xe_file_mode mode,
   }
   XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), XT("b")));
 
-#if XE_LIKE(WIN32)
+#if XE_LIKE(WIN32) && XE_WCHAR
   XEEXPECTZERO(_wfopen_s((FILE**)&file->handle, path, mode_string));
 #else
   file->handle = fopen(path, mode_string);

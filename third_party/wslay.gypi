@@ -31,7 +31,7 @@
         ['OS == "win"', {
           'defines': [
             'HAVE_WINSOCK2_H=1',
-            'ssize_t=unsigned long long',
+            'ssize_t=long long',
           ],
         }],
       ],

@@ -85,8 +85,9 @@
       '__STDC_CONSTANT_MACROS=1',
       '_ISOC99_SOURCE=1',
 
-      'OPENSSL_NO_INLINE_ASM',
-      'OPENSSL_NO_NEXTPROTONEG',
+      # Force xechar_t to char on Win32 (and use all the A functions).
+      # This makes life easier when string formatting/etc.
+      'XE_CHAR=1',
     ],
 
     'conditions': [

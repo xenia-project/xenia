@@ -230,12 +230,6 @@ XECLEANUP:
 }
 
 int xenia_test(int argc, xechar_t **argv) {
-  string usage = "usage: ";
-  usage += "xenia-test some.xex";
-  google::SetUsageMessage(usage);
-  google::SetVersionString("1.0");
-  google::ParseCommandLineFlags(&argc, &argv, true);
-
   int result_code = 1;
 
   // Grab test name, if present.
@@ -249,4 +243,4 @@ int xenia_test(int argc, xechar_t **argv) {
   google::ShutDownCommandLineFlags();
   return result_code;
 }
-XE_MAIN_THUNK(xenia_test);
+XE_MAIN_THUNK(xenia_test, "xenia-test some.xex");
