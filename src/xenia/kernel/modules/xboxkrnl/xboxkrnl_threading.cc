@@ -75,7 +75,7 @@ void ExCreateThread_shim(
   uint32_t creation_flags = SHIM_GET_ARG_32(6);
 
   XELOGD(
-      XT("ExCreateThread(%.8X, %d, %.8X, %.8X, %.8X, %.8X, %.8X)"),
+      "ExCreateThread(%.8X, %d, %.8X, %.8X, %.8X, %.8X, %.8X)",
       handle_ptr,
       stack_size,
       thread_id_ptr,
@@ -92,7 +92,7 @@ void ExCreateThread_shim(
   if (XFAILED(result_code)) {
     // Failed!
     thread->Release();
-    XELOGE(XT("Thread creation failed: %.8X"), result_code);
+    XELOGE("Thread creation failed: %.8X", result_code);
     SHIM_SET_RETURN(result_code);
     return;
   }
@@ -112,7 +112,7 @@ void KeGetCurrentProcessType_shim(
   // DWORD
 
   XELOGD(
-      XT("KeGetCurrentProcessType()"));
+      "KeGetCurrentProcessType()");
 
   SHIM_SET_RETURN(X_PROCTYPE_USER);
 }
@@ -130,7 +130,7 @@ void KeTlsAlloc_shim(
   // DWORD
 
   XELOGD(
-      XT("KeTlsAlloc()"));
+      "KeTlsAlloc()");
 
   uint32_t tls_index;
 
@@ -158,7 +158,7 @@ void KeTlsFree_shim(
   uint32_t tls_index = SHIM_GET_ARG_32(0);
 
   XELOGD(
-      XT("KeTlsFree(%.8X)"),
+      "KeTlsFree(%.8X)",
       tls_index);
 
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
@@ -187,7 +187,7 @@ void KeTlsGetValue_shim(
   uint32_t tls_index = SHIM_GET_ARG_32(0);
 
   XELOGD(
-      XT("KeTlsGetValue(%.8X)"),
+      "KeTlsGetValue(%.8X)",
       tls_index);
 
   uint32_t value = 0;
@@ -199,7 +199,7 @@ void KeTlsGetValue_shim(
 #endif  // WIN32
 
   if (!value) {
-    XELOGW(XT("KeTlsGetValue should SetLastError if result is NULL"));
+    XELOGW("KeTlsGetValue should SetLastError if result is NULL");
     // TODO(benvanik): SetLastError
   }
 
@@ -218,7 +218,7 @@ void KeTlsSetValue_shim(
   uint32_t tls_value = SHIM_GET_ARG_32(1);
 
   XELOGD(
-      XT("KeTlsSetValue(%.8X, %.8X)"),
+      "KeTlsSetValue(%.8X, %.8X)",
       tls_index, tls_value);
 
   int result_code = 0;

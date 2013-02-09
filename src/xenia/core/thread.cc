@@ -96,7 +96,7 @@ int xe_thread_start(xe_thread_ref thread) {
   if (!thread_handle) {
     uint32_t last_error = GetLastError();
     // TODO(benvanik): translate?
-    XELOGE(XT("CreateThread failed with %d"), last_error);
+    XELOGE("CreateThread failed with %d", last_error);
     return last_error;
   }
 

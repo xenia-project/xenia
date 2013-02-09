@@ -159,7 +159,7 @@ int discover_tests(string& test_path,
   // TODO(benvanik): use PAL instead of this
   DIR* d = opendir(test_path.c_str());
   if (!d) {
-    XELOGE(XT("Unable to find test path %s"), test_path.c_str());
+    XELOGE("Unable to find test path %s", test_path.c_str());
     return 1;
   }
   struct dirent* dir;
@@ -240,7 +240,6 @@ int xenia_test(int argc, xechar_t **argv) {
 
   result_code = run_tests(test_name);
 
-  google::ShutDownCommandLineFlags();
   return result_code;
 }
 XE_MAIN_THUNK(xenia_test, "xenia-test some.xex");

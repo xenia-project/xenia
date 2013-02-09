@@ -43,7 +43,7 @@ void NtAllocateVirtualMemory_shim(
   XEASSERT(unknown == 0);
 
   XELOGD(
-      XT("NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)"),
+      "NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)",
       base_addr_ptr, base_addr_value,
       region_size_ptr, region_size_value,
       allocation_type, protect_bits, unknown);
@@ -116,7 +116,7 @@ void NtFreeVirtualMemory_shim(
   XEASSERT(unknown == 0);
 
   XELOGD(
-      XT("NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)"),
+      "NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)",
       base_addr_ptr, base_addr_value,
       region_size_ptr, region_size_value,
       free_type, unknown);

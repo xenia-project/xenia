@@ -36,7 +36,7 @@ void RtlCompareMemory_shim(
   uint32_t length = SHIM_GET_ARG_32(2);
 
   XELOGD(
-      XT("RtlCompareMemory(%.8X, %.8X, %d)"),
+      "RtlCompareMemory(%.8X, %.8X, %d)",
       source1, source2, length);
 
   uint8_t* p1 = SHIM_MEM_ADDR(source1);
@@ -69,7 +69,7 @@ void RtlCompareMemoryUlong_shim(
   uint32_t pattern = SHIM_GET_ARG_32(2);
 
   XELOGD(
-      XT("RtlCompareMemoryUlong(%.8X, %d, %.8X)"),
+      "RtlCompareMemoryUlong(%.8X, %d, %.8X)",
       source, length, pattern);
 
   if ((source % 4) || (length % 4)) {
@@ -109,7 +109,7 @@ void RtlFillMemoryUlong_shim(
   uint32_t pattern = SHIM_GET_ARG_32(2);
 
   XELOGD(
-      XT("RtlFillMemoryUlong(%.8X, %d, %.8X)"),
+      "RtlFillMemoryUlong(%.8X, %d, %.8X)",
       destination, length, pattern);
 
   // NOTE: length must be % 4, so we can work on uint32s.
@@ -142,7 +142,7 @@ void RtlInitAnsiString_shim(
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
   const char* source = source_ptr ? (char*)SHIM_MEM_ADDR(source_ptr) : NULL;
-  XELOGD(XT("RtlInitAnsiString(%.8X, %.8X = %s)"),
+  XELOGD("RtlInitAnsiString(%.8X, %.8X = %s)",
          destination_ptr, source_ptr, source ? source : "<null>");
 
   uint16_t length = source ? (uint16_t)xestrlena(source) : 0;
@@ -160,11 +160,11 @@ void RtlFreeAnsiString_shim(
 
   uint32_t string_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(XT("RtlFreeAnsiString(%.8X)"), string_ptr);
+  XELOGD("RtlFreeAnsiString(%.8X)", string_ptr);
 
   //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
   // TODO(benvanik): free the buffer
-  XELOGE(XT("RtlFreeAnsiString leaking buffer"));
+  XELOGE("RtlFreeAnsiString leaking buffer");
 
   SHIM_SET_MEM_16(string_ptr + 0, 0);
   SHIM_SET_MEM_16(string_ptr + 2, 0);
@@ -191,7 +191,7 @@ void RtlInitUnicodeString_shim(
 
   const wchar_t* source =
       source_ptr ? (const wchar_t*)SHIM_MEM_ADDR(source_ptr) : NULL;
-  XELOGD(XT("RtlInitUnicodeString(%.8X, %.8X = %ls)"),
+  XELOGD("RtlInitUnicodeString(%.8X, %.8X = %ls)",
          destination_ptr, source_ptr, source ? source : L"<null>");
 
   uint16_t length = source ? (uint16_t)xestrlenw(source) : 0;
@@ -209,11 +209,11 @@ void RtlFreeUnicodeString_shim(
 
   uint32_t string_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(XT("RtlFreeUnicodeString(%.8X)"), string_ptr);
+  XELOGD("RtlFreeUnicodeString(%.8X)", string_ptr);
 
   //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
   // TODO(benvanik): free the buffer
-  XELOGE(XT("RtlFreeUnicodeString leaking buffer"));
+  XELOGE("RtlFreeUnicodeString leaking buffer");
 
   SHIM_SET_MEM_16(string_ptr + 0, 0);
   SHIM_SET_MEM_16(string_ptr + 2, 0);
@@ -233,10 +233,10 @@ void RtlUnicodeStringToAnsiString_shim(
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
   uint32_t alloc_dest = SHIM_GET_ARG_32(2);
 
-  XELOGD(XT("RtlUnicodeStringToAnsiString(%.8X, %.8X, %d)"),
+  XELOGD("RtlUnicodeStringToAnsiString(%.8X, %.8X, %d)",
          destination_ptr, source_ptr, alloc_dest);
 
-  XELOGE(XT("RtlUnicodeStringToAnsiString not yet implemented"));
+  XELOGE("RtlUnicodeStringToAnsiString not yet implemented");
 
   if (alloc_dest) {
     // Allocate a new buffer to place the string into.
@@ -267,11 +267,11 @@ void RtlImageXexHeaderField_shim(
   // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
 
   XELOGD(
-      XT("RtlImageXexHeaderField(%.8X, %.8X)"),
+      "RtlImageXexHeaderField(%.8X, %.8X)",
       xex_header_base, image_field);
 
   if (xex_header_base != 0x80101100) {
-    XELOGE(XT("RtlImageXexHeaderField with non-magic base NOT IMPLEMENTED"));
+    XELOGE("RtlImageXexHeaderField with non-magic base NOT IMPLEMENTED");
     SHIM_SET_RETURN(0);
     return;
   }
@@ -295,7 +295,7 @@ void RtlImageXexHeaderField_shim(
       return_value = 0;
       break;
     default:
-      XELOGE(XT("RtlImageXexHeaderField header field %.8X NOT IMPLEMENTED"),
+      XELOGE("RtlImageXexHeaderField header field %.8X NOT IMPLEMENTED",
              image_field);
       SHIM_SET_RETURN(0);
       return;
@@ -349,7 +349,7 @@ void RtlInitializeCriticalSection_shim(
 
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(XT("RtlInitializeCriticalSection(%.8X)"), cs_ptr);
+  XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
   cs->spin_count_div_256  = 0;
@@ -368,7 +368,7 @@ void RtlInitializeCriticalSectionAndSpinCount_shim(
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
   uint32_t spin_count = SHIM_GET_ARG_32(1);
 
-  XELOGD(XT("RtlInitializeCriticalSectionAndSpinCount(%.8X, %d)"),
+  XELOGD("RtlInitializeCriticalSectionAndSpinCount(%.8X, %d)",
          cs_ptr, spin_count);
 
   // Spin count is rouned up to 256 intervals then packed in.
@@ -391,7 +391,7 @@ void RtlEnterCriticalSection_shim(
 
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(XT("RtlEnterCriticalSection(%.8X)"), cs_ptr);
+  XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
@@ -414,7 +414,7 @@ spin:
 
     // All out of spin waits, create a full waiter.
     // TODO(benvanik): contention - do a real wait!
-    XELOGE(XT("RtlEnterCriticalSection tried to really lock!"));
+    XELOGE("RtlEnterCriticalSection tried to really lock!");
   }
 
   // Now own the lock.
@@ -430,7 +430,7 @@ void RtlTryEnterCriticalSection_shim(
 
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(XT("RtlTryEnterCriticalSection(%.8X)"), cs_ptr);
+  XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
@@ -461,7 +461,7 @@ void RtlLeaveCriticalSection_shim(
 
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(XT("RtlLeaveCriticalSection(%.8X)"), cs_ptr);
+  XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
@@ -477,7 +477,7 @@ void RtlLeaveCriticalSection_shim(
   if (xe_atomic_dec_32(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
     // TODO(benvanik): wake a waiter.
-    XELOGE(XT("RtlLeaveCriticalSection would have woken a waiter"));
+    XELOGE("RtlLeaveCriticalSection would have woken a waiter");
   }
 }
 

@@ -11,5 +11,5 @@
 
 
 void do_gpu_stuff() {
-  XELOGGPU(XT("gpu"));
+  XELOGGPU("gpu");
 }

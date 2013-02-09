@@ -62,7 +62,7 @@ char* xestrcasestra(const char* str, const char* substr);
 #define xesnprintfa(buffer, bufferCount, format, ...)   _snprintf_s(buffer, bufferCount, bufferCount, format, ##__VA_ARGS__)
 #define xevsnprintfa(buffer, bufferCount, format, args) vsnprintf(buffer, bufferCount, format, args)
 
-#if !defined(XE_CHAR) && XE_PLATFORM(WIN32)
+#if XE_PLATFORM(WIN32) && defined(UNICODE) && UNICODE
 
 typedef wchar_t xechar_t;
 #define XE_WCHAR            1

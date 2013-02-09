@@ -83,10 +83,12 @@ xe_mmap_ref xe_mmap_open(xe_pal_ref pal, const xe_file_mode mode,
   mmap->file_handle = file_handle;
   mmap->mmap_handle = handle;
   mmap->addr        = address;
-  if (!length) {
+  if (length) {
     mmap->length = length;
   } else {
-    size_t map_length = GetFileSize(file_handle, NULL);
+    DWORD length_high;
+    size_t map_length = GetFileSize(file_handle, &length_high);
+    map_length |= ((uint64_t)length_high) << 32;
     mmap->length = map_length;
   }
 

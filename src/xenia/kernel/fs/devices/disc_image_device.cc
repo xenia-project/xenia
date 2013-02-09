@@ -91,14 +91,14 @@ DiscImageDevice::~DiscImageDevice() {
 int DiscImageDevice::Init() {
   mmap_ = xe_mmap_open(pal_, kXEFileModeRead, local_path_, 0, 0);
   if (!mmap_) {
-    XELOGE(XT("Disc image could not be mapped"));
+    XELOGE("Disc image could not be mapped");
     return 1;
   }
 
   gdfx_ = new GDFX(mmap_);
   GDFX::Error error = gdfx_->Load();
   if (error != GDFX::kSuccess) {
-    XELOGE(XT("GDFX init failed: %d"), error);
+    XELOGE("GDFX init failed: %d", error);
     return 1;
   }
 
@@ -112,7 +112,7 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
   // be in the form:
   // some\PATH.foo
 
-  XELOGFS(XT("DiscImageDevice::ResolvePath(%s)"), path);
+  XELOGFS("DiscImageDevice::ResolvePath(%s)", path);
 
   GDFXEntry* gdfx_entry = gdfx_->root_entry();
 

@@ -157,7 +157,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         res->size               = XEGETUINT32BE(pp + 0x10);
         if ((opt_header->length - 4) / 16 > 1) {
           // Ignoring extra resources (not yet seen)
-          XELOGW(XT("ignoring extra XEX_HEADER_RESOURCE_INFO resources"));
+          XELOGW("ignoring extra XEX_HEADER_RESOURCE_INFO resources");
         }
       }
       break;
@@ -219,8 +219,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         size_t count = XEGETUINT32BE(pp + 0x08);
         XEASSERT(count <= max_count);
         if (count > max_count) {
-          XELOGW(XT("ignoring %zu extra entries in ")
-                 XT("XEX_HEADER_IMPORT_LIBRARIES"), (max_count - count));
+          XELOGW("ignoring %zu extra entries in XEX_HEADER_IMPORT_LIBRARIES",
+                 (max_count - count));
           count = max_count;
         }
         header->import_library_count = count;
@@ -273,8 +273,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         size_t count = (opt_header->length - 4) / 16;
         XEASSERT(count <= max_count);
         if (count > max_count) {
-          XELOGW(XT("ignoring %zu extra entries in ")
-                 XT("XEX_HEADER_STATIC_LIBRARIES"), (max_count - count));
+          XELOGW("ignoring %zu extra entries in XEX_HEADER_STATIC_LIBRARIES",
+                 (max_count - count));
           count = max_count;
         }
         header->static_library_count = count;
@@ -763,7 +763,7 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
   // Verify DOS signature (MZ).
   const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
   if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
-    XELOGE(XT("PE signature mismatch; likely bad decryption/decompression"));
+    XELOGE("PE signature mismatch; likely bad decryption/decompression");
     return 1;
   }
 

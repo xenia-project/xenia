@@ -126,7 +126,7 @@ void WsClientOnMsgCallback(wslay_event_context_ptr ctx,
   WsClient* client = reinterpret_cast<WsClient*>(user_data);
   switch (arg->opcode) {
     case WSLAY_TEXT_FRAME:
-      XELOGW(XT("Text frame ignored; use binary messages"));
+      XELOGW("Text frame ignored; use binary messages");
       break;
     case WSLAY_BINARY_FRAME:
       client->OnMessage(arg->msg, arg->msg_length);
@@ -184,24 +184,24 @@ int WsClient::PerformHandshake() {
         }
         break;
       } else {
-        XELOGE(XT("HTTP header read failure"));
+        XELOGE("HTTP header read failure");
         return 1;
       }
     } else if (r == 0) {
       // EOF.
-      XELOGE(XT("HTTP header EOF"));
+      XELOGE("HTTP header EOF");
       return 2;
     } else {
       headers.append(buffer, buffer + r);
       if (headers.size() > 8192) {
-        XELOGE(XT("HTTP headers exceeded max buffer size"));
+        XELOGE("HTTP headers exceeded max buffer size");
         return 3;
       }
     }
   }
 
   if (headers.find("\r\n\r\n") == std::string::npos) {
-    XELOGE(XT("Incomplete HTTP headers: %s"), headers.c_str());
+    XELOGE("Incomplete HTTP headers: %s", headers.c_str());
     return 1;
   }
 
@@ -211,7 +211,7 @@ int WsClient::PerformHandshake() {
       headers.find("Connection: Upgrade\r\n") == std::string::npos ||
       (keyhdstart = headers.find("Sec-WebSocket-Key: ")) ==
           std::string::npos) {
-    XELOGW(XT("HTTP connection does not contain websocket headers"));
+    XELOGW("HTTP connection does not contain websocket headers");
     return 2;
   }
   keyhdstart += 19;
@@ -240,7 +240,7 @@ int WsClient::PerformHandshake() {
       if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
         break;
       } else {
-        XELOGE(XT("HTTP response write failure"));
+        XELOGE("HTTP response write failure");
         return 4;
       }
     } else {
@@ -305,7 +305,7 @@ void WsClient::EventThread() {
     if ((xe_socket_loop_check_socket_recv(loop_) && wslay_event_recv(ctx)) ||
         (xe_socket_loop_check_socket_send(loop_) && wslay_event_send(ctx))) {
       // Error handling the event.
-      XELOGE(XT("Error handling WebSocket data"));
+      XELOGE("Error handling WebSocket data");
       break;
     }
   }

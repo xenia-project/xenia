@@ -69,27 +69,19 @@ int Run::Launch(const xechar_t* path) {
   // Normalize the path and make absolute.
   // TODO(benvanik): move this someplace common.
   xechar_t abs_path[XE_MAX_PATH];
-#if XE_PLATFORM(WIN32)
-#if XE_WCHAR
-  _wfullpath(abs_path, path, XECOUNT(abs_path));
-#else
-  _fullpath(abs_path, path, sizeof(abs_path));
-#endif  // XE_WCHAR
-#else
-  realpath(path, abs_path);
-#endif  // WIN32
+  xe_path_get_absolute(path, abs_path, XECOUNT(abs_path));
 
   // Grab file extension.
   const xechar_t* dot = xestrrchr(abs_path, '.');
   if (!dot) {
-    XELOGE(XT("Invalid input path; no extension found"));
+    XELOGE("Invalid input path; no extension found");
     return 1;
   }
 
   // Run the debugger.
   // This may pause waiting for connections.
   if (debugger_->Startup()) {
-    XELOGE(XT("Debugger failed to startup"));
+    XELOGE("Debugger failed to startup");
     return 1;
   }
 
@@ -129,8 +121,6 @@ int xenia_run(int argc, xechar_t **argv) {
 
   result_code = 0;
 XECLEANUP:
-
-  google::ShutDownCommandLineFlags();
   return result_code;
 }
 XE_MAIN_THUNK(xenia_run, "xenia-run some.xex");

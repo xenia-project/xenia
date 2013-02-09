@@ -38,7 +38,7 @@ void XexCheckExecutablePrivilege_shim(
   uint32_t privilege = SHIM_GET_ARG_32(0);
 
   XELOGD(
-      XT("XexCheckExecutablePrivilege(%.8X)"),
+      "XexCheckExecutablePrivilege(%.8X)",
       privilege);
 
   // Privilege is bit position in xe_xex2_system_flags enum - so:
@@ -73,7 +73,7 @@ void XexGetModuleHandle_shim(
   uint32_t module_handle_ptr = SHIM_GET_ARG_32(1);
 
   XELOGD(
-      XT("XexGetModuleHandle(%s, %.8X)"),
+      "XexGetModuleHandle(%s, %.8X)",
       module_name, module_handle_ptr);
 
   XModule* module = state->GetModule(module_name);

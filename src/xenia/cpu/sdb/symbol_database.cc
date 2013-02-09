@@ -66,7 +66,7 @@ int SymbolDatabase::Analyze() {
          ++it) {
       if (it->second->symbol_type == Symbol::Function) {
         if (fn->type == FunctionSymbol::Unknown) {
-          XELOGE(XT("UNKNOWN FN %.8X"), fn->start_address);
+          XELOGE("UNKNOWN FN %.8X", fn->start_address);
         }
         if (CompleteFunctionGraph(static_cast<FunctionSymbol*>(it->second))) {
           needs_another_pass = true;
@@ -111,7 +111,7 @@ FunctionSymbol* SymbolDatabase::GetOrInsertFunction(uint32_t address) {
 
   // Ignore values outside of the .text range.
   if (!IsValueInTextRange(address)) {
-    XELOGSDB(XT("Ignoring function outside of .text: %.8X"), address);
+    XELOGSDB("Ignoring function outside of .text: %.8X", address);
     return NULL;
   }
 
@@ -232,7 +232,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     return 0;
   }
 
-  XELOGSDB(XT("Analyzing function %.8X..."), fn->start_address);
+  XELOGSDB("Analyzing function %.8X...", fn->start_address);
 
   // Set a default name, if it hasn't been named already.
   if (!fn->name()) {
@@ -258,7 +258,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
     if (!i.code) {
-      XELOGSDB(XT("function end %.8X (0x00000000 read)"), addr);
+      XELOGSDB("function end %.8X (0x00000000 read)", addr);
       break;
     }
 
@@ -277,18 +277,17 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       // Invalid instruction.
       // We can just ignore it because there's (very little)/no chance it'll
       // affect flow control.
-      XELOGSDB(XT("Invalid instruction at %.8X: %.8X"), addr, i.code);
+      XELOGSDB("Invalid instruction at %.8X: %.8X", addr, i.code);
     } else if (i.code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
       block->outgoing_type = FunctionBlock::kTargetLR;
       if (furthest_target > addr) {
         // Remaining targets within function, not end.
-        XELOGSDB(XT("ignoring blr %.8X (branch to %.8X)"), addr,
-                                                           furthest_target);
+        XELOGSDB("ignoring blr %.8X (branch to %.8X)", addr, furthest_target);
       } else {
         // Function end point.
-        XELOGSDB(XT("function end %.8X"), addr);
+        XELOGSDB("function end %.8X", addr);
         ends_fn = true;
       }
       ends_block = true;
@@ -298,11 +297,11 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_type = FunctionBlock::kTargetCTR;
       if (furthest_target > addr) {
         // Remaining targets within function, not end.
-        XELOGSDB(XT("ignoring bctr %.8X (branch to %.8X)"), addr,
+        XELOGSDB("ignoring bctr %.8X (branch to %.8X)", addr,
                  furthest_target);
       } else {
         // Function end point.
-        XELOGSDB(XT("function end %.8X"), addr);
+        XELOGSDB("function end %.8X", addr);
         ends_fn = true;
       }
       ends_block = true;
@@ -312,17 +311,17 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       block->outgoing_address = target;
 
       if (i.I.LK) {
-        XELOGSDB(XT("bl %.8X -> %.8X"), addr, target);
+        XELOGSDB("bl %.8X -> %.8X", addr, target);
 
         // Queue call target if needed.
         GetOrInsertFunction(target);
       } else {
-        XELOGSDB(XT("b %.8X -> %.8X"), addr, target);
+        XELOGSDB("b %.8X -> %.8X", addr, target);
         // If the target is back into the function and there's no further target
         // we are at the end of a function.
         if (target >= fn->start_address &&
             target < addr && furthest_target <= addr) {
-          XELOGSDB(XT("function end %.8X (back b)"), addr);
+          XELOGSDB("function end %.8X (back b)", addr);
           ends_fn = true;
         }
 
@@ -332,7 +331,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         // it.
         if (!ends_fn &&
             furthest_target <= addr && IsRestGprLr(target)) {
-          XELOGSDB(XT("function end %.8X (__restgprlr_*)"), addr);
+          XELOGSDB("function end %.8X (__restgprlr_*)", addr);
           ends_fn = true;
         }
 
@@ -351,14 +350,14 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       uint32_t target = XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)addr);
       block->outgoing_address = target;
       if (i.B.LK) {
-        XELOGSDB(XT("bcl %.8X -> %.8X"), addr, target);
+        XELOGSDB("bcl %.8X -> %.8X", addr, target);
 
         // Queue call target if needed.
         // TODO(benvanik): see if this is correct - not sure anyone makes
         //     function calls with bcl.
         //GetOrInsertFunction(target);
       } else {
-        XELOGSDB(XT("bc %.8X -> %.8X"), addr, target);
+        XELOGSDB("bc %.8X -> %.8X", addr, target);
 
         // TODO(benvanik): GetOrInsertFunction? it's likely a BB
 
@@ -369,18 +368,18 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
       // bclr/bclrl
       block->outgoing_type = FunctionBlock::kTargetLR;
       if (i.XL.LK) {
-        XELOGSDB(XT("bclrl %.8X"), addr);
+        XELOGSDB("bclrl %.8X", addr);
       } else {
-        XELOGSDB(XT("bclr %.8X"), addr);
+        XELOGSDB("bclr %.8X", addr);
       }
       ends_block = true;
     } else if (i.type->opcode == 0x4C000420) {
       // bcctr/bcctrl
       block->outgoing_type = FunctionBlock::kTargetCTR;
       if (i.XL.LK) {
-        XELOGSDB(XT("bcctrl %.8X"), addr);
+        XELOGSDB("bcctrl %.8X", addr);
       } else {
-        XELOGSDB(XT("bcctr %.8X"), addr);
+        XELOGSDB("bcctr %.8X", addr);
       }
       ends_block = true;
     }
@@ -400,7 +399,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     addr += 4;
     if (fn->end_address && addr > fn->end_address) {
       // Hmm....
-      XELOGSDB(XT("Ran over function bounds! %.8X-%.8X"),
+      XELOGSDB("Ran over function bounds! %.8X-%.8X",
                fn->start_address, fn->end_address);
       break;
     }
@@ -411,8 +410,8 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     // from someplace valid (like method hints) this may indicate an error.
     // It's also possible that we guessed in hole-filling and there's another
     // function below this one.
-    XELOGSDB(XT("Function ran under: %.8X-%.8X ended at %.8X"),
-           fn->start_address, fn->end_address, addr + 4);
+    XELOGSDB("Function ran under: %.8X-%.8X ended at %.8X",
+             fn->start_address, fn->end_address, addr + 4);
   }
   fn->end_address = addr;
 
@@ -424,7 +423,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // - if present, flag function as needing a stack
   // - record prolog/epilog lengths/stack size/etc
 
-  XELOGSDB(XT("Finished analyzing %.8X"), fn->start_address);
+  XELOGSDB("Finished analyzing %.8X", fn->start_address);
   return 0;
 }
 
@@ -454,7 +453,7 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
           block->outgoing_block = fn->SplitBlock(block->outgoing_address);
         }
         if (!block->outgoing_block) {
-          XELOGE(XT("block target not found: %.8X"), block->outgoing_address);
+          XELOGE("block target not found: %.8X", block->outgoing_address);
           XEASSERTALWAYS();
         }
       } else {
@@ -462,7 +461,7 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
         block->outgoing_type = FunctionBlock::kTargetFunction;
         block->outgoing_function = GetFunction(block->outgoing_address);
         if (!block->outgoing_function) {
-          XELOGE(XT("call target not found: %.8X -> %.8X"),
+          XELOGE("call target not found: %.8X -> %.8X",
                  block->end_address, block->outgoing_address);
           new_fns.push_back(block->outgoing_address);
         }
@@ -471,7 +470,7 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
   }
 
   if (new_fns.size()) {
-    XELOGW(XT("Repeat analysis required to find %d new functions"),
+    XELOGW("Repeat analysis required to find %d new functions",
            (uint32_t)new_fns.size());
     for (std::vector<uint32_t>::iterator it = new_fns.begin();
         it != new_fns.end(); ++it) {
@@ -584,7 +583,7 @@ int SymbolDatabase::FlushQueue() {
     FunctionSymbol* fn = scan_queue_.front();
     scan_queue_.pop_front();
     if (AnalyzeFunction(fn)) {
-      XELOGSDB(XT("Aborting analysis!"));
+      XELOGSDB("Aborting analysis!");
       return 1;
     }
   }
@@ -654,7 +653,7 @@ void SymbolDatabase::ReadMap(const char* file_name) {
         // Function was not found via analysis.
         // We don't want to add it here as that would make us require maps to
         // get working.
-        XELOGSDB(XT("MAP DIFF: function %.8X %s not found during analysis"),
+        XELOGSDB("MAP DIFF: function %.8X %s not found during analysis",
                  addr, name.c_str());
       } else {
         // Add a new variable.

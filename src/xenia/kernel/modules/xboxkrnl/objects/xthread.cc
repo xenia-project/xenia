@@ -54,7 +54,7 @@ XThread::~XThread() {
 
   if (thread_handle_) {
     // TODO(benvanik): platform kill
-    XELOGE(XT("Thread disposed without exiting"));
+    XELOGE("Thread disposed without exiting");
   }
 }
 
@@ -84,7 +84,7 @@ X_STATUS XThread::Create() {
   // consistent.
   thread_state_address_ = xe_memory_heap_alloc(memory(), 0, 2048, 0);
   if (!thread_state_address_) {
-    XELOGW(XT("Unable to allocate thread state block"));
+    XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
 
@@ -106,13 +106,13 @@ X_STATUS XThread::Create() {
   processor_state_ = kernel_state()->processor()->AllocThread(
       creation_params_.stack_size, thread_state_address_);
   if (!processor_state_) {
-    XELOGW(XT("Unable to allocate processor thread state"));
+    XELOGW("Unable to allocate processor thread state");
     return X_STATUS_NO_MEMORY;
   }
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {
-    XELOGW(XT("Unable to create platform thread (%.8X)"), return_code);
+    XELOGW("Unable to create platform thread (%.8X)", return_code);
     return return_code;
   }
 
@@ -151,7 +151,7 @@ X_STATUS XThread::PlatformCreate() {
   if (!thread_handle_) {
     uint32_t last_error = GetLastError();
     // TODO(benvanik): translate?
-    XELOGE(XT("CreateThread failed with %d"), last_error);
+    XELOGE("CreateThread failed with %d", last_error);
     return last_error;
   }
 
@@ -229,7 +229,7 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 void XThread::Execute() {
   // Run XapiThreadStartup first, if present.
   if (creation_params_.xapi_thread_startup) {
-    XELOGE(XT("xapi_thread_startup not implemented"));
+    XELOGE("xapi_thread_startup not implemented");
   }
 
   // Run user code.

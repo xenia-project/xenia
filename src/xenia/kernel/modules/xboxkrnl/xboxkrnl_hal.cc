@@ -30,12 +30,12 @@ void HalReturnToFirmware_shim(
   uint32_t routine = SHIM_GET_ARG_32(0);
 
   XELOGD(
-      XT("HalReturnToFirmware(%d)"),
+      "HalReturnToFirmware(%d)",
       routine);
 
   // TODO(benvank): diediedie much more gracefully
   // Not sure how to blast back up the stack in LLVM without exceptions, though.
-  XELOGE(XT("Game requested shutdown via HalReturnToFirmware"));
+  XELOGE("Game requested shutdown via HalReturnToFirmware");
   exit(0);
 }
 

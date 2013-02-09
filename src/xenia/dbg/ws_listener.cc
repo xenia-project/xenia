@@ -41,7 +41,7 @@ int WsListener::Setup() {
   xe_socket_set_nodelay(socket_id_, true);
 
   if (xe_socket_bind(socket_id_, port_)) {
-    XELOGE(XT("Could not bind listen socket: %d"), errno);
+    XELOGE("Could not bind listen socket: %d", errno);
     return 1;
   }
 
@@ -60,7 +60,7 @@ int WsListener::WaitForClient() {
     return 1;
   }
 
-  XELOGI(XT("Debugger connected from %s"), client_info.addr);
+  XELOGI("Debugger connected from %s", client_info.addr);
 
   // Create the client object.
   // Note that the client will delete itself when done.

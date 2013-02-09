@@ -95,7 +95,7 @@ int ModuleGenerator::Generate() {
   // value (so that we can call it), the second actually builds the function.
   std::vector<FunctionSymbol*> functions;
   if (!sdb_->GetAllFunctions(functions)) {
-    XELOGI(XT("Beginning prep of %ld functions..."), functions.size());
+    XELOGI("Beginning prep of %ld functions...", functions.size());
     for (std::vector<FunctionSymbol*>::iterator it = functions.begin();
          it != functions.end(); ++it) {
       FunctionSymbol* fn = *it;
@@ -115,20 +115,20 @@ int ModuleGenerator::Generate() {
         break;
       }
     }
-    XELOGI(XT("Function prep complete"));
+    XELOGI("Function prep complete");
   }
 
   // Build out all the user functions.
   size_t n = 0;
-  XELOGI(XT("Beginning generation of %ld functions..."), functions.size());
+  XELOGI("Beginning generation of %ld functions...", functions.size());
   for (std::map<uint32_t, CodegenFunction*>::iterator it =
        functions_.begin(); it != functions_.end(); ++it, ++n) {
     FunctionSymbol* symbol = it->second->symbol;
-    XELOGI(XT("Generating %ld/%ld %.8X %s"),
+    XELOGI("Generating %ld/%ld %.8X %s",
            n, functions_.size(), symbol->start_address, symbol->name());
     BuildFunction(it->second);
   }
-  XELOGI(XT("Function generation complete"));
+  XELOGI("Function generation complete");
 
   di_builder_->finalize();
 

@@ -117,13 +117,13 @@ int XboxkrnlModule::LaunchModule(const char* path) {
   // Load the module into memory from the filesystem.
   X_STATUS result_code = module->LoadFromFile(path);
   if (XFAILED(result_code)) {
-    XELOGE(XT("Failed to load module %s: %.8X"), path, result_code);
+    XELOGE("Failed to load module %s: %.8X", path, result_code);
     module->Release();
     return 1;
   }
 
   if (FLAGS_abort_before_entry) {
-    XELOGI(XT("--abort_before_entry causing an early exit"));
+    XELOGI("--abort_before_entry causing an early exit");
     module->Release();
     return 0;
   }
@@ -132,7 +132,7 @@ int XboxkrnlModule::LaunchModule(const char* path) {
   // NOTE: this won't return until the module exits.
   result_code = module->Launch(0);
   if (XFAILED(result_code)) {
-    XELOGE(XT("Failed to launch module %s: %.8X"), path, result_code);
+    XELOGE("Failed to launch module %s: %.8X", path, result_code);
     module->Release();
     return 2;
   }

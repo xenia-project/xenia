@@ -111,6 +111,6 @@ Entry* FileSystem::ResolvePath(const char* path) {
     }
   }
 
-  XELOGE(XT("ResolvePath(%s) failed - no root found"), path);
+  XELOGE("ResolvePath(%s) failed - no root found", path);
   return NULL;
 }

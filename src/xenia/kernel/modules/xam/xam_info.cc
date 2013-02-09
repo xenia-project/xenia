@@ -35,7 +35,7 @@ void XGetAVPack_shim(
 
 void XGetGameRegion_shim(
     xe_ppc_state_t* ppc_state, XamState* state) {
-  XELOGD(XT("XGetGameRegion()"));
+  XELOGD("XGetGameRegion()");
 
   SHIM_SET_RETURN(XEX_REGION_ALL);
 }
@@ -43,7 +43,7 @@ void XGetGameRegion_shim(
 
 void XGetLanguage_shim(
     xe_ppc_state_t* ppc_state, XamState* state) {
-  XELOGD(XT("XGetLanguage()"));
+  XELOGD("XGetLanguage()");
 
   uint32_t desired_language = X_LANGUAGE_ENGLISH;
 

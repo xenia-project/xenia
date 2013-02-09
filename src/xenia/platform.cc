@@ -21,7 +21,7 @@ typedef int (*user_main_t)(int argc, xechar_t** argv);
 }
 
 
-#if XE_PLATFORM(WIN32) && XE_WCHAR
+#if XE_LIKE(WIN32) && defined(UNICODE) && UNICODE
 
 int xe_main_thunk(
     int argc, wchar_t* argv[],
@@ -29,22 +29,27 @@ int xe_main_thunk(
   google::SetUsageMessage(std::string("usage: ") + usage);
   google::SetVersionString("1.0");
 
-  char** argva = new char*[argc];
-  for (int n = 0; n < argc; n++) {
+  int argca = argc;
+  char** argva = (char**)alloca(sizeof(char*) * argca);
+  for (int n = 0; n < argca; n++) {
     size_t len = xestrlenw(argv[n]);
-    argva[n] = (char*)malloc(len);
-    xestrnarrow(argva[n], len, argv[n]);
+    argva[n] = (char*)alloca(len + 1);
+    xestrnarrow(argva[n], len + 1, argv[n]);
   }
 
   google::ParseCommandLineFlags(&argc, &argva, true);
-
-  int result = ((user_main_t)user_main)(argc, (xechar_t**)argv);
-
+  
+  // Parse may have deleted flags - so widen again.
+  int argcw = argc;
+  wchar_t** argvw = (wchar_t**)alloca(sizeof(wchar_t*) * argca);
   for (int n = 0; n < argc; n++) {
-    free(argva[n]);
+    size_t len = xestrlena(argva[n]);
+    argvw[n] = (wchar_t*)alloca(sizeof(wchar_t) * (len + 1));
+    xestrwiden(argvw[n], len + 1, argva[n]);
   }
-  delete[] argva;
 
+  int result = ((user_main_t)user_main)(argcw, (xechar_t**)argvw);
+  google::ShutDownCommandLineFlags();
   return result;
 }
 
@@ -56,7 +61,9 @@ int xe_main_thunk(
   google::SetUsageMessage(std::string("usage: ") + usage);
   google::SetVersionString("1.0");
   google::ParseCommandLineFlags(&argc, &argv, true);
-  return ((user_main_t)user_main)(argc, argv);
+  int result = ((user_main_t)user_main)(argc, argv);
+  google::ShutDownCommandLineFlags();
+  return result;
 }
 
 #endif  // WIN32

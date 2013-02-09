@@ -92,7 +92,7 @@ int Runtime::LaunchXexFile(const xechar_t* path) {
   result_code = filesystem_->RegisterLocalDirectoryDevice(
       "\\Device\\Harddisk1\\Partition0", parent_path);
   if (result_code) {
-    XELOGE(XT("Unable to mount local directory %s"), parent_path);
+    XELOGE("Unable to mount local directory");
     return result_code;
   }
 
@@ -124,7 +124,7 @@ int Runtime::LaunchDiscImage(const xechar_t* path) {
   result_code = filesystem_->RegisterDiscImageDevice(
       "\\Device\\Cdrom0", path);
   if (result_code) {
-    XELOGE(XT("Unable to mount disc image %s"), path);
+    XELOGE("Unable to mount disc image");
     return result_code;
   }
 

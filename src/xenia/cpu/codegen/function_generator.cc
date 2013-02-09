@@ -311,7 +311,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
     }
 
     if (!i.type) {
-      XELOGCPU(XT("Invalid instruction %.8X %.8X"), ia, i.code);
+      XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
       SpillRegisters();
       b.CreateCall3(
           invalidInstruction,
@@ -344,7 +344,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
       // This printf is handy for sort/uniquify to find instructions.
       //printf("unimplinstr %s\n", i.type->name);
 
-      XELOGCPU(XT("Unimplemented instr %.8X %.8X %s"),
+      XELOGCPU("Unimplemented instr %.8X %.8X %s",
                ia, i.code, i.type->name);
       SpillRegisters();
       b.CreateCall3(
@@ -363,7 +363,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
   } else if (block->outgoing_type == FunctionBlock::kTargetUnknown) {
     // Hrm.
     // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
-    XELOGCPU(XT("SDB function scan error in %.8X: bb %.8X has unknown exit"),
+    XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit",
              fn_->start_address, block->start_address);
     b.CreateRetVoid();
   }
@@ -396,7 +396,7 @@ BasicBlock* FunctionGenerator::GetReturnBasicBlock() {
 Function* FunctionGenerator::GetFunction(FunctionSymbol* fn) {
   Function* result = gen_module_->getFunction(StringRef(fn->name()));
   if (!result) {
-    XELOGE(XT("Static function not found: %.8X %s"),
+    XELOGE("Static function not found: %.8X %s",
            fn->start_address, fn->name());
   }
   XEASSERTNOTNULL(result);

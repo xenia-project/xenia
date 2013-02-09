@@ -67,11 +67,11 @@ int Debugger::Startup() {
 
   // If desired, wait until the first client connects.
   if (FLAGS_wait_for_debugger) {
-    XELOGI(XT("Waiting for debugger on port %d..."), FLAGS_remote_debug_port);
+    XELOGI("Waiting for debugger on port %d...", FLAGS_remote_debug_port);
     if (listener_->WaitForClient()) {
       return 1;
     }
-    XELOGI(XT("Debugger attached, continuing..."));
+    XELOGI("Debugger attached, continuing...");
   }
 
   return 0;
@@ -123,7 +123,7 @@ int Debugger::Dispatch(Client* client, const uint8_t* data, size_t length) {
   std::map<uint32_t, ContentSource*>::iterator it =
       content_sources_.find(source_id);
   if (it == content_sources_.end()) {
-    XELOGW(XT("Content source %d not found, ignoring message"), source_id);
+    XELOGW("Content source %d not found, ignoring message", source_id);
     return 1;
   }
   return it->second->Dispatch(client, type, request_id, data + 16, size);

@@ -21,9 +21,9 @@
 #else
 #define XE_LOG_LINE_ATTRIBUTE
 #endif  // GNUC
-void xe_log_line(const xechar_t* file_path, const uint32_t line_number,
-                 const xechar_t* function_name, const xechar_t level_char,
-                 const xechar_t* fmt, ...) XE_LOG_LINE_ATTRIBUTE;
+void xe_log_line(const char* file_path, const uint32_t line_number,
+                 const char* function_name, const char level_char,
+                 const char* fmt, ...) XE_LOG_LINE_ATTRIBUTE;
 #undef XE_LOG_LINE_ATTRIBUTE
 
 #if XE_OPTION(ENABLE_LOGGING)

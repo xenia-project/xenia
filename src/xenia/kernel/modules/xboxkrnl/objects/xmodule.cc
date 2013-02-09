@@ -59,11 +59,11 @@ X_STATUS XModule::LoadFromFile(const char* path) {
   // TODO(benvanik): make this code shared?
   fs::Entry* fs_entry = kernel_state()->filesystem()->ResolvePath(path);
   if (!fs_entry) {
-    XELOGE(XT("File not found: %s"), path);
+    XELOGE("File not found: %s", path);
     return X_STATUS_NO_SUCH_FILE;
   }
   if (fs_entry->type() != fs::Entry::kTypeFile) {
-    XELOGE(XT("Invalid file type: %s"), path);
+    XELOGE("Invalid file type: %s", path);
     return X_STATUS_NO_SUCH_FILE;
   }
   fs::FileEntry* fs_file = static_cast<fs::FileEntry*>(fs_entry);
@@ -114,14 +114,14 @@ X_STATUS XModule::GetSection(const char* name,
 
 void* XModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   // TODO(benvanik): check export tables.
-  XELOGE(XT("GetProcAddressByOrdinal not implemented"));
+  XELOGE("GetProcAddressByOrdinal not implemented");
   return NULL;
 }
 
 X_STATUS XModule::Launch(uint32_t flags) {
   const xe_xex2_header_t* header = xex_header();
 
-  XELOGI(XT("Launching module..."));
+  XELOGI("Launching module...");
 
   // Set as the main module, while running.
   kernel_state()->SetExecutableModule(this);
@@ -137,7 +137,7 @@ X_STATUS XModule::Launch(uint32_t flags) {
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
-    XELOGE(XT("Could not create launch thread: %.8X"), result);
+    XELOGE("Could not create launch thread: %.8X", result);
     return result;
   }
 

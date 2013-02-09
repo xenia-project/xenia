@@ -84,10 +84,6 @@
       '__STDC_LIMIT_MACROS=1',
       '__STDC_CONSTANT_MACROS=1',
       '_ISOC99_SOURCE=1',
-
-      # Force xechar_t to char on Win32 (and use all the A functions).
-      # This makes life easier when string formatting/etc.
-      'XE_CHAR=1',
     ],
 
     'conditions': [

@@ -20,7 +20,7 @@
 #include <xenia/types.h>
 
 
-#if XE_COMPILER(MSVC) && XE_WCHAR
+#if 0 && XE_COMPILER(MSVC) && defined(UNICODE) && UNICODE
 // http://msdn.microsoft.com/en-us/library/b0084kay.aspx
 #if !defined(__WFILE__)
 #define WIDEN2(x)           L##x

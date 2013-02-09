@@ -199,7 +199,7 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   // Find the function to execute.
   Function* f = GetFunction(address);
   if (!f) {
-    XELOGCPU(XT("Failed to find function %.8X to execute."), address);
+    XELOGCPU("Failed to find function %.8X to execute.", address);
     return 1;
   }
 
