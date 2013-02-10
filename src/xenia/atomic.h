@@ -69,7 +69,16 @@ XEFORCEINLINE void* xe_atomic_stack_dequeue(xe_atomic_stack_t* stack,
 
 #elif XE_LIKE(POSIX)
 
-#error TODO(benvanik): POSIX atomic primitives
+#define xe_atomic_inc_32(value) \
+    __sync_add_and_fetch(value, 1)
+#define xe_atomic_dec_32(value) \
+    __sync_sub_and_fetch(value, 1)
+#define xe_atomic_add_32(amount, value) \
+    __sync_fetch_and_add(value, amount)
+#define xe_atomic_sub_32(amount, value) \
+    __sync_fetch_and_sub(value, amount)
+#define xe_atomic_cas_32(oldValue, newValue, value) \
+    __sync_bool_compare_and_swap(value, oldValue, newValue)
 
 #else
 

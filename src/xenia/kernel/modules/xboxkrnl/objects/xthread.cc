@@ -186,11 +186,16 @@ X_STATUS XThread::PlatformCreate() {
 
   int result_code;
   if (creation_params_.creation_flags & X_CREATE_SUSPENDED) {
+#if XE_PLATFORM(OSX)
     result_code = pthread_create_suspended_np(
         reinterpret_cast<pthread_t*>(&thread_handle_),
         &attr,
         &XThreadStartCallbackPthreads,
         this);
+#else
+    // TODO(benvanik): pthread_create_suspended_np on linux
+    XEASSERTALWAYS();
+#endif  // OSX
   } else {
     result_code = pthread_create(
         reinterpret_cast<pthread_t*>(&thread_handle_),

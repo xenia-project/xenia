@@ -24,9 +24,9 @@
 #define XESWAP32                        OSSwapInt32
 #define XESWAP64                        OSSwapInt64
 #else
-#define XESWAP16                        bswap_16
-#define XESWAP32                        bswap_32
-#define XESWAP64                        bswap_64
+#define XESWAP16                        __bswap_16
+#define XESWAP32                        __bswap_32
+#define XESWAP64                        __bswap_64
 #endif
 
 

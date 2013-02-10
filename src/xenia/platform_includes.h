@@ -33,6 +33,11 @@
 #pragma warning(disable : 4068)
 #endif  // MSVC
 
+#if XE_LIKE(POSIX)
+#include <unistd.h>
+#include <endian.h>
+#endif  // POSIX
+
 #include <stddef.h>
 #include <memory.h>
 #include <string.h>

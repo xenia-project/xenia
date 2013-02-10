@@ -153,7 +153,7 @@ int xe_main_thunk(
     void* user_main, const char* usage);
 #define XE_MAIN_THUNK(NAME, USAGE) \
     int main(int argc, char **argv) { \
-      return xe_main_thunk(argc, argv, NAME, USAGE); \
+      return xe_main_thunk(argc, argv, (void*)NAME, USAGE); \
     }
 #endif  // WIN32
 

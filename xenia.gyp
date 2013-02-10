@@ -49,6 +49,14 @@
                   ],
                 },
               }],
+              ['OS == "linux"', {
+                'libraries': [
+                  '-L../../../<@(llvm_libdir)/',
+                  '<!@(<(llvm_config) --libs all)',
+                  '-lpthread',
+                  '-ldl',
+                ],
+              }],
             ],
           }],
         ],

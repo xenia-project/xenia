@@ -109,7 +109,11 @@ int xe_thread_start(xe_thread_ref thread) {
 
 static void* xe_thread_callback_pthreads(void* param) {
   xe_thread_t* thread = reinterpret_cast<xe_thread_t*>(param);
+#if XE_LIKE(OSX)
   XEIGNORE(pthread_setname_np(thread->name));
+#else
+  pthread_setname_np(pthread_self(), thread->name);
+#endif  // OSX
   thread->callback(thread->callback_param);
   return 0;
 }

@@ -12,6 +12,7 @@
 #if XE_PLATFORM(WIN32)
 #include <winsock2.h>
 #else
+#include <arpa/inet.h>
 #endif  // WIN32
 
 

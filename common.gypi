@@ -95,7 +95,7 @@
     ],
 
     'cflags': [
-      '-std=c99',
+      #'-std=c99',
     ],
 
     'configurations': {

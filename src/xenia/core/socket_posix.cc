@@ -185,7 +185,7 @@ int xe_socket_loop_poll(xe_socket_loop_t* loop,
     XEIGNORE(recv(loop->notify_rd_id, &dummy, 1, 0));
   }
   loop->events[1].revents = 0;
-  loop->events[1].events = POLL_IN;
+  loop->events[1].events = POLLIN;
 
   // Check send/recv.
   loop->pending_recv = (loop->events[0].revents & POLLIN) != 0;
