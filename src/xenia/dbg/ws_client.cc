@@ -267,8 +267,8 @@ void WsClient::EventThread() {
 
   // Prep callbacks.
   struct wslay_event_callbacks callbacks = {
-    WsClientRecvCallback,
-    WsClientSendCallback,
+    (wslay_event_recv_callback)WsClientRecvCallback,
+    (wslay_event_send_callback)WsClientSendCallback,
     NULL,
     NULL,
     NULL,
