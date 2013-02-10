@@ -63,6 +63,16 @@ Only tested on OS X 10.8 (Mountain Lion).
 * [Xcode 4](http://developer.apple.com/xcode/) + command line tools
 * [Homebrew](http://mxcl.github.com/homebrew/)
 
+#### Linux
+
+Only tested on Ubuntu 12.10.
+
+* random other things (`sudo apt-get install make flex bison texinfo`)
+* clang (`sudo apt-get install clang`)
+
+Pretty much just install what's asked for as you try to `xb setup` or
+`xb build`.
+
 ## Building
 
 A simple build script is included to manage basic tasks such as building
