@@ -1,3 +1,26 @@
+
+
+
+ExecModule:
+  Prepare(memory, export_resolver)
+  Init()
+  Uninit()
+  Execute(ppc_state, addr)
+
+JITExecModule:
+
+LibraryExecModule:
+
+
+Processor::Execute(addr):
+  // TODO: faster search, if needed
+  for each exec_module:
+    if (exec_module->Execute(addr)) {
+      break;
+    }
+
+
+
 ## Loader
 
 Set all function variable addresses to the thunks. Since we handle the thunks
