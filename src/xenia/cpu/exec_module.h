@@ -72,6 +72,8 @@ private:
   shared_ptr<llvm::Module>            gen_module_;
   auto_ptr<codegen::ModuleGenerator>  codegen_;
 
+  uint32_t    code_addr_low_;
+  uint32_t    code_addr_high_;
   FunctionMap fns_;
 };
 

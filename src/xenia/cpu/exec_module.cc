@@ -73,6 +73,22 @@ int ExecModule::PrepareXex(xe_xex2_ref xex) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
       new sdb::XexSymbolDatabase(memory_, export_resolver_.get(), xex));
 
+  code_addr_low_ = 0;
+  code_addr_high_ = 0;
+  const xe_xex2_header_t* header = xe_xex2_get_header(xex);
+  for (size_t n = 0, i = 0; n < header->section_count; n++) {
+    const xe_xex2_section_t* section = &header->sections[n];
+    const size_t start_address =
+        header->exe_address + (i * xe_xex2_section_length);
+    const size_t end_address =
+        start_address + (section->info.page_count * xe_xex2_section_length);
+    if (section->info.type == XEX_SECTION_CODE) {
+      code_addr_low_ = MIN(code_addr_low_, start_address);
+      code_addr_high_ = MAX(code_addr_high_, end_address);
+    }
+    i += section->info.page_count;
+  }
+
   int result_code = Prepare();
   if (result_code) {
     return result_code;
@@ -88,6 +104,9 @@ int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
       new sdb::RawSymbolDatabase(memory_, export_resolver_.get(),
                                  start_address, end_address));
+
+  code_addr_low_ = start_address;
+  code_addr_high_ = end_address;
 
   return Prepare();
 }
