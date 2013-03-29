@@ -11,7 +11,7 @@
 #define XENIA_CORE_FILE_H_
 
 #include <xenia/common.h>
-#include <xenia/core/pal.h>
+#include <xenia/core/path.h>
 #include <xenia/core/ref.h>
 
 
@@ -25,18 +25,12 @@ typedef enum {
 } xe_file_mode;
 
 
-xe_file_ref xe_file_open(xe_pal_ref pal, const xe_file_mode mode,
-                         const xechar_t *path);
+xe_file_ref xe_file_open(const xe_file_mode mode, const xechar_t *path);
 xe_file_ref xe_file_retain(xe_file_ref file);
 void xe_file_release(xe_file_ref file);
 size_t xe_file_get_length(xe_file_ref file);
 size_t xe_file_read(xe_file_ref file, const size_t offset,
                     uint8_t *buffer, const size_t buffer_size);
-
-void xe_path_join(const xechar_t* left, const xechar_t* right,
-                  xechar_t* out_path, size_t out_path_size);
-void xe_path_get_absolute(const xechar_t* path, xechar_t* out_abs_path,
-                          size_t abs_path_size);
 
 
 #endif  // XENIA_CORE_FILE_H_

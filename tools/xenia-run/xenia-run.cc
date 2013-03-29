@@ -27,7 +27,6 @@ public:
   int Launch(const xechar_t* path);
 
 private:
-  xe_pal_ref      pal_;
   xe_memory_ref   memory_;
   shared_ptr<Processor> processor_;
   shared_ptr<Runtime>   runtime_;
@@ -39,26 +38,24 @@ Run::Run() {
 
 Run::~Run() {
   xe_memory_release(memory_);
-  xe_pal_release(pal_);
 }
 
 int Run::Setup() {
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
-  pal_ = xe_pal_create(pal_options);
-  XEEXPECTNOTNULL(pal_);
+  XEEXPECTZERO(xe_pal_init(pal_options));
 
-  debugger_ = shared_ptr<Debugger>(new Debugger(pal_));
+  debugger_ = shared_ptr<Debugger>(new Debugger());
 
   xe_memory_options_t memory_options;
   xe_zero_struct(&memory_options, sizeof(memory_options));
-  memory_ = xe_memory_create(pal_, memory_options);
+  memory_ = xe_memory_create(memory_options);
   XEEXPECTNOTNULL(memory_);
 
-  processor_ = shared_ptr<Processor>(new Processor(pal_, memory_));
+  processor_ = shared_ptr<Processor>(new Processor(memory_));
   XEEXPECTZERO(processor_->Setup());
 
-  runtime_ = shared_ptr<Runtime>(new Runtime(pal_, processor_, XT("")));
+  runtime_ = shared_ptr<Runtime>(new Runtime(processor_, XT("")));
 
   return 0;
 XECLEANUP:

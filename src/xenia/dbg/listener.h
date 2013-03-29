@@ -23,7 +23,7 @@ class Debugger;
 
 class Listener {
 public:
-  Listener(Debugger* debugger, xe_pal_ref pal);
+  Listener(Debugger* debugger);
   virtual ~Listener();
 
   virtual int Setup() = 0;
@@ -31,7 +31,6 @@ public:
 
 protected:
   Debugger*   debugger_;
-  xe_pal_ref  pal_;
 };
 
 

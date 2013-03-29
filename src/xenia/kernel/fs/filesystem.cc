@@ -18,8 +18,7 @@ using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
 
-FileSystem::FileSystem(xe_pal_ref pal) {
-  pal_ = xe_pal_retain(pal);
+FileSystem::FileSystem() {
 }
 
 FileSystem::~FileSystem() {
@@ -31,8 +30,6 @@ FileSystem::~FileSystem() {
   }
   devices_.clear();
   symlinks_.clear();
-
-  xe_pal_release(pal_);
 }
 
 int FileSystem::RegisterDevice(const char* path, Device* device) {
@@ -42,13 +39,13 @@ int FileSystem::RegisterDevice(const char* path, Device* device) {
 
 int FileSystem::RegisterLocalDirectoryDevice(
     const char* path, const xechar_t* local_path) {
-  Device* device = new LocalDirectoryDevice(pal_, path, local_path);
+  Device* device = new LocalDirectoryDevice(path, local_path);
   return RegisterDevice(path, device);
 }
 
 int FileSystem::RegisterDiscImageDevice(
     const char* path, const xechar_t* local_path) {
-  DiscImageDevice* device = new DiscImageDevice(pal_, path, local_path);
+  DiscImageDevice* device = new DiscImageDevice(path, local_path);
   if (device->Init()) {
     return 1;
   }

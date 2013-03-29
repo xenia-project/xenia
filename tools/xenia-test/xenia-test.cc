@@ -26,8 +26,7 @@ DEFINE_string(test_path, "test/codegen/",
 typedef vector<pair<string, string> > annotations_list_t;
 
 
-int read_annotations(xe_pal_ref pal, string& src_file_path,
-                     annotations_list_t& annotations) {
+int read_annotations(string& src_file_path, annotations_list_t& annotations) {
   // TODO(benvanik): use PAL instead of this
   FILE* f = fopen(src_file_path.c_str(), "r");
   char line_buffer[BUFSIZ];
@@ -98,7 +97,7 @@ int check_test_results(xe_memory_ref memory, Processor* processor,
   return any_failed;
 }
 
-int run_test(xe_pal_ref pal, string& src_file_path) {
+int run_test(string& src_file_path) {
   int result_code = 1;
 
   // test.s -> test.bin
@@ -126,11 +125,10 @@ int run_test(xe_pal_ref pal, string& src_file_path) {
   runtime = shared_ptr<Runtime>(new Runtime(pal, processor, XT("")));
 
   // Load the binary module.
-  XEEXPECTZERO(processor->LoadBinary(bin_file_path.c_str(), 0x82010000,
-                                     runtime->export_resolver()));
+  XEEXPECTZERO(processor->LoadRawBinary(bin_file_path.c_str(), 0x82010000));
 
   // Simulate a thread.
-  thread_state = processor->AllocThread(256 * 1024 * 1024, 0);
+  thread_state = processor->AllocThread(256 * 1024, 0);
 
   // Setup test state from annotations.
   XEEXPECTZERO(setup_test_state(memory, processor.get(), thread_state,
@@ -186,13 +184,11 @@ int run_tests(const xechar_t* test_name) {
   int failed_count = 0;
   int passed_count = 0;
 
-  xe_pal_ref pal = NULL;
   vector<string> test_files;
 
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
-  pal = xe_pal_create(pal_options);
-  XEEXPECTNOTNULL(pal);
+  XEEXPECTZERO(xe_pal_init(pal_options));
 
   XEEXPECTZERO(discover_tests(FLAGS_test_path, test_files));
   if (!test_files.size()) {
@@ -225,7 +221,6 @@ int run_tests(const xechar_t* test_name) {
 
   result_code = failed_count ? 1 : 0;
 XECLEANUP:
-  xe_pal_release(pal);
   return result_code;
 }
 

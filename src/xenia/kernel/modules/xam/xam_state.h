@@ -24,11 +24,9 @@ namespace xam {
 
 class XamState {
 public:
-  XamState(xe_pal_ref pal, xe_memory_ref memory,
-           shared_ptr<ExportResolver> export_resolver);
+  XamState(xe_memory_ref memory, shared_ptr<ExportResolver> export_resolver);
   ~XamState();
 
-  xe_pal_ref    pal;
   xe_memory_ref memory;
 
 private:

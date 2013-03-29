@@ -74,9 +74,8 @@ private:
 }
 
 
-DiscImageDevice::DiscImageDevice(xe_pal_ref pal, const char* path,
-                                 const xechar_t* local_path) :
-    Device(pal, path) {
+DiscImageDevice::DiscImageDevice(const char* path, const xechar_t* local_path) :
+    Device(path) {
   local_path_ = xestrdup(local_path);
   mmap_ = NULL;
   gdfx_ = NULL;
@@ -89,7 +88,7 @@ DiscImageDevice::~DiscImageDevice() {
 }
 
 int DiscImageDevice::Init() {
-  mmap_ = xe_mmap_open(pal_, kXEFileModeRead, local_path_, 0, 0);
+  mmap_ = xe_mmap_open(kXEFileModeRead, local_path_, 0, 0);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
     return 1;

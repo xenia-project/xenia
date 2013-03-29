@@ -35,7 +35,6 @@ public:
   ~KernelState();
 
   Runtime* runtime();
-  xe_pal_ref pal();
   xe_memory_ref memory();
   cpu::Processor* processor();
   fs::FileSystem* filesystem();
@@ -51,7 +50,6 @@ private:
   void RemoveObject(XObject* obj);
 
   Runtime*      runtime_;
-  xe_pal_ref    pal_;
   xe_memory_ref memory_;
   shared_ptr<cpu::Processor> processor_;
   shared_ptr<fs::FileSystem> filesystem_;

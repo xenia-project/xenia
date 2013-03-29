@@ -28,7 +28,6 @@ KernelState::KernelState(Runtime* runtime) :
     runtime_(runtime),
     executable_module_(NULL),
     next_handle_(0) {
-  pal_        = runtime->pal();
   memory_     = runtime->memory();
   processor_  = runtime->processor();
   filesystem_ = runtime->filesystem();
@@ -69,15 +68,10 @@ KernelState::~KernelState() {
   filesystem_.reset();
   processor_.reset();
   xe_memory_release(memory_);
-  xe_pal_release(pal_);
 }
 
 Runtime* KernelState::runtime() {
   return runtime_;
-}
-
-xe_pal_ref KernelState::pal() {
-  return pal_;
 }
 
 xe_memory_ref KernelState::memory() {

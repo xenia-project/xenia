@@ -42,13 +42,11 @@ class KernelModule;
 
 class Runtime {
 public:
-  Runtime(xe_pal_ref pal, shared_ptr<cpu::Processor> processor,
-          const xechar_t* command_line);
+  Runtime(shared_ptr<cpu::Processor> processor, const xechar_t* command_line);
   ~Runtime();
 
   const xechar_t* command_line();
 
-  xe_pal_ref pal();
   xe_memory_ref memory();
   shared_ptr<cpu::Processor> processor();
   shared_ptr<ExportResolver> export_resolver();
@@ -60,7 +58,6 @@ public:
 private:
   xechar_t        command_line_[XE_MAX_PATH];
 
-  xe_pal_ref      pal_;
   xe_memory_ref   memory_;
   shared_ptr<cpu::Processor> processor_;
   shared_ptr<ExportResolver> export_resolver_;

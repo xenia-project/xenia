@@ -23,7 +23,7 @@ typedef void (*xe_thread_callback)(void* param);
 
 
 xe_thread_ref xe_thread_create(
-    xe_pal_ref pal, const char* name, xe_thread_callback callback, void* param);
+    const char* name, xe_thread_callback callback, void* param);
 xe_thread_ref xe_thread_retain(xe_thread_ref thread);
 void xe_thread_release(xe_thread_ref thread);
 

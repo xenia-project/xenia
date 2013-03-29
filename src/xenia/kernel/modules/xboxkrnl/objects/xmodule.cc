@@ -92,8 +92,7 @@ X_STATUS XModule::LoadFromMemory(const void* addr, const size_t length) {
   XEEXPECTNOTNULL(xex_);
 
   // Prepare the module for execution.
-  XEEXPECTZERO(kernel_state()->processor()->PrepareModule(
-      name_, path_, xex_, runtime()->export_resolver()));
+  XEEXPECTZERO(kernel_state()->processor()->LoadXexModule(name_, path_, xex_));
 
   return X_STATUS_SUCCESS;
 

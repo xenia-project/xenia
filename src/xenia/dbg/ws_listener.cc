@@ -16,8 +16,8 @@ using namespace xe;
 using namespace xe::dbg;
 
 
-WsListener::WsListener(Debugger* debugger, xe_pal_ref pal, uint32_t port) :
-    Listener(debugger, pal),
+WsListener::WsListener(Debugger* debugger, uint32_t port) :
+    Listener(debugger),
     port_(port) {
 
 }

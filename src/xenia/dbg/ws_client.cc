@@ -60,10 +60,7 @@ int WsClient::Setup() {
   xe_socket_set_keepalive(socket_id_, true);
   xe_socket_set_nodelay(socket_id_, true);
 
-  xe_pal_ref pal = debugger_->pal();
-  thread_ = xe_thread_create(pal, "Debugger Client",
-                             StartCallback, this);
-  xe_pal_release(pal);
+  thread_ = xe_thread_create("Debugger Client", StartCallback, this);
   return xe_thread_start(thread_);
 }
 

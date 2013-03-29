@@ -24,7 +24,7 @@ XamModule::XamModule(Runtime* runtime) :
       "xam.xex", xam_export_table, XECOUNT(xam_export_table));
 
   // Setup the xam state instance.
-  xam_state = auto_ptr<XamState>(new XamState(pal_, memory_, export_resolver_));
+  xam_state = auto_ptr<XamState>(new XamState(memory_, export_resolver_));
 
   // Register all exported functions.
   RegisterInfoExports(export_resolver_.get(), xam_state.get());

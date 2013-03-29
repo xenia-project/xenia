@@ -19,13 +19,19 @@ typedef struct {
 } xe_pal_options_t;
 
 
-struct xe_pal;
-typedef struct xe_pal* xe_pal_ref;
+int xe_pal_init(xe_pal_options_t options);
 
 
-xe_pal_ref xe_pal_create(xe_pal_options_t options);
-xe_pal_ref xe_pal_retain(xe_pal_ref pal);
-void xe_pal_release(xe_pal_ref pal);
+typedef struct {
+  struct {
+    uint32_t  physical_count;
+    uint32_t  logical_count;
+  } processors;
+} xe_system_info;
+
+int xe_pal_get_system_info(xe_system_info* out_info);
+
+double xe_pal_now();
 
 
 #endif  // XENIA_CORE_PAL_H_

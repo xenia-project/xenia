@@ -28,10 +28,8 @@ class Listener;
 
 class Debugger {
 public:
-  Debugger(xe_pal_ref pal);
+  Debugger();
   virtual ~Debugger();
-
-  xe_pal_ref pal();
 
   void RegisterContentSource(ContentSource* content_source);
 
@@ -47,7 +45,6 @@ private:
   friend class Client;
 
 private:
-  xe_pal_ref pal_;
   auto_ptr<Listener> listener_;
   std::vector<Client*> clients_;
   std::map<uint32_t, ContentSource*> content_sources_;

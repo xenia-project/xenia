@@ -32,10 +32,9 @@ namespace cpu {
 
 class Processor {
 public:
-  Processor(xe_pal_ref pal, xe_memory_ref memory);
+  Processor(xe_memory_ref memory);
   ~Processor();
 
-  xe_pal_ref pal();
   xe_memory_ref memory();
 
   int Setup();
@@ -56,7 +55,6 @@ public:
 private:
   llvm::Function* GetFunction(uint32_t address);
 
-  xe_pal_ref              pal_;
   xe_memory_ref           memory_;
   shared_ptr<llvm::ExecutionEngine> engine_;
 

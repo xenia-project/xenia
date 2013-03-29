@@ -18,15 +18,14 @@ using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
 
-Runtime::Runtime(xe_pal_ref pal, shared_ptr<cpu::Processor> processor,
+Runtime::Runtime(shared_ptr<cpu::Processor> processor,
                  const xechar_t* command_line) {
-  pal_ = xe_pal_retain(pal);
   memory_ = processor->memory();
   processor_ = processor;
   XEIGNORE(xestrcpy(command_line_, XECOUNT(command_line_), command_line));
   export_resolver_ = shared_ptr<ExportResolver>(new ExportResolver());
 
-  filesystem_ = shared_ptr<FileSystem>(new FileSystem(pal_));
+  filesystem_ = shared_ptr<FileSystem>(new FileSystem());
 
   xboxkrnl_ = auto_ptr<xboxkrnl::XboxkrnlModule>(
       new xboxkrnl::XboxkrnlModule(this));
@@ -36,15 +35,10 @@ Runtime::Runtime(xe_pal_ref pal, shared_ptr<cpu::Processor> processor,
 
 Runtime::~Runtime() {
   xe_memory_release(memory_);
-  xe_pal_release(pal_);
 }
 
 const xechar_t* Runtime::command_line() {
   return command_line_;
-}
-
-xe_pal_ref Runtime::pal() {
-  return xe_pal_retain(pal_);
 }
 
 xe_memory_ref Runtime::memory() {

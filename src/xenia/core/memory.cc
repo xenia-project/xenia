@@ -53,7 +53,7 @@ struct xe_memory {
 };
 
 
-xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options) {
+xe_memory_ref xe_memory_create(xe_memory_options_t options) {
   uint32_t offset;
   uint32_t mspace_size;
 

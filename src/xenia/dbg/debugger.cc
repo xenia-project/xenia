@@ -25,11 +25,8 @@ DEFINE_int32(remote_debug_port, 6200,
     "Websocket port to listen for debugger connections on.");
 
 
-Debugger::Debugger(xe_pal_ref pal) {
-  pal_ = xe_pal_retain(pal);
-
-  listener_ = auto_ptr<Listener>(new WsListener(
-      this, pal_, FLAGS_remote_debug_port));
+Debugger::Debugger() {
+  listener_ = auto_ptr<Listener>(new WsListener(this, FLAGS_remote_debug_port));
 }
 
 Debugger::~Debugger() {
@@ -45,12 +42,6 @@ Debugger::~Debugger() {
     delete it->second;
   }
   content_sources_.clear();
-
-  xe_pal_release(pal_);
-}
-
-xe_pal_ref Debugger::pal() {
-  return xe_pal_retain(pal_);
 }
 
 void Debugger::RegisterContentSource(ContentSource* content_source) {

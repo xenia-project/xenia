@@ -15,18 +15,12 @@ using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
 
-Device::Device(xe_pal_ref pal, const char* path) {
-  pal_ = xe_pal_retain(pal);
+Device::Device(const char* path) {
   path_ = xestrdupa(path);
 }
 
 Device::~Device() {
   xe_free(path_);
-  xe_pal_release(pal_);
-}
-
-xe_pal_ref Device::pal() {
-  return xe_pal_retain(pal_);
 }
 
 const char* Device::path() {

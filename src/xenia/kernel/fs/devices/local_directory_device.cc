@@ -46,10 +46,7 @@ public:
 
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length) {
-    xe_pal_ref pal = device()->pal();
-    xe_mmap_ref mmap = xe_mmap_open(pal, file_mode, local_path_,
-                                    offset, length);
-    xe_pal_release(pal);
+    xe_mmap_ref mmap = xe_mmap_open(file_mode, local_path_, offset, length);
     if (!mmap) {
       return NULL;
     }
@@ -70,9 +67,9 @@ private:
 }
 
 
-LocalDirectoryDevice::LocalDirectoryDevice(xe_pal_ref pal, const char* path,
+LocalDirectoryDevice::LocalDirectoryDevice(const char* path,
                                            const xechar_t* local_path) :
-    Device(pal, path) {
+    Device(path) {
   local_path_ = xestrdup(local_path);
 }
 

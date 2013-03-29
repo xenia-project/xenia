@@ -26,7 +26,7 @@ class GDFX;
 
 class DiscImageDevice : public Device {
 public:
-  DiscImageDevice(xe_pal_ref pal, const char* path, const xechar_t* local_path);
+  DiscImageDevice(const char* path, const xechar_t* local_path);
   virtual ~DiscImageDevice();
 
   int Init();

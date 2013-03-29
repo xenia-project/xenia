@@ -25,7 +25,7 @@ class Debugger;
 
 class WsListener : public Listener {
 public:
-  WsListener(Debugger* debugger, xe_pal_ref pal, uint32_t port);
+  WsListener(Debugger* debugger, uint32_t port);
   virtual ~WsListener();
 
   virtual int Setup();

@@ -28,7 +28,7 @@ class Device;
 
 class FileSystem {
 public:
-  FileSystem(xe_pal_ref pal);
+  FileSystem();
   ~FileSystem();
 
   int RegisterDevice(const char* path, Device* device);
@@ -42,7 +42,6 @@ public:
   Entry* ResolvePath(const char* path);
 
 private:
-  xe_pal_ref            pal_;
   std::vector<Device*>  devices_;
   std::tr1::unordered_map<std::string, std::string> symlinks_;
 };

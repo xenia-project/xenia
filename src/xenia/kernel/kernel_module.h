@@ -28,7 +28,6 @@ class KernelModule {
 public:
   KernelModule(Runtime* runtime) {
     runtime_  = runtime;
-    pal_      = runtime->pal();
     memory_   = runtime->memory();
     export_resolver_ = runtime->export_resolver();
   }
@@ -36,12 +35,10 @@ public:
   virtual ~KernelModule() {
     export_resolver_.reset();
     xe_memory_release(memory_);
-    xe_pal_release(pal_);
   }
 
 protected:
   Runtime*        runtime_;
-  xe_pal_ref      pal_;
   xe_memory_ref   memory_;
   shared_ptr<ExportResolver> export_resolver_;
 };

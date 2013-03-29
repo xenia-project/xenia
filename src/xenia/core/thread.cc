@@ -24,8 +24,7 @@ typedef struct xe_thread {
 
 
 xe_thread_ref xe_thread_create(
-    xe_pal_ref pal, const char* name, xe_thread_callback callback,
-    void* param) {
+    const char* name, xe_thread_callback callback, void* param) {
   xe_thread_ref thread = (xe_thread_ref)xe_calloc(sizeof(xe_thread_t));
   xe_ref_init((xe_ref)thread);
 

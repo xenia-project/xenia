@@ -7,16 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/dbg/listener.h>
+#include <xenia/core/path.h>
 
 
-using namespace xe;
-using namespace xe::dbg;
-
-
-Listener::Listener(Debugger* debugger) :
-    debugger_(debugger) {
-}
-
-Listener::~Listener() {
+const xechar_t* xe_path_get_tmp(const xechar_t* prefix) {
+  //
 }

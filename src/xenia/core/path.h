@@ -7,33 +7,19 @@
  ******************************************************************************
  */
 
+#ifndef XENIA_CORE_PATH_H_
+#define XENIA_CORE_PATH_H_
+
+#include <xenia/common.h>
 #include <xenia/core/pal.h>
+#include <xenia/core/ref.h>
 
 
-typedef struct xe_pal {
-  xe_ref_t ref;
+void xe_path_join(const xechar_t* left, const xechar_t* right,
+                  xechar_t* out_path, size_t out_path_size);
+void xe_path_get_absolute(const xechar_t* path, xechar_t* out_abs_path,
+                          size_t abs_path_size);
 
-} xe_pal_t;
+const xechar_t* xe_path_get_tmp(const xechar_t* prefix);
 
-
-xe_pal_ref xe_pal_create(xe_pal_options_t options) {
-  xe_pal_ref pal = (xe_pal_ref)xe_calloc(sizeof(xe_pal_t));
-  xe_ref_init((xe_ref)pal);
-
-  //
-
-  return pal;
-}
-
-void xe_pal_dealloc(xe_pal_ref pal) {
-  //
-}
-
-xe_pal_ref xe_pal_retain(xe_pal_ref pal) {
-  xe_ref_retain((xe_ref)pal);
-  return pal;
-}
-
-void xe_pal_release(xe_pal_ref pal) {
-  xe_ref_release((xe_ref)pal, (xe_ref_dealloc_t)xe_pal_dealloc);
-}
+#endif  // XENIA_CORE_PATH_H_

@@ -23,16 +23,14 @@ namespace fs {
 
 class Device {
 public:
-  Device(xe_pal_ref pal, const char* path);
+  Device(const char* path);
   virtual ~Device();
 
-  xe_pal_ref pal();
   const char* path();
 
   virtual Entry* ResolvePath(const char* path) = 0;
 
 protected:
-  xe_pal_ref  pal_;
   char*       path_;
 };
 

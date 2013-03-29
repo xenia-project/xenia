@@ -23,8 +23,7 @@ namespace fs {
 
 class LocalDirectoryDevice : public Device {
 public:
-  LocalDirectoryDevice(xe_pal_ref pal, const char* path,
-                       const xechar_t* local_path);
+  LocalDirectoryDevice(const char* path, const xechar_t* local_path);
   virtual ~LocalDirectoryDevice();
 
   virtual Entry* ResolvePath(const char* path);

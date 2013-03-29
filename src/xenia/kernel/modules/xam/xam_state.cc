@@ -20,14 +20,12 @@ namespace {
 }
 
 
-XamState::XamState(xe_pal_ref pal, xe_memory_ref memory,
+XamState::XamState(xe_memory_ref memory,
                    shared_ptr<ExportResolver> export_resolver) {
-  this->pal = xe_pal_retain(pal);
   this->memory = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
 }
 
 XamState::~XamState() {
   xe_memory_release(memory);
-  xe_pal_release(pal);
 }

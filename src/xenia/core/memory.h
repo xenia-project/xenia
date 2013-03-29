@@ -11,7 +11,6 @@
 #define XENIA_CORE_MEMORY_H_
 
 #include <xenia/common.h>
-#include <xenia/core/pal.h>
 #include <xenia/core/ref.h>
 
 
@@ -24,7 +23,7 @@ struct xe_memory;
 typedef struct xe_memory* xe_memory_ref;
 
 
-xe_memory_ref xe_memory_create(xe_pal_ref pal, xe_memory_options_t options);
+xe_memory_ref xe_memory_create(xe_memory_options_t options);
 xe_memory_ref xe_memory_retain(xe_memory_ref memory);
 void xe_memory_release(xe_memory_ref memory);
 

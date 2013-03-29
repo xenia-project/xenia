@@ -7,8 +7,9 @@
     'memory.h',
     'mmap.h',
     'mutex.h',
-    'pal.cc',
     'pal.h',
+    'path.cc',
+    'path.h',
     'ref.cc',
     'ref.h',
     'socket.h',
@@ -21,13 +22,26 @@
       'sources': [
         'mmap_posix.cc',
         'mutex_posix.cc',
+        'path_posix.cc',
         'socket_posix.cc',
+      ],
+    }],
+    ['OS == "linux"', {
+      'sources': [
+        'pal_posix.cc',
+      ],
+    }],
+    ['OS == "mac"', {
+      'sources': [
+        'pal_mac.cc',
       ],
     }],
     ['OS == "win"', {
       'sources': [
         'mmap_win.cc',
         'mutex_win.cc',
+        'pal_win.cc',
+        'path_win.cc',
         'socket_win.cc',
       ],
     }],
