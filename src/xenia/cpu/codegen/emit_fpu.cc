@@ -173,14 +173,6 @@ XEEMITTER(fcmpo,        0xFC000040, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
-XEDISASMR(fcmpu,        0xFC000000, X  )(InstrData& i, InstrDisasm& d) {
-  d.Init("fcmpu", "Floating Compare Unordered",
-         (i.XO.OE ? InstrDisasm::kOE : 0) | (i.XO.Rc ? InstrDisasm::kRc : 0));
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(fcmpu,        0xFC000000, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if (FRA) is a NaN or (FRB) is a NaN then
   //   c <- 0b0001
@@ -257,45 +249,45 @@ XEEMITTER(fnegx,        0xFC000050, X  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 
 void RegisterEmitCategoryFPU() {
-  XEREGISTEREMITTER(faddx,        0xFC00002A);
-  XEREGISTEREMITTER(faddsx,       0xEC00002A);
-  XEREGISTEREMITTER(fdivx,        0xFC000024);
-  XEREGISTEREMITTER(fdivsx,       0xEC000024);
-  XEREGISTEREMITTER(fmulx,        0xFC000032);
-  XEREGISTEREMITTER(fmulsx,       0xEC000032);
-  XEREGISTEREMITTER(fresx,        0xEC000030);
-  XEREGISTEREMITTER(frsqrtex,     0xFC000034);
-  XEREGISTEREMITTER(fsubx,        0xFC000028);
-  XEREGISTEREMITTER(fsubsx,       0xEC000028);
-  XEREGISTEREMITTER(fselx,        0xFC00002E);
-  XEREGISTEREMITTER(fsqrtx,       0xFC00002C);
-  XEREGISTEREMITTER(fsqrtsx,      0xEC00002C);
-  XEREGISTEREMITTER(fmaddx,       0xFC00003A);
-  XEREGISTEREMITTER(fmaddsx,      0xEC00003A);
-  XEREGISTEREMITTER(fmsubx,       0xFC000038);
-  XEREGISTEREMITTER(fmsubsx,      0xEC000038);
-  XEREGISTEREMITTER(fnmaddx,      0xFC00003E);
-  XEREGISTEREMITTER(fnmaddsx,     0xEC00003E);
-  XEREGISTEREMITTER(fnmsubx,      0xFC00003C);
-  XEREGISTEREMITTER(fnmsubsx,     0xEC00003C);
-  XEREGISTEREMITTER(fcfidx,       0xFC00069C);
-  XEREGISTEREMITTER(fctidx,       0xFC00065C);
-  XEREGISTEREMITTER(fctidzx,      0xFC00065E);
-  XEREGISTEREMITTER(fctiwx,       0xFC00001C);
-  XEREGISTEREMITTER(fctiwzx,      0xFC00001E);
-  XEREGISTEREMITTER(frspx,        0xFC000018);
-  XEREGISTEREMITTER(fcmpo,        0xFC000040);
-  XEREGISTEREMITTER(fcmpu,        0xFC000000);
-  XEREGISTEREMITTER(mcrfs,        0xFC000080);
-  XEREGISTEREMITTER(mffsx,        0xFC00048E);
-  XEREGISTEREMITTER(mtfsb0x,      0xFC00008C);
-  XEREGISTEREMITTER(mtfsb1x,      0xFC00004C);
-  XEREGISTEREMITTER(mtfsfx,       0xFC00058E);
-  XEREGISTEREMITTER(mtfsfix,      0xFC00010C);
-  XEREGISTEREMITTER(fabsx,        0xFC000210);
-  XEREGISTEREMITTER(fmrx,         0xFC000090);
-  XEREGISTEREMITTER(fnabsx,       0xFC000110);
-  XEREGISTEREMITTER(fnegx,        0xFC000050);
+  XEREGISTERINSTR(faddx,        0xFC00002A);
+  XEREGISTERINSTR(faddsx,       0xEC00002A);
+  XEREGISTERINSTR(fdivx,        0xFC000024);
+  XEREGISTERINSTR(fdivsx,       0xEC000024);
+  XEREGISTERINSTR(fmulx,        0xFC000032);
+  XEREGISTERINSTR(fmulsx,       0xEC000032);
+  XEREGISTERINSTR(fresx,        0xEC000030);
+  XEREGISTERINSTR(frsqrtex,     0xFC000034);
+  XEREGISTERINSTR(fsubx,        0xFC000028);
+  XEREGISTERINSTR(fsubsx,       0xEC000028);
+  XEREGISTERINSTR(fselx,        0xFC00002E);
+  XEREGISTERINSTR(fsqrtx,       0xFC00002C);
+  XEREGISTERINSTR(fsqrtsx,      0xEC00002C);
+  XEREGISTERINSTR(fmaddx,       0xFC00003A);
+  XEREGISTERINSTR(fmaddsx,      0xEC00003A);
+  XEREGISTERINSTR(fmsubx,       0xFC000038);
+  XEREGISTERINSTR(fmsubsx,      0xEC000038);
+  XEREGISTERINSTR(fnmaddx,      0xFC00003E);
+  XEREGISTERINSTR(fnmaddsx,     0xEC00003E);
+  XEREGISTERINSTR(fnmsubx,      0xFC00003C);
+  XEREGISTERINSTR(fnmsubsx,     0xEC00003C);
+  XEREGISTERINSTR(fcfidx,       0xFC00069C);
+  XEREGISTERINSTR(fctidx,       0xFC00065C);
+  XEREGISTERINSTR(fctidzx,      0xFC00065E);
+  XEREGISTERINSTR(fctiwx,       0xFC00001C);
+  XEREGISTERINSTR(fctiwzx,      0xFC00001E);
+  XEREGISTERINSTR(frspx,        0xFC000018);
+  XEREGISTERINSTR(fcmpo,        0xFC000040);
+  XEREGISTERINSTR(fcmpu,        0xFC000000);
+  XEREGISTERINSTR(mcrfs,        0xFC000080);
+  XEREGISTERINSTR(mffsx,        0xFC00048E);
+  XEREGISTERINSTR(mtfsb0x,      0xFC00008C);
+  XEREGISTERINSTR(mtfsb1x,      0xFC00004C);
+  XEREGISTERINSTR(mtfsfx,       0xFC00058E);
+  XEREGISTERINSTR(mtfsfix,      0xFC00010C);
+  XEREGISTERINSTR(fabsx,        0xFC000210);
+  XEREGISTERINSTR(fmrx,         0xFC000090);
+  XEREGISTERINSTR(fnabsx,       0xFC000110);
+  XEREGISTERINSTR(fnegx,        0xFC000050);
 }
 
 

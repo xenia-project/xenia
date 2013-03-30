@@ -129,17 +129,6 @@ int XeEmitBranchTo(
 }
 
 
-XEDISASMR(bx,           0x48000000, I  )(InstrData& i, InstrDisasm& d) {
-  d.Init("b", "Branch", i.I.LK ? InstrDisasm::kLR : 0);
-  uint32_t nia;
-  if (i.I.AA) {
-    nia = XEEXTS26(i.I.LI << 2);
-  } else {
-    nia = i.address + XEEXTS26(i.I.LI << 2);
-  }
-  d.AddUImmOperand(nia, 4);
-  return d.Finish();
-}
 XEEMITTER(bx,           0x48000000, I  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if AA then
   //   NIA <- EXTS(LI || 0b00)
@@ -161,19 +150,6 @@ XEEMITTER(bx,           0x48000000, I  )(FunctionGenerator& g, IRBuilder<>& b, I
   return XeEmitBranchTo(g, b, "bx", i.address, i.I.LK);
 }
 
-XEDISASMR(bcx,          0x40000000, B  )(InstrData& i, InstrDisasm& d) {
-  // TODO(benvanik): mnemonics
-  d.Init("bc", "Branch Conditional", i.B.LK ? InstrDisasm::kLR : 0);
-  if (!XESELECTBITS(i.B.BO, 2, 2)) {
-    d.AddCTR(InstrRegister::kReadWrite);
-  }
-  if (!XESELECTBITS(i.B.BO, 4, 4)) {
-    d.AddCR(i.B.BI >> 2, InstrRegister::kRead);
-  }
-  d.AddUImmOperand(i.B.BO, 1);
-  d.AddUImmOperand(i.B.BI, 1);
-  return d.Finish();
-}
 XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
@@ -266,19 +242,6 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
-
-XEDISASMR(bcctrx,       0x4C000420, XL )(InstrData& i, InstrDisasm& d) {
-  // TODO(benvanik): mnemonics
-  d.Init("bcctr", "Branch Conditional to Count Register",
-      i.XL.LK ? InstrDisasm::kLR : 0);
-  if (!XESELECTBITS(i.XL.BO, 4, 4)) {
-    d.AddCR(i.XL.BI >> 2, InstrRegister::kRead);
-  }
-  d.AddUImmOperand(i.XL.BO, 1);
-  d.AddUImmOperand(i.XL.BI, 1);
-  d.AddCTR(InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
   // if cond_ok then
@@ -339,24 +302,6 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
-XEDISASMR(bclrx,        0x4C000020, XL )(InstrData& i, InstrDisasm& d) {
-  std::string name = "bclr";
-  if (i.code == 0x4E800020) {
-    name = "blr";
-  }
-  d.Init(name, "Branch Conditional to Link Register",
-      i.XL.LK ? InstrDisasm::kLR : 0);
-  if (!XESELECTBITS(i.B.BO, 2, 2)) {
-    d.AddCTR(InstrRegister::kReadWrite);
-  }
-  if (!XESELECTBITS(i.B.BO, 4, 4)) {
-    d.AddCR(i.B.BI >> 2, InstrRegister::kRead);
-  }
-  d.AddUImmOperand(i.XL.BO, 1);
-  d.AddUImmOperand(i.XL.BI, 1);
-  d.AddLR(InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
@@ -594,12 +539,6 @@ int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
   return 0;
 }
 
-XEDISASMR(td,           0x7C000088, X  )(InstrData& i, InstrDisasm& d) {
-  d.Init("td", "Trap Doubleword", 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- (RA)
   // b <- (RB)
@@ -614,11 +553,6 @@ XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, I
                     i.X.RT);
 }
 
-XEDISASMR(tdi,          0x08000000, D  )(InstrData& i, InstrDisasm& d) {
-  d.Init("tdi", "Trap Doubleword Immediate", 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(tdi,          0x08000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
@@ -632,12 +566,6 @@ XEEMITTER(tdi,          0x08000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
                     i.D.RT);
 }
 
-XEDISASMR(tw,           0x7C000008, X  )(InstrData& i, InstrDisasm& d) {
-  d.Init("tw", "Trap Word", 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
@@ -656,11 +584,6 @@ XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, I
                     i.X.RT);
 }
 
-XEDISASMR(twi,          0x0C000000, D  )(InstrData& i, InstrDisasm& d) {
-  d.Init("twi", "Trap Word Immediate", 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(twi,          0x0C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
@@ -684,23 +607,6 @@ XEEMITTER(mfcr,         0x7C000026, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
-XEDISASMR(mfspr,        0x7C0002A6, XFX)(InstrData& i, InstrDisasm& d) {
-  d.Init("mfspr", "Move From Special Purpose Register", 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.XFX.RT, InstrRegister::kWrite);
-  const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
-  switch (n) {
-  case 1:
-    d.AddRegOperand(InstrRegister::kXER, 0, InstrRegister::kRead);
-    break;
-  case 8:
-    d.AddRegOperand(InstrRegister::kLR, 0, InstrRegister::kRead);
-    break;
-  case 9:
-    d.AddRegOperand(InstrRegister::kCTR, 0, InstrRegister::kRead);
-    break;
-  }
-  return d.Finish();
-}
 XEEMITTER(mfspr,        0x7C0002A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
@@ -743,23 +649,6 @@ XEEMITTER(mtcrf,        0x7C000120, XFX)(FunctionGenerator& g, IRBuilder<>& b, I
   return 1;
 }
 
-XEDISASMR(mtspr,        0x7C0003A6, XFX)(InstrData& i, InstrDisasm& d) {
-  d.Init("mtspr", "Move To Special Purpose Register", 0);
-  const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
-  switch (n) {
-  case 1:
-    d.AddRegOperand(InstrRegister::kXER, 0, InstrRegister::kWrite);
-    break;
-  case 8:
-    d.AddRegOperand(InstrRegister::kLR, 0, InstrRegister::kWrite);
-    break;
-  case 9:
-    d.AddRegOperand(InstrRegister::kCTR, 0, InstrRegister::kWrite);
-    break;
-  }
-  d.AddRegOperand(InstrRegister::kGPR, i.XFX.RT, InstrRegister::kRead);
-  return d.Finish();
-}
 XEEMITTER(mtspr,        0x7C0003A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
@@ -797,24 +686,24 @@ void RegisterEmitCategoryControl() {
   XEREGISTERINSTR(bcx,          0x40000000);
   XEREGISTERINSTR(bcctrx,       0x4C000420);
   XEREGISTERINSTR(bclrx,        0x4C000020);
-  XEREGISTEREMITTER(crand,        0x4C000202);
-  XEREGISTEREMITTER(crandc,       0x4C000102);
-  XEREGISTEREMITTER(creqv,        0x4C000242);
-  XEREGISTEREMITTER(crnand,       0x4C0001C2);
-  XEREGISTEREMITTER(crnor,        0x4C000042);
-  XEREGISTEREMITTER(cror,         0x4C000382);
-  XEREGISTEREMITTER(crorc,        0x4C000342);
-  XEREGISTEREMITTER(crxor,        0x4C000182);
-  XEREGISTEREMITTER(mcrf,         0x4C000000);
-  XEREGISTEREMITTER(sc,           0x44000002);
+  XEREGISTERINSTR(crand,        0x4C000202);
+  XEREGISTERINSTR(crandc,       0x4C000102);
+  XEREGISTERINSTR(creqv,        0x4C000242);
+  XEREGISTERINSTR(crnand,       0x4C0001C2);
+  XEREGISTERINSTR(crnor,        0x4C000042);
+  XEREGISTERINSTR(cror,         0x4C000382);
+  XEREGISTERINSTR(crorc,        0x4C000342);
+  XEREGISTERINSTR(crxor,        0x4C000182);
+  XEREGISTERINSTR(mcrf,         0x4C000000);
+  XEREGISTERINSTR(sc,           0x44000002);
   XEREGISTERINSTR(td,           0x7C000088);
   XEREGISTERINSTR(tdi,          0x08000000);
   XEREGISTERINSTR(tw,           0x7C000008);
   XEREGISTERINSTR(twi,          0x0C000000);
-  XEREGISTEREMITTER(mfcr,         0x7C000026);
+  XEREGISTERINSTR(mfcr,         0x7C000026);
   XEREGISTERINSTR(mfspr,        0x7C0002A6);
-  XEREGISTEREMITTER(mftb,         0x7C0002E6);
-  XEREGISTEREMITTER(mtcrf,        0x7C000120);
+  XEREGISTERINSTR(mftb,         0x7C0002E6);
+  XEREGISTERINSTR(mtcrf,        0x7C000120);
   XEREGISTERINSTR(mtspr,        0x7C0003A6);
 }
 

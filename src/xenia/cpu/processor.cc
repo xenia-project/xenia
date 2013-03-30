@@ -45,6 +45,11 @@ namespace {
 
     llvm_start_multithreaded();
 
+    ppc::RegisterDisasmCategoryALU();
+    ppc::RegisterDisasmCategoryControl();
+    ppc::RegisterDisasmCategoryFPU();
+    ppc::RegisterDisasmCategoryMemory();
+
     // TODO(benvanik): only do this once
     codegen::RegisterEmitCategoryALU();
     codegen::RegisterEmitCategoryControl();

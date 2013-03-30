@@ -7,35 +7,35 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_CODEGEN_EMIT_H_
-#define XENIA_CPU_CODEGEN_EMIT_H_
+#ifndef XENIA_CPU_PPC_DISASM_H_
+#define XENIA_CPU_PPC_DISASM_H_
 
 #include <xenia/cpu/ppc/instr.h>
 
 
 namespace xe {
 namespace cpu {
-namespace codegen {
+namespace ppc {
 
 
-void RegisterEmitCategoryALU();
-void RegisterEmitCategoryControl();
-void RegisterEmitCategoryFPU();
-void RegisterEmitCategoryMemory();
+void RegisterDisasmCategoryALU();
+void RegisterDisasmCategoryControl();
+void RegisterDisasmCategoryFPU();
+void RegisterDisasmCategoryMemory();
 
 
-#define XEEMITTER(name, opcode, format) int InstrEmit_##name
+#define XEDISASMR(name, opcode, format) int InstrDisasm_##name
 
 #define XEREGISTERINSTR(name, opcode) \
-    RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
+    RegisterInstrDisassemble(opcode, (InstrDisassembleFn)InstrDisasm_##name);
 
 #define XEINSTRNOTIMPLEMENTED()
 //#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
 
 
-}  // namespace codegen
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
 
-#endif  // XENIA_CPU_CODEGEN_EMIT_H_
+#endif  // XENIA_CPU_PPC_DISASM_H_
