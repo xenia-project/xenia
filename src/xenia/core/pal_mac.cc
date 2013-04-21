@@ -28,7 +28,7 @@ xe_pal_mac_t* pal;
 
 void xe_pal_dealloc();
 int xe_pal_init(xe_pal_options_t options) {
-  pal = (xe_pal_mac_t)xe_calloc(sizeof(pal));
+  pal = (xe_pal_mac_t*)xe_calloc(sizeof(pal));
 
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);

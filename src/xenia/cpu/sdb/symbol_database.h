@@ -34,7 +34,8 @@ public:
 
   Symbol* GetSymbol(uint32_t address);
   ExceptionEntrySymbol* GetOrInsertExceptionEntry(uint32_t address);
-  FunctionSymbol* GetOrInsertFunction(uint32_t address);
+  FunctionSymbol* GetOrInsertFunction(
+      uint32_t address, FunctionSymbol* opt_call_source = NULL);
   VariableSymbol* GetOrInsertVariable(uint32_t address);
   FunctionSymbol* GetFunction(uint32_t address);
   VariableSymbol* GetVariable(uint32_t address);

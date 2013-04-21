@@ -12,4 +12,7 @@
 
 #include <xenia/cpu/processor.h>
 
+// TODO(benvanik): conditionally include?
+#include <xenia/cpu/llvmbe/llvm_backend.h>
+
 #endif  // XENIA_CPU_CPU_H_

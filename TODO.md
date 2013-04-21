@@ -1,23 +1,13 @@
+refactor:
+  module gen
+  recompiler (move to cpu)
+implement:
+  function table
+  exec_module FindFunctionSymbol
 
-
-
-ExecModule:
-  Prepare(memory, export_resolver)
-  Init()
-  Uninit()
-  Execute(ppc_state, addr)
-
-JITExecModule:
-
-LibraryExecModule:
-
-
-Processor::Execute(addr):
-  // TODO: faster search, if needed
-  for each exec_module:
-    if (exec_module->Execute(addr)) {
-      break;
-    }
+jit:
+- add imports/exports/etc to module
+- function generator (thread safe)
 
 
 

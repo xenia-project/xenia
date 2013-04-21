@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/codegen/function_generator.h>
+#include <xenia/cpu/llvmbe/emitter_context.h>
 
 #include <llvm/IR/Intrinsics.h>
 
@@ -16,7 +16,7 @@
 
 
 using namespace llvm;
-using namespace xe::cpu::codegen;
+using namespace xe::cpu::llvmbe;
 using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
 
@@ -29,8 +29,9 @@ DEFINE_bool(log_codegen, false,
 
 /**
  * This generates function code.
- * One context is created for each function to generate. Each basic block in
- * the function is created and stashed in one pass, then filled in the next.
+ * One context is created and shared for each function to generate.
+ * Each basic block in the function is created and stashed in one pass, then
+ * filled in the next.
  *
  * This context object is a stateful representation of the current machine state
  * and all accessors to registers should occur through it. By doing so it's
@@ -46,21 +47,43 @@ DEFINE_bool(log_codegen, false,
  */
 
 
-FunctionGenerator::FunctionGenerator(
-    xe_memory_ref memory, SymbolDatabase* sdb, FunctionSymbol* fn,
-    LLVMContext* context, Module* gen_module, Function* gen_fn) {
+EmitterContext::EmitterContext(
+    xe_memory_ref memory,
+    LLVMContext* context, Module* gen_module) {
   memory_ = memory;
-  sdb_ = sdb;
-  fn_ = fn;
   context_ = context;
   gen_module_ = gen_module;
-  gen_fn_ = gen_fn;
   builder_ = new IRBuilder<>(*context_);
+
+  // Function type for all functions.
+  std::vector<Type*> args;
+  args.push_back(PointerType::getUnqual(Type::getInt8Ty(*context)));
+  args.push_back(Type::getInt64Ty(*context));
+  Type* return_type = Type::getVoidTy(*context);
+  fn_type_ = FunctionType::get(
+      return_type, ArrayRef<Type*>(args), false);
+}
+
+EmitterContext::~EmitterContext() {
+  delete builder_;
+}
+
+int EmitterContext::Init(FunctionSymbol* fn, Function* gen_fn) {
+  builder_->ClearInsertionPoint();
+
+  fn_ = fn;
+  gen_fn_ = gen_fn;
+
   fn_block_ = NULL;
   return_block_ = NULL;
   internal_indirection_block_ = NULL;
   external_indirection_block_ = NULL;
   bb_ = NULL;
+
+  insert_points_.clear();
+  bbs_.clear();
+
+  cia_ = 0;
 
   access_bits_.Clear();
 
@@ -80,53 +103,49 @@ FunctionGenerator::FunctionGenerator(
     locals_.fpr[n] = NULL;
   }
 
-  if (FLAGS_log_codegen) {
-    printf("%s:\n", fn->name());
+  if (fn) {
+    if (FLAGS_log_codegen) {
+      printf("%s:\n", fn->name());
+    }
   }
+
+  return 0;
 }
 
-FunctionGenerator::~FunctionGenerator() {
-  delete builder_;
-}
-
-SymbolDatabase* FunctionGenerator::sdb() {
-  return sdb_;
-}
-
-FunctionSymbol* FunctionGenerator::fn() {
-  return fn_;
-}
-
-llvm::LLVMContext* FunctionGenerator::context() {
+llvm::LLVMContext* EmitterContext::context() {
   return context_;
 }
 
-llvm::Module* FunctionGenerator::gen_module() {
+llvm::Module* EmitterContext::gen_module() {
   return gen_module_;
 }
 
-llvm::Function* FunctionGenerator::gen_fn() {
+FunctionSymbol* EmitterContext::fn() {
+  return fn_;
+}
+
+llvm::Function* EmitterContext::gen_fn() {
   return gen_fn_;
 }
 
-FunctionBlock* FunctionGenerator::fn_block() {
+FunctionBlock* EmitterContext::fn_block() {
   return fn_block_;
 }
 
-void FunctionGenerator::PushInsertPoint() {
+void EmitterContext::PushInsertPoint() {
   IRBuilder<>& b = *builder_;
   insert_points_.push_back(std::pair<BasicBlock*, BasicBlock::iterator>(
       b.GetInsertBlock(), b.GetInsertPoint()));
 }
 
-void FunctionGenerator::PopInsertPoint() {
+void EmitterContext::PopInsertPoint() {
   IRBuilder<>& b = *builder_;
   std::pair<BasicBlock*, BasicBlock::iterator> back = insert_points_.back();
   b.SetInsertPoint(back.first, back.second);
   insert_points_.pop_back();
 }
 
-void FunctionGenerator::GenerateBasicBlocks() {
+void EmitterContext::GenerateBasicBlocks() {
   IRBuilder<>& b = *builder_;
 
   // Always add an entry block.
@@ -178,7 +197,7 @@ void FunctionGenerator::GenerateBasicBlocks() {
   GenerateSharedBlocks();
 }
 
-void FunctionGenerator::GenerateSharedBlocks() {
+void EmitterContext::GenerateSharedBlocks() {
   IRBuilder<>& b = *builder_;
 
   Value* indirect_branch = gen_module_->getFunction("XeIndirectBranch");
@@ -225,7 +244,7 @@ void FunctionGenerator::GenerateSharedBlocks() {
   }
 }
 
-int FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
+int EmitterContext::PrepareBasicBlock(FunctionBlock* block) {
   // Create the basic block that will end up getting filled during
   // generation.
   char name[32];
@@ -271,7 +290,7 @@ int FunctionGenerator::PrepareBasicBlock(FunctionBlock* block) {
   return 0;
 }
 
-void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
+void EmitterContext::GenerateBasicBlock(FunctionBlock* block) {
   IRBuilder<>& b = *builder_;
 
   BasicBlock* bb = GetBasicBlock(block->start_address);
@@ -337,7 +356,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
     // builder_>SetCurrentDebugLocation(DebugLoc::get(
     //     ia >> 8, ia & 0xFF, ctx->cu));
 
-    typedef int (*InstrEmitter)(FunctionGenerator& g, IRBuilder<>& b,
+    typedef int (*InstrEmitter)(EmitterContext& g, IRBuilder<>& b,
                                 InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
     if (!i.type->emit || emit(*this, *builder_, i)) {
@@ -371,7 +390,7 @@ void FunctionGenerator::GenerateBasicBlock(FunctionBlock* block) {
   // TODO(benvanik): finish up BB
 }
 
-BasicBlock* FunctionGenerator::GetBasicBlock(uint32_t address) {
+BasicBlock* EmitterContext::GetBasicBlock(uint32_t address) {
   std::map<uint32_t, BasicBlock*>::iterator it = bbs_.find(address);
   if (it != bbs_.end()) {
     return it->second;
@@ -379,7 +398,7 @@ BasicBlock* FunctionGenerator::GetBasicBlock(uint32_t address) {
   return NULL;
 }
 
-BasicBlock* FunctionGenerator::GetNextBasicBlock() {
+BasicBlock* EmitterContext::GetNextBasicBlock() {
   std::map<uint32_t, BasicBlock*>::iterator it = bbs_.find(
       fn_block_->start_address);
   ++it;
@@ -389,22 +408,49 @@ BasicBlock* FunctionGenerator::GetNextBasicBlock() {
   return NULL;
 }
 
-BasicBlock* FunctionGenerator::GetReturnBasicBlock() {
+BasicBlock* EmitterContext::GetReturnBasicBlock() {
   return return_block_;
 }
 
-Function* FunctionGenerator::GetFunction(FunctionSymbol* fn) {
-  Function* result = gen_module_->getFunction(StringRef(fn->name()));
-  if (!result) {
-    XELOGE("Static function not found: %.8X %s",
-           fn->start_address, fn->name());
+Function* EmitterContext::GetFunction(FunctionSymbol* symbol) {
+  StringRef fn_name(symbol->name());
+  Function* fn = gen_module_->getFunction(fn_name);
+  if (fn) {
+    return fn;
   }
-  XEASSERTNOTNULL(result);
-  return result;
+
+  fn = cast<Function>(gen_module_->getOrInsertFunction(fn_name, fn_type_));
+  fn->setVisibility(GlobalValue::DefaultVisibility);
+
+  // Indicate that the function will never be unwound with an exception.
+  // If we ever support native exception handling we may need to remove this.
+  fn->doesNotThrow();
+
+  // May be worth trying the X86_FastCall, as we only need state in a register.
+  //f->setCallingConv(CallingConv::Fast);
+  fn->setCallingConv(CallingConv::C);
+
+  Function::arg_iterator fn_args = fn->arg_begin();
+
+  // 'state'
+  Value* fn_arg = fn_args++;
+  fn_arg->setName("state");
+  fn->setDoesNotAlias(1);
+  fn->setDoesNotCapture(1);
+  // 'state' should try to be in a register, if possible.
+  // TODO(benvanik): verify that's a good idea.
+  // fn->getArgumentList().begin()->addAttr(
+  //     Attribute::get(context, AttrBuilder().addAttribute(Attribute::InReg)));
+
+  // 'lr'
+  fn_arg = fn_args++;
+  fn_arg->setName("lr");
+
+  return fn;
 }
 
-int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
-                                                 bool lk, bool likely_local) {
+int EmitterContext::GenerateIndirectionBranch(uint32_t cia, Value* target,
+                                              bool lk, bool likely_local) {
   // This function is called by the control emitters when they know that an
   // indirect branch is required.
   // It first tries to see if the branch is to an address within the function
@@ -489,8 +535,8 @@ int FunctionGenerator::GenerateIndirectionBranch(uint32_t cia, Value* target,
   return 0;
 }
 
-Value* FunctionGenerator::LoadStateValue(uint32_t offset, Type* type,
-                                         const char* name) {
+Value* EmitterContext::LoadStateValue(uint32_t offset, Type* type,
+                                      const char* name) {
   IRBuilder<>& b = *builder_;
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
@@ -500,8 +546,8 @@ Value* FunctionGenerator::LoadStateValue(uint32_t offset, Type* type,
   return b.CreateLoad(ptr, name);
 }
 
-void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
-                                        Value* value) {
+void EmitterContext::StoreStateValue(uint32_t offset, Type* type,
+                                     Value* value) {
   IRBuilder<>& b = *builder_;
   PointerType* pointerTy = PointerType::getUnqual(type);
   Function::arg_iterator args = gen_fn_->arg_begin();
@@ -511,7 +557,7 @@ void FunctionGenerator::StoreStateValue(uint32_t offset, Type* type,
   b.CreateStore(value, ptr);
 }
 
-void FunctionGenerator::SetupLocals() {
+void EmitterContext::SetupLocals() {
   IRBuilder<>& b = *builder_;
 
   uint64_t spr_t = access_bits_.spr;
@@ -559,7 +605,7 @@ void FunctionGenerator::SetupLocals() {
   }
 }
 
-Value* FunctionGenerator::SetupLocal(llvm::Type* type, const char* name) {
+Value* EmitterContext::SetupLocal(llvm::Type* type, const char* name) {
   IRBuilder<>& b = *builder_;
   // Insert into the entry block.
   PushInsertPoint();
@@ -569,11 +615,11 @@ Value* FunctionGenerator::SetupLocal(llvm::Type* type, const char* name) {
   return v;
 }
 
-Value* FunctionGenerator::cia_value() {
+Value* EmitterContext::cia_value() {
   return builder_->getInt32(cia_);
 }
 
-void FunctionGenerator::FillRegisters() {
+void EmitterContext::FillRegisters() {
   // This updates all of the local register values from the state memory.
   // It should be called on function entry for initial setup and after any
   // calls that may modify the registers.
@@ -637,7 +683,7 @@ void FunctionGenerator::FillRegisters() {
   }
 }
 
-void FunctionGenerator::SpillRegisters() {
+void EmitterContext::SpillRegisters() {
   // This flushes all local registers (if written) to the register bank and
   // resets their values.
   //
@@ -709,13 +755,13 @@ void FunctionGenerator::SpillRegisters() {
   }
 }
 
-Value* FunctionGenerator::xer_value() {
+Value* EmitterContext::xer_value() {
   XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
   return b.CreateLoad(locals_.xer);
 }
 
-void FunctionGenerator::update_xer_value(Value* value) {
+void EmitterContext::update_xer_value(Value* value) {
   XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
 
@@ -726,7 +772,7 @@ void FunctionGenerator::update_xer_value(Value* value) {
   b.CreateStore(value, locals_.xer);
 }
 
-void FunctionGenerator::update_xer_with_overflow(Value* value) {
+void EmitterContext::update_xer_with_overflow(Value* value) {
   XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
 
@@ -743,7 +789,7 @@ void FunctionGenerator::update_xer_with_overflow(Value* value) {
   b.CreateStore(xer, locals_.xer);
 }
 
-void FunctionGenerator::update_xer_with_carry(Value* value) {
+void EmitterContext::update_xer_with_carry(Value* value) {
   XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
 
@@ -759,7 +805,7 @@ void FunctionGenerator::update_xer_with_carry(Value* value) {
   b.CreateStore(xer, locals_.xer);
 }
 
-void FunctionGenerator::update_xer_with_overflow_and_carry(Value* value) {
+void EmitterContext::update_xer_with_overflow_and_carry(Value* value) {
   XEASSERTNOTNULL(locals_.xer);
   IRBuilder<>& b = *builder_;
 
@@ -779,13 +825,13 @@ void FunctionGenerator::update_xer_with_overflow_and_carry(Value* value) {
   b.CreateStore(xer, locals_.xer);
 }
 
-Value* FunctionGenerator::lr_value() {
+Value* EmitterContext::lr_value() {
   XEASSERTNOTNULL(locals_.lr);
   IRBuilder<>& b = *builder_;
   return b.CreateLoad(locals_.lr);
 }
 
-void FunctionGenerator::update_lr_value(Value* value) {
+void EmitterContext::update_lr_value(Value* value) {
   XEASSERTNOTNULL(locals_.lr);
   IRBuilder<>& b = *builder_;
 
@@ -796,14 +842,14 @@ void FunctionGenerator::update_lr_value(Value* value) {
   b.CreateStore(value, locals_.lr);
 }
 
-Value* FunctionGenerator::ctr_value() {
+Value* EmitterContext::ctr_value() {
   XEASSERTNOTNULL(locals_.ctr);
   IRBuilder<>& b = *builder_;
 
   return b.CreateLoad(locals_.ctr);
 }
 
-void FunctionGenerator::update_ctr_value(Value* value) {
+void EmitterContext::update_ctr_value(Value* value) {
   XEASSERTNOTNULL(locals_.ctr);
   IRBuilder<>& b = *builder_;
 
@@ -814,7 +860,7 @@ void FunctionGenerator::update_ctr_value(Value* value) {
   b.CreateStore(value, locals_.ctr);
 }
 
-Value* FunctionGenerator::cr_value(uint32_t n) {
+Value* EmitterContext::cr_value(uint32_t n) {
   XEASSERT(n >= 0 && n < 8);
   XEASSERTNOTNULL(locals_.cr[n]);
   IRBuilder<>& b = *builder_;
@@ -824,7 +870,7 @@ Value* FunctionGenerator::cr_value(uint32_t n) {
   return v;
 }
 
-void FunctionGenerator::update_cr_value(uint32_t n, Value* value) {
+void EmitterContext::update_cr_value(uint32_t n, Value* value) {
   XEASSERT(n >= 0 && n < 8);
   XEASSERTNOTNULL(locals_.cr[n]);
   IRBuilder<>& b = *builder_;
@@ -838,7 +884,7 @@ void FunctionGenerator::update_cr_value(uint32_t n, Value* value) {
   b.CreateStore(value, locals_.cr[n]);
 }
 
-void FunctionGenerator::update_cr_with_cond(
+void EmitterContext::update_cr_with_cond(
     uint32_t n, Value* lhs, Value* rhs, bool is_signed) {
   IRBuilder<>& b = *builder_;
 
@@ -870,7 +916,7 @@ void FunctionGenerator::update_cr_with_cond(
   update_cr_value(n, c);
 }
 
-Value* FunctionGenerator::gpr_value(uint32_t n) {
+Value* EmitterContext::gpr_value(uint32_t n) {
   XEASSERT(n >= 0 && n < 32);
   XEASSERTNOTNULL(locals_.gpr[n]);
   IRBuilder<>& b = *builder_;
@@ -885,7 +931,7 @@ Value* FunctionGenerator::gpr_value(uint32_t n) {
   return b.CreateLoad(locals_.gpr[n]);
 }
 
-void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
+void EmitterContext::update_gpr_value(uint32_t n, Value* value) {
   XEASSERT(n >= 0 && n < 32);
   XEASSERTNOTNULL(locals_.gpr[n]);
   IRBuilder<>& b = *builder_;
@@ -904,14 +950,14 @@ void FunctionGenerator::update_gpr_value(uint32_t n, Value* value) {
   b.CreateStore(value, locals_.gpr[n]);
 }
 
-Value* FunctionGenerator::fpr_value(uint32_t n) {
+Value* EmitterContext::fpr_value(uint32_t n) {
   XEASSERT(n >= 0 && n < 32);
   XEASSERTNOTNULL(locals_.fpr[n]);
   IRBuilder<>& b = *builder_;
   return b.CreateLoad(locals_.fpr[n]);
 }
 
-void FunctionGenerator::update_fpr_value(uint32_t n, Value* value) {
+void EmitterContext::update_fpr_value(uint32_t n, Value* value) {
   XEASSERT(n >= 0 && n < 32);
   XEASSERTNOTNULL(locals_.fpr[n]);
   IRBuilder<>& b = *builder_;
@@ -919,12 +965,12 @@ void FunctionGenerator::update_fpr_value(uint32_t n, Value* value) {
   b.CreateStore(value, locals_.fpr[n]);
 }
 
-Value* FunctionGenerator::GetMembase() {
+Value* EmitterContext::GetMembase() {
   Value* v = gen_module_->getGlobalVariable("xe_memory_base");
   return builder_->CreateLoad(v);
 }
 
-Value* FunctionGenerator::GetMemoryAddress(uint32_t cia, Value* addr) {
+Value* EmitterContext::GetMemoryAddress(uint32_t cia, Value* addr) {
   IRBuilder<>& b = *builder_;
 
   // Input address is always in 32-bit space.
@@ -955,7 +1001,7 @@ Value* FunctionGenerator::GetMemoryAddress(uint32_t cia, Value* addr) {
   return b.CreateInBoundsGEP(GetMembase(), addr);
 }
 
-Value* FunctionGenerator::ReadMemory(
+Value* EmitterContext::ReadMemory(
     uint32_t cia, Value* addr, uint32_t size, bool acquire) {
   IRBuilder<>& b = *builder_;
 
@@ -1004,7 +1050,7 @@ Value* FunctionGenerator::ReadMemory(
   return value;
 }
 
-void FunctionGenerator::WriteMemory(
+void EmitterContext::WriteMemory(
     uint32_t cia, Value* addr, uint32_t size, Value* value, bool release) {
   IRBuilder<>& b = *builder_;
 

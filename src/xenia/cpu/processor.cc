@@ -9,19 +9,10 @@
 
 #include <xenia/cpu/processor.h>
 
-#include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include <llvm/ExecutionEngine/GenericValue.h>
-#include <llvm/ExecutionEngine/Interpreter.h>
-#include <llvm/ExecutionEngine/JIT.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/Support/ManagedStatic.h>
-#include <llvm/Support/TargetSelect.h>
-
-#include <xenia/cpu/codegen/emit.h>
+#include <xenia/cpu/jit.h>
+#include <xenia/cpu/ppc/disasm.h>
 
 
-using namespace llvm;
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::kernel;
@@ -38,36 +29,23 @@ namespace {
     }
     has_initialized = true;
 
-    // TODO(benvanik): only do this once
-    LLVMLinkInInterpreter();
-    LLVMLinkInJIT();
-    InitializeNativeTarget();
-
-    llvm_start_multithreaded();
-
     ppc::RegisterDisasmCategoryALU();
     ppc::RegisterDisasmCategoryControl();
     ppc::RegisterDisasmCategoryFPU();
     ppc::RegisterDisasmCategoryMemory();
 
-    // TODO(benvanik): only do this once
-    codegen::RegisterEmitCategoryALU();
-    codegen::RegisterEmitCategoryControl();
-    codegen::RegisterEmitCategoryFPU();
-    codegen::RegisterEmitCategoryMemory();
-
     atexit(CleanupOnShutdown);
   }
 
   void CleanupOnShutdown() {
-    llvm_shutdown();
   }
 }
 
 
-Processor::Processor(xe_pal_ref pal, xe_memory_ref memory) {
-  pal_ = xe_pal_retain(pal);
+Processor::Processor(xe_memory_ref memory, shared_ptr<Backend> backend) :
+    fn_table_(NULL), jit_(NULL) {
   memory_ = xe_memory_retain(memory);
+  backend_ = backend;
 
   InitializeIfNeeded();
 }
@@ -76,55 +54,55 @@ Processor::~Processor() {
   // Cleanup all modules.
   for (std::vector<ExecModule*>::iterator it = modules_.begin();
        it != modules_.end(); ++it) {
-    delete *it;
+    ExecModule* exec_module = *it;
+    if (jit_) {
+      jit_->UninitModule(exec_module);
+    }
+    delete exec_module;
   }
+  modules_.clear();
 
-  engine_.reset();
+  delete jit_;
+  delete fn_table_;
 
+  export_resolver_.reset();
+  backend_.reset();
   xe_memory_release(memory_);
-  xe_pal_release(pal_);
-}
-
-xe_pal_ref Processor::pal() {
-  return xe_pal_retain(pal_);
 }
 
 xe_memory_ref Processor::memory() {
   return xe_memory_retain(memory_);
 }
 
+shared_ptr<ExportResolver> Processor::export_resolver() {
+  return export_resolver_;
+}
+
+void Processor::set_export_resolver(
+    shared_ptr<ExportResolver> export_resolver) {
+  export_resolver_ = export_resolver;
+}
+
 int Processor::Setup() {
-  XEASSERTNULL(engine_);
+  XEASSERTNULL(jit_);
 
-  dummy_context_ = auto_ptr<LLVMContext>(new LLVMContext());
-  Module* dummy_module = new Module("dummy", *dummy_context_.get());
+  fn_table_ = new FunctionTable();
 
-  std::string error_message;
-
-  EngineBuilder builder(dummy_module);
-  builder.setEngineKind(EngineKind::JIT);
-  builder.setErrorStr(&error_message);
-  builder.setOptLevel(CodeGenOpt::None);
-  //builder.setOptLevel(CodeGenOpt::Aggressive);
-  //builder.setTargetOptions();
-  builder.setAllocateGVsWithCode(false);
-  //builder.setUseMCJIT(true);
-
-  engine_ = shared_ptr<ExecutionEngine>(builder.create());
-  if (!engine_) {
+  jit_ = backend_->CreateJIT(memory_, fn_table_);
+  if (jit_->Setup()) {
+    XELOGE("Unable to create JIT");
     return 1;
   }
 
   return 0;
 }
 
-int Processor::LoadBinary(const xechar_t* path, uint32_t start_address,
-                          shared_ptr<ExportResolver> export_resolver) {
+int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
   ExecModule* exec_module = NULL;
   const xechar_t* name = xestrrchr(path, '/') + 1;
 
-  // TODO(benvanik): map file from filesystem
-  xe_mmap_ref mmap = xe_mmap_open(pal_, kXEFileModeRead, path, 0, 0);
+  // TODO(benvanik): map file from filesystem API, not via platform API.
+  xe_mmap_ref mmap = xe_mmap_open(kXEFileModeRead, path, 0, 0);
   if (!mmap) {
     return NULL;
   }
@@ -133,29 +111,28 @@ int Processor::LoadBinary(const xechar_t* path, uint32_t start_address,
 
   int result_code = 1;
 
+  // Place the data into memory at the desired address.
   XEEXPECTZERO(xe_copy_memory(xe_memory_addr(memory_, start_address),
                               xe_memory_get_length(memory_),
                               addr, length));
 
-  // Prepare the module.
   char name_a[XE_MAX_PATH];
   XEEXPECTTRUE(xestrnarrow(name_a, XECOUNT(name_a), name));
   char path_a[XE_MAX_PATH];
   XEEXPECTTRUE(xestrnarrow(path_a, XECOUNT(path_a), path));
 
+  // Prepare the module.
+  // This will analyze it, generate code (if needed), and adds methods to
+  // the function table.
   exec_module = new ExecModule(
-      memory_, export_resolver, name_a, path_a, engine_);
+      memory_, export_resolver_, fn_table_, name_a, path_a);
+  XEEXPECTZERO(exec_module->PrepareRawBinary(
+      start_address, start_address + (uint32_t)length));
 
-  if (exec_module->PrepareRawBinary(start_address,
-                                    start_address + (uint32_t)length)) {
-    delete exec_module;
-    return 1;
-  }
+  // Initialize the module and prepare it for execution.
+  XEEXPECTZERO(jit_->InitModule(exec_module));
 
-  exec_module->AddFunctionsToMap(all_fns_);
   modules_.push_back(exec_module);
-
-  exec_module->Dump();
 
   result_code = 0;
 XECLEANUP:
@@ -166,22 +143,28 @@ XECLEANUP:
   return result_code;
 }
 
-int Processor::PrepareModule(const char* name, const char* path,
-                             xe_xex2_ref xex,
-                             shared_ptr<ExportResolver> export_resolver) {
+int Processor::LoadXexModule(const char* name, const char* path,
+                             xe_xex2_ref xex) {
+  int result_code = 1;
+
+  // Prepare the module.
+  // This will analyze it, generate code (if needed), and adds methods to
+  // the function table.
   ExecModule* exec_module = new ExecModule(
-      memory_, export_resolver, name, path,
-      engine_);
+      memory_, export_resolver_, fn_table_, name, path);
+  XEEXPECTZERO(exec_module->PrepareXexModule(xex));
 
-  if (exec_module->PrepareXex(xex)) {
-    delete exec_module;
-    return 1;
-  }
+  // Initialize the module and prepare it for execution.
+  XEEXPECTZERO(jit_->InitModule(exec_module));
 
-  exec_module->AddFunctionsToMap(all_fns_);
   modules_.push_back(exec_module);
 
-  return 0;
+  result_code = 0;
+XECLEANUP:
+  if (result_code) {
+    delete exec_module;
+  }
+  return result_code;
 }
 
 uint32_t Processor::CreateCallback(void (*callback)(void* data), void* data) {
@@ -200,14 +183,34 @@ void Processor::DeallocThread(ThreadState* thread_state) {
   delete thread_state;
 }
 
-int Processor::Execute(ThreadState* thread_state, uint32_t address) {
-  // Find the function to execute.
-  Function* f = GetFunction(address);
-  if (!f) {
-    XELOGCPU("Failed to find function %.8X to execute.", address);
-    return 1;
+FunctionPointer Processor::GenerateFunction(uint32_t address) {
+  // Search all modules for the function symbol.
+  // Each module will see if the address is within its code range and if the
+  // symbol is not found (likely) it will do analysis on it.
+  // TODO(benvanik): make this more efficient. Could use a binary search or
+  //     something more clever.
+  sdb::FunctionSymbol* fn_symbol = NULL;
+  for (std::vector<ExecModule*>::iterator it = modules_.begin();
+      it != modules_.end(); ++it) {
+    fn_symbol = (*it)->FindFunctionSymbol(address);
+    if (fn_symbol) {
+      break;
+    }
+  }
+  if (!fn_symbol) {
+    return NULL;
   }
 
+  // JIT the function.
+  FunctionPointer f = jit_->GenerateFunction(fn_symbol);
+  if (!f) {
+    return NULL;
+  }
+
+  return f;
+}
+
+int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   xe_ppc_state_t* ppc_state = thread_state->ppc_state();
 
   // This could be set to anything to give us a unique identifier to track
@@ -217,22 +220,23 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   // Setup registers.
   ppc_state->lr = lr;
 
-  // Args:
-  // - i8* state
-  // - i64 lr
-  std::vector<GenericValue> args;
-  args.push_back(PTOGV(ppc_state));
-  GenericValue lr_arg;
-  lr_arg.IntVal = APInt(64, lr);
-  args.push_back(lr_arg);
-  GenericValue ret = engine_->runFunction(f, args);
-  // return (uint32_t)ret.IntVal.getSExtValue();
+  // Find the function to execute.
+  FunctionPointer f = fn_table_->GetFunction(address);
 
-  // Faster, somewhat.
+  // JIT, if needed.
+  if (!f) {
+    f = this->GenerateFunction(address);
+  }
+
+  // If JIT failed, die.
+  if (!f) {
+    XELOGCPU("Execute(%.8X): failed to find function", address);
+    return 1;
+  }
+
+  // Execute the function pointer.
   // Messes with the stack in such a way as to cause Xcode to behave oddly.
-  // typedef void (*fnptr)(xe_ppc_state_t*, uint64_t);
-  // fnptr ptr = (fnptr)engine_->getPointerToFunction(f);
-  // ptr(ppc_state, lr);
+  f(ppc_state, lr);
 
   return 0;
 }
@@ -245,12 +249,4 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
     return 0xDEADBABE;
   }
   return ppc_state->r[3];
-}
-
-Function* Processor::GetFunction(uint32_t address) {
-  FunctionMap::iterator it = all_fns_.find(address);
-  if (it != all_fns_.end()) {
-    return it->second;
-  }
-  return NULL;
 }

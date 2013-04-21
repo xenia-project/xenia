@@ -7,25 +7,25 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/codegen/emit.h>
+#include <xenia/cpu/llvmbe/emit.h>
 
-#include <xenia/cpu/codegen/function_generator.h>
+#include <xenia/cpu/llvmbe/emitter_context.h>
 #include <xenia/cpu/ppc/state.h>
 
 
 using namespace llvm;
-using namespace xe::cpu::codegen;
+using namespace xe::cpu;
 using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
 
 
 namespace xe {
 namespace cpu {
-namespace codegen {
+namespace llvmbe {
 
 
 int XeEmitIndirectBranchTo(
-    FunctionGenerator& g, IRBuilder<>& b, const char* src, uint32_t cia,
+    EmitterContext& e, IRBuilder<>& b, const char* src, uint32_t cia,
     bool lk, uint32_t reg) {
   // TODO(benvanik): run a DFA pass to see if we can detect whether this is
   //     a normal function return that is pulling the LR from the stack that
@@ -37,10 +37,10 @@ int XeEmitIndirectBranchTo(
   Value* target;
   switch (reg) {
     case kXEPPCRegLR:
-      target = g.lr_value();
+      target = e.lr_value();
       break;
     case kXEPPCRegCTR:
-      target = g.ctr_value();
+      target = e.ctr_value();
       break;
     default:
       XEASSERTALWAYS();
@@ -52,29 +52,29 @@ int XeEmitIndirectBranchTo(
   // Ideally it's a return and we can just do a simple ret and be done.
   // If it's not, we fall through to the full indirection logic.
   if (!lk && reg == kXEPPCRegLR) {
-    BasicBlock* next_block = g.GetNextBasicBlock();
-    BasicBlock* mismatch_bb = BasicBlock::Create(*g.context(), "lr_mismatch",
-                                                 g.gen_fn(), next_block);
-    Value* lr_cmp = b.CreateICmpEQ(target, ++(g.gen_fn()->arg_begin()));
+    BasicBlock* next_block = e.GetNextBasicBlock();
+    BasicBlock* mismatch_bb = BasicBlock::Create(*e.context(), "lr_mismatch",
+                                                 e.gen_fn(), next_block);
+    Value* lr_cmp = b.CreateICmpEQ(target, ++(e.gen_fn()->arg_begin()));
     // The return block will spill registers for us.
-    b.CreateCondBr(lr_cmp, g.GetReturnBasicBlock(), mismatch_bb);
+    b.CreateCondBr(lr_cmp, e.GetReturnBasicBlock(), mismatch_bb);
     b.SetInsertPoint(mismatch_bb);
   }
 
   // Defer to the generator, which will do fancy things.
   bool likely_local = !lk && reg == kXEPPCRegCTR;
-  return g.GenerateIndirectionBranch(cia, target, lk, likely_local);
+  return e.GenerateIndirectionBranch(cia, target, lk, likely_local);
 }
 
 int XeEmitBranchTo(
-    FunctionGenerator& g, IRBuilder<>& b, const char* src, uint32_t cia,
+    EmitterContext& e, IRBuilder<>& b, const char* src, uint32_t cia,
     bool lk) {
   // Get the basic block and switch behavior based on outgoing type.
-  FunctionBlock* fn_block = g.fn_block();
+  FunctionBlock* fn_block = e.fn_block();
   switch (fn_block->outgoing_type) {
     case FunctionBlock::kTargetBlock:
     {
-      BasicBlock* target_bb = g.GetBasicBlock(fn_block->outgoing_address);
+      BasicBlock* target_bb = e.GetBasicBlock(fn_block->outgoing_address);
       XEASSERTNOTNULL(target_bb);
       b.CreateBr(target_bb);
       break;
@@ -85,13 +85,13 @@ int XeEmitBranchTo(
       // TODO(benvanik): only spill ones used by the target function? Use
       //     calling convention flags on the function to not spill temp
       //     registers?
-      g.SpillRegisters();
+      e.SpillRegisters();
 
       XEASSERTNOTNULL(fn_block->outgoing_function);
-      Function* target_fn = g.GetFunction(fn_block->outgoing_function);
-      Function::arg_iterator args = g.gen_fn()->arg_begin();
+      Function* target_fn = e.GetFunction(fn_block->outgoing_function);
+      Function::arg_iterator args = e.gen_fn()->arg_begin();
       Value* state_ptr = args;
-      BasicBlock* next_bb = g.GetNextBasicBlock();
+      BasicBlock* next_bb = e.GetNextBasicBlock();
       if (!lk || !next_bb) {
         // Tail. No need to refill the local register values, just return.
         // We optimize this by passing in the LR from our parent instead of the
@@ -103,7 +103,7 @@ int XeEmitBranchTo(
         // Will return here eventually.
         // Refill registers from state.
         b.CreateCall2(target_fn, state_ptr, b.getInt64(cia + 4));
-        g.FillRegisters();
+        e.FillRegisters();
         b.CreateBr(next_bb);
       }
       break;
@@ -112,13 +112,13 @@ int XeEmitBranchTo(
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA LR: %.8X\n", cia);
-      return XeEmitIndirectBranchTo(g, b, src, cia, lk, kXEPPCRegLR);
+      return XeEmitIndirectBranchTo(e, b, src, cia, lk, kXEPPCRegLR);
     }
     case FunctionBlock::kTargetCTR:
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA CTR: %.8X\n", cia);
-      return XeEmitIndirectBranchTo(g, b, src, cia, lk, kXEPPCRegCTR);
+      return XeEmitIndirectBranchTo(e, b, src, cia, lk, kXEPPCRegCTR);
     }
     default:
     case FunctionBlock::kTargetNone:
@@ -129,7 +129,7 @@ int XeEmitBranchTo(
 }
 
 
-XEEMITTER(bx,           0x48000000, I  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(bx,           0x48000000, I  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // if AA then
   //   NIA <- EXTS(LI || 0b00)
   // else
@@ -144,13 +144,13 @@ XEEMITTER(bx,           0x48000000, I  )(FunctionGenerator& g, IRBuilder<>& b, I
     nia = i.address + XEEXTS26(i.I.LI << 2);
   }
   if (i.I.LK) {
-    g.update_lr_value(b.getInt32(i.address + 4));
+    e.update_lr_value(b.getInt32(i.address + 4));
   }
 
-  return XeEmitBranchTo(g, b, "bx", i.address, i.I.LK);
+  return XeEmitBranchTo(e, b, "bx", i.address, i.I.LK);
 }
 
-XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(bcx,          0x40000000, B  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
@@ -170,7 +170,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
   // The docs say always, though...
   if (i.B.LK) {
-    g.update_lr_value(b.getInt32(i.address + 4));
+    e.update_lr_value(b.getInt32(i.address + 4));
   }
 
   Value* ctr_ok = NULL;
@@ -178,9 +178,9 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
     // Ignore ctr.
   } else {
     // Decrement counter.
-    Value* ctr = g.ctr_value();
+    Value* ctr = e.ctr_value();
     ctr = b.CreateSub(ctr, b.getInt64(1));
-    g.update_ctr_value(ctr);
+    e.update_ctr_value(ctr);
 
     // Ctr check.
     if (XESELECTBITS(i.B.BO, 1, 1)) {
@@ -194,7 +194,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (XESELECTBITS(i.B.BO, 4, 4)) {
     // Ignore cond.
   } else {
-    Value* cr = g.cr_value(i.B.BI >> 2);
+    Value* cr = e.cr_value(i.B.BI >> 2);
     cr = b.CreateAnd(cr, 1 << (i.B.BI & 3));
     if (XESELECTBITS(i.B.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
@@ -218,8 +218,8 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   if (ok) {
     char name[32];
     xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
-    BasicBlock* next_block = g.GetNextBasicBlock();
-    BasicBlock* branch_bb = BasicBlock::Create(*g.context(), name, g.gen_fn(),
+    BasicBlock* next_block = e.GetNextBasicBlock();
+    BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.gen_fn(),
                                                next_block);
 
     b.CreateCondBr(ok, branch_bb, next_block);
@@ -233,7 +233,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   } else {
     nia = i.address + XEEXTS26(i.B.BD << 2);
   }
-  if (XeEmitBranchTo(g, b, "bcx", i.address, i.B.LK)) {
+  if (XeEmitBranchTo(e, b, "bcx", i.address, i.B.LK)) {
     return 1;
   }
 
@@ -242,7 +242,7 @@ XEEMITTER(bcx,          0x40000000, B  )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
-XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(bcctrx,       0x4C000420, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
   // if cond_ok then
   //   NIA <- CTR[0:61] || 0b00
@@ -256,14 +256,14 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
   // The docs say always, though...
   if (i.XL.LK) {
-    g.update_lr_value(b.getInt32(i.address + 4));
+    e.update_lr_value(b.getInt32(i.address + 4));
   }
 
   Value* cond_ok = NULL;
   if (XESELECTBITS(i.XL.BO, 4, 4)) {
     // Ignore cond.
   } else {
-    Value* cr = g.cr_value(i.XL.BI >> 2);
+    Value* cr = e.cr_value(i.XL.BI >> 2);
     cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
@@ -283,9 +283,9 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   if (ok) {
     char name[32];
     xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcctrx", i.address);
-    BasicBlock* next_block = g.GetNextBasicBlock();
+    BasicBlock* next_block = e.GetNextBasicBlock();
     XEASSERTNOTNULL(next_block);
-    BasicBlock* branch_bb = BasicBlock::Create(*g.context(), name, g.gen_fn(),
+    BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.gen_fn(),
                                                next_block);
 
     b.CreateCondBr(ok, branch_bb, next_block);
@@ -293,7 +293,7 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 
   // Note that this occurs entirely within the branch true block.
-  if (XeEmitBranchTo(g, b, "bcctrx", i.address, i.XL.LK)) {
+  if (XeEmitBranchTo(e, b, "bcctrx", i.address, i.XL.LK)) {
     return 1;
   }
 
@@ -302,7 +302,7 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   return 0;
 }
 
-XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(bclrx,        0x4C000020, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
@@ -319,7 +319,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
   // The docs say always, though...
   if (i.XL.LK) {
-    g.update_lr_value(b.getInt32(i.address + 4));
+    e.update_lr_value(b.getInt32(i.address + 4));
   }
 
   Value* ctr_ok = NULL;
@@ -327,7 +327,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
     // Ignore ctr.
   } else {
     // Decrement counter.
-    Value* ctr = g.ctr_value();
+    Value* ctr = e.ctr_value();
     ctr = b.CreateSub(ctr, b.getInt64(1));
 
     // Ctr check.
@@ -342,7 +342,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   if (XESELECTBITS(i.XL.BO, 4, 4)) {
     // Ignore cond.
   } else {
-    Value* cr = g.cr_value(i.XL.BI >> 2);
+    Value* cr = e.cr_value(i.XL.BI >> 2);
     cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
@@ -366,9 +366,9 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   if (ok) {
     char name[32];
     xesnprintfa(name, XECOUNT(name), "loc_%.8X_bclrx", i.address);
-    BasicBlock* next_block = g.GetNextBasicBlock();
+    BasicBlock* next_block = e.GetNextBasicBlock();
     XEASSERTNOTNULL(next_block);
-    BasicBlock* branch_bb = BasicBlock::Create(*g.context(), name, g.gen_fn(),
+    BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.gen_fn(),
                                                next_block);
 
     b.CreateCondBr(ok, branch_bb, next_block);
@@ -376,7 +376,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
   }
 
   // Note that this occurs entirely within the branch true block.
-  if (XeEmitBranchTo(g, b, "bclrx", i.address, i.XL.LK)) {
+  if (XeEmitBranchTo(e, b, "bclrx", i.address, i.XL.LK)) {
     return 1;
   }
 
@@ -388,47 +388,47 @@ XEEMITTER(bclrx,        0x4C000020, XL )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Condition register logical (A-23)
 
-XEEMITTER(crand,        0x4C000202, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(crand,        0x4C000202, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crandc,       0x4C000102, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(crandc,       0x4C000102, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(creqv,        0x4C000242, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(creqv,        0x4C000242, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crnand,       0x4C0001C2, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(crnand,       0x4C0001C2, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crnor,        0x4C000042, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(crnor,        0x4C000042, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(cror,         0x4C000382, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(cror,         0x4C000382, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crorc,        0x4C000342, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(crorc,        0x4C000342, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crxor,        0x4C000182, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(crxor,        0x4C000182, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mcrf,         0x4C000000, XL )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(mcrf,         0x4C000000, XL )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -436,7 +436,7 @@ XEEMITTER(mcrf,         0x4C000000, XL )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // System linkage (A-24)
 
-XEEMITTER(sc,           0x44000002, SC )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(sc,           0x44000002, SC )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -444,7 +444,7 @@ XEEMITTER(sc,           0x44000002, SC )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Trap (A-25)
 
-int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
+int XeEmitTrap(EmitterContext& e, IRBuilder<>& b, InstrData& i,
                 Value* va, Value* vb, uint32_t TO) {
   // if (a < b) & TO[0] then TRAP
   // if (a > b) & TO[1] then TRAP
@@ -459,27 +459,27 @@ int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
     return 0;
   }
 
-  BasicBlock* after_bb = BasicBlock::Create(*g.context(), "", g.gen_fn(),
-                                            g.GetNextBasicBlock());
-  BasicBlock* trap_bb = BasicBlock::Create(*g.context(), "", g.gen_fn(),
+  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.gen_fn(),
+                                            e.GetNextBasicBlock());
+  BasicBlock* trap_bb = BasicBlock::Create(*e.context(), "", e.gen_fn(),
                                            after_bb);
 
   // Create the basic blocks (so we can chain).
   std::vector<BasicBlock*> bbs;
   if (TO & (1 << 4)) {
-    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+    bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
   }
   if (TO & (1 << 3)) {
-    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+    bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
   }
   if (TO & (1 << 2)) {
-    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+    bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
   }
   if (TO & (1 << 1)) {
-    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+    bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
   }
   if (TO & (1 << 0)) {
-    bbs.push_back(BasicBlock::Create(*g.context(), "", g.gen_fn(), trap_bb));
+    bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
   }
   bbs.push_back(after_bb);
 
@@ -526,10 +526,10 @@ int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
 
   // Create trap BB.
   b.SetInsertPoint(trap_bb);
-  g.SpillRegisters();
+  e.SpillRegisters();
   // TODO(benvanik): use @llvm.debugtrap? could make debugging better
-  b.CreateCall2(g.gen_module()->getFunction("XeTrap"),
-                g.gen_fn()->arg_begin(),
+  b.CreateCall2(e.gen_module()->getFunction("XeTrap"),
+                e.gen_fn()->arg_begin(),
                 b.getInt32(i.address));
   b.CreateBr(after_bb);
 
@@ -539,7 +539,7 @@ int XeEmitTrap(FunctionGenerator& g, IRBuilder<>& b, InstrData& i,
   return 0;
 }
 
-XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(td,           0x7C000088, X  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // a <- (RA)
   // b <- (RB)
   // if (a < b) & TO[0] then TRAP
@@ -547,26 +547,26 @@ XEEMITTER(td,           0x7C000088, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   // if (a = b) & TO[2] then TRAP
   // if (a <u b) & TO[3] then TRAP
   // if (a >u b) & TO[4] then TRAP
-  return XeEmitTrap(g, b, i,
-                    g.gpr_value(i.X.RA),
-                    g.gpr_value(i.X.RB),
+  return XeEmitTrap(e, b, i,
+                    e.gpr_value(i.X.RA),
+                    e.gpr_value(i.X.RB),
                     i.X.RT);
 }
 
-XEEMITTER(tdi,          0x08000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(tdi,          0x08000000, D  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
   // if (a = EXTS(SI)) & TO[2] then TRAP
   // if (a <u EXTS(SI)) & TO[3] then TRAP
   // if (a >u EXTS(SI)) & TO[4] then TRAP
-  return XeEmitTrap(g, b, i,
-                    g.gpr_value(i.D.RA),
+  return XeEmitTrap(e, b, i,
+                    e.gpr_value(i.D.RA),
                     b.getInt64(XEEXTS16(i.D.DS)),
                     i.D.RT);
 }
 
-XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(tw,           0x7C000008, X  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
   // if (a < b) & TO[0] then TRAP
@@ -574,25 +574,25 @@ XEEMITTER(tw,           0x7C000008, X  )(FunctionGenerator& g, IRBuilder<>& b, I
   // if (a = b) & TO[2] then TRAP
   // if (a <u b) & TO[3] then TRAP
   // if (a >u b) & TO[4] then TRAP
-  return XeEmitTrap(g, b, i,
-                    b.CreateSExt(b.CreateTrunc(g.gpr_value(i.X.RA),
+  return XeEmitTrap(e, b, i,
+                    b.CreateSExt(b.CreateTrunc(e.gpr_value(i.X.RA),
                                                b.getInt32Ty()),
                                  b.getInt64Ty()),
-                    b.CreateSExt(b.CreateTrunc(g.gpr_value(i.X.RB),
+                    b.CreateSExt(b.CreateTrunc(e.gpr_value(i.X.RB),
                                                b.getInt32Ty()),
                                  b.getInt64Ty()),
                     i.X.RT);
 }
 
-XEEMITTER(twi,          0x0C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(twi,          0x0C000000, D  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
   // if (a = EXTS(SI)) & TO[2] then TRAP
   // if (a <u EXTS(SI)) & TO[3] then TRAP
   // if (a >u EXTS(SI)) & TO[4] then TRAP
-  return XeEmitTrap(g, b, i,
-                    b.CreateSExt(b.CreateTrunc(g.gpr_value(i.D.RA),
+  return XeEmitTrap(e, b, i,
+                    b.CreateSExt(b.CreateTrunc(e.gpr_value(i.D.RA),
                                                b.getInt32Ty()),
                                  b.getInt64Ty()),
                     b.getInt64(XEEXTS16(i.D.DS)),
@@ -602,12 +602,12 @@ XEEMITTER(twi,          0x0C000000, D  )(FunctionGenerator& g, IRBuilder<>& b, I
 
 // Processor control (A-26)
 
-XEEMITTER(mfcr,         0x7C000026, X  )(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(mfcr,         0x7C000026, X  )(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mfspr,        0x7C0002A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(mfspr,        0x7C0002A6, XFX)(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   RT <- SPR(n)
@@ -619,58 +619,58 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, I
   switch (n) {
   case 1:
     // XER
-    v = g.xer_value();
+    v = e.xer_value();
     break;
   case 8:
     // LR
-    v = g.lr_value();
+    v = e.lr_value();
     break;
   case 9:
     // CTR
-    v = g.ctr_value();
+    v = e.ctr_value();
     break;
   default:
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
 
-  g.update_gpr_value(i.XFX.RT, v);
+  e.update_gpr_value(i.XFX.RT, v);
 
   return 0;
 }
 
-XEEMITTER(mftb,         0x7C0002E6, XFX)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(mftb,         0x7C0002E6, XFX)(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtcrf,        0x7C000120, XFX)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(mtcrf,        0x7C000120, XFX)(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtspr,        0x7C0003A6, XFX)(FunctionGenerator& g, IRBuilder<>& b, InstrData& i) {
+XEEMITTER(mtspr,        0x7C0003A6, XFX)(EmitterContext& e, IRBuilder<>& b, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   SPR(n) <- (RS)
   // else
   //   SPR(n) <- (RS)[32:63]
 
-  Value* v = g.gpr_value(i.XFX.RT);
+  Value* v = e.gpr_value(i.XFX.RT);
 
   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
   switch (n) {
   case 1:
     // XER
-    g.update_xer_value(v);
+    e.update_xer_value(v);
     break;
   case 8:
     // LR
-    g.update_lr_value(v);
+    e.update_lr_value(v);
     break;
   case 9:
     // CTR
-    g.update_ctr_value(v);
+    e.update_ctr_value(v);
     break;
   default:
     XEINSTRNOTIMPLEMENTED();
@@ -708,6 +708,6 @@ void RegisterEmitCategoryControl() {
 }
 
 
-}  // namespace codegen
+}  // namespace llvmbe
 }  // namespace cpu
 }  // namespace xe

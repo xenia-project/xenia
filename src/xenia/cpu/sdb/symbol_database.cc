@@ -103,9 +103,13 @@ ExceptionEntrySymbol* SymbolDatabase::GetOrInsertExceptionEntry(
   return ee;
 }
 
-FunctionSymbol* SymbolDatabase::GetOrInsertFunction(uint32_t address) {
+FunctionSymbol* SymbolDatabase::GetOrInsertFunction(
+    uint32_t address, FunctionSymbol* opt_call_source) {
   FunctionSymbol* fn = GetFunction(address);
   if (fn) {
+    if (opt_call_source) {
+      FunctionSymbol::AddCall(opt_call_source, fn);
+    }
     return fn;
   }
 
@@ -120,6 +124,11 @@ FunctionSymbol* SymbolDatabase::GetOrInsertFunction(uint32_t address) {
   function_count_++;
   symbols_.insert(SymbolMap::value_type(address, fn));
   scan_queue_.push_back(fn);
+
+  if (opt_call_source) {
+    FunctionSymbol::AddCall(opt_call_source, fn);
+  }
+
   return fn;
 }
 
@@ -460,7 +469,9 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
         // Function call.
         block->outgoing_type = FunctionBlock::kTargetFunction;
         block->outgoing_function = GetFunction(block->outgoing_address);
-        if (!block->outgoing_function) {
+        if (block->outgoing_function) {
+          FunctionSymbol::AddCall(fn, block->outgoing_function);
+        } else {
           XELOGE("call target not found: %.8X -> %.8X",
                  block->end_address, block->outgoing_address);
           new_fns.push_back(block->outgoing_address);
@@ -474,7 +485,7 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
            (uint32_t)new_fns.size());
     for (std::vector<uint32_t>::iterator it = new_fns.begin();
         it != new_fns.end(); ++it) {
-      GetOrInsertFunction(*it);
+      GetOrInsertFunction(*it, fn);
     }
     return 1;
   }

@@ -105,6 +105,11 @@ FunctionBlock* FunctionSymbol::SplitBlock(uint32_t address) {
   return NULL;
 }
 
+void FunctionSymbol::AddCall(FunctionSymbol* source, FunctionSymbol* target) {
+  source->outgoing_calls.push_back(FunctionCall(0, source, target));
+  target->incoming_calls.push_back(FunctionCall(0, source, target));
+}
+
 
 VariableSymbol::VariableSymbol() :
     Symbol(Variable),

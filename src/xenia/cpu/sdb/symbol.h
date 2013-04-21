@@ -32,6 +32,10 @@ public:
   uint32_t        address;
   FunctionSymbol* source;
   FunctionSymbol* target;
+
+  FunctionCall(uint32_t address, FunctionSymbol* source,
+               FunctionSymbol* target) :
+      address(address), source(source), target(target) {}
 };
 
 class VariableAccess {
@@ -39,6 +43,10 @@ public:
   uint32_t        address;
   FunctionSymbol* source;
   VariableSymbol* target;
+
+  VariableAccess(uint32_t address, FunctionSymbol* source,
+                 VariableSymbol* target) :
+      address(address), source(source), target(target) {}
 };
 
 class Symbol {
@@ -116,11 +124,13 @@ public:
   kernel::KernelExport* kernel_export;
   ExceptionEntrySymbol* ee;
 
-  std::vector<FunctionCall*> incoming_calls;
-  std::vector<FunctionCall*> outgoing_calls;
-  std::vector<VariableAccess*> variable_accesses;
+  std::vector<FunctionCall> incoming_calls;
+  std::vector<FunctionCall> outgoing_calls;
+  std::vector<VariableAccess> variable_accesses;
 
   std::map<uint32_t, FunctionBlock*> blocks;
+
+  static void AddCall(FunctionSymbol* source, FunctionSymbol* target);
 };
 
 class VariableSymbol : public Symbol {

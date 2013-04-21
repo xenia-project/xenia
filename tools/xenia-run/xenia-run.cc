@@ -28,6 +28,7 @@ public:
 
 private:
   xe_memory_ref   memory_;
+  shared_ptr<Backend>   backend_;
   shared_ptr<Processor> processor_;
   shared_ptr<Runtime>   runtime_;
   shared_ptr<Debugger>  debugger_;
@@ -45,6 +46,8 @@ int Run::Setup() {
   xe_zero_struct(&pal_options, sizeof(pal_options));
   XEEXPECTZERO(xe_pal_init(pal_options));
 
+  backend_ = shared_ptr<Backend>(new xe::cpu::llvmbe::LLVMBackend());
+
   debugger_ = shared_ptr<Debugger>(new Debugger());
 
   xe_memory_options_t memory_options;
@@ -52,10 +55,11 @@ int Run::Setup() {
   memory_ = xe_memory_create(memory_options);
   XEEXPECTNOTNULL(memory_);
 
-  processor_ = shared_ptr<Processor>(new Processor(memory_));
+  processor_ = shared_ptr<Processor>(new Processor(memory_, backend_));
   XEEXPECTZERO(processor_->Setup());
 
   runtime_ = shared_ptr<Runtime>(new Runtime(processor_, XT("")));
+  processor_->set_export_resolver(runtime_->export_resolver());
 
   return 0;
 XECLEANUP:

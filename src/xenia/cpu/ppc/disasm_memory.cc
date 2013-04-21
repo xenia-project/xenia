@@ -717,21 +717,11 @@ XEDISASMR(dcbt,         0x7C00022C, X  )(InstrData& i, InstrDisasm& d) {
   // TODO
   return d.Finish();
 }
-XEDISASMR(dcbt,         0x7C00022C, X  )(InstrData& i, InstrDisasm& d) {
-  // No-op for now.
-  // TODO(benvanik): use @llvm.prefetch
-  return 0;
-}
 
 XEDISASMR(dcbtst,       0x7C0001EC, X  )(InstrData& i, InstrDisasm& d) {
   d.Init("dcbtst", "Data Cache Block Touch for Store", 0);
   // TODO
   return d.Finish();
-}
-XEDISASMR(dcbtst,       0x7C0001EC, X  )(InstrData& i, InstrDisasm& d) {
-  // No-op for now.
-  // TODO(benvanik): use @llvm.prefetch
-  return 0;
 }
 
 XEDISASMR(dcbz,         0x7C0007EC, X  )(InstrData& i, InstrDisasm& d) {

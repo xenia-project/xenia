@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_CODEGEN_FUNCTION_GENERATOR_H_
-#define XENIA_CPU_CODEGEN_FUNCTION_GENERATOR_H_
+#ifndef XENIA_CPU_LLVMBE_EMITTER_CONTEXT_H_
+#define XENIA_CPU_LLVMBE_EMITTER_CONTEXT_H_
 
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/DataLayout.h>
@@ -23,21 +23,22 @@
 
 namespace xe {
 namespace cpu {
-namespace codegen {
+namespace llvmbe {
 
 
-class FunctionGenerator {
+class EmitterContext {
 public:
-  FunctionGenerator(
-      xe_memory_ref memory, sdb::SymbolDatabase* sdb, sdb::FunctionSymbol* fn,
-      llvm::LLVMContext* context, llvm::Module* gen_module,
-      llvm::Function* gen_fn);
-  ~FunctionGenerator();
+  EmitterContext(
+      xe_memory_ref memory,
+      llvm::LLVMContext* context, llvm::Module* gen_module);
+  ~EmitterContext();
 
-  sdb::SymbolDatabase* sdb();
-  sdb::FunctionSymbol* fn();
+  int Init(sdb::FunctionSymbol* fn, llvm::Function* gen_fn);
+
   llvm::LLVMContext* context();
   llvm::Module* gen_module();
+
+  sdb::FunctionSymbol* fn();
   llvm::Function* gen_fn();
   sdb::FunctionBlock* fn_block();
 
@@ -49,7 +50,7 @@ public:
   llvm::BasicBlock* GetNextBasicBlock();
   llvm::BasicBlock* GetReturnBasicBlock();
 
-  llvm::Function* GetFunction(sdb::FunctionSymbol* fn);
+  llvm::Function* GetFunction(sdb::FunctionSymbol* symbol);
 
   int GenerateIndirectionBranch(uint32_t cia, llvm::Value* target,
                                 bool lk, bool likely_local);
@@ -101,17 +102,18 @@ private:
   void SetupLocals();
 
   xe_memory_ref         memory_;
-  sdb::SymbolDatabase*  sdb_;
-  sdb::FunctionSymbol*  fn_;
   llvm::LLVMContext*    context_;
   llvm::Module*         gen_module_;
+  llvm::IRBuilder<>*    builder_;
+  llvm::FunctionType*   fn_type_;
+
+  sdb::FunctionSymbol*  fn_;
   llvm::Function*       gen_fn_;
   sdb::FunctionBlock*   fn_block_;
   llvm::BasicBlock*     return_block_;
   llvm::BasicBlock*     internal_indirection_block_;
   llvm::BasicBlock*     external_indirection_block_;
   llvm::BasicBlock*     bb_;
-  llvm::IRBuilder<>*    builder_;
 
   std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock::iterator> >
       insert_points_;
@@ -136,9 +138,9 @@ private:
 };
 
 
-}  // namespace codegen
+}  // namespace llvmbe
 }  // namespace cpu
 }  // namespace xe
 
 
-#endif  // XENIA_CPU_CODEGEN_FUNCTION_GENERATOR_H_
+#endif  // XENIA_CPU_LLVMBE_EMITTER_CONTEXT_H_
