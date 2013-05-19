@@ -12,59 +12,6 @@
 
     'library%': 'static_library',
     'target_arch%': 'x64',
-
-    # LLVM paths.
-    # TODO(benvanik): switch based on configuration.
-    'llvm_path': 'build/llvm/release/',
-    'llvm_config': '<(llvm_path)bin/llvm-config',
-    'llvm_includedir': '<(llvm_path)/include',
-    'llvm_cxxflags': [
-      # ?
-    ],
-    'llvm_libdir': '<(llvm_path)/lib',
-    'llvm_libs': [
-      #'pthread',
-      'LLVMCppBackendCodeGen',
-      'LLVMCppBackendInfo',
-      'LLVMAsmParser',
-      'LLVMTableGen',
-      'LLVMDebugInfo',
-      'LLVMX86Disassembler',
-      'LLVMX86AsmParser',
-      'LLVMX86CodeGen',
-      'LLVMSelectionDAG',
-      'LLVMAsmPrinter',
-      'LLVMX86Desc',
-      'LLVMX86Info',
-      'LLVMX86AsmPrinter',
-      'LLVMX86Utils',
-      'LLVMMCDisassembler',
-      'LLVMMCParser',
-      'LLVMInstrumentation',
-      'LLVMOption',
-      'LLVMArchive',
-      'LLVMBitReader',
-      'LLVMInterpreter',
-      'LLVMipo',
-      'LLVMVectorize',
-      'LLVMLinker',
-      'LLVMBitWriter',
-      'LLVMMCJIT',
-      'LLVMJIT',
-      'LLVMCodeGen',
-      'LLVMScalarOpts',
-      'LLVMInstCombine',
-      'LLVMTransformUtils',
-      'LLVMipa',
-      'LLVMAnalysis',
-      'LLVMRuntimeDyld',
-      'LLVMExecutionEngine',
-      'LLVMTarget',
-      'LLVMMC',
-      'LLVMObject',
-      'LLVMCore',
-      'LLVMSupport',
-    ],
   },
 
   'target_defaults': {
@@ -129,7 +76,6 @@
             #'LinkIncremental': '1', # 1 = NO, 2 = YES
             'TargetMachine': '17', # x86 - 64
             'AdditionalLibraryDirectories': [
-              '../../<(llvm_libdir)',
             ],
             #'AdditionalLibraryDirectories!':
             #  ['<(DEPTH)/third_party/platformsdk_win7/files/Lib'],
@@ -155,7 +101,6 @@
           'GCC_VERSION': 'com.apple.compilers.llvm.clang.1_0',
           'WARNING_CFLAGS': ['-Wall', '-Wendif-labels'],
           'LIBRARY_SEARCH_PATHS': [
-            '<@(llvm_libdir)',
           ],
         },
 

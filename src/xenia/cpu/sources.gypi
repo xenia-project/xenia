@@ -23,7 +23,7 @@
   ],
 
   'includes': [
-    'llvmbe/sources.gypi',
+    #'llvmbe/sources.gypi',
     'ppc/sources.gypi',
     'sdb/sources.gypi',
   ],

@@ -27,34 +27,28 @@
       'direct_dependent_settings': {
         'include_dirs': [
           'src/',
-          '<@(llvm_includedir)',
         ],
 
         'target_conditions': [
           ['_type=="shared_library"', {
             'cflags': [
-              '<(llvm_cxxflags)',
             ],
           }],
           ['_type=="executable"', {
             'conditions': [
               ['OS == "win"', {
                 'libraries': [
-                  '<@(llvm_libs)',
                   'wsock32',
                 ],
               }],
               ['OS == "mac"', {
                 'xcode_settings': {
                   'OTHER_LDFLAGS': [
-                    '<!@(<(llvm_config) --libs all)',
                   ],
                 },
               }],
               ['OS == "linux"', {
                 'libraries': [
-                  '-L../../../<@(llvm_libdir)/',
-                  '<!@(<(llvm_config) --libs all)',
                   '-lpthread',
                   '-ldl',
                 ],
@@ -65,13 +59,11 @@
       },
 
       'cflags': [
-        '<(llvm_cxxflags)',
       ],
 
       'include_dirs': [
         '.',
         'src/',
-        '<(llvm_includedir)',
       ],
 
       'includes': [

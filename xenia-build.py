@@ -180,9 +180,7 @@ def post_update_deps(config):
   Args:
     config: 'debug' or 'release'.
   """
-  print '- building llvm...'
-  shell_call('ninja -C build/llvm/%s-obj/ install' % (config))
-  print ''
+  pass
 
 
 class SetupCommand(Command):
@@ -204,10 +202,6 @@ class SetupCommand(Command):
     shell_call('git submodule update')
     print ''
 
-    # LLVM needs to pull with --rebase.
-    # TODO(benvanik): any way to do this to just the submodule?
-    #shell_call('git config branch.master.rebase true')
-
     # Disable core.filemode on Windows to prevent weird file mode diffs in git.
     # TODO(benvanik): check cygwin test - may be wrong when using Windows python
     if os.path.exists('/Cygwin.bat'):
@@ -225,22 +219,6 @@ class SetupCommand(Command):
       if sys.platform == 'win32':
         extra_args = '--x64'
       shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
-      print ''
-
-    # Ensure cmake is present.
-    if not has_bin('cmake'):
-      print '- installing cmake...'
-      if has_bin('brew'):
-        shell_call('brew install cmake')
-      elif has_bin('apt-get'):
-        shell_call('sudo apt-get install cmake')
-      else:
-        print 'ERROR: need to install cmake, use:'
-        print 'http://www.cmake.org/cmake/resources/software.html'
-        print 'Run the Windows installer, select the \'Add to system path\''
-        print 'option and restart your command prompt to ensure it\'s on the'
-        print 'PATH.'
-        return 1
       print ''
 
     # Binutils.
@@ -265,35 +243,6 @@ class SetupCommand(Command):
           ]))
       shell_call('make')
       os.chdir(cwd)
-    print ''
-
-    # LLVM.
-    print '- preparing llvm...'
-    generator = ''
-    if False:#sys.platform == 'win32':
-      generator = 'Visual Studio 10 Win64'
-    else:
-      generator = 'Ninja'
-    def prepareLLVM(path, obj_path, mode):
-      os.chdir(cwd)
-      if not os.path.exists(path):
-        os.makedirs(path)
-      if not os.path.exists(obj_path):
-        os.makedirs(obj_path)
-      os.chdir(obj_path)
-      shell_call(' '.join([
-          'cmake',
-          '-G"%s"' % (generator),
-          '-DCMAKE_INSTALL_PREFIX:STRING=../../../%s' % (path),
-          '-DCMAKE_BUILD_TYPE:STRING=%s' % (mode),
-          '-DLLVM_TARGETS_TO_BUILD:STRING="X86;PowerPC;CppBackend"',
-          '-DLLVM_INCLUDE_EXAMPLES:BOOL=OFF',
-          '-DLLVM_INCLUDE_TESTS:BOOL=OFF',
-          '../../../third_party/llvm/',
-          ]))
-      os.chdir(cwd)
-    prepareLLVM('build/llvm/debug/', 'build/llvm/debug-obj/',  'Debug')
-    prepareLLVM('build/llvm/release/', 'build/llvm/release-obj/', 'Release')
     print ''
 
     post_update_deps('debug')
@@ -404,12 +353,6 @@ class BuildCommand(Command):
     # --force
     debug = '--debug' in args
     config = 'debug' if debug else 'release'
-
-    # If there's no LLVM we may have been cleaned - run setup again.
-    if not os.path.exists('build/llvm/'):
-      print 'Missing LLVM, running setup...'
-      shell_call('python xenia-build.py setup')
-      print ''
 
     print 'Building %s...' % (config)
     print ''

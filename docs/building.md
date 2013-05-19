@@ -26,18 +26,10 @@ Pretty much just install what's asked for as you try to `xb setup` or
 ### Windows
 
 * [Python 2.7](http://www.python.org/download/releases/2.7.3/)
-* [CMake](http://www.cmake.org/cmake/resources/software.html)
 
 Install both and add Python to your PATH (`C:\Python27\`).
 Depending on your Visual Studio version you'll need to use one of the provided
 command prompts (until I write my own) to perform all `xenia-build` tasks.
-
-There's a bug in VC++ that breaks with an internal error when building LLVM.
-Change line 87 of include/llvm/ADT/StringExtras.h:
-```
--static inline std::string utostr(uint64_t X, bool isNeg = false) {
-+static __declspec(noinline) std::string utostr(uint64_t X, bool isNeg = false) {
-```
 
 #### Visual Studio 2010
 
@@ -113,8 +105,8 @@ have the rebuild xenia and not all of the dependencies.
 #### nuke
 
 Cleans up xenia outputs as well as all dependencies. A full build will be
-required after this - including LLVM - so only do this if you want to reclaim
-your disk space or something is really wrong.
+required after this so only do this if you want to reclaim your disk space or
+something is really wrong.
 
     xb nuke
 
