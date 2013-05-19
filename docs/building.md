@@ -95,12 +95,6 @@ gyp/gypi files.
 
     xb gyp
 
-#### xethunk
-
-Updates the checked-in `src/cpu/xethunk/xethunk.bc` and `xethunk.ll` files.
-This is only required if changes are made to the xethunk files. The results
-should be checked in.
-
 #### build
 
 Builds all xenia targets using ninja. Release is built by default; specify

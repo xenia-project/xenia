@@ -34,7 +34,6 @@
 #include <xenia/cpu/codegen/module_generator.h>
 #include <xenia/cpu/ppc/instr.h>
 #include <xenia/cpu/ppc/state.h>
-#include <xenia/cpu/xethunk/xethunk.h>
 
 
 using namespace llvm;

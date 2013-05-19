@@ -2,14 +2,6 @@
 {
   'default_configuration': 'release',
 
-  'conditions': [
-    ['OS == "mac"', {
-      'variables': {
-        'is_clang': 1
-      }
-    }],
-  ],
-
   'variables': {
     'configurations': {
       'debug': {
@@ -122,7 +114,7 @@
             'DebugInformationFormat': '3',
             'ExceptionHandling': '1', # /EHsc
             'AdditionalOptions': [
-              '/MP',
+              '/MP', # Multiprocessor
               '/TP', # Compile as C++
             ],
           },

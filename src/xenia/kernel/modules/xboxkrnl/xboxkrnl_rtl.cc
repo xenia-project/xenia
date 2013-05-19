@@ -315,8 +315,6 @@ void RtlImageXexHeaderField_shim(
 // into guest memory, as it should be opaque and so long as our size is right
 // the user code will never know.
 //
-// This would be good to put in xethunk for inlining.
-//
 // Ref: http://msdn.microsoft.com/en-us/magazine/cc164040.aspx
 // Ref: http://svn.reactos.org/svn/reactos/trunk/reactos/lib/rtl/critical.c?view=markup
 

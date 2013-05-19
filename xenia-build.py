@@ -68,7 +68,6 @@ def discover_commands():
       'gyp': GypCommand(),
       'build': BuildCommand(),
       'test': TestCommand(),
-      'xethunk': XethunkCommand(),
       'clean': CleanCommand(),
       'nuke': NukeCommand(),
       }
@@ -457,33 +456,6 @@ class TestCommand(Command):
     print ''
 
     return result
-
-
-class XethunkCommand(Command):
-  """'xethunk' command."""
-
-  def __init__(self, *args, **kwargs):
-    super(XethunkCommand, self).__init__(
-        name='xethunk',
-        help_short='Updates the xethunk.bc file.',
-        *args, **kwargs)
-
-  def execute(self, args, cwd):
-    print 'Building xethunk...'
-    print ''
-
-    path = 'src/xenia/cpu/xethunk/xethunk'
-    result = shell_call('clang -emit-llvm -O0 -c %s.c -o %s.bc' % (path, path),
-                        throw_on_error=False)
-    if result != 0:
-      return result
-
-    shell_call('build/llvm/release/bin/llvm-dis %s.bc -o %s.ll' % (path, path))
-
-    shell_call('cat %s.ll' % (path))
-
-    print 'Success!'
-    return 0
 
 
 class CleanCommand(Command):

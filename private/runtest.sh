@@ -1,4 +1,3 @@
-python xenia-build.py xethunk
 python xenia-build.py build
 
 if [ "$?" -ne 0 ]; then

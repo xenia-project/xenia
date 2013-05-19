@@ -10,19 +10,7 @@
 #ifndef XENIA_CPU_PPC_STATE_H_
 #define XENIA_CPU_PPC_STATE_H_
 
-
-/**
- * NOTE: this file is included by xethunk and as such should have a *MINIMAL*
- * set of dependencies!
- */
-
 #include <stdint.h>
-
-
-#ifdef XE_THUNK
-#define XECACHEALIGN            __attribute__ ((aligned(8)))
-#define XECACHEALIGN64          __attribute__ ((aligned(64)))
-#endif
 
 
 // namespace FPRF {

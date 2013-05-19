@@ -16,10 +16,12 @@
       'dependencies': [
         'gflags',
         'wslay',
+        'third_party/libjit/libjit.gyp:libjit',
       ],
       'export_dependent_settings': [
         'gflags',
         'wslay',
+        'third_party/libjit/libjit.gyp:libjit',
       ],
 
       'direct_dependent_settings': {
