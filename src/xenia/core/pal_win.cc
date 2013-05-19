@@ -22,7 +22,7 @@ xe_pal_win_t* pal;
 
 void xe_pal_dealloc();
 int xe_pal_init(xe_pal_options_t options) {
-  pal = (xe_pal_win_t)xe_calloc(sizeof(pal));
+  pal = (xe_pal_win_t*)xe_calloc(sizeof(xe_pal_win_t));
 
   // Get QPC timing frequency... hopefully stable over the life of the app,
   // but likely not.
@@ -103,7 +103,7 @@ int xe_pal_get_system_info(xe_system_info* out_info) {
         if (buffer[n].ProcessorCore.Flags == 1) {
           // Hyper-threaded.
           // The number of processors is set as bits in ProcessorMask.
-          out_info.processors.logical_count +=
+          out_info->processors.logical_count +=
               CountSetBits(buffer[n].ProcessorMask);
         } else {
           // A real core - just count as one.

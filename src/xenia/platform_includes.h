@@ -19,6 +19,7 @@
 #endif
 #include <SDKDDKVer.h>
 #include <windows.h>
+#include <ObjBase.h>
 #undef min
 #undef max
 #endif  // WINCE || WIN32
