@@ -107,22 +107,25 @@ int run_test(string& src_file_path) {
   bin_file_path.replace(dot - 1, 2, ".bin");
 
   xe_memory_ref memory = NULL;
+  shared_ptr<Backend> backend;
   shared_ptr<Processor> processor;
   shared_ptr<Runtime> runtime;
   annotations_list_t annotations;
   ThreadState* thread_state = NULL;
 
-  XEEXPECTZERO(read_annotations(pal, src_file_path, annotations));
+  XEEXPECTZERO(read_annotations(src_file_path, annotations));
 
   xe_memory_options_t memory_options;
   xe_zero_struct(&memory_options, sizeof(memory_options));
-  memory = xe_memory_create(pal, memory_options);
+  memory = xe_memory_create(memory_options);
   XEEXPECTNOTNULL(memory);
 
-  processor = shared_ptr<Processor>(new Processor(pal, memory));
+  //backend = shared_ptr<Backend>(new xe::cpu::llvmbe::LLVMBackend());
+
+  processor = shared_ptr<Processor>(new Processor(memory, backend));
   XEEXPECTZERO(processor->Setup());
 
-  runtime = shared_ptr<Runtime>(new Runtime(pal, processor, XT("")));
+  runtime = shared_ptr<Runtime>(new Runtime(processor, XT("")));
 
   // Load the binary module.
   XEEXPECTZERO(processor->LoadRawBinary(bin_file_path.c_str(), 0x82010000));
@@ -205,7 +208,7 @@ int run_tests(const xechar_t* test_name) {
     }
 
     printf("Running %s...\n", (*it).c_str());
-    if (run_test(pal, *it)) {
+    if (run_test(*it)) {
       printf("TEST FAILED\n");
       failed_count++;
     } else {
