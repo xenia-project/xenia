@@ -17,6 +17,80 @@
 using namespace xe::cpu::ppc;
 
 
+void InstrOperand::Dump(std::string& out_str) {
+  if (display) {
+    out_str += display;
+    return;
+  }
+
+  char buffer[32];
+  const size_t max_count = XECOUNT(buffer);
+  switch (type) {
+    case InstrOperand::kRegister:
+      switch (reg.set) {
+        case InstrRegister::kXER:
+          xesnprintfa(buffer, max_count, "XER");
+          break;
+        case InstrRegister::kLR:
+          xesnprintfa(buffer, max_count, "LR");
+          break;
+        case InstrRegister::kCTR:
+          xesnprintfa(buffer, max_count, "CTR");
+          break;
+        case InstrRegister::kCR:
+          xesnprintfa(buffer, max_count, "CR%d", reg.ordinal);
+          break;
+        case InstrRegister::kFPSCR:
+          xesnprintfa(buffer, max_count, "FPSCR");
+          break;
+        case InstrRegister::kGPR:
+          xesnprintfa(buffer, max_count, "r%d", reg.ordinal);
+          break;
+        case InstrRegister::kFPR:
+          xesnprintfa(buffer, max_count, "f%d", reg.ordinal);
+          break;
+        case InstrRegister::kVMX:
+          xesnprintfa(buffer, max_count, "v%d", reg.ordinal);
+          break;
+      }
+      break;
+    case InstrOperand::kImmediate:
+      switch (imm.width) {
+        case 1:
+          if (imm.is_signed) {
+            xesnprintfa(buffer, max_count, "%d", (int32_t)(int8_t)imm.value);
+          } else {
+            xesnprintfa(buffer, max_count, "0x%.2X", (uint8_t)imm.value);
+          }
+          break;
+        case 2:
+          if (imm.is_signed) {
+            xesnprintfa(buffer, max_count, "%d", (int32_t)(int16_t)imm.value);
+          } else {
+            xesnprintfa(buffer, max_count, "0x%.4X", (uint16_t)imm.value);
+          }
+          break;
+        case 4:
+          if (imm.is_signed) {
+            xesnprintfa(buffer, max_count, "%d", (int32_t)imm.value);
+          } else {
+            xesnprintfa(buffer, max_count, "0x%.8X", (uint32_t)imm.value);
+          }
+          break;
+        case 8:
+          if (imm.is_signed) {
+            xesnprintfa(buffer, max_count, "%lld", (int64_t)imm.value);
+          } else {
+            xesnprintfa(buffer, max_count, "0x%.16llX", imm.value);
+          }
+          break;
+      }
+      break;
+  }
+  out_str += buffer;
+}
+
+
 void InstrAccessBits::Clear() {
   spr = cr = gpr = fpr = 0;
 }
@@ -143,20 +217,22 @@ void InstrAccessBits::Dump(std::string& out_str) {
 }
 
 
-void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
+void InstrDisasm::Init(const char* name, const char* info, uint32_t flags) {
   operands.clear();
   special_registers.clear();
   access_bits.Clear();
 
+  this->name = name;
+  this->info = info;
+  this->flags = flags;
+
   if (flags & InstrDisasm::kOE) {
-    name += "o";
     InstrRegister i = {
       InstrRegister::kXER, 0, InstrRegister::kReadWrite
     };
     special_registers.push_back(i);
   }
   if (flags & InstrDisasm::kRc) {
-    name += ".";
     InstrRegister i = {
       InstrRegister::kCR, 0, InstrRegister::kWrite
     };
@@ -169,16 +245,11 @@ void InstrDisasm::Init(std::string name, std::string info, uint32_t flags) {
     special_registers.push_back(i);
   }
   if (flags & InstrDisasm::kLR) {
-    name += "l";
     InstrRegister i = {
       InstrRegister::kLR, 0, InstrRegister::kWrite
     };
     special_registers.push_back(i);
   }
-
-  XEIGNORE(xestrcpya(this->name, XECOUNT(this->name), name.c_str()));
-
-  XEIGNORE(xestrcpya(this->info, XECOUNT(this->info), info.c_str()));
 }
 
 void InstrDisasm::AddLR(InstrRegister::Access access) {
@@ -204,106 +275,36 @@ void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
 
 void InstrDisasm::AddRegOperand(
     InstrRegister::RegisterSet set, uint32_t ordinal,
-    InstrRegister::Access access, std::string display) {
+    InstrRegister::Access access, const char* display) {
   InstrRegister i = {
     set, ordinal, access
   };
   InstrOperand o;
-  o.type = InstrOperand::kRegister;
-  o.reg = i;
-  if (!display.size()) {
-    std::stringstream display_out;
-    switch (set) {
-      case InstrRegister::kXER:
-        display_out << "XER";
-        break;
-      case InstrRegister::kLR:
-        display_out << "LR";
-        break;
-      case InstrRegister::kCTR:
-        display_out << "CTR";
-        break;
-      case InstrRegister::kCR:
-        display_out << "CR";
-        display_out << ordinal;
-        break;
-      case InstrRegister::kFPSCR:
-        display_out << "FPSCR";
-        break;
-      case InstrRegister::kGPR:
-        display_out << "r";
-        display_out << ordinal;
-        break;
-      case InstrRegister::kFPR:
-        display_out << "f";
-        display_out << ordinal;
-        break;
-      case InstrRegister::kVMX:
-        display_out << "v";
-        display_out << ordinal;
-        break;
-    }
-    display = display_out.str();
-  }
-  XEIGNORE(xestrcpya(o.display, XECOUNT(o.display), display.c_str()));
+  o.type    = InstrOperand::kRegister;
+  o.reg     = i;
+  o.display = display;
   operands.push_back(o);
 }
 
 void InstrDisasm::AddSImmOperand(uint64_t value, size_t width,
-                                 std::string display) {
+                                 const char* display) {
   InstrOperand o;
   o.type = InstrOperand::kImmediate;
   o.imm.is_signed = true;
   o.imm.value     = value;
   o.imm.width     = value;
-  if (display.size()) {
-    XEIGNORE(xestrcpya(o.display, XECOUNT(o.display), display.c_str()));
-  } else {
-    const size_t max_count = XECOUNT(o.display);
-    switch (width) {
-      case 1:
-        xesnprintfa(o.display, max_count, "%d", (int32_t)(int8_t)value);
-        break;
-      case 2:
-        xesnprintfa(o.display, max_count, "%d", (int32_t)(int16_t)value);
-        break;
-      case 4:
-        xesnprintfa(o.display, max_count, "%d", (int32_t)value);
-        break;
-      case 8:
-        xesnprintfa(o.display, max_count, "%lld", (int64_t)value);
-        break;
-    }
-  }
+  o.display       = display;
   operands.push_back(o);
 }
 
 void InstrDisasm::AddUImmOperand(uint64_t value, size_t width,
-                                 std::string display) {
+                                 const char* display) {
   InstrOperand o;
   o.type = InstrOperand::kImmediate;
   o.imm.is_signed = false;
   o.imm.value     = value;
   o.imm.width     = value;
-  if (display.size()) {
-    XEIGNORE(xestrcpya(o.display, XECOUNT(o.display), display.c_str()));
-  } else {
-    const size_t max_count = XECOUNT(o.display);
-    switch (width) {
-      case 1:
-        xesnprintfa(o.display, max_count, "0x%.2X", (uint8_t)value);
-        break;
-      case 2:
-        xesnprintfa(o.display, max_count, "0x%.4X", (uint16_t)value);
-        break;
-      case 4:
-        xesnprintfa(o.display, max_count, "0x%.8X", (uint32_t)value);
-        break;
-      case 8:
-        xesnprintfa(o.display, max_count, "0x%.16llX", value);
-        break;
-    }
-  }
+  o.display       = display;
   operands.push_back(o);
 }
 
@@ -321,22 +322,32 @@ int InstrDisasm::Finish() {
   return 0;
 }
 
-void InstrDisasm::Dump(std::string& str, size_t pad) {
-  str = name;
+void InstrDisasm::Dump(std::string& out_str, size_t pad) {
+  out_str = name;
+  if (flags & InstrDisasm::kOE) {
+    out_str += "o";
+  }
+  if (flags & InstrDisasm::kRc) {
+    out_str += ".";
+  }
+  if (flags & InstrDisasm::kLR) {
+    out_str += "l";
+  }
+
   if (operands.size()) {
-    if (pad && str.size() < pad) {
-      str += std::string(pad - str.size(), ' ');
+    if (pad && out_str.size() < pad) {
+      out_str += std::string(pad - out_str.size(), ' ');
     }
     for (std::vector<InstrOperand>::iterator it = operands.begin();
          it != operands.end(); ++it) {
-      str += it->display;
-
+      it->Dump(out_str);
       if (it + 1 != operands.end()) {
-        str += ", ";
+        out_str += ", ";
       }
     }
   }
 }
+
 
 InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
   InstrType* slot = NULL;

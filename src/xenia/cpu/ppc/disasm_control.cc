@@ -58,7 +58,7 @@ XEDISASMR(bcctrx,       0x4C000420, XL )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(bclrx,        0x4C000020, XL )(InstrData& i, InstrDisasm& d) {
-  std::string name = "bclr";
+  const char* name = "bclr";
   if (i.code == 0x4E800020) {
     name = "blr";
   }

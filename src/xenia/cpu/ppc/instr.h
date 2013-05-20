@@ -238,6 +238,7 @@ typedef struct {
   };
 
   OperandType type;
+  const char* display;
   union {
     InstrRegister reg;
     struct {
@@ -246,7 +247,8 @@ typedef struct {
       size_t      width;
     } imm;
   };
-  char        display[32];
+
+  void Dump(std::string& out_str);
 } InstrOperand;
 
 
@@ -278,23 +280,24 @@ public:
     kLR = 1 << 4,
   };
 
-  char      name[16];
-  char      info[64];
+  const char*   name;
+  const char*   info;
+  uint32_t      flags;
   std::vector<InstrOperand> operands;
   std::vector<InstrRegister> special_registers;
   InstrAccessBits access_bits;
 
-  void Init(std::string name, std::string info, uint32_t flags);
+  void Init(const char* name, const char* info, uint32_t flags);
   void AddLR(InstrRegister::Access access);
   void AddCTR(InstrRegister::Access access);
   void AddCR(uint32_t bf, InstrRegister::Access access);
   void AddRegOperand(InstrRegister::RegisterSet set, uint32_t ordinal,
-                     InstrRegister::Access access, std::string display = "");
-  void AddSImmOperand(uint64_t value, size_t width, std::string display = "");
-  void AddUImmOperand(uint64_t value, size_t width, std::string display = "");
+                     InstrRegister::Access access, const char* display = NULL);
+  void AddSImmOperand(uint64_t value, size_t width, const char* display = NULL);
+  void AddUImmOperand(uint64_t value, size_t width, const char* display = NULL);
   int Finish();
 
-  void Dump(std::string& str, size_t pad = 8);
+  void Dump(std::string& out_str, size_t pad = 8);
 };
 
 
