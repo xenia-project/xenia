@@ -21,7 +21,7 @@ namespace tables {
 
 static InstrType* instr_table_prep(
     InstrType* unprep, int unprep_count, int a, int b) {
-  int prep_count = pow(2.0, b - a + 1);
+  int prep_count = (int)pow(2, b - a + 1);
   InstrType* prep = (InstrType*)xe_calloc(prep_count * sizeof(InstrType));
   for (int n = 0; n < unprep_count; n++) {
     int ordinal = XESELECTBITS(unprep[n].opcode, a, b);

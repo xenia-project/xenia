@@ -120,7 +120,7 @@ int run_test(string& src_file_path) {
   memory = xe_memory_create(memory_options);
   XEEXPECTNOTNULL(memory);
 
-  //backend = shared_ptr<Backend>(new xe::cpu::llvmbe::LLVMBackend());
+  backend_ = shared_ptr<Backend>(new xe::cpu::libjit::LibjitBackend());
 
   processor = shared_ptr<Processor>(new Processor(memory, backend));
   XEEXPECTZERO(processor->Setup());

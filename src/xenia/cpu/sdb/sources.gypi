@@ -7,6 +7,8 @@
     'symbol.h',
     'symbol_database.cc',
     'symbol_database.h',
+    'symbol_table.cc',
+    'symbol_table.h',
     'xex_symbol_database.cc',
     'xex_symbol_database.h',
   ]

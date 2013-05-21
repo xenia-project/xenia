@@ -24,9 +24,11 @@ using namespace xe::kernel;
 
 
 SymbolDatabase::SymbolDatabase(xe_memory_ref memory,
-                               ExportResolver* export_resolver) {
+                               ExportResolver* export_resolver,
+                               SymbolTable* sym_table) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
+  sym_table_ = sym_table;
 }
 
 SymbolDatabase::~SymbolDatabase() {
@@ -150,7 +152,18 @@ FunctionSymbol* SymbolDatabase::GetFunction(uint32_t address) {
   if (i != symbols_.end() && i->second->symbol_type == Symbol::Function) {
     return static_cast<FunctionSymbol*>(i->second);
   }
-  return NULL;
+
+  // Missing function - analyze on demand.
+  // TODO(benvanik): track this for statistics.
+  FunctionSymbol* fn = new FunctionSymbol();
+  fn->start_address = address;
+  function_count_++;
+  symbols_.insert(SymbolMap::value_type(address, fn));
+  scan_queue_.push_back(fn);
+
+  FlushQueue();
+
+  return fn;
 }
 
 VariableSymbol* SymbolDatabase::GetVariable(uint32_t address) {
@@ -432,6 +445,9 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // - if present, flag function as needing a stack
   // - record prolog/epilog lengths/stack size/etc
 
+  // TODO(benvanik): queue for add without expensive locks?
+  sym_table_->AddFunction(fn->start_address, fn);
+
   XELOGSDB("Finished analyzing %.8X", fn->start_address);
   return 0;
 }
@@ -649,7 +665,7 @@ void SymbolDatabase::ReadMap(const char* file_name) {
     sstream >> std::ws;
     sstream >> type_str;
 
-    uint32_t addr = (uint32_t)strtol(addr_str.c_str(), NULL, 16);
+    uint32_t addr = (uint32_t)strtoul(addr_str.c_str(), NULL, 16);
     if (!addr) {
       continue;
     }

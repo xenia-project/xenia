@@ -16,8 +16,8 @@
 
 #include <xenia/cpu/backend.h>
 #include <xenia/cpu/exec_module.h>
-#include <xenia/cpu/function_table.h>
 #include <xenia/cpu/thread_state.h>
+#include <xenia/cpu/sdb/symbol_table.h>
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/xex2.h>
 
@@ -50,14 +50,12 @@ public:
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t arg0);
 
 private:
-  FunctionPointer GenerateFunction(uint32_t address);
-
   xe_memory_ref       memory_;
   shared_ptr<Backend> backend_;
   shared_ptr<kernel::ExportResolver> export_resolver_;
 
-  FunctionTable*  fn_table_;
-  JIT*            jit_;
+  sdb::SymbolTable*   sym_table_;
+  JIT*                jit_;
   std::vector<ExecModule*> modules_;
 };
 

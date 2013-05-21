@@ -21,11 +21,11 @@ using namespace xe::kernel;
 
 ExecModule::ExecModule(
     xe_memory_ref memory, shared_ptr<ExportResolver> export_resolver,
-    FunctionTable* fn_table,
+    SymbolTable* sym_table,
     const char* module_name, const char* module_path) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
-  fn_table_ = fn_table;
+  sym_table_ = sym_table;
   module_name_ = xestrdupa(module_name);
   module_path_ = xestrdupa(module_path);
 }
@@ -43,7 +43,7 @@ SymbolDatabase* ExecModule::sdb() {
 int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
       new sdb::RawSymbolDatabase(memory_, export_resolver_.get(),
-                                 start_address, end_address));
+                                 sym_table_, start_address, end_address));
 
   code_addr_low_ = start_address;
   code_addr_high_ = end_address;
@@ -53,7 +53,8 @@ int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
 
 int ExecModule::PrepareXexModule(xe_xex2_ref xex) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
-      new sdb::XexSymbolDatabase(memory_, export_resolver_.get(), xex));
+      new sdb::XexSymbolDatabase(memory_, export_resolver_.get(),
+                                 sym_table_, xex));
 
   code_addr_low_ = 0;
   code_addr_high_ = 0;
@@ -65,8 +66,8 @@ int ExecModule::PrepareXexModule(xe_xex2_ref xex) {
     const size_t end_address =
         start_address + (section->info.page_count * xe_xex2_section_length);
     if (section->info.type == XEX_SECTION_CODE) {
-      code_addr_low_ = MIN(code_addr_low_, start_address);
-      code_addr_high_ = MAX(code_addr_high_, end_address);
+      code_addr_low_ = (uint32_t)MIN(code_addr_low_, start_address);
+      code_addr_high_ = (uint32_t)MAX(code_addr_high_, end_address);
     }
     i += section->info.page_count;
   }

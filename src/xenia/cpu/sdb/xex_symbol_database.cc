@@ -51,8 +51,9 @@ public:
 
 
 XexSymbolDatabase::XexSymbolDatabase(
-    xe_memory_ref memory, ExportResolver* export_resolver, xe_xex2_ref xex) :
-    SymbolDatabase(memory, export_resolver) {
+    xe_memory_ref memory, ExportResolver* export_resolver,
+    SymbolTable* sym_table, xe_xex2_ref xex) :
+    SymbolDatabase(memory, export_resolver, sym_table) {
   xex_ = xe_xex2_retain(xex);
 }
 

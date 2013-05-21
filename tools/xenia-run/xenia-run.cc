@@ -46,7 +46,7 @@ int Run::Setup() {
   xe_zero_struct(&pal_options, sizeof(pal_options));
   XEEXPECTZERO(xe_pal_init(pal_options));
 
-  //backend_ = shared_ptr<Backend>(new xe::cpu::llvmbe::LLVMBackend());
+  backend_ = shared_ptr<Backend>(new xe::cpu::libjit::LibjitBackend());
 
   debugger_ = shared_ptr<Debugger>(new Debugger());
 
@@ -115,8 +115,6 @@ int xenia_run(int argc, xechar_t **argv) {
 
   result_code = run->Setup();
   XEEXPECTZERO(result_code);
-
-  //xe_module_dump(run->module);
 
   run->Launch(path);
 

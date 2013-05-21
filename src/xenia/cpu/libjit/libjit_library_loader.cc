@@ -7,13 +7,18 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_SDB_H_
-#define XENIA_CPU_SDB_H_
+#include <xenia/cpu/libjit/libjit_library_loader.h>
 
-#include <xenia/cpu/sdb/raw_symbol_database.h>
-#include <xenia/cpu/sdb/symbol.h>
-#include <xenia/cpu/sdb/symbol_database.h>
-#include <xenia/cpu/sdb/symbol_table.h>
-#include <xenia/cpu/sdb/xex_symbol_database.h>
 
-#endif  // XENIA_CPU_SDB_H_
+using namespace xe;
+using namespace xe::cpu;
+using namespace xe::cpu::libjit;
+
+
+LibjitLibraryLoader::LibjitLibraryLoader(
+    xe_memory_ref memory, kernel::ExportResolver* export_resolver) :
+    LibraryLoader(memory, export_resolver) {
+}
+
+LibjitLibraryLoader::~LibjitLibraryLoader() {
+}

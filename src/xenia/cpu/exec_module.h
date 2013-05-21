@@ -13,7 +13,6 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-#include <xenia/cpu/function_table.h>
 #include <xenia/cpu/sdb.h>
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/xex2.h>
@@ -27,7 +26,7 @@ class ExecModule {
 public:
   ExecModule(
       xe_memory_ref memory, shared_ptr<kernel::ExportResolver> export_resolver,
-      FunctionTable* fn_table,
+      sdb::SymbolTable* sym_table,
       const char* module_name, const char* module_path);
   ~ExecModule();
 
@@ -46,7 +45,7 @@ private:
 
   xe_memory_ref                       memory_;
   shared_ptr<kernel::ExportResolver>  export_resolver_;
-  FunctionTable*                      fn_table_;
+  sdb::SymbolTable*                   sym_table_;
   char*                               module_name_;
   char*                               module_path_;
 

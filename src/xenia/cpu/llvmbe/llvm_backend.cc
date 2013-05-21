@@ -69,10 +69,6 @@ CodeUnitBuilder* LLVMBackend::CreateCodeUnitBuilder() {
   return NULL;
 }
 
-LibraryLinker* LLVMBackend::CreateLibraryLinker() {
-  return NULL;
-}
-
 LibraryLoader* LLVMBackend::CreateLibraryLoader() {
   return NULL;
 }

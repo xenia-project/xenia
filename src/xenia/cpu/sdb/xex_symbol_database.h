@@ -24,7 +24,7 @@ class XexSymbolDatabase : public SymbolDatabase {
 public:
   XexSymbolDatabase(xe_memory_ref memory,
                     kernel::ExportResolver* export_resolver,
-                    xe_xex2_ref xex);
+                    SymbolTable* sym_table, xe_xex2_ref xex);
   virtual ~XexSymbolDatabase();
 
   virtual int Analyze();

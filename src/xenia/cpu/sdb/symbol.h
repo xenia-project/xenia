@@ -124,6 +124,10 @@ public:
   kernel::KernelExport* kernel_export;
   ExceptionEntrySymbol* ee;
 
+  // Implementation-specific value. This could be a JIT'ed function ref
+  // or some other structure. Never freed.
+  void*         impl_value;
+
   std::vector<FunctionCall> incoming_calls;
   std::vector<FunctionCall> outgoing_calls;
   std::vector<VariableAccess> variable_accesses;

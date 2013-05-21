@@ -7,49 +7,48 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_JIT_H_
-#define XENIA_CPU_JIT_H_
+#ifndef XENIA_CPU_LIBJIT_LIBJIT_JIT_H_
+#define XENIA_CPU_LIBJIT_LIBJIT_JIT_H_
 
 #include <xenia/core.h>
 
+#include <xenia/cpu/jit.h>
 #include <xenia/cpu/ppc.h>
 #include <xenia/cpu/sdb.h>
+#include <xenia/cpu/libjit/libjit_emitter.h>
+
+#include <jit/jit.h>
 
 
 namespace xe {
 namespace cpu {
+namespace libjit {
 
 
-class ExecModule;
-
-
-class JIT {
+class LibjitJIT : public JIT {
 public:
-  virtual ~JIT() {
-    xe_memory_release(memory_);
-  }
+  LibjitJIT(xe_memory_ref memory, sdb::SymbolTable* sym_table);
+  virtual ~LibjitJIT();
 
-  virtual int Setup() = 0;
+  virtual int Setup();
 
-  virtual int InitModule(ExecModule* module) = 0;
-  virtual int UninitModule(ExecModule* module) = 0;
+  virtual int InitModule(ExecModule* module);
+  virtual int UninitModule(ExecModule* module);
 
   virtual int Execute(xe_ppc_state_t* ppc_state,
-                      sdb::FunctionSymbol* fn_symbol) = 0;
+                      sdb::FunctionSymbol* fn_symbol);
 
 protected:
-  JIT(xe_memory_ref memory, sdb::SymbolTable* sym_table) {
-    memory_ = xe_memory_retain(memory);
-    sym_table_ = sym_table;
-  }
+  int InjectGlobals();
 
-  xe_memory_ref     memory_;
-  sdb::SymbolTable* sym_table_;
+  jit_context_t         context_;
+  LibjitEmitter*        emitter_;
 };
 
 
+}  // namespace libjit
 }  // namespace cpu
 }  // namespace xe
 
 
-#endif  // XENIA_CPU_JIT_H_
+#endif  // XENIA_CPU_LIBJIT_LIBJIT_JIT_H_

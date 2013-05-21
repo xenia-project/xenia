@@ -57,7 +57,8 @@ FunctionSymbol::FunctionSymbol() :
     Symbol(Function),
     start_address(0), end_address(0),
     type(Unknown), flags(0),
-    kernel_export(0), ee(0) {
+    kernel_export(0), ee(0),
+    impl_value(NULL) {
 }
 
 FunctionSymbol::~FunctionSymbol() {

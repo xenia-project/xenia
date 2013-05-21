@@ -18,6 +18,7 @@
 
 #include <xenia/kernel/export.h>
 #include <xenia/cpu/sdb/symbol.h>
+#include <xenia/cpu/sdb/symbol_table.h>
 
 
 namespace xe {
@@ -27,7 +28,8 @@ namespace sdb {
 
 class SymbolDatabase {
 public:
-  SymbolDatabase(xe_memory_ref memory, kernel::ExportResolver* export_resolver);
+  SymbolDatabase(xe_memory_ref memory, kernel::ExportResolver* export_resolver,
+                 SymbolTable* sym_table);
   virtual ~SymbolDatabase();
 
   virtual int Analyze();
@@ -63,6 +65,7 @@ protected:
 
   xe_memory_ref   memory_;
   kernel::ExportResolver* export_resolver_;
+  SymbolTable*    sym_table_;
   size_t          function_count_;
   size_t          variable_count_;
   SymbolMap       symbols_;

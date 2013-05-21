@@ -23,22 +23,22 @@ namespace cpu {
 
 
 typedef struct {
-  void (*XeTrap)(
-      xe_ppc_state_t* state, uint32_t cia);
-  void (*XeIndirectBranch)(
-      xe_ppc_state_t* state, uint64_t target, uint64_t br_ia);
-  void (*XeInvalidInstruction)(
-      xe_ppc_state_t* state, uint32_t cia, uint32_t data);
-  void (*XeAccessViolation)(
-      xe_ppc_state_t* state, uint32_t cia, uint64_t ea);
-  void (*XeTraceKernelCall)(
+  void (_cdecl *XeTrap)(
+      xe_ppc_state_t* state, uint64_t cia, uint64_t unused1, void* unused2);
+  void (_cdecl *XeIndirectBranch)(
+      xe_ppc_state_t* state, uint64_t target, uint64_t br_ia, void* unused);
+  void (_cdecl *XeInvalidInstruction)(
+      xe_ppc_state_t* state, uint64_t cia, uint64_t data, void* unused);
+  void (_cdecl *XeAccessViolation)(
+      xe_ppc_state_t* state, uint64_t cia, uint64_t ea, void* unused);
+  void (_cdecl *XeTraceKernelCall)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
       kernel::KernelExport* kernel_export);
-  void (*XeTraceUserCall)(
+  void (_cdecl *XeTraceUserCall)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
       sdb::FunctionSymbol* fn);
-  void (*XeTraceInstruction)(
-      xe_ppc_state_t* state, uint32_t cia, uint32_t data);
+  void (_cdecl *XeTraceInstruction)(
+      xe_ppc_state_t* state, uint64_t cia, uint64_t data, void* unused);
 } GlobalExports;
 
 

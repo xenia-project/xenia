@@ -15,6 +15,7 @@
 
 using namespace xe;
 using namespace xe::cpu;
+using namespace xe::cpu::sdb;
 using namespace xe::kernel;
 
 
@@ -43,7 +44,7 @@ namespace {
 
 
 Processor::Processor(xe_memory_ref memory, shared_ptr<Backend> backend) :
-    fn_table_(NULL), jit_(NULL) {
+    sym_table_(NULL), jit_(NULL) {
   memory_ = xe_memory_retain(memory);
   backend_ = backend;
 
@@ -63,7 +64,7 @@ Processor::~Processor() {
   modules_.clear();
 
   delete jit_;
-  delete fn_table_;
+  delete sym_table_;
 
   export_resolver_.reset();
   backend_.reset();
@@ -86,9 +87,9 @@ void Processor::set_export_resolver(
 int Processor::Setup() {
   XEASSERTNULL(jit_);
 
-  fn_table_ = new FunctionTable();
+  sym_table_ = new SymbolTable();
 
-  jit_ = backend_->CreateJIT(memory_, fn_table_);
+  jit_ = backend_->CreateJIT(memory_, sym_table_);
   if (jit_->Setup()) {
     XELOGE("Unable to create JIT");
     return 1;
@@ -125,7 +126,7 @@ int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
   // This will analyze it, generate code (if needed), and adds methods to
   // the function table.
   exec_module = new ExecModule(
-      memory_, export_resolver_, fn_table_, name_a, path_a);
+      memory_, export_resolver_, sym_table_, name_a, path_a);
   XEEXPECTZERO(exec_module->PrepareRawBinary(
       start_address, start_address + (uint32_t)length));
 
@@ -151,7 +152,7 @@ int Processor::LoadXexModule(const char* name, const char* path,
   // This will analyze it, generate code (if needed), and adds methods to
   // the function table.
   ExecModule* exec_module = new ExecModule(
-      memory_, export_resolver_, fn_table_, name, path);
+      memory_, export_resolver_, sym_table_, name, path);
   XEEXPECTZERO(exec_module->PrepareXexModule(xex));
 
   // Initialize the module and prepare it for execution.
@@ -183,34 +184,30 @@ void Processor::DeallocThread(ThreadState* thread_state) {
   delete thread_state;
 }
 
-FunctionPointer Processor::GenerateFunction(uint32_t address) {
-  // Search all modules for the function symbol.
-  // Each module will see if the address is within its code range and if the
-  // symbol is not found (likely) it will do analysis on it.
-  // TODO(benvanik): make this more efficient. Could use a binary search or
-  //     something more clever.
-  sdb::FunctionSymbol* fn_symbol = NULL;
-  for (std::vector<ExecModule*>::iterator it = modules_.begin();
-      it != modules_.end(); ++it) {
-    fn_symbol = (*it)->FindFunctionSymbol(address);
-    if (fn_symbol) {
-      break;
+int Processor::Execute(ThreadState* thread_state, uint32_t address) {
+  // Attempt to grab the function symbol from the global lookup table.
+  FunctionSymbol* fn_symbol = sym_table_->GetFunction(address);
+  if (!fn_symbol) {
+    // Search all modules for the function symbol.
+    // Each module will see if the address is within its code range and if the
+    // symbol is not found (likely) it will do analysis on it.
+    // TODO(benvanik): make this more efficient. Could use a binary search or
+    //     something more clever.
+    sdb::FunctionSymbol* fn_symbol = NULL;
+    for (std::vector<ExecModule*>::iterator it = modules_.begin();
+        it != modules_.end(); ++it) {
+      fn_symbol = (*it)->FindFunctionSymbol(address);
+      if (fn_symbol) {
+        break;
+      }
+    }
+    if (!fn_symbol) {
+      // Symbol not found in any module.
+      XELOGCPU("Execute(%.8X): failed to find function", address);
+      return NULL;
     }
   }
-  if (!fn_symbol) {
-    return NULL;
-  }
 
-  // JIT the function.
-  FunctionPointer f = jit_->GenerateFunction(fn_symbol);
-  if (!f) {
-    return NULL;
-  }
-
-  return f;
-}
-
-int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   xe_ppc_state_t* ppc_state = thread_state->ppc_state();
 
   // This could be set to anything to give us a unique identifier to track
@@ -220,25 +217,8 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   // Setup registers.
   ppc_state->lr = lr;
 
-  // Find the function to execute.
-  FunctionPointer f = fn_table_->GetFunction(address);
-
-  // JIT, if needed.
-  if (!f) {
-    f = this->GenerateFunction(address);
-  }
-
-  // If JIT failed, die.
-  if (!f) {
-    XELOGCPU("Execute(%.8X): failed to find function", address);
-    return 1;
-  }
-
-  // Execute the function pointer.
-  // Messes with the stack in such a way as to cause Xcode to behave oddly.
-  f(ppc_state, lr);
-
-  return 0;
+  // Execute the function.
+  return jit_->Execute(ppc_state, fn_symbol);
 }
 
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,

@@ -1,0 +1,113 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include <xenia/cpu/libjit/libjit_jit.h>
+
+#include <xenia/cpu/cpu-private.h>
+#include <xenia/cpu/exec_module.h>
+#include <xenia/cpu/sdb.h>
+
+
+using namespace xe;
+using namespace xe::cpu;
+using namespace xe::cpu::libjit;
+using namespace xe::cpu::sdb;
+
+
+LibjitJIT::LibjitJIT(xe_memory_ref memory, SymbolTable* sym_table) :
+    JIT(memory, sym_table),
+    context_(NULL), emitter_(NULL) {
+}
+
+LibjitJIT::~LibjitJIT() {
+  delete emitter_;
+  if (context_) {
+    jit_context_destroy(context_);
+  }
+}
+
+int LibjitJIT::Setup() {
+  int result_code = 1;
+
+  // Shared libjit context.
+  context_ = jit_context_create();
+  XEEXPECTNOTNULL(context_);
+
+  // Create the emitter used to generate functions.
+  emitter_ = new LibjitEmitter(memory_, context_);
+
+  // Inject global functions/variables/etc.
+  XEEXPECTZERO(InjectGlobals());
+
+  result_code = 0;
+XECLEANUP:
+  return result_code;
+}
+
+int LibjitJIT::InjectGlobals() {
+  // LLVMContext& context = *context_;
+  // const DataLayout* dl = engine_->getDataLayout();
+  // Type* intPtrTy = dl->getIntPtrType(context);
+  // Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
+  // GlobalVariable* gv;
+
+  // // xe_memory_base
+  // // This is the base void* pointer to the memory space.
+  // gv = new GlobalVariable(
+  //     *module_,
+  //     int8PtrTy,
+  //     true,
+  //     GlobalValue::ExternalLinkage,
+  //     0,
+  //     "xe_memory_base");
+  // // Align to 64b - this makes SSE faster.
+  // gv->setAlignment(64);
+  // gv->setInitializer(ConstantExpr::getIntToPtr(
+  //     ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
+  //     int8PtrTy));
+
+  return 0;
+}
+
+int LibjitJIT::InitModule(ExecModule* module) {
+  return 0;
+}
+
+int LibjitJIT::UninitModule(ExecModule* module) {
+  return 0;
+}
+
+int LibjitJIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
+  XELOGCPU("Execute(%.8X): %s...", fn_symbol->start_address, fn_symbol->name());
+
+  // Check function.
+  jit_function_t jit_fn = (jit_function_t)fn_symbol->impl_value;
+  if (!jit_fn) {
+    // Function hasn't been prepped yet - prep it.
+    if (emitter_->PrepareFunction(fn_symbol)) {
+      XELOGCPU("Execute(%.8X): unable to make function %s",
+          fn_symbol->start_address, fn_symbol->name());
+      return 1;
+    }
+    jit_fn = (jit_function_t)fn_symbol->impl_value;
+    XEASSERTNOTNULL(jit_fn);
+  }
+
+  // TODO(benvanik): replace generic apply with special trampoline.
+  void* args[] = {&ppc_state, &ppc_state->lr};
+  uint64_t return_value;
+  int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);
+  if (apply_result) {
+    XELOGCPU("Execute(%.8X): apply failed with %d",
+        fn_symbol->start_address, apply_result);
+    return 1;
+  }
+
+  return 0;
+}

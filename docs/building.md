@@ -31,24 +31,18 @@ Install both and add Python to your PATH (`C:\Python27\`).
 Depending on your Visual Studio version you'll need to use one of the provided
 command prompts (until I write my own) to perform all `xenia-build` tasks.
 
-#### Visual Studio 2010
-
-The build has been most tested with 2010.
-Use the `Visual Studio 2010 x64 Command Prompt` as your shell.
-
-* Visual Studio 2010 (not sure Express will work)
-  * [Visual Studio 2010 SP1](http://msdn.microsoft.com/en-us/vstudio/aa718359)
-* [Windows SDK](http://www.microsoft.com/download/en/details.aspx?id=8279)
-* [DirectX SDK](http://msdn.microsoft.com/en-us/directx/)
-
 #### Visual Studio 2012 (Express)
 
-Basic testing has been done with 2012 Express (all I have access to). Since it's
-newer and shinier, I may end up deprecating the 2010 support.
+Basic testing has been done with 2012 Express (all I have access to).
 Use the `VS2012 x64 Cross Tools Command Prompt` as your shell.
 
 * [Windows 8 SDK](http://msdn.microsoft.com/en-us/windows/desktop/aa904949.aspx)
 * [Visual Studio 2012 Express for Desktop](http://go.microsoft.com/?linkid=9816758)
+
+VS2012 behaves oddly with the debug paths. Open the xenia-run project properties
+and set the 'Command' to `$(ProjectDir)$(OutputPath)$(TargetFileName)` and the
+'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
+the file to run in the 'Command Arguments' field.
 
 ## xenia-build
 

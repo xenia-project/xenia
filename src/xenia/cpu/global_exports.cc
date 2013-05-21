@@ -24,18 +24,24 @@ using namespace xe::kernel;
 namespace {
 
 
-void XeTrap(xe_ppc_state_t* state, uint32_t cia) {
+void _cdecl XeTrap(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t unused1,
+    void* unused2) {
   XELOGE("TRAP");
   XEASSERTALWAYS();
 }
 
-void XeIndirectBranch(xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
+void _cdecl XeIndirectBranch(
+    xe_ppc_state_t* state, uint64_t target, uint64_t br_ia,
+    void* unused) {
   XELOGCPU("INDIRECT BRANCH %.8X -> %.8X",
            (uint32_t)br_ia, (uint32_t)target);
   XEASSERTALWAYS();
 }
 
-void XeInvalidInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
+void _cdecl XeInvalidInstruction(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t data,
+    void* unused) {
   ppc::InstrData i;
   i.address = cia;
   i.code = data;
@@ -57,26 +63,32 @@ void XeInvalidInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
   }
 }
 
-void XeAccessViolation(xe_ppc_state_t* state, uint32_t cia, uint64_t ea) {
+void _cdecl XeAccessViolation(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t ea,
+    void* unused) {
   XELOGE("INVALID ACCESS %.8X: tried to touch %.8X",
          cia, (uint32_t)ea);
   XEASSERTALWAYS();
 }
 
-void XeTraceKernelCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
-                       KernelExport* kernel_export) {
+void _cdecl XeTraceKernelCall(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
+    KernelExport* kernel_export) {
   XELOGCPU("TRACE: %.8X -> k.%.8X (%s)",
            (uint32_t)call_ia - 4, (uint32_t)cia,
            kernel_export ? kernel_export->name : "unknown");
 }
 
-void XeTraceUserCall(xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
-                     FunctionSymbol* fn) {
+void _cdecl XeTraceUserCall(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
+    FunctionSymbol* fn) {
   XELOGCPU("TRACE: %.8X -> u.%.8X (%s)",
            (uint32_t)call_ia - 4, (uint32_t)cia, fn->name());
 }
 
-void XeTraceInstruction(xe_ppc_state_t* state, uint32_t cia, uint32_t data) {
+void _cdecl XeTraceInstruction(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t data,
+    void* unused) {
   ppc::InstrType* type = ppc::GetInstrType(data);
   XELOGCPU("TRACE: %.8X %.8X %s %s",
            cia, data,

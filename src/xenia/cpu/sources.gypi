@@ -2,14 +2,11 @@
 {
   'sources': [
     'backend.h',
-    'code_unit_builder.h',
     'cpu-private.h',
     'cpu.cc',
     'cpu.h',
     'exec_module.cc',
     'exec_module.h',
-    'function_table.cc',
-    'function_table.h',
     'global_exports.cc',
     'global_exports.h',
     'jit.h',
@@ -23,7 +20,7 @@
   ],
 
   'includes': [
-    #'llvmbe/sources.gypi',
+    'libjit/sources.gypi',
     'ppc/sources.gypi',
     'sdb/sources.gypi',
   ],

@@ -7,41 +7,35 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_BACKEND_H_
-#define XENIA_CPU_BACKEND_H_
+#ifndef XENIA_CPU_LIBJIT_LIBJIT_BACKEND_H_
+#define XENIA_CPU_LIBJIT_LIBJIT_BACKEND_H_
 
 #include <xenia/common.h>
 
-#include <xenia/core/memory.h>
+#include <xenia/cpu/backend.h>
 
 
 namespace xe {
 namespace cpu {
+namespace libjit {
 
 
-class JIT;
-class LibraryLoader;
-
-namespace sdb {
-class SymbolTable;
-}  // namespace sdb
-
-
-class Backend {
+class LibjitBackend : public Backend {
 public:
-  virtual ~Backend() {}
+  LibjitBackend();
+  virtual ~LibjitBackend();
 
-  virtual LibraryLoader* CreateLibraryLoader() = 0;
+  virtual LibraryLoader* CreateLibraryLoader();
 
-  virtual JIT* CreateJIT(xe_memory_ref memory, sdb::SymbolTable* sym_table) = 0;
+  virtual JIT* CreateJIT(xe_memory_ref memory, sdb::SymbolTable* sym_table);
 
 protected:
-  Backend() {}
 };
 
 
+}  // namespace libjit
 }  // namespace cpu
 }  // namespace xe
 
 
-#endif  // XENIA_CPU_BACKEND_H_
+#endif  // XENIA_CPU_LIBJIT_LIBJIT_BACKEND_H_

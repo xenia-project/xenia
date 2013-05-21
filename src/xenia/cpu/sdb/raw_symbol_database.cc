@@ -22,8 +22,9 @@ using namespace xe::kernel;
 
 RawSymbolDatabase::RawSymbolDatabase(
     xe_memory_ref memory, ExportResolver* export_resolver,
+    SymbolTable* sym_table,
     uint32_t start_address, uint32_t end_address) :
-    SymbolDatabase(memory, export_resolver) {
+    SymbolDatabase(memory, export_resolver, sym_table) {
   start_address_ = start_address;
   end_address_ = end_address;
 }
