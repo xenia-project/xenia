@@ -29,6 +29,7 @@
       ['OS == "win"', {
         'defines': [
           '_WIN64=1',
+          '_AMD64_=1',
         ],
       }],
     ],
@@ -52,7 +53,7 @@
         'msvs_cygwin_shell': '0',
         'msvs_settings': {
           'VCCLCompilerTool': {
-            #'MinimalRebuild': 'false',
+            #'MinimalRebuild': 'true',
             'BufferSecurityCheck': 'true',
             'EnableFunctionLevelLinking': 'true',
             'RuntimeTypeInfo': 'false',
@@ -61,8 +62,9 @@
             'DebugInformationFormat': '3',
             'ExceptionHandling': '1', # /EHsc
             'AdditionalOptions': [
-              '/MP', # Multiprocessor
-              '/TP', # Compile as C++
+              '/MP',    # Multiprocessor build
+              '/TP',    # Compile as C++
+              '/EHsc',  # C++ exception handling,
             ],
           },
           #'VCLibrarianTool': {

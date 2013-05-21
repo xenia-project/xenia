@@ -300,7 +300,7 @@ def run_gyp(format):
       '-f %s' % (format),
       # Set the VS version.
       # TODO(benvanik): allow user to set?
-      '-G msvs_version=2012e',
+      '-G msvs_version=2010',
       # Removes the out/ from ninja builds.
       '-G output_dir=.',
       '--depth=.',
