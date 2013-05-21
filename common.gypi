@@ -30,6 +30,9 @@
         'defines': [
           '_WIN64=1',
           '_AMD64_=1',
+
+          # HACK: it'd be nice to use the proper functions, when available.
+          '_CRT_SECURE_NO_WARNINGS=1',
         ],
       }],
     ],
@@ -63,7 +66,7 @@
             'ExceptionHandling': '1', # /EHsc
             'AdditionalOptions': [
               '/MP',    # Multiprocessor build
-              '/TP',    # Compile as C++
+              #'/TP',    # Compile as C++
               '/EHsc',  # C++ exception handling,
             ],
           },

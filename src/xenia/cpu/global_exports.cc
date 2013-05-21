@@ -43,8 +43,8 @@ void _cdecl XeInvalidInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data,
     void* unused) {
   ppc::InstrData i;
-  i.address = cia;
-  i.code = data;
+  i.address = (uint32_t)cia;
+  i.code = (uint32_t)data;
   i.type = ppc::GetInstrType(i.code);
 
   if (!i.type) {
@@ -89,7 +89,7 @@ void _cdecl XeTraceUserCall(
 void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data,
     void* unused) {
-  ppc::InstrType* type = ppc::GetInstrType(data);
+  ppc::InstrType* type = ppc::GetInstrType((uint32_t)data);
   XELOGCPU("TRACE: %.8X %.8X %s %s",
            cia, data,
            type && type->emit ? " " : "X",
