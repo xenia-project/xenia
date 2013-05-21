@@ -12,7 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <xenia/dbg/content_source.h>
-#include <xenia/dbg/ws_listener.h>
+#include <xenia/dbg/listener.h>
 
 
 using namespace xe;
@@ -26,7 +26,7 @@ DEFINE_int32(remote_debug_port, 6200,
 
 
 Debugger::Debugger() {
-  listener_ = auto_ptr<Listener>(new WsListener(this, FLAGS_remote_debug_port));
+  //listener_ = auto_ptr<Listener>(new WsListener(this, FLAGS_remote_debug_port));
 }
 
 Debugger::~Debugger() {
@@ -50,6 +50,11 @@ void Debugger::RegisterContentSource(ContentSource* content_source) {
 }
 
 int Debugger::Startup() {
+  // HACK(benvanik): say we are ok even if we have no listener.
+  if (!listener_.get()) {
+    return 0;
+  }
+
   // Start listener.
   // This may launch a thread and such.
   if (listener_->Setup()) {

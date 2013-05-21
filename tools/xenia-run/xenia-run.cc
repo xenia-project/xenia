@@ -82,7 +82,7 @@ int Run::Launch(const xechar_t* path) {
   // Run the debugger.
   // This may pause waiting for connections.
   if (debugger_->Startup()) {
-    XELOGE("Debugger failed to startup");
+    XELOGE("Debugger failed to start up");
     return 1;
   }
 

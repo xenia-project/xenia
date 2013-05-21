@@ -9,11 +9,5 @@
     'debugger.h',
     'listener.cc',
     'listener.h',
-    'simple_sha1.cc',
-    'simple_sha1.h',
-    'ws_client.cc',
-    'ws_client.h',
-    'ws_listener.cc',
-    'ws_listener.h',
   ],
 }

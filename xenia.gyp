@@ -4,7 +4,6 @@
     'tools/tools.gypi',
     'third_party/gflags.gypi',
     'third_party/sparsehash.gypi',
-    'third_party/wslay.gypi',
   ],
 
   'targets': [
@@ -15,12 +14,10 @@
 
       'dependencies': [
         'gflags',
-        'wslay',
         'third_party/libjit/libjit.gyp:libjit',
       ],
       'export_dependent_settings': [
         'gflags',
-        'wslay',
         'third_party/libjit/libjit.gyp:libjit',
       ],
 
