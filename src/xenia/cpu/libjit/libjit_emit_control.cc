@@ -30,7 +30,7 @@ namespace libjit {
 //   // NOTE: we avoid spilling registers until we know that the target is not
 //   // a basic block within this function.
 
-//   Value* target;
+//   jit_value_t target;
 //   switch (reg) {
 //     case kXEPPCRegLR:
 //       target = e.lr_value();
@@ -51,7 +51,7 @@ namespace libjit {
 //     BasicBlock* next_block = e.GetNextBasicBlock();
 //     BasicBlock* mismatch_bb = BasicBlock::Create(*e.context(), "lr_mismatch",
 //                                                  e.fn(), next_block);
-//     Value* lr_cmp = b.CreateICmpEQ(target, ++(e.fn()->arg_begin()));
+//     jit_value_t lr_cmp = b.CreateICmpEQ(target, ++(e.fn()->arg_begin()));
 //     // The return block will spill registers for us.
 //     b.CreateCondBr(lr_cmp, e.GetReturnBasicBlock(), mismatch_bb);
 //     b.SetInsertPoint(mismatch_bb);
@@ -86,7 +86,7 @@ namespace libjit {
 //       XEASSERTNOTNULL(fn_block->outgoing_function);
 //       Function* target_fn = e.GetFunction(fn_block->outgoing_function);
 //       Function::arg_iterator args = e.fn()->arg_begin();
-//       Value* state_ptr = args;
+//       jit_value_t state_ptr = args;
 //       BasicBlock* next_bb = e.GetNextBasicBlock();
 //       if (!lk || !next_bb) {
 //         // Tail. No need to refill the local register values, just return.
@@ -169,12 +169,12 @@ namespace libjit {
 //     e.update_lr_value(b.getInt32(i.address + 4));
 //   }
 
-//   Value* ctr_ok = NULL;
+//   jit_value_t ctr_ok = NULL;
 //   if (XESELECTBITS(i.B.BO, 2, 2)) {
 //     // Ignore ctr.
 //   } else {
 //     // Decrement counter.
-//     Value* ctr = e.ctr_value();
+//     jit_value_t ctr = e.ctr_value();
 //     ctr = b.CreateSub(ctr, b.getInt64(1));
 //     e.update_ctr_value(ctr);
 
@@ -186,11 +186,11 @@ namespace libjit {
 //     }
 //   }
 
-//   Value* cond_ok = NULL;
+//   jit_value_t cond_ok = NULL;
 //   if (XESELECTBITS(i.B.BO, 4, 4)) {
 //     // Ignore cond.
 //   } else {
-//     Value* cr = e.cr_value(i.B.BI >> 2);
+//     jit_value_t cr = e.cr_value(i.B.BI >> 2);
 //     cr = b.CreateAnd(cr, 1 << (i.B.BI & 3));
 //     if (XESELECTBITS(i.B.BO, 3, 3)) {
 //       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
@@ -200,7 +200,7 @@ namespace libjit {
 //   }
 
 //   // We do a bit of optimization here to make the llvm assembly easier to read.
-//   Value* ok = NULL;
+//   jit_value_t ok = NULL;
 //   if (ctr_ok && cond_ok) {
 //     ok = b.CreateAnd(ctr_ok, cond_ok);
 //   } else if (ctr_ok) {
@@ -255,11 +255,11 @@ namespace libjit {
 //     e.update_lr_value(b.getInt32(i.address + 4));
 //   }
 
-//   Value* cond_ok = NULL;
+//   jit_value_t cond_ok = NULL;
 //   if (XESELECTBITS(i.XL.BO, 4, 4)) {
 //     // Ignore cond.
 //   } else {
-//     Value* cr = e.cr_value(i.XL.BI >> 2);
+//     jit_value_t cr = e.cr_value(i.XL.BI >> 2);
 //     cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
 //     if (XESELECTBITS(i.XL.BO, 3, 3)) {
 //       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
@@ -269,7 +269,7 @@ namespace libjit {
 //   }
 
 //   // We do a bit of optimization here to make the llvm assembly easier to read.
-//   Value* ok = NULL;
+//   jit_value_t ok = NULL;
 //   if (cond_ok) {
 //     ok = cond_ok;
 //   }
@@ -318,12 +318,12 @@ namespace libjit {
 //     e.update_lr_value(b.getInt32(i.address + 4));
 //   }
 
-//   Value* ctr_ok = NULL;
+//   jit_value_t ctr_ok = NULL;
 //   if (XESELECTBITS(i.XL.BO, 2, 2)) {
 //     // Ignore ctr.
 //   } else {
 //     // Decrement counter.
-//     Value* ctr = e.ctr_value();
+//     jit_value_t ctr = e.ctr_value();
 //     ctr = b.CreateSub(ctr, b.getInt64(1));
 
 //     // Ctr check.
@@ -334,11 +334,11 @@ namespace libjit {
 //     }
 //   }
 
-//   Value* cond_ok = NULL;
+//   jit_value_t cond_ok = NULL;
 //   if (XESELECTBITS(i.XL.BO, 4, 4)) {
 //     // Ignore cond.
 //   } else {
-//     Value* cr = e.cr_value(i.XL.BI >> 2);
+//     jit_value_t cr = e.cr_value(i.XL.BI >> 2);
 //     cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
 //     if (XESELECTBITS(i.XL.BO, 3, 3)) {
 //       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
@@ -348,7 +348,7 @@ namespace libjit {
 //   }
 
 //   // We do a bit of optimization here to make the llvm assembly easier to read.
-//   Value* ok = NULL;
+//   jit_value_t ok = NULL;
 //   if (ctr_ok && cond_ok) {
 //     ok = b.CreateAnd(ctr_ok, cond_ok);
 //   } else if (ctr_ok) {
@@ -441,7 +441,7 @@ namespace libjit {
 // // Trap (A-25)
 
 // int XeEmitTrap(LibjitEmitter& e, jit_function_t f, InstrData& i,
-//                 Value* va, Value* vb, uint32_t TO) {
+//                 jit_value_t va, jit_value_t vb, uint32_t TO) {
 //   // if (a < b) & TO[0] then TRAP
 //   // if (a > b) & TO[1] then TRAP
 //   // if (a = b) & TO[2] then TRAP
@@ -488,35 +488,35 @@ namespace libjit {
 //     // a < b
 //     BasicBlock* bb = *(it++);
 //     b.SetInsertPoint(bb);
-//     Value* cmp = b.CreateICmpSLT(va, vb);
+//     jit_value_t cmp = b.CreateICmpSLT(va, vb);
 //     b.CreateCondBr(cmp, trap_bb, *it);
 //   }
 //   if (TO & (1 << 3)) {
 //     // a > b
 //     BasicBlock* bb = *(it++);
 //     b.SetInsertPoint(bb);
-//     Value* cmp = b.CreateICmpSGT(va, vb);
+//     jit_value_t cmp = b.CreateICmpSGT(va, vb);
 //     b.CreateCondBr(cmp, trap_bb, *it);
 //   }
 //   if (TO & (1 << 2)) {
 //     // a = b
 //     BasicBlock* bb = *(it++);
 //     b.SetInsertPoint(bb);
-//     Value* cmp = b.CreateICmpEQ(va, vb);
+//     jit_value_t cmp = b.CreateICmpEQ(va, vb);
 //     b.CreateCondBr(cmp, trap_bb, *it);
 //   }
 //   if (TO & (1 << 1)) {
 //     // a <u b
 //     BasicBlock* bb = *(it++);
 //     b.SetInsertPoint(bb);
-//     Value* cmp = b.CreateICmpULT(va, vb);
+//     jit_value_t cmp = b.CreateICmpULT(va, vb);
 //     b.CreateCondBr(cmp, trap_bb, *it);
 //   }
 //   if (TO & (1 << 0)) {
 //     // a >u b
 //     BasicBlock* bb = *(it++);
 //     b.SetInsertPoint(bb);
-//     Value* cmp = b.CreateICmpUGT(va, vb);
+//     jit_value_t cmp = b.CreateICmpUGT(va, vb);
 //     b.CreateCondBr(cmp, trap_bb, *it);
 //   }
 
@@ -573,10 +573,10 @@ namespace libjit {
 //   return XeEmitTrap(e, b, i,
 //                     b.CreateSExt(b.CreateTrunc(e.gpr_value(i.X.RA),
 //                                                b.getInt32Ty()),
-//                                  b.getInt64Ty()),
+//                                  jit_type_nint),
 //                     b.CreateSExt(b.CreateTrunc(e.gpr_value(i.X.RB),
 //                                                b.getInt32Ty()),
-//                                  b.getInt64Ty()),
+//                                  jit_type_nint),
 //                     i.X.RT);
 // }
 
@@ -590,7 +590,7 @@ namespace libjit {
 //   return XeEmitTrap(e, b, i,
 //                     b.CreateSExt(b.CreateTrunc(e.gpr_value(i.D.RA),
 //                                                b.getInt32Ty()),
-//                                  b.getInt64Ty()),
+//                                  jit_type_nint),
 //                     b.getInt64(XEEXTS16(i.D.DS)),
 //                     i.D.RT);
 // }
@@ -611,7 +611,7 @@ namespace libjit {
 //   //   RT <- i32.0 || SPR(n)
 
 //   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
-//   Value* v = NULL;
+//   jit_value_t v = NULL;
 //   switch (n) {
 //   case 1:
 //     // XER
@@ -652,7 +652,7 @@ namespace libjit {
 //   // else
 //   //   SPR(n) <- (RS)[32:63]
 
-//   Value* v = e.gpr_value(i.XFX.RT);
+//   jit_value_t v = e.gpr_value(i.XFX.RT);
 
 //   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
 //   switch (n) {

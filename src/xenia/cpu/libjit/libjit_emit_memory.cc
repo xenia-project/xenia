@@ -29,11 +29,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // RT <- i56.0 || MEM(EA, 1)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 1, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 1, false);
 //   e.update_gpr_value(i.D.RT, v);
 
 //   return 0;
@@ -44,8 +44,8 @@ namespace libjit {
 //   // RT <- i56.0 || MEM(EA, 1)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.ReadMemory(i.address, ea, 1, false);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 1, false);
 //   e.update_gpr_value(i.D.RT, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -57,8 +57,8 @@ namespace libjit {
 //   // RT <- i56.0 || MEM(EA, 1)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.ReadMemory(i.address, ea, 1, false);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 1, false);
 //   e.update_gpr_value(i.X.RT, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -73,11 +73,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // RT <- i56.0 || MEM(EA, 1)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 1, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 1, false);
 //   e.update_gpr_value(i.X.RT, v);
 
 //   return 0;
@@ -91,11 +91,11 @@ namespace libjit {
 //   // EA <- b + EXTS(DS || 0b00)
 //   // RT <- MEM(EA, 8)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.DS.DS << 2));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.DS.DS << 2));
 //   if (i.DS.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.DS.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 8, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 8, false);
 //   e.update_gpr_value(i.DS.RT, v);
 
 //   return 0;
@@ -106,9 +106,9 @@ namespace libjit {
 //   // RT <- MEM(EA, 8)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.DS.RA),
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.DS.RA),
 //                           b.getInt64(XEEXTS16(i.DS.DS << 2)));
-//   Value* v = e.ReadMemory(i.address, ea, 8, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 8, false);
 //   e.update_gpr_value(i.DS.RT, v);
 //   e.update_gpr_value(i.DS.RA, ea);
 
@@ -133,12 +133,12 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // RT <- EXTS(MEM(EA, 2))
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = b.CreateSExt(e.ReadMemory(i.address, ea, 2, false),
-//                           b.getInt64Ty());
+//   jit_value_t v = b.CreateSExt(e.ReadMemory(i.address, ea, 2, false),
+//                           jit_type_nint);
 //   e.update_gpr_value(i.D.RT, v);
 
 //   return 0;
@@ -162,12 +162,12 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // RT <- EXTS(MEM(EA, 2))
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = b.CreateSExt(e.ReadMemory(i.address, ea, 2, false),
-//                           b.getInt64Ty());
+//   jit_value_t v = b.CreateSExt(e.ReadMemory(i.address, ea, 2, false),
+//                           jit_type_nint);
 //   e.update_gpr_value(i.X.RT, v);
 
 //   return 0;
@@ -181,11 +181,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // RT <- i48.0 || MEM(EA, 2)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 2, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 2, false);
 //   e.update_gpr_value(i.D.RT, v);
 
 //   return 0;
@@ -196,8 +196,8 @@ namespace libjit {
 //   // RT <- i48.0 || MEM(EA, 2)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.ReadMemory(i.address, ea, 2, false);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 2, false);
 //   e.update_gpr_value(i.D.RT, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -209,8 +209,8 @@ namespace libjit {
 //   // RT <- i48.0 || MEM(EA, 2)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.ReadMemory(i.address, ea, 2, false);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 2, false);
 //   e.update_gpr_value(i.X.RT, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -225,11 +225,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // RT <- i48.0 || MEM(EA, 2)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 2, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 2, false);
 //   e.update_gpr_value(i.X.RT, v);
 
 //   return 0;
@@ -243,12 +243,12 @@ namespace libjit {
 //   // EA <- b + EXTS(D || 00)
 //   // RT <- EXTS(MEM(EA, 4))
 
-//   Value* ea = b.getInt64(XEEXTS16(i.DS.DS << 2));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.DS.DS << 2));
 //   if (i.DS.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.DS.RA), ea);
 //   }
-//   Value* v = b.CreateSExt(e.ReadMemory(i.address, ea, 4, false),
-//                           b.getInt64Ty());
+//   jit_value_t v = b.CreateSExt(e.ReadMemory(i.address, ea, 4, false),
+//                           jit_type_nint);
 //   e.update_gpr_value(i.DS.RT, v);
 
 //   return 0;
@@ -259,9 +259,9 @@ namespace libjit {
 //   // RT <- EXTS(MEM(EA, 4))
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = b.CreateSExt(e.ReadMemory(i.address, ea, 4, false),
-//                           b.getInt64Ty());
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = b.CreateSExt(e.ReadMemory(i.address, ea, 4, false),
+//                           jit_type_nint);
 //   e.update_gpr_value(i.X.RT, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -276,12 +276,12 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // RT <- EXTS(MEM(EA, 4))
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = b.CreateSExt(e.ReadMemory(i.address, ea, 4, false),
-//                           b.getInt64Ty());
+//   jit_value_t v = b.CreateSExt(e.ReadMemory(i.address, ea, 4, false),
+//                           jit_type_nint);
 //   e.update_gpr_value(i.X.RT, v);
 
 //   return 0;
@@ -295,11 +295,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // RT <- i32.0 || MEM(EA, 4)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
 //   e.update_gpr_value(i.D.RT, v);
 
 //   return 0;
@@ -310,8 +310,8 @@ namespace libjit {
 //   // RT <- i32.0 || MEM(EA, 4)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
 //   e.update_gpr_value(i.D.RT, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -323,8 +323,8 @@ namespace libjit {
 //   // RT <- i32.0 || MEM(EA, 4)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
 //   e.update_gpr_value(i.X.RT, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -339,11 +339,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // RT <- i32.0 || MEM(EA, 4)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
 //   e.update_gpr_value(i.X.RT, v);
 
 //   return 0;
@@ -360,11 +360,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // MEM(EA, 1) <- (RS)[56:63]
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 1, v);
 
 //   return 0;
@@ -375,8 +375,8 @@ namespace libjit {
 //   // MEM(EA, 1) <- (RS)[56:63]
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 1, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -388,8 +388,8 @@ namespace libjit {
 //   // MEM(EA, 1) <- (RS)[56:63]
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 1, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -404,11 +404,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 1) <- (RS)[56:63]
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 1, v);
 
 //   return 0;
@@ -422,11 +422,11 @@ namespace libjit {
 //   // EA <- b + EXTS(DS || 0b00)
 //   // MEM(EA, 8) <- (RS)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.DS.DS << 2));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.DS.DS << 2));
 //   if (i.DS.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.DS.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.DS.RT);
+//   jit_value_t v = e.gpr_value(i.DS.RT);
 //   e.WriteMemory(i.address, ea, 8, v);
 
 //   return 0;
@@ -437,9 +437,9 @@ namespace libjit {
 //   // MEM(EA, 8) <- (RS)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.DS.RA),
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.DS.RA),
 //                           b.getInt64(XEEXTS16(i.DS.DS << 2)));
-//   Value* v = e.gpr_value(i.DS.RT);
+//   jit_value_t v = e.gpr_value(i.DS.RT);
 //   e.WriteMemory(i.address, ea, 8, v);
 //   e.update_gpr_value(i.DS.RA, ea);
 
@@ -454,11 +454,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 8) <- (RS)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 8, v);
 
 //   return 0;
@@ -469,8 +469,8 @@ namespace libjit {
 //   // MEM(EA, 8) <- (RS)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 8, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -485,11 +485,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // MEM(EA, 2) <- (RS)[48:63]
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 2, v);
 
 //   return 0;
@@ -500,9 +500,9 @@ namespace libjit {
 //   // MEM(EA, 2) <- (RS)[48:63]
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA),
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA),
 //                           b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 2, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -514,8 +514,8 @@ namespace libjit {
 //   // MEM(EA, 2) <- (RS)[48:63]
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 2, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -530,11 +530,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 2) <- (RS)[48:63]
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 2, v);
 
 //   return 0;
@@ -548,11 +548,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // MEM(EA, 4) <- (RS)[32:63]
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 4, v);
 
 //   return 0;
@@ -563,9 +563,9 @@ namespace libjit {
 //   // MEM(EA, 4) <- (RS)[32:63]
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA),
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA),
 //                           b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 4, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -577,8 +577,8 @@ namespace libjit {
 //   // MEM(EA, 4) <- (RS)[32:63]
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 4, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -593,11 +593,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 4) <- (RS)[32:63]
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.X.RT);
+//   jit_value_t v = e.gpr_value(i.X.RT);
 //   e.WriteMemory(i.address, ea, 4, v);
 
 //   return 0;
@@ -703,11 +703,11 @@ namespace libjit {
 
 //   // TODO(benvanik): make this right
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 4, /* acquire */ true);
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, /* acquire */ true);
 //   e.update_gpr_value(i.X.RT, v);
 
 //   return 0;
@@ -731,11 +731,11 @@ namespace libjit {
 
 //   // TODO(benvanik): make this right
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.gpr_value(i.D.RT);
+//   jit_value_t v = e.gpr_value(i.D.RT);
 //   e.WriteMemory(i.address, ea, 4, v, /* release */ true);
 
 //   // We always succeed.
@@ -760,12 +760,12 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // FRT <- MEM(EA, 8)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, b.getDoubleTy());
+//   jit_value_t v = e.ReadMemory(i.address, ea, 8, false);
+//   v = b.CreateBitCast(v, jit_type_float64);
 //   e.update_fpr_value(i.D.RT, v);
 
 //   return 0;
@@ -776,9 +776,9 @@ namespace libjit {
 //   // FRT <- MEM(EA, 8)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, b.getDoubleTy());
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 8, false);
+//   v = b.CreateBitCast(v, jit_type_float64);
 //   e.update_fpr_value(i.D.RT, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -790,9 +790,9 @@ namespace libjit {
 //   // FRT <- MEM(EA, 8)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, b.getDoubleTy());
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 8, false);
+//   v = b.CreateBitCast(v, jit_type_float64);
 //   e.update_fpr_value(i.X.RT, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -807,12 +807,12 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // FRT <- MEM(EA, 8)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, b.getDoubleTy());
+//   jit_value_t v = e.ReadMemory(i.address, ea, 8, false);
+//   v = b.CreateBitCast(v, jit_type_float64);
 //   e.update_fpr_value(i.X.RT, v);
 
 //   return 0;
@@ -826,12 +826,12 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // FRT <- DOUBLE(MEM(EA, 4))
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), b.getDoubleTy());
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
+//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
 //   e.update_fpr_value(i.D.RT, v);
 
 //   return 0;
@@ -842,9 +842,9 @@ namespace libjit {
 //   // FRT <- DOUBLE(MEM(EA, 4))
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), b.getDoubleTy());
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
+//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
 //   e.update_fpr_value(i.D.RT, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -856,9 +856,9 @@ namespace libjit {
 //   // FRT <- DOUBLE(MEM(EA, 4))
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), b.getDoubleTy());
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
+//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
 //   e.update_fpr_value(i.X.RT, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -873,12 +873,12 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // FRT <- DOUBLE(MEM(EA, 4))
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), b.getDoubleTy());
+//   jit_value_t v = e.ReadMemory(i.address, ea, 4, false);
+//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
 //   e.update_fpr_value(i.X.RT, v);
 
 //   return 0;
@@ -895,12 +895,12 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // MEM(EA, 8) <- (FRS)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.fpr_value(i.D.RT);
-//   v = b.CreateBitCast(v, b.getInt64Ty());
+//   jit_value_t v = e.fpr_value(i.D.RT);
+//   v = b.CreateBitCast(v, jit_type_nint);
 //   e.WriteMemory(i.address, ea, 8, v);
 
 //   return 0;
@@ -911,10 +911,10 @@ namespace libjit {
 //   // MEM(EA, 8) <- (FRS)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA),
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA),
 //                           b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.fpr_value(i.D.RT);
-//   v = b.CreateBitCast(v, b.getInt64Ty());
+//   jit_value_t v = e.fpr_value(i.D.RT);
+//   v = b.CreateBitCast(v, jit_type_nint);
 //   e.WriteMemory(i.address, ea, 8, v);
 //   e.update_gpr_value(i.D.RA, ea);
 
@@ -926,9 +926,9 @@ namespace libjit {
 //   // MEM(EA, 8) <- (FRS)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(v, b.getInt64Ty());
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.fpr_value(i.X.RT);
+//   v = b.CreateBitCast(v, jit_type_nint);
 //   e.WriteMemory(i.address, ea, 8, v);
 //   e.update_gpr_value(i.X.RA, ea);
 
@@ -943,12 +943,12 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 8) <- (FRS)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(v, b.getInt64Ty());
+//   jit_value_t v = e.fpr_value(i.X.RT);
+//   v = b.CreateBitCast(v, jit_type_nint);
 //   e.WriteMemory(i.address, ea, 8, v);
 
 //   return 0;
@@ -962,12 +962,12 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 4) <- (FRS)[32:63]
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(v, b.getInt64Ty());
+//   jit_value_t v = e.fpr_value(i.X.RT);
+//   v = b.CreateBitCast(v, jit_type_nint);
 //   e.WriteMemory(i.address, ea, 4, v);
 
 //   return 0;
@@ -981,11 +981,11 @@ namespace libjit {
 //   // EA <- b + EXTS(D)
 //   // MEM(EA, 4) <- SINGLE(FRS)
 
-//   Value* ea = b.getInt64(XEEXTS16(i.D.DS));
+//   jit_value_t ea = b.getInt64(XEEXTS16(i.D.DS));
 //   if (i.D.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.D.RA), ea);
 //   }
-//   Value* v = e.fpr_value(i.D.RT);
+//   jit_value_t v = e.fpr_value(i.D.RT);
 //   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
 //   e.WriteMemory(i.address, ea, 4, v);
 
@@ -997,9 +997,9 @@ namespace libjit {
 //   // MEM(EA, 4) <- SINGLE(FRS)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.D.RA),
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.D.RA),
 //                           b.getInt64(XEEXTS16(i.D.DS)));
-//   Value* v = e.fpr_value(i.D.RT);
+//   jit_value_t v = e.fpr_value(i.D.RT);
 //   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
 //   e.WriteMemory(i.address, ea, 4, v);
 //   e.update_gpr_value(i.D.RA, ea);
@@ -1012,8 +1012,8 @@ namespace libjit {
 //   // MEM(EA, 4) <- SINGLE(FRS)
 //   // RA <- EA
 
-//   Value* ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   Value* v = e.fpr_value(i.X.RT);
+//   jit_value_t ea = b.CreateAdd(e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
+//   jit_value_t v = e.fpr_value(i.X.RT);
 //   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
 //   e.WriteMemory(i.address, ea, 4, v);
 //   e.update_gpr_value(i.X.RA, ea);
@@ -1029,11 +1029,11 @@ namespace libjit {
 //   // EA <- b + (RB)
 //   // MEM(EA, 4) <- SINGLE(FRS)
 
-//   Value* ea = e.gpr_value(i.X.RB);
+//   jit_value_t ea = e.gpr_value(i.X.RB);
 //   if (i.X.RA) {
 //     ea = b.CreateAdd(e.gpr_value(i.X.RA), ea);
 //   }
-//   Value* v = e.fpr_value(i.X.RT);
+//   jit_value_t v = e.fpr_value(i.X.RT);
 //   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
 //   e.WriteMemory(i.address, ea, 4, v);
 

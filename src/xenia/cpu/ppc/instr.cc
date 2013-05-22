@@ -292,7 +292,7 @@ void InstrDisasm::AddSImmOperand(uint64_t value, size_t width,
   o.type = InstrOperand::kImmediate;
   o.imm.is_signed = true;
   o.imm.value     = value;
-  o.imm.width     = value;
+  o.imm.width     = width;
   o.display       = display;
   operands.push_back(o);
 }
@@ -303,7 +303,7 @@ void InstrDisasm::AddUImmOperand(uint64_t value, size_t width,
   o.type = InstrOperand::kImmediate;
   o.imm.is_signed = false;
   o.imm.value     = value;
-  o.imm.width     = value;
+  o.imm.width     = width;
   o.display       = display;
   operands.push_back(o);
 }

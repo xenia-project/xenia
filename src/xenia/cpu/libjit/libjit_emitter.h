@@ -36,13 +36,12 @@ public:
   jit_function_t fn();
   sdb::FunctionBlock* fn_block();
 
-  void PushInsertPoint();
-  void PopInsertPoint();
-
-  void GenerateBasicBlocks();
-//  llvm::BasicBlock* GetBasicBlock(uint32_t address);
-//  llvm::BasicBlock* GetNextBasicBlock();
-//  llvm::BasicBlock* GetReturnBasicBlock();
+  int branch_to_block(uint32_t address);
+  int branch_to_block_if(uint32_t address, jit_value_t value);
+  int branch_to_block_if_not(uint32_t address, jit_value_t value);
+  int branch_to_return();
+  int branch_to_return_if(jit_value_t value);
+  int branch_to_return_if_not(jit_value_t value);
 
   int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
                                 bool lk, bool likely_local);
@@ -92,6 +91,7 @@ private:
   int MakePresentImportFunction();
   int MakeMissingImportFunction();
 
+  void GenerateBasicBlocks();
   void GenerateSharedBlocks();
   int PrepareBasicBlock(sdb::FunctionBlock* block);
   void GenerateBasicBlock(sdb::FunctionBlock* block);
@@ -109,15 +109,11 @@ private:
   sdb::FunctionSymbol*  symbol_;
   jit_function_t        fn_;
   sdb::FunctionBlock*   fn_block_;
-  // llvm::BasicBlock*     return_block_;
-  // llvm::BasicBlock*     internal_indirection_block_;
-  // llvm::BasicBlock*     external_indirection_block_;
-  // llvm::BasicBlock*     bb_;
+  jit_label_t           return_block_;
+  jit_label_t           internal_indirection_block_;
+  jit_label_t           external_indirection_block_;
 
-  // std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock::iterator> >
-  //     insert_points_;
-
-  //std::map<uint32_t, llvm::BasicBlock*> bbs_;
+  std::map<uint32_t, jit_label_t> bbs_;
 
   // Address of the instruction being generated.
   uint32_t        cia_;

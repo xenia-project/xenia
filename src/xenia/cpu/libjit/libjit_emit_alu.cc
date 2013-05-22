@@ -29,10 +29,10 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    // This is a different codepath as we need to use llvm.sadd.with.overflow.
 //
 //    Function* sadd_with_overflow = Intrinsic::getDeclaration(
-//        e.gen_module(), Intrinsic::sadd_with_overflow, b.getInt64Ty());
-//    Value* v = b.CreateCall2(sadd_with_overflow,
+//        e.gen_module(), Intrinsic::sadd_with_overflow, jit_type_nint);
+//    jit_value_t v = b.CreateCall2(sadd_with_overflow,
 //                             e.gpr_value(i.XO.RA), e.gpr_value(i.XO.RB));
-//    Value* v0 = b.CreateExtractValue(v, 0);
+//    jit_value_t v0 = b.CreateExtractValue(v, 0);
 //    e.update_gpr_value(i.XO.RT, v0);
 //    e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 //
@@ -44,7 +44,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    return 0;
 //  } else {
 //    // No OE bit setting.
-//    Value* v = b.CreateAdd(e.gpr_value(i.XO.RA), e.gpr_value(i.XO.RB));
+//    jit_value_t v = b.CreateAdd(e.gpr_value(i.XO.RA), e.gpr_value(i.XO.RB));
 //    e.update_gpr_value(i.XO.RT, v);
 //
 //    if (i.XO.Rc) {
@@ -73,7 +73,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // else
 //  //   RT <- (RA) + EXTS(SI)
 //
-//  Value* v = b.getInt64(XEEXTS16(i.D.DS));
+//  jit_value_t v = b.getInt64(XEEXTS16(i.D.DS));
 //  if (i.D.RA) {
 //    v = b.CreateAdd(e.gpr_value(i.D.RA), v);
 //  }
@@ -86,8 +86,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RT <- (RA) + EXTS(SI)
 //
 //  Function* sadd_with_overflow = Intrinsic::getDeclaration(
-//      e.gen_module(), Intrinsic::sadd_with_overflow, b.getInt64Ty());
-//  Value* v = b.CreateCall2(sadd_with_overflow,
+//      e.gen_module(), Intrinsic::sadd_with_overflow, jit_type_nint);
+//  jit_value_t v = b.CreateCall2(sadd_with_overflow,
 //                           e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
 //  e.update_gpr_value(i.D.RT, b.CreateExtractValue(v, 0));
 //  e.update_xer_with_carry(b.CreateExtractValue(v, 1));
@@ -106,7 +106,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // else
 //  //   RT <- (RA) + EXTS(SI) || i16.0
 //
-//  Value* v = b.getInt64(XEEXTS16(i.D.DS) << 16);
+//  jit_value_t v = b.getInt64(XEEXTS16(i.D.DS) << 16);
 //  if (i.D.RA) {
 //    v = b.CreateAdd(e.gpr_value(i.D.RA), v);
 //  }
@@ -124,11 +124,11 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RT <- (RA) + CA
 //
 //  Function* sadd_with_overflow = Intrinsic::getDeclaration(
-//      e.gen_module(), Intrinsic::sadd_with_overflow, b.getInt64Ty());
-//  Value* ca = b.CreateAnd(b.CreateLShr(e.xer_value(), 29), 0x1);
-//  Value* v = b.CreateCall2(sadd_with_overflow,
+//      e.gen_module(), Intrinsic::sadd_with_overflow, jit_type_nint);
+//  jit_value_t ca = b.CreateAnd(b.CreateLShr(e.xer_value(), 29), 0x1);
+//  jit_value_t v = b.CreateCall2(sadd_with_overflow,
 //                           e.gpr_value(i.XO.RA), ca);
-//  Value* add_value = b.CreateExtractValue(v, 0);
+//  jit_value_t add_value = b.CreateExtractValue(v, 0);
 //  e.update_gpr_value(i.XO.RT, add_value);
 //  if (i.XO.OE) {
 //    // With XER[SO] update too.
@@ -166,8 +166,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RT[32:63] <- dividend ÷ divisor
 //  // RT[0:31] <- undefined
 //
-//  Value* dividend = b.CreateTrunc(e.gpr_value(i.XO.RA), b.getInt32Ty());
-//  Value* divisor = b.CreateTrunc(e.gpr_value(i.XO.RB), b.getInt32Ty());
+//  jit_value_t dividend = b.CreateTrunc(e.gpr_value(i.XO.RA), b.getInt32Ty());
+//  jit_value_t divisor = b.CreateTrunc(e.gpr_value(i.XO.RB), b.getInt32Ty());
 //
 //  // Note that we skip the zero handling block and just avoid the divide if
 //  // we are OE=0.
@@ -187,8 +187,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //
 //  // Divide.
 //  b.SetInsertPoint(nonzero_bb);
-//  Value* v = b.CreateSDiv(dividend, divisor);
-//  v = b.CreateSExt(v, b.getInt64Ty());
+//  jit_value_t v = b.CreateSDiv(dividend, divisor);
+//  v = b.CreateSExt(v, jit_type_nint);
 //  e.update_gpr_value(i.XO.RT, v);
 //
 //  // If we are OE=1 we need to clear the overflow bit.
@@ -219,8 +219,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RT[32:63] <- dividend ÷ divisor
 //  // RT[0:31] <- undefined
 //
-//  Value* dividend = b.CreateTrunc(e.gpr_value(i.XO.RA), b.getInt32Ty());
-//  Value* divisor = b.CreateTrunc(e.gpr_value(i.XO.RB), b.getInt32Ty());
+//  jit_value_t dividend = b.CreateTrunc(e.gpr_value(i.XO.RA), b.getInt32Ty());
+//  jit_value_t divisor = b.CreateTrunc(e.gpr_value(i.XO.RB), b.getInt32Ty());
 //
 //  // Note that we skip the zero handling block and just avoid the divide if
 //  // we are OE=0.
@@ -240,8 +240,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //
 //  // Divide.
 //  b.SetInsertPoint(nonzero_bb);
-//  Value* v = b.CreateUDiv(dividend, divisor);
-//  v = b.CreateZExt(v, b.getInt64Ty());
+//  jit_value_t v = b.CreateUDiv(dividend, divisor);
+//  v = b.CreateZExt(v, jit_type_nint);
 //  e.update_gpr_value(i.XO.RT, v);
 //
 //  // If we are OE=1 we need to clear the overflow bit.
@@ -295,8 +295,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // overflows. It should be truncating the result, but I'm not sure what LLVM
 //  // does.
 //
-//  Value* v = b.CreateMul(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
-//  e.update_gpr_value(i.D.RT, b.CreateTrunc(v, b.getInt64Ty()));
+//  jit_value_t v = b.CreateMul(e.gpr_value(i.D.RA), b.getInt64(XEEXTS16(i.D.DS)));
+//  e.update_gpr_value(i.D.RT, b.CreateTrunc(v, jit_type_nint));
 //
 //  return 0;
 //}
@@ -310,8 +310,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    return 1;
 //  }
 //
-//  Value* v = b.CreateMul(b.CreateSExt(e.gpr_value(i.XO.RA), b.getInt64Ty()),
-//                         b.CreateSExt(e.gpr_value(i.XO.RB), b.getInt64Ty()));
+//  jit_value_t v = b.CreateMul(b.CreateSExt(e.gpr_value(i.XO.RA), jit_type_nint),
+//                         b.CreateSExt(e.gpr_value(i.XO.RB), jit_type_nint));
 //  e.update_gpr_value(i.XO.RT, v);
 //
 //  if (i.XO.Rc) {
@@ -333,10 +333,10 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    // This may just magically do that...
 //
 //    Function* ssub_with_overflow = Intrinsic::getDeclaration(
-//        e.gen_module(), Intrinsic::ssub_with_overflow, b.getInt64Ty());
-//    Value* v = b.CreateCall2(ssub_with_overflow,
+//        e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
+//    jit_value_t v = b.CreateCall2(ssub_with_overflow,
 //                             b.getInt64(0), e.gpr_value(i.XO.RA));
-//    Value* v0 = b.CreateExtractValue(v, 0);
+//    jit_value_t v0 = b.CreateExtractValue(v, 0);
 //    e.update_gpr_value(i.XO.RT, v0);
 //    e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 //
@@ -348,7 +348,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    return 0;
 //  } else {
 //    // No OE bit setting.
-//    Value* v = b.CreateSub(b.getInt64(0), e.gpr_value(i.XO.RA));
+//    jit_value_t v = b.CreateSub(b.getInt64(0), e.gpr_value(i.XO.RA));
 //    e.update_gpr_value(i.XO.RT, v);
 //
 //    if (i.XO.Rc) {
@@ -368,10 +368,10 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    // This is a different codepath as we need to use llvm.ssub.with.overflow.
 //
 //    Function* ssub_with_overflow = Intrinsic::getDeclaration(
-//        e.gen_module(), Intrinsic::ssub_with_overflow, b.getInt64Ty());
-//    Value* v = b.CreateCall2(ssub_with_overflow,
+//        e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
+//    jit_value_t v = b.CreateCall2(ssub_with_overflow,
 //                             e.gpr_value(i.XO.RB), e.gpr_value(i.XO.RA));
-//    Value* v0 = b.CreateExtractValue(v, 0);
+//    jit_value_t v0 = b.CreateExtractValue(v, 0);
 //    e.update_gpr_value(i.XO.RT, v0);
 //    e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 //
@@ -383,7 +383,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    return 0;
 //  } else {
 //    // No OE bit setting.
-//    Value* v = b.CreateSub(e.gpr_value(i.XO.RB), e.gpr_value(i.XO.RA));
+//    jit_value_t v = b.CreateSub(e.gpr_value(i.XO.RB), e.gpr_value(i.XO.RA));
 //    e.update_gpr_value(i.XO.RT, v);
 //
 //    if (i.XO.Rc) {
@@ -404,8 +404,8 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RT <- ¬(RA) + EXTS(SI) + 1
 //
 //  Function* ssub_with_overflow = Intrinsic::getDeclaration(
-//      e.gen_module(), Intrinsic::ssub_with_overflow, b.getInt64Ty());
-//  Value* v = b.CreateCall2(ssub_with_overflow,
+//      e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
+//  jit_value_t v = b.CreateCall2(ssub_with_overflow,
 //                           b.getInt64(XEEXTS16(i.D.DS)), e.gpr_value(i.D.RA));
 //  e.update_gpr_value(i.D.RT, b.CreateExtractValue(v, 0));
 //  e.update_xer_with_carry(b.CreateExtractValue(v, 1));
@@ -419,13 +419,13 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // TODO(benvanik): possible that the add of rb+ca needs to also check for
 //  //     overflow!
 //
-//  Value* ca = b.CreateAnd(b.CreateLShr(e.xer_value(), 29), 0x1);
+//  jit_value_t ca = b.CreateAnd(b.CreateLShr(e.xer_value(), 29), 0x1);
 //  Function* uadd_with_overflow = Intrinsic::getDeclaration(
-//      e.gen_module(), Intrinsic::uadd_with_overflow, b.getInt64Ty());
-//  Value* v = b.CreateCall2(uadd_with_overflow,
+//      e.gen_module(), Intrinsic::uadd_with_overflow, jit_type_nint);
+//  jit_value_t v = b.CreateCall2(uadd_with_overflow,
 //                           b.CreateNeg(e.gpr_value(i.XO.RA)),
 //                           b.CreateAdd(e.gpr_value(i.XO.RB), ca));
-//  Value* v0 = b.CreateExtractValue(v, 0);
+//  jit_value_t v0 = b.CreateExtractValue(v, 0);
 //  e.update_gpr_value(i.XO.RT, v0);
 //
 //  if (i.XO.OE) {
@@ -474,14 +474,14 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  uint32_t BF = i.X.RT >> 2;
 //  uint32_t L = i.X.RT & 1;
 //
-//  Value* lhs = e.gpr_value(i.X.RA);
-//  Value* rhs = e.gpr_value(i.X.RB);
+//  jit_value_t lhs = e.gpr_value(i.X.RA);
+//  jit_value_t rhs = e.gpr_value(i.X.RB);
 //  if (!L) {
 //    // 32-bit - truncate and sign extend.
 //    lhs = b.CreateTrunc(lhs, b.getInt32Ty());
-//    lhs = b.CreateSExt(lhs, b.getInt64Ty());
+//    lhs = b.CreateSExt(lhs, jit_type_nint);
 //    rhs = b.CreateTrunc(rhs, b.getInt32Ty());
-//    rhs = b.CreateSExt(rhs, b.getInt64Ty());
+//    rhs = b.CreateSExt(rhs, jit_type_nint);
 //  }
 //
 //  e.update_cr_with_cond(BF, lhs, rhs, true);
@@ -505,14 +505,14 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  uint32_t BF = i.D.RT >> 2;
 //  uint32_t L = i.D.RT & 1;
 //
-//  Value* lhs = e.gpr_value(i.D.RA);
+//  jit_value_t lhs = e.gpr_value(i.D.RA);
 //  if (!L) {
 //    // 32-bit - truncate and sign extend.
 //    lhs = b.CreateTrunc(lhs, b.getInt32Ty());
-//    lhs = b.CreateSExt(lhs, b.getInt64Ty());
+//    lhs = b.CreateSExt(lhs, jit_type_nint);
 //  }
 //
-//  Value* rhs = b.getInt64(XEEXTS16(i.D.DS));
+//  jit_value_t rhs = b.getInt64(XEEXTS16(i.D.DS));
 //  e.update_cr_with_cond(BF, lhs, rhs, true);
 //
 //  return 0;
@@ -536,14 +536,14 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  uint32_t BF = i.X.RT >> 2;
 //  uint32_t L = i.X.RT & 1;
 //
-//  Value* lhs = e.gpr_value(i.X.RA);
-//  Value* rhs = e.gpr_value(i.X.RB);
+//  jit_value_t lhs = e.gpr_value(i.X.RA);
+//  jit_value_t rhs = e.gpr_value(i.X.RB);
 //  if (!L) {
 //    // 32-bit - truncate and zero extend.
 //    lhs = b.CreateTrunc(lhs, b.getInt32Ty());
-//    lhs = b.CreateZExt(lhs, b.getInt64Ty());
+//    lhs = b.CreateZExt(lhs, jit_type_nint);
 //    rhs = b.CreateTrunc(rhs, b.getInt32Ty());
-//    rhs = b.CreateZExt(rhs, b.getInt64Ty());
+//    rhs = b.CreateZExt(rhs, jit_type_nint);
 //  }
 //
 //  e.update_cr_with_cond(BF, lhs, rhs, false);
@@ -567,14 +567,14 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  uint32_t BF = i.D.RT >> 2;
 //  uint32_t L = i.D.RT & 1;
 //
-//  Value* lhs = e.gpr_value(i.D.RA);
+//  jit_value_t lhs = e.gpr_value(i.D.RA);
 //  if (!L) {
 //    // 32-bit - truncate and zero extend.
 //    lhs = b.CreateTrunc(lhs, b.getInt32Ty());
-//    lhs = b.CreateZExt(lhs, b.getInt64Ty());
+//    lhs = b.CreateZExt(lhs, jit_type_nint);
 //  }
 //
-//  Value* rhs = b.getInt64(i.D.DS);
+//  jit_value_t rhs = b.getInt64(i.D.DS);
 //  e.update_cr_with_cond(BF, lhs, rhs, false);
 //
 //  return 0;
@@ -586,7 +586,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(andx,         0x7C000038, X  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) & (RB)
 //
-//  Value* v = b.CreateAnd(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
+//  jit_value_t v = b.CreateAnd(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
 //  e.update_gpr_value(i.X.RA, v);
 //
 //  if (i.X.Rc) {
@@ -600,7 +600,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(andcx,        0x7C000078, X  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) & ¬(RB)
 //
-//  Value* v = b.CreateXor(e.gpr_value(i.X.RB), -1);
+//  jit_value_t v = b.CreateXor(e.gpr_value(i.X.RB), -1);
 //  v = b.CreateAnd(e.gpr_value(i.X.RT), v);
 //  e.update_gpr_value(i.X.RA, v);
 //
@@ -615,7 +615,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(andix,        0x70000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) & (i48.0 || UI)
 //
-//  Value* v = b.CreateAnd(e.gpr_value(i.D.RT), (uint64_t)i.D.DS);
+//  jit_value_t v = b.CreateAnd(e.gpr_value(i.D.RT), (uint64_t)i.D.DS);
 //  e.update_gpr_value(i.D.RA, v);
 //
 //  // With cr0 update.
@@ -627,7 +627,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(andisx,       0x74000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) & (i32.0 || UI || i16.0)
 //
-//  Value* v = b.CreateAnd(e.gpr_value(i.D.RT), ((uint64_t)i.D.DS) << 16);
+//  jit_value_t v = b.CreateAnd(e.gpr_value(i.D.RT), ((uint64_t)i.D.DS) << 16);
 //  e.update_gpr_value(i.D.RA, v);
 //
 //  // With cr0 update.
@@ -648,16 +648,16 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  //   n <- n + 1
 //  // RA <- n - 32
 //
-//  Value* v = e.gpr_value(i.X.RT);
+//  jit_value_t v = e.gpr_value(i.X.RT);
 //  v = b.CreateTrunc(v, b.getInt32Ty());
 //
 //  std::vector<Type*> arg_types;
 //  arg_types.push_back(b.getInt32Ty());
 //  Function* ctlz = Intrinsic::getDeclaration(
 //      e.fn()->getParent(), Intrinsic::ctlz, arg_types);
-//  Value* count = b.CreateCall2(ctlz, v, b.getInt1(1));
+//  jit_value_t count = b.CreateCall2(ctlz, v, b.getInt1(1));
 //
-//  count = b.CreateZExt(count, b.getInt64Ty());
+//  count = b.CreateZExt(count, jit_type_nint);
 //  e.update_gpr_value(i.X.RA, count);
 //
 //  if (i.X.Rc) {
@@ -678,9 +678,9 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RA[56:63] <- (RS)[56:63]
 //  // RA[0:55] <- i56.s
 //
-//  Value* v = e.gpr_value(i.X.RT);
-//  v = b.CreateTrunc(v, b.getInt8Ty());
-//  v = b.CreateSExt(v, b.getInt64Ty());
+//  jit_value_t v = e.gpr_value(i.X.RT);
+//  v = b.CreateTrunc(v, jit_type_ubyte);
+//  v = b.CreateSExt(v, jit_type_nint);
 //  e.update_gpr_value(i.X.RA, v);
 //
 //  if (i.X.Rc) {
@@ -709,7 +709,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(norx,         0x7C0000F8, X  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- ¬((RS) | (RB))
 //
-//  Value* v = b.CreateOr(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
+//  jit_value_t v = b.CreateOr(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
 //  v = b.CreateXor(v, -1);
 //  e.update_gpr_value(i.X.RA, v);
 //
@@ -724,7 +724,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(orx,          0x7C000378, X  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) | (RB)
 //
-//  Value* v = b.CreateOr(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
+//  jit_value_t v = b.CreateOr(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
 //  e.update_gpr_value(i.X.RA, v);
 //
 //  if (i.X.Rc) {
@@ -743,7 +743,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(ori,          0x60000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) | (i48.0 || UI)
 //
-//  Value* v = b.CreateOr(e.gpr_value(i.D.RT), (uint64_t)i.D.DS);
+//  jit_value_t v = b.CreateOr(e.gpr_value(i.D.RT), (uint64_t)i.D.DS);
 //  e.update_gpr_value(i.D.RA, v);
 //
 //  return 0;
@@ -752,7 +752,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(oris,         0x64000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) | (i32.0 || UI || i16.0)
 //
-//  Value* v = b.CreateOr(e.gpr_value(i.D.RT), ((uint64_t)i.D.DS) << 16);
+//  jit_value_t v = b.CreateOr(e.gpr_value(i.D.RT), ((uint64_t)i.D.DS) << 16);
 //  e.update_gpr_value(i.D.RA, v);
 //
 //  return 0;
@@ -761,7 +761,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(xorx,         0x7C000278, X  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) XOR (RB)
 //
-//  Value* v = b.CreateXor(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
+//  jit_value_t v = b.CreateXor(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
 //  e.update_gpr_value(i.X.RA, v);
 //
 //  if (i.X.Rc) {
@@ -775,7 +775,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(xori,         0x68000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) XOR (i48.0 || UI)
 //
-//  Value* v = b.CreateXor(e.gpr_value(i.D.RT), (uint64_t)i.D.DS);
+//  jit_value_t v = b.CreateXor(e.gpr_value(i.D.RT), (uint64_t)i.D.DS);
 //  e.update_gpr_value(i.D.RA, v);
 //
 //  return 0;
@@ -784,7 +784,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //XEEMITTER(xoris,        0x6C000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
 //  // RA <- (RS) XOR (i32.0 || UI || i16.0)
 //
-//  Value* v = b.CreateXor(e.gpr_value(i.D.RT), ((uint64_t)i.D.DS) << 16);
+//  jit_value_t v = b.CreateXor(e.gpr_value(i.D.RT), ((uint64_t)i.D.DS) << 16);
 //  e.update_gpr_value(i.D.RA, v);
 //
 //  return 0;
@@ -818,7 +818,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
 //  // uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
 //
-//  // Value* v = e.gpr_value(i.MD.RS);
+//  // jit_value_t v = e.gpr_value(i.MD.RS);
 //  // if (sh) {
 //  //   v = // rotate by sh
 //  // }
@@ -853,7 +853,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RA <- r&m | (RA)&¬m
 //
 //  // ROTL32(x, y) = rotl(i64.(x||x), y)
-//  Value* v = b.CreateAnd(e.gpr_value(i.M.RT), UINT32_MAX);
+//  jit_value_t v = b.CreateAnd(e.gpr_value(i.M.RT), UINT32_MAX);
 //  v = b.CreateOr(b.CreateShl(v, 32), v);
 //  // (v << shift) | (v >> (32 - shift));
 //  v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
@@ -880,10 +880,10 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // Which seems to just select some bits and set cr0 for use with a branch.
 //  // We can detect this and do less work.
 //  if (!i.M.SH) {
-//    Value* v = b.CreateAnd(
+//    jit_value_t v = b.CreateAnd(
 //        b.CreateTrunc(e.gpr_value(i.M.RT), b.getInt32Ty()),
 //        b.getInt32((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
-//    v = b.CreateZExt(v, b.getInt64Ty());
+//    v = b.CreateZExt(v, jit_type_nint);
 //    e.update_gpr_value(i.M.RA, v);
 //    if (i.M.Rc) {
 //      // With cr0 update.
@@ -893,7 +893,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  }
 //
 //  // ROTL32(x, y) = rotl(i64.(x||x), y)
-//  Value* v = b.CreateAnd(e.gpr_value(i.M.RT), UINT32_MAX);
+//  jit_value_t v = b.CreateAnd(e.gpr_value(i.M.RT), UINT32_MAX);
 //  v = b.CreateOr(b.CreateShl(v, 32), v);
 //  // (v << shift) | (v >> (32 - shift));
 //  v = b.CreateOr(b.CreateShl(v, i.M.SH), b.CreateLShr(v, 32 - i.M.SH));
@@ -930,7 +930,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  //   m <- i64.0
 //  // RA <- r & m
 //
-//  Value* v = b.CreateShl(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
+//  jit_value_t v = b.CreateShl(e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
 //  v = b.CreateAnd(v, UINT32_MAX);
 //  e.update_gpr_value(i.X.RA, v);
 //
@@ -965,11 +965,11 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // RA <- r&m | (i64.s)&¬m
 //  // CA <- s & ((r&¬m)[32:63]≠0)
 //
-//  Value* rs64 = e.gpr_value(i.X.RT);
-//  Value* rs32 = b.CreateTrunc(rs64, b.getInt32Ty());
+//  jit_value_t rs64 = e.gpr_value(i.X.RT);
+//  jit_value_t rs32 = b.CreateTrunc(rs64, b.getInt32Ty());
 //
-//  Value* v;
-//  Value* ca;
+//  jit_value_t v;
+//  jit_value_t ca;
 //  if (!i.X.RB) {
 //    // No shift, just a fancy sign extend and CA clearer.
 //    v = rs32;
@@ -982,7 +982,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //    ca = b.CreateAnd(b.CreateICmpSLT(v, b.getInt32(0)),
 //                     b.CreateICmpSLT(rs64, b.getInt64(0)));
 //  }
-//  v = b.CreateSExt(v, b.getInt64Ty());
+//  v = b.CreateSExt(v, jit_type_nint);
 //  e.update_gpr_value(i.X.RA, v);
 //  e.update_xer_with_carry(ca);
 //
