@@ -613,9 +613,9 @@ int LibjitEmitter::branch_to_return_if_not(jit_value_t value) {
 //    // Setup locals in the entry block.
 //    b.SetInsertPoint(&fn_->getEntryBlock());
 //    locals_.indirection_target = b.CreateAlloca(
-//        jit_type_nint, 0, "indirection_target");
+//        jit_type_nuint, 0, "indirection_target");
 //    locals_.indirection_cia = b.CreateAlloca(
-//        jit_type_nint, 0, "indirection_cia");
+//        jit_type_nuint, 0, "indirection_cia");
 //
 //    external_indirection_block_ = BasicBlock::Create(
 //        *context_, "external_indirection_block", fn_, return_block_);
@@ -695,15 +695,15 @@ void LibjitEmitter::StoreStateValue(size_t offset, jit_type_t type,
 void LibjitEmitter::SetupLocals() {
   uint64_t spr_t = access_bits_.spr;
   if (spr_t & 0x3) {
-    locals_.xer = SetupLocal(jit_type_nint, "xer");
+    locals_.xer = SetupLocal(jit_type_nuint, "xer");
   }
   spr_t >>= 2;
   if (spr_t & 0x3) {
-    locals_.lr = SetupLocal(jit_type_nint, "lr");
+    locals_.lr = SetupLocal(jit_type_nuint, "lr");
   }
   spr_t >>= 2;
   if (spr_t & 0x3) {
-    locals_.ctr = SetupLocal(jit_type_nint, "ctr");
+    locals_.ctr = SetupLocal(jit_type_nuint, "ctr");
   }
   spr_t >>= 2;
   // TODO: FPCSR
@@ -723,7 +723,7 @@ void LibjitEmitter::SetupLocals() {
   for (int n = 0; n < 32; n++) {
     if (gpr_t & 3) {
       //xesnprintfa(name, XECOUNT(name), "r%d", n);
-      locals_.gpr[n] = SetupLocal(jit_type_nint, name);
+      locals_.gpr[n] = SetupLocal(jit_type_nuint, name);
     }
     gpr_t >>= 2;
   }
@@ -756,19 +756,19 @@ void LibjitEmitter::FillRegisters() {
   if (locals_.xer) {
     jit_insn_store(fn_,
         locals_.xer,
-        LoadStateValue(offsetof(xe_ppc_state_t, xer), jit_type_nint));
+        LoadStateValue(offsetof(xe_ppc_state_t, xer), jit_type_nuint));
   }
 
   if (locals_.lr) {
     jit_insn_store(fn_,
         locals_.lr,
-        LoadStateValue(offsetof(xe_ppc_state_t, lr), jit_type_nint));
+        LoadStateValue(offsetof(xe_ppc_state_t, lr), jit_type_nuint));
   }
 
   if (locals_.ctr) {
     jit_insn_store(fn_,
         locals_.ctr,
-        LoadStateValue(offsetof(xe_ppc_state_t, ctr), jit_type_nint));
+        LoadStateValue(offsetof(xe_ppc_state_t, ctr), jit_type_nuint));
   }
 
   // Fill the split CR values by extracting each one from the CR.
@@ -783,7 +783,7 @@ void LibjitEmitter::FillRegisters() {
     if (!cr) {
       // Only fetch once. Doing this in here prevents us from having to
       // always fetch even if unused.
-      cr = LoadStateValue(offsetof(xe_ppc_state_t, cr), jit_type_nint);
+      cr = LoadStateValue(offsetof(xe_ppc_state_t, cr), jit_type_nuint);
     }
     // (cr >> 28 - n * 4) & 0xF
     jit_value_t shamt = jit_value_create_nint_constant(
@@ -798,7 +798,7 @@ void LibjitEmitter::FillRegisters() {
     if (locals_.gpr[n]) {
       jit_insn_store(fn_,
           locals_.gpr[n],
-          LoadStateValue(offsetof(xe_ppc_state_t, r) + 8 * n, jit_type_nint));
+          LoadStateValue(offsetof(xe_ppc_state_t, r) + 8 * n, jit_type_nuint));
     }
   }
 
@@ -821,21 +821,21 @@ void LibjitEmitter::SpillRegisters() {
   if (locals_.xer) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, xer),
-        jit_type_nint,
+        jit_type_nuint,
         jit_insn_load(fn_, locals_.xer));
   }
 
   if (locals_.lr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, lr),
-        jit_type_nint,
+        jit_type_nuint,
         jit_insn_load(fn_, locals_.lr));
   }
 
   if (locals_.ctr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, ctr),
-        jit_type_nint,
+        jit_type_nuint,
         jit_insn_load(fn_, locals_.ctr));
   }
 
@@ -861,7 +861,7 @@ void LibjitEmitter::SpillRegisters() {
   if (cr) {
     StoreStateValue(
         offsetof(xe_ppc_state_t, cr),
-        jit_type_nint,
+        jit_type_nuint,
         cr);
   }
 
@@ -870,7 +870,7 @@ void LibjitEmitter::SpillRegisters() {
     if (v) {
       StoreStateValue(
           offsetof(xe_ppc_state_t, r) + 8 * n,
-          jit_type_nint,
+          jit_type_nuint,
           jit_insn_load(fn_, v));
     }
   }
@@ -886,64 +886,60 @@ void LibjitEmitter::SpillRegisters() {
   }
 }
 
-//jit_value_t LibjitEmitter::xer_value() {
-//  XEASSERTNOTNULL(locals_.xer);
-//  IRBuilder<>& b = *builder_;
-//  return b.CreateLoad(locals_.xer);
-//}
-//
-//void LibjitEmitter::update_xer_value(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.xer);
-//  IRBuilder<>& b = *builder_;
-//
-//  // Extend to 64bits if needed.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
-//  }
-//  b.CreateStore(value, locals_.xer);
-//}
-//
+jit_value_t LibjitEmitter::xer_value() {
+  XEASSERTNOTNULL(locals_.xer);
+  return jit_insn_load(fn_, locals_.xer);
+}
+
+void LibjitEmitter::update_xer_value(jit_value_t value) {
+  XEASSERTNOTNULL(locals_.xer);
+
+  // Extend to 64bits if needed.
+  // TODO(benvanik): extend?
+  /*if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, jit_type_nuint);
+  }*/
+  jit_insn_store(fn_, locals_.xer, value);
+}
+
 //void LibjitEmitter::update_xer_with_overflow(jit_value_t value) {
 //  XEASSERTNOTNULL(locals_.xer);
-//  IRBuilder<>& b = *builder_;
 //
 //  // Expects a i1 indicating overflow.
 //  // Trust the caller that if it's larger than that it's already truncated.
 //  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
+//    value = b.CreateZExt(value, jit_type_nuint);
 //  }
 //
 //  jit_value_t xer = xer_value();
 //  xer = b.CreateAnd(xer, 0xFFFFFFFFBFFFFFFF); // clear bit 30
 //  xer = b.CreateOr(xer, b.CreateShl(value, 31));
 //  xer = b.CreateOr(xer, b.CreateShl(value, 30));
-//  b.CreateStore(xer, locals_.xer);
+//  jit_insn_store(fn_, locals_.xer, value);
 //}
 //
 //void LibjitEmitter::update_xer_with_carry(jit_value_t value) {
 //  XEASSERTNOTNULL(locals_.xer);
-//  IRBuilder<>& b = *builder_;
 //
 //  // Expects a i1 indicating carry.
 //  // Trust the caller that if it's larger than that it's already truncated.
 //  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
+//    value = b.CreateZExt(value, jit_type_nuint);
 //  }
 //
 //  jit_value_t xer = xer_value();
 //  xer = b.CreateAnd(xer, 0xFFFFFFFFDFFFFFFF); // clear bit 29
 //  xer = b.CreateOr(xer, b.CreateShl(value, 29));
-//  b.CreateStore(xer, locals_.xer);
+//  jit_insn_store(fn_, locals_.xer, value);
 //}
 //
 //void LibjitEmitter::update_xer_with_overflow_and_carry(jit_value_t value) {
 //  XEASSERTNOTNULL(locals_.xer);
-//  IRBuilder<>& b = *builder_;
 //
 //  // Expects a i1 indicating overflow.
 //  // Trust the caller that if it's larger than that it's already truncated.
 //  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
+//    value = b.CreateZExt(value, jit_type_nuint);
 //  }
 //
 //  // This is effectively an update_xer_with_overflow followed by an
@@ -953,58 +949,53 @@ void LibjitEmitter::SpillRegisters() {
 //  xer = b.CreateOr(xer, b.CreateShl(value, 31));
 //  xer = b.CreateOr(xer, b.CreateShl(value, 30));
 //  xer = b.CreateOr(xer, b.CreateShl(value, 29));
-//  b.CreateStore(xer, locals_.xer);
+//  jit_insn_store(fn_, locals_.xer, value);
 //}
-//
-//jit_value_t LibjitEmitter::lr_value() {
-//  XEASSERTNOTNULL(locals_.lr);
-//  IRBuilder<>& b = *builder_;
-//  return b.CreateLoad(locals_.lr);
-//}
-//
-//void LibjitEmitter::update_lr_value(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.lr);
-//  IRBuilder<>& b = *builder_;
-//
-//  // Extend to 64bits if needed.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
-//  }
-//  b.CreateStore(value, locals_.lr);
-//}
-//
-//jit_value_t LibjitEmitter::ctr_value() {
-//  XEASSERTNOTNULL(locals_.ctr);
-//  IRBuilder<>& b = *builder_;
-//
-//  return b.CreateLoad(locals_.ctr);
-//}
-//
-//void LibjitEmitter::update_ctr_value(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.ctr);
-//  IRBuilder<>& b = *builder_;
-//
-//  // Extend to 64bits if needed.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
-//  }
-//  b.CreateStore(value, locals_.ctr);
-//}
-//
+
+jit_value_t LibjitEmitter::lr_value() {
+  XEASSERTNOTNULL(locals_.lr);
+  return jit_insn_load(fn_, locals_.lr);
+}
+
+void LibjitEmitter::update_lr_value(jit_value_t value) {
+  XEASSERTNOTNULL(locals_.lr);
+
+  // Extend to 64bits if needed.
+  // TODO(benvanik): extend?
+  /*if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, jit_type_nuint);
+  }*/
+  jit_insn_store(fn_, locals_.lr, value);
+}
+
+jit_value_t LibjitEmitter::ctr_value() {
+  XEASSERTNOTNULL(locals_.ctr);
+  return jit_insn_load(fn_, locals_.ctr);
+}
+
+void LibjitEmitter::update_ctr_value(jit_value_t value) {
+  XEASSERTNOTNULL(locals_.ctr);
+
+  // Extend to 64bits if needed.
+  // TODO(benvanik): extend?
+  /*if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, jit_type_nuint);
+  }*/
+  jit_insn_store(fn_, locals_.ctr, value);
+}
+
 //jit_value_t LibjitEmitter::cr_value(uint32_t n) {
 //  XEASSERT(n >= 0 && n < 8);
 //  XEASSERTNOTNULL(locals_.cr[n]);
-//  IRBuilder<>& b = *builder_;
 //
-//  jit_value_t v = b.CreateLoad(locals_.cr[n]);
-//  v = b.CreateZExt(v, jit_type_nint);
+//  jit_value_t v = jit_insn_load(fn_, locals_.cr[n]);
+//  v = b.CreateZExt(v, jit_type_nuint);
 //  return v;
 //}
 //
 //void LibjitEmitter::update_cr_value(uint32_t n, jit_value_t value) {
 //  XEASSERT(n >= 0 && n < 8);
 //  XEASSERTNOTNULL(locals_.cr[n]);
-//  IRBuilder<>& b = *builder_;
 //
 //  // Truncate to 8 bits if needed.
 //  // TODO(benvanik): also widen?
@@ -1017,7 +1008,6 @@ void LibjitEmitter::SpillRegisters() {
 //
 //void LibjitEmitter::update_cr_with_cond(
 //    uint32_t n, jit_value_t lhs, jit_value_t rhs, bool is_signed) {
-//  IRBuilder<>& b = *builder_;
 //
 //  // bit0 = RA < RB
 //  // bit1 = RA > RB
@@ -1046,187 +1036,180 @@ void LibjitEmitter::SpillRegisters() {
 //  // Insert the 4 bits into their location in the CR.
 //  update_cr_value(n, c);
 //}
-//
-//jit_value_t LibjitEmitter::gpr_value(uint32_t n) {
-//  XEASSERT(n >= 0 && n < 32);
-//  XEASSERTNOTNULL(locals_.gpr[n]);
-//  IRBuilder<>& b = *builder_;
-//
-//  // Actually r0 is writable, even though nobody should ever do that.
-//  // Perhaps we can check usage and enable this if safe?
-//  // if (n == 0) {
-//  //   // Always force zero to a constant - this should help LLVM.
-//  //   return b.getInt64(0);
-//  // }
-//
-//  return b.CreateLoad(locals_.gpr[n]);
-//}
-//
-//void LibjitEmitter::update_gpr_value(uint32_t n, jit_value_t value) {
-//  XEASSERT(n >= 0 && n < 32);
-//  XEASSERTNOTNULL(locals_.gpr[n]);
-//  IRBuilder<>& b = *builder_;
-//
-//  // See above - r0 can be written.
-//  // if (n == 0) {
-//  //   // Ignore writes to zero.
-//  //   return;
-//  // }
-//
-//  // Extend to 64bits if needed.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nint);
-//  }
-//
-//  b.CreateStore(value, locals_.gpr[n]);
-//}
-//
-//jit_value_t LibjitEmitter::fpr_value(uint32_t n) {
-//  XEASSERT(n >= 0 && n < 32);
-//  XEASSERTNOTNULL(locals_.fpr[n]);
-//  IRBuilder<>& b = *builder_;
-//  return b.CreateLoad(locals_.fpr[n]);
-//}
-//
-//void LibjitEmitter::update_fpr_value(uint32_t n, jit_value_t value) {
-//  XEASSERT(n >= 0 && n < 32);
-//  XEASSERTNOTNULL(locals_.fpr[n]);
-//  IRBuilder<>& b = *builder_;
-//  value = b.CreateFPExtOrFPTrunc(value, jit_type_float64);
-//  b.CreateStore(value, locals_.fpr[n]);
-//}
-//
-//jit_value_t LibjitEmitter::GetMembase() {
-//  jit_value_t v = gen_module_->getGlobalVariable("xe_memory_base");
-//  return builder_->CreateLoad(v);
-//}
-//
-//jit_value_t LibjitEmitter::GetMemoryAddress(uint32_t cia, jit_value_t addr) {
-//  IRBuilder<>& b = *builder_;
-//
-//  // Input address is always in 32-bit space.
-//  addr = b.CreateAnd(addr, UINT_MAX);
-//
-//  // Add runtime memory address checks, if needed.
-//  if (FLAGS_memory_address_verification) {
-//    BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", fn_);
-//    BasicBlock* valid_bb = BasicBlock::Create(*context_, "", fn_);
-//
-//    // The heap starts at 0x1000 - if we write below that we're boned.
-//    jit_value_t gt = b.CreateICmpUGE(addr, b.getInt64(0x00001000));
-//    b.CreateCondBr(gt, valid_bb, invalid_bb);
-//
-//    b.SetInsertPoint(invalid_bb);
-//    jit_value_t access_violation = gen_module_->getFunction("XeAccessViolation");
-//    SpillRegisters();
-//    b.CreateCall3(access_violation,
-//                  fn_->arg_begin(),
-//                  b.getInt32(cia),
-//                  addr);
-//    b.CreateBr(valid_bb);
-//
-//    b.SetInsertPoint(valid_bb);
-//  }
-//
-//  // Rebase off of memory base pointer.
-//  return b.CreateInBoundsGEP(GetMembase(), addr);
-//}
-//
-//jit_value_t LibjitEmitter::ReadMemory(
-//    uint32_t cia, jit_value_t addr, uint32_t size, bool acquire) {
-//  jit_type_t dataTy = NULL;
-//  bool needs_swap = false;
-//  switch (size) {
-//    case 1:
-//      dataTy = jit_type_ubyte;
-//      break;
-//    case 2:
-//      dataTy = jit_type_ushort;
-//      needs_swap = true;
-//      break;
-//    case 4:
-//      dataTy = jit_type_uint;
-//      needs_swap = true;
-//      break;
-//    case 8:
-//      dataTy = jit_type_ulong;
-//      needs_swap = true;
-//      break;
-//    default:
-//      XEASSERTALWAYS();
-//      return NULL;
-//  }
-//  PointerType* pointerTy = PointerType::getUnqual(dataTy);
-//
-//  jit_value_t address = GetMemoryAddress(cia, addr);
-//  jit_value_t ptr = b.CreatePointerCast(address, pointerTy);
-//  LoadInst* load_value = b.CreateLoad(ptr);
-//  if (acquire) {
-//    load_value->setAlignment(size);
-//    load_value->setVolatile(true);
-//    load_value->setAtomic(Acquire);
-//  }
-//  jit_value_t value = load_value;
-//
-//  // Swap after loading.
-//  // TODO(benvanik): find a way to avoid this!
-//  if (needs_swap) {
-//    Function* bswap = Intrinsic::getDeclaration(
-//          gen_module_, Intrinsic::bswap, dataTy);
-//    value = b.CreateCall(bswap, value);
-//  }
-//
-//  return value;
-//}
-//
-//void LibjitEmitter::WriteMemory(
-//    uint32_t cia, jit_value_t addr, uint32_t size, jit_value_t value, bool release) {
-//  IRBuilder<>& b = *builder_;
-//
-//  jit_type_t dataTy = NULL;
-//  bool needs_swap = false;
-//  switch (size) {
-//    case 1:
-//      dataTy = jit_type_ubyte;
-//      break;
-//    case 2:
-//      dataTy = jit_type_ushort;
-//      needs_swap = true;
-//      break;
-//    case 4:
-//      dataTy = jit_type_uint;
-//      needs_swap = true;
-//      break;
-//    case 8:
-//      dataTy = jit_type_ulong;
-//      needs_swap = true;
-//      break;
-//    default:
-//      XEASSERTALWAYS();
-//      return;
-//  }
-//  PointerType* pointerTy = PointerType::getUnqual(dataTy);
-//
-//  jit_value_t address = GetMemoryAddress(cia, addr);
-//  jit_value_t ptr = b.CreatePointerCast(address, pointerTy);
-//
-//  // Truncate, if required.
-//  if (value->getType() != dataTy) {
-//    value = b.CreateTrunc(value, dataTy);
-//  }
-//
-//  // Swap before storing.
-//  // TODO(benvanik): find a way to avoid this!
-//  if (needs_swap) {
-//    Function* bswap = Intrinsic::getDeclaration(
-//          gen_module_, Intrinsic::bswap, dataTy);
-//    value = b.CreateCall(bswap, value);
-//  }
-//
-//  StoreInst* store_value = b.CreateStore(value, ptr);
-//  if (release) {
-//    store_value->setAlignment(size);
-//    store_value->setVolatile(true);
-//    store_value->setAtomic(Release);
-//  }
-//}
+
+jit_value_t LibjitEmitter::gpr_value(uint32_t n) {
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.gpr[n]);
+
+  // Actually r0 is writable, even though nobody should ever do that.
+  // Perhaps we can check usage and enable this if safe?
+  // if (n == 0) {
+  //   return jit_value_create_nuint_constant(fn_, jit_type_nint, 0);
+  // }
+
+  return jit_insn_load(fn_, locals_.gpr[n]);
+}
+
+void LibjitEmitter::update_gpr_value(uint32_t n, jit_value_t value) {
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.gpr[n]);
+
+  // See above - r0 can be written.
+  // if (n == 0) {
+  //   // Ignore writes to zero.
+  //   return;
+  // }
+
+  // Extend to 64bits if needed.
+  // TODO(benvanik): extend?
+  //jit_insn_convert(fn_, value, jit_type_nuint, 0);
+  /*if (!value->getType()->isIntegerTy(64)) {
+    value = b.CreateZExt(value, jit_type_nuint);
+  }*/
+
+  jit_insn_store(fn_, locals_.gpr[n], value);
+}
+
+jit_value_t LibjitEmitter::fpr_value(uint32_t n) {
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.fpr[n]);
+  return jit_insn_load(fn_, locals_.fpr[n]);
+}
+
+void LibjitEmitter::update_fpr_value(uint32_t n, jit_value_t value) {
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERTNOTNULL(locals_.fpr[n]);
+  jit_insn_store(fn_, locals_.fpr[n], value);
+}
+
+jit_value_t LibjitEmitter::GetMemoryAddress(uint32_t cia, jit_value_t addr) {
+  // Input address is always in 32-bit space.
+  // TODO(benvanik): is this required? It's one extra instruction on every
+  //     access...
+  addr = jit_insn_and(fn_, addr,
+      jit_value_create_nint_constant(fn_, jit_type_nuint, UINT_MAX));
+
+  // Add runtime memory address checks, if needed.
+  // if (FLAGS_memory_address_verification) {
+  //   BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", fn_);
+  //   BasicBlock* valid_bb = BasicBlock::Create(*context_, "", fn_);
+
+  //   // The heap starts at 0x1000 - if we write below that we're boned.
+  //   jit_value_t gt = b.CreateICmpUGE(addr, b.getInt64(0x00001000));
+  //   b.CreateCondBr(gt, valid_bb, invalid_bb);
+
+  //   b.SetInsertPoint(invalid_bb);
+  //   jit_value_t access_violation = gen_module_->getFunction("XeAccessViolation");
+  //   SpillRegisters();
+  //   b.CreateCall3(access_violation,
+  //                 fn_->arg_begin(),
+  //                 b.getInt32(cia),
+  //                 addr);
+  //   b.CreateBr(valid_bb);
+
+  //   b.SetInsertPoint(valid_bb);
+  // }
+
+  // Rebase off of memory base pointer.
+  // We could store the memory base as a global value (or indirection off of
+  // state) if we wanted to avoid embedding runtime values into the code.
+  jit_nuint membase = (jit_nuint)xe_memory_addr(memory_, 0);
+  return jit_insn_add_relative(fn_, addr, membase);
+}
+
+jit_value_t LibjitEmitter::ReadMemory(
+    uint32_t cia, jit_value_t addr, uint32_t size, bool acquire) {
+  jit_type_t data_type = NULL;
+  bool needs_swap = false;
+  switch (size) {
+    case 1:
+      data_type = jit_type_ubyte;
+      break;
+    case 2:
+      data_type = jit_type_ushort;
+      needs_swap = true;
+      break;
+    case 4:
+      data_type = jit_type_uint;
+      needs_swap = true;
+      break;
+    case 8:
+      data_type = jit_type_ulong;
+      needs_swap = true;
+      break;
+    default:
+      XEASSERTALWAYS();
+      return NULL;
+  }
+
+  jit_value_t address = GetMemoryAddress(cia, addr);
+  jit_value_t value = jit_insn_load_relative(fn_, address, 0, data_type);
+  if (acquire) {
+    // TODO(benvanik): acquire semantics.
+    // load_value->setAlignment(size);
+    // load_value->setVolatile(true);
+    // load_value->setAtomic(Acquire);
+    jit_value_set_volatile(value);
+  }
+
+  // Swap after loading.
+  // TODO(benvanik): find a way to avoid this!
+  if (needs_swap) {
+    // Function* bswap = Intrinsic::getDeclaration(
+    //       gen_module_, Intrinsic::bswap, data_type);
+    // value = b.CreateCall(bswap, value);
+  }
+
+  return value;
+}
+
+void LibjitEmitter::WriteMemory(
+    uint32_t cia, jit_value_t addr, uint32_t size, jit_value_t value,
+    bool release) {
+  jit_type_t data_type = NULL;
+  bool needs_swap = false;
+  switch (size) {
+    case 1:
+      data_type = jit_type_ubyte;
+      break;
+    case 2:
+      data_type = jit_type_ushort;
+      needs_swap = true;
+      break;
+    case 4:
+      data_type = jit_type_uint;
+      needs_swap = true;
+      break;
+    case 8:
+      data_type = jit_type_ulong;
+      needs_swap = true;
+      break;
+    default:
+      XEASSERTALWAYS();
+      return;
+  }
+
+  jit_value_t address = GetMemoryAddress(cia, addr);
+
+  // Truncate, if required.
+  if (jit_value_get_type(value) != data_type) {
+    value = jit_insn_convert(fn_, value, data_type, 0);
+  }
+
+  // Swap before storing.
+  // TODO(benvanik): find a way to avoid this!
+  if (needs_swap) {
+    // Function* bswap = Intrinsic::getDeclaration(
+    //       gen_module_, Intrinsic::bswap, data_type);
+    // value = b.CreateCall(bswap, value);
+  }
+
+  // TODO(benvanik): release semantics
+  // if (release) {
+  //   store_value->setAlignment(size);
+  //   store_value->setVolatile(true);
+  //   store_value->setAtomic(Release);
+  // }
+
+  jit_insn_store_relative(fn_, address, 0, value);
+}
