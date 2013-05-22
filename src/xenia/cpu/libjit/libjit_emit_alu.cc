@@ -172,9 +172,9 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // Note that we skip the zero handling block and just avoid the divide if
 //  // we are OE=0.
 //  BasicBlock* zero_bb = i.XO.OE ?
-//      BasicBlock::Create(*e.context(), "", e.gen_fn()) : NULL;
-//  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.gen_fn());
-//  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.gen_fn());
+//      BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
+//  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
+//  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
 //  b.CreateCondBr(b.CreateICmpEQ(divisor, b.getInt32(0)),
 //                 i.XO.OE ? zero_bb : after_bb, nonzero_bb);
 //
@@ -225,9 +225,9 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  // Note that we skip the zero handling block and just avoid the divide if
 //  // we are OE=0.
 //  BasicBlock* zero_bb = i.XO.OE ?
-//      BasicBlock::Create(*e.context(), "", e.gen_fn()) : NULL;
-//  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.gen_fn());
-//  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.gen_fn());
+//      BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
+//  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
+//  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
 //  b.CreateCondBr(b.CreateICmpEQ(divisor, b.getInt32(0)),
 //                 i.XO.OE ? zero_bb : after_bb, nonzero_bb);
 //
@@ -654,7 +654,7 @@ XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //  std::vector<Type*> arg_types;
 //  arg_types.push_back(b.getInt32Ty());
 //  Function* ctlz = Intrinsic::getDeclaration(
-//      e.gen_fn()->getParent(), Intrinsic::ctlz, arg_types);
+//      e.fn()->getParent(), Intrinsic::ctlz, arg_types);
 //  Value* count = b.CreateCall2(ctlz, v, b.getInt1(1));
 //
 //  count = b.CreateZExt(count, b.getInt64Ty());

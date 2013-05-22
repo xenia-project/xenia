@@ -117,10 +117,6 @@ jit_context_t LibjitEmitter::context() {
   return context_;
 }
 
-jit_type_t LibjitEmitter::fn_signature() {
-  return fn_signature_;
-}
-
 namespace {
 int libjit_on_demand_compile(jit_function_t fn) {
   LibjitEmitter* emitter = (LibjitEmitter*)jit_function_get_meta(fn, 0x1000);
@@ -162,11 +158,11 @@ int LibjitEmitter::PrepareFunction(FunctionSymbol* symbol) {
   return 0;
 }
 
-int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t gen_fn) {
-  fn_ = symbol;
-  gen_fn_ = gen_fn;
+int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t fn) {
+  symbol_ = symbol;
+  fn_ = fn;
 
-  // fn_block_ = NULL;
+  // symbol_block_ = NULL;
   // return_block_ = NULL;
   // internal_indirection_block_ = NULL;
   // external_indirection_block_ = NULL;
@@ -220,10 +216,10 @@ int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t gen_fn) {
   if (!result_code) {
     // TODO(benvanik): flag
     // pre
-    jit_dump_function(stdout, gen_fn_, symbol->name());
-    jit_function_compile(gen_fn_);
+    jit_dump_function(stdout, fn_, symbol->name());
+    jit_function_compile(fn_);
     // post
-    jit_dump_function(stdout, gen_fn_, symbol->name());
+    jit_dump_function(stdout, fn_, symbol->name());
   }
 
   return result_code;
@@ -232,15 +228,15 @@ int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t gen_fn) {
 int LibjitEmitter::MakeUserFunction() {
   if (FLAGS_trace_user_calls) {
     jit_value_t trace_args[] = {
-      jit_value_get_param(gen_fn_, 0),
-      jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-          (jit_ulong)fn_->start_address),
-      jit_value_get_param(gen_fn_, 1),
-      jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-          (jit_ulong)fn_),
+      jit_value_get_param(fn_, 0),
+      jit_value_create_long_constant(fn_, jit_type_ulong,
+          (jit_ulong)symbol_->start_address),
+      jit_value_get_param(fn_, 1),
+      jit_value_create_long_constant(fn_, jit_type_ulong,
+          (jit_ulong)symbol_),
     };
     jit_insn_call_native(
-        gen_fn_,
+        fn_,
         "XeTraceUserCall",
         global_exports_.XeTraceUserCall,
         global_export_signature_4_,
@@ -250,22 +246,22 @@ int LibjitEmitter::MakeUserFunction() {
 
   // Emit.
   //emitter_->GenerateBasicBlocks();
-  jit_insn_return(gen_fn_, NULL);
+  jit_insn_return(fn_, NULL);
   return 0;
 }
 
 int LibjitEmitter::MakePresentImportFunction() {
   if (FLAGS_trace_kernel_calls) {
     jit_value_t trace_args[] = {
-      jit_value_get_param(gen_fn_, 0),
-      jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-          (jit_ulong)fn_->start_address),
-      jit_value_get_param(gen_fn_, 1),
-      jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-          (jit_ulong)fn_->kernel_export),
+      jit_value_get_param(fn_, 0),
+      jit_value_create_long_constant(fn_, jit_type_ulong,
+          (jit_ulong)symbol_->start_address),
+      jit_value_get_param(fn_, 1),
+      jit_value_create_long_constant(fn_, jit_type_ulong,
+          (jit_ulong)symbol_->kernel_export),
     };
     jit_insn_call_native(
-        gen_fn_,
+        fn_,
         "XeTraceKernelCall",
         global_exports_.XeTraceKernelCall,
         global_export_signature_4_,
@@ -275,19 +271,19 @@ int LibjitEmitter::MakePresentImportFunction() {
 
   // void shim(ppc_state*, shim_data*)
   jit_value_t shim_args[] = {
-    jit_value_get_param(gen_fn_, 0),
-    jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-        (jit_ulong)fn_->kernel_export->function_data.shim_data),
+    jit_value_get_param(fn_, 0),
+    jit_value_create_long_constant(fn_, jit_type_ulong,
+        (jit_ulong)symbol_->kernel_export->function_data.shim_data),
   };
   jit_insn_call_native(
-      gen_fn_,
-      fn_->kernel_export->name,
-      fn_->kernel_export->function_data.shim,
+      fn_,
+      symbol_->kernel_export->name,
+      symbol_->kernel_export->function_data.shim,
       shim_signature_,
       shim_args, XECOUNT(shim_args),
       0);
 
-  jit_insn_return(gen_fn_, NULL);
+  jit_insn_return(fn_, NULL);
 
   return 0;
 }
@@ -295,15 +291,15 @@ int LibjitEmitter::MakePresentImportFunction() {
 int LibjitEmitter::MakeMissingImportFunction() {
   if (FLAGS_trace_kernel_calls) {
     jit_value_t trace_args[] = {
-      jit_value_get_param(gen_fn_, 0),
-      jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-          (jit_ulong)fn_->start_address),
-      jit_value_get_param(gen_fn_, 1),
-      jit_value_create_long_constant(gen_fn_, jit_type_ulong,
-          (jit_ulong)fn_->kernel_export),
+      jit_value_get_param(fn_, 0),
+      jit_value_create_long_constant(fn_, jit_type_ulong,
+          (jit_ulong)symbol_->start_address),
+      jit_value_get_param(fn_, 1),
+      jit_value_create_long_constant(fn_, jit_type_ulong,
+          (jit_ulong)symbol_->kernel_export),
     };
     jit_insn_call_native(
-        gen_fn_,
+        fn_,
         "XeTraceKernelCall",
         global_exports_.XeTraceKernelCall,
         global_export_signature_4_,
@@ -311,21 +307,21 @@ int LibjitEmitter::MakeMissingImportFunction() {
         0);
   }
 
-  jit_insn_return(gen_fn_, NULL);
+  jit_insn_return(fn_, NULL);
 
   return 0;
 }
 
-FunctionSymbol* LibjitEmitter::fn() {
+FunctionSymbol* LibjitEmitter::symbol() {
+  return symbol_;
+}
+
+jit_function_t LibjitEmitter::fn() {
   return fn_;
 }
 
-jit_function_t LibjitEmitter::gen_fn() {
-  return gen_fn_;
-}
-
-//FunctionBlock* LibjitEmitter::fn_block() {
-//  return fn_block_;
+//FunctionBlock* LibjitEmitter::symbol_block() {
+//  return symbol_block_;
 //}
 //
 //void LibjitEmitter::PushInsertPoint() {
@@ -345,7 +341,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //  IRBuilder<>& b = *builder_;
 //
 //  // Always add an entry block.
-//  BasicBlock* entry = BasicBlock::Create(*context_, "entry", gen_fn_);
+//  BasicBlock* entry = BasicBlock::Create(*context_, "entry", fn_);
 //  b.SetInsertPoint(entry);
 //
 //  if (FLAGS_trace_user_calls) {
@@ -353,14 +349,14 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    Value* traceUserCall = gen_module_->getFunction("XeTraceUserCall");
 //    b.CreateCall4(
 //        traceUserCall,
-//        gen_fn_->arg_begin(),
-//        b.getInt64(fn_->start_address),
-//        ++gen_fn_->arg_begin(),
-//        b.getInt64((uint64_t)fn_));
+//        fn_->arg_begin(),
+//        b.getInt64(symbol_->start_address),
+//        ++fn_->arg_begin(),
+//        b.getInt64((uint64_t)symbol_));
 //  }
 //
 //  // If this function is empty, abort!
-//  if (!fn_->blocks.size()) {
+//  if (!symbol_->blocks.size()) {
 //    b.CreateRetVoid();
 //    return;
 //  }
@@ -368,12 +364,12 @@ jit_function_t LibjitEmitter::gen_fn() {
 //  // Create a return block.
 //  // This spills registers and returns. All non-tail returns should branch
 //  // here to do the return and ensure registers are spilled.
-//  return_block_ = BasicBlock::Create(*context_, "return", gen_fn_);
+//  return_block_ = BasicBlock::Create(*context_, "return", fn_);
 //
 //  // Pass 1 creates all of the blocks - this way we can branch to them.
 //  // We also track registers used so that when know which ones to fill/spill.
-//  for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
-//       it != fn_->blocks.end(); ++it) {
+//  for (std::map<uint32_t, FunctionBlock*>::iterator it = symbol_->blocks.begin();
+//       it != symbol_->blocks.end(); ++it) {
 //    FunctionBlock* block = it->second;
 //    XEIGNORE(PrepareBasicBlock(block));
 //  }
@@ -382,8 +378,8 @@ jit_function_t LibjitEmitter::gen_fn() {
 //  SetupLocals();
 //
 //  // Pass 2 fills in instructions.
-//  for (std::map<uint32_t, FunctionBlock*>::iterator it = fn_->blocks.begin();
-//       it != fn_->blocks.end(); ++it) {
+//  for (std::map<uint32_t, FunctionBlock*>::iterator it = symbol_->blocks.begin();
+//       it != symbol_->blocks.end(); ++it) {
 //    FunctionBlock* block = it->second;
 //    GenerateBasicBlock(block);
 //  }
@@ -400,7 +396,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //
 //  // Setup initial register fill in the entry block.
 //  // We can only do this once all the locals have been created.
-//  b.SetInsertPoint(&gen_fn_->getEntryBlock());
+//  b.SetInsertPoint(&fn_->getEntryBlock());
 //  FillRegisters();
 //  // Entry always falls through to the second block.
 //  b.CreateBr(bbs_.begin()->second);
@@ -418,7 +414,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    b.SetInsertPoint(external_indirection_block_);
 //    SpillRegisters();
 //    b.CreateCall3(indirect_branch,
-//                  gen_fn_->arg_begin(),
+//                  fn_->arg_begin(),
 //                  b.CreateLoad(locals_.indirection_target),
 //                  b.CreateLoad(locals_.indirection_cia));
 //    b.CreateRetVoid();
@@ -445,7 +441,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //  // generation.
 //  char name[32];
 //  xesnprintfa(name, XECOUNT(name), "loc_%.8X", block->start_address);
-//  BasicBlock* bb = BasicBlock::Create(*context_, name, gen_fn_);
+//  BasicBlock* bb = BasicBlock::Create(*context_, name, fn_);
 //  bbs_.insert(std::pair<uint32_t, BasicBlock*>(block->start_address, bb));
 //
 //  // Scan and disassemble each instruction in the block to get accurate
@@ -496,7 +492,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
 //  }
 //
-//  fn_block_ = block;
+//  symbol_block_ = block;
 //  bb_ = bb;
 //
 //  // Move the builder to this block and setup.
@@ -520,7 +516,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //      SpillRegisters();
 //      b.CreateCall3(
 //          traceInstruction,
-//          gen_fn_->arg_begin(),
+//          fn_->arg_begin(),
 //          b.getInt32(i.address),
 //          b.getInt32(i.code));
 //    }
@@ -530,7 +526,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //      SpillRegisters();
 //      b.CreateCall3(
 //          invalidInstruction,
-//          gen_fn_->arg_begin(),
+//          fn_->arg_begin(),
 //          b.getInt32(i.address),
 //          b.getInt32(i.code));
 //      continue;
@@ -564,7 +560,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //      SpillRegisters();
 //      b.CreateCall3(
 //          invalidInstruction,
-//          gen_fn_->arg_begin(),
+//          fn_->arg_begin(),
 //          b.getInt32(i.address),
 //          b.getInt32(i.code));
 //    }
@@ -579,7 +575,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    // Hrm.
 //    // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
 //    XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit",
-//             fn_->start_address, block->start_address);
+//             symbol_->start_address, block->start_address);
 //    b.CreateRetVoid();
 //  }
 //
@@ -596,7 +592,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //
 //BasicBlock* LibjitEmitter::GetNextBasicBlock() {
 //  std::map<uint32_t, BasicBlock*>::iterator it = bbs_.find(
-//      fn_block_->start_address);
+//      symbol_block_->start_address);
 //  ++it;
 //  if (it != bbs_.end()) {
 //    return it->second;
@@ -628,18 +624,18 @@ jit_function_t LibjitEmitter::gen_fn() {
 //  // after we are done with all user instructions.
 //  if (!external_indirection_block_) {
 //    // Setup locals in the entry block.
-//    b.SetInsertPoint(&gen_fn_->getEntryBlock());
+//    b.SetInsertPoint(&fn_->getEntryBlock());
 //    locals_.indirection_target = b.CreateAlloca(
 //        b.getInt64Ty(), 0, "indirection_target");
 //    locals_.indirection_cia = b.CreateAlloca(
 //        b.getInt64Ty(), 0, "indirection_cia");
 //
 //    external_indirection_block_ = BasicBlock::Create(
-//        *context_, "external_indirection_block", gen_fn_, return_block_);
+//        *context_, "external_indirection_block", fn_, return_block_);
 //  }
 //  if (likely_local && !internal_indirection_block_) {
 //    internal_indirection_block_ = BasicBlock::Create(
-//        *context_, "internal_indirection_block", gen_fn_, return_block_);
+//        *context_, "internal_indirection_block", fn_, return_block_);
 //  }
 //
 //  PopInsertPoint();
@@ -653,10 +649,10 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    XEASSERT(!lk);
 //    b.CreateStore(target, locals_.indirection_target);
 //    b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-//    Value* fn_ge_cmp = b.CreateICmpUGE(target, b.getInt64(fn_->start_address));
-//    Value* fn_l_cmp = b.CreateICmpULT(target, b.getInt64(fn_->end_address));
-//    Value* fn_target_cmp = b.CreateAnd(fn_ge_cmp, fn_l_cmp);
-//    b.CreateCondBr(fn_target_cmp,
+//    Value* symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
+//    Value* symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
+//    Value* symbol_target_cmp = b.CreateAnd(symbol_ge_cmp, symbol_l_cmp);
+//    b.CreateCondBr(symbol_target_cmp,
 //                   internal_indirection_block_, external_indirection_block_);
 //    return 0;
 //  }
@@ -678,7 +674,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    // TODO(benvanik): keep function pointer lookup local.
 //    Value* indirect_branch = gen_module_->getFunction("XeIndirectBranch");
 //    b.CreateCall3(indirect_branch,
-//                  gen_fn_->arg_begin(),
+//                  fn_->arg_begin(),
 //                  target,
 //                  b.getInt64(cia));
 //
@@ -698,7 +694,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //                                      const char* name) {
 //  IRBuilder<>& b = *builder_;
 //  PointerType* pointerTy = PointerType::getUnqual(type);
-//  Function::arg_iterator args = gen_fn_->arg_begin();
+//  Function::arg_iterator args = fn_->arg_begin();
 //  Value* state_ptr = args;
 //  Value* address = b.CreateInBoundsGEP(state_ptr, b.getInt32(offset));
 //  Value* ptr = b.CreatePointerCast(address, pointerTy);
@@ -709,7 +705,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //                                     Value* value) {
 //  IRBuilder<>& b = *builder_;
 //  PointerType* pointerTy = PointerType::getUnqual(type);
-//  Function::arg_iterator args = gen_fn_->arg_begin();
+//  Function::arg_iterator args = fn_->arg_begin();
 //  Value* state_ptr = args;
 //  Value* address = b.CreateInBoundsGEP(state_ptr, b.getInt32(offset));
 //  Value* ptr = b.CreatePointerCast(address, pointerTy);
@@ -768,7 +764,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //  IRBuilder<>& b = *builder_;
 //  // Insert into the entry block.
 //  PushInsertPoint();
-//  b.SetInsertPoint(&gen_fn_->getEntryBlock());
+//  b.SetInsertPoint(&fn_->getEntryBlock());
 //  Value* v = b.CreateAlloca(type, 0, name);
 //  PopInsertPoint();
 //  return v;
@@ -1137,8 +1133,8 @@ jit_function_t LibjitEmitter::gen_fn() {
 //
 //  // Add runtime memory address checks, if needed.
 //  if (FLAGS_memory_address_verification) {
-//    BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", gen_fn_);
-//    BasicBlock* valid_bb = BasicBlock::Create(*context_, "", gen_fn_);
+//    BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", fn_);
+//    BasicBlock* valid_bb = BasicBlock::Create(*context_, "", fn_);
 //
 //    // The heap starts at 0x1000 - if we write below that we're boned.
 //    Value* gt = b.CreateICmpUGE(addr, b.getInt64(0x00001000));
@@ -1148,7 +1144,7 @@ jit_function_t LibjitEmitter::gen_fn() {
 //    Value* access_violation = gen_module_->getFunction("XeAccessViolation");
 //    SpillRegisters();
 //    b.CreateCall3(access_violation,
-//                  gen_fn_->arg_begin(),
+//                  fn_->arg_begin(),
 //                  b.getInt32(cia),
 //                  addr);
 //    b.CreateBr(valid_bb);

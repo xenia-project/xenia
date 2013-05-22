@@ -50,8 +50,8 @@ namespace libjit {
 //   if (!lk && reg == kXEPPCRegLR) {
 //     BasicBlock* next_block = e.GetNextBasicBlock();
 //     BasicBlock* mismatch_bb = BasicBlock::Create(*e.context(), "lr_mismatch",
-//                                                  e.gen_fn(), next_block);
-//     Value* lr_cmp = b.CreateICmpEQ(target, ++(e.gen_fn()->arg_begin()));
+//                                                  e.fn(), next_block);
+//     Value* lr_cmp = b.CreateICmpEQ(target, ++(e.fn()->arg_begin()));
 //     // The return block will spill registers for us.
 //     b.CreateCondBr(lr_cmp, e.GetReturnBasicBlock(), mismatch_bb);
 //     b.SetInsertPoint(mismatch_bb);
@@ -85,7 +85,7 @@ namespace libjit {
 
 //       XEASSERTNOTNULL(fn_block->outgoing_function);
 //       Function* target_fn = e.GetFunction(fn_block->outgoing_function);
-//       Function::arg_iterator args = e.gen_fn()->arg_begin();
+//       Function::arg_iterator args = e.fn()->arg_begin();
 //       Value* state_ptr = args;
 //       BasicBlock* next_bb = e.GetNextBasicBlock();
 //       if (!lk || !next_bb) {
@@ -215,7 +215,7 @@ namespace libjit {
 //     char name[32];
 //     xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
 //     BasicBlock* next_block = e.GetNextBasicBlock();
-//     BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.gen_fn(),
+//     BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.fn(),
 //                                                next_block);
 
 //     b.CreateCondBr(ok, branch_bb, next_block);
@@ -281,7 +281,7 @@ namespace libjit {
 //     xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcctrx", i.address);
 //     BasicBlock* next_block = e.GetNextBasicBlock();
 //     XEASSERTNOTNULL(next_block);
-//     BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.gen_fn(),
+//     BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.fn(),
 //                                                next_block);
 
 //     b.CreateCondBr(ok, branch_bb, next_block);
@@ -364,7 +364,7 @@ namespace libjit {
 //     xesnprintfa(name, XECOUNT(name), "loc_%.8X_bclrx", i.address);
 //     BasicBlock* next_block = e.GetNextBasicBlock();
 //     XEASSERTNOTNULL(next_block);
-//     BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.gen_fn(),
+//     BasicBlock* branch_bb = BasicBlock::Create(*e.context(), name, e.fn(),
 //                                                next_block);
 
 //     b.CreateCondBr(ok, branch_bb, next_block);
@@ -455,27 +455,27 @@ namespace libjit {
 //     return 0;
 //   }
 
-//   BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.gen_fn(),
+//   BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn(),
 //                                             e.GetNextBasicBlock());
-//   BasicBlock* trap_bb = BasicBlock::Create(*e.context(), "", e.gen_fn(),
+//   BasicBlock* trap_bb = BasicBlock::Create(*e.context(), "", e.fn(),
 //                                            after_bb);
 
 //   // Create the basic blocks (so we can chain).
 //   std::vector<BasicBlock*> bbs;
 //   if (TO & (1 << 4)) {
-//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
+//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
 //   }
 //   if (TO & (1 << 3)) {
-//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
+//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
 //   }
 //   if (TO & (1 << 2)) {
-//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
+//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
 //   }
 //   if (TO & (1 << 1)) {
-//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
+//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
 //   }
 //   if (TO & (1 << 0)) {
-//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.gen_fn(), trap_bb));
+//     bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
 //   }
 //   bbs.push_back(after_bb);
 
@@ -525,7 +525,7 @@ namespace libjit {
 //   e.SpillRegisters();
 //   // TODO(benvanik): use @llvm.debugtrap? could make debugging better
 //   b.CreateCall2(e.gen_module()->getFunction("XeTrap"),
-//                 e.gen_fn()->arg_begin(),
+//                 e.fn()->arg_begin(),
 //                 b.getInt32(i.address));
 //   b.CreateBr(after_bb);
 

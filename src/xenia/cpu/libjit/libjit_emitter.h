@@ -28,13 +28,12 @@ public:
   ~LibjitEmitter();
 
   jit_context_t context();
-  jit_type_t fn_signature();
 
   int PrepareFunction(sdb::FunctionSymbol* symbol);
   int MakeFunction(sdb::FunctionSymbol* symbol, jit_function_t fn);
 
-  sdb::FunctionSymbol* fn();
-  jit_function_t gen_fn();
+  sdb::FunctionSymbol* symbol();
+  jit_function_t fn();
   sdb::FunctionBlock* fn_block();
 
   void PushInsertPoint();
@@ -107,8 +106,8 @@ private:
   jit_type_t            global_export_signature_3_;
   jit_type_t            global_export_signature_4_;
 
-  sdb::FunctionSymbol*  fn_;
-  jit_function_t        gen_fn_;
+  sdb::FunctionSymbol*  symbol_;
+  jit_function_t        fn_;
   sdb::FunctionBlock*   fn_block_;
   // llvm::BasicBlock*     return_block_;
   // llvm::BasicBlock*     internal_indirection_block_;
