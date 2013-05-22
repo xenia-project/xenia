@@ -186,6 +186,7 @@ int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t gen_fn) {
   }
 
   if (!result_code) {
+    // TODO(benvanik): flag
     // pre
     jit_dump_function(stdout, gen_fn_, symbol->name());
     jit_function_compile(gen_fn_);

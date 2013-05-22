@@ -100,10 +100,10 @@ int LibjitJIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
   }
 
   // TODO(benvanik): replace generic apply with special trampoline.
-  void* args[] = {&ppc_state, &ppc_state->lr};
+  intptr_t args[] = {(intptr_t)ppc_state, ppc_state->lr};
   uint64_t return_value;
   int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);
-  if (apply_result) {
+  if (!apply_result) {
     XELOGCPU("Execute(%.8X): apply failed with %d",
         fn_symbol->start_address, apply_result);
     return 1;
