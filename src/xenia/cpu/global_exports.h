@@ -24,13 +24,13 @@ namespace cpu {
 
 typedef struct {
   void (_cdecl *XeTrap)(
-      xe_ppc_state_t* state, uint64_t cia, uint64_t unused1, void* unused2);
+      xe_ppc_state_t* state, uint64_t cia);
   void (_cdecl *XeIndirectBranch)(
-      xe_ppc_state_t* state, uint64_t target, uint64_t br_ia, void* unused);
+      xe_ppc_state_t* state, uint64_t target, uint64_t br_ia);
   void (_cdecl *XeInvalidInstruction)(
-      xe_ppc_state_t* state, uint64_t cia, uint64_t data, void* unused);
+      xe_ppc_state_t* state, uint64_t cia, uint64_t data);
   void (_cdecl *XeAccessViolation)(
-      xe_ppc_state_t* state, uint64_t cia, uint64_t ea, void* unused);
+      xe_ppc_state_t* state, uint64_t cia, uint64_t ea);
   void (_cdecl *XeTraceKernelCall)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
       kernel::KernelExport* kernel_export);
@@ -38,7 +38,7 @@ typedef struct {
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
       sdb::FunctionSymbol* fn);
   void (_cdecl *XeTraceInstruction)(
-      xe_ppc_state_t* state, uint64_t cia, uint64_t data, void* unused);
+      xe_ppc_state_t* state, uint64_t cia, uint64_t data);
 } GlobalExports;
 
 

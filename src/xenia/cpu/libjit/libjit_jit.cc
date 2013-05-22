@@ -51,27 +51,6 @@ XECLEANUP:
 }
 
 int LibjitJIT::InjectGlobals() {
-  // LLVMContext& context = *context_;
-  // const DataLayout* dl = engine_->getDataLayout();
-  // Type* intPtrTy = dl->getIntPtrType(context);
-  // Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
-  // GlobalVariable* gv;
-
-  // // xe_memory_base
-  // // This is the base void* pointer to the memory space.
-  // gv = new GlobalVariable(
-  //     *module_,
-  //     int8PtrTy,
-  //     true,
-  //     GlobalValue::ExternalLinkage,
-  //     0,
-  //     "xe_memory_base");
-  // // Align to 64b - this makes SSE faster.
-  // gv->setAlignment(64);
-  // gv->setInitializer(ConstantExpr::getIntToPtr(
-  //     ConstantInt::get(intPtrTy, (uintptr_t)xe_memory_addr(memory_, 0)),
-  //     int8PtrTy));
-
   return 0;
 }
 
@@ -99,7 +78,7 @@ int LibjitJIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
     XEASSERTNOTNULL(jit_fn);
   }
 
-  // TODO(benvanik): replace generic apply with special trampoline.
+  // Call into the function. This will compile it if needed.
   intptr_t args[] = {(intptr_t)ppc_state, ppc_state->lr};
   uint64_t return_value;
   int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);

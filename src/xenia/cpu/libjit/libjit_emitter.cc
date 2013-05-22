@@ -63,22 +63,54 @@ LibjitEmitter::LibjitEmitter(xe_memory_ref memory, jit_context_t context) {
       fn_params, XECOUNT(fn_params),
       0);
 
-  jit_type_t global_export_params[] = {
+  jit_type_t shim_params[] = {
+    jit_type_void_ptr,
+    jit_type_void_ptr,
+  };
+  shim_signature_ = jit_type_create_signature(
+      jit_abi_cdecl,
+      jit_type_void,
+      shim_params, XECOUNT(shim_params),
+      0);
+
+  jit_type_t global_export_params_2[] = {
+    jit_type_void_ptr,
+    jit_type_ulong,
+  };
+  global_export_signature_2_ = jit_type_create_signature(
+      jit_abi_cdecl,
+      jit_type_void,
+      global_export_params_2, XECOUNT(global_export_params_2),
+      0);
+  jit_type_t global_export_params_3[] = {
+    jit_type_void_ptr,
+    jit_type_ulong,
+    jit_type_ulong,
+  };
+  global_export_signature_3_ = jit_type_create_signature(
+      jit_abi_cdecl,
+      jit_type_void,
+      global_export_params_3, XECOUNT(global_export_params_3),
+      0);
+  jit_type_t global_export_params_4[] = {
     jit_type_void_ptr,
     jit_type_ulong,
     jit_type_ulong,
     jit_type_void_ptr,
   };
-  global_export_signature_ = jit_type_create_signature(
+  global_export_signature_4_ = jit_type_create_signature(
       jit_abi_cdecl,
       jit_type_void,
-      global_export_params, XECOUNT(global_export_params),
+      global_export_params_4, XECOUNT(global_export_params_4),
       0);
 }
 
 LibjitEmitter::~LibjitEmitter() {
   jit_type_free(fn_signature_);
-  jit_type_free(global_export_signature_);
+  jit_type_free(shim_signature_);
+  jit_type_free(global_export_signature_2_);
+  jit_type_free(global_export_signature_3_);
+  jit_type_free(global_export_signature_4_);
 }
 
 jit_context_t LibjitEmitter::context() {
@@ -209,8 +241,9 @@ int LibjitEmitter::MakeUserFunction() {
     };
     jit_insn_call_native(
         gen_fn_,
-        "XeTraceUserCall", global_exports_.XeTraceUserCall,
-        global_export_signature_,
+        "XeTraceUserCall",
+        global_exports_.XeTraceUserCall,
+        global_export_signature_4_,
         trace_args, XECOUNT(trace_args),
         0);
   }
@@ -222,65 +255,6 @@ int LibjitEmitter::MakeUserFunction() {
 }
 
 int LibjitEmitter::MakePresentImportFunction() {
-  // LLVMContext& context = *context_;
-
-      // Generate the function.
-      // Function* fn = NULL;
-      // result_code = cub_->MakeFunction(symbol, &fn);
-      // if (result_code) {
-      //   XELOGE("Unable to generate import %s", symbol->name());
-      //   return result_code;
-      // }
-
-      // // Set global mappings for shim and data.
-      // char shim_name[256];
-      // xesnprintfa(shim_name, XECOUNT(shim_name),
-      //             "__shim_%s", symbol->kernel_export->name);
-      // Function* shim = cub_module->getFunction(shim_name);
-      // if (shim) {
-      //   engine_->updateGlobalMapping(
-      //       shim, (void*)symbol->kernel_export->function_data.shim);
-      // }
-      // char shim_data_name[256];
-      // xesnprintfa(shim_data_name, XECOUNT(shim_data_name),
-      //             "__shim_data_%s", symbol->kernel_export->name);
-      // GlobalVariable* shim_data = cub_module->getGlobalVariable(shim_data_name);
-      // if (shim_data) {
-      //   engine_->updateGlobalMapping(
-      //       shim_data, (void*)symbol->kernel_export->function_data.shim_data);
-      // }
-
-  // // Pick names.
-  // // We have both the shim function pointer and the shim data pointer.
-  // char shim_name[256];
-  // xesnprintfa(shim_name, XECOUNT(shim_name),
-  //             "__shim_%s", symbol->kernel_export->name);
-  // char shim_data_name[256];
-  // xesnprintfa(shim_data_name, XECOUNT(shim_data_name),
-  //             "__shim_data_%s", symbol->kernel_export->name);
-
-  // // Hardcoded to 64bits.
-  // Type* intPtrTy = IntegerType::get(context, 64);
-  // Type* int8PtrTy = PointerType::getUnqual(Type::getInt8Ty(context));
-
-  // // Declare shim function.
-  // std::vector<Type*> shimArgs;
-  // shimArgs.push_back(int8PtrTy);
-  // shimArgs.push_back(int8PtrTy);
-  // FunctionType* shimTy = FunctionType::get(
-  //     Type::getVoidTy(context), shimArgs, false);
-  // Function* shim = Function::Create(
-  //     shimTy, Function::ExternalLinkage, shim_name, module_);
-
-  // GlobalVariable* shim_data = new GlobalVariable(
-  //     *module_, int8PtrTy, false, GlobalValue::ExternalLinkage, 0,
-  //     shim_data_name);
-  // shim_data->setInitializer(ConstantExpr::getIntToPtr(
-  //     ConstantInt::get(intPtrTy, 0), int8PtrTy));
-
-  // BasicBlock* block = BasicBlock::Create(context, "entry", fn);
-  // IRBuilder<> b(block);
-
   if (FLAGS_trace_kernel_calls) {
     jit_value_t trace_args[] = {
       jit_value_get_param(gen_fn_, 0),
@@ -292,16 +266,26 @@ int LibjitEmitter::MakePresentImportFunction() {
     };
     jit_insn_call_native(
         gen_fn_,
-        "XeTraceKernelCall", global_exports_.XeTraceKernelCall,
-        global_export_signature_,
+        "XeTraceKernelCall",
+        global_exports_.XeTraceKernelCall,
+        global_export_signature_4_,
         trace_args, XECOUNT(trace_args),
         0);
   }
 
-  // b.CreateCall2(
-  //     shim,
-  //     fn->arg_begin(),
-  //     b.CreateLoad(shim_data));
+  // void shim(ppc_state*, shim_data*)
+  jit_value_t shim_args[] = {
+    jit_value_get_param(gen_fn_, 0),
+    jit_value_create_long_constant(gen_fn_, jit_type_ulong,
+        (jit_ulong)fn_->kernel_export->function_data.shim_data),
+  };
+  jit_insn_call_native(
+      gen_fn_,
+      fn_->kernel_export->name,
+      fn_->kernel_export->function_data.shim,
+      shim_signature_,
+      shim_args, XECOUNT(shim_args),
+      0);
 
   jit_insn_return(gen_fn_, NULL);
 
@@ -320,8 +304,9 @@ int LibjitEmitter::MakeMissingImportFunction() {
     };
     jit_insn_call_native(
         gen_fn_,
-        "XeTraceKernelCall", global_exports_.XeTraceKernelCall,
-        global_export_signature_,
+        "XeTraceKernelCall",
+        global_exports_.XeTraceKernelCall,
+        global_export_signature_4_,
         trace_args, XECOUNT(trace_args),
         0);
   }

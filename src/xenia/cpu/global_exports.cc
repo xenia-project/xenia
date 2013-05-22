@@ -25,23 +25,20 @@ namespace {
 
 
 void _cdecl XeTrap(
-    xe_ppc_state_t* state, uint64_t cia, uint64_t unused1,
-    void* unused2) {
+    xe_ppc_state_t* state, uint64_t cia) {
   XELOGE("TRAP");
   XEASSERTALWAYS();
 }
 
 void _cdecl XeIndirectBranch(
-    xe_ppc_state_t* state, uint64_t target, uint64_t br_ia,
-    void* unused) {
+    xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
   XELOGCPU("INDIRECT BRANCH %.8X -> %.8X",
            (uint32_t)br_ia, (uint32_t)target);
   XEASSERTALWAYS();
 }
 
 void _cdecl XeInvalidInstruction(
-    xe_ppc_state_t* state, uint64_t cia, uint64_t data,
-    void* unused) {
+    xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
   ppc::InstrData i;
   i.address = (uint32_t)cia;
   i.code = (uint32_t)data;
@@ -64,8 +61,7 @@ void _cdecl XeInvalidInstruction(
 }
 
 void _cdecl XeAccessViolation(
-    xe_ppc_state_t* state, uint64_t cia, uint64_t ea,
-    void* unused) {
+    xe_ppc_state_t* state, uint64_t cia, uint64_t ea) {
   XELOGE("INVALID ACCESS %.8X: tried to touch %.8X",
          cia, (uint32_t)ea);
   XEASSERTALWAYS();
@@ -87,8 +83,7 @@ void _cdecl XeTraceUserCall(
 }
 
 void _cdecl XeTraceInstruction(
-    xe_ppc_state_t* state, uint64_t cia, uint64_t data,
-    void* unused) {
+    xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
   ppc::InstrType* type = ppc::GetInstrType((uint32_t)data);
   XELOGCPU("TRACE: %.8X %.8X %s %s",
            cia, data,

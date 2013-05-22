@@ -102,7 +102,10 @@ private:
   jit_context_t         context_;
   GlobalExports         global_exports_;
   jit_type_t            fn_signature_;
-  jit_type_t            global_export_signature_;
+  jit_type_t            shim_signature_;
+  jit_type_t            global_export_signature_2_;
+  jit_type_t            global_export_signature_3_;
+  jit_type_t            global_export_signature_4_;
 
   sdb::FunctionSymbol*  fn_;
   jit_function_t        gen_fn_;
