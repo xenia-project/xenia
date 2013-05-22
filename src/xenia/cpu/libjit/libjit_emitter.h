@@ -46,11 +46,9 @@ public:
   int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
                                 bool lk, bool likely_local);
 
-  jit_value_t LoadStateValue(uint32_t offset, jit_type_t type,
+  jit_value_t LoadStateValue(size_t offset, jit_type_t type,
                              const char* name = "");
-  void StoreStateValue(uint32_t offset, jit_type_t type, jit_value_t value);
-
-  jit_value_t cia_value();
+  void StoreStateValue(size_t offset, jit_type_t type, jit_value_t value);
 
   jit_value_t SetupLocal(jit_type_t type, const char* name);
   void FillRegisters();

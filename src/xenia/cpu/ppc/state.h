@@ -56,10 +56,6 @@ typedef struct XECACHEALIGN64 xe_ppc_state {
   uint64_t    lr;                 // Link register
   uint64_t    ctr;                // Count register
 
-  uint64_t    r[32];              // General purpose registers
-  xe_float4_t v[128];             // VMX128 vector registers
-  double      f[32];              // Floating-point registers
-
   union {
     uint32_t  value;
     struct {
@@ -133,6 +129,10 @@ typedef struct XECACHEALIGN64 xe_ppc_state {
                                   //                      11 = toward -infinity
     } bits;
   } fpscr;                        // Floating-point status and control register
+
+  uint64_t    r[32];              // General purpose registers
+  xe_float4_t v[128];             // VMX128 vector registers
+  double      f[32];              // Floating-point registers
 
   // uint32_t get_fprf() {
   //   return fpscr.value & 0x000F8000;

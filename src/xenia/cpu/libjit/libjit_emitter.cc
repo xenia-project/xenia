@@ -676,28 +676,21 @@ int LibjitEmitter::branch_to_return_if_not(jit_value_t value) {
 //
 //  return 0;
 //}
-//
-//jit_value_t LibjitEmitter::LoadStateValue(uint32_t offset, jit_type_t type,
-//                                      const char* name) {
-//  IRBuilder<>& b = *builder_;
-//  PointerType* pointerTy = PointerType::getUnqual(type);
-//  Function::arg_iterator args = fn_->arg_begin();
-//  jit_value_t state_ptr = args;
-//  jit_value_t address = b.CreateInBoundsGEP(state_ptr, b.getInt32(offset));
-//  jit_value_t ptr = b.CreatePointerCast(address, pointerTy);
-//  return b.CreateLoad(ptr, name);
-//}
-//
-//void LibjitEmitter::StoreStateValue(uint32_t offset, jit_type_t type,
-//                                     jit_value_t value) {
-//  IRBuilder<>& b = *builder_;
-//  PointerType* pointerTy = PointerType::getUnqual(type);
-//  Function::arg_iterator args = fn_->arg_begin();
-//  jit_value_t state_ptr = args;
-//  jit_value_t address = b.CreateInBoundsGEP(state_ptr, b.getInt32(offset));
-//  jit_value_t ptr = b.CreatePointerCast(address, pointerTy);
-//  b.CreateStore(value, ptr);
-//}
+
+jit_value_t LibjitEmitter::LoadStateValue(size_t offset, jit_type_t type,
+                                          const char* name) {
+  // Load from ppc_state[offset].
+  // TODO(benvanik): tag with debug info?
+  return jit_insn_load_relative(
+      fn_, jit_value_get_param(fn_, 0), offset, type);
+}
+
+void LibjitEmitter::StoreStateValue(size_t offset, jit_type_t type,
+                                    jit_value_t value) {
+  // Store to ppc_state[offset].
+  jit_insn_store_relative(
+      fn_, jit_value_get_param(fn_, 0), offset, value);
+}
 
 void LibjitEmitter::SetupLocals() {
   uint64_t spr_t = access_bits_.spr;
@@ -753,10 +746,6 @@ jit_value_t LibjitEmitter::SetupLocal(jit_type_t type, const char* name) {
   return value;
 }
 
-//jit_value_t LibjitEmitter::cia_value() {
-//  return builder_->getInt32(cia_);
-//}
-
 void LibjitEmitter::FillRegisters() {
   // This updates all of the local register values from the state memory.
   // It should be called on function entry for initial setup and after any
@@ -764,58 +753,63 @@ void LibjitEmitter::FillRegisters() {
 
   // TODO(benvanik): use access flags to see if we need to do reads/writes.
 
-  // if (locals_.xer) {
-  //   b.CreateStore(LoadStateValue(
-  //       offsetof(xe_ppc_state_t, xer),
-  //       jit_type_nint), locals_.xer);
-  // }
+  if (locals_.xer) {
+    jit_insn_store(fn_,
+        locals_.xer,
+        LoadStateValue(offsetof(xe_ppc_state_t, xer), jit_type_nint));
+  }
 
-  // if (locals_.lr) {
-  //   b.CreateStore(LoadStateValue(
-  //       offsetof(xe_ppc_state_t, lr),
-  //       jit_type_nint), locals_.lr);
-  // }
+  if (locals_.lr) {
+    jit_insn_store(fn_,
+        locals_.lr,
+        LoadStateValue(offsetof(xe_ppc_state_t, lr), jit_type_nint));
+  }
 
-  // if (locals_.ctr) {
-  //   b.CreateStore(LoadStateValue(
-  //       offsetof(xe_ppc_state_t, ctr),
-  //       jit_type_nint), locals_.ctr);
-  // }
+  if (locals_.ctr) {
+    jit_insn_store(fn_,
+        locals_.ctr,
+        LoadStateValue(offsetof(xe_ppc_state_t, ctr), jit_type_nint));
+  }
 
-  // // Fill the split CR values by extracting each one from the CR.
-  // // This could probably be done faster via an extractvalues or something.
-  // // Perhaps we could also change it to be a vector<8*i8>.
-  // jit_value_t cr = NULL;
-  // for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
-  //   jit_value_t cr_n = locals_.cr[n];
-  //   if (!cr_n) {
-  //     continue;
-  //   }
-  //   if (!cr) {
-  //     cr = LoadStateValue(
-  //         offsetof(xe_ppc_state_t, cr),
-  //         jit_type_nint);
-  //   }
-  //   b.CreateStore(
-  //       b.CreateTrunc(b.CreateAnd(b.CreateLShr(cr, (28 - n * 4)), 0xF),
-  //                     b.getInt8Ty()), cr_n);
-  // }
+  // Fill the split CR values by extracting each one from the CR.
+  // This could probably be done faster via an extractvalues or something.
+  // Perhaps we could also change it to be a vector<8*i8>.
+  jit_value_t cr = NULL;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    jit_value_t cr_n = locals_.cr[n];
+    if (!cr_n) {
+      continue;
+    }
+    if (!cr) {
+      // Only fetch once. Doing this in here prevents us from having to
+      // always fetch even if unused.
+      cr = LoadStateValue(offsetof(xe_ppc_state_t, cr), jit_type_nint);
+    }
+    // (cr >> 28 - n * 4) & 0xF
+    jit_value_t shamt = jit_value_create_nint_constant(
+        fn_, jit_type_nuint, 28 - n * 4);
+    jit_insn_store(fn_, cr_n,
+        jit_insn_and(fn_,
+            jit_insn_ushr(fn_, cr, shamt),
+            jit_value_create_nint_constant(fn_, jit_type_ubyte, 0xF)));
+  }
 
-  // for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
-  //   if (locals_.gpr[n]) {
-  //     b.CreateStore(LoadStateValue(
-  //         (uint32_t)offsetof(xe_ppc_state_t, r) + 8 * n,
-  //         jit_type_nint), locals_.gpr[n]);
-  //   }
-  // }
+  for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
+    if (locals_.gpr[n]) {
+      jit_insn_store(fn_,
+          locals_.gpr[n],
+          LoadStateValue(offsetof(xe_ppc_state_t, r) + 8 * n, jit_type_nint));
+    }
+  }
 
-  // for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-  //   if (locals_.fpr[n]) {
-  //     b.CreateStore(LoadStateValue(
-  //         (uint32_t)offsetof(xe_ppc_state_t, f) + 8 * n,
-  //         jit_type_float64), locals_.fpr[n]);
-  //   }
-  // }
+  for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    if (locals_.fpr[n]) {
+      jit_insn_store(fn_,
+          locals_.fpr[n],
+          LoadStateValue(offsetof(xe_ppc_state_t, f) + 8 * n,
+                         jit_type_float64));
+    }
+  }
 }
 
 void LibjitEmitter::SpillRegisters() {
@@ -824,68 +818,72 @@ void LibjitEmitter::SpillRegisters() {
 
   // TODO(benvanik): only flush if actually required, or selective flushes.
 
-  // if (locals_.xer) {
-  //   StoreStateValue(
-  //       offsetof(xe_ppc_state_t, xer),
-  //       jit_type_nint,
-  //       b.CreateLoad(locals_.xer));
-  // }
+  if (locals_.xer) {
+    StoreStateValue(
+        offsetof(xe_ppc_state_t, xer),
+        jit_type_nint,
+        jit_insn_load(fn_, locals_.xer));
+  }
 
-  // if (locals_.lr) {
-  //   StoreStateValue(
-  //       offsetof(xe_ppc_state_t, lr),
-  //       jit_type_nint,
-  //       b.CreateLoad(locals_.lr));
-  // }
+  if (locals_.lr) {
+    StoreStateValue(
+        offsetof(xe_ppc_state_t, lr),
+        jit_type_nint,
+        jit_insn_load(fn_, locals_.lr));
+  }
 
-  // if (locals_.ctr) {
-  //   StoreStateValue(
-  //       offsetof(xe_ppc_state_t, ctr),
-  //       jit_type_nint,
-  //       b.CreateLoad(locals_.ctr));
-  // }
+  if (locals_.ctr) {
+    StoreStateValue(
+        offsetof(xe_ppc_state_t, ctr),
+        jit_type_nint,
+        jit_insn_load(fn_, locals_.ctr));
+  }
 
-  // // Stitch together all split CR values.
-  // // TODO(benvanik): don't flush across calls?
-  // jit_value_t cr = NULL;
-  // for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
-  //   jit_value_t cr_n = locals_.cr[n];
-  //   if (!cr_n) {
-  //     continue;
-  //   }
-  //   cr_n = b.CreateZExt(b.CreateLoad(cr_n), jit_type_nint);
-  //   if (!cr) {
-  //     cr = b.CreateShl(cr_n, n * 4);
-  //   } else {
-  //     cr = b.CreateOr(cr, b.CreateShl(cr_n, n * 4));
-  //   }
-  // }
-  // if (cr) {
-  //   StoreStateValue(
-  //       offsetof(xe_ppc_state_t, cr),
-  //       jit_type_nint,
-  //       cr);
-  // }
+  // Stitch together all split CR values.
+  // TODO(benvanik): don't flush across calls?
+  jit_value_t cr = NULL;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    jit_value_t cr_n = locals_.cr[n];
+    if (!cr_n) {
+      continue;
+    }
+    // cr |= (cr_n << n * 4)
+    jit_value_t shamt = jit_value_create_nint_constant(
+        fn_, jit_type_nuint, n * 4);
+    cr_n = jit_insn_convert(fn_, jit_insn_load(fn_, cr_n), jit_type_nuint, 0);
+    cr_n = jit_insn_shl(fn_, cr_n, shamt);
+    if (!cr) {
+      cr = cr_n;
+    } else {
+      cr = jit_insn_or(fn_, cr, cr_n);
+    }
+  }
+  if (cr) {
+    StoreStateValue(
+        offsetof(xe_ppc_state_t, cr),
+        jit_type_nint,
+        cr);
+  }
 
-  // for (uint32_t n = 0; n < XECOUNT(locals_.gpr); n++) {
-  //   jit_value_t v = locals_.gpr[n];
-  //   if (v) {
-  //     StoreStateValue(
-  //         offsetof(xe_ppc_state_t, r) + 8 * n,
-  //         jit_type_nint,
-  //         b.CreateLoad(locals_.gpr[n]));
-  //   }
-  // }
+  for (uint32_t n = 0; n < XECOUNT(locals_.gpr); n++) {
+    jit_value_t v = locals_.gpr[n];
+    if (v) {
+      StoreStateValue(
+          offsetof(xe_ppc_state_t, r) + 8 * n,
+          jit_type_nint,
+          jit_insn_load(fn_, v));
+    }
+  }
 
-  // for (uint32_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-  //   jit_value_t v = locals_.fpr[n];
-  //   if (v) {
-  //     StoreStateValue(
-  //         offsetof(xe_ppc_state_t, f) + 8 * n,
-  //         jit_type_float64,
-  //         b.CreateLoad(locals_.fpr[n]));
-  //   }
-  // }
+  for (uint32_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    jit_value_t v = locals_.fpr[n];
+    if (v) {
+      StoreStateValue(
+          offsetof(xe_ppc_state_t, f) + 8 * n,
+          jit_type_float64,
+          jit_insn_load(fn_, v));
+    }
+  }
 }
 
 //jit_value_t LibjitEmitter::xer_value() {
