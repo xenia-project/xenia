@@ -45,7 +45,7 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
     outfmt = "XE[%c] %s:%d: %s\n";
   }
 
-#if defined(OutputDebugString)
+#if 0// defined(OutputDebugString)
   char full_output[kLogMax];
   if (xesnprintfa(full_output, XECOUNT(buffer), outfmt, level_char,
                   filename, line_number, buffer) >= 0) {

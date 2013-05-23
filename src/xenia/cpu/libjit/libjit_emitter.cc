@@ -1171,8 +1171,10 @@ void LibjitEmitter::update_cr_with_cond(
     rhs = make_unsigned(rhs);
   }
   jit_value_t c = jit_insn_lt(fn_, lhs, rhs);
-  c = jit_insn_or(fn_, jit_insn_gt(fn_, lhs, rhs), c);
-  c = jit_insn_or(fn_, jit_insn_eq(fn_, lhs, rhs), c);
+  c = jit_insn_or(fn_, c,
+      jit_insn_shl(fn_, jit_insn_gt(fn_, lhs, rhs), get_uint32(1)));
+  c = jit_insn_or(fn_, c,
+      jit_insn_shl(fn_, jit_insn_eq(fn_, lhs, rhs), get_uint32(2)));
 
   // TODO(benvanik): set bit 4 to XER[SO]
 
