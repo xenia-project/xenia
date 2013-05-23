@@ -21,7 +21,7 @@ using namespace xe::kernel::xboxkrnl;
 namespace {
 
 
-void HalReturnToFirmware_shim(
+SHIM_CALL HalReturnToFirmware_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // void
   // IN FIRMWARE_REENTRY  Routine

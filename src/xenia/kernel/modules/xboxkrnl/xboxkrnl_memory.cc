@@ -21,7 +21,7 @@ using namespace xe::kernel::xboxkrnl;
 namespace {
 
 
-void NtAllocateVirtualMemory_shim(
+SHIM_CALL NtAllocateVirtualMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -96,7 +96,7 @@ void NtAllocateVirtualMemory_shim(
   SHIM_SET_RETURN(X_STATUS_SUCCESS);
 }
 
-void NtFreeVirtualMemory_shim(
+SHIM_CALL NtFreeVirtualMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,

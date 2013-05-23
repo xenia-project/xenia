@@ -23,14 +23,14 @@ using namespace xe::kernel::xboxkrnl;
 namespace {
 
 
-// void ExGetXConfigSetting_shim(
+// SHIM_CALL ExGetXConfigSetting_shim(
 //     xe_ppc_state_t* ppc_state, KernelState* state) {
 //   // ?
 //   SHIM_SET_RETURN(0);
 // }
 
 
-void XexCheckExecutablePrivilege_shim(
+SHIM_CALL XexCheckExecutablePrivilege_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // BOOL
   // DWORD Privilege
@@ -62,7 +62,7 @@ void XexCheckExecutablePrivilege_shim(
 }
 
 
-void XexGetModuleHandle_shim(
+SHIM_CALL XexGetModuleHandle_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // BOOL
   // LPCSZ ModuleName
@@ -90,12 +90,12 @@ void XexGetModuleHandle_shim(
 }
 
 
-// void XexGetModuleSection_shim(
+// SHIM_CALL XexGetModuleSection_shim(
 //     xe_ppc_state_t* ppc_state, KernelState* state) {
 // }
 
 
-// void XexGetProcedureAddress_shim(
+// SHIM_CALL XexGetProcedureAddress_shim(
 //     xe_ppc_state_t* ppc_state, KernelState* state) {
 // }
 

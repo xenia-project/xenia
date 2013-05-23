@@ -22,7 +22,7 @@ using namespace xe::kernel::xam;
 namespace {
 
 
-void XGetAVPack_shim(
+SHIM_CALL XGetAVPack_shim(
     xe_ppc_state_t* ppc_state, XamState* state) {
   // DWORD
   // Not sure what the values are for this, but 6 is VGA.
@@ -33,7 +33,7 @@ void XGetAVPack_shim(
 }
 
 
-void XGetGameRegion_shim(
+SHIM_CALL XGetGameRegion_shim(
     xe_ppc_state_t* ppc_state, XamState* state) {
   XELOGD("XGetGameRegion()");
 
@@ -41,7 +41,7 @@ void XGetGameRegion_shim(
 }
 
 
-void XGetLanguage_shim(
+SHIM_CALL XGetLanguage_shim(
     xe_ppc_state_t* ppc_state, XamState* state) {
   XELOGD("XGetLanguage()");
 

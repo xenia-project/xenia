@@ -55,7 +55,7 @@ namespace {
 // }
 
 
-void ExCreateThread_shim(
+SHIM_CALL ExCreateThread_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // DWORD
   // LPHANDLE Handle,
@@ -107,7 +107,7 @@ void ExCreateThread_shim(
 }
 
 
-void KeGetCurrentProcessType_shim(
+SHIM_CALL KeGetCurrentProcessType_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // DWORD
 
@@ -125,7 +125,7 @@ void KeGetCurrentProcessType_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ms686801
-void KeTlsAlloc_shim(
+SHIM_CALL KeTlsAlloc_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // DWORD
 
@@ -150,7 +150,7 @@ void KeTlsAlloc_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ms686804
-void KeTlsFree_shim(
+SHIM_CALL KeTlsFree_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // BOOL
   // _In_  DWORD dwTlsIndex
@@ -179,7 +179,7 @@ void KeTlsFree_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ms686812
-void KeTlsGetValue_shim(
+SHIM_CALL KeTlsGetValue_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // LPVOID
   // _In_  DWORD dwTlsIndex
@@ -208,7 +208,7 @@ void KeTlsGetValue_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ms686818
-void KeTlsSetValue_shim(
+SHIM_CALL KeTlsSetValue_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // BOOL
   // _In_      DWORD dwTlsIndex,

@@ -24,7 +24,7 @@ namespace {
 
 
 // http://msdn.microsoft.com/en-us/library/ff561778
-void RtlCompareMemory_shim(
+SHIM_CALL RtlCompareMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // SIZE_T
   // _In_  const VOID *Source1,
@@ -57,7 +57,7 @@ void RtlCompareMemory_shim(
 }
 
 // http://msdn.microsoft.com/en-us/library/ff552123
-void RtlCompareMemoryUlong_shim(
+SHIM_CALL RtlCompareMemoryUlong_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // SIZE_T
   // _In_  PVOID Source,
@@ -97,7 +97,7 @@ void RtlCompareMemoryUlong_shim(
 }
 
 // http://msdn.microsoft.com/en-us/library/ff552263
-void RtlFillMemoryUlong_shim(
+SHIM_CALL RtlFillMemoryUlong_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Out_  PVOID Destination,
@@ -132,7 +132,7 @@ void RtlFillMemoryUlong_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff561918
-void RtlInitAnsiString_shim(
+SHIM_CALL RtlInitAnsiString_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Out_     PANSI_STRING DestinationString,
@@ -153,7 +153,7 @@ void RtlInitAnsiString_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff561899
-void RtlFreeAnsiString_shim(
+SHIM_CALL RtlFreeAnsiString_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Inout_  PANSI_STRING AnsiString
@@ -180,7 +180,7 @@ void RtlFreeAnsiString_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff561934
-void RtlInitUnicodeString_shim(
+SHIM_CALL RtlInitUnicodeString_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Out_     PUNICODE_STRING DestinationString,
@@ -202,7 +202,7 @@ void RtlInitUnicodeString_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff561903
-void RtlFreeUnicodeString_shim(
+SHIM_CALL RtlFreeUnicodeString_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Inout_  PUNICODE_STRING UnicodeString
@@ -222,7 +222,7 @@ void RtlFreeUnicodeString_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff562969
-void RtlUnicodeStringToAnsiString_shim(
+SHIM_CALL RtlUnicodeStringToAnsiString_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // NTSTATUS
   // _Inout_  PANSI_STRING DestinationString,
@@ -250,7 +250,7 @@ void RtlUnicodeStringToAnsiString_shim(
 }
 
 
-void RtlImageXexHeaderField_shim(
+SHIM_CALL RtlImageXexHeaderField_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // PVOID
   // PVOID XexHeaderBase
@@ -340,7 +340,7 @@ typedef struct {
 }
 
 
-void RtlInitializeCriticalSection_shim(
+SHIM_CALL RtlInitializeCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Out_  LPCRITICAL_SECTION lpCriticalSection
@@ -357,7 +357,7 @@ void RtlInitializeCriticalSection_shim(
 }
 
 
-void RtlInitializeCriticalSectionAndSpinCount_shim(
+SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // NTSTATUS
   // _Out_  LPCRITICAL_SECTION lpCriticalSection,
@@ -382,7 +382,7 @@ void RtlInitializeCriticalSectionAndSpinCount_shim(
 }
 
 
-void RtlEnterCriticalSection_shim(
+SHIM_CALL RtlEnterCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
@@ -421,7 +421,7 @@ spin:
 }
 
 
-void RtlTryEnterCriticalSection_shim(
+SHIM_CALL RtlTryEnterCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // DWORD
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
@@ -452,7 +452,7 @@ void RtlTryEnterCriticalSection_shim(
 }
 
 
-void RtlLeaveCriticalSection_shim(
+SHIM_CALL RtlLeaveCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection

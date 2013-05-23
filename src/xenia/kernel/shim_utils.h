@@ -22,6 +22,8 @@ namespace xe {
 namespace kernel {
 
 
+#define SHIM_CALL             void _cdecl
+
 #define SHIM_MEM_ADDR(a)      (ppc_state->membase + a)
 
 #define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a));
@@ -37,6 +39,7 @@ namespace kernel {
 #define SHIM_GET_ARG_32(n)    SHIM_GPR_32(3 + n)
 #define SHIM_GET_ARG_64(n)    SHIM_GPR_64(3 + n)
 #define SHIM_SET_RETURN(v)    SHIM_SET_GPR_64(3, v)
+
 
 }  // namespace kernel
 }  // namespace xe
