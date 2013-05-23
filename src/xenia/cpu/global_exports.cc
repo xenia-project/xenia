@@ -98,13 +98,27 @@ void _cdecl XeTraceBranch(
 
 void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
-  ppc::InstrType* type = ppc::GetInstrType((uint32_t)data);
-  XELOGCPU("TRACE: %.8X %.8X %s %s",
-           cia, data,
-           type && type->emit ? " " : "X",
-           type ? type->name : "<unknown>");
+  ppc::InstrData i;
+  i.address = (uint32_t)cia;
+  i.code = (uint32_t)data;
+  i.type = ppc::GetInstrType(i.code);
+  if (i.type && i.type->disassemble) {
+    ppc::InstrDisasm d;
+    i.type->disassemble(i, d);
+    std::string disasm;
+    d.Dump(disasm);
+    XELOGCPU("TRACE: %.8X %.8X %s %s",
+           i.address, i.code,
+           i.type && i.type->emit ? " " : "X",
+           disasm.c_str());
+  } else {
+    XELOGCPU("TRACE: %.8X %.8X %s %s",
+           i.address, i.code,
+           i.type && i.type->emit ? " " : "X",
+           i.type ? i.type->name : "<unknown>");
+  }
 
-  // if (cia == 0x82014468) {
+  // if (cia == 0x82012074) {
   //   printf("BREAKBREAKBREAK\n");
   // }
 
