@@ -82,18 +82,18 @@ XEEMITTER(addi,         0x38000000, D  )(LibjitEmitter& e, jit_function_t f, Ins
   return 0;
 }
 
-// XEEMITTER(addic,        0x30000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
-//   // RT <- (RA) + EXTS(SI)
+XEEMITTER(addic,        0x30000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
+  // RT <- (RA) + EXTS(SI)
 
-//   Function* sadd_with_overflow = Intrinsic::getDeclaration(
-//       e.gen_module(), Intrinsic::sadd_with_overflow, jit_type_nint);
-//   jit_value_t v = b.CreateCall2(sadd_with_overflow,
-//                            e.gpr_value(i.D.RA), e.get_int64(XEEXTS16(i.D.DS)));
-//   e.update_gpr_value(i.D.RT, b.CreateExtractValue(v, 0));
-//   e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  // TODO(benvanik): track exception
+  jit_value_t v = jit_insn_add_ovf(f, e.make_signed(e.gpr_value(i.D.RA)),
+                                      e.get_int64(XEEXTS16(i.D.DS)));
 
-//   return 0;
-// }
+  e.update_gpr_value(i.D.RT, v);
+  // e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+
+  return 0;
+}
 
 XEEMITTER(addicx,       0x34000000, D  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -362,40 +362,41 @@ XEEMITTER(mullwx,       0x7C0001D6, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //   }
 // }
 
-// XEEMITTER(subfx,        0x7C000050, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
-//   // RT <- ¬(RA) + (RB) + 1
+XEEMITTER(subfx,        0x7C000050, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
+  // RT <- ¬(RA) + (RB) + 1
 
-//   if (i.XO.OE) {
-//     // With XER update.
-//     // This is a different codepath as we need to use llvm.ssub.with.overflow.
+  if (i.XO.OE) {
+    // With XER update.
+    // This is a different codepath as we need to use llvm.ssub.with.overflow.
 
-//     Function* ssub_with_overflow = Intrinsic::getDeclaration(
-//         e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
-//     jit_value_t v = b.CreateCall2(ssub_with_overflow,
-//                              e.gpr_value(i.XO.RB), e.gpr_value(i.XO.RA));
-//     jit_value_t v0 = b.CreateExtractValue(v, 0);
-//     e.update_gpr_value(i.XO.RT, v0);
-//     e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
+    // TODO(benvanik): handle overflow exceptions.
+    jit_value_t v = jit_insn_sub_ovf(f,
+        e.make_signed(e.gpr_value(i.XO.RB)),
+        e.make_signed(e.gpr_value(i.XO.RA)));
+    e.update_gpr_value(i.XO.RT, v);
+    //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v0, e.get_int64(0), true);
-//     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v, e.get_int64(0), true);
+    }
 
-//     return 0;
-//   } else {
-//     // No OE bit setting.
-//     jit_value_t v = b.CreateSub(e.gpr_value(i.XO.RB), e.gpr_value(i.XO.RA));
-//     e.update_gpr_value(i.XO.RT, v);
+    return 0;
+  } else {
+    // No OE bit setting.
+    jit_value_t v = jit_insn_sub(f,
+        e.make_signed(e.gpr_value(i.XO.RB)),
+        e.make_signed(e.gpr_value(i.XO.RA)));
+    e.update_gpr_value(i.XO.RT, v);
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v, e.get_int64(0), true);
-//     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v, e.get_int64(0), true);
+    }
 
-//     return 0;
-//   }
-// }
+    return 0;
+  }
+}
 
 XEEMITTER(subfcx,       0x7C000010, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -415,35 +416,35 @@ XEEMITTER(subfcx,       0x7C000010, XO )(LibjitEmitter& e, jit_function_t f, Ins
 //   return 0;
 // }
 
-// XEEMITTER(subfex,       0x7C000110, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
-//   // RT <- ¬(RA) + (RB) + CA
+XEEMITTER(subfex,       0x7C000110, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
+  // RT <- ¬(RA) + (RB) + CA
 
-//   // TODO(benvanik): possible that the add of rb+ca needs to also check for
-//   //     overflow!
+  // TODO(benvanik): possible that the add of rb+ca needs to also check for
+  //     overflow!
 
-//   jit_value_t ca = jit_insn_and(f, jit_insn_ushr(f, e.xer_value(), 29), 0x1);
-//   Function* uadd_with_overflow = Intrinsic::getDeclaration(
-//       e.gen_module(), Intrinsic::uadd_with_overflow, jit_type_nint);
-//   jit_value_t v = b.CreateCall2(uadd_with_overflow,
-//                            b.CreateNeg(e.gpr_value(i.XO.RA)),
-//                            b.CreateAdd(e.gpr_value(i.XO.RB), ca));
-//   jit_value_t v0 = b.CreateExtractValue(v, 0);
-//   e.update_gpr_value(i.XO.RT, v0);
+  // TODO(benvanik): handle overflow exception
+  jit_value_t ca = jit_insn_and(f, jit_insn_ushr(f, e.xer_value(),
+                                                    e.get_uint32(29)),
+                                   e.get_uint64(0x1));
+  jit_value_t v = jit_insn_add_ovf(f,
+      e.make_unsigned(jit_insn_neg(f, e.gpr_value(i.XO.RA))),
+      e.make_unsigned(jit_insn_add(f, e.gpr_value(i.XO.RB), ca)));
+  e.update_gpr_value(i.XO.RT, v);
 
-//   if (i.XO.OE) {
-//     // With XER update.
-//     e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
-//   } else {
-//     e.update_xer_with_carry(b.CreateExtractValue(v, 1));
-//   }
+  // if (i.XO.OE) {
+  //   // With XER update.
+  //   e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  // } else {
+  //   e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  // }
 
-//   if (i.XO.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v0, e.get_int64(0), true);
-//   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v, e.get_int64(0), true);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
 
 XEEMITTER(subfmex,      0x7C0001D0, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1022,7 +1023,7 @@ void LibjitRegisterEmitCategoryALU() {
   XEREGISTERINSTR(addcx,        0X7C000014);
   XEREGISTERINSTR(addex,        0x7C000114);
   XEREGISTERINSTR(addi,         0x38000000);
-  //XEREGISTERINSTR(addic,        0x30000000);
+  XEREGISTERINSTR(addic,        0x30000000);
   XEREGISTERINSTR(addicx,       0x34000000);
   XEREGISTERINSTR(addis,        0x3C000000);
   XEREGISTERINSTR(addmex,       0x7C0001D4);
@@ -1039,10 +1040,10 @@ void LibjitRegisterEmitCategoryALU() {
   XEREGISTERINSTR(mulli,        0x1C000000);
   XEREGISTERINSTR(mullwx,       0x7C0001D6);
   //XEREGISTERINSTR(negx,         0x7C0000D0);
-  //XEREGISTERINSTR(subfx,        0x7C000050);
+  XEREGISTERINSTR(subfx,        0x7C000050);
   XEREGISTERINSTR(subfcx,       0x7C000010);
   //XEREGISTERINSTR(subficx,      0x20000000);
-  //XEREGISTERINSTR(subfex,       0x7C000110);
+  XEREGISTERINSTR(subfex,       0x7C000110);
   XEREGISTERINSTR(subfmex,      0x7C0001D0);
   XEREGISTERINSTR(subfzex,      0x7C000190);
   XEREGISTERINSTR(cmp,          0x7C000000);
