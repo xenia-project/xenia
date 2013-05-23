@@ -98,7 +98,7 @@ namespace libjit {
 //       } else {
 //         // Will return here eventually.
 //         // Refill registers from state.
-//         b.CreateCall2(target_fn, state_ptr, b.getInt64(cia + 4));
+//         b.CreateCall2(target_fn, state_ptr, e.get_int64(cia + 4));
 //         e.FillRegisters();
 //         b.CreateBr(next_bb);
 //       }
@@ -175,14 +175,14 @@ namespace libjit {
 //   } else {
 //     // Decrement counter.
 //     jit_value_t ctr = e.ctr_value();
-//     ctr = b.CreateSub(ctr, b.getInt64(1));
+//     ctr = b.CreateSub(ctr, e.get_int64(1));
 //     e.update_ctr_value(ctr);
 
 //     // Ctr check.
 //     if (XESELECTBITS(i.B.BO, 1, 1)) {
-//       ctr_ok = b.CreateICmpEQ(ctr, b.getInt64(0));
+//       ctr_ok = b.CreateICmpEQ(ctr, e.get_int64(0));
 //     } else {
-//       ctr_ok = b.CreateICmpNE(ctr, b.getInt64(0));
+//       ctr_ok = b.CreateICmpNE(ctr, e.get_int64(0));
 //     }
 //   }
 
@@ -193,9 +193,9 @@ namespace libjit {
 //     jit_value_t cr = e.cr_value(i.B.BI >> 2);
 //     cr = b.CreateAnd(cr, 1 << (i.B.BI & 3));
 //     if (XESELECTBITS(i.B.BO, 3, 3)) {
-//       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
+//       cond_ok = b.CreateICmpNE(cr, e.get_int64(0));
 //     } else {
-//       cond_ok = b.CreateICmpEQ(cr, b.getInt64(0));
+//       cond_ok = b.CreateICmpEQ(cr, e.get_int64(0));
 //     }
 //   }
 
@@ -262,9 +262,9 @@ namespace libjit {
 //     jit_value_t cr = e.cr_value(i.XL.BI >> 2);
 //     cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
 //     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-//       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
+//       cond_ok = b.CreateICmpNE(cr, e.get_int64(0));
 //     } else {
-//       cond_ok = b.CreateICmpEQ(cr, b.getInt64(0));
+//       cond_ok = b.CreateICmpEQ(cr, e.get_int64(0));
 //     }
 //   }
 
@@ -324,13 +324,13 @@ namespace libjit {
 //   } else {
 //     // Decrement counter.
 //     jit_value_t ctr = e.ctr_value();
-//     ctr = b.CreateSub(ctr, b.getInt64(1));
+//     ctr = b.CreateSub(ctr, e.get_int64(1));
 
 //     // Ctr check.
 //     if (XESELECTBITS(i.XL.BO, 1, 1)) {
-//       ctr_ok = b.CreateICmpEQ(ctr, b.getInt64(0));
+//       ctr_ok = b.CreateICmpEQ(ctr, e.get_int64(0));
 //     } else {
-//       ctr_ok = b.CreateICmpNE(ctr, b.getInt64(0));
+//       ctr_ok = b.CreateICmpNE(ctr, e.get_int64(0));
 //     }
 //   }
 
@@ -341,9 +341,9 @@ namespace libjit {
 //     jit_value_t cr = e.cr_value(i.XL.BI >> 2);
 //     cr = b.CreateAnd(cr, 1 << (i.XL.BI & 3));
 //     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-//       cond_ok = b.CreateICmpNE(cr, b.getInt64(0));
+//       cond_ok = b.CreateICmpNE(cr, e.get_int64(0));
 //     } else {
-//       cond_ok = b.CreateICmpEQ(cr, b.getInt64(0));
+//       cond_ok = b.CreateICmpEQ(cr, e.get_int64(0));
 //     }
 //   }
 
@@ -558,7 +558,7 @@ namespace libjit {
 //   // if (a >u EXTS(SI)) & TO[4] then TRAP
 //   return XeEmitTrap(e, b, i,
 //                     e.gpr_value(i.D.RA),
-//                     b.getInt64(XEEXTS16(i.D.DS)),
+//                     e.get_int64(XEEXTS16(i.D.DS)),
 //                     i.D.RT);
 // }
 
@@ -591,7 +591,7 @@ namespace libjit {
 //                     b.CreateSExt(b.CreateTrunc(e.gpr_value(i.D.RA),
 //                                                b.getInt32Ty()),
 //                                  jit_type_nint),
-//                     b.getInt64(XEEXTS16(i.D.DS)),
+//                     e.get_int64(XEEXTS16(i.D.DS)),
 //                     i.D.RT);
 // }
 

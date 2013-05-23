@@ -36,6 +36,17 @@ public:
   jit_function_t fn();
   sdb::FunctionBlock* fn_block();
 
+  jit_value_t get_int64(int64_t value);
+  jit_value_t get_uint64(uint64_t value);
+  jit_value_t make_signed(jit_value_t value);
+  jit_value_t make_unsigned(jit_value_t value);
+  jit_value_t sign_extend(jit_value_t value, jit_type_t target_type);
+  jit_value_t zero_extend(jit_value_t value, jit_type_t target_type);
+  jit_value_t trunc_to_sbyte(jit_value_t value);
+  jit_value_t trunc_to_ubyte(jit_value_t value);
+  jit_value_t trunc_to_short(jit_value_t value);
+  jit_value_t trunc_to_int(jit_value_t value);
+
   int branch_to_block(uint32_t address);
   int branch_to_block_if(uint32_t address, jit_value_t value);
   int branch_to_block_if_not(uint32_t address, jit_value_t value);

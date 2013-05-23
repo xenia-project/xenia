@@ -146,8 +146,8 @@ int LibjitEmitter::PrepareFunction(FunctionSymbol* symbol) {
 
   // Set optimization options.
   // TODO(benvanik): add gflags
-  uint32_t opt_level = 0;
   uint32_t max_level = jit_function_get_max_optimization_level();
+  uint32_t opt_level = max_level; // 0
   opt_level = MIN(max_level, MAX(0, opt_level));
   jit_function_set_optimization_level(fn, opt_level);
 
@@ -480,29 +480,29 @@ void LibjitEmitter::GenerateBasicBlock(FunctionBlock* block) {
 
     // Add debugging tag.
     // TODO(benvanik): mark type.
-    jit_insn_mark_breakpoint(fn_, 1, ia);
+    //jit_insn_mark_breakpoint(fn_, 1, ia);
 
     if (FLAGS_trace_instructions) {
-      SpillRegisters();
-      jit_insn_call_native(
-          fn_,
-          "XeTraceInstruction",
-          global_exports_.XeTraceInstruction,
-          global_export_signature_3_,
-          trace_args, XECOUNT(trace_args),
-          0);
+      // SpillRegisters();
+      // jit_insn_call_native(
+      //     fn_,
+      //     "XeTraceInstruction",
+      //     global_exports_.XeTraceInstruction,
+      //     global_export_signature_3_,
+      //     trace_args, XECOUNT(trace_args),
+      //     0);
     }
 
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
-      SpillRegisters();
-      jit_insn_call_native(
-          fn_,
-          "XeInvalidInstruction",
-          global_exports_.XeInvalidInstruction,
-          global_export_signature_3_,
-          trace_args, XECOUNT(trace_args),
-          0);
+      // SpillRegisters();
+      // jit_insn_call_native(
+      //     fn_,
+      //     "XeInvalidInstruction",
+      //     global_exports_.XeInvalidInstruction,
+      //     global_export_signature_3_,
+      //     trace_args, XECOUNT(trace_args),
+      //     0);
        continue;
     }
 
@@ -527,14 +527,14 @@ void LibjitEmitter::GenerateBasicBlock(FunctionBlock* block) {
 
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
                ia, i.code, i.type->name);
-      SpillRegisters();
-      jit_insn_call_native(
-          fn_,
-          "XeInvalidInstruction",
-          global_exports_.XeInvalidInstruction,
-          global_export_signature_3_,
-          trace_args, XECOUNT(trace_args),
-          0);
+      // SpillRegisters();
+      // jit_insn_call_native(
+      //     fn_,
+      //     "XeInvalidInstruction",
+      //     global_exports_.XeInvalidInstruction,
+      //     global_export_signature_3_,
+      //     trace_args, XECOUNT(trace_args),
+      //     0);
     }
   }
 
@@ -552,6 +552,134 @@ void LibjitEmitter::GenerateBasicBlock(FunctionBlock* block) {
   }
 
   // TODO(benvanik): finish up BB
+}
+
+jit_value_t LibjitEmitter::get_int64(int64_t value) {
+  return jit_value_create_nint_constant(fn_, jit_type_nint, value);
+}
+
+jit_value_t LibjitEmitter::get_uint64(uint64_t value) {
+  return jit_value_create_nint_constant(fn_, jit_type_nuint, value);
+}
+
+jit_value_t LibjitEmitter::make_signed(jit_value_t value) {
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  jit_type_t signed_source_type = source_type;
+  switch (jit_type_get_kind(source_type)) {
+    case JIT_TYPE_UBYTE:  signed_source_type = jit_type_sbyte;            break;
+    case JIT_TYPE_USHORT: signed_source_type = jit_type_short;            break;
+    case JIT_TYPE_UINT:   signed_source_type = jit_type_int;              break;
+    case JIT_TYPE_NUINT:  signed_source_type = jit_type_nint;             break;
+    case JIT_TYPE_ULONG:  signed_source_type = jit_type_long;             break;
+  }
+  if (signed_source_type != source_type) {
+    value = jit_insn_convert(fn_, value, signed_source_type, 0);
+  }
+  return value;
+}
+
+jit_value_t LibjitEmitter::make_unsigned(jit_value_t value) {
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  jit_type_t unsigned_source_type = source_type;
+  switch (jit_type_get_kind(source_type)) {
+    case JIT_TYPE_SBYTE:  unsigned_source_type = jit_type_ubyte;          break;
+    case JIT_TYPE_SHORT:  unsigned_source_type = jit_type_ushort;         break;
+    case JIT_TYPE_INT:    unsigned_source_type = jit_type_uint;           break;
+    case JIT_TYPE_NINT:   unsigned_source_type = jit_type_nuint;          break;
+    case JIT_TYPE_LONG:   unsigned_source_type = jit_type_ulong;          break;
+  }
+  if (unsigned_source_type != source_type) {
+    value = jit_insn_convert(fn_, value, unsigned_source_type, 0);
+  }
+  return value;
+}
+
+jit_value_t LibjitEmitter::sign_extend(jit_value_t value,
+                                       jit_type_t target_type) {
+  // TODO(benvanik): better conversion checking.
+  // Libjit follows the C rules, which is that the source type indicates whether
+  // sign extension occurs.
+  // For example,  int -> ulong is sign extended,
+  //              uint -> ulong is zero extended.
+  // We convert to the same type with the expected sign and then use the built
+  // in convert, only if needed.
+
+  // No-op if the same types.
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  target_type = jit_type_normalize(target_type);
+  if (source_type == target_type) {
+    return value;
+  }
+
+  // If just a sign change, simple conversion.
+  if (jit_type_get_size(source_type) == jit_type_get_size(target_type)) {
+    return jit_insn_convert(fn_, value, target_type, 0);
+  }
+
+  // Otherwise, need to convert to signed of the current type then extend.
+  value = make_signed(value);
+  return jit_insn_convert(fn_, value, target_type, 0);
+}
+
+jit_value_t LibjitEmitter::zero_extend(jit_value_t value,
+                                       jit_type_t target_type) {
+  // See the comment in ::sign_extend for more information.
+
+  // No-op if the same types.
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  target_type = jit_type_normalize(target_type);
+  if (source_type == target_type) {
+    return value;
+  }
+
+  // If just a sign change, simple conversion.
+  if (jit_type_get_size(source_type) == jit_type_get_size(target_type)) {
+    return jit_insn_convert(fn_, value, target_type, 0);
+  }
+
+  // Otherwise, need to convert to signed of the current type then extend.
+  value = make_unsigned(value);
+  return jit_insn_convert(fn_, value, target_type, 0);
+}
+
+jit_value_t LibjitEmitter::trunc_to_sbyte(jit_value_t value) {
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  if (source_type == jit_type_sbyte) {
+    return value;
+  }
+  return jit_insn_convert(fn_, value, jit_type_sbyte, 0);
+}
+
+jit_value_t LibjitEmitter::trunc_to_ubyte(jit_value_t value) {
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  if (source_type == jit_type_ubyte) {
+    return value;
+  }
+  return jit_insn_convert(fn_, value, jit_type_ubyte, 0);
+}
+
+jit_value_t LibjitEmitter::trunc_to_short(jit_value_t value) {
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  if (source_type == jit_type_sbyte) {
+    return value;
+  }
+  return jit_insn_convert(fn_, value, jit_type_short, 0);
+}
+
+jit_value_t LibjitEmitter::trunc_to_int(jit_value_t value) {
+  jit_type_t source_type = jit_value_get_type(value);
+  source_type = jit_type_normalize(source_type);
+  if (source_type == jit_type_sbyte) {
+    return value;
+  }
+  return jit_insn_convert(fn_, value, jit_type_int, 0);
 }
 
 int LibjitEmitter::branch_to_block(uint32_t address) {
@@ -895,10 +1023,7 @@ void LibjitEmitter::update_xer_value(jit_value_t value) {
   XEASSERTNOTNULL(locals_.xer);
 
   // Extend to 64bits if needed.
-  // TODO(benvanik): extend?
-  /*if (!value->getType()->isIntegerTy(64)) {
-    value = b.CreateZExt(value, jit_type_nuint);
-  }*/
+  value = zero_extend(value, jit_type_nuint);
   jit_insn_store(fn_, locals_.xer, value);
 }
 
@@ -961,10 +1086,7 @@ void LibjitEmitter::update_lr_value(jit_value_t value) {
   XEASSERTNOTNULL(locals_.lr);
 
   // Extend to 64bits if needed.
-  // TODO(benvanik): extend?
-  /*if (!value->getType()->isIntegerTy(64)) {
-    value = b.CreateZExt(value, jit_type_nuint);
-  }*/
+  value = zero_extend(value, jit_type_nuint);
   jit_insn_store(fn_, locals_.lr, value);
 }
 
@@ -977,65 +1099,64 @@ void LibjitEmitter::update_ctr_value(jit_value_t value) {
   XEASSERTNOTNULL(locals_.ctr);
 
   // Extend to 64bits if needed.
-  // TODO(benvanik): extend?
-  /*if (!value->getType()->isIntegerTy(64)) {
-    value = b.CreateZExt(value, jit_type_nuint);
-  }*/
+  value = zero_extend(value, jit_type_nuint);
   jit_insn_store(fn_, locals_.ctr, value);
 }
 
-//jit_value_t LibjitEmitter::cr_value(uint32_t n) {
-//  XEASSERT(n >= 0 && n < 8);
-//  XEASSERTNOTNULL(locals_.cr[n]);
-//
-//  jit_value_t v = jit_insn_load(fn_, locals_.cr[n]);
-//  v = b.CreateZExt(v, jit_type_nuint);
-//  return v;
-//}
-//
-//void LibjitEmitter::update_cr_value(uint32_t n, jit_value_t value) {
-//  XEASSERT(n >= 0 && n < 8);
-//  XEASSERTNOTNULL(locals_.cr[n]);
-//
-//  // Truncate to 8 bits if needed.
-//  // TODO(benvanik): also widen?
-//  if (!value->getType()->isIntegerTy(8)) {
-//    value = b.CreateTrunc(value, b.getInt8Ty());
-//  }
-//
-//  b.CreateStore(value, locals_.cr[n]);
-//}
-//
-//void LibjitEmitter::update_cr_with_cond(
-//    uint32_t n, jit_value_t lhs, jit_value_t rhs, bool is_signed) {
-//
-//  // bit0 = RA < RB
-//  // bit1 = RA > RB
-//  // bit2 = RA = RB
-//  // bit3 = XER[SO]
-//
-//  // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
-//  // the need for a lot of the compares and ensures we lower to the best
-//  // possible x86.
-//  // jit_value_t cmp = InlineAsm::get(
-//  //     FunctionType::get(),
-//  //     "cmp $0, $1                 \n"
-//  //     "mov from compare registers \n",
-//  //     "r,r", ??
-//  //     true);
-//
-//  jit_value_t is_lt = is_signed ?
-//      b.CreateICmpSLT(lhs, rhs) : b.CreateICmpULT(lhs, rhs);
-//  jit_value_t is_gt = is_signed ?
-//      b.CreateICmpSGT(lhs, rhs) : b.CreateICmpUGT(lhs, rhs);
-//  jit_value_t cp = b.CreateSelect(is_gt, b.getInt8(1 << 1), b.getInt8(1 << 2));
-//  jit_value_t c = b.CreateSelect(is_lt, b.getInt8(1 << 0), cp);
-//
-//  // TODO(benvanik): set bit 4 to XER[SO]
-//
-//  // Insert the 4 bits into their location in the CR.
-//  update_cr_value(n, c);
-//}
+jit_value_t LibjitEmitter::cr_value(uint32_t n) {
+  XEASSERT(n >= 0 && n < 8);
+  XEASSERTNOTNULL(locals_.cr[n]);
+
+  jit_value_t value = jit_insn_load(fn_, locals_.cr[n]);
+  value = zero_extend(value, jit_type_nuint);
+  return value;
+}
+
+void LibjitEmitter::update_cr_value(uint32_t n, jit_value_t value) {
+  XEASSERT(n >= 0 && n < 8);
+  XEASSERTNOTNULL(locals_.cr[n]);
+
+  // Truncate to 8 bits if needed.
+  // TODO(benvanik): also widen?
+  value = trunc_to_ubyte(value);
+
+  jit_insn_store(fn_, locals_.cr[n], value);
+}
+
+void LibjitEmitter::update_cr_with_cond(
+    uint32_t n, jit_value_t lhs, jit_value_t rhs, bool is_signed) {
+  // bit0 = RA < RB
+  // bit1 = RA > RB
+  // bit2 = RA = RB
+  // bit3 = XER[SO]
+
+  // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
+  // the need for a lot of the compares and ensures we lower to the best
+  // possible x86.
+  // jit_value_t cmp = InlineAsm::get(
+  //     FunctionType::get(),
+  //     "cmp $0, $1                 \n"
+  //     "mov from compare registers \n",
+  //     "r,r", ??
+  //     true);
+
+  // Convert input signs, if needed.
+  if (is_signed) {
+    lhs = make_signed(lhs);
+    rhs = make_signed(rhs);
+  } else {
+    lhs = make_unsigned(lhs);
+    rhs = make_unsigned(rhs);
+  }
+  jit_value_t c = jit_insn_lt(fn_, lhs, rhs);
+  c = jit_insn_or(fn_, jit_insn_gt(fn_, lhs, rhs), c);
+  c = jit_insn_or(fn_, jit_insn_eq(fn_, lhs, rhs), c);
+
+  // TODO(benvanik): set bit 4 to XER[SO]
+
+  // Insert the 4 bits into their location in the CR.
+  update_cr_value(n, c);
+}
 
 jit_value_t LibjitEmitter::gpr_value(uint32_t n) {
   XEASSERT(n >= 0 && n < 32);
@@ -1044,7 +1165,7 @@ jit_value_t LibjitEmitter::gpr_value(uint32_t n) {
   // Actually r0 is writable, even though nobody should ever do that.
   // Perhaps we can check usage and enable this if safe?
   // if (n == 0) {
-  //   return jit_value_create_nuint_constant(fn_, jit_type_nint, 0);
+  //   return get_uint64(0);
   // }
 
   return jit_insn_load(fn_, locals_.gpr[n]);
@@ -1061,11 +1182,7 @@ void LibjitEmitter::update_gpr_value(uint32_t n, jit_value_t value) {
   // }
 
   // Extend to 64bits if needed.
-  // TODO(benvanik): extend?
-  //jit_insn_convert(fn_, value, jit_type_nuint, 0);
-  /*if (!value->getType()->isIntegerTy(64)) {
-    value = b.CreateZExt(value, jit_type_nuint);
-  }*/
+  value = zero_extend(value, jit_type_nuint);
 
   jit_insn_store(fn_, locals_.gpr[n], value);
 }
@@ -1113,8 +1230,8 @@ jit_value_t LibjitEmitter::GetMemoryAddress(uint32_t cia, jit_value_t addr) {
   // Rebase off of memory base pointer.
   // We could store the memory base as a global value (or indirection off of
   // state) if we wanted to avoid embedding runtime values into the code.
-  jit_nuint membase = (jit_nuint)xe_memory_addr(memory_, 0);
-  return jit_insn_add_relative(fn_, addr, membase);
+  jit_value_t membase = get_uint64((uint64_t)xe_memory_addr(memory_, 0));
+  return jit_insn_add(fn_, addr, membase);
 }
 
 jit_value_t LibjitEmitter::ReadMemory(
@@ -1155,9 +1272,7 @@ jit_value_t LibjitEmitter::ReadMemory(
   // Swap after loading.
   // TODO(benvanik): find a way to avoid this!
   if (needs_swap) {
-    // Function* bswap = Intrinsic::getDeclaration(
-    //       gen_module_, Intrinsic::bswap, data_type);
-    // value = b.CreateCall(bswap, value);
+    value = jit_insn_bswap(fn_, value);
   }
 
   return value;
@@ -1199,9 +1314,7 @@ void LibjitEmitter::WriteMemory(
   // Swap before storing.
   // TODO(benvanik): find a way to avoid this!
   if (needs_swap) {
-    // Function* bswap = Intrinsic::getDeclaration(
-    //       gen_module_, Intrinsic::bswap, data_type);
-    // value = b.CreateCall(bswap, value);
+    value = jit_insn_bswap(fn_, value);
   }
 
   // TODO(benvanik): release semantics
