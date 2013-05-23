@@ -53,5 +53,6 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
   }
 #else
   XEIGNORE(fprintf(stdout, outfmt, level_char, filename, line_number, buffer));
+  fflush(stdout);
 #endif  // OutputDebugString
 }
