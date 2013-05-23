@@ -1279,8 +1279,9 @@ jit_value_t LibjitEmitter::TouchMemoryAddress(uint32_t cia, jit_value_t addr) {
   // Input address is always in 32-bit space.
   // TODO(benvanik): is this required? It's one extra instruction on every
   //     access...
-  addr = jit_insn_and(fn_, addr,
-      jit_value_create_nint_constant(fn_, jit_type_nuint, UINT_MAX));
+  addr = jit_insn_and(fn_,
+      jit_insn_convert(fn_, addr, jit_type_uint, 0),
+      jit_value_create_nint_constant(fn_, jit_type_uint, UINT_MAX));
 
   // Add runtime memory address checks, if needed.
   // if (FLAGS_memory_address_verification) {
