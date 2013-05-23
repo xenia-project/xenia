@@ -79,7 +79,8 @@ int LibjitJIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
   }
 
   // Call into the function. This will compile it if needed.
-  intptr_t args[] = {(intptr_t)ppc_state, ppc_state->lr};
+  jit_nuint lr = ppc_state->lr;
+  void* args[] = {&ppc_state, &lr};
   uint64_t return_value;
   int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);
   if (!apply_result) {

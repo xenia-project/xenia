@@ -55,7 +55,7 @@ LibjitEmitter::LibjitEmitter(xe_memory_ref memory, jit_context_t context) {
   // TODO(benvanik): evaluate using jit_abi_fastcall
   jit_type_t fn_params[] = {
     jit_type_void_ptr,
-    jit_type_uint
+    jit_type_nuint,
   };
   fn_signature_ = jit_type_create_signature(
       jit_abi_cdecl,
