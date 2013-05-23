@@ -483,27 +483,27 @@ void LibjitEmitter::GenerateBasicBlock(FunctionBlock* block) {
     //jit_insn_mark_breakpoint(fn_, 1, ia);
 
     if (FLAGS_trace_instructions) {
-      // SpillRegisters();
-      // jit_insn_call_native(
-      //     fn_,
-      //     "XeTraceInstruction",
-      //     global_exports_.XeTraceInstruction,
-      //     global_export_signature_3_,
-      //     trace_args, XECOUNT(trace_args),
-      //     0);
+      SpillRegisters();
+      jit_insn_call_native(
+          fn_,
+          "XeTraceInstruction",
+          global_exports_.XeTraceInstruction,
+          global_export_signature_3_,
+          trace_args, XECOUNT(trace_args),
+          0);
     }
 
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
-      // SpillRegisters();
-      // jit_insn_call_native(
-      //     fn_,
-      //     "XeInvalidInstruction",
-      //     global_exports_.XeInvalidInstruction,
-      //     global_export_signature_3_,
-      //     trace_args, XECOUNT(trace_args),
-      //     0);
-       continue;
+      SpillRegisters();
+      jit_insn_call_native(
+          fn_,
+          "XeInvalidInstruction",
+          global_exports_.XeInvalidInstruction,
+          global_export_signature_3_,
+          trace_args, XECOUNT(trace_args),
+          0);
+      continue;
     }
 
     if (FLAGS_log_codegen) {
@@ -697,10 +697,15 @@ int LibjitEmitter::branch_to_block(uint32_t address) {
 
 int LibjitEmitter::branch_to_block_if(uint32_t address, jit_value_t value) {
   std::map<uint32_t, jit_label_t>::iterator it = bbs_.find(address);
-  return jit_insn_branch_if(fn_, value, &it->second);
+  if (value) {
+    return jit_insn_branch_if(fn_, value, &it->second);
+  } else {
+    return jit_insn_branch(fn_, &it->second);
+  }
 }
 
 int LibjitEmitter::branch_to_block_if_not(uint32_t address, jit_value_t value) {
+  XEASSERTNOTNULL(value);
   std::map<uint32_t, jit_label_t>::iterator it = bbs_.find(address);
   return jit_insn_branch_if_not(fn_, value, &it->second);
 }
@@ -717,101 +722,115 @@ int LibjitEmitter::branch_to_return_if_not(jit_value_t value) {
   return jit_insn_branch_if_not(fn_, value, &return_block_);
 }
 
-//BasicBlock* LibjitEmitter::GetNextBasicBlock() {
-//  std::map<uint32_t, BasicBlock*>::iterator it = bbs_.find(
-//      fn_block_->start_address);
-//  ++it;
-//  if (it != bbs_.end()) {
-//    return it->second;
-//  }
-//  return NULL;
-//}
+int LibjitEmitter::call_function(FunctionSymbol* target_symbol,
+                                 jit_value_t lr, bool tail) {
+  PrepareFunction(target_symbol);
+  jit_function_t target_fn = (jit_function_t)target_symbol->impl_value;
+  XEASSERTNOTNULL(target_fn);
+  int flags = 0;
+  if (tail) {
+    flags |= JIT_CALL_TAIL;
+  }
+  jit_value_t args[] = {jit_value_get_param(fn_, 0), lr};
+  jit_insn_call(fn_, target_symbol->name(), target_fn, fn_signature_,
+      args, XECOUNT(args), flags);
+  return 1;
+}
 
-//int LibjitEmitter::GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
-//                                              bool lk, bool likely_local) {
-//  // This function is called by the control emitters when they know that an
-//  // indirect branch is required.
-//  // It first tries to see if the branch is to an address within the function
-//  // and, if so, uses a local switch table. If that fails because we don't know
-//  // the block the function is regenerated (ACK!). If the target is external
-//  // then an external call occurs.
-//
-//  IRBuilder<>& b = *builder_;
-//  BasicBlock* next_block = GetNextBasicBlock();
-//
-//  PushInsertPoint();
-//
-//  // Request builds of the indirection blocks on demand.
-//  // We can't build here because we don't know what registers will be needed
-//  // yet, so we just create the blocks and let GenerateSharedBlocks handle it
-//  // after we are done with all user instructions.
-//  if (!external_indirection_block_) {
-//    // Setup locals in the entry block.
-//    b.SetInsertPoint(&fn_->getEntryBlock());
-//    locals_.indirection_target = b.CreateAlloca(
-//        jit_type_nuint, 0, "indirection_target");
-//    locals_.indirection_cia = b.CreateAlloca(
-//        jit_type_nuint, 0, "indirection_cia");
-//
-//    external_indirection_block_ = BasicBlock::Create(
-//        *context_, "external_indirection_block", fn_, return_block_);
-//  }
-//  if (likely_local && !internal_indirection_block_) {
-//    internal_indirection_block_ = BasicBlock::Create(
-//        *context_, "internal_indirection_block", fn_, return_block_);
-//  }
-//
-//  PopInsertPoint();
-//
-//  // Check to see if the target address is within the function.
-//  // If it is jump to that basic block. If the basic block is not found it means
-//  // we have a jump inside the function that wasn't identified via static
-//  // analysis. These are bad as they require function regeneration.
-//  if (likely_local) {
-//    // Note that we only support LK=0, as we are using shared tables.
-//    XEASSERT(!lk);
-//    b.CreateStore(target, locals_.indirection_target);
-//    b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-//    jit_value_t symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
-//    jit_value_t symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
-//    jit_value_t symbol_target_cmp = jit_insn_and(fn_, symbol_ge_cmp, symbol_l_cmp);
-//    b.CreateCondBr(symbol_target_cmp,
-//                   internal_indirection_block_, external_indirection_block_);
-//    return 0;
-//  }
-//
-//  // If we are LK=0 jump to the shared indirection block. This prevents us
-//  // from needing to fill the registers again after the call and shares more
-//  // code.
-//  if (!lk) {
-//    b.CreateStore(target, locals_.indirection_target);
-//    b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-//    b.CreateBr(external_indirection_block_);
-//  } else {
-//    // Slowest path - spill, call the external function, and fill.
-//    // We should avoid this at all costs.
-//
-//    // Spill registers. We could probably share this.
-//    SpillRegisters();
-//
-//    // TODO(benvanik): keep function pointer lookup local.
-//    jit_value_t indirect_branch = gen_module_->getFunction("XeIndirectBranch");
-//    b.CreateCall3(indirect_branch,
-//                  fn_->arg_begin(),
-//                  target,
-//                  b.getInt64(cia));
-//
-//    if (next_block) {
-//      // Only refill if not a tail call.
-//      FillRegisters();
-//      b.CreateBr(next_block);
-//    } else {
-//      b.CreateRetVoid();
-//    }
-//  }
-//
-//  return 0;
-//}
+int LibjitEmitter::GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
+                                             bool lk, bool likely_local) {
+  // This function is called by the control emitters when they know that an
+  // indirect branch is required.
+  // It first tries to see if the branch is to an address within the function
+  // and, if so, uses a local switch table. If that fails because we don't know
+  // the block the function is regenerated (ACK!). If the target is external
+  // then an external call occurs.
+
+  // TODO(benvanik): port indirection.
+  //XEASSERTALWAYS();
+
+  // BasicBlock* next_block = GetNextBasicBlock();
+
+  // PushInsertPoint();
+
+  // // Request builds of the indirection blocks on demand.
+  // // We can't build here because we don't know what registers will be needed
+  // // yet, so we just create the blocks and let GenerateSharedBlocks handle it
+  // // after we are done with all user instructions.
+  // if (!external_indirection_block_) {
+  //   // Setup locals in the entry block.
+  //   b.SetInsertPoint(&fn_->getEntryBlock());
+  //   locals_.indirection_target = b.CreateAlloca(
+  //       jit_type_nuint, 0, "indirection_target");
+  //   locals_.indirection_cia = b.CreateAlloca(
+  //       jit_type_nuint, 0, "indirection_cia");
+
+  //   external_indirection_block_ = BasicBlock::Create(
+  //       *context_, "external_indirection_block", fn_, return_block_);
+  // }
+  // if (likely_local && !internal_indirection_block_) {
+  //   internal_indirection_block_ = BasicBlock::Create(
+  //       *context_, "internal_indirection_block", fn_, return_block_);
+  // }
+
+  // PopInsertPoint();
+
+  // // Check to see if the target address is within the function.
+  // // If it is jump to that basic block. If the basic block is not found it means
+  // // we have a jump inside the function that wasn't identified via static
+  // // analysis. These are bad as they require function regeneration.
+  // if (likely_local) {
+  //   // Note that we only support LK=0, as we are using shared tables.
+  //   XEASSERT(!lk);
+  //   b.CreateStore(target, locals_.indirection_target);
+  //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
+  //   jit_value_t symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
+  //   jit_value_t symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
+  //   jit_value_t symbol_target_cmp = jit_insn_and(fn_, symbol_ge_cmp, symbol_l_cmp);
+  //   b.CreateCondBr(symbol_target_cmp,
+  //                  internal_indirection_block_, external_indirection_block_);
+  //   return 0;
+  // }
+
+  // // If we are LK=0 jump to the shared indirection block. This prevents us
+  // // from needing to fill the registers again after the call and shares more
+  // // code.
+  // if (!lk) {
+  //   b.CreateStore(target, locals_.indirection_target);
+  //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
+  //   b.CreateBr(external_indirection_block_);
+  // } else {
+  //   // Slowest path - spill, call the external function, and fill.
+  //   // We should avoid this at all costs.
+
+  //   // Spill registers. We could probably share this.
+  //   SpillRegisters();
+
+  //   // Issue the full indirection branch.
+  //   jit_value_t branch_args[] = {
+  //     jit_value_get_param(fn_, 0),
+  //     target,
+  //     get_uint64(cia),
+  //   };
+  //   jit_insn_call_native(
+  //       fn_,
+  //       "XeIndirectBranch",
+  //       global_exports_.XeIndirectBranch,
+  //       global_export_signature_3_,
+  //       branch_args, XECOUNT(branch_args),
+  //       0);
+
+  //   if (next_block) {
+  //     // Only refill if not a tail call.
+  //     FillRegisters();
+  //     b.CreateBr(next_block);
+  //   } else {
+  //     jit_insn_return(fn_, NULL);
+  //   }
+  // }
+
+  return 0;
+}
 
 jit_value_t LibjitEmitter::LoadStateValue(size_t offset, jit_type_t type,
                                           const char* name) {

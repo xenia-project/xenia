@@ -55,6 +55,8 @@ public:
   int branch_to_return();
   int branch_to_return_if(jit_value_t value);
   int branch_to_return_if_not(jit_value_t value);
+  int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
+                    bool tail);
 
   int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
                                 bool lk, bool likely_local);
