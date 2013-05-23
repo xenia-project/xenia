@@ -82,6 +82,20 @@ void _cdecl XeTraceUserCall(
            (uint32_t)call_ia - 4, (uint32_t)cia, fn->name());
 }
 
+void _cdecl XeTraceBranch(
+    xe_ppc_state_t* state, uint64_t cia, uint64_t target_ia) {
+  switch (target_ia) {
+  case kXEPPCRegLR:
+    target_ia = state->lr;
+    break;
+  case kXEPPCRegCTR:
+    target_ia = state->ctr;
+    break;
+  }
+  XELOGCPU("TRACE: %.8X -> b.%.8X",
+           (uint32_t)cia, (uint32_t)target_ia);
+}
+
 void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
   ppc::InstrType* type = ppc::GetInstrType((uint32_t)data);
@@ -108,5 +122,6 @@ void xe::cpu::GetGlobalExports(GlobalExports* global_exports) {
   global_exports->XeAccessViolation     = XeAccessViolation;
   global_exports->XeTraceKernelCall     = XeTraceKernelCall;
   global_exports->XeTraceUserCall       = XeTraceUserCall;
+  global_exports->XeTraceBranch         = XeTraceBranch;
   global_exports->XeTraceInstruction    = XeTraceInstruction;
 }

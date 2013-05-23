@@ -13,6 +13,8 @@
 // Tracing:
 DEFINE_bool(trace_instructions, false,
     "Trace all instructions.");
+DEFINE_bool(trace_branches, false,
+    "Trace all branches.");
 DEFINE_bool(trace_user_calls, false,
     "Trace all user function calls.");
 DEFINE_bool(trace_kernel_calls, false,

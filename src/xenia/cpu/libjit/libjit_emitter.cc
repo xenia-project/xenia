@@ -751,6 +751,44 @@ int LibjitEmitter::call_function(FunctionSymbol* target_symbol,
   return 1;
 }
 
+void LibjitEmitter::TraceBranch(uint32_t cia) {
+  SpillRegisters();
+
+  // Pick target. If it's an indirection the tracing function will handle it.
+  uint64_t target = 0;
+  switch (fn_block_->outgoing_type) {
+    case FunctionBlock::kTargetBlock:
+      target = fn_block_->outgoing_address;
+      break;
+    case FunctionBlock::kTargetFunction:
+      target = fn_block_->outgoing_function->start_address;
+      break;
+    case FunctionBlock::kTargetLR:
+      target = kXEPPCRegLR;
+      break;
+    case FunctionBlock::kTargetCTR:
+      target = kXEPPCRegCTR;
+      break;
+    default:
+    case FunctionBlock::kTargetNone:
+      XEASSERTALWAYS();
+      break;
+  }
+
+  jit_value_t trace_args[] = {
+    jit_value_get_param(fn_, 0),
+    jit_value_create_long_constant(fn_, jit_type_ulong, cia),
+    jit_value_create_long_constant(fn_, jit_type_ulong, target),
+  };
+  jit_insn_call_native(
+      fn_,
+      "XeTraceBranch",
+      global_exports_.XeTraceBranch,
+      global_export_signature_3_,
+      trace_args, XECOUNT(trace_args),
+      0);
+}
+
 int LibjitEmitter::GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
                                              bool lk, bool likely_local) {
   // This function is called by the control emitters when they know that an

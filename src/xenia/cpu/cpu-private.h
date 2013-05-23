@@ -14,6 +14,7 @@
 
 
 DECLARE_bool(trace_instructions);
+DECLARE_bool(trace_branches);
 DECLARE_bool(trace_user_calls);
 DECLARE_bool(trace_kernel_calls);
 

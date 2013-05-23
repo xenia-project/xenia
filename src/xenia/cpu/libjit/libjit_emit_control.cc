@@ -9,6 +9,8 @@
 
 #include <xenia/cpu/libjit/libjit_emit.h>
 
+#include <xenia/cpu/cpu-private.h>
+
 
 using namespace xe::cpu;
 using namespace xe::cpu::ppc;
@@ -61,15 +63,37 @@ int XeEmitIndirectBranchTo(
 
 int XeEmitBranchTo(
     LibjitEmitter& e, jit_function_t f, const char* src, uint32_t cia,
-    bool lk) {
-  // Get the basic block and switch behavior based on outgoing type.
+    bool lk, jit_value_t condition) {
   FunctionBlock* fn_block = e.fn_block();
+
+  // Fast-path for branches to other blocks.
+  // Only valid when not tracing branches.
+  if (!FLAGS_trace_branches &&
+      fn_block->outgoing_type == FunctionBlock::kTargetBlock) {
+    e.branch_to_block_if(fn_block->outgoing_address, condition);
+    return 0;
+  }
+
+  // Only branch of conditionals when we have one.
+  jit_label_t post_jump_label = jit_label_undefined;
+  if (condition) {
+    // TODO(benvanik): add debug info for this?
+    // char name[32];
+    // xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
+    jit_insn_branch_if_not(f, condition, &post_jump_label);
+  }
+
+  if (FLAGS_trace_branches) {
+    e.TraceBranch(cia);
+  }
+
+  // Get the basic block and switch behavior based on outgoing type.
+  int result = 0;
   switch (fn_block->outgoing_type) {
     case FunctionBlock::kTargetBlock:
-    {
+      // Taken care of above usually.
       e.branch_to_block(fn_block->outgoing_address);
       break;
-    }
     case FunctionBlock::kTargetFunction:
     {
       // Spill all registers to memory.
@@ -103,20 +127,28 @@ int XeEmitBranchTo(
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA LR: %.8X\n", cia);
-      return XeEmitIndirectBranchTo(e, f, src, cia, lk, kXEPPCRegLR);
+      result = XeEmitIndirectBranchTo(e, f, src, cia, lk, kXEPPCRegLR);
+      break;
     }
     case FunctionBlock::kTargetCTR:
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA CTR: %.8X\n", cia);
-      return XeEmitIndirectBranchTo(e, f, src, cia, lk, kXEPPCRegCTR);
+      result = XeEmitIndirectBranchTo(e, f, src, cia, lk, kXEPPCRegCTR);
+      break;
     }
     default:
     case FunctionBlock::kTargetNone:
       XEASSERTALWAYS();
-      return 1;
+      result = 1;
+      break;
   }
-  return 0;
+
+  if (condition) {
+    jit_insn_label(f, &post_jump_label);
+  }
+
+  return result;
 }
 
 
@@ -138,7 +170,7 @@ XEEMITTER(bx,           0x48000000, I  )(LibjitEmitter& e, jit_function_t f, Ins
     e.update_lr_value(e.get_uint64(i.address + 4));
   }
 
-  return XeEmitBranchTo(e, f, "bx", i.address, i.I.LK);
+  return XeEmitBranchTo(e, f, "bx", i.address, i.I.LK, NULL);
 }
 
 XEEMITTER(bcx,          0x40000000, B  )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
@@ -204,34 +236,14 @@ XEEMITTER(bcx,          0x40000000, B  )(LibjitEmitter& e, jit_function_t f, Ins
     ok = cond_ok;
   }
 
-  // Optimization: if a branch target, inline the conditional branch here.
-  FunctionBlock* fn_block = e.fn_block();
-  if (fn_block->outgoing_type == FunctionBlock::kTargetBlock) {
-    e.branch_to_block_if(fn_block->outgoing_address, ok);
+  uint32_t nia;
+  if (i.B.AA) {
+    nia = XEEXTS26(i.B.BD << 2);
   } else {
-    // Only branch of conditionals when we have one.
-    jit_label_t post_jump_label = jit_label_undefined;
-    if (ok) {
-      // TODO(benvanik): add debug info for this?
-      // char name[32];
-      // xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
-      jit_insn_branch_if_not(f, ok, &post_jump_label);
-    }
-
-    // Note that this occurs entirely within the branch true block.
-    uint32_t nia;
-    if (i.B.AA) {
-      nia = XEEXTS26(i.B.BD << 2);
-    } else {
-      nia = i.address + XEEXTS26(i.B.BD << 2);
-    }
-    if (XeEmitBranchTo(e, f, "bcx", i.address, i.B.LK)) {
-      return 1;
-    }
-
-    if (ok) {
-      jit_insn_label(f, &post_jump_label);
-    }
+    nia = i.address + XEEXTS26(i.B.BD << 2);
+  }
+  if (XeEmitBranchTo(e, f, "bcx", i.address, i.B.LK, ok)) {
+    return 1;
   }
 
   return 0;
@@ -273,28 +285,8 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(LibjitEmitter& e, jit_function_t f, Ins
     ok = cond_ok;
   }
 
-  // Optimization: if a branch target, inline the conditional branch here.
-  FunctionBlock* fn_block = e.fn_block();
-  if (fn_block->outgoing_type == FunctionBlock::kTargetBlock) {
-    e.branch_to_block_if(fn_block->outgoing_address, ok);
-  } else {
-    // Only branch of conditionals when we have one.
-    jit_label_t post_jump_label = jit_label_undefined;
-    if (ok) {
-      // TODO(benvanik): add debug info for this?
-      // char name[32];
-      // xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
-      jit_insn_branch_if_not(f, ok, &post_jump_label);
-    }
-
-    // Note that this occurs entirely within the branch true block.
-    if (XeEmitBranchTo(e, f, "bcctrx", i.address, i.XL.LK)) {
-      return 1;
-    }
-
-    if (ok) {
-      jit_insn_label(f, &post_jump_label);
-    }
+  if (XeEmitBranchTo(e, f, "bcctrx", i.address, i.XL.LK, ok)) {
+    return 1;
   }
 
   return 0;
@@ -359,28 +351,8 @@ XEEMITTER(bclrx,        0x4C000020, XL )(LibjitEmitter& e, jit_function_t f, Ins
     ok = cond_ok;
   }
 
-  // Optimization: if a branch target, inline the conditional branch here.
-  FunctionBlock* fn_block = e.fn_block();
-  if (fn_block->outgoing_type == FunctionBlock::kTargetBlock) {
-    e.branch_to_block_if(fn_block->outgoing_address, ok);
-  } else {
-    // Only branch of conditionals when we have one.
-    jit_label_t post_jump_label = jit_label_undefined;
-    if (ok) {
-      // TODO(benvanik): add debug info for this?
-      // char name[32];
-      // xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
-      jit_insn_branch_if_not(f, ok, &post_jump_label);
-    }
-
-    // Note that this occurs entirely within the branch true block.
-    if (XeEmitBranchTo(e, f, "bclrx", i.address, i.XL.LK)) {
-      return 1;
-    }
-
-    if (ok) {
-      jit_insn_label(f, &post_jump_label);
-    }
+  if (XeEmitBranchTo(e, f, "bclrx", i.address, i.XL.LK, ok)) {
+    return 1;
   }
 
   return 0;

@@ -37,6 +37,8 @@ typedef struct {
   void (_cdecl *XeTraceUserCall)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
       sdb::FunctionSymbol* fn);
+  void (_cdecl *XeTraceBranch)(
+      xe_ppc_state_t* state, uint64_t cia, uint64_t target_ia);
   void (_cdecl *XeTraceInstruction)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t data);
 } GlobalExports;

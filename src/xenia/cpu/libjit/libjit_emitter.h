@@ -58,6 +58,7 @@ public:
   int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
                     bool tail);
 
+  void TraceBranch(uint32_t cia);
   int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
                                 bool lk, bool likely_local);
 
