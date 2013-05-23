@@ -554,6 +554,14 @@ void LibjitEmitter::GenerateBasicBlock(FunctionBlock* block) {
   // TODO(benvanik): finish up BB
 }
 
+jit_value_t LibjitEmitter::get_int32(int32_t value) {
+  return jit_value_create_nint_constant(fn_, jit_type_int, value);
+}
+
+jit_value_t LibjitEmitter::get_uint32(uint32_t value) {
+  return jit_value_create_nint_constant(fn_, jit_type_uint, value);
+}
+
 jit_value_t LibjitEmitter::get_int64(int64_t value) {
   return jit_value_create_nint_constant(fn_, jit_type_nint, value);
 }
@@ -766,7 +774,7 @@ int LibjitEmitter::branch_to_return_if_not(jit_value_t value) {
 //    b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
 //    jit_value_t symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
 //    jit_value_t symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
-//    jit_value_t symbol_target_cmp = b.CreateAnd(symbol_ge_cmp, symbol_l_cmp);
+//    jit_value_t symbol_target_cmp = jit_insn_and(fn_, symbol_ge_cmp, symbol_l_cmp);
 //    b.CreateCondBr(symbol_target_cmp,
 //                   internal_indirection_block_, external_indirection_block_);
 //    return 0;
@@ -1027,55 +1035,50 @@ void LibjitEmitter::update_xer_value(jit_value_t value) {
   jit_insn_store(fn_, locals_.xer, value);
 }
 
-//void LibjitEmitter::update_xer_with_overflow(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.xer);
-//
-//  // Expects a i1 indicating overflow.
-//  // Trust the caller that if it's larger than that it's already truncated.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nuint);
-//  }
-//
-//  jit_value_t xer = xer_value();
-//  xer = b.CreateAnd(xer, 0xFFFFFFFFBFFFFFFF); // clear bit 30
-//  xer = b.CreateOr(xer, b.CreateShl(value, 31));
-//  xer = b.CreateOr(xer, b.CreateShl(value, 30));
-//  jit_insn_store(fn_, locals_.xer, value);
-//}
-//
-//void LibjitEmitter::update_xer_with_carry(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.xer);
-//
-//  // Expects a i1 indicating carry.
-//  // Trust the caller that if it's larger than that it's already truncated.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nuint);
-//  }
-//
-//  jit_value_t xer = xer_value();
-//  xer = b.CreateAnd(xer, 0xFFFFFFFFDFFFFFFF); // clear bit 29
-//  xer = b.CreateOr(xer, b.CreateShl(value, 29));
-//  jit_insn_store(fn_, locals_.xer, value);
-//}
-//
-//void LibjitEmitter::update_xer_with_overflow_and_carry(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.xer);
-//
-//  // Expects a i1 indicating overflow.
-//  // Trust the caller that if it's larger than that it's already truncated.
-//  if (!value->getType()->isIntegerTy(64)) {
-//    value = b.CreateZExt(value, jit_type_nuint);
-//  }
-//
-//  // This is effectively an update_xer_with_overflow followed by an
-//  // update_xer_with_carry, but since the logic is largely the same share it.
-//  jit_value_t xer = xer_value();
-//  xer = b.CreateAnd(xer, 0xFFFFFFFF9FFFFFFF); // clear bit 30 & 29
-//  xer = b.CreateOr(xer, b.CreateShl(value, 31));
-//  xer = b.CreateOr(xer, b.CreateShl(value, 30));
-//  xer = b.CreateOr(xer, b.CreateShl(value, 29));
-//  jit_insn_store(fn_, locals_.xer, value);
-//}
+void LibjitEmitter::update_xer_with_overflow(jit_value_t value) {
+ XEASSERTNOTNULL(locals_.xer);
+
+ // Expects a i1 indicating overflow.
+ // Trust the caller that if it's larger than that it's already truncated.
+  value = zero_extend(value, jit_type_nuint);
+
+ jit_value_t xer = xer_value();
+ xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFBFFFFFFF)); // clear bit 30
+ xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(31)));
+ xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(30)));
+ jit_insn_store(fn_, locals_.xer, value);
+}
+
+void LibjitEmitter::update_xer_with_carry(jit_value_t value) {
+  XEASSERTNOTNULL(locals_.xer);
+
+  // Expects a i1 indicating carry.
+  // Trust the caller that if it's larger than that it's already truncated.
+  value = zero_extend(value, jit_type_nuint);
+
+  jit_value_t xer = xer_value();
+  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFDFFFFFFF)); // clear bit 29
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
+  jit_insn_store(fn_, locals_.xer, value);
+}
+
+void LibjitEmitter::update_xer_with_overflow_and_carry(jit_value_t value) {
+  XEASSERTNOTNULL(locals_.xer);
+
+  // Expects a i1 indicating overflow.
+  // Trust the caller that if it's larger than that it's already truncated.
+  value = zero_extend(value, jit_type_nuint);
+
+  // This is effectively an update_xer_with_overflow followed by an
+  // update_xer_with_carry, but since the logic is largely the same share it.
+  jit_value_t xer = xer_value();
+  // clear bit 30 & 29
+  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFF9FFFFFFF));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(31)));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(30)));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
+  jit_insn_store(fn_, locals_.xer, value);
+}
 
 jit_value_t LibjitEmitter::lr_value() {
   XEASSERTNOTNULL(locals_.lr);

@@ -36,6 +36,8 @@ public:
   jit_function_t fn();
   sdb::FunctionBlock* fn_block();
 
+  jit_value_t get_int32(int32_t value);
+  jit_value_t get_uint32(uint32_t value);
   jit_value_t get_int64(int64_t value);
   jit_value_t get_uint64(uint64_t value);
   jit_value_t make_signed(jit_value_t value);
