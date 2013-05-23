@@ -117,31 +117,32 @@ XEEMITTER(addmex,       0x7C0001D4, XO )(LibjitEmitter& e, jit_function_t f, Ins
   return 1;
 }
 
-// XEEMITTER(addzex,       0x7C000194, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
-//   // RT <- (RA) + CA
+XEEMITTER(addzex,       0x7C000194, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
+  // RT <- (RA) + CA
 
-//   Function* sadd_with_overflow = Intrinsic::getDeclaration(
-//       e.gen_module(), Intrinsic::sadd_with_overflow, jit_type_nint);
-//   jit_value_t ca = jit_insn_and(f, jit_insn_ushr(f, e.xer_value(), 29), 0x1);
-//   jit_value_t v = b.CreateCall2(sadd_with_overflow,
-//                            e.gpr_value(i.XO.RA), ca);
-//   jit_value_t add_value = b.CreateExtractValue(v, 0);
-//   e.update_gpr_value(i.XO.RT, add_value);
-//   if (i.XO.OE) {
-//     // With XER[SO] update too.
-//     e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
-//   } else {
-//     // Just CA update.
-//     e.update_xer_with_carry(b.CreateExtractValue(v, 1));
-//   }
+  // TODO(benvanik): handle overflow exception.
+  jit_value_t ca = jit_insn_and(f,
+      jit_insn_ushr(f, e.xer_value(), e.get_uint32(29)),
+      e.get_uint64(0x1));
+  jit_value_t v = jit_insn_add_ovf(f,
+      e.make_signed(e.gpr_value(i.XO.RA)),
+      e.make_signed(ca));
+  e.update_gpr_value(i.XO.RT, v);
+  if (i.XO.OE) {
+    // With XER[SO] update too.
+    //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    // Just CA update.
+    //e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  }
 
-//   if (i.XO.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, add_value, e.get_int64(0), true);
-//   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v, e.get_int64(0), true);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
 
 XEEMITTER(divdx,        0x7C0003D2, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1024,7 +1025,7 @@ void LibjitRegisterEmitCategoryALU() {
   XEREGISTERINSTR(addicx,       0x34000000);
   XEREGISTERINSTR(addis,        0x3C000000);
   XEREGISTERINSTR(addmex,       0x7C0001D4);
-  //XEREGISTERINSTR(addzex,       0x7C000194);
+  XEREGISTERINSTR(addzex,       0x7C000194);
   XEREGISTERINSTR(divdx,        0x7C0003D2);
   XEREGISTERINSTR(divdux,       0x7C000392);
   //XEREGISTERINSTR(divwx,        0x7C0003D6);
