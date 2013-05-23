@@ -1336,8 +1336,9 @@ jit_value_t LibjitEmitter::ReadMemory(
   // We could store the memory base as a global value (or indirection off of
   // state) if we wanted to avoid embedding runtime values into the code.
   jit_value_t address = TouchMemoryAddress(cia, addr);
-  jit_nint membase = (jit_nint)xe_memory_addr(memory_, 0);
-  jit_value_t value = jit_insn_load_relative(fn_, address, membase, data_type);
+  address = jit_insn_add(fn_, address, jit_value_create_nint_constant(fn_,
+      jit_type_nuint, (jit_nuint)xe_memory_addr(memory_, 0)));
+  jit_value_t value = jit_insn_load_relative(fn_, address, 0, data_type);
   if (acquire) {
     // TODO(benvanik): acquire semantics.
     // load_value->setAlignment(size);
@@ -1403,6 +1404,7 @@ void LibjitEmitter::WriteMemory(
   // We could store the memory base as a global value (or indirection off of
   // state) if we wanted to avoid embedding runtime values into the code.
   jit_value_t address = TouchMemoryAddress(cia, addr);
-  jit_nint membase = (jit_nint)xe_memory_addr(memory_, 0);
-  jit_insn_store_relative(fn_, address, membase, value);
+  address = jit_insn_add(fn_, address, jit_value_create_nint_constant(fn_,
+      jit_type_nuint, (jit_nuint)xe_memory_addr(memory_, 0)));
+  jit_insn_store_relative(fn_, address, 0, value);
 }
