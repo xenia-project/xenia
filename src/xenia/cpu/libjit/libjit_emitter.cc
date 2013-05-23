@@ -218,6 +218,14 @@ int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t fn) {
     jit_function_compile(fn_);
     // post
     jit_dump_function(stdout, fn_, symbol->name());
+
+    XELOGE("Compile(%s): compiled to 0x%p - 0x%p (%db)",
+        symbol->name(),
+        jit_function_get_code_start_address(fn_),
+        jit_function_get_code_end_address(fn_),
+        (uint32_t)(
+            (intptr_t)jit_function_get_code_end_address(fn_) -
+            (intptr_t)jit_function_get_code_start_address(fn_)));
   }
 
   return result_code;

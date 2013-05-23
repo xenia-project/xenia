@@ -21,41 +21,38 @@ namespace libjit {
 
 // Integer arithmetic (A-3)
 
-// XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
-//   // RD <- (RA) + (RB)
+XEEMITTER(addx,         0x7C000214, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
+  // RD <- (RA) + (RB)
 
-//   if (i.XO.OE) {
-//     // With XER update.
-//     // This is a different codepath as we need to use llvm.sadd.with.overflow.
+  if (i.XO.OE) {
+    // With XER update.
+    // This is a different codepath as we need to use llvm.sadd.with.overflow.
 
-//     Function* sadd_with_overflow = Intrinsic::getDeclaration(
-//         e.gen_module(), Intrinsic::sadd_with_overflow, jit_type_nint);
-//     jit_value_t v = b.CreateCall2(sadd_with_overflow,
-//                              e.gpr_value(i.XO.RA), e.gpr_value(i.XO.RB));
-//     jit_value_t v0 = b.CreateExtractValue(v, 0);
-//     e.update_gpr_value(i.XO.RT, v0);
-//     e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
+    // TODO(benvanik): handle overflow exception.
+    jit_value_t v = jit_insn_add_ovf(f,
+        e.make_signed(e.gpr_value(i.XO.RA)),
+        e.make_signed(e.gpr_value(i.XO.RB)));
+    e.update_gpr_value(i.XO.RT, v);
+    //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v0, e.get_int64(0), true);
-//     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v, e.get_int64(0), true);
+    }
+  } else {
+    // No OE bit setting.
+    jit_value_t v = jit_insn_add(f,
+        e.make_signed(e.gpr_value(i.XO.RA)),
+        e.make_signed(e.gpr_value(i.XO.RB)));
+    e.update_gpr_value(i.XO.RT, v);
 
-//     return 0;
-//   } else {
-//     // No OE bit setting.
-//     jit_value_t v = b.CreateAdd(e.gpr_value(i.XO.RA), e.gpr_value(i.XO.RB));
-//     e.update_gpr_value(i.XO.RT, v);
-
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v, e.get_int64(0), true);
-//     }
-
-//     return 0;
-//   }
-//   return 0;
-// }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v, e.get_int64(0), true);
+    }
+  }
+  return 0;
+}
 
 XEEMITTER(addcx,        0x7C000014, XO )(LibjitEmitter& e, jit_function_t f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1019,7 +1016,7 @@ XEEMITTER(srwx,         0x7C000430, X  )(LibjitEmitter& e, jit_function_t f, Ins
 
 
 void LibjitRegisterEmitCategoryALU() {
-  //XEREGISTERINSTR(addx,         0x7C000214);
+  XEREGISTERINSTR(addx,         0x7C000214);
   XEREGISTERINSTR(addcx,        0X7C000014);
   XEREGISTERINSTR(addex,        0x7C000114);
   XEREGISTERINSTR(addi,         0x38000000);
