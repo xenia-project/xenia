@@ -527,14 +527,14 @@ void LibjitEmitter::GenerateBasicBlock(FunctionBlock* block) {
 
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
                ia, i.code, i.type->name);
-      // SpillRegisters();
-      // jit_insn_call_native(
-      //     fn_,
-      //     "XeInvalidInstruction",
-      //     global_exports_.XeInvalidInstruction,
-      //     global_export_signature_3_,
-      //     trace_args, XECOUNT(trace_args),
-      //     0);
+      SpillRegisters();
+      jit_insn_call_native(
+          fn_,
+          "XeInvalidInstruction",
+          global_exports_.XeInvalidInstruction,
+          global_export_signature_3_,
+          trace_args, XECOUNT(trace_args),
+          0);
     }
   }
 
