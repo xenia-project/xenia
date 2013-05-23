@@ -92,7 +92,7 @@ public:
   jit_value_t fpr_value(uint32_t n);
   void update_fpr_value(uint32_t n, jit_value_t value);
 
-  jit_value_t GetMemoryAddress(uint32_t cia, jit_value_t addr);
+  jit_value_t TouchMemoryAddress(uint32_t cia, jit_value_t addr);
   jit_value_t ReadMemory(
       uint32_t cia, jit_value_t addr, uint32_t size, bool acquire = false);
   void WriteMemory(

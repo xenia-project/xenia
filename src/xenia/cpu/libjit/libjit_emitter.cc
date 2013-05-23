@@ -1275,7 +1275,7 @@ void LibjitEmitter::update_fpr_value(uint32_t n, jit_value_t value) {
   jit_insn_store(fn_, locals_.fpr[n], value);
 }
 
-jit_value_t LibjitEmitter::GetMemoryAddress(uint32_t cia, jit_value_t addr) {
+jit_value_t LibjitEmitter::TouchMemoryAddress(uint32_t cia, jit_value_t addr) {
   // Input address is always in 32-bit space.
   // TODO(benvanik): is this required? It's one extra instruction on every
   //     access...
@@ -1303,11 +1303,7 @@ jit_value_t LibjitEmitter::GetMemoryAddress(uint32_t cia, jit_value_t addr) {
   //   b.SetInsertPoint(valid_bb);
   // }
 
-  // Rebase off of memory base pointer.
-  // We could store the memory base as a global value (or indirection off of
-  // state) if we wanted to avoid embedding runtime values into the code.
-  jit_value_t membase = get_uint64((uint64_t)xe_memory_addr(memory_, 0));
-  return jit_insn_add(fn_, addr, membase);
+  return addr;
 }
 
 jit_value_t LibjitEmitter::ReadMemory(
@@ -1335,8 +1331,12 @@ jit_value_t LibjitEmitter::ReadMemory(
       return NULL;
   }
 
-  jit_value_t address = GetMemoryAddress(cia, addr);
-  jit_value_t value = jit_insn_load_relative(fn_, address, 0, data_type);
+  // Rebase off of memory base pointer.
+  // We could store the memory base as a global value (or indirection off of
+  // state) if we wanted to avoid embedding runtime values into the code.
+  jit_value_t address = TouchMemoryAddress(cia, addr);
+  jit_nint membase = (jit_nint)xe_memory_addr(memory_, 0);
+  jit_value_t value = jit_insn_load_relative(fn_, address, membase, data_type);
   if (acquire) {
     // TODO(benvanik): acquire semantics.
     // load_value->setAlignment(size);
@@ -1380,8 +1380,6 @@ void LibjitEmitter::WriteMemory(
       return;
   }
 
-  jit_value_t address = GetMemoryAddress(cia, addr);
-
   // Truncate, if required.
   if (jit_value_get_type(value) != data_type) {
     value = jit_insn_convert(fn_, value, data_type, 0);
@@ -1400,5 +1398,10 @@ void LibjitEmitter::WriteMemory(
   //   store_value->setAtomic(Release);
   // }
 
-  jit_insn_store_relative(fn_, address, 0, value);
+  // Rebase off of memory base pointer.
+  // We could store the memory base as a global value (or indirection off of
+  // state) if we wanted to avoid embedding runtime values into the code.
+  jit_value_t address = TouchMemoryAddress(cia, addr);
+  jit_nint membase = (jit_nint)xe_memory_addr(memory_, 0);
+  jit_insn_store_relative(fn_, address, membase, value);
 }
