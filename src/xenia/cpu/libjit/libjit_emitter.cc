@@ -212,12 +212,18 @@ int LibjitEmitter::MakeFunction(FunctionSymbol* symbol, jit_function_t fn) {
   }
 
   if (!result_code) {
-    // TODO(benvanik): flag
-    // pre
-    jit_dump_function(stdout, fn_, symbol->name());
+    // libjit opcodes.
+    if (FLAGS_log_codegen) {
+      jit_dump_function(stdout, fn_, symbol->name());
+    }
+
+    // Compile right now.
     jit_function_compile(fn_);
-    // post
-    jit_dump_function(stdout, fn_, symbol->name());
+
+    // x64 instructions.
+    if (FLAGS_log_codegen) {
+      jit_dump_function(stdout, fn_, symbol->name());
+    }
 
     XELOGE("Compile(%s): compiled to 0x%p - 0x%p (%db)",
         symbol->name(),
