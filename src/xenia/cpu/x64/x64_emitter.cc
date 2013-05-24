@@ -26,6 +26,8 @@ DEFINE_bool(memory_address_verification, false,
     "Whether to add additional checks to generated memory load/stores.");
 DEFINE_bool(log_codegen, false,
     "Log codegen to stdout.");
+DEFINE_bool(annotate_disassembly, true,
+    "Annotate disassembled x64 code with comments.");
 
 
 /**
@@ -288,6 +290,9 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
         assembler_.getCode(), assembler_.getCodeSize());
 
     // Dump x64 assembly.
+    // This is not currently used as we are dumping from asmjit.
+    // This format is more concise and prettier (though it lacks comments).
+#if 0
     DISASM MyDisasm;
     memset(&MyDisasm, 0, sizeof(MyDisasm));
     MyDisasm.Archi = 64;
@@ -302,6 +307,7 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
       XELOGCPU("%p  %s", MyDisasm.EIP, MyDisasm.CompleteInstr);
       MyDisasm.EIP += len;
     }
+#endif
   }
 
   result_code = 0;
@@ -315,42 +321,47 @@ XECLEANUP:
 }
 
 int X64Emitter::MakePresentImportFunction() {
+  X86Compiler& c = compiler_;
+
   TraceKernelCall();
 
-//   // void shim(ppc_state*, shim_data*)
-//   jit_value_t shim_args[] = {
-//     jit_value_get_param(fn_, 0),
-//     jit_value_create_long_constant(fn_, jit_type_ulong,
-//         (jit_ulong)symbol_->kernel_export->function_data.shim_data),
-//   };
-//   jit_insn_call_native(
-//       fn_,
-//       symbol_->kernel_export->name,
-//       symbol_->kernel_export->function_data.shim,
-//       shim_signature_,
-//       shim_args, XECOUNT(shim_args),
-//       0);
+  void* shim = symbol_->kernel_export->function_data.shim;
+  void* shim_data = symbol_->kernel_export->function_data.shim_data;
 
-//   jit_insn_return(fn_, NULL);
+  // void shim(ppc_state*, shim_data*)
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg1, imm((uint64_t)shim_data));
+  X86CompilerFuncCall* call = c.call(shim);
+  call->setComment(symbol_->kernel_export->name);
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder2<void, void*, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+
+  c.ret();
 
   return 0;
 }
 
 int X64Emitter::MakeMissingImportFunction() {
+  X86Compiler& c = compiler_;
+
   TraceKernelCall();
 
   // TODO(benvanik): log better?
-//   jit_insn_return(fn_, NULL);
+  c.ret();
 
   return 0;
 }
 
 int X64Emitter::MakeUserFunction() {
+  X86Compiler& c = compiler_;
+
   TraceUserCall();
 
   // If this function is empty, abort!
   if (!symbol_->blocks.size()) {
-//     jit_insn_return(fn_, NULL);
+    c.ret();
     return 0;
   }
 
@@ -489,6 +500,8 @@ int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
 }
 
 void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
+  X86Compiler& c = compiler_;
+
   fn_block_ = block;
 
   // Create new block.
@@ -511,8 +524,36 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
     i.type = ppc::GetInstrType(i.code);
 
     // Add debugging tag.
-    // TODO(benvanik): mark type.
-    //jit_insn_mark_breakpoint(fn_, 1, ia);
+    // TODO(benvanik): add debugging info?
+
+    if (FLAGS_log_codegen || FLAGS_annotate_disassembly) {
+      if (!i.type) {
+        if (FLAGS_log_codegen) {
+          printf("%.8X: %.8X ???", ia, i.code);
+        }
+        if (FLAGS_annotate_disassembly) {
+          c.comment("%.8X: %.8X ???", ia, i.code);
+        }
+      } else if (i.type->disassemble) {
+        ppc::InstrDisasm d;
+        i.type->disassemble(i, d);
+        std::string disasm;
+        d.Dump(disasm);
+        if (FLAGS_log_codegen) {
+          printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
+        }
+        if (FLAGS_annotate_disassembly) {
+          c.comment("%.8X: %.8X %s", ia, i.code, disasm.c_str());
+        }
+      } else {
+        if (FLAGS_log_codegen) {
+          printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
+        }
+        if (FLAGS_annotate_disassembly) {
+          c.comment("%.8X: %.8X %s ???", ia, i.code, i.type->name);
+        }
+      }
+    }
 
     TraceInstruction(i);
 
@@ -520,18 +561,6 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
       TraceInvalidInstruction(i);
       continue;
-    }
-
-    if (FLAGS_log_codegen) {
-      if (i.type->disassemble) {
-        ppc::InstrDisasm d;
-        i.type->disassemble(i, d);
-        std::string disasm;
-        d.Dump(disasm);
-        printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
-      } else {
-        printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
-      }
     }
 
     typedef int (*InstrEmitter)(X64Emitter& g, Compiler& c, InstrData& i);
@@ -556,7 +585,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
     // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
     XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit",
              symbol_->start_address, block->start_address);
-    // jit_insn_return(fn_, NULL);
+    c.ret();
   }
 
   // TODO(benvanik): finish up BB
@@ -752,6 +781,10 @@ void X64Emitter::TraceKernelCall() {
     return;
   }
 
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeTraceKernelCall (+spill)");
+  }
+
   SpillRegisters();
 
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
@@ -759,7 +792,6 @@ void X64Emitter::TraceKernelCall() {
   GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg3, imm((uint64_t)symbol_->kernel_export));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceKernelCall);
-  call->setComment("XeTraceKernelCall");
   call->setPrototype(kX86FuncConvDefault,
       FuncBuilder4<void, void*, uint64_t, uint64_t, uint64_t>());
   call->setArgument(0, c.getGpArg(0));
@@ -775,6 +807,10 @@ void X64Emitter::TraceUserCall() {
     return;
   }
 
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeTraceUserCall (+spill)");
+  }
+
   SpillRegisters();
 
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
@@ -782,7 +818,6 @@ void X64Emitter::TraceUserCall() {
   GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg3, imm((uint64_t)symbol_));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceUserCall);
-  call->setComment("XeTraceUserCall");
   call->setPrototype(kX86FuncConvDefault,
       FuncBuilder4<void, void*, uint64_t, uint64_t, uint64_t>());
   call->setArgument(0, c.getGpArg(0));
@@ -798,6 +833,10 @@ void X64Emitter::TraceInstruction(InstrData& i) {
     return;
   }
 
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeTraceInstruction (+spill)");
+  }
+
   SpillRegisters();
 
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
@@ -805,7 +844,6 @@ void X64Emitter::TraceInstruction(InstrData& i) {
   GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg2, imm((uint64_t)i.code));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceInstruction);
-  call->setComment("XeTraceInstruction");
   call->setPrototype(kX86FuncConvDefault,
       FuncBuilder3<void, void*, uint64_t, uint64_t>());
   call->setArgument(0, c.getGpArg(0));
@@ -816,6 +854,10 @@ void X64Emitter::TraceInstruction(InstrData& i) {
 void X64Emitter::TraceInvalidInstruction(InstrData& i) {
   X86Compiler& c = compiler_;
 
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeInvalidInstruction (+spill)");
+  }
+
   SpillRegisters();
 
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
@@ -823,7 +865,6 @@ void X64Emitter::TraceInvalidInstruction(InstrData& i) {
   GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg2, imm((uint64_t)i.code));
   X86CompilerFuncCall* call = c.call(global_exports_.XeInvalidInstruction);
-  call->setComment("XeInvalidInstruction");
   call->setPrototype(kX86FuncConvDefault,
       FuncBuilder3<void, void*, uint64_t, uint64_t>());
   call->setArgument(0, c.getGpArg(0));
@@ -836,6 +877,10 @@ void X64Emitter::TraceBranch(uint32_t cia) {
 
   if (!FLAGS_trace_branches) {
     return;
+  }
+
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeTraceBranch (+spill)");
   }
 
   SpillRegisters();
