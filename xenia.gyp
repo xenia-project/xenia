@@ -18,13 +18,11 @@
         'asmjit',
         'beaengine',
         'gflags',
-        'third_party/libjit/libjit.gyp:libjit',
       ],
       'export_dependent_settings': [
         'asmjit',
         'beaengine',
         'gflags',
-        'third_party/libjit/libjit.gyp:libjit',
       ],
 
       'direct_dependent_settings': {

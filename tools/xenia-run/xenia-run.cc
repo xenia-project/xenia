@@ -46,7 +46,7 @@ int Run::Setup() {
   xe_zero_struct(&pal_options, sizeof(pal_options));
   XEEXPECTZERO(xe_pal_init(pal_options));
 
-  backend_ = shared_ptr<Backend>(new xe::cpu::libjit::LibjitBackend());
+  //backend_ = shared_ptr<Backend>(new xe::cpu::libjit::LibjitBackend());
 
   debugger_ = shared_ptr<Debugger>(new Debugger());
 

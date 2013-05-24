@@ -20,7 +20,6 @@
   ],
 
   'includes': [
-    'libjit/sources.gypi',
     'ppc/sources.gypi',
     'sdb/sources.gypi',
   ],
