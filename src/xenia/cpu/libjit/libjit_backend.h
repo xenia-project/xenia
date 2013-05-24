@@ -25,8 +25,6 @@ public:
   LibjitBackend();
   virtual ~LibjitBackend();
 
-  virtual LibraryLoader* CreateLibraryLoader();
-
   virtual JIT* CreateJIT(xe_memory_ref memory, sdb::SymbolTable* sym_table);
 
 protected:

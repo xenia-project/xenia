@@ -12,7 +12,5 @@
     'libjit_emitter.h',
     'libjit_jit.cc',
     'libjit_jit.h',
-    'libjit_library_loader.cc',
-    'libjit_library_loader.h',
   ],
 }

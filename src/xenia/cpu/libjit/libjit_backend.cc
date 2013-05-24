@@ -52,10 +52,6 @@ LibjitBackend::LibjitBackend() :
 LibjitBackend::~LibjitBackend() {
 }
 
-LibraryLoader* LibjitBackend::CreateLibraryLoader() {
-  return NULL;
-}
-
 JIT* LibjitBackend::CreateJIT(xe_memory_ref memory, SymbolTable* sym_table) {
   return new LibjitJIT(memory, sym_table);
 }

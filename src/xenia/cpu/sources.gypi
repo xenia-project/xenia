@@ -10,8 +10,6 @@
     'global_exports.cc',
     'global_exports.h',
     'jit.h',
-    'library_linker.h',
-    'library_loader.h',
     'ppc.h',
     'processor.cc',
     'processor.h',

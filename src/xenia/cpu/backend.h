@@ -20,7 +20,6 @@ namespace cpu {
 
 
 class JIT;
-class LibraryLoader;
 
 namespace sdb {
 class SymbolTable;
@@ -30,8 +29,6 @@ class SymbolTable;
 class Backend {
 public:
   virtual ~Backend() {}
-
-  virtual LibraryLoader* CreateLibraryLoader() = 0;
 
   virtual JIT* CreateJIT(xe_memory_ref memory, sdb::SymbolTable* sym_table) = 0;
 
