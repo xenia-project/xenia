@@ -230,21 +230,21 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
 
   access_bits_.Clear();
 
-//   locals_.indirection_target = NULL;
-//   locals_.indirection_cia = NULL;
+  locals_.indirection_target = GpVar();
+  locals_.indirection_cia = GpVar();
 
-//   locals_.xer = NULL;
-//   locals_.lr = NULL;
-//   locals_.ctr = NULL;
-//   for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
-//     locals_.cr[n] = NULL;
-//   }
-//   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
-//     locals_.gpr[n] = NULL;
-//   }
-//   for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-//     locals_.fpr[n] = NULL;
-//   }
+  locals_.xer = GpVar();
+  locals_.lr = GpVar();
+  locals_.ctr = GpVar();
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    locals_.cr[n] = GpVar();
+  }
+  for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
+    locals_.gpr[n] = GpVar();
+  }
+  for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    locals_.fpr[n] = GpVar();
+  }
 
   // Setup function. All share the same signature.
   compiler_.newFunc(kX86FuncConvDefault,
@@ -331,6 +331,7 @@ int X64Emitter::MakePresentImportFunction() {
   void* shim_data = symbol_->kernel_export->function_data.shim_data;
 
   // void shim(ppc_state*, shim_data*)
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg1, imm((uint64_t)shim_data));
   X86CompilerFuncCall* call = c.call(shim);
@@ -794,6 +795,7 @@ void X64Emitter::TraceKernelCall() {
 
   SpillRegisters();
 
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg1, imm((uint64_t)symbol_->start_address));
   GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
@@ -820,6 +822,7 @@ void X64Emitter::TraceUserCall() {
 
   SpillRegisters();
 
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg1, imm((uint64_t)symbol_->start_address));
   GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
@@ -846,6 +849,7 @@ void X64Emitter::TraceInstruction(InstrData& i) {
 
   SpillRegisters();
 
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg1, imm((uint64_t)i.address));
   GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
@@ -867,6 +871,7 @@ void X64Emitter::TraceInvalidInstruction(InstrData& i) {
 
   SpillRegisters();
 
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg1, imm((uint64_t)i.address));
   GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
@@ -913,6 +918,7 @@ void X64Emitter::TraceBranch(uint32_t cia) {
       break;
   }
 
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
   GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
   c.mov(arg1, imm((uint64_t)cia));
   GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
@@ -1037,26 +1043,30 @@ void X64Emitter::TraceBranch(uint32_t cia) {
 // }
 
 void X64Emitter::SetupLocals() {
+  X86Compiler& c = compiler_;
+
   uint64_t spr_t = access_bits_.spr;
   if (spr_t & 0x3) {
-//     locals_.xer = SetupLocal(jit_type_nuint, "xer");
+    locals_.xer = c.newGpVar(kX86VarTypeGpq, "xer");
   }
   spr_t >>= 2;
   if (spr_t & 0x3) {
-//     locals_.lr = SetupLocal(jit_type_nuint, "lr");
+    locals_.lr = c.newGpVar(kX86VarTypeGpq, "lr");
   }
   spr_t >>= 2;
   if (spr_t & 0x3) {
-//     locals_.ctr = SetupLocal(jit_type_nuint, "ctr");
+    locals_.ctr = c.newGpVar(kX86VarTypeGpq, "ctr");
   }
   spr_t >>= 2;
   // TODO: FPCSR
 
+  char name[8];
+
   uint64_t cr_t = access_bits_.cr;
   for (int n = 0; n < 8; n++) {
     if (cr_t & 3) {
-      //xesnprintfa(name, XECOUNT(name), "cr%d", n);
-//       locals_.cr[n] = SetupLocal(jit_type_ubyte, name);
+      xesnprintfa(name, XECOUNT(name), "cr%d", n);
+      locals_.cr[n] = c.newGpVar(kX86VarTypeGpd, name);
     }
     cr_t >>= 2;
   }
@@ -1064,8 +1074,8 @@ void X64Emitter::SetupLocals() {
   uint64_t gpr_t = access_bits_.gpr;
   for (int n = 0; n < 32; n++) {
     if (gpr_t & 3) {
-      //xesnprintfa(name, XECOUNT(name), "r%d", n);
-//       locals_.gpr[n] = SetupLocal(jit_type_nuint, name);
+      xesnprintfa(name, XECOUNT(name), "r%d", n);
+      locals_.gpr[n] = c.newGpVar(kX86VarTypeGpq, name);
     }
     gpr_t >>= 2;
   }
@@ -1073,159 +1083,174 @@ void X64Emitter::SetupLocals() {
   uint64_t fpr_t = access_bits_.fpr;
   for (int n = 0; n < 32; n++) {
     if (fpr_t & 3) {
-      //xesnprintfa(name, XECOUNT(name), "f%d", n);
-//       locals_.fpr[n] = SetupLocal(jit_type_float64, name);
+      xesnprintfa(name, XECOUNT(name), "f%d", n);
+      locals_.fpr[n] = c.newGpVar(kX86VarTypeXmmSD, name);
     }
     fpr_t >>= 2;
   }
 }
 
-// jit_value_t X64Emitter::SetupLocal(jit_type_t type, const char* name) {
-//   // Note that the value is created in the current block, but will be pushed
-//   // up to function level if used in another block.
-//   jit_value_t value = jit_value_create(fn_, type);
-//   // TODO(benvanik): set a name?
-//   return value;
-// }
-
 void X64Emitter::FillRegisters() {
+  X86Compiler& c = compiler_;
+
   // This updates all of the local register values from the state memory.
   // It should be called on function entry for initial setup and after any
   // calls that may modify the registers.
 
   // TODO(benvanik): use access flags to see if we need to do reads/writes.
 
-//   if (locals_.xer) {
-//     jit_insn_store(fn_,
-//         locals_.xer,
-//         LoadStateValue(offsetof(xe_ppc_state_t, xer), jit_type_nuint));
-//   }
+  if (locals_.xer.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Filling XER");
+    }
+    c.mov(locals_.xer, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer), 8));
+  }
 
-//   if (locals_.lr) {
-//     jit_insn_store(fn_,
-//         locals_.lr,
-//         LoadStateValue(offsetof(xe_ppc_state_t, lr), jit_type_nuint));
-//   }
+  if (locals_.lr.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Filling LR");
+    }
+    c.mov(locals_.lr, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr), 8));
+  }
 
-//   if (locals_.ctr) {
-//     jit_insn_store(fn_,
-//         locals_.ctr,
-//         LoadStateValue(offsetof(xe_ppc_state_t, ctr), jit_type_nuint));
-//   }
+  if (locals_.ctr.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Filling CTR");
+    }
+    c.mov(locals_.ctr, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr), 8));
+  }
 
-//   // Fill the split CR values by extracting each one from the CR.
-//   // This could probably be done faster via an extractvalues or something.
-//   // Perhaps we could also change it to be a vector<8*i8>.
-//   jit_value_t cr = NULL;
-//   for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
-//     jit_value_t cr_n = locals_.cr[n];
-//     if (!cr_n) {
-//       continue;
-//     }
-//     if (!cr) {
-//       // Only fetch once. Doing this in here prevents us from having to
-//       // always fetch even if unused.
-//       cr = LoadStateValue(offsetof(xe_ppc_state_t, cr), jit_type_nuint);
-//     }
-//     // (cr >> 28 - n * 4) & 0xF
-//     jit_value_t shamt = jit_value_create_nint_constant(
-//         fn_, jit_type_nuint, 28 - n * 4);
-//     jit_insn_store(fn_, cr_n,
-//         jit_insn_and(fn_,
-//             jit_insn_ushr(fn_, cr, shamt),
-//             jit_value_create_nint_constant(fn_, jit_type_ubyte, 0xF)));
-//   }
+  // Fill the split CR values by extracting each one from the CR.
+  // This could probably be done faster via an extractvalues or something.
+  // Perhaps we could also change it to be a vector<8*i8>.
+  GpVar cr;
+  GpVar cr_tmp;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    GpVar& cr_n = locals_.cr[n];
+    if (cr_n.getId() == kInvalidValue) {
+      continue;
+    }
+    if (cr.getId() == kInvalidValue) {
+      // Only fetch once. Doing this in here prevents us from having to
+      // always fetch even if unused.
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Filling CR");
+      }
+      cr = c.newGpVar();
+      c.mov(cr, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr), 8));
+      cr_tmp = c.newGpVar();
+    }
+    // (cr >> 28 - n * 4) & 0xF
+    c.mov(cr_tmp, cr);
+    c.shr(cr_tmp, imm(28 - n * 4));
+    c.and_(cr_tmp, imm(0xF));
+    c.mov(cr_n, cr_tmp);
+  }
 
-//   for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
-//     if (locals_.gpr[n]) {
-//       jit_insn_store(fn_,
-//           locals_.gpr[n],
-//           LoadStateValue(offsetof(xe_ppc_state_t, r) + 8 * n, jit_type_nuint));
-//     }
-//   }
+  for (size_t n = 0; n < XECOUNT(locals_.gpr); n++) {
+    if (locals_.gpr[n].getId() != kInvalidValue) {
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Filling r%d", n);
+      }
+      c.mov(locals_.gpr[n],
+          ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n, 8));
+    }
+  }
 
-//   for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-//     if (locals_.fpr[n]) {
-//       jit_insn_store(fn_,
-//           locals_.fpr[n],
-//           LoadStateValue(offsetof(xe_ppc_state_t, f) + 8 * n,
-//                          jit_type_float64));
-//     }
-//   }
+  for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    if (locals_.fpr[n].getId() != kInvalidValue) {
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Filling f%d", n);
+      }
+      c.mov(locals_.fpr[n],
+          ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n, 8));
+    }
+  }
 }
 
 void X64Emitter::SpillRegisters() {
+  X86Compiler& c = compiler_;
+
   // This flushes all local registers (if written) to the register bank and
   // resets their values.
 
   // TODO(benvanik): only flush if actually required, or selective flushes.
 
-//   if (locals_.xer) {
-//     StoreStateValue(
-//         offsetof(xe_ppc_state_t, xer),
-//         jit_type_nuint,
-//         jit_insn_load(fn_, locals_.xer));
-//   }
+  if (locals_.xer.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Spilling XER");
+    }
+    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)),
+          locals_.xer);
+  }
 
-//   if (locals_.lr) {
-//     StoreStateValue(
-//         offsetof(xe_ppc_state_t, lr),
-//         jit_type_nuint,
-//         jit_insn_load(fn_, locals_.lr));
-//   }
+  if (locals_.lr.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Spilling LR");
+    }
+    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)),
+          locals_.lr);
+  }
 
-//   if (locals_.ctr) {
-//     StoreStateValue(
-//         offsetof(xe_ppc_state_t, ctr),
-//         jit_type_nuint,
-//         jit_insn_load(fn_, locals_.ctr));
-//   }
+  if (locals_.ctr.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Spilling CTR");
+    }
+    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)),
+          locals_.ctr);
+  }
 
-//   // Stitch together all split CR values.
-//   // TODO(benvanik): don't flush across calls?
-//   jit_value_t cr = NULL;
-//   for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
-//     jit_value_t cr_n = locals_.cr[n];
-//     if (!cr_n) {
-//       continue;
-//     }
-//     // cr |= (cr_n << n * 4)
-//     jit_value_t shamt = jit_value_create_nint_constant(
-//         fn_, jit_type_nuint, n * 4);
-//     cr_n = jit_insn_convert(fn_, jit_insn_load(fn_, cr_n), jit_type_nuint, 0);
-//     cr_n = jit_insn_shl(fn_, cr_n, shamt);
-//     if (!cr) {
-//       cr = cr_n;
-//     } else {
-//       cr = jit_insn_or(fn_, cr, cr_n);
-//     }
-//   }
-//   if (cr) {
-//     StoreStateValue(
-//         offsetof(xe_ppc_state_t, cr),
-//         jit_type_nuint,
-//         cr);
-//   }
+  // Stitch together all split CR values.
+  // TODO(benvanik): don't flush across calls?
+  GpVar cr;
+  GpVar cr_tmp;
+  for (size_t n = 0; n < XECOUNT(locals_.cr); n++) {
+    GpVar& cr_n = locals_.cr[n];
+    if (cr_n.getId() == kInvalidValue) {
+      continue;
+    }
+    if (cr_tmp.getId() == kInvalidValue) {
+      cr_tmp = c.newGpVar();
+    }
+    // cr |= (cr_n << n * 4)
+    c.mov(cr_tmp, cr_n);
+    c.shl(cr_tmp, imm(n * 4));
+    if (cr.getId() == kInvalidValue) {
+      cr = c.newGpVar();
+      c.mov(cr, cr_tmp);
+    } else {
+      c.or_(cr, cr_tmp);
+    }
+  }
+  if (cr.getId() != kInvalidValue) {
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Spilling CR");
+    }
+    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)),
+          cr);
+  }
 
-//   for (uint32_t n = 0; n < XECOUNT(locals_.gpr); n++) {
-//     jit_value_t v = locals_.gpr[n];
-//     if (v) {
-//       StoreStateValue(
-//           offsetof(xe_ppc_state_t, r) + 8 * n,
-//           jit_type_nuint,
-//           jit_insn_load(fn_, v));
-//     }
-//   }
+  for (uint32_t n = 0; n < XECOUNT(locals_.gpr); n++) {
+    GpVar& v = locals_.gpr[n];
+    if (v.getId() != kInvalidValue) {
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Spilling r%d", n);
+      }
+      c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n),
+            v);
+    }
+  }
 
-//   for (uint32_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-//     jit_value_t v = locals_.fpr[n];
-//     if (v) {
-//       StoreStateValue(
-//           offsetof(xe_ppc_state_t, f) + 8 * n,
-//           jit_type_float64,
-//           jit_insn_load(fn_, v));
-//     }
-//   }
+  for (uint32_t n = 0; n < XECOUNT(locals_.fpr); n++) {
+    GpVar& v = locals_.fpr[n];
+    if (v.getId() != kInvalidValue) {
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Spilling f%d", n);
+      }
+      c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
+            v);
+    }
+  }
 }
 
 // jit_value_t X64Emitter::xer_value() {

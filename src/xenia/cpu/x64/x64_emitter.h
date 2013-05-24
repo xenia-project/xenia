@@ -76,7 +76,6 @@ public:
   //                            const char* name = "");
   // void StoreStateValue(size_t offset, jit_type_t type, jit_value_t value);
 
-  // jit_value_t SetupLocal(jit_type_t type, const char* name);
   void FillRegisters();
   void SpillRegisters();
 
@@ -139,17 +138,17 @@ private:
   std::map<uint32_t, AsmJit::Label> bbs_;
 
   ppc::InstrAccessBits access_bits_;
-  // struct {
-  //   jit_value_t  indirection_target;
-  //   jit_value_t  indirection_cia;
+  struct {
+    AsmJit::GpVar indirection_target;
+    AsmJit::GpVar indirection_cia;
 
-  //   jit_value_t  xer;
-  //   jit_value_t  lr;
-  //   jit_value_t  ctr;
-  //   jit_value_t  cr[8];
-  //   jit_value_t  gpr[32];
-  //   jit_value_t  fpr[32];
-  // } locals_;
+    AsmJit::GpVar xer;
+    AsmJit::GpVar lr;
+    AsmJit::GpVar ctr;
+    AsmJit::GpVar cr[8];
+    AsmJit::GpVar gpr[32];
+    AsmJit::GpVar fpr[32];
+  } locals_;
 };
 
 
