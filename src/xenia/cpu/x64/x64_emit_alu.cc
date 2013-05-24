@@ -642,7 +642,7 @@ XEEMITTER(andisx,       0x74000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.D.RT));
-  c.and_(v, imm(((uint64_t)i.D.DS) << 16));
+  c.and_(v, imm(i.D.DS << 16));
   e.update_gpr_value(i.D.RA, v);
 
   // With cr0 update.
@@ -764,7 +764,7 @@ XEEMITTER(ori,          0x60000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.D.RT));
-  c.or_(v, imm((uint64_t)i.D.DS));
+  c.or_(v, imm(i.D.DS));
   e.update_gpr_value(i.D.RA, v);
 
   return 0;
@@ -775,7 +775,7 @@ XEEMITTER(oris,         0x64000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.D.RT));
-  c.or_(v, imm(((uint64_t)i.D.DS) << 16));
+  c.or_(v, imm(i.D.DS << 16));
   e.update_gpr_value(i.D.RA, v);
 
   return 0;
@@ -802,7 +802,7 @@ XEEMITTER(xori,         0x68000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.D.RT));
-  c.xor_(v, imm((uint64_t)i.D.DS));
+  c.xor_(v, imm(i.D.DS));
   e.update_gpr_value(i.D.RA, v);
 
   return 0;
@@ -813,7 +813,7 @@ XEEMITTER(xoris,        0x6C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.D.RT));
-  c.xor_(v, imm(((uint64_t)i.D.DS) << 16));
+  c.xor_(v, imm(i.D.DS << 16));
   e.update_gpr_value(i.D.RA, v);
 
   return 0;

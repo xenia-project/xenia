@@ -561,8 +561,8 @@ XEEMITTER(tw,           0x7C000008, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // if (a = b) & TO[2] then TRAP
   // if (a <u b) & TO[3] then TRAP
   // if (a >u b) & TO[4] then TRAP
-  GpVar va = e.sign_extend(e.trunc(e.gpr_value(i.X.RA), 4), 8);
-  GpVar vb = e.sign_extend(e.trunc(e.gpr_value(i.X.RA), 4), 8);
+  GpVar va = e.sign_extend(e.gpr_value(i.X.RA), 4, 8);
+  GpVar vb = e.sign_extend(e.gpr_value(i.X.RA), 4, 8);
   return XeEmitTrap(e, c, i, va, vb, i.X.RT);
 }
 
@@ -573,7 +573,7 @@ XEEMITTER(twi,          0x0C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // if (a = EXTS(SI)) & TO[2] then TRAP
   // if (a <u EXTS(SI)) & TO[3] then TRAP
   // if (a >u EXTS(SI)) & TO[4] then TRAP
-  GpVar va = e.sign_extend(e.trunc(e.gpr_value(i.D.RA), 4), 8);
+  GpVar va = e.sign_extend(e.gpr_value(i.D.RA), 4, 8);
   GpVar vb(c.newGpVar());
   c.mov(vb, imm(XEEXTS16(i.D.DS)));
   return XeEmitTrap(e, c, i, va, vb, i.D.RT);

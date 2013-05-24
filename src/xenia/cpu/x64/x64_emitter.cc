@@ -585,7 +585,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
     InstrEmitter emit = (InstrEmitter)i.type->emit;
     if (!i.type->emit || emit(*this, compiler_, i)) {
       // This printf is handy for sort/uniquify to find instructions.
-      //printf("unimplinstr %s\n", i.type->name);
+      printf("unimplinstr %s\n", i.type->name);
 
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
                ia, i.code, i.type->name);
@@ -1166,10 +1166,10 @@ void X64Emitter::update_xer_value(GpVar& value) {
   X86Compiler& c = compiler_;
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.xer.getId() != kInvalidValue);
-    c.mov(locals_.xer, zero_extend(value, 8));
+    c.mov(locals_.xer, zero_extend(value, 0, 8));
   } else {
     c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)),
-          zero_extend(value, 8));
+          zero_extend(value, 0, 8));
   }
 }
 
@@ -1180,7 +1180,7 @@ void X64Emitter::update_xer_with_overflow(GpVar& value) {
 
   // Expects a i1 indicating overflow.
   // Trust the caller that if it's larger than that it's already truncated.
-  value = zero_extend(value, 8);
+  value = zero_extend(value, 1, 8);
 
   GpVar& xer = xer_value();
   xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFBFFFFFFF)); // clear bit 30
@@ -1213,7 +1213,7 @@ void X64Emitter::update_xer_with_overflow_and_carry(GpVar& value) {
 
   // Expects a i1 indicating overflow.
   // Trust the caller that if it's larger than that it's already truncated.
-  value = zero_extend(value, jit_type_nuint);
+  value = zero_extend(value, 1, 8);
 
   // This is effectively an update_xer_with_overflow followed by an
   // update_xer_with_carry, but since the logic is largely the same share it.
@@ -1244,10 +1244,10 @@ void X64Emitter::update_lr_value(GpVar& value) {
   X86Compiler& c = compiler_;
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.lr.getId() != kInvalidValue);
-    c.mov(locals_.lr, zero_extend(value, 8));
+    c.mov(locals_.lr, zero_extend(value, 0, 8));
   } else {
     c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)),
-          zero_extend(value, 8));
+          zero_extend(value, 0, 8));
   }
 }
 
@@ -1279,10 +1279,10 @@ void X64Emitter::update_ctr_value(GpVar& value) {
   X86Compiler& c = compiler_;
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.ctr.getId() != kInvalidValue);
-    c.mov(locals_.ctr, zero_extend(value, 8));
+    c.mov(locals_.ctr, zero_extend(value, 0, 8));
   } else {
     c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)),
-          zero_extend(value, 8));
+          zero_extend(value, 0, 8));
   }
 }
 
@@ -1409,10 +1409,10 @@ void X64Emitter::update_gpr_value(uint32_t n, GpVar& value) {
 
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
-    c.mov(locals_.gpr[n], zero_extend(value, 8));
+    c.mov(locals_.gpr[n], zero_extend(value, 0, 8));
   } else {
     c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n),
-          zero_extend(value, 8));
+          zero_extend(value, 0, 8));
   }
 }
 
@@ -1442,135 +1442,126 @@ void X64Emitter::update_fpr_value(uint32_t n, GpVar& value) {
   }
 }
 
-// GpVar& X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
-//   // Input address is always in 32-bit space.
-//   addr = jit_insn_and(fn_,
-//       zero_extend(addr, jit_type_nuint),
-//       jit_value_create_nint_constant(fn_, jit_type_uint, UINT_MAX));
+GpVar X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
+  X86Compiler& c = compiler_;
 
-//   // Add runtime memory address checks, if needed.
-//   // if (FLAGS_memory_address_verification) {
-//   //   BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", fn_);
-//   //   BasicBlock* valid_bb = BasicBlock::Create(*context_, "", fn_);
+  // Input address is always in 32-bit space.
+  GpVar real_address(c.newGpVar());
+  c.mov(real_address, addr.r32());
 
-//   //   // The heap starts at 0x1000 - if we write below that we're boned.
-//   //   jit_value_t gt = b.CreateICmpUGE(addr, b.getInt64(0x00001000));
-//   //   b.CreateCondBr(gt, valid_bb, invalid_bb);
+  // Add runtime memory address checks, if needed.
+  if (FLAGS_memory_address_verification) {
+  //   BasicBlock* invalid_bb = BasicBlock::Create(*context_, "", fn_);
+  //   BasicBlock* valid_bb = BasicBlock::Create(*context_, "", fn_);
 
-//   //   b.SetInsertPoint(invalid_bb);
-//   //   jit_value_t access_violation = gen_module_->getFunction("XeAccessViolation");
-//   //   SpillRegisters();
-//   //   b.CreateCall3(access_violation,
-//   //                 fn_->arg_begin(),
-//   //                 b.getInt32(cia),
-//   //                 addr);
-//   //   b.CreateBr(valid_bb);
+  //   // The heap starts at 0x1000 - if we write below that we're boned.
+  //   jit_value_t gt = b.CreateICmpUGE(addr, b.getInt64(0x00001000));
+  //   b.CreateCondBr(gt, valid_bb, invalid_bb);
 
-//   //   b.SetInsertPoint(valid_bb);
-//   // }
+  //   b.SetInsertPoint(invalid_bb);
+  //   jit_value_t access_violation = gen_module_->getFunction("XeAccessViolation");
+  //   SpillRegisters();
+  //   b.CreateCall3(access_violation,
+  //                 fn_->arg_begin(),
+  //                 b.getInt32(cia),
+  //                 addr);
+  //   b.CreateBr(valid_bb);
 
-//   // Rebase off of memory pointer.
-//   addr = jit_insn_add(fn_,
-//       addr,
-//       jit_value_create_nint_constant(fn_,
-//           jit_type_nuint, (jit_nuint)xe_memory_addr(memory_, 0)));
+  //   b.SetInsertPoint(valid_bb);
+  }
 
-//   return addr;
-// }
+  // Rebase off of memory pointer.
+  uint64_t membase = (uint64_t)xe_memory_addr(memory_, 0);
+  c.add(real_address, get_uint64(membase));
+  return real_address;
+}
 
-// GpVar& X64Emitter::ReadMemory(
-//     uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
-//   jit_type_t data_type = NULL;
-//   bool needs_swap = false;
-//   switch (size) {
-//     case 1:
-//       data_type = jit_type_ubyte;
-//       break;
-//     case 2:
-//       data_type = jit_type_ushort;
-//       needs_swap = true;
-//       break;
-//     case 4:
-//       data_type = jit_type_uint;
-//       needs_swap = true;
-//       break;
-//     case 8:
-//       data_type = jit_type_ulong;
-//       needs_swap = true;
-//       break;
-//     default:
-//       XEASSERTALWAYS();
-//       return NULL;
-//   }
+GpVar X64Emitter::ReadMemory(
+    uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
+  X86Compiler& c = compiler_;
 
-//   // Rebase off of memory base pointer.
-//   jit_value_t address = TouchMemoryAddress(cia, addr);
-//   jit_value_t value = jit_insn_load_relative(fn_, address, 0, data_type);
-//   if (acquire) {
-//     // TODO(benvanik): acquire semantics.
-//     // load_value->setAlignment(size);
-//     // load_value->setVolatile(true);
-//     // load_value->setAtomic(Acquire);
-//     jit_value_set_volatile(value);
-//   }
+  // Rebase off of memory base pointer.
+  GpVar real_address = TouchMemoryAddress(cia, addr);
 
-//   // Swap after loading.
-//   // TODO(benvanik): find a way to avoid this!
-//   if (needs_swap) {
-//     value = jit_insn_bswap(fn_, value);
-//   }
+  if (acquire) {
+    // TODO(benvanik): acquire semantics.
+    // load_value->setAlignment(size);
+    // load_value->setVolatile(true);
+    // load_value->setAtomic(Acquire);
+    XELOGE("Ignoring acquire semantics on read -- TODO");
+  }
 
-//   return value;
-// }
+  GpVar value(c.newGpVar());
+  bool needs_swap = false;
+  switch (size) {
+    case 1:
+      c.mov(value, byte_ptr(real_address));
+      break;
+    case 2:
+      c.mov(value, word_ptr(real_address));
+      c.xchg(value.r8Lo(), value.r8Hi());
+      break;
+    case 4:
+      c.mov(value, dword_ptr(real_address));
+      c.bswap(value.r32());
+      break;
+    case 8:
+      c.mov(value, qword_ptr(real_address));
+      c.bswap(value.r64());
+      break;
+    default:
+      XEASSERTALWAYS();
+      c.mov(value, imm(0xDEADBEEF));
+      break;
+  }
 
-// void X64Emitter::WriteMemory(
-//     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
-//     bool release) {
-//   jit_type_t data_type = NULL;
-//   bool needs_swap = false;
-//   switch (size) {
-//     case 1:
-//       data_type = jit_type_ubyte;
-//       break;
-//     case 2:
-//       data_type = jit_type_ushort;
-//       needs_swap = true;
-//       break;
-//     case 4:
-//       data_type = jit_type_uint;
-//       needs_swap = true;
-//       break;
-//     case 8:
-//       data_type = jit_type_ulong;
-//       needs_swap = true;
-//       break;
-//     default:
-//       XEASSERTALWAYS();
-//       return;
-//   }
+  return value;
+}
 
-//   // Truncate, if required.
-//   if (jit_value_get_type(value) != data_type) {
-//     value = jit_insn_convert(fn_, value, data_type, 0);
-//   }
+void X64Emitter::WriteMemory(
+    uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
+    bool release) {
+  X86Compiler& c = compiler_;
 
-//   // Swap before storing.
-//   // TODO(benvanik): find a way to avoid this!
-//   if (needs_swap) {
-//     value = jit_insn_bswap(fn_, value);
-//   }
+  // Rebase off of memory base pointer.
+  GpVar real_address = TouchMemoryAddress(cia, addr);
 
-//   // TODO(benvanik): release semantics
-//   // if (release) {
-//   //   store_value->setAlignment(size);
-//   //   store_value->setVolatile(true);
-//   //   store_value->setAtomic(Release);
-//   // }
+  GpVar tmp;
+  switch (size) {
+    case 1:
+      c.mov(byte_ptr(real_address), value);
+      break;
+    case 2:
+      tmp = c.newGpVar();
+      c.mov(tmp, value);
+      c.xchg(tmp.r8Lo(), tmp.r8Hi());
+      c.mov(word_ptr(real_address), tmp);
+      break;
+    case 4:
+      tmp = c.newGpVar();
+      c.mov(tmp, value);
+      c.bswap(tmp.r32());
+      c.mov(dword_ptr(real_address), tmp);
+      break;
+    case 8:
+      tmp = c.newGpVar();
+      c.mov(tmp, value);
+      c.bswap(tmp.r64());
+      c.mov(qword_ptr(real_address), tmp);
+      break;
+    default:
+      XEASSERTALWAYS();
+      return;
+  }
 
-//   // Rebase off of memory base pointer.
-//   jit_value_t address = TouchMemoryAddress(cia, addr);
-//   jit_insn_store_relative(fn_, address, 0, value);
-// }
+  // TODO(benvanik): release semantics
+  if (release) {
+  //   store_value->setAlignment(size);
+  //   store_value->setVolatile(true);
+  //   store_value->setAtomic(Release);
+    XELOGE("Ignoring release semantics on write -- TODO");
+  }
+}
 
 GpVar X64Emitter::get_uint64(uint64_t value) {
   X86Compiler& c = compiler_;
@@ -1579,11 +1570,15 @@ GpVar X64Emitter::get_uint64(uint64_t value) {
   return v;
 }
 
-GpVar X64Emitter::sign_extend(GpVar& value, int size) {
+GpVar X64Emitter::sign_extend(GpVar& value, int from_size, int to_size) {
   X86Compiler& c = compiler_;
 
+  if (!from_size) {
+    from_size = value.getSize();
+  }
+
   // No-op if the same size.
-  if (value.getSize() == size) {
+  if (from_size == to_size) {
     return value;
   }
 
@@ -1593,62 +1588,116 @@ GpVar X64Emitter::sign_extend(GpVar& value, int size) {
   // or, could use shift trick (may be slower):
   //   shlq $(target_len-src_len), reg
   //   sarq $(target_len-src_len), reg
-  GpVar tmp;
-  switch (size) {
+  GpVar tmp(c.newGpVar());
+  switch (from_size) {
   case 1:
-    XEASSERTALWAYS();
-    return value;
-  case 2:
-    XEASSERTALWAYS();
-    return value;
-  case 4:
-    XEASSERTALWAYS();
-    return value;
-  default:
-  case 8:
-    tmp = c.newGpVar(kX86VarTypeGpq);
-    c.mov(tmp, value);
-    switch (value.getSize()) {
-      case 1: c.cbw(value);   // b->w->d->q
-      case 2: c.cwde(value);  //    w->d->q
-      case 4: c.cdqe(value);  //       d->q
-        break;
+    switch (to_size) {
+    case 1: XEASSERTALWAYS(); return value;
+    case 2:
+      c.mov(tmp, value);
+      c.cbw(tmp);     // b->w
+      return tmp;
+    case 4:
+      c.mov(tmp, value);
+      c.cbw(tmp);     // b->w
+      c.cwde(tmp);    // w->d
+      return tmp;
+    case 8:
+      c.mov(tmp, value);
+      c.cbw(tmp);     // b->w
+      c.cwde(tmp);    // w->d
+      c.cdqe(tmp);    // d->q
+      return tmp;
     }
-    return value;
+    break;
+  case 2:
+    switch (to_size) {
+    case 1: XEASSERTALWAYS(); return value;
+    case 2: XEASSERTALWAYS(); return value;
+    case 4:
+      c.mov(tmp, value);
+      c.cwde(tmp);    // w->d
+      return tmp;
+    case 8:
+      c.mov(tmp, value);
+      c.cwde(tmp);    // w->d
+      c.cdqe(tmp);    // d->q
+      return tmp;
+    }
+    break;
+  case 4:
+    switch (to_size) {
+    case 1: XEASSERTALWAYS(); return value;
+    case 2: XEASSERTALWAYS(); return value;
+    case 4: XEASSERTALWAYS(); return value;
+    case 8:
+      c.mov(tmp, value);
+      c.cdqe(tmp);    // d->q
+      return tmp;
+    }
+    break;
+  case 8: break;
   }
+  XEASSERTALWAYS();
+  return value;
 }
 
-GpVar X64Emitter::zero_extend(GpVar& value, int size) {
+GpVar X64Emitter::zero_extend(GpVar& value, int from_size, int to_size) {
   X86Compiler& c = compiler_;
 
+  if (!from_size) {
+    from_size = value.getSize();
+  }
+
   // No-op if the same size.
-  if (value.getSize() == size) {
+  if (from_size == to_size) {
     return value;
   }
 
   // TODO(benvanik): use movzx if value is in memory.
 
-  GpVar tmp;
-  switch (size) {
+  GpVar tmp(c.newGpVar());
+  switch (from_size) {
   case 1:
-    tmp = c.newGpVar(kX86VarTypeGpd);
-    c.mov(tmp, value.r8());
+    switch (to_size) {
+    case 1: XEASSERTALWAYS(); return value;
+    case 2:
+      c.mov(tmp, value.r8());
+      return tmp.r16();
+    case 4:
+      c.mov(tmp, value.r8());
+      return tmp.r32();
+    case 8:
+      c.mov(tmp, value.r8());
+      return tmp.r64();
+    }
     break;
   case 2:
-    tmp = c.newGpVar(kX86VarTypeGpd);
-    c.mov(tmp, value.r16());
+    switch (to_size) {
+    case 1: XEASSERTALWAYS(); return value;
+    case 2: XEASSERTALWAYS(); return value;
+    case 4:
+      c.mov(tmp, value.r16());
+      return tmp.r32();
+    case 8:
+      c.mov(tmp, value.r16());
+      return tmp.r64();
+    }
     break;
   case 4:
-    tmp = c.newGpVar(kX86VarTypeGpd);
-    c.mov(tmp, value.r32());
+    switch (to_size) {
+    case 1: XEASSERTALWAYS(); return value;
+    case 2: XEASSERTALWAYS(); return value;
+    case 4: XEASSERTALWAYS(); return value;
+    case 8:
+      c.mov(tmp, value.r32());
+      return tmp.r64();
+    }
     break;
-  default:
-  case 8:
-    tmp = c.newGpVar(kX86VarTypeGpq);
-    c.mov(tmp, value.r64());
-    break;
+  case 8: break;
   }
-  return tmp;
+  XEASSERTALWAYS();
+  return value;
 }
 
 GpVar X64Emitter::trunc(GpVar& value, int size) {

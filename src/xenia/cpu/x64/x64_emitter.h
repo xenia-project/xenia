@@ -84,16 +84,16 @@ public:
   AsmJit::GpVar fpr_value(uint32_t n);
   void update_fpr_value(uint32_t n, AsmJit::GpVar& value);
 
-  AsmJit::GpVar& TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
-  AsmJit::GpVar& ReadMemory(
+  AsmJit::GpVar TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
+  AsmJit::GpVar ReadMemory(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, bool acquire = false);
   void WriteMemory(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, AsmJit::GpVar& value,
       bool release = false);
 
   AsmJit::GpVar get_uint64(uint64_t value);
-  AsmJit::GpVar sign_extend(AsmJit::GpVar& value, int size);
-  AsmJit::GpVar zero_extend(AsmJit::GpVar& value, int size);
+  AsmJit::GpVar sign_extend(AsmJit::GpVar& value, int from_size, int to_size);
+  AsmJit::GpVar zero_extend(AsmJit::GpVar& value, int from_size, int to_size);
   AsmJit::GpVar trunc(AsmJit::GpVar& value, int size);
 
 private:
