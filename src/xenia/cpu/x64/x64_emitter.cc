@@ -109,6 +109,10 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   // generate the real function as required. Afterwards, it will be
   // overwritten with a jump to the new function.
 
+  if (logger_) {
+    logger_->setEnabled(false);
+  }
+
   // PrepareFunction:
   // ; mov rcx, ppc_state -- comes in as arg
   // ; mov rdx, lr        -- comes in as arg
@@ -153,6 +157,9 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   result_code = 0;
 XECLEANUP:
   assembler_.clear();
+  if (logger_) {
+    logger_->setEnabled(true);
+  }
   Unlock();
   return result_code;
 }
@@ -332,7 +339,7 @@ int X64Emitter::MakePresentImportFunction() {
 
   // void shim(ppc_state*, shim_data*)
   // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
-  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg1, imm((uint64_t)shim_data));
   X86CompilerFuncCall* call = c.call(shim);
   call->setComment(symbol_->kernel_export->name);
@@ -634,13 +641,18 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
     // Arguments passed as RCX, RDX, R8, R9
     c.alloc(c.getGpArg(0), rcx);
     c.alloc(lr, rdx);
-    c.jmp(imm((uint64_t)target_ptr));
+    // TODO(benvanik): just use jmp when fixed: https://code.google.com/p/asmjit/issues/detail?id=67
+    // c.jmp(target_ptr);
+    c.push(imm((uint64_t)target_ptr));
+    c.ret();
 #else
     // Calling convetion: kX86FuncConvX64U
     // Arguments passed as RDI, RSI, RDX, RCX, R8, R9
     c.alloc(c.getGpArg(0), rdi);
     c.alloc(lr, rsi);
-    c.jmp(imm((uint64_t)target_ptr));
+    // TODO(benvanik): just use jmp when fixed: https://code.google.com/p/asmjit/issues/detail?id=67
+    c.push(imm((uint64_t)target_ptr));
+    c.ret();
 #endif  // ASMJIT_WINDOWS
   } else {
     // void fn(ppc_state*, uint64_t)
@@ -669,9 +681,9 @@ void X64Emitter::TraceKernelCall() {
   SpillRegisters();
 
   // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
-  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg1, imm((uint64_t)symbol_->start_address));
-  GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg3 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg3, imm((uint64_t)symbol_->kernel_export));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceKernelCall);
   call->setPrototype(kX86FuncConvDefault,
@@ -696,9 +708,9 @@ void X64Emitter::TraceUserCall() {
   SpillRegisters();
 
   // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
-  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg1, imm((uint64_t)symbol_->start_address));
-  GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg3 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg3, imm((uint64_t)symbol_));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceUserCall);
   call->setPrototype(kX86FuncConvDefault,
@@ -723,9 +735,9 @@ void X64Emitter::TraceInstruction(InstrData& i) {
   SpillRegisters();
 
   // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
-  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg1, imm((uint64_t)i.address));
-  GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg2, imm((uint64_t)i.code));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceInstruction);
   call->setPrototype(kX86FuncConvDefault,
@@ -745,9 +757,9 @@ void X64Emitter::TraceInvalidInstruction(InstrData& i) {
   SpillRegisters();
 
   // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
-  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg1, imm((uint64_t)i.address));
-  GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg2, imm((uint64_t)i.code));
   X86CompilerFuncCall* call = c.call(global_exports_.XeInvalidInstruction);
   call->setPrototype(kX86FuncConvDefault,
@@ -792,9 +804,9 @@ void X64Emitter::TraceBranch(uint32_t cia) {
   }
 
   // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
-  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg1, imm((uint64_t)cia));
-  GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
   c.mov(arg2, imm((uint64_t)target));
   X86CompilerFuncCall* call = c.call(global_exports_.XeTraceBranch);
   call->setComment("XeTraceBranch");
