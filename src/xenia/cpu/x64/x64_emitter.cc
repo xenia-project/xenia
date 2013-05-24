@@ -212,6 +212,8 @@ void* X64Emitter::OnDemandCompile(FunctionSymbol* symbol) {
 }
 
 int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
+  X86Compiler& c = compiler_;
+
   int result_code = 1;
   Lock();
 
@@ -220,11 +222,11 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
   symbol_ = symbol;
   fn_block_ = NULL;
 
-//   return_block_ = jit_label_undefined;
+  return_block_ = c.newLabel();
 //   internal_indirection_block_ = jit_label_undefined;
 //   external_indirection_block_ = jit_label_undefined;
 
-//   bbs_.clear();
+  bbs_.clear();
 
   access_bits_.Clear();
 
@@ -411,13 +413,18 @@ FunctionBlock* X64Emitter::fn_block() {
 }
 
 void X64Emitter::GenerateSharedBlocks() {
+  X86Compiler& c = compiler_;
+
   // Create a return block.
   // This spills registers and returns. All non-tail returns should branch
   // here to do the return and ensure registers are spilled.
   // This will be moved to the end after all the other blocks are created.
-//   jit_insn_label(fn_, &return_block_);
-//   SpillRegisters();
-//   jit_insn_return(fn_, NULL);
+  if (FLAGS_annotate_disassembly) {
+    c.comment("Shared return block");
+  }
+  c.bind(return_block_);
+  SpillRegisters();
+  c.ret();
 
 //  jit_value_t indirect_branch = gen_module_->getFunction("XeIndirectBranch");
 //
@@ -452,14 +459,11 @@ void X64Emitter::GenerateSharedBlocks() {
 }
 
 int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
+  X86Compiler& c = compiler_;
+
   // Add an undefined entry in the table.
   // The label will be created on-demand.
-//   bbs_.insert(std::pair<uint32_t, jit_label_t>(
-//       block->start_address, jit_label_undefined));
-
-  // TODO(benvanik): set label name? would help debugging disasm
-  // char name[32];
-  // xesnprintfa(name, XECOUNT(name), "loc_%.8X", block->start_address);
+  bbs_.insert(std::pair<uint32_t, Label>(block->start_address, c.newLabel()));
 
   // Scan and disassemble each instruction in the block to get accurate
   // register access bits. In the future we could do other optimization checks
@@ -502,18 +506,21 @@ int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
 void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
   X86Compiler& c = compiler_;
 
-  fn_block_ = block;
-
   // Create new block.
-  // This will create a label if it hasn't already been done.
-//   std::map<uint32_t, jit_label_t>::iterator label_it =
-//       bbs_.find(block->start_address);
-//   XEASSERT(label_it != bbs_.end());
-//   jit_insn_label(fn_, &label_it->second);
+  fn_block_ = block;
 
   if (FLAGS_log_codegen) {
     printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
   }
+  if (FLAGS_annotate_disassembly) {
+    c.comment("bb %.8X - %.8X", block->start_address, block->end_address);
+  }
+
+  // This will create a label if it hasn't already been done.
+  std::map<uint32_t, Label>::iterator label_it =
+      bbs_.find(block->start_address);
+  XEASSERT(label_it != bbs_.end());
+  c.bind(label_it->second);
 
   // Walk instructions in block.
   uint8_t* p = xe_memory_addr(memory_, 0);
