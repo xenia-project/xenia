@@ -2,6 +2,7 @@
 {
   'includes': [
     'tools/tools.gypi',
+    'third_party/asmjit.gypi',
     'third_party/gflags.gypi',
     'third_party/sparsehash.gypi',
   ],
@@ -13,10 +14,12 @@
       'type': '<(library)',
 
       'dependencies': [
+        'asmjit',
         'gflags',
         'third_party/libjit/libjit.gyp:libjit',
       ],
       'export_dependent_settings': [
+        'asmjit',
         'gflags',
         'third_party/libjit/libjit.gyp:libjit',
       ],
