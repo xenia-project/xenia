@@ -65,6 +65,9 @@ static inline int32_t XEEXTS16(uint32_t v) {
 static inline int32_t XEEXTS26(uint32_t v) {
   return v & 0x02000000 ? (int32_t)v | 0xFC000000 : (int32_t)(v);
 }
+static inline uint32_t XEEXTZ16(uint32_t v) {
+  return (uint32_t)((uint16_t)v);
+}
 static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
   // if mstart ≤ mstop then
   //   mask[mstart:mstop] = ones

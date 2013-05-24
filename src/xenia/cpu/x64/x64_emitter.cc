@@ -1326,45 +1326,56 @@ void X64Emitter::update_cr_value(uint32_t n, GpVar& value) {
   }
 }
 
-#if 0
-void X64Emitter::update_cr_with_cond(
-    uint32_t n, GpVar& lhs, GpVar& rhs, bool is_signed) {
+void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs) {
+  X86Compiler& c = compiler_;
+  // bit0 = RA < 0
+  // bit1 = RA > 0
+  // bit2 = RA = 0
+  // bit3 = XER[SO]
+
+  // Compare and set bits.
+  GpVar v_l(c.newGpVar());
+  GpVar v_g(c.newGpVar());
+  GpVar v_e(c.newGpVar());
+  c.cmp(lhs, imm(0));
+  c.setl(v_l);
+  c.setg(v_g);
+  c.sete(v_e);
+  GpVar v(c.newGpVar());
+  c.shl(v_g, imm(1));
+  c.shl(v_e, imm(2));
+  c.or_(v, v_l);
+  c.or_(v, v_g);
+  c.or_(v, v_e);
+
+  // TODO(benvanik): set bit 4 to XER[SO]
+  // c.seto?
+
+  // Insert the 4 bits into their location in the CR.
+  update_cr_value(n, v);
+}
+
+void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs) {
   X86Compiler& c = compiler_;
   // bit0 = RA < RB
   // bit1 = RA > RB
   // bit2 = RA = RB
   // bit3 = XER[SO]
 
-  // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
-  // the need for a lot of the compares and ensures we lower to the best
-  // possible x86.
-  // GpVar& cmp = InlineAsm::get(
-  //     FunctionType::get(),
-  //     "cmp $0, $1                 \n"
-  //     "mov from compare registers \n",
-  //     "r,r", ??
-  //     true);
-
-  // Convert input signs, if needed.
-  if (is_signed) {
-    lhs = make_signed(lhs);
-    rhs = make_signed(rhs);
-  } else {
-    lhs = make_unsigned(lhs);
-    rhs = make_unsigned(rhs);
-  }
-  GpVar& c = jit_insn_lt(fn_, lhs, rhs);
-  c = jit_insn_or(fn_, c,
-      jit_insn_shl(fn_, jit_insn_gt(fn_, lhs, rhs), get_uint32(1)));
-  c = jit_insn_or(fn_, c,
-      jit_insn_shl(fn_, jit_insn_eq(fn_, lhs, rhs), get_uint32(2)));
+  // Compare and set bits.
+  c.cmp(lhs, rhs);
+  GpVar v_l(c.newGpVar()); c.setl(v_l);
+  GpVar v_g(c.newGpVar()); c.setg(v_g); c.shl(v_g, imm(1));
+  GpVar v_e(c.newGpVar()); c.sete(v_e); c.shl(v_e, imm(2));
+  GpVar v(c.newGpVar());
+  c.or_(v, v_l); c.or_(v, v_g); c.or_(v, v_e);
 
   // TODO(benvanik): set bit 4 to XER[SO]
+  // c.seto?
 
   // Insert the 4 bits into their location in the CR.
-  update_cr_value(n, c);
+  update_cr_value(n, v);
 }
-#endif
 
 GpVar X64Emitter::gpr_value(uint32_t n) {
   X86Compiler& c = compiler_;

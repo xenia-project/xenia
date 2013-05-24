@@ -76,8 +76,8 @@ public:
 
   AsmJit::GpVar cr_value(uint32_t n);
   void update_cr_value(uint32_t n, AsmJit::GpVar& value);
-  void update_cr_with_cond(uint32_t n, AsmJit::GpVar& lhs, AsmJit::GpVar& rhs,
-                           bool is_signed);
+  void update_cr_with_cond(uint32_t n, AsmJit::GpVar& lhs);
+  void update_cr_with_cond(uint32_t n, AsmJit::GpVar& lhs, AsmJit::GpVar& rhs);
 
   AsmJit::GpVar gpr_value(uint32_t n);
   void update_gpr_value(uint32_t n, AsmJit::GpVar& value);
