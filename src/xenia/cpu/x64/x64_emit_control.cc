@@ -135,6 +135,7 @@ int XeEmitBranchTo(
       printf("INDIRECT JUMP VIA LR: %.8X\n", cia);
       XEASSERTALWAYS();
       //result = XeEmitIndirectBranchTo(e, c, src, cia, lk, kXEPPCRegLR);
+      c.ret();
       break;
     }
     case FunctionBlock::kTargetCTR:
@@ -143,6 +144,7 @@ int XeEmitBranchTo(
       printf("INDIRECT JUMP VIA CTR: %.8X\n", cia);
       XEASSERTALWAYS();
       //result = XeEmitIndirectBranchTo(e, c, src, cia, lk, kXEPPCRegCTR);
+      c.ret();
       break;
     }
     default:

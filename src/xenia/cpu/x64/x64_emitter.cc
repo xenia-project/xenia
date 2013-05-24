@@ -631,9 +631,10 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
   // If the target function was small we could try to make the whole thing now.
   PrepareFunction(target_symbol);
 
-  void* target_ptr = target_symbol->impl_value;
+  uint64_t target_ptr = (uint64_t)target_symbol->impl_value;
   XEASSERTNOTNULL(target_ptr);
 
+#if 0
   if (tail) {
     // Tail calls are just jumps.
 #if defined(ASMJIT_WINDOWS)
@@ -643,7 +644,7 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
     c.alloc(lr, rdx);
     // TODO(benvanik): just use jmp when fixed: https://code.google.com/p/asmjit/issues/detail?id=67
     // c.jmp(target_ptr);
-    c.push(imm((uint64_t)target_ptr));
+    c.push(imm(target_ptr));
     c.ret();
 #else
     // Calling convetion: kX86FuncConvX64U
@@ -655,6 +656,8 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
     c.ret();
 #endif  // ASMJIT_WINDOWS
   } else {
+#endif
+  {
     // void fn(ppc_state*, uint64_t)
     X86CompilerFuncCall* call = c.call(target_ptr);
     call->setComment(target_symbol->name());
