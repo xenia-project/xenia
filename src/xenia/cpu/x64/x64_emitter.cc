@@ -599,25 +599,10 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
   // TODO(benvanik): finish up BB
 }
 
-// int X64Emitter::branch_to_block(uint32_t address) {
-//   std::map<uint32_t, jit_label_t>::iterator it = bbs_.find(address);
-//   return jit_insn_branch(fn_, &it->second);
-// }
-
-// int X64Emitter::branch_to_block_if(uint32_t address, jit_value_t value) {
-//   std::map<uint32_t, jit_label_t>::iterator it = bbs_.find(address);
-//   if (value) {
-//     return jit_insn_branch_if(fn_, value, &it->second);
-//   } else {
-//     return jit_insn_branch(fn_, &it->second);
-//   }
-// }
-
-// int X64Emitter::branch_to_block_if_not(uint32_t address, jit_value_t value) {
-//   XEASSERTNOTNULL(value);
-//   std::map<uint32_t, jit_label_t>::iterator it = bbs_.find(address);
-//   return jit_insn_branch_if_not(fn_, value, &it->second);
-// }
+Label& X64Emitter::GetBlockLabel(uint32_t address) {
+  std::map<uint32_t, Label>::iterator it = bbs_.find(address);
+  return it->second;
+}
 
 // int X64Emitter::branch_to_return() {
 //   return jit_insn_branch(fn_, &return_block_);
@@ -631,20 +616,44 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 //   return jit_insn_branch_if_not(fn_, value, &return_block_);
 // }
 
-// int X64Emitter::call_function(FunctionSymbol* target_symbol,
-//                                  jit_value_t lr, bool tail) {
-//   PrepareFunction(target_symbol);
-//   jit_function_t target_fn = (jit_function_t)target_symbol->impl_value;
-//   XEASSERTNOTNULL(target_fn);
-//   int flags = 0;
-//   if (tail) {
-//     flags |= JIT_CALL_TAIL;
-//   }
-//   jit_value_t args[] = {jit_value_get_param(fn_, 0), lr};
-//   jit_insn_call(fn_, target_symbol->name(), target_fn, fn_signature_,
-//       args, XECOUNT(args), flags);
-//   return 1;
-// }
+int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
+                             GpVar& lr, bool tail) {
+  X86Compiler& c = compiler_;
+
+  // Prep the target function.
+  // If the target function was small we could try to make the whole thing now.
+  PrepareFunction(target_symbol);
+
+  void* target_ptr = target_symbol->impl_value;
+  XEASSERTNOTNULL(target_ptr);
+
+  if (tail) {
+    // Tail calls are just jumps.
+#if defined(ASMJIT_WINDOWS)
+    // Calling convetion: kX86FuncConvX64W
+    // Arguments passed as RCX, RDX, R8, R9
+    c.alloc(c.getGpArg(0), rcx);
+    c.alloc(lr, rdx);
+    c.jmp(imm((uint64_t)target_ptr));
+#else
+    // Calling convetion: kX86FuncConvX64U
+    // Arguments passed as RDI, RSI, RDX, RCX, R8, R9
+    c.alloc(c.getGpArg(0), rdi);
+    c.alloc(lr, rsi);
+    c.jmp(imm((uint64_t)target_ptr));
+#endif  // ASMJIT_WINDOWS
+  } else {
+    // void fn(ppc_state*, uint64_t)
+    X86CompilerFuncCall* call = c.call(target_ptr);
+    call->setComment(target_symbol->name());
+    call->setPrototype(kX86FuncConvDefault,
+        FuncBuilder2<void, void*, uint64_t>());
+    call->setArgument(0, c.getGpArg(0));
+    call->setArgument(1, lr);
+  }
+
+  return 0;
+}
 
 void X64Emitter::TraceKernelCall() {
   X86Compiler& c = compiler_;
@@ -952,21 +961,24 @@ void X64Emitter::FillRegisters() {
     if (FLAGS_annotate_disassembly) {
       c.comment("Filling XER");
     }
-    c.mov(locals_.xer, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer), 8));
+    c.mov(locals_.xer,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)));
   }
 
   if (locals_.lr.getId() != kInvalidValue) {
     if (FLAGS_annotate_disassembly) {
       c.comment("Filling LR");
     }
-    c.mov(locals_.lr, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr), 8));
+    c.mov(locals_.lr,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)));
   }
 
   if (locals_.ctr.getId() != kInvalidValue) {
     if (FLAGS_annotate_disassembly) {
       c.comment("Filling CTR");
     }
-    c.mov(locals_.ctr, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr), 8));
+    c.mov(locals_.ctr,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)));
   }
 
   // Fill the split CR values by extracting each one from the CR.
@@ -986,7 +998,7 @@ void X64Emitter::FillRegisters() {
         c.comment("Filling CR");
       }
       cr = c.newGpVar();
-      c.mov(cr, ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr), 8));
+      c.mov(cr, qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)));
       cr_tmp = c.newGpVar();
     }
     // (cr >> 28 - n * 4) & 0xF
@@ -1004,7 +1016,7 @@ void X64Emitter::FillRegisters() {
         c.comment("Filling r%d", n);
       }
       c.mov(locals_.gpr[n],
-          ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n, 8));
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n));
     }
   }
 
@@ -1014,7 +1026,7 @@ void X64Emitter::FillRegisters() {
         c.comment("Filling f%d", n);
       }
       c.mov(locals_.fpr[n],
-          ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n, 8));
+            qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
     }
   }
 }
@@ -1031,7 +1043,7 @@ void X64Emitter::SpillRegisters() {
     if (FLAGS_annotate_disassembly) {
       c.comment("Spilling XER");
     }
-    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)),
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)),
           locals_.xer);
   }
 
@@ -1039,7 +1051,7 @@ void X64Emitter::SpillRegisters() {
     if (FLAGS_annotate_disassembly) {
       c.comment("Spilling LR");
     }
-    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)),
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)),
           locals_.lr);
   }
 
@@ -1047,7 +1059,7 @@ void X64Emitter::SpillRegisters() {
     if (FLAGS_annotate_disassembly) {
       c.comment("Spilling CTR");
     }
-    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)),
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)),
           locals_.ctr);
   }
 
@@ -1079,7 +1091,7 @@ void X64Emitter::SpillRegisters() {
     }
   }
   if (cr.getId() != kInvalidValue) {
-    c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)),
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)),
           cr);
   }
 
@@ -1089,7 +1101,7 @@ void X64Emitter::SpillRegisters() {
       if (FLAGS_annotate_disassembly) {
         c.comment("Spilling r%d", n);
       }
-      c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n),
+      c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n),
             v);
     }
   }
@@ -1100,7 +1112,7 @@ void X64Emitter::SpillRegisters() {
       if (FLAGS_annotate_disassembly) {
         c.comment("Spilling f%d", n);
       }
-      c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
+      c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
             v);
     }
   }
@@ -1182,6 +1194,12 @@ void X64Emitter::update_lr_value(GpVar& value) {
   X86Compiler& c = compiler_;
   XEASSERT(locals_.lr.getId() != kInvalidValue);
   c.mov(locals_.lr, zero_extend(value, 8));
+}
+
+void X64Emitter::update_lr_value(AsmJit::Imm& imm) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.lr.getId() != kInvalidValue);
+  c.mov(locals_.lr, imm);
 }
 
 GpVar& X64Emitter::ctr_value() {

@@ -41,14 +41,13 @@ public:
   sdb::FunctionSymbol* symbol();
   sdb::FunctionBlock* fn_block();
 
-  // int branch_to_block(uint32_t address);
-  // int branch_to_block_if(uint32_t address, jit_value_t value);
-  // int branch_to_block_if_not(uint32_t address, jit_value_t value);
+  AsmJit::Label& GetBlockLabel(uint32_t address);
+  int CallFunction(sdb::FunctionSymbol* target_symbol, AsmJit::GpVar& lr,
+                   bool tail);
+
   // int branch_to_return();
   // int branch_to_return_if(jit_value_t value);
   // int branch_to_return_if_not(jit_value_t value);
-  // int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
-  //                   bool tail);
 
   void TraceKernelCall();
   void TraceUserCall();
@@ -70,6 +69,7 @@ public:
 
   AsmJit::GpVar& lr_value();
   void update_lr_value(AsmJit::GpVar& value);
+  void update_lr_value(AsmJit::Imm& imm);
 
   AsmJit::GpVar& ctr_value();
   void update_ctr_value(AsmJit::GpVar& value);
