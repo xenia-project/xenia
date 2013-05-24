@@ -13,44 +13,114 @@
 #include <xenia/cpu/exec_module.h>
 #include <xenia/cpu/sdb.h>
 
+#include <asmjit/asmjit.h>
+
 
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::sdb;
 using namespace xe::cpu::x64;
 
+using namespace AsmJit;
+
 
 X64JIT::X64JIT(xe_memory_ref memory, SymbolTable* sym_table) :
     JIT(memory, sym_table),
-    context_(NULL), emitter_(NULL) {
+    emitter_(NULL) {
 }
 
 X64JIT::~X64JIT() {
   delete emitter_;
-  if (context_) {
-    jit_context_destroy(context_);
-  }
 }
 
 int X64JIT::Setup() {
   int result_code = 1;
 
-  // Shared libjit context.
-  context_ = jit_context_create();
-  XEEXPECTNOTNULL(context_);
+  XELOGCPU("Initializing x64 JIT backend...");
+
+  // Check processor for support.
+  result_code = CheckProcessor();
+  if (result_code) {
+    XELOGE("Processor check failed, aborting...");
+  }
+  XEEXPECTZERO(result_code);
 
   // Create the emitter used to generate functions.
-  emitter_ = new X64Emitter(memory_, context_);
-
-  // Inject global functions/variables/etc.
-  XEEXPECTZERO(InjectGlobals());
+  emitter_ = new X64Emitter(memory_);
 
   result_code = 0;
 XECLEANUP:
   return result_code;
 }
 
-int X64JIT::InjectGlobals() {
+namespace {
+struct BitDescription {
+  uint32_t mask;
+  const char* description;
+};
+static const BitDescription x86Features[] = {
+  { kX86FeatureRdtsc              , "RDTSC" },
+  { kX86FeatureRdtscP             , "RDTSCP" },
+  { kX86FeatureCMov               , "CMOV" },
+  { kX86FeatureCmpXchg8B          , "CMPXCHG8B" },
+  { kX86FeatureCmpXchg16B         , "CMPXCHG16B" },
+  { kX86FeatureClFlush            , "CLFLUSH" },
+  { kX86FeaturePrefetch           , "PREFETCH" },
+  { kX86FeatureLahfSahf           , "LAHF/SAHF" },
+  { kX86FeatureFXSR               , "FXSAVE/FXRSTOR" },
+  { kX86FeatureFFXSR              , "FXSAVE/FXRSTOR Optimizations" },
+  { kX86FeatureMmx                , "MMX" },
+  { kX86FeatureMmxExt             , "MMX Extensions" },
+  { kX86Feature3dNow              , "3dNow!" },
+  { kX86Feature3dNowExt           , "3dNow! Extensions" },
+  { kX86FeatureSse                , "SSE" },
+  { kX86FeatureSse2               , "SSE2" },
+  { kX86FeatureSse3               , "SSE3" },
+  { kX86FeatureSsse3              , "SSSE3" },
+  { kX86FeatureSse4A              , "SSE4A" },
+  { kX86FeatureSse41              , "SSE4.1" },
+  { kX86FeatureSse42              , "SSE4.2" },
+  { kX86FeatureAvx                , "AVX" },
+  { kX86FeatureMSse               , "Misaligned SSE" },
+  { kX86FeatureMonitorMWait       , "MONITOR/MWAIT" },
+  { kX86FeatureMovBE              , "MOVBE" },
+  { kX86FeaturePopCnt             , "POPCNT" },
+  { kX86FeatureLzCnt              , "LZCNT" },
+  { kX86FeaturePclMulDQ           , "PCLMULDQ" },
+  { kX86FeatureMultiThreading     , "Multi-Threading" },
+  { kX86FeatureExecuteDisableBit  , "Execute-Disable Bit" },
+  { kX86Feature64Bit              , "64-Bit Processor" },
+  { 0, NULL },
+};
+}
+
+int X64JIT::CheckProcessor() {
+  const CpuInfo* cpu = CpuInfo::getGlobal();
+  const X86CpuInfo* x86Cpu = static_cast<const X86CpuInfo*>(cpu);
+  XELOGCPU("Processor Info:");
+  XELOGCPU("  Vendor string         : %s", cpu->getVendorString());
+  XELOGCPU("  Brand string          : %s", cpu->getBrandString());
+  XELOGCPU("  Family                : %u", cpu->getFamily());
+  XELOGCPU("  Model                 : %u", cpu->getModel());
+  XELOGCPU("  Stepping              : %u", cpu->getStepping());
+  XELOGCPU("  Number of Processors  : %u", cpu->getNumberOfProcessors());
+  XELOGCPU("  Features              : 0x%08X", cpu->getFeatures());
+  XELOGCPU("  Bugs                  : 0x%08X", cpu->getBugs());
+  XELOGCPU("  Processor Type        : %u", x86Cpu->getProcessorType());
+  XELOGCPU("  Brand Index           : %u", x86Cpu->getBrandIndex());
+  XELOGCPU("  CL Flush Cache Line   : %u", x86Cpu->getFlushCacheLineSize());
+  XELOGCPU("  Max logical Processors: %u", x86Cpu->getMaxLogicalProcessors());
+  XELOGCPU("  APIC Physical ID      : %u", x86Cpu->getApicPhysicalId());
+  XELOGCPU("  Features:");
+  uint32_t mask = cpu->getFeatures();
+  for (const BitDescription* d = x86Features; d->mask; d++) {
+    if (mask & d->mask) {
+      XELOGCPU("    %s", d->description);
+    }
+  }
+
+  // TODO(benvanik): ensure features we want are supported.
+
   return 0;
 }
 
@@ -65,29 +135,29 @@ int X64JIT::UninitModule(ExecModule* module) {
 int X64JIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
   XELOGCPU("Execute(%.8X): %s...", fn_symbol->start_address, fn_symbol->name());
 
-  // Check function.
-  jit_function_t jit_fn = (jit_function_t)fn_symbol->impl_value;
-  if (!jit_fn) {
-    // Function hasn't been prepped yet - prep it.
-    if (emitter_->PrepareFunction(fn_symbol)) {
-      XELOGCPU("Execute(%.8X): unable to make function %s",
-          fn_symbol->start_address, fn_symbol->name());
-      return 1;
-    }
-    jit_fn = (jit_function_t)fn_symbol->impl_value;
-    XEASSERTNOTNULL(jit_fn);
-  }
+  // // Check function.
+  // jit_function_t jit_fn = (jit_function_t)fn_symbol->impl_value;
+  // if (!jit_fn) {
+  //   // Function hasn't been prepped yet - prep it.
+  //   if (emitter_->PrepareFunction(fn_symbol)) {
+  //     XELOGCPU("Execute(%.8X): unable to make function %s",
+  //         fn_symbol->start_address, fn_symbol->name());
+  //     return 1;
+  //   }
+  //   jit_fn = (jit_function_t)fn_symbol->impl_value;
+  //   XEASSERTNOTNULL(jit_fn);
+  // }
 
-  // Call into the function. This will compile it if needed.
-  jit_nuint lr = ppc_state->lr;
-  void* args[] = {&ppc_state, &lr};
-  uint64_t return_value;
-  int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);
-  if (!apply_result) {
-    XELOGCPU("Execute(%.8X): apply failed with %d",
-        fn_symbol->start_address, apply_result);
-    return 1;
-  }
+  // // Call into the function. This will compile it if needed.
+  // jit_nuint lr = ppc_state->lr;
+  // void* args[] = {&ppc_state, &lr};
+  // uint64_t return_value;
+  // int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);
+  // if (!apply_result) {
+  //   XELOGCPU("Execute(%.8X): apply failed with %d",
+  //       fn_symbol->start_address, apply_result);
+  //   return 1;
+  // }
 
   return 0;
 }

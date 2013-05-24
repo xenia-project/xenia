@@ -24,125 +24,125 @@ namespace x64 {
 
 class X64Emitter {
 public:
-  X64Emitter(xe_memory_ref memory, jit_context_t context);
+  X64Emitter(xe_memory_ref memory);
   ~X64Emitter();
 
-  jit_context_t context();
+  // jit_context_t context();
 
-  int PrepareFunction(sdb::FunctionSymbol* symbol);
-  int MakeFunction(sdb::FunctionSymbol* symbol, jit_function_t fn);
+  // int PrepareFunction(sdb::FunctionSymbol* symbol);
+  // int MakeFunction(sdb::FunctionSymbol* symbol, jit_function_t fn);
 
-  sdb::FunctionSymbol* symbol();
-  jit_function_t fn();
-  sdb::FunctionBlock* fn_block();
+  // sdb::FunctionSymbol* symbol();
+  // jit_function_t fn();
+  // sdb::FunctionBlock* fn_block();
 
-  jit_value_t get_int32(int32_t value);
-  jit_value_t get_uint32(uint32_t value);
-  jit_value_t get_int64(int64_t value);
-  jit_value_t get_uint64(uint64_t value);
-  jit_value_t make_signed(jit_value_t value);
-  jit_value_t make_unsigned(jit_value_t value);
-  jit_value_t sign_extend(jit_value_t value, jit_type_t target_type);
-  jit_value_t zero_extend(jit_value_t value, jit_type_t target_type);
-  jit_value_t trunc_to_sbyte(jit_value_t value);
-  jit_value_t trunc_to_ubyte(jit_value_t value);
-  jit_value_t trunc_to_short(jit_value_t value);
-  jit_value_t trunc_to_int(jit_value_t value);
+  // jit_value_t get_int32(int32_t value);
+  // jit_value_t get_uint32(uint32_t value);
+  // jit_value_t get_int64(int64_t value);
+  // jit_value_t get_uint64(uint64_t value);
+  // jit_value_t make_signed(jit_value_t value);
+  // jit_value_t make_unsigned(jit_value_t value);
+  // jit_value_t sign_extend(jit_value_t value, jit_type_t target_type);
+  // jit_value_t zero_extend(jit_value_t value, jit_type_t target_type);
+  // jit_value_t trunc_to_sbyte(jit_value_t value);
+  // jit_value_t trunc_to_ubyte(jit_value_t value);
+  // jit_value_t trunc_to_short(jit_value_t value);
+  // jit_value_t trunc_to_int(jit_value_t value);
 
-  int branch_to_block(uint32_t address);
-  int branch_to_block_if(uint32_t address, jit_value_t value);
-  int branch_to_block_if_not(uint32_t address, jit_value_t value);
-  int branch_to_return();
-  int branch_to_return_if(jit_value_t value);
-  int branch_to_return_if_not(jit_value_t value);
-  int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
-                    bool tail);
+  // int branch_to_block(uint32_t address);
+  // int branch_to_block_if(uint32_t address, jit_value_t value);
+  // int branch_to_block_if_not(uint32_t address, jit_value_t value);
+  // int branch_to_return();
+  // int branch_to_return_if(jit_value_t value);
+  // int branch_to_return_if_not(jit_value_t value);
+  // int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
+  //                   bool tail);
 
-  void TraceBranch(uint32_t cia);
-  int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
-                                bool lk, bool likely_local);
+  // void TraceBranch(uint32_t cia);
+  // int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
+  //                               bool lk, bool likely_local);
 
-  jit_value_t LoadStateValue(size_t offset, jit_type_t type,
-                             const char* name = "");
-  void StoreStateValue(size_t offset, jit_type_t type, jit_value_t value);
+  // jit_value_t LoadStateValue(size_t offset, jit_type_t type,
+  //                            const char* name = "");
+  // void StoreStateValue(size_t offset, jit_type_t type, jit_value_t value);
 
-  jit_value_t SetupLocal(jit_type_t type, const char* name);
-  void FillRegisters();
-  void SpillRegisters();
+  // jit_value_t SetupLocal(jit_type_t type, const char* name);
+  // void FillRegisters();
+  // void SpillRegisters();
 
-  jit_value_t xer_value();
-  void update_xer_value(jit_value_t value);
-  void update_xer_with_overflow(jit_value_t value);
-  void update_xer_with_carry(jit_value_t value);
-  void update_xer_with_overflow_and_carry(jit_value_t value);
+  // jit_value_t xer_value();
+  // void update_xer_value(jit_value_t value);
+  // void update_xer_with_overflow(jit_value_t value);
+  // void update_xer_with_carry(jit_value_t value);
+  // void update_xer_with_overflow_and_carry(jit_value_t value);
 
-  jit_value_t lr_value();
-  void update_lr_value(jit_value_t value);
+  // jit_value_t lr_value();
+  // void update_lr_value(jit_value_t value);
 
-  jit_value_t ctr_value();
-  void update_ctr_value(jit_value_t value);
+  // jit_value_t ctr_value();
+  // void update_ctr_value(jit_value_t value);
 
-  jit_value_t cr_value(uint32_t n);
-  void update_cr_value(uint32_t n, jit_value_t value);
-  void update_cr_with_cond(uint32_t n, jit_value_t lhs, jit_value_t rhs,
-                           bool is_signed);
+  // jit_value_t cr_value(uint32_t n);
+  // void update_cr_value(uint32_t n, jit_value_t value);
+  // void update_cr_with_cond(uint32_t n, jit_value_t lhs, jit_value_t rhs,
+  //                          bool is_signed);
 
-  jit_value_t gpr_value(uint32_t n);
-  void update_gpr_value(uint32_t n, jit_value_t value);
-  jit_value_t fpr_value(uint32_t n);
-  void update_fpr_value(uint32_t n, jit_value_t value);
+  // jit_value_t gpr_value(uint32_t n);
+  // void update_gpr_value(uint32_t n, jit_value_t value);
+  // jit_value_t fpr_value(uint32_t n);
+  // void update_fpr_value(uint32_t n, jit_value_t value);
 
-  jit_value_t TouchMemoryAddress(uint32_t cia, jit_value_t addr);
-  jit_value_t ReadMemory(
-      uint32_t cia, jit_value_t addr, uint32_t size, bool acquire = false);
-  void WriteMemory(
-      uint32_t cia, jit_value_t addr, uint32_t size, jit_value_t value,
-      bool release = false);
+  // jit_value_t TouchMemoryAddress(uint32_t cia, jit_value_t addr);
+  // jit_value_t ReadMemory(
+  //     uint32_t cia, jit_value_t addr, uint32_t size, bool acquire = false);
+  // void WriteMemory(
+  //     uint32_t cia, jit_value_t addr, uint32_t size, jit_value_t value,
+  //     bool release = false);
 
 private:
-  int MakeUserFunction();
-  int MakePresentImportFunction();
-  int MakeMissingImportFunction();
+  // int MakeUserFunction();
+  // int MakePresentImportFunction();
+  // int MakeMissingImportFunction();
 
-  void GenerateBasicBlocks();
-  void GenerateSharedBlocks();
-  int PrepareBasicBlock(sdb::FunctionBlock* block);
-  void GenerateBasicBlock(sdb::FunctionBlock* block);
-  void SetupLocals();
+  // void GenerateBasicBlocks();
+  // void GenerateSharedBlocks();
+  // int PrepareBasicBlock(sdb::FunctionBlock* block);
+  // void GenerateBasicBlock(sdb::FunctionBlock* block);
+  // void SetupLocals();
 
   xe_memory_ref         memory_;
-  jit_context_t         context_;
-  jit_type_t            fn_signature_;
-  jit_type_t            shim_signature_;
   GlobalExports         global_exports_;
-  jit_type_t            global_export_signature_2_;
-  jit_type_t            global_export_signature_3_;
-  jit_type_t            global_export_signature_4_;
 
-  sdb::FunctionSymbol*  symbol_;
-  jit_function_t        fn_;
-  sdb::FunctionBlock*   fn_block_;
-  jit_label_t           return_block_;
-  jit_label_t           internal_indirection_block_;
-  jit_label_t           external_indirection_block_;
+  // jit_type_t            fn_signature_;
+  // jit_type_t            shim_signature_;
+  // jit_type_t            global_export_signature_2_;
+  // jit_type_t            global_export_signature_3_;
+  // jit_type_t            global_export_signature_4_;
 
-  std::map<uint32_t, jit_label_t> bbs_;
+  // sdb::FunctionSymbol*  symbol_;
+  // jit_function_t        fn_;
+  // sdb::FunctionBlock*   fn_block_;
+  // jit_label_t           return_block_;
+  // jit_label_t           internal_indirection_block_;
+  // jit_label_t           external_indirection_block_;
 
-  // Address of the instruction being generated.
-  uint32_t              cia_;
+  // std::map<uint32_t, jit_label_t> bbs_;
 
-  ppc::InstrAccessBits access_bits_;
-  struct {
-    jit_value_t  indirection_target;
-    jit_value_t  indirection_cia;
+  // // Address of the instruction being generated.
+  // uint32_t              cia_;
 
-    jit_value_t  xer;
-    jit_value_t  lr;
-    jit_value_t  ctr;
-    jit_value_t  cr[8];
-    jit_value_t  gpr[32];
-    jit_value_t  fpr[32];
-  } locals_;
+  // ppc::InstrAccessBits access_bits_;
+  // struct {
+  //   jit_value_t  indirection_target;
+  //   jit_value_t  indirection_cia;
+
+  //   jit_value_t  xer;
+  //   jit_value_t  lr;
+  //   jit_value_t  ctr;
+  //   jit_value_t  cr[8];
+  //   jit_value_t  gpr[32];
+  //   jit_value_t  fpr[32];
+  // } locals_;
 };
 
 

@@ -11,11 +11,13 @@
         ],
         'defines': [
           'ASMJIT_X64=',
+          'ASMJIT_API=',
         ],
       },
 
       'defines': [
         'ASMJIT_X64=',
+        'ASMJIT_API=',
       ],
 
       'include_dirs': [

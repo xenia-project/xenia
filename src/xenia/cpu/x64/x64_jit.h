@@ -17,8 +17,6 @@
 #include <xenia/cpu/sdb.h>
 #include <xenia/cpu/x64/x64_emitter.h>
 
-#include <jit/jit.h>
-
 
 namespace xe {
 namespace cpu {
@@ -39,10 +37,9 @@ public:
                       sdb::FunctionSymbol* fn_symbol);
 
 protected:
-  int InjectGlobals();
+  int CheckProcessor();
 
-  jit_context_t         context_;
-  X64Emitter*           emitter_;
+  X64Emitter*     emitter_;
 };
 
 

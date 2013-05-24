@@ -15,6 +15,8 @@
 using namespace xe::cpu;
 using namespace xe::cpu::ppc;
 
+using namespace AsmJit;
+
 
 namespace xe {
 namespace cpu {
@@ -23,67 +25,67 @@ namespace x64 {
 
 // Floating-point arithmetic (A-8)
 
-XEEMITTER(faddx,        0xFC00002A, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(faddx,        0xFC00002A, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(faddsx,       0xEC00002A, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(faddsx,       0xEC00002A, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fdivx,        0xFC000024, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fdivx,        0xFC000024, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fdivsx,       0xEC000024, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fdivsx,       0xEC000024, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fmulx,        0xFC000032, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmulx,        0xFC000032, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fmulsx,       0xEC000032, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmulsx,       0xEC000032, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fresx,        0xEC000030, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fresx,        0xEC000030, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(frsqrtex,     0xFC000034, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(frsqrtex,     0xFC000034, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fsubx,        0xFC000028, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fsubx,        0xFC000028, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fsubsx,       0xEC000028, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fsubsx,       0xEC000028, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fselx,        0xFC00002E, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fselx,        0xFC00002E, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fsqrtx,       0xFC00002C, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fsqrtx,       0xFC00002C, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fsqrtsx,      0xEC00002C, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fsqrtsx,      0xEC00002C, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -91,42 +93,42 @@ XEEMITTER(fsqrtsx,      0xEC00002C, A  )(X64Emitter& e, jit_function_t f, InstrD
 
 // Floating-point multiply-add (A-9)
 
-XEEMITTER(fmaddx,       0xFC00003A, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmaddx,       0xFC00003A, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fmaddsx,      0xEC00003A, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmaddsx,      0xEC00003A, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fmsubx,       0xFC000038, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmsubx,       0xFC000038, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fmsubsx,      0xEC000038, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmsubsx,      0xEC000038, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnmaddx,      0xFC00003E, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fnmaddx,      0xFC00003E, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnmaddsx,     0xEC00003E, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fnmaddsx,     0xEC00003E, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnmsubx,      0xFC00003C, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fnmsubx,      0xFC00003C, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnmsubsx,     0xEC00003C, A  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fnmsubsx,     0xEC00003C, A  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -134,32 +136,32 @@ XEEMITTER(fnmsubsx,     0xEC00003C, A  )(X64Emitter& e, jit_function_t f, InstrD
 
 // Floating-point rounding and conversion (A-10)
 
-XEEMITTER(fcfidx,       0xFC00069C, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fcfidx,       0xFC00069C, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fctidx,       0xFC00065C, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fctidx,       0xFC00065C, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fctidzx,      0xFC00065E, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fctidzx,      0xFC00065E, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fctiwx,       0xFC00001C, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fctiwx,       0xFC00001C, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fctiwzx,      0xFC00001E, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fctiwzx,      0xFC00001E, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(frspx,        0xFC000018, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(frspx,        0xFC000018, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -167,12 +169,12 @@ XEEMITTER(frspx,        0xFC000018, X  )(X64Emitter& e, jit_function_t f, InstrD
 
 // Floating-point compare (A-11)
 
-XEEMITTER(fcmpo,        0xFC000040, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fcmpo,        0xFC000040, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fcmpu,        0xFC000000, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fcmpu,        0xFC000000, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   // if (FRA) is a NaN or (FRB) is a NaN then
   //   c <- 0b0001
   // else if (FRA) < (FRB) then
@@ -193,32 +195,32 @@ XEEMITTER(fcmpu,        0xFC000000, X  )(X64Emitter& e, jit_function_t f, InstrD
 
 // Floating-point status and control register (A
 
-XEEMITTER(mcrfs,        0xFC000080, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(mcrfs,        0xFC000080, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mffsx,        0xFC00048E, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(mffsx,        0xFC00048E, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsb0x,      0xFC00008C, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(mtfsb0x,      0xFC00008C, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsb1x,      0xFC00004C, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(mtfsb1x,      0xFC00004C, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsfx,       0xFC00058E, XFL)(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(mtfsfx,       0xFC00058E, XFL)(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsfix,      0xFC00010C, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(mtfsfix,      0xFC00010C, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -226,22 +228,22 @@ XEEMITTER(mtfsfix,      0xFC00010C, X  )(X64Emitter& e, jit_function_t f, InstrD
 
 // Floating-point move (A-21)
 
-XEEMITTER(fabsx,        0xFC000210, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fabsx,        0xFC000210, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fmrx,         0xFC000090, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fmrx,         0xFC000090, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnabsx,       0xFC000110, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fnabsx,       0xFC000110, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnegx,        0xFC000050, X  )(X64Emitter& e, jit_function_t f, InstrData& i) {
+XEEMITTER(fnegx,        0xFC000050, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
