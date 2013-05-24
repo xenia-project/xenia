@@ -7,12 +7,33 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_CPU_H_
-#define XENIA_CPU_CPU_H_
+#ifndef XENIA_CPU_X64_X64_BACKEND_H_
+#define XENIA_CPU_X64_X64_BACKEND_H_
 
-#include <xenia/cpu/processor.h>
+#include <xenia/common.h>
 
-// TODO(benvanik): conditionally include?
-#include <xenia/cpu/x64/x64_backend.h>
+#include <xenia/cpu/backend.h>
 
-#endif  // XENIA_CPU_CPU_H_
+
+namespace xe {
+namespace cpu {
+namespace x64 {
+
+
+class X64Backend : public Backend {
+public:
+  X64Backend();
+  virtual ~X64Backend();
+
+  virtual JIT* CreateJIT(xe_memory_ref memory, sdb::SymbolTable* sym_table);
+
+protected:
+};
+
+
+}  // namespace x64
+}  // namespace cpu
+}  // namespace xe
+
+
+#endif  // XENIA_CPU_X64_X64_BACKEND_H_

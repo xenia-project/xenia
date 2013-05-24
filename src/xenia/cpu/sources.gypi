@@ -20,5 +20,6 @@
   'includes': [
     'ppc/sources.gypi',
     'sdb/sources.gypi',
+    'x64/sources.gypi',
   ],
 }
