@@ -4,6 +4,8 @@ Xenia - Xbox 360 Emulator Research Project
 Xenia is an experimental emulator for the Xbox 360. It does not run games (yet),
 and if you are unable to understand that please leave now.
 
+Come chat with us in #xenia on freenode.
+
 Currently supported features:
 
 * Nothing!
