@@ -61,27 +61,27 @@ public:
   void FillRegisters();
   void SpillRegisters();
 
-  AsmJit::GpVar& xer_value();
+  AsmJit::GpVar xer_value();
   void update_xer_value(AsmJit::GpVar& value);
   void update_xer_with_overflow(AsmJit::GpVar& value);
   void update_xer_with_carry(AsmJit::GpVar& value);
   void update_xer_with_overflow_and_carry(AsmJit::GpVar& value);
 
-  AsmJit::GpVar& lr_value();
+  AsmJit::GpVar lr_value();
   void update_lr_value(AsmJit::GpVar& value);
   void update_lr_value(AsmJit::Imm& imm);
 
-  AsmJit::GpVar& ctr_value();
+  AsmJit::GpVar ctr_value();
   void update_ctr_value(AsmJit::GpVar& value);
 
-  AsmJit::GpVar& cr_value(uint32_t n);
+  AsmJit::GpVar cr_value(uint32_t n);
   void update_cr_value(uint32_t n, AsmJit::GpVar& value);
   void update_cr_with_cond(uint32_t n, AsmJit::GpVar& lhs, AsmJit::GpVar& rhs,
                            bool is_signed);
 
-  AsmJit::GpVar& gpr_value(uint32_t n);
+  AsmJit::GpVar gpr_value(uint32_t n);
   void update_gpr_value(uint32_t n, AsmJit::GpVar& value);
-  AsmJit::GpVar& fpr_value(uint32_t n);
+  AsmJit::GpVar fpr_value(uint32_t n);
   void update_fpr_value(uint32_t n, AsmJit::GpVar& value);
 
   AsmJit::GpVar& TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
@@ -91,10 +91,7 @@ public:
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, AsmJit::GpVar& value,
       bool release = false);
 
-  // jit_value_t get_int32(int32_t value);
-  // jit_value_t get_uint32(uint32_t value);
-  // jit_value_t get_int64(int64_t value);
-  // jit_value_t get_uint64(uint64_t value);
+  AsmJit::GpVar get_uint64(uint64_t value);
   AsmJit::GpVar sign_extend(AsmJit::GpVar& value, int size);
   AsmJit::GpVar zero_extend(AsmJit::GpVar& value, int size);
   AsmJit::GpVar trunc(AsmJit::GpVar& value, int size);

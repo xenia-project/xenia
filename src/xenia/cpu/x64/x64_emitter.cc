@@ -24,6 +24,9 @@ using namespace AsmJit;
 
 DEFINE_bool(memory_address_verification, false,
     "Whether to add additional checks to generated memory load/stores.");
+DEFINE_bool(cache_registers, false,
+    "Cache PPC registers inside of functions.");
+
 DEFINE_bool(log_codegen, false,
     "Log codegen to stdout.");
 DEFINE_bool(annotate_disassembly, true,
@@ -259,7 +262,7 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
 
   // Elevate the priority of ppc_state, as it's often used.
   // TODO(benvanik): evaluate if this is a good idea.
-  //compiler_.setPriority(compiler_.getGpArg(0), 100);
+  compiler_.setPriority(compiler_.getGpArg(0), 100);
 
   switch (symbol->type) {
   case FunctionSymbol::Kernel:
@@ -752,7 +755,7 @@ void X64Emitter::TraceInstruction(InstrData& i) {
 
 void X64Emitter::TraceInvalidInstruction(InstrData& i) {
   X86Compiler& c = compiler_;
-
+#if 0
   if (FLAGS_annotate_disassembly) {
     c.comment("XeInvalidInstruction (+spill)");
   }
@@ -770,6 +773,7 @@ void X64Emitter::TraceInvalidInstruction(InstrData& i) {
   call->setArgument(0, c.getGpArg(0));
   call->setArgument(1, arg1);
   call->setArgument(2, arg2);
+#endif
 }
 
 void X64Emitter::TraceBranch(uint32_t cia) {
@@ -918,6 +922,10 @@ void X64Emitter::TraceBranch(uint32_t cia) {
 void X64Emitter::SetupLocals() {
   X86Compiler& c = compiler_;
 
+  if (!FLAGS_cache_registers) {
+    return;
+  }
+
   uint64_t spr_t = access_bits_.spr;
   if (spr_t & 0x3) {
     locals_.xer = c.newGpVar(kX86VarTypeGpq, "xer");
@@ -965,6 +973,10 @@ void X64Emitter::SetupLocals() {
 
 void X64Emitter::FillRegisters() {
   X86Compiler& c = compiler_;
+
+  if (!FLAGS_cache_registers) {
+    return;
+  }
 
   // This updates all of the local register values from the state memory.
   // It should be called on function entry for initial setup and after any
@@ -1048,6 +1060,10 @@ void X64Emitter::FillRegisters() {
 
 void X64Emitter::SpillRegisters() {
   X86Compiler& c = compiler_;
+
+  if (!FLAGS_cache_registers) {
+    return;
+  }
 
   // This flushes all local registers (if written) to the register bank and
   // resets their values.
@@ -1133,16 +1149,28 @@ void X64Emitter::SpillRegisters() {
   }
 }
 
-GpVar& X64Emitter::xer_value() {
+GpVar X64Emitter::xer_value() {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.xer.getId() != kInvalidValue);
-  return locals_.xer;
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.xer.getId() != kInvalidValue);
+    return locals_.xer;
+  } else {
+    GpVar value(c.newGpVar());
+    c.mov(value,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)));
+    return value;
+  }
 }
 
 void X64Emitter::update_xer_value(GpVar& value) {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.xer.getId() != kInvalidValue);
-  c.mov(locals_.xer, zero_extend(value, 8));
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.xer.getId() != kInvalidValue);
+    c.mov(locals_.xer, zero_extend(value, 8));
+  } else {
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, xer)),
+          zero_extend(value, 8));
+  }
 }
 
 #if 0
@@ -1199,48 +1227,103 @@ void X64Emitter::update_xer_with_overflow_and_carry(GpVar& value) {
 }
 #endif
 
-GpVar& X64Emitter::lr_value() {
+GpVar X64Emitter::lr_value() {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.lr.getId() != kInvalidValue);
-  return locals_.lr;
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.lr.getId() != kInvalidValue);
+    return locals_.lr;
+  } else {
+    GpVar value(c.newGpVar());
+    c.mov(value,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)));
+    return value;
+  }
 }
 
 void X64Emitter::update_lr_value(GpVar& value) {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.lr.getId() != kInvalidValue);
-  c.mov(locals_.lr, zero_extend(value, 8));
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.lr.getId() != kInvalidValue);
+    c.mov(locals_.lr, zero_extend(value, 8));
+  } else {
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)),
+          zero_extend(value, 8));
+  }
 }
 
 void X64Emitter::update_lr_value(AsmJit::Imm& imm) {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.lr.getId() != kInvalidValue);
-  c.mov(locals_.lr, imm);
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.lr.getId() != kInvalidValue);
+    c.mov(locals_.lr, imm);
+  } else {
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, lr)),
+          imm);
+  }
 }
 
-GpVar& X64Emitter::ctr_value() {
+GpVar X64Emitter::ctr_value() {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.ctr.getId() != kInvalidValue);
-  return locals_.ctr;
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.ctr.getId() != kInvalidValue);
+    return locals_.ctr;
+  } else {
+    GpVar value(c.newGpVar());
+    c.mov(value,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)));
+    return value;
+  }
 }
 
 void X64Emitter::update_ctr_value(GpVar& value) {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.ctr.getId() != kInvalidValue);
-  c.mov(locals_.ctr, zero_extend(value, 8));
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.ctr.getId() != kInvalidValue);
+    c.mov(locals_.ctr, zero_extend(value, 8));
+  } else {
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, ctr)),
+          zero_extend(value, 8));
+  }
 }
 
-GpVar& X64Emitter::cr_value(uint32_t n) {
+GpVar X64Emitter::cr_value(uint32_t n) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 8);
-  XEASSERT(locals_.cr[n].getId() != kInvalidValue);
-  return locals_.cr[n];
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.cr[n].getId() != kInvalidValue);
+    return locals_.cr[n];
+  } else {
+    // TODO(benvanik): this can most definitely be made more efficient.
+    GpVar value(c.newGpVar());
+    c.mov(value,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)));
+    if (n < 4) {
+      c.shr(value, imm(28 - n * 4));
+    }
+    c.and_(value, imm(0xF));
+    return value;
+  }
 }
 
 void X64Emitter::update_cr_value(uint32_t n, GpVar& value) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 8);
-  XEASSERT(locals_.cr[n].getId() != kInvalidValue);
-  c.mov(locals_.cr[n], trunc(value, 1));
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.cr[n].getId() != kInvalidValue);
+    c.mov(locals_.cr[n], trunc(value, 1));
+  } else {
+    // TODO(benvanik): this can most definitely be made more efficient.
+    GpVar cr_tmp(c.newGpVar());
+    c.mov(cr_tmp, qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)));
+    GpVar cr_n(c.newGpVar());
+    c.mov(cr_n, value);
+    if (n) {
+      c.shl(cr_n, imm(n * 4));
+    }
+    c.and_(cr_tmp, imm(~(0xF << (n * 4))));
+    c.or_(cr_tmp, cr_n);
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)), cr_tmp);
+  }
 }
 
 #if 0
@@ -1283,10 +1366,9 @@ void X64Emitter::update_cr_with_cond(
 }
 #endif
 
-GpVar& X64Emitter::gpr_value(uint32_t n) {
+GpVar X64Emitter::gpr_value(uint32_t n) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 32);
-  XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
 
   // Actually r0 is writable, even though nobody should ever do that.
   // Perhaps we can check usage and enable this if safe?
@@ -1294,35 +1376,59 @@ GpVar& X64Emitter::gpr_value(uint32_t n) {
   //   return get_uint64(0);
   // }
 
-  return locals_.gpr[n];
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
+    return locals_.gpr[n];
+  } else {
+    GpVar value(c.newGpVar());
+    c.mov(value,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n));
+    return value;
+  }
 }
 
 void X64Emitter::update_gpr_value(uint32_t n, GpVar& value) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 32);
-  XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
-
   // See above - r0 can be written.
   // if (n == 0) {
   //   // Ignore writes to zero.
   //   return;
   // }
 
-  c.mov(locals_.gpr[n], zero_extend(value, 8));
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
+    c.mov(locals_.gpr[n], zero_extend(value, 8));
+  } else {
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, r) + 8 * n),
+          zero_extend(value, 8));
+  }
 }
 
-GpVar& X64Emitter::fpr_value(uint32_t n) {
+GpVar X64Emitter::fpr_value(uint32_t n) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 32);
-  XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
-  return locals_.fpr[n];
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
+    return locals_.fpr[n];
+  } else {
+    GpVar value(c.newGpVar());
+    c.mov(value,
+          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
+    return value;
+  }
 }
 
 void X64Emitter::update_fpr_value(uint32_t n, GpVar& value) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 32);
-  XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
-  c.mov(locals_.fpr[n], value);
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
+    c.mov(locals_.fpr[n], value);
+  } else {
+    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
+          value);
+  }
 }
 
 // GpVar& X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
@@ -1455,21 +1561,12 @@ void X64Emitter::update_fpr_value(uint32_t n, GpVar& value) {
 //   jit_insn_store_relative(fn_, address, 0, value);
 // }
 
-// jit_value_t X64Emitter::get_int32(int32_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_int, value);
-// }
-
-// jit_value_t X64Emitter::get_uint32(uint32_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_uint, value);
-// }
-
-// jit_value_t X64Emitter::get_int64(int64_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_nint, value);
-// }
-
-// jit_value_t X64Emitter::get_uint64(uint64_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_nuint, value);
-// }
+GpVar X64Emitter::get_uint64(uint64_t value) {
+  X86Compiler& c = compiler_;
+  GpVar v(c.newGpVar());
+  c.mov(v, imm(value));
+  return v;
+}
 
 GpVar X64Emitter::sign_extend(GpVar& value, int size) {
   X86Compiler& c = compiler_;
