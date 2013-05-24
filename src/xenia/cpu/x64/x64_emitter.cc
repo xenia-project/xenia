@@ -1529,25 +1529,25 @@ void X64Emitter::WriteMemory(
   GpVar tmp;
   switch (size) {
     case 1:
-      c.mov(byte_ptr(real_address), value);
+      c.mov(byte_ptr(real_address), value.r8());
       break;
     case 2:
       tmp = c.newGpVar();
       c.mov(tmp, value);
       c.xchg(tmp.r8Lo(), tmp.r8Hi());
-      c.mov(word_ptr(real_address), tmp);
+      c.mov(word_ptr(real_address), tmp.r16());
       break;
     case 4:
       tmp = c.newGpVar();
       c.mov(tmp, value);
       c.bswap(tmp.r32());
-      c.mov(dword_ptr(real_address), tmp);
+      c.mov(dword_ptr(real_address), tmp.r32());
       break;
     case 8:
       tmp = c.newGpVar();
       c.mov(tmp, value);
       c.bswap(tmp.r64());
-      c.mov(qword_ptr(real_address), tmp);
+      c.mov(qword_ptr(real_address), tmp.r64());
       break;
     default:
       XEASSERTALWAYS();
