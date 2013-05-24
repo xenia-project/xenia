@@ -3,6 +3,7 @@
   'includes': [
     'tools/tools.gypi',
     'third_party/asmjit.gypi',
+    'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
     'third_party/sparsehash.gypi',
   ],
@@ -15,11 +16,13 @@
 
       'dependencies': [
         'asmjit',
+        'beaengine',
         'gflags',
         'third_party/libjit/libjit.gyp:libjit',
       ],
       'export_dependent_settings': [
         'asmjit',
+        'beaengine',
         'gflags',
         'third_party/libjit/libjit.gyp:libjit',
       ],
