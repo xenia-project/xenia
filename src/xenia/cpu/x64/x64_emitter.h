@@ -22,19 +22,24 @@ namespace cpu {
 namespace x64 {
 
 
+// Typedef for all generated functions.
+typedef void (*x64_function_t)(xe_ppc_state_t* ppc_state, uint64_t lr);
+
+
 class X64Emitter {
 public:
   X64Emitter(xe_memory_ref memory);
   ~X64Emitter();
 
-  // jit_context_t context();
+  void Lock();
+  void Unlock();
 
-  // int PrepareFunction(sdb::FunctionSymbol* symbol);
-  // int MakeFunction(sdb::FunctionSymbol* symbol, jit_function_t fn);
+  int PrepareFunction(sdb::FunctionSymbol* symbol);
+  int MakeFunction(sdb::FunctionSymbol* symbol);
 
-  // sdb::FunctionSymbol* symbol();
-  // jit_function_t fn();
-  // sdb::FunctionBlock* fn_block();
+  AsmJit::X86Compiler& compiler();
+  sdb::FunctionSymbol* symbol();
+  sdb::FunctionBlock* fn_block();
 
   // jit_value_t get_int32(int32_t value);
   // jit_value_t get_uint32(uint32_t value);
@@ -58,7 +63,8 @@ public:
   // int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
   //                   bool tail);
 
-  // void TraceBranch(uint32_t cia);
+  void TraceBranch(uint32_t cia);
+
   // int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
   //                               bool lk, bool likely_local);
 
@@ -67,8 +73,8 @@ public:
   // void StoreStateValue(size_t offset, jit_type_t type, jit_value_t value);
 
   // jit_value_t SetupLocal(jit_type_t type, const char* name);
-  // void FillRegisters();
-  // void SpillRegisters();
+  void FillRegisters();
+  void SpillRegisters();
 
   // jit_value_t xer_value();
   // void update_xer_value(jit_value_t value);
@@ -100,38 +106,36 @@ public:
   //     bool release = false);
 
 private:
-  // int MakeUserFunction();
-  // int MakePresentImportFunction();
-  // int MakeMissingImportFunction();
+  static void* OnDemandCompileTrampoline(
+      X64Emitter* emitter, sdb::FunctionSymbol* symbol);
+  void* OnDemandCompile(sdb::FunctionSymbol* symbol);
+  int MakeUserFunction();
+  int MakePresentImportFunction();
+  int MakeMissingImportFunction();
 
-  // void GenerateBasicBlocks();
-  // void GenerateSharedBlocks();
-  // int PrepareBasicBlock(sdb::FunctionBlock* block);
-  // void GenerateBasicBlock(sdb::FunctionBlock* block);
-  // void SetupLocals();
+  void GenerateBasicBlocks();
+  void GenerateSharedBlocks();
+  int PrepareBasicBlock(sdb::FunctionBlock* block);
+  void GenerateBasicBlock(sdb::FunctionBlock* block);
+  void SetupLocals();
 
   xe_memory_ref         memory_;
   GlobalExports         global_exports_;
+  xe_mutex_t*           lock_;
 
-  // jit_type_t            fn_signature_;
-  // jit_type_t            shim_signature_;
-  // jit_type_t            global_export_signature_2_;
-  // jit_type_t            global_export_signature_3_;
-  // jit_type_t            global_export_signature_4_;
+  AsmJit::Logger*       logger_;
+  AsmJit::X86Assembler  assembler_;
+  AsmJit::X86Compiler   compiler_;
 
-  // sdb::FunctionSymbol*  symbol_;
-  // jit_function_t        fn_;
-  // sdb::FunctionBlock*   fn_block_;
+  sdb::FunctionSymbol*  symbol_;
+  sdb::FunctionBlock*   fn_block_;
   // jit_label_t           return_block_;
   // jit_label_t           internal_indirection_block_;
   // jit_label_t           external_indirection_block_;
 
   // std::map<uint32_t, jit_label_t> bbs_;
 
-  // // Address of the instruction being generated.
-  // uint32_t              cia_;
-
-  // ppc::InstrAccessBits access_bits_;
+  ppc::InstrAccessBits access_bits_;
   // struct {
   //   jit_value_t  indirection_target;
   //   jit_value_t  indirection_cia;

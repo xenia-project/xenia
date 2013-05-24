@@ -125,8 +125,9 @@ public:
   ExceptionEntrySymbol* ee;
 
   // Implementation-specific value. This could be a JIT'ed function ref
-  // or some other structure. Never freed.
+  // or some other structure. Never freed by the SDB.
   void*         impl_value;
+  size_t        impl_size;
 
   std::vector<FunctionCall> incoming_calls;
   std::vector<FunctionCall> outgoing_calls;

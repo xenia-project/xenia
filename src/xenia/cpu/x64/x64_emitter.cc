@@ -54,123 +54,170 @@ X64Emitter::X64Emitter(xe_memory_ref memory) {
   // Grab global exports.
   cpu::GetGlobalExports(&global_exports_);
 
-  // // Function type for all functions.
-  // // TODO(benvanik): evaluate using jit_abi_fastcall
-  // jit_type_t fn_params[] = {
-  //   jit_type_void_ptr,
-  //   jit_type_nuint,
-  // };
-  // fn_signature_ = jit_type_create_signature(
-  //     jit_abi_cdecl,
-  //     jit_type_void,
-  //     fn_params, XECOUNT(fn_params),
-  //     0);
+  // Lock used for all codegen.
+  // It'd be nice to have multiple emitters/etc that could be used to prevent
+  // contention of the JIT.
+  lock_ = xe_mutex_alloc(10000);
+  XEASSERTNOTNULL(lock_);
 
-  // jit_type_t shim_params[] = {
-  //   jit_type_void_ptr,
-  //   jit_type_void_ptr,
-  // };
-  // shim_signature_ = jit_type_create_signature(
-  //     jit_abi_cdecl,
-  //     jit_type_void,
-  //     shim_params, XECOUNT(shim_params),
-  //     0);
-
-  // jit_type_t global_export_params_2[] = {
-  //   jit_type_void_ptr,
-  //   jit_type_ulong,
-  // };
-  // global_export_signature_2_ = jit_type_create_signature(
-  //     jit_abi_cdecl,
-  //     jit_type_void,
-  //     global_export_params_2, XECOUNT(global_export_params_2),
-  //     0);
-  // jit_type_t global_export_params_3[] = {
-  //   jit_type_void_ptr,
-  //   jit_type_ulong,
-  //   jit_type_ulong,
-  // };
-  // global_export_signature_3_ = jit_type_create_signature(
-  //     jit_abi_cdecl,
-  //     jit_type_void,
-  //     global_export_params_3, XECOUNT(global_export_params_3),
-  //     0);
-  // jit_type_t global_export_params_4[] = {
-  //   jit_type_void_ptr,
-  //   jit_type_ulong,
-  //   jit_type_ulong,
-  //   jit_type_void_ptr,
-  // };
-  // global_export_signature_4_ = jit_type_create_signature(
-  //     jit_abi_cdecl,
-  //     jit_type_void,
-  //     global_export_params_4, XECOUNT(global_export_params_4),
-  //     0);
+  // Setup logging.
+  if (FLAGS_log_codegen) {
+    logger_ = new FileLogger(stdout);
+    logger_->setEnabled(true);
+    assembler_.setLogger(logger_);
+    compiler_.setLogger(logger_);
+  }
 }
 
 X64Emitter::~X64Emitter() {
-  // jit_type_free(fn_signature_);
-  // jit_type_free(shim_signature_);
-  // jit_type_free(global_export_signature_2_);
-  // jit_type_free(global_export_signature_3_);
-  // jit_type_free(global_export_signature_4_);
+  Lock();
+
+  assembler_.clear();
+  compiler_.clear();
+  delete logger_;
+
+  Unlock();
+
+  xe_mutex_free(lock_);
+  lock_ = NULL;
 }
 
-// namespace {
-// int libjit_on_demand_compile(jit_function_t fn) {
-//   X64Emitter* emitter = (X64Emitter*)jit_function_get_meta(fn, 0x1000);
-//   FunctionSymbol* symbol = (FunctionSymbol*)jit_function_get_meta(fn, 0x1001);
-//   XELOGE("Compile(%s): beginning on-demand compilation...", symbol->name());
-//   int result_code = emitter->MakeFunction(symbol, fn);
-//   if (result_code) {
-//     XELOGCPU("Compile(%s): failed to make function", symbol->name());
-//     return JIT_RESULT_COMPILE_ERROR;
-//   }
-//   return JIT_RESULT_OK;
-// }
-// }
+void X64Emitter::Lock() {
+  xe_mutex_lock(lock_);
+}
 
-// int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
-//   if (symbol->impl_value) {
-//     return 0;
-//   }
+void X64Emitter::Unlock() {
+  xe_mutex_unlock(lock_);
+}
 
-//   jit_context_build_start(context_);
+int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
+  int result_code = 1;
+  Lock();
 
-//   // Create the function and setup for on-demand compilation.
-//   jit_function_t fn = jit_function_create(context_, fn_signature_);
-//   jit_function_set_meta(fn, 0x1000, this, NULL, 0);
-//   jit_function_set_meta(fn, 0x1001, symbol, NULL, 0);
-//   jit_function_set_on_demand_compiler(fn, libjit_on_demand_compile);
+  if (symbol->impl_value) {
+    result_code = 0;
+    XESUCCEED();
+  }
 
-//   // Set optimization options.
-//   // TODO(benvanik): add gflags
-//   uint32_t max_level = jit_function_get_max_optimization_level();
-//   uint32_t opt_level = max_level; // 0
-//   opt_level = MIN(max_level, MAX(0, opt_level));
-//   jit_function_set_optimization_level(fn, opt_level);
+  // Create the custom redirector function.
+  // This function will jump to the on-demand compilation routine to
+  // generate the real function as required. Afterwards, it will be
+  // overwritten with a jump to the new function.
 
-//   // Stash for later.
-//   symbol->impl_value = fn;
-//   jit_context_build_end(context_);
+  // PrepareFunction:
+  // ; mov rcx, ppc_state -- comes in as arg
+  // ; mov rdx, lr        -- comes in as arg
+  // mov r8, [emitter]
+  // mov r9, [symbol]
+  // call [OnDemandCompileTrampoline]
+  // jmp [rax]
 
-//   return 0;
-// }
+#if defined(ASMJIT_WINDOWS)
+  // Calling convetion: kX86FuncConvX64W
+  // Arguments passed as RCX, RDX, R8, R9
+  assembler_.push(rcx); // ppc_state
+  assembler_.push(rdx); // lr
+  assembler_.mov(rcx, (uint64_t)this);
+  assembler_.mov(rdx, (uint64_t)symbol);
+  assembler_.call(X64Emitter::OnDemandCompileTrampoline);
+  assembler_.pop(rdx); // lr
+  assembler_.pop(rcx); // ppc_state
+  assembler_.jmp(rax);
+#else
+  // Calling convetion: kX86FuncConvX64U
+  // Arguments passed as RDI, RSI, RDX, RCX, R8, R9
+  assembler_.push(rdi); // ppc_state
+  assembler_.push(rsi); // lr
+  assembler_.mov(rdi, (uint64_t)this);
+  assembler_.mov(rsi, (uint64_t)symbol);
+  assembler_.call(X64Emitter::OnDemandCompileTrampoline);
+  assembler_.pop(rsi); // lr
+  assembler_.pop(rdi); // ppc_state
+  assembler_.jmp(rax);
+#endif  // ASM_JIT_WINDOWS
 
-// int X64Emitter::MakeFunction(FunctionSymbol* symbol, jit_function_t fn) {
-//   symbol_ = symbol;
-//   fn_ = fn;
+  // Assemble and stash.
+  void* fn_ptr = assembler_.make();
+  symbol->impl_value = fn_ptr;
+  symbol->impl_size = assembler_.getCodeSize();
 
-//   fn_block_ = NULL;
+  result_code = 0;
+XECLEANUP:
+  assembler_.clear();
+  Unlock();
+  return result_code;
+}
+
+void* X64Emitter::OnDemandCompileTrampoline(
+    X64Emitter* emitter, FunctionSymbol* symbol) {
+  // This function is called by the redirector code from PrepareFunction.
+  // We jump into the member OnDemandCompile and pass back the
+  // result.
+  return emitter->OnDemandCompile(symbol);
+}
+
+void* X64Emitter::OnDemandCompile(FunctionSymbol* symbol) {
+  void* redirector_ptr = symbol->impl_value;
+  size_t redirector_size = symbol->impl_size;
+
+  // Generate the real function.
+  int result_code = MakeFunction(symbol);
+  if (result_code) {
+    // Failed to make the function! We're hosed!
+    // We'll likely crash now.
+    XELOGCPU("Compile(%s): failed to make function", symbol->name());
+    XEASSERTALWAYS();
+    return 0;
+  }
+
+  // TODO(benvanik): find a way to patch in that is thread safe?
+  // Overwrite the redirector function to jump to the new one.
+  // This preserves the arguments passed to the redirector.
+  uint8_t* bp = (uint8_t*)redirector_ptr;
+  size_t o = 0;
+  uint64_t target_ptr = (uint64_t)symbol->impl_value;
+  if (target_ptr & ~0xFFFFFFFFLL) {
+    // mov rax, imm64
+    bp[o++] = 0x48; bp[o++] = 0xB8;
+    for (int n = 0; n < 8; n++) {
+      bp[o++] = (target_ptr >> (n * 8)) & 0xFF;
+    }
+  } else {
+    // mov rax, imm32
+    bp[o++] = 0x48; bp[o++] = 0xC7; bp[o++] = 0xC0;
+    for (int n = 0; n < 4; n++) {
+      bp[o++] = (target_ptr >> (n * 8)) & 0xFF;
+    }
+  }
+  // jmp rax
+  bp[o++] = 0xFF; bp[o++] = 0xE0;
+
+  // Write some no-ops to cover up the rest of the redirection.
+  // NOTE: not currently doing this as we overwrite the code that
+  //       got us here and endup just running nops.
+  // while (o < redirector_size) {
+  //   bp[o++] = 0x90;
+  // }
+
+  return symbol->impl_value;
+}
+
+int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
+  int result_code = 1;
+  Lock();
+
+  XELOGCPU("Compile(%s): beginning compilation...", symbol->name());
+
+  symbol_ = symbol;
+  fn_block_ = NULL;
+
 //   return_block_ = jit_label_undefined;
 //   internal_indirection_block_ = jit_label_undefined;
 //   external_indirection_block_ = jit_label_undefined;
 
 //   bbs_.clear();
 
-//   cia_ = 0;
-
-//   access_bits_.Clear();
+  access_bits_.Clear();
 
 //   locals_.indirection_target = NULL;
 //   locals_.indirection_cia = NULL;
@@ -188,55 +235,83 @@ X64Emitter::~X64Emitter() {
 //     locals_.fpr[n] = NULL;
 //   }
 
-//   if (FLAGS_log_codegen) {
-//     printf("%s:\n", symbol->name());
-//   }
+  // Setup function. All share the same signature.
+  compiler_.newFunc(kX86FuncConvDefault,
+      FuncBuilder2<void, void*, uint64_t>());
 
-//   int result_code = 0;
-//   switch (symbol->type) {
-//   case FunctionSymbol::User:
-//     result_code = MakeUserFunction();
-//     break;
-//   case FunctionSymbol::Kernel:
-//     if (symbol->kernel_export && symbol->kernel_export->is_implemented) {
-//       result_code = MakePresentImportFunction();
-//     } else {
-//       result_code = MakeMissingImportFunction();
-//     }
-//     break;
-//   default:
-//     XEASSERTALWAYS();
-//     result_code = 1;
-//     break;
-//   }
+  // Elevate the priority of ppc_state, as it's often used.
+  // TODO(benvanik): evaluate if this is a good idea.
+  //compiler_.setPriority(compiler_.getGpArg(0), 100);
 
-//   if (!result_code) {
-//     // libjit opcodes.
-//     if (FLAGS_log_codegen) {
-//       jit_dump_function(stdout, fn_, symbol->name());
-//     }
+  switch (symbol->type) {
+  case FunctionSymbol::User:
+    result_code = MakeUserFunction();
+    break;
+  case FunctionSymbol::Kernel:
+    if (symbol->kernel_export && symbol->kernel_export->is_implemented) {
+      result_code = MakePresentImportFunction();
+    } else {
+      result_code = MakeMissingImportFunction();
+    }
+    break;
+  default:
+    XEASSERTALWAYS();
+    result_code = 1;
+    break;
+  }
+  XEEXPECTZERO(result_code);
 
-//     // Compile right now.
-//     jit_function_compile(fn_);
+  compiler_.endFunc();
 
-//     // x64 instructions.
-//     if (FLAGS_log_codegen) {
-//       jit_dump_function(stdout, fn_, symbol->name());
-//     }
+  // I don't like doing this, but there's no public access to these members.
+  assembler_._properties = compiler_._properties;
+  assembler_.setLogger(compiler_.getLogger());
 
-//     XELOGE("Compile(%s): compiled to 0x%p - 0x%p (%db)",
-//         symbol->name(),
-//         jit_function_get_code_start_address(fn_),
-//         jit_function_get_code_end_address(fn_),
-//         (uint32_t)(
-//             (intptr_t)jit_function_get_code_end_address(fn_) -
-//             (intptr_t)jit_function_get_code_start_address(fn_)));
-//   }
+  // Serialize to the assembler.
+  compiler_.serialize(assembler_);
+  if (compiler_.getError()) {
+    result_code = 2;
+  } else if (assembler_.getError()) {
+    result_code = 3;
+  }
+  XEEXPECTZERO(result_code);
 
-//   return result_code;
-// }
+  // Perform final assembly/relocation.
+  symbol->impl_value = assembler_.make();
 
-// int X64Emitter::MakeUserFunction() {
+  if (FLAGS_log_codegen) {
+    XELOGCPU("Compile(%s): compiled to 0x%p (%db)",
+        symbol->name(),
+        assembler_.getCode(), assembler_.getCodeSize());
+
+    // Dump x64 assembly.
+    DISASM MyDisasm;
+    memset(&MyDisasm, 0, sizeof(MyDisasm));
+    MyDisasm.Archi = 64;
+    MyDisasm.Options = Tabulation + MasmSyntax + PrefixedNumeral;
+    MyDisasm.EIP = (UIntPtr)assembler_.getCode();
+    void* eip_end = assembler_.getCode() + assembler_.getCodeSize();
+    while (MyDisasm.EIP < (UIntPtr)eip_end) {
+      size_t len = Disasm(&MyDisasm);
+      if (len == UNKNOWN_OPCODE) {
+        break;
+      }
+      XELOGCPU("%p  %s", MyDisasm.EIP, MyDisasm.CompleteInstr);
+      MyDisasm.EIP += len;
+    }
+  }
+
+  result_code = 0;
+XECLEANUP:
+  // Cleanup assembler/compiler. We keep them around to reuse their buffers.
+  assembler_.clear();
+  compiler_.clear();
+
+  Unlock();
+  return result_code;
+}
+
+int X64Emitter::MakeUserFunction() {
 //   if (FLAGS_trace_user_calls) {
 //     jit_value_t trace_args[] = {
 //       jit_value_get_param(fn_, 0),
@@ -255,12 +330,12 @@ X64Emitter::~X64Emitter() {
 //         0);
 //   }
 
-//   // Emit.
-//   GenerateBasicBlocks();
-//   return 0;
-// }
+  // Emit.
+  GenerateBasicBlocks();
+  return 0;
+}
 
-// int X64Emitter::MakePresentImportFunction() {
+int X64Emitter::MakePresentImportFunction() {
 //   if (FLAGS_trace_kernel_calls) {
 //     jit_value_t trace_args[] = {
 //       jit_value_get_param(fn_, 0),
@@ -295,10 +370,10 @@ X64Emitter::~X64Emitter() {
 
 //   jit_insn_return(fn_, NULL);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// int X64Emitter::MakeMissingImportFunction() {
+int X64Emitter::MakeMissingImportFunction() {
 //   if (FLAGS_trace_kernel_calls) {
 //     jit_value_t trace_args[] = {
 //       jit_value_get_param(fn_, 0),
@@ -319,169 +394,169 @@ X64Emitter::~X64Emitter() {
 
 //   jit_insn_return(fn_, NULL);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// FunctionSymbol* X64Emitter::symbol() {
-//   return symbol_;
-// }
+X86Compiler& X64Emitter::compiler() {
+  return compiler_;
+}
 
-// jit_function_t X64Emitter::fn() {
-//   return fn_;
-// }
+FunctionSymbol* X64Emitter::symbol() {
+  return symbol_;
+}
 
-// FunctionBlock* X64Emitter::fn_block() {
-//   return fn_block_;
-// }
+FunctionBlock* X64Emitter::fn_block() {
+  return fn_block_;
+}
 
-// void X64Emitter::GenerateBasicBlocks() {
-//   // If this function is empty, abort!
-//   if (!symbol_->blocks.size()) {
+void X64Emitter::GenerateBasicBlocks() {
+  // If this function is empty, abort!
+  if (!symbol_->blocks.size()) {
 //     jit_insn_return(fn_, NULL);
-//     return;
-//   }
+    return;
+  }
 
-//   // Pass 1 creates all of the labels - this way we can branch to them.
-//   // We also track registers used so that when know which ones to fill/spill.
-//   // No actual blocks or instructions are created here.
-//   // TODO(benvanik): move this to SDB? would remove an entire pass over the
-//   //     code.
-//   for (std::map<uint32_t, FunctionBlock*>::iterator it =
-//       symbol_->blocks.begin(); it != symbol_->blocks.end(); ++it) {
-//     FunctionBlock* block = it->second;
-//     XEIGNORE(PrepareBasicBlock(block));
-//   }
+  // Pass 1 creates all of the labels - this way we can branch to them.
+  // We also track registers used so that when know which ones to fill/spill.
+  // No actual blocks or instructions are created here.
+  // TODO(benvanik): move this to SDB? would remove an entire pass over the
+  //     code.
+  for (std::map<uint32_t, FunctionBlock*>::iterator it =
+      symbol_->blocks.begin(); it != symbol_->blocks.end(); ++it) {
+    FunctionBlock* block = it->second;
+    XEIGNORE(PrepareBasicBlock(block));
+  }
 
-//   // Setup all local variables now that we know what we need.
-//   // This happens in the entry block.
-//   SetupLocals();
+  // Setup all local variables now that we know what we need.
+  // This happens in the entry block.
+  SetupLocals();
 
-//   // Setup initial register fill in the entry block.
-//   // We can only do this once all the locals have been created.
-//   FillRegisters();
+  // Setup initial register fill in the entry block.
+  // We can only do this once all the locals have been created.
+  FillRegisters();
 
-//   // Pass 2 fills in instructions.
-//   for (std::map<uint32_t, FunctionBlock*>::iterator it = symbol_->blocks.begin();
-//        it != symbol_->blocks.end(); ++it) {
-//     FunctionBlock* block = it->second;
-//     GenerateBasicBlock(block);
-//   }
+  // Pass 2 fills in instructions.
+  for (std::map<uint32_t, FunctionBlock*>::iterator it =
+      symbol_->blocks.begin(); it != symbol_->blocks.end(); ++it) {
+    FunctionBlock* block = it->second;
+    GenerateBasicBlock(block);
+  }
 
-//   // Setup the shared return/indirection/etc blocks now that we know all the
-//   // blocks we need and all the registers used.
-//   GenerateSharedBlocks();
-// }
+  // Setup the shared return/indirection/etc blocks now that we know all the
+  // blocks we need and all the registers used.
+  GenerateSharedBlocks();
+}
 
-// void X64Emitter::GenerateSharedBlocks() {
-//   // Create a return block.
-//   // This spills registers and returns. All non-tail returns should branch
-//   // here to do the return and ensure registers are spilled.
-//   // This will be moved to the end after all the other blocks are created.
+void X64Emitter::GenerateSharedBlocks() {
+  // Create a return block.
+  // This spills registers and returns. All non-tail returns should branch
+  // here to do the return and ensure registers are spilled.
+  // This will be moved to the end after all the other blocks are created.
 //   jit_insn_label(fn_, &return_block_);
 //   SpillRegisters();
 //   jit_insn_return(fn_, NULL);
 
-// //  jit_value_t indirect_branch = gen_module_->getFunction("XeIndirectBranch");
-// //
-// //  // Build indirection block on demand.
-// //  // We have already prepped all basic blocks, so we can build these tables now.
-// //  if (external_indirection_block_) {
-// //    // This will spill registers and call the external function.
-// //    // It is only meant for LK=0.
-// //    b.SetInsertPoint(external_indirection_block_);
-// //    SpillRegisters();
-// //    b.CreateCall3(indirect_branch,
-// //                  fn_->arg_begin(),
-// //                  b.CreateLoad(locals_.indirection_target),
-// //                  b.CreateLoad(locals_.indirection_cia));
-// //    b.CreateRetVoid();
-// //  }
-// //
-// //  if (internal_indirection_block_) {
-// //    // This will not spill registers and instead try to switch on local blocks.
-// //    // If it fails then the external indirection path is taken.
-// //    // NOTE: we only generate this if a likely local branch is taken.
-// //    b.SetInsertPoint(internal_indirection_block_);
-// //    SwitchInst* switch_i = b.CreateSwitch(
-// //        b.CreateLoad(locals_.indirection_target),
-// //        external_indirection_block_,
-// //        static_cast<int>(bbs_.size()));
-// //    for (std::map<uint32_t, BasicBlock*>::iterator it = bbs_.begin();
-// //         it != bbs_.end(); ++it) {
-// //      switch_i->addCase(b.getInt64(it->first), it->second);
-// //    }
-// //  }
-// }
+//  jit_value_t indirect_branch = gen_module_->getFunction("XeIndirectBranch");
+//
+//  // Build indirection block on demand.
+//  // We have already prepped all basic blocks, so we can build these tables now.
+//  if (external_indirection_block_) {
+//    // This will spill registers and call the external function.
+//    // It is only meant for LK=0.
+//    b.SetInsertPoint(external_indirection_block_);
+//    SpillRegisters();
+//    b.CreateCall3(indirect_branch,
+//                  fn_->arg_begin(),
+//                  b.CreateLoad(locals_.indirection_target),
+//                  b.CreateLoad(locals_.indirection_cia));
+//    b.CreateRetVoid();
+//  }
+//
+//  if (internal_indirection_block_) {
+//    // This will not spill registers and instead try to switch on local blocks.
+//    // If it fails then the external indirection path is taken.
+//    // NOTE: we only generate this if a likely local branch is taken.
+//    b.SetInsertPoint(internal_indirection_block_);
+//    SwitchInst* switch_i = b.CreateSwitch(
+//        b.CreateLoad(locals_.indirection_target),
+//        external_indirection_block_,
+//        static_cast<int>(bbs_.size()));
+//    for (std::map<uint32_t, BasicBlock*>::iterator it = bbs_.begin();
+//         it != bbs_.end(); ++it) {
+//      switch_i->addCase(b.getInt64(it->first), it->second);
+//    }
+//  }
+}
 
-// int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
-//   // Add an undefined entry in the table.
-//   // The label will be created on-demand.
+int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
+  // Add an undefined entry in the table.
+  // The label will be created on-demand.
 //   bbs_.insert(std::pair<uint32_t, jit_label_t>(
 //       block->start_address, jit_label_undefined));
 
-//   // TODO(benvanik): set label name? would help debugging disasm
-//   // char name[32];
-//   // xesnprintfa(name, XECOUNT(name), "loc_%.8X", block->start_address);
+  // TODO(benvanik): set label name? would help debugging disasm
+  // char name[32];
+  // xesnprintfa(name, XECOUNT(name), "loc_%.8X", block->start_address);
 
-//   // Scan and disassemble each instruction in the block to get accurate
-//   // register access bits. In the future we could do other optimization checks
-//   // in this pass.
-//   // TODO(benvanik): perhaps we want to stash this for each basic block?
-//   // We could use this for faster checking of cr/ca checks/etc.
-//   InstrAccessBits access_bits;
-//   uint8_t* p = xe_memory_addr(memory_, 0);
-//   for (uint32_t ia = block->start_address; ia <= block->end_address; ia += 4) {
-//     InstrData i;
-//     i.address = ia;
-//     i.code = XEGETUINT32BE(p + ia);
-//     i.type = ppc::GetInstrType(i.code);
+  // Scan and disassemble each instruction in the block to get accurate
+  // register access bits. In the future we could do other optimization checks
+  // in this pass.
+  // TODO(benvanik): perhaps we want to stash this for each basic block?
+  // We could use this for faster checking of cr/ca checks/etc.
+  InstrAccessBits access_bits;
+  uint8_t* p = xe_memory_addr(memory_, 0);
+  for (uint32_t ia = block->start_address; ia <= block->end_address; ia += 4) {
+    InstrData i;
+    i.address = ia;
+    i.code = XEGETUINT32BE(p + ia);
+    i.type = ppc::GetInstrType(i.code);
 
-//     // Ignore unknown or ones with no disassembler fn.
-//     if (!i.type || !i.type->disassemble) {
-//       continue;
-//     }
+    // Ignore unknown or ones with no disassembler fn.
+    if (!i.type || !i.type->disassemble) {
+      continue;
+    }
 
-//     // We really need to know the registers modified, so die if we've been lazy
-//     // and haven't implemented the disassemble method yet.
-//     ppc::InstrDisasm d;
-//     XEASSERTNOTNULL(i.type->disassemble);
-//     int result_code = i.type->disassemble(i, d);
-//     XEASSERTZERO(result_code);
-//     if (result_code) {
-//       return result_code;
-//     }
+    // We really need to know the registers modified, so die if we've been lazy
+    // and haven't implemented the disassemble method yet.
+    ppc::InstrDisasm d;
+    XEASSERTNOTNULL(i.type->disassemble);
+    int result_code = i.type->disassemble(i, d);
+    XEASSERTZERO(result_code);
+    if (result_code) {
+      return result_code;
+    }
 
-//     // Accumulate access bits.
-//     access_bits.Extend(d.access_bits);
-//   }
+    // Accumulate access bits.
+    access_bits.Extend(d.access_bits);
+  }
 
-//   // Add in access bits to function access bits.
-//   access_bits_.Extend(access_bits);
+  // Add in access bits to function access bits.
+  access_bits_.Extend(access_bits);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
-//   fn_block_ = block;
+void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
+  fn_block_ = block;
 
-//   // Create new block.
-//   // This will create a label if it hasn't already been done.
+  // Create new block.
+  // This will create a label if it hasn't already been done.
 //   std::map<uint32_t, jit_label_t>::iterator label_it =
 //       bbs_.find(block->start_address);
 //   XEASSERT(label_it != bbs_.end());
 //   jit_insn_label(fn_, &label_it->second);
 
-//   if (FLAGS_log_codegen) {
-//     printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
-//   }
+  if (FLAGS_log_codegen) {
+    printf("  bb %.8X-%.8X:\n", block->start_address, block->end_address);
+  }
 
-//   // Walk instructions in block.
-//   uint8_t* p = xe_memory_addr(memory_, 0);
-//   for (uint32_t ia = block->start_address; ia <= block->end_address; ia += 4) {
-//     InstrData i;
-//     i.address = ia;
-//     i.code = XEGETUINT32BE(p + ia);
-//     i.type = ppc::GetInstrType(i.code);
+  // Walk instructions in block.
+  uint8_t* p = xe_memory_addr(memory_, 0);
+  for (uint32_t ia = block->start_address; ia <= block->end_address; ia += 4) {
+    InstrData i;
+    i.address = ia;
+    i.code = XEGETUINT32BE(p + ia);
+    i.type = ppc::GetInstrType(i.code);
 
 //     jit_value_t trace_args[] = {
 //       jit_value_get_param(fn_, 0),
@@ -491,12 +566,12 @@ X64Emitter::~X64Emitter() {
 //           (jit_ulong)i.code),
 //     };
 
-//     // Add debugging tag.
-//     // TODO(benvanik): mark type.
-//     //jit_insn_mark_breakpoint(fn_, 1, ia);
+    // Add debugging tag.
+    // TODO(benvanik): mark type.
+    //jit_insn_mark_breakpoint(fn_, 1, ia);
 
-//     if (FLAGS_trace_instructions) {
-//       SpillRegisters();
+    if (FLAGS_trace_instructions) {
+      SpillRegisters();
 //       jit_insn_call_native(
 //           fn_,
 //           "XeTraceInstruction",
@@ -504,11 +579,11 @@ X64Emitter::~X64Emitter() {
 //           global_export_signature_3_,
 //           trace_args, XECOUNT(trace_args),
 //           0);
-//     }
+    }
 
-//     if (!i.type) {
-//       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
-//       SpillRegisters();
+    if (!i.type) {
+      XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
+      SpillRegisters();
 //       jit_insn_call_native(
 //           fn_,
 //           "XeInvalidInstruction",
@@ -516,30 +591,30 @@ X64Emitter::~X64Emitter() {
 //           global_export_signature_3_,
 //           trace_args, XECOUNT(trace_args),
 //           0);
-//       continue;
-//     }
+      continue;
+    }
 
-//     if (FLAGS_log_codegen) {
-//       if (i.type->disassemble) {
-//         ppc::InstrDisasm d;
-//         i.type->disassemble(i, d);
-//         std::string disasm;
-//         d.Dump(disasm);
-//         printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
-//       } else {
-//         printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
-//       }
-//     }
+    if (FLAGS_log_codegen) {
+      if (i.type->disassemble) {
+        ppc::InstrDisasm d;
+        i.type->disassemble(i, d);
+        std::string disasm;
+        d.Dump(disasm);
+        printf("    %.8X: %.8X %s\n", ia, i.code, disasm.c_str());
+      } else {
+        printf("    %.8X: %.8X %s ???\n", ia, i.code, i.type->name);
+      }
+    }
 
-//     typedef int (*InstrEmitter)(X64Emitter& g, Compiler& c, InstrData& i);
-//     InstrEmitter emit = (InstrEmitter)i.type->emit;
-//     if (!i.type->emit || emit(*this, fn_, i)) {
-//       // This printf is handy for sort/uniquify to find instructions.
-//       //printf("unimplinstr %s\n", i.type->name);
+    typedef int (*InstrEmitter)(X64Emitter& g, Compiler& c, InstrData& i);
+    InstrEmitter emit = (InstrEmitter)i.type->emit;
+    if (!i.type->emit || emit(*this, compiler_, i)) {
+      // This printf is handy for sort/uniquify to find instructions.
+      //printf("unimplinstr %s\n", i.type->name);
 
-//       XELOGCPU("Unimplemented instr %.8X %.8X %s",
-//                ia, i.code, i.type->name);
-//       SpillRegisters();
+      XELOGCPU("Unimplemented instr %.8X %.8X %s",
+               ia, i.code, i.type->name);
+      SpillRegisters();
 //       jit_insn_call_native(
 //           fn_,
 //           "XeInvalidInstruction",
@@ -547,24 +622,24 @@ X64Emitter::~X64Emitter() {
 //           global_export_signature_3_,
 //           trace_args, XECOUNT(trace_args),
 //           0);
-//     }
-//   }
+    }
+  }
 
-//   // If we fall through, create the branch.
-//   if (block->outgoing_type == FunctionBlock::kTargetNone) {
-//     // BasicBlock* next_bb = GetNextBasicBlock();
-//     // XEASSERTNOTNULL(next_bb);
-//     // b.CreateBr(next_bb);
-//   } else if (block->outgoing_type == FunctionBlock::kTargetUnknown) {
-//     // Hrm.
-//     // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
-//     XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit",
-//              symbol_->start_address, block->start_address);
-//     jit_insn_return(fn_, NULL);
-//   }
+  // If we fall through, create the branch.
+  if (block->outgoing_type == FunctionBlock::kTargetNone) {
+    // BasicBlock* next_bb = GetNextBasicBlock();
+    // XEASSERTNOTNULL(next_bb);
+    // b.CreateBr(next_bb);
+  } else if (block->outgoing_type == FunctionBlock::kTargetUnknown) {
+    // Hrm.
+    // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
+    XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit",
+             symbol_->start_address, block->start_address);
+    // jit_insn_return(fn_, NULL);
+  }
 
-//   // TODO(benvanik): finish up BB
-// }
+  // TODO(benvanik): finish up BB
+}
 
 // jit_value_t X64Emitter::get_int32(int32_t value) {
 //   return jit_value_create_nint_constant(fn_, jit_type_int, value);
@@ -749,29 +824,29 @@ X64Emitter::~X64Emitter() {
 //   return 1;
 // }
 
-// void X64Emitter::TraceBranch(uint32_t cia) {
-//   SpillRegisters();
+void X64Emitter::TraceBranch(uint32_t cia) {
+  SpillRegisters();
 
-//   // Pick target. If it's an indirection the tracing function will handle it.
-//   uint64_t target = 0;
-//   switch (fn_block_->outgoing_type) {
-//     case FunctionBlock::kTargetBlock:
-//       target = fn_block_->outgoing_address;
-//       break;
-//     case FunctionBlock::kTargetFunction:
-//       target = fn_block_->outgoing_function->start_address;
-//       break;
-//     case FunctionBlock::kTargetLR:
-//       target = kXEPPCRegLR;
-//       break;
-//     case FunctionBlock::kTargetCTR:
-//       target = kXEPPCRegCTR;
-//       break;
-//     default:
-//     case FunctionBlock::kTargetNone:
-//       XEASSERTALWAYS();
-//       break;
-//   }
+  // Pick target. If it's an indirection the tracing function will handle it.
+  uint64_t target = 0;
+  switch (fn_block_->outgoing_type) {
+    case FunctionBlock::kTargetBlock:
+      target = fn_block_->outgoing_address;
+      break;
+    case FunctionBlock::kTargetFunction:
+      target = fn_block_->outgoing_function->start_address;
+      break;
+    case FunctionBlock::kTargetLR:
+      target = kXEPPCRegLR;
+      break;
+    case FunctionBlock::kTargetCTR:
+      target = kXEPPCRegCTR;
+      break;
+    default:
+    case FunctionBlock::kTargetNone:
+      XEASSERTALWAYS();
+      break;
+  }
 
 //   jit_value_t trace_args[] = {
 //     jit_value_get_param(fn_, 0),
@@ -785,7 +860,7 @@ X64Emitter::~X64Emitter() {
 //       global_export_signature_3_,
 //       trace_args, XECOUNT(trace_args),
 //       0);
-// }
+}
 
 // int X64Emitter::GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
 //                                              bool lk, bool likely_local) {
@@ -897,51 +972,49 @@ X64Emitter::~X64Emitter() {
 //       fn_, jit_value_get_param(fn_, 0), offset, value);
 // }
 
-// void X64Emitter::SetupLocals() {
-//   uint64_t spr_t = access_bits_.spr;
-//   if (spr_t & 0x3) {
+void X64Emitter::SetupLocals() {
+  uint64_t spr_t = access_bits_.spr;
+  if (spr_t & 0x3) {
 //     locals_.xer = SetupLocal(jit_type_nuint, "xer");
-//   }
-//   spr_t >>= 2;
-//   if (spr_t & 0x3) {
+  }
+  spr_t >>= 2;
+  if (spr_t & 0x3) {
 //     locals_.lr = SetupLocal(jit_type_nuint, "lr");
-//   }
-//   spr_t >>= 2;
-//   if (spr_t & 0x3) {
+  }
+  spr_t >>= 2;
+  if (spr_t & 0x3) {
 //     locals_.ctr = SetupLocal(jit_type_nuint, "ctr");
-//   }
-//   spr_t >>= 2;
-//   // TODO: FPCSR
+  }
+  spr_t >>= 2;
+  // TODO: FPCSR
 
-//   char name[32];
-
-//   uint64_t cr_t = access_bits_.cr;
-//   for (int n = 0; n < 8; n++) {
-//     if (cr_t & 3) {
-//       //xesnprintfa(name, XECOUNT(name), "cr%d", n);
+  uint64_t cr_t = access_bits_.cr;
+  for (int n = 0; n < 8; n++) {
+    if (cr_t & 3) {
+      //xesnprintfa(name, XECOUNT(name), "cr%d", n);
 //       locals_.cr[n] = SetupLocal(jit_type_ubyte, name);
-//     }
-//     cr_t >>= 2;
-//   }
+    }
+    cr_t >>= 2;
+  }
 
-//   uint64_t gpr_t = access_bits_.gpr;
-//   for (int n = 0; n < 32; n++) {
-//     if (gpr_t & 3) {
-//       //xesnprintfa(name, XECOUNT(name), "r%d", n);
+  uint64_t gpr_t = access_bits_.gpr;
+  for (int n = 0; n < 32; n++) {
+    if (gpr_t & 3) {
+      //xesnprintfa(name, XECOUNT(name), "r%d", n);
 //       locals_.gpr[n] = SetupLocal(jit_type_nuint, name);
-//     }
-//     gpr_t >>= 2;
-//   }
+    }
+    gpr_t >>= 2;
+  }
 
-//   uint64_t fpr_t = access_bits_.fpr;
-//   for (int n = 0; n < 32; n++) {
-//     if (fpr_t & 3) {
-//       //xesnprintfa(name, XECOUNT(name), "f%d", n);
+  uint64_t fpr_t = access_bits_.fpr;
+  for (int n = 0; n < 32; n++) {
+    if (fpr_t & 3) {
+      //xesnprintfa(name, XECOUNT(name), "f%d", n);
 //       locals_.fpr[n] = SetupLocal(jit_type_float64, name);
-//     }
-//     fpr_t >>= 2;
-//   }
-// }
+    }
+    fpr_t >>= 2;
+  }
+}
 
 // jit_value_t X64Emitter::SetupLocal(jit_type_t type, const char* name) {
 //   // Note that the value is created in the current block, but will be pushed
@@ -951,12 +1024,12 @@ X64Emitter::~X64Emitter() {
 //   return value;
 // }
 
-// void X64Emitter::FillRegisters() {
-//   // This updates all of the local register values from the state memory.
-//   // It should be called on function entry for initial setup and after any
-//   // calls that may modify the registers.
+void X64Emitter::FillRegisters() {
+  // This updates all of the local register values from the state memory.
+  // It should be called on function entry for initial setup and after any
+  // calls that may modify the registers.
 
-//   // TODO(benvanik): use access flags to see if we need to do reads/writes.
+  // TODO(benvanik): use access flags to see if we need to do reads/writes.
 
 //   if (locals_.xer) {
 //     jit_insn_store(fn_,
@@ -1015,13 +1088,13 @@ X64Emitter::~X64Emitter() {
 //                          jit_type_float64));
 //     }
 //   }
-// }
+}
 
-// void X64Emitter::SpillRegisters() {
-//   // This flushes all local registers (if written) to the register bank and
-//   // resets their values.
+void X64Emitter::SpillRegisters() {
+  // This flushes all local registers (if written) to the register bank and
+  // resets their values.
 
-//   // TODO(benvanik): only flush if actually required, or selective flushes.
+  // TODO(benvanik): only flush if actually required, or selective flushes.
 
 //   if (locals_.xer) {
 //     StoreStateValue(
@@ -1089,7 +1162,7 @@ X64Emitter::~X64Emitter() {
 //           jit_insn_load(fn_, v));
 //     }
 //   }
-// }
+}
 
 // jit_value_t X64Emitter::xer_value() {
 //   XEASSERTNOTNULL(locals_.xer);

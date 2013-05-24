@@ -125,6 +125,11 @@ int X64JIT::CheckProcessor() {
 }
 
 int X64JIT::InitModule(ExecModule* module) {
+  // TODO(benvanik): precompile interesting functions (kernel calls, etc).
+  // TODO(benvanik): warn on unimplemented instructions.
+  // TODO(benvanik): dump instruction use report.
+  // TODO(benvanik): dump kernel use report.
+  // TODO(benvanik): check for cached code/patches/etc.
   return 0;
 }
 
@@ -135,29 +140,22 @@ int X64JIT::UninitModule(ExecModule* module) {
 int X64JIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
   XELOGCPU("Execute(%.8X): %s...", fn_symbol->start_address, fn_symbol->name());
 
-  // // Check function.
-  // jit_function_t jit_fn = (jit_function_t)fn_symbol->impl_value;
-  // if (!jit_fn) {
-  //   // Function hasn't been prepped yet - prep it.
-  //   if (emitter_->PrepareFunction(fn_symbol)) {
-  //     XELOGCPU("Execute(%.8X): unable to make function %s",
-  //         fn_symbol->start_address, fn_symbol->name());
-  //     return 1;
-  //   }
-  //   jit_fn = (jit_function_t)fn_symbol->impl_value;
-  //   XEASSERTNOTNULL(jit_fn);
-  // }
+  // Check function.
+  x64_function_t fn_ptr = (x64_function_t)fn_symbol->impl_value;
+  if (!fn_ptr) {
+    // Function hasn't been prepped yet - make it now inline.
+    // The emitter will lock and do other fancy things, if required.
+    if (emitter_->PrepareFunction(fn_symbol)) {
+      XELOGCPU("Execute(%.8X): unable to make function %s",
+          fn_symbol->start_address, fn_symbol->name());
+      return 1;
+    }
+    fn_ptr = (x64_function_t)fn_symbol->impl_value;
+    XEASSERTNOTNULL(fn_ptr);
+  }
 
-  // // Call into the function. This will compile it if needed.
-  // jit_nuint lr = ppc_state->lr;
-  // void* args[] = {&ppc_state, &lr};
-  // uint64_t return_value;
-  // int apply_result = jit_function_apply(jit_fn, (void**)&args, &return_value);
-  // if (!apply_result) {
-  //   XELOGCPU("Execute(%.8X): apply failed with %d",
-  //       fn_symbol->start_address, apply_result);
-  //   return 1;
-  // }
+  // Call into the function. This will compile it if needed.
+  fn_ptr(ppc_state, ppc_state->lr);
 
   return 0;
 }

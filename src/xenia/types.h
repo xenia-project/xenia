@@ -104,6 +104,7 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XEBITMASK(a, b) (((unsigned) -1 >> (31 - (b))) & ~((1U << (a)) - 1))
 #define XESELECTBITS(value, a, b) ((value & XEBITMASK(a, b)) >> a)
 
+#define XESUCCEED()             goto XECLEANUP
 #define XEFAIL()                goto XECLEANUP
 #define XEEXPECT(expr)          if (!(expr)         ) { goto XECLEANUP; }
 #define XEEXPECTTRUE(expr)      if (!(expr)         ) { goto XECLEANUP; }
