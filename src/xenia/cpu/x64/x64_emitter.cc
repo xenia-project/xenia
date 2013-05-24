@@ -51,6 +51,9 @@ DEFINE_bool(log_codegen, false,
 X64Emitter::X64Emitter(xe_memory_ref memory) {
   memory_ = memory;
 
+  // I don't like doing this, but there's no public access to these members.
+  assembler_._properties = compiler_._properties;
+
   // Grab global exports.
   cpu::GetGlobalExports(&global_exports_);
 
@@ -117,9 +120,11 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   // Arguments passed as RCX, RDX, R8, R9
   assembler_.push(rcx); // ppc_state
   assembler_.push(rdx); // lr
-  assembler_.mov(rcx, (uint64_t)this);
-  assembler_.mov(rdx, (uint64_t)symbol);
+  assembler_.sub(rsp, imm(0x20));
+  assembler_.mov(rcx, imm((uint64_t)this));
+  assembler_.mov(rdx, imm((uint64_t)symbol));
   assembler_.call(X64Emitter::OnDemandCompileTrampoline);
+  assembler_.add(rsp, imm(0x20));
   assembler_.pop(rdx); // lr
   assembler_.pop(rcx); // ppc_state
   assembler_.jmp(rax);
@@ -128,9 +133,11 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   // Arguments passed as RDI, RSI, RDX, RCX, R8, R9
   assembler_.push(rdi); // ppc_state
   assembler_.push(rsi); // lr
-  assembler_.mov(rdi, (uint64_t)this);
-  assembler_.mov(rsi, (uint64_t)symbol);
+  assembler_.sub(rsp, imm(0x20));
+  assembler_.mov(rdi, imm((uint64_t)this));
+  assembler_.mov(rsi, imm((uint64_t)symbol));
   assembler_.call(X64Emitter::OnDemandCompileTrampoline);
+  assembler_.add(rsp, imm(0x20));
   assembler_.pop(rsi); // lr
   assembler_.pop(rdi); // ppc_state
   assembler_.jmp(rax);
@@ -244,15 +251,15 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
   //compiler_.setPriority(compiler_.getGpArg(0), 100);
 
   switch (symbol->type) {
-  case FunctionSymbol::User:
-    result_code = MakeUserFunction();
-    break;
   case FunctionSymbol::Kernel:
     if (symbol->kernel_export && symbol->kernel_export->is_implemented) {
       result_code = MakePresentImportFunction();
     } else {
       result_code = MakeMissingImportFunction();
     }
+    break;
+  case FunctionSymbol::User:
+    result_code = MakeUserFunction();
     break;
   default:
     XEASSERTALWAYS();
@@ -262,10 +269,6 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
   XEEXPECTZERO(result_code);
 
   compiler_.endFunc();
-
-  // I don't like doing this, but there's no public access to these members.
-  assembler_._properties = compiler_._properties;
-  assembler_.setLogger(compiler_.getLogger());
 
   // Serialize to the assembler.
   compiler_.serialize(assembler_);
@@ -311,48 +314,8 @@ XECLEANUP:
   return result_code;
 }
 
-int X64Emitter::MakeUserFunction() {
-//   if (FLAGS_trace_user_calls) {
-//     jit_value_t trace_args[] = {
-//       jit_value_get_param(fn_, 0),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)symbol_->start_address),
-//       jit_value_get_param(fn_, 1),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)symbol_),
-//     };
-//     jit_insn_call_native(
-//         fn_,
-//         "XeTraceUserCall",
-//         global_exports_.XeTraceUserCall,
-//         global_export_signature_4_,
-//         trace_args, XECOUNT(trace_args),
-//         0);
-//   }
-
-  // Emit.
-  GenerateBasicBlocks();
-  return 0;
-}
-
 int X64Emitter::MakePresentImportFunction() {
-//   if (FLAGS_trace_kernel_calls) {
-//     jit_value_t trace_args[] = {
-//       jit_value_get_param(fn_, 0),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)symbol_->start_address),
-//       jit_value_get_param(fn_, 1),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)symbol_->kernel_export),
-//     };
-//     jit_insn_call_native(
-//         fn_,
-//         "XeTraceKernelCall",
-//         global_exports_.XeTraceKernelCall,
-//         global_export_signature_4_,
-//         trace_args, XECOUNT(trace_args),
-//         0);
-//   }
+  TraceKernelCall();
 
 //   // void shim(ppc_state*, shim_data*)
 //   jit_value_t shim_args[] = {
@@ -374,46 +337,21 @@ int X64Emitter::MakePresentImportFunction() {
 }
 
 int X64Emitter::MakeMissingImportFunction() {
-//   if (FLAGS_trace_kernel_calls) {
-//     jit_value_t trace_args[] = {
-//       jit_value_get_param(fn_, 0),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)symbol_->start_address),
-//       jit_value_get_param(fn_, 1),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)symbol_->kernel_export),
-//     };
-//     jit_insn_call_native(
-//         fn_,
-//         "XeTraceKernelCall",
-//         global_exports_.XeTraceKernelCall,
-//         global_export_signature_4_,
-//         trace_args, XECOUNT(trace_args),
-//         0);
-//   }
+  TraceKernelCall();
 
+  // TODO(benvanik): log better?
 //   jit_insn_return(fn_, NULL);
 
   return 0;
 }
 
-X86Compiler& X64Emitter::compiler() {
-  return compiler_;
-}
+int X64Emitter::MakeUserFunction() {
+  TraceUserCall();
 
-FunctionSymbol* X64Emitter::symbol() {
-  return symbol_;
-}
-
-FunctionBlock* X64Emitter::fn_block() {
-  return fn_block_;
-}
-
-void X64Emitter::GenerateBasicBlocks() {
   // If this function is empty, abort!
   if (!symbol_->blocks.size()) {
 //     jit_insn_return(fn_, NULL);
-    return;
+    return 0;
   }
 
   // Pass 1 creates all of the labels - this way we can branch to them.
@@ -445,6 +383,20 @@ void X64Emitter::GenerateBasicBlocks() {
   // Setup the shared return/indirection/etc blocks now that we know all the
   // blocks we need and all the registers used.
   GenerateSharedBlocks();
+
+  return 0;
+}
+
+X86Compiler& X64Emitter::compiler() {
+  return compiler_;
+}
+
+FunctionSymbol* X64Emitter::symbol() {
+  return symbol_;
+}
+
+FunctionBlock* X64Emitter::fn_block() {
+  return fn_block_;
 }
 
 void X64Emitter::GenerateSharedBlocks() {
@@ -558,39 +510,15 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
     i.code = XEGETUINT32BE(p + ia);
     i.type = ppc::GetInstrType(i.code);
 
-//     jit_value_t trace_args[] = {
-//       jit_value_get_param(fn_, 0),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)i.address),
-//       jit_value_create_long_constant(fn_, jit_type_ulong,
-//           (jit_ulong)i.code),
-//     };
-
     // Add debugging tag.
     // TODO(benvanik): mark type.
     //jit_insn_mark_breakpoint(fn_, 1, ia);
 
-    if (FLAGS_trace_instructions) {
-      SpillRegisters();
-//       jit_insn_call_native(
-//           fn_,
-//           "XeTraceInstruction",
-//           global_exports_.XeTraceInstruction,
-//           global_export_signature_3_,
-//           trace_args, XECOUNT(trace_args),
-//           0);
-    }
+    TraceInstruction(i);
 
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
-      SpillRegisters();
-//       jit_insn_call_native(
-//           fn_,
-//           "XeInvalidInstruction",
-//           global_exports_.XeInvalidInstruction,
-//           global_export_signature_3_,
-//           trace_args, XECOUNT(trace_args),
-//           0);
+      TraceInvalidInstruction(i);
       continue;
     }
 
@@ -614,14 +542,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
                ia, i.code, i.type->name);
-      SpillRegisters();
-//       jit_insn_call_native(
-//           fn_,
-//           "XeInvalidInstruction",
-//           global_exports_.XeInvalidInstruction,
-//           global_export_signature_3_,
-//           trace_args, XECOUNT(trace_args),
-//           0);
+      TraceInvalidInstruction(i);
     }
   }
 
@@ -824,7 +745,99 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 //   return 1;
 // }
 
+void X64Emitter::TraceKernelCall() {
+  X86Compiler& c = compiler_;
+
+  if (!FLAGS_trace_kernel_calls) {
+    return;
+  }
+
+  SpillRegisters();
+
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg1, imm((uint64_t)symbol_->start_address));
+  GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg3, imm((uint64_t)symbol_->kernel_export));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeTraceKernelCall);
+  call->setComment("XeTraceKernelCall");
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder4<void, void*, uint64_t, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, c.getGpArg(1));
+  call->setArgument(3, arg3);
+}
+
+void X64Emitter::TraceUserCall() {
+  X86Compiler& c = compiler_;
+
+  if (!FLAGS_trace_user_calls) {
+    return;
+  }
+
+  SpillRegisters();
+
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg1, imm((uint64_t)symbol_->start_address));
+  GpVar arg3 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg3, imm((uint64_t)symbol_));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeTraceUserCall);
+  call->setComment("XeTraceUserCall");
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder4<void, void*, uint64_t, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, c.getGpArg(1));
+  call->setArgument(3, arg3);
+}
+
+void X64Emitter::TraceInstruction(InstrData& i) {
+  X86Compiler& c = compiler_;
+
+  if (!FLAGS_trace_instructions) {
+    return;
+  }
+
+  SpillRegisters();
+
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg1, imm((uint64_t)i.address));
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg2, imm((uint64_t)i.code));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeTraceInstruction);
+  call->setComment("XeTraceInstruction");
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder3<void, void*, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, arg2);
+}
+
+void X64Emitter::TraceInvalidInstruction(InstrData& i) {
+  X86Compiler& c = compiler_;
+
+  SpillRegisters();
+
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg1, imm((uint64_t)i.address));
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg2, imm((uint64_t)i.code));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeInvalidInstruction);
+  call->setComment("XeInvalidInstruction");
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder3<void, void*, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, arg2);
+}
+
 void X64Emitter::TraceBranch(uint32_t cia) {
+  X86Compiler& c = compiler_;
+
+  if (!FLAGS_trace_branches) {
+    return;
+  }
+
   SpillRegisters();
 
   // Pick target. If it's an indirection the tracing function will handle it.
@@ -848,18 +861,17 @@ void X64Emitter::TraceBranch(uint32_t cia) {
       break;
   }
 
-//   jit_value_t trace_args[] = {
-//     jit_value_get_param(fn_, 0),
-//     jit_value_create_long_constant(fn_, jit_type_ulong, cia),
-//     jit_value_create_long_constant(fn_, jit_type_ulong, target),
-//   };
-//   jit_insn_call_native(
-//       fn_,
-//       "XeTraceBranch",
-//       global_exports_.XeTraceBranch,
-//       global_export_signature_3_,
-//       trace_args, XECOUNT(trace_args),
-//       0);
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg1, imm((uint64_t)cia));
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpd);
+  c.mov(arg2, imm((uint64_t)target));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeTraceBranch);
+  call->setComment("XeTraceBranch");
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder3<void, void*, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, arg2);
 }
 
 // int X64Emitter::GenerateIndirectionBranch(uint32_t cia, jit_value_t target,

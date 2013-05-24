@@ -63,6 +63,10 @@ public:
   // int call_function(sdb::FunctionSymbol* target_symbol, jit_value_t lr,
   //                   bool tail);
 
+  void TraceKernelCall();
+  void TraceUserCall();
+  void TraceInstruction(ppc::InstrData& i);
+  void TraceInvalidInstruction(ppc::InstrData& i);
   void TraceBranch(uint32_t cia);
 
   // int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
@@ -113,7 +117,6 @@ private:
   int MakePresentImportFunction();
   int MakeMissingImportFunction();
 
-  void GenerateBasicBlocks();
   void GenerateSharedBlocks();
   int PrepareBasicBlock(sdb::FunctionBlock* block);
   void GenerateBasicBlock(sdb::FunctionBlock* block);
