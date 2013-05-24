@@ -25,7 +25,7 @@ namespace x64 {
 
 // // Integer arithmetic (A-3)
 
-// XEEMITTER(addx,         0x7C000214, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addx,         0x7C000214, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RD <- (RA) + (RB)
 
 //   if (i.XO.OE) {
@@ -58,17 +58,17 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(addcx,        0x7C000014, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addcx,        0x7C000014, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(addex,        0x7C000114, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addex,        0x7C000114, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(addi,         0x38000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addi,         0x38000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if RA = 0 then
 //   //   RT <- EXTS(SI)
 //   // else
@@ -83,7 +83,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RT <- (RA) + EXTS(SI)
 
 //   // TODO(benvanik): track exception
@@ -96,12 +96,12 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(addicx,       0x34000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addicx,       0x34000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(addis,        0x3C000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addis,        0x3C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if RA = 0 then
 //   //   RT <- EXTS(SI) || i16.0
 //   // else
@@ -116,12 +116,12 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(addmex,       0x7C0001D4, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addmex,       0x7C0001D4, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RT <- (RA) + CA
 
 //   // TODO(benvanik): handle overflow exception.
@@ -148,17 +148,17 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(divdx,        0x7C0003D2, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(divdx,        0x7C0003D2, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(divdux,       0x7C000392, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(divdux,       0x7C000392, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// // XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// // XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 // //   // dividend[0:31] <- (RA)[32:63]
 // //   // divisor[0:31] <- (RB)[32:63]
 // //   // if divisor = 0 then
@@ -211,7 +211,7 @@ namespace x64 {
 // //   return 0;
 // // }
 
-// // XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// // XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 // //   // dividend[0:31] <- (RA)[32:63]
 // //   // divisor[0:31] <- (RB)[32:63]
 // //   // if divisor = 0 then
@@ -264,32 +264,32 @@ namespace x64 {
 // //   return 0;
 // // }
 
-// XEEMITTER(mulhdx,       0x7C000092, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mulhdx,       0x7C000092, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(mulhdux,      0x7C000012, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mulhdux,      0x7C000012, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(mulhwx,       0x7C000096, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mulhwx,       0x7C000096, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(mulhwux,      0x7C000016, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mulhwux,      0x7C000016, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(mulldx,       0x7C0001D2, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mulldx,       0x7C0001D2, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // prod[0:127] <- (RA) × EXTS(SI)
 //   // RT <- prod[64:127]
 
@@ -304,7 +304,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RT <- (RA)[32:63] × (RB)[32:63]
 
 //   if (i.XO.OE) {
@@ -326,7 +326,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// // XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// // XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 // //   // RT <- ¬(RA) + 1
 
 // //   if (i.XO.OE) {
@@ -364,7 +364,7 @@ namespace x64 {
 // //   }
 // // }
 
-// XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RT <- ¬(RA) + (RB) + 1
 
 //   if (i.XO.OE) {
@@ -400,12 +400,12 @@ namespace x64 {
 //   }
 // }
 
-// XEEMITTER(subfcx,       0x7C000010, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(subfcx,       0x7C000010, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// // XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// // XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 // //   // RT <- ¬(RA) + EXTS(SI) + 1
 
 // //   Function* ssub_with_overflow = Intrinsic::getDeclaration(
@@ -418,7 +418,7 @@ namespace x64 {
 // //   return 0;
 // // }
 
-// XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RT <- ¬(RA) + (RB) + CA
 
 //   // TODO(benvanik): possible that the add of rb+ca needs to also check for
@@ -448,12 +448,12 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(subfmex,      0x7C0001D0, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(subfmex,      0x7C0001D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(subfzex,      0x7C000190, XO )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(subfzex,      0x7C000190, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
@@ -461,7 +461,7 @@ namespace x64 {
 
 // // Integer compare (A-4)
 
-// XEEMITTER(cmp,          0x7C000000, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(cmp,          0x7C000000, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if L = 0 then
 //   //   a <- EXTS((RA)[32:63])
 //   //   b <- EXTS((RB)[32:63])
@@ -494,7 +494,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(cmpi,         0x2C000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(cmpi,         0x2C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if L = 0 then
 //   //   a <- EXTS((RA)[32:63])
 //   // else
@@ -523,7 +523,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if L = 0 then
 //   //   a <- i32.0 || (RA)[32:63]
 //   //   b <- i32.0 || (RB)[32:63]
@@ -556,7 +556,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if L = 0 then
 //   //   a <- i32.0 || (RA)[32:63]
 //   // else
@@ -588,7 +588,7 @@ namespace x64 {
 
 // // Integer logical (A-5)
 
-// XEEMITTER(andx,         0x7C000038, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(andx,         0x7C000038, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) & (RB)
 
 //   jit_value_t v = jit_insn_and(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
@@ -602,7 +602,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(andcx,        0x7C000078, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(andcx,        0x7C000078, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) & ¬(RB)
 
 //   jit_value_t v = jit_insn_xor(f, e.gpr_value(i.X.RB),
@@ -618,7 +618,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(andix,        0x70000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(andix,        0x70000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) & (i48.0 || UI)
 
 //   jit_value_t v = jit_insn_and(f, e.gpr_value(i.D.RT), e.get_uint64(i.D.DS));
@@ -630,7 +630,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(andisx,       0x74000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(andisx,       0x74000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) & (i32.0 || UI || i16.0)
 
 //   jit_value_t v = jit_insn_and(f, e.gpr_value(i.D.RT),
@@ -643,12 +643,12 @@ namespace x64 {
 //   return 1;
 // }
 
-// XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// // XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// // XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 // //   // n <- 32
 // //   // do while n < 64
 // //   //   if (RS) = 1 then leave n
@@ -675,12 +675,12 @@ namespace x64 {
 // //   return 0;
 // // }
 
-// XEEMITTER(eqvx,         0x7C000238, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(eqvx,         0x7C000238, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // s <- (RS)[56]
 //   // RA[56:63] <- (RS)[56:63]
 //   // RA[0:55] <- i56.s
@@ -698,22 +698,22 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(extshx,       0x7C000734, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(extshx,       0x7C000734, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(extswx,       0x7C0007B4, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(extswx,       0x7C0007B4, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(nandx,        0x7C0003B8, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(nandx,        0x7C0003B8, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(norx,         0x7C0000F8, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(norx,         0x7C0000F8, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- ¬((RS) | (RB))
 
 //   jit_value_t v = jit_insn_or(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
@@ -728,7 +728,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) | (RB)
 
 //   jit_value_t v = jit_insn_or(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
@@ -742,12 +742,12 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(orcx,         0x7C000338, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(orcx,         0x7C000338, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(ori,          0x60000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(ori,          0x60000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) | (i48.0 || UI)
 
 //   jit_value_t v = jit_insn_or(f, e.gpr_value(i.D.RT),
@@ -757,7 +757,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(oris,         0x64000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(oris,         0x64000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) | (i32.0 || UI || i16.0)
 
 //   jit_value_t v = jit_insn_or(f, e.gpr_value(i.D.RT),
@@ -767,7 +767,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(xorx,         0x7C000278, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(xorx,         0x7C000278, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) XOR (RB)
 
 //   jit_value_t v = jit_insn_xor(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
@@ -781,7 +781,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(xori,         0x68000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(xori,         0x68000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) XOR (i48.0 || UI)
 
 //   jit_value_t v = jit_insn_xor(f, e.gpr_value(i.D.RT),
@@ -791,7 +791,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(xoris,        0x6C000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(xoris,        0x6C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // RA <- (RS) XOR (i32.0 || UI || i16.0)
 
 //   jit_value_t v = jit_insn_xor(f, e.gpr_value(i.D.RT),
@@ -804,22 +804,22 @@ namespace x64 {
 
 // // Integer rotate (A-6)
 
-// XEEMITTER(rldclx,       0x78000010, MDS)(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rldclx,       0x78000010, MDS)(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(rldcrx,       0x78000012, MDS)(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rldcrx,       0x78000012, MDS)(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(rldicx,       0x78000008, MD )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rldicx,       0x78000008, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(rldiclx,      0x78000000, MD )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rldiclx,      0x78000000, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // n <- sh[5] || sh[0:4]
 //   // r <- ROTL64((RS), n)
 //   // b <- mb[5] || mb[0:4]
@@ -847,17 +847,17 @@ namespace x64 {
 //   return 1;
 // }
 
-// XEEMITTER(rldicrx,      0x78000004, MD )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rldicrx,      0x78000004, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(rldimix,      0x7800000C, MD )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rldimix,      0x7800000C, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // n <- SH
 //   // r <- ROTL32((RS)[32:63], n)
 //   // m <- MASK(MB+32, ME+32)
@@ -884,7 +884,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // n <- SH
 //   // r <- ROTL32((RS)[32:63], n)
 //   // m <- MASK(MB+32, ME+32)
@@ -923,7 +923,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(rlwnmx,       0x5C000000, M  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(rlwnmx,       0x5C000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
@@ -931,12 +931,12 @@ namespace x64 {
 
 // // Integer shift (A-7)
 
-// XEEMITTER(sldx,         0x7C000036, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(sldx,         0x7C000036, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // n <- (RB)[59:63]
 //   // r <- ROTL32((RS)[32:63], n)
 //   // if (RB)[58] = 0 then
@@ -957,22 +957,22 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(sradx,        0x7C000634, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(sradx,        0x7C000634, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(sradix,       0x7C000674, XS )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(sradix,       0x7C000674, XS )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(srawx,        0x7C000630, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(srawx,        0x7C000630, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // n <- SH
 //   // r <- ROTL32((RS)[32:63], 64-n)
 //   // m <- MASK(n+32, 63)
@@ -1009,12 +1009,12 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(srdx,         0x7C000436, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(srdx,         0x7C000436, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(srwx,         0x7C000430, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(srwx,         0x7C000430, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }

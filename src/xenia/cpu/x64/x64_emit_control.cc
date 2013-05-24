@@ -25,7 +25,7 @@ namespace x64 {
 
 
 // int XeEmitIndirectBranchTo(
-//     X64Emitter& e, Compiler& c, const char* src, uint32_t cia,
+//     X64Emitter& e, X86Compiler& c, const char* src, uint32_t cia,
 //     bool lk, uint32_t reg) {
 //   // TODO(benvanik): run a DFA pass to see if we can detect whether this is
 //   //     a normal function return that is pulling the LR from the stack that
@@ -64,7 +64,7 @@ namespace x64 {
 // }
 
 // int XeEmitBranchTo(
-//     X64Emitter& e, Compiler& c, const char* src, uint32_t cia,
+//     X64Emitter& e, X86Compiler& c, const char* src, uint32_t cia,
 //     bool lk, jit_value_t condition) {
 //   FunctionBlock* fn_block = e.fn_block();
 
@@ -154,7 +154,7 @@ namespace x64 {
 // }
 
 
-// XEEMITTER(bx,           0x48000000, I  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(bx,           0x48000000, I  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if AA then
 //   //   NIA <- EXTS(LI || 0b00)
 //   // else
@@ -175,7 +175,7 @@ namespace x64 {
 //   return XeEmitBranchTo(e, f, "bx", i.address, i.I.LK, NULL);
 // }
 
-// XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if ¬BO[2] then
 //   //   CTR <- CTR - 1
 //   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
@@ -251,7 +251,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
 //   // if cond_ok then
 //   //   NIA <- CTR[0:61] || 0b00
@@ -294,7 +294,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // if ¬BO[2] then
 //   //   CTR <- CTR - 1
 //   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
@@ -363,47 +363,47 @@ namespace x64 {
 
 // // Condition register logical (A-23)
 
-// XEEMITTER(crand,        0x4C000202, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(crand,        0x4C000202, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(crandc,       0x4C000102, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(crandc,       0x4C000102, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(creqv,        0x4C000242, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(creqv,        0x4C000242, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(crnand,       0x4C0001C2, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(crnand,       0x4C0001C2, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(crnor,        0x4C000042, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(crnor,        0x4C000042, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(cror,         0x4C000382, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(cror,         0x4C000382, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(crorc,        0x4C000342, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(crorc,        0x4C000342, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(crxor,        0x4C000182, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(crxor,        0x4C000182, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
 
-// XEEMITTER(mcrf,         0x4C000000, XL )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(mcrf,         0x4C000000, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
@@ -411,7 +411,7 @@ namespace x64 {
 
 // // System linkage (A-24)
 
-// XEEMITTER(sc,           0x44000002, SC )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(sc,           0x44000002, SC )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   XEINSTRNOTIMPLEMENTED();
 //   return 1;
 // }
@@ -419,7 +419,7 @@ namespace x64 {
 
 // // Trap (A-25)
 
-// int XeEmitTrap(X64Emitter& e, Compiler& c, InstrData& i,
+// int XeEmitTrap(X64Emitter& e, X86Compiler& c, InstrData& i,
 //                 jit_value_t va, jit_value_t vb, uint32_t TO) {
 //   // if (a < b) & TO[0] then TRAP
 //   // if (a > b) & TO[1] then TRAP
@@ -517,7 +517,7 @@ namespace x64 {
 //   return 0;
 // }
 
-// XEEMITTER(td,           0x7C000088, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(td,           0x7C000088, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // a <- (RA)
 //   // b <- (RB)
 //   // if (a < b) & TO[0] then TRAP
@@ -531,7 +531,7 @@ namespace x64 {
 //                     i.X.RT);
 // }
 
-// XEEMITTER(tdi,          0x08000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(tdi,          0x08000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // a <- (RA)
 //   // if (a < EXTS(SI)) & TO[0] then TRAP
 //   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -544,7 +544,7 @@ namespace x64 {
 //                     i.D.RT);
 // }
 
-// XEEMITTER(tw,           0x7C000008, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(tw,           0x7C000008, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // a <- EXTS((RA)[32:63])
 //   // b <- EXTS((RB)[32:63])
 //   // if (a < b) & TO[0] then TRAP
@@ -560,7 +560,7 @@ namespace x64 {
 //                     i.X.RT);
 // }
 
-// XEEMITTER(twi,          0x0C000000, D  )(X64Emitter& e, Compiler& c, InstrData& i) {
+// XEEMITTER(twi,          0x0C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // a <- EXTS((RA)[32:63])
 //   // if (a < EXTS(SI)) & TO[0] then TRAP
 //   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -575,85 +575,85 @@ namespace x64 {
 // }
 
 
-// // Processor control (A-26)
+// Processor control (A-26)
 
-// XEEMITTER(mfcr,         0x7C000026, X  )(X64Emitter& e, Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
+XEEMITTER(mfcr,         0x7C000026, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 
-// XEEMITTER(mfspr,        0x7C0002A6, XFX)(X64Emitter& e, Compiler& c, InstrData& i) {
-//   // n <- spr[5:9] || spr[0:4]
-//   // if length(SPR(n)) = 64 then
-//   //   RT <- SPR(n)
-//   // else
-//   //   RT <- i32.0 || SPR(n)
+XEEMITTER(mfspr,        0x7C0002A6, XFX)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- spr[5:9] || spr[0:4]
+  // if length(SPR(n)) = 64 then
+  //   RT <- SPR(n)
+  // else
+  //   RT <- i32.0 || SPR(n)
 
-//   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
-//   jit_value_t v = NULL;
-//   switch (n) {
-//   case 1:
-//     // XER
-//     v = e.xer_value();
-//     break;
-//   case 8:
-//     // LR
-//     v = e.lr_value();
-//     break;
-//   case 9:
-//     // CTR
-//     v = e.ctr_value();
-//     break;
-//   default:
-//     XEINSTRNOTIMPLEMENTED();
-//     return 1;
-//   }
+  const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
+  GpVar v;
+  switch (n) {
+  case 1:
+    // XER
+    v = e.xer_value();
+    break;
+  case 8:
+    // LR
+    v = e.lr_value();
+    break;
+  case 9:
+    // CTR
+    v = e.ctr_value();
+    break;
+  default:
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
 
-//   e.update_gpr_value(i.XFX.RT, v);
+  e.update_gpr_value(i.XFX.RT, v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(mftb,         0x7C0002E6, XFX)(X64Emitter& e, Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
+XEEMITTER(mftb,         0x7C0002E6, XFX)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 
-// XEEMITTER(mtcrf,        0x7C000120, XFX)(X64Emitter& e, Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
+XEEMITTER(mtcrf,        0x7C000120, XFX)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 
-// XEEMITTER(mtspr,        0x7C0003A6, XFX)(X64Emitter& e, Compiler& c, InstrData& i) {
-//   // n <- spr[5:9] || spr[0:4]
-//   // if length(SPR(n)) = 64 then
-//   //   SPR(n) <- (RS)
-//   // else
-//   //   SPR(n) <- (RS)[32:63]
+XEEMITTER(mtspr,        0x7C0003A6, XFX)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- spr[5:9] || spr[0:4]
+  // if length(SPR(n)) = 64 then
+  //   SPR(n) <- (RS)
+  // else
+  //   SPR(n) <- (RS)[32:63]
 
-//   jit_value_t v = e.gpr_value(i.XFX.RT);
+  GpVar& v = e.gpr_value(i.XFX.RT);
 
-//   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
-//   switch (n) {
-//   case 1:
-//     // XER
-//     e.update_xer_value(v);
-//     break;
-//   case 8:
-//     // LR
-//     e.update_lr_value(v);
-//     break;
-//   case 9:
-//     // CTR
-//     e.update_ctr_value(v);
-//     break;
-//   default:
-//     XEINSTRNOTIMPLEMENTED();
-//     return 1;
-//   }
+  const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
+  switch (n) {
+  case 1:
+    // XER
+    e.update_xer_value(v);
+    break;
+  case 8:
+    // LR
+    e.update_lr_value(v);
+    break;
+  case 9:
+    // CTR
+    e.update_ctr_value(v);
+    break;
+  default:
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
 
-//   return 0;
-// }
+  return 0;
+}
 
 
 void X64RegisterEmitCategoryControl() {
@@ -675,11 +675,11 @@ void X64RegisterEmitCategoryControl() {
   // XEREGISTERINSTR(tdi,          0x08000000);
   // XEREGISTERINSTR(tw,           0x7C000008);
   // XEREGISTERINSTR(twi,          0x0C000000);
-  // XEREGISTERINSTR(mfcr,         0x7C000026);
-  // XEREGISTERINSTR(mfspr,        0x7C0002A6);
-  // XEREGISTERINSTR(mftb,         0x7C0002E6);
-  // XEREGISTERINSTR(mtcrf,        0x7C000120);
-  // XEREGISTERINSTR(mtspr,        0x7C0003A6);
+  XEREGISTERINSTR(mfcr,         0x7C000026);
+  XEREGISTERINSTR(mfspr,        0x7C0002A6);
+  XEREGISTERINSTR(mftb,         0x7C0002E6);
+  XEREGISTERINSTR(mtcrf,        0x7C000120);
+  XEREGISTERINSTR(mtspr,        0x7C0003A6);
 }
 
 

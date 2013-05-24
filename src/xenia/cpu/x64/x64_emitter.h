@@ -41,19 +41,6 @@ public:
   sdb::FunctionSymbol* symbol();
   sdb::FunctionBlock* fn_block();
 
-  // jit_value_t get_int32(int32_t value);
-  // jit_value_t get_uint32(uint32_t value);
-  // jit_value_t get_int64(int64_t value);
-  // jit_value_t get_uint64(uint64_t value);
-  // jit_value_t make_signed(jit_value_t value);
-  // jit_value_t make_unsigned(jit_value_t value);
-  // jit_value_t sign_extend(jit_value_t value, jit_type_t target_type);
-  // jit_value_t zero_extend(jit_value_t value, jit_type_t target_type);
-  // jit_value_t trunc_to_sbyte(jit_value_t value);
-  // jit_value_t trunc_to_ubyte(jit_value_t value);
-  // jit_value_t trunc_to_short(jit_value_t value);
-  // jit_value_t trunc_to_int(jit_value_t value);
-
   // int branch_to_block(uint32_t address);
   // int branch_to_block_if(uint32_t address, jit_value_t value);
   // int branch_to_block_if_not(uint32_t address, jit_value_t value);
@@ -72,41 +59,45 @@ public:
   // int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
   //                               bool lk, bool likely_local);
 
-  // jit_value_t LoadStateValue(size_t offset, jit_type_t type,
-  //                            const char* name = "");
-  // void StoreStateValue(size_t offset, jit_type_t type, jit_value_t value);
-
   void FillRegisters();
   void SpillRegisters();
 
-  // jit_value_t xer_value();
-  // void update_xer_value(jit_value_t value);
-  // void update_xer_with_overflow(jit_value_t value);
-  // void update_xer_with_carry(jit_value_t value);
-  // void update_xer_with_overflow_and_carry(jit_value_t value);
+  AsmJit::GpVar& xer_value();
+  void update_xer_value(AsmJit::GpVar& value);
+  void update_xer_with_overflow(AsmJit::GpVar& value);
+  void update_xer_with_carry(AsmJit::GpVar& value);
+  void update_xer_with_overflow_and_carry(AsmJit::GpVar& value);
 
-  // jit_value_t lr_value();
-  // void update_lr_value(jit_value_t value);
+  AsmJit::GpVar& lr_value();
+  void update_lr_value(AsmJit::GpVar& value);
 
-  // jit_value_t ctr_value();
-  // void update_ctr_value(jit_value_t value);
+  AsmJit::GpVar& ctr_value();
+  void update_ctr_value(AsmJit::GpVar& value);
 
-  // jit_value_t cr_value(uint32_t n);
-  // void update_cr_value(uint32_t n, jit_value_t value);
-  // void update_cr_with_cond(uint32_t n, jit_value_t lhs, jit_value_t rhs,
-  //                          bool is_signed);
+  AsmJit::GpVar& cr_value(uint32_t n);
+  void update_cr_value(uint32_t n, AsmJit::GpVar& value);
+  void update_cr_with_cond(uint32_t n, AsmJit::GpVar& lhs, AsmJit::GpVar& rhs,
+                           bool is_signed);
 
-  // jit_value_t gpr_value(uint32_t n);
-  // void update_gpr_value(uint32_t n, jit_value_t value);
-  // jit_value_t fpr_value(uint32_t n);
-  // void update_fpr_value(uint32_t n, jit_value_t value);
+  AsmJit::GpVar& gpr_value(uint32_t n);
+  void update_gpr_value(uint32_t n, AsmJit::GpVar& value);
+  AsmJit::GpVar& fpr_value(uint32_t n);
+  void update_fpr_value(uint32_t n, AsmJit::GpVar& value);
 
-  // jit_value_t TouchMemoryAddress(uint32_t cia, jit_value_t addr);
-  // jit_value_t ReadMemory(
-  //     uint32_t cia, jit_value_t addr, uint32_t size, bool acquire = false);
-  // void WriteMemory(
-  //     uint32_t cia, jit_value_t addr, uint32_t size, jit_value_t value,
-  //     bool release = false);
+  AsmJit::GpVar& TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
+  AsmJit::GpVar& ReadMemory(
+      uint32_t cia, AsmJit::GpVar& addr, uint32_t size, bool acquire = false);
+  void WriteMemory(
+      uint32_t cia, AsmJit::GpVar& addr, uint32_t size, AsmJit::GpVar& value,
+      bool release = false);
+
+  // jit_value_t get_int32(int32_t value);
+  // jit_value_t get_uint32(uint32_t value);
+  // jit_value_t get_int64(int64_t value);
+  // jit_value_t get_uint64(uint64_t value);
+  AsmJit::GpVar sign_extend(AsmJit::GpVar& value, int size);
+  AsmJit::GpVar zero_extend(AsmJit::GpVar& value, int size);
+  AsmJit::GpVar trunc(AsmJit::GpVar& value, int size);
 
 private:
   static void* OnDemandCompileTrampoline(

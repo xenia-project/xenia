@@ -571,7 +571,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
       continue;
     }
 
-    typedef int (*InstrEmitter)(X64Emitter& g, Compiler& c, InstrData& i);
+    typedef int (*InstrEmitter)(X64Emitter& g, X86Compiler& c, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
     if (!i.type->emit || emit(*this, compiler_, i)) {
       // This printf is handy for sort/uniquify to find instructions.
@@ -598,142 +598,6 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 
   // TODO(benvanik): finish up BB
 }
-
-// jit_value_t X64Emitter::get_int32(int32_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_int, value);
-// }
-
-// jit_value_t X64Emitter::get_uint32(uint32_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_uint, value);
-// }
-
-// jit_value_t X64Emitter::get_int64(int64_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_nint, value);
-// }
-
-// jit_value_t X64Emitter::get_uint64(uint64_t value) {
-//   return jit_value_create_nint_constant(fn_, jit_type_nuint, value);
-// }
-
-// jit_value_t X64Emitter::make_signed(jit_value_t value) {
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   jit_type_t signed_source_type = source_type;
-//   switch (jit_type_get_kind(source_type)) {
-//     case JIT_TYPE_UBYTE:  signed_source_type = jit_type_sbyte;            break;
-//     case JIT_TYPE_USHORT: signed_source_type = jit_type_short;            break;
-//     case JIT_TYPE_UINT:   signed_source_type = jit_type_int;              break;
-//     case JIT_TYPE_NUINT:  signed_source_type = jit_type_nint;             break;
-//     case JIT_TYPE_ULONG:  signed_source_type = jit_type_long;             break;
-//   }
-//   if (signed_source_type != source_type) {
-//     value = jit_insn_convert(fn_, value, signed_source_type, 0);
-//   }
-//   return value;
-// }
-
-// jit_value_t X64Emitter::make_unsigned(jit_value_t value) {
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   jit_type_t unsigned_source_type = source_type;
-//   switch (jit_type_get_kind(source_type)) {
-//     case JIT_TYPE_SBYTE:  unsigned_source_type = jit_type_ubyte;          break;
-//     case JIT_TYPE_SHORT:  unsigned_source_type = jit_type_ushort;         break;
-//     case JIT_TYPE_INT:    unsigned_source_type = jit_type_uint;           break;
-//     case JIT_TYPE_NINT:   unsigned_source_type = jit_type_nuint;          break;
-//     case JIT_TYPE_LONG:   unsigned_source_type = jit_type_ulong;          break;
-//   }
-//   if (unsigned_source_type != source_type) {
-//     value = jit_insn_convert(fn_, value, unsigned_source_type, 0);
-//   }
-//   return value;
-// }
-
-// jit_value_t X64Emitter::sign_extend(jit_value_t value,
-//                                        jit_type_t target_type) {
-//   // TODO(benvanik): better conversion checking.
-//   // X64 follows the C rules, which is that the source type indicates whether
-//   // sign extension occurs.
-//   // For example,  int -> ulong is sign extended,
-//   //              uint -> ulong is zero extended.
-//   // We convert to the same type with the expected sign and then use the built
-//   // in convert, only if needed.
-
-//   // No-op if the same types.
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   target_type = jit_type_normalize(target_type);
-//   if (source_type == target_type) {
-//     return value;
-//   }
-
-//   // If just a sign change, simple conversion.
-//   if (jit_type_get_size(source_type) == jit_type_get_size(target_type)) {
-//     return jit_insn_convert(fn_, value, target_type, 0);
-//   }
-
-//   // Otherwise, need to convert to signed of the current type then extend.
-//   value = make_signed(value);
-//   return jit_insn_convert(fn_, value, target_type, 0);
-// }
-
-// jit_value_t X64Emitter::zero_extend(jit_value_t value,
-//                                        jit_type_t target_type) {
-//   // See the comment in ::sign_extend for more information.
-
-//   // No-op if the same types.
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   target_type = jit_type_normalize(target_type);
-//   if (source_type == target_type) {
-//     return value;
-//   }
-
-//   // If just a sign change, simple conversion.
-//   if (jit_type_get_size(source_type) == jit_type_get_size(target_type)) {
-//     return jit_insn_convert(fn_, value, target_type, 0);
-//   }
-
-//   // Otherwise, need to convert to signed of the current type then extend.
-//   value = make_unsigned(value);
-//   return jit_insn_convert(fn_, value, target_type, 0);
-// }
-
-// jit_value_t X64Emitter::trunc_to_sbyte(jit_value_t value) {
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   if (source_type == jit_type_sbyte) {
-//     return value;
-//   }
-//   return jit_insn_convert(fn_, value, jit_type_sbyte, 0);
-// }
-
-// jit_value_t X64Emitter::trunc_to_ubyte(jit_value_t value) {
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   if (source_type == jit_type_ubyte) {
-//     return value;
-//   }
-//   return jit_insn_convert(fn_, value, jit_type_ubyte, 0);
-// }
-
-// jit_value_t X64Emitter::trunc_to_short(jit_value_t value) {
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   if (source_type == jit_type_sbyte) {
-//     return value;
-//   }
-//   return jit_insn_convert(fn_, value, jit_type_short, 0);
-// }
-
-// jit_value_t X64Emitter::trunc_to_int(jit_value_t value) {
-//   jit_type_t source_type = jit_value_get_type(value);
-//   source_type = jit_type_normalize(source_type);
-//   if (source_type == jit_type_sbyte) {
-//     return value;
-//   }
-//   return jit_insn_convert(fn_, value, jit_type_int, 0);
-// }
 
 // int X64Emitter::branch_to_block(uint32_t address) {
 //   std::map<uint32_t, jit_label_t>::iterator it = bbs_.find(address);
@@ -1027,21 +891,6 @@ void X64Emitter::TraceBranch(uint32_t cia) {
 //   return 0;
 // }
 
-// jit_value_t X64Emitter::LoadStateValue(size_t offset, jit_type_t type,
-//                                           const char* name) {
-//   // Load from ppc_state[offset].
-//   // TODO(benvanik): tag with debug info?
-//   return jit_insn_load_relative(
-//       fn_, jit_value_get_param(fn_, 0), offset, type);
-// }
-
-// void X64Emitter::StoreStateValue(size_t offset, jit_type_t type,
-//                                     jit_value_t value) {
-//   // Store to ppc_state[offset].
-//   jit_insn_store_relative(
-//       fn_, jit_value_get_param(fn_, 0), offset, value);
-// }
-
 void X64Emitter::SetupLocals() {
   X86Compiler& c = compiler_;
 
@@ -1142,7 +991,9 @@ void X64Emitter::FillRegisters() {
     }
     // (cr >> 28 - n * 4) & 0xF
     c.mov(cr_tmp, cr);
-    c.shr(cr_tmp, imm(28 - n * 4));
+    if (n < 4) {
+      c.shr(cr_tmp, imm(28 - n * 4));
+    }
     c.and_(cr_tmp, imm(0xF));
     c.mov(cr_n, cr_tmp);
   }
@@ -1211,10 +1062,15 @@ void X64Emitter::SpillRegisters() {
     }
     if (cr_tmp.getId() == kInvalidValue) {
       cr_tmp = c.newGpVar();
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Spilling CR");
+      }
     }
     // cr |= (cr_n << n * 4)
     c.mov(cr_tmp, cr_n);
-    c.shl(cr_tmp, imm(n * 4));
+    if (n) {
+      c.shl(cr_tmp, imm(n * 4));
+    }
     if (cr.getId() == kInvalidValue) {
       cr = c.newGpVar();
       c.mov(cr, cr_tmp);
@@ -1223,9 +1079,6 @@ void X64Emitter::SpillRegisters() {
     }
   }
   if (cr.getId() != kInvalidValue) {
-    if (FLAGS_annotate_disassembly) {
-      c.comment("Spilling CR");
-    }
     c.mov(ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)),
           cr);
   }
@@ -1253,189 +1106,193 @@ void X64Emitter::SpillRegisters() {
   }
 }
 
-// jit_value_t X64Emitter::xer_value() {
-//   XEASSERTNOTNULL(locals_.xer);
-//   return jit_insn_load(fn_, locals_.xer);
-// }
+GpVar& X64Emitter::xer_value() {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.xer.getId() != kInvalidValue);
+  return locals_.xer;
+}
 
-// void X64Emitter::update_xer_value(jit_value_t value) {
-//   XEASSERTNOTNULL(locals_.xer);
+void X64Emitter::update_xer_value(GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.xer.getId() != kInvalidValue);
+  c.mov(locals_.xer, zero_extend(value, 8));
+}
 
-//   // Extend to 64bits if needed.
-//   value = zero_extend(value, jit_type_nuint);
-//   jit_insn_store(fn_, locals_.xer, value);
-// }
+#if 0
+void X64Emitter::update_xer_with_overflow(GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.xer.getId() != kInvalidValue);
 
-// void X64Emitter::update_xer_with_overflow(jit_value_t value) {
-//  XEASSERTNOTNULL(locals_.xer);
+  // Expects a i1 indicating overflow.
+  // Trust the caller that if it's larger than that it's already truncated.
+  value = zero_extend(value, 8);
 
-//  // Expects a i1 indicating overflow.
-//  // Trust the caller that if it's larger than that it's already truncated.
-//   value = zero_extend(value, jit_type_nuint);
+  GpVar& xer = xer_value();
+  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFBFFFFFFF)); // clear bit 30
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(31)));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(30)));
+  jit_insn_store(fn_, locals_.xer, value);
+}
+#endif
 
-//  jit_value_t xer = xer_value();
-//  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFBFFFFFFF)); // clear bit 30
-//  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(31)));
-//  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(30)));
-//  jit_insn_store(fn_, locals_.xer, value);
-// }
+#if 0
+void X64Emitter::update_xer_with_carry(GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.xer.getId() != kInvalidValue);
 
-// void X64Emitter::update_xer_with_carry(jit_value_t value) {
-//   XEASSERTNOTNULL(locals_.xer);
+  // Expects a i1 indicating carry.
+  // Trust the caller that if it's larger than that it's already truncated.
+  value = zero_extend(value, jit_type_nuint);
 
-//   // Expects a i1 indicating carry.
-//   // Trust the caller that if it's larger than that it's already truncated.
-//   value = zero_extend(value, jit_type_nuint);
+  GpVar& xer = xer_value();
+  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFDFFFFFFF)); // clear bit 29
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
+  jit_insn_store(fn_, locals_.xer, value);
+}
+#endif
 
-//   jit_value_t xer = xer_value();
-//   xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFDFFFFFFF)); // clear bit 29
-//   xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
-//   jit_insn_store(fn_, locals_.xer, value);
-// }
+#if 0
+void X64Emitter::update_xer_with_overflow_and_carry(GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.xer.getId() != kInvalidValue);
 
-// void X64Emitter::update_xer_with_overflow_and_carry(jit_value_t value) {
-//   XEASSERTNOTNULL(locals_.xer);
+  // Expects a i1 indicating overflow.
+  // Trust the caller that if it's larger than that it's already truncated.
+  value = zero_extend(value, jit_type_nuint);
 
-//   // Expects a i1 indicating overflow.
-//   // Trust the caller that if it's larger than that it's already truncated.
-//   value = zero_extend(value, jit_type_nuint);
+  // This is effectively an update_xer_with_overflow followed by an
+  // update_xer_with_carry, but since the logic is largely the same share it.
+  GpVar& xer = xer_value();
+  // clear bit 30 & 29
+  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFF9FFFFFFF));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(31)));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(30)));
+  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
+  jit_insn_store(fn_, locals_.xer, value);
+}
+#endif
 
-//   // This is effectively an update_xer_with_overflow followed by an
-//   // update_xer_with_carry, but since the logic is largely the same share it.
-//   jit_value_t xer = xer_value();
-//   // clear bit 30 & 29
-//   xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFF9FFFFFFF));
-//   xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(31)));
-//   xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(30)));
-//   xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
-//   jit_insn_store(fn_, locals_.xer, value);
-// }
+GpVar& X64Emitter::lr_value() {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.lr.getId() != kInvalidValue);
+  return locals_.lr;
+}
 
-// jit_value_t X64Emitter::lr_value() {
-//   XEASSERTNOTNULL(locals_.lr);
-//   return jit_insn_load(fn_, locals_.lr);
-// }
+void X64Emitter::update_lr_value(GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.lr.getId() != kInvalidValue);
+  c.mov(locals_.lr, zero_extend(value, 8));
+}
 
-// void X64Emitter::update_lr_value(jit_value_t value) {
-//   XEASSERTNOTNULL(locals_.lr);
+GpVar& X64Emitter::ctr_value() {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.ctr.getId() != kInvalidValue);
+  return locals_.ctr;
+}
 
-//   // Extend to 64bits if needed.
-//   value = zero_extend(value, jit_type_nuint);
-//   jit_insn_store(fn_, locals_.lr, value);
-// }
+void X64Emitter::update_ctr_value(GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(locals_.ctr.getId() != kInvalidValue);
+  c.mov(locals_.ctr, zero_extend(value, 8));
+}
 
-// jit_value_t X64Emitter::ctr_value() {
-//   XEASSERTNOTNULL(locals_.ctr);
-//   return jit_insn_load(fn_, locals_.ctr);
-// }
+GpVar& X64Emitter::cr_value(uint32_t n) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 8);
+  XEASSERT(locals_.cr[n].getId() != kInvalidValue);
+  return locals_.cr[n];
+}
 
-// void X64Emitter::update_ctr_value(jit_value_t value) {
-//   XEASSERTNOTNULL(locals_.ctr);
+void X64Emitter::update_cr_value(uint32_t n, GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 8);
+  XEASSERT(locals_.cr[n].getId() != kInvalidValue);
+  c.mov(locals_.cr[n], trunc(value, 1));
+}
 
-//   // Extend to 64bits if needed.
-//   value = zero_extend(value, jit_type_nuint);
-//   jit_insn_store(fn_, locals_.ctr, value);
-// }
+#if 0
+void X64Emitter::update_cr_with_cond(
+    uint32_t n, GpVar& lhs, GpVar& rhs, bool is_signed) {
+  X86Compiler& c = compiler_;
+  // bit0 = RA < RB
+  // bit1 = RA > RB
+  // bit2 = RA = RB
+  // bit3 = XER[SO]
 
-// jit_value_t X64Emitter::cr_value(uint32_t n) {
-//   XEASSERT(n >= 0 && n < 8);
-//   XEASSERTNOTNULL(locals_.cr[n]);
+  // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
+  // the need for a lot of the compares and ensures we lower to the best
+  // possible x86.
+  // GpVar& cmp = InlineAsm::get(
+  //     FunctionType::get(),
+  //     "cmp $0, $1                 \n"
+  //     "mov from compare registers \n",
+  //     "r,r", ??
+  //     true);
 
-//   jit_value_t value = jit_insn_load(fn_, locals_.cr[n]);
-//   value = zero_extend(value, jit_type_nuint);
-//   return value;
-// }
+  // Convert input signs, if needed.
+  if (is_signed) {
+    lhs = make_signed(lhs);
+    rhs = make_signed(rhs);
+  } else {
+    lhs = make_unsigned(lhs);
+    rhs = make_unsigned(rhs);
+  }
+  GpVar& c = jit_insn_lt(fn_, lhs, rhs);
+  c = jit_insn_or(fn_, c,
+      jit_insn_shl(fn_, jit_insn_gt(fn_, lhs, rhs), get_uint32(1)));
+  c = jit_insn_or(fn_, c,
+      jit_insn_shl(fn_, jit_insn_eq(fn_, lhs, rhs), get_uint32(2)));
 
-// void X64Emitter::update_cr_value(uint32_t n, jit_value_t value) {
-//   XEASSERT(n >= 0 && n < 8);
-//   XEASSERTNOTNULL(locals_.cr[n]);
+  // TODO(benvanik): set bit 4 to XER[SO]
 
-//   // Truncate to 8 bits if needed.
-//   // TODO(benvanik): also widen?
-//   value = trunc_to_ubyte(value);
+  // Insert the 4 bits into their location in the CR.
+  update_cr_value(n, c);
+}
+#endif
 
-//   jit_insn_store(fn_, locals_.cr[n], value);
-// }
+GpVar& X64Emitter::gpr_value(uint32_t n) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
 
-// void X64Emitter::update_cr_with_cond(
-//     uint32_t n, jit_value_t lhs, jit_value_t rhs, bool is_signed) {
-//   // bit0 = RA < RB
-//   // bit1 = RA > RB
-//   // bit2 = RA = RB
-//   // bit3 = XER[SO]
+  // Actually r0 is writable, even though nobody should ever do that.
+  // Perhaps we can check usage and enable this if safe?
+  // if (n == 0) {
+  //   return get_uint64(0);
+  // }
 
-//   // TODO(benvanik): inline this using the x86 cmp instruction - this prevents
-//   // the need for a lot of the compares and ensures we lower to the best
-//   // possible x86.
-//   // jit_value_t cmp = InlineAsm::get(
-//   //     FunctionType::get(),
-//   //     "cmp $0, $1                 \n"
-//   //     "mov from compare registers \n",
-//   //     "r,r", ??
-//   //     true);
+  return locals_.gpr[n];
+}
 
-//   // Convert input signs, if needed.
-//   if (is_signed) {
-//     lhs = make_signed(lhs);
-//     rhs = make_signed(rhs);
-//   } else {
-//     lhs = make_unsigned(lhs);
-//     rhs = make_unsigned(rhs);
-//   }
-//   jit_value_t c = jit_insn_lt(fn_, lhs, rhs);
-//   c = jit_insn_or(fn_, c,
-//       jit_insn_shl(fn_, jit_insn_gt(fn_, lhs, rhs), get_uint32(1)));
-//   c = jit_insn_or(fn_, c,
-//       jit_insn_shl(fn_, jit_insn_eq(fn_, lhs, rhs), get_uint32(2)));
+void X64Emitter::update_gpr_value(uint32_t n, GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERT(locals_.gpr[n].getId() != kInvalidValue);
 
-//   // TODO(benvanik): set bit 4 to XER[SO]
+  // See above - r0 can be written.
+  // if (n == 0) {
+  //   // Ignore writes to zero.
+  //   return;
+  // }
 
-//   // Insert the 4 bits into their location in the CR.
-//   update_cr_value(n, c);
-// }
+  c.mov(locals_.gpr[n], zero_extend(value, 8));
+}
 
-// jit_value_t X64Emitter::gpr_value(uint32_t n) {
-//   XEASSERT(n >= 0 && n < 32);
-//   XEASSERTNOTNULL(locals_.gpr[n]);
+GpVar& X64Emitter::fpr_value(uint32_t n) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
+  return locals_.fpr[n];
+}
 
-//   // Actually r0 is writable, even though nobody should ever do that.
-//   // Perhaps we can check usage and enable this if safe?
-//   // if (n == 0) {
-//   //   return get_uint64(0);
-//   // }
+void X64Emitter::update_fpr_value(uint32_t n, GpVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 32);
+  XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
+  c.mov(locals_.fpr[n], value);
+}
 
-//   return jit_insn_load(fn_, locals_.gpr[n]);
-// }
-
-// void X64Emitter::update_gpr_value(uint32_t n, jit_value_t value) {
-//   XEASSERT(n >= 0 && n < 32);
-//   XEASSERTNOTNULL(locals_.gpr[n]);
-
-//   // See above - r0 can be written.
-//   // if (n == 0) {
-//   //   // Ignore writes to zero.
-//   //   return;
-//   // }
-
-//   // Extend to 64bits if needed.
-//   value = zero_extend(value, jit_type_nuint);
-
-//   jit_insn_store(fn_, locals_.gpr[n], value);
-// }
-
-// jit_value_t X64Emitter::fpr_value(uint32_t n) {
-//   XEASSERT(n >= 0 && n < 32);
-//   XEASSERTNOTNULL(locals_.fpr[n]);
-//   return jit_insn_load(fn_, locals_.fpr[n]);
-// }
-
-// void X64Emitter::update_fpr_value(uint32_t n, jit_value_t value) {
-//   XEASSERT(n >= 0 && n < 32);
-//   XEASSERTNOTNULL(locals_.fpr[n]);
-//   jit_insn_store(fn_, locals_.fpr[n], value);
-// }
-
-// jit_value_t X64Emitter::TouchMemoryAddress(uint32_t cia, jit_value_t addr) {
+// GpVar& X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
 //   // Input address is always in 32-bit space.
 //   addr = jit_insn_and(fn_,
 //       zero_extend(addr, jit_type_nuint),
@@ -1471,8 +1328,8 @@ void X64Emitter::SpillRegisters() {
 //   return addr;
 // }
 
-// jit_value_t X64Emitter::ReadMemory(
-//     uint32_t cia, jit_value_t addr, uint32_t size, bool acquire) {
+// GpVar& X64Emitter::ReadMemory(
+//     uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
 //   jit_type_t data_type = NULL;
 //   bool needs_swap = false;
 //   switch (size) {
@@ -1517,7 +1374,7 @@ void X64Emitter::SpillRegisters() {
 // }
 
 // void X64Emitter::WriteMemory(
-//     uint32_t cia, jit_value_t addr, uint32_t size, jit_value_t value,
+//     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
 //     bool release) {
 //   jit_type_t data_type = NULL;
 //   bool needs_swap = false;
@@ -1564,3 +1421,111 @@ void X64Emitter::SpillRegisters() {
 //   jit_value_t address = TouchMemoryAddress(cia, addr);
 //   jit_insn_store_relative(fn_, address, 0, value);
 // }
+
+// jit_value_t X64Emitter::get_int32(int32_t value) {
+//   return jit_value_create_nint_constant(fn_, jit_type_int, value);
+// }
+
+// jit_value_t X64Emitter::get_uint32(uint32_t value) {
+//   return jit_value_create_nint_constant(fn_, jit_type_uint, value);
+// }
+
+// jit_value_t X64Emitter::get_int64(int64_t value) {
+//   return jit_value_create_nint_constant(fn_, jit_type_nint, value);
+// }
+
+// jit_value_t X64Emitter::get_uint64(uint64_t value) {
+//   return jit_value_create_nint_constant(fn_, jit_type_nuint, value);
+// }
+
+#if 0
+GpVar X64Emitter::sign_extend(GpVar& value, int size) {
+  X86Compiler& c = compiler_;
+
+  // No-op if the same size.
+  if (value.getSize() == size) {
+    return value;
+  }
+
+  // TODO(benvanik): use movsx if value is in memory.
+
+  // errrr.... could pin values to rax for cbw/cwde/cdqe
+  // or, could use shift trick (may be slower):
+  //   shlq $(target_len-src_len), reg
+  //   sarq $(target_len-src_len), reg
+  GpVar tmp;
+  switch (size) {
+  case 1:
+    tmp = c.newGpVar(kX86VarTypeGpd);
+    return value.r8();
+  case 2:
+    tmp = c.newGpVar(kX86VarTypeGpd);
+    return value.r16();
+  case 4:
+    tmp = c.newGpVar(kX86VarTypeGpd);
+    return value.r32();
+  default:
+  case 8:
+    tmp = c.newGpVar(kX86VarTypeGpq);
+    c.mov(tmp, value);
+    if (value.getSize() == 4) {
+      c.cdqe(value);
+    }
+    return value.r64();
+  }
+}
+#endif
+
+GpVar X64Emitter::zero_extend(GpVar& value, int size) {
+  X86Compiler& c = compiler_;
+
+  // No-op if the same size.
+  if (value.getSize() == size) {
+    return value;
+  }
+
+  // TODO(benvanik): use movzx if value is in memory.
+
+  GpVar tmp;
+  switch (size) {
+  case 1:
+    tmp = c.newGpVar(kX86VarTypeGpd);
+    c.mov(tmp, value.r8());
+    break;
+  case 2:
+    tmp = c.newGpVar(kX86VarTypeGpd);
+    c.mov(tmp, value.r16());
+    break;
+  case 4:
+    tmp = c.newGpVar(kX86VarTypeGpd);
+    c.mov(tmp, value.r32());
+    break;
+  default:
+  case 8:
+    tmp = c.newGpVar(kX86VarTypeGpq);
+    c.mov(tmp, value.r64());
+    break;
+  }
+  return tmp;
+}
+
+GpVar X64Emitter::trunc(GpVar& value, int size) {
+  X86Compiler& c = compiler_;
+
+  // No-op if the same size.
+  if (value.getSize() == size) {
+    return value;
+  }
+
+  switch (size) {
+  case 1:
+    return value.r8();
+  case 2:
+    return value.r16();
+  case 4:
+    return value.r32();
+  default:
+  case 8:
+    return value.r64();
+  }
+}
