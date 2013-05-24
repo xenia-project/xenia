@@ -75,6 +75,7 @@ int XeEmitBranchTo(
       XEASSERTALWAYS();
     } else {
       //e.TraceBranch(cia);
+      //e.SpillRegisters();
       //c.jmp(e.GetBlockLabel(fn_block->outgoing_address));
     }
     return 0;
@@ -184,404 +185,399 @@ XEEMITTER(bx,           0x48000000, I  )(X64Emitter& e, X86Compiler& c, InstrDat
   return XeEmitBranchTo(e, c, "bx", i.address, i.I.LK);
 }
 
-// XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if ¬BO[2] then
-//   //   CTR <- CTR - 1
-//   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
-//   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
-//   // if ctr_ok & cond_ok then
-//   //   if AA then
-//   //     NIA <- EXTS(BD || 0b00)
-//   //   else
-//   //     NIA <- CIA + EXTS(BD || 0b00)
-//   // if LK then
-//   //   LR <- CIA + 4
+XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if ¬BO[2] then
+  //   CTR <- CTR - 1
+  // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
+  // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
+  // if ctr_ok & cond_ok then
+  //   if AA then
+  //     NIA <- EXTS(BD || 0b00)
+  //   else
+  //     NIA <- CIA + EXTS(BD || 0b00)
+  // if LK then
+  //   LR <- CIA + 4
 
-//   // NOTE: the condition bits are reversed!
-//   // 01234 (docs)
-//   // 43210 (real)
+  // NOTE: the condition bits are reversed!
+  // 01234 (docs)
+  // 43210 (real)
 
-//   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
-//   // The docs say always, though...
-//   if (i.B.LK) {
-//     e.update_lr_value(e.get_uint64(i.address + 4));
-//   }
+  // // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
+  // // The docs say always, though...
+  // if (i.B.LK) {
+  //   e.update_lr_value(e.get_uint64(i.address + 4));
+  // }
 
-//   jit_value_t ctr_ok = NULL;
-//   if (XESELECTBITS(i.B.BO, 2, 2)) {
-//     // Ignore ctr.
-//   } else {
-//     // Decrement counter.
-//     jit_value_t ctr = e.ctr_value();
-//     ctr = jit_insn_sub(f, ctr, e.get_int64(1));
-//     e.update_ctr_value(ctr);
+  // jit_value_t ctr_ok = NULL;
+  // if (XESELECTBITS(i.B.BO, 2, 2)) {
+  //   // Ignore ctr.
+  // } else {
+  //   // Decrement counter.
+  //   jit_value_t ctr = e.ctr_value();
+  //   ctr = jit_insn_sub(f, ctr, e.get_int64(1));
+  //   e.update_ctr_value(ctr);
 
-//     // Ctr check.
-//     if (XESELECTBITS(i.B.BO, 1, 1)) {
-//       ctr_ok = jit_insn_eq(f, ctr, e.get_int64(0));
-//     } else {
-//       ctr_ok = jit_insn_ne(f, ctr, e.get_int64(0));
-//     }
-//   }
+  //   // Ctr check.
+  //   if (XESELECTBITS(i.B.BO, 1, 1)) {
+  //     ctr_ok = jit_insn_eq(f, ctr, e.get_int64(0));
+  //   } else {
+  //     ctr_ok = jit_insn_ne(f, ctr, e.get_int64(0));
+  //   }
+  // }
 
-//   jit_value_t cond_ok = NULL;
-//   if (XESELECTBITS(i.B.BO, 4, 4)) {
-//     // Ignore cond.
-//   } else {
-//     jit_value_t cr = e.cr_value(i.B.BI >> 2);
-//     cr = jit_insn_and(f, cr, e.get_uint32(1 << (i.B.BI & 3)));
-//     if (XESELECTBITS(i.B.BO, 3, 3)) {
-//       cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
-//     } else {
-//       cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
-//     }
-//   }
+  // jit_value_t cond_ok = NULL;
+  // if (XESELECTBITS(i.B.BO, 4, 4)) {
+  //   // Ignore cond.
+  // } else {
+  //   jit_value_t cr = e.cr_value(i.B.BI >> 2);
+  //   cr = jit_insn_and(f, cr, e.get_uint32(1 << (i.B.BI & 3)));
+  //   if (XESELECTBITS(i.B.BO, 3, 3)) {
+  //     cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
+  //   } else {
+  //     cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
+  //   }
+  // }
 
-//   // We do a bit of optimization here to make the llvm assembly easier to read.
-//   jit_value_t ok = NULL;
-//   if (ctr_ok && cond_ok) {
-//     ok = jit_insn_and(f, ctr_ok, cond_ok);
-//   } else if (ctr_ok) {
-//     ok = ctr_ok;
-//   } else if (cond_ok) {
-//     ok = cond_ok;
-//   }
+  // // We do a bit of optimization here to make the llvm assembly easier to read.
+  // jit_value_t ok = NULL;
+  // if (ctr_ok && cond_ok) {
+  //   ok = jit_insn_and(f, ctr_ok, cond_ok);
+  // } else if (ctr_ok) {
+  //   ok = ctr_ok;
+  // } else if (cond_ok) {
+  //   ok = cond_ok;
+  // }
 
-//   uint32_t nia;
-//   if (i.B.AA) {
-//     nia = XEEXTS26(i.B.BD << 2);
-//   } else {
-//     nia = i.address + XEEXTS26(i.B.BD << 2);
-//   }
-//   if (XeEmitBranchTo(e, c, "bcx", i.address, i.B.LK, ok)) {
-//     return 1;
-//   }
+  // uint32_t nia;
+  // if (i.B.AA) {
+  //   nia = XEEXTS26(i.B.BD << 2);
+  // } else {
+  //   nia = i.address + XEEXTS26(i.B.BD << 2);
+  // }
+  // if (XeEmitBranchTo(e, c, "bcx", i.address, i.B.LK, ok)) {
+  //   return 1;
+  // }
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
-//   // if cond_ok then
-//   //   NIA <- CTR[0:61] || 0b00
-//   // if LK then
-//   //   LR <- CIA + 4
+XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
+  // if cond_ok then
+  //   NIA <- CTR[0:61] || 0b00
+  // if LK then
+  //   LR <- CIA + 4
 
-//   // NOTE: the condition bits are reversed!
-//   // 01234 (docs)
-//   // 43210 (real)
+  // NOTE: the condition bits are reversed!
+  // 01234 (docs)
+  // 43210 (real)
 
-//   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
-//   // The docs say always, though...
-//   if (i.XL.LK) {
-//     e.update_lr_value(e.get_uint64(i.address + 4));
-//   }
+  // // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
+  // // The docs say always, though...
+  // if (i.XL.LK) {
+  //   e.update_lr_value(e.get_uint64(i.address + 4));
+  // }
 
-//   jit_value_t cond_ok = NULL;
-//   if (XESELECTBITS(i.XL.BO, 4, 4)) {
-//     // Ignore cond.
-//   } else {
-//     jit_value_t cr = e.cr_value(i.XL.BI >> 2);
-//     cr = jit_insn_and(f, cr, e.get_uint64(1 << (i.XL.BI & 3)));
-//     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-//       cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
-//     } else {
-//       cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
-//     }
-//   }
+  // jit_value_t cond_ok = NULL;
+  // if (XESELECTBITS(i.XL.BO, 4, 4)) {
+  //   // Ignore cond.
+  // } else {
+  //   jit_value_t cr = e.cr_value(i.XL.BI >> 2);
+  //   cr = jit_insn_and(f, cr, e.get_uint64(1 << (i.XL.BI & 3)));
+  //   if (XESELECTBITS(i.XL.BO, 3, 3)) {
+  //     cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
+  //   } else {
+  //     cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
+  //   }
+  // }
 
-//   // We do a bit of optimization here to make the llvm assembly easier to read.
-//   jit_value_t ok = NULL;
-//   if (cond_ok) {
-//     ok = cond_ok;
-//   }
+  // // We do a bit of optimization here to make the llvm assembly easier to read.
+  // jit_value_t ok = NULL;
+  // if (cond_ok) {
+  //   ok = cond_ok;
+  // }
 
-//   if (XeEmitBranchTo(e, c, "bcctrx", i.address, i.XL.LK, ok)) {
-//     return 1;
-//   }
+  // if (XeEmitBranchTo(e, c, "bcctrx", i.address, i.XL.LK, ok)) {
+  //   return 1;
+  // }
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if ¬BO[2] then
-//   //   CTR <- CTR - 1
-//   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
-//   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
-//   // if ctr_ok & cond_ok then
-//   //   NIA <- LR[0:61] || 0b00
-//   // if LK then
-//   //   LR <- CIA + 4
+XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if ¬BO[2] then
+  //   CTR <- CTR - 1
+  // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
+  // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
+  // if ctr_ok & cond_ok then
+  //   NIA <- LR[0:61] || 0b00
+  // if LK then
+  //   LR <- CIA + 4
 
-//   // NOTE: the condition bits are reversed!
-//   // 01234 (docs)
-//   // 43210 (real)
+  // NOTE: the condition bits are reversed!
+  // 01234 (docs)
+  // 43210 (real)
 
-//   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
-//   // The docs say always, though...
-//   if (i.XL.LK) {
-//     e.update_lr_value(e.get_uint64(i.address + 4));
-//   }
+  // // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
+  // // The docs say always, though...
+  // if (i.XL.LK) {
+  //   e.update_lr_value(e.get_uint64(i.address + 4));
+  // }
 
-//   jit_value_t ctr_ok = NULL;
-//   if (XESELECTBITS(i.XL.BO, 2, 2)) {
-//     // Ignore ctr.
-//   } else {
-//     // Decrement counter.
-//     jit_value_t ctr = e.ctr_value();
-//     ctr = jit_insn_sub(f, ctr, e.get_int64(1));
+  // jit_value_t ctr_ok = NULL;
+  // if (XESELECTBITS(i.XL.BO, 2, 2)) {
+  //   // Ignore ctr.
+  // } else {
+  //   // Decrement counter.
+  //   jit_value_t ctr = e.ctr_value();
+  //   ctr = jit_insn_sub(f, ctr, e.get_int64(1));
 
-//     // Ctr check.
-//     if (XESELECTBITS(i.XL.BO, 1, 1)) {
-//       ctr_ok = jit_insn_eq(f, ctr, e.get_int64(0));
-//     } else {
-//       ctr_ok = jit_insn_ne(f, ctr, e.get_int64(0));
-//     }
-//   }
+  //   // Ctr check.
+  //   if (XESELECTBITS(i.XL.BO, 1, 1)) {
+  //     ctr_ok = jit_insn_eq(f, ctr, e.get_int64(0));
+  //   } else {
+  //     ctr_ok = jit_insn_ne(f, ctr, e.get_int64(0));
+  //   }
+  // }
 
-//   jit_value_t cond_ok = NULL;
-//   if (XESELECTBITS(i.XL.BO, 4, 4)) {
-//     // Ignore cond.
-//   } else {
-//     jit_value_t cr = e.cr_value(i.XL.BI >> 2);
-//     cr = jit_insn_and(f, cr, e.get_uint32(1 << (i.XL.BI & 3)));
-//     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-//       cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
-//     } else {
-//       cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
-//     }
-//   }
+  // jit_value_t cond_ok = NULL;
+  // if (XESELECTBITS(i.XL.BO, 4, 4)) {
+  //   // Ignore cond.
+  // } else {
+  //   jit_value_t cr = e.cr_value(i.XL.BI >> 2);
+  //   cr = jit_insn_and(f, cr, e.get_uint32(1 << (i.XL.BI & 3)));
+  //   if (XESELECTBITS(i.XL.BO, 3, 3)) {
+  //     cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
+  //   } else {
+  //     cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
+  //   }
+  // }
 
-//   // We do a bit of optimization here to make the llvm assembly easier to read.
-//   jit_value_t ok = NULL;
-//   if (ctr_ok && cond_ok) {
-//     ok = jit_insn_and(f, ctr_ok, cond_ok);
-//   } else if (ctr_ok) {
-//     ok = ctr_ok;
-//   } else if (cond_ok) {
-//     ok = cond_ok;
-//   }
+  // // We do a bit of optimization here to make the llvm assembly easier to read.
+  // jit_value_t ok = NULL;
+  // if (ctr_ok && cond_ok) {
+  //   ok = jit_insn_and(f, ctr_ok, cond_ok);
+  // } else if (ctr_ok) {
+  //   ok = ctr_ok;
+  // } else if (cond_ok) {
+  //   ok = cond_ok;
+  // }
 
-//   if (XeEmitBranchTo(e, c, "bclrx", i.address, i.XL.LK, ok)) {
-//     return 1;
-//   }
+  // if (XeEmitBranchTo(e, c, "bclrx", i.address, i.XL.LK, ok)) {
+  //   return 1;
+  // }
 
-//   return 0;
-// }
-
-
-// // Condition register logical (A-23)
-
-// XEEMITTER(crand,        0x4C000202, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(crandc,       0x4C000102, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(creqv,        0x4C000242, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(crnand,       0x4C0001C2, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(crnor,        0x4C000042, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(cror,         0x4C000382, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(crorc,        0x4C000342, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(crxor,        0x4C000182, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
-
-// XEEMITTER(mcrf,         0x4C000000, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
+  return 0;
+}
 
 
-// // System linkage (A-24)
+// Condition register logical (A-23)
 
-// XEEMITTER(sc,           0x44000002, SC )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
+XEEMITTER(crand,        0x4C000202, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(crandc,       0x4C000102, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(creqv,        0x4C000242, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(crnand,       0x4C0001C2, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(crnor,        0x4C000042, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(cror,         0x4C000382, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(crorc,        0x4C000342, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(crxor,        0x4C000182, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(mcrf,         0x4C000000, XL )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 
 
-// // Trap (A-25)
+// System linkage (A-24)
 
-// int XeEmitTrap(X64Emitter& e, X86Compiler& c, InstrData& i,
-//                 jit_value_t va, jit_value_t vb, uint32_t TO) {
-//   // if (a < b) & TO[0] then TRAP
-//   // if (a > b) & TO[1] then TRAP
-//   // if (a = b) & TO[2] then TRAP
-//   // if (a <u b) & TO[3] then TRAP
-//   // if (a >u b) & TO[4] then TRAP
-//   // Bits swapped:
-//   // 01234
-//   // 43210
+XEEMITTER(sc,           0x44000002, SC )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 
-//   if (!TO) {
-//     return 0;
-//   }
 
-//   // TODO(benvanik): port from LLVM
-//   XEASSERTALWAYS();
+// Trap (A-25)
 
-//   // BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn(),
-//   //                                           e.GetNextBasicBlock());
-//   // BasicBlock* trap_bb = BasicBlock::Create(*e.context(), "", e.fn(),
-//   //                                          after_bb);
+int XeEmitTrap(X64Emitter& e, X86Compiler& c, InstrData& i,
+               GpVar& va, GpVar& vb, uint32_t TO) {
+  // if (a < b) & TO[0] then TRAP
+  // if (a > b) & TO[1] then TRAP
+  // if (a = b) & TO[2] then TRAP
+  // if (a <u b) & TO[3] then TRAP
+  // if (a >u b) & TO[4] then TRAP
+  // Bits swapped:
+  // 01234
+  // 43210
 
-//   // // Create the basic blocks (so we can chain).
-//   // std::vector<BasicBlock*> bbs;
-//   // if (TO & (1 << 4)) {
-//   //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
-//   // }
-//   // if (TO & (1 << 3)) {
-//   //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
-//   // }
-//   // if (TO & (1 << 2)) {
-//   //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
-//   // }
-//   // if (TO & (1 << 1)) {
-//   //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
-//   // }
-//   // if (TO & (1 << 0)) {
-//   //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
-//   // }
-//   // bbs.push_back(after_bb);
+  if (!TO) {
+    return 0;
+  }
 
-//   // // Jump to the first bb.
-//   // b.CreateBr(bbs.front());
+  // TODO(benvanik): port from LLVM
+  XEASSERTALWAYS();
 
-//   // // Setup each basic block.
-//   // std::vector<BasicBlock*>::iterator it = bbs.begin();
-//   // if (TO & (1 << 4)) {
-//   //   // a < b
-//   //   BasicBlock* bb = *(it++);
-//   //   b.SetInsertPoint(bb);
-//   //   jit_value_t cmp = b.CreateICmpSLT(va, vb);
-//   //   b.CreateCondBr(cmp, trap_bb, *it);
-//   // }
-//   // if (TO & (1 << 3)) {
-//   //   // a > b
-//   //   BasicBlock* bb = *(it++);
-//   //   b.SetInsertPoint(bb);
-//   //   jit_value_t cmp = b.CreateICmpSGT(va, vb);
-//   //   b.CreateCondBr(cmp, trap_bb, *it);
-//   // }
-//   // if (TO & (1 << 2)) {
-//   //   // a = b
-//   //   BasicBlock* bb = *(it++);
-//   //   b.SetInsertPoint(bb);
-//   //   jit_value_t cmp = b.CreateICmpEQ(va, vb);
-//   //   b.CreateCondBr(cmp, trap_bb, *it);
-//   // }
-//   // if (TO & (1 << 1)) {
-//   //   // a <u b
-//   //   BasicBlock* bb = *(it++);
-//   //   b.SetInsertPoint(bb);
-//   //   jit_value_t cmp = b.CreateICmpULT(va, vb);
-//   //   b.CreateCondBr(cmp, trap_bb, *it);
-//   // }
-//   // if (TO & (1 << 0)) {
-//   //   // a >u b
-//   //   BasicBlock* bb = *(it++);
-//   //   b.SetInsertPoint(bb);
-//   //   jit_value_t cmp = b.CreateICmpUGT(va, vb);
-//   //   b.CreateCondBr(cmp, trap_bb, *it);
-//   // }
+  // BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn(),
+  //                                           e.GetNextBasicBlock());
+  // BasicBlock* trap_bb = BasicBlock::Create(*e.context(), "", e.fn(),
+  //                                          after_bb);
 
-//   // // Create trap BB.
-//   // b.SetInsertPoint(trap_bb);
-//   // e.SpillRegisters();
-//   // // TODO(benvanik): use @llvm.debugtrap? could make debugging better
-//   // b.CreateCall2(e.gen_module()->getFunction("XeTrap"),
-//   //               e.fn()->arg_begin(),
-//   //               e.get_uint64(i.address));
-//   // b.CreateBr(after_bb);
+  // // Create the basic blocks (so we can chain).
+  // std::vector<BasicBlock*> bbs;
+  // if (TO & (1 << 4)) {
+  //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
+  // }
+  // if (TO & (1 << 3)) {
+  //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
+  // }
+  // if (TO & (1 << 2)) {
+  //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
+  // }
+  // if (TO & (1 << 1)) {
+  //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
+  // }
+  // if (TO & (1 << 0)) {
+  //   bbs.push_back(BasicBlock::Create(*e.context(), "", e.fn(), trap_bb));
+  // }
+  // bbs.push_back(after_bb);
 
-//   // // Resume.
-//   // b.SetInsertPoint(after_bb);
+  // // Jump to the first bb.
+  // b.CreateBr(bbs.front());
 
-//   return 0;
-// }
+  // // Setup each basic block.
+  // std::vector<BasicBlock*>::iterator it = bbs.begin();
+  // if (TO & (1 << 4)) {
+  //   // a < b
+  //   BasicBlock* bb = *(it++);
+  //   b.SetInsertPoint(bb);
+  //   jit_value_t cmp = b.CreateICmpSLT(va, vb);
+  //   b.CreateCondBr(cmp, trap_bb, *it);
+  // }
+  // if (TO & (1 << 3)) {
+  //   // a > b
+  //   BasicBlock* bb = *(it++);
+  //   b.SetInsertPoint(bb);
+  //   jit_value_t cmp = b.CreateICmpSGT(va, vb);
+  //   b.CreateCondBr(cmp, trap_bb, *it);
+  // }
+  // if (TO & (1 << 2)) {
+  //   // a = b
+  //   BasicBlock* bb = *(it++);
+  //   b.SetInsertPoint(bb);
+  //   jit_value_t cmp = b.CreateICmpEQ(va, vb);
+  //   b.CreateCondBr(cmp, trap_bb, *it);
+  // }
+  // if (TO & (1 << 1)) {
+  //   // a <u b
+  //   BasicBlock* bb = *(it++);
+  //   b.SetInsertPoint(bb);
+  //   jit_value_t cmp = b.CreateICmpULT(va, vb);
+  //   b.CreateCondBr(cmp, trap_bb, *it);
+  // }
+  // if (TO & (1 << 0)) {
+  //   // a >u b
+  //   BasicBlock* bb = *(it++);
+  //   b.SetInsertPoint(bb);
+  //   jit_value_t cmp = b.CreateICmpUGT(va, vb);
+  //   b.CreateCondBr(cmp, trap_bb, *it);
+  // }
 
-// XEEMITTER(td,           0x7C000088, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // a <- (RA)
-//   // b <- (RB)
-//   // if (a < b) & TO[0] then TRAP
-//   // if (a > b) & TO[1] then TRAP
-//   // if (a = b) & TO[2] then TRAP
-//   // if (a <u b) & TO[3] then TRAP
-//   // if (a >u b) & TO[4] then TRAP
-//   return XeEmitTrap(e, f, i,
-//                     e.gpr_value(i.X.RA),
-//                     e.gpr_value(i.X.RB),
-//                     i.X.RT);
-// }
+  // // Create trap BB.
+  // b.SetInsertPoint(trap_bb);
+  // e.SpillRegisters();
+  // // TODO(benvanik): use @llvm.debugtrap? could make debugging better
+  // b.CreateCall2(e.gen_module()->getFunction("XeTrap"),
+  //               e.fn()->arg_begin(),
+  //               e.get_uint64(i.address));
+  // b.CreateBr(after_bb);
 
-// XEEMITTER(tdi,          0x08000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // a <- (RA)
-//   // if (a < EXTS(SI)) & TO[0] then TRAP
-//   // if (a > EXTS(SI)) & TO[1] then TRAP
-//   // if (a = EXTS(SI)) & TO[2] then TRAP
-//   // if (a <u EXTS(SI)) & TO[3] then TRAP
-//   // if (a >u EXTS(SI)) & TO[4] then TRAP
-//   return XeEmitTrap(e, f, i,
-//                     e.gpr_value(i.D.RA),
-//                     e.get_int64(XEEXTS16(i.D.DS)),
-//                     i.D.RT);
-// }
+  // // Resume.
+  // b.SetInsertPoint(after_bb);
 
-// XEEMITTER(tw,           0x7C000008, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // a <- EXTS((RA)[32:63])
-//   // b <- EXTS((RB)[32:63])
-//   // if (a < b) & TO[0] then TRAP
-//   // if (a > b) & TO[1] then TRAP
-//   // if (a = b) & TO[2] then TRAP
-//   // if (a <u b) & TO[3] then TRAP
-//   // if (a >u b) & TO[4] then TRAP
-//   return XeEmitTrap(e, f, i,
-//                     e.sign_extend(e.trunc_to_int(e.gpr_value(i.X.RA)),
-//                                   jit_type_nint),
-//                     e.sign_extend(e.trunc_to_int(e.gpr_value(i.X.RB)),
-//                                   jit_type_nint),
-//                     i.X.RT);
-// }
+  return 0;
+}
 
-// XEEMITTER(twi,          0x0C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // a <- EXTS((RA)[32:63])
-//   // if (a < EXTS(SI)) & TO[0] then TRAP
-//   // if (a > EXTS(SI)) & TO[1] then TRAP
-//   // if (a = EXTS(SI)) & TO[2] then TRAP
-//   // if (a <u EXTS(SI)) & TO[3] then TRAP
-//   // if (a >u EXTS(SI)) & TO[4] then TRAP
-//   return XeEmitTrap(e, f, i,
-//                     e.sign_extend(e.trunc_to_int(e.gpr_value(i.D.RA)),
-//                                   jit_type_nint),
-//                     e.get_int64(XEEXTS16(i.D.DS)),
-//                     i.D.RT);
-// }
+XEEMITTER(td,           0x7C000088, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // a <- (RA)
+  // b <- (RB)
+  // if (a < b) & TO[0] then TRAP
+  // if (a > b) & TO[1] then TRAP
+  // if (a = b) & TO[2] then TRAP
+  // if (a <u b) & TO[3] then TRAP
+  // if (a >u b) & TO[4] then TRAP
+  GpVar va = e.gpr_value(i.X.RA);
+  GpVar vb = e.gpr_value(i.X.RA);
+  return XeEmitTrap(e, c, i, va, vb, i.X.RT);
+}
+
+XEEMITTER(tdi,          0x08000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // a <- (RA)
+  // if (a < EXTS(SI)) & TO[0] then TRAP
+  // if (a > EXTS(SI)) & TO[1] then TRAP
+  // if (a = EXTS(SI)) & TO[2] then TRAP
+  // if (a <u EXTS(SI)) & TO[3] then TRAP
+  // if (a >u EXTS(SI)) & TO[4] then TRAP
+  GpVar va = e.gpr_value(i.D.RA);
+  GpVar vb(c.newGpVar());
+  c.mov(vb, imm(XEEXTS16(i.D.DS)));
+  return XeEmitTrap(e, c, i, va, vb, i.D.RT);
+}
+
+XEEMITTER(tw,           0x7C000008, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // a <- EXTS((RA)[32:63])
+  // b <- EXTS((RB)[32:63])
+  // if (a < b) & TO[0] then TRAP
+  // if (a > b) & TO[1] then TRAP
+  // if (a = b) & TO[2] then TRAP
+  // if (a <u b) & TO[3] then TRAP
+  // if (a >u b) & TO[4] then TRAP
+  GpVar va = e.sign_extend(e.trunc(e.gpr_value(i.X.RA), 4), 8);
+  GpVar vb = e.sign_extend(e.trunc(e.gpr_value(i.X.RA), 4), 8);
+  return XeEmitTrap(e, c, i, va, vb, i.X.RT);
+}
+
+XEEMITTER(twi,          0x0C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // a <- EXTS((RA)[32:63])
+  // if (a < EXTS(SI)) & TO[0] then TRAP
+  // if (a > EXTS(SI)) & TO[1] then TRAP
+  // if (a = EXTS(SI)) & TO[2] then TRAP
+  // if (a <u EXTS(SI)) & TO[3] then TRAP
+  // if (a >u EXTS(SI)) & TO[4] then TRAP
+  GpVar va = e.sign_extend(e.trunc(e.gpr_value(i.D.RA), 4), 8);
+  GpVar vb(c.newGpVar());
+  c.mov(vb, imm(XEEXTS16(i.D.DS)));
+  return XeEmitTrap(e, c, i, va, vb, i.D.RT);
+}
 
 
 // Processor control (A-26)
@@ -667,23 +663,23 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(X64Emitter& e, X86Compiler& c, InstrDat
 
 void X64RegisterEmitCategoryControl() {
   XEREGISTERINSTR(bx,           0x48000000);
-  // XEREGISTERINSTR(bcx,          0x40000000);
-  // XEREGISTERINSTR(bcctrx,       0x4C000420);
-  // XEREGISTERINSTR(bclrx,        0x4C000020);
-  // XEREGISTERINSTR(crand,        0x4C000202);
-  // XEREGISTERINSTR(crandc,       0x4C000102);
-  // XEREGISTERINSTR(creqv,        0x4C000242);
-  // XEREGISTERINSTR(crnand,       0x4C0001C2);
-  // XEREGISTERINSTR(crnor,        0x4C000042);
-  // XEREGISTERINSTR(cror,         0x4C000382);
-  // XEREGISTERINSTR(crorc,        0x4C000342);
-  // XEREGISTERINSTR(crxor,        0x4C000182);
-  // XEREGISTERINSTR(mcrf,         0x4C000000);
-  // XEREGISTERINSTR(sc,           0x44000002);
-  // XEREGISTERINSTR(td,           0x7C000088);
-  // XEREGISTERINSTR(tdi,          0x08000000);
-  // XEREGISTERINSTR(tw,           0x7C000008);
-  // XEREGISTERINSTR(twi,          0x0C000000);
+  XEREGISTERINSTR(bcx,          0x40000000);
+  XEREGISTERINSTR(bcctrx,       0x4C000420);
+  XEREGISTERINSTR(bclrx,        0x4C000020);
+  XEREGISTERINSTR(crand,        0x4C000202);
+  XEREGISTERINSTR(crandc,       0x4C000102);
+  XEREGISTERINSTR(creqv,        0x4C000242);
+  XEREGISTERINSTR(crnand,       0x4C0001C2);
+  XEREGISTERINSTR(crnor,        0x4C000042);
+  XEREGISTERINSTR(cror,         0x4C000382);
+  XEREGISTERINSTR(crorc,        0x4C000342);
+  XEREGISTERINSTR(crxor,        0x4C000182);
+  XEREGISTERINSTR(mcrf,         0x4C000000);
+  XEREGISTERINSTR(sc,           0x44000002);
+  XEREGISTERINSTR(td,           0x7C000088);
+  XEREGISTERINSTR(tdi,          0x08000000);
+  XEREGISTERINSTR(tw,           0x7C000008);
+  XEREGISTERINSTR(twi,          0x0C000000);
   XEREGISTERINSTR(mfcr,         0x7C000026);
   XEREGISTERINSTR(mfspr,        0x7C0002A6);
   XEREGISTERINSTR(mftb,         0x7C0002E6);

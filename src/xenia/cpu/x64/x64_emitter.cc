@@ -1471,7 +1471,6 @@ void X64Emitter::update_fpr_value(uint32_t n, GpVar& value) {
 //   return jit_value_create_nint_constant(fn_, jit_type_nuint, value);
 // }
 
-#if 0
 GpVar X64Emitter::sign_extend(GpVar& value, int size) {
   X86Compiler& c = compiler_;
 
@@ -1489,25 +1488,27 @@ GpVar X64Emitter::sign_extend(GpVar& value, int size) {
   GpVar tmp;
   switch (size) {
   case 1:
-    tmp = c.newGpVar(kX86VarTypeGpd);
-    return value.r8();
+    XEASSERTALWAYS();
+    return value;
   case 2:
-    tmp = c.newGpVar(kX86VarTypeGpd);
-    return value.r16();
+    XEASSERTALWAYS();
+    return value;
   case 4:
-    tmp = c.newGpVar(kX86VarTypeGpd);
-    return value.r32();
+    XEASSERTALWAYS();
+    return value;
   default:
   case 8:
     tmp = c.newGpVar(kX86VarTypeGpq);
     c.mov(tmp, value);
-    if (value.getSize() == 4) {
-      c.cdqe(value);
+    switch (value.getSize()) {
+      case 1: c.cbw(value);   // b->w->d->q
+      case 2: c.cwde(value);  //    w->d->q
+      case 4: c.cdqe(value);  //       d->q
+        break;
     }
-    return value.r64();
+    return value;
   }
 }
-#endif
 
 GpVar X64Emitter::zero_extend(GpVar& value, int size) {
   X86Compiler& c = compiler_;
