@@ -100,7 +100,7 @@ int Processor::Setup() {
 
 int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
   ExecModule* exec_module = NULL;
-  const xechar_t* name = xestrrchr(path, '/') + 1;
+  const xechar_t* name = xestrrchr(path, XE_PATH_SEPARATOR) + 1;
 
   // TODO(benvanik): map file from filesystem API, not via platform API.
   xe_mmap_ref mmap = xe_mmap_open(kXEFileModeRead, path, 0, 0);

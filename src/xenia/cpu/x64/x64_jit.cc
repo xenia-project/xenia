@@ -36,8 +36,6 @@ X64JIT::~X64JIT() {
 int X64JIT::Setup() {
   int result_code = 1;
 
-  XELOGCPU("Initializing x64 JIT backend...");
-
   // Check processor for support.
   result_code = CheckProcessor();
   if (result_code) {
@@ -97,6 +95,8 @@ static const BitDescription x86Features[] = {
 int X64JIT::CheckProcessor() {
   const CpuInfo* cpu = CpuInfo::getGlobal();
   const X86CpuInfo* x86Cpu = static_cast<const X86CpuInfo*>(cpu);
+
+#if 0
   XELOGCPU("Processor Info:");
   XELOGCPU("  Vendor string         : %s", cpu->getVendorString());
   XELOGCPU("  Brand string          : %s", cpu->getBrandString());
@@ -118,6 +118,7 @@ int X64JIT::CheckProcessor() {
       XELOGCPU("    %s", d->description);
     }
   }
+#endif
 
   // TODO(benvanik): ensure features we want are supported.
 

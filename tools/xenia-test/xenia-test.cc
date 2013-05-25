@@ -9,7 +9,9 @@
 
 #include <xenia/xenia.h>
 
+#if !XE_LIKE(WIN32)
 #include <dirent.h>
+#endif  // !WIN32
 #include <gflags/gflags.h>
 
 
@@ -19,8 +21,13 @@ using namespace xe::cpu;
 using namespace xe::kernel;
 
 
+#if XE_LIKE(WIN32)
+DEFINE_string(test_path, "test\\codegen\\",
+    "Directory scanned for test files.");
+#else
 DEFINE_string(test_path, "test/codegen/",
     "Directory scanned for test files.");
+#endif  // WIN32
 
 
 typedef vector<pair<string, string> > annotations_list_t;
@@ -115,12 +122,13 @@ int run_test(string& src_file_path) {
 
   XEEXPECTZERO(read_annotations(src_file_path, annotations));
 
-  xe_memory_options_t memory_options;
-  xe_zero_struct(&memory_options, sizeof(memory_options));
-  memory = xe_memory_create(memory_options);
-  XEEXPECTNOTNULL(memory);
+  while (!memory) {
+    xe_memory_options_t memory_options;
+    xe_zero_struct(&memory_options, sizeof(memory_options));
+    memory = xe_memory_create(memory_options);
+  }
 
-  backend_ = shared_ptr<Backend>(new xe::cpu::x64::X64Backend());
+  backend = shared_ptr<Backend>(new xe::cpu::x64::X64Backend());
 
   processor = shared_ptr<Processor>(new Processor(memory, backend));
   XEEXPECTZERO(processor->Setup());
@@ -128,7 +136,14 @@ int run_test(string& src_file_path) {
   runtime = shared_ptr<Runtime>(new Runtime(processor, XT("")));
 
   // Load the binary module.
-  XEEXPECTZERO(processor->LoadRawBinary(bin_file_path.c_str(), 0x82010000));
+#if XE_WCHAR
+  xechar_t bin_file_path_str[XE_MAX_PATH];
+  XEEXPECTTRUE(xestrwiden(bin_file_path_str, XECOUNT(bin_file_path_str),
+                          bin_file_path.c_str()));
+#else
+  const xechar_t* bin_file_path_str = bin_file_path.c_str();
+#endif  // XE_CHAR
+  XEEXPECTZERO(processor->LoadRawBinary(bin_file_path_str, 0x82010000));
 
   // Simulate a thread.
   thread_state = processor->AllocThread(256 * 1024, 0);
@@ -157,7 +172,29 @@ XECLEANUP:
 
 int discover_tests(string& test_path,
                    vector<string>& test_files) {
-  // TODO(benvanik): use PAL instead of this
+  // TODO(benvanik): use PAL instead of this.
+#if XE_LIKE(WIN32)
+  string search_path = test_path;
+  search_path.append("\\*.s");
+  WIN32_FIND_DATAA ffd;
+  HANDLE hFind = FindFirstFileA(search_path.c_str(), &ffd);
+  if (hFind == INVALID_HANDLE_VALUE) {
+    XELOGE("Unable to find test path %s", test_path.c_str());
+    return 1;
+  }
+  do {
+    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+      string file_name = string(ffd.cFileName);
+      string file_path = test_path;
+      if (*(test_path.end() - 1) != '\\') {
+        file_path += "\\";
+      }
+      file_path += file_name;
+      test_files.push_back(file_path);
+    }
+  } while (FindNextFileA(hFind, &ffd));
+  FindClose(hFind);
+#else
   DIR* d = opendir(test_path.c_str());
   if (!d) {
     XELOGE("Unable to find test path %s", test_path.c_str());
@@ -179,10 +216,11 @@ int discover_tests(string& test_path,
     }
   }
   closedir(d);
+#endif  // WIN32
   return 0;
 }
 
-int run_tests(const xechar_t* test_name) {
+int run_tests(std::string& test_name) {
   int result_code = 1;
   int failed_count = 0;
   int passed_count = 0;
@@ -203,7 +241,7 @@ int run_tests(const xechar_t* test_name) {
 
   for (vector<string>::iterator it = test_files.begin();
        it != test_files.end(); ++it) {
-    if (test_name && *it != test_name) {
+    if (test_name.length() && *it != test_name) {
       continue;
     }
 
@@ -235,8 +273,20 @@ int xenia_test(int argc, xechar_t **argv) {
   if (argc >= 2) {
     test_name = argv[1];
   }
+  
+  string test_name_str;
+  if (test_name) {
+#if XE_WCHAR
+    char test_name_buffer[XE_MAX_PATH];
+    XEIGNORE(xestrnarrow(test_name_buffer, XECOUNT(test_name_buffer),
+                         test_name));
+    test_name_str = test_name_buffer;
+#else
+    test_name_str = test_name;
+#endif  // XE_WCHAR
+  }
 
-  result_code = run_tests(test_name);
+  result_code = run_tests(test_name_str);
 
   return result_code;
 }
