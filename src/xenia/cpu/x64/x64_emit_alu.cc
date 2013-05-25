@@ -967,7 +967,6 @@ XEEMITTER(sldx,         0x7C000036, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // n <- (RB)[59:63]
   // r <- ROTL32((RS)[32:63], n)
@@ -977,8 +976,10 @@ XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   //   m <- i64.0
   // RA <- r & m
 
-  jit_value_t v = jit_insn_shl(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
-  v = jit_insn_and(f, v, e.get_uint64(UINT32_MAX));
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  c.shl(v, e.gpr_value(i.X.RB));
+  c.mov(v.r32(), v.r32());
   e.update_gpr_value(i.X.RA, v);
 
   if (i.X.Rc) {
@@ -988,7 +989,6 @@ XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
 XEEMITTER(sradx,        0x7C000634, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1116,7 +1116,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(rlwinmx,      0x54000000);
   XEREGISTERINSTR(rlwnmx,       0x5C000000);
   XEREGISTERINSTR(sldx,         0x7C000036);
-  // XEREGISTERINSTR(slwx,         0x7C000030);
+  XEREGISTERINSTR(slwx,         0x7C000030);
   XEREGISTERINSTR(sradx,        0x7C000634);
   XEREGISTERINSTR(sradix,       0x7C000674);
   XEREGISTERINSTR(srawx,        0x7C000630);

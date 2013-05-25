@@ -469,8 +469,9 @@ int XeEmitTrap(X64Emitter& e, X86Compiler& c, InstrData& i,
     return 0;
   }
 
+  XELOGCPU("twi not implemented - instruction ignored");
+
   // TODO(benvanik): port from LLVM
-  XEASSERTALWAYS();
 
   // BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn(),
   //                                           e.GetNextBasicBlock());
