@@ -673,6 +673,10 @@ void X64Emitter::TraceKernelCall() {
     return;
   }
 
+  for (int n = 0; n < 5; n++) {
+    c.nop();
+  }
+
   if (FLAGS_annotate_disassembly) {
     c.comment("XeTraceKernelCall (+spill)");
   }
@@ -691,6 +695,10 @@ void X64Emitter::TraceKernelCall() {
   call->setArgument(1, arg1);
   call->setArgument(2, c.getGpArg(1));
   call->setArgument(3, arg3);
+
+  for (int n = 0; n < 2; n++) {
+    c.nop();
+  }
 }
 
 void X64Emitter::TraceUserCall() {
@@ -698,6 +706,10 @@ void X64Emitter::TraceUserCall() {
 
   if (!FLAGS_trace_user_calls) {
     return;
+  }
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
   }
 
   if (FLAGS_annotate_disassembly) {
@@ -718,6 +730,10 @@ void X64Emitter::TraceUserCall() {
   call->setArgument(1, arg1);
   call->setArgument(2, c.getGpArg(1));
   call->setArgument(3, arg3);
+
+  for (int n = 0; n < 2; n++) {
+    c.nop();
+  }
 }
 
 void X64Emitter::TraceInstruction(InstrData& i) {
@@ -725,6 +741,10 @@ void X64Emitter::TraceInstruction(InstrData& i) {
 
   if (!FLAGS_trace_instructions) {
     return;
+  }
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
   }
 
   if (FLAGS_annotate_disassembly) {
@@ -744,6 +764,10 @@ void X64Emitter::TraceInstruction(InstrData& i) {
   call->setArgument(0, c.getGpArg(0));
   call->setArgument(1, arg1);
   call->setArgument(2, arg2);
+
+  for (int n = 0; n < 2; n++) {
+    c.nop();
+  }
 }
 
 void X64Emitter::TraceInvalidInstruction(InstrData& i) {
@@ -751,6 +775,10 @@ void X64Emitter::TraceInvalidInstruction(InstrData& i) {
 #if 0
   if (FLAGS_annotate_disassembly) {
     c.comment("XeInvalidInstruction (+spill)");
+  }
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
   }
 
   SpillRegisters();
@@ -766,6 +794,10 @@ void X64Emitter::TraceInvalidInstruction(InstrData& i) {
   call->setArgument(0, c.getGpArg(0));
   call->setArgument(1, arg1);
   call->setArgument(2, arg2);
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
+  }
 #endif
 }
 
@@ -774,6 +806,10 @@ void X64Emitter::TraceBranch(uint32_t cia) {
 
   if (!FLAGS_trace_branches) {
     return;
+  }
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
   }
 
   if (FLAGS_annotate_disassembly) {
@@ -815,6 +851,10 @@ void X64Emitter::TraceBranch(uint32_t cia) {
   call->setArgument(0, c.getGpArg(0));
   call->setArgument(1, arg1);
   call->setArgument(2, arg2);
+
+  for (int n = 0; n < 2; n++) {
+    c.nop();
+  }
 }
 
 int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
