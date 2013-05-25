@@ -1394,12 +1394,19 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs) {
   // bit3 = XER[SO]
 
   // Compare and set bits.
+  GpVar v_l(c.newGpVar());
+  GpVar v_g(c.newGpVar());
+  GpVar v_e(c.newGpVar());
   c.cmp(lhs, rhs);
-  GpVar v_l(c.newGpVar()); c.setl(v_l);
-  GpVar v_g(c.newGpVar()); c.setg(v_g); c.shl(v_g, imm(1));
-  GpVar v_e(c.newGpVar()); c.sete(v_e); c.shl(v_e, imm(2));
+  c.setl(v_l);
+  c.setg(v_g);
+  c.sete(v_e);
   GpVar v(c.newGpVar());
-  c.or_(v, v_l); c.or_(v, v_g); c.or_(v, v_e);
+  c.shl(v_g, imm(1));
+  c.shl(v_e, imm(2));
+  c.or_(v, v_l);
+  c.or_(v, v_g);
+  c.or_(v, v_e);
 
   // TODO(benvanik): set bit 4 to XER[SO]
   // c.seto?
