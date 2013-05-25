@@ -1232,6 +1232,7 @@ void X64Emitter::update_xer_with_carry(GpVar& value) {
   GpVar xer(c.newGpVar());
   c.mov(xer, xer_value());
   c.and_(xer, imm(0xDFFFFFFF)); // clear bit 29
+  c.mov(value.r8(), value.r8());
   c.shl(value, imm(29));
   c.or_(xer, value);
   update_xer_value(xer);
@@ -1347,7 +1348,7 @@ void X64Emitter::update_cr_value(uint32_t n, GpVar& value) {
     GpVar cr_tmp(c.newGpVar());
     c.mov(cr_tmp, qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)));
     GpVar cr_n(c.newGpVar());
-    c.mov(cr_n, value);
+    c.mov(cr_n, value.r8());
     if (n) {
       c.shl(cr_n, imm(n * 4));
     }
@@ -1375,9 +1376,9 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs) {
   GpVar v(c.newGpVar());
   c.shl(v_g, imm(1));
   c.shl(v_e, imm(2));
-  c.or_(v, v_l);
-  c.or_(v, v_g);
-  c.or_(v, v_e);
+  c.or_(v.r8(), v_l.r8());
+  c.or_(v.r8(), v_g.r8());
+  c.or_(v.r8(), v_e.r8());
 
   // TODO(benvanik): set bit 4 to XER[SO]
   // c.seto?
@@ -1404,9 +1405,9 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs) {
   GpVar v(c.newGpVar());
   c.shl(v_g, imm(1));
   c.shl(v_e, imm(2));
-  c.or_(v, v_l);
-  c.or_(v, v_g);
-  c.or_(v, v_e);
+  c.or_(v.r8(), v_l.r8());
+  c.or_(v.r8(), v_g.r8());
+  c.or_(v.r8(), v_e.r8());
 
   // TODO(benvanik): set bit 4 to XER[SO]
   // c.seto?
