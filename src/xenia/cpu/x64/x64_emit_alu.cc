@@ -157,7 +157,6 @@ XEEMITTER(divdux,       0x7C000392, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // dividend[0:31] <- (RA)[32:63]
   // divisor[0:31] <- (RB)[32:63]
@@ -168,9 +167,12 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   // RT[32:63] <- dividend ÷ divisor
   // RT[0:31] <- undefined
 
-  jit_value_t dividend = e.trunc_to_int(e.gpr_value(i.XO.RA));
-  jit_value_t divisor = e.trunc_to_int(e.gpr_value(i.XO.RB));
+  GpVar dividend(c.newGpVar());
+  GpVar divisor(c.newGpVar());
+  c.mov(dividend.r32(), e.gpr_value(i.XO.RA).r32());
+  c.mov(divisor.r32(), e.gpr_value(i.XO.RB).r32());
 
+#if 0
   // Note that we skip the zero handling block and just avoid the divide if
   // we are OE=0.
   BasicBlock* zero_bb = i.XO.OE ?
@@ -186,33 +188,33 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_xer_with_overflow(b.getInt1(1));
     b.CreateBr(after_bb);
   }
+#endif
 
   // Divide.
-  b.SetInsertPoint(nonzero_bb);
-  jit_value_t v = b.CreateSDiv(dividend, divisor);
-  v = e.sign_extend(v, jit_type_nint);
-  e.update_gpr_value(i.XO.RT, v);
+  GpVar dividend_hi(c.newGpVar());
+  c.alloc(dividend_hi, rdx);
+  c.mov(dividend_hi, imm(0));
+  c.alloc(dividend, rax);
+  c.idiv(dividend_hi, dividend.r64(), divisor.r64());
+  e.update_gpr_value(i.XO.RT, dividend);
 
   // If we are OE=1 we need to clear the overflow bit.
   if (i.XO.OE) {
-    e.update_xer_with_overflow(b.getInt1(0));
+    e.update_xer_with_overflow(e.get_uint64(0));
   }
 
   if (i.XO.Rc) {
     // With cr0 update.
-    e.update_cr_with_cond(0, v);
+    e.update_cr_with_cond(0, dividend);
   }
 
+#if 0
   b.CreateBr(after_bb);
-
-  // Resume.
-  b.SetInsertPoint(after_bb);
+#endif
 
   return 0;
 }
-#endif
 
-#if 0
 XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // dividend[0:31] <- (RA)[32:63]
   // divisor[0:31] <- (RB)[32:63]
@@ -223,9 +225,12 @@ XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   // RT[32:63] <- dividend ÷ divisor
   // RT[0:31] <- undefined
 
-  jit_value_t dividend = e.trunc_to_int(e.gpr_value(i.XO.RA));
-  jit_value_t divisor = e.trunc_to_int(e.gpr_value(i.XO.RB));
+  GpVar dividend(c.newGpVar());
+  GpVar divisor(c.newGpVar());
+  c.mov(dividend.r32(), e.gpr_value(i.XO.RA).r32());
+  c.mov(divisor.r32(), e.gpr_value(i.XO.RB).r32());
 
+#if 0
   // Note that we skip the zero handling block and just avoid the divide if
   // we are OE=0.
   BasicBlock* zero_bb = i.XO.OE ?
@@ -241,31 +246,35 @@ XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_xer_with_overflow(b.getInt1(1));
     b.CreateBr(after_bb);
   }
+#endif
 
   // Divide.
-  b.SetInsertPoint(nonzero_bb);
-  jit_value_t v = b.CreateUDiv(dividend, divisor);
-  v = e.zero_extend(v, jit_type_nint);
-  e.update_gpr_value(i.XO.RT, v);
+  GpVar dividend_hi(c.newGpVar());
+  c.alloc(dividend_hi, rdx);
+  c.mov(dividend_hi, imm(0));
+  c.alloc(dividend, rax);
+  c.div(dividend_hi, dividend.r64(), divisor.r64());
+  e.update_gpr_value(i.XO.RT, dividend);
 
   // If we are OE=1 we need to clear the overflow bit.
   if (i.XO.OE) {
-    e.update_xer_with_overflow(b.getInt1(0));
+    e.update_xer_with_overflow(e.get_uint64(0));
   }
 
   if (i.XO.Rc) {
     // With cr0 update.
-    e.update_cr_with_cond(0, v);
+    e.update_cr_with_cond(0, dividend);
   }
 
-  b.CreateBr(after_bb);
+  c.unuse(dividend_hi);
+  c.unuse(dividend);
 
-  // Resume.
-  b.SetInsertPoint(after_bb);
+#if 0
+  b.CreateBr(after_bb);
+#endif
 
   return 0;
 }
-#endif
 
 XEEMITTER(mulhdx,       0x7C000092, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1075,8 +1084,8 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(addzex,       0x7C000194);
   XEREGISTERINSTR(divdx,        0x7C0003D2);
   XEREGISTERINSTR(divdux,       0x7C000392);
-  // XEREGISTERINSTR(divwx,        0x7C0003D6);
-  // XEREGISTERINSTR(divwux,       0x7C000396);
+  XEREGISTERINSTR(divwx,        0x7C0003D6);
+  XEREGISTERINSTR(divwux,       0x7C000396);
   XEREGISTERINSTR(mulhdx,       0x7C000092);
   XEREGISTERINSTR(mulhdux,      0x7C000012);
   XEREGISTERINSTR(mulhwx,       0x7C000096);
