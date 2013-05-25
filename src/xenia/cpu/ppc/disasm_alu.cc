@@ -232,9 +232,9 @@ XEDISASMR(subfcx,       0x7C000010, XO )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(subficx,      0x20000000, D  )(InstrData& i, InstrDisasm& d) {
   d.Init("subfic", "Subtract From Immediate Carrying", InstrDisasm::kCA);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kRead);
+  d.AddSImmOperand(XEEXTS16(i.D.DS), 2);
   return d.Finish();
 }
 

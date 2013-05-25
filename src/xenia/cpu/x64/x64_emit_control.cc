@@ -80,7 +80,7 @@ int XeEmitBranchTo(
     if (condition) {
       // Fast test -- if condition passed then jump to target.
       // TODO(benvanik): need to spill here? somehow?
-      c.test(*condition, *condition);
+      c.test((*condition).r8(), (*condition).r8());
       c.jnz(target_label);
     } else {
       // TODO(benvanik): need to spill here?
@@ -95,7 +95,7 @@ int XeEmitBranchTo(
   if (condition) {
     // TODO(benvanik): add debug info for this?
     post_jump_label = c.newLabel();
-    c.test(*condition, *condition);
+    c.test((*condition).r8(), (*condition).r8());
     // TODO(benvanik): experiment with various hints?
     c.jz(post_jump_label, kCondHintNone);
   }

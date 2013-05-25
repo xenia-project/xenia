@@ -378,7 +378,7 @@ XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.XO.RA));
-  c.neg(v);
+  c.not_(v);
   c.stc();  // Always carrying.
   c.adc(v, e.gpr_value(i.XO.RB));
 
@@ -408,7 +408,7 @@ XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.D.RA));
-  c.neg(v);
+  c.not_(v);
   c.stc();  // Always carrying.
   c.adc(v, imm(XEEXTS16(i.D.DS)));
   GpVar cc(c.newGpVar());
@@ -425,7 +425,7 @@ XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.XO.RA));
-  c.neg(v);
+  c.not_(v);
 
   // Add in carry flag from XER, only if needed.
   // It may be possible to do this much more efficiently.
@@ -619,7 +619,7 @@ XEEMITTER(andcx,        0x7C000078, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.X.RB));
-  c.neg(v);
+  c.not_(v);
   c.and_(v, e.gpr_value(i.X.RT));
   e.update_gpr_value(i.X.RA, v);
 
@@ -740,7 +740,7 @@ XEEMITTER(norx,         0x7C0000F8, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.X.RT));
   c.or_(v, e.gpr_value(i.X.RB));
-  c.neg(v);
+  c.not_(v);
   e.update_gpr_value(i.X.RA, v);
 
   if (i.X.Rc) {
