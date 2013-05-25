@@ -99,7 +99,7 @@ XEEMITTER(addis,        0x3C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // else
   //   RT <- (RA) + EXTS(SI) || i16.0
 
-  GpVar v = e.get_uint64(XEEXTS16(i.D.DS) << 16);
+  GpVar v(e.get_uint64(XEEXTS16(i.D.DS) << 16));
   if (i.D.RA) {
     c.add(v, e.gpr_value(i.D.RA));
   }
@@ -113,18 +113,24 @@ XEEMITTER(addmex,       0x7C0001D4, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- (RA) + CA
 
-  // TODO(benvanik): handle overflow exception.
-  jit_value_t ca = jit_insn_and(f,
-      jit_insn_ushr(f, e.xer_value(), e.get_uint32(29)),
-      e.get_uint64(0x1));
-  jit_value_t v = jit_insn_add_ovf(f,
-      e.make_signed(e.gpr_value(i.XO.RA)),
-      e.make_signed(ca));
+  // Add in carry flag from XER, only if needed.
+  // It may be possible to do this much more efficiently.
+  GpVar xer(c.newGpVar());
+  c.mov(xer, e.xer_value());
+  c.shr(xer, imm(29));
+  c.and_(xer, imm(1));
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.add(v, xer);
+  GpVar cc(c.newGpVar());
+  c.setc(cc);
+
   e.update_gpr_value(i.XO.RT, v);
+  e.update_xer_with_carry(cc);
+
   if (i.XO.OE) {
     // With XER[SO] update too.
     //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
@@ -140,7 +146,6 @@ XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
 XEEMITTER(divdx,        0x7C0003D2, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1069,7 +1074,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(addicx,       0x34000000);
   XEREGISTERINSTR(addis,        0x3C000000);
   XEREGISTERINSTR(addmex,       0x7C0001D4);
-  // XEREGISTERINSTR(addzex,       0x7C000194);
+  XEREGISTERINSTR(addzex,       0x7C000194);
   XEREGISTERINSTR(divdx,        0x7C0003D2);
   XEREGISTERINSTR(divdux,       0x7C000392);
   // XEREGISTERINSTR(divwx,        0x7C0003D6);
