@@ -1447,7 +1447,7 @@ GpVar X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
 
   // Input address is always in 32-bit space.
   GpVar real_address(c.newGpVar());
-  c.mov(real_address, addr.r32());
+  c.mov(real_address.r32(), addr.r32());
 
   // Add runtime memory address checks, if needed.
   if (FLAGS_memory_address_verification) {
@@ -1702,7 +1702,9 @@ GpVar X64Emitter::zero_extend(GpVar& value, int from_size, int to_size) {
 
 GpVar X64Emitter::trunc(GpVar& value, int size) {
   X86Compiler& c = compiler_;
-
+  XEASSERTALWAYS();
+  return value;
+#if 0
   // No-op if the same size.
   if (value.getSize() == size) {
     return value;
@@ -1719,4 +1721,5 @@ GpVar X64Emitter::trunc(GpVar& value, int size) {
   case 8:
     return value.r64();
   }
+#endif
 }
