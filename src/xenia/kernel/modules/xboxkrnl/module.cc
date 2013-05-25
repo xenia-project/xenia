@@ -60,12 +60,13 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   uint8_t* mem = xe_memory_addr(memory_, 0);
 
   // KeDebugMonitorData (?*)
-  // I'm not sure what this is for, but games make sure it's not null and
-  // exit if it is.
+  // Set to a valid value when a remote debugger is attached.
+  // Offset 0x18 is a 4b pointer to a handler function that seems to take two
+  // arguments. If we wanted to see what would happen we could fake that.
   resolver->SetVariableMapping(
       "xboxkrnl.exe", 0x00000059,
       0x80102100);
-  XESETUINT32BE(mem + 0x80102100, 0x1);
+  XESETUINT32BE(mem + 0x80102100, 0);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
