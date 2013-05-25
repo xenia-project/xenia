@@ -651,8 +651,9 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
     c.ret();
 #endif  // ASMJIT_WINDOWS
   } else {
-#endif
+#else
   {
+#endif  // tail call disable
     // void fn(ppc_state*, uint64_t)
     X86CompilerFuncCall* call = c.call(target_ptr);
     call->setComment(target_symbol->name());
@@ -818,6 +819,8 @@ void X64Emitter::TraceBranch(uint32_t cia) {
 
 int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
                                              bool lk, bool likely_local) {
+  X86Compiler& c = compiler_;
+
   // This function is called by the control emitters when they know that an
   // indirect branch is required.
   // It first tries to see if the branch is to an address within the function
@@ -827,6 +830,7 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
 
   // TODO(benvanik): port indirection.
   //XEASSERTALWAYS();
+  c.int3();
 
   // BasicBlock* next_block = GetNextBasicBlock();
 
