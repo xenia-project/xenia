@@ -226,7 +226,7 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_ctr_value(ctr);
 
     // Ctr check.
-    c.test(ctr, imm(0));
+    c.cmp(ctr, imm(0));
     ctr_ok = c.newGpVar();
     if (XESELECTBITS(i.B.BO, 1, 1)) {
       c.setz(ctr_ok);
@@ -242,7 +242,7 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
     GpVar cr(c.newGpVar());
     c.mov(cr, e.cr_value(i.XL.BI >> 2));
     c.and_(cr, imm(1 << (i.XL.BI & 3)));
-    c.test(cr, imm(0));
+    c.cmp(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       c.setnz(cond_ok);
@@ -299,7 +299,7 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     GpVar cr(c.newGpVar());
     c.mov(cr, e.cr_value(i.XL.BI >> 2));
     c.and_(cr, imm(1 << (i.XL.BI & 3)));
-    c.test(cr, imm(0));
+    c.cmp(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       c.setnz(cond_ok);
@@ -352,7 +352,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_ctr_value(ctr);
 
     // Ctr check.
-    c.test(ctr, imm(0));
+    c.cmp(ctr, imm(0));
     ctr_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 1, 1)) {
       c.setz(ctr_ok);
@@ -368,7 +368,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     GpVar cr(c.newGpVar());
     c.mov(cr, e.cr_value(i.XL.BI >> 2));
     c.and_(cr, imm(1 << (i.XL.BI & 3)));
-    c.test(cr, imm(0));
+    c.cmp(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
       c.setnz(cond_ok);
