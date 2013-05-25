@@ -80,7 +80,7 @@ XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.mov(v, e.gpr_value(i.D.RA));
   c.add(v, imm(XEEXTS16(i.D.DS)));
   GpVar cc(c.newGpVar());
-  c.setc(cc);
+  c.setc(cc.r8());
 
   e.update_gpr_value(i.D.RT, v);
   e.update_xer_with_carry(cc);
@@ -126,7 +126,7 @@ XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   c.mov(v, e.gpr_value(i.XO.RA));
   c.add(v, xer);
   GpVar cc(c.newGpVar());
-  c.setc(cc);
+  c.setc(cc.r8());
 
   e.update_gpr_value(i.XO.RT, v);
   e.update_xer_with_carry(cc);
@@ -412,7 +412,7 @@ XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.stc();  // Always carrying.
   c.adc(v, imm(XEEXTS16(i.D.DS)));
   GpVar cc(c.newGpVar());
-  c.setc(cc);
+  c.setc(cc.r8());
 
   e.update_gpr_value(i.D.RT, v);
   e.update_xer_with_carry(cc);
@@ -440,7 +440,7 @@ XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   c.adc(v, e.gpr_value(i.XO.RB));
   GpVar cc(c.newGpVar());
-  c.setc(cc);
+  c.setc(cc.r8());
 
   e.update_gpr_value(i.XO.RT, v);
 

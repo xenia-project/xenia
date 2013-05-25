@@ -229,9 +229,9 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.cmp(ctr, imm(0));
     ctr_ok = c.newGpVar();
     if (XESELECTBITS(i.B.BO, 1, 1)) {
-      c.setz(ctr_ok);
+      c.setz(ctr_ok.r8());
     } else {
-      c.setnz(ctr_ok);
+      c.setnz(ctr_ok.r8());
     }
   }
 
@@ -245,9 +245,9 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.cmp(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-      c.setnz(cond_ok);
+      c.setnz(cond_ok.r8());
     } else {
-      c.setz(cond_ok);
+      c.setz(cond_ok.r8());
     }
   }
 
@@ -302,9 +302,9 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     c.cmp(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-      c.setnz(cond_ok);
+      c.setnz(cond_ok.r8());
     } else {
-      c.setz(cond_ok);
+      c.setz(cond_ok.r8());
     }
   }
 
@@ -355,9 +355,9 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     c.cmp(ctr, imm(0));
     ctr_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 1, 1)) {
-      c.setz(ctr_ok);
+      c.setz(ctr_ok.r8());
     } else {
-      c.setnz(ctr_ok);
+      c.setnz(ctr_ok.r8());
     }
   }
 
@@ -371,9 +371,9 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     c.cmp(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-      c.setnz(cond_ok);
+      c.setnz(cond_ok.r8());
     } else {
-      c.setz(cond_ok);
+      c.setz(cond_ok.r8());
     }
   }
 
