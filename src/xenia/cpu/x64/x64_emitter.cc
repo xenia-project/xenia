@@ -645,16 +645,13 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
     c.alloc(lr, rdx);
     // TODO(benvanik): just use jmp when fixed: https://code.google.com/p/asmjit/issues/detail?id=67
     // c.jmp(target_ptr);
-    c.push(imm(target_ptr));
-    c.ret();
 #else
     // Calling convetion: kX86FuncConvX64U
     // Arguments passed as RDI, RSI, RDX, RCX, R8, R9
     c.alloc(c.getGpArg(0), rdi);
     c.alloc(lr, rsi);
     // TODO(benvanik): just use jmp when fixed: https://code.google.com/p/asmjit/issues/detail?id=67
-    c.push(imm((uint64_t)target_ptr));
-    c.ret();
+    // c.jmp(target_ptr);
 #endif  // ASMJIT_WINDOWS
   } else {
 #else
@@ -667,6 +664,9 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
         FuncBuilder2<void, void*, uint64_t>());
     call->setArgument(0, c.getGpArg(0));
     call->setArgument(1, lr);
+    if (tail) {
+      c.ret();
+    }
   }
 
   return 0;
