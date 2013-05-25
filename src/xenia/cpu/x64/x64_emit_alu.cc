@@ -309,7 +309,6 @@ XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 0;
 }
 
-#if 0
 XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- (RA)[32:63] × (RB)[32:63]
 
@@ -319,19 +318,20 @@ XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
-  jit_value_t v = jit_insn_mul(
-      f, e.sign_extend(e.gpr_value(i.XO.RA), jit_type_nint),
-      e.sign_extend(e.gpr_value(i.XO.RB), jit_type_nint));
-  e.update_gpr_value(i.XO.RT, v);
+  GpVar v_0(c.newGpVar());
+  GpVar v_1(c.newGpVar());
+  c.mov(v_0.r32(), e.gpr_value(i.XO.RA).r32());
+  c.mov(v_1.r32(), e.gpr_value(i.XO.RB).r32());
+  c.imul(v_0.r64(), v_1.r64());
+  e.update_gpr_value(i.XO.RT, v_0);
 
   if (i.XO.Rc) {
     // With cr0 update.
-    e.update_cr_with_cond(0, v);
+    e.update_cr_with_cond(0, v_0);
   }
 
   return 0;
 }
-#endif
 
 XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + 1
@@ -1083,7 +1083,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(mulhwux,      0x7C000016);
   XEREGISTERINSTR(mulldx,       0x7C0001D2);
   XEREGISTERINSTR(mulli,        0x1C000000);
-  // XEREGISTERINSTR(mullwx,       0x7C0001D6);
+  XEREGISTERINSTR(mullwx,       0x7C0001D6);
   XEREGISTERINSTR(negx,         0x7C0000D0);
   XEREGISTERINSTR(subfx,        0x7C000050);
   XEREGISTERINSTR(subfcx,       0x7C000010);
