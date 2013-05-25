@@ -100,7 +100,7 @@ void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
   XELOGCPU(
       "\n"
-      " lr=%.16llX ctr=%.16llX xer=%.16llX\n"
+      " lr=%.16llX ctr=%.16llX  cr=%.4X    xer=%.16llX\n"
       " r0=%.16llX  r1=%.16llX  r2=%.16llX  r3=%.16llX\n"
       " r4=%.16llX  r5=%.16llX  r6=%.16llX  r7=%.16llX\n"
       " r8=%.16llX  r9=%.16llX r10=%.16llX r11=%.16llX\n"
@@ -109,7 +109,7 @@ void _cdecl XeTraceInstruction(
       "r20=%.16llX r21=%.16llX r22=%.16llX r23=%.16llX\n"
       "r24=%.16llX r25=%.16llX r26=%.16llX r27=%.16llX\n"
       "r28=%.16llX r29=%.16llX r30=%.16llX r31=%.16llX\n",
-      state->lr, state->ctr, state->xer,
+      state->lr, state->ctr, state->cr.value, state->xer,
       state->r[0], state->r[1], state->r[2], state->r[3],
       state->r[4], state->r[5], state->r[6], state->r[7],
       state->r[8], state->r[9], state->r[10], state->r[11],
