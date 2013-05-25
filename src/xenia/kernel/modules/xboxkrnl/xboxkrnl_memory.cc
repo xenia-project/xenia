@@ -121,6 +121,11 @@ SHIM_CALL NtFreeVirtualMemory_shim(
       region_size_ptr, region_size_value,
       free_type, unknown);
 
+  if (!base_addr_value) {
+    SHIM_SET_RETURN(X_STATUS_MEMORY_NOT_ALLOCATED);
+    return;
+  }
+
   // Free.
   uint32_t flags = 0;
   uint32_t freed_size = xe_memory_heap_free(state->memory(), base_addr_value,

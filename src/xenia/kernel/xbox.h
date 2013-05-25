@@ -41,6 +41,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_BUFFER_TOO_SMALL                       ((uint32_t)0xC0000023L)
 #define X_STATUS_OBJECT_TYPE_MISMATCH                   ((uint32_t)0xC0000024L)
 #define X_STATUS_INVALID_PAGE_PROTECTION                ((uint32_t)0xC0000045L)
+#define X_STATUS_MEMORY_NOT_ALLOCATED                   ((uint32_t)0xC00000A0L)
 
 
 // MEM_*, used by NtAllocateVirtualMemory

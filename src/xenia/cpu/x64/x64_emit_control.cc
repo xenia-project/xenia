@@ -636,7 +636,7 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(X64Emitter& e, X86Compiler& c, InstrDat
   // else
   //   SPR(n) <- (RS)[32:63]
 
-  GpVar& v = e.gpr_value(i.XFX.RT);
+  GpVar v = e.gpr_value(i.XFX.RT);
 
   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
   switch (n) {
