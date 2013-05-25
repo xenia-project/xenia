@@ -894,24 +894,22 @@ XEEMITTER(rldimix,      0x7800000C, MD )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
   // RA <- r&m | (RA)&¬m
 
-  // ROTL32(x, y) = rotl(i64.(x||x), y)
-  jit_value_t v = jit_insn_and(f, e.gpr_value(i.M.RT),
-                                  e.get_uint64(UINT32_MAX));
-  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(32)), v);
-  // (v << shift) | (v >> (32 - shift));
-  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(i.M.SH)),
-                     jit_insn_ushr(f, v, e.get_uint32(32 - i.M.SH)));
+  GpVar v(c.newGpVar());
+  c.mov(v.r32(), e.gpr_value(i.M.RT).r32()); // truncate
+  c.rol(v.r32(), imm(i.M.SH));
   uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
-  v = jit_insn_and(f, v, e.get_uint64(m));
-  v = jit_insn_or(f, v, jit_insn_and(f, e.gpr_value(i.M.RA),
-                                        e.get_uint64(~m)));
+  c.and_(v, imm(m));
+
+  GpVar old_ra(c.newGpVar());
+  c.mov(old_ra, e.gpr_value(i.M.RA));
+  c.and_(old_ra, imm(~m));
+  c.or_(v, old_ra);
   e.update_gpr_value(i.M.RA, v);
 
   if (i.M.Rc) {
@@ -921,23 +919,21 @@ XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
-#if 0
 XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
 
+  GpVar v(c.newGpVar());
+  c.mov(v.r32(), e.gpr_value(i.M.RT).r32()); // truncate
+
   // The compiler will generate a bunch of these for the special case of SH=0.
   // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.
   if (!i.M.SH) {
-    jit_value_t v = jit_insn_and(f,
-        e.trunc_to_int(e.gpr_value(i.M.RT)),
-        e.get_uint32((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
-    v = e.zero_extend(v, jit_type_nint);
+    c.and_(v, imm(XEMASK(i.M.MB + 32, i.M.ME + 32)));
     e.update_gpr_value(i.M.RA, v);
     if (i.M.Rc) {
       // With cr0 update.
@@ -946,13 +942,8 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 0;
   }
 
-  // ROTL32(x, y) = rotl(i64.(x||x), y)
-  jit_value_t v = jit_insn_and(f, e.gpr_value(i.M.RT), e.get_uint64(UINT32_MAX));
-  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(32)), v);
-  // (v << shift) | (v >> (32 - shift));
-  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(i.M.SH)),
-                     jit_insn_ushr(f, v, e.get_uint32(32 - i.M.SH)));
-  v = jit_insn_and(f, v, e.get_uint64(XEMASK(i.M.MB + 32, i.M.ME + 32)));
+  c.rol(v.r32(), imm(i.M.SH));
+  c.and_(v, imm(XEMASK(i.M.MB + 32, i.M.ME + 32)));
   e.update_gpr_value(i.M.RA, v);
 
   if (i.M.Rc) {
@@ -962,7 +953,6 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
 XEEMITTER(rlwnmx,       0x5C000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1122,8 +1112,8 @@ void X64RegisterEmitCategoryALU() {
   // XEREGISTERINSTR(rldiclx,      0x78000000);
   XEREGISTERINSTR(rldicrx,      0x78000004);
   XEREGISTERINSTR(rldimix,      0x7800000C);
-  // XEREGISTERINSTR(rlwimix,      0x50000000);
-  // XEREGISTERINSTR(rlwinmx,      0x54000000);
+  XEREGISTERINSTR(rlwimix,      0x50000000);
+  XEREGISTERINSTR(rlwinmx,      0x54000000);
   XEREGISTERINSTR(rlwnmx,       0x5C000000);
   XEREGISTERINSTR(sldx,         0x7C000036);
   // XEREGISTERINSTR(slwx,         0x7C000030);
