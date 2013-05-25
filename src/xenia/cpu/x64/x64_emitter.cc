@@ -53,9 +53,8 @@ DEFINE_bool(annotate_disassembly, true,
  */
 
 
-X64Emitter::X64Emitter(xe_memory_ref memory) {
-  memory_ = memory;
-
+X64Emitter::X64Emitter(xe_memory_ref memory) :
+    memory_(memory), logger_(NULL) {
   // I don't like doing this, but there's no public access to these members.
   assembler_._properties = compiler_._properties;
 
