@@ -233,8 +233,8 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
   fn_block_ = NULL;
 
   return_block_ = c.newLabel();
-//   internal_indirection_block_ = jit_label_undefined;
-//   external_indirection_block_ = jit_label_undefined;
+  internal_indirection_block_ = Label();
+  external_indirection_block_ = Label();
 
   bbs_.clear();
 
@@ -437,36 +437,43 @@ void X64Emitter::GenerateSharedBlocks() {
   SpillRegisters();
   c.ret();
 
-//  jit_value_t indirect_branch = gen_module_->getFunction("XeIndirectBranch");
-//
-//  // Build indirection block on demand.
-//  // We have already prepped all basic blocks, so we can build these tables now.
-//  if (external_indirection_block_) {
-//    // This will spill registers and call the external function.
-//    // It is only meant for LK=0.
-//    b.SetInsertPoint(external_indirection_block_);
-//    SpillRegisters();
-//    b.CreateCall3(indirect_branch,
-//                  fn_->arg_begin(),
-//                  b.CreateLoad(locals_.indirection_target),
-//                  b.CreateLoad(locals_.indirection_cia));
-//    b.CreateRetVoid();
-//  }
-//
-//  if (internal_indirection_block_) {
-//    // This will not spill registers and instead try to switch on local blocks.
-//    // If it fails then the external indirection path is taken.
-//    // NOTE: we only generate this if a likely local branch is taken.
-//    b.SetInsertPoint(internal_indirection_block_);
-//    SwitchInst* switch_i = b.CreateSwitch(
-//        b.CreateLoad(locals_.indirection_target),
-//        external_indirection_block_,
-//        static_cast<int>(bbs_.size()));
-//    for (std::map<uint32_t, BasicBlock*>::iterator it = bbs_.begin();
-//         it != bbs_.end(); ++it) {
-//      switch_i->addCase(b.getInt64(it->first), it->second);
-//    }
-//  }
+  // Build indirection block on demand.
+  // We have already prepped all basic blocks, so we can build these tables now.
+  if (external_indirection_block_.getId() != kInvalidValue) {
+    // This will spill registers and call the external function.
+    // It is only meant for LK=0.
+    c.bind(external_indirection_block_);
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Shared external indirection block");
+    }
+    SpillRegisters();
+    X86CompilerFuncCall* call = c.call(global_exports_.XeIndirectBranch);
+    call->setPrototype(kX86FuncConvDefault,
+        FuncBuilder3<void, void*, uint64_t, uint64_t>());
+    call->setArgument(0, c.getGpArg(0));
+    call->setArgument(1, locals_.indirection_target);
+    call->setArgument(2, locals_.indirection_cia);
+    c.ret();
+  }
+
+  if (internal_indirection_block_.getId() != kInvalidValue) {
+    // This will not spill registers and instead try to switch on local blocks.
+    // If it fails then the external indirection path is taken.
+    // NOTE: we only generate this if a likely local branch is taken.
+    c.bind(internal_indirection_block_);
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Shared internal indirection block");
+    }
+    c.int3();
+    // SwitchInst* switch_i = b.CreateSwitch(
+    //     b.CreateLoad(locals_.indirection_target),
+    //     external_indirection_block_,
+    //     static_cast<int>(bbs_.size()));
+    // for (std::map<uint32_t, BasicBlock*>::iterator it = bbs_.begin();
+    //      it != bbs_.end(); ++it) {
+    //   switch_i->addCase(b.getInt64(it->first), it->second);
+    // }
+  }
 }
 
 int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
@@ -868,89 +875,76 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
   // the block the function is regenerated (ACK!). If the target is external
   // then an external call occurs.
 
-  // TODO(benvanik): port indirection.
-  //XEASSERTALWAYS();
-  c.int3();
+  // Request builds of the indirection blocks on demand.
+  // We can't build here because we don't know what registers will be needed
+  // yet, so we just create the blocks and let GenerateSharedBlocks handle it
+  // after we are done with all user instructions.
+  if ((likely_local || !lk) &&
+      external_indirection_block_.getId() == kInvalidValue) {
+    external_indirection_block_ = c.newLabel();
+  }
+  if (likely_local && internal_indirection_block_.getId() == kInvalidValue) {
+    internal_indirection_block_ = c.newLabel();
+  }
+  if ((internal_indirection_block_.getId() != kInvalidValue ||
+       external_indirection_block_.getId() != kInvalidValue) &&
+      (locals_.indirection_cia.getId() == kInvalidValue)) {
+    locals_.indirection_target = c.newGpVar();
+    locals_.indirection_cia = c.newGpVar();
+  }
 
-  // BasicBlock* next_block = GetNextBasicBlock();
+  // Check to see if the target address is within the function.
+  // If it is jump to that basic block. If the basic block is not found it means
+  // we have a jump inside the function that wasn't identified via static
+  // analysis. These are bad as they require function regeneration.
+  if (likely_local) {
+    // Note that we only support LK=0, as we are using shared tables.
+    XEASSERT(!lk);
+    c.mov(locals_.indirection_target, target);
+    c.mov(locals_.indirection_cia, imm(cia));
+    // if (target >= start && target < end) jmp internal_indirection_block;
+    // else jmp external_indirection_block;
+    GpVar in_range(c.newGpVar());
+    c.cmp(target, imm(symbol_->start_address));
+    c.setge(in_range.r8Lo());
+    c.jl(external_indirection_block_, kCondHintLikely);
+    c.cmp(target, imm(symbol_->end_address));
+    c.jge(external_indirection_block_, kCondHintLikely);
+    c.jmp(internal_indirection_block_);
+    return 0;
+  }
 
-  // PushInsertPoint();
+  // If we are LK=0 jump to the shared indirection block. This prevents us
+  // from needing to fill the registers again after the call and shares more
+  // code.
+  if (!lk) {
+    c.mov(locals_.indirection_target, target);
+    c.mov(locals_.indirection_cia, imm(cia));
+    c.jmp(external_indirection_block_);
+  } else {
+    // Slowest path - spill, call the external function, and fill.
+    // We should avoid this at all costs.
 
-  // // Request builds of the indirection blocks on demand.
-  // // We can't build here because we don't know what registers will be needed
-  // // yet, so we just create the blocks and let GenerateSharedBlocks handle it
-  // // after we are done with all user instructions.
-  // if (!external_indirection_block_) {
-  //   // Setup locals in the entry block.
-  //   b.SetInsertPoint(&fn_->getEntryBlock());
-  //   locals_.indirection_target = b.CreateAlloca(
-  //       jit_type_nuint, 0, "indirection_target");
-  //   locals_.indirection_cia = b.CreateAlloca(
-  //       jit_type_nuint, 0, "indirection_cia");
+    // Spill registers. We could probably share this.
+    SpillRegisters();
 
-  //   external_indirection_block_ = BasicBlock::Create(
-  //       *context_, "external_indirection_block", fn_, return_block_);
-  // }
-  // if (likely_local && !internal_indirection_block_) {
-  //   internal_indirection_block_ = BasicBlock::Create(
-  //       *context_, "internal_indirection_block", fn_, return_block_);
-  // }
+    // Issue the full indirection branch.
+    // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
+    GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
+    c.mov(arg2, imm(cia));
+    X86CompilerFuncCall* call = c.call(global_exports_.XeIndirectBranch);
+    call->setPrototype(kX86FuncConvDefault,
+        FuncBuilder3<void, void*, uint64_t, uint64_t>());
+    call->setArgument(0, c.getGpArg(0));
+    call->setArgument(1, target);
+    call->setArgument(2, arg2);
 
-  // PopInsertPoint();
-
-  // // Check to see if the target address is within the function.
-  // // If it is jump to that basic block. If the basic block is not found it means
-  // // we have a jump inside the function that wasn't identified via static
-  // // analysis. These are bad as they require function regeneration.
-  // if (likely_local) {
-  //   // Note that we only support LK=0, as we are using shared tables.
-  //   XEASSERT(!lk);
-  //   b.CreateStore(target, locals_.indirection_target);
-  //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-  //   jit_value_t symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
-  //   jit_value_t symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
-  //   jit_value_t symbol_target_cmp = jit_insn_and(fn_, symbol_ge_cmp, symbol_l_cmp);
-  //   b.CreateCondBr(symbol_target_cmp,
-  //                  internal_indirection_block_, external_indirection_block_);
-  //   return 0;
-  // }
-
-  // // If we are LK=0 jump to the shared indirection block. This prevents us
-  // // from needing to fill the registers again after the call and shares more
-  // // code.
-  // if (!lk) {
-  //   b.CreateStore(target, locals_.indirection_target);
-  //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-  //   b.CreateBr(external_indirection_block_);
-  // } else {
-  //   // Slowest path - spill, call the external function, and fill.
-  //   // We should avoid this at all costs.
-
-  //   // Spill registers. We could probably share this.
-  //   SpillRegisters();
-
-  //   // Issue the full indirection branch.
-  //   jit_value_t branch_args[] = {
-  //     jit_value_get_param(fn_, 0),
-  //     target,
-  //     get_uint64(cia),
-  //   };
-  //   jit_insn_call_native(
-  //       fn_,
-  //       "XeIndirectBranch",
-  //       global_exports_.XeIndirectBranch,
-  //       global_export_signature_3_,
-  //       branch_args, XECOUNT(branch_args),
-  //       0);
-
-  //   if (next_block) {
-  //     // Only refill if not a tail call.
-  //     FillRegisters();
-  //     b.CreateBr(next_block);
-  //   } else {
-  //     jit_insn_return(fn_, NULL);
-  //   }
-  // }
+    // TODO(benvanik): next_block/is_last_block/etc
+    //if (next_block) {
+      // Only refill if not a tail call.
+      FillRegisters();
+    //}
+  }
 
   return 0;
 }

@@ -117,8 +117,8 @@ private:
   sdb::FunctionSymbol*  symbol_;
   sdb::FunctionBlock*   fn_block_;
   AsmJit::Label         return_block_;
-  // jit_label_t           internal_indirection_block_;
-  // jit_label_t           external_indirection_block_;
+  AsmJit::Label         internal_indirection_block_;
+  AsmJit::Label         external_indirection_block_;
 
   std::map<uint32_t, AsmJit::Label> bbs_;
 
