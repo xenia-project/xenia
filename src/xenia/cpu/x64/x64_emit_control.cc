@@ -54,9 +54,11 @@ int XeEmitIndirectBranchTo(
   if (!lk && reg == kXEPPCRegLR) {
     // The return block will spill registers for us.
     // TODO(benvanik): 'lr_mismatch' debug info.
-    c.test(target, c.getGpArg(1));
+    // Note: we need to test on *only* the 32-bit target, as the target ptr may
+    //     have garbage in the upper 32 bits.
+    c.test(target.r32(), c.getGpArg(1).r32());
     // TODO(benvanik): evaluate hint here.
-    c.je(e.GetReturnLabel(), kCondHintLikely);
+    c.jnz(e.GetReturnLabel(), kCondHintLikely);
   }
 
   // Defer to the generator, which will do fancy things.
@@ -227,9 +229,9 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.test(ctr, imm(0));
     ctr_ok = c.newGpVar();
     if (XESELECTBITS(i.B.BO, 1, 1)) {
-      c.sete(ctr_ok);
+      c.setz(ctr_ok);
     } else {
-      c.setne(ctr_ok);
+      c.setnz(ctr_ok);
     }
   }
 
@@ -243,9 +245,9 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.test(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-      c.setne(cond_ok);
+      c.setnz(cond_ok);
     } else {
-      c.sete(cond_ok);
+      c.setz(cond_ok);
     }
   }
 
@@ -300,9 +302,9 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     c.test(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-      c.setne(cond_ok);
+      c.setnz(cond_ok);
     } else {
-      c.sete(cond_ok);
+      c.setz(cond_ok);
     }
   }
 
@@ -353,9 +355,9 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     c.test(ctr, imm(0));
     ctr_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 1, 1)) {
-      c.sete(ctr_ok);
+      c.setz(ctr_ok);
     } else {
-      c.setne(ctr_ok);
+      c.setnz(ctr_ok);
     }
   }
 
@@ -369,9 +371,9 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
     c.test(cr, imm(0));
     cond_ok = c.newGpVar();
     if (XESELECTBITS(i.XL.BO, 3, 3)) {
-      c.setne(cond_ok);
+      c.setnz(cond_ok);
     } else {
-      c.sete(cond_ok);
+      c.setz(cond_ok);
     }
   }
 
