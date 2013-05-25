@@ -1056,7 +1056,7 @@ XEEMITTER(srwx,         0x7C000430, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
 
 void X64RegisterEmitCategoryALU() {
-  // XEREGISTERINSTR(addx,         0x7C000214);
+  XEREGISTERINSTR(addx,         0x7C000214);
   XEREGISTERINSTR(addcx,        0X7C000014);
   XEREGISTERINSTR(addex,        0x7C000114);
   XEREGISTERINSTR(addi,         0x38000000);
