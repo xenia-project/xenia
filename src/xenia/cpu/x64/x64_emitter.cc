@@ -1376,7 +1376,7 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs) {
   GpVar v(c.newGpVar());
   c.shl(v_g, imm(1));
   c.shl(v_e, imm(2));
-  c.or_(v.r8(), v_l.r8());
+  c.mov(v.r8(), v_l.r8());
   c.or_(v.r8(), v_g.r8());
   c.or_(v.r8(), v_e.r8());
 
@@ -1405,7 +1405,7 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs) {
   GpVar v(c.newGpVar());
   c.shl(v_g, imm(1));
   c.shl(v_e, imm(2));
-  c.or_(v.r8(), v_l.r8());
+  c.mov(v.r8(), v_l.r8());
   c.or_(v.r8(), v_g.r8());
   c.or_(v.r8(), v_e.r8());
 
