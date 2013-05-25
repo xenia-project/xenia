@@ -231,7 +231,7 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
   symbol_ = symbol;
   fn_block_ = NULL;
 
-  return_block_ = c.newLabel();
+  return_block_ = Label();
   internal_indirection_block_ = Label();
   external_indirection_block_ = Label();
 
@@ -425,16 +425,18 @@ FunctionBlock* X64Emitter::fn_block() {
 void X64Emitter::GenerateSharedBlocks() {
   X86Compiler& c = compiler_;
 
-  // Create a return block.
-  // This spills registers and returns. All non-tail returns should branch
-  // here to do the return and ensure registers are spilled.
-  // This will be moved to the end after all the other blocks are created.
-  if (FLAGS_annotate_disassembly) {
-    c.comment("Shared return block");
+  // Create a return block, if it was used.
+  if (return_block_.getId() != kInvalidValue) {
+    // This spills registers and returns. All non-tail returns should branch
+    // here to do the return and ensure registers are spilled.
+    // This will be moved to the end after all the other blocks are created.
+    if (FLAGS_annotate_disassembly) {
+      c.comment("Shared return block");
+    }
+    c.bind(return_block_);
+    SpillRegisters();
+    c.ret();
   }
-  c.bind(return_block_);
-  SpillRegisters();
-  c.ret();
 
   // Build indirection block on demand.
   // We have already prepped all basic blocks, so we can build these tables now.
@@ -616,6 +618,11 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 }
 
 Label& X64Emitter::GetReturnLabel() {
+  X86Compiler& c = compiler_;
+  // Implicit creation on first use.
+  if (return_block_.getId() == kInvalidValue) {
+     return_block_ = c.newLabel();
+  }
   return return_block_;
 }
 
@@ -631,6 +638,8 @@ int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
   // Prep the target function.
   // If the target function was small we could try to make the whole thing now.
   PrepareFunction(target_symbol);
+
+  SpillRegisters();
 
   uint64_t target_ptr = (uint64_t)target_symbol->impl_value;
   XEASSERTNOTNULL(target_ptr);
