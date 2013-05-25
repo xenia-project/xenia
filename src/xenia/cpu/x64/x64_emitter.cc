@@ -1066,7 +1066,7 @@ void X64Emitter::FillRegisters() {
     }
     // (cr >> 28 - n * 4) & 0xF
     c.mov(cr_tmp, cr);
-    if (n < 4) {
+    if (n < 7) {
       c.shr(cr_tmp, imm(28 - n * 4));
     }
     c.and_(cr_tmp, imm(0xF));
