@@ -703,15 +703,17 @@ XEEMITTER(eqvx,         0x7C000238, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // s <- (RS)[56]
   // RA[56:63] <- (RS)[56:63]
   // RA[0:55] <- i56.s
 
-  jit_value_t v = e.gpr_value(i.X.RT);
-  v = e.trunc_to_ubyte(v);
-  v = e.sign_extend(v, jit_type_nint);
+  // TODO(benvanik): see if there's a faster way to do this.
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  c.cbw(v);
+  c.cwde(v);
+  c.cdqe(v);
   e.update_gpr_value(i.X.RA, v);
 
   if (i.X.Rc) {
@@ -721,7 +723,6 @@ XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
 XEEMITTER(extshx,       0x7C000734, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1108,7 +1109,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(cntlzdx,      0x7C000074);
   // XEREGISTERINSTR(cntlzwx,      0x7C000034);
   XEREGISTERINSTR(eqvx,         0x7C000238);
-  // XEREGISTERINSTR(extsbx,       0x7C000774);
+  XEREGISTERINSTR(extsbx,       0x7C000774);
   XEREGISTERINSTR(extshx,       0x7C000734);
   XEREGISTERINSTR(extswx,       0x7C0007B4);
   XEREGISTERINSTR(nandx,        0x7C0003B8);
