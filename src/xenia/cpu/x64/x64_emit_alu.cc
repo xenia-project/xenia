@@ -674,7 +674,6 @@ XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // n <- 32
   // do while n < 64
@@ -682,26 +681,20 @@ XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   //   n <- n + 1
   // RA <- n - 32
 
-  jit_value_t v = e.gpr_value(i.X.RT);
-  v = e.trunc_to_int(v);
-
-  std::vector<Type*> arg_types;
-  arg_types.push_back(b.getInt32Ty());
-  Function* ctlz = Intrinsic::getDeclaration(
-      e.fn()->getParent(), Intrinsic::ctlz, arg_types);
-  jit_value_t count = b.CreateCall2(ctlz, v, b.getInt1(1));
-
-  count = e.zero_extend(count, jit_type_nint);
-  e.update_gpr_value(i.X.RA, count);
+  GpVar v(c.newGpVar());
+  c.mov(v, imm(0xF0000000));
+  c.bsr(v.r32(), v.r32());
+  c.cmovz(v, e.get_uint64(63));
+  c.xor_(v, imm(0x1F));
+  e.update_gpr_value(i.X.RA, v);
 
   if (i.X.Rc) {
     // With cr0 update.
-    e.update_cr_with_cond(0, count, e.get_int64(0), true);
+    e.update_cr_with_cond(0, v);
   }
 
   return 0;
 }
-#endif
 
 XEEMITTER(eqvx,         0x7C000238, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1109,7 +1102,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(andix,        0x70000000);
   XEREGISTERINSTR(andisx,       0x74000000);
   XEREGISTERINSTR(cntlzdx,      0x7C000074);
-  // XEREGISTERINSTR(cntlzwx,      0x7C000034);
+  XEREGISTERINSTR(cntlzwx,      0x7C000034);
   XEREGISTERINSTR(eqvx,         0x7C000238);
   XEREGISTERINSTR(extsbx,       0x7C000774);
   XEREGISTERINSTR(extshx,       0x7C000734);
