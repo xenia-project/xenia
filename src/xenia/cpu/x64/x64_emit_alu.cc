@@ -1006,7 +1006,6 @@ XEEMITTER(srawx,        0x7C000630, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-#if 0
 XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], 64-n)
@@ -1015,24 +1014,33 @@ XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- r&m | (i64.s)&¬m
   // CA <- s & ((r&¬m)[32:63]≠0)
 
-  jit_value_t rs64 = e.gpr_value(i.X.RT);
-  jit_value_t rs32 = e.trunc_to_int(rs64);
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
 
-  jit_value_t v;
-  jit_value_t ca;
+  GpVar ca(c.newGpVar());
   if (!i.X.RB) {
     // No shift, just a fancy sign extend and CA clearer.
-    v = rs32;
-    ca = e.get_int64(0);
+    c.cdqe(v);
+    c.mov(ca, imm(0));
   } else {
-    v = jit_insn_sshr(f, rs32, e.get_uint32(i.X.RB));
+    // CA is set if any bits are shifted out of the right and if the result
+    // is negative. Start tracking that here.
+    c.mov(ca, v);
+    c.and_(ca, imm(1));
+
+    // Shift right and sign extend the 32bit part.
+    c.sar(v.r32(), imm(i.X.RB));
+    c.cdqe(v);
 
     // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
     // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-    ca = jit_insn_and(f, jit_insn_lt(f, v, e.get_int32(0)),
-                         jit_insn_lt(f, rs64, e.get_int64(0)));
+    // We already have ca set to indicate the pos 63 bit, now just and in sign.
+    GpVar ca_2(c.newGpVar());
+    c.mov(ca_2, v.r32());
+    c.shr(ca_2, imm(31));
+    c.and_(ca, ca_2);
   }
-  v = e.sign_extend(v, jit_type_nint);
+
   e.update_gpr_value(i.X.RA, v);
   e.update_xer_with_carry(ca);
 
@@ -1043,7 +1051,6 @@ XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
 XEEMITTER(srdx,         0x7C000436, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1121,7 +1128,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(sradx,        0x7C000634);
   XEREGISTERINSTR(sradix,       0x7C000674);
   XEREGISTERINSTR(srawx,        0x7C000630);
-  // XEREGISTERINSTR(srawix,       0x7C000670);
+  XEREGISTERINSTR(srawix,       0x7C000670);
   XEREGISTERINSTR(srdx,         0x7C000436);
   XEREGISTERINSTR(srwx,         0x7C000430);
 }
