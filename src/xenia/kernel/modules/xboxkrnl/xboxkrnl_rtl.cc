@@ -12,6 +12,7 @@
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/xbox.h>
 #include <xenia/kernel/xex2.h>
+#include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 
@@ -276,29 +277,20 @@ SHIM_CALL RtlImageXexHeaderField_shim(
     return;
   }
 
-  // TODO(benvanik): pull from xex header
-  // module = GetExecutableModule() || (user defined one)
-  // header = module->xex_header()
-  // for (n = 0; n < header->header_count; n++) {
-  //   if (header->headers[n].key == ImageField) {
-  //     return value? or offset?
-  //   }
-  // }
+  XModule* module = NULL;
+
+  // TODO(benvanik): use xex_header_base to dereference this.
+  // Right now we are only concerned with games making this call on their main
+  // module, so this hack is fine.
+  module = state->GetExecutableModule();
 
   uint32_t return_value = 0;
-  switch (image_field) {
-    case XEX_HEADER_DEFAULT_HEAP_SIZE:
-      // TODO(benvanik): pull from running module
-      // This is header->exe_heap_size.
-      //SHIM_SET_MEM_32(0x80101104, [some value]);
-      //return_value = 0x80101104;
-      return_value = 0;
+  const xe_xex2_header_t* xex_header = module->xex_header();
+  for (size_t n = 0; n < xex_header->header_count; n++) {
+    if (xex_header->headers[n].key == image_field) {
+      return_value = xex_header->headers[n].value;
       break;
-    default:
-      XELOGE("RtlImageXexHeaderField header field %.8X NOT IMPLEMENTED",
-             image_field);
-      SHIM_SET_RETURN(0);
-      return;
+    }
   }
 
   SHIM_SET_RETURN(return_value);
