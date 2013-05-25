@@ -333,7 +333,6 @@ XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 #endif
 
-#if 0
 XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + 1
 
@@ -344,23 +343,26 @@ XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     // if RA == 0x8000000000000000 then no-op and set OV=1
     // This may just magically do that...
 
-    Function* ssub_with_overflow = Intrinsic::getDeclaration(
-        e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
-    jit_value_t v = b.CreateCall2(ssub_with_overflow,
-                             e.get_int64(0), e.gpr_value(i.XO.RA));
-    jit_value_t v0 = b.CreateExtractValue(v, 0);
-    e.update_gpr_value(i.XO.RT, v0);
-    e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
+    XEASSERTALWAYS();
+    //Function* ssub_with_overflow = Intrinsic::getDeclaration(
+    //    e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
+    //jit_value_t v = b.CreateCall2(ssub_with_overflow,
+    //                         e.get_int64(0), e.gpr_value(i.XO.RA));
+    //jit_value_t v0 = b.CreateExtractValue(v, 0);
+    //e.update_gpr_value(i.XO.RT, v0);
+    //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
-    if (i.XO.Rc) {
-      // With cr0 update.
-      e.update_cr_with_cond(0, v0, e.get_int64(0), true);
-    }
+    //if (i.XO.Rc) {
+    //  // With cr0 update.
+    //  e.update_cr_with_cond(0, v0, e.get_int64(0), true);
+    //}
 
     return 0;
   } else {
     // No OE bit setting.
-    jit_value_t v = b.CreateSub(e.get_int64(0), e.gpr_value(i.XO.RA));
+    GpVar v(c.newGpVar());
+    c.mov(v, e.gpr_value(i.XO.RA));
+    c.neg(v);
     e.update_gpr_value(i.XO.RT, v);
 
     if (i.XO.Rc) {
@@ -371,7 +373,6 @@ XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     return 0;
   }
 }
-#endif
 
 XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + (RB) + 1
@@ -1076,7 +1077,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(mulldx,       0x7C0001D2);
   XEREGISTERINSTR(mulli,        0x1C000000);
   // XEREGISTERINSTR(mullwx,       0x7C0001D6);
-  // XEREGISTERINSTR(negx,         0x7C0000D0);
+  XEREGISTERINSTR(negx,         0x7C0000D0);
   XEREGISTERINSTR(subfx,        0x7C000050);
   XEREGISTERINSTR(subfcx,       0x7C000010);
   XEREGISTERINSTR(subficx,      0x20000000);
