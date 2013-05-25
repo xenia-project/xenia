@@ -1186,21 +1186,16 @@ void X64Emitter::update_xer_with_overflow(GpVar& value) {
 }
 #endif
 
-#if 0
+// Set with a byte value indicating carry.
 void X64Emitter::update_xer_with_carry(GpVar& value) {
   X86Compiler& c = compiler_;
-  XEASSERT(locals_.xer.getId() != kInvalidValue);
-
-  // Expects a i1 indicating carry.
-  // Trust the caller that if it's larger than that it's already truncated.
-  value = zero_extend(value, jit_type_nuint);
-
-  GpVar& xer = xer_value();
-  xer = jit_insn_and(fn_, xer, get_uint64(0xFFFFFFFFDFFFFFFF)); // clear bit 29
-  xer = jit_insn_or(fn_, xer, jit_insn_shl(fn_, value, get_uint32(29)));
-  jit_insn_store(fn_, locals_.xer, value);
+  GpVar xer(c.newGpVar());
+  c.mov(xer, xer_value());
+  c.and_(xer, imm(0xDFFFFFFF)); // clear bit 29
+  c.shl(value, imm(29));
+  c.or_(xer, value);
+  update_xer_value(xer);
 }
-#endif
 
 #if 0
 void X64Emitter::update_xer_with_overflow_and_carry(GpVar& value) {

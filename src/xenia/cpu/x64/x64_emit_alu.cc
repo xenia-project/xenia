@@ -73,20 +73,20 @@ XEEMITTER(addi,         0x38000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 0;
 }
 
-#if 0
 XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
 
-  // TODO(benvanik): track exception
-  jit_value_t v = jit_insn_add_ovf(f, e.make_signed(e.gpr_value(i.D.RA)),
-                                      e.get_int64(XEEXTS16(i.D.DS)));
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.D.RA));
+  c.add(v, imm(XEEXTS16(i.D.DS)));
+  GpVar cc(c.newGpVar());
+  c.setc(cc);
 
   e.update_gpr_value(i.D.RT, v);
-  // e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  e.update_xer_with_carry(cc);
 
   return 0;
 }
-#endif
 
 XEEMITTER(addicx,       0x34000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -426,27 +426,36 @@ XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 #endif
 
-#if 0
 XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + (RB) + CA
 
-  // TODO(benvanik): possible that the add of rb+ca needs to also check for
-  //     overflow!
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.neg(v);
 
-  // TODO(benvanik): handle overflow exception
-  jit_value_t ca = jit_insn_and(f, jit_insn_ushr(f, e.xer_value(),
-                                                    e.get_uint32(29)),
-                                   e.get_uint64(0x1));
-  jit_value_t v = jit_insn_add_ovf(f,
-      e.make_unsigned(jit_insn_neg(f, e.gpr_value(i.XO.RA))),
-      e.make_unsigned(jit_insn_add(f, e.gpr_value(i.XO.RB), ca)));
+  // Add in carry flag from XER, only if needed.
+  // It may be possible to do this much more efficiently.
+  GpVar xer(c.newGpVar());
+  c.mov(xer, e.xer_value());
+  c.shr(xer, imm(29));
+  c.and_(xer, imm(1));
+  Label post_stc_label = c.newLabel();
+  c.jz(post_stc_label, kCondHintLikely);
+  c.stc();
+  c.bind(post_stc_label);
+
+  c.adc(v, e.gpr_value(i.XO.RB));
+  GpVar cc(c.newGpVar());
+  c.setc(cc);
+
   e.update_gpr_value(i.XO.RT, v);
 
   if (i.XO.OE) {
     // With XER update.
-    e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+    XEASSERTALWAYS();
+    //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
   } else {
-    e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+    e.update_xer_with_carry(cc);
   }
 
   if (i.XO.Rc) {
@@ -456,7 +465,6 @@ XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   return 0;
 }
-#endif
 
 XEEMITTER(subfmex,      0x7C0001D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1077,7 +1085,7 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(addcx,        0X7C000014);
   XEREGISTERINSTR(addex,        0x7C000114);
   XEREGISTERINSTR(addi,         0x38000000);
-  // XEREGISTERINSTR(addic,        0x30000000);
+  XEREGISTERINSTR(addic,        0x30000000);
   XEREGISTERINSTR(addicx,       0x34000000);
   XEREGISTERINSTR(addis,        0x3C000000);
   XEREGISTERINSTR(addmex,       0x7C0001D4);
@@ -1097,7 +1105,7 @@ void X64RegisterEmitCategoryALU() {
   // XEREGISTERINSTR(subfx,        0x7C000050);
   XEREGISTERINSTR(subfcx,       0x7C000010);
   // XEREGISTERINSTR(subficx,      0x20000000);
-  // XEREGISTERINSTR(subfex,       0x7C000110);
+  XEREGISTERINSTR(subfex,       0x7C000110);
   XEREGISTERINSTR(subfmex,      0x7C0001D0);
   XEREGISTERINSTR(subfzex,      0x7C000190);
   // XEREGISTERINSTR(cmp,          0x7C000000);
