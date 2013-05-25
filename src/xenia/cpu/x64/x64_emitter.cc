@@ -1323,7 +1323,7 @@ GpVar X64Emitter::cr_value(uint32_t n) {
     GpVar value(c.newGpVar());
     c.mov(value,
           qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)));
-    if (n < 4) {
+    if (n < 7) {
       c.shr(value, imm(28 - n * 4));
     }
     c.and_(value, imm(0xF));
@@ -1344,10 +1344,10 @@ void X64Emitter::update_cr_value(uint32_t n, GpVar& value) {
     GpVar cr_n(c.newGpVar());
     c.mov(cr_n, value);
     c.and_(cr_n, imm(0xF));
-    if (n) {
-      c.shl(cr_n, imm(n * 4));
+    if (n < 7) {
+      c.shl(cr_n, imm(28 - n * 4));
     }
-    c.and_(cr_tmp, imm(~(0xF << (n * 4))));
+    c.and_(cr_tmp, imm(~(0xF << (28 - n * 4))));
     c.or_(cr_tmp, cr_n);
     c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, cr)), cr_tmp);
   }
