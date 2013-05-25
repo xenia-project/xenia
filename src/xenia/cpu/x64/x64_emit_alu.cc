@@ -468,7 +468,6 @@ XEEMITTER(subfzex,      0x7C000190, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
 // Integer compare (A-4)
 
-#if 0
 XEEMITTER(cmp,          0x7C000000, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // if L = 0 then
   //   a <- EXTS((RA)[32:63])
@@ -487,23 +486,21 @@ XEEMITTER(cmp,          0x7C000000, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   uint32_t BF = i.X.RT >> 2;
   uint32_t L = i.X.RT & 1;
 
-  jit_value_t lhs = e.gpr_value(i.X.RA);
-  jit_value_t rhs = e.gpr_value(i.X.RB);
+  GpVar lhs(c.newGpVar());
+  GpVar rhs(c.newGpVar());
+  c.mov(lhs, e.gpr_value(i.X.RA));
+  c.mov(rhs, e.gpr_value(i.X.RB));
   if (!L) {
     // 32-bit - truncate and sign extend.
-    lhs = e.trunc_to_int(lhs);
-    lhs = e.sign_extend(lhs, jit_type_nint);
-    rhs = e.trunc_to_int(rhs);
-    rhs = e.sign_extend(rhs, jit_type_nint);
+    c.cdqe(lhs);
+    c.cdqe(rhs);
   }
 
   e.update_cr_with_cond(BF, lhs, rhs);
 
   return 0;
 }
-#endif
 
-#if 0
 XEEMITTER(cmpi,         0x2C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // if L = 0 then
   //   a <- EXTS((RA)[32:63])
@@ -520,21 +517,18 @@ XEEMITTER(cmpi,         0x2C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   uint32_t BF = i.D.RT >> 2;
   uint32_t L = i.D.RT & 1;
 
-  jit_value_t lhs = e.gpr_value(i.D.RA);
+  GpVar lhs(c.newGpVar());
+  c.mov(lhs, e.gpr_value(i.D.RA));
   if (!L) {
     // 32-bit - truncate and sign extend.
-    lhs = e.trunc_to_int(lhs);
-    lhs = e.sign_extend(lhs, jit_type_nint);
+    c.cdqe(lhs);
   }
 
-  jit_value_t rhs = e.get_int64(XEEXTS16(i.D.DS));
-  e.update_cr_with_cond(BF, lhs, rhs);
+  e.update_cr_with_cond(BF, lhs, e.get_uint64(XEEXTS16(i.D.DS)));
 
   return 0;
 }
-#endif
 
-#if 0
 XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // if L = 0 then
   //   a <- i32.0 || (RA)[32:63]
@@ -553,23 +547,21 @@ XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   uint32_t BF = i.X.RT >> 2;
   uint32_t L = i.X.RT & 1;
 
-  jit_value_t lhs = e.gpr_value(i.X.RA);
-  jit_value_t rhs = e.gpr_value(i.X.RB);
+  GpVar lhs(c.newGpVar());
+  GpVar rhs(c.newGpVar());
+  c.mov(lhs, e.gpr_value(i.X.RA));
+  c.mov(rhs, e.gpr_value(i.X.RB));
   if (!L) {
     // 32-bit - truncate and zero extend.
-    lhs = e.trunc_to_int(lhs);
-    lhs = e.zero_extend(lhs, jit_type_nint);
-    rhs = e.trunc_to_int(rhs);
-    rhs = e.zero_extend(rhs, jit_type_nint);
+    c.mov(lhs.r32(), lhs.r32());
+    c.mov(rhs.r32(), rhs.r32());
   }
 
-  e.update_cr_with_cond(BF, lhs, rhs, false);
+  e.update_cr_with_cond(BF, lhs, rhs);
 
   return 0;
 }
-#endif
 
-#if 0
 XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // if L = 0 then
   //   a <- i32.0 || (RA)[32:63]
@@ -586,19 +578,17 @@ XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   uint32_t BF = i.D.RT >> 2;
   uint32_t L = i.D.RT & 1;
 
-  jit_value_t lhs = e.gpr_value(i.D.RA);
+  GpVar lhs(c.newGpVar());
+  c.mov(lhs, e.gpr_value(i.D.RA));
   if (!L) {
     // 32-bit - truncate and zero extend.
-    lhs = e.trunc_to_int(lhs);
-    lhs = e.zero_extend(lhs, jit_type_nint);
+    c.mov(lhs.r32(), lhs.r32());
   }
 
-  jit_value_t rhs = e.get_int64(i.D.DS);
-  e.update_cr_with_cond(BF, lhs, rhs, false);
+  e.update_cr_with_cond(BF, lhs, e.get_uint64(i.D.DS));
 
   return 0;
 }
-#endif
 
 
 // Integer logical (A-5)
@@ -1098,10 +1088,10 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(subfex,       0x7C000110);
   XEREGISTERINSTR(subfmex,      0x7C0001D0);
   XEREGISTERINSTR(subfzex,      0x7C000190);
-  // XEREGISTERINSTR(cmp,          0x7C000000);
-  // XEREGISTERINSTR(cmpi,         0x2C000000);
-  // XEREGISTERINSTR(cmpl,         0x7C000040);
-  // XEREGISTERINSTR(cmpli,        0x28000000);
+  XEREGISTERINSTR(cmp,          0x7C000000);
+  XEREGISTERINSTR(cmpi,         0x2C000000);
+  XEREGISTERINSTR(cmpl,         0x7C000040);
+  XEREGISTERINSTR(cmpli,        0x28000000);
   XEREGISTERINSTR(andx,         0x7C000038);
   XEREGISTERINSTR(andcx,        0x7C000078);
   XEREGISTERINSTR(andix,        0x70000000);
