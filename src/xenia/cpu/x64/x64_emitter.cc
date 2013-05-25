@@ -609,22 +609,14 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
   // TODO(benvanik): finish up BB
 }
 
+Label& X64Emitter::GetReturnLabel() {
+  return return_block_;
+}
+
 Label& X64Emitter::GetBlockLabel(uint32_t address) {
   std::map<uint32_t, Label>::iterator it = bbs_.find(address);
   return it->second;
 }
-
-// int X64Emitter::branch_to_return() {
-//   return jit_insn_branch(fn_, &return_block_);
-// }
-
-// int X64Emitter::branch_to_return_if(jit_value_t value) {
-//   return jit_insn_branch_if(fn_, value, &return_block_);
-// }
-
-// int X64Emitter::branch_to_return_if_not(jit_value_t value) {
-//   return jit_insn_branch_if_not(fn_, value, &return_block_);
-// }
 
 int X64Emitter::CallFunction(FunctionSymbol* target_symbol,
                              GpVar& lr, bool tail) {
@@ -824,100 +816,100 @@ void X64Emitter::TraceBranch(uint32_t cia) {
   call->setArgument(2, arg2);
 }
 
-// int X64Emitter::GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
-//                                              bool lk, bool likely_local) {
-//   // This function is called by the control emitters when they know that an
-//   // indirect branch is required.
-//   // It first tries to see if the branch is to an address within the function
-//   // and, if so, uses a local switch table. If that fails because we don't know
-//   // the block the function is regenerated (ACK!). If the target is external
-//   // then an external call occurs.
+int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
+                                             bool lk, bool likely_local) {
+  // This function is called by the control emitters when they know that an
+  // indirect branch is required.
+  // It first tries to see if the branch is to an address within the function
+  // and, if so, uses a local switch table. If that fails because we don't know
+  // the block the function is regenerated (ACK!). If the target is external
+  // then an external call occurs.
 
-//   // TODO(benvanik): port indirection.
-//   //XEASSERTALWAYS();
+  // TODO(benvanik): port indirection.
+  //XEASSERTALWAYS();
 
-//   // BasicBlock* next_block = GetNextBasicBlock();
+  // BasicBlock* next_block = GetNextBasicBlock();
 
-//   // PushInsertPoint();
+  // PushInsertPoint();
 
-//   // // Request builds of the indirection blocks on demand.
-//   // // We can't build here because we don't know what registers will be needed
-//   // // yet, so we just create the blocks and let GenerateSharedBlocks handle it
-//   // // after we are done with all user instructions.
-//   // if (!external_indirection_block_) {
-//   //   // Setup locals in the entry block.
-//   //   b.SetInsertPoint(&fn_->getEntryBlock());
-//   //   locals_.indirection_target = b.CreateAlloca(
-//   //       jit_type_nuint, 0, "indirection_target");
-//   //   locals_.indirection_cia = b.CreateAlloca(
-//   //       jit_type_nuint, 0, "indirection_cia");
+  // // Request builds of the indirection blocks on demand.
+  // // We can't build here because we don't know what registers will be needed
+  // // yet, so we just create the blocks and let GenerateSharedBlocks handle it
+  // // after we are done with all user instructions.
+  // if (!external_indirection_block_) {
+  //   // Setup locals in the entry block.
+  //   b.SetInsertPoint(&fn_->getEntryBlock());
+  //   locals_.indirection_target = b.CreateAlloca(
+  //       jit_type_nuint, 0, "indirection_target");
+  //   locals_.indirection_cia = b.CreateAlloca(
+  //       jit_type_nuint, 0, "indirection_cia");
 
-//   //   external_indirection_block_ = BasicBlock::Create(
-//   //       *context_, "external_indirection_block", fn_, return_block_);
-//   // }
-//   // if (likely_local && !internal_indirection_block_) {
-//   //   internal_indirection_block_ = BasicBlock::Create(
-//   //       *context_, "internal_indirection_block", fn_, return_block_);
-//   // }
+  //   external_indirection_block_ = BasicBlock::Create(
+  //       *context_, "external_indirection_block", fn_, return_block_);
+  // }
+  // if (likely_local && !internal_indirection_block_) {
+  //   internal_indirection_block_ = BasicBlock::Create(
+  //       *context_, "internal_indirection_block", fn_, return_block_);
+  // }
 
-//   // PopInsertPoint();
+  // PopInsertPoint();
 
-//   // // Check to see if the target address is within the function.
-//   // // If it is jump to that basic block. If the basic block is not found it means
-//   // // we have a jump inside the function that wasn't identified via static
-//   // // analysis. These are bad as they require function regeneration.
-//   // if (likely_local) {
-//   //   // Note that we only support LK=0, as we are using shared tables.
-//   //   XEASSERT(!lk);
-//   //   b.CreateStore(target, locals_.indirection_target);
-//   //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-//   //   jit_value_t symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
-//   //   jit_value_t symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
-//   //   jit_value_t symbol_target_cmp = jit_insn_and(fn_, symbol_ge_cmp, symbol_l_cmp);
-//   //   b.CreateCondBr(symbol_target_cmp,
-//   //                  internal_indirection_block_, external_indirection_block_);
-//   //   return 0;
-//   // }
+  // // Check to see if the target address is within the function.
+  // // If it is jump to that basic block. If the basic block is not found it means
+  // // we have a jump inside the function that wasn't identified via static
+  // // analysis. These are bad as they require function regeneration.
+  // if (likely_local) {
+  //   // Note that we only support LK=0, as we are using shared tables.
+  //   XEASSERT(!lk);
+  //   b.CreateStore(target, locals_.indirection_target);
+  //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
+  //   jit_value_t symbol_ge_cmp = b.CreateICmpUGE(target, b.getInt64(symbol_->start_address));
+  //   jit_value_t symbol_l_cmp = b.CreateICmpULT(target, b.getInt64(symbol_->end_address));
+  //   jit_value_t symbol_target_cmp = jit_insn_and(fn_, symbol_ge_cmp, symbol_l_cmp);
+  //   b.CreateCondBr(symbol_target_cmp,
+  //                  internal_indirection_block_, external_indirection_block_);
+  //   return 0;
+  // }
 
-//   // // If we are LK=0 jump to the shared indirection block. This prevents us
-//   // // from needing to fill the registers again after the call and shares more
-//   // // code.
-//   // if (!lk) {
-//   //   b.CreateStore(target, locals_.indirection_target);
-//   //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
-//   //   b.CreateBr(external_indirection_block_);
-//   // } else {
-//   //   // Slowest path - spill, call the external function, and fill.
-//   //   // We should avoid this at all costs.
+  // // If we are LK=0 jump to the shared indirection block. This prevents us
+  // // from needing to fill the registers again after the call and shares more
+  // // code.
+  // if (!lk) {
+  //   b.CreateStore(target, locals_.indirection_target);
+  //   b.CreateStore(b.getInt64(cia), locals_.indirection_cia);
+  //   b.CreateBr(external_indirection_block_);
+  // } else {
+  //   // Slowest path - spill, call the external function, and fill.
+  //   // We should avoid this at all costs.
 
-//   //   // Spill registers. We could probably share this.
-//   //   SpillRegisters();
+  //   // Spill registers. We could probably share this.
+  //   SpillRegisters();
 
-//   //   // Issue the full indirection branch.
-//   //   jit_value_t branch_args[] = {
-//   //     jit_value_get_param(fn_, 0),
-//   //     target,
-//   //     get_uint64(cia),
-//   //   };
-//   //   jit_insn_call_native(
-//   //       fn_,
-//   //       "XeIndirectBranch",
-//   //       global_exports_.XeIndirectBranch,
-//   //       global_export_signature_3_,
-//   //       branch_args, XECOUNT(branch_args),
-//   //       0);
+  //   // Issue the full indirection branch.
+  //   jit_value_t branch_args[] = {
+  //     jit_value_get_param(fn_, 0),
+  //     target,
+  //     get_uint64(cia),
+  //   };
+  //   jit_insn_call_native(
+  //       fn_,
+  //       "XeIndirectBranch",
+  //       global_exports_.XeIndirectBranch,
+  //       global_export_signature_3_,
+  //       branch_args, XECOUNT(branch_args),
+  //       0);
 
-//   //   if (next_block) {
-//   //     // Only refill if not a tail call.
-//   //     FillRegisters();
-//   //     b.CreateBr(next_block);
-//   //   } else {
-//   //     jit_insn_return(fn_, NULL);
-//   //   }
-//   // }
+  //   if (next_block) {
+  //     // Only refill if not a tail call.
+  //     FillRegisters();
+  //     b.CreateBr(next_block);
+  //   } else {
+  //     jit_insn_return(fn_, NULL);
+  //   }
+  // }
 
-//   return 0;
-// }
+  return 0;
+}
 
 void X64Emitter::SetupLocals() {
   X86Compiler& c = compiler_;

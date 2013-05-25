@@ -41,13 +41,10 @@ public:
   sdb::FunctionSymbol* symbol();
   sdb::FunctionBlock* fn_block();
 
+  AsmJit::Label& GetReturnLabel();
   AsmJit::Label& GetBlockLabel(uint32_t address);
   int CallFunction(sdb::FunctionSymbol* target_symbol, AsmJit::GpVar& lr,
                    bool tail);
-
-  // int branch_to_return();
-  // int branch_to_return_if(jit_value_t value);
-  // int branch_to_return_if_not(jit_value_t value);
 
   void TraceKernelCall();
   void TraceUserCall();
@@ -55,8 +52,8 @@ public:
   void TraceInvalidInstruction(ppc::InstrData& i);
   void TraceBranch(uint32_t cia);
 
-  // int GenerateIndirectionBranch(uint32_t cia, jit_value_t target,
-  //                               bool lk, bool likely_local);
+  int GenerateIndirectionBranch(uint32_t cia, AsmJit::GpVar& target,
+                                bool lk, bool likely_local);
 
   void FillRegisters();
   void SpillRegisters();

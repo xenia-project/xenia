@@ -24,71 +24,78 @@ namespace cpu {
 namespace x64 {
 
 
-// int XeEmitIndirectBranchTo(
-//     X64Emitter& e, X86Compiler& c, const char* src, uint32_t cia,
-//     bool lk, uint32_t reg) {
-//   // TODO(benvanik): run a DFA pass to see if we can detect whether this is
-//   //     a normal function return that is pulling the LR from the stack that
-//   //     it set in the prolog. If so, we can omit the dynamic check!
+int XeEmitIndirectBranchTo(
+    X64Emitter& e, X86Compiler& c, const char* src, uint32_t cia,
+    bool lk, uint32_t reg) {
+  // TODO(benvanik): run a DFA pass to see if we can detect whether this is
+  //     a normal function return that is pulling the LR from the stack that
+  //     it set in the prolog. If so, we can omit the dynamic check!
 
-//   // NOTE: we avoid spilling registers until we know that the target is not
-//   // a basic block within this function.
+  // NOTE: we avoid spilling registers until we know that the target is not
+  // a basic block within this function.
 
-//   jit_value_t target;
-//   switch (reg) {
-//     case kXEPPCRegLR:
-//       target = e.lr_value();
-//       break;
-//     case kXEPPCRegCTR:
-//       target = e.ctr_value();
-//       break;
-//     default:
-//       XEASSERTALWAYS();
-//       return 1;
-//   }
+  GpVar target;
+  switch (reg) {
+    case kXEPPCRegLR:
+      target = e.lr_value();
+      break;
+    case kXEPPCRegCTR:
+      target = e.ctr_value();
+      break;
+    default:
+      XEASSERTALWAYS();
+      return 1;
+  }
 
-//   // Dynamic test when branching to LR, which is usually used for the return.
-//   // We only do this if LK=0 as returns wouldn't set LR.
-//   // Ideally it's a return and we can just do a simple ret and be done.
-//   // If it's not, we fall through to the full indirection logic.
-//   if (!lk && reg == kXEPPCRegLR) {
-//     // The return block will spill registers for us.
-//     // TODO(benvanik): 'lr_mismatch' debug info.
-//     jit_value_t lr_cmp = jit_insn_eq(f, target, jit_value_get_param(f, 1));
-//     e.branch_to_return_if(lr_cmp);
-//   }
+  // Dynamic test when branching to LR, which is usually used for the return.
+  // We only do this if LK=0 as returns wouldn't set LR.
+  // Ideally it's a return and we can just do a simple ret and be done.
+  // If it's not, we fall through to the full indirection logic.
+  if (!lk && reg == kXEPPCRegLR) {
+    // The return block will spill registers for us.
+    // TODO(benvanik): 'lr_mismatch' debug info.
+    c.test(target, c.getGpArg(1));
+    // TODO(benvanik): evaluate hint here.
+    c.je(e.GetReturnLabel(), kCondHintLikely);
+  }
 
-//   // Defer to the generator, which will do fancy things.
-//   bool likely_local = !lk && reg == kXEPPCRegCTR;
-//   return e.GenerateIndirectionBranch(cia, target, lk, likely_local);
-// }
+  // Defer to the generator, which will do fancy things.
+  bool likely_local = !lk && reg == kXEPPCRegCTR;
+  return e.GenerateIndirectionBranch(cia, target, lk, likely_local);
+}
 
 int XeEmitBranchTo(
     X64Emitter& e, X86Compiler& c, const char* src, uint32_t cia,
-    bool lk, void* condition = NULL) {
+    bool lk, GpVar* condition = NULL) {
   FunctionBlock* fn_block = e.fn_block();
 
   // Fast-path for branches to other blocks.
   // Only valid when not tracing branches.
-  if (fn_block->outgoing_type == FunctionBlock::kTargetBlock) {
+  if (!FLAGS_trace_branches &&
+      fn_block->outgoing_type == FunctionBlock::kTargetBlock) {
+    XEASSERT(!lk);
+    Label target_label = e.GetBlockLabel(fn_block->outgoing_address);
     if (condition) {
-      XEASSERTALWAYS();
+      // Fast test -- if condition passed then jump to target.
+      // TODO(benvanik): need to spill here? somehow?
+      c.test(*condition, *condition);
+      c.jnz(target_label);
     } else {
-      //e.TraceBranch(cia);
+      // TODO(benvanik): need to spill here?
       //e.SpillRegisters();
-      //c.jmp(e.GetBlockLabel(fn_block->outgoing_address));
+      c.jmp(target_label);
     }
     return 0;
   }
 
   // Only branch of conditionals when we have one.
-  //jit_label_t post_jump_label = jit_label_undefined;
+  Label post_jump_label;
   if (condition) {
     // TODO(benvanik): add debug info for this?
-    // char name[32];
-    // xesnprintfa(name, XECOUNT(name), "loc_%.8X_bcx", i.address);
-    //jit_insn_branch_if_not(f, condition, &post_jump_label);
-    XEASSERTALWAYS();
+    post_jump_label = c.newLabel();
+    c.test(*condition, *condition);
+    // TODO(benvanik): experiment with various hints?
+    c.jz(post_jump_label, kCondHintNone);
   }
 
   e.TraceBranch(cia);
@@ -97,9 +104,9 @@ int XeEmitBranchTo(
   int result = 0;
   switch (fn_block->outgoing_type) {
     case FunctionBlock::kTargetBlock:
-      // Taken care of above.
-      XEASSERTALWAYS();
-      result = 1;
+      // Often taken care of above, when not tracing branches.
+      XEASSERT(!lk);
+      c.jmp(e.GetBlockLabel(fn_block->outgoing_address));
       break;
     case FunctionBlock::kTargetFunction:
     {
@@ -134,18 +141,14 @@ int XeEmitBranchTo(
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA LR: %.8X\n", cia);
-      XEASSERTALWAYS();
-      //result = XeEmitIndirectBranchTo(e, c, src, cia, lk, kXEPPCRegLR);
-      c.ret();
+      result = XeEmitIndirectBranchTo(e, c, src, cia, lk, kXEPPCRegLR);
       break;
     }
     case FunctionBlock::kTargetCTR:
     {
       // An indirect jump.
       printf("INDIRECT JUMP VIA CTR: %.8X\n", cia);
-      XEASSERTALWAYS();
-      //result = XeEmitIndirectBranchTo(e, c, src, cia, lk, kXEPPCRegCTR);
-      c.ret();
+      result = XeEmitIndirectBranchTo(e, c, src, cia, lk, kXEPPCRegCTR);
       break;
     }
     default:
@@ -156,8 +159,7 @@ int XeEmitBranchTo(
   }
 
   if (condition) {
-    XEASSERTALWAYS();
-    //jit_insn_label(f, &post_jump_label);
+    c.bind(post_jump_label);
   }
 
   return result;
@@ -202,61 +204,71 @@ XEEMITTER(bcx,          0x40000000, B  )(X64Emitter& e, X86Compiler& c, InstrDat
   // 01234 (docs)
   // 43210 (real)
 
-  // // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
-  // // The docs say always, though...
-  // if (i.B.LK) {
-  //   e.update_lr_value(e.get_uint64(i.address + 4));
-  // }
+  // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
+  // The docs say always, though...
+  if (i.B.LK) {
+    e.update_lr_value(imm(i.address + 4));
+  }
 
-  // jit_value_t ctr_ok = NULL;
-  // if (XESELECTBITS(i.B.BO, 2, 2)) {
-  //   // Ignore ctr.
-  // } else {
-  //   // Decrement counter.
-  //   jit_value_t ctr = e.ctr_value();
-  //   ctr = jit_insn_sub(f, ctr, e.get_int64(1));
-  //   e.update_ctr_value(ctr);
+  // TODO(benvanik): optimize to just use x64 ops.
+  //     Need to handle the case where both ctr and cond set.
 
-  //   // Ctr check.
-  //   if (XESELECTBITS(i.B.BO, 1, 1)) {
-  //     ctr_ok = jit_insn_eq(f, ctr, e.get_int64(0));
-  //   } else {
-  //     ctr_ok = jit_insn_ne(f, ctr, e.get_int64(0));
-  //   }
-  // }
+  GpVar ctr_ok;
+  if (XESELECTBITS(i.B.BO, 2, 2)) {
+    // Ignore ctr.
+  } else {
+    // Decrement counter.
+    GpVar ctr(c.newGpVar());
+    c.mov(ctr, e.ctr_value());
+    c.dec(ctr);
+    e.update_ctr_value(ctr);
 
-  // jit_value_t cond_ok = NULL;
-  // if (XESELECTBITS(i.B.BO, 4, 4)) {
-  //   // Ignore cond.
-  // } else {
-  //   jit_value_t cr = e.cr_value(i.B.BI >> 2);
-  //   cr = jit_insn_and(f, cr, e.get_uint32(1 << (i.B.BI & 3)));
-  //   if (XESELECTBITS(i.B.BO, 3, 3)) {
-  //     cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
-  //   } else {
-  //     cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
-  //   }
-  // }
+    // Ctr check.
+    c.test(ctr, imm(0));
+    ctr_ok = c.newGpVar();
+    if (XESELECTBITS(i.B.BO, 1, 1)) {
+      c.sete(ctr_ok);
+    } else {
+      c.setne(ctr_ok);
+    }
+  }
 
-  // // We do a bit of optimization here to make the llvm assembly easier to read.
-  // jit_value_t ok = NULL;
-  // if (ctr_ok && cond_ok) {
-  //   ok = jit_insn_and(f, ctr_ok, cond_ok);
-  // } else if (ctr_ok) {
-  //   ok = ctr_ok;
-  // } else if (cond_ok) {
-  //   ok = cond_ok;
-  // }
+  GpVar cond_ok;
+  if (XESELECTBITS(i.B.BO, 4, 4)) {
+    // Ignore cond.
+  } else {
+    GpVar cr(c.newGpVar());
+    c.mov(cr, e.cr_value(i.XL.BI >> 2));
+    c.and_(cr, imm(1 << (i.XL.BI & 3)));
+    c.test(cr, imm(0));
+    cond_ok = c.newGpVar();
+    if (XESELECTBITS(i.XL.BO, 3, 3)) {
+      c.setne(cond_ok);
+    } else {
+      c.sete(cond_ok);
+    }
+  }
 
-  // uint32_t nia;
-  // if (i.B.AA) {
-  //   nia = XEEXTS26(i.B.BD << 2);
-  // } else {
-  //   nia = i.address + XEEXTS26(i.B.BD << 2);
-  // }
-  // if (XeEmitBranchTo(e, c, "bcx", i.address, i.B.LK, ok)) {
-  //   return 1;
-  // }
+  // We do a bit of optimization here to make the llvm assembly easier to read.
+  GpVar* ok = NULL;
+  if (ctr_ok.getId() != kInvalidValue && cond_ok.getId() != kInvalidValue) {
+    c.and_(ctr_ok, cond_ok);
+    ok = &ctr_ok;
+  } else if (ctr_ok.getId() != kInvalidValue) {
+    ok = &ctr_ok;
+  } else if (cond_ok.getId() != kInvalidValue) {
+    ok = &cond_ok;
+  }
+
+  uint32_t nia;
+  if (i.B.AA) {
+    nia = XEEXTS26(i.B.BD << 2);
+  } else {
+    nia = i.address + XEEXTS26(i.B.BD << 2);
+  }
+  if (XeEmitBranchTo(e, c, "bcx", i.address, i.B.LK, ok)) {
+    return 1;
+  }
 
   return 0;
 }
@@ -272,34 +284,37 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(X64Emitter& e, X86Compiler& c, InstrDat
   // 01234 (docs)
   // 43210 (real)
 
-  // // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
-  // // The docs say always, though...
-  // if (i.XL.LK) {
-  //   e.update_lr_value(e.get_uint64(i.address + 4));
-  // }
+  // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
+  // The docs say always, though...
+  if (i.XL.LK) {
+    e.update_lr_value(imm(i.address + 4));
+  }
 
-  // jit_value_t cond_ok = NULL;
-  // if (XESELECTBITS(i.XL.BO, 4, 4)) {
-  //   // Ignore cond.
-  // } else {
-  //   jit_value_t cr = e.cr_value(i.XL.BI >> 2);
-  //   cr = jit_insn_and(f, cr, e.get_uint64(1 << (i.XL.BI & 3)));
-  //   if (XESELECTBITS(i.XL.BO, 3, 3)) {
-  //     cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
-  //   } else {
-  //     cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
-  //   }
-  // }
+  GpVar cond_ok;
+  if (XESELECTBITS(i.XL.BO, 4, 4)) {
+    // Ignore cond.
+  } else {
+    GpVar cr(c.newGpVar());
+    c.mov(cr, e.cr_value(i.XL.BI >> 2));
+    c.and_(cr, imm(1 << (i.XL.BI & 3)));
+    c.test(cr, imm(0));
+    cond_ok = c.newGpVar();
+    if (XESELECTBITS(i.XL.BO, 3, 3)) {
+      c.setne(cond_ok);
+    } else {
+      c.sete(cond_ok);
+    }
+  }
 
-  // // We do a bit of optimization here to make the llvm assembly easier to read.
-  // jit_value_t ok = NULL;
-  // if (cond_ok) {
-  //   ok = cond_ok;
-  // }
+  // We do a bit of optimization here to make the llvm assembly easier to read.
+  GpVar* ok = NULL;
+  if (cond_ok.getId() != kInvalidValue) {
+    ok = &cond_ok;
+  }
 
-  // if (XeEmitBranchTo(e, c, "bcctrx", i.address, i.XL.LK, ok)) {
-  //   return 1;
-  // }
+  if (XeEmitBranchTo(e, c, "bcctrx", i.address, i.XL.LK, ok)) {
+    return 1;
+  }
 
   return 0;
 }
@@ -318,54 +333,62 @@ XEEMITTER(bclrx,        0x4C000020, XL )(X64Emitter& e, X86Compiler& c, InstrDat
   // 01234 (docs)
   // 43210 (real)
 
-  // // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
-  // // The docs say always, though...
-  // if (i.XL.LK) {
-  //   e.update_lr_value(e.get_uint64(i.address + 4));
-  // }
+  // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
+  // The docs say always, though...
+  if (i.XL.LK) {
+    e.update_lr_value(imm(i.address + 4));
+  }
 
-  // jit_value_t ctr_ok = NULL;
-  // if (XESELECTBITS(i.XL.BO, 2, 2)) {
-  //   // Ignore ctr.
-  // } else {
-  //   // Decrement counter.
-  //   jit_value_t ctr = e.ctr_value();
-  //   ctr = jit_insn_sub(f, ctr, e.get_int64(1));
+  GpVar ctr_ok;
+  if (XESELECTBITS(i.XL.BO, 2, 2)) {
+    // Ignore ctr.
+  } else {
+    // Decrement counter.
+    GpVar ctr(c.newGpVar());
+    c.mov(ctr, e.ctr_value());
+    c.dec(ctr);
+    e.update_ctr_value(ctr);
 
-  //   // Ctr check.
-  //   if (XESELECTBITS(i.XL.BO, 1, 1)) {
-  //     ctr_ok = jit_insn_eq(f, ctr, e.get_int64(0));
-  //   } else {
-  //     ctr_ok = jit_insn_ne(f, ctr, e.get_int64(0));
-  //   }
-  // }
+    // Ctr check.
+    c.test(ctr, imm(0));
+    ctr_ok = c.newGpVar();
+    if (XESELECTBITS(i.XL.BO, 1, 1)) {
+      c.sete(ctr_ok);
+    } else {
+      c.setne(ctr_ok);
+    }
+  }
 
-  // jit_value_t cond_ok = NULL;
-  // if (XESELECTBITS(i.XL.BO, 4, 4)) {
-  //   // Ignore cond.
-  // } else {
-  //   jit_value_t cr = e.cr_value(i.XL.BI >> 2);
-  //   cr = jit_insn_and(f, cr, e.get_uint32(1 << (i.XL.BI & 3)));
-  //   if (XESELECTBITS(i.XL.BO, 3, 3)) {
-  //     cond_ok = jit_insn_ne(f, cr, e.get_int64(0));
-  //   } else {
-  //     cond_ok = jit_insn_eq(f, cr, e.get_int64(0));
-  //   }
-  // }
+  GpVar cond_ok;
+  if (XESELECTBITS(i.XL.BO, 4, 4)) {
+    // Ignore cond.
+  } else {
+    GpVar cr(c.newGpVar());
+    c.mov(cr, e.cr_value(i.XL.BI >> 2));
+    c.and_(cr, imm(1 << (i.XL.BI & 3)));
+    c.test(cr, imm(0));
+    cond_ok = c.newGpVar();
+    if (XESELECTBITS(i.XL.BO, 3, 3)) {
+      c.setne(cond_ok);
+    } else {
+      c.sete(cond_ok);
+    }
+  }
 
-  // // We do a bit of optimization here to make the llvm assembly easier to read.
-  // jit_value_t ok = NULL;
-  // if (ctr_ok && cond_ok) {
-  //   ok = jit_insn_and(f, ctr_ok, cond_ok);
-  // } else if (ctr_ok) {
-  //   ok = ctr_ok;
-  // } else if (cond_ok) {
-  //   ok = cond_ok;
-  // }
+  // We do a bit of optimization here to make the llvm assembly easier to read.
+  GpVar* ok = NULL;
+  if (ctr_ok.getId() != kInvalidValue && cond_ok.getId() != kInvalidValue) {
+    c.and_(ctr_ok, cond_ok);
+    ok = &ctr_ok;
+  } else if (ctr_ok.getId() != kInvalidValue) {
+    ok = &ctr_ok;
+  } else if (cond_ok.getId() != kInvalidValue) {
+    ok = &cond_ok;
+  }
 
-  // if (XeEmitBranchTo(e, c, "bclrx", i.address, i.XL.LK, ok)) {
-  //   return 1;
-  // }
+  if (XeEmitBranchTo(e, c, "bclrx", i.address, i.XL.LK, ok)) {
+    return 1;
+  }
 
   return 0;
 }
@@ -480,35 +503,35 @@ int XeEmitTrap(X64Emitter& e, X86Compiler& c, InstrData& i,
   //   // a < b
   //   BasicBlock* bb = *(it++);
   //   b.SetInsertPoint(bb);
-  //   jit_value_t cmp = b.CreateICmpSLT(va, vb);
+  //   GpVar cmp = b.CreateICmpSLT(va, vb);
   //   b.CreateCondBr(cmp, trap_bb, *it);
   // }
   // if (TO & (1 << 3)) {
   //   // a > b
   //   BasicBlock* bb = *(it++);
   //   b.SetInsertPoint(bb);
-  //   jit_value_t cmp = b.CreateICmpSGT(va, vb);
+  //   GpVar cmp = b.CreateICmpSGT(va, vb);
   //   b.CreateCondBr(cmp, trap_bb, *it);
   // }
   // if (TO & (1 << 2)) {
   //   // a = b
   //   BasicBlock* bb = *(it++);
   //   b.SetInsertPoint(bb);
-  //   jit_value_t cmp = b.CreateICmpEQ(va, vb);
+  //   GpVar cmp = b.CreateICmpEQ(va, vb);
   //   b.CreateCondBr(cmp, trap_bb, *it);
   // }
   // if (TO & (1 << 1)) {
   //   // a <u b
   //   BasicBlock* bb = *(it++);
   //   b.SetInsertPoint(bb);
-  //   jit_value_t cmp = b.CreateICmpULT(va, vb);
+  //   GpVar cmp = b.CreateICmpULT(va, vb);
   //   b.CreateCondBr(cmp, trap_bb, *it);
   // }
   // if (TO & (1 << 0)) {
   //   // a >u b
   //   BasicBlock* bb = *(it++);
   //   b.SetInsertPoint(bb);
-  //   jit_value_t cmp = b.CreateICmpUGT(va, vb);
+  //   GpVar cmp = b.CreateICmpUGT(va, vb);
   //   b.CreateCondBr(cmp, trap_bb, *it);
   // }
 
