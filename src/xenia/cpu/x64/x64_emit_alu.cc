@@ -742,8 +742,12 @@ XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- (RS) | (RB)
 
   GpVar v(c.newGpVar());
-  c.mov(v, e.gpr_value(i.X.RT));
-  c.or_(v, e.gpr_value(i.X.RB));
+  if (i.X.RT == i.X.RB) {
+    c.mov(v, e.gpr_value(i.X.RT));
+  } else {
+    c.mov(v, e.gpr_value(i.X.RT));
+    c.or_(v, e.gpr_value(i.X.RB));
+  }
   e.update_gpr_value(i.X.RA, v);
 
   if (i.X.Rc) {
