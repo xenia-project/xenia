@@ -25,38 +25,28 @@ namespace x64 {
 
 // Integer arithmetic (A-3)
 
-// XEEMITTER(addx,         0x7C000214, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // RD <- (RA) + (RB)
+XEEMITTER(addx,         0x7C000214, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RD <- (RA) + (RB)
 
-//   if (i.XO.OE) {
-//     // With XER update.
-//     // This is a different codepath as we need to use llvm.sadd.with.overflow.
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.add(v, e.gpr_value(i.XO.RB));
 
-//     // TODO(benvanik): handle overflow exception.
-//     jit_value_t v = jit_insn_add_ovf(f,
-//         e.make_signed(e.gpr_value(i.XO.RA)),
-//         e.make_signed(e.gpr_value(i.XO.RB)));
-//     e.update_gpr_value(i.XO.RT, v);
-//     //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
+  if (i.XO.OE) {
+    // With XER update.
+    XEASSERTALWAYS();
+    //e.update_xer_with_overflow(EFLAGS OF?);
+  }
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v);
-//     }
-//   } else {
-//     // No OE bit setting.
-//     jit_value_t v = jit_insn_add(f,
-//         e.make_signed(e.gpr_value(i.XO.RA)),
-//         e.make_signed(e.gpr_value(i.XO.RB)));
-//     e.update_gpr_value(i.XO.RT, v);
+  e.update_gpr_value(i.XO.RT, v);
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v);
-//     }
-//   }
-//   return 0;
-// }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  return 0;
+}
 
 XEEMITTER(addcx,        0x7C000014, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -83,18 +73,20 @@ XEEMITTER(addi,         0x38000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 0;
 }
 
-// XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // RT <- (RA) + EXTS(SI)
+#if 0
+XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- (RA) + EXTS(SI)
 
-//   // TODO(benvanik): track exception
-//   jit_value_t v = jit_insn_add_ovf(f, e.make_signed(e.gpr_value(i.D.RA)),
-//                                       e.get_int64(XEEXTS16(i.D.DS)));
+  // TODO(benvanik): track exception
+  jit_value_t v = jit_insn_add_ovf(f, e.make_signed(e.gpr_value(i.D.RA)),
+                                      e.get_int64(XEEXTS16(i.D.DS)));
 
-//   e.update_gpr_value(i.D.RT, v);
-//   // e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  e.update_gpr_value(i.D.RT, v);
+  // e.update_xer_with_carry(b.CreateExtractValue(v, 1));
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(addicx,       0x34000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -121,32 +113,34 @@ XEEMITTER(addmex,       0x7C0001D4, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // RT <- (RA) + CA
+#if 0
+XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- (RA) + CA
 
-//   // TODO(benvanik): handle overflow exception.
-//   jit_value_t ca = jit_insn_and(f,
-//       jit_insn_ushr(f, e.xer_value(), e.get_uint32(29)),
-//       e.get_uint64(0x1));
-//   jit_value_t v = jit_insn_add_ovf(f,
-//       e.make_signed(e.gpr_value(i.XO.RA)),
-//       e.make_signed(ca));
-//   e.update_gpr_value(i.XO.RT, v);
-//   if (i.XO.OE) {
-//     // With XER[SO] update too.
-//     //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
-//   } else {
-//     // Just CA update.
-//     //e.update_xer_with_carry(b.CreateExtractValue(v, 1));
-//   }
+  // TODO(benvanik): handle overflow exception.
+  jit_value_t ca = jit_insn_and(f,
+      jit_insn_ushr(f, e.xer_value(), e.get_uint32(29)),
+      e.get_uint64(0x1));
+  jit_value_t v = jit_insn_add_ovf(f,
+      e.make_signed(e.gpr_value(i.XO.RA)),
+      e.make_signed(ca));
+  e.update_gpr_value(i.XO.RT, v);
+  if (i.XO.OE) {
+    // With XER[SO] update too.
+    //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    // Just CA update.
+    //e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  }
 
-//   if (i.XO.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(divdx,        0x7C0003D2, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -158,111 +152,115 @@ XEEMITTER(divdux,       0x7C000392, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// // XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-// //   // dividend[0:31] <- (RA)[32:63]
-// //   // divisor[0:31] <- (RB)[32:63]
-// //   // if divisor = 0 then
-// //   //   if OE = 1 then
-// //   //     XER[OV] <- 1
-// //   //   return
-// //   // RT[32:63] <- dividend ÷ divisor
-// //   // RT[0:31] <- undefined
+#if 0
+XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // dividend[0:31] <- (RA)[32:63]
+  // divisor[0:31] <- (RB)[32:63]
+  // if divisor = 0 then
+  //   if OE = 1 then
+  //     XER[OV] <- 1
+  //   return
+  // RT[32:63] <- dividend ÷ divisor
+  // RT[0:31] <- undefined
 
-// //   jit_value_t dividend = e.trunc_to_int(e.gpr_value(i.XO.RA));
-// //   jit_value_t divisor = e.trunc_to_int(e.gpr_value(i.XO.RB));
+  jit_value_t dividend = e.trunc_to_int(e.gpr_value(i.XO.RA));
+  jit_value_t divisor = e.trunc_to_int(e.gpr_value(i.XO.RB));
 
-// //   // Note that we skip the zero handling block and just avoid the divide if
-// //   // we are OE=0.
-// //   BasicBlock* zero_bb = i.XO.OE ?
-// //       BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
-// //   BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
-// //   BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
-// //   b.CreateCondBr(b.CreateICmpEQ(divisor, b.get_int32(0)),
-// //                  i.XO.OE ? zero_bb : after_bb, nonzero_bb);
+  // Note that we skip the zero handling block and just avoid the divide if
+  // we are OE=0.
+  BasicBlock* zero_bb = i.XO.OE ?
+      BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
+  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
+  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
+  b.CreateCondBr(b.CreateICmpEQ(divisor, b.get_int32(0)),
+                 i.XO.OE ? zero_bb : after_bb, nonzero_bb);
 
-// //   if (zero_bb) {
-// //     // Divisor was zero - do XER update.
-// //     b.SetInsertPoint(zero_bb);
-// //     e.update_xer_with_overflow(b.getInt1(1));
-// //     b.CreateBr(after_bb);
-// //   }
+  if (zero_bb) {
+    // Divisor was zero - do XER update.
+    b.SetInsertPoint(zero_bb);
+    e.update_xer_with_overflow(b.getInt1(1));
+    b.CreateBr(after_bb);
+  }
 
-// //   // Divide.
-// //   b.SetInsertPoint(nonzero_bb);
-// //   jit_value_t v = b.CreateSDiv(dividend, divisor);
-// //   v = e.sign_extend(v, jit_type_nint);
-// //   e.update_gpr_value(i.XO.RT, v);
+  // Divide.
+  b.SetInsertPoint(nonzero_bb);
+  jit_value_t v = b.CreateSDiv(dividend, divisor);
+  v = e.sign_extend(v, jit_type_nint);
+  e.update_gpr_value(i.XO.RT, v);
 
-// //   // If we are OE=1 we need to clear the overflow bit.
-// //   if (i.XO.OE) {
-// //     e.update_xer_with_overflow(b.getInt1(0));
-// //   }
+  // If we are OE=1 we need to clear the overflow bit.
+  if (i.XO.OE) {
+    e.update_xer_with_overflow(b.getInt1(0));
+  }
 
-// //   if (i.XO.Rc) {
-// //     // With cr0 update.
-// //     e.update_cr_with_cond(0, v);
-// //   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-// //   b.CreateBr(after_bb);
+  b.CreateBr(after_bb);
 
-// //   // Resume.
-// //   b.SetInsertPoint(after_bb);
+  // Resume.
+  b.SetInsertPoint(after_bb);
 
-// //   return 0;
-// // }
+  return 0;
+}
+#endif
 
-// // XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-// //   // dividend[0:31] <- (RA)[32:63]
-// //   // divisor[0:31] <- (RB)[32:63]
-// //   // if divisor = 0 then
-// //   //   if OE = 1 then
-// //   //     XER[OV] <- 1
-// //   //   return
-// //   // RT[32:63] <- dividend ÷ divisor
-// //   // RT[0:31] <- undefined
+#if 0
+XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // dividend[0:31] <- (RA)[32:63]
+  // divisor[0:31] <- (RB)[32:63]
+  // if divisor = 0 then
+  //   if OE = 1 then
+  //     XER[OV] <- 1
+  //   return
+  // RT[32:63] <- dividend ÷ divisor
+  // RT[0:31] <- undefined
 
-// //   jit_value_t dividend = e.trunc_to_int(e.gpr_value(i.XO.RA));
-// //   jit_value_t divisor = e.trunc_to_int(e.gpr_value(i.XO.RB));
+  jit_value_t dividend = e.trunc_to_int(e.gpr_value(i.XO.RA));
+  jit_value_t divisor = e.trunc_to_int(e.gpr_value(i.XO.RB));
 
-// //   // Note that we skip the zero handling block and just avoid the divide if
-// //   // we are OE=0.
-// //   BasicBlock* zero_bb = i.XO.OE ?
-// //       BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
-// //   BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
-// //   BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
-// //   b.CreateCondBr(b.CreateICmpEQ(divisor, b.get_int32(0)),
-// //                  i.XO.OE ? zero_bb : after_bb, nonzero_bb);
+  // Note that we skip the zero handling block and just avoid the divide if
+  // we are OE=0.
+  BasicBlock* zero_bb = i.XO.OE ?
+      BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
+  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
+  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
+  b.CreateCondBr(b.CreateICmpEQ(divisor, b.get_int32(0)),
+                 i.XO.OE ? zero_bb : after_bb, nonzero_bb);
 
-// //   if (zero_bb) {
-// //     // Divisor was zero - do XER update.
-// //     b.SetInsertPoint(zero_bb);
-// //     e.update_xer_with_overflow(b.getInt1(1));
-// //     b.CreateBr(after_bb);
-// //   }
+  if (zero_bb) {
+    // Divisor was zero - do XER update.
+    b.SetInsertPoint(zero_bb);
+    e.update_xer_with_overflow(b.getInt1(1));
+    b.CreateBr(after_bb);
+  }
 
-// //   // Divide.
-// //   b.SetInsertPoint(nonzero_bb);
-// //   jit_value_t v = b.CreateUDiv(dividend, divisor);
-// //   v = e.zero_extend(v, jit_type_nint);
-// //   e.update_gpr_value(i.XO.RT, v);
+  // Divide.
+  b.SetInsertPoint(nonzero_bb);
+  jit_value_t v = b.CreateUDiv(dividend, divisor);
+  v = e.zero_extend(v, jit_type_nint);
+  e.update_gpr_value(i.XO.RT, v);
 
-// //   // If we are OE=1 we need to clear the overflow bit.
-// //   if (i.XO.OE) {
-// //     e.update_xer_with_overflow(b.getInt1(0));
-// //   }
+  // If we are OE=1 we need to clear the overflow bit.
+  if (i.XO.OE) {
+    e.update_xer_with_overflow(b.getInt1(0));
+  }
 
-// //   if (i.XO.Rc) {
-// //     // With cr0 update.
-// //     e.update_cr_with_cond(0, v);
-// //   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-// //   b.CreateBr(after_bb);
+  b.CreateBr(after_bb);
 
-// //   // Resume.
-// //   b.SetInsertPoint(after_bb);
+  // Resume.
+  b.SetInsertPoint(after_bb);
 
-// //   return 0;
-// // }
+  return 0;
+}
+#endif
 
 XEEMITTER(mulhdx,       0x7C000092, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -306,149 +304,159 @@ XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 0;
 }
 
-// XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // RT <- (RA)[32:63] × (RB)[32:63]
+#if 0
+XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- (RA)[32:63] × (RB)[32:63]
 
-//   if (i.XO.OE) {
-//     // With XER update.
-//     XEINSTRNOTIMPLEMENTED();
-//     return 1;
-//   }
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
 
-//   jit_value_t v = jit_insn_mul(
-//       f, e.sign_extend(e.gpr_value(i.XO.RA), jit_type_nint),
-//       e.sign_extend(e.gpr_value(i.XO.RB), jit_type_nint));
-//   e.update_gpr_value(i.XO.RT, v);
+  jit_value_t v = jit_insn_mul(
+      f, e.sign_extend(e.gpr_value(i.XO.RA), jit_type_nint),
+      e.sign_extend(e.gpr_value(i.XO.RB), jit_type_nint));
+  e.update_gpr_value(i.XO.RT, v);
 
-//   if (i.XO.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
-// // XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-// //   // RT <- ¬(RA) + 1
+#if 0
+XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- ¬(RA) + 1
 
-// //   if (i.XO.OE) {
-// //     // With XER update.
-// //     // This is a different codepath as we need to use llvm.ssub.with.overflow.
+  if (i.XO.OE) {
+    // With XER update.
+    // This is a different codepath as we need to use llvm.ssub.with.overflow.
 
-// //     // if RA == 0x8000000000000000 then no-op and set OV=1
-// //     // This may just magically do that...
+    // if RA == 0x8000000000000000 then no-op and set OV=1
+    // This may just magically do that...
 
-// //     Function* ssub_with_overflow = Intrinsic::getDeclaration(
-// //         e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
-// //     jit_value_t v = b.CreateCall2(ssub_with_overflow,
-// //                              e.get_int64(0), e.gpr_value(i.XO.RA));
-// //     jit_value_t v0 = b.CreateExtractValue(v, 0);
-// //     e.update_gpr_value(i.XO.RT, v0);
-// //     e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
+    Function* ssub_with_overflow = Intrinsic::getDeclaration(
+        e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
+    jit_value_t v = b.CreateCall2(ssub_with_overflow,
+                             e.get_int64(0), e.gpr_value(i.XO.RA));
+    jit_value_t v0 = b.CreateExtractValue(v, 0);
+    e.update_gpr_value(i.XO.RT, v0);
+    e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
-// //     if (i.XO.Rc) {
-// //       // With cr0 update.
-// //       e.update_cr_with_cond(0, v0, e.get_int64(0), true);
-// //     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v0, e.get_int64(0), true);
+    }
 
-// //     return 0;
-// //   } else {
-// //     // No OE bit setting.
-// //     jit_value_t v = b.CreateSub(e.get_int64(0), e.gpr_value(i.XO.RA));
-// //     e.update_gpr_value(i.XO.RT, v);
+    return 0;
+  } else {
+    // No OE bit setting.
+    jit_value_t v = b.CreateSub(e.get_int64(0), e.gpr_value(i.XO.RA));
+    e.update_gpr_value(i.XO.RT, v);
 
-// //     if (i.XO.Rc) {
-// //       // With cr0 update.
-// //       e.update_cr_with_cond(0, v);
-// //     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v);
+    }
 
-// //     return 0;
-// //   }
-// // }
+    return 0;
+  }
+}
+#endif
 
-// XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // RT <- ¬(RA) + (RB) + 1
+#if 0
+XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- ¬(RA) + (RB) + 1
 
-//   if (i.XO.OE) {
-//     // With XER update.
-//     // This is a different codepath as we need to use llvm.ssub.with.overflow.
+  if (i.XO.OE) {
+    // With XER update.
+    // This is a different codepath as we need to use llvm.ssub.with.overflow.
 
-//     // TODO(benvanik): handle overflow exceptions.
-//     jit_value_t v = jit_insn_sub_ovf(f,
-//         e.make_signed(e.gpr_value(i.XO.RB)),
-//         e.make_signed(e.gpr_value(i.XO.RA)));
-//     e.update_gpr_value(i.XO.RT, v);
-//     //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
+    // TODO(benvanik): handle overflow exceptions.
+    jit_value_t v = jit_insn_sub_ovf(f,
+        e.make_signed(e.gpr_value(i.XO.RB)),
+        e.make_signed(e.gpr_value(i.XO.RA)));
+    e.update_gpr_value(i.XO.RT, v);
+    //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v);
-//     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v);
+    }
 
-//     return 0;
-//   } else {
-//     // No OE bit setting.
-//     jit_value_t v = jit_insn_sub(f,
-//         e.make_signed(e.gpr_value(i.XO.RB)),
-//         e.make_signed(e.gpr_value(i.XO.RA)));
-//     e.update_gpr_value(i.XO.RT, v);
+    return 0;
+  } else {
+    // No OE bit setting.
+    jit_value_t v = jit_insn_sub(f,
+        e.make_signed(e.gpr_value(i.XO.RB)),
+        e.make_signed(e.gpr_value(i.XO.RA)));
+    e.update_gpr_value(i.XO.RT, v);
 
-//     if (i.XO.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v);
-//     }
+    if (i.XO.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v);
+    }
 
-//     return 0;
-//   }
-// }
+    return 0;
+  }
+}
+#endif
 
 XEEMITTER(subfcx,       0x7C000010, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-// // XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-// //   // RT <- ¬(RA) + EXTS(SI) + 1
+#if 0
+XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- ¬(RA) + EXTS(SI) + 1
 
-// //   Function* ssub_with_overflow = Intrinsic::getDeclaration(
-// //       e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
-// //   jit_value_t v = b.CreateCall2(ssub_with_overflow,
-// //                            e.get_int64(XEEXTS16(i.D.DS)), e.gpr_value(i.D.RA));
-// //   e.update_gpr_value(i.D.RT, b.CreateExtractValue(v, 0));
-// //   e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  Function* ssub_with_overflow = Intrinsic::getDeclaration(
+      e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
+  jit_value_t v = b.CreateCall2(ssub_with_overflow,
+                           e.get_int64(XEEXTS16(i.D.DS)), e.gpr_value(i.D.RA));
+  e.update_gpr_value(i.D.RT, b.CreateExtractValue(v, 0));
+  e.update_xer_with_carry(b.CreateExtractValue(v, 1));
 
-// //   return 0;
-// // }
+  return 0;
+}
+#endif
 
-// XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // RT <- ¬(RA) + (RB) + CA
+#if 0
+XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // RT <- ¬(RA) + (RB) + CA
 
-//   // TODO(benvanik): possible that the add of rb+ca needs to also check for
-//   //     overflow!
+  // TODO(benvanik): possible that the add of rb+ca needs to also check for
+  //     overflow!
 
-//   // TODO(benvanik): handle overflow exception
-//   jit_value_t ca = jit_insn_and(f, jit_insn_ushr(f, e.xer_value(),
-//                                                     e.get_uint32(29)),
-//                                    e.get_uint64(0x1));
-//   jit_value_t v = jit_insn_add_ovf(f,
-//       e.make_unsigned(jit_insn_neg(f, e.gpr_value(i.XO.RA))),
-//       e.make_unsigned(jit_insn_add(f, e.gpr_value(i.XO.RB), ca)));
-//   e.update_gpr_value(i.XO.RT, v);
+  // TODO(benvanik): handle overflow exception
+  jit_value_t ca = jit_insn_and(f, jit_insn_ushr(f, e.xer_value(),
+                                                    e.get_uint32(29)),
+                                   e.get_uint64(0x1));
+  jit_value_t v = jit_insn_add_ovf(f,
+      e.make_unsigned(jit_insn_neg(f, e.gpr_value(i.XO.RA))),
+      e.make_unsigned(jit_insn_add(f, e.gpr_value(i.XO.RB), ca)));
+  e.update_gpr_value(i.XO.RT, v);
 
-//   // if (i.XO.OE) {
-//   //   // With XER update.
-//   //   e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
-//   // } else {
-//   //   e.update_xer_with_carry(b.CreateExtractValue(v, 1));
-//   // }
+  if (i.XO.OE) {
+    // With XER update.
+    e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  }
 
-//   if (i.XO.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(subfmex,      0x7C0001D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -463,129 +471,137 @@ XEEMITTER(subfzex,      0x7C000190, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
 // Integer compare (A-4)
 
-// XEEMITTER(cmp,          0x7C000000, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if L = 0 then
-//   //   a <- EXTS((RA)[32:63])
-//   //   b <- EXTS((RB)[32:63])
-//   // else
-//   //   a <- (RA)
-//   //   b <- (RB)
-//   // if a < b then
-//   //   c <- 0b100
-//   // else if a > b then
-//   //   c <- 0b010
-//   // else
-//   //   c <- 0b001
-//   // CR[4×BF+32:4×BF+35] <- c || XER[SO]
+#if 0
+XEEMITTER(cmp,          0x7C000000, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if L = 0 then
+  //   a <- EXTS((RA)[32:63])
+  //   b <- EXTS((RB)[32:63])
+  // else
+  //   a <- (RA)
+  //   b <- (RB)
+  // if a < b then
+  //   c <- 0b100
+  // else if a > b then
+  //   c <- 0b010
+  // else
+  //   c <- 0b001
+  // CR[4×BF+32:4×BF+35] <- c || XER[SO]
 
-//   uint32_t BF = i.X.RT >> 2;
-//   uint32_t L = i.X.RT & 1;
+  uint32_t BF = i.X.RT >> 2;
+  uint32_t L = i.X.RT & 1;
 
-//   jit_value_t lhs = e.gpr_value(i.X.RA);
-//   jit_value_t rhs = e.gpr_value(i.X.RB);
-//   if (!L) {
-//     // 32-bit - truncate and sign extend.
-//     lhs = e.trunc_to_int(lhs);
-//     lhs = e.sign_extend(lhs, jit_type_nint);
-//     rhs = e.trunc_to_int(rhs);
-//     rhs = e.sign_extend(rhs, jit_type_nint);
-//   }
+  jit_value_t lhs = e.gpr_value(i.X.RA);
+  jit_value_t rhs = e.gpr_value(i.X.RB);
+  if (!L) {
+    // 32-bit - truncate and sign extend.
+    lhs = e.trunc_to_int(lhs);
+    lhs = e.sign_extend(lhs, jit_type_nint);
+    rhs = e.trunc_to_int(rhs);
+    rhs = e.sign_extend(rhs, jit_type_nint);
+  }
 
-//   e.update_cr_with_cond(BF, lhs, rhs);
+  e.update_cr_with_cond(BF, lhs, rhs);
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
-// XEEMITTER(cmpi,         0x2C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if L = 0 then
-//   //   a <- EXTS((RA)[32:63])
-//   // else
-//   //   a <- (RA)
-//   // if a < EXTS(SI) then
-//   //   c <- 0b100
-//   // else if a > EXTS(SI) then
-//   //   c <- 0b010
-//   // else
-//   //   c <- 0b001
-//   // CR[4×BF+32:4×BF+35] <- c || XER[SO]
+#if 0
+XEEMITTER(cmpi,         0x2C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if L = 0 then
+  //   a <- EXTS((RA)[32:63])
+  // else
+  //   a <- (RA)
+  // if a < EXTS(SI) then
+  //   c <- 0b100
+  // else if a > EXTS(SI) then
+  //   c <- 0b010
+  // else
+  //   c <- 0b001
+  // CR[4×BF+32:4×BF+35] <- c || XER[SO]
 
-//   uint32_t BF = i.D.RT >> 2;
-//   uint32_t L = i.D.RT & 1;
+  uint32_t BF = i.D.RT >> 2;
+  uint32_t L = i.D.RT & 1;
 
-//   jit_value_t lhs = e.gpr_value(i.D.RA);
-//   if (!L) {
-//     // 32-bit - truncate and sign extend.
-//     lhs = e.trunc_to_int(lhs);
-//     lhs = e.sign_extend(lhs, jit_type_nint);
-//   }
+  jit_value_t lhs = e.gpr_value(i.D.RA);
+  if (!L) {
+    // 32-bit - truncate and sign extend.
+    lhs = e.trunc_to_int(lhs);
+    lhs = e.sign_extend(lhs, jit_type_nint);
+  }
 
-//   jit_value_t rhs = e.get_int64(XEEXTS16(i.D.DS));
-//   e.update_cr_with_cond(BF, lhs, rhs);
+  jit_value_t rhs = e.get_int64(XEEXTS16(i.D.DS));
+  e.update_cr_with_cond(BF, lhs, rhs);
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
-// XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if L = 0 then
-//   //   a <- i32.0 || (RA)[32:63]
-//   //   b <- i32.0 || (RB)[32:63]
-//   // else
-//   //   a <- (RA)
-//   //   b <- (RB)
-//   // if a <u b then
-//   //   c <- 0b100
-//   // else if a >u b then
-//   //   c <- 0b010
-//   // else
-//   //   c <- 0b001
-//   // CR[4×BF+32:4×BF+35] <- c || XER[SO]
+#if 0
+XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if L = 0 then
+  //   a <- i32.0 || (RA)[32:63]
+  //   b <- i32.0 || (RB)[32:63]
+  // else
+  //   a <- (RA)
+  //   b <- (RB)
+  // if a <u b then
+  //   c <- 0b100
+  // else if a >u b then
+  //   c <- 0b010
+  // else
+  //   c <- 0b001
+  // CR[4×BF+32:4×BF+35] <- c || XER[SO]
 
-//   uint32_t BF = i.X.RT >> 2;
-//   uint32_t L = i.X.RT & 1;
+  uint32_t BF = i.X.RT >> 2;
+  uint32_t L = i.X.RT & 1;
 
-//   jit_value_t lhs = e.gpr_value(i.X.RA);
-//   jit_value_t rhs = e.gpr_value(i.X.RB);
-//   if (!L) {
-//     // 32-bit - truncate and zero extend.
-//     lhs = e.trunc_to_int(lhs);
-//     lhs = e.zero_extend(lhs, jit_type_nint);
-//     rhs = e.trunc_to_int(rhs);
-//     rhs = e.zero_extend(rhs, jit_type_nint);
-//   }
+  jit_value_t lhs = e.gpr_value(i.X.RA);
+  jit_value_t rhs = e.gpr_value(i.X.RB);
+  if (!L) {
+    // 32-bit - truncate and zero extend.
+    lhs = e.trunc_to_int(lhs);
+    lhs = e.zero_extend(lhs, jit_type_nint);
+    rhs = e.trunc_to_int(rhs);
+    rhs = e.zero_extend(rhs, jit_type_nint);
+  }
 
-//   e.update_cr_with_cond(BF, lhs, rhs, false);
+  e.update_cr_with_cond(BF, lhs, rhs, false);
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
-// XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if L = 0 then
-//   //   a <- i32.0 || (RA)[32:63]
-//   // else
-//   //   a <- (RA)
-//   // if a <u i48.0 || SI then
-//   //   c <- 0b100
-//   // else if a >u i48.0 || SI then
-//   //   c <- 0b010
-//   // else
-//   //   c <- 0b001
-//   // CR[4×BF+32:4×BF+35] <- c || XER[SO]
+#if 0
+XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if L = 0 then
+  //   a <- i32.0 || (RA)[32:63]
+  // else
+  //   a <- (RA)
+  // if a <u i48.0 || SI then
+  //   c <- 0b100
+  // else if a >u i48.0 || SI then
+  //   c <- 0b010
+  // else
+  //   c <- 0b001
+  // CR[4×BF+32:4×BF+35] <- c || XER[SO]
 
-//   uint32_t BF = i.D.RT >> 2;
-//   uint32_t L = i.D.RT & 1;
+  uint32_t BF = i.D.RT >> 2;
+  uint32_t L = i.D.RT & 1;
 
-//   jit_value_t lhs = e.gpr_value(i.D.RA);
-//   if (!L) {
-//     // 32-bit - truncate and zero extend.
-//     lhs = e.trunc_to_int(lhs);
-//     lhs = e.zero_extend(lhs, jit_type_nint);
-//   }
+  jit_value_t lhs = e.gpr_value(i.D.RA);
+  if (!L) {
+    // 32-bit - truncate and zero extend.
+    lhs = e.trunc_to_int(lhs);
+    lhs = e.zero_extend(lhs, jit_type_nint);
+  }
 
-//   jit_value_t rhs = e.get_int64(i.D.DS);
-//   e.update_cr_with_cond(BF, lhs, rhs, false);
+  jit_value_t rhs = e.get_int64(i.D.DS);
+  e.update_cr_with_cond(BF, lhs, rhs, false);
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 
 // Integer logical (A-5)
@@ -656,55 +672,59 @@ XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // n <- 32
-//   // do while n < 64
-//   //   if (RS) = 1 then leave n
-//   //   n <- n + 1
-//   // RA <- n - 32
+#if 0
+XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- 32
+  // do while n < 64
+  //   if (RS) = 1 then leave n
+  //   n <- n + 1
+  // RA <- n - 32
 
-//   jit_value_t v = e.gpr_value(i.X.RT);
-//   v = e.trunc_to_int(v);
+  jit_value_t v = e.gpr_value(i.X.RT);
+  v = e.trunc_to_int(v);
 
-//   std::vector<Type*> arg_types;
-//   arg_types.push_back(b.getInt32Ty());
-//   Function* ctlz = Intrinsic::getDeclaration(
-//       e.fn()->getParent(), Intrinsic::ctlz, arg_types);
-//   jit_value_t count = b.CreateCall2(ctlz, v, b.getInt1(1));
+  std::vector<Type*> arg_types;
+  arg_types.push_back(b.getInt32Ty());
+  Function* ctlz = Intrinsic::getDeclaration(
+      e.fn()->getParent(), Intrinsic::ctlz, arg_types);
+  jit_value_t count = b.CreateCall2(ctlz, v, b.getInt1(1));
 
-//   count = e.zero_extend(count, jit_type_nint);
-//   e.update_gpr_value(i.X.RA, count);
+  count = e.zero_extend(count, jit_type_nint);
+  e.update_gpr_value(i.X.RA, count);
 
-//   if (i.X.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, count, e.get_int64(0), true);
-//   }
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, count, e.get_int64(0), true);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(eqvx,         0x7C000238, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-// XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // s <- (RS)[56]
-//   // RA[56:63] <- (RS)[56:63]
-//   // RA[0:55] <- i56.s
+#if 0
+XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // s <- (RS)[56]
+  // RA[56:63] <- (RS)[56:63]
+  // RA[0:55] <- i56.s
 
-//   jit_value_t v = e.gpr_value(i.X.RT);
-//   v = e.trunc_to_ubyte(v);
-//   v = e.sign_extend(v, jit_type_nint);
-//   e.update_gpr_value(i.X.RA, v);
+  jit_value_t v = e.gpr_value(i.X.RT);
+  v = e.trunc_to_ubyte(v);
+  v = e.sign_extend(v, jit_type_nint);
+  e.update_gpr_value(i.X.RA, v);
 
-//   if (i.X.Rc) {
-//     // Update cr0.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.X.Rc) {
+    // Update cr0.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(extshx,       0x7C000734, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -841,33 +861,35 @@ XEEMITTER(rldicx,       0x78000008, MD )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// XEEMITTER(rldiclx,      0x78000000, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // n <- sh[5] || sh[0:4]
-//   // r <- ROTL64((RS), n)
-//   // b <- mb[5] || mb[0:4]
-//   // m <- MASK(b, 63)
-//   // RA <- r & m
+#if 0
+XEEMITTER(rldiclx,      0x78000000, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- sh[5] || sh[0:4]
+  // r <- ROTL64((RS), n)
+  // b <- mb[5] || mb[0:4]
+  // m <- MASK(b, 63)
+  // RA <- r & m
 
-//   // uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
-//   // uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+  // uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+  // uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
 
-//   // jit_value_t v = e.gpr_value(i.MD.RS);
-//   // if (sh) {
-//   //   v = // rotate by sh
-//   // }
-//   // if (mb) {
-//   //   v = // mask b mb->63
-//   // }
-//   // e.update_gpr_value(i.MD.RA, v);
+  // jit_value_t v = e.gpr_value(i.MD.RS);
+  // if (sh) {
+  //   v = // rotate by sh
+  // }
+  // if (mb) {
+  //   v = // mask b mb->63
+  // }
+  // e.update_gpr_value(i.MD.RA, v);
 
-//   // if (i.MD.Rc) {
-//   //   // With cr0 update.
-//   //   e.update_cr_with_cond(0, v);
-//   // }
+  // if (i.MD.Rc) {
+  //   // With cr0 update.
+  //   e.update_cr_with_cond(0, v);
+  // }
 
-//   XEINSTRNOTIMPLEMENTED();
-//   return 1;
-// }
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+#endif
 
 XEEMITTER(rldicrx,      0x78000004, MD )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -879,71 +901,75 @@ XEEMITTER(rldimix,      0x7800000C, MD )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // n <- SH
-//   // r <- ROTL32((RS)[32:63], n)
-//   // m <- MASK(MB+32, ME+32)
-//   // RA <- r&m | (RA)&¬m
+#if 0
+XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- SH
+  // r <- ROTL32((RS)[32:63], n)
+  // m <- MASK(MB+32, ME+32)
+  // RA <- r&m | (RA)&¬m
 
-//   // ROTL32(x, y) = rotl(i64.(x||x), y)
-//   jit_value_t v = jit_insn_and(f, e.gpr_value(i.M.RT),
-//                                   e.get_uint64(UINT32_MAX));
-//   v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(32)), v);
-//   // (v << shift) | (v >> (32 - shift));
-//   v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(i.M.SH)),
-//                      jit_insn_ushr(f, v, e.get_uint32(32 - i.M.SH)));
-//   uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
-//   v = jit_insn_and(f, v, e.get_uint64(m));
-//   v = jit_insn_or(f, v, jit_insn_and(f, e.gpr_value(i.M.RA),
-//                                         e.get_uint64(~m)));
-//   e.update_gpr_value(i.M.RA, v);
+  // ROTL32(x, y) = rotl(i64.(x||x), y)
+  jit_value_t v = jit_insn_and(f, e.gpr_value(i.M.RT),
+                                  e.get_uint64(UINT32_MAX));
+  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(32)), v);
+  // (v << shift) | (v >> (32 - shift));
+  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(i.M.SH)),
+                     jit_insn_ushr(f, v, e.get_uint32(32 - i.M.SH)));
+  uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
+  v = jit_insn_and(f, v, e.get_uint64(m));
+  v = jit_insn_or(f, v, jit_insn_and(f, e.gpr_value(i.M.RA),
+                                        e.get_uint64(~m)));
+  e.update_gpr_value(i.M.RA, v);
 
-//   if (i.M.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.M.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
-// XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // n <- SH
-//   // r <- ROTL32((RS)[32:63], n)
-//   // m <- MASK(MB+32, ME+32)
-//   // RA <- r & m
+#if 0
+XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- SH
+  // r <- ROTL32((RS)[32:63], n)
+  // m <- MASK(MB+32, ME+32)
+  // RA <- r & m
 
-//   // The compiler will generate a bunch of these for the special case of SH=0.
-//   // Which seems to just select some bits and set cr0 for use with a branch.
-//   // We can detect this and do less work.
-//   if (!i.M.SH) {
-//     jit_value_t v = jit_insn_and(f,
-//         e.trunc_to_int(e.gpr_value(i.M.RT)),
-//         e.get_uint32((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
-//     v = e.zero_extend(v, jit_type_nint);
-//     e.update_gpr_value(i.M.RA, v);
-//     if (i.M.Rc) {
-//       // With cr0 update.
-//       e.update_cr_with_cond(0, v);
-//     }
-//     return 0;
-//   }
+  // The compiler will generate a bunch of these for the special case of SH=0.
+  // Which seems to just select some bits and set cr0 for use with a branch.
+  // We can detect this and do less work.
+  if (!i.M.SH) {
+    jit_value_t v = jit_insn_and(f,
+        e.trunc_to_int(e.gpr_value(i.M.RT)),
+        e.get_uint32((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
+    v = e.zero_extend(v, jit_type_nint);
+    e.update_gpr_value(i.M.RA, v);
+    if (i.M.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v);
+    }
+    return 0;
+  }
 
-//   // ROTL32(x, y) = rotl(i64.(x||x), y)
-//   jit_value_t v = jit_insn_and(f, e.gpr_value(i.M.RT), e.get_uint64(UINT32_MAX));
-//   v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(32)), v);
-//   // (v << shift) | (v >> (32 - shift));
-//   v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(i.M.SH)),
-//                      jit_insn_ushr(f, v, e.get_uint32(32 - i.M.SH)));
-//   v = jit_insn_and(f, v, e.get_uint64(XEMASK(i.M.MB + 32, i.M.ME + 32)));
-//   e.update_gpr_value(i.M.RA, v);
+  // ROTL32(x, y) = rotl(i64.(x||x), y)
+  jit_value_t v = jit_insn_and(f, e.gpr_value(i.M.RT), e.get_uint64(UINT32_MAX));
+  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(32)), v);
+  // (v << shift) | (v >> (32 - shift));
+  v = jit_insn_or(f, jit_insn_shl(f, v, e.get_uint32(i.M.SH)),
+                     jit_insn_ushr(f, v, e.get_uint32(32 - i.M.SH)));
+  v = jit_insn_and(f, v, e.get_uint64(XEMASK(i.M.MB + 32, i.M.ME + 32)));
+  e.update_gpr_value(i.M.RA, v);
 
-//   if (i.M.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.M.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(rlwnmx,       0x5C000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -958,26 +984,28 @@ XEEMITTER(sldx,         0x7C000036, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // n <- (RB)[59:63]
-//   // r <- ROTL32((RS)[32:63], n)
-//   // if (RB)[58] = 0 then
-//   //   m <- MASK(32, 63-n)
-//   // else
-//   //   m <- i64.0
-//   // RA <- r & m
+#if 0
+XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- (RB)[59:63]
+  // r <- ROTL32((RS)[32:63], n)
+  // if (RB)[58] = 0 then
+  //   m <- MASK(32, 63-n)
+  // else
+  //   m <- i64.0
+  // RA <- r & m
 
-//   jit_value_t v = jit_insn_shl(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
-//   v = jit_insn_and(f, v, e.get_uint64(UINT32_MAX));
-//   e.update_gpr_value(i.X.RA, v);
+  jit_value_t v = jit_insn_shl(f, e.gpr_value(i.X.RT), e.gpr_value(i.X.RB));
+  v = jit_insn_and(f, v, e.get_uint64(UINT32_MAX));
+  e.update_gpr_value(i.X.RA, v);
 
-//   if (i.X.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(sradx,        0x7C000634, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -994,42 +1022,44 @@ XEEMITTER(srawx,        0x7C000630, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 1;
 }
 
-// XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // n <- SH
-//   // r <- ROTL32((RS)[32:63], 64-n)
-//   // m <- MASK(n+32, 63)
-//   // s <- (RS)[32]
-//   // RA <- r&m | (i64.s)&¬m
-//   // CA <- s & ((r&¬m)[32:63]≠0)
+#if 0
+XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // n <- SH
+  // r <- ROTL32((RS)[32:63], 64-n)
+  // m <- MASK(n+32, 63)
+  // s <- (RS)[32]
+  // RA <- r&m | (i64.s)&¬m
+  // CA <- s & ((r&¬m)[32:63]≠0)
 
-//   jit_value_t rs64 = e.gpr_value(i.X.RT);
-//   jit_value_t rs32 = e.trunc_to_int(rs64);
+  jit_value_t rs64 = e.gpr_value(i.X.RT);
+  jit_value_t rs32 = e.trunc_to_int(rs64);
 
-//   jit_value_t v;
-//   jit_value_t ca;
-//   if (!i.X.RB) {
-//     // No shift, just a fancy sign extend and CA clearer.
-//     v = rs32;
-//     ca = e.get_int64(0);
-//   } else {
-//     v = jit_insn_sshr(f, rs32, e.get_uint32(i.X.RB));
+  jit_value_t v;
+  jit_value_t ca;
+  if (!i.X.RB) {
+    // No shift, just a fancy sign extend and CA clearer.
+    v = rs32;
+    ca = e.get_int64(0);
+  } else {
+    v = jit_insn_sshr(f, rs32, e.get_uint32(i.X.RB));
 
-//     // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
-//     // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-//     ca = jit_insn_and(f, jit_insn_lt(f, v, e.get_int32(0)),
-//                          jit_insn_lt(f, rs64, e.get_int64(0)));
-//   }
-//   v = e.sign_extend(v, jit_type_nint);
-//   e.update_gpr_value(i.X.RA, v);
-//   e.update_xer_with_carry(ca);
+    // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
+    // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
+    ca = jit_insn_and(f, jit_insn_lt(f, v, e.get_int32(0)),
+                         jit_insn_lt(f, rs64, e.get_int64(0)));
+  }
+  v = e.sign_extend(v, jit_type_nint);
+  e.update_gpr_value(i.X.RA, v);
+  e.update_xer_with_carry(ca);
 
-//   if (i.X.Rc) {
-//     // With cr0 update.
-//     e.update_cr_with_cond(0, v);
-//   }
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
 
-//   return 0;
-// }
+  return 0;
+}
+#endif
 
 XEEMITTER(srdx,         0x7C000436, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();

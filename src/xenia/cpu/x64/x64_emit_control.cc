@@ -549,7 +549,7 @@ int XeEmitTrap(X64Emitter& e, X86Compiler& c, InstrData& i,
   // // Resume.
   // b.SetInsertPoint(after_bb);
 
-  return 0;
+  return 1;
 }
 
 XEEMITTER(td,           0x7C000088, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
