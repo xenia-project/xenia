@@ -368,63 +368,52 @@ XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 #endif
 
-#if 0
 XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + (RB) + 1
 
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.neg(v);
+  c.stc();  // Always carrying.
+  c.adc(v, e.gpr_value(i.XO.RB));
+
+  e.update_gpr_value(i.XO.RT, v);
+
   if (i.XO.OE) {
     // With XER update.
-    // This is a different codepath as we need to use llvm.ssub.with.overflow.
-
-    // TODO(benvanik): handle overflow exceptions.
-    jit_value_t v = jit_insn_sub_ovf(f,
-        e.make_signed(e.gpr_value(i.XO.RB)),
-        e.make_signed(e.gpr_value(i.XO.RA)));
-    e.update_gpr_value(i.XO.RT, v);
-    //e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
-
-    if (i.XO.Rc) {
-      // With cr0 update.
-      e.update_cr_with_cond(0, v);
-    }
-
-    return 0;
-  } else {
-    // No OE bit setting.
-    jit_value_t v = jit_insn_sub(f,
-        e.make_signed(e.gpr_value(i.XO.RB)),
-        e.make_signed(e.gpr_value(i.XO.RA)));
-    e.update_gpr_value(i.XO.RT, v);
-
-    if (i.XO.Rc) {
-      // With cr0 update.
-      e.update_cr_with_cond(0, v);
-    }
-
-    return 0;
+    XEASSERTALWAYS();
+    //e.update_xer_with_overflow(EFLAGS??);
   }
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  return 0;
 }
-#endif
 
 XEEMITTER(subfcx,       0x7C000010, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-#if 0
 XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + EXTS(SI) + 1
 
-  Function* ssub_with_overflow = Intrinsic::getDeclaration(
-      e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
-  jit_value_t v = b.CreateCall2(ssub_with_overflow,
-                           e.get_int64(XEEXTS16(i.D.DS)), e.gpr_value(i.D.RA));
-  e.update_gpr_value(i.D.RT, b.CreateExtractValue(v, 0));
-  e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.D.RA));
+  c.neg(v);
+  c.stc();  // Always carrying.
+  c.adc(v, imm(XEEXTS16(i.D.DS)));
+  GpVar cc(c.newGpVar());
+  c.setc(cc);
+
+  e.update_gpr_value(i.D.RT, v);
+  e.update_xer_with_carry(cc);
 
   return 0;
 }
-#endif
 
 XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // RT <- ¬(RA) + (RB) + CA
@@ -1102,9 +1091,9 @@ void X64RegisterEmitCategoryALU() {
   XEREGISTERINSTR(mulli,        0x1C000000);
   // XEREGISTERINSTR(mullwx,       0x7C0001D6);
   // XEREGISTERINSTR(negx,         0x7C0000D0);
-  // XEREGISTERINSTR(subfx,        0x7C000050);
+  XEREGISTERINSTR(subfx,        0x7C000050);
   XEREGISTERINSTR(subfcx,       0x7C000010);
-  // XEREGISTERINSTR(subficx,      0x20000000);
+  XEREGISTERINSTR(subficx,      0x20000000);
   XEREGISTERINSTR(subfex,       0x7C000110);
   XEREGISTERINSTR(subfmex,      0x7C0001D0);
   XEREGISTERINSTR(subfzex,      0x7C000190);
