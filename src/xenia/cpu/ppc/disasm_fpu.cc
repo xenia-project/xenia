@@ -170,11 +170,11 @@ XEDISASMR(fcmpo,        0xFC000040, X  )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(fcmpu,        0xFC000000, X  )(InstrData& i, InstrDisasm& d) {
-  d.Init("fcmpu", "Floating Compare Unordered",
-         (i.XO.OE ? InstrDisasm::kOE : 0) | (i.XO.Rc ? InstrDisasm::kRc : 0));
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.XO.RB, InstrRegister::kRead);
+  d.Init("fcmpu", "Floating Compare Unordered", 0);
+  d.AddCR(i.X.RT >> 2, InstrRegister::kWrite);
+  d.AddUImmOperand(i.X.RT >> 2, 1);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
