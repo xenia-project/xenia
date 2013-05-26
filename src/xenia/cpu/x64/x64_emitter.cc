@@ -914,19 +914,24 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
   if ((internal_indirection_block_.getId() != kInvalidValue ||
        external_indirection_block_.getId() != kInvalidValue) &&
       (locals_.indirection_cia.getId() == kInvalidValue)) {
-    locals_.indirection_target = c.newGpVar();
-    locals_.indirection_cia = c.newGpVar();
+    locals_.indirection_target =
+        c.newGpVar(kX86VarTypeGpq, "indirection_target");
+    locals_.indirection_cia =
+        c.newGpVar(kX86VarTypeGpq, "indirection_cia");
   }
 
   // Check to see if the target address is within the function.
   // If it is jump to that basic block. If the basic block is not found it means
   // we have a jump inside the function that wasn't identified via static
   // analysis. These are bad as they require function regeneration.
+#if 0
   if (likely_local) {
     // Note that we only support LK=0, as we are using shared tables.
     XEASSERT(!lk);
     c.mov(locals_.indirection_target, target);
+    c.save(locals_.indirection_target);
     c.mov(locals_.indirection_cia, imm(cia));
+    c.save(locals_.indirection_cia);
     // if (target >= start && target < end) jmp internal_indirection_block;
     // else jmp external_indirection_block;
     GpVar in_range(c.newGpVar());
@@ -938,13 +943,16 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
     c.jmp(internal_indirection_block_);
     return 0;
   }
+#endif
 
   // If we are LK=0 jump to the shared indirection block. This prevents us
   // from needing to fill the registers again after the call and shares more
   // code.
   if (!lk) {
     c.mov(locals_.indirection_target, target);
+    c.save(locals_.indirection_target);
     c.mov(locals_.indirection_cia, imm(cia));
+    c.save(locals_.indirection_cia);
     c.jmp(external_indirection_block_);
   } else {
     // Slowest path - spill, call the external function, and fill.
