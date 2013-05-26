@@ -272,6 +272,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   FunctionBlock* block = NULL;
   uint32_t furthest_target = fn->start_address;
   uint32_t addr = fn->start_address;
+  bool starts_with_mfspr_lr = false;
   while (true) {
     i.code = XEGETUINT32BE(p + addr);
     i.type = ppc::GetInstrType(i.code);
@@ -282,6 +283,16 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
     if (!i.code) {
       XELOGSDB("function end %.8X (0x00000000 read)", addr);
       break;
+    }
+
+    // Check if the function starts with a mfspr lr, as that's a good indication
+    // of whether or not this is a normal function with a prolog/epilog.
+    // Some valid leaf functions won't have this, but most will.
+    if (addr == fn->start_address &&
+        i.type &&
+        i.type->opcode == 0x7C0002A6 &&
+        (((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F)) == 8) {
+      starts_with_mfspr_lr = true;
     }
 
     // Create a new basic block, if needed.
@@ -354,6 +365,19 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         if (!ends_fn &&
             furthest_target <= addr && IsRestGprLr(target)) {
           XELOGSDB("function end %.8X (__restgprlr_*)", addr);
+          ends_fn = true;
+        }
+
+        // Heuristic: if there's an unconditional branch in the first block of
+        // the function it's likely a thunk.
+        // Ex:
+        //   li        r3, 0
+        //   b         KeBugCheck
+        // This check may hit on functions that jump over data code, so only
+        // trigger this check in leaf functions (no mfspr lr/prolog).
+        if (!starts_with_mfspr_lr &&
+            fn->blocks.size() == 1) {
+          XELOGSDB("simple leaf thunk detected, ending");
           ends_fn = true;
         }
 
