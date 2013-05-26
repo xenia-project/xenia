@@ -147,7 +147,7 @@ VariableSymbol* SymbolDatabase::GetOrInsertVariable(uint32_t address) {
   return var;
 }
 
-FunctionSymbol* SymbolDatabase::GetFunction(uint32_t address) {
+FunctionSymbol* SymbolDatabase::GetFunction(uint32_t address, bool analyze) {
   SymbolMap::iterator i = symbols_.find(address);
   if (i != symbols_.end() && i->second->symbol_type == Symbol::Function) {
     return static_cast<FunctionSymbol*>(i->second);
@@ -161,7 +161,9 @@ FunctionSymbol* SymbolDatabase::GetFunction(uint32_t address) {
   symbols_.insert(SymbolMap::value_type(address, fn));
   scan_queue_.push_back(fn);
 
-  FlushQueue();
+  if (analyze) {
+    FlushQueue();
+  }
 
   return fn;
 }

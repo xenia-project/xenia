@@ -153,7 +153,7 @@ int ExecModule::Init() {
 }
 
 FunctionSymbol* ExecModule::FindFunctionSymbol(uint32_t address) {
-  return sdb_->GetFunction(address);
+  return sdb_->GetFunction(address, true);
 }
 
 void ExecModule::Dump() {

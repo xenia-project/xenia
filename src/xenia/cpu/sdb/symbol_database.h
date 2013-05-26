@@ -39,7 +39,7 @@ public:
   FunctionSymbol* GetOrInsertFunction(
       uint32_t address, FunctionSymbol* opt_call_source = NULL);
   VariableSymbol* GetOrInsertVariable(uint32_t address);
-  FunctionSymbol* GetFunction(uint32_t address);
+  FunctionSymbol* GetFunction(uint32_t address, bool analyze = false);
   VariableSymbol* GetVariable(uint32_t address);
 
   int GetAllVariables(std::vector<VariableSymbol*>& variables);
