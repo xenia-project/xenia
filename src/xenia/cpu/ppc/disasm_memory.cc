@@ -522,8 +522,8 @@ XEDISASMR(sync,         0x7C0004AC, X  )(InstrData& i, InstrDisasm& d) {
   int L = i.X.RT & 3;
   switch (L) {
   case 0:
-    name = "hwsync (heavyweight)";
-    desc = "Synchronize";
+    name = "hwsync";
+    desc = "Synchronize (heavyweight)";
     break;
   case 1:
     name = "lwsync";
