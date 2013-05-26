@@ -903,7 +903,6 @@ XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
   // m <- MASK(MB+32, ME+32)
   // RA <- r&m | (RA)&¬m
 
-  c.int3();
   GpVar v(c.newGpVar());
   c.mov(v.r32(), e.gpr_value(i.M.RT).r32()); // truncate
   c.rol(v.r32(), imm(i.M.SH));
