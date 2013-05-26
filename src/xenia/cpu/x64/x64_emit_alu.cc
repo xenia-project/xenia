@@ -1017,8 +1017,25 @@ XEEMITTER(rlwnmx,       0x5C000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
 // Integer shift (A-7)
 
 XEEMITTER(sldx,         0x7C000036, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // n <- (RB)[59:63]
+  // r <- ROTL64((RS), n)
+  // if (RB)[58] = 0 then
+  //   m <- MASK(0, 63-n)
+  // else
+  //   m <- i64.0
+  // RA <- r & m
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  c.shl(v, e.gpr_value(i.X.RB));
+  e.update_gpr_value(i.X.RA, v);
+
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  return 0;
 }
 
 XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
