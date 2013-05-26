@@ -188,8 +188,9 @@ XEDISASMR(mfspr,        0x7C0002A6, XFX)(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(mftb,         0x7C0002E6, XFX)(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("mftb", "Move From Time Base", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.XFX.RT, InstrRegister::kWrite);
+  return d.Finish();
 }
 
 XEDISASMR(mtcrf,        0x7C000120, XFX)(InstrData& i, InstrDisasm& d) {
