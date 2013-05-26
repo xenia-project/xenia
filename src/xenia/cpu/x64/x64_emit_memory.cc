@@ -835,24 +835,29 @@ XEEMITTER(sync,         0x7C0004AC, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
 // Floating-point load (A-19)
 
-// XEEMITTER(lfd,          0xC8000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + EXTS(D)
-//   // FRT <- MEM(EA, 8)
+XEEMITTER(lfd,          0xC8000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // FRT <- MEM(EA, 8)
 
-//   GpVar ea = e.get_int64(XEEXTS16(i.D.DS));
-//   if (i.D.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.D.RA), ea);
-//   }
-//   GpVar v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, jit_type_float64);
-//   e.update_fpr_value(i.D.RT, v);
+  GpVar ea(c.newGpVar());
+  if (i.D.RA) {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+  } else {
+    c.mov(ea, imm(XEEXTS16(i.D.DS)));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 8, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.save(v); // Force to memory.
+  c.movq(xmm_v, v.m64());
+  e.update_fpr_value(i.D.RT, xmm_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
 // XEEMITTER(lfdu,         0xCC000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
 //   // EA <- (RA) + EXTS(D)
@@ -1219,7 +1224,7 @@ void X64RegisterEmitCategoryMemory() {
   XEREGISTERINSTR(stdcx,        0x7C0001AD);
   XEREGISTERINSTR(stwcx,        0x7C00012D);
   XEREGISTERINSTR(sync,         0x7C0004AC);
-  // XEREGISTERINSTR(lfd,          0xC8000000);
+  XEREGISTERINSTR(lfd,          0xC8000000);
   // XEREGISTERINSTR(lfdu,         0xCC000000);
   // XEREGISTERINSTR(lfdux,        0x7C0004EE);
   // XEREGISTERINSTR(lfdx,         0x7C0004AE);

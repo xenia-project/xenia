@@ -254,7 +254,7 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
     locals_.gpr[n] = GpVar();
   }
   for (size_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-    locals_.fpr[n] = GpVar();
+    locals_.fpr[n] = XmmVar();
   }
 
   // Setup function. All share the same signature.
@@ -1039,7 +1039,7 @@ void X64Emitter::SetupLocals() {
   for (int n = 0; n < 32; n++) {
     if (fpr_t & 3) {
       xesnprintfa(name, XECOUNT(name), "f%d", n);
-      locals_.fpr[n] = c.newGpVar(kX86VarTypeXmmSD, name);
+      locals_.fpr[n] = c.newXmmVar(kX86VarTypeXmmSD, name);
     }
     fpr_t >>= 2;
   }
@@ -1126,8 +1126,8 @@ void X64Emitter::FillRegisters() {
       if (FLAGS_annotate_disassembly) {
         c.comment("Filling f%d", n);
       }
-      c.mov(locals_.fpr[n],
-            qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
+      c.movq(locals_.fpr[n],
+             qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
     }
   }
 }
@@ -1212,13 +1212,13 @@ void X64Emitter::SpillRegisters() {
   }
 
   for (uint32_t n = 0; n < XECOUNT(locals_.fpr); n++) {
-    GpVar& v = locals_.fpr[n];
+    XmmVar& v = locals_.fpr[n];
     if (v.getId() != kInvalidValue) {
       if (FLAGS_annotate_disassembly) {
         c.comment("Spilling f%d", n);
       }
-      c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
-            v);
+      c.movq(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
+             v);
     }
   }
 }
@@ -1501,29 +1501,29 @@ void X64Emitter::update_gpr_value(uint32_t n, GpVar& value) {
   }
 }
 
-GpVar X64Emitter::fpr_value(uint32_t n) {
+XmmVar X64Emitter::fpr_value(uint32_t n) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 32);
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
     return locals_.fpr[n];
   } else {
-    GpVar value(c.newGpVar());
-    c.mov(value,
-          qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
+    XmmVar value(c.newXmmVar());
+    c.movq(value,
+           qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
     return value;
   }
 }
 
-void X64Emitter::update_fpr_value(uint32_t n, GpVar& value) {
+void X64Emitter::update_fpr_value(uint32_t n, XmmVar& value) {
   X86Compiler& c = compiler_;
   XEASSERT(n >= 0 && n < 32);
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.fpr[n].getId() != kInvalidValue);
-    c.mov(locals_.fpr[n], value);
+    c.movq(locals_.fpr[n], value);
   } else {
-    c.mov(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
-          value);
+    c.movq(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
+           value);
   }
 }
 

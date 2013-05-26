@@ -80,8 +80,8 @@ public:
 
   AsmJit::GpVar gpr_value(uint32_t n);
   void update_gpr_value(uint32_t n, AsmJit::GpVar& value);
-  AsmJit::GpVar fpr_value(uint32_t n);
-  void update_fpr_value(uint32_t n, AsmJit::GpVar& value);
+  AsmJit::XmmVar fpr_value(uint32_t n);
+  void update_fpr_value(uint32_t n, AsmJit::XmmVar& value);
 
   AsmJit::GpVar TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
   AsmJit::GpVar ReadMemory(
@@ -126,15 +126,15 @@ private:
 
   ppc::InstrAccessBits access_bits_;
   struct {
-    AsmJit::GpVar indirection_target;
-    AsmJit::GpVar indirection_cia;
+    AsmJit::GpVar   indirection_target;
+    AsmJit::GpVar   indirection_cia;
 
-    AsmJit::GpVar xer;
-    AsmJit::GpVar lr;
-    AsmJit::GpVar ctr;
-    AsmJit::GpVar cr[8];
-    AsmJit::GpVar gpr[32];
-    AsmJit::GpVar fpr[32];
+    AsmJit::GpVar   xer;
+    AsmJit::GpVar   lr;
+    AsmJit::GpVar   ctr;
+    AsmJit::GpVar   cr[8];
+    AsmJit::GpVar   gpr[32];
+    AsmJit::XmmVar  fpr[32];
   } locals_;
 };
 
