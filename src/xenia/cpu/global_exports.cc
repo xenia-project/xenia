@@ -36,6 +36,8 @@ void* _cdecl XeIndirectBranch(
   // TODO(benvanik): track this statistic - this path is very slow!
   Processor* processor = (Processor*)state->processor;
   void* target_ptr = processor->GetFunctionPointer((uint32_t)target);
+  // target_ptr will be null when the given target is not a function.
+  XEASSERTNOTNULL(target_ptr);
   return target_ptr;
 }
 

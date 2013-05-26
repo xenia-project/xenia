@@ -148,6 +148,8 @@ VariableSymbol* SymbolDatabase::GetOrInsertVariable(uint32_t address) {
 }
 
 FunctionSymbol* SymbolDatabase::GetFunction(uint32_t address, bool analyze) {
+  XEASSERT(address);
+
   SymbolMap::iterator i = symbols_.find(address);
   if (i != symbols_.end() && i->second->symbol_type == Symbol::Function) {
     return static_cast<FunctionSymbol*>(i->second);

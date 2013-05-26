@@ -244,7 +244,7 @@ FunctionSymbol* Processor::GetFunction(uint32_t address) {
 void* Processor::GetFunctionPointer(uint32_t address) {
   // Attempt to get the function.
   FunctionSymbol* fn_symbol = GetFunction(address);
-  if (!fn_symbol) {
+  if (!fn_symbol || fn_symbol->type == FunctionSymbol::Unknown) {
     return NULL;
   }
 

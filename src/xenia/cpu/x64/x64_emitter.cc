@@ -106,6 +106,8 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
     XESUCCEED();
   }
 
+  XEASSERT(symbol->type != FunctionSymbol::Unknown);
+
   // Create the custom redirector function.
   // This function will jump to the on-demand compilation routine to
   // generate the real function as required. Afterwards, it will be
@@ -590,6 +592,10 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
           c.comment("%.8X: %.8X %s ???", ia, i.code, i.type->name);
         }
       }
+    }
+
+    if (FLAGS_log_codegen) {
+      fflush(stdout);
     }
 
     TraceInstruction(i);
