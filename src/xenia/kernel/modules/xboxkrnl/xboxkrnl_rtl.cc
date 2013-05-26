@@ -330,7 +330,7 @@ typedef struct {
 #pragma pack(pop)
 }
 
-XESTATICASSERT(sizeof(X_RTL_CRITICAL_SECTION) == 28, "X_RTL_CRITICAL_SECTION must be 28 bytes");
+XEASSERTSTRUCTSIZE(X_RTL_CRITICAL_SECTION, 28);
 
 SHIM_CALL RtlInitializeCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
@@ -342,6 +342,7 @@ SHIM_CALL RtlInitializeCriticalSection_shim(
   XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  cs->unknown00           = 1;
   cs->spin_count_div_256  = 0;
   cs->lock_count          = -1;
   cs->recursion_count     = 0;
@@ -370,6 +371,7 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
   }
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  cs->unknown00           = 1;
   cs->spin_count_div_256  = spin_count_div_256;
   cs->lock_count          = -1;
   cs->recursion_count     = 0;
