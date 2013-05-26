@@ -89,8 +89,17 @@ XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(addicx,       0x34000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- (RA) + EXTS(SI)
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.D.RA));
+  c.add(v, imm(XEEXTS16(i.D.DS)));
+  GpVar cc(c.newGpVar());
+  c.setc(cc.r8());
+
+  e.update_gpr_value(i.D.RT, v);
+  e.update_cr_with_cond(0, v);
+  e.update_xer_with_carry(cc);
+  return 0;
 }
 
 XEEMITTER(addis,        0x3C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
