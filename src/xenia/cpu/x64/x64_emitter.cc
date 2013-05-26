@@ -1555,14 +1555,17 @@ GpVar X64Emitter::ReadMemory(
   bool needs_swap = false;
   switch (size) {
     case 1:
-      c.mov(value, byte_ptr(real_address));
+      c.mov(value.r8(), byte_ptr(real_address));
+      c.and_(value, imm(0xFF));
       break;
     case 2:
-      c.mov(value, word_ptr(real_address));
+      c.mov(value.r16(), word_ptr(real_address));
+      c.and_(value, imm(0xFFFF));
       c.xchg(value.r8Lo(), value.r8Hi());
       break;
     case 4:
-      c.mov(value, dword_ptr(real_address));
+      c.mov(value.r32(), dword_ptr(real_address));
+      // No need to and -- the mov to e*x will extend for us.
       c.bswap(value.r32());
       break;
     case 8:
