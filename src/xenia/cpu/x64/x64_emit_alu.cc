@@ -903,15 +903,19 @@ XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
   // m <- MASK(MB+32, ME+32)
   // RA <- r&m | (RA)&¬m
 
+  c.int3();
   GpVar v(c.newGpVar());
   c.mov(v.r32(), e.gpr_value(i.M.RT).r32()); // truncate
   c.rol(v.r32(), imm(i.M.SH));
   uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
-  c.and_(v, imm(m));
+  GpVar mask(c.newGpVar());
+  c.mov(mask, imm(m));
+  c.and_(v, mask);
 
   GpVar old_ra(c.newGpVar());
   c.mov(old_ra, e.gpr_value(i.M.RA));
-  c.and_(old_ra, imm(~m));
+  c.not_(mask);
+  c.and_(old_ra, mask);
   c.or_(v, old_ra);
   e.update_gpr_value(i.M.RA, v);
 
