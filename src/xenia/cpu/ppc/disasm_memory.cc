@@ -472,8 +472,8 @@ XEDISASMR(stswx,        0x7C00052A, X  )(InstrData& i, InstrDisasm& d) {
 // Memory synchronization (A-18)
 
 XEDISASMR(eieio,        0x7C0006AC, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("eieio", "Enforce In-Order Execution of I/O Instruction", 0);
+  return d.Finish();
 }
 
 XEDISASMR(isync,        0x4C00012C, XL )(InstrData& i, InstrDisasm& d) {
@@ -517,8 +517,28 @@ XEDISASMR(stwcx,        0x7C00012D, X  )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(sync,         0x7C0004AC, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  const char* name;
+  const char* desc;
+  int L = i.X.RT & 3;
+  switch (L) {
+  case 0:
+    name = "hwsync (heavyweight)";
+    desc = "Synchronize";
+    break;
+  case 1:
+    name = "lwsync";
+    desc = "Synchronize (lightweight)";
+    break;
+  default:
+  case 2:
+  case 3:
+    name = "sync";
+    desc = "Synchronize";
+    break;
+  }
+  d.Init(name, desc, 0);
+  d.AddUImmOperand(L, 1);
+  return d.Finish();
 }
 
 
@@ -726,8 +746,14 @@ XEDISASMR(dcbtst,       0x7C0001EC, X  )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(dcbz,         0x7C0007EC, X  )(InstrData& i, InstrDisasm& d) {
   // or dcbz128 0x7C2007EC
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("dcbz", "Data Cache Block set to Zero", 0);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(icbi,         0x7C0007AC, X  )(InstrData& i, InstrDisasm& d) {
