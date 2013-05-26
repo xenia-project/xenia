@@ -138,21 +138,30 @@ int X64JIT::UninitModule(ExecModule* module) {
   return 0;
 }
 
-int X64JIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
-  XELOGCPU("Execute(%.8X): %s...", fn_symbol->start_address, fn_symbol->name());
-
+void* X64JIT::GetFunctionPointer(sdb::FunctionSymbol* fn_symbol) {
   // Check function.
   x64_function_t fn_ptr = (x64_function_t)fn_symbol->impl_value;
   if (!fn_ptr) {
     // Function hasn't been prepped yet - make it now inline.
     // The emitter will lock and do other fancy things, if required.
     if (emitter_->PrepareFunction(fn_symbol)) {
-      XELOGCPU("Execute(%.8X): unable to make function %s",
-          fn_symbol->start_address, fn_symbol->name());
-      return 1;
+      return NULL;
     }
     fn_ptr = (x64_function_t)fn_symbol->impl_value;
     XEASSERTNOTNULL(fn_ptr);
+  }
+
+  return fn_ptr;
+}
+
+int X64JIT::Execute(xe_ppc_state_t* ppc_state, FunctionSymbol* fn_symbol) {
+  XELOGCPU("Execute(%.8X): %s...", fn_symbol->start_address, fn_symbol->name());
+
+  x64_function_t fn_ptr = (x64_function_t)GetFunctionPointer(fn_symbol);
+  if (!fn_ptr) {
+    XELOGCPU("Execute(%.8X): unable to make function %s",
+        fn_symbol->start_address, fn_symbol->name());
+    return 1;
   }
 
   // Call into the function. This will compile it if needed.

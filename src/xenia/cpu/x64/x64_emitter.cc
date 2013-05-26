@@ -450,10 +450,21 @@ void X64Emitter::GenerateSharedBlocks() {
     SpillRegisters();
     X86CompilerFuncCall* call = c.call(global_exports_.XeIndirectBranch);
     call->setPrototype(kX86FuncConvDefault,
-        FuncBuilder3<void, void*, uint64_t, uint64_t>());
+        FuncBuilder3<void*, void*, uint64_t, uint64_t>());
     call->setArgument(0, c.getGpArg(0));
     call->setArgument(1, locals_.indirection_target);
     call->setArgument(2, locals_.indirection_cia);
+    GpVar target_ptr(c.newGpVar());
+    call->setReturn(target_ptr);
+
+    // Call target.
+    // void fn(ppc_state*, uint64_t)
+    call = c.call(target_ptr);
+    call->setComment("Indirection branch");
+    call->setPrototype(kX86FuncConvDefault,
+        FuncBuilder2<void, void*, uint64_t>());
+    call->setArgument(0, c.getGpArg(0));
+    call->setArgument(1, locals_.indirection_cia);
     c.ret();
   }
 
@@ -936,16 +947,27 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
     // Spill registers. We could probably share this.
     SpillRegisters();
 
-    // Issue the full indirection branch.
+    // Grab the target of the indirection.
     // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
     GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
     c.mov(arg2, imm(cia));
     X86CompilerFuncCall* call = c.call(global_exports_.XeIndirectBranch);
     call->setPrototype(kX86FuncConvDefault,
-        FuncBuilder3<void, void*, uint64_t, uint64_t>());
+        FuncBuilder3<void*, void*, uint64_t, uint64_t>());
     call->setArgument(0, c.getGpArg(0));
     call->setArgument(1, target);
     call->setArgument(2, arg2);
+    GpVar target_ptr(c.newGpVar());
+    call->setReturn(target_ptr);
+
+    // Call target.
+    // void fn(ppc_state*, uint64_t)
+    call = c.call(target_ptr);
+    call->setComment("Indirection branch");
+    call->setPrototype(kX86FuncConvDefault,
+        FuncBuilder2<void, void*, uint64_t>());
+    call->setArgument(0, c.getGpArg(0));
+    call->setArgument(1, arg2);
 
     // TODO(benvanik): next_block/is_last_block/etc
     //if (next_block) {

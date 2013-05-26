@@ -48,6 +48,8 @@ public:
   void DeallocThread(ThreadState* thread_state);
   int Execute(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t arg0);
+  sdb::FunctionSymbol* GetFunction(uint32_t address);
+  void* GetFunctionPointer(uint32_t address);
 
 private:
   xe_memory_ref       memory_;

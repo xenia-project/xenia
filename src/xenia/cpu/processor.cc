@@ -185,27 +185,12 @@ void Processor::DeallocThread(ThreadState* thread_state) {
 }
 
 int Processor::Execute(ThreadState* thread_state, uint32_t address) {
-  // Attempt to grab the function symbol from the global lookup table.
-  FunctionSymbol* fn_symbol = sym_table_->GetFunction(address);
+  // Attempt to get the function.
+  FunctionSymbol* fn_symbol = GetFunction(address);
   if (!fn_symbol) {
-    // Search all modules for the function symbol.
-    // Each module will see if the address is within its code range and if the
-    // symbol is not found (likely) it will do analysis on it.
-    // TODO(benvanik): make this more efficient. Could use a binary search or
-    //     something more clever.
-    sdb::FunctionSymbol* fn_symbol = NULL;
-    for (std::vector<ExecModule*>::iterator it = modules_.begin();
-        it != modules_.end(); ++it) {
-      fn_symbol = (*it)->FindFunctionSymbol(address);
-      if (fn_symbol) {
-        break;
-      }
-    }
-    if (!fn_symbol) {
-      // Symbol not found in any module.
-      XELOGCPU("Execute(%.8X): failed to find function", address);
-      return NULL;
-    }
+    // Symbol not found in any module.
+    XELOGCPU("Execute(%.8X): failed to find function", address);
+    return 1;
   }
 
   xe_ppc_state_t* ppc_state = thread_state->ppc_state();
@@ -229,4 +214,40 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
     return 0xDEADBABE;
   }
   return ppc_state->r[3];
+}
+
+FunctionSymbol* Processor::GetFunction(uint32_t address) {
+  // Attempt to grab the function symbol from the global lookup table.
+  FunctionSymbol* fn_symbol = sym_table_->GetFunction(address);
+  if (fn_symbol) {
+    return fn_symbol;
+  }
+
+  // Search all modules for the function symbol.
+  // Each module will see if the address is within its code range and if the
+  // symbol is not found (likely) it will do analysis on it.
+  // TODO(benvanik): make this more efficient. Could use a binary search or
+  //     something more clever.
+  for (std::vector<ExecModule*>::iterator it = modules_.begin();
+      it != modules_.end(); ++it) {
+    fn_symbol = (*it)->FindFunctionSymbol(address);
+    if (fn_symbol) {
+      return fn_symbol;
+    }
+  }
+  
+  // Not found at all? That seems wrong...
+  XEASSERTALWAYS();
+  return NULL;
+}
+
+void* Processor::GetFunctionPointer(uint32_t address) {
+  // Attempt to get the function.
+  FunctionSymbol* fn_symbol = GetFunction(address);
+  if (!fn_symbol) {
+    return NULL;
+  }
+
+  // Grab the pointer.
+  return jit_->GetFunctionPointer(fn_symbol);
 }

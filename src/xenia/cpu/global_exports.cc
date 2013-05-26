@@ -9,6 +9,7 @@
 
 #include <xenia/cpu/global_exports.h>
 
+#include <xenia/cpu/processor.h>
 #include <xenia/cpu/sdb.h>
 #include <xenia/cpu/ppc/instr.h>
 #include <xenia/cpu/ppc/state.h>
@@ -30,11 +31,12 @@ void _cdecl XeTrap(
   XEASSERTALWAYS();
 }
 
-void _cdecl XeIndirectBranch(
+void* _cdecl XeIndirectBranch(
     xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
-  XELOGCPU("INDIRECT BRANCH %.8X -> %.8X",
-           (uint32_t)br_ia, (uint32_t)target);
-  XEASSERTALWAYS();
+  // TODO(benvanik): track this statistic - this path is very slow!
+  Processor* processor = (Processor*)state->processor;
+  void* target_ptr = processor->GetFunctionPointer((uint32_t)target);
+  return target_ptr;
 }
 
 void _cdecl XeInvalidInstruction(

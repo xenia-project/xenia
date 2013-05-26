@@ -25,7 +25,7 @@ namespace cpu {
 typedef struct {
   void (_cdecl *XeTrap)(
       xe_ppc_state_t* state, uint64_t cia);
-  void (_cdecl *XeIndirectBranch)(
+  void* (_cdecl *XeIndirectBranch)(
       xe_ppc_state_t* state, uint64_t target, uint64_t br_ia);
   void (_cdecl *XeInvalidInstruction)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t data);

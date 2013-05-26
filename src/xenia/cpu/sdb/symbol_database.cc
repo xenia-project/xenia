@@ -448,18 +448,6 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
   // TODO(benvanik): queue for add without expensive locks?
   sym_table_->AddFunction(fn->start_address, fn);
 
-  XELOGSDB("Finished analyzing %.8X", fn->start_address);
-  return 0;
-}
-
-int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
-  // Find variable accesses.
-  // TODO(benvanik): data analysis to find variable accesses.
-
-  // A list of function targets that were undefined.
-  // This will run another analysis pass and it'd be best to avoid this.
-  std::vector<uint32_t> new_fns;
-
   // For each basic block:
   // - find outgoing target block or function
   for (std::map<uint32_t, FunctionBlock*>::iterator it = fn->blocks.begin();
@@ -485,26 +473,19 @@ int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
         // Function call.
         block->outgoing_type = FunctionBlock::kTargetFunction;
         block->outgoing_function = GetFunction(block->outgoing_address);
-        if (block->outgoing_function) {
-          FunctionSymbol::AddCall(fn, block->outgoing_function);
-        } else {
-          XELOGE("call target not found: %.8X -> %.8X",
-                 block->end_address, block->outgoing_address);
-          new_fns.push_back(block->outgoing_address);
-        }
+        XEASSERTNOTNULL(block->outgoing_function);
+        FunctionSymbol::AddCall(fn, block->outgoing_function);
       }
     }
   }
 
-  if (new_fns.size()) {
-    XELOGW("Repeat analysis required to find %d new functions",
-           (uint32_t)new_fns.size());
-    for (std::vector<uint32_t>::iterator it = new_fns.begin();
-        it != new_fns.end(); ++it) {
-      GetOrInsertFunction(*it, fn);
-    }
-    return 1;
-  }
+  XELOGSDB("Finished analyzing %.8X", fn->start_address);
+  return 0;
+}
+
+int SymbolDatabase::CompleteFunctionGraph(FunctionSymbol* fn) {
+  // Find variable accesses.
+  // TODO(benvanik): data analysis to find variable accesses.
 
   return 0;
 }

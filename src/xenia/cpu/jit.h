@@ -34,6 +34,7 @@ public:
   virtual int InitModule(ExecModule* module) = 0;
   virtual int UninitModule(ExecModule* module) = 0;
 
+  virtual void* GetFunctionPointer(sdb::FunctionSymbol* fn_symbol) = 0;
   virtual int Execute(xe_ppc_state_t* ppc_state,
                       sdb::FunctionSymbol* fn_symbol) = 0;
 

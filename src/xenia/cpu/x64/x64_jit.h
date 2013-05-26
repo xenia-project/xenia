@@ -33,6 +33,7 @@ public:
   virtual int InitModule(ExecModule* module);
   virtual int UninitModule(ExecModule* module);
 
+  virtual void* GetFunctionPointer(sdb::FunctionSymbol* fn_symbol);
   virtual int Execute(xe_ppc_state_t* ppc_state,
                       sdb::FunctionSymbol* fn_symbol);
 

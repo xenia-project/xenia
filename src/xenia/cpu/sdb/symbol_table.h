@@ -29,6 +29,8 @@ public:
   sdb::FunctionSymbol* GetFunction(uint32_t address);
 
 private:
+  // TODO(benvanik): replace with a better data structure.
+  xe_mutex_t* lock_;
   typedef std::tr1::unordered_map<uint32_t, sdb::FunctionSymbol*> FunctionMap;
   FunctionMap map_;
 };
