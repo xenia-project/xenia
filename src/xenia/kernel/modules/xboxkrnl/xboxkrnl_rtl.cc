@@ -321,11 +321,11 @@ typedef struct {
   uint8_t     spin_count_div_256; // * 256
   uint8_t     __padding[6];
   //uint32_t    unknown04; // maybe the handle to the event?
-  uint32_t    unknown08;         // head of queue, pointing to this offset
-  uint32_t    unknown0C;         // tail of queue?
-  int32_t     lock_count;       // -1 -> 0 on first lock 0x10
-  uint32_t    recursion_count;  //  0 -> 1 on first lock 0x14
-  uint32_t    owning_thread_id; // 0 unless locked 0x18
+  uint32_t    unknown08;          // head of queue, pointing to this offset
+  uint32_t    unknown0C;          // tail of queue?
+  int32_t     lock_count;         // -1 -> 0 on first lock 0x10
+  uint32_t    recursion_count;    //  0 -> 1 on first lock 0x14
+  uint32_t    owning_thread_id;   // 0 unless locked 0x18
 } X_RTL_CRITICAL_SECTION;
 #pragma pack(pop)
 }
@@ -348,6 +348,7 @@ SHIM_CALL RtlInitializeCriticalSection_shim(
   cs->owning_thread_id    = 0;
 }
 
+
 SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // NTSTATUS
@@ -365,7 +366,7 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
   uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
   if (spin_count_div_256 > 255)
   {
-	  spin_count_div_256 = 255;
+    spin_count_div_256 = 255;
   }
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
@@ -403,7 +404,7 @@ spin:
 
     // Thread was locked - spin wait.
     if (spin_wait_remaining) {
-	  spin_wait_remaining--;
+      spin_wait_remaining--;
       goto spin;
     }
 
