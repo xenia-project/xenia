@@ -69,5 +69,6 @@
 #define XESTATICASSERT(expr, message)   XESTATICASSERT2(expr, __LINE__)
 #endif  // MSVC
 
+#define XEASSERTSTRUCTSIZE(target, size) XESTATICASSERT(sizeof(target) == size, "bad definition for " ## target ## ": must be " ## size ## " bytes")
 
 #endif  // XENIA_ASSERT_H_
