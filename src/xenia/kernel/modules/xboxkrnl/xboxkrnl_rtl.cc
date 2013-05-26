@@ -317,20 +317,20 @@ SHIM_CALL RtlImageXexHeaderField_shim(
 namespace {
 #pragma pack(push, 1)
 typedef struct {
-  uint8_t     unknown0;
+  uint8_t     unknown00;
   uint8_t     spin_count_div_256; // * 256
-  uint8_t     unknown0b;
-  uint8_t     unknown0c;
-  uint32_t    unknown1;         // maybe the handle to the event?
-  uint32_t    unknown2;         // head of queue, pointing to this offset
-  uint32_t    unknown3;         // tail of queue?
-  int32_t     lock_count;       // -1 -> 0 on first lock
-  uint16_t    recursion_count;  //  0 -> 1 on first lock
-  uint32_t    owning_thread_id; // 0 unless locked
+  uint8_t     __padding[6];
+  //uint32_t    unknown04; // maybe the handle to the event?
+  uint32_t    unknown08;         // head of queue, pointing to this offset
+  uint32_t    unknown0C;         // tail of queue?
+  int32_t     lock_count;       // -1 -> 0 on first lock 0x10
+  uint32_t    recursion_count;  //  0 -> 1 on first lock 0x14
+  uint32_t    owning_thread_id; // 0 unless locked 0x18
 } X_RTL_CRITICAL_SECTION;
 #pragma pack(pop)
 }
 
+XESTATICASSERT(sizeof(X_RTL_CRITICAL_SECTION) == 28, "X_RTL_CRITICAL_SECTION must be 28 bytes");
 
 SHIM_CALL RtlInitializeCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
@@ -348,7 +348,6 @@ SHIM_CALL RtlInitializeCriticalSection_shim(
   cs->owning_thread_id    = 0;
 }
 
-
 SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   // NTSTATUS
@@ -362,7 +361,12 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
          cs_ptr, spin_count);
 
   // Spin count is rouned up to 256 intervals then packed in.
-  uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
+  //uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
+  uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
+  if (spin_count_div_256 > 255)
+  {
+	  spin_count_div_256 = 255;
+  }
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
   cs->spin_count_div_256  = spin_count_div_256;
@@ -393,12 +397,13 @@ spin:
   if (xe_atomic_inc_32(&cs->lock_count)) {
     // If this thread already owns the CS increment the recursion count.
     if (cs->owning_thread_id == thread_id) {
-      ++cs->recursion_count;
+      cs->recursion_count++;
       return;
     }
 
     // Thread was locked - spin wait.
-    if (--spin_wait_remaining) {
+    if (spin_wait_remaining) {
+	  spin_wait_remaining--;
       goto spin;
     }
 
