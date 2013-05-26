@@ -170,6 +170,15 @@ typedef struct {
       uint32_t                : 6;
     } XO;
     // kXEPPCInstrFormatA
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t        XO      : 5;
+      uint32_t        FRC     : 5;
+      uint32_t        FRB     : 5;
+      uint32_t        FRA     : 5;
+      uint32_t        FRT     : 5;
+      uint32_t                : 6;
+    } A;
     // kXEPPCInstrFormatM
     struct {
       uint32_t        Rc      : 1;
@@ -281,6 +290,7 @@ public:
     kRc = 1 << 1,
     kCA = 1 << 2,
     kLR = 1 << 4,
+    kFP = 1 << 5,
   };
 
   const char*   name;

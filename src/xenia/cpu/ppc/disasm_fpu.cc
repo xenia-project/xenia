@@ -21,160 +21,272 @@ namespace ppc {
 // Floating-point arithmetic (A-8)
 
 XEDISASMR(faddx,        0xFC00002A, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fadd", "Floating Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(faddsx,       0xEC00002A, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fadds", "Floating Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fdivx,        0xFC000024, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fdiv", "Floating Divide [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fdivsx,       0xEC000024, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fdivs", "Floating Divide [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fmulx,        0xFC000032, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmul", "Floating Multiply [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fmulsx,       0xEC000032, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmuls", "Floating Multiply [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fresx,        0xEC000030, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fres", "Floating Reciprocal Estimate [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(frsqrtex,     0xFC000034, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("frsqrte", "Floating Reciprocal Square Root Estimate [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fsubx,        0xFC000028, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fsub", "Floating Subtract [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fsubsx,       0xEC000028, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fsubs", "Floating Subtract [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fselx,        0xFC00002E, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fsel", "Floating Select",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fsqrtx,       0xFC00002C, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fsqrt", "Floating Square Root [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fsqrtsx,      0xEC00002C, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fsqrts", "Floating Square Root [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 
 // Floating-point multiply-add (A-9)
 
 XEDISASMR(fmaddx,       0xFC00003A, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmadd", "Floating Multiply-Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fmaddsx,      0xEC00003A, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmadds", "Floating Multiply-Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fmsubx,       0xFC000038, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmsub", "Floating Multiply-Subtract[Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fmsubsx,      0xEC000038, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmsubs", "Floating Multiply-Subtract [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fnmaddx,      0xFC00003E, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fnmadd", "Floating Negative Multiply-Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fnmaddsx,     0xEC00003E, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fnmadds", "Floating Negative Multiply-Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fnmsubx,      0xFC00003C, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fnmsub", "Floating Negative Multiply-Subtract [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fnmsubsx,     0xEC00003C, A  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fnmsubs", "Floating Negative Multiply-Add [Single]",
+         InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
+  return d.Finish();
 }
 
 
 // Floating-point rounding and conversion (A-10)
 
 XEDISASMR(fcfidx,       0xFC00069C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fcfid", "Floating Convert From Integer Doubleword",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fctidx,       0xFC00065C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fctid", "Floating Convert To Integer Doubleword",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fctidzx,      0xFC00065E, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fctidz",
+         "Floating Convert To Integer Doubleword with round toward Zero",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fctiwx,       0xFC00001C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fctiw", "Floating Convert To Integer Word",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fctiwzx,      0xFC00001E, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fctiwz", "Floating Convert To Integer Word with round toward Zero",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(frspx,        0xFC000018, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("frsp", "Floating Round to Single-Precision",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 
 // Floating-point compare (A-11)
 
 XEDISASMR(fcmpo,        0xFC000040, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fcmpo", "Floating Compare Ordered", 0);
+  d.AddCR(i.X.RT >> 2, InstrRegister::kWrite);
+  d.AddUImmOperand(i.X.RT >> 2, 1);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fcmpu,        0xFC000000, X  )(InstrData& i, InstrDisasm& d) {
   d.Init("fcmpu", "Floating Compare Unordered", 0);
   d.AddCR(i.X.RT >> 2, InstrRegister::kWrite);
   d.AddUImmOperand(i.X.RT >> 2, 1);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
@@ -215,23 +327,35 @@ XEDISASMR(mtfsfix,      0xFC00010C, X  )(InstrData& i, InstrDisasm& d) {
 // Floating-point move (A-21)
 
 XEDISASMR(fabsx,        0xFC000210, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fabs", "Floating Absolute Value",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fmrx,         0xFC000090, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fmr", "Floating Move Register",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fnabsx,       0xFC000110, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fnabs", "Floating Negative Absolute Value",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(fnegx,        0xFC000050, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("fneg", "Floating Negate",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 

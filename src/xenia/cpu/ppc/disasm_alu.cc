@@ -30,7 +30,7 @@ XEDISASMR(addx,         0x7C000214, XO )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(addcx,        0x7C000014, XO )(InstrData& i, InstrDisasm& d) {
-  d.Init("addcx", "Add Carrying",
+  d.Init("addc", "Add Carrying",
          (i.XO.OE ? InstrDisasm::kOE : 0) | (i.XO.Rc ? InstrDisasm::kRc : 0) |
          InstrDisasm::kCA);
   d.AddRegOperand(InstrRegister::kGPR, i.XO.RT, InstrRegister::kWrite);
