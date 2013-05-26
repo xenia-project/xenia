@@ -216,6 +216,26 @@ XEDISASMR(mtspr,        0x7C0003A6, XFX)(InstrData& i, InstrDisasm& d) {
   return d.Finish();
 }
 
+XEDISASMR(mfmsr,        0x7C0000A6, X)(InstrData& i, InstrDisasm& d) {
+  d.Init("mfmsr", "Move From Machine State Register", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  return d.Finish();
+}
+
+XEDISASMR(mtmsr,        0x7C000124, X)(InstrData& i, InstrDisasm& d) {
+  d.Init("mtmsr", "Move To Machine State Register", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddSImmOperand((i.X.RA & 16 != 0) ? 1 : 0, 1);
+  return d.Finish();
+}
+
+XEDISASMR(mtmsrd,       0x7C000164, X)(InstrData& i, InstrDisasm& d) {
+  d.Init("mtmsrd", "Move To Machine State Register Doubleword", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  d.AddSImmOperand((i.X.RA & 16 != 0) != 0 ? 1 : 0, 1);
+  return d.Finish();
+}
+
 
 void RegisterDisasmCategoryControl() {
   XEREGISTERINSTR(bx,           0x48000000);
@@ -241,6 +261,9 @@ void RegisterDisasmCategoryControl() {
   XEREGISTERINSTR(mftb,         0x7C0002E6);
   XEREGISTERINSTR(mtcrf,        0x7C000120);
   XEREGISTERINSTR(mtspr,        0x7C0003A6);
+  XEREGISTERINSTR(mfmsr,        0x7C0000A6);
+  XEREGISTERINSTR(mtmsr,        0x7C000124);
+  XEREGISTERINSTR(mtmsrd,       0x7C000164);
 }
 
 
