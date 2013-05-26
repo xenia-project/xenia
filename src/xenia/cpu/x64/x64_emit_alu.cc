@@ -679,19 +679,36 @@ XEEMITTER(andisx,       0x74000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // n <- 0
+  // do while n < 64
+  //   if (RS)[n] = 1 then leave n
+  //   n <- n + 1
+  // RA <- n
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  c.bsr(v, v);
+  c.cmovz(v, e.get_uint64(63));
+  c.xor_(v, imm(0x3F));
+  e.update_gpr_value(i.X.RA, v);
+
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  return 0;
 }
 
 XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // n <- 32
   // do while n < 64
-  //   if (RS) = 1 then leave n
+  //   if (RS)[n] = 1 then leave n
   //   n <- n + 1
   // RA <- n - 32
 
   GpVar v(c.newGpVar());
-  c.mov(v, imm(0xF0000000));
+  c.mov(v, e.gpr_value(i.X.RT));
   c.bsr(v.r32(), v.r32());
   c.cmovz(v, e.get_uint64(63));
   c.xor_(v, imm(0x1F));
