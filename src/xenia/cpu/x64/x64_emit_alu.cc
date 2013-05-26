@@ -214,7 +214,7 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   if (i.XO.Rc) {
     // With cr0 update.
-    e.update_cr_with_cond(0, dividend);
+    e.update_cr_with_cond(0, dividend, true);
   }
 
 #if 0
@@ -272,7 +272,7 @@ XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 
   if (i.XO.Rc) {
     // With cr0 update.
-    e.update_cr_with_cond(0, dividend);
+    e.update_cr_with_cond(0, dividend, false);
   }
 
   c.unuse(dividend_hi);
@@ -581,7 +581,7 @@ XEEMITTER(cmpl,         0x7C000040, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.mov(rhs.r32(), rhs.r32());
   }
 
-  e.update_cr_with_cond(BF, lhs, rhs);
+  e.update_cr_with_cond(BF, lhs, rhs, false);
 
   return 0;
 }
@@ -609,7 +609,7 @@ XEEMITTER(cmpli,        0x28000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.mov(lhs.r32(), lhs.r32());
   }
 
-  e.update_cr_with_cond(BF, lhs, e.get_uint64(i.D.DS));
+  e.update_cr_with_cond(BF, lhs, e.get_uint64(i.D.DS), false);
 
   return 0;
 }

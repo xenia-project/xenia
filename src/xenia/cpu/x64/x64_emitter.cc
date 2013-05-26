@@ -1393,7 +1393,7 @@ void X64Emitter::update_cr_value(uint32_t n, GpVar& value) {
   }
 }
 
-void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs) {
+void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, bool is_signed) {
   X86Compiler& c = compiler_;
   // bit0 = RA < 0
   // bit1 = RA > 0
@@ -1405,8 +1405,13 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs) {
   GpVar v_g(c.newGpVar());
   GpVar v_e(c.newGpVar());
   c.cmp(lhs, imm(0));
-  c.setl(v_l.r8());
-  c.setg(v_g.r8());
+  if (is_signed) {
+    c.setl(v_l.r8());
+    c.setg(v_g.r8());
+  } else {
+    c.setb(v_l.r8());
+    c.seta(v_g.r8());
+  }
   c.sete(v_e.r8());
   GpVar v(c.newGpVar());
   c.shl(v_g, imm(1));
@@ -1422,7 +1427,8 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs) {
   update_cr_value(n, v);
 }
 
-void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs) {
+void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs,
+                                     bool is_signed) {
   X86Compiler& c = compiler_;
   // bit0 = RA < RB
   // bit1 = RA > RB
@@ -1434,8 +1440,13 @@ void X64Emitter::update_cr_with_cond(uint32_t n, GpVar& lhs, GpVar& rhs) {
   GpVar v_g(c.newGpVar());
   GpVar v_e(c.newGpVar());
   c.cmp(lhs, rhs);
-  c.setl(v_l.r8());
-  c.setg(v_g.r8());
+  if (is_signed) {
+    c.setl(v_l.r8());
+    c.setg(v_g.r8());
+  } else {
+    c.setb(v_l.r8());
+    c.seta(v_g.r8());
+  }
   c.sete(v_e.r8());
   GpVar v(c.newGpVar());
   c.shl(v_g, imm(1));
