@@ -495,12 +495,23 @@ XEDISASMR(rldcrx,       0x78000012, MDS)(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(rldicx,       0x78000008, MD )(InstrData& i, InstrDisasm& d) {
-  d.Init("rldic", "Rotate Left Doubleword Immediate then Clear",
+  const char* name;
+  const char* desc;
+  uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+  uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+  if (mb == 0x3E) {
+    name = "sldi";
+    desc = "Shift Left Immediate";
+  } else {
+    name = "rldic";
+    desc = "Rotate Left Doubleword Immediate then Clear";
+  }
+  d.Init(name, desc,
          i.MD.Rc ? InstrDisasm::kRc : 0);
   d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
-  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
-  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+  d.AddUImmOperand(sh, 1);
+  d.AddUImmOperand(mb, 1);
   return d.Finish();
 }
 
