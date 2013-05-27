@@ -12,6 +12,7 @@
     'xboxkrnl_module.cc',
     'xboxkrnl_module.h',
     'xboxkrnl_ordinals.h',
+    'xboxkrnl_private.h',
     'xboxkrnl_rtl.cc',
     'xboxkrnl_rtl.h',
     'xboxkrnl_table.inc',

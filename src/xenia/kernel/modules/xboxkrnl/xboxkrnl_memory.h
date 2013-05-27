@@ -19,6 +19,12 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+X_STATUS xeNtAllocateVirtualMemory(
+    uint32_t* base_addr_ptr, uint32_t* region_size_ptr,
+    uint32_t allocation_type, uint32_t protect_bits,
+    uint32_t unknown);
+
+
 void RegisterMemoryExports(ExportResolver* export_resolver, KernelState* state);
 
 

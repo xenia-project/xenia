@@ -13,6 +13,7 @@
 
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_hal.h>
@@ -31,6 +32,9 @@ DEFINE_bool(abort_before_entry, false,
     "Abort execution right before launching the module.");
 
 
+KernelState* xe::kernel::xboxkrnl::shared_kernel_state_ = NULL;
+
+
 XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
     KernelModule(runtime) {
   ExportResolver* resolver = export_resolver_.get();
@@ -47,6 +51,10 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   // Setup the kernel state instance.
   // This is where all kernel objects are kept while running.
   kernel_state_ = auto_ptr<KernelState>(new KernelState(runtime));
+
+  // Setup the shared global state object.
+  XEASSERTNULL(shared_kernel_state_);
+  shared_kernel_state_ = kernel_state_.get();
 
   // Register all exported functions.
   RegisterHalExports(resolver, kernel_state_.get());
@@ -109,6 +117,8 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
 }
 
 XboxkrnlModule::~XboxkrnlModule() {
+  // Clear the shared kernel state.
+  shared_kernel_state_ = NULL;
 }
 
 int XboxkrnlModule::LaunchModule(const char* path) {

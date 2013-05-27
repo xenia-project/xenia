@@ -41,4 +41,5 @@ private:
 }  // namespace kernel
 }  // namespace xe
 
+
 #endif  // XENIA_KERNEL_MODULES_XBOXKRNL_MODULE_H_
