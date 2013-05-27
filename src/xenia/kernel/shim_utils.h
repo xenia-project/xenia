@@ -29,12 +29,6 @@ namespace kernel {
       shim_data, \
       (xe_kernel_export_shim_fn)export_name##_shim, \
       NULL);
-#define SHIM_SET_MAPPING_WITH_IMPL(library_name, export_name, shim_data) \
-  export_resolver->SetFunctionMapping( \
-      library_name, ordinals::##export_name, \
-      shim_data, \
-      (xe_kernel_export_shim_fn)export_name##_shim, \
-      (xe_kernel_export_impl_fn)export_name##_impl);
 
 #define SHIM_MEM_ADDR(a)      (ppc_state->membase + a)
 
@@ -51,6 +45,9 @@ namespace kernel {
 #define SHIM_GET_ARG_32(n)    SHIM_GPR_32(3 + n)
 #define SHIM_GET_ARG_64(n)    SHIM_GPR_64(3 + n)
 #define SHIM_SET_RETURN(v)    SHIM_SET_GPR_64(3, v)
+
+
+#define IMPL_MEM_ADDR(a)      xe_memory_addr(state->memory(), a)
 
 
 }  // namespace kernel

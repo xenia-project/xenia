@@ -24,22 +24,32 @@ namespace kernel {
 namespace xboxkrnl {
 
 
-SHIM_CALL HalReturnToFirmware_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+void xeHalReturnToFirmware(uint32_t routine) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // void
   // IN FIRMWARE_REENTRY  Routine
 
   // Routine must be 1 'HalRebootRoutine'
+  XEASSERT(routine == 1);
+
+  // TODO(benvank): diediedie much more gracefully
+  // Not sure how to blast back up the stack in LLVM without exceptions, though.
+  XELOGE("Game requested shutdown via HalReturnToFirmware");
+  exit(0);
+}
+
+
+SHIM_CALL HalReturnToFirmware_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t routine = SHIM_GET_ARG_32(0);
 
   XELOGD(
       "HalReturnToFirmware(%d)",
       routine);
 
-  // TODO(benvank): diediedie much more gracefully
-  // Not sure how to blast back up the stack in LLVM without exceptions, though.
-  XELOGE("Game requested shutdown via HalReturnToFirmware");
-  exit(0);
+  xeHalReturnToFirmware(routine);
 }
 
 

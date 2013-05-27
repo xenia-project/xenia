@@ -21,7 +21,14 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+uint32_t xeRtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr,
+                            uint32_t length);
 
+uint32_t xeRtlCompareMemoryUlong(uint32_t source_ptr, uint32_t length,
+                                 uint32_t pattern);
+
+void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
+                          uint32_t pattern);
 
 
 }  // namespace xboxkrnl

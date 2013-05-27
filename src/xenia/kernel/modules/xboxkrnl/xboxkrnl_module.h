@@ -21,7 +21,10 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+int xeXexCheckExecutablePriviledge(uint32_t privilege);
 
+int xeXexGetModuleHandle(const char* module_name,
+                         X_HANDLE* module_handle_ptr);
 
 
 }  // namespace xboxkrnl
