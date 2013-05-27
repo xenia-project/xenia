@@ -406,6 +406,10 @@ XEEMITTER(fcfidx,       0xFC00069C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 XEEMITTER(fctidx,       0xFC00065C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // frD <- double_to_signed_int64( frB )
 
+  // UNTESTED: ensure this is correct.
+  //XEASSERTALWAYS();
+  //c.int3();
+
   Label over_max(c.newLabel());
   Label under_min(c.newLabel());
   Label done(c.newLabel());
@@ -458,6 +462,10 @@ XEEMITTER(fctidzx,      0xFC00065E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
 XEEMITTER(fctiwx,       0xFC00001C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // frD <- double_to_signed_int32( frB )
+
+  // UNTESTED: ensure this is correct.
+  //XEASSERTALWAYS();
+  //c.int3();
 
   Label over_max(c.newLabel());
   Label under_min(c.newLabel());
