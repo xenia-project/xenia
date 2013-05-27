@@ -61,15 +61,6 @@ public:
   };
 };
 
-#define XE_DECLARE_EXPORT(module, ordinal, name, signature, type, flags) \
-  { \
-    ordinal, \
-    KernelExport::type, \
-    flags, \
-    #signature, \
-    #name, \
-  }
-
 
 class ExportResolver {
 public:
