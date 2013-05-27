@@ -70,13 +70,7 @@ SHIM_CALL XGetLanguage_shim(
 
 void xe::kernel::xam::RegisterInfoExports(
     ExportResolver* export_resolver, XamState* state) {
-  #define SHIM_SET_MAPPING(ordinal, shim, impl) \
-    export_resolver->SetFunctionMapping("xam.xex", ordinal, \
-        state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
-
-  SHIM_SET_MAPPING(0x000003CB, XGetAVPack_shim, NULL);
-  SHIM_SET_MAPPING(0x000003CC, XGetGameRegion_shim, NULL);
-  SHIM_SET_MAPPING(0x000003CD, XGetLanguage_shim, NULL);
-
-  #undef SET_MAPPING
+  SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
+  SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);
+  SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
 }

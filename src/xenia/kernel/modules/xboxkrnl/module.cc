@@ -65,7 +65,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   // Offset 0x18 is a 4b pointer to a handler function that seems to take two
   // arguments. If we wanted to see what would happen we could fake that.
   resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x00000059,
+      "xboxkrnl.exe", ordinals::KeDebugMonitorData,
       0x80102100);
   XESETUINT32BE(mem + 0x80102100, 0);
 
@@ -75,7 +75,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
   // was whether an HDD was present. Not sure what the other flags are.
   resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x00000156,
+      "xboxkrnl.exe", ordinals::XboxHardwareInfo,
       0x80100FED);
   XESETUINT32BE(mem + 0x80100FED, 0x00000000);  // flags
   XESETUINT8BE(mem  + 0x80100FEE, 0x06);        // cpu count
@@ -91,7 +91,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
   resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x00000193,
+      "xboxkrnl.exe", ordinals::XexExecutableModuleHandle,
       0x80100FFC);
   XESETUINT32BE(mem + 0x80100FFC, 0x80101000);
   XESETUINT32BE(mem + 0x80101058, 0x80101100);
@@ -101,7 +101,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   // Perhaps it's how swap disc/etc data is sent?
   // Always set to "default.xex" (with quotes) for now.
   resolver->SetVariableMapping(
-      "xboxkrnl.exe", 0x000001AE,
+      "xboxkrnl.exe", ordinals::ExLoadedCommandLine,
       0x80102000);
   char command_line[] = "\"default.xex\"";
   xe_copy_memory(mem + 0x80102000, 1024,

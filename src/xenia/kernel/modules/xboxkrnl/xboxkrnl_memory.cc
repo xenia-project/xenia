@@ -151,12 +151,6 @@ SHIM_CALL NtFreeVirtualMemory_shim(
 
 void xe::kernel::xboxkrnl::RegisterMemoryExports(
     ExportResolver* export_resolver, KernelState* state) {
-  #define SHIM_SET_MAPPING(ordinal, shim, impl) \
-    export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
-        state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
-
-  SHIM_SET_MAPPING(0x000000CC, NtAllocateVirtualMemory_shim, NULL);
-  SHIM_SET_MAPPING(0x000000DC, NtFreeVirtualMemory_shim, NULL);
-
-  #undef SET_MAPPING
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtAllocateVirtualMemory, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtFreeVirtualMemory, state);
 }

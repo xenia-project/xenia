@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_MODULES_XBOXKRNL_THREADING_H_
 
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_ordinals.h>
 
 
 namespace xe {

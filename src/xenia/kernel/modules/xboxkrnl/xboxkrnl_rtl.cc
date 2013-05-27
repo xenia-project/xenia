@@ -489,27 +489,21 @@ SHIM_CALL RtlLeaveCriticalSection_shim(
 
 void xe::kernel::xboxkrnl::RegisterRtlExports(
     ExportResolver* export_resolver, KernelState* state) {
-  #define SHIM_SET_MAPPING(ordinal, shim, impl) \
-    export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
-        state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareMemory, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareMemoryUlong, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlFillMemoryUlong, state);
 
-  SHIM_SET_MAPPING(0x0000011A, RtlCompareMemory_shim, NULL);
-  SHIM_SET_MAPPING(0x0000011B, RtlCompareMemoryUlong_shim, NULL);
-  SHIM_SET_MAPPING(0x00000126, RtlFillMemoryUlong_shim, NULL);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitAnsiString, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlFreeAnsiString, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitUnicodeString, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlFreeUnicodeString, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
 
-  SHIM_SET_MAPPING(0x0000012C, RtlInitAnsiString_shim, NULL);
-  SHIM_SET_MAPPING(0x00000127, RtlFreeAnsiString_shim, NULL);
-  SHIM_SET_MAPPING(0x0000012D, RtlInitUnicodeString_shim, NULL);
-  SHIM_SET_MAPPING(0x00000128, RtlFreeUnicodeString_shim, NULL);
-  SHIM_SET_MAPPING(0x00000142, RtlUnicodeStringToAnsiString_shim, NULL);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlImageXexHeaderField, state);
 
-  SHIM_SET_MAPPING(0x0000012B, RtlImageXexHeaderField_shim, NULL);
-
-  SHIM_SET_MAPPING(0x0000012E, RtlInitializeCriticalSection_shim, NULL);
-  SHIM_SET_MAPPING(0x0000012F, RtlInitializeCriticalSectionAndSpinCount_shim, NULL);
-  SHIM_SET_MAPPING(0x00000125, RtlEnterCriticalSection_shim, NULL);
-  SHIM_SET_MAPPING(0x00000141, RtlTryEnterCriticalSection_shim, NULL);
-  SHIM_SET_MAPPING(0x00000130, RtlLeaveCriticalSection_shim, NULL);
-
-  #undef SET_MAPPING
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSection, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSectionAndSpinCount, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlEnterCriticalSection, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlTryEnterCriticalSection, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlLeaveCriticalSection, state);
 }

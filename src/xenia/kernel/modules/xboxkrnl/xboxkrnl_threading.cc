@@ -242,18 +242,12 @@ SHIM_CALL KeTlsSetValue_shim(
 
 void xe::kernel::xboxkrnl::RegisterThreadingExports(
     ExportResolver* export_resolver, KernelState* state) {
-  #define SHIM_SET_MAPPING(ordinal, shim, impl) \
-    export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
-        state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
+  SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
 
-  SHIM_SET_MAPPING(0x0000000D, ExCreateThread_shim, NULL);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
 
-  SHIM_SET_MAPPING(0x00000066, KeGetCurrentProcessType_shim, NULL);
-
-  SHIM_SET_MAPPING(0x00000152, KeTlsAlloc_shim, NULL);
-  SHIM_SET_MAPPING(0x00000153, KeTlsFree_shim, NULL);
-  SHIM_SET_MAPPING(0x00000154, KeTlsGetValue_shim, NULL);
-  SHIM_SET_MAPPING(0x00000155, KeTlsSetValue_shim, NULL);
-
-  #undef SET_MAPPING
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsAlloc, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsFree, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 }

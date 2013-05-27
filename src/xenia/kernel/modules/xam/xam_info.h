@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_MODULES_XAM_INFO_H_
 
 #include <xenia/kernel/modules/xam/xam_state.h>
+#include <xenia/kernel/modules/xam/xam_ordinals.h>
 
 
 namespace xe {

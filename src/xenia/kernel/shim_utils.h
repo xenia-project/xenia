@@ -23,6 +23,18 @@ namespace kernel {
 
 
 #define SHIM_CALL             void _cdecl
+#define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
+  export_resolver->SetFunctionMapping( \
+      library_name, ordinals::##export_name, \
+      shim_data, \
+      (xe_kernel_export_shim_fn)export_name##_shim, \
+      NULL);
+#define SHIM_SET_MAPPING_WITH_IMPL(library_name, export_name, shim_data) \
+  export_resolver->SetFunctionMapping( \
+      library_name, ordinals::##export_name, \
+      shim_data, \
+      (xe_kernel_export_shim_fn)export_name##_shim, \
+      (xe_kernel_export_impl_fn)export_name##_impl);
 
 #define SHIM_MEM_ADDR(a)      (ppc_state->membase + a)
 

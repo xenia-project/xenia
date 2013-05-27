@@ -109,17 +109,11 @@ SHIM_CALL XexGetModuleHandle_shim(
 
 void xe::kernel::xboxkrnl::RegisterModuleExports(
     ExportResolver* export_resolver, KernelState* state) {
-  #define SHIM_SET_MAPPING(ordinal, shim, impl) \
-    export_resolver->SetFunctionMapping("xboxkrnl.exe", ordinal, \
-        state, (xe_kernel_export_shim_fn)shim, (xe_kernel_export_impl_fn)impl)
+  // SHIM_SET_MAPPING("xboxkrnl.exe", ExGetXConfigSetting, state);
 
-  //SHIM_SET_MAPPING(0x00000010, ExGetXConfigSetting_shim, NULL);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XexCheckExecutablePrivilege, state);
 
-  SHIM_SET_MAPPING(0x00000194, XexCheckExecutablePrivilege_shim, NULL);
-
-  SHIM_SET_MAPPING(0x00000195, XexGetModuleHandle_shim, NULL);
-  // SHIM_SET_MAPPING(0x00000196, XexGetModuleSection_shim, NULL);
-  // SHIM_SET_MAPPING(0x00000197, XexGetProcedureAddress_shim, NULL);
-
-  #undef SET_MAPPING
+  SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleHandle, state);
+  // SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleSection, state);
+  // SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);
 }
