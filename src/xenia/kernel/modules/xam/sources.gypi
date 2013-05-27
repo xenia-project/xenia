@@ -7,6 +7,6 @@
     'xam_module.h',
     'xam_state.cc',
     'xam_state.h',
-    'xam_table.h',
+    'xam_table.inc',
   ],
 }

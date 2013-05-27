@@ -11,9 +11,9 @@
 
 #include <gflags/gflags.h>
 
+#include <xenia/kernel/export.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_table.h>
 
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_hal.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_memory.h>
@@ -35,6 +35,12 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
     KernelModule(runtime) {
   ExportResolver* resolver = export_resolver_.get();
 
+  // Build the export table used for resolution.
+  #include <xenia/kernel/util/export_table_pre.inc>
+  static KernelExport xboxkrnl_export_table[] = {
+    #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_table.inc>
+  };
+  #include <xenia/kernel/util/export_table_post.inc>
   resolver->RegisterTable(
       "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
 

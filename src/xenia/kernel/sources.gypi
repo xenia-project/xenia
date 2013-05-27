@@ -17,5 +17,6 @@
   'includes': [
     'fs/sources.gypi',
     'modules/sources.gypi',
+    'util/sources.gypi',
   ],
 }

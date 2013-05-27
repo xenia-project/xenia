@@ -7,21 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_TABLE_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_TABLE_H_
-
-#include <xenia/kernel/export.h>
+// This is a partial file designed to be included by other files when
+// constructing various tables.
 
 
-namespace xe {
-namespace kernel {
-namespace xboxkrnl {
-
-
-#define FLAG(t)             kXEKernelExportFlag##t
-
-
-static KernelExport xboxkrnl_export_table[] = {
 XE_DECLARE_EXPORT(xboxkrnl, 0x00000001, DbgBreakPoint,                                              ?           , Function, 0),
 XE_DECLARE_EXPORT(xboxkrnl, 0x00000002, DbgBreakPointWithStatus,                                    ?           , Function, 0),
 XE_DECLARE_EXPORT(xboxkrnl, 0x00000003, DbgPrint,                                                   ?           , Function, 0),
@@ -881,15 +870,3 @@ XE_DECLARE_EXPORT(xboxkrnl, 0x00000358, XAudioSetDuckerHoldTime,                
 XE_DECLARE_EXPORT(xboxkrnl, 0x00000359, DevAuthShouldAlwaysEnforce,                                 ?           , Function, 0),
 XE_DECLARE_EXPORT(xboxkrnl, 0x0000035A, XAudioGetUnderrunCount,                                     ?           , Function, 0),
 XE_DECLARE_EXPORT(xboxkrnl, 0x0000035C, XVoicedIsActiveProcess,                                     ?           , Function, 0),
-};
-
-
-#undef FLAG
-
-
-}  // namespace xboxkrnl
-}  // namespace kernel
-}  // namespace xe
-
-
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_TABLE_H_
