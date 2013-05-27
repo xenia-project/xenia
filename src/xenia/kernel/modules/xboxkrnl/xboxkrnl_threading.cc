@@ -58,8 +58,13 @@ namespace xboxkrnl {
 // }
 
 
-SHIM_CALL ExCreateThread_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+X_STATUS xeExCreateThread(
+    uint32_t* handle_ptr, uint32_t stack_size, uint32_t* thread_id_ptr,
+    uint32_t xapi_thread_startup,
+    uint32_t start_address, uint32_t start_context, uint32_t creation_flags) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // DWORD
   // LPHANDLE Handle,
   // DWORD    StackSize,
@@ -69,6 +74,30 @@ SHIM_CALL ExCreateThread_shim(
   // LPVOID   StartContext,
   // DWORD    CreationFlags // 0x80?
 
+  XThread* thread = new XThread(
+      state, stack_size, xapi_thread_startup, start_address, start_context,
+      creation_flags);
+
+  X_STATUS result_code = thread->Create();
+  if (XFAILED(result_code)) {
+    // Failed!
+    thread->Release();
+    XELOGE("Thread creation failed: %.8X", result_code);
+    return result_code;
+  }
+
+  if (handle_ptr) {
+    *handle_ptr = thread->handle();
+  }
+  if (thread_id_ptr) {
+    *thread_id_ptr = thread->thread_id();
+  }
+  return result_code;
+}
+
+
+SHIM_CALL ExCreateThread_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t stack_size = SHIM_GET_ARG_32(1);
   uint32_t thread_id_ptr = SHIM_GET_ARG_32(2);
@@ -87,37 +116,44 @@ SHIM_CALL ExCreateThread_shim(
       start_context,
       creation_flags);
 
-  XThread* thread = new XThread(
-      state, stack_size, xapi_thread_startup, start_address, start_context,
-      creation_flags);
+  uint32_t handle;
+  uint32_t thread_id;
+  X_STATUS result = xeExCreateThread(
+      &handle, stack_size, &thread_id, xapi_thread_startup,
+      start_address, start_context, creation_flags);
 
-  X_STATUS result_code = thread->Create();
-  if (XFAILED(result_code)) {
-    // Failed!
-    thread->Release();
-    XELOGE("Thread creation failed: %.8X", result_code);
-    SHIM_SET_RETURN(result_code);
-    return;
+  if (XSUCCEEDED(result)) {
+    if (handle_ptr) {
+      SHIM_SET_MEM_32(handle_ptr, handle);
+    }
+    if (thread_id_ptr) {
+      SHIM_SET_MEM_32(thread_id_ptr, thread_id);
+    }
   }
-
-  if (handle_ptr) {
-    SHIM_SET_MEM_32(handle_ptr, thread->handle());
-  }
-  if (thread_id_ptr) {
-    SHIM_SET_MEM_32(thread_id_ptr, thread->thread_id());
-  }
-  SHIM_SET_RETURN(result_code);
+  SHIM_SET_RETURN(result);
 }
 
 
-SHIM_CALL KeGetCurrentProcessType_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+uint32_t xeKeGetCurrentProcessType() {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // DWORD
 
   XELOGD(
       "KeGetCurrentProcessType()");
 
-  SHIM_SET_RETURN(X_PROCTYPE_USER);
+  return X_PROCTYPE_USER;
+}
+
+
+SHIM_CALL KeGetCurrentProcessType_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "KeGetCurrentProcessType()");
+
+  int result = xeKeGetCurrentProcessType();
+  SHIM_SET_RETURN(result);
 }
 
 
@@ -128,12 +164,11 @@ SHIM_CALL KeGetCurrentProcessType_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ms686801
-SHIM_CALL KeTlsAlloc_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
-  // DWORD
+uint32_t xeKeTlsAlloc() {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
 
-  XELOGD(
-      "KeTlsAlloc()");
+  // DWORD
 
   uint32_t tls_index;
 
@@ -148,25 +183,30 @@ SHIM_CALL KeTlsAlloc_shim(
   }
 #endif  // WIN32
 
-  SHIM_SET_RETURN(tls_index);
+  return tls_index;
+}
+
+
+SHIM_CALL KeTlsAlloc_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "KeTlsAlloc()");
+
+  uint32_t result = xeKeTlsAlloc();
+  SHIM_SET_RETURN(result);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ms686804
-SHIM_CALL KeTlsFree_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+int KeTlsFree(uint32_t tls_index) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // BOOL
   // _In_  DWORD dwTlsIndex
 
-  uint32_t tls_index = SHIM_GET_ARG_32(0);
-
-  XELOGD(
-      "KeTlsFree(%.8X)",
-      tls_index);
-
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
-    SHIM_SET_RETURN(0);
-    return;
+    return 0;
   }
 
   int result_code = 0;
@@ -177,21 +217,30 @@ SHIM_CALL KeTlsFree_shim(
   result_code = pthread_key_delete(tls_index) == 0;
 #endif  // WIN32
 
-  SHIM_SET_RETURN(result_code);
+  return result_code;
+}
+
+
+SHIM_CALL KeTlsFree_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t tls_index = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeTlsFree(%.8X)",
+      tls_index);
+
+  int result = xeKeTlsAlloc();
+  SHIM_SET_RETURN(result);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ms686812
-SHIM_CALL KeTlsGetValue_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+uint32_t xeKeTlsGetValue(uint32_t tls_index) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // LPVOID
   // _In_  DWORD dwTlsIndex
-
-  uint32_t tls_index = SHIM_GET_ARG_32(0);
-
-  XELOGD(
-      "KeTlsGetValue(%.8X)",
-      tls_index);
 
   uint32_t value = 0;
 
@@ -206,23 +255,31 @@ SHIM_CALL KeTlsGetValue_shim(
     // TODO(benvanik): SetLastError
   }
 
-  SHIM_SET_RETURN(value);
+  return value;
+}
+
+
+SHIM_CALL KeTlsGetValue_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t tls_index = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeTlsGetValue(%.8X)",
+      tls_index);
+
+  uint32_t result = xeKeTlsGetValue(tls_index);
+  SHIM_SET_RETURN(result);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ms686818
-SHIM_CALL KeTlsSetValue_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // BOOL
   // _In_      DWORD dwTlsIndex,
   // _In_opt_  LPVOID lpTlsValue
-
-  uint32_t tls_index = SHIM_GET_ARG_32(0);
-  uint32_t tls_value = SHIM_GET_ARG_32(1);
-
-  XELOGD(
-      "KeTlsSetValue(%.8X, %.8X)",
-      tls_index, tls_value);
 
   int result_code = 0;
 
@@ -232,7 +289,21 @@ SHIM_CALL KeTlsSetValue_shim(
   result_code = pthread_setspecific(tls_index, (void*)tls_value) == 0;
 #endif  // WIN32
 
-  SHIM_SET_RETURN(result_code);
+  return result_code;
+}
+
+
+SHIM_CALL KeTlsSetValue_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t tls_index = SHIM_GET_ARG_32(0);
+  uint32_t tls_value = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "KeTlsSetValue(%.8X, %.8X)",
+      tls_index, tls_value);
+
+  int result = xeKeTlsSetValue(tls_index, tls_value);
+  SHIM_SET_RETURN(result);
 }
 
 

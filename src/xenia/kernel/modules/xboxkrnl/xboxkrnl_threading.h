@@ -21,7 +21,17 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+X_STATUS xeExCreateThread(
+    uint32_t* handle_ptr, uint32_t stack_size, uint32_t* thread_id_ptr,
+    uint32_t xapi_thread_startup,
+    uint32_t start_address, uint32_t start_context, uint32_t creation_flags);
 
+uint32_t xeKeGetCurrentProcessType();
+
+uint32_t xeKeTlsAlloc();
+int KeTlsFree(uint32_t tls_index);
+uint32_t xeKeTlsGetValue(uint32_t tls_index);
+int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value);
 
 
 }  // namespace xboxkrnl
