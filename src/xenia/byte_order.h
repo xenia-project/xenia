@@ -47,6 +47,31 @@
 #endif
 
 
+#if XE_CPU(BIGENDIAN)
+#define XESWAPF32BE(p)                  (p)
+#define XESWAPF64BE(p)                  (p)
+XEFORCEINLINE float XESWAPF32LE(float value) {
+  uint32_t dummy = XESWAP32LE(*reinterpret_cast<uint32_t *>(&value));
+  return *reinterpret_cast<float *>(&dummy);
+}
+XEFORCEINLINE double XESWAPF64LE(double value) {
+  uint64_t dummy = XESWAP64LE(*reinterpret_cast<uint64_t *>(&value));
+  return *reinterpret_cast<double *>(&dummy);
+}
+#else
+XEFORCEINLINE float XESWAPF32BE(float value) {
+  uint32_t dummy = XESWAP32BE(*reinterpret_cast<uint32_t *>(&value));
+  return *reinterpret_cast<float *>(&dummy);
+}
+XEFORCEINLINE double XESWAPF64BE(double value) {
+  uint64_t dummy = XESWAP64BE(*reinterpret_cast<uint64_t *>(&value));
+  return *reinterpret_cast<double *>(&dummy);
+}
+#define XESWAPF32LE(p)                  (p)
+#define XESWAPF64LE(p)                  (p)
+#endif
+
+
 #define XEGETINT8BE(p)                  (  (int8_t)(*(p)))
 #define XEGETUINT8BE(p)                 ( (uint8_t)(*(p)))
 #define XEGETINT16BE(p)                 ( (int16_t)XESWAP16BE(*(uint16_t*)(p)))
