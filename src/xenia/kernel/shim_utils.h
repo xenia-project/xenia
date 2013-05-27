@@ -49,6 +49,11 @@ namespace kernel {
 
 #define IMPL_MEM_ADDR(a)      (a==0?NULL:xe_memory_addr(state->memory(), a))
 
+#define IMPL_MEM_16(a)        (uint16_t)XEGETUINT16BE(IMPL_MEM_ADDR(a));
+#define IMPL_MEM_32(a)        (uint32_t)XEGETUINT32BE(IMPL_MEM_ADDR(a));
+#define IMPL_SET_MEM_16(a, v) (*(uint16_t*)IMPL_MEM_ADDR(a)) = XESWAP16(v)
+#define IMPL_SET_MEM_32(a, v) (*(uint32_t*)IMPL_MEM_ADDR(a)) = XESWAP32(v)
+
 
 }  // namespace kernel
 }  // namespace xe

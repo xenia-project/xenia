@@ -166,12 +166,25 @@ SHIM_CALL RtlFillMemoryUlong_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff561918
-SHIM_CALL RtlInitAnsiString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+void xeRtlInitAnsiString(uint32_t destination_ptr, uint32_t source_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Out_     PANSI_STRING DestinationString,
   // _In_opt_  PCSZ SourceString
 
+  const char* source = source_ptr ? (char*)IMPL_MEM_ADDR(source_ptr) : NULL;
+
+  uint16_t length = source ? (uint16_t)xestrlena(source) : 0;
+  IMPL_SET_MEM_16(destination_ptr + 2, length * 2);
+  IMPL_SET_MEM_16(destination_ptr + 0, length * 2);
+  IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
+}
+
+
+SHIM_CALL RtlInitAnsiString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
@@ -179,30 +192,35 @@ SHIM_CALL RtlInitAnsiString_shim(
   XELOGD("RtlInitAnsiString(%.8X, %.8X = %s)",
          destination_ptr, source_ptr, source ? source : "<null>");
 
-  uint16_t length = source ? (uint16_t)xestrlena(source) : 0;
-  SHIM_SET_MEM_16(destination_ptr + 0, length * 2);
-  SHIM_SET_MEM_16(destination_ptr + 2, length * 2);
-  SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
+  xeRtlInitAnsiString(destination_ptr, source_ptr);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ff561899
-SHIM_CALL RtlFreeAnsiString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+void xeRtlFreeAnsiString(uint32_t string_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Inout_  PANSI_STRING AnsiString
-
-  uint32_t string_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("RtlFreeAnsiString(%.8X)", string_ptr);
 
   //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
   // TODO(benvanik): free the buffer
   XELOGE("RtlFreeAnsiString leaking buffer");
 
-  SHIM_SET_MEM_16(string_ptr + 0, 0);
-  SHIM_SET_MEM_16(string_ptr + 2, 0);
-  SHIM_SET_MEM_32(string_ptr + 4, 0);
+  IMPL_SET_MEM_16(string_ptr + 0, 0);
+  IMPL_SET_MEM_16(string_ptr + 2, 0);
+  IMPL_SET_MEM_32(string_ptr + 4, 0);
+}
+
+
+SHIM_CALL RtlFreeAnsiString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t string_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("RtlFreeAnsiString(%.8X)", string_ptr);
+
+  xeRtlFreeAnsiString(string_ptr);
 }
 
 
@@ -214,12 +232,26 @@ SHIM_CALL RtlFreeAnsiString_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff561934
-SHIM_CALL RtlInitUnicodeString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+void xeRtlInitUnicodeString(uint32_t destination_ptr, uint32_t source_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Out_     PUNICODE_STRING DestinationString,
   // _In_opt_  PCWSTR SourceString
 
+  const wchar_t* source =
+      source_ptr ? (const wchar_t*)IMPL_MEM_ADDR(source_ptr) : NULL;
+
+  uint16_t length = source ? (uint16_t)xestrlenw(source) : 0;
+  IMPL_SET_MEM_16(destination_ptr + 0, length * 2);
+  IMPL_SET_MEM_16(destination_ptr + 2, length * 2);
+  IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
+}
+
+
+SHIM_CALL RtlInitUnicodeString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
@@ -228,41 +260,66 @@ SHIM_CALL RtlInitUnicodeString_shim(
   XELOGD("RtlInitUnicodeString(%.8X, %.8X = %ls)",
          destination_ptr, source_ptr, source ? source : L"<null>");
 
-  uint16_t length = source ? (uint16_t)xestrlenw(source) : 0;
-  SHIM_SET_MEM_16(destination_ptr + 0, length * 2);
-  SHIM_SET_MEM_16(destination_ptr + 2, length * 2);
-  SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
+  xeRtlInitUnicodeString(destination_ptr, source_ptr);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ff561903
-SHIM_CALL RtlFreeUnicodeString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+void xeRtlFreeUnicodeString(uint32_t string_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Inout_  PUNICODE_STRING UnicodeString
 
+  //uint32_t buffer = IMPL_MEM_32(string_ptr + 4);
+  // TODO(benvanik): free the buffer
+  XELOGE("RtlFreeUnicodeString leaking buffer");
+
+  IMPL_SET_MEM_16(string_ptr + 0, 0);
+  IMPL_SET_MEM_16(string_ptr + 2, 0);
+  IMPL_SET_MEM_32(string_ptr + 4, 0);
+}
+
+
+SHIM_CALL RtlFreeUnicodeString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t string_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlFreeUnicodeString(%.8X)", string_ptr);
 
-  //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
-  // TODO(benvanik): free the buffer
-  XELOGE("RtlFreeUnicodeString leaking buffer");
-
-  SHIM_SET_MEM_16(string_ptr + 0, 0);
-  SHIM_SET_MEM_16(string_ptr + 2, 0);
-  SHIM_SET_MEM_32(string_ptr + 4, 0);
+  xeRtlFreeUnicodeString(string_ptr);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ff562969
-SHIM_CALL RtlUnicodeStringToAnsiString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+X_STATUS xeRtlUnicodeStringToAnsiString(
+    uint32_t destination_ptr, uint32_t source_ptr, uint32_t alloc_dest) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // NTSTATUS
   // _Inout_  PANSI_STRING DestinationString,
   // _In_     PCUNICODE_STRING SourceString,
   // _In_     BOOLEAN AllocateDestinationString
 
+  XELOGE("RtlUnicodeStringToAnsiString not yet implemented");
+  XEASSERTALWAYS();
+
+  if (alloc_dest) {
+    // Allocate a new buffer to place the string into.
+    //IMPL_SET_MEM_32(destination_ptr + 4, buffer_ptr);
+  } else {
+    // Reuse the buffer in the target.
+    //uint32_t buffer_size = IMPL_MEM_16(destination_ptr + 2);
+  }
+
+  return X_STATUS_UNSUCCESSFUL;
+}
+
+
+SHIM_CALL RtlUnicodeStringToAnsiString_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
   uint32_t alloc_dest = SHIM_GET_ARG_32(2);
@@ -270,26 +327,48 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(
   XELOGD("RtlUnicodeStringToAnsiString(%.8X, %.8X, %d)",
          destination_ptr, source_ptr, alloc_dest);
 
-  XELOGE("RtlUnicodeStringToAnsiString not yet implemented");
+  X_STATUS result = xeRtlUnicodeStringToAnsiString(
+      destination_ptr, source_ptr, alloc_dest);
+  SHIM_SET_RETURN(result);
+}
 
-  if (alloc_dest) {
-    // Allocate a new buffer to place the string into.
-    //SHIM_SET_MEM_32(destination_ptr + 4, buffer_ptr);
-  } else {
-    // Reuse the buffer in the target.
-    //uint32_t buffer_size = SHIM_MEM_16(destination_ptr + 2);
+
+uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
+                                  uint32_t image_field) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  // PVOID
+  // PVOID XexHeaderBase
+  // DWORD ImageField
+
+  // NOTE: this is totally faked!
+  // We set the XexExecutableModuleHandle pointer to a block that has at offset
+  // 0x58 a pointer to our XexHeaderBase. If the value passed doesn't match
+  // then die.
+  // The only ImageField I've seen in the wild is
+  // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
+
+  XModule* module = NULL;
+
+  // TODO(benvanik): use xex_header_base to dereference this.
+  // Right now we are only concerned with games making this call on their main
+  // module, so this hack is fine.
+  module = state->GetExecutableModule();
+
+  const xe_xex2_header_t* xex_header = module->xex_header();
+  for (size_t n = 0; n < xex_header->header_count; n++) {
+    if (xex_header->headers[n].key == image_field) {
+      return xex_header->headers[n].value;
+    }
   }
 
-  SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);
+  return 0;
 }
 
 
 SHIM_CALL RtlImageXexHeaderField_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  // PVOID
-  // PVOID XexHeaderBase
-  // DWORD ImageField
-
   uint32_t xex_header_base    = SHIM_GET_ARG_32(0);
   uint32_t image_field        = SHIM_GET_ARG_32(1);
 
@@ -304,29 +383,8 @@ SHIM_CALL RtlImageXexHeaderField_shim(
       "RtlImageXexHeaderField(%.8X, %.8X)",
       xex_header_base, image_field);
 
-  if (xex_header_base != 0x80101100) {
-    XELOGE("RtlImageXexHeaderField with non-magic base NOT IMPLEMENTED");
-    SHIM_SET_RETURN(0);
-    return;
-  }
-
-  XModule* module = NULL;
-
-  // TODO(benvanik): use xex_header_base to dereference this.
-  // Right now we are only concerned with games making this call on their main
-  // module, so this hack is fine.
-  module = state->GetExecutableModule();
-
-  uint32_t return_value = 0;
-  const xe_xex2_header_t* xex_header = module->xex_header();
-  for (size_t n = 0; n < xex_header->header_count; n++) {
-    if (xex_header->headers[n].key == image_field) {
-      return_value = xex_header->headers[n].value;
-      break;
-    }
-  }
-
-  SHIM_SET_RETURN(return_value);
+  uint32_t result = xeRtlImageXexHeaderField(xex_header_base, image_field);
+  SHIM_SET_RETURN(result);
 }
 
 
@@ -365,16 +423,14 @@ typedef struct {
 
 XEASSERTSTRUCTSIZE(X_RTL_CRITICAL_SECTION, 28);
 
-SHIM_CALL RtlInitializeCriticalSection_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+void xeRtlInitializeCriticalSection(uint32_t cs_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Out_  LPCRITICAL_SECTION lpCriticalSection
 
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
-
-  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)IMPL_MEM_ADDR(cs_ptr);
   cs->unknown00           = 1;
   cs->spin_count_div_256  = 0;
   cs->lock_count          = -1;
@@ -383,52 +439,68 @@ SHIM_CALL RtlInitializeCriticalSection_shim(
 }
 
 
-SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
+SHIM_CALL RtlInitializeCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
+
+  xeRtlInitializeCriticalSection(cs_ptr);
+}
+
+
+X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(
+    uint32_t cs_ptr, uint32_t spin_count) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // NTSTATUS
   // _Out_  LPCRITICAL_SECTION lpCriticalSection,
   // _In_   DWORD dwSpinCount
 
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-  uint32_t spin_count = SHIM_GET_ARG_32(1);
-
-  XELOGD("RtlInitializeCriticalSectionAndSpinCount(%.8X, %d)",
-         cs_ptr, spin_count);
-
   // Spin count is rouned up to 256 intervals then packed in.
   //uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
   uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
-  if (spin_count_div_256 > 255)
-  {
+  if (spin_count_div_256 > 255) {
     spin_count_div_256 = 255;
   }
 
-  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)IMPL_MEM_ADDR(cs_ptr);
   cs->unknown00           = 1;
   cs->spin_count_div_256  = spin_count_div_256;
   cs->lock_count          = -1;
   cs->recursion_count     = 0;
   cs->owning_thread_id    = 0;
 
-  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+  return X_STATUS_SUCCESS;
 }
 
 
-SHIM_CALL RtlEnterCriticalSection_shim(
+SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+  uint32_t spin_count = SHIM_GET_ARG_32(1);
+
+  XELOGD("RtlInitializeCriticalSectionAndSpinCount(%.8X, %d)",
+         cs_ptr, spin_count);
+
+  X_STATUS result = xeRtlInitializeCriticalSectionAndSpinCount(
+      cs_ptr, spin_count);
+  SHIM_SET_RETURN(result);
+}
+
+
+// TODO(benvanik): remove the need for passing in thread_id.
+void xeRtlEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
 
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)IMPL_MEM_ADDR(cs_ptr);
 
-  XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
-
-  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-
-  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
-  uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
-
 spin:
   if (xe_atomic_inc_32(&cs->lock_count)) {
     // If this thread already owns the CS increment the recursion count.
@@ -454,47 +526,66 @@ spin:
 }
 
 
-SHIM_CALL RtlTryEnterCriticalSection_shim(
+SHIM_CALL RtlEnterCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  // DWORD
-  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
-
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
-
-  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
 
   const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
   uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
+
+  xeRtlEnterCriticalSection(cs_ptr, thread_id);
+}
+
+
+// TODO(benvanik): remove the need for passing in thread_id.
+uint32_t xeRtlTryEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  // DWORD
+  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
+
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)IMPL_MEM_ADDR(cs_ptr);
 
   if (xe_atomic_cas_32(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.
     cs->owning_thread_id  = thread_id;
     cs->recursion_count   = 1;
-    SHIM_SET_RETURN(1);
-    return;
+    return 1;
   } else if (cs->owning_thread_id == thread_id) {
     xe_atomic_inc_32(&cs->lock_count);
     ++cs->recursion_count;
-    SHIM_SET_RETURN(1);
-    return;
+    return 1;
   }
 
-  SHIM_SET_RETURN(0);
+  return 0;
 }
 
 
-SHIM_CALL RtlLeaveCriticalSection_shim(
+SHIM_CALL RtlTryEnterCriticalSection_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
+
+  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
+  uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
+
+  uint32_t result = xeRtlTryEnterCriticalSection(cs_ptr, thread_id);
+  SHIM_SET_RETURN(result);
+}
+
+
+void xeRtlLeaveCriticalSection(uint32_t cs_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
 
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
-
-  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)IMPL_MEM_ADDR(cs_ptr);
 
   // Drop recursion count - if we are still not zero'ed return.
   uint32_t recursion_count = --cs->recursion_count;
@@ -510,6 +601,16 @@ SHIM_CALL RtlLeaveCriticalSection_shim(
     // TODO(benvanik): wake a waiter.
     XELOGE("RtlLeaveCriticalSection would have woken a waiter");
   }
+}
+
+
+SHIM_CALL RtlLeaveCriticalSection_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
+
+  xeRtlLeaveCriticalSection(cs_ptr);
 }
 
 
