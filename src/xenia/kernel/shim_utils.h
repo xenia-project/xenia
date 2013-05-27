@@ -30,7 +30,7 @@ namespace kernel {
       (xe_kernel_export_shim_fn)export_name##_shim, \
       NULL);
 
-#define SHIM_MEM_ADDR(a)      (ppc_state->membase + a)
+#define SHIM_MEM_ADDR(a)      (a==NULL?NULL:(ppc_state->membase + a))
 
 #define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a));
 #define SHIM_MEM_32(a)        (uint32_t)XEGETUINT32BE(SHIM_MEM_ADDR(a));
@@ -47,7 +47,7 @@ namespace kernel {
 #define SHIM_SET_RETURN(v)    SHIM_SET_GPR_64(3, v)
 
 
-#define IMPL_MEM_ADDR(a)      xe_memory_addr(state->memory(), a)
+#define IMPL_MEM_ADDR(a)      (a==0?NULL:xe_memory_addr(state->memory(), a))
 
 
 }  // namespace kernel
