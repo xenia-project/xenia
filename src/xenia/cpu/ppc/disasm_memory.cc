@@ -81,13 +81,19 @@ XEDISASMR(ldu,          0xE8000001, DS )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(ldux,         0x7C00006A, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("ldux", "Load Doubleword with Update Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(ldx,          0x7C00002A, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("ldx", "Load Doubleword Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(lha,          0xA8000000, D  )(InstrData& i, InstrDisasm& d) {

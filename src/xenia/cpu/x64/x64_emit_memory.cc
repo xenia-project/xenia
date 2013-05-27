@@ -132,13 +132,37 @@ XEEMITTER(ldu,          0xE8000001, DS )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(ldux,         0x7C00006A, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + (RB)
+  // RT <- MEM(EA, 8)
+  // RA <- EA
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RA));
+  c.add(ea, e.gpr_value(i.X.RB));
+  e.update_gpr_value(i.X.RA, ea);
+  GpVar v = e.ReadMemory(i.address, ea, 8, false);
+  e.update_gpr_value(i.X.RT, v);
+
+  return 0;
 }
 
 XEEMITTER(ldx,          0x7C00002A, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- MEM(EA, 8)
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 8, false);
+  e.update_gpr_value(i.X.RT, v);
+
+  return 0;
 }
 
 XEEMITTER(lha,          0xA8000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
