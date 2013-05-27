@@ -142,7 +142,7 @@ int ExecModule::Init() {
         *slot = XESWAP32BE(kernel_export->variable_ptr);
       } else {
         // Not implemented - write with a dummy value.
-        *slot = XESWAP32BE(0xDEADBEEF);
+        *slot = XESWAP32BE(0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
         XELOGCPU("WARNING: imported a variable with no value: %s",
                  kernel_export->name);
       }
