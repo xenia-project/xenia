@@ -17,6 +17,13 @@
 #include <xenia/kernel/kernel_module.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_ordinals.h>
 
+// All of the exported functions:
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_hal.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_memory.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_module.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_rtl.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_threading.h>
+
 
 namespace xe {
 namespace kernel {

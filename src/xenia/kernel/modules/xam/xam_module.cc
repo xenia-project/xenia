@@ -10,12 +10,16 @@
 #include <xenia/kernel/modules/xam/xam_module.h>
 
 #include <xenia/kernel/export.h>
-#include <xenia/kernel/modules/xam/xam_info.h>
+#include <xenia/kernel/modules/xam/xam_private.h>
+#include <xenia/kernel/modules/xam/xam_state.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::xam;
+
+
+XamState* xe::kernel::xam::shared_xam_state_ = NULL;
 
 
 XamModule::XamModule(Runtime* runtime) :
@@ -32,9 +36,15 @@ XamModule::XamModule(Runtime* runtime) :
   // Setup the xam state instance.
   xam_state = auto_ptr<XamState>(new XamState(memory_, export_resolver_));
 
+  // Setup the shared global state object.
+  XEASSERTNULL(shared_xam_state_);
+  shared_xam_state_ = xam_state.get();
+
   // Register all exported functions.
   RegisterInfoExports(export_resolver_.get(), xam_state.get());
 }
 
 XamModule::~XamModule() {
+  // Clear the shared XAM state.
+  shared_xam_state_ = NULL;
 }

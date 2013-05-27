@@ -10,8 +10,10 @@
 #ifndef XENIA_KERNEL_MODULES_XBOXKRNL_MEMORY_H_
 #define XENIA_KERNEL_MODULES_XBOXKRNL_MEMORY_H_
 
-#include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_ordinals.h>
+#include <xenia/common.h>
+#include <xenia/core.h>
+
+#include <xenia/kernel/xbox.h>
 
 
 namespace xe {
@@ -24,8 +26,9 @@ X_STATUS xeNtAllocateVirtualMemory(
     uint32_t allocation_type, uint32_t protect_bits,
     uint32_t unknown);
 
-
-void RegisterMemoryExports(ExportResolver* export_resolver, KernelState* state);
+X_STATUS xeNtFreeVirtualMemory(
+    uint32_t* base_addr_ptr, uint32_t* region_size_ptr,
+    uint32_t free_type, uint32_t unknown);
 
 
 }  // namespace xboxkrnl

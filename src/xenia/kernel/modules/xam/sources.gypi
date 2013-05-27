@@ -6,6 +6,7 @@
     'xam_module.cc',
     'xam_module.h',
     'xam_ordinals.h',
+    'xam_private.h',
     'xam_state.cc',
     'xam_state.h',
     'xam_table.inc',

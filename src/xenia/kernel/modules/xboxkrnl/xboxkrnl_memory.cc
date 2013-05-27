@@ -10,7 +10,7 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_memory.h>
 
 #include <xenia/kernel/shim_utils.h>
-#include <xenia/kernel/xbox.h>
+#include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 
 
@@ -113,14 +113,40 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
   SHIM_SET_RETURN(result);
 }
 
-SHIM_CALL NtFreeVirtualMemory_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+X_STATUS xeNtFreeVirtualMemory(
+    uint32_t* base_addr_ptr, uint32_t* region_size_ptr,
+    uint32_t free_type, uint32_t unknown) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
   // _Inout_  PSIZE_T RegionSize,
   // _In_     ULONG FreeType
   // ? handle?
 
+  // I've only seen zero.
+  XEASSERT(unknown == 0);
+
+  if (!*base_addr_ptr) {
+    return X_STATUS_MEMORY_NOT_ALLOCATED;
+  }
+
+  // Free.
+  uint32_t flags = 0;
+  uint32_t freed_size = xe_memory_heap_free(state->memory(), *base_addr_ptr,
+                                            flags);
+  if (!freed_size) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  // Stash back.
+  *region_size_ptr = freed_size;
+  return X_STATUS_SUCCESS;
+}
+
+SHIM_CALL NtFreeVirtualMemory_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t base_addr_ptr      = SHIM_GET_ARG_32(0);
   uint32_t base_addr_value    = SHIM_MEM_32(base_addr_ptr);
   uint32_t region_size_ptr    = SHIM_GET_ARG_32(1);
@@ -129,33 +155,21 @@ SHIM_CALL NtFreeVirtualMemory_shim(
   uint32_t free_type          = SHIM_GET_ARG_32(2);
   uint32_t unknown            = SHIM_GET_ARG_32(3);
 
-  // I've only seen zero.
-  XEASSERT(unknown == 0);
-
   XELOGD(
       "NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)",
       base_addr_ptr, base_addr_value,
       region_size_ptr, region_size_value,
       free_type, unknown);
 
-  if (!base_addr_value) {
-    SHIM_SET_RETURN(X_STATUS_MEMORY_NOT_ALLOCATED);
-    return;
-  }
+  X_STATUS result = xeNtFreeVirtualMemory(
+      &base_addr_value, &region_size_value,
+      free_type, unknown);
 
-  // Free.
-  uint32_t flags = 0;
-  uint32_t freed_size = xe_memory_heap_free(state->memory(), base_addr_value,
-                                            flags);
-  if (!freed_size) {
-    SHIM_SET_RETURN(X_STATUS_UNSUCCESSFUL);
-    return;
+  if (XSUCCEEDED(result)) {
+    SHIM_SET_MEM_32(base_addr_ptr, base_addr_value);
+    SHIM_SET_MEM_32(region_size_ptr, region_size_value);
   }
-
-  // Stash back.
-  SHIM_SET_MEM_32(base_addr_ptr, base_addr_value);
-  SHIM_SET_MEM_32(region_size_ptr, freed_size);
-  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+  SHIM_SET_RETURN(result);
 }
 
 

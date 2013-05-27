@@ -10,8 +10,9 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_module.h>
 
 #include <xenia/kernel/shim_utils.h>
-#include <xenia/kernel/xbox.h>
 #include <xenia/kernel/xex2.h>
+#include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
 

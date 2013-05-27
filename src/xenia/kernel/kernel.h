@@ -11,5 +11,6 @@
 #define XENIA_KERNEL_KERNEL_H_
 
 #include <xenia/kernel/runtime.h>
+#include <xenia/kernel/modules/modules.h>
 
 #endif  // XENIA_KERNEL_KERNEL_H_

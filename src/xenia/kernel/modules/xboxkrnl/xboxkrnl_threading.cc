@@ -10,7 +10,8 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_threading.h>
 
 #include <xenia/kernel/shim_utils.h>
-#include <xenia/kernel/xbox.h>
+#include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 

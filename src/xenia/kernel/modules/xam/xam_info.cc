@@ -10,8 +10,8 @@
 #include <xenia/kernel/modules/xam/xam_info.h>
 
 #include <xenia/kernel/shim_utils.h>
-#include <xenia/kernel/xbox.h>
-#include <xenia/kernel/modules/xam/xam_module.h>
+#include <xenia/kernel/modules/xam/xam_private.h>
+#include <xenia/kernel/modules/xam/xam_state.h>
 
 
 using namespace xe;

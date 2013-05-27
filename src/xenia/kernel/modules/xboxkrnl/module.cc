@@ -16,12 +16,6 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_hal.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_memory.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_module.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_rtl.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_threading.h>
-
 
 using namespace xe;
 using namespace xe::kernel;

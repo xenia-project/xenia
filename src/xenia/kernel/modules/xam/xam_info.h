@@ -10,8 +10,10 @@
 #ifndef XENIA_KERNEL_MODULES_XAM_INFO_H_
 #define XENIA_KERNEL_MODULES_XAM_INFO_H_
 
-#include <xenia/kernel/modules/xam/xam_state.h>
-#include <xenia/kernel/modules/xam/xam_ordinals.h>
+#include <xenia/common.h>
+#include <xenia/core.h>
+
+#include <xenia/kernel/xbox.h>
 
 
 namespace xe {
@@ -19,7 +21,6 @@ namespace kernel {
 namespace xam {
 
 
-void RegisterInfoExports(ExportResolver* export_resolver, XamState* state);
 
 
 }  // namespace xam

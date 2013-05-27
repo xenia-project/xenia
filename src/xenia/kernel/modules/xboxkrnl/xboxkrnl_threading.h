@@ -10,8 +10,10 @@
 #ifndef XENIA_KERNEL_MODULES_XBOXKRNL_THREADING_H_
 #define XENIA_KERNEL_MODULES_XBOXKRNL_THREADING_H_
 
-#include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_ordinals.h>
+#include <xenia/common.h>
+#include <xenia/core.h>
+
+#include <xenia/kernel/xbox.h>
 
 
 namespace xe {
@@ -19,8 +21,7 @@ namespace kernel {
 namespace xboxkrnl {
 
 
-void RegisterThreadingExports(ExportResolver* export_resolver,
-                              KernelState* state);
+
 
 
 }  // namespace xboxkrnl
