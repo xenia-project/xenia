@@ -139,9 +139,9 @@ XEEMITTER(ldux,         0x7C00006A, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar ea(c.newGpVar());
   c.mov(ea, e.gpr_value(i.X.RA));
   c.add(ea, e.gpr_value(i.X.RB));
-  e.update_gpr_value(i.X.RA, ea);
   GpVar v = e.ReadMemory(i.address, ea, 8, false);
   e.update_gpr_value(i.X.RT, v);
+  e.update_gpr_value(i.X.RA, ea);
 
   return 0;
 }
