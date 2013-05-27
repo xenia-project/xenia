@@ -883,274 +883,333 @@ XEEMITTER(lfd,          0xC8000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   return 0;
 }
 
-// XEEMITTER(lfdu,         0xCC000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + EXTS(D)
-//   // FRT <- MEM(EA, 8)
-//   // RA <- EA
+XEEMITTER(lfdu,         0xCC000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // FRT <- MEM(EA, 8)
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.D.RA), e.get_int64(XEEXTS16(i.D.DS)));
-//   GpVar v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, jit_type_float64);
-//   e.update_fpr_value(i.D.RT, v);
-//   e.update_gpr_value(i.D.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.D.RA));
+  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  GpVar v = e.ReadMemory(i.address, ea, 8, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.save(v); // Force to memory.
+  c.movq(xmm_v, v.m64());
+  e.update_fpr_value(i.D.RT, xmm_v);
+  e.update_gpr_value(i.D.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(lfdux,        0x7C0004EE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + (RB)
-//   // FRT <- MEM(EA, 8)
-//   // RA <- EA
+XEEMITTER(lfdux,        0x7C0004EE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + (RB)
+  // FRT <- MEM(EA, 8)
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   GpVar v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, jit_type_float64);
-//   e.update_fpr_value(i.X.RT, v);
-//   e.update_gpr_value(i.X.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RA));
+  c.add(ea, e.gpr_value(i.X.RB));
+  GpVar v = e.ReadMemory(i.address, ea, 8, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.save(v); // Force to memory.
+  c.movq(xmm_v, v.m64());
+  e.update_fpr_value(i.X.RT, xmm_v);
+  e.update_gpr_value(i.X.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(lfdx,         0x7C0004AE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + (RB)
-//   // FRT <- MEM(EA, 8)
+XEEMITTER(lfdx,         0x7C0004AE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // FRT <- MEM(EA, 8)
 
-//   GpVar ea = e.gpr_value(i.X.RB);
-//   if (i.X.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.X.RA), ea);
-//   }
-//   GpVar v = e.ReadMemory(i.address, ea, 8, false);
-//   v = b.CreateBitCast(v, jit_type_float64);
-//   e.update_fpr_value(i.X.RT, v);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 8, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.save(v); // Force to memory.
+  c.movq(xmm_v, v.m64());
+  e.update_fpr_value(i.X.RT, xmm_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(lfs,          0xC0000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + EXTS(D)
-//   // FRT <- DOUBLE(MEM(EA, 4))
+XEEMITTER(lfs,          0xC0000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // FRT <- DOUBLE(MEM(EA, 4))
 
-//   GpVar ea = e.get_int64(XEEXTS16(i.D.DS));
-//   if (i.D.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.D.RA), ea);
-//   }
-//   GpVar v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
-//   e.update_fpr_value(i.D.RT, v);
+  GpVar ea(c.newGpVar());
+  if (i.D.RA) {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+  } else {
+    c.mov(ea, imm(XEEXTS16(i.D.DS)));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 4, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.movd(xmm_v, v.r32());
+  c.cvtss2sd(xmm_v, xmm_v);
+  e.update_fpr_value(i.D.RT, xmm_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(lfsu,         0xC4000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + EXTS(D)
-//   // FRT <- DOUBLE(MEM(EA, 4))
-//   // RA <- EA
+XEEMITTER(lfsu,         0xC4000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // FRT <- DOUBLE(MEM(EA, 4))
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.D.RA), e.get_int64(XEEXTS16(i.D.DS)));
-//   GpVar v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
-//   e.update_fpr_value(i.D.RT, v);
-//   e.update_gpr_value(i.D.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.D.RA));
+  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  GpVar v = e.ReadMemory(i.address, ea, 4, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.movd(xmm_v, v.r32());
+  c.cvtss2sd(xmm_v, xmm_v);
+  e.update_fpr_value(i.D.RT, xmm_v);
+  e.update_gpr_value(i.D.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(lfsux,        0x7C00046E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + (RB)
-//   // FRT <- DOUBLE(MEM(EA, 4))
-//   // RA <- EA
+XEEMITTER(lfsux,        0x7C00046E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + (RB)
+  // FRT <- DOUBLE(MEM(EA, 4))
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   GpVar v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
-//   e.update_fpr_value(i.X.RT, v);
-//   e.update_gpr_value(i.X.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RA));
+  c.add(ea, e.gpr_value(i.X.RB));
+  GpVar v = e.ReadMemory(i.address, ea, 4, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.movd(xmm_v, v.r32());
+  c.cvtss2sd(xmm_v, xmm_v);
+  e.update_fpr_value(i.X.RT, xmm_v);
+  e.update_gpr_value(i.X.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(lfsx,         0x7C00042E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + (RB)
-//   // FRT <- DOUBLE(MEM(EA, 4))
+XEEMITTER(lfsx,         0x7C00042E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // FRT <- DOUBLE(MEM(EA, 4))
 
-//   GpVar ea = e.gpr_value(i.X.RB);
-//   if (i.X.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.X.RA), ea);
-//   }
-//   GpVar v = e.ReadMemory(i.address, ea, 4, false);
-//   v = b.CreateFPExt(b.CreateBitCast(v, b.getFloatTy()), jit_type_float64);
-//   e.update_fpr_value(i.X.RT, v);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 4, false);
+  XmmVar xmm_v(c.newXmmVar());
+  c.movd(xmm_v, v.r32());
+  c.cvtss2sd(xmm_v, xmm_v);
+  e.update_fpr_value(i.X.RT, xmm_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
 
 // Floating-point store (A-20)
 
-// XEEMITTER(stfd,         0xD8000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + EXTS(D)
-//   // MEM(EA, 8) <- (FRS)
+XEEMITTER(stfd,         0xD8000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // MEM(EA, 8) <- (FRS)
 
-//   GpVar ea = e.get_int64(XEEXTS16(i.D.DS));
-//   if (i.D.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.D.RA), ea);
-//   }
-//   GpVar v = e.fpr_value(i.D.RT);
-//   v = b.CreateBitCast(v, jit_type_nint);
-//   e.WriteMemory(i.address, ea, 8, v);
+  GpVar ea(c.newGpVar());
+  if (i.D.RA) {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+  } else {
+    c.mov(ea, imm(XEEXTS16(i.D.DS)));
+  }
+  XmmVar v = e.fpr_value(i.D.RT);
+  GpVar gpr_v(c.newGpVar());
+  c.save(gpr_v); // Force to memory.
+  c.movq(gpr_v.m64(), v);
+  e.WriteMemory(i.address, ea, 8, gpr_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfdu,        0xDC000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + EXTS(D)
-//   // MEM(EA, 8) <- (FRS)
-//   // RA <- EA
+XEEMITTER(stfdu,        0xDC000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // MEM(EA, 8) <- (FRS)
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.D.RA),
-//                           e.get_int64(XEEXTS16(i.D.DS)));
-//   GpVar v = e.fpr_value(i.D.RT);
-//   v = b.CreateBitCast(v, jit_type_nint);
-//   e.WriteMemory(i.address, ea, 8, v);
-//   e.update_gpr_value(i.D.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.D.RA));
+  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  XmmVar v = e.fpr_value(i.D.RT);
+  GpVar gpr_v(c.newGpVar());
+  c.save(gpr_v); // Force to memory.
+  c.movq(gpr_v.m64(), v);
+  e.WriteMemory(i.address, ea, 8, gpr_v);
+  e.update_gpr_value(i.D.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfdux,       0x7C0005EE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + (RB)
-//   // MEM(EA, 8) <- (FRS)
-//   // RA <- EA
+XEEMITTER(stfdux,       0x7C0005EE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + (RB)
+  // MEM(EA, 8) <- (FRS)
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   GpVar v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(v, jit_type_nint);
-//   e.WriteMemory(i.address, ea, 8, v);
-//   e.update_gpr_value(i.X.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RA));
+  c.add(ea, e.gpr_value(i.X.RB));
+  XmmVar v = e.fpr_value(i.X.RT);
+  GpVar gpr_v(c.newGpVar());
+  c.save(gpr_v); // Force to memory.
+  c.movq(gpr_v.m64(), v);
+  e.WriteMemory(i.address, ea, 8, gpr_v);
+  e.update_gpr_value(i.X.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfdx,        0x7C0005AE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + (RB)
-//   // MEM(EA, 8) <- (FRS)
+XEEMITTER(stfdx,        0x7C0005AE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 8) <- (FRS)
 
-//   GpVar ea = e.gpr_value(i.X.RB);
-//   if (i.X.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.X.RA), ea);
-//   }
-//   GpVar v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(v, jit_type_nint);
-//   e.WriteMemory(i.address, ea, 8, v);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  XmmVar v = e.fpr_value(i.X.RT);
+  GpVar gpr_v(c.newGpVar());
+  c.save(gpr_v); // Force to memory.
+  c.movq(gpr_v.m64(), v);
+  e.WriteMemory(i.address, ea, 8, gpr_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfiwx,       0x7C0007AE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + (RB)
-//   // MEM(EA, 4) <- (FRS)[32:63]
+XEEMITTER(stfiwx,       0x7C0007AE, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 4) <- (FRS)[32:63]
 
-//   GpVar ea = e.gpr_value(i.X.RB);
-//   if (i.X.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.D.RA), ea);
-//   }
-//   GpVar v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(v, jit_type_nint);
-//   e.WriteMemory(i.address, ea, 4, v);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  XmmVar v = e.fpr_value(i.X.RT);
+  GpVar gpr_v(c.newGpVar());
+  c.movd(gpr_v.r32(), v);
+  e.WriteMemory(i.address, ea, 4, gpr_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfs,         0xD0000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + EXTS(D)
-//   // MEM(EA, 4) <- SINGLE(FRS)
+XEEMITTER(stfs,         0xD0000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + EXTS(D)
+  // MEM(EA, 4) <- SINGLE(FRS)
 
-//   GpVar ea = e.get_int64(XEEXTS16(i.D.DS));
-//   if (i.D.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.D.RA), ea);
-//   }
-//   GpVar v = e.fpr_value(i.D.RT);
-//   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
-//   e.WriteMemory(i.address, ea, 4, v);
+  GpVar ea(c.newGpVar());
+  if (i.D.RA) {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+  } else {
+    c.mov(ea, imm(XEEXTS16(i.D.DS)));
+  }
+  XmmVar v = e.fpr_value(i.D.RT);
+  c.cvtsd2ss(v, v);
+  GpVar gpr_v(c.newGpVar());
+  c.movd(gpr_v.r32(), v);
+  e.WriteMemory(i.address, ea, 4, gpr_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfsu,        0xD4000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + EXTS(D)
-//   // MEM(EA, 4) <- SINGLE(FRS)
-//   // RA <- EA
+XEEMITTER(stfsu,        0xD4000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + EXTS(D)
+  // MEM(EA, 4) <- SINGLE(FRS)
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.D.RA),
-//                           e.get_int64(XEEXTS16(i.D.DS)));
-//   GpVar v = e.fpr_value(i.D.RT);
-//   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
-//   e.WriteMemory(i.address, ea, 4, v);
-//   e.update_gpr_value(i.D.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.D.RA));
+  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  XmmVar v = e.fpr_value(i.D.RT);
+  c.cvtsd2ss(v, v);
+  GpVar gpr_v(c.newGpVar());
+  c.movd(gpr_v.r32(), v);
+  e.WriteMemory(i.address, ea, 4, gpr_v);
+  e.update_gpr_value(i.D.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfsux,       0x7C00056E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // EA <- (RA) + (RB)
-//   // MEM(EA, 4) <- SINGLE(FRS)
-//   // RA <- EA
+XEEMITTER(stfsux,       0x7C00056E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + (RB)
+  // MEM(EA, 4) <- SINGLE(FRS)
+  // RA <- EA
 
-//   GpVar ea = jit_insn_add(f, e.gpr_value(i.X.RA), e.gpr_value(i.X.RB));
-//   GpVar v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
-//   e.WriteMemory(i.address, ea, 4, v);
-//   e.update_gpr_value(i.X.RA, ea);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RA));
+  c.add(ea, e.gpr_value(i.X.RB));
+  XmmVar v = e.fpr_value(i.X.RT);
+  c.cvtsd2ss(v, v);
+  GpVar gpr_v(c.newGpVar());
+  c.movd(gpr_v.r32(), v);
+  e.WriteMemory(i.address, ea, 4, gpr_v);
+  e.update_gpr_value(i.X.RA, ea);
 
-//   return 0;
-// }
+  return 0;
+}
 
-// XEEMITTER(stfsx,        0x7C00052E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-//   // if RA = 0 then
-//   //   b <- 0
-//   // else
-//   //   b <- (RA)
-//   // EA <- b + (RB)
-//   // MEM(EA, 4) <- SINGLE(FRS)
+XEEMITTER(stfsx,        0x7C00052E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 4) <- SINGLE(FRS)
 
-//   GpVar ea = e.gpr_value(i.X.RB);
-//   if (i.X.RA) {
-//     ea = jit_insn_add(f, e.gpr_value(i.X.RA), ea);
-//   }
-//   GpVar v = e.fpr_value(i.X.RT);
-//   v = b.CreateBitCast(b.CreateFPTrunc(v, b.getFloatTy()), b.getInt32Ty());
-//   e.WriteMemory(i.address, ea, 4, v);
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  XmmVar v = e.fpr_value(i.X.RT);
+  c.cvtsd2ss(v, v);
+  GpVar gpr_v(c.newGpVar());
+  c.movd(gpr_v.r32(), v);
+  e.WriteMemory(i.address, ea, 4, gpr_v);
 
-//   return 0;
-// }
+  return 0;
+}
 
 
 // Cache management (A-27)
@@ -1249,22 +1308,22 @@ void X64RegisterEmitCategoryMemory() {
   XEREGISTERINSTR(stwcx,        0x7C00012D);
   XEREGISTERINSTR(sync,         0x7C0004AC);
   XEREGISTERINSTR(lfd,          0xC8000000);
-  // XEREGISTERINSTR(lfdu,         0xCC000000);
-  // XEREGISTERINSTR(lfdux,        0x7C0004EE);
-  // XEREGISTERINSTR(lfdx,         0x7C0004AE);
-  // XEREGISTERINSTR(lfs,          0xC0000000);
-  // XEREGISTERINSTR(lfsu,         0xC4000000);
-  // XEREGISTERINSTR(lfsux,        0x7C00046E);
-  // XEREGISTERINSTR(lfsx,         0x7C00042E);
-  // XEREGISTERINSTR(stfd,         0xD8000000);
-  // XEREGISTERINSTR(stfdu,        0xDC000000);
-  // XEREGISTERINSTR(stfdux,       0x7C0005EE);
-  // XEREGISTERINSTR(stfdx,        0x7C0005AE);
-  // XEREGISTERINSTR(stfiwx,       0x7C0007AE);
-  // XEREGISTERINSTR(stfs,         0xD0000000);
-  // XEREGISTERINSTR(stfsu,        0xD4000000);
-  // XEREGISTERINSTR(stfsux,       0x7C00056E);
-  // XEREGISTERINSTR(stfsx,        0x7C00052E);
+  XEREGISTERINSTR(lfdu,         0xCC000000);
+  XEREGISTERINSTR(lfdux,        0x7C0004EE);
+  XEREGISTERINSTR(lfdx,         0x7C0004AE);
+  XEREGISTERINSTR(lfs,          0xC0000000);
+  XEREGISTERINSTR(lfsu,         0xC4000000);
+  XEREGISTERINSTR(lfsux,        0x7C00046E);
+  XEREGISTERINSTR(lfsx,         0x7C00042E);
+  XEREGISTERINSTR(stfd,         0xD8000000);
+  XEREGISTERINSTR(stfdu,        0xDC000000);
+  XEREGISTERINSTR(stfdux,       0x7C0005EE);
+  XEREGISTERINSTR(stfdx,        0x7C0005AE);
+  XEREGISTERINSTR(stfiwx,       0x7C0007AE);
+  XEREGISTERINSTR(stfs,         0xD0000000);
+  XEREGISTERINSTR(stfsu,        0xD4000000);
+  XEREGISTERINSTR(stfsux,       0x7C00056E);
+  XEREGISTERINSTR(stfsx,        0x7C00052E);
   XEREGISTERINSTR(dcbf,         0x7C0000AC);
   XEREGISTERINSTR(dcbst,        0x7C00006C);
   XEREGISTERINSTR(dcbt,         0x7C00022C);
