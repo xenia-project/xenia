@@ -18,6 +18,11 @@ using namespace xe::cpu::ppc;
 using namespace AsmJit;
 
 
+// Good source of information:
+// http://mamedev.org/source/src/emu/cpu/powerpc/ppc_ops.c
+// The correctness of that code is not reflected here yet -_-
+
+
 // Enable rounding numbers to single precision as required.
 // This adds a bunch of work per operation and I'm not sure it's required.
 #define ROUND_TO_SINGLE
@@ -377,28 +382,131 @@ XEEMITTER(fnmsubsx,     0xEC00003C, A  )(X64Emitter& e, X86Compiler& c, InstrDat
 // Floating-point rounding and conversion (A-10)
 
 XEEMITTER(fcfidx,       0xFC00069C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- signed_int64_to_double( frB )
+
+  XmmVar v(c.newXmmVar());
+  c.movq(v, e.fpr_value(i.A.FRB));
+  c.save(v);
+  c.cvtsi2sd(v, v.m64());
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  return 0;
 }
 
 XEEMITTER(fctidx,       0xFC00065C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- double_to_signed_int64( frB )
+
+  Label over_max(c.newLabel());
+  Label under_min(c.newLabel());
+  Label done(c.newLabel());
+  GpVar tmp(c.newGpVar());
+  XmmVar xmm_tmp(c.newXmmVar());
+
+  XmmVar v(c.newXmmVar());
+  c.movq(v, e.fpr_value(i.X.RB));
+  // Max value: 2^63 - 1
+  c.mov(tmp, imm(0x43e0000000000000));
+  c.movq(xmm_tmp, tmp);
+  c.cmpsd(v, xmm_tmp, 0);
+  c.jg(over_max);
+  // Min value: -2^63
+  c.mov(tmp, imm(0xc3e0000000000000));
+  c.movq(xmm_tmp, tmp);
+  c.cmpsd(v, xmm_tmp, 0);
+  c.jl(under_min);
+  c.save(v);
+  c.cvtsd2si(tmp, v.m64());
+  c.movq(v, tmp);
+  c.jmp(done);
+  c.bind(over_max);
+  c.mov(tmp, imm(0x7FFFFFFFFFFFFFFF));
+  c.movq(v, tmp);
+  c.jmp(done);
+  c.bind(under_min);
+  c.mov(tmp, imm(0x8000000000000000));
+  c.movq(v, tmp);
+  c.bind(done);
+  e.update_fpr_value(i.X.RT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  return 0;
 }
 
 XEEMITTER(fctidzx,      0xFC00065E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // TODO(benvanik): assuming round to zero is always set, is that ok?
+  return InstrEmit_fctidx(e, c, i);
 }
 
 XEEMITTER(fctiwx,       0xFC00001C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- double_to_signed_int32( frB )
+
+  Label over_max(c.newLabel());
+  Label under_min(c.newLabel());
+  Label done(c.newLabel());
+  GpVar tmp(c.newGpVar());
+  XmmVar xmm_tmp(c.newXmmVar());
+
+  XmmVar v(c.newXmmVar());
+  c.movq(v, e.fpr_value(i.X.RB));
+  // Max value: 2^31 - 1
+  c.mov(tmp, imm(0x41efffffffe00000));
+  c.movq(xmm_tmp, tmp);
+  c.cmpsd(v, xmm_tmp, 0);
+  c.jg(over_max);
+  // Min value: -2^31
+  c.mov(tmp, imm(0xc1e0000000000000));
+  c.movq(xmm_tmp, tmp);
+  c.cmpsd(v, xmm_tmp, 0);
+  c.jl(under_min);
+  c.save(v);
+  c.cvtsd2si(tmp, v.m64());
+  c.movq(v, tmp);
+  c.jmp(done);
+  c.bind(over_max);
+  c.mov(tmp, imm(0x7FFFFFFF));
+  c.movq(v, tmp);
+  c.jmp(done);
+  c.bind(under_min);
+  c.mov(tmp, imm(0x80000000));
+  c.movq(v, tmp);
+  c.bind(done);
+  e.update_fpr_value(i.X.RT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  return 0;
 }
 
 XEEMITTER(fctiwzx,      0xFC00001E, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // TODO(benvanik): assuming round to zero is always set, is that ok?
+  return InstrEmit_fctiwx(e, c, i);
 }
 
 XEEMITTER(frspx,        0xFC000018, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
