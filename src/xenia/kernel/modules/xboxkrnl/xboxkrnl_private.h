@@ -36,6 +36,7 @@ void RegisterModuleExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterRtlExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterThreadingExports(ExportResolver* export_resolver,
                               KernelState* state);
+void RegisterVideoExports(ExportResolver* export_resolver, KernelState* state);
 
 
 }  // namespace xboxkrnl

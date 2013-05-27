@@ -56,6 +56,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   RegisterModuleExports(resolver, kernel_state_.get());
   RegisterRtlExports(resolver, kernel_state_.get());
   RegisterThreadingExports(resolver, kernel_state_.get());
+  RegisterVideoExports(resolver, kernel_state_.get());
 
   // TODO(benvanik): alloc heap memory somewhere in user space
   // TODO(benvanik): tools for reading/writing to heap memory

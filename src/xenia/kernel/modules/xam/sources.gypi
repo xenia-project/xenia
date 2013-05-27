@@ -10,5 +10,7 @@
     'xam_state.cc',
     'xam_state.h',
     'xam_table.inc',
+    'xam_video.cc',
+    'xam_video.h',
   ],
 }

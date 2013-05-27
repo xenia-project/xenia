@@ -42,6 +42,7 @@ XamModule::XamModule(Runtime* runtime) :
 
   // Register all exported functions.
   RegisterInfoExports(export_resolver_.get(), xam_state.get());
+  RegisterVideoExports(export_resolver_.get(), xam_state.get());
 }
 
 XamModule::~XamModule() {

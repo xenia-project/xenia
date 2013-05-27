@@ -23,6 +23,7 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_module.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_rtl.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_threading.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_video.h>
 
 
 namespace xe {
