@@ -15,6 +15,7 @@
 
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/kernel_module.h>
+#include <xenia/kernel/modules/xam/xam_ordinals.h>
 
 
 namespace xe {
