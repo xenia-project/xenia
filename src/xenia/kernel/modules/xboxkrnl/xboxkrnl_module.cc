@@ -20,7 +20,9 @@ using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
 
-namespace {
+namespace xe {
+namespace kernel {
+namespace xboxkrnl {
 
 
 // SHIM_CALL ExGetXConfigSetting_shim(
@@ -100,7 +102,9 @@ SHIM_CALL XexGetModuleHandle_shim(
 // }
 
 
-}
+}  // namespace xboxkrnl
+}  // namespace kernel
+}  // namespace xe
 
 
 void xe::kernel::xboxkrnl::RegisterModuleExports(

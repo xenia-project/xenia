@@ -19,7 +19,9 @@ using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
 
-namespace {
+namespace xe {
+namespace kernel {
+namespace xboxkrnl {
 
 
 // r13 + 0x100: pointer to thread local state
@@ -233,7 +235,9 @@ SHIM_CALL KeTlsSetValue_shim(
 }
 
 
-}
+}  // namespace xboxkrnl
+}  // namespace kernel
+}  // namespace xe
 
 
 void xe::kernel::xboxkrnl::RegisterThreadingExports(

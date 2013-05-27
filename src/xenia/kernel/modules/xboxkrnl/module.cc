@@ -31,11 +31,6 @@ DEFINE_bool(abort_before_entry, false,
     "Abort execution right before launching the module.");
 
 
-namespace {
-
-}
-
-
 XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
     KernelModule(runtime) {
   ExportResolver* resolver = export_resolver_.get();

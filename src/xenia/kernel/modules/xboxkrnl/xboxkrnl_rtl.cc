@@ -21,7 +21,9 @@ using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
 
-namespace {
+namespace xe {
+namespace kernel {
+namespace xboxkrnl {
 
 
 // http://msdn.microsoft.com/en-us/library/ff561778
@@ -480,7 +482,9 @@ SHIM_CALL RtlLeaveCriticalSection_shim(
 }
 
 
-}
+}  // namespace xboxkrnl
+}  // namespace kernel
+}  // namespace xe
 
 
 void xe::kernel::xboxkrnl::RegisterRtlExports(

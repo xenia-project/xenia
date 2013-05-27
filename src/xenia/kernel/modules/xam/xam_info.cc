@@ -19,7 +19,9 @@ using namespace xe::kernel;
 using namespace xe::kernel::xam;
 
 
-namespace {
+namespace xe {
+namespace kernel {
+namespace xam {
 
 
 SHIM_CALL XGetAVPack_shim(
@@ -60,7 +62,10 @@ SHIM_CALL XGetLanguage_shim(
   SHIM_SET_RETURN(desired_language);
 }
 
-}
+
+}  // namespace xam
+}  // namespace kernel
+}  // namespace xe
 
 
 void xe::kernel::xam::RegisterInfoExports(
