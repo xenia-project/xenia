@@ -28,23 +28,18 @@ namespace xboxkrnl {
 
 
 // http://msdn.microsoft.com/en-us/library/ff561778
-SHIM_CALL RtlCompareMemory_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+uint32_t xeRtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr,
+                            uint32_t length) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // SIZE_T
   // _In_  const VOID *Source1,
   // _In_  const VOID *Source2,
   // _In_  SIZE_T Length
 
-  uint32_t source1 = SHIM_GET_ARG_32(0);
-  uint32_t source2 = SHIM_GET_ARG_32(1);
-  uint32_t length = SHIM_GET_ARG_32(2);
-
-  XELOGD(
-      "RtlCompareMemory(%.8X, %.8X, %d)",
-      source1, source2, length);
-
-  uint8_t* p1 = SHIM_MEM_ADDR(source1);
-  uint8_t* p2 = SHIM_MEM_ADDR(source2);
+  uint8_t* p1 = IMPL_MEM_ADDR(source1_ptr);
+  uint8_t* p2 = IMPL_MEM_ADDR(source2_ptr);
 
   // Note that the return value is the number of bytes that match, so it's best
   // we just do this ourselves vs. using memcmp.
@@ -57,31 +52,41 @@ SHIM_CALL RtlCompareMemory_shim(
     }
   }
 
-  SHIM_SET_RETURN(c);
+  return c;
 }
 
-// http://msdn.microsoft.com/en-us/library/ff552123
-SHIM_CALL RtlCompareMemoryUlong_shim(
+
+SHIM_CALL RtlCompareMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t source1 = SHIM_GET_ARG_32(0);
+  uint32_t source2 = SHIM_GET_ARG_32(1);
+  uint32_t length = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "RtlCompareMemory(%.8X, %.8X, %d)",
+      source1, source2, length);
+
+  uint32_t result = xeRtlCompareMemory(source1, source2, length);
+  SHIM_SET_RETURN(result);
+}
+
+
+// http://msdn.microsoft.com/en-us/library/ff552123
+uint32_t xeRtlCompareMemoryUlong(uint32_t source_ptr, uint32_t length,
+                                 uint32_t pattern) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // SIZE_T
   // _In_  PVOID Source,
   // _In_  SIZE_T Length,
   // _In_  ULONG Pattern
 
-  uint32_t source = SHIM_GET_ARG_32(0);
-  uint32_t length = SHIM_GET_ARG_32(1);
-  uint32_t pattern = SHIM_GET_ARG_32(2);
-
-  XELOGD(
-      "RtlCompareMemoryUlong(%.8X, %d, %.8X)",
-      source, length, pattern);
-
-  if ((source % 4) || (length % 4)) {
-    SHIM_SET_RETURN(0);
-    return;
+  if ((source_ptr % 4) || (length % 4)) {
+    return 0;
   }
 
-  uint8_t* p = SHIM_MEM_ADDR(source);
+  uint8_t* p = IMPL_MEM_ADDR(source_ptr);
 
   // Swap pattern.
   // TODO(benvanik): ensure byte order of pattern is correct.
@@ -97,17 +102,50 @@ SHIM_CALL RtlCompareMemoryUlong_shim(
     }
   }
 
-  SHIM_SET_RETURN(c);
+  return c;
 }
 
-// http://msdn.microsoft.com/en-us/library/ff552263
-SHIM_CALL RtlFillMemoryUlong_shim(
+
+SHIM_CALL RtlCompareMemoryUlong_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t source = SHIM_GET_ARG_32(0);
+  uint32_t length = SHIM_GET_ARG_32(1);
+  uint32_t pattern = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "RtlCompareMemoryUlong(%.8X, %d, %.8X)",
+      source, length, pattern);
+
+  uint32_t result = xeRtlCompareMemoryUlong(source, length, pattern);
+  SHIM_SET_RETURN(result);
+}
+
+
+// http://msdn.microsoft.com/en-us/library/ff552263
+void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
+                          uint32_t pattern) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // VOID
   // _Out_  PVOID Destination,
   // _In_   SIZE_T Length,
   // _In_   ULONG Pattern
 
+  // NOTE: length must be % 4, so we can work on uint32s.
+  uint32_t* p = (uint32_t*)IMPL_MEM_ADDR(destination_ptr);
+
+  // TODO(benvanik): ensure byte order is correct - we're writing back the
+  // swapped arg value.
+
+  for (uint32_t n = 0; n < length / 4; n++, p++) {
+    *p = pattern;
+  }
+}
+
+
+SHIM_CALL RtlFillMemoryUlong_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t destination = SHIM_GET_ARG_32(0);
   uint32_t length = SHIM_GET_ARG_32(1);
   uint32_t pattern = SHIM_GET_ARG_32(2);
@@ -116,15 +154,7 @@ SHIM_CALL RtlFillMemoryUlong_shim(
       "RtlFillMemoryUlong(%.8X, %d, %.8X)",
       destination, length, pattern);
 
-  // NOTE: length must be % 4, so we can work on uint32s.
-  uint32_t* p = (uint32_t*)SHIM_MEM_ADDR(destination);
-
-  // TODO(benvanik): ensure byte order is correct - we're writing back the
-  // swapped arg value.
-
-  for (uint32_t n = 0; n < length / 4; n++, p++) {
-    *p = pattern;
-  }
+  xeRtlFillMemoryUlong(destination, length, pattern);
 }
 
 

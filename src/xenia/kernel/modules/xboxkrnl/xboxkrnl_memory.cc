@@ -85,6 +85,7 @@ X_STATUS xeNtAllocateVirtualMemory(
   return X_STATUS_SUCCESS;
 }
 
+
 // TODO(benvanik): remove state parameter.
 SHIM_CALL NtAllocateVirtualMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
@@ -112,6 +113,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
   }
   SHIM_SET_RETURN(result);
 }
+
 
 X_STATUS xeNtFreeVirtualMemory(
     uint32_t* base_addr_ptr, uint32_t* region_size_ptr,
@@ -144,6 +146,7 @@ X_STATUS xeNtFreeVirtualMemory(
   *region_size_ptr = freed_size;
   return X_STATUS_SUCCESS;
 }
+
 
 SHIM_CALL NtFreeVirtualMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {

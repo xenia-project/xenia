@@ -21,6 +21,7 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+void xeHalReturnToFirmware(uint32_t routine);
 
 
 }  // namespace xboxkrnl

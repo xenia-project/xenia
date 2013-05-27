@@ -33,16 +33,12 @@ namespace xboxkrnl {
 // }
 
 
-SHIM_CALL XexCheckExecutablePrivilege_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+int xeXexCheckExecutablePriviledge(uint32_t privilege) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
   // BOOL
   // DWORD Privilege
-
-  uint32_t privilege = SHIM_GET_ARG_32(0);
-
-  XELOGD(
-      "XexCheckExecutablePrivilege(%.8X)",
-      privilege);
 
   // Privilege is bit position in xe_xex2_system_flags enum - so:
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
@@ -50,8 +46,7 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(
 
   XModule* module = state->GetExecutableModule();
   if (!module) {
-    SHIM_SET_RETURN(0);
-    return;
+    return 0;
   }
   xe_xex2_ref xex = module->xex();
 
@@ -61,16 +56,49 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(
   xe_xex2_release(xex);
   module->Release();
 
+  return result;
+}
+
+
+SHIM_CALL XexCheckExecutablePrivilege_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t privilege = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XexCheckExecutablePrivilege(%.8X)",
+      privilege);
+
+  int result = xeXexCheckExecutablePriviledge(privilege);
+
   SHIM_SET_RETURN(result);
+}
+
+
+int xeXexGetModuleHandle(const char* module_name,
+                         X_HANDLE* module_handle_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  // BOOL
+  // LPCSZ ModuleName
+  // LPHMODULE ModuleHandle
+
+  XModule* module = state->GetModule(module_name);
+  if (!module) {
+    return 0;
+  }
+
+  // NOTE: we don't retain the handle for return.
+  *module_handle_ptr = module->handle();
+
+  module->Release();
+
+  return 1;
 }
 
 
 SHIM_CALL XexGetModuleHandle_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  // BOOL
-  // LPCSZ ModuleName
-  // LPHMODULE ModuleHandle
-
   uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
   const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
   uint32_t module_handle_ptr = SHIM_GET_ARG_32(1);
@@ -79,17 +107,13 @@ SHIM_CALL XexGetModuleHandle_shim(
       "XexGetModuleHandle(%s, %.8X)",
       module_name, module_handle_ptr);
 
-  XModule* module = state->GetModule(module_name);
-  if (!module) {
-    SHIM_SET_RETURN(0);
-    return;
+  X_HANDLE module_handle = 0;
+  int result = xeXexGetModuleHandle(module_name, &module_handle);
+  if (result) {
+    SHIM_SET_MEM_32(module_handle_ptr, module_handle);
   }
 
-  // NOTE: we don't retain the handle for return.
-  SHIM_SET_MEM_32(module_handle_ptr, module->handle());
-  SHIM_SET_RETURN(1);
-
-  module->Release();
+  SHIM_SET_RETURN(result);
 }
 
 
