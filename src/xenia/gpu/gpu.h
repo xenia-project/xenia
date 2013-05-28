@@ -10,9 +10,19 @@
 #ifndef XENIA_GPU_GPU_H_
 #define XENIA_GPU_GPU_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <xenia/gpu/graphics_system.h>
 
-void do_gpu_stuff();
+
+namespace xe {
+namespace gpu {
+
+
+GraphicsSystem* Create(const CreationParams* params);
+GraphicsSystem* CreateNop(const CreationParams* params);
+
+
+}  // namespace gpu
+}  // namespace xe
+
 
 #endif  // XENIA_GPU_GPU_H_

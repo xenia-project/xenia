@@ -99,9 +99,6 @@ int Run::Launch(const xechar_t* path) {
 }
 
 int xenia_run(int argc, xechar_t **argv) {
-  // Dummy call to keep the GPU code linking in to ensure it's working.
-  do_gpu_stuff();
-
   int result_code = 1;
 
   // Grab path.
