@@ -69,6 +69,14 @@ X_STATUS xeNtAllocateVirtualMemory(
   uint32_t adjusted_size = *region_size_ptr;
   // TODO(benvanik): adjust based on page size flags/etc?
 
+  // TODO(benvanik): support different allocation types.
+  // Right now we treat everything as a commit and ignore allocations that have
+  // already happened.
+  if (*base_addr_ptr) {
+    // Having a pointer already means that this is likely a follow-on COMMIT.
+    return X_STATUS_SUCCESS;
+  }
+
   // Allocate.
   uint32_t flags = 0;
   uint32_t addr = xe_memory_heap_alloc(
@@ -86,7 +94,6 @@ X_STATUS xeNtAllocateVirtualMemory(
 }
 
 
-// TODO(benvanik): remove state parameter.
 SHIM_CALL NtAllocateVirtualMemory_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t base_addr_ptr      = SHIM_GET_ARG_32(0);

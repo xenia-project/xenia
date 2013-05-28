@@ -19,11 +19,11 @@
 #define USE_LOCKS               0
 #define USE_DL_PREFIX           1
 #define HAVE_MORECORE           0
-#define HAVE_MMAP               0
 #define HAVE_MREMAP             0
 #define malloc_getpagesize      4096
 #define DEFAULT_GRANULARITY     64 * 1024
 #define DEFAULT_TRIM_THRESHOLD  MAX_SIZE_T
+#define MALLOC_ALIGNMENT        32
 #include <third_party/dlmalloc/malloc.c.h>
 
 
@@ -45,6 +45,8 @@
 struct xe_memory {
   xe_ref_t ref;
 
+  size_t      system_page_size;
+
   size_t      length;
   void*       ptr;
 
@@ -59,6 +61,14 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
 
   xe_memory_ref memory = (xe_memory_ref)xe_calloc(sizeof(xe_memory));
   xe_ref_init((xe_ref)memory);
+
+#if XE_PLATFORM(WIN32)
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  memory->system_page_size = si.dwPageSize;
+#else
+#error need to implement page size retrieval
+#endif  // WIN32
 
   memory->length = 0xC0000000;
 
@@ -155,9 +165,6 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
 
 uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_addr,
                               uint32_t size, uint32_t flags) {
-  if (base_addr) {
-    return base_addr;
-  }
   XEASSERT(base_addr == 0);
   XEASSERT(flags == 0);
 
