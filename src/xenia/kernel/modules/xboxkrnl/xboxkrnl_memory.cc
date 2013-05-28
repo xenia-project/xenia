@@ -183,6 +183,138 @@ SHIM_CALL NtFreeVirtualMemory_shim(
 }
 
 
+uint32_t xeMmAllocatePhysicalMemoryEx(
+    uint32_t type, uint32_t region_size, uint32_t protect_bits,
+    uint32_t min_addr_range, uint32_t max_addr_range, uint32_t alignment) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
+  // by D3D/etc.
+
+  // Check protection bits.
+  if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
+    XELOGE("MmAllocatePhysicalMemoryEx: bad protection bits");
+    return 0;
+  }
+
+  // Either may be OR'ed into protect_bits:
+  // X_PAGE_NOCACHE
+  // X_PAGE_WRITECOMBINE
+  // We could use this to detect what's likely GPU-synchronized memory
+  // and let the GPU know we're messing with it (or even allocate from
+  // the GPU). At least the D3D command buffer is X_PAGE_WRITECOMBINE.
+
+  // Calculate page size.
+  // Default            = 4KB
+  // X_MEM_LARGE_PAGES  = 64KB
+  // X_MEM_16MB_PAGES   = 16MB
+  uint32_t page_size = 4 * 1024;
+  if (protect_bits & X_MEM_LARGE_PAGES) {
+    page_size = 64 * 1024;
+  } else if (protect_bits & X_MEM_16MB_PAGES) {
+    page_size = 16 * 1024 * 1024;
+  }
+
+  // Round up the region size to the next page.
+  uint32_t adjusted_size = XEROUNDUP(region_size, page_size);
+
+  // Callers can pick an address to allocate with min_addr_range/max_addr_range
+  // and the memory must be allocated there. I haven't seen a game do this,
+  // and instead they all do min=0 / max=-1 to indicate the system should pick.
+  // If we have to suport arbitrary placement things will get nasty.
+  XEASSERT(min_addr_range == 0);
+  XEASSERT(max_addr_range == 0xFFFFFFFF);
+
+  // Allocate.
+  uint32_t flags = 0;
+  uint32_t base_address = xe_memory_heap_alloc(
+      state->memory(), 0, adjusted_size, flags);
+  if (!base_address) {
+    // Failed - assume no memory available.
+    return 0;
+  }
+
+  return base_address;
+}
+
+
+SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t type = SHIM_GET_ARG_32(0);
+  uint32_t region_size = SHIM_GET_ARG_32(1);
+  uint32_t protect_bits = SHIM_GET_ARG_32(2);
+  uint32_t min_addr_range = SHIM_GET_ARG_32(3);
+  uint32_t max_addr_range = SHIM_GET_ARG_32(4);
+  uint32_t alignment = SHIM_GET_ARG_32(5);
+
+  XELOGD(
+      "MmAllocatePhysicalMemoryEx(%d, %.8X, %.8X, %.8X, %.8X, %.8X)",
+      type, region_size, protect_bits,
+      min_addr_range, max_addr_range, alignment);
+
+  uint32_t base_address = xeMmAllocatePhysicalMemoryEx(
+      type, region_size, protect_bits,
+      min_addr_range, max_addr_range, alignment);
+
+  SHIM_SET_RETURN(base_address);
+}
+
+
+void xeMmFreePhysicalMemory(uint32_t type, uint32_t base_address) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  // base_address = result of MmAllocatePhysicalMemory.
+
+  uint32_t flags = 0;
+  xe_memory_heap_free(
+      state->memory(), base_address, flags);
+}
+
+
+SHIM_CALL MmFreePhysicalMemory_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t type = SHIM_GET_ARG_32(0);
+  uint32_t base_address = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "MmFreePhysicalAddress(%d, %.8X)",
+      type, base_address);
+
+  xeMmFreePhysicalMemory(type, base_address);
+}
+
+
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
+uint32_t xeMmGetPhysicalAddress(uint32_t base_address) {
+  // PHYSICAL_ADDRESS MmGetPhysicalAddress(
+  //   _In_  PVOID BaseAddress
+  // );
+  // base_address = result of MmAllocatePhysicalMemory.
+
+  // We are always using virtual addresses, right now, since we don't need
+  // physical ones. We could munge up the address here to another mapped view
+  // of memory.
+
+  return base_address;
+}
+
+
+SHIM_CALL MmGetPhysicalAddress_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t base_address = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "MmGetPhysicalAddress(%.8X)",
+      base_address);
+
+  uint32_t result = xeMmGetPhysicalAddress(base_address);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
@@ -192,4 +324,8 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", NtAllocateVirtualMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtFreeVirtualMemory, state);
+  //SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
 }

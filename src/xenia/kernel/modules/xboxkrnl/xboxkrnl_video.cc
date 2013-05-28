@@ -49,11 +49,24 @@ VOID xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap) {
   }
 }
 
+
 SHIM_CALL VdQueryVideoMode_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  X_VIDEO_MODE *video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(SHIM_GET_ARG_32(0));
+  uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);
+  X_VIDEO_MODE *video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
+
+  XELOGD(
+      "VdQueryVideoMode(%.8X)",
+      video_mode_ptr);
+
   xeVdQueryVideoMode(video_mode, true);
 }
+
+
+// VdInitializeRingBuffer
+// r3 = result of MmGetPhysicalAddress
+// r4 = number of pages? page size?
+//      0x8000 -> cntlzw=16 -> 0x1C - 16 = 12
 
 
 }  // namespace xboxkrnl
