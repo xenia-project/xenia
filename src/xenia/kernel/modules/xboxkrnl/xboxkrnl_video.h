@@ -20,6 +20,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
+
 // http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
 #pragma pack(push, 1)
 typedef struct {
@@ -34,10 +35,14 @@ typedef struct {
 }
 X_VIDEO_MODE;
 #pragma pack(pop)
-
 XEASSERTSTRUCTSIZE(X_VIDEO_MODE, 48);
 
-VOID xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap);
+void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap);
+
+void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
+                           uint32_t unk2_ptr, uint32_t unk3_ptr);
+void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data);
+
 
 }  // namespace xboxkrnl
 }  // namespace kernel
