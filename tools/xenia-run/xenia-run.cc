@@ -18,6 +18,10 @@ using namespace xe::dbg;
 using namespace xe::kernel;
 
 
+DEFINE_string(target, "",
+    "Specifies the target .xex or .iso to execute.");
+
+
 class Run {
 public:
   Run();
@@ -98,15 +102,25 @@ int Run::Launch(const xechar_t* path) {
   }
 }
 
-int xenia_run(int argc, xechar_t **argv) {
+int xenia_run(int argc, xechar_t** argv) {
   int result_code = 1;
 
-  // Grab path.
-  if (argc < 2) {
+  // Grab path from the flag or unnamed argument.
+  if (!FLAGS_target.size() && argc < 2) {
     google::ShowUsageWithFlags("xenia-run");
     return 1;
   }
-  const xechar_t *path = argv[1];
+  const xechar_t* path = NULL;
+  if (FLAGS_target.size()) {
+    // Passed as a named argument.
+    // TODO(benvanik): find something better than gflags that supports unicode.
+    xechar_t buffer[XE_MAX_PATH];
+    XEIGNORE(xestrwiden(buffer, sizeof(buffer), FLAGS_target.c_str()));
+    path = buffer;
+  } else {
+    // Passed as an unnamed argument.
+    path = argv[1];
+  }
 
   auto_ptr<Run> run = auto_ptr<Run>(new Run());
 

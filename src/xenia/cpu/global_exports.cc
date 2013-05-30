@@ -9,6 +9,7 @@
 
 #include <xenia/cpu/global_exports.h>
 
+#include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/cpu/sdb.h>
 #include <xenia/cpu/ppc/instr.h>
@@ -102,26 +103,28 @@ void _cdecl XeTraceBranch(
 
 void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
-  XELOGCPU(
-      "\n"
-      " lr=%.16llX ctr=%.16llX  cr=%.4X    xer=%.16llX\n"
-      " r0=%.16llX  r1=%.16llX  r2=%.16llX  r3=%.16llX\n"
-      " r4=%.16llX  r5=%.16llX  r6=%.16llX  r7=%.16llX\n"
-      " r8=%.16llX  r9=%.16llX r10=%.16llX r11=%.16llX\n"
-      "r12=%.16llX r13=%.16llX r14=%.16llX r15=%.16llX\n"
-      "r16=%.16llX r17=%.16llX r18=%.16llX r19=%.16llX\n"
-      "r20=%.16llX r21=%.16llX r22=%.16llX r23=%.16llX\n"
-      "r24=%.16llX r25=%.16llX r26=%.16llX r27=%.16llX\n"
-      "r28=%.16llX r29=%.16llX r30=%.16llX r31=%.16llX\n",
-      state->lr, state->ctr, state->cr.value, state->xer,
-      state->r[0], state->r[1], state->r[2], state->r[3],
-      state->r[4], state->r[5], state->r[6], state->r[7],
-      state->r[8], state->r[9], state->r[10], state->r[11],
-      state->r[12], state->r[13], state->r[14], state->r[15],
-      state->r[16], state->r[17], state->r[18], state->r[19],
-      state->r[20], state->r[21], state->r[22], state->r[23],
-      state->r[24], state->r[25], state->r[26], state->r[27],
-      state->r[28], state->r[29], state->r[30], state->r[31]);
+  if (FLAGS_trace_registers) {
+    XELOGCPU(
+        "\n"
+        " lr=%.16llX ctr=%.16llX  cr=%.4X    xer=%.16llX\n"
+        " r0=%.16llX  r1=%.16llX  r2=%.16llX  r3=%.16llX\n"
+        " r4=%.16llX  r5=%.16llX  r6=%.16llX  r7=%.16llX\n"
+        " r8=%.16llX  r9=%.16llX r10=%.16llX r11=%.16llX\n"
+        "r12=%.16llX r13=%.16llX r14=%.16llX r15=%.16llX\n"
+        "r16=%.16llX r17=%.16llX r18=%.16llX r19=%.16llX\n"
+        "r20=%.16llX r21=%.16llX r22=%.16llX r23=%.16llX\n"
+        "r24=%.16llX r25=%.16llX r26=%.16llX r27=%.16llX\n"
+        "r28=%.16llX r29=%.16llX r30=%.16llX r31=%.16llX\n",
+        state->lr, state->ctr, state->cr.value, state->xer,
+        state->r[0], state->r[1], state->r[2], state->r[3],
+        state->r[4], state->r[5], state->r[6], state->r[7],
+        state->r[8], state->r[9], state->r[10], state->r[11],
+        state->r[12], state->r[13], state->r[14], state->r[15],
+        state->r[16], state->r[17], state->r[18], state->r[19],
+        state->r[20], state->r[21], state->r[22], state->r[23],
+        state->r[24], state->r[25], state->r[26], state->r[27],
+        state->r[28], state->r[29], state->r[30], state->r[31]);
+  }
 
   ppc::InstrData i;
   i.address = (uint32_t)cia;

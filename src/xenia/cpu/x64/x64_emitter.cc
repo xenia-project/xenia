@@ -228,7 +228,9 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
   int result_code = 1;
   Lock();
 
-  XELOGCPU("Compile(%s): beginning compilation...", symbol->name());
+  if (FLAGS_log_codegen) {
+    XELOGCPU("Compile(%s): beginning compilation...", symbol->name());
+  }
 
   symbol_ = symbol;
   fn_block_ = NULL;

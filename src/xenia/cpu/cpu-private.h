@@ -14,6 +14,7 @@
 
 
 DECLARE_bool(trace_instructions);
+DECLARE_bool(trace_registers);
 DECLARE_bool(trace_branches);
 DECLARE_bool(trace_user_calls);
 DECLARE_bool(trace_kernel_calls);
@@ -21,11 +22,7 @@ DECLARE_bool(trace_kernel_calls);
 DECLARE_string(load_module_map);
 
 DECLARE_string(dump_path);
-DECLARE_bool(dump_module_bitcode);
 DECLARE_bool(dump_module_map);
-
-DECLARE_bool(optimize_ir_modules);
-DECLARE_bool(optimize_ir_functions);
 
 
 #endif  // XENIA_CPU_PRIVATE_H_
