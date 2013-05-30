@@ -113,6 +113,18 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   char command_line[] = "\"default.xex\"";
   xe_copy_memory(mem + pExLoadedCommandLine, 1024,
                  command_line, XECOUNT(command_line) + 1);
+
+  // XboxKrnlVersion (8b)
+  // Kernel version, looks like 2b.2b.2b.2b.
+  // I've only seen games check >=, so we just fake something here.
+  uint32_t pXboxKrnlVersion = xe_memory_heap_alloc(memory_, 0, 8, 0);
+  resolver->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::XboxKrnlVersion,
+      pXboxKrnlVersion);
+  XESETUINT16BE(mem + pXboxKrnlVersion + 0, 2);
+  XESETUINT16BE(mem + pXboxKrnlVersion + 2, 0xFFFF);
+  XESETUINT16BE(mem + pXboxKrnlVersion + 4, 0xFFFF);
+  XESETUINT16BE(mem + pXboxKrnlVersion + 6, 0xFFFF);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {
