@@ -39,7 +39,22 @@
  * We use the host OS to create an entire addressable range for this. That way
  * we don't have to emulate a TLB. It'd be really cool to pass through page
  * sizes or use madvice to let the OS know what to expect.
+ *
+ * We create our own heap of committed memory that lives at XE_MEMORY_HEAP_LOW
+ * to XE_MEMORY_HEAP_HIGH - all normal user allocations come from there. Since
+ * the Xbox has no paging, we know that the size of this heap will never need
+ * to be larger than ~512MB (realistically, smaller than that). We place it far
+ * away from the XEX data and keep the memory around it uncommitted so that we
+ * have some warning if things go astray.
+ *
+ * For XEX/GPU/etc data we allow placement allocations (base_address != 0) and
+ * commit the requested memory as needed. This bypasses the standard heap, but
+ * XEXs should never be overwriting anything so that's fine. We can also query
+ * for previous commits and assert that we really isn't committing twice.
  */
+
+#define XE_MEMORY_HEAP_LOW    0x20000000
+#define XE_MEMORY_HEAP_HIGH   0x40000000
 
 
 struct xe_memory {
@@ -56,8 +71,6 @@ struct xe_memory {
 
 
 xe_memory_ref xe_memory_create(xe_memory_options_t options) {
-  uint32_t offset;
-  uint32_t mspace_size;
 
   xe_memory_ref memory = (xe_memory_ref)xe_calloc(sizeof(xe_memory));
   xe_ref_init((xe_ref)memory);
@@ -73,25 +86,38 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
   memory->length = 0xC0000000;
 
 #if XE_PLATFORM(WIN32)
+  // Reserve the entire usable address space.
+  // We're 64-bit, so this should be no problem.
   memory->ptr = VirtualAlloc(0, memory->length,
-                             MEM_COMMIT | MEM_RESERVE,
+                             MEM_RESERVE,
                              PAGE_READWRITE);
+  XEEXPECTNOTNULL(memory->ptr);
 #else
   memory->ptr = mmap(0, memory->length, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANON, -1, 0);
   XEEXPECT(memory->ptr != MAP_FAILED);
-#endif  // WIN32
   XEEXPECTNOTNULL(memory->ptr);
+#endif  // WIN32
 
-  memory->heap_mutex = xe_mutex_alloc(0);
+  // Lock used around heap allocs/frees.
+  memory->heap_mutex = xe_mutex_alloc(10000);
   XEEXPECTNOTNULL(memory->heap_mutex);
 
+  // Commit the memory where our heap will live.
+  // We don't allocate at 0 to make bad writes easier to find.
+  uint32_t heap_offset = XE_MEMORY_HEAP_LOW;
+  uint32_t heap_size = XE_MEMORY_HEAP_HIGH - XE_MEMORY_HEAP_LOW;
+  uint8_t* heap_ptr = (uint8_t*)memory->ptr + heap_offset;
+#if XE_PLATFORM(WIN32)
+  void* heap_result = VirtualAlloc(heap_ptr, heap_size,
+                                   MEM_COMMIT, PAGE_READWRITE);
+  XEEXPECTNOTNULL(heap_result);
+#else
+#error ?
+#endif  // WIN32
+
   // Allocate the mspace for our heap.
-  // We skip the first page to make writes to 0 easier to find.
-  offset = 64 * 1024;
-  mspace_size = 512 * 1024 * 1024 - offset;
-  memory->heap = create_mspace_with_base(
-      (uint8_t*)memory->ptr + offset, mspace_size, 0);
+  memory->heap = create_mspace_with_base(heap_ptr, heap_size, 0);
 
   return memory;
 
@@ -113,7 +139,8 @@ void xe_memory_dealloc(xe_memory_ref memory) {
   }
 
 #if XE_PLATFORM(WIN32)
-  XEIGNORE(VirtualFree(memory->ptr, memory->length, MEM_RELEASE));
+  // This decommits all pages and releases everything.
+  XEIGNORE(VirtualFree(memory->ptr, 0, MEM_RELEASE));
 #else
   munmap(memory->ptr, memory->length);
 #endif  // WIN32
@@ -161,36 +188,106 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
   return 0;
 }
 
-// TODO(benvanik): reserve/commit states/large pages/etc
-
-uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_addr,
-                              uint32_t size, uint32_t flags) {
-  XEASSERT(base_addr == 0);
+uint32_t xe_memory_heap_alloc(
+    xe_memory_ref memory, uint32_t base_address, uint32_t size,
+    uint32_t flags) {
   XEASSERT(flags == 0);
 
-  XEIGNORE(xe_mutex_lock(memory->heap_mutex));
-  uint8_t* p = (uint8_t*)mspace_malloc(memory->heap, size);
-  XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
-  if (!p) {
-    return 0;
-  }
+  // If we were given a base address we are outside of the normal heap and
+  // will place wherever asked (so long as it doesn't overlap the heap).
+  if (!base_address) {
+    // Normal allocation from the managed heap.
+    XEIGNORE(xe_mutex_lock(memory->heap_mutex));
+    uint8_t* p = (uint8_t*)mspace_malloc(memory->heap, size);
+    XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
+    if (!p) {
+      return 0;
+    }
+    return (uint32_t)((uintptr_t)p - (uintptr_t)memory->ptr);
+  } else {
+    if (base_address >= XE_MEMORY_HEAP_LOW &&
+        base_address < XE_MEMORY_HEAP_HIGH) {
+      // Overlapping managed heap.
+      XEASSERTALWAYS();
+      return 0;
+    }
 
-  return (uint32_t)((uintptr_t)p - (uintptr_t)memory->ptr);
+    uint8_t* p = (uint8_t*)memory->ptr + base_address;
+#if XE_PLATFORM(WIN32)
+    // TODO(benvanik): check if address range is in use with a query.
+
+    void* pv = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
+    if (!pv) {
+      // Failed.
+      XEASSERTALWAYS();
+      return 0;
+    }
+#else
+#error ?
+#endif  // WIN32
+
+    return base_address;
+  }
 }
 
-uint32_t xe_memory_heap_free(xe_memory_ref memory, uint32_t addr,
-                             uint32_t flags) {
-  XEASSERT(flags == 0);
+int xe_memory_heap_free(
+    xe_memory_ref memory, uint32_t address, uint32_t size) {
+  uint8_t* p = (uint8_t*)memory->ptr + address;
+  if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
+    // Heap allocated address.
+    size_t real_size = mspace_usable_size(p);
+    if (!real_size) {
+      return 0;
+    }
 
-  uint8_t* p = (uint8_t*)memory->ptr + addr;
-  size_t real_size = mspace_usable_size(p);
-  if (!real_size) {
-    return 0;
+    XEIGNORE(xe_mutex_lock(memory->heap_mutex));
+    mspace_free(memory->heap, p);
+    XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
+    return (uint32_t)real_size;
+  } else {
+    // A placed address. Decommit.
+#if XE_PLATFORM(WIN32)
+    return VirtualFree(p, size, MEM_DECOMMIT) ? 0 : 1;
+#else
+#error decommit
+#endif  // WIN32
   }
+}
 
-  XEIGNORE(xe_mutex_lock(memory->heap_mutex));
-  mspace_free(memory->heap, p);
-  XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
+bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
+  uint8_t* p = (uint8_t*)memory->ptr + address;
+  if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
+    // Within heap range, ask dlmalloc.
+    return mspace_usable_size(p) > 0;
+  } else {
+    // Maybe -- could Query here (though that may be expensive).
+    return true;
+  }
+}
 
-  return (uint32_t)real_size;
+int xe_memory_protect(
+    xe_memory_ref memory, uint32_t address, uint32_t size, uint32_t access) {
+  uint8_t* p = (uint8_t*)memory->ptr + address;
+
+#if XE_PLATFORM(WIN32)
+  DWORD new_protect = 0;
+  if (access & XE_MEMORY_ACCESS_WRITE) {
+    new_protect = PAGE_READWRITE;
+  } else if (access & XE_MEMORY_ACCESS_READ) {
+    new_protect = PAGE_READONLY;
+  } else {
+    new_protect = PAGE_NOACCESS;
+  }
+  DWORD old_protect;
+  return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
+#else
+  int prot = 0;
+  if (access & XE_MEMORY_ACCESS_READ) {
+    prot = PROT_READ;
+  }
+  if (access & XE_MEMORY_ACCESS_WRITE) {
+    prot = PROT_WRITE;
+  }
+  return mprotect(p, size, prot);
+#endif  // WIN32
 }

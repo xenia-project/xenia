@@ -740,6 +740,16 @@ XECLEANUP:
 int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
                        const size_t xex_length, xe_memory_ref memory) {
   const xe_xex2_header_t *header = &xex->header;
+
+  // Allocate in-place the XEX memory.
+  uint32_t alloc_result =
+      xe_memory_heap_alloc(memory, header->exe_address, xex_length, 0);
+  if (!alloc_result) {
+    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
+           header->exe_address, xex_length);
+    return 2;
+  }
+
   switch (header->file_format_info.compression_type) {
   case XEX_COMPRESSION_NONE:
     return xe_xex2_read_image_uncompressed(

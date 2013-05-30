@@ -159,6 +159,12 @@ SHIM_CALL VdSetGraphicsInterruptCallback_shim(
 // no op?
 
 
+// VdCallGraphicsNotificationRoutines
+// r3 = 1
+// r4 = ?
+// callbacks get 0, r3, r4
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
