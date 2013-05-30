@@ -530,18 +530,28 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
                                     const uint8_t *xex_addr,
                                     const size_t xex_length,
                                     xe_memory_ref memory) {
-  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
-  size_t buffer_size = 0x40000000;
-
+  // Allocate in-place the XEX memory.
   const size_t exe_length = xex_length - header->exe_offset;
+  size_t uncompressed_size = exe_length;
+  uint32_t alloc_result =
+      xe_memory_heap_alloc(memory,
+                           header->exe_address, (uint32_t)uncompressed_size,
+                           0);
+  if (!alloc_result) {
+    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
+           header->exe_address, uncompressed_size);
+    return 2;
+  }
+  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
+
   const uint8_t *p = (const uint8_t*)xex_addr + header->exe_offset;
 
   switch (header->file_format_info.encryption_type) {
   case XEX_ENCRYPTION_NONE:
-    return xe_copy_memory(buffer, buffer_size, p, exe_length);
+    return xe_copy_memory(buffer, uncompressed_size, p, exe_length);
   case XEX_ENCRYPTION_NORMAL:
     xe_xex2_decrypt_buffer(header->session_key, p, exe_length, buffer,
-                           buffer_size);
+                           uncompressed_size);
     return 0;
   default:
     XEASSERTALWAYS();
@@ -555,28 +565,44 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
                                         const uint8_t *xex_addr,
                                         const size_t xex_length,
                                         xe_memory_ref memory) {
-  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
-  size_t buffer_size = 0x40000000;
-
   const size_t exe_length = xex_length - header->exe_offset;
   const uint8_t* source_buffer = (const uint8_t*)xex_addr + header->exe_offset;
   const uint8_t *p = source_buffer;
 
+  // Calculate uncompressed length.
+  size_t uncompressed_size = 0;
+  const xe_xex2_file_basic_compression_info_t* comp_info =
+      &header->file_format_info.compression_info.basic;
+  for (size_t n = 0; n < comp_info->block_count; n++) {
+    const size_t data_size = comp_info->blocks[n].data_size;
+    const size_t zero_size = comp_info->blocks[n].zero_size;
+    uncompressed_size += data_size + zero_size;
+  }
+
+  // Allocate in-place the XEX memory.
+  uint32_t alloc_result =
+      xe_memory_heap_alloc(memory,
+                           header->exe_address, (uint32_t)uncompressed_size,
+                           0);
+  if (!alloc_result) {
+    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
+           header->exe_address, uncompressed_size);
+    XEFAIL();
+  }
+  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
   uint8_t *d = buffer;
 
   uint32_t rk[4 * (MAXNR + 1)];
   uint8_t ivec[16] = {0};
   int32_t Nr = rijndaelKeySetupDec(rk, header->session_key, 128);
 
-  const xe_xex2_file_basic_compression_info_t* comp_info =
-      &header->file_format_info.compression_info.basic;
   for (size_t n = 0; n < comp_info->block_count; n++) {
     const size_t data_size = comp_info->blocks[n].data_size;
     const size_t zero_size = comp_info->blocks[n].zero_size;
 
     switch (header->file_format_info.encryption_type) {
     case XEX_ENCRYPTION_NONE:
-      XEEXPECTZERO(xe_copy_memory(d, buffer_size - (d - buffer), p,
+      XEEXPECTZERO(xe_copy_memory(d, uncompressed_size - (d - buffer), p,
                                   exe_length - (p - source_buffer)));
       break;
     case XEX_ENCRYPTION_NORMAL:
@@ -614,9 +640,6 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
                                   const uint8_t *xex_addr,
                                   const size_t xex_length,
                                   xe_memory_ref memory) {
-  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
-  size_t buffer_size = 0x40000000;
-
   const size_t exe_length = xex_length - header->exe_offset;
   const uint8_t *exe_buffer = (const uint8_t*)xex_addr + header->exe_offset;
 
@@ -635,6 +658,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
   uint8_t *d = NULL;
   uint8_t *deblock_buffer = NULL;
   size_t block_size = 0;
+  size_t uncompressed_size = 0;
   struct mspack_system *sys = NULL;
   mspack_memory_file *lzxsrc = NULL;
   mspack_memory_file *lzxdst = NULL;
@@ -686,18 +710,33 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
       xe_copy_memory(d, exe_length - (d - compress_buffer), p, chunk_size);
       p += chunk_size;
       d += chunk_size;
+
+      uncompressed_size += 0x8000;
     }
 
     p = pnext;
     block_size = next_size;
   }
 
+  // Allocate in-place the XEX memory.
+  uint32_t alloc_result =
+      xe_memory_heap_alloc(memory,
+                           header->exe_address, (uint32_t)uncompressed_size,
+                           0);
+  if (!alloc_result) {
+    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
+           header->exe_address, uncompressed_size);
+    result_code = 2;
+    XEFAIL();
+  }
+  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
+
   // Setup decompressor and decompress.
   sys = mspack_memory_sys_create();
   XEEXPECTNOTNULL(sys);
   lzxsrc = mspack_memory_open(sys, (void*)compress_buffer, d - compress_buffer);
   XEEXPECTNOTNULL(lzxsrc);
-  lzxdst = mspack_memory_open(sys, buffer, buffer_size);
+  lzxdst = mspack_memory_open(sys, buffer, uncompressed_size);
   XEEXPECTNOTNULL(lzxdst);
   lzxd = lzxd_init(
       sys,
@@ -740,16 +779,6 @@ XECLEANUP:
 int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
                        const size_t xex_length, xe_memory_ref memory) {
   const xe_xex2_header_t *header = &xex->header;
-
-  // Allocate in-place the XEX memory.
-  uint32_t alloc_result =
-      xe_memory_heap_alloc(memory, header->exe_address, xex_length, 0);
-  if (!alloc_result) {
-    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
-           header->exe_address, xex_length);
-    return 2;
-  }
-
   switch (header->file_format_info.compression_type) {
   case XEX_COMPRESSION_NONE:
     return xe_xex2_read_image_uncompressed(
