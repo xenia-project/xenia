@@ -474,75 +474,76 @@ XEDISASMR(xoris,        0x6C000000, D  )(InstrData& i, InstrDisasm& d) {
 
 // Integer rotate (A-6)
 
-XEDISASMR(rldclx,       0x78000010, MDS)(InstrData& i, InstrDisasm& d) {
-  d.Init("rldcl", "Rotate Left Doubleword then Clear Left",
-         i.MDS.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RA, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RT, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RB, InstrRegister::kRead);
-  d.AddUImmOperand((i.MDS.MB5 << 5) | i.MDS.MB, 1);
-  return d.Finish();
-}
-
-XEDISASMR(rldcrx,       0x78000012, MDS)(InstrData& i, InstrDisasm& d) {
-  d.Init("rldcr", "Rotate Left Doubleword then Clear Right",
-         i.MDS.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RA, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RT, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.MDS.RB, InstrRegister::kRead);
-  d.AddUImmOperand((i.MDS.MB5 << 5) | i.MDS.MB, 1);
-  return d.Finish();
-}
-
-XEDISASMR(rldicx,       0x78000008, MD )(InstrData& i, InstrDisasm& d) {
-  const char* name;
-  const char* desc;
-  uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
-  uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
-  if (mb == 0x3E) {
-    name = "sldi";
-    desc = "Shift Left Immediate";
+XEDISASMR(rld,          0x78000000, MDS)(InstrData& i, InstrDisasm& d) {
+  if (i.MD.idx == 0) {
+    // XEDISASMR(rldiclx,      0x78000000, MD )
+    d.Init("rldicl", "Rotate Left Doubleword Immediate then Clear Left",
+           i.MD.Rc ? InstrDisasm::kRc : 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+    d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+    d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+    return d.Finish();
+  } else if (i.MD.idx == 1) {
+    // XEDISASMR(rldicrx,      0x78000004, MD )
+    d.Init("rldicr", "Rotate Left Doubleword Immediate then Clear Right",
+           i.MD.Rc ? InstrDisasm::kRc : 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+    d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+    d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+    return d.Finish();
+  } else if (i.MD.idx == 2) {
+    // XEDISASMR(rldicx,       0x78000008, MD )
+    const char* name;
+    const char* desc;
+    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+    if (mb == 0x3E) {
+      name = "sldi";
+      desc = "Shift Left Immediate";
+    } else {
+      name = "rldic";
+      desc = "Rotate Left Doubleword Immediate then Clear";
+    }
+    d.Init(name, desc,
+           i.MD.Rc ? InstrDisasm::kRc : 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+    d.AddUImmOperand(sh, 1);
+    d.AddUImmOperand(mb, 1);
+    return d.Finish();
+  } else if (i.MDS.idx == 8) {
+    // XEDISASMR(rldclx,       0x78000010, MDS)
+    d.Init("rldcl", "Rotate Left Doubleword then Clear Left",
+           i.MDS.Rc ? InstrDisasm::kRc : 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.MDS.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.MDS.RT, InstrRegister::kRead);
+    d.AddRegOperand(InstrRegister::kGPR, i.MDS.RB, InstrRegister::kRead);
+    d.AddUImmOperand((i.MDS.MB5 << 5) | i.MDS.MB, 1);
+    return d.Finish();
+  } else if (i.MDS.idx == 9) {
+    // XEDISASMR(rldcrx,       0x78000012, MDS)
+    d.Init("rldcr", "Rotate Left Doubleword then Clear Right",
+           i.MDS.Rc ? InstrDisasm::kRc : 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.MDS.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.MDS.RT, InstrRegister::kRead);
+    d.AddRegOperand(InstrRegister::kGPR, i.MDS.RB, InstrRegister::kRead);
+    d.AddUImmOperand((i.MDS.MB5 << 5) | i.MDS.MB, 1);
+    return d.Finish();
+  } else if (i.MD.idx == 3) {
+    // XEDISASMR(rldimix,      0x7800000C, MD )
+    d.Init("rldimi", "Rotate Left Doubleword Immediate then Mask Insert",
+           i.MD.Rc ? InstrDisasm::kRc : 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kReadWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
+    d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
+    d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
+    return d.Finish();
   } else {
-    name = "rldic";
-    desc = "Rotate Left Doubleword Immediate then Clear";
+    XEASSERTALWAYS();
+    return 1;
   }
-  d.Init(name, desc,
-         i.MD.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
-  d.AddUImmOperand(sh, 1);
-  d.AddUImmOperand(mb, 1);
-  return d.Finish();
-}
-
-XEDISASMR(rldiclx,      0x78000000, MD )(InstrData& i, InstrDisasm& d) {
-  d.Init("rldicl", "Rotate Left Doubleword Immediate then Clear Left",
-         i.MD.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
-  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
-  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
-  return d.Finish();
-}
-
-XEDISASMR(rldicrx,      0x78000004, MD )(InstrData& i, InstrDisasm& d) {
-  d.Init("rldicr", "Rotate Left Doubleword Immediate then Clear Right",
-         i.MD.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
-  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
-  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
-  return d.Finish();
-}
-
-XEDISASMR(rldimix,      0x7800000C, MD )(InstrData& i, InstrDisasm& d) {
-  d.Init("rldimi", "Rotate Left Doubleword Immediate then Mask Insert",
-         i.MD.Rc ? InstrDisasm::kRc : 0);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RA, InstrRegister::kReadWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.MD.RT, InstrRegister::kRead);
-  d.AddUImmOperand((i.MD.SH5 << 5) | i.MD.SH, 1);
-  d.AddUImmOperand((i.MD.MB5 << 5) | i.MD.MB, 1);
-  return d.Finish();
 }
 
 XEDISASMR(rlwimix,      0x50000000, M  )(InstrData& i, InstrDisasm& d) {
@@ -701,12 +702,13 @@ void RegisterDisasmCategoryALU() {
   XEREGISTERINSTR(xorx,         0x7C000278);
   XEREGISTERINSTR(xori,         0x68000000);
   XEREGISTERINSTR(xoris,        0x6C000000);
-  XEREGISTERINSTR(rldclx,       0x78000010);
-  XEREGISTERINSTR(rldcrx,       0x78000012);
-  XEREGISTERINSTR(rldicx,       0x78000008);
-  XEREGISTERINSTR(rldiclx,      0x78000000);
-  XEREGISTERINSTR(rldicrx,      0x78000004);
-  XEREGISTERINSTR(rldimix,      0x7800000C);
+  XEREGISTERINSTR(rld,          0x78000000);
+  // XEREGISTERINSTR(rldclx,       0x78000010);
+  // XEREGISTERINSTR(rldcrx,       0x78000012);
+  // XEREGISTERINSTR(rldicx,       0x78000008);
+  // XEREGISTERINSTR(rldiclx,      0x78000000);
+  // XEREGISTERINSTR(rldicrx,      0x78000004);
+  // XEREGISTERINSTR(rldimix,      0x7800000C);
   XEREGISTERINSTR(rlwimix,      0x50000000);
   XEREGISTERINSTR(rlwinmx,      0x54000000);
   XEREGISTERINSTR(rlwnmx,       0x5C000000);

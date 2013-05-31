@@ -362,7 +362,9 @@ InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
     break;
   case 30:
     // Opcode = 30, index = bits 4-1 (4)
-    slot = &xe::cpu::ppc::tables::instr_table_30[XESELECTBITS(code, 1, 4)];
+    // Special cased to an uber instruction.
+    slot = &xe::cpu::ppc::tables::instr_table_30[XESELECTBITS(code, 0, 0)];
+    // slot = &xe::cpu::ppc::tables::instr_table_30[XESELECTBITS(code, 1, 4)];
     break;
   case 31:
     // Opcode = 31, index = bits 10-1 (10)

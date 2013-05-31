@@ -93,15 +93,19 @@ static InstrType* instr_table_19 = instr_table_prep(
 
 // Opcode = 30, index = bits 4-1 (4)
 static InstrType instr_table_30_unprep[] = {
-  INSTRUCTION(rldiclx,        0x78000000, MD , General        , 0),
-  INSTRUCTION(rldicrx,        0x78000004, MD , General        , 0),
-  INSTRUCTION(rldicx,         0x78000008, MD , General        , 0),
-  INSTRUCTION(rldimix,        0x7800000C, MD , General        , 0),
-  INSTRUCTION(rldclx,         0x78000010, MDS, General        , 0),
-  INSTRUCTION(rldcrx,         0x78000012, MDS, General        , 0),
+  // Decoding these instrunctions in this table is difficult because the
+  // index bits are kind of random. This is special cased by an uber
+  // instruction handler.
+  INSTRUCTION(rld,            0x78000000, MD , General        , 0),
+  // INSTRUCTION(rldiclx,        0x78000000, MD , General        , 0),
+  // INSTRUCTION(rldicrx,        0x78000004, MD , General        , 0),
+  // INSTRUCTION(rldicx,         0x78000008, MD , General        , 0),
+  // INSTRUCTION(rldimix,        0x7800000C, MD , General        , 0),
+  // INSTRUCTION(rldclx,         0x78000010, MDS, General        , 0),
+  // INSTRUCTION(rldcrx,         0x78000012, MDS, General        , 0),
 };
 static InstrType* instr_table_30 = instr_table_prep(
-    instr_table_30_unprep, XECOUNT(instr_table_30_unprep), 1, 4);
+    instr_table_30_unprep, XECOUNT(instr_table_30_unprep), 0, 0);
 
 // Opcode = 31, index = bits 10-1 (10)
 static InstrType instr_table_31_unprep[] = {

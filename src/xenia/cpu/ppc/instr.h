@@ -193,7 +193,7 @@ typedef struct {
     struct {
       uint32_t        Rc      : 1;
       uint32_t        SH5     : 1;
-      uint32_t                : 3;
+      uint32_t        idx     : 3;
       uint32_t        MB5     : 1;
       uint32_t        MB      : 5;
       uint32_t        SH      : 5;
@@ -204,7 +204,7 @@ typedef struct {
     // kXEPPCInstrFormatMDS
     struct {
       uint32_t        Rc      : 1;
-      uint32_t                : 4;
+      uint32_t        idx     : 4;
       uint32_t        MB5     : 1;
       uint32_t        MB      : 5;
       uint32_t        RB      : 5;
