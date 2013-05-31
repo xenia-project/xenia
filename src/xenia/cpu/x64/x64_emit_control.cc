@@ -642,6 +642,8 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(X64Emitter& e, X86Compiler& c, InstrDat
 
   e.update_gpr_value(i.XFX.RT, v);
 
+  e.clear_constant_gpr_value(i.XFX.RT);
+
   return 0;
 }
 

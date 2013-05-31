@@ -243,6 +243,8 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
 
   access_bits_.Clear();
 
+  clear_all_constant_gpr_values();
+
   locals_.indirection_target = GpVar();
   locals_.indirection_cia = GpVar();
 
@@ -549,6 +551,13 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
   if (FLAGS_annotate_disassembly) {
     c.comment("bb %.8X - %.8X", block->start_address, block->end_address);
   }
+
+  // Reset constant values.
+  // They may be valid, but it's hard to tell.
+  // If we wanted we could ensure that any incoming edges were immediately
+  // preceeding us and not something that was messing with the values, however
+  // most constant values are set within their own blocks anyway.
+  clear_all_constant_gpr_values();
 
   // This will create a label if it hasn't already been done.
   std::map<uint32_t, Label>::iterator label_it =
@@ -1222,6 +1231,32 @@ void X64Emitter::SpillRegisters() {
       c.movq(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
              v);
     }
+  }
+}
+
+bool X64Emitter::get_constant_gpr_value(uint32_t n, uint64_t* value) {
+  if (gpr_values_[n].is_constant) {
+    *value = gpr_values_[n].value;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void X64Emitter::set_constant_gpr_value(uint32_t n, uint64_t value) {
+  gpr_values_[n].is_constant = true;
+  gpr_values_[n].value = value;
+}
+
+void X64Emitter::clear_constant_gpr_value(uint32_t n) {
+  gpr_values_[n].is_constant = false;
+  gpr_values_[n].value = 0;
+}
+
+void X64Emitter::clear_all_constant_gpr_values() {
+  for (size_t n = 0; n < XECOUNT(gpr_values_); n++) {
+    gpr_values_[n].is_constant = false;
+    gpr_values_[n].value = 0;
   }
 }
 

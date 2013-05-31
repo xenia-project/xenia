@@ -43,6 +43,8 @@ XEEMITTER(lbz,          0x88000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 1, false);
   e.update_gpr_value(i.D.RT, v);
 
+  e.clear_constant_gpr_value(i.D.RT);
+
   return 0;
 }
 
@@ -58,6 +60,9 @@ XEEMITTER(lbzu,         0x8C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.D.RT, v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RT);
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -72,6 +77,9 @@ XEEMITTER(lbzux,        0x7C0000EE, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 1, false);
   e.update_gpr_value(i.X.RT, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RT);
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -91,6 +99,8 @@ XEEMITTER(lbzx,         0x7C0000AE, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   }
   GpVar v = e.ReadMemory(i.address, ea, 1, false);
   e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
 
   return 0;
 }
@@ -113,6 +123,8 @@ XEEMITTER(ld,           0xE8000000, DS )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 8, false);
   e.update_gpr_value(i.DS.RT, v);
 
+  e.clear_constant_gpr_value(i.DS.RT);
+
   return 0;
 }
 
@@ -128,6 +140,9 @@ XEEMITTER(ldu,          0xE8000001, DS )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.DS.RT, v);
   e.update_gpr_value(i.DS.RA, ea);
 
+  e.clear_constant_gpr_value(i.DS.RT);
+  e.clear_constant_gpr_value(i.DS.RA);
+
   return 0;
 }
 
@@ -142,6 +157,9 @@ XEEMITTER(ldux,         0x7C00006A, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 8, false);
   e.update_gpr_value(i.X.RT, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RT);
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -161,6 +179,8 @@ XEEMITTER(ldx,          0x7C00002A, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   }
   GpVar v = e.ReadMemory(i.address, ea, 8, false);
   e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
 
   return 0;
 }
@@ -183,6 +203,8 @@ XEEMITTER(lha,          0xA8000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 2, false);
   v = e.sign_extend(v, 2, 8);
   e.update_gpr_value(i.D.RT, v);
+
+  e.clear_constant_gpr_value(i.D.RT);
 
   return 0;
 }
@@ -214,6 +236,8 @@ XEEMITTER(lhax,         0x7C0002AE, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   v = e.sign_extend(v, 2, 8);
   e.update_gpr_value(i.X.RT, v);
 
+  e.clear_constant_gpr_value(i.X.RT);
+
   return 0;
 }
 
@@ -236,6 +260,8 @@ XEEMITTER(lhz,          0xA0000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.D.RT, v);
 
+  e.clear_constant_gpr_value(i.D.RT);
+
   return 0;
 }
 
@@ -252,6 +278,9 @@ XEEMITTER(lhzu,         0xA4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.D.RT, v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RT);
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -267,6 +296,9 @@ XEEMITTER(lhzux,        0x7C00026E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.X.RT, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RT);
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -287,6 +319,8 @@ XEEMITTER(lhzx,         0x7C00022E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 2, false);
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
 
   return 0;
 }
@@ -310,6 +344,8 @@ XEEMITTER(lwa,          0xE8000002, DS )(X64Emitter& e, X86Compiler& c, InstrDat
   v = e.sign_extend(v, 4, 8);
   e.update_gpr_value(i.DS.RT, v);
 
+  e.clear_constant_gpr_value(i.DS.RT);
+
   return 0;
 }
 
@@ -325,6 +361,9 @@ XEEMITTER(lwaux,        0x7C0002EA, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   v = e.sign_extend(v, 4, 8);
   e.update_gpr_value(i.X.RT, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RT);
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -345,6 +384,8 @@ XEEMITTER(lwax,         0x7C0002AA, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 4, false);
   v = e.sign_extend(v, 4, 8);
   e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
 
   return 0;
 }
@@ -368,6 +409,8 @@ XEEMITTER(lwz,          0x80000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.D.RT, v);
 
+  e.clear_constant_gpr_value(i.D.RT);
+
   return 0;
 }
 
@@ -384,6 +427,9 @@ XEEMITTER(lwzu,         0x84000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.D.RT, v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RT);
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -399,6 +445,9 @@ XEEMITTER(lwzux,        0x7C00006E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.X.RT, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RT);
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -419,6 +468,8 @@ XEEMITTER(lwzx,         0x7C00002E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 4, false);
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
 
   return 0;
 }
@@ -459,6 +510,8 @@ XEEMITTER(stbu,         0x9C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.WriteMemory(i.address, ea, 1, v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -473,6 +526,8 @@ XEEMITTER(stbux,        0x7C0001EE, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.gpr_value(i.X.RT);
   e.WriteMemory(i.address, ea, 1, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -529,6 +584,8 @@ XEEMITTER(stdu,         0xF8000001, DS )(X64Emitter& e, X86Compiler& c, InstrDat
   e.WriteMemory(i.address, ea, 8, v);
   e.update_gpr_value(i.DS.RA, ea);
 
+  e.clear_constant_gpr_value(i.DS.RA);
+
   return 0;
 }
 
@@ -562,6 +619,8 @@ XEEMITTER(stdx,         0x7C00012A, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.gpr_value(i.X.RT);
   e.WriteMemory(i.address, ea, 8, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -599,6 +658,8 @@ XEEMITTER(sthu,         0xB4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.WriteMemory(i.address, ea, 2, v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -613,6 +674,8 @@ XEEMITTER(sthux,        0x7C00036E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.gpr_value(i.X.RT);
   e.WriteMemory(i.address, ea, 2, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -669,6 +732,8 @@ XEEMITTER(stwu,         0x94000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.WriteMemory(i.address, ea, 4, v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -683,6 +748,8 @@ XEEMITTER(stwux,        0x7C00016E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.gpr_value(i.X.RT);
   e.WriteMemory(i.address, ea, 4, v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -814,6 +881,8 @@ XEEMITTER(lwarx,        0x7C000028, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v = e.ReadMemory(i.address, ea, 4, /* acquire */ true);
   e.update_gpr_value(i.X.RT, v);
 
+  e.clear_constant_gpr_value(i.X.RT);
+
   return 0;
 }
 
@@ -898,6 +967,8 @@ XEEMITTER(lfdu,         0xCC000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_fpr_value(i.D.RT, xmm_v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -915,6 +986,8 @@ XEEMITTER(lfdux,        0x7C0004EE, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.movq(xmm_v, v.m64());
   e.update_fpr_value(i.X.RT, xmm_v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -980,6 +1053,8 @@ XEEMITTER(lfsu,         0xC4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_fpr_value(i.D.RT, xmm_v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -997,6 +1072,8 @@ XEEMITTER(lfsux,        0x7C00046E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.cvtss2sd(xmm_v, xmm_v);
   e.update_fpr_value(i.X.RT, xmm_v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -1065,6 +1142,8 @@ XEEMITTER(stfdu,        0xDC000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.WriteMemory(i.address, ea, 8, gpr_v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -1082,6 +1161,8 @@ XEEMITTER(stfdux,       0x7C0005EE, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.movq(gpr_v.m64(), v);
   e.WriteMemory(i.address, ea, 8, gpr_v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -1168,6 +1249,8 @@ XEEMITTER(stfsu,        0xD4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.WriteMemory(i.address, ea, 4, gpr_v);
   e.update_gpr_value(i.D.RA, ea);
 
+  e.clear_constant_gpr_value(i.D.RA);
+
   return 0;
 }
 
@@ -1185,6 +1268,8 @@ XEEMITTER(stfsux,       0x7C00056E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.movd(gpr_v.r32(), v);
   e.WriteMemory(i.address, ea, 4, gpr_v);
   e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }

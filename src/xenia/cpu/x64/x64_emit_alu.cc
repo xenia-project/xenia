@@ -45,6 +45,8 @@ XEEMITTER(addx,         0x7C000214, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.XO.RT);
+
   return 0;
 }
 
@@ -70,6 +72,17 @@ XEEMITTER(addi,         0x38000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   }
   e.update_gpr_value(i.D.RT, v);
 
+  if (i.D.RA) {
+    uint64_t value;
+    if (e.get_constant_gpr_value(i.D.RA, &value)) {
+      e.set_constant_gpr_value(i.D.RT, value + XEEXTS16(i.D.DS));
+    } else {
+      e.clear_constant_gpr_value(i.D.RT);
+    }
+  } else {
+    e.set_constant_gpr_value(i.D.RT, XEEXTS16(i.D.DS));
+  }
+
   return 0;
 }
 
@@ -85,6 +98,13 @@ XEEMITTER(addic,        0x30000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.D.RT, v);
   e.update_xer_with_carry(cc);
 
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RA, &value)) {
+    e.set_constant_gpr_value(i.D.RT, value + XEEXTS16(i.D.DS));
+  } else {
+    e.clear_constant_gpr_value(i.D.RT);
+  }
+
   return 0;
 }
 
@@ -99,6 +119,14 @@ XEEMITTER(addicx,       0x34000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.D.RT, v);
   e.update_cr_with_cond(0, v);
   e.update_xer_with_carry(cc);
+
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RA, &value)) {
+    e.set_constant_gpr_value(i.D.RT, value + XEEXTS16(i.D.DS));
+  } else {
+    e.clear_constant_gpr_value(i.D.RT);
+  }
+
   return 0;
 }
 
@@ -113,6 +141,17 @@ XEEMITTER(addis,        0x3C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
     c.add(v, e.gpr_value(i.D.RA));
   }
   e.update_gpr_value(i.D.RT, v);
+
+  if (i.D.RA) {
+    uint64_t value;
+    if (e.get_constant_gpr_value(i.D.RA, &value)) {
+      e.set_constant_gpr_value(i.D.RT, value + (XEEXTS16(i.D.DS) << 16));
+    } else {
+      e.clear_constant_gpr_value(i.D.RT);
+    }
+  } else {
+    e.set_constant_gpr_value(i.D.RT, XEEXTS16(i.D.DS) << 16);
+  }
 
   return 0;
 }
@@ -152,6 +191,8 @@ XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.XO.RT);
 
   return 0;
 }
@@ -221,6 +262,8 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   b.CreateBr(after_bb);
 #endif
 
+  e.clear_constant_gpr_value(i.XO.RT);
+
   return 0;
 }
 
@@ -282,6 +325,8 @@ XEEMITTER(divwux,       0x7C000396, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   b.CreateBr(after_bb);
 #endif
 
+  e.clear_constant_gpr_value(i.XO.RT);
+
   return 0;
 }
 
@@ -324,6 +369,8 @@ XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.mul(v_hi, v_lo, e.gpr_value(i.D.RA));
   e.update_gpr_value(i.D.RT, v_lo);
 
+  e.clear_constant_gpr_value(i.D.RT);
+
   return 0;
 }
 
@@ -347,6 +394,8 @@ XEEMITTER(mullwx,       0x7C0001D6, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v_0);
   }
+
+  e.clear_constant_gpr_value(i.XO.RT);
 
   return 0;
 }
@@ -374,8 +423,6 @@ XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     //  // With cr0 update.
     //  e.update_cr_with_cond(0, v0, e.get_int64(0), true);
     //}
-
-    return 0;
   } else {
     // No OE bit setting.
     GpVar v(c.newGpVar());
@@ -387,9 +434,16 @@ XEEMITTER(negx,         0x7C0000D0, XO )(X64Emitter& e, X86Compiler& c, InstrDat
       // With cr0 update.
       e.update_cr_with_cond(0, v);
     }
-
-    return 0;
   }
+
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.XO.RA, &value)) {
+    e.set_constant_gpr_value(i.XO.RT, ~value + 1);
+  } else {
+    e.clear_constant_gpr_value(i.XO.RT);
+  }
+
+  return 0;
 }
 
 XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -414,6 +468,8 @@ XEEMITTER(subfx,        0x7C000050, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.XO.RT);
+
   return 0;
 }
 
@@ -431,6 +487,8 @@ XEEMITTER(subfcx,       0x7C000010, XO )(X64Emitter& e, X86Compiler& c, InstrDat
   e.update_gpr_value(i.XO.RT, v);
   e.update_xer_with_carry(cc);
 
+  e.clear_constant_gpr_value(i.XO.RT);
+
   return 0;
 }
 
@@ -447,6 +505,13 @@ XEEMITTER(subficx,      0x20000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   e.update_gpr_value(i.D.RT, v);
   e.update_xer_with_carry(cc);
+
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RA, &value)) {
+    e.set_constant_gpr_value(i.D.RT, ~value + XEEXTS16(i.D.DS) + 1);
+  } else {
+    e.clear_constant_gpr_value(i.D.RT);
+  }
 
   return 0;
 }
@@ -487,6 +552,8 @@ XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.XO.RT);
 
   return 0;
 }
@@ -642,6 +709,8 @@ XEEMITTER(andx,         0x7C000038, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -659,6 +728,8 @@ XEEMITTER(andcx,        0x7C000078, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -673,6 +744,13 @@ XEEMITTER(andix,        0x70000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // With cr0 update.
   e.update_cr_with_cond(0, v);
 
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RT, &value)) {
+    e.set_constant_gpr_value(i.D.RA, value & i.D.DS);
+  } else {
+    e.clear_constant_gpr_value(i.D.RA);
+  }
+
   return 0;
 }
 
@@ -686,6 +764,13 @@ XEEMITTER(andisx,       0x74000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   // With cr0 update.
   e.update_cr_with_cond(0, v);
+
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RT, &value)) {
+    e.set_constant_gpr_value(i.D.RA, value & (i.D.DS << 16));
+  } else {
+    e.clear_constant_gpr_value(i.D.RA);
+  }
 
   return 1;
 }
@@ -709,6 +794,8 @@ XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -731,6 +818,8 @@ XEEMITTER(cntlzwx,      0x7C000034, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -752,6 +841,8 @@ XEEMITTER(eqvx,         0x7C000238, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -772,6 +863,8 @@ XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     // Update cr0.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -805,6 +898,8 @@ XEEMITTER(norx,         0x7C0000F8, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -825,6 +920,8 @@ XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -841,6 +938,13 @@ XEEMITTER(ori,          0x60000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.or_(v, imm(i.D.DS));
   e.update_gpr_value(i.D.RA, v);
 
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RT, &value)) {
+    e.set_constant_gpr_value(i.D.RA, value | i.D.DS);
+  } else {
+    e.clear_constant_gpr_value(i.D.RA);
+  }
+
   return 0;
 }
 
@@ -851,6 +955,13 @@ XEEMITTER(oris,         0x64000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.mov(v, e.gpr_value(i.D.RT));
   c.or_(v, imm(i.D.DS << 16));
   e.update_gpr_value(i.D.RA, v);
+
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RT, &value)) {
+    e.set_constant_gpr_value(i.D.RA, value | (i.D.DS << 16));
+  } else {
+    e.clear_constant_gpr_value(i.D.RA);
+  }
 
   return 0;
 }
@@ -868,6 +979,8 @@ XEEMITTER(xorx,         0x7C000278, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -879,6 +992,13 @@ XEEMITTER(xori,         0x68000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.xor_(v, imm(i.D.DS));
   e.update_gpr_value(i.D.RA, v);
 
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RT, &value)) {
+    e.set_constant_gpr_value(i.D.RA, value ^ i.D.DS);
+  } else {
+    e.clear_constant_gpr_value(i.D.RA);
+  }
+
   return 0;
 }
 
@@ -889,6 +1009,13 @@ XEEMITTER(xoris,        0x6C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   c.mov(v, e.gpr_value(i.D.RT));
   c.xor_(v, imm(i.D.DS << 16));
   e.update_gpr_value(i.D.RA, v);
+
+  uint64_t value;
+  if (e.get_constant_gpr_value(i.D.RT, &value)) {
+    e.set_constant_gpr_value(i.D.RA, value ^ (i.D.DS << 16));
+  } else {
+    e.clear_constant_gpr_value(i.D.RA);
+  }
 
   return 0;
 }
@@ -939,6 +1066,8 @@ XEEMITTER(rldiclx,      0x78000000, MD )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.MD.RA);
+
   return 0;
 }
 
@@ -969,6 +1098,8 @@ XEEMITTER(rldicrx,      0x78000004, MD )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.MD.RA);
 
   return 0;
 }
@@ -1006,6 +1137,8 @@ XEEMITTER(rlwimix,      0x50000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.M.RA);
+
   return 0;
 }
 
@@ -1032,6 +1165,8 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.M.RA);
 
   return 0;
 }
@@ -1066,6 +1201,8 @@ XEEMITTER(sldx,         0x7C000036, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -1091,6 +1228,8 @@ XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -1153,6 +1292,8 @@ XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
+  e.clear_constant_gpr_value(i.X.RA);
+
   return 0;
 }
 
@@ -1177,6 +1318,8 @@ XEEMITTER(srdx,         0x7C000436, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
@@ -1203,6 +1346,8 @@ XEEMITTER(srwx,         0x7C000430, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     // With cr0 update.
     e.update_cr_with_cond(0, v);
   }
+
+  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }

@@ -58,6 +58,11 @@ public:
   void FillRegisters();
   void SpillRegisters();
 
+  bool get_constant_gpr_value(uint32_t n, uint64_t* value);
+  void set_constant_gpr_value(uint32_t n, uint64_t value);
+  void clear_constant_gpr_value(uint32_t n);
+  void clear_all_constant_gpr_values();
+
   AsmJit::GpVar xer_value();
   void update_xer_value(AsmJit::GpVar& value);
   void update_xer_with_overflow(AsmJit::GpVar& value);
@@ -124,7 +129,11 @@ private:
 
   std::map<uint32_t, AsmJit::Label> bbs_;
 
-  ppc::InstrAccessBits access_bits_;
+  ppc::InstrAccessBits  access_bits_;
+  struct {
+    bool      is_constant;
+    uint64_t  value;
+  } gpr_values_[32];
   struct {
     AsmJit::GpVar   indirection_target;
     AsmJit::GpVar   indirection_cia;
