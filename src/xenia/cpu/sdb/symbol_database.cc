@@ -354,11 +354,20 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         GetOrInsertFunction(target);
       } else {
         XELOGSDB("b %.8X -> %.8X", addr, target);
+
         // If the target is back into the function and there's no further target
         // we are at the end of a function.
         if (target >= fn->start_address &&
             target < addr && furthest_target <= addr) {
           XELOGSDB("function end %.8X (back b)", addr);
+          ends_fn = true;
+        }
+
+        // If the target is not a branch and it goes to before the current
+        // address it's definitely a tail call.
+        if (!ends_fn &&
+            target < addr) {
+          XELOGSDB("function end %.8X (back b before addr)", addr);
           ends_fn = true;
         }
 
@@ -379,11 +388,31 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
         //   b         KeBugCheck
         // This check may hit on functions that jump over data code, so only
         // trigger this check in leaf functions (no mfspr lr/prolog).
-        if (!starts_with_mfspr_lr &&
+        if (!ends_fn &&
+            !starts_with_mfspr_lr &&
             fn->blocks.size() == 1) {
-          XELOGSDB("simple leaf thunk detected, ending");
+          XELOGSDB("HEURISTIC: ending at simple leaf thunk %.8X", addr);
           ends_fn = true;
         }
+
+        // Heuristic: if this is an unconditional branch at the end of the
+        // function (nothing jumps over us) and we are jumping forward there's
+        // a good chance it's a tail call.
+        // This may not be true if the code is jumping over data/etc.
+        // TODO(benvanik): figure out how to do this reliably. This check as is
+        // is too aggressive and turns a lot of valid branches into tail calls.
+        // It seems like a lot of functions end up with some prologue bit then
+        // jump deep inside only to jump back towards the top soon after. May
+        // need something more complex than just a simple 1-pass system to
+        // detect these, unless more signals can be found.
+        /*
+        if (!ends_fn &&
+            target > addr &&
+            furthest_target < addr) {
+          XELOGSDB("HEURISTIC: ending at tail call branch %.8X", addr);
+          ends_fn = true;
+        }
+        */
 
         if (!ends_fn) {
           furthest_target = MAX(furthest_target, target);
