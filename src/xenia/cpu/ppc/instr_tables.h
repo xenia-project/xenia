@@ -30,6 +30,25 @@ static InstrType* instr_table_prep(
   return prep;
 }
 
+static InstrType* instr_table_prep_63(
+    InstrType* unprep, int unprep_count, int a, int b) {
+  // Special handling for A format instructions.
+  int prep_count = (int)pow(2.0, b - a + 1);
+  InstrType* prep = (InstrType*)xe_calloc(prep_count * sizeof(InstrType));
+  for (int n = 0; n < unprep_count; n++) {
+    int ordinal = XESELECTBITS(unprep[n].opcode, a, b);
+    if (unprep[n].format == kXEPPCInstrFormatA) {
+      // Must splat this into all of the slots that it could be in.
+      for (int m = 0; m < 32; m++) {
+        prep[ordinal + (m << 5)] = unprep[n];
+      }
+    } else {
+      prep[ordinal] = unprep[n];
+    }
+  }
+  return prep;
+}
+
 
 #define EMPTY(slot) {0}
 #define INSTRUCTION(name, opcode, format, type, flag)  { \
@@ -244,6 +263,8 @@ static InstrType* instr_table_62 = instr_table_prep(
     instr_table_62_unprep, XECOUNT(instr_table_62_unprep), 0, 1);
 
 // Opcode = 63, index = bits 10-1 (10)
+// NOTE: the A format instructions need some special handling because
+//       they only use 6bits to identify their index.
 static InstrType instr_table_63_unprep[] = {
   INSTRUCTION(fcmpu,          0xFC000000, X  , General        , 0),
   INSTRUCTION(frspx,          0xFC000018, X  , General        , 0),
@@ -275,7 +296,7 @@ static InstrType instr_table_63_unprep[] = {
   INSTRUCTION(fctidzx,        0xFC00065E, X  , General        , 0),
   INSTRUCTION(fcfidx,         0xFC00069C, X  , General        , 0),
 };
-static InstrType* instr_table_63 = instr_table_prep(
+static InstrType* instr_table_63 = instr_table_prep_63(
     instr_table_63_unprep, XECOUNT(instr_table_63_unprep), 1, 10);
 
 // Main table, index = bits 31-26 (6) : (code >> 26)
