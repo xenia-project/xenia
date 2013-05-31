@@ -30,7 +30,7 @@ public:
   virtual int Analyze();
 
 private:
-  int FindGplr();
+  int FindSaveRest();
   int AddImports(const xe_xex2_import_library_t *library);
   int AddMethodHints();
 

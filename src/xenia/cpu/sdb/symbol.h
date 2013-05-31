@@ -108,6 +108,10 @@ public:
   enum Flags {
     kFlagSaveGprLr  = 1 << 1,
     kFlagRestGprLr  = 1 << 2,
+    kFlagSaveFpr    = 1 << 3,
+    kFlagRestFpr    = 1 << 4,
+    kFlagSaveVmx    = 1 << 5,
+    kFlagRestVmx    = 1 << 6,
   };
 
   FunctionSymbol();
