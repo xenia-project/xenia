@@ -870,13 +870,46 @@ XEEMITTER(extsbx,       0x7C000774, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(extshx,       0x7C000734, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // s <- (RS)[48]
+  // RA[48:63] <- (RS)[48:63]
+  // RA[0:47] <- 48.s
+
+  // TODO(benvanik): see if there's a faster way to do this.
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  c.cwde(v);
+  c.cdqe(v);
+  e.update_gpr_value(i.X.RA, v);
+
+  if (i.X.Rc) {
+    // Update cr0.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.X.RA);
+
+  return 0;
 }
 
 XEEMITTER(extswx,       0x7C0007B4, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // s <- (RS)[32]
+  // RA[32:63] <- (RS)[32:63]
+  // RA[0:31] <- i32.s
+
+  // TODO(benvanik): see if there's a faster way to do this.
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  c.cdqe(v);
+  e.update_gpr_value(i.X.RA, v);
+
+  if (i.X.Rc) {
+    // Update cr0.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.X.RA);
+
+  return 0;
 }
 
 XEEMITTER(nandx,        0x7C0003B8, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -926,8 +959,22 @@ XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(orcx,         0x7C000338, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RA <- (RS) | ¬(RB)
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RB));
+  c.not_(v);
+  c.or_(v, e.gpr_value(i.X.RT));
+  e.update_gpr_value(i.X.RA, v);
+
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.X.RA);
+
+  return 0;
 }
 
 XEEMITTER(ori,          0x60000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {

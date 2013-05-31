@@ -290,8 +290,27 @@ XEEMITTER(fsqrtsx,      0xEC00002C, A  )(X64Emitter& e, X86Compiler& c, InstrDat
 // Floating-point multiply-add (A-9)
 
 XEEMITTER(fmaddx,       0xFC00003A, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- (frA x frC) + frB
+
+  XmmVar v(c.newXmmVar());
+  // TODO(benvanik): I'm sure there's an SSE op for this.
+  // NOTE: we do (frB - [frA x frC]) as that's pretty much the same.
+  c.movq(v, e.fpr_value(i.A.FRA));
+  c.mulsd(v, e.fpr_value(i.A.FRC));
+  c.addsd(v, e.fpr_value(i.A.FRB));
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  return 0;
 }
 
 XEEMITTER(fmaddsx,      0xEC00003A, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
