@@ -30,6 +30,9 @@ void xe_memory_release(xe_memory_ref memory);
 size_t xe_memory_get_length(xe_memory_ref memory);
 uint8_t *xe_memory_addr(xe_memory_ref memory, size_t guest_addr = 0);
 
+void xe_memory_copy(xe_memory_ref memory,
+                    uint32_t dest, uint32_t src, uint32_t size);
+
 uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
                                   size_t end, const uint32_t *values,
                                   const size_t value_count);
