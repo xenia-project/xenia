@@ -35,8 +35,14 @@ XEEMITTER(lbz,          0x88000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -54,14 +60,21 @@ XEEMITTER(lbzu,         0x8C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.ReadMemory(i.address, ea, 1, false);
   e.update_gpr_value(i.D.RT, v);
   e.update_gpr_value(i.D.RA, ea);
 
   e.clear_constant_gpr_value(i.D.RT);
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -115,8 +128,14 @@ XEEMITTER(ld,           0xE8000000, DS )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.DS.RA) {
-    c.mov(ea, e.gpr_value(i.DS.RA));
-    c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.DS.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.DS.DS << 2);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.DS.RA));
+      c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.DS.DS << 2)));
   }
@@ -134,14 +153,21 @@ XEEMITTER(ldu,          0xE8000001, DS )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.DS.RA));
-  c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.DS.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.DS.DS << 2);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.DS.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.DS.RA));
+    c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    e.clear_constant_gpr_value(i.DS.RA);
+  }
   GpVar v = e.ReadMemory(i.address, ea, 8, false);
   e.update_gpr_value(i.DS.RT, v);
   e.update_gpr_value(i.DS.RA, ea);
 
   e.clear_constant_gpr_value(i.DS.RT);
-  e.clear_constant_gpr_value(i.DS.RA);
 
   return 0;
 }
@@ -195,8 +221,14 @@ XEEMITTER(lha,          0xA8000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -251,8 +283,14 @@ XEEMITTER(lhz,          0xA0000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -271,15 +309,22 @@ XEEMITTER(lhzu,         0xA4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.ReadMemory(i.address, ea, 2, false);
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.D.RT, v);
   e.update_gpr_value(i.D.RA, ea);
 
   e.clear_constant_gpr_value(i.D.RT);
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -335,8 +380,14 @@ XEEMITTER(lwa,          0xE8000002, DS )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.DS.RA) {
-    c.mov(ea, e.gpr_value(i.DS.RA));
-    c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.DS.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.DS.DS << 2);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.DS.RA));
+      c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.DS.DS << 2)));
   }
@@ -400,8 +451,14 @@ XEEMITTER(lwz,          0x80000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -420,15 +477,22 @@ XEEMITTER(lwzu,         0x84000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.ReadMemory(i.address, ea, 4, false);
   // Zero extend done by ReadMemory.
   e.update_gpr_value(i.D.RT, v);
   e.update_gpr_value(i.D.RA, ea);
 
   e.clear_constant_gpr_value(i.D.RT);
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -487,8 +551,14 @@ XEEMITTER(stb,          0x98000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -504,13 +574,19 @@ XEEMITTER(stbu,         0x9C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.gpr_value(i.D.RT);
   e.WriteMemory(i.address, ea, 1, v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -561,8 +637,14 @@ XEEMITTER(std,          0xF8000000, DS )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.DS.RA) {
-    c.mov(ea, e.gpr_value(i.DS.RA));
-    c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.DS.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.DS.DS << 2);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.DS.RA));
+      c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.DS.DS << 2)));
   }
@@ -578,13 +660,19 @@ XEEMITTER(stdu,         0xF8000001, DS )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.DS.RA));
-  c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.DS.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.DS.DS << 2);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.DS.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.DS.RA));
+    c.add(ea, imm(XEEXTS16(i.DS.DS << 2)));
+    e.clear_constant_gpr_value(i.DS.RA);
+  }
   GpVar v = e.gpr_value(i.DS.RT);
   e.WriteMemory(i.address, ea, 8, v);
   e.update_gpr_value(i.DS.RA, ea);
-
-  e.clear_constant_gpr_value(i.DS.RA);
 
   return 0;
 }
@@ -635,8 +723,15 @@ XEEMITTER(sth,          0xB0000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+      e.set_constant_gpr_value(i.D.RA, constant_ea);
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -652,13 +747,19 @@ XEEMITTER(sthu,         0xB4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.gpr_value(i.D.RT);
   e.WriteMemory(i.address, ea, 2, v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -709,8 +810,14 @@ XEEMITTER(stw,          0x90000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -726,13 +833,19 @@ XEEMITTER(stwu,         0x94000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.gpr_value(i.D.RT);
   e.WriteMemory(i.address, ea, 4, v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -905,13 +1018,11 @@ XEEMITTER(stwcx,        0x7C00012D, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // TODO(benvanik): make this right
 
   GpVar ea(c.newGpVar());
-  if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
-  } else {
-    c.mov(ea, imm(XEEXTS16(i.D.DS)));
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
   }
-  GpVar v = e.gpr_value(i.D.RT);
+  GpVar v = e.gpr_value(i.X.RT);
   e.WriteMemory(i.address, ea, 4, v, /* release */ true);
 
   // We always succeed.
@@ -938,8 +1049,14 @@ XEEMITTER(lfd,          0xC8000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -958,16 +1075,22 @@ XEEMITTER(lfdu,         0xCC000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.ReadMemory(i.address, ea, 8, false);
   XmmVar xmm_v(c.newXmmVar());
   c.save(v); // Force to memory.
   c.movq(xmm_v, v.m64());
   e.update_fpr_value(i.D.RT, xmm_v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -1024,8 +1147,14 @@ XEEMITTER(lfs,          0xC0000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -1044,16 +1173,22 @@ XEEMITTER(lfsu,         0xC4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   GpVar v = e.ReadMemory(i.address, ea, 4, false);
   XmmVar xmm_v(c.newXmmVar());
   c.movd(xmm_v, v.r32());
   c.cvtss2sd(xmm_v, xmm_v);
   e.update_fpr_value(i.D.RT, xmm_v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -1113,8 +1248,14 @@ XEEMITTER(stfd,         0xD8000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea));
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -1133,16 +1274,22 @@ XEEMITTER(stfdu,        0xDC000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   XmmVar v = e.fpr_value(i.D.RT);
   GpVar gpr_v(c.newGpVar());
   c.save(gpr_v); // Force to memory.
   c.movq(gpr_v.m64(), v);
   e.WriteMemory(i.address, ea, 8, gpr_v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
@@ -1220,8 +1367,15 @@ XEEMITTER(stfs,         0xD0000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    c.mov(ea, e.gpr_value(i.D.RA));
-    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    uint64_t constant_ea;
+    if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+      constant_ea += XEEXTS16(i.D.DS);
+      c.mov(ea, imm(constant_ea));
+      e.set_constant_gpr_value(i.D.RA, constant_ea);
+    } else {
+      c.mov(ea, e.gpr_value(i.D.RA));
+      c.add(ea, imm(XEEXTS16(i.D.DS)));
+    }
   } else {
     c.mov(ea, imm(XEEXTS16(i.D.DS)));
   }
@@ -1240,16 +1394,22 @@ XEEMITTER(stfsu,        0xD4000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- EA
 
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.D.RA));
-  c.add(ea, imm(XEEXTS16(i.D.DS)));
+  uint64_t constant_ea;
+  if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    c.mov(ea, imm(constant_ea));
+    e.set_constant_gpr_value(i.D.RA, constant_ea);
+  } else {
+    c.mov(ea, e.gpr_value(i.D.RA));
+    c.add(ea, imm(XEEXTS16(i.D.DS)));
+    e.clear_constant_gpr_value(i.D.RA);
+  }
   XmmVar v = e.fpr_value(i.D.RT);
   c.cvtsd2ss(v, v);
   GpVar gpr_v(c.newGpVar());
   c.movd(gpr_v.r32(), v);
   e.WriteMemory(i.address, ea, 4, gpr_v);
   e.update_gpr_value(i.D.RA, ea);
-
-  e.clear_constant_gpr_value(i.D.RA);
 
   return 0;
 }
