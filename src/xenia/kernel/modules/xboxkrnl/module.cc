@@ -70,6 +70,14 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
       pKeDebugMonitorData);
   XESETUINT32BE(mem + pKeDebugMonitorData, 0);
 
+  // KeCertMonitorData (?*)
+  // Always set to zero, ignored.
+  uint32_t pKeCertMonitorData = xe_memory_heap_alloc(memory_, 0, 4, 0);
+  resolver->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::KeCertMonitorData,
+      pKeCertMonitorData);
+  XESETUINT32BE(mem + pKeCertMonitorData, 0);
+
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
   // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
