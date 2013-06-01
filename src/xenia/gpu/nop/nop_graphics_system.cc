@@ -23,3 +23,12 @@ NopGraphicsSystem::NopGraphicsSystem(const CreationParams* params) :
 
 NopGraphicsSystem::~NopGraphicsSystem() {
 }
+
+uint64_t NopGraphicsSystem::ReadRegister(uint32_t r) {
+  XELOGGPU("ReadRegister(%.4X)", r);
+  return 0;
+}
+
+void NopGraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
+  XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
+}

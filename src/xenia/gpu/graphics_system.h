@@ -20,6 +20,8 @@ namespace gpu {
 class CreationParams {
 public:
   xe_memory_ref memory;
+
+  CreationParams() : memory(NULL) {}
 };
 
 
@@ -28,6 +30,16 @@ public:
   virtual ~GraphicsSystem();
 
   xe_memory_ref memory();
+
+  virtual uint64_t ReadRegister(uint32_t r) = 0;
+  virtual void WriteRegister(uint32_t r, uint64_t value) = 0;
+
+  static uint64_t ReadRegisterThunk(GraphicsSystem* this_ptr, uint32_t r) {
+    return this_ptr->ReadRegister(r);
+  }
+  static void WriteRegisterThunk(GraphicsSystem* this_ptr, uint32_t r, uint64_t value) {
+    this_ptr->WriteRegister(r, value);
+  }
 
 protected:
   GraphicsSystem(const CreationParams* params);

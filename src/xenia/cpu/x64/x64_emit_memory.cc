@@ -10,6 +10,7 @@
 #include <xenia/cpu/x64/x64_emit.h>
 
 #include <xenia/cpu/cpu-private.h>
+#include <xenia/gpu/graphics_system.h>
 
 
 using namespace xe::cpu;
@@ -449,9 +450,20 @@ XEEMITTER(lwz,          0x80000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // EA <- b + EXTS(D)
   // RT <- i32.0 || MEM(EA, 4)
 
+  // Special GPU access (0x7FC8xxxx).
+  uint64_t constant_ea;
+  if (i.D.RA && e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    if ((constant_ea & 0xFFFF0000) == 0x7FC80000) {
+      GpVar reg(e.read_gpu_register((uint32_t)constant_ea));
+      e.update_gpr_value(i.D.RT, reg);
+      e.clear_constant_gpr_value(i.D.RT);
+      return 0;
+    }
+  }
+
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    uint64_t constant_ea;
     if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
       constant_ea += XEEXTS16(i.D.DS);
       c.mov(ea, imm(constant_ea & 0xFFFFFFFF));
@@ -808,9 +820,18 @@ XEEMITTER(stw,          0x90000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // EA <- b + EXTS(D)
   // MEM(EA, 4) <- (RS)[32:63]
 
+  // Special GPU access (0x7FC8xxxx).
+  uint64_t constant_ea;
+  if (i.D.RA && e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
+    constant_ea += XEEXTS16(i.D.DS);
+    if ((constant_ea & 0xFFFF0000) == 0x7FC80000) {
+      e.write_gpu_register((uint32_t)constant_ea, e.gpr_value(i.D.RT));
+      return 0;
+    }
+  }
+
   GpVar ea(c.newGpVar());
   if (i.D.RA) {
-    uint64_t constant_ea;
     if (e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
       constant_ea += XEEXTS16(i.D.DS);
       c.mov(ea, imm(constant_ea & 0xFFFFFFFF));

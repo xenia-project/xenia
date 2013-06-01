@@ -23,6 +23,13 @@
 
 
 namespace xe {
+namespace gpu {
+class GraphicsSystem;
+}  // namespace gpu
+}  // namespace xe
+
+
+namespace xe {
 namespace cpu {
 
 class JIT;
@@ -34,6 +41,8 @@ public:
   ~Processor();
 
   xe_memory_ref memory();
+  shared_ptr<gpu::GraphicsSystem> graphics_system();
+  void set_graphics_system(shared_ptr<gpu::GraphicsSystem> graphics_system);
   shared_ptr<kernel::ExportResolver> export_resolver();
   void set_export_resolver(shared_ptr<kernel::ExportResolver> export_resolver);
 
@@ -54,7 +63,8 @@ public:
 private:
   xe_memory_ref       memory_;
   shared_ptr<Backend> backend_;
-  shared_ptr<kernel::ExportResolver> export_resolver_;
+  shared_ptr<gpu::GraphicsSystem>     graphics_system_;
+  shared_ptr<kernel::ExportResolver>  export_resolver_;
 
   sdb::SymbolTable*   sym_table_;
   JIT*                jit_;

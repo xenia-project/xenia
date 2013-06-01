@@ -51,6 +51,11 @@ XECLEANUP:
   return result_code;
 }
 
+void X64JIT::SetupGpuPointers(void* gpu_this,
+                              void* gpu_read, void* gpu_write) {
+  emitter_->SetupGpuPointers(gpu_this, gpu_read, gpu_write);
+}
+
 namespace {
 struct BitDescription {
   uint32_t mask;

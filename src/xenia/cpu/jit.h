@@ -30,6 +30,8 @@ public:
   }
 
   virtual int Setup() = 0;
+  virtual void SetupGpuPointers(void* gpu_this,
+                                void* gpu_read, void* gpu_write) = 0;
 
   virtual int InitModule(ExecModule* module) = 0;
   virtual int UninitModule(ExecModule* module) = 0;

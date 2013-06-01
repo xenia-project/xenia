@@ -23,3 +23,12 @@ D3D11GraphicsSystem::D3D11GraphicsSystem(const CreationParams* params) :
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
 }
+
+uint64_t D3D11GraphicsSystem::ReadRegister(uint32_t r) {
+  XELOGGPU("ReadRegister(%.4X)", r);
+  return 0;
+}
+
+void D3D11GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
+  XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
+}

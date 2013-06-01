@@ -11,6 +11,7 @@
 
 #include <xenia/cpu/jit.h>
 #include <xenia/cpu/ppc/disasm.h>
+#include <xenia/gpu/graphics_system.h>
 
 
 using namespace xe;
@@ -66,6 +67,7 @@ Processor::~Processor() {
   delete jit_;
   delete sym_table_;
 
+  graphics_system_.reset();
   export_resolver_.reset();
   backend_.reset();
   xe_memory_release(memory_);
@@ -73,6 +75,15 @@ Processor::~Processor() {
 
 xe_memory_ref Processor::memory() {
   return xe_memory_retain(memory_);
+}
+
+shared_ptr<gpu::GraphicsSystem> Processor::graphics_system() {
+  return graphics_system_;
+}
+
+void Processor::set_graphics_system(
+    shared_ptr<gpu::GraphicsSystem> graphics_system) {
+  graphics_system_ = graphics_system;
 }
 
 shared_ptr<ExportResolver> Processor::export_resolver() {
@@ -94,6 +105,12 @@ int Processor::Setup() {
     XELOGE("Unable to create JIT");
     return 1;
   }
+
+  XEASSERTNOTNULL(graphics_system_.get());
+  jit_->SetupGpuPointers(
+      graphics_system_.get(),
+      (void*)&xe::gpu::GraphicsSystem::ReadRegisterThunk,
+      (void*)&xe::gpu::GraphicsSystem::WriteRegisterThunk);
 
   return 0;
 }
@@ -235,7 +252,7 @@ FunctionSymbol* Processor::GetFunction(uint32_t address) {
       return fn_symbol;
     }
   }
-  
+
   // Not found at all? That seems wrong...
   XEASSERTALWAYS();
   return NULL;

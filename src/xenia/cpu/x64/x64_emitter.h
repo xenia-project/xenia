@@ -31,6 +31,8 @@ public:
   X64Emitter(xe_memory_ref memory);
   ~X64Emitter();
 
+  void SetupGpuPointers(void* gpu_this, void* gpu_read, void* gpu_write);
+
   void Lock();
   void Unlock();
 
@@ -54,6 +56,9 @@ public:
 
   int GenerateIndirectionBranch(uint32_t cia, AsmJit::GpVar& target,
                                 bool lk, bool likely_local);
+
+  AsmJit::GpVar read_gpu_register(uint32_t r);
+  void write_gpu_register(uint32_t r, AsmJit::GpVar& v);
 
   void FillRegisters();
   void SpillRegisters();
@@ -116,6 +121,10 @@ private:
   xe_memory_ref         memory_;
   GlobalExports         global_exports_;
   xe_mutex_t*           lock_;
+
+  void*                 gpu_this_;
+  void*                 gpu_read_;
+  void*                 gpu_write_;
 
   AsmJit::Logger*       logger_;
   AsmJit::X86Assembler  assembler_;

@@ -14,6 +14,7 @@
 
 using namespace xe;
 using namespace xe::cpu;
+using namespace xe::gpu;
 using namespace xe::dbg;
 using namespace xe::kernel;
 
@@ -32,10 +33,11 @@ public:
 
 private:
   xe_memory_ref   memory_;
-  shared_ptr<Backend>   backend_;
-  shared_ptr<Processor> processor_;
-  shared_ptr<Runtime>   runtime_;
-  shared_ptr<Debugger>  debugger_;
+  shared_ptr<Backend>         backend_;
+  shared_ptr<GraphicsSystem>  graphics_system_;
+  shared_ptr<Processor>       processor_;
+  shared_ptr<Runtime>         runtime_;
+  shared_ptr<Debugger>        debugger_;
 };
 
 Run::Run() {
@@ -46,20 +48,26 @@ Run::~Run() {
 }
 
 int Run::Setup() {
+  CreationParams params;
+
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
   XEEXPECTZERO(xe_pal_init(pal_options));
-
-  backend_ = shared_ptr<Backend>(new xe::cpu::x64::X64Backend());
-
-  debugger_ = shared_ptr<Debugger>(new Debugger());
 
   xe_memory_options_t memory_options;
   xe_zero_struct(&memory_options, sizeof(memory_options));
   memory_ = xe_memory_create(memory_options);
   XEEXPECTNOTNULL(memory_);
 
+  backend_ = shared_ptr<Backend>(new xe::cpu::x64::X64Backend());
+
+  params.memory = memory_;
+  graphics_system_ = shared_ptr<GraphicsSystem>(xe::gpu::CreateNop(&params));
+
+  debugger_ = shared_ptr<Debugger>(new Debugger());
+
   processor_ = shared_ptr<Processor>(new Processor(memory_, backend_));
+  processor_->set_graphics_system(graphics_system_);
   XEEXPECTZERO(processor_->Setup());
 
   runtime_ = shared_ptr<Runtime>(new Runtime(processor_, XT("")));

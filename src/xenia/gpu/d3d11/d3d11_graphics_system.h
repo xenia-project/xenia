@@ -28,6 +28,9 @@ class D3D11GraphicsSystem : public GraphicsSystem {
 public:
   D3D11GraphicsSystem(const CreationParams* params);
   virtual ~D3D11GraphicsSystem();
+
+  virtual uint64_t ReadRegister(uint32_t r);
+  virtual void WriteRegister(uint32_t r, uint64_t value);
 };
 
 
