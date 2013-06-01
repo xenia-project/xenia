@@ -33,7 +33,7 @@ ThreadState::ThreadState(
   ppc_state_.thread_state = this;
 
   // Set initial registers.
-  ppc_state_.r[1] = stack_address_;
+  ppc_state_.r[1] = stack_address_ + stack_size;
   ppc_state_.r[13] = thread_state_address_;
 }
 
