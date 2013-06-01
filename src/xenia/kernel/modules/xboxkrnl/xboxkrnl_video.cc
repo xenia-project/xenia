@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_video.h>
 
+#include <xenia/gpu/gpu.h>
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
@@ -16,6 +17,7 @@
 
 
 using namespace xe;
+using namespace xe::gpu;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
@@ -83,10 +85,19 @@ SHIM_CALL VdQueryVideoMode_shim(
 
 void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
                            uint32_t unk2_ptr, uint32_t unk3_ptr) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+  GraphicsSystem* gs = state->processor()->graphics_system().get();
+  if (!gs) {
+    return;
+  }
+
   // r3 = 0x4F810000
   // r4 = function ptr (ready callback?)
   // r5 = 0
   // r6/r7 = some binary data in .data
+
+  gs->Initialize();
 }
 
 
@@ -107,9 +118,18 @@ SHIM_CALL VdInitializeEngines_shim(
 
 
 void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+  GraphicsSystem* gs = state->processor()->graphics_system().get();
+  if (!gs) {
+    return;
+  }
+
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
+
+  //gs->SetupInterruptCallback(callback, user_data);
 }
 
 
@@ -126,21 +146,36 @@ SHIM_CALL VdSetGraphicsInterruptCallback_shim(
 }
 
 
-// VdInitializeRingBuffer
-// r3 = result of MmGetPhysicalAddress
-// r4 = number of pages? page size?
-//      0x8000 -> cntlzw=16 -> 0x1C - 16 = 12
-// ring_buffer_t {
-//   uint 0
-//   uint buffer_0_size
-//   uint buffer_0_ptr
-//   uint buffer_1_size
-//   uint buffer_1_ptr
-//   uint segment_count   -- 32 common
-// }
-// Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
-// Sizes could be zero? XBLA games seem to do this. Default sizes?
-// D3D does size / region_count - must be > 1024
+void xeVdInitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+  GraphicsSystem* gs = state->processor()->graphics_system().get();
+  if (!gs) {
+    return;
+  }
+
+  // r3 = result of MmGetPhysicalAddress
+  // r4 = number of pages? page size?
+  //      0x8000 -> cntlzw=16 -> 0x1C - 16 = 12
+  // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
+  // Sizes could be zero? XBLA games seem to do this. Default sizes?
+  // D3D does size / region_count - must be > 1024
+
+  gs->InitializeRingBuffer(ptr, page_count);
+}
+
+
+SHIM_CALL VdInitializeRingBuffer_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t ptr = SHIM_GET_ARG_32(0);
+  uint32_t page_count = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "VdInitializeRingBuffer(%.8X, %.8X)",
+      ptr, page_count);
+
+  xeVdInitializeRingBuffer(ptr, page_count);
+}
 
 
 // void VdEnableRingBufferRPtrWriteBack
@@ -148,6 +183,17 @@ SHIM_CALL VdSetGraphicsInterruptCallback_shim(
 // r4 = 6, usually --- <=19
 // Same value used to calculate the pointer is later written to
 // Maybe GPU-memory relative?
+SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t ptr = SHIM_GET_ARG_32(0);
+  uint32_t unk1 = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "VdEnableRingBufferRPtrWriteBack(%.8X, %.8X)",
+      ptr, unk1);
+
+  // TODO(benvanik): something?
+}
 
 
 // VdSetSystemCommandBufferGpuIdentifierAddress
@@ -176,6 +222,8 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoMode, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
 
   xe_memory_ref memory = state->memory();
   uint8_t* mem = xe_memory_addr(memory);

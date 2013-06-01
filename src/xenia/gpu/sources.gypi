@@ -6,6 +6,8 @@
     'gpu.h',
     'graphics_system.cc',
     'graphics_system.h',
+    'ring_buffer_worker.cc',
+    'ring_buffer_worker.h',
   ],
 
   'includes': [
@@ -15,7 +17,7 @@
   'conditions': [
     ['OS == "win"', {
       'includes': [
-        'd3d11/sources.gypi',
+        #'d3d11/sources.gypi',
       ],
     }],
   ],

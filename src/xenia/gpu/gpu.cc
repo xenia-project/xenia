@@ -11,7 +11,7 @@
 #include <xenia/gpu/gpu-private.h>
 
 #if XE_PLATFORM(WIN32)
-#include <xenia/gpu/d3d11/d3d11.h>
+//#include <xenia/gpu/d3d11/d3d11.h>
 #endif  // WIN32
 #include <xenia/gpu/nop/nop.h>
 

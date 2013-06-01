@@ -16,6 +16,8 @@
 namespace xe {
 namespace gpu {
 
+class RingBufferWorker;
+
 
 class CreationParams {
 public:
@@ -31,9 +33,13 @@ public:
 
   xe_memory_ref memory();
 
-  virtual uint64_t ReadRegister(uint32_t r) = 0;
-  virtual void WriteRegister(uint32_t r, uint64_t value) = 0;
+  virtual void Initialize() = 0;
+  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
 
+  virtual uint64_t ReadRegister(uint32_t r);
+  virtual void WriteRegister(uint32_t r, uint64_t value);
+
+public:
   static uint64_t ReadRegisterThunk(GraphicsSystem* this_ptr, uint32_t r) {
     return this_ptr->ReadRegister(r);
   }
@@ -44,7 +50,9 @@ public:
 protected:
   GraphicsSystem(const CreationParams* params);
 
-  xe_memory_ref   memory_;
+  xe_memory_ref     memory_;
+
+  RingBufferWorker* worker_;
 };
 
 

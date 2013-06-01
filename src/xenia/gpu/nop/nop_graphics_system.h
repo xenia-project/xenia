@@ -26,8 +26,7 @@ public:
   NopGraphicsSystem(const CreationParams* params);
   virtual ~NopGraphicsSystem();
 
-  virtual uint64_t ReadRegister(uint32_t r);
-  virtual void WriteRegister(uint32_t r, uint64_t value);
+  virtual void Initialize();
 };
 
 
