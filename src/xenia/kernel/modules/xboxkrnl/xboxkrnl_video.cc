@@ -12,6 +12,7 @@
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_rtl.h>
 
 
 using namespace xe;
@@ -203,4 +204,12 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
       "xboxkrnl.exe", ordinals::VdGpuClockInMHz,
       pVdGpuClockInMHz);
   XESETUINT32BE(mem + pVdGpuClockInMHz, 500);
+
+  // VdHSIOCalibrationLock (28b)
+  // CriticalSection.
+  uint32_t pVdHSIOCalibrationLock = xe_memory_heap_alloc(memory, 0, 28, 0);
+  export_resolver->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::VdHSIOCalibrationLock,
+      pVdHSIOCalibrationLock);
+  xeRtlInitializeCriticalSectionAndSpinCount(pVdHSIOCalibrationLock, 10000);
 }
