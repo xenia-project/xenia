@@ -178,21 +178,45 @@ SHIM_CALL VdInitializeRingBuffer_shim(
 }
 
 
-// void VdEnableRingBufferRPtrWriteBack
-// r3 = ? pointer? doesn't look like a valid one
-// r4 = 6, usually --- <=19
-// Same value used to calculate the pointer is later written to
-// Maybe GPU-memory relative?
+void xeVdEnableRingBufferRPtrWriteBack(uint32_t ptr, uint32_t block_size) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+  GraphicsSystem* gs = state->processor()->graphics_system().get();
+  if (!gs) {
+    return;
+  }
+
+  // r4 = 6, usually --- <=19
+  gs->EnableReadPointerWriteBack(ptr, block_size);
+
+  ptr += 0x20000000;
+  printf("%.8X", ptr);
+  // 0x0110343c
+
+  //((p + 0x3C) & 0x1FFFFFFF) + ((((p + 0x3C) >> 20) + 0x200) & 0x1000)
+  //also 0x3C offset into WriteBacks is PrimaryRingBufferReadIndex
+//(1:17:38 AM) Rick: .text:8201B348                 lwz       r11, 0x2B10(r31)
+//(1:17:38 AM) Rick: .text:8201B34C                 addi      r11, r11, 0x3C
+//(1:17:38 AM) Rick: .text:8201B350                 srwi      r10, r11, 20  # r10 = r11 >> 20
+//(1:17:38 AM) Rick: .text:8201B354                 clrlwi    r11, r11, 3   # r11 = r11 & 0x1FFFFFFF
+//(1:17:38 AM) Rick: .text:8201B358                 addi      r10, r10, 0x200
+//(1:17:39 AM) Rick: .text:8201B35C                 rlwinm    r10, r10, 0,19,19 # r10 = r10 & 0x1000
+//(1:17:39 AM) Rick: .text:8201B360                 add       r3, r10, r11
+//(1:17:39 AM) Rick: .text:8201B364                 bl        VdEnableRingBufferRPtrWriteBack
+  // TODO(benvanik): something?
+}
+
+
 SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
-  uint32_t unk1 = SHIM_GET_ARG_32(1);
+  uint32_t block_size = SHIM_GET_ARG_32(1);
 
   XELOGD(
       "VdEnableRingBufferRPtrWriteBack(%.8X, %.8X)",
-      ptr, unk1);
+      ptr, block_size);
 
-  // TODO(benvanik): something?
+  xeVdEnableRingBufferRPtrWriteBack(ptr, block_size);
 }
 
 

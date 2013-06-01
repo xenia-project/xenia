@@ -35,6 +35,7 @@ public:
 
   virtual void Initialize() = 0;
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
+  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   virtual uint64_t ReadRegister(uint32_t r);
   virtual void WriteRegister(uint32_t r, uint64_t value);

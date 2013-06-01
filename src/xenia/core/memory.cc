@@ -29,12 +29,14 @@
 
 /**
  * Memory map:
- * 0x00000000 - 0x40000000 (1024mb) - virtual 4k pages
- * 0x40000000 - 0x80000000 (1024mb) - virtual 64k pages
- * 0x80000000 - 0x8C000000 ( 192mb) - xex 64k pages
- * 0x8C000000 - 0x90000000 (  64mb) - xex 64k pages (encrypted)
- * 0x90000000 - 0xA0000000 ( 256mb) - xex 4k pages
- * 0xA0000000 - 0xC0000000 ( 512mb) - physical 64k pages
+ * 0x00000000 - 0x3FFFFFFF (1024mb) - virtual 4k pages
+ * 0x40000000 - 0x7FFFFFFF (1024mb) - virtual 64k pages
+ * 0x80000000 - 0x8BFFFFFF ( 192mb) - xex 64k pages
+ * 0x8C000000 - 0x8FFFFFFF (  64mb) - xex 64k pages (encrypted)
+ * 0x90000000 - 0x9FFFFFFF ( 256mb) - xex 4k pages
+ * 0xA0000000 - 0xBFFFFFFF ( 512mb) - physical 64k pages
+ * 0xC0000000 - 0xDFFFFFFF          - physical 16mb pages
+ * 0xE0000000 - 0xFFFFFFFF          - physical 4k pages
  *
  * We use the host OS to create an entire addressable range for this. That way
  * we don't have to emulate a TLB. It'd be really cool to pass through page

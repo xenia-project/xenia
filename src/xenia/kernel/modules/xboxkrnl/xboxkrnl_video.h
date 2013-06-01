@@ -42,6 +42,7 @@ void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap);
 void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
                            uint32_t unk2_ptr, uint32_t unk3_ptr);
 void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data);
+void xeVdEnableRingBufferRPtrWriteBack(uint32_t ptr, uint32_t block_size);
 
 
 }  // namespace xboxkrnl

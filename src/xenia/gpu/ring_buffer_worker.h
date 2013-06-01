@@ -25,6 +25,7 @@ public:
   xe_memory_ref memory();
 
   void Initialize(uint32_t ptr, uint32_t page_count);
+  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   void UpdateWritePointer(uint32_t value);
 
@@ -33,19 +34,22 @@ protected:
     this_ptr->ThreadStart();
   }
   void ThreadStart();
+  void ExecuteSegment(uint32_t ptr, uint32_t length);
 
 protected:
   xe_memory_ref   memory_;
   xe_thread_ref   thread_;
   bool            running_;
-  HANDLE          read_ptr_index_event_;
-  HANDLE          write_ptr_index_event_;
-  
+
   uint32_t        primary_buffer_ptr_;
   uint32_t        primary_buffer_size_;
-  uint32_t        secondary_buffer_ptr_;
-  uint32_t        secondary_buffer_size_;
+
+  HANDLE          read_ptr_index_event_;
   uint32_t        read_ptr_index_;
+  uint32_t        read_ptr_update_freq_;
+  uint32_t        read_ptr_writeback_ptr_;
+
+  HANDLE          write_ptr_index_event_;
   uint32_t        write_ptr_index_;
 };
 

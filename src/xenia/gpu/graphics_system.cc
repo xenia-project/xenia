@@ -37,6 +37,11 @@ void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
   worker_->Initialize(ptr, page_count);
 }
 
+void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
+                                                uint32_t block_size) {
+  worker_->EnableReadPointerWriteBack(ptr, block_size);
+}
+
 uint64_t GraphicsSystem::ReadRegister(uint32_t r) {
   XELOGGPU("ReadRegister(%.4X)", r);
   return 0;
