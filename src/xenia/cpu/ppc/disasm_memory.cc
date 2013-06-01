@@ -488,8 +488,15 @@ XEDISASMR(isync,        0x4C00012C, XL )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(ldarx,        0x7C0000A8, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("ldarx", "Load Doubleword And Reserve Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(lwarx,        0x7C000028, X  )(InstrData& i, InstrDisasm& d) {
@@ -505,8 +512,16 @@ XEDISASMR(lwarx,        0x7C000028, X  )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(stdcx,        0x7C0001AD, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("stdcx", "Store Doubleword Conditional Indexed",
+      InstrDisasm::kRc);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.D.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(stwcx,        0x7C00012D, X  )(InstrData& i, InstrDisasm& d) {
