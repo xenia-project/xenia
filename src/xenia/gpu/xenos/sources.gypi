@@ -2,6 +2,7 @@
 {
   'sources': [
     'packets.h',
+    'registers.cc',
     'registers.h',
   ],
 }

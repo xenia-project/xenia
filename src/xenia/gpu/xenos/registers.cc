@@ -7,45 +7,21 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_XENOS_REGISTERS_H_
-#define XENIA_GPU_XENOS_REGISTERS_H_
-
-#include <xenia/core.h>
+#include <xenia/gpu/xenos/registers.h>
 
 
-namespace xe {
-namespace gpu {
-namespace xenos {
+using namespace xe;
+using namespace xe::gpu;
+using namespace xe::gpu::xenos;
 
 
-static const uint32_t kXEGpuRegisterCount = 0x3000;
-
-
-enum Registers {
+const char* xe::gpu::xenos::GetRegisterName(uint32_t index) {
+  switch (index) {
 #define XE_GPU_REGISTER(index, type, name) \
-    XE_GPU_REG_##name = index,
+    case index: return #name;
 #include <xenia/gpu/xenos/register_table.inc>
 #undef XE_GPU_REGISTER
-};
-
-
-const char* GetRegisterName(uint32_t index);
-
-
-union RegisterValue {
-  uint32_t  dword_value;
-  float     float_value;
-};
-
-
-struct RegisterFile {
-  RegisterValue   registers[kXEGpuRegisterCount];
-};
-
-
-}  // namespace xenos
-}  // namespace gpu
-}  // namespace xe
-
-
-#endif  // XENIA_GPU_XENOS_REGISTERS_H_
+    default:
+      return NULL;
+  }
+}

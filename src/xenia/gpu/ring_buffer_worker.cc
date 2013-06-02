@@ -127,7 +127,9 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
         uint32_t base_index = (packet & 0xFFFF);
         for (uint32_t m = 0; m < count; m++) {
           uint32_t reg_data = XEGETUINT32BE(packet_base + 1 * 4 + m * 4);
-          XELOGGPU("  %.4X <- %.8X", base_index + m, reg_data);
+          const char* reg_name = xenos::GetRegisterName(base_index + m);
+          XELOGGPU("  %.8X -> %.4X %s", reg_data, base_index + m,
+                                        reg_name ? reg_name : "");
           // TODO(benvanik): process register writes.
         }
         n += 1 + count;
@@ -142,8 +144,12 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
         uint32_t reg_index_2 = (packet >> 11) & 0x7FF;
         uint32_t reg_data_1 = XEGETUINT32BE(packet_base + 1 * 4);
         uint32_t reg_data_2 = XEGETUINT32BE(packet_base + 2 * 4);
-        XELOGGPU("  %.4X <- %.8X", reg_index_1, reg_data_1);
-        XELOGGPU("  %.4X <- %.8X", reg_index_2, reg_data_2);
+        const char* reg_name_1 = xenos::GetRegisterName(reg_index_1);
+        const char* reg_name_2 = xenos::GetRegisterName(reg_index_2);
+        XELOGGPU("  %.8X -> %.4X %s", reg_data_1, reg_index_1,
+                                      reg_name_1 ? reg_name_1 : "");
+        XELOGGPU("  %.8X -> %.4X %s", reg_data_2, reg_index_2,
+                                      reg_name_2 ? reg_name_2 : "");
         // TODO(benvanik): process register writes.
         n += 1 + 2;
       }
