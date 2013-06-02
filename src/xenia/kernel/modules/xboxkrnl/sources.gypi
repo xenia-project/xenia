@@ -5,6 +5,8 @@
     'kernel_state.h',
     'module.cc',
     'module.h',
+    'xboxkrnl_debug.cc',
+    'xboxkrnl_debug.h',
     'xboxkrnl_hal.cc',
     'xboxkrnl_hal.h',
     'xboxkrnl_memory.cc',

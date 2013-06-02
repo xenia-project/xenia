@@ -51,6 +51,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   shared_kernel_state_ = kernel_state_.get();
 
   // Register all exported functions.
+  RegisterDebugExports(resolver, kernel_state_.get());
   RegisterHalExports(resolver, kernel_state_.get());
   RegisterMemoryExports(resolver, kernel_state_.get());
   RegisterModuleExports(resolver, kernel_state_.get());

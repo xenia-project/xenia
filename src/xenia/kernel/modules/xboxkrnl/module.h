@@ -18,6 +18,7 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_ordinals.h>
 
 // All of the exported functions:
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_debug.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_hal.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_memory.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_module.h>
