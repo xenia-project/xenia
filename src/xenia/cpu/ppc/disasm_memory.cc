@@ -744,8 +744,19 @@ XEDISASMR(stfsx,        0x7C00052E, X  )(InstrData& i, InstrDisasm& d) {
 // Cache management (A-27)
 
 XEDISASMR(dcbf,         0x7C0000AC, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("dcbf", "Data Cache Block Flush", 0);
+  /*
+  switch (i.X.RT & 3)
+  {
+    case 0: "dcbf";
+	case 1: "dcbfl"
+    case 2: RESERVED
+    case 3: "dcbflp"
+  }
+  */
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(dcbst,        0x7C00006C, X  )(InstrData& i, InstrDisasm& d) {
