@@ -1285,8 +1285,56 @@ XEEMITTER(slwx,         0x7C000030, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(sradx,        0x7C000634, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // n <- rB[58-63]
+  // r <- ROTL[64](rS, 64 - n)
+  // if rB[57] = 0 then m ← MASK(n, 63)
+  // else m ← (64)0
+  // S ← rS[0]
+  // rA <- (r & m) | (((64)S) & ¬ m)
+  // XER[CA] <- S & ((r & ¬ m) ¦ 0)
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.X.RT));
+  GpVar sh(c.newGpVar());
+  c.mov(sh, e.gpr_value(i.X.RB));
+  c.and_(sh, imm(0x7F));
+
+  // CA is set if any bits are shifted out of the right and if the result
+  // is negative. Start tracking that here.
+  GpVar ca(c.newGpVar());
+  c.mov(ca, imm(0xFFFFFFFFFFFFFFFF));
+  GpVar ca_sh(c.newGpVar());
+  c.mov(ca_sh, imm(63));
+  c.sub(ca_sh, sh);
+  c.shl(ca, ca_sh);
+  c.shr(ca, ca_sh);
+  c.and_(ca, v);
+  c.cmp(ca, imm(0));
+  c.xor_(ca, ca);
+  c.setnz(ca.r8());
+
+  // Shift right.
+  c.sar(v, sh);
+
+  // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
+  // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
+  // We already have ca set to indicate the pos 63 bit, now just and in sign.
+  GpVar ca_2(c.newGpVar());
+  c.mov(ca_2, v);
+  c.shr(ca_2, imm(63));
+  c.and_(ca, ca_2);
+
+  e.update_gpr_value(i.X.RA, v);
+  e.update_xer_with_carry(ca);
+
+  if (i.X.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.X.RA);
+
+  return 0;
 }
 
 XEEMITTER(sradix,       0x7C000674, XS )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1319,7 +1367,10 @@ XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     // CA is set if any bits are shifted out of the right and if the result
     // is negative. Start tracking that here.
     c.mov(ca, v);
-    c.and_(ca, imm(1));
+    c.and_(ca, imm(~XEMASK(32 + i.X.RB, 64)));
+    c.cmp(ca, imm(0));
+    c.xor_(ca, ca);
+    c.setnz(ca.r8());
 
     // Shift right and sign extend the 32bit part.
     c.sar(v.r32(), imm(i.X.RB));
@@ -1327,7 +1378,7 @@ XEEMITTER(srawix,       0x7C000670, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
     // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
     // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-    // We already have ca set to indicate the pos 63 bit, now just and in sign.
+    // We already have ca set to indicate the shift bits, now just and in sign.
     GpVar ca_2(c.newGpVar());
     c.mov(ca_2, v.r32());
     c.shr(ca_2, imm(31));
