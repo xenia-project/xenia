@@ -749,7 +749,7 @@ XEDISASMR(dcbf,         0x7C0000AC, X  )(InstrData& i, InstrDisasm& d) {
   switch (i.X.RT & 3)
   {
     case 0: "dcbf";
-	case 1: "dcbfl"
+    case 1: "dcbfl"
     case 2: RESERVED
     case 3: "dcbflp"
   }
