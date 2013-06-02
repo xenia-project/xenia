@@ -1,6 +1,7 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'command_buffer.h',
     'gpu-private.h',
     'gpu.cc',
     'gpu.h',
@@ -12,6 +13,7 @@
 
   'includes': [
     'nop/sources.gypi',
+    'xenos/sources.gypi',
   ],
 
   'conditions': [

@@ -365,6 +365,8 @@ XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   GpVar v_lo(c.newGpVar());
   GpVar v_hi(c.newGpVar());
+  c.alloc(v_lo, rax);
+  c.alloc(v_hi, rdx);
   c.mov(v_lo, e.get_uint64(XEEXTS16(i.D.DS)));
   c.mul(v_hi, v_lo, e.gpr_value(i.D.RA));
   e.update_gpr_value(i.D.RT, v_lo);

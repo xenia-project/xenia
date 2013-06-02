@@ -44,7 +44,6 @@ protected:
   uint32_t        primary_buffer_ptr_;
   uint32_t        primary_buffer_size_;
 
-  HANDLE          read_ptr_index_event_;
   uint32_t        read_ptr_index_;
   uint32_t        read_ptr_update_freq_;
   uint32_t        read_ptr_writeback_ptr_;
