@@ -739,9 +739,11 @@ int XexSymbolDatabase::AddMethodHints() {
 
   for (size_t n = 0; n < entry_count; n++) {
     PEMethodInfo* method_info = &method_infos[n];
-    FunctionSymbol* fn = GetOrInsertFunction(method_info->address);
-    fn->end_address = method_info->address + method_info->total_length - 4;
-    fn->type = FunctionSymbol::User;
+    if (method_info->address != 0) {
+      FunctionSymbol* fn = GetOrInsertFunction(method_info->address);
+      fn->end_address = method_info->address + method_info->total_length - 4;
+      fn->type = FunctionSymbol::User;
+    }
     // TODO(benvanik): something with prolog_length?
   }
 
