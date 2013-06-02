@@ -174,7 +174,7 @@ SHIM_CALL DbgPrint_shim(
         if (arg_extras == 0) {
           uint64_t value = arg_index < 7
             ? SHIM_GET_ARG_64(1 + arg_index)
-            : SHIM_MEM_32(SHIM_GPR_32(1) + 24 + ((1 + arg_index) * 8));
+            : SHIM_MEM_32(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
           int result = sprintf(b, local, value);
           b += result;
           arg_index++;
@@ -187,7 +187,7 @@ SHIM_CALL DbgPrint_shim(
         if (arg_extras == 0) {
           uint64_t value = arg_index < 7
             ? SHIM_GET_ARG_64(1 + arg_index)
-            : SHIM_MEM_32(SHIM_GPR_32(1) + 24 + ((1 + arg_index) * 8));
+            : SHIM_MEM_32(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
           int result = sprintf(b, local, (uint32_t)value);
           b += result;
           arg_index++;
