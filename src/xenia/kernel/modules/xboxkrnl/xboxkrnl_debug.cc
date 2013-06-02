@@ -25,13 +25,6 @@ namespace kernel {
 namespace xboxkrnl {
 
 
-typedef enum {
-  FAT_INVALID = 0,
-  FAT_VALUE,
-  FAT_POINTER,
-  FAT_EXTRA,
-} FORMAT_ARGUMENT_TYPE;
-
 // TODO: clean me up!
 SHIM_CALL DbgPrint_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
@@ -83,7 +76,6 @@ SHIM_CALL DbgPrint_shim(
     }
 
     int arg_extras = 0;
-    FORMAT_ARGUMENT_TYPE arg_type;
 
     // skip width
     if (*end == '*') {
@@ -120,9 +112,9 @@ SHIM_CALL DbgPrint_shim(
     }
 
     // get length
-    int arg_size;
+    int arg_size = 0;
 
-    if (*format == 'h') {
+    if (*end == 'h') {
       ++end;
       arg_size = 4;
       if (*end == 'h') {
@@ -174,14 +166,15 @@ SHIM_CALL DbgPrint_shim(
         *end == 'A' ||
         *end == 'c') {
       char local[512];
-      strncpy(local, start, end + 1 - start);
+      local[0] = '\0';
+      strncat(local, start, end + 1 - start);
 
       XEASSERT(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
           uint64_t value = arg_index < 7
             ? SHIM_GET_ARG_64(1 + arg_index)
-            : SHIM_MEM_64(SHIM_GPR_32(1) + ((arg_index - 7) * 8));
+            : SHIM_MEM_32(SHIM_GPR_32(1) + 24 + ((1 + arg_index) * 8));
           int result = sprintf(b, local, value);
           b += result;
           arg_index++;
@@ -194,7 +187,7 @@ SHIM_CALL DbgPrint_shim(
         if (arg_extras == 0) {
           uint64_t value = arg_index < 7
             ? SHIM_GET_ARG_64(1 + arg_index)
-            : SHIM_MEM_64(SHIM_GPR_32(1) + ((arg_index - 7) * 8));
+            : SHIM_MEM_32(SHIM_GPR_32(1) + 24 + ((1 + arg_index) * 8));
           int result = sprintf(b, local, (uint32_t)value);
           b += result;
           arg_index++;
@@ -204,17 +197,18 @@ SHIM_CALL DbgPrint_shim(
         }
       }
     }
-    else if (*format == 's' ||
-             *format == 'p' ||
-             *format == 'n') {
+    else if (*end == 's' ||
+             *end == 'p' ||
+             *end == 'n') {
       char local[512];
-      strncpy(local, start, end + 1 - start);
+      local[0] = '\0';
+      strncat(local, start, end + 1 - start);
 
       XEASSERT(arg_size == 0);
       if (arg_extras == 0) {
         uint32_t value = arg_index < 7
           ? SHIM_GET_ARG_32(1 + arg_index)
-          : SHIM_MEM_32(SHIM_GPR_32(1) + ((arg_index - 7) * 8));
+          : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
         const char *pointer = (const char *)SHIM_MEM_ADDR(value);
         int result = sprintf(b, local, pointer);
         b += result;
@@ -228,6 +222,8 @@ SHIM_CALL DbgPrint_shim(
       XEASSERT(false);
       break;
     }
+
+    format = end;
   }
   *b++ = '\0';
 

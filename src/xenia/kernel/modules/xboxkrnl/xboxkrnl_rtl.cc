@@ -333,13 +333,6 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(
 }
 
 
-typedef enum {
-  FAT_INVALID = 0,
-  FAT_VALUE,
-  FAT_POINTER,
-  FAT_EXTRA,
-} FORMAT_ARGUMENT_TYPE;
-
 // TODO: clean me up!
 SHIM_CALL _vsnprintf_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
@@ -395,7 +388,6 @@ SHIM_CALL _vsnprintf_shim(
     }
 
     int arg_extras = 0;
-    FORMAT_ARGUMENT_TYPE arg_type;
 
     // skip width
     if (*end == '*') {
@@ -432,9 +424,9 @@ SHIM_CALL _vsnprintf_shim(
     }
 
     // get length
-    int arg_size;
+    int arg_size = 0;
 
-    if (*format == 'h') {
+    if (*end == 'h') {
       ++end;
       arg_size = 4;
       if (*end == 'h') {
@@ -486,7 +478,8 @@ SHIM_CALL _vsnprintf_shim(
         *end == 'A' ||
         *end == 'c') {
       char local[512];
-      strncpy(local, start, end + 1 - start);
+      local[0] = '\0';
+      strncat(local, start, end + 1 - start);
 
       XEASSERT(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
@@ -502,8 +495,8 @@ SHIM_CALL _vsnprintf_shim(
       }
       else if (arg_size == 4) {
         if (arg_extras == 0) {
-          uint64_t value = SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-          int result = sprintf(b, local, (uint32_t)value);
+          uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
+          int result = sprintf(b, local, value);
           b += result;
           arg_index++;
         }
@@ -512,15 +505,16 @@ SHIM_CALL _vsnprintf_shim(
         }
       }
     }
-    else if (*format == 's' ||
-             *format == 'p' ||
-             *format == 'n') {
+    else if (*end == 's' ||
+             *end == 'p' ||
+             *end == 'n') {
       char local[512];
-      strncpy(local, start, end + 1 - start);
+      local[0] = '\0';
+      strncat(local, start, end + 1 - start);
 
       XEASSERT(arg_size == 0);
       if (arg_extras == 0) {
-        uint64_t value = SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
+        uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         const char *pointer = (const char *)SHIM_MEM_ADDR(value);
         int result = sprintf(b, local, pointer);
         b += result;
@@ -534,6 +528,7 @@ SHIM_CALL _vsnprintf_shim(
       XEASSERT(false);
       break;
     }
+    format = end;
   }
   *b++ = '\0';
   SHIM_SET_RETURN((uint32_t)(b - buffer));
