@@ -225,9 +225,20 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
 }
 
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
-                       uint64_t arg0) {
+                            uint64_t arg0) {
   xe_ppc_state_t* ppc_state = thread_state->ppc_state();
   ppc_state->r[3] = arg0;
+  if (Execute(thread_state, address)) {
+    return 0xDEADBABE;
+  }
+  return ppc_state->r[3];
+}
+
+uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
+                            uint64_t arg0, uint64_t arg1) {
+  xe_ppc_state_t* ppc_state = thread_state->ppc_state();
+  ppc_state->r[3] = arg0;
+  ppc_state->r[4] = arg1;
   if (Execute(thread_state, address)) {
     return 0xDEADBABE;
   }

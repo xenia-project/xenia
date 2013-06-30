@@ -254,17 +254,20 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 #endif  // WIN32
 
 void XThread::Execute() {
-  // Run XapiThreadStartup first, if present.
+  // If a XapiThreadStartup value is present, we use that as a trampoline.
+  // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {
-    XELOGE("xapi_thread_startup not implemented");
+    kernel_state()->processor()->Execute(
+        thread_state_,
+        creation_params_.xapi_thread_startup,
+        creation_params_.start_address, creation_params_.start_context);
+  } else {
+    // Run user code.
+    int exit_code = (int)kernel_state()->processor()->Execute(
+        thread_state_,
+        creation_params_.start_address, creation_params_.start_context);
+    // If we got here it means the execute completed without an exit being called.
+    // Treat the return code as an implicit exit code.
+    Exit(exit_code);
   }
-
-  // Run user code.
-  int exit_code = (int)kernel_state()->processor()->Execute(
-      thread_state_,
-      creation_params_.start_address, creation_params_.start_context);
-
-  // If we got here it means the execute completed without an exit being called.
-  // Treat the return code as an implicit exit code.
-  Exit(exit_code);
 }
