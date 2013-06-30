@@ -9,6 +9,7 @@
 
 #include <xenia/cpu/global_exports.h>
 
+#include <xenia/logging.h>
 #include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/cpu/sdb.h>
@@ -75,16 +76,20 @@ void _cdecl XeAccessViolation(
 void _cdecl XeTraceKernelCall(
     xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
     KernelExport* kernel_export) {
-  XELOGCPU("TRACE: %.8X -> k.%.8X (%s)",
-           (uint32_t)call_ia - 4, (uint32_t)cia,
-           kernel_export ? kernel_export->name : "unknown");
+  uint32_t thread_id = state->thread_state->thread_id();
+  xe_log_line("", thread_id, "XeTraceKernelCall", 't',
+              "KERNEL CALL: %.8X -> k.%.8X (%s)",
+              (uint32_t)call_ia - 4, (uint32_t)cia,
+              kernel_export ? kernel_export->name : "unknown");
 }
 
 void _cdecl XeTraceUserCall(
     xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
     FunctionSymbol* fn) {
-  XELOGCPU("TRACE: %.8X -> u.%.8X (%s)",
-           (uint32_t)call_ia - 4, (uint32_t)cia, fn->name());
+  uint32_t thread_id = state->thread_state->thread_id();
+  xe_log_line("", thread_id, "XeTraceUserCall", 't',
+              "USER CALL %.8X -> u.%.8X (%s)",
+              (uint32_t)call_ia - 4, (uint32_t)cia, fn->name());
 }
 
 void _cdecl XeTraceBranch(
@@ -97,16 +102,45 @@ void _cdecl XeTraceBranch(
     target_ia = state->ctr;
     break;
   }
-  XELOGCPU("TRACE: %.8X -> b.%.8X",
-           (uint32_t)cia, (uint32_t)target_ia);
+
+  uint32_t thread_id = state->thread_state->thread_id();
+  xe_log_line("", thread_id, "XeTraceBranch", 't',
+              "BRANCH %.8X -> b.%.8X",
+              (uint32_t)cia, (uint32_t)target_ia);
 }
 
 void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
+  char buffer[2048];
+  buffer[0] = 0;
+  int offset = 0;
+
+  ppc::InstrData i;
+  i.address = (uint32_t)cia;
+  i.code = (uint32_t)data;
+  i.type = ppc::GetInstrType(i.code);
+  if (i.type && i.type->disassemble) {
+    ppc::InstrDisasm d;
+    i.type->disassemble(i, d);
+    std::string disasm;
+    d.Dump(disasm);
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "%.8X %.8X %s %s",
+        i.address, i.code,
+        i.type && i.type->emit ? " " : "X",
+        disasm.c_str());
+  } else {
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "%.8X %.8X %s %s",
+        i.address, i.code,
+        i.type && i.type->emit ? " " : "X",
+        i.type ? i.type->name : "<unknown>");
+  }
+
   if (FLAGS_trace_registers) {
-    XELOGCPU(
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
         "\n"
-        " lr=%.16llX ctr=%.16llX  cr=%.4X    xer=%.16llX\n"
+        " lr=%.16llX ctr=%.16llX  cr=%.4X         xer=%.16llX\n"
         " r0=%.16llX  r1=%.16llX  r2=%.16llX  r3=%.16llX\n"
         " r4=%.16llX  r5=%.16llX  r6=%.16llX  r7=%.16llX\n"
         " r8=%.16llX  r9=%.16llX r10=%.16llX r11=%.16llX\n"
@@ -126,25 +160,8 @@ void _cdecl XeTraceInstruction(
         state->r[28], state->r[29], state->r[30], state->r[31]);
   }
 
-  ppc::InstrData i;
-  i.address = (uint32_t)cia;
-  i.code = (uint32_t)data;
-  i.type = ppc::GetInstrType(i.code);
-  if (i.type && i.type->disassemble) {
-    ppc::InstrDisasm d;
-    i.type->disassemble(i, d);
-    std::string disasm;
-    d.Dump(disasm);
-    XELOGCPU("TRACE: %.8X %.8X %s %s",
-           i.address, i.code,
-           i.type && i.type->emit ? " " : "X",
-           disasm.c_str());
-  } else {
-    XELOGCPU("TRACE: %.8X %.8X %s %s",
-           i.address, i.code,
-           i.type && i.type->emit ? " " : "X",
-           i.type ? i.type->name : "<unknown>");
-  }
+  uint32_t thread_id = state->thread_state->thread_id();
+  xe_log_line("", thread_id, "XeTraceInstruction", 't', buffer);
 
   // if (cia == 0x82012074) {
   //   printf("BREAKBREAKBREAK\n");

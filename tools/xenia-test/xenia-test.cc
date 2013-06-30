@@ -146,7 +146,7 @@ int run_test(string& src_file_path) {
   XEEXPECTZERO(processor->LoadRawBinary(bin_file_path_str, 0x82010000));
 
   // Simulate a thread.
-  thread_state = processor->AllocThread(256 * 1024, 0);
+  thread_state = processor->AllocThread(256 * 1024, 0, 100);
 
   // Setup test state from annotations.
   XEEXPECTZERO(setup_test_state(memory, processor.get(), thread_state,

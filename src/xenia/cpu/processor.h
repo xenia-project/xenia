@@ -53,7 +53,8 @@ public:
 
   uint32_t CreateCallback(void (*callback)(void* data), void* data);
 
-  ThreadState* AllocThread(uint32_t stack_size, uint32_t thread_state_address);
+  ThreadState* AllocThread(uint32_t stack_size, uint32_t thread_state_address,
+                           uint32_t thread_id);
   void DeallocThread(ThreadState* thread_state);
   int Execute(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t arg0);

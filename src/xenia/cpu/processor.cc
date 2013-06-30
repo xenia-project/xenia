@@ -191,9 +191,10 @@ uint32_t Processor::CreateCallback(void (*callback)(void* data), void* data) {
 }
 
 ThreadState* Processor::AllocThread(uint32_t stack_size,
-                                    uint32_t thread_state_address) {
+                                    uint32_t thread_state_address,
+                                    uint32_t thread_id) {
   ThreadState* thread_state = new ThreadState(
-      this, stack_size, thread_state_address);
+      this, stack_size, thread_state_address, thread_id);
   return thread_state;
 }
 

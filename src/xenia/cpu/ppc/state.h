@@ -13,6 +13,14 @@
 #include <stdint.h>
 
 
+namespace xe {
+namespace cpu {
+class Processor;
+class ThreadState;
+}  // namespace cpu
+}  // namespace xe
+
+
 // namespace FPRF {
 //   enum FPRF_e {
 //     QUIET_NAN             = 0x00088000,
@@ -143,10 +151,9 @@ typedef struct XECACHEALIGN64 xe_ppc_state {
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
-  uint8_t* membase;
-  void* processor;
-  void* thread_state;
-  void* runtime;
+  uint8_t*                membase;
+  xe::cpu::Processor*     processor;
+  xe::cpu::ThreadState*   thread_state;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,

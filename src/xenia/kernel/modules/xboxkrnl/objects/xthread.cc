@@ -31,7 +31,7 @@ XThread::XThread(KernelState* kernel_state,
     thread_id_(++next_xthread_id),
     thread_handle_(0),
     thread_state_address_(0),
-    processor_state_(0) {
+    thread_state_(0) {
   creation_params_.stack_size           = stack_size;
   creation_params_.xapi_thread_startup  = xapi_thread_startup;
   creation_params_.start_address        = start_address;
@@ -47,8 +47,8 @@ XThread::XThread(KernelState* kernel_state,
 XThread::~XThread() {
   PlatformDestroy();
 
-  if (processor_state_) {
-    kernel_state()->processor()->DeallocThread(processor_state_);
+  if (thread_state_) {
+    kernel_state()->processor()->DeallocThread(thread_state_);
   }
   if (tls_address_) {
     xe_memory_heap_free(kernel_state()->memory(), tls_address_, 0);
@@ -125,9 +125,9 @@ X_STATUS XThread::Create() {
 
   // Allocate processor thread state.
   // This is thread safe.
-  processor_state_ = kernel_state()->processor()->AllocThread(
-      creation_params_.stack_size, thread_state_address_);
-  if (!processor_state_) {
+  thread_state_ = kernel_state()->processor()->AllocThread(
+      creation_params_.stack_size, thread_state_address_, thread_id_);
+  if (!thread_state_) {
     XELOGW("Unable to allocate processor thread state");
     return X_STATUS_NO_MEMORY;
   }
@@ -261,7 +261,7 @@ void XThread::Execute() {
 
   // Run user code.
   int exit_code = (int)kernel_state()->processor()->Execute(
-      processor_state_,
+      thread_state_,
       creation_params_.start_address, creation_params_.start_context);
 
   // If we got here it means the execute completed without an exit being called.

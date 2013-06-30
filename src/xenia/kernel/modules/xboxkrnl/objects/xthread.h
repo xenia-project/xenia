@@ -57,7 +57,7 @@ private:
   void*         thread_handle_;
   uint32_t      tls_address_;
   uint32_t      thread_state_address_;
-  cpu::ThreadState* processor_state_;
+  cpu::ThreadState* thread_state_;
 };
 
 

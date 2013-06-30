@@ -616,8 +616,6 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
       fflush(stdout);
     }
 
-    TraceInstruction(i);
-
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", ia, i.code);
       TraceInvalidInstruction(i);
@@ -634,6 +632,8 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
                ia, i.code, i.type->name);
       TraceInvalidInstruction(i);
     }
+
+    TraceInstruction(i);
   }
 
   // If we fall through, create the branch.

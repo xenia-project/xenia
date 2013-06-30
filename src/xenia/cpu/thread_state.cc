@@ -19,8 +19,9 @@ using namespace xe::cpu;
 
 ThreadState::ThreadState(
     Processor* processor,
-    uint32_t stack_size, uint32_t thread_state_address) :
-    stack_size_(stack_size), thread_state_address_(thread_state_address) {
+    uint32_t stack_size, uint32_t thread_state_address, uint32_t thread_id) :
+    stack_size_(stack_size), thread_state_address_(thread_state_address),
+    thread_id_(thread_id) {
   memory_ = processor->memory();
 
   stack_address_ = xe_memory_heap_alloc(memory_, 0, stack_size, 0);
@@ -40,6 +41,10 @@ ThreadState::ThreadState(
 ThreadState::~ThreadState() {
   xe_memory_heap_free(memory_, stack_address_, 0);
   xe_memory_release(memory_);
+}
+
+uint32_t ThreadState::thread_id() const {
+  return thread_id_;
 }
 
 xe_ppc_state_t* ThreadState::ppc_state() {
