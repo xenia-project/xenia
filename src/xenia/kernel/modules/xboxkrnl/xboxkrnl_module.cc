@@ -26,11 +26,74 @@ namespace kernel {
 namespace xboxkrnl {
 
 
-// SHIM_CALL ExGetXConfigSetting_shim(
-//     xe_ppc_state_t* ppc_state, KernelState* state) {
-//   // ?
-//   SHIM_SET_RETURN(0);
-// }
+X_STATUS xeExGetXConfigSetting(
+    uint16_t category, uint16_t setting, void* buffer, uint16_t buffer_size,
+    uint16_t* required_size) {
+  uint16_t setting_size = 0;
+  uint32_t value = 0;
+
+  // TODO(benvanik): have real structs here that just get copied from.
+  // http://free60.org/XConfig
+  switch (category) {
+  case 0x0003:
+    // XCONFIG_USER_CATEGORY
+    switch (setting) {
+    case 0x000A:
+      // VideoFlags
+      setting_size = 4;
+      value = 0x00040000;
+      break;
+    default:
+      XEASSERTALWAYS();
+      return X_STATUS_INVALID_PARAMETER_2;
+    }
+    break;
+  default:
+    XEASSERTALWAYS();
+    return X_STATUS_INVALID_PARAMETER_1;
+  }
+
+  if (buffer_size < setting_size) {
+    return X_STATUS_BUFFER_TOO_SMALL;
+  }
+  if (!buffer && buffer_size) {
+    return X_STATUS_INVALID_PARAMETER_3;
+  }
+
+  if (buffer) {
+    XESETUINT32BE(buffer, value);
+  }
+  if (required_size) {
+    *required_size = setting_size;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+
+
+SHIM_CALL ExGetXConfigSetting_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint16_t category = SHIM_GET_ARG_16(0);
+  uint16_t setting = SHIM_GET_ARG_16(1);
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
+  uint16_t buffer_size = SHIM_GET_ARG_16(3);
+  uint32_t required_size_ptr = SHIM_GET_ARG_32(4);
+
+  XELOGD(
+      "ExGetXConfigSetting(%.4X, %.4X, %.8X, %.4X, %.8X)",
+      category, setting, buffer_ptr, buffer_size, required_size_ptr);
+
+  void* buffer = buffer_ptr ? SHIM_MEM_ADDR(buffer_ptr) : NULL;
+  uint16_t required_size = 0;
+  X_STATUS result = xeExGetXConfigSetting(
+      category, setting, buffer, buffer_size, &required_size);
+
+  if (required_size_ptr) {
+    SHIM_SET_MEM_16(required_size_ptr, required_size);
+  }
+
+  SHIM_SET_RETURN(result);
+}
 
 
 int xeXexCheckExecutablePriviledge(uint32_t privilege) {
@@ -134,7 +197,7 @@ SHIM_CALL XexGetModuleHandle_shim(
 
 void xe::kernel::xboxkrnl::RegisterModuleExports(
     ExportResolver* export_resolver, KernelState* state) {
-  // SHIM_SET_MAPPING("xboxkrnl.exe", ExGetXConfigSetting, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", ExGetXConfigSetting, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XexCheckExecutablePrivilege, state);
 

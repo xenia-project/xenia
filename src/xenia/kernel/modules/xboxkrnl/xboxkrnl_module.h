@@ -20,6 +20,9 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
+X_STATUS xeExGetXConfigSetting(
+    uint16_t category, uint16_t setting, void* buffer, uint16_t buffer_size,
+    uint16_t* required_size);
 
 int xeXexCheckExecutablePriviledge(uint32_t privilege);
 
