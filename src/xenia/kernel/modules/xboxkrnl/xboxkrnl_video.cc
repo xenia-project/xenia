@@ -40,8 +40,45 @@ namespace xboxkrnl {
 // http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
 
-// VdQueryVideoFlags
-// return 0x7?
+void xeVdGetCurrentDisplayGamma(uint32_t* arg0, float* arg1) {
+  *arg0 = 2;
+  *arg1 = 2.22222233f;
+}
+
+
+SHIM_CALL VdGetCurrentDisplayGamma_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t arg0_ptr = SHIM_GET_ARG_32(0);
+  uint32_t arg1_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "VdGetCurrentDisplayGamma(%.8X, %.8X)",
+      arg0_ptr, arg1_ptr);
+
+  uint32_t arg0 = 0;
+  union {
+    float float_value;
+    uint32_t uint_value;
+  } arg1;
+  xeVdGetCurrentDisplayGamma(&arg0, &arg1.float_value);
+  SHIM_SET_MEM_32(arg0_ptr, arg0);
+  SHIM_SET_MEM_32(arg1_ptr, arg1.uint_value);
+}
+
+
+uint32_t xeVdQueryVideoFlags() {
+  // ?
+  return 0x00000007;
+}
+
+
+SHIM_CALL VdQueryVideoFlags_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "VdQueryVideoFlags()");
+
+  SHIM_SET_RETURN(xeVdQueryVideoFlags());
+}
 
 
 void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap) {
@@ -243,6 +280,8 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
 
 void xe::kernel::xboxkrnl::RegisterVideoExports(
     ExportResolver* export_resolver, KernelState* state) {
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayGamma, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoMode, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);

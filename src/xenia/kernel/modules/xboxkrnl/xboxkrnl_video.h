@@ -37,6 +37,8 @@ X_VIDEO_MODE;
 #pragma pack(pop)
 XEASSERTSTRUCTSIZE(X_VIDEO_MODE, 48);
 
+void xeVdGetCurrentDisplayGamma(uint32_t* arg0, float* arg1);
+uint32_t xeVdQueryVideoFlags();
 void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap);
 
 void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
