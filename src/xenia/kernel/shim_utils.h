@@ -32,9 +32,9 @@ namespace kernel {
 
 #define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : NULL)
 
-#define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a));
-#define SHIM_MEM_32(a)        (uint32_t)XEGETUINT32BE(SHIM_MEM_ADDR(a));
-#define SHIM_MEM_64(a)        (uint64_t)XEGETUINT64BE(SHIM_MEM_ADDR(a));
+#define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a))
+#define SHIM_MEM_32(a)        (uint32_t)XEGETUINT32BE(SHIM_MEM_ADDR(a))
+#define SHIM_MEM_64(a)        (uint64_t)XEGETUINT64BE(SHIM_MEM_ADDR(a))
 #define SHIM_SET_MEM_16(a, v) (*(uint16_t*)SHIM_MEM_ADDR(a)) = XESWAP16(v)
 #define SHIM_SET_MEM_32(a, v) (*(uint32_t*)SHIM_MEM_ADDR(a)) = XESWAP32(v)
 #define SHIM_SET_MEM_64(a, v) (*(uint64_t*)SHIM_MEM_ADDR(a)) = XESWAP64(v)
@@ -53,8 +53,8 @@ namespace kernel {
 
 #define IMPL_MEM_ADDR(a)      (a ? xe_memory_addr(state->memory(), a) : NULL)
 
-#define IMPL_MEM_16(a)        (uint16_t)XEGETUINT16BE(IMPL_MEM_ADDR(a));
-#define IMPL_MEM_32(a)        (uint32_t)XEGETUINT32BE(IMPL_MEM_ADDR(a));
+#define IMPL_MEM_16(a)        (uint16_t)XEGETUINT16BE(IMPL_MEM_ADDR(a))
+#define IMPL_MEM_32(a)        (uint32_t)XEGETUINT32BE(IMPL_MEM_ADDR(a))
 #define IMPL_SET_MEM_16(a, v) (*(uint16_t*)IMPL_MEM_ADDR(a)) = XESWAP16(v)
 #define IMPL_SET_MEM_32(a, v) (*(uint32_t*)IMPL_MEM_ADDR(a)) = XESWAP32(v)
 

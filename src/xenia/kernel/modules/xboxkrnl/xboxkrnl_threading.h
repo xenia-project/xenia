@@ -33,6 +33,10 @@ int KeTlsFree(uint32_t tls_index);
 uint32_t xeKeTlsGetValue(uint32_t tls_index);
 int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value);
 
+X_STATUS xeKeWaitForSingleObject(
+    void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
+    uint32_t alertable, uint64_t* opt_timeout);
+
 
 }  // namespace xboxkrnl
 }  // namespace kernel
