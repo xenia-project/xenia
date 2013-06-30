@@ -124,7 +124,8 @@ X_STATUS XModule::Launch(uint32_t flags) {
 
   // Set as the main module, while running.
   kernel_state()->SetExecutableModule(this);
-  fflush(stdout);
+
+  Dump();
 
   // Create a thread to run in.
   XThread* thread = new XThread(
@@ -292,7 +293,7 @@ void XModule::Dump() {
           unimpl_count++;
         }
       }
-      printf("         Total: %4zu\n", import_info_count);
+      printf("         Total: %4u\n", import_info_count);
       printf("         Known:  %3d%% (%d known, %d unknown)\n",
              (int)(known_count / (float)import_info_count * 100.0f),
              known_count, unknown_count);

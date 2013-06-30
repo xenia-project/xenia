@@ -939,7 +939,7 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
     const uint32_t type = (value & 0xFF000000) >> 24;
 
     // Verify library index matches given library.
-    XEASSERT(library_index == ((value >> 16) & 0xFF));
+    //XEASSERT(library_index == ((value >> 16) & 0xFF));
 
     switch (type) {
     case 0x00:
@@ -959,7 +959,7 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
       }
       break;
     default:
-      XEASSERTALWAYS();
+      //XEASSERTALWAYS();
       break;
     }
   }

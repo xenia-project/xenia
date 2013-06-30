@@ -36,7 +36,7 @@ void _cdecl XeTrap(
 void* _cdecl XeIndirectBranch(
     xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
   // TODO(benvanik): track this statistic - this path is very slow!
-  Processor* processor = (Processor*)state->processor;
+  Processor* processor = state->processor;
   void* target_ptr = processor->GetFunctionPointer((uint32_t)target);
   // target_ptr will be null when the given target is not a function.
   XEASSERTNOTNULL(target_ptr);
@@ -78,9 +78,11 @@ void _cdecl XeTraceKernelCall(
     KernelExport* kernel_export) {
   uint32_t thread_id = state->thread_state->thread_id();
   xe_log_line("", thread_id, "XeTraceKernelCall", 't',
-              "KERNEL CALL: %.8X -> k.%.8X (%s)",
+              "KERNEL CALL: %.8X -> k.%.8X (%s)%s",
               (uint32_t)call_ia - 4, (uint32_t)cia,
-              kernel_export ? kernel_export->name : "unknown");
+              kernel_export ? kernel_export->name : "unknown",
+              (kernel_export ? kernel_export->is_implemented : 0) ?
+                  "" : " NOT IMPLEMENTED");
 }
 
 void _cdecl XeTraceUserCall(
