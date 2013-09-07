@@ -117,28 +117,6 @@ void _cdecl XeTraceInstruction(
   buffer[0] = 0;
   int offset = 0;
 
-  ppc::InstrData i;
-  i.address = (uint32_t)cia;
-  i.code = (uint32_t)data;
-  i.type = ppc::GetInstrType(i.code);
-  if (i.type && i.type->disassemble) {
-    ppc::InstrDisasm d;
-    i.type->disassemble(i, d);
-    std::string disasm;
-    d.Dump(disasm);
-    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
-        "%.8X %.8X %s %s",
-        i.address, i.code,
-        i.type && i.type->emit ? " " : "X",
-        disasm.c_str());
-  } else {
-    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
-        "%.8X %.8X %s %s",
-        i.address, i.code,
-        i.type && i.type->emit ? " " : "X",
-        i.type ? i.type->name : "<unknown>");
-  }
-
   if (FLAGS_trace_registers) {
     offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
         "\n"
@@ -160,6 +138,28 @@ void _cdecl XeTraceInstruction(
         state->r[20], state->r[21], state->r[22], state->r[23],
         state->r[24], state->r[25], state->r[26], state->r[27],
         state->r[28], state->r[29], state->r[30], state->r[31]);
+  }
+
+  ppc::InstrData i;
+  i.address = (uint32_t)cia;
+  i.code = (uint32_t)data;
+  i.type = ppc::GetInstrType(i.code);
+  if (i.type && i.type->disassemble) {
+    ppc::InstrDisasm d;
+    i.type->disassemble(i, d);
+    std::string disasm;
+    d.Dump(disasm);
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "%.8X %.8X %s %s",
+        i.address, i.code,
+        i.type && i.type->emit ? " " : "X",
+        disasm.c_str());
+  } else {
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "%.8X %.8X %s %s",
+        i.address, i.code,
+        i.type && i.type->emit ? " " : "X",
+        i.type ? i.type->name : "<unknown>");
   }
 
   uint32_t thread_id = state->thread_state->thread_id();

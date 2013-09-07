@@ -235,6 +235,8 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
     return 0;
   }
 
+  // TODO(benvanik): address should be in 0xA0000000+ range.
+
   return base_address;
 }
 

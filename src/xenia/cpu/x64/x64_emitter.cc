@@ -624,6 +624,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 
     typedef int (*InstrEmitter)(X64Emitter& g, X86Compiler& c, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
+    TraceInstruction(i);
     if (!i.type->emit || emit(*this, compiler_, i)) {
       // This printf is handy for sort/uniquify to find instructions.
       printf("unimplinstr %s\n", i.type->name);
@@ -632,9 +633,6 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
                ia, i.code, i.type->name);
       TraceInvalidInstruction(i);
     }
-
-    TraceInstruction(i);
-  }
 
   // If we fall through, create the branch.
   if (block->outgoing_type == FunctionBlock::kTargetNone) {
