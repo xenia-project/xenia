@@ -36,6 +36,8 @@ void xeRtlFreeUnicodeString(uint32_t string_ptr);
 X_STATUS xeRtlUnicodeStringToAnsiString(
     uint32_t destination_ptr, uint32_t source_ptr, uint32_t alloc_dest);
 
+uint32_t xeRtlNtStatusToDosError(X_STATUS status);
+
 uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
                                   uint32_t image_field);
 

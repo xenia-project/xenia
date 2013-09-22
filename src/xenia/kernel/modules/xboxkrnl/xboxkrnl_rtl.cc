@@ -535,6 +535,35 @@ SHIM_CALL _vsnprintf_shim(
 }
 
 
+uint32_t xeRtlNtStatusToDosError(X_STATUS status) {
+  if (!status || (status & 0x20000000)) {
+    // Success.
+    return status;
+  } else if ((status & 0xF0000000) == 0xD0000000) {
+    // High bit doesn't matter.
+    status &= ~0x10000000;
+  }
+
+  // TODO(benvanik): implement lookup table.
+  XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
+
+  return 317; // ERROR_MR_MID_NOT_FOUND
+}
+
+
+SHIM_CALL RtlNtStatusToDosError_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t status = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "RtlNtStatusToDosError(%.4X)",
+      status);
+
+  uint32_t result = xeRtlNtStatusToDosError(status);
+  SHIM_SET_RETURN(result);
+}
+
+
 uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
                                   uint32_t image_field) {
   KernelState* state = shared_kernel_state_;
@@ -834,6 +863,8 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlNtStatusToDosError, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlImageXexHeaderField, state);
 
