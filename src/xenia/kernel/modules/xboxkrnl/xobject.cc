@@ -17,18 +17,15 @@ using namespace xe::kernel::xboxkrnl;
 
 XObject::XObject(KernelState* kernel_state, Type type) :
     kernel_state_(kernel_state),
-    ref_count_(1),
+    handle_ref_count_(0),
+    pointer_ref_count_(0),
     type_(type), handle_(X_INVALID_HANDLE_VALUE) {
-  handle_ = kernel_state->InsertObject(this);
+  kernel_state->object_table()->AddHandle(this, &handle_);
 }
 
 XObject::~XObject() {
-  XEASSERTZERO(ref_count_);
-
-  if (handle_ != X_INVALID_HANDLE_VALUE) {
-    // Remove from state table.
-    kernel_state_->RemoveObject(this);
-  }
+  XEASSERTZERO(handle_ref_count_);
+  XEASSERTZERO(pointer_ref_count_);
 }
 
 Runtime* XObject::runtime() {
@@ -47,16 +44,28 @@ XObject::Type XObject::type() {
   return type_;
 }
 
-X_HANDLE XObject::handle() {
+X_HANDLE XObject::handle() const {
   return handle_;
 }
 
+void XObject::RetainHandle() {
+  xe_atomic_inc_32(&handle_ref_count_);
+}
+
+bool XObject::ReleaseHandle() {
+  if (!xe_atomic_dec_32(&handle_ref_count_)) {
+    return true;
+  }
+  return false;
+}
+
 void XObject::Retain() {
-  xe_atomic_inc_32(&ref_count_);
+  xe_atomic_inc_32(&pointer_ref_count_);
 }
 
 void XObject::Release() {
-  if (!xe_atomic_dec_32(&ref_count_)) {
+  if (!xe_atomic_dec_32(&pointer_ref_count_)) {
+    XEASSERT(pointer_ref_count_ >= handle_ref_count_);
     delete this;
   }
 }

@@ -17,6 +17,7 @@
 #include <xenia/kernel/kernel_module.h>
 #include <xenia/kernel/xbox.h>
 #include <xenia/kernel/fs/filesystem.h>
+#include <xenia/kernel/modules/xboxkrnl/object_table.h>
 
 
 namespace xe {
@@ -24,9 +25,7 @@ namespace kernel {
 namespace xboxkrnl {
 
 
-class XObject;
 class XModule;
-class XThread;
 
 
 class KernelState {
@@ -39,7 +38,7 @@ public:
   cpu::Processor* processor();
   fs::FileSystem* filesystem();
 
-  XObject* GetObject(X_HANDLE handle);
+  ObjectTable* object_table() const;
 
   XModule* GetModule(const char* name);
   XModule* GetExecutableModule();
@@ -54,13 +53,9 @@ private:
   shared_ptr<cpu::Processor> processor_;
   shared_ptr<fs::FileSystem> filesystem_;
 
-  XModule*      executable_module_;
+  ObjectTable*  object_table_;
 
-  xe_mutex_t* objects_mutex_;
-  X_HANDLE next_handle_;
-  std::tr1::unordered_map<X_HANDLE, XObject*> objects_;
-  std::tr1::unordered_map<X_HANDLE, XModule*> modules_;
-  std::tr1::unordered_map<X_HANDLE, XThread*> threads_;
+  XModule*      executable_module_;
 
   friend class XObject;
 };

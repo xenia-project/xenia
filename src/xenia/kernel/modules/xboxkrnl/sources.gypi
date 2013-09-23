@@ -5,6 +5,8 @@
     'kernel_state.h',
     'module.cc',
     'module.h',
+    'object_table.cc',
+    'object_table.h',
     'xboxkrnl_debug.cc',
     'xboxkrnl_debug.h',
     'xboxkrnl_hal.cc',

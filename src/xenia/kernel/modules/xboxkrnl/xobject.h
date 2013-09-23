@@ -40,8 +40,10 @@ public:
   KernelState* kernel_state();
 
   Type type();
-  X_HANDLE handle();
+  X_HANDLE handle() const;
 
+  void RetainHandle();
+  bool ReleaseHandle();
   void Retain();
   void Release();
 
@@ -52,7 +54,8 @@ protected:
 private:
   KernelState*  kernel_state_;
 
-  volatile int32_t ref_count_;
+  volatile int32_t handle_ref_count_;
+  volatile int32_t pointer_ref_count_;
 
   Type          type_;
   X_HANDLE      handle_;
