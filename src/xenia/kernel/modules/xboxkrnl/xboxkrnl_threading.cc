@@ -307,6 +307,49 @@ SHIM_CALL KeTlsSetValue_shim(
 }
 
 
+int32_t xeKeResetEvent(void* event_ptr) {
+  return 0;
+}
+
+
+SHIM_CALL KeResetEvent_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t event_ref = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeResetEvent(%.4X)",
+      event_ref);
+
+  void* event_ptr = SHIM_MEM_ADDR(event_ref);
+  int32_t result = xeKeResetEvent(event_ptr);
+
+  SHIM_SET_RETURN(result);
+}
+
+
+int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait) {
+  return 0;
+}
+
+
+SHIM_CALL KeSetEvent_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t event_ref = SHIM_GET_ARG_32(0);
+  uint32_t increment = SHIM_GET_ARG_32(1);
+  uint32_t wait = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "KeSetEvent(%.4X, %.4X, %.4X)",
+      event_ref, increment, wait);
+
+  void* event_ptr = SHIM_MEM_ADDR(event_ref);
+  int32_t result = xeKeSetEvent(
+      event_ptr, increment, wait);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint32_t* opt_timeout) {
@@ -351,6 +394,9 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsFree, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
 }
