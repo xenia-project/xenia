@@ -309,7 +309,7 @@ SHIM_CALL KeTlsSetValue_shim(
 
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
-    uint32_t alertable, uint64_t* opt_timeout) {
+    uint32_t alertable, uint32_t* opt_timeout) {
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
@@ -327,7 +327,7 @@ SHIM_CALL KeWaitForSingleObject_shim(
       object, wait_reason, processor_mode, alertable, timeout_ptr);
 
   void* object_ptr = SHIM_MEM_ADDR(object);
-  uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+  uint32_t timeout = timeout_ptr ? SHIM_MEM_32(timeout_ptr) : 0;
   X_STATUS result = xeKeWaitForSingleObject(
       object_ptr, wait_reason, processor_mode, alertable,
       timeout_ptr ? &timeout : NULL);
