@@ -27,11 +27,21 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+// http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
+typedef struct {
+  uint32_t type_flags;
+  uint32_t signal_state;
+  uint32_t wait_list_flink;
+  uint32_t wait_list_blink;
+} DISPATCH_HEADER;
+
+
 class XObject {
 public:
   enum Type {
     kTypeModule   = 0x00000001,
     kTypeThread   = 0x00000002,
+    kTypeEvent    = 0x00000003,
   };
 
   XObject(KernelState* kernel_state, Type type);
@@ -46,6 +56,16 @@ public:
   bool ReleaseHandle();
   void Retain();
   void Release();
+
+  // Reference()
+  // Dereference()
+
+  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
+                        uint32_t alertable, uint64_t* opt_timeout);
+
+  static void LockType();
+  static void UnlockType();
+  static XObject* GetObject(KernelState* kernel_state, void* native_ptr);
 
 protected:
   Runtime* runtime();

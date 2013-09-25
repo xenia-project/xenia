@@ -32,6 +32,7 @@ KernelState::KernelState(Runtime* runtime) :
   filesystem_ = runtime->filesystem();
 
   object_table_ = new ObjectTable();
+  object_mutex_ = xe_mutex_alloc(10000);
 }
 
 KernelState::~KernelState() {
@@ -41,6 +42,7 @@ KernelState::~KernelState() {
   }
 
   // Delete all objects.
+  xe_mutex_free(object_mutex_);
   delete object_table_;
 
   filesystem_.reset();

@@ -29,6 +29,10 @@ typedef uint32_t X_STATUS;
 #define XFAILED(s) (s & X_STATUS_UNSUCCESSFUL)
 #define XSUCCEEDED(s) !XFAILED(s)
 #define X_STATUS_SUCCESS                                ((uint32_t)0x00000000L)
+#define X_STATUS_ABANDONED_WAIT_0                       ((uint32_t)0x00000080L)
+#define X_STATUS_USER_APC                               ((uint32_t)0x000000C0L)
+#define X_STATUS_ALERTED                                ((uint32_t)0x00000101L)
+#define X_STATUS_TIMEOUT                                ((uint32_t)0x00000102L)
 #define X_STATUS_UNSUCCESSFUL                           ((uint32_t)0xC0000001L)
 #define X_STATUS_NOT_IMPLEMENTED                        ((uint32_t)0xC0000002L)
 #define X_STATUS_ACCESS_VIOLATION                       ((uint32_t)0xC0000005L)
@@ -45,7 +49,6 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_INVALID_PARAMETER_1                    ((uint32_t)0xC00000EFL)
 #define X_STATUS_INVALID_PARAMETER_2                    ((uint32_t)0xC00000F0L)
 #define X_STATUS_INVALID_PARAMETER_3                    ((uint32_t)0xC00000F1L)
-
 
 // MEM_*, used by NtAllocateVirtualMemory
 #define X_MEM_COMMIT              0x00001000

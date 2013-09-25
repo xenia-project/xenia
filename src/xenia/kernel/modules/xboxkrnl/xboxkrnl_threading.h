@@ -33,8 +33,8 @@ int KeTlsFree(uint32_t tls_index);
 uint32_t xeKeTlsGetValue(uint32_t tls_index);
 int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value);
 
-int32_t xeKeResetEvent(void* event_ptr);
 int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait);
+int32_t xeKeResetEvent(void* event_ptr);
 
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,

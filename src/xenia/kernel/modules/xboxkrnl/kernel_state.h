@@ -45,15 +45,13 @@ public:
   void SetExecutableModule(XModule* module);
 
 private:
-  X_HANDLE InsertObject(XObject* obj);
-  void RemoveObject(XObject* obj);
-
   Runtime*      runtime_;
   xe_memory_ref memory_;
   shared_ptr<cpu::Processor> processor_;
   shared_ptr<fs::FileSystem> filesystem_;
 
   ObjectTable*  object_table_;
+  xe_mutex_t*   object_mutex_;
 
   XModule*      executable_module_;
 

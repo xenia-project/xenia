@@ -12,6 +12,7 @@
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
+#include <xenia/kernel/modules/xboxkrnl/objects/xevent.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 
@@ -307,8 +308,48 @@ SHIM_CALL KeTlsSetValue_shim(
 }
 
 
+int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XEvent* ev = (XEvent*)XObject::GetObject(state, event_ptr);
+  XEASSERTNOTNULL(ev);
+  if (!ev) {
+    return 0;
+  }
+
+  return ev->Set(increment, !!wait);
+}
+
+
+SHIM_CALL KeSetEvent_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t event_ref = SHIM_GET_ARG_32(0);
+  uint32_t increment = SHIM_GET_ARG_32(1);
+  uint32_t wait = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "KeSetEvent(%.4X, %.4X, %.4X)",
+      event_ref, increment, wait);
+
+  void* event_ptr = SHIM_MEM_ADDR(event_ref);
+  int32_t result = xeKeSetEvent(event_ptr, increment, wait);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 int32_t xeKeResetEvent(void* event_ptr) {
-  return 0;
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XEvent* ev = (XEvent*)XEvent::GetObject(state, event_ptr);
+  XEASSERTNOTNULL(ev);
+  if (!ev) {
+    return 0;
+  }
+
+  return ev->Reset();
 }
 
 
@@ -327,33 +368,19 @@ SHIM_CALL KeResetEvent_shim(
 }
 
 
-int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait) {
-  return 0;
-}
-
-
-SHIM_CALL KeSetEvent_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
-  uint32_t event_ref = SHIM_GET_ARG_32(0);
-  uint32_t increment = SHIM_GET_ARG_32(1);
-  uint32_t wait = SHIM_GET_ARG_32(2);
-
-  XELOGD(
-      "KeSetEvent(%.4X, %.4X, %.4X)",
-      event_ref, increment, wait);
-
-  void* event_ptr = SHIM_MEM_ADDR(event_ref);
-  int32_t result = xeKeSetEvent(
-      event_ptr, increment, wait);
-
-  SHIM_SET_RETURN(result);
-}
-
-
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
-    uint32_t alertable, uint32_t* opt_timeout) {
-  return X_STATUS_NOT_IMPLEMENTED;
+    uint32_t alertable, uint64_t* opt_timeout) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XObject* object = XObject::GetObject(state, object_ptr);
+  if (!object) {
+    // The only kind-of failure code.
+    return X_STATUS_ABANDONED_WAIT_0;
+  }
+
+  return object->Wait(wait_reason, processor_mode, alertable, opt_timeout);
 }
 
 
@@ -370,7 +397,7 @@ SHIM_CALL KeWaitForSingleObject_shim(
       object, wait_reason, processor_mode, alertable, timeout_ptr);
 
   void* object_ptr = SHIM_MEM_ADDR(object);
-  uint32_t timeout = timeout_ptr ? SHIM_MEM_32(timeout_ptr) : 0;
+  uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
   X_STATUS result = xeKeWaitForSingleObject(
       object_ptr, wait_reason, processor_mode, alertable,
       timeout_ptr ? &timeout : NULL);
@@ -395,8 +422,8 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
 }
