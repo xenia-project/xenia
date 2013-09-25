@@ -116,6 +116,12 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
     const uint8_t* packet_base = p + ptr + n * 4;
     const uint32_t packet = XEGETUINT32BE(packet_base);
     const uint32_t packet_type = packet >> 30;
+
+    if (packet == 0) {
+      n++;
+      continue;
+    }
+
     switch (packet_type) {
     case 0x00:
       {
@@ -157,6 +163,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
     case 0x02:
       // Type-2 packet.
       // No-op. Do nothing.
+      n++;
       break;
     case 0x03:
       {
@@ -215,7 +222,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             // value?
             uint32_t d2 = XEGETUINT32BE(packet_base + 3 * 4);
             XESETUINT32BE(
-                p + d1 + (primary_buffer_ptr_ & ~0x1FFFFFFF), d2);
+                p + (d1 & ~0x3) + (primary_buffer_ptr_ & ~0x1FFFFFFF), d2);
           }
           break;
 
