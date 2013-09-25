@@ -259,8 +259,28 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
 }
 
 
-// VdSetSystemCommandBufferGpuIdentifierAddress
-// r3 = ?
+void xeVdSetSystemCommandBufferGpuIdentifierAddress(uint32_t unk) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+  GraphicsSystem* gs = state->processor()->graphics_system().get();
+  if (!gs) {
+    return;
+  }
+
+  // r3 = 0x2B10(d3d?) + 8
+}
+
+
+SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t unk = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "VdSetSystemCommandBufferGpuIdentifierAddress(%.4X)",
+      unk);
+
+  xeVdSetSystemCommandBufferGpuIdentifierAddress(unk);
+}
 
 
 // VdVerifyMEInitCommand
@@ -273,6 +293,23 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
 // r3 = 1
 // r4 = ?
 // callbacks get 0, r3, r4
+
+
+SHIM_CALL VdRetrainEDRAM_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0);
+  uint32_t unk1 = SHIM_GET_ARG_32(1);
+  uint32_t unk2 = SHIM_GET_ARG_32(2);
+  uint32_t unk3 = SHIM_GET_ARG_32(3);
+  uint32_t unk4 = SHIM_GET_ARG_32(4);
+  uint32_t unk5 = SHIM_GET_ARG_32(5);
+
+  XELOGD(
+      "VdRetrainEDRAM(%.4X, %.4X, %.4X, %.4X, %.4X, %.4X)",
+      unk0, unk1, unk2, unk3, unk4, unk5);
+
+  SHIM_SET_RETURN(0);
+}
 
 
 }  // namespace xboxkrnl
@@ -289,6 +326,9 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe",
+      VdSetSystemCommandBufferGpuIdentifierAddress, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAM, state);
 
   xe_memory_ref memory = state->memory();
   uint8_t* mem = xe_memory_addr(memory);

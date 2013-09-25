@@ -2,6 +2,7 @@
 {
   'sources': [
     'packets.h',
+    'register_table.inc',
     'registers.cc',
     'registers.h',
   ],

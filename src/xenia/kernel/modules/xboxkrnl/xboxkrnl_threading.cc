@@ -141,9 +141,6 @@ uint32_t xeKeGetCurrentProcessType() {
 
   // DWORD
 
-  XELOGD(
-      "KeGetCurrentProcessType()");
-
   return X_PROCTYPE_USER;
 }
 
@@ -329,7 +326,7 @@ SHIM_CALL KeSetEvent_shim(
   uint32_t wait = SHIM_GET_ARG_32(2);
 
   XELOGD(
-      "KeSetEvent(%.4X, %.4X, %.4X)",
+      "KeSetEvent(%.8X, %.8X, %.8X)",
       event_ref, increment, wait);
 
   void* event_ptr = SHIM_MEM_ADDR(event_ref);
@@ -358,7 +355,7 @@ SHIM_CALL KeResetEvent_shim(
   uint32_t event_ref = SHIM_GET_ARG_32(0);
 
   XELOGD(
-      "KeResetEvent(%.4X)",
+      "KeResetEvent(%.8X)",
       event_ref);
 
   void* event_ptr = SHIM_MEM_ADDR(event_ref);
