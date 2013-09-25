@@ -787,7 +787,7 @@ XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar v(c.newGpVar());
   c.mov(v, e.gpr_value(i.X.RT));
   c.bsr(v, v);
-  c.cmovz(v, e.get_uint64(63));
+  c.cmovz(v, e.get_uint64(0));
   c.xor_(v, imm(0x3F));
   e.update_gpr_value(i.X.RA, v);
 
