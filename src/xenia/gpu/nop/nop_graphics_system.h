@@ -27,6 +27,10 @@ public:
   virtual ~NopGraphicsSystem();
 
   virtual void Initialize();
+
+private:
+  HANDLE timer_queue_;
+  HANDLE vsync_timer_;
 };
 
 

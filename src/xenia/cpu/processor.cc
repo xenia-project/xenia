@@ -45,7 +45,8 @@ namespace {
 
 
 Processor::Processor(xe_memory_ref memory, shared_ptr<Backend> backend) :
-    sym_table_(NULL), jit_(NULL) {
+    sym_table_(NULL), jit_(NULL),
+    interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL) {
   memory_ = xe_memory_retain(memory);
   backend_ = backend;
 
@@ -63,6 +64,9 @@ Processor::~Processor() {
     delete exec_module;
   }
   modules_.clear();
+
+  DeallocThread(interrupt_thread_state_);
+  xe_mutex_free(interrupt_thread_lock_);
 
   delete jit_;
   delete sym_table_;
@@ -97,6 +101,9 @@ void Processor::set_export_resolver(
 
 int Processor::Setup() {
   XEASSERTNULL(jit_);
+
+  interrupt_thread_lock_ = xe_mutex_alloc(10000);
+  interrupt_thread_state_ = AllocThread(16 * 1024, 0, 0);
 
   sym_table_ = new SymbolTable();
 
@@ -243,6 +250,15 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
     return 0xDEADBABE;
   }
   return ppc_state->r[3];
+}
+
+uint64_t Processor::ExecuteInterrupt(uint32_t address,
+                                     uint64_t arg0, uint64_t arg1) {
+  // Acquire lock on interrupt thread (we can only dispatch one at a time).
+  xe_mutex_lock(interrupt_thread_lock_);
+  uint64_t result = Execute(interrupt_thread_state_, address, arg0, arg1);
+  xe_mutex_unlock(interrupt_thread_lock_);
+  return result;
 }
 
 FunctionSymbol* Processor::GetFunction(uint32_t address) {

@@ -14,6 +14,13 @@
 
 
 namespace xe {
+namespace cpu {
+class Processor;
+}  // namespace cpu
+}  // namespace xe
+
+
+namespace xe {
 namespace gpu {
 
 class RingBufferWorker;
@@ -32,19 +39,25 @@ public:
   virtual ~GraphicsSystem();
 
   xe_memory_ref memory();
+  shared_ptr<cpu::Processor> processor();
+  void set_processor(shared_ptr<cpu::Processor> processor);
 
   virtual void Initialize() = 0;
+  void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   virtual uint64_t ReadRegister(uint32_t r);
   virtual void WriteRegister(uint32_t r, uint64_t value);
 
+  void DispatchInterruptCallback();
+
 public:
   static uint64_t ReadRegisterThunk(GraphicsSystem* this_ptr, uint32_t r) {
     return this_ptr->ReadRegister(r);
   }
-  static void WriteRegisterThunk(GraphicsSystem* this_ptr, uint32_t r, uint64_t value) {
+  static void WriteRegisterThunk(GraphicsSystem* this_ptr, uint32_t r,
+                                 uint64_t value) {
     this_ptr->WriteRegister(r, value);
   }
 
@@ -52,8 +65,12 @@ protected:
   GraphicsSystem(const CreationParams* params);
 
   xe_memory_ref     memory_;
+  shared_ptr<cpu::Processor> processor_;
 
   RingBufferWorker* worker_;
+
+  uint32_t          interrupt_callback_;
+  uint32_t          interrupt_callback_data_;
 };
 
 

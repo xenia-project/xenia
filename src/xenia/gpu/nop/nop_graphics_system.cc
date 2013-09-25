@@ -17,12 +17,41 @@ using namespace xe::gpu;
 using namespace xe::gpu::nop;
 
 
+namespace {
+
+void __stdcall NopGraphicsSystemVsyncCallback(NopGraphicsSystem* gs, BOOLEAN) {
+  gs->DispatchInterruptCallback();
+}
+
+}
+
+
 NopGraphicsSystem::NopGraphicsSystem(const CreationParams* params) :
-    GraphicsSystem(params) {
+    GraphicsSystem(params),
+    timer_queue_(NULL),
+    vsync_timer_(NULL) {
 }
 
 NopGraphicsSystem::~NopGraphicsSystem() {
+  if (vsync_timer_) {
+    DeleteTimerQueueTimer(timer_queue_, vsync_timer_, NULL);
+  }
+  if (timer_queue_) {
+    DeleteTimerQueueEx(timer_queue_, NULL);
+  }
 }
 
 void NopGraphicsSystem::Initialize() {
+  XEASSERTNULL(timer_queue_);
+  XEASSERTNULL(vsync_timer_);
+
+  timer_queue_ = CreateTimerQueue();
+  CreateTimerQueueTimer(
+      &vsync_timer_,
+      timer_queue_,
+      (WAITORTIMERCALLBACK)NopGraphicsSystemVsyncCallback,
+      this,
+      16,
+      100,
+      WT_EXECUTEINTIMERTHREAD);
 }

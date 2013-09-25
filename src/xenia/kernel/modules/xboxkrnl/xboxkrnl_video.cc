@@ -130,7 +130,7 @@ void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
   }
 
   // r3 = 0x4F810000
-  // r4 = function ptr (ready callback?)
+  // r4 = function ptr (cleanup callback?)
   // r5 = 0
   // r6/r7 = some binary data in .data
 
@@ -166,7 +166,7 @@ void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data) {
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
 
-  //gs->SetupInterruptCallback(callback, user_data);
+  gs->SetInterruptCallback(callback, user_data);
 }
 
 
@@ -229,6 +229,8 @@ void xeVdEnableRingBufferRPtrWriteBack(uint32_t ptr, uint32_t block_size) {
   ptr += 0x20000000;
   printf("%.8X", ptr);
   // 0x0110343c
+
+  // r3 = 0x2B10(d3d?) + 0x3C
 
   //((p + 0x3C) & 0x1FFFFFFF) + ((((p + 0x3C) >> 20) + 0x200) & 0x1000)
   //also 0x3C offset into WriteBacks is PrimaryRingBufferReadIndex

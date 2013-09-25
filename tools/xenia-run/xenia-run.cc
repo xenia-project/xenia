@@ -68,6 +68,8 @@ int Run::Setup() {
 
   processor_ = shared_ptr<Processor>(new Processor(memory_, backend_));
   processor_->set_graphics_system(graphics_system_);
+  graphics_system_->set_processor(processor_);
+
   XEEXPECTZERO(processor_->Setup());
 
   runtime_ = shared_ptr<Runtime>(new Runtime(processor_, XT("")));

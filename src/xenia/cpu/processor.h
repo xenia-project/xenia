@@ -56,10 +56,14 @@ public:
   ThreadState* AllocThread(uint32_t stack_size, uint32_t thread_state_address,
                            uint32_t thread_id);
   void DeallocThread(ThreadState* thread_state);
+
   int Execute(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t arg0);
   uint64_t Execute(ThreadState* thread_state, uint32_t address,
                    uint64_t arg0, uint64_t arg1);
+
+  uint64_t ExecuteInterrupt(uint32_t address, uint64_t arg0, uint64_t arg1);
+
   sdb::FunctionSymbol* GetFunction(uint32_t address);
   void* GetFunctionPointer(uint32_t address);
 
@@ -72,6 +76,9 @@ private:
   sdb::SymbolTable*   sym_table_;
   JIT*                jit_;
   std::vector<ExecModule*> modules_;
+
+  xe_mutex_t*         interrupt_thread_lock_;
+  ThreadState*        interrupt_thread_state_;
 };
 
 
