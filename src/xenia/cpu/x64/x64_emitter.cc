@@ -633,6 +633,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
                ia, i.code, i.type->name);
       TraceInvalidInstruction(i);
     }
+  }
 
   // If we fall through, create the branch.
   if (block->outgoing_type == FunctionBlock::kTargetNone) {
@@ -1642,6 +1643,14 @@ GpVar X64Emitter::ReadMemory(
     uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
   X86Compiler& c = compiler_;
 
+#if 0
+  Label no_match(c.newLabel());
+  c.cmp(addr, imm(0x21004220));
+  c.jne(no_match, kCondHintLikely);
+  c.int3();
+  c.bind(no_match);
+#endif
+
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
 
@@ -1687,6 +1696,14 @@ void X64Emitter::WriteMemory(
     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
     bool release) {
   X86Compiler& c = compiler_;
+
+#if 0
+  Label no_match(c.newLabel());
+  c.cmp(addr, imm(0x21004220));
+  c.jne(no_match, kCondHintLikely);
+  c.int3();
+  c.bind(no_match);
+#endif
 
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
