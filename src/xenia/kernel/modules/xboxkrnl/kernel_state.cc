@@ -36,10 +36,7 @@ KernelState::KernelState(Runtime* runtime) :
 }
 
 KernelState::~KernelState() {
-  if (executable_module_) {
-    executable_module_->Release();
-    executable_module_ = NULL;
-  }
+  SetExecutableModule(NULL);
 
   // Delete all objects.
   xe_mutex_free(object_mutex_);

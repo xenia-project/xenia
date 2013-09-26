@@ -33,6 +33,7 @@ ObjectTable::~ObjectTable() {
     ObjectTableEntry& entry = table_[n];
     if (entry.object) {
       entry.object->ReleaseHandle();
+      entry.object->Release();
     }
   }
 

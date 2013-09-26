@@ -21,7 +21,7 @@ using namespace xe::kernel::xboxkrnl;
 XObject::XObject(KernelState* kernel_state, Type type) :
     kernel_state_(kernel_state),
     handle_ref_count_(0),
-    pointer_ref_count_(0),
+    pointer_ref_count_(1),
     type_(type), handle_(X_INVALID_HANDLE_VALUE) {
   kernel_state->object_table()->AddHandle(this, &handle_);
 }
@@ -123,7 +123,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr) {
     case 1: // EventSynchronizationObject
       {
         XEvent* ev = new XEvent(kernel_state);
-        ev->Initialize(native_ptr, header);
+        ev->InitializeNative(native_ptr, header);
         object = ev;
       }
       break;

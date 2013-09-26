@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
+#include <xenia/kernel/modules/xboxkrnl/objects/xevent.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
 
@@ -31,7 +32,8 @@ XThread::XThread(KernelState* kernel_state,
     thread_id_(++next_xthread_id),
     thread_handle_(0),
     thread_state_address_(0),
-    thread_state_(0) {
+    thread_state_(0),
+    event_(NULL) {
   creation_params_.stack_size           = stack_size;
   creation_params_.xapi_thread_startup  = xapi_thread_startup;
   creation_params_.start_address        = start_address;
@@ -42,9 +44,14 @@ XThread::XThread(KernelState* kernel_state,
   if (creation_params_.stack_size < 16 * 1024 * 1024) {
     creation_params_.stack_size = 16 * 1024 * 1024;
   }
+
+  event_ = new XEvent(kernel_state);
+  event_->Initialize(true, false);
 }
 
 XThread::~XThread() {
+  event_->Release();
+
   PlatformDestroy();
 
   if (thread_state_) {
@@ -100,13 +107,15 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
 
-  // Allocate TLS block.
   XModule* module = kernel_state()->GetExecutableModule();
+
+  // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();
   uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
   tls_address_ = xe_memory_heap_alloc(memory(), 0, tls_size, 0);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
+    module->Release();
     return X_STATUS_NO_MEMORY;
   }
 
@@ -129,21 +138,26 @@ X_STATUS XThread::Create() {
       creation_params_.stack_size, thread_state_address_, thread_id_);
   if (!thread_state_) {
     XELOGW("Unable to allocate processor thread state");
+    module->Release();
     return X_STATUS_NO_MEMORY;
   }
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {
     XELOGW("Unable to create platform thread (%.8X)", return_code);
+    module->Release();
     return return_code;
   }
 
+  module->Release();
   return X_STATUS_SUCCESS;
 }
 
 X_STATUS XThread::Exit(int exit_code) {
   // TODO(benvanik): set exit code in thread state block
+  
   // TODO(benvanik); dispatch events? waiters? etc?
+  event_->Set(0, false);
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   X_STATUS return_code = PlatformExit(exit_code);
@@ -270,4 +284,9 @@ void XThread::Execute() {
     // Treat the return code as an implicit exit code.
     Exit(exit_code);
   }
+}
+
+X_STATUS XThread::Wait(uint32_t wait_reason, uint32_t processor_mode,
+                       uint32_t alertable, uint64_t* opt_timeout) {
+  return event_->Wait(wait_reason, processor_mode, alertable, opt_timeout);
 }

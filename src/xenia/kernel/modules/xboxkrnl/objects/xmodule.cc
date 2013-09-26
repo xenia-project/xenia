@@ -142,16 +142,7 @@ X_STATUS XModule::Launch(uint32_t flags) {
   }
 
   // Wait until thread completes.
-  // XLARGE_INTEGER timeout = XINFINITE;
-  // xekNtWaitForSingleObjectEx(thread_handle, TRUE, &timeout);
-
-  while (true) {
-#if XE_PLATFORM(WIN32)
-    Sleep(1000);
-#else
-    sleep(1);
-#endif  // WIN32
-  }
+  thread->Wait(0, 0, 0, NULL);
 
   kernel_state()->SetExecutableModule(NULL);
   thread->Release();

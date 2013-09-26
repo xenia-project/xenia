@@ -20,6 +20,9 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+class XEvent;
+
+
 class XThread : public XObject {
 public:
   XThread(KernelState* kernel_state,
@@ -40,6 +43,9 @@ public:
 
   void Execute();
 
+  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
+                        uint32_t alertable, uint64_t* opt_timeout);
+
 private:
   X_STATUS PlatformCreate();
   void PlatformDestroy();
@@ -58,6 +64,8 @@ private:
   uint32_t      tls_address_;
   uint32_t      thread_state_address_;
   cpu::ThreadState* thread_state_;
+
+  XEvent*       event_;
 };
 
 

@@ -23,7 +23,13 @@ XEvent::XEvent(KernelState* kernel_state) :
 XEvent::~XEvent() {
 }
 
-void XEvent::Initialize(void* native_ptr, DISPATCH_HEADER& header) {
+void XEvent::Initialize(bool manual_reset, bool initial_state) {
+  XEASSERTNULL(handle_);
+
+  handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
+}
+
+void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
   XEASSERTNULL(handle_);
 
   bool manual_reset;

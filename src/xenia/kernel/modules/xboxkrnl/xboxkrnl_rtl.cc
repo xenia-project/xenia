@@ -590,10 +590,12 @@ uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
   const xe_xex2_header_t* xex_header = module->xex_header();
   for (size_t n = 0; n < xex_header->header_count; n++) {
     if (xex_header->headers[n].key == image_field) {
+      module->Release();
       return xex_header->headers[n].value;
     }
   }
 
+  module->Release();
   return 0;
 }
 
