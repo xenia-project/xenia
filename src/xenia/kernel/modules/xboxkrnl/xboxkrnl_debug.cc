@@ -112,7 +112,7 @@ SHIM_CALL DbgPrint_shim(
     }
 
     // get length
-    int arg_size = 0;
+    int arg_size = 4;
 
     if (*end == 'h') {
       ++end;
