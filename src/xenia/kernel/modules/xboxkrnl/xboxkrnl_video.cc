@@ -66,6 +66,23 @@ SHIM_CALL VdGetCurrentDisplayGamma_shim(
 }
 
 
+SHIM_CALL VdGetCurrentDisplayInformation_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "VdGetCurrentDisplayInformation(%.8X)",
+      ptr);
+
+  // Expecting a length 0x58 struct of stuff.
+  SHIM_SET_MEM_32(ptr + 0x10, 1280);
+  SHIM_SET_MEM_32(ptr + 0x14, 720);
+  SHIM_SET_MEM_16(ptr + 0x48, 1280);
+  SHIM_SET_MEM_16(ptr + 0x4A, 720);
+  SHIM_SET_MEM_16(ptr + 0x56, 1280);
+}
+
+
 uint32_t xeVdQueryVideoFlags() {
   // ?
   return 0x00000007;
@@ -299,6 +316,39 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 // callbacks get 0, r3, r4
 
 
+SHIM_CALL VdIsHSIOTrainingSucceeded_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "VdIsHSIOTrainingSucceeded()");
+
+  // Not really sure what this should be - code does weird stuff here:
+  // (cntlzw    r11, r3  / extrwi    r11, r11, 1, 26)
+  SHIM_SET_RETURN(1);
+}
+
+
+SHIM_CALL VdPersistDisplay_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "VdPersistDisplay(?)");
+
+  // ?
+  SHIM_SET_RETURN(1);
+}
+
+
+SHIM_CALL VdRetrainEDRAMWorker_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "VdRetrainEDRAMWorker(%.8X)",
+      unk0);
+
+  SHIM_SET_RETURN(0);
+}
+
+
 SHIM_CALL VdRetrainEDRAM_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
@@ -324,6 +374,7 @@ SHIM_CALL VdRetrainEDRAM_shim(
 void xe::kernel::xboxkrnl::RegisterVideoExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayGamma, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayInformation, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoMode, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
@@ -332,6 +383,9 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
   SHIM_SET_MAPPING("xboxkrnl.exe",
       VdSetSystemCommandBufferGpuIdentifierAddress, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdIsHSIOTrainingSucceeded, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdPersistDisplay, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAMWorker, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAM, state);
 
   xe_memory_ref memory = state->memory();
