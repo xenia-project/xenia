@@ -31,7 +31,9 @@ typedef struct {
     uint32_t is_hi_def;
     float    refresh_rate;
     uint32_t video_standard;
-    uint32_t Reserved[5];
+    uint32_t unknown_0x8a;
+    uint32_t unknown_0x01;
+    uint32_t reserved[3];
 }
 X_VIDEO_MODE;
 #pragma pack(pop)

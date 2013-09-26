@@ -87,22 +87,26 @@ void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap) {
   }
 
   // TODO: get info from actual display
-  video_mode->display_width  = 1280;
-  video_mode->display_height = 720;
-  video_mode->is_interlaced  = 0;
-  video_mode->is_widescreen  = 1;
-  video_mode->is_hi_def      = 1;
-  video_mode->refresh_rate   = 60.0f;
-  video_mode->video_standard = 1; // NTSC
+  video_mode->display_width   = 1280;
+  video_mode->display_height  = 720;
+  video_mode->is_interlaced   = 0;
+  video_mode->is_widescreen   = 1;
+  video_mode->is_hi_def       = 1;
+  video_mode->refresh_rate    = 60.0f;
+  video_mode->video_standard  = 1; // NTSC
+  video_mode->unknown_0x8a    = 0x8A;
+  video_mode->unknown_0x01    = 0x01;
 
   if (swap) {
-    video_mode->display_width  = XESWAP32BE(video_mode->display_width);
-    video_mode->display_height = XESWAP32BE(video_mode->display_height);
-    video_mode->is_interlaced  = XESWAP32BE(video_mode->is_interlaced);
-    video_mode->is_widescreen  = XESWAP32BE(video_mode->is_widescreen);
-    video_mode->is_hi_def      = XESWAP32BE(video_mode->is_hi_def);
-    video_mode->refresh_rate   = XESWAPF32BE(video_mode->refresh_rate);
-    video_mode->video_standard = XESWAP32BE(video_mode->video_standard);
+    video_mode->display_width   = XESWAP32BE(video_mode->display_width);
+    video_mode->display_height  = XESWAP32BE(video_mode->display_height);
+    video_mode->is_interlaced   = XESWAP32BE(video_mode->is_interlaced);
+    video_mode->is_widescreen   = XESWAP32BE(video_mode->is_widescreen);
+    video_mode->is_hi_def       = XESWAP32BE(video_mode->is_hi_def);
+    video_mode->refresh_rate    = XESWAPF32BE(video_mode->refresh_rate);
+    video_mode->video_standard  = XESWAP32BE(video_mode->video_standard);
+    video_mode->unknown_0x8a    = XESWAP32BE(video_mode->unknown_0x8a);
+    video_mode->unknown_0x01    = XESWAP32BE(video_mode->unknown_0x01);
   }
 }
 
@@ -276,7 +280,7 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
   uint32_t unk = SHIM_GET_ARG_32(0);
 
   XELOGD(
-      "VdSetSystemCommandBufferGpuIdentifierAddress(%.4X)",
+      "VdSetSystemCommandBufferGpuIdentifierAddress(%.8X)",
       unk);
 
   xeVdSetSystemCommandBufferGpuIdentifierAddress(unk);
@@ -305,7 +309,7 @@ SHIM_CALL VdRetrainEDRAM_shim(
   uint32_t unk5 = SHIM_GET_ARG_32(5);
 
   XELOGD(
-      "VdRetrainEDRAM(%.4X, %.4X, %.4X, %.4X, %.4X, %.4X)",
+      "VdRetrainEDRAM(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
       unk0, unk1, unk2, unk3, unk4, unk5);
 
   SHIM_SET_RETURN(0);
