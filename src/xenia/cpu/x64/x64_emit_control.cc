@@ -635,6 +635,7 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(X64Emitter& e, X86Compiler& c, InstrDat
     // CTR
     v = e.ctr_value();
     break;
+  // 268 + 269 = TB + TBU
   default:
     XEINSTRNOTIMPLEMENTED();
     return 1;
@@ -648,8 +649,16 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(mftb,         0x7C0002E6, XFX)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  LARGE_INTEGER counter;
+  if (QueryPerformanceCounter(&counter)) {
+    e.update_gpr_value(i.XFX.RT, e.get_uint64(counter.QuadPart));
+  } else {
+    e.update_gpr_value(i.XFX.RT, e.get_uint64(0));
+  }
+
+  e.clear_constant_gpr_value(i.XFX.RT);
+
+  return 0;
 }
 
 XEEMITTER(mtcrf,        0x7C000120, XFX)(X64Emitter& e, X86Compiler& c, InstrData& i) {

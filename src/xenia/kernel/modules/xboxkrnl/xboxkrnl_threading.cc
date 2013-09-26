@@ -155,6 +155,26 @@ SHIM_CALL KeGetCurrentProcessType_shim(
 }
 
 
+uint64_t xeKeQueryPerformanceFrequency() {
+  LARGE_INTEGER frequency;
+  if (QueryPerformanceFrequency(&frequency)) {
+    return frequency.QuadPart;
+  } else {
+    return 0;
+  }
+}
+
+
+SHIM_CALL KeQueryPerformanceFrequency_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "KeQueryPerformanceFrequency()");
+
+  uint64_t result = xeKeQueryPerformanceFrequency();
+  SHIM_SET_RETURN(result);
+}
+
+
 // The TLS system used here is a bit hacky, but seems to work.
 // Both Win32 and pthreads use unsigned longs as TLS indices, so we can map
 // right into the system for these calls. We're just round tripping the IDs and
@@ -413,6 +433,8 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsAlloc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsFree, state);

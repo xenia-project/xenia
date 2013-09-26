@@ -28,6 +28,8 @@ X_STATUS xeExCreateThread(
 
 uint32_t xeKeGetCurrentProcessType();
 
+uint64_t xeKeQueryPerformanceFrequency();
+
 uint32_t xeKeTlsAlloc();
 int KeTlsFree(uint32_t tls_index);
 uint32_t xeKeTlsGetValue(uint32_t tls_index);
