@@ -269,9 +269,11 @@ void xeMmFreePhysicalMemory(uint32_t type, uint32_t base_address) {
 
   // base_address = result of MmAllocatePhysicalMemory.
 
-  uint32_t flags = 0;
-  xe_memory_heap_free(
-      state->memory(), base_address, flags);
+  // TODO(benvanik): free memory.
+  XELOGE("xeMmFreePhysicalMemory NOT IMPLEMENTED");
+  //uint32_t size = ?;
+  //xe_memory_heap_free(
+  //    state->memory(), base_address, size);
 }
 
 
