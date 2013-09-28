@@ -31,6 +31,7 @@ namespace {
     }
     has_initialized = true;
 
+    X64RegisterEmitCategoryAltivec();
     X64RegisterEmitCategoryALU();
     X64RegisterEmitCategoryControl();
     X64RegisterEmitCategoryFPU();

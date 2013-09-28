@@ -20,6 +20,7 @@ namespace cpu {
 namespace x64 {
 
 
+void X64RegisterEmitCategoryAltivec();
 void X64RegisterEmitCategoryALU();
 void X64RegisterEmitCategoryControl();
 void X64RegisterEmitCategoryFPU();

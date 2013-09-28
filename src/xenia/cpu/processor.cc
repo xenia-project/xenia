@@ -31,6 +31,7 @@ namespace {
     }
     has_initialized = true;
 
+    ppc::RegisterDisasmCategoryAltivec();
     ppc::RegisterDisasmCategoryALU();
     ppc::RegisterDisasmCategoryControl();
     ppc::RegisterDisasmCategoryFPU();

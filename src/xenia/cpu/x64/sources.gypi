@@ -4,6 +4,7 @@
     'x64_backend.cc',
     'x64_backend.h',
     'x64_emit.h',
+    'x64_emit_altivec.cc',
     'x64_emit_alu.cc',
     'x64_emit_control.cc',
     'x64_emit_fpu.cc',

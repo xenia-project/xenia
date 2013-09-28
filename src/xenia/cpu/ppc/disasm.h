@@ -18,6 +18,7 @@ namespace cpu {
 namespace ppc {
 
 
+void RegisterDisasmCategoryAltivec();
 void RegisterDisasmCategoryALU();
 void RegisterDisasmCategoryControl();
 void RegisterDisasmCategoryFPU();

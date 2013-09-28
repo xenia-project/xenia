@@ -2,6 +2,7 @@
 {
   'sources': [
     'disasm.h',
+    'disasm_altivec.cc',
     'disasm_alu.cc',
     'disasm_control.cc',
     'disasm_fpu.cc',

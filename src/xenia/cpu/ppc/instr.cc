@@ -350,11 +350,12 @@ void InstrDisasm::Dump(std::string& out_str, size_t pad) {
 
 
 InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
+  // Fast lookup via tables.
   InstrType* slot = NULL;
   switch (code >> 26) {
   case 4:
-    // Opcode = 4, index = bits 5-0 (6)
-    slot = xe::cpu::ppc::tables::instr_table_4[XESELECTBITS(code, 0, 5)];
+    // Opcode = 4, index = bits 11-0 (6)
+    slot = xe::cpu::ppc::tables::instr_table_4[XESELECTBITS(code, 0, 11)];
     break;
   case 19:
     // Opcode = 19, index = bits 10-1 (10)
@@ -390,10 +391,21 @@ InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
     slot = xe::cpu::ppc::tables::instr_table[XESELECTBITS(code, 26, 31)];
     break;
   }
-  if (!slot || !slot->opcode) {
-    return NULL;
+  if (slot && slot->opcode) {
+    return slot;
   }
-  return slot;
+
+  // Slow lookup via linear scan.
+  // This is primarily due to laziness. It could be made fast like the others.
+  for (size_t n = 0; n < XECOUNT(xe::cpu::ppc::tables::instr_table_vx128);
+       n++) {
+    slot = &(xe::cpu::ppc::tables::instr_table_vx128[n]);
+    if (slot->opcode == (code & slot->opcode_mask)) {
+      return slot;
+    }
+  }
+
+  return NULL;
 }
 
 int xe::cpu::ppc::RegisterInstrDisassemble(

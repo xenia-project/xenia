@@ -23,25 +23,43 @@ namespace ppc {
 
 // TODO(benvanik): rename these
 typedef enum {
-  kXEPPCInstrFormatI    = 0,
-  kXEPPCInstrFormatB    = 1,
-  kXEPPCInstrFormatSC   = 2,
-  kXEPPCInstrFormatD    = 3,
-  kXEPPCInstrFormatDS   = 4,
-  kXEPPCInstrFormatX    = 5,
-  kXEPPCInstrFormatXL   = 6,
-  kXEPPCInstrFormatXFX  = 7,
-  kXEPPCInstrFormatXFL  = 8,
-  kXEPPCInstrFormatXS   = 9,
-  kXEPPCInstrFormatXO   = 10,
-  kXEPPCInstrFormatA    = 11,
-  kXEPPCInstrFormatM    = 12,
-  kXEPPCInstrFormatMD   = 13,
-  kXEPPCInstrFormatMDS  = 14,
-  kXEPPCInstrFormatVA   = 15,
-  kXEPPCInstrFormatVX   = 16,
-  kXEPPCInstrFormatVXR  = 17,
+  kXEPPCInstrFormatI        = 0,
+  kXEPPCInstrFormatB        = 1,
+  kXEPPCInstrFormatSC       = 2,
+  kXEPPCInstrFormatD        = 3,
+  kXEPPCInstrFormatDS       = 4,
+  kXEPPCInstrFormatX        = 5,
+  kXEPPCInstrFormatXL       = 6,
+  kXEPPCInstrFormatXFX      = 7,
+  kXEPPCInstrFormatXFL      = 8,
+  kXEPPCInstrFormatXS       = 9,
+  kXEPPCInstrFormatXO       = 10,
+  kXEPPCInstrFormatA        = 11,
+  kXEPPCInstrFormatM        = 12,
+  kXEPPCInstrFormatMD       = 13,
+  kXEPPCInstrFormatMDS      = 14,
+  kXEPPCInstrFormatVXA      = 15,
+  kXEPPCInstrFormatVX       = 16,
+  kXEPPCInstrFormatVXR      = 17,
+  kXEPPCInstrFormatVX128    = 18,
+  kXEPPCInstrFormatVX128_1  = 19,
+  kXEPPCInstrFormatVX128_2  = 20,
+  kXEPPCInstrFormatVX128_3  = 21,
+  kXEPPCInstrFormatVX128_4  = 22,
+  kXEPPCInstrFormatVX128_5  = 23,
+  kXEPPCInstrFormatVX128_P  = 24,
+  kXEPPCInstrFormatXDSS     = 25,
 } xe_ppc_instr_format_e;
+
+typedef enum {
+  kXEPPCInstrMaskVX128      = 0xFC0003D0,
+  kXEPPCInstrMaskVX128_1    = 0xFC0007F3,
+  kXEPPCInstrMaskVX128_2    = 0xFC000210,
+  kXEPPCInstrMaskVX128_3    = 0xFC0007F0,
+  kXEPPCInstrMaskVX128_4    = 0xFC000730,
+  kXEPPCInstrMaskVX128_5    = 0xFC000010,
+  kXEPPCInstrMaskVX128_P    = 0xFC000630,
+} xe_ppc_instr_mask_e;
 
 typedef enum {
   kXEPPCInstrTypeGeneral      = (1 << 0),
@@ -212,9 +230,39 @@ typedef struct {
       uint32_t        RT      : 5;
       uint32_t                : 6;
     } MDS;
-    // kXEPPCInstrFormatVA
+    // kXEPPCInstrFormatVXA
+    struct {
+    } VXA;
     // kXEPPCInstrFormatVX
+    struct {
+    } VX;
     // kXEPPCInstrFormatVXR
+    struct {
+    } VXR;
+    // kXEPPCInstrFormatVX128
+    struct {
+    } VX128;
+    // kXEPPCInstrFormatVX128_1
+    struct {
+    } VX128_1;
+    // kXEPPCInstrFormatVX128_2
+    struct {
+    } VX128_2;
+    // kXEPPCInstrFormatVX128_3
+    struct {
+    } VX128_3;
+    // kXEPPCInstrFormatVX128_4
+    struct {
+    } VX128_4;
+    // kXEPPCInstrFormatVX128_5
+    struct {
+    } VX128_5;
+    // kXEPPCInstrFormatVX128_P
+    struct {
+    } VX128_P;
+    // kXEPPCInstrFormatXDSS
+    struct {
+    } XDSS;
   };
 } InstrData;
 
@@ -275,6 +323,7 @@ public:
   uint64_t cr;    // cr7/6/5/4/3/2/1/0
   uint64_t gpr;   // r31-0
   uint64_t fpr;   // f31-0
+  // TODO(benvanik): vr128-0
 
   void Clear();
   void Extend(InstrAccessBits& other);
@@ -286,11 +335,12 @@ public:
 class InstrDisasm {
 public:
   enum Flags {
-    kOE = 1 << 0,
-    kRc = 1 << 1,
-    kCA = 1 << 2,
-    kLR = 1 << 4,
-    kFP = 1 << 5,
+    kOE   = 1 << 0,
+    kRc   = 1 << 1,
+    kCA   = 1 << 2,
+    kLR   = 1 << 4,
+    kFP   = 1 << 5,
+    kVMX  = 1 << 6,
   };
 
   const char*   name;
@@ -321,9 +371,10 @@ typedef void* InstrEmitFn;
 class InstrType {
 public:
   uint32_t    opcode;
-  uint32_t    format;   // xe_ppc_instr_format_e
-  uint32_t    type;     // xe_ppc_instr_type_e
-  uint32_t    flags;    // xe_ppc_instr_flag_e
+  uint32_t    opcode_mask;    // Only used for certain opcodes (altivec, etc).
+  uint32_t    format;         // xe_ppc_instr_format_e
+  uint32_t    type;           // xe_ppc_instr_type_e
+  uint32_t    flags;          // xe_ppc_instr_flag_e
   char        name[16];
 
   InstrDisassembleFn disassemble;
