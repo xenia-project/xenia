@@ -1095,6 +1095,39 @@ void X64Emitter::SetupLocals() {
     }
     fpr_t >>= 2;
   }
+
+  uint64_t vr31_0_t = access_bits_.vr31_0;
+  for (int n = 0; n < 32; n++) {
+    if (vr31_0_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "vr%d", n);
+      locals_.vr[n] = c.newXmmVar(kX86VarTypeXmmPS, name);
+    }
+    vr31_0_t >>= 2;
+  }
+  uint64_t vr63_32_t = access_bits_.vr63_32;
+  for (int n = 0; n < 32; n++) {
+    if (vr63_32_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "vr%d", n + 32);
+      locals_.vr[n + 32] = c.newXmmVar(kX86VarTypeXmmPS, name);
+    }
+    vr63_32_t >>= 2;
+  }
+  uint64_t vr95_64_t = access_bits_.vr95_64;
+  for (int n = 0; n < 32; n++) {
+    if (vr95_64_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "vr%d", n + 64);
+      locals_.vr[n + 64] = c.newXmmVar(kX86VarTypeXmmPS, name);
+    }
+    vr95_64_t >>= 2;
+  }
+  uint64_t vr127_96_t = access_bits_.vr127_96;
+  for (int n = 0; n < 32; n++) {
+    if (vr127_96_t & 3) {
+      xesnprintfa(name, XECOUNT(name), "vr%d", n + 96);
+      locals_.vr[n + 96] = c.newXmmVar(kX86VarTypeXmmPS, name);
+    }
+    vr127_96_t >>= 2;
+  }
 }
 
 void X64Emitter::FillRegisters() {
@@ -1180,6 +1213,17 @@ void X64Emitter::FillRegisters() {
       }
       c.movq(locals_.fpr[n],
              qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n));
+    }
+  }
+
+  for (size_t n = 0; n < XECOUNT(locals_.vr); n++) {
+    if (locals_.vr[n].getId() != kInvalidValue) {
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Filling vr%d", n);
+      }
+      c.movq(locals_.vr[n],
+             xmmword_ptr(c.getGpArg(0),
+                         offsetof(xe_ppc_state_t, v) + 16 * n));
     }
   }
 }
@@ -1270,6 +1314,18 @@ void X64Emitter::SpillRegisters() {
         c.comment("Spilling f%d", n);
       }
       c.movq(qword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, f) + 8 * n),
+             v);
+    }
+  }
+
+  for (size_t n = 0; n < XECOUNT(locals_.vr); n++) {
+    XmmVar& v = locals_.vr[n];
+    if (v.getId() != kInvalidValue) {
+      if (FLAGS_annotate_disassembly) {
+        c.comment("Spilling vr%d", n);
+      }
+      c.movq(xmmword_ptr(c.getGpArg(0),
+                         offsetof(xe_ppc_state_t, v) + 16 * n),
              v);
     }
   }
@@ -1605,8 +1661,42 @@ void X64Emitter::update_fpr_value(uint32_t n, XmmVar& value) {
   }
 }
 
+XmmVar X64Emitter::vr_value(uint32_t n) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 128);
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.vr[n].getId() != kInvalidValue);
+    return locals_.vr[n];
+  } else {
+    XmmVar value(c.newXmmVar());
+    c.movq(value,
+           xmmword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, v) + 16 * n));
+    return value;
+  }
+}
+
+void X64Emitter::update_vr_value(uint32_t n, XmmVar& value) {
+  X86Compiler& c = compiler_;
+  XEASSERT(n >= 0 && n < 128);
+  if (FLAGS_cache_registers) {
+    XEASSERT(locals_.vr[n].getId() != kInvalidValue);
+    c.movq(locals_.vr[n], value);
+  } else {
+    c.movq(xmmword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, v) + 16 * n),
+           value);
+  }
+}
+
 GpVar X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
   X86Compiler& c = compiler_;
+
+#if 0
+  Label no_match(c.newLabel());
+  c.cmp(addr, imm(0x21004220));
+  c.jne(no_match, kCondHintLikely);
+  c.int3();
+  c.bind(no_match);
+#endif
 
   // Input address is always in 32-bit space.
   GpVar real_address(c.newGpVar());
@@ -1643,14 +1733,6 @@ GpVar X64Emitter::ReadMemory(
     uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
   X86Compiler& c = compiler_;
 
-#if 0
-  Label no_match(c.newLabel());
-  c.cmp(addr, imm(0x21004220));
-  c.jne(no_match, kCondHintLikely);
-  c.int3();
-  c.bind(no_match);
-#endif
-
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
 
@@ -1663,7 +1745,6 @@ GpVar X64Emitter::ReadMemory(
   }
 
   GpVar value(c.newGpVar());
-  bool needs_swap = false;
   switch (size) {
     case 1:
       c.mov(value.r8(), byte_ptr(real_address));
@@ -1692,18 +1773,46 @@ GpVar X64Emitter::ReadMemory(
   return value;
 }
 
+XmmVar X64Emitter::ReadMemoryXmm(
+    uint32_t cia, GpVar& addr, uint32_t alignment) {
+  X86Compiler& c = compiler_;
+
+  // Align memory address.
+  GpVar aligned_addr(c.newGpVar());
+  c.mov(aligned_addr, addr);
+  switch (alignment) {
+  case 4:
+    c.and_(aligned_addr, imm(~0xF));
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
+
+  // Rebase off of memory base pointer.
+  GpVar real_address = TouchMemoryAddress(cia, addr);
+
+  XmmVar value(c.newXmmVar());
+  c.movq(value, xmmword_ptr(real_address));
+
+  // Byte swap.
+  // http://www.asmcommunity.net/forums/topic/?id=29743
+  XmmVar temp(c.newXmmVar());
+  c.pshufd(value, value, imm(0x1B));  // 00011011b
+  c.pshuflw(value, value, imm(0xB1)); // 10110001b
+  c.pshufhw(value, value, imm(0xB1)); // 10110001b
+  c.movdqa(temp, value);
+  c.psrlw(temp, imm(8));
+  c.psllw(value, imm(8));
+  c.por(value, temp);
+
+  return value;
+}
+
 void X64Emitter::WriteMemory(
     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
     bool release) {
   X86Compiler& c = compiler_;
-
-#if 0
-  Label no_match(c.newLabel());
-  c.cmp(addr, imm(0x21004220));
-  c.jne(no_match, kCondHintLikely);
-  c.int3();
-  c.bind(no_match);
-#endif
 
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
@@ -1743,6 +1852,29 @@ void X64Emitter::WriteMemory(
   //   store_value->setAtomic(Release);
     XELOGE("Ignoring release semantics on write -- TODO");
   }
+}
+
+void X64Emitter::WriteMemoryXmm(
+    uint32_t cia, GpVar& addr, uint32_t alignment, XmmVar& value) {
+  X86Compiler& c = compiler_;
+
+  // Align memory address.
+
+  // Rebase off of memory base pointer.
+  GpVar real_address = TouchMemoryAddress(cia, addr);
+
+  // Byte swap.
+  // TODO(benvanik): clone value before modifying it?
+  XmmVar temp(c.newXmmVar());
+  c.pshufd(value, value, imm(0x1B));  // 00011011b
+  c.pshuflw(value, value, imm(0xB1)); // 10110001b
+  c.pshufhw(value, value, imm(0xB1)); // 10110001b
+  c.movdqa(temp, value);
+  c.psrlw(temp, imm(8));
+  c.psllw(value, imm(8));
+  c.por(value, temp);
+
+  c.movq(xmmword_ptr(real_address), value);
 }
 
 GpVar X64Emitter::get_uint64(uint64_t value) {

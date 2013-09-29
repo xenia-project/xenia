@@ -92,13 +92,20 @@ public:
   void update_gpr_value(uint32_t n, AsmJit::GpVar& value);
   AsmJit::XmmVar fpr_value(uint32_t n);
   void update_fpr_value(uint32_t n, AsmJit::XmmVar& value);
+  AsmJit::XmmVar vr_value(uint32_t n);
+  void update_vr_value(uint32_t n, AsmJit::XmmVar& value);
 
   AsmJit::GpVar TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
   AsmJit::GpVar ReadMemory(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, bool acquire = false);
+  AsmJit::XmmVar ReadMemoryXmm(
+      uint32_t cia, AsmJit::GpVar& addr, uint32_t alignment);
   void WriteMemory(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, AsmJit::GpVar& value,
       bool release = false);
+  void WriteMemoryXmm(
+      uint32_t cia, AsmJit::GpVar& addr, uint32_t alignment,
+      AsmJit::XmmVar& value);
 
   AsmJit::GpVar get_uint64(uint64_t value);
   AsmJit::GpVar sign_extend(AsmJit::GpVar& value, int from_size, int to_size);
@@ -153,6 +160,7 @@ private:
     AsmJit::GpVar   cr[8];
     AsmJit::GpVar   gpr[32];
     AsmJit::XmmVar  fpr[32];
+    AsmJit::XmmVar  vr[128];
   } locals_;
 };
 
