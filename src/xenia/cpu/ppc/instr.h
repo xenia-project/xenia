@@ -241,6 +241,11 @@ typedef struct {
     } VXA;
     // kXEPPCInstrFormatVX
     struct {
+      uint32_t                : 11;
+      uint32_t        VB      : 5;
+      uint32_t        VA      : 5;
+      uint32_t        VD      : 5;
+      uint32_t                : 6;
     } VX;
     // kXEPPCInstrFormatVXR
     struct {
