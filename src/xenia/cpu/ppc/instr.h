@@ -232,6 +232,12 @@ typedef struct {
     } MDS;
     // kXEPPCInstrFormatVXA
     struct {
+      uint32_t                : 6;
+      uint32_t        VC      : 5;
+      uint32_t        VB      : 5;
+      uint32_t        VA      : 5;
+      uint32_t        VD      : 5;
+      uint32_t                : 6;
     } VXA;
     // kXEPPCInstrFormatVX
     struct {
@@ -241,24 +247,91 @@ typedef struct {
     } VXR;
     // kXEPPCInstrFormatVX128
     struct {
+      // VD128 = VD128l | (VD128h << 5)
+      // VA128 = VA128l | (VA128h << 5) | (VA128H << 6)
+      // VB128 = VB128l | (VB128h << 5)
+      uint32_t        VB128h  : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 1;
+      uint32_t        VA128h  : 1;
+      uint32_t                : 4;
+      uint32_t        VA128H  : 1;
+      uint32_t        VB128l  : 5;
+      uint32_t        VA128l  : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
     } VX128;
     // kXEPPCInstrFormatVX128_1
     struct {
+      // VD128 = VD128l | (VD128h << 5)
+      uint32_t                : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 7;
+      uint32_t        RB      : 5;
+      uint32_t        RA      : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
     } VX128_1;
     // kXEPPCInstrFormatVX128_2
     struct {
+      // VD128 = VD128l | (VD128h << 5)
+      // VA128 = VA128l | (VA128h << 5) | (VA128H << 6)
+      // VB128 = VB128l | (VB128h << 5)
+      uint32_t        VB128h  : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 1;
+      uint32_t        VA128h  : 1;
+      uint32_t        VC      : 3;
+      uint32_t                : 1;
+      uint32_t        VA128H  : 1;
+      uint32_t        VB128l  : 5;
+      uint32_t        VA128l  : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
     } VX128_2;
     // kXEPPCInstrFormatVX128_3
     struct {
+      // VD128 = VD128l | (VD128h << 5)
+      // VB128 = VB128l | (VB128h << 5)
+      uint32_t        VB128h  : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 7;
+      uint32_t        VB128l  : 5;
+      uint32_t        IMM     : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
     } VX128_3;
     // kXEPPCInstrFormatVX128_4
     struct {
+      // VD128 = VD128l | (VD128h << 5)
+      // VB128 = VB128l | (VB128h << 5)
+      uint32_t        VB128h  : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 2;
+      uint32_t        z       : 2;
+      uint32_t                : 3;
+      uint32_t        VB128l  : 5;
+      uint32_t        IMM     : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
     } VX128_4;
     // kXEPPCInstrFormatVX128_5
     struct {
     } VX128_5;
     // kXEPPCInstrFormatVX128_P
     struct {
+      // VD128 = VD128l | (VD128h << 5)
+      // VB128 = VB128l | (VB128h << 5)
+      // PERM = PERMl | (PERMh << 5)
+      uint32_t        VB128h  : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 2;
+      uint32_t        PERMh   : 3;
+      uint32_t                : 2;
+      uint32_t        VB128l  : 5;
+      uint32_t        PERMl   : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
     } VX128_P;
     // kXEPPCInstrFormatXDSS
     struct {
@@ -314,7 +387,10 @@ typedef struct {
 
 class InstrAccessBits {
 public:
-  InstrAccessBits() : spr(0), cr(0), gpr(0), fpr(0) {}
+  InstrAccessBits() :
+      spr(0), cr(0), gpr(0), fpr(0),
+      vr31_0(0), vr63_32(0), vr95_64(0), vr127_96(0) {
+  }
 
   // Bitmasks derived from the accesses to registers.
   // Format is 2 bits for each register, even bits indicating reads and odds
@@ -323,7 +399,10 @@ public:
   uint64_t cr;    // cr7/6/5/4/3/2/1/0
   uint64_t gpr;   // r31-0
   uint64_t fpr;   // f31-0
-  // TODO(benvanik): vr128-0
+  uint64_t vr31_0;
+  uint64_t vr63_32;
+  uint64_t vr95_64;
+  uint64_t vr127_96;
 
   void Clear();
   void Extend(InstrAccessBits& other);
@@ -360,7 +439,7 @@ public:
   void AddUImmOperand(uint64_t value, size_t width, const char* display = NULL);
   int Finish();
 
-  void Dump(std::string& out_str, size_t pad = 8);
+  void Dump(std::string& out_str, size_t pad = 13);
 };
 
 

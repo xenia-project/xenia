@@ -33,6 +33,32 @@ namespace ppc {
 #define VX128_P(op, xop)  (OP(op) | (((uint32_t)(xop)) & 0x630))
 
 
+namespace {
+
+int GeneralVX128(InstrData& i, InstrDisasm& d) {
+  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
+  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
+                                       (i.VX128.VA128H << 6);
+  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  return d.Finish();
+}
+
+int GeneralVX128_3(InstrData& i, InstrDisasm& d) {
+  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
+  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  const uint32_t uimm = i.VX128_3.IMM;
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  d.AddUImmOperand(uimm, 1);
+  return d.Finish();
+}
+
+}
+
+
 XEDISASMR(dst,            0x7C0002AC, XDSS)(InstrData& i, InstrDisasm& d) {
   d.Init("dst", "Data Stream Touch",
          InstrDisasm::kVMX);
@@ -135,36 +161,54 @@ XEDISASMR(lvsr128,        VX128_1(4, 67),   VX128_1)(InstrData& i, InstrDisasm& 
 XEDISASMR(lvx,            0x7C0000CE, X   )(InstrData& i, InstrDisasm& d) {
   d.Init("lvx", "Load Vector Indexed",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(lvx128,         VX128_1(4, 195),  VX128_1)(InstrData& i, InstrDisasm& d) {
   d.Init("lvx128", "Load Vector128 Indexed",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  if (i.VX128_1.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(lvxl,           0x7C0002CE, X   )(InstrData& i, InstrDisasm& d) {
   d.Init("lvxl", "Load Vector Indexed LRU",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(lvxl128,        VX128_1(4, 707),  VX128_1)(InstrData& i, InstrDisasm& d) {
   d.Init("lvxl128", "Load Vector128 Left Indexed",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  if (i.VX128_1.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
@@ -207,36 +251,54 @@ XEDISASMR(stvewx128,      VX128_1(4, 387),  VX128_1)(InstrData& i, InstrDisasm& 
 XEDISASMR(stvx,           0x7C0001CE, X   )(InstrData& i, InstrDisasm& d) {
   d.Init("stvx", "Store Vector Indexed",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(stvx128,        VX128_1(4, 451),  VX128_1)(InstrData& i, InstrDisasm& d) {
   d.Init("stvx128", "Store Vector128 Indexed",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kRead);
+  if (i.VX128_1.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(stvxl,          0x7C0003CE, X   )(InstrData& i, InstrDisasm& d) {
   d.Init("stvxl", "Store Vector Indexed LRU",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(stvxl128,       VX128_1(4, 963),  VX128_1)(InstrData& i, InstrDisasm& d) {
   d.Init("stvxl128", "Store Vector128 Indexed LRU",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kRead);
+  if (i.VX128_1.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.VX128_1.RB, InstrRegister::kRead);
   return d.Finish();
 }
 
@@ -513,19 +575,16 @@ XEDISASMR(vadduws,        0x10000280, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vand,           0x10000404, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vand", "Vector Logical AND",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  // d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  // d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
+  // d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(vand128,        VX128(5, 528),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vand128", "Vector128 Logical AND",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vandc,          0x10000444, VX  )(InstrData& i, InstrDisasm& d) {
@@ -540,10 +599,7 @@ XEDISASMR(vandc,          0x10000444, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vandc128,       VX128(5, 592),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vandc128", "Vector128 Logical AND with Complement",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vavgsb,         0x10000502, VX  )(InstrData& i, InstrDisasm& d) {
@@ -612,19 +668,13 @@ XEDISASMR(vcfsx,          0x1000034A, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vcsxwfp128", "Vector128 Convert From Signed Fixed-Point Word to Floating-Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128_3(i, d);
 }
 
 XEDISASMR(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vcfpsxws128", "Vector128 Convert From Floating-Point to Signed Fixed-Point Word Saturate",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128_3(i, d);
 }
 
 XEDISASMR(vcfux,          0x1000030A, VX  )(InstrData& i, InstrDisasm& d) {
@@ -702,19 +752,13 @@ XEDISASMR(vcmpeqfp,       0x100000C6, VXR )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vcmpeqfp128,    VX128(6, 0),      VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpeqfp128", "Vector128 Compare Equal-to Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vcmpeqfp_c,     0x100004C6, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpeqfp", "Vector Compare Equal-to Floating Point",
          InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vcmpeqfp128c,   VX128(6, 64),     VX128  )(InstrData& i, InstrDisasm& d) {
@@ -774,10 +818,7 @@ XEDISASMR(vcmpequw,       0x10000086, VXR )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vcmpequw128,    VX128(6, 512),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpequw128", "Vector128 Compare Equal-to Unsigned Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vcmpequw_c,     0x10000486, VXR )(InstrData& i, InstrDisasm& d) {
@@ -792,10 +833,7 @@ XEDISASMR(vcmpequw_c,     0x10000486, VXR )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vcmpequw128c,   VX128(6, 576),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpequw128", "Vector Compare Equal-to Unsigned Word",
          InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vcmpgefp,       0x100001C6, VXR )(InstrData& i, InstrDisasm& d) {
@@ -1035,27 +1073,38 @@ XEDISASMR(vlogefp128,     VX128_3(6, 1776), VX128_3)(InstrData& i, InstrDisasm& 
 XEDISASMR(vmaddfp,        0x1000002E, VXA )(InstrData& i, InstrDisasm& d) {
   d.Init("vmaddfp", "Vector Multiply-Add Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VC, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(vmaddfp128,     VX128(5, 208),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmaddfp128", "Vector128 Multiply Add Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
+  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
+                                       (i.VX128.VA128H << 6);
+  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(vmaddcfp128,    VX128(5, 272),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmaddcfp128", "Vector128 Multiply Add Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
+  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
+                                       (i.VX128.VA128H << 6);
+  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
   return d.Finish();
 }
 
@@ -1260,10 +1309,7 @@ XEDISASMR(vmrghw,         0x1000008C, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vmrghw128,      VX128(6, 768),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmrghw128", "Vector128 Merge High Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vmrglb,         0x1000010C, VX  )(InstrData& i, InstrDisasm& d) {
@@ -1296,10 +1342,7 @@ XEDISASMR(vmrglw,         0x1000018C, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vmrglw128,      VX128(6, 832),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmrglw128", "Vector128 Merge Low Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vmsummbm,       0x10000025, VXA )(InstrData& i, InstrDisasm& d) {
@@ -1359,19 +1402,13 @@ XEDISASMR(vmsumuhs,       0x10000027, VXA )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vmsum3fp128,    VX128(5, 400),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmsum3fp128", "Vector128 Multiply Sum 3-way Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vmsum4fp128,    VX128(5, 464),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmsum4fp128", "Vector128 Multiply Sum 4-way Floating-Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vmulesb,        0x10000308, VX  )(InstrData& i, InstrDisasm& d) {
@@ -1449,10 +1486,7 @@ XEDISASMR(vmulouh,        0x10000048, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vmulfp128,      VX128(5, 144),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmulfp128", "Vector128 Multiply Floating-Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vnmsubfp,       0x1000002F, VXA )(InstrData& i, InstrDisasm& d) {
@@ -1503,10 +1537,7 @@ XEDISASMR(vor,            0x10000484, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vor128,         VX128(5, 720),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vor128", "Vector128 Logical OR",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vperm,          0x1000002B, VXA )(InstrData& i, InstrDisasm& d) {
@@ -1521,18 +1552,25 @@ XEDISASMR(vperm,          0x1000002B, VXA )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vperm128,       VX128_2(5, 0),    VX128_2)(InstrData& i, InstrDisasm& d) {
   d.Init("vperm128", "Vector128 Permute",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_2.VD128l | (i.VX128_2.VD128h << 5);
+  const uint32_t va = i.VX128_2.VA128l | (i.VX128_2.VA128h << 5) |
+                                         (i.VX128_2.VA128H << 6);
+  const uint32_t vb = i.VX128_2.VB128l | (i.VX128_2.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX128_2.VC, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(vpermwi128,     VX128_P(6, 528),  VX128_P)(InstrData& i, InstrDisasm& d) {
   d.Init("vpermwi128", "Vector128 Permutate Word Immediate",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_P.VD128l | (i.VX128_P.VD128h << 5);
+  const uint32_t vb = i.VX128_P.VB128l | (i.VX128_P.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  d.AddUImmOperand(i.VX128_P.PERMl | (i.VX128_P.PERMh << 5), 1);
   return d.Finish();
 }
 
@@ -1827,9 +1865,12 @@ XEDISASMR(vrlw128,        VX128(6, 80),     VX128  )(InstrData& i, InstrDisasm& 
 XEDISASMR(vrlimi128,      VX128_4(6, 1808), VX128_4)(InstrData& i, InstrDisasm& d) {
   d.Init("vrlimi128", "Vector128 Rotate Left Immediate and Mask Insert",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
+  const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  d.AddUImmOperand(i.VX128_4.IMM, 1);
+  d.AddUImmOperand(i.VX128_4.z, 1);
   return d.Finish();
 }
 
@@ -1845,9 +1886,10 @@ XEDISASMR(vrsqrtefp,      0x1000014A, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vrsqrtefp128,   VX128_3(6, 1648), VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vrsqrtefp128", "Vector128 Reciprocal Square Root Estimate Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
+  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
   return d.Finish();
 }
 
@@ -1944,10 +1986,7 @@ XEDISASMR(vslw,           0x10000184, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vslw128,        VX128(6, 208),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vslw128", "Vector128 Shift Left Integer Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vspltb,         0x1000020C, VX  )(InstrData& i, InstrDisasm& d) {
@@ -1998,10 +2037,7 @@ XEDISASMR(vspltisw,       0x1000038C, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vspltisw128,    VX128_3(6, 1904), VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vspltisw128", "Vector128 Splat Immediate Signed Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128_3(i, d);
 }
 
 XEDISASMR(vspltw,         0x1000028C, VX  )(InstrData& i, InstrDisasm& d) {
@@ -2016,10 +2052,7 @@ XEDISASMR(vspltw,         0x1000028C, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vspltw128,      VX128_3(6, 1840), VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vspltw128", " Vector128 Splat Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128_3(i, d);
 }
 
 XEDISASMR(vsr,            0x100002C4, VX  )(InstrData& i, InstrDisasm& d) {
@@ -2142,10 +2175,7 @@ XEDISASMR(vsubfp,         0x1000004A, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vsubfp128,      VX128(5, 80),     VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vsubfp128", "Vector128 Subtract Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vsubsbs,        0x10000700, VX  )(InstrData& i, InstrDisasm& d) {
@@ -2349,9 +2379,11 @@ XEDISASMR(vupklsh,        0x100002CE, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vupkd3d128,     VX128_3(6, 2032), VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vupkd3d128", "Vector128 Unpack D3Dtype",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
+  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
+  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  d.AddUImmOperand(i.VX128_3.IMM, 1);
   return d.Finish();
 }
 
@@ -2367,10 +2399,7 @@ XEDISASMR(vxor,           0x100004C4, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vxor128,        VX128(5, 784),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vxor128", "Vector128 Logical XOR",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRT, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.FRB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 

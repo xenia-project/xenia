@@ -50,7 +50,7 @@ void InstrOperand::Dump(std::string& out_str) {
           xesnprintfa(buffer, max_count, "f%d", reg.ordinal);
           break;
         case InstrRegister::kVMX:
-          xesnprintfa(buffer, max_count, "v%d", reg.ordinal);
+          xesnprintfa(buffer, max_count, "vr%d", reg.ordinal);
           break;
       }
       break;
@@ -100,6 +100,10 @@ void InstrAccessBits::Extend(InstrAccessBits& other) {
     cr  |= other.cr;
     gpr |= other.gpr;
     fpr |= other.fpr;
+    vr31_0    |= other.vr31_0;
+    vr63_32   |= other.vr63_32;
+    vr95_64   |= other.vr95_64;
+    vr127_96  |= other.vr127_96;
   }
 
 void InstrAccessBits::MarkAccess(InstrRegister& reg) {
@@ -133,8 +137,18 @@ void InstrAccessBits::MarkAccess(InstrRegister& reg) {
     case InstrRegister::kFPR:
       fpr |= bits << (2 * reg.ordinal);
       break;
-    default:
     case InstrRegister::kVMX:
+      if (reg.ordinal < 32) {
+        vr31_0 |= bits << (2 * reg.ordinal);
+      } else if (reg.ordinal < 64) {
+        vr63_32 |= bits << (2 * (reg.ordinal - 32));
+      } else if (reg.ordinal < 96) {
+        vr95_64 |= bits << (2 * (reg.ordinal - 64));
+      } else {
+        vr127_96 |= bits << (2 * (reg.ordinal - 96));
+      }
+      break;
+    default:
       XEASSERTALWAYS();
       break;
   }
@@ -210,6 +224,55 @@ void InstrAccessBits::Dump(std::string& out_str) {
         str << "] ";
       }
       fpr_t >>= 2;
+    }
+  }
+
+  if (vr31_0) {
+    uint64_t vr31_0_t = vr31_0;
+    for (size_t n = 0; n < 32; n++) {
+      if (vr31_0_t & 0x3) {
+        str << "vr" << n << " [";
+        str << ((vr31_0_t & 1) ? "R" : " ");
+        str << ((vr31_0_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      vr31_0_t >>= 2;
+    }
+  }
+  if (vr63_32) {
+    uint64_t vr63_32_t = vr63_32;
+    for (size_t n = 0; n < 32; n++) {
+      if (vr63_32_t & 0x3) {
+        str << "vr" << (n + 32) << " [";
+        str << ((vr63_32_t & 1) ? "R" : " ");
+        str << ((vr63_32_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      vr63_32_t >>= 2;
+    }
+  }
+  if (vr95_64) {
+    uint64_t vr95_64_t = vr95_64;
+    for (size_t n = 0; n < 32; n++) {
+      if (vr95_64_t & 0x3) {
+        str << "vr" << (n + 64) << " [";
+        str << ((vr95_64_t & 1) ? "R" : " ");
+        str << ((vr95_64_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      vr95_64_t >>= 2;
+    }
+  }
+  if (vr127_96) {
+    uint64_t vr127_96_t = vr127_96;
+    for (size_t n = 0; n < 32; n++) {
+      if (vr127_96_t & 0x3) {
+        str << "vr" << (n + 96) << " [";
+        str << ((vr127_96_t & 1) ? "R" : " ");
+        str << ((vr127_96_t & 2) ? "W" : " ");
+        str << "] ";
+      }
+      vr127_96_t >>= 2;
     }
   }
 
