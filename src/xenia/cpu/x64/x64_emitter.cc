@@ -74,6 +74,11 @@ X64Emitter::X64Emitter(xe_memory_ref memory) :
     assembler_.setLogger(logger_);
     compiler_.setLogger(logger_);
   }
+
+  // Grab CPU feature mask so we can quickly check it in emitter code.
+  const CpuInfo* cpu = CpuInfo::getGlobal();
+  const X86CpuInfo* x86Cpu = static_cast<const X86CpuInfo*>(cpu);
+  cpu_feature_mask_ = cpu->getFeatures();
 }
 
 X64Emitter::~X64Emitter() {
@@ -906,6 +911,47 @@ void X64Emitter::TraceBranch(uint32_t cia) {
   }
 }
 
+void X64Emitter::TraceVR(uint32_t vr0, uint32_t vr1, uint32_t vr2,
+                         uint32_t vr3, uint32_t vr4) {
+  X86Compiler& c = compiler_;
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
+  }
+
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeTraceVR (+spill)");
+  }
+
+  SpillRegisters();
+
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg1, imm(vr0));
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg2, imm(vr1));
+  GpVar arg3 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg3, imm(vr2));
+  GpVar arg4 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg4, imm(vr3));
+  GpVar arg5 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg5, imm(vr4));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeTraceVR);
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder6<void, void*,
+                   uint64_t, uint64_t, uint64_t, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, arg2);
+  call->setArgument(3, arg3);
+  call->setArgument(4, arg4);
+  call->setArgument(5, arg5);
+
+  for (int n = 0; n < 2; n++) {
+    c.nop();
+  }
+}
+
 int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
                                              bool lk, bool likely_local) {
   X86Compiler& c = compiler_;
@@ -1221,9 +1267,9 @@ void X64Emitter::FillRegisters() {
       if (FLAGS_annotate_disassembly) {
         c.comment("Filling vr%d", n);
       }
-      c.movq(locals_.vr[n],
-             xmmword_ptr(c.getGpArg(0),
-                         offsetof(xe_ppc_state_t, v) + 16 * n));
+      c.movaps(locals_.vr[n],
+               xmmword_ptr(c.getGpArg(0),
+                           offsetof(xe_ppc_state_t, v) + 16 * n));
     }
   }
 }
@@ -1324,9 +1370,9 @@ void X64Emitter::SpillRegisters() {
       if (FLAGS_annotate_disassembly) {
         c.comment("Spilling vr%d", n);
       }
-      c.movq(xmmword_ptr(c.getGpArg(0),
-                         offsetof(xe_ppc_state_t, v) + 16 * n),
-             v);
+      c.movaps(xmmword_ptr(c.getGpArg(0),
+                           offsetof(xe_ppc_state_t, v) + 16 * n),
+               v);
     }
   }
 }
@@ -1669,8 +1715,8 @@ XmmVar X64Emitter::vr_value(uint32_t n) {
     return locals_.vr[n];
   } else {
     XmmVar value(c.newXmmVar());
-    c.movq(value,
-           xmmword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, v) + 16 * n));
+    c.movaps(value,
+             xmmword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, v) + 16 * n));
     return value;
   }
 }
@@ -1680,10 +1726,10 @@ void X64Emitter::update_vr_value(uint32_t n, XmmVar& value) {
   XEASSERT(n >= 0 && n < 128);
   if (FLAGS_cache_registers) {
     XEASSERT(locals_.vr[n].getId() != kInvalidValue);
-    c.movq(locals_.vr[n], value);
+    c.movaps(locals_.vr[n], value);
   } else {
-    c.movq(xmmword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, v) + 16 * n),
-           value);
+    c.movaps(xmmword_ptr(c.getGpArg(0), offsetof(xe_ppc_state_t, v) + 16 * n),
+             value);
   }
 }
 
@@ -1793,7 +1839,7 @@ XmmVar X64Emitter::ReadMemoryXmm(
   GpVar real_address = TouchMemoryAddress(cia, addr);
 
   XmmVar value(c.newXmmVar());
-  c.movq(value, xmmword_ptr(real_address));
+  c.movaps(value, xmmword_ptr(real_address));
 
   // Byte swap.
   // http://www.asmcommunity.net/forums/topic/?id=29743
@@ -1874,7 +1920,7 @@ void X64Emitter::WriteMemoryXmm(
   c.psllw(value, imm(8));
   c.por(value, temp);
 
-  c.movq(xmmword_ptr(real_address), value);
+  c.movaps(xmmword_ptr(real_address), value);
 }
 
 GpVar X64Emitter::get_uint64(uint64_t value) {

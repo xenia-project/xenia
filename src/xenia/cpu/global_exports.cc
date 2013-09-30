@@ -111,6 +111,49 @@ void _cdecl XeTraceBranch(
               (uint32_t)cia, (uint32_t)target_ia);
 }
 
+void _cdecl XeTraceVR(
+    xe_ppc_state_t* state, uint64_t vr0, uint64_t vr1, uint64_t vr2,
+    uint64_t vr3, uint64_t vr4) {
+  char buffer[2048];
+  buffer[0] = 0;
+  int offset = 0;
+
+  offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+    "%.8X:", state->cia);
+
+  offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+      "\nvr%.3d=[%.8X, %.8X, %.8X, %.8X] [%g, %g, %g, %g]", vr0,
+      state->v[vr0].ix, state->v[vr0].iy, state->v[vr0].iz, state->v[vr0].iw,
+      state->v[vr0].x, state->v[vr0].y, state->v[vr0].z, state->v[vr0].w);
+  if (vr1 != UINT_MAX) {
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "\nvr%.3d=[%.8X, %.8X, %.8X, %.8X] [%g, %g, %g, %g]", vr1,
+        state->v[vr1].ix, state->v[vr1].iy, state->v[vr1].iz, state->v[vr1].iw,
+        state->v[vr1].x, state->v[vr1].y, state->v[vr1].z, state->v[vr1].w);
+  }
+  if (vr2 != UINT_MAX) {
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "\nvr%.3d=[%.8X, %.8X, %.8X, %.8X] [%g, %g, %g, %g]", vr2,
+        state->v[vr2].ix, state->v[vr2].iy, state->v[vr2].iz, state->v[vr2].iw,
+        state->v[vr2].x, state->v[vr2].y, state->v[vr2].z, state->v[vr2].w);
+  }
+  if (vr3 != UINT_MAX) {
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "\nvr%.3d=[%.8X, %.8X, %.8X, %.8X] [%g, %g, %g, %g]", vr3,
+        state->v[vr3].ix, state->v[vr3].iy, state->v[vr3].iz, state->v[vr3].iw,
+        state->v[vr3].x, state->v[vr3].y, state->v[vr3].z, state->v[vr3].w);
+  }
+  if (vr4 != UINT_MAX) {
+    offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
+        "\nvr%.3d=[%.8X, %.8X, %.8X, %.8X] [%g, %g, %g, %g]", vr4,
+        state->v[vr4].ix, state->v[vr4].iy, state->v[vr4].iz, state->v[vr4].iw,
+        state->v[vr4].x, state->v[vr4].y, state->v[vr4].z, state->v[vr4].w);
+  }
+
+  uint32_t thread_id = state->thread_state->thread_id();
+  xe_log_line("", thread_id, "XeTraceVR", 't', buffer);
+}
+
 void _cdecl XeTraceInstruction(
     xe_ppc_state_t* state, uint64_t cia, uint64_t data) {
   char buffer[2048];
@@ -184,5 +227,6 @@ void xe::cpu::GetGlobalExports(GlobalExports* global_exports) {
   global_exports->XeTraceKernelCall     = XeTraceKernelCall;
   global_exports->XeTraceUserCall       = XeTraceUserCall;
   global_exports->XeTraceBranch         = XeTraceBranch;
+  global_exports->XeTraceVR             = XeTraceVR;
   global_exports->XeTraceInstruction    = XeTraceInstruction;
 }

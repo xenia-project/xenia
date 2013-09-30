@@ -48,7 +48,14 @@ typedef struct XECACHEALIGN xe_float4 {
       float     z;
       float     w;
     };
+    struct {
+      uint32_t  ix;
+      uint32_t  iy;
+      uint32_t  iz;
+      uint32_t  iw;
+    };
     float       f4[4];
+    uint32_t    i4[4];
     struct {
       uint64_t  low;
       uint64_t  high;

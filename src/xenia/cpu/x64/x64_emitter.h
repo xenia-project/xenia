@@ -36,6 +36,8 @@ public:
   void Lock();
   void Unlock();
 
+  uint32_t cpu_feature_mask() const { return cpu_feature_mask_; }
+
   int PrepareFunction(sdb::FunctionSymbol* symbol);
   int MakeFunction(sdb::FunctionSymbol* symbol);
 
@@ -53,6 +55,8 @@ public:
   void TraceInstruction(ppc::InstrData& i);
   void TraceInvalidInstruction(ppc::InstrData& i);
   void TraceBranch(uint32_t cia);
+  void TraceVR(uint32_t vr0, uint32_t vr1 = UINT_MAX, uint32_t vr2 = UINT_MAX,
+               uint32_t vr3 = UINT_MAX, uint32_t vr4 = UINT_MAX);
 
   int GenerateIndirectionBranch(uint32_t cia, AsmJit::GpVar& target,
                                 bool lk, bool likely_local);
@@ -128,6 +132,7 @@ private:
   xe_memory_ref         memory_;
   GlobalExports         global_exports_;
   xe_mutex_t*           lock_;
+  uint32_t              cpu_feature_mask_;
 
   void*                 gpu_this_;
   void*                 gpu_read_;

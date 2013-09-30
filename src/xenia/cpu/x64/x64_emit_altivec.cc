@@ -37,6 +37,18 @@ namespace x64 {
 #define VX128_5(op, xop)  (OP(op) | (((uint32_t)(xop)) & 0x10))
 #define VX128_P(op, xop)  (OP(op) | (((uint32_t)(xop)) & 0x630))
 
+#define VX128_VD128 (i.VX128.VD128l | (i.VX128.VD128h << 5))
+#define VX128_VA128 (i.VX128.VA128l | (i.VX128.VA128h << 5) | (i.VX128.VA128H << 6))
+#define VX128_VB128 (i.VX128.VB128l | (i.VX128.VB128h << 5))
+#define VX128_1_VD128 (i.VX128_1.VD128l | (i.VX128_1.VD128h << 5))
+#define VX128_2_VD128 (i.VX128_2.VD128l | (i.VX128_2.VD128h << 5))
+#define VX128_2_VA128 (i.VX128_2.VA128l | (i.VX128_2.VA128h << 5) | (i.VX128_2.VA128H << 6))
+#define VX128_2_VB128 (i.VX128_2.VB128l | (i.VX128_2.VD128h << 5))
+#define VX128_2_VC    (i.VX128_2.VC)
+#define VX128_3_VD128 (i.VX128_3.VD128l | (i.VX128_3.VD128h << 5))
+#define VX128_3_VB128 (i.VX128_3.VB128l | (i.VX128_3.VB128h << 5))
+#define VX128_3_IMM   (i.VX128_3.IMM)
+
 
 XEEMITTER(dst,            0x7C0002AC, XDSS)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -63,66 +75,60 @@ XEEMITTER(lvehx,          0x7C00004E, X   )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
+int InstrEmit_lvewx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 XEEMITTER(lvewx,          0x7C00008E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvewx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_lvewx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
+}
+
+int InstrEmit_lvsl_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(lvsl,           0x7C00000C, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvsl_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_lvsl_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
+}
+
+int InstrEmit_lvsr_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(lvsr,           0x7C00004C, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvsr_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvsr_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-XEEMITTER(lvx,            0x7C0000CE, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_lvx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.X.RB));
-  if (i.VX128_1.RA) {
-    c.add(ea, e.gpr_value(i.X.RA));
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
   }
   XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
-  e.update_vr_value(i.X.RT, v);
-
-  return 0;
-}
-
-XEEMITTER(lvx128,         VX128_1(4, 195),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
-
-  GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.VX128_1.RB));
-  if (i.VX128_1.RA) {
-    c.add(ea, e.gpr_value(i.VX128_1.RA));
-  }
-  XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
+  c.shufps(v, v, imm(0x1B));
   e.update_vr_value(vd, v);
-
+  e.TraceVR(vd);
   return 0;
 }
-
+XEEMITTER(lvx,            0x7C0000CE, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_lvx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(lvx128,         VX128_1(4, 195),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_lvx_(e, c, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
+}
 XEEMITTER(lvxl,           0x7C0002CE, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvx(e, c, i);
 }
-
 XEEMITTER(lvxl128,        VX128_1(4, 707),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvx128(e, c, i);
 }
@@ -137,118 +143,107 @@ XEEMITTER(stvehx,         0x7C00014E, X   )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(stvewx,         0x7C00018E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_stvewx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
+XEEMITTER(stvewx,         0x7C00018E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_stvewx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
+}
 XEEMITTER(stvewx128,      VX128_1(4, 387),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stvx,           0x7C0001CE, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_stvx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.X.RB));
-  if (i.X.RA) {
-    c.add(ea, e.gpr_value(i.X.RA));
-  }
-  XmmVar v = e.vr_value(i.X.RT);
-  e.WriteMemoryXmm(i.address, ea, 4, v);
-
-  return 0;
-}
-
-XEEMITTER(stvx128,        VX128_1(4, 451),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
-
-  GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.VX128_1.RB));
-  if (i.X.RA) {
-    c.add(ea, e.gpr_value(i.VX128_1.RA));
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
   }
   XmmVar v = e.vr_value(vd);
+  c.shufps(v, v, imm(0x1B));
   e.WriteMemoryXmm(i.address, ea, 4, v);
-
+  e.TraceVR(vd);
   return 0;
 }
-
+XEEMITTER(stvx,           0x7C0001CE, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_stvx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(stvx128,        VX128_1(4, 451),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_stvx_(e, c, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
+}
 XEEMITTER(stvxl,          0x7C0003CE, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvx(e, c, i);
 }
-
 XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvx128(e, c, i);
 }
 
+int InstrEmit_lvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 XEEMITTER(lvlx,           0x7C00040E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvlx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(lvlx128,        VX128_1(4, 1027), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvlx_(e, c, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-
 XEEMITTER(lvlxl,          0x7C00060E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvlx(e, c, i);
 }
-
 XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvlx128(e, c, i);
 }
 
+int InstrEmit_lvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 XEEMITTER(lvrx,           0x7C00044E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvrx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(lvrx128,        VX128_1(4, 1091), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_lvrx_(e, c, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-
 XEEMITTER(lvrxl,          0x7C00064E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvrx(e, c, i);
 }
-
 XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvrx128(e, c, i);
 }
 
+int InstrEmit_stvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 XEEMITTER(stvlx,          0x7C00050E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_stvlx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(stvlx128,       VX128_1(4, 1283), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_stvlx_(e, c, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-
 XEEMITTER(stvlxl,         0x7C00070E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvlx(e, c, i);
 }
-
 XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvlx128(e, c, i);
 }
 
+int InstrEmit_stvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 XEEMITTER(stvrx,          0x7C00054E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_stvrx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
-
 XEEMITTER(stvrx128,       VX128_1(4, 1347), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_stvrx_(e, c, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-
 XEEMITTER(stvrxl,         0x7C00074E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvrx(e, c, i);
 }
-
 XEEMITTER(stvrxl128,      VX128_1(4, 1859), VX128_1)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvrx128(e, c, i);
 }
@@ -323,58 +318,36 @@ XEEMITTER(vadduws,        0x10000280, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vand,           0x10000404, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_vand_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) & (VB)
-
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VX.VB));
-  c.pand(v, e.vr_value(i.VX.VA));
-  e.update_vr_value(i.VX.VD, v);
-
-  return 0;
-}
-
-XEEMITTER(vand128,        VX128(5, 528),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- (VA) & (VB)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(vb));
+  c.movaps(v, e.vr_value(vb));
   c.pand(v, e.vr_value(va));
   e.update_vr_value(vd, v);
-
+  e.TraceVR(vd, va, vb);
   return 0;
 }
-
-XEEMITTER(vandc,          0x10000444, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- (VA) & ¬(VB)
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VX.VB));
-  c.pandn(v, e.vr_value(i.VX.VA));
-  e.update_vr_value(i.VX.VD, v);
-
-  return 0;
+XEEMITTER(vand,           0x10000404, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vand_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
+XEEMITTER(vand128,        VX128(5, 528),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vand_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vandc128,       VX128(5, 592),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_vandc_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) & ¬(VB)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(vb));
+  c.movaps(v, e.vr_value(vb));
   c.pandn(v, e.vr_value(va));
   e.update_vr_value(vd, v);
-
+  e.TraceVR(vd, va, vb);
   return 0;
+}
+XEEMITTER(vandc,          0x10000444, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vandc_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
+XEEMITTER(vandc128,       VX128(5, 592),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vandc_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vavgsb,         0x10000502, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -413,8 +386,23 @@ XEEMITTER(vcfsx,          0x1000034A, VX  )(X64Emitter& e, X86Compiler& c, Instr
 }
 
 XEEMITTER(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- float(VB) / 2^uimm
+  XmmVar v(c.newXmmVar());
+  // TODO(benvanik): verify this is right - values may be out of range.
+  c.cvtdq2ps(v, e.vr_value(VX128_3_VB128));
+  uint32_t uimm = VX128_3_IMM;
+  uimm = uimm ? (2 << (uimm - 1)) : 1;
+  // TODO(benvanik): this could likely be made much faster.
+  GpVar vt(c.newGpVar());
+  c.mov(vt, imm(uimm));
+  XmmVar vt_xmm(c.newXmmVar());
+  c.movd(vt_xmm, vt.r32());
+  c.cvtdq2ps(vt_xmm, vt_xmm);
+  c.shufps(vt_xmm, vt_xmm, imm(0));
+  c.divps(v, vt_xmm);
+  e.update_vr_value(VX128_3_VD128, v);
+  e.TraceVR(VX128_3_VD128, VX128_3_VB128);
+  return 0;
 }
 
 XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -647,50 +635,35 @@ XEEMITTER(vlogefp128,     VX128_3(6, 1776), VX128_3)(X64Emitter& e, X86Compiler&
   return 1;
 }
 
-XEEMITTER(vmaddfp,        0x1000002E, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_vmaddfp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   // (VD) <- ((VA) * (VC)) + (VB)
-
   // TODO(benvanik): use AVX, which has a fused multiply-add
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VXA.VA));
-  c.mulps(v, e.vr_value(i.VXA.VC));
-  c.addps(v, e.vr_value(i.VXA.VB));
-  e.update_vr_value(i.VXA.VD, v);
-
+  c.movaps(v, e.vr_value(va));
+  c.mulps(v, e.vr_value(vc));
+  c.addps(v, e.vr_value(vb));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb, vc);
   return 0;
 }
-
+XEEMITTER(vmaddfp,        0x1000002E, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // (VD) <- ((VA) * (VC)) + (VB)
+  return InstrEmit_vmaddfp_(e, c, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
+}
 XEEMITTER(vmaddfp128,     VX128(5, 208),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // (VD) <- ((VA) * (VB)) + (VD)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(va));
-  c.mulps(v, e.vr_value(vb));
-  c.addps(v, e.vr_value(vd));
-  e.update_vr_value(vd, v);
-
-  return 0;
+  // NOTE: this resuses VD and swaps the arg order!
+  return InstrEmit_vmaddfp_(e, c, VX128_VD128, VX128_VA128, VX128_VD128, VX128_VB128);
 }
 
 XEEMITTER(vmaddcfp128,    VX128(5, 272),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // (VD) <- ((VA) * (VD)) + (VB)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(va));
-  c.mulps(v, e.vr_value(vd));
-  c.addps(v, e.vr_value(vb));
-  e.update_vr_value(vd, v);
-
+  c.movaps(v, e.vr_value(VX128_VA128));
+  c.mulps(v, e.vr_value(VX128_VD128));
+  c.addps(v, e.vr_value(VX128_VB128));
+  e.update_vr_value(VX128_VD128, v);
+  e.TraceVR(VX128_VD128, VX128_VA128, VX128_VB128);
   return 0;
 }
 
@@ -799,14 +772,36 @@ XEEMITTER(vmrghh,         0x1000004C, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vmrghw,         0x1000008C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+int InstrEmit_vmrghw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD.x) = (VA.x)
+  // (VD.y) = (VB.x)
+  // (VD.z) = (VA.y)
+  // (VD.w) = (VB.y)
+  if (e.cpu_feature_mask() & kX86FeatureSse41) {
+    c.int3();
+    // | VA.x | VA.x | VA.y | VA.y |
+    XmmVar v(c.newXmmVar());
+    c.movaps(v, e.vr_value(va));
+    c.shufps(v, v, imm(0x50));
+    // | VB.x | VB.x | VB.y | VB.y |
+    XmmVar vt(c.newXmmVar());
+    c.movaps(vt, e.vr_value(vb));
+    c.shufps(vt, vt, imm(0x50));
+    // | VA.x | VB.x | VA.y | VB.y |
+    c.blendps(v, vt, imm(0xA));
+    e.update_vr_value(vd, v);
+  } else {
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  e.TraceVR(vd, va, vb);
+  return 0;
 }
-
+XEEMITTER(vmrghw,         0x1000008C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vmrghw_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
 XEEMITTER(vmrghw128,      VX128(6, 768),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vmrghw_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vmrglb,         0x1000010C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -819,14 +814,36 @@ XEEMITTER(vmrglh,         0x1000014C, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vmrglw,         0x1000018C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+int InstrEmit_vmrglw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD.x) = (VA.z)
+  // (VD.y) = (VB.z)
+  // (VD.z) = (VA.w)
+  // (VD.w) = (VB.w)
+  if (e.cpu_feature_mask() & kX86FeatureSse41) {
+    c.int3();
+    // | VA.z | VA.z | VA.w | VA.w |
+    XmmVar v(c.newXmmVar());
+    c.movaps(v, e.vr_value(va));
+    c.shufps(v, v, imm(0xFA));
+    // | VB.z | VB.z | VB.w | VB.w |
+    XmmVar vt(c.newXmmVar());
+    c.movaps(vt, e.vr_value(vb));
+    c.shufps(vt, vt, imm(0xFA));
+    // | VA.z | VB.z | VA.w | VB.w |
+    c.blendps(v, vt, imm(0xA));
+    e.update_vr_value(vd, v);
+  } else {
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  e.TraceVR(vd, va, vb);
+  return 0;
 }
-
+XEEMITTER(vmrglw,         0x1000018C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vmrglw_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
 XEEMITTER(vmrglw128,      VX128(6, 832),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vmrglw_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vmsummbm,       0x10000025, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -860,13 +877,54 @@ XEEMITTER(vmsumuhs,       0x10000027, VXA )(X64Emitter& e, X86Compiler& c, Instr
 }
 
 XEEMITTER(vmsum3fp128,    VX128(5, 400),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Dot product XYZ.
+  // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z)
+  if (e.cpu_feature_mask() & kX86FeatureSse41) {
+    // SSE4.1 required.
+    // Rumor is this is the same on older processors and way faster on new
+    // ones (post 2011ish).
+    XmmVar v(c.newXmmVar());
+    c.movaps(v, e.vr_value(VX128_VA128));
+    c.dpps(v, e.vr_value(VX128_VB128), imm(0x7F));
+    e.update_vr_value(VX128_VD128, v);
+  } else {
+    //XmmVar v(c.newXmmVar());
+    //c.movaps(v, e.vr_value(va));
+    //c.mulps(v, e.vr_value(vb));
+    //// TODO(benvanik): need to zero W
+    //c.haddps(v, v);
+    //c.haddps(v, v);
+    //c.pshufd(v, v, imm(0));
+    //e.update_vr_value(vd, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  e.TraceVR(VX128_VD128, VX128_VA128, VX128_VB128);
+  return 0;
 }
 
 XEEMITTER(vmsum4fp128,    VX128(5, 464),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Dot product XYZW.
+  // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z) + (VA.w * VB.w)
+  if (e.cpu_feature_mask() & kX86FeatureSse41) {
+    // SSE4.1 required.
+    // Rumor is this is the same on older processors and way faster on new
+    // ones (post 2011ish).
+    XmmVar v(c.newXmmVar());
+    c.movaps(v, e.vr_value(VX128_VA128));
+    c.dpps(v, e.vr_value(VX128_VB128), imm(0xFF));
+    e.update_vr_value(VX128_VD128, v);
+  } else {
+    XmmVar v(c.newXmmVar());
+    c.movaps(v, e.vr_value(VX128_VA128));
+    c.mulps(v, e.vr_value(VX128_VB128));
+    c.haddps(v, v);
+    c.haddps(v, v);
+    c.pshufd(v, v, imm(0));
+    e.update_vr_value(VX128_VD128, v);
+  }
+  e.TraceVR(VX128_VD128, VX128_VA128, VX128_VB128);
+  return 0;
 }
 
 XEEMITTER(vmulesb,        0x10000308, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -911,17 +969,11 @@ XEEMITTER(vmulouh,        0x10000048, VX  )(X64Emitter& e, X86Compiler& c, Instr
 
 XEEMITTER(vmulfp128,      VX128(5, 144),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // (VD) <- (VA) * (VB) (4 x fp)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(va));
-  c.mulps(v, e.vr_value(vb));
-  e.update_vr_value(vd, v);
-
+  c.movaps(v, e.vr_value(VX128_VA128));
+  c.mulps(v, e.vr_value(VX128_VB128));
+  e.update_vr_value(VX128_VD128, v);
+  e.TraceVR(VX128_VD128, VX128_VA128, VX128_VB128);
   return 0;
 }
 
@@ -935,79 +987,76 @@ XEEMITTER(vnmsubfp128,    VX128(5, 336),    VX128  )(X64Emitter& e, X86Compiler&
   return 1;
 }
 
+int InstrEmit_vnor_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // VD <- ¬((VA) | (VB))
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(vb));
+  c.por(v, e.vr_value(va));
+  XmmVar t(c.newXmmVar());
+  c.pcmpeqd(t, t); // 0xFFFF....
+  c.pxor(v, t);
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
 XEEMITTER(vnor,           0x10000504, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- ¬((VA) | (VB))
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VX.VB));
-  c.por(v, e.vr_value(i.VX.VA));
-  XmmVar t(c.newXmmVar());
-  c.pcmpeqd(t, t); // 0xFFFF....
-  c.pxor(v, t);
-  e.update_vr_value(i.VX.VD, v);
-
-  return 0;
+  return InstrEmit_vnor_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-
 XEEMITTER(vnor128,        VX128(5, 656),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- ¬((VA) | (VB))
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(vb));
-  c.por(v, e.vr_value(va));
-  XmmVar t(c.newXmmVar());
-  c.pcmpeqd(t, t); // 0xFFFF....
-  c.pxor(v, t);
-  e.update_vr_value(vd, v);
-
-  return 0;
+  return InstrEmit_vnor_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vor_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // VD <- (VA) | (VB)
+  if (va == vb) {
+    // Copy VA==VB into VD.
+    e.update_vr_value(vd, e.vr_value(va));
+  } else {
+    XmmVar v(c.newXmmVar());
+    c.movaps(v, e.vr_value(vb));
+    c.por(v, e.vr_value(va));
+    e.update_vr_value(vd, v);
+  }
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
 XEEMITTER(vor,            0x10000484, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- (VA) | (VB)
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VX.VB));
-  c.por(v, e.vr_value(i.VX.VA));
-  e.update_vr_value(i.VX.VD, v);
-
-  return 0;
+  return InstrEmit_vor_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-
 XEEMITTER(vor128,         VX128(5, 720),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- (VA) | (VB)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(vb));
-  c.por(v, e.vr_value(va));
-  e.update_vr_value(vd, v);
-
-  return 0;
+  return InstrEmit_vor_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vperm_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
 XEEMITTER(vperm,          0x1000002B, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vperm_(e, c, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
-
 XEEMITTER(vperm128,       VX128_2(5, 0),    VX128_2)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vperm_(e, c, VX128_2_VD128, VX128_2_VA128, VX128_2_VB128, VX128_2_VC);
 }
 
 XEEMITTER(vpermwi128,     VX128_P(6, 528),  VX128_P)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD.x) = (VB.uimm[6-7])
+  // (VD.y) = (VB.uimm[4-5])
+  // (VD.z) = (VB.uimm[2-3])
+  // (VD.w) = (VB.uimm[0-1])
+  const uint32_t vd = i.VX128_P.VD128l | (i.VX128_P.VD128h << 5);
+  const uint32_t vb = i.VX128_P.VB128l | (i.VX128_P.VB128h << 5);
+  uint32_t uimm = i.VX128_P.PERMl | (i.VX128_P.PERMh << 5);
+  // SHUFPS is flipped -- 0-1 selects X, 2-3 selects Y, etc.
+  uimm = ((uimm & 0x03) << 6) |
+         ((uimm & 0x0C) << 2) |
+         ((uimm & 0x30) >> 2) |
+         ((uimm & 0xC0) >> 6);
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(vb));
+  c.shufps(v, v, imm(uimm));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, vb);
+  return 0;
 }
 
 XEEMITTER(vpkpx,          0x1000030E, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1171,18 +1220,65 @@ XEEMITTER(vrlw128,        VX128(6, 80),     VX128  )(X64Emitter& e, X86Compiler&
 }
 
 XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
+  const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
+  uint32_t x = i.VX128_4.IMM;
+  uint32_t y = i.VX128_4.z;
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(vb));
+  // This is just a fancy permute.
+  // X Y Z W, rotated left by 2 = Z W X Y
+  // Then mask select the results into the dest.
+  // Sometimes rotation is zero, so fast path.
+  if (y) {
+    c.int3();
+    switch (y) {
+    case 1:
+      // X Y Z W -> Y Z W X
+      c.shufps(v, v, imm(0x6C));
+      break;
+    case 2:
+      // X Y Z W -> Z W X Y
+      c.shufps(v, v, imm(0xB1));
+      break;
+    case 3:
+      // X Y Z W -> W X Y Z
+      c.shufps(v, v, imm(0xC6));
+      break;
+    default:
+      XEASSERTALWAYS();
+      return 1;
+    }
+  }
+  uint32_t blend_mask =
+      (((x & 0x08) ? 1 : 0) << 0) |
+      (((x & 0x04) ? 1 : 0) << 1) |
+      (((x & 0x02) ? 1 : 0) << 2) |
+      (((x & 0x01) ? 1 : 0) << 3);
+  // Blending src into dest, so invert.
+  blend_mask = (~blend_mask) & 0x3;
+  c.blendps(v, e.vr_value(vb), imm(blend_mask));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, vb);
+  return 0;
 }
 
+int InstrEmit_vrsqrtefp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t vb) {
+  // (VD) <- 1 / sqrt(VB)
+  // There are a lot of rules in the Altivec_PEM docs for handlings that
+  // result in nan/infinity/etc. They are ignored here. I hope games would
+  // never rely on them.
+  XmmVar v(c.newXmmVar());
+  c.rsqrtps(v, e.vr_value(vb));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, vb);
+  return 0;
+}
 XEEMITTER(vrsqrtefp,      0x1000014A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrsqrtefp_(e, c, i.VX.VD, i.VX.VB);
 }
-
 XEEMITTER(vrsqrtefp128,   VX128_3(6, 1648), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrsqrtefp_(e, c, VX128_3_VD128, VX128_3_VB128);
 }
 
 XEEMITTER(vsel,           0x1000002A, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1230,14 +1326,48 @@ XEEMITTER(vslo128,        VX128(5, 912),    VX128  )(X64Emitter& e, X86Compiler&
   return 1;
 }
 
-XEEMITTER(vslw,           0x10000184, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+int InstrEmit_vslw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // VA = |xxxxx|yyyyy|zzzzz|wwwww|
+  // VB = |...sh|...sh|...sh|...sh|
+  // VD = |x<<sh|y<<sh|z<<sh|w<<sh|
+  // There is no SSE op to do this, so we have to do each individually.
+  // TODO(benvanik): update to do in two ops by doing 0/2 and 1/3.
+  GpVar sh(c.newGpVar());
+  GpVar vt(c.newGpVar());
+  XmmVar v(c.newXmmVar());
+  // 0
+  c.pextrb(sh, e.vr_value(vb), imm(0));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(0));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(0));
+  // 1
+  c.pextrb(sh, e.vr_value(vb), imm(1 * 4));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(1));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(1));
+  // 2
+  c.pextrb(sh, e.vr_value(vb), imm(2 * 4));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(2));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(2));
+  // 3
+  c.pextrb(sh, e.vr_value(vb), imm(3 * 4));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(3));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(3));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
 }
-
+XEEMITTER(vslw,           0x10000184, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vslw_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
 XEEMITTER(vslw128,        VX128(6, 208),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vslw_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vspltb,         0x1000020C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1260,24 +1390,58 @@ XEEMITTER(vspltish,       0x1000034C, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
+int InstrEmit_vspltisw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t uimm) {
+  // (VD.xyzw) <- sign_extend(uimm)
+  XmmVar v(c.newXmmVar());
+  if (uimm) {
+    // Sign extend from 5bits -> 32 and load.
+    int32_t simm = (uimm & 0x10) ? (uimm | 0xFFFFFFF0) : uimm;
+    GpVar simm_v(c.newGpVar());
+    c.mov(simm_v, imm(simm));
+    c.movd(v, simm_v.r32());
+    c.pshufd(v, v, imm(0));
+  } else {
+    // Zero out the register.
+    c.xorps(v, v);
+  }
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd);
+  return 0;
+}
 XEEMITTER(vspltisw,       0x1000038C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vspltisw_(e, c, i.VX.VD, i.VX.VA);
 }
-
 XEEMITTER(vspltisw128,    VX128_3(6, 1904), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vspltisw_(e, c, VX128_3_VD128, VX128_3_IMM);
 }
 
+int InstrEmit_vspltw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t vb, uint32_t uimm) {
+  // (VD.xyzw) <- (VB.uimm)
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(vb));
+  switch (uimm) {
+  case 0: // x
+    c.shufps(v, v, imm(0x00));
+    break;
+  case 1: // y
+    c.shufps(v, v, imm(0x55));
+    break;
+  case 2: // z
+    c.shufps(v, v, imm(0xAA));
+    break;
+  case 3: // w
+    c.shufps(v, v, imm(0xFF));
+    break;
+  }
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, vb);
+  return 0;
+}
 XEEMITTER(vspltw,         0x1000028C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vspltw_(e, c, i.VX.VD, i.VX.VB, i.VX.VA);
 }
-
 XEEMITTER(vspltw128,      VX128_3(6, 1840), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vspltw_(e, c, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
 XEEMITTER(vsr,            0x100002C4, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1340,31 +1504,20 @@ XEEMITTER(vsubcuw,        0x10000580, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vsubfp,         0x1000004A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_vsubfp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) - (VB) (4 x fp)
-
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VX.VA));
-  c.subps(v, e.vr_value(i.VX.VB));
-  e.update_vr_value(i.VX.VD, v);
-
-  return 0;
-}
-
-XEEMITTER(vsubfp128,      VX128(5, 80),     VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // (VD) <- (VA) - (VB) (4 x fp)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(va));
+  c.movaps(v, e.vr_value(va));
   c.subps(v, e.vr_value(vb));
   e.update_vr_value(vd, v);
-
+  e.TraceVR(vd, va, vb);
   return 0;
+}
+XEEMITTER(vsubfp,         0x1000004A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vsubfp_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
+XEEMITTER(vsubfp128,      VX128(5, 80),     VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vsubfp_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vsubsbs,        0x10000700, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1478,35 +1631,85 @@ XEEMITTER(vupklsh,        0x100002CE, VX  )(X64Emitter& e, X86Compiler& c, Instr
 }
 
 XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vxor,           0x100004C4, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- (VA) ^ (VB)
-
+  // Can't find many docs on this. Best reference is
+  // http://worldcraft.googlecode.com/svn/trunk/src/qylib/math/xmmatrix.inl,
+  // which shows how it's used in some cases. Since it's all intrinsics,
+  // finding it in code is pretty easy.
+  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
+  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  const uint32_t type = i.VX128_3.IMM >> 2;
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(i.VX.VB));
-  c.pxor(v, e.vr_value(i.VX.VA));
-  e.update_vr_value(i.VX.VD, v);
-
-  return 0;
-}
-
-XEEMITTER(vxor128,        VX128(5, 784),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // VD <- (VA) ^ (VB)
-
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
-
-  XmmVar v(c.newXmmVar());
-  c.movq(v, e.vr_value(vb));
-  c.pxor(v, e.vr_value(va));
+  GpVar gt(c.newGpVar());
+  XmmVar vt(c.newXmmVar());
+  switch (type) {
+  case 1: // VPACK_NORMSHORT2
+    {
+      // (VD.x) = 3.0 + (VB.x)*2^-22
+      // (VD.y) = 3.0 + (VB.y)*2^-22
+      // (VD.z) = 0.0
+      // (VD.w) = 3.0
+      c.movaps(vt, e.vr_value(vb));
+      c.xorps(v, v);
+      // VB.x|VB.y|0|0
+      c.shufps(vt, v, imm(0x10));
+      // *=2^-22
+      c.mov(gt, imm(0x34800000));
+      c.pinsrd(v, gt.r32(), imm(0));
+      c.pinsrd(v, gt.r32(), imm(1));
+      c.mulps(v, vt);
+      // {3.0, 3.0, 0, 1.0}
+      c.xorps(vt, vt);
+      c.mov(gt, imm(0x40400000));
+      c.pinsrd(vt, gt.r32(), imm(0));
+      c.pinsrd(vt, gt.r32(), imm(1));
+      c.mov(gt, imm(0x3F800000));
+      c.pinsrd(vt, gt.r32(), imm(3));
+      c.addps(v, vt);
+    }
+    break;
+  case 3: // VPACK_... 2 FLOAT16s
+    {
+      // (VD.x) = fixed_16_to_32(VB.x)
+      // (VD.y) = fixed_16_to_32(VB.y)
+      // (VD.z) = 0.0
+      // (VD.w) = 1.0
+      // 1 bit sign, 5 bit exponent, 10 bit mantissa
+      // TODO(benvanik): fixed_16_to_32 in SSE?
+      // {0.0, 0.0, 0.0, 1.0}
+      c.mov(gt, imm(0x3F800000));
+      c.pinsrd(vt, gt.r32(), imm(3));
+      c.movaps(v, vt);
+      c.int3();
+    }
+    break;
+  default:
+    XEASSERTALWAYS();
+    return 1;
+  }
   e.update_vr_value(vd, v);
-
+  e.TraceVR(vd, vb);
   return 0;
+}
+
+int InstrEmit_vxor_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // VD <- (VA) ^ (VB)
+  XmmVar v(c.newXmmVar());
+  if (va == vb) {
+    // Fast clear.
+    c.xorps(v, v);
+  } else {
+    c.movaps(v, e.vr_value(vb));
+    c.pxor(v, e.vr_value(va));
+  }
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
+XEEMITTER(vxor,           0x100004C4, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vxor_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
+XEEMITTER(vxor128,        VX128(5, 784),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vxor_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 

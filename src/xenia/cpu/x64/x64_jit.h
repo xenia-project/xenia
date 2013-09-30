@@ -41,6 +41,7 @@ public:
 
 protected:
   int CheckProcessor();
+  void DumpCPUInfo();
 
   X64Emitter*     emitter_;
 };

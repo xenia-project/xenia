@@ -100,8 +100,29 @@ static const BitDescription x86Features[] = {
 int X64JIT::CheckProcessor() {
   const CpuInfo* cpu = CpuInfo::getGlobal();
   const X86CpuInfo* x86Cpu = static_cast<const X86CpuInfo*>(cpu);
+  const uint32_t mask = cpu->getFeatures();
 
-#if 0
+  // TODO(benvanik): ensure features we want are supported.
+
+  // TODO(benvanik): check for SSE modes we use.
+  if (!(mask & kX86FeatureSse3)) {
+    XELOGE("CPU does not support SSE3+ instructions!");
+    DumpCPUInfo();
+    return 1;
+  }
+  if (!(mask & kX86FeatureSse41)) {
+    XELOGW("CPU does not support SSE4.1+ instructions, performance degraded!");
+    DumpCPUInfo();
+  }
+
+  return 0;
+}
+
+void X64JIT::DumpCPUInfo() {
+  const CpuInfo* cpu = CpuInfo::getGlobal();
+  const X86CpuInfo* x86Cpu = static_cast<const X86CpuInfo*>(cpu);
+  const uint32_t mask = cpu->getFeatures();
+
   XELOGCPU("Processor Info:");
   XELOGCPU("  Vendor string         : %s", cpu->getVendorString());
   XELOGCPU("  Brand string          : %s", cpu->getBrandString());
@@ -117,17 +138,11 @@ int X64JIT::CheckProcessor() {
   XELOGCPU("  Max logical Processors: %u", x86Cpu->getMaxLogicalProcessors());
   XELOGCPU("  APIC Physical ID      : %u", x86Cpu->getApicPhysicalId());
   XELOGCPU("  Features:");
-  uint32_t mask = cpu->getFeatures();
   for (const BitDescription* d = x86Features; d->mask; d++) {
     if (mask & d->mask) {
       XELOGCPU("    %s", d->description);
     }
   }
-#endif
-
-  // TODO(benvanik): ensure features we want are supported.
-
-  return 0;
 }
 
 int X64JIT::InitModule(ExecModule* module) {
