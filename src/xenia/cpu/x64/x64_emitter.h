@@ -55,6 +55,9 @@ public:
   void TraceInstruction(ppc::InstrData& i);
   void TraceInvalidInstruction(ppc::InstrData& i);
   void TraceBranch(uint32_t cia);
+  void TraceFPR(uint32_t fpr0, uint32_t fpr1 = UINT_MAX,
+                uint32_t fpr2 = UINT_MAX, uint32_t fpr3 = UINT_MAX,
+                uint32_t fpr4 = UINT_MAX);
   void TraceVR(uint32_t vr0, uint32_t vr1 = UINT_MAX, uint32_t vr2 = UINT_MAX,
                uint32_t vr3 = UINT_MAX, uint32_t vr4 = UINT_MAX);
 

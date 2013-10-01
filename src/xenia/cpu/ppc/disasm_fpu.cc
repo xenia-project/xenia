@@ -61,7 +61,7 @@ XEDISASMR(fmulx,        0xFC000032, A  )(InstrData& i, InstrDisasm& d) {
          InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
   d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
   return d.Finish();
 }
 
@@ -70,7 +70,7 @@ XEDISASMR(fmulsx,       0xEC000032, A  )(InstrData& i, InstrDisasm& d) {
          InstrDisasm::kFP | (i.A.Rc ? InstrDisasm::kRc : 0));
   d.AddRegOperand(InstrRegister::kFPR, i.A.FRT, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kFPR, i.A.FRA, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kFPR, i.A.FRB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.A.FRC, InstrRegister::kRead);
   return d.Finish();
 }
 

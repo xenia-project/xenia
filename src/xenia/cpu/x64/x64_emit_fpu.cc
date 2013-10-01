@@ -53,6 +53,8 @@ XEEMITTER(faddx,        0xFC00002A, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB);
+
   return 0;
 }
 
@@ -81,6 +83,8 @@ XEEMITTER(faddsx,       0xEC00002A, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB);
+
   return 0;
 }
 
@@ -101,6 +105,8 @@ XEEMITTER(fdivx,        0xFC000024, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB);
 
   return 0;
 }
@@ -130,6 +136,8 @@ XEEMITTER(fdivsx,       0xEC000024, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB);
+
   return 0;
 }
 
@@ -150,6 +158,8 @@ XEEMITTER(fmulx,        0xFC000032, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRC);
 
   return 0;
 }
@@ -178,6 +188,8 @@ XEEMITTER(fmulsx,       0xEC000032, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRC);
 
   return 0;
 }
@@ -217,6 +229,8 @@ XEEMITTER(fsubx,        0xFC000028, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB);
+
   return 0;
 }
 
@@ -238,6 +252,8 @@ XEEMITTER(fsubsx,       0xEC000028, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB);
+
   return 0;
 }
 
@@ -250,7 +266,7 @@ XEEMITTER(fselx,        0xFC00002E, A  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar zero(c.newGpVar());
   c.mov(zero, imm(0));
   c.movq(v, zero);
-  c.cmpsd(e.fpr_value(i.A.FRA), v, 0);
+  c.comisd(e.fpr_value(i.A.FRA), v);
 
   // TODO(benvanik): find a way to do this without jumps.
   Label choose_b(c.newLabel());
@@ -272,6 +288,8 @@ XEEMITTER(fselx,        0xFC00002E, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
 
   return 0;
 }
@@ -309,6 +327,8 @@ XEEMITTER(fmaddx,       0xFC00003A, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
 
   return 0;
 }
@@ -361,6 +381,8 @@ XEEMITTER(fnmsubx,      0xFC00003C, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
+
   return 0;
 }
 
@@ -394,6 +416,8 @@ XEEMITTER(fnmsubsx,     0xEC00003C, A  )(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   }
 
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
+
   return 0;
 }
 
@@ -403,10 +427,11 @@ XEEMITTER(fnmsubsx,     0xEC00003C, A  )(X64Emitter& e, X86Compiler& c, InstrDat
 XEEMITTER(fcfidx,       0xFC00069C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // frD <- signed_int64_to_double( frB )
 
+  XmmVar frb(c.newXmmVar());
+  c.movq(frb, e.fpr_value(i.A.FRB));
+  c.save(frb);
   XmmVar v(c.newXmmVar());
-  c.movq(v, e.fpr_value(i.A.FRB));
-  c.save(v);
-  c.cvtsi2sd(v, v.m64());
+  c.cvtsi2sd(v, frb.m64());
   e.update_fpr_value(i.A.FRT, v);
 
   // TODO(benvanik): update status/control register.
@@ -418,6 +443,8 @@ XEEMITTER(fcfidx,       0xFC00069C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }
@@ -435,17 +462,27 @@ XEEMITTER(fctidx,       0xFC00065C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar tmp(c.newGpVar());
   XmmVar xmm_tmp(c.newXmmVar());
 
+  // TODO(benvanik): pull from FPSCR[RN]
+  // http://www.rz.uni-karlsruhe.de/rz/docs/VTune/reference/vc148.htm
+  // Round to zero (truncate).
+  GpVar mxcsr(c.newGpVar());
+  c.save(mxcsr);
+  c.stmxcsr(mxcsr.m32());
+  c.or_(mxcsr, imm(0x6000));
+  c.save(mxcsr);
+  c.ldmxcsr(mxcsr.m32());
+
   XmmVar v(c.newXmmVar());
   c.movq(v, e.fpr_value(i.X.RB));
   // Max value: 2^63 - 1
   c.mov(tmp, imm(0x43e0000000000000));
   c.movq(xmm_tmp, tmp);
-  c.cmpsd(v, xmm_tmp, 0);
-  c.jg(over_max);
+  c.comisd(v, xmm_tmp);
+  c.jl(over_max);
   // Min value: -2^63
   c.mov(tmp, imm(0xc3e0000000000000));
   c.movq(xmm_tmp, tmp);
-  c.cmpsd(v, xmm_tmp, 0);
+  c.comisd(v, xmm_tmp);
   c.jl(under_min);
   c.save(v);
   c.cvtsd2si(tmp, v.m64());
@@ -463,13 +500,15 @@ XEEMITTER(fctidx,       0xFC00065C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   // TODO(benvanik): update status/control register.
 
-  if (i.A.Rc) {
+  if (i.X.Rc) {
     // With cr0 update.
     XEASSERTALWAYS();
     //e.update_cr_with_cond(0, v);
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }
@@ -492,18 +531,28 @@ XEEMITTER(fctiwx,       0xFC00001C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar tmp(c.newGpVar());
   XmmVar xmm_tmp(c.newXmmVar());
 
+  // TODO(benvanik): pull from FPSCR[RN]
+  // http://www.rz.uni-karlsruhe.de/rz/docs/VTune/reference/vc148.htm
+  // Round to zero (truncate).
+  GpVar mxcsr(c.newGpVar());
+  c.save(mxcsr);
+  c.stmxcsr(mxcsr.m32());
+  c.or_(mxcsr, imm(0x6000));
+  c.save(mxcsr);
+  c.ldmxcsr(mxcsr.m32());
+
   XmmVar v(c.newXmmVar());
   c.movq(v, e.fpr_value(i.X.RB));
   // Max value: 2^31 - 1
   c.mov(tmp, imm(0x41efffffffe00000));
   c.movq(xmm_tmp, tmp);
-  c.cmpsd(v, xmm_tmp, 0);
-  c.jg(over_max);
+  c.comisd(v, xmm_tmp);
+  c.jl(over_max);
   // Min value: -2^31
   c.mov(tmp, imm(0xc1e0000000000000));
   c.movq(xmm_tmp, tmp);
-  c.cmpsd(v, xmm_tmp, 0);
-  c.jl(under_min);
+  c.comisd(v, xmm_tmp);
+  c.jg(under_min);
   c.save(v);
   c.cvtsd2si(tmp, v.m64());
   c.movq(v, tmp);
@@ -527,6 +576,8 @@ XEEMITTER(fctiwx,       0xFC00001C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }
@@ -560,6 +611,8 @@ XEEMITTER(frspx,        0xFC000018, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }
@@ -631,12 +684,12 @@ XEEMITTER(fabsx,        0xFC000210, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
   XmmVar v(c.newXmmVar());
   c.movq(v, e.fpr_value(i.X.RB));
-  // XOR with 0 in the sign bit and ones everywhere else.
+  // AND with 0 in the sign bit and 1 everywhere else.
   GpVar gp_bit(c.newGpVar());
   c.mov(gp_bit, imm(0x7FFFFFFFFFFFFFFF));
   XmmVar bit(c.newXmmVar());
   c.movq(bit, gp_bit);
-  c.xorpd(v, bit);
+  c.andpd(v, bit);
   e.update_fpr_value(i.X.RT, v);
 
   if (i.X.Rc) {
@@ -646,6 +699,8 @@ XEEMITTER(fabsx,        0xFC000210, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }
@@ -664,6 +719,8 @@ XEEMITTER(fmrx,         0xFC000090, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }
@@ -693,6 +750,8 @@ XEEMITTER(fnegx,        0xFC000050, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
+  e.TraceFPR(i.X.RT, i.X.RB);
 
   return 0;
 }

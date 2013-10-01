@@ -911,9 +911,59 @@ void X64Emitter::TraceBranch(uint32_t cia) {
   }
 }
 
+void X64Emitter::TraceFPR(uint32_t fpr0, uint32_t fpr1,
+                          uint32_t fpr2, uint32_t fpr3,
+                          uint32_t fpr4) {
+  X86Compiler& c = compiler_;
+
+  if (!FLAGS_trace_instructions) {
+    return;
+  }
+
+  for (int n = 0; n < 5; n++) {
+    c.nop();
+  }
+
+  if (FLAGS_annotate_disassembly) {
+    c.comment("XeTraceFPR (+spill)");
+  }
+
+  SpillRegisters();
+
+  // TODO(benvanik): remove once fixed: https://code.google.com/p/asmjit/issues/detail?id=86
+  GpVar arg1 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg1, imm(fpr0));
+  GpVar arg2 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg2, imm(fpr1));
+  GpVar arg3 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg3, imm(fpr2));
+  GpVar arg4 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg4, imm(fpr3));
+  GpVar arg5 = c.newGpVar(kX86VarTypeGpq);
+  c.mov(arg5, imm(fpr4));
+  X86CompilerFuncCall* call = c.call(global_exports_.XeTraceFPR);
+  call->setPrototype(kX86FuncConvDefault,
+      FuncBuilder6<void, void*,
+                   uint64_t, uint64_t, uint64_t, uint64_t, uint64_t>());
+  call->setArgument(0, c.getGpArg(0));
+  call->setArgument(1, arg1);
+  call->setArgument(2, arg2);
+  call->setArgument(3, arg3);
+  call->setArgument(4, arg4);
+  call->setArgument(5, arg5);
+
+  for (int n = 0; n < 2; n++) {
+    c.nop();
+  }
+}
+
 void X64Emitter::TraceVR(uint32_t vr0, uint32_t vr1, uint32_t vr2,
                          uint32_t vr3, uint32_t vr4) {
   X86Compiler& c = compiler_;
+
+  if (!FLAGS_trace_instructions) {
+    return;
+  }
 
   for (int n = 0; n < 5; n++) {
     c.nop();
