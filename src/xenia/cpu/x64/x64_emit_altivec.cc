@@ -430,17 +430,7 @@ XEEMITTER(vcmpbfp,        0x100003C6, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpbfp128,     VX128(6, 384),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpbfp_c,      0x100007C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpbfp128c,    VX128(6, 448),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+XEEMITTER(vcmpbfp128,     VX128(6, 384),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -450,17 +440,7 @@ XEEMITTER(vcmpeqfp,       0x100000C6, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpeqfp128,    VX128(6, 0),      VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpeqfp_c,     0x100004C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpeqfp128c,   VX128(6, 64),     VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+XEEMITTER(vcmpeqfp128,    VX128(6, 0),      VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -470,17 +450,7 @@ XEEMITTER(vcmpequb,       0x10000006, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpequb_c,     0x10000406, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vcmpequh,       0x10000046, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpequh_c,     0x10000446, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -490,17 +460,7 @@ XEEMITTER(vcmpequw,       0x10000086, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpequw128,    VX128(6, 512),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpequw_c,     0x10000486, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpequw128c,   VX128(6, 576),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+XEEMITTER(vcmpequw128,    VX128(6, 512),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -510,17 +470,7 @@ XEEMITTER(vcmpgefp,       0x100001C6, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpgefp128,    VX128(6, 128),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgefp_c,     0x100005C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgefp128c,   VX128(6, 192),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+XEEMITTER(vcmpgefp128,    VX128(6, 128),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -530,17 +480,7 @@ XEEMITTER(vcmpgtfp,       0x100002C6, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpgtfp128,    VX128(6, 256),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgtfp_c,     0x100006C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgtfp128c,   VX128(6, 320),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+XEEMITTER(vcmpgtfp128,    VX128(6, 256),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -550,17 +490,7 @@ XEEMITTER(vcmpgtsb,       0x10000306, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpgtsb_c,     0x10000706, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vcmpgtsh,       0x10000346, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgtsh_c,     0x10000746, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -570,17 +500,7 @@ XEEMITTER(vcmpgtsw,       0x10000386, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpgtsw_c,     0x10000786, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vcmpgtub,       0x10000206, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgtub_c,     0x10000606, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -590,17 +510,7 @@ XEEMITTER(vcmpgtuh,       0x10000246, VXR )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vcmpgtuh_c,     0x10000646, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vcmpgtuw,       0x10000286, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpgtuw_c,     0x10000686, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -1786,40 +1696,22 @@ void X64RegisterEmitCategoryAltivec() {
   XEREGISTERINSTR(vcfpuxws128,    VX128_3(6, 624));
   XEREGISTERINSTR(vcmpbfp,        0x100003C6);
   XEREGISTERINSTR(vcmpbfp128,     VX128(6, 384));
-  XEREGISTERINSTR(vcmpbfp_c,      0x100007C6);
-  XEREGISTERINSTR(vcmpbfp128c,    VX128(6, 448));
   XEREGISTERINSTR(vcmpeqfp,       0x100000C6);
   XEREGISTERINSTR(vcmpeqfp128,    VX128(6, 0));
-  XEREGISTERINSTR(vcmpeqfp_c,     0x100004C6);
-  XEREGISTERINSTR(vcmpeqfp128c,   VX128(6, 64));
   XEREGISTERINSTR(vcmpequb,       0x10000006);
-  XEREGISTERINSTR(vcmpequb_c,     0x10000406);
   XEREGISTERINSTR(vcmpequh,       0x10000046);
-  XEREGISTERINSTR(vcmpequh_c,     0x10000446);
   XEREGISTERINSTR(vcmpequw,       0x10000086);
   XEREGISTERINSTR(vcmpequw128,    VX128(6, 512));
-  XEREGISTERINSTR(vcmpequw_c,     0x10000486);
-  XEREGISTERINSTR(vcmpequw128c,   VX128(6, 576));
   XEREGISTERINSTR(vcmpgefp,       0x100001C6);
   XEREGISTERINSTR(vcmpgefp128,    VX128(6, 128));
-  XEREGISTERINSTR(vcmpgefp_c,     0x100005C6);
-  XEREGISTERINSTR(vcmpgefp128c,   VX128(6, 192));
   XEREGISTERINSTR(vcmpgtfp,       0x100002C6);
   XEREGISTERINSTR(vcmpgtfp128,    VX128(6, 256));
-  XEREGISTERINSTR(vcmpgtfp_c,     0x100006C6);
-  XEREGISTERINSTR(vcmpgtfp128c,   VX128(6, 320));
   XEREGISTERINSTR(vcmpgtsb,       0x10000306);
-  XEREGISTERINSTR(vcmpgtsb_c,     0x10000706);
   XEREGISTERINSTR(vcmpgtsh,       0x10000346);
-  XEREGISTERINSTR(vcmpgtsh_c,     0x10000746);
   XEREGISTERINSTR(vcmpgtsw,       0x10000386);
-  XEREGISTERINSTR(vcmpgtsw_c,     0x10000786);
   XEREGISTERINSTR(vcmpgtub,       0x10000206);
-  XEREGISTERINSTR(vcmpgtub_c,     0x10000606);
   XEREGISTERINSTR(vcmpgtuh,       0x10000246);
-  XEREGISTERINSTR(vcmpgtuh_c,     0x10000646);
   XEREGISTERINSTR(vcmpgtuw,       0x10000286);
-  XEREGISTERINSTR(vcmpgtuw_c,     0x10000686);
   XEREGISTERINSTR(vctsxs,         0x100003CA);
   XEREGISTERINSTR(vctuxs,         0x1000038A);
   XEREGISTERINSTR(vexptefp,       0x1000018A);

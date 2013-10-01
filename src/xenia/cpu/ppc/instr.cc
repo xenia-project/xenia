@@ -417,8 +417,8 @@ InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
   InstrType* slot = NULL;
   switch (code >> 26) {
   case 4:
-    // Opcode = 4, index = bits 11-0 (6)
-    slot = xe::cpu::ppc::tables::instr_table_4[XESELECTBITS(code, 0, 11)];
+    // Opcode = 4, index = bits 10-0 (10)
+    slot = xe::cpu::ppc::tables::instr_table_4[XESELECTBITS(code, 0, 10)];
     break;
   case 19:
     // Opcode = 19, index = bits 10-1 (10)
@@ -460,9 +460,9 @@ InstrType* xe::cpu::ppc::GetInstrType(uint32_t code) {
 
   // Slow lookup via linear scan.
   // This is primarily due to laziness. It could be made fast like the others.
-  for (size_t n = 0; n < XECOUNT(xe::cpu::ppc::tables::instr_table_vx128);
+  for (size_t n = 0; n < XECOUNT(xe::cpu::ppc::tables::instr_table_scan);
        n++) {
-    slot = &(xe::cpu::ppc::tables::instr_table_vx128[n]);
+    slot = &(xe::cpu::ppc::tables::instr_table_scan[n]);
     if (slot->opcode == (code & slot->opcode_mask)) {
       return slot;
     }

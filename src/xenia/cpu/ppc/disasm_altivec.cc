@@ -706,34 +706,16 @@ XEDISASMR(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(InstrData& i, InstrDisasm& 
 
 XEDISASMR(vcmpbfp,        0x100003C6, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpbfp", "Vector Compare Bounds Floating Point",
-         InstrDisasm::kVMX);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
-XEDISASMR(vcmpbfp128,     VX128(6, 384),    VX128  )(InstrData& i, InstrDisasm& d) {
+XEDISASMR(vcmpbfp128,     VX128(6, 384),    VX128_R)(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpbfp128", "Vector128 Compare Bounds Floating Point",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpbfp_c,      0x100007C6, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpbfp", "Vector Compare Bounds Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpbfp128c,    VX128(6, 448),    VX128  )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpbfp128", "Vector128 Compare Equal-to Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VX128_R.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -742,46 +724,22 @@ XEDISASMR(vcmpbfp128c,    VX128(6, 448),    VX128  )(InstrData& i, InstrDisasm& 
 
 XEDISASMR(vcmpeqfp,       0x100000C6, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpeqfp", "Vector Compare Equal-to Floating Point",
-         InstrDisasm::kVMX);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
-XEDISASMR(vcmpeqfp128,    VX128(6, 0),      VX128  )(InstrData& i, InstrDisasm& d) {
+XEDISASMR(vcmpeqfp128,    VX128(6, 0),      VX128_R)(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpeqfp128", "Vector128 Compare Equal-to Floating Point",
-         InstrDisasm::kVMX);
+         InstrDisasm::kVMX | (i.VX128_R.Rc ? InstrDisasm::kRc : 0));
   return GeneralVX128(i, d);
-}
-
-XEDISASMR(vcmpeqfp_c,     0x100004C6, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpeqfp", "Vector Compare Equal-to Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
-  return GeneralVX128(i, d);
-}
-
-XEDISASMR(vcmpeqfp128c,   VX128(6, 64),     VX128  )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpeqfp128", "Vector Compare Equal-to Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
 }
 
 XEDISASMR(vcmpequb,       0x10000006, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpequb", "Vector Compare Equal-to Unsigned Byte",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpequb_c,     0x10000406, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpequb", "Vector Compare Equal-to Unsigned Byte",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -790,16 +748,7 @@ XEDISASMR(vcmpequb_c,     0x10000406, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpequh,       0x10000046, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpequh", "Vector Compare Equal-to Unsigned Half Word",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpequh_c,     0x10000446, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpequh", "Vector Compare Equal-to Unsigned Half Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -808,64 +757,31 @@ XEDISASMR(vcmpequh_c,     0x10000446, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpequw,       0x10000086, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpequw", "Vector Compare Equal-to Unsigned Word",
-         InstrDisasm::kVMX);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
-XEDISASMR(vcmpequw128,    VX128(6, 512),    VX128  )(InstrData& i, InstrDisasm& d) {
+XEDISASMR(vcmpequw128,    VX128(6, 512),    VX128_R)(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpequw128", "Vector128 Compare Equal-to Unsigned Word",
-         InstrDisasm::kVMX);
-  return GeneralVX128(i, d);
-}
-
-XEDISASMR(vcmpequw_c,     0x10000486, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpequw", "Vector Compare Equal-to Unsigned Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpequw128c,   VX128(6, 576),    VX128  )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpequw128", "Vector Compare Equal-to Unsigned Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VX128_R.Rc ? InstrDisasm::kRc : 0));
   return GeneralVX128(i, d);
 }
 
 XEDISASMR(vcmpgefp,       0x100001C6, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgefp", "Vector Compare Greater-Than-or-Equal-to Floating Point",
-         InstrDisasm::kVMX);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
-XEDISASMR(vcmpgefp128,    VX128(6, 128),    VX128  )(InstrData& i, InstrDisasm& d) {
+XEDISASMR(vcmpgefp128,    VX128(6, 128),    VX128_R)(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgefp128", "Vector128 Compare Greater-Than-or-Equal-to Floating Point",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgefp_c,     0x100005C6, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgefp", "Vector Compare Greater-Than-or-Equal-to Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgefp128c,   VX128(6, 192),    VX128  )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgefp128", "Vector128 Compare Greater-Than-or-Equal-to Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VX128_R.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -874,34 +790,16 @@ XEDISASMR(vcmpgefp128c,   VX128(6, 192),    VX128  )(InstrData& i, InstrDisasm& 
 
 XEDISASMR(vcmpgtfp,       0x100002C6, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtfp", "Vector Compare Greater-Than Floating Point",
-         InstrDisasm::kVMX);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
   return d.Finish();
 }
 
-XEDISASMR(vcmpgtfp128,    VX128(6, 256),    VX128  )(InstrData& i, InstrDisasm& d) {
+XEDISASMR(vcmpgtfp128,    VX128(6, 256),    VX128_R)(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtfp128", "Vector128 Compare Greater-Than Floating-Point",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtfp_c,     0x100006C6, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtfp", "Vector Compare Greater-Than Floating Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtfp128c,   VX128(6, 320),    VX128  )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtfp128", "Vector128 Compare Greater-Than Floating-Point",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VX128_R.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -910,16 +808,7 @@ XEDISASMR(vcmpgtfp128c,   VX128(6, 320),    VX128  )(InstrData& i, InstrDisasm& 
 
 XEDISASMR(vcmpgtsb,       0x10000306, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtsb", "Vector Compare Greater-Than Signed Byte",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtsb_c,     0x10000706, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtsb", "Vector Compare Greater-Than Signed Byte",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -928,16 +817,7 @@ XEDISASMR(vcmpgtsb_c,     0x10000706, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpgtsh,       0x10000346, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtsh", "Vector Compare Greater-Than Signed Half Word",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtsh_c,     0x10000746, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtsh", "Vector Compare Greater-Than Signed Half Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -946,16 +826,7 @@ XEDISASMR(vcmpgtsh_c,     0x10000746, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpgtsw,       0x10000386, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtsw", "Vector Compare Greater-Than Signed Word",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtsw_c,     0x10000786, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtsw", "Vector Compare Greater-Than Signed Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -964,16 +835,7 @@ XEDISASMR(vcmpgtsw_c,     0x10000786, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpgtub,       0x10000206, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtub", "Vector Compare Greater-Than Unsigned Byte",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtub_c,     0x10000606, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtub", "Vector Compare Greater-Than Unsigned Byte",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -982,16 +844,7 @@ XEDISASMR(vcmpgtub_c,     0x10000606, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpgtuh,       0x10000246, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtuh", "Vector Compare Greater-Than Unsigned Half Word",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtuh_c,     0x10000646, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtuh", "Vector Compare Greater-Than Unsigned Half Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -1000,16 +853,7 @@ XEDISASMR(vcmpgtuh_c,     0x10000646, VXR )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(vcmpgtuw,       0x10000286, VXR )(InstrData& i, InstrDisasm& d) {
   d.Init("vcmpgtuw", "Vector Compare Greater-Than Unsigned Word",
-         InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
-}
-
-XEDISASMR(vcmpgtuw_c,     0x10000686, VXR )(InstrData& i, InstrDisasm& d) {
-  d.Init("vcmpgtuw", "Vector Compare Greater-Than Unsigned Word",
-         InstrDisasm::kVMX | InstrDisasm::kRc);
+         InstrDisasm::kVMX | (i.VXR.Rc ? InstrDisasm::kRc : 0));
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
   //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
@@ -2473,40 +2317,22 @@ void RegisterDisasmCategoryAltivec() {
   XEREGISTERINSTR(vcfpuxws128,    VX128_3(6, 624));
   XEREGISTERINSTR(vcmpbfp,        0x100003C6);
   XEREGISTERINSTR(vcmpbfp128,     VX128(6, 384));
-  XEREGISTERINSTR(vcmpbfp_c,      0x100007C6);
-  XEREGISTERINSTR(vcmpbfp128c,    VX128(6, 448));
   XEREGISTERINSTR(vcmpeqfp,       0x100000C6);
   XEREGISTERINSTR(vcmpeqfp128,    VX128(6, 0));
-  XEREGISTERINSTR(vcmpeqfp_c,     0x100004C6);
-  XEREGISTERINSTR(vcmpeqfp128c,   VX128(6, 64));
   XEREGISTERINSTR(vcmpequb,       0x10000006);
-  XEREGISTERINSTR(vcmpequb_c,     0x10000406);
   XEREGISTERINSTR(vcmpequh,       0x10000046);
-  XEREGISTERINSTR(vcmpequh_c,     0x10000446);
   XEREGISTERINSTR(vcmpequw,       0x10000086);
   XEREGISTERINSTR(vcmpequw128,    VX128(6, 512));
-  XEREGISTERINSTR(vcmpequw_c,     0x10000486);
-  XEREGISTERINSTR(vcmpequw128c,   VX128(6, 576));
   XEREGISTERINSTR(vcmpgefp,       0x100001C6);
   XEREGISTERINSTR(vcmpgefp128,    VX128(6, 128));
-  XEREGISTERINSTR(vcmpgefp_c,     0x100005C6);
-  XEREGISTERINSTR(vcmpgefp128c,   VX128(6, 192));
   XEREGISTERINSTR(vcmpgtfp,       0x100002C6);
   XEREGISTERINSTR(vcmpgtfp128,    VX128(6, 256));
-  XEREGISTERINSTR(vcmpgtfp_c,     0x100006C6);
-  XEREGISTERINSTR(vcmpgtfp128c,   VX128(6, 320));
   XEREGISTERINSTR(vcmpgtsb,       0x10000306);
-  XEREGISTERINSTR(vcmpgtsb_c,     0x10000706);
   XEREGISTERINSTR(vcmpgtsh,       0x10000346);
-  XEREGISTERINSTR(vcmpgtsh_c,     0x10000746);
   XEREGISTERINSTR(vcmpgtsw,       0x10000386);
-  XEREGISTERINSTR(vcmpgtsw_c,     0x10000786);
   XEREGISTERINSTR(vcmpgtub,       0x10000206);
-  XEREGISTERINSTR(vcmpgtub_c,     0x10000606);
   XEREGISTERINSTR(vcmpgtuh,       0x10000246);
-  XEREGISTERINSTR(vcmpgtuh_c,     0x10000646);
   XEREGISTERINSTR(vcmpgtuw,       0x10000286);
-  XEREGISTERINSTR(vcmpgtuw_c,     0x10000686);
   XEREGISTERINSTR(vctsxs,         0x100003CA);
   XEREGISTERINSTR(vctuxs,         0x1000038A);
   XEREGISTERINSTR(vexptefp,       0x1000018A);

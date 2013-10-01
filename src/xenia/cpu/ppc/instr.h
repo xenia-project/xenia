@@ -48,10 +48,13 @@ typedef enum {
   kXEPPCInstrFormatVX128_4  = 22,
   kXEPPCInstrFormatVX128_5  = 23,
   kXEPPCInstrFormatVX128_P  = 24,
-  kXEPPCInstrFormatXDSS     = 25,
+  kXEPPCInstrFormatVX128_R  = 25,
+  kXEPPCInstrFormatXDSS     = 26,
 } xe_ppc_instr_format_e;
 
 typedef enum {
+  kXEPPCInstrMaskVXR        = 0xFC0003FF,
+  kXEPPCInstrMaskVXA        = 0xFC00003F,
   kXEPPCInstrMaskVX128      = 0xFC0003D0,
   kXEPPCInstrMaskVX128_1    = 0xFC0007F3,
   kXEPPCInstrMaskVX128_2    = 0xFC000210,
@@ -59,6 +62,7 @@ typedef enum {
   kXEPPCInstrMaskVX128_4    = 0xFC000730,
   kXEPPCInstrMaskVX128_5    = 0xFC000010,
   kXEPPCInstrMaskVX128_P    = 0xFC000630,
+  kXEPPCInstrMaskVX128_R    = 0xFC000390,
 } xe_ppc_instr_mask_e;
 
 typedef enum {
@@ -249,6 +253,12 @@ typedef struct {
     } VX;
     // kXEPPCInstrFormatVXR
     struct {
+      uint32_t                : 10;
+      uint32_t        Rc      : 1;
+      uint32_t        VB      : 5;
+      uint32_t        VA      : 5;
+      uint32_t        VD      : 5;
+      uint32_t                : 6;
     } VXR;
     // kXEPPCInstrFormatVX128
     struct {
@@ -338,6 +348,23 @@ typedef struct {
       uint32_t        VD128l  : 5;
       uint32_t                : 6;
     } VX128_P;
+    // kXEPPCInstrFormatVX128
+    struct {
+      // VD128 = VD128l | (VD128h << 5)
+      // VA128 = VA128l | (VA128h << 5) | (VA128H << 6)
+      // VB128 = VB128l | (VB128h << 5)
+      uint32_t        VB128h  : 2;
+      uint32_t        VD128h  : 2;
+      uint32_t                : 1;
+      uint32_t        VA128h  : 1;
+      uint32_t        Rc      : 1;
+      uint32_t                : 3;
+      uint32_t        VA128H  : 1;
+      uint32_t        VB128l  : 5;
+      uint32_t        VA128l  : 5;
+      uint32_t        VD128l  : 5;
+      uint32_t                : 6;
+    } VX128_R;
     // kXEPPCInstrFormatXDSS
     struct {
     } XDSS;
