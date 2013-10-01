@@ -1336,19 +1336,17 @@ XEDISASMR(vmulfp128,      VX128(5, 144),    VX128  )(InstrData& i, InstrDisasm& 
 XEDISASMR(vnmsubfp,       0x1000002F, VXA )(InstrData& i, InstrDisasm& d) {
   d.Init("vnmsubfp", "Vector Negative Multiply-Subtract Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VXA.VC, InstrRegister::kRead);
   return d.Finish();
 }
 
 XEDISASMR(vnmsubfp128,    VX128(5, 336),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vnmsubfp128", "Vector128 Negative Multiply-Subtract Floating Point",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
-  return d.Finish();
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vnor,           0x10000504, VX  )(InstrData& i, InstrDisasm& d) {

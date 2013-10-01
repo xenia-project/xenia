@@ -688,7 +688,6 @@ int InstrEmit_vmrghw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, u
   // (VD.z) = (VA.y)
   // (VD.w) = (VB.y)
   if (e.cpu_feature_mask() & kX86FeatureSse41) {
-    c.int3();
     // | VA.x | VA.x | VA.y | VA.y |
     XmmVar v(c.newXmmVar());
     c.movaps(v, e.vr_value(va));
@@ -730,7 +729,6 @@ int InstrEmit_vmrglw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, u
   // (VD.z) = (VA.w)
   // (VD.w) = (VB.w)
   if (e.cpu_feature_mask() & kX86FeatureSse41) {
-    c.int3();
     // | VA.z | VA.z | VA.w | VA.w |
     XmmVar v(c.newXmmVar());
     c.movaps(v, e.vr_value(va));
@@ -887,14 +885,30 @@ XEEMITTER(vmulfp128,      VX128(5, 144),    VX128  )(X64Emitter& e, X86Compiler&
   return 0;
 }
 
-XEEMITTER(vnmsubfp,       0x1000002F, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+int InstrEmit_vnmsubfp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+  // (VD) <- -(((VA) * (VC)) - (VB))
+  // NOTE: only one rounding should take place, but that's hard...
+  // This really needs VFNMSUB132PS/VFNMSUB213PS/VFNMSUB231PS but that's AVX.
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(va));
+  c.mulps(v, e.vr_value(vc));
+  c.subps(v, e.vr_value(vb));
+  // *=-1
+  GpVar sign_v(c.newGpVar());
+  c.mov(sign_v, imm(0xBF7FFFFC)); // -1.0
+  XmmVar sign(c.newXmmVar());
+  c.movd(sign, sign_v.r32());
+  c.shufps(sign, sign, imm(0));
+  c.mulps(v, sign);
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb, vc);
+  return 0;
 }
-
+XEEMITTER(vnmsubfp,       0x1000002F, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vnmsubfp_(e, c, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
+}
 XEEMITTER(vnmsubfp128,    VX128(5, 336),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vnmsubfp_(e, c, VX128_VD128, VX128_VA128, VX128_VB128, VX128_VD128);
 }
 
 int InstrEmit_vnor_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
@@ -1141,7 +1155,6 @@ XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(X64Emitter& e, X86Compiler&
   // Then mask select the results into the dest.
   // Sometimes rotation is zero, so fast path.
   if (y) {
-    c.int3();
     switch (y) {
     case 1:
       // X Y Z W -> Y Z W X
@@ -1166,8 +1179,8 @@ XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(X64Emitter& e, X86Compiler&
       (((x & 0x02) ? 1 : 0) << 2) |
       (((x & 0x01) ? 1 : 0) << 3);
   // Blending src into dest, so invert.
-  blend_mask = (~blend_mask) & 0x3;
-  c.blendps(v, e.vr_value(vb), imm(blend_mask));
+  blend_mask = (~blend_mask) & 0xF;
+  c.blendps(v, e.vr_value(vd), imm(blend_mask));
   e.update_vr_value(vd, v);
   e.TraceVR(vd, vb);
   return 0;
@@ -1584,6 +1597,7 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(X64Emitter& e, X86Compiler&
       // (VD.z) = 0.0
       // (VD.w) = 1.0
       // 1 bit sign, 5 bit exponent, 10 bit mantissa
+      // D3D10 half float format
       // TODO(benvanik): fixed_16_to_32 in SSE?
       // {0.0, 0.0, 0.0, 1.0}
       c.mov(gt, imm(0x3F800000));
