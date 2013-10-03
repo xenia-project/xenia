@@ -48,6 +48,9 @@ namespace x64 {
 #define VX128_3_VD128 (i.VX128_3.VD128l | (i.VX128_3.VD128h << 5))
 #define VX128_3_VB128 (i.VX128_3.VB128l | (i.VX128_3.VB128h << 5))
 #define VX128_3_IMM   (i.VX128_3.IMM)
+#define VX128_R_VD128 (i.VX128_R.VD128l | (i.VX128_R.VD128h << 5))
+#define VX128_R_VA128 (i.VX128_R.VA128l | (i.VX128_R.VA128h << 5) | (i.VX128_R.VA128H << 6))
+#define VX128_R_VB128 (i.VX128_R.VB128l | (i.VX128_R.VB128h << 5))
 
 
 XEEMITTER(dst,            0x7C0002AC, XDSS)(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -425,94 +428,202 @@ XEEMITTER(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(X64Emitter& e, X86Compiler&
   return 1;
 }
 
-XEEMITTER(vcmpbfp,        0x100003C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_vcmpbfp_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
+XEEMITTER(vcmpbfp,        0x100003C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vcmpbfp_(e, c, i, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
+}
 XEEMITTER(vcmpbfp128,     VX128(6, 384),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpbfp_(e, c, i, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
+}
+
+void InstrEmit_vcmp_cr6_(X64Emitter& e, X86Compiler& c, XmmVar& v) {
+  // Testing for all 1's and all 0's.
+  // if (Rc) CR6 = all_equal | 0 | none_equal | 0
+  // Since none_equal and all_equal are mutually exclusive we optimize
+  // a bit here. This is still terrible.
+  GpVar lo(c.newGpVar());
+  GpVar hi(c.newGpVar());
+  c.pextrq(hi.m64(), v, imm(1));
+  c.movq(lo.m64(), v);
+
+  GpVar gt(c.newGpVar());
+  GpVar cr(c.newGpVar());
+  c.xor_(cr, cr);
+  Label skip(c.newLabel());
+
+  // cmp with 0xFF... and set all_equal
+  c.mov(gt, lo);
+  c.and_(gt, hi);
+  c.test(gt, imm(0));
+  // !eq = all_equal
+  // all_equal= 0b1000
+  c.mov(gt, imm(0x8)); // 0b1000
+  c.cmovne(cr, gt);
+  c.jne(skip);
+
+  // cmp with 0 and set none_equal
+  c.mov(gt, lo);
+  c.or_(gt, hi);
+  c.test(gt, imm(0));
+  // eq = none_equal
+  // none_equal= 0b0010
+  c.mov(gt, imm(0x2)); // 0b0010
+  c.cmove(cr, gt);
+
+  c.bind(skip);
+  e.update_cr_value(6, cr);
+}
+
+// http://x86.renejeschke.de/html/file_module_x86_id_37.html
+// These line up to the cmpps ops, except at the end where we have our own
+// emulated ops for gt/etc that don't exist in the instruction set.
+enum vcmpxxfp_op {
+  vcmpxxfp_eq     = 0,
+  vcmpxxfp_lt     = 1,
+  vcmpxxfp_le     = 2,
+  vcmpxxfp_unord  = 3,
+  vcmpxxfp_neq    = 4,
+  vcmpxxfp_nlt    = 5,
+  vcmpxxfp_nle    = 6,
+  vcmpxxfp_ord    = 7,
+  // Emulated ops:
+  vcmpxxfp_gt     = 8,
+  vcmpxxfp_ge     = 9,
+};
+int InstrEmit_vcmpxxfp_(X64Emitter& e, X86Compiler& c, InstrData& i, vcmpxxfp_op cmpop, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
+  // (VD.xyzw) = (VA.xyzw) OP (VB.xyzw) ? 0xFFFFFFFF : 0x00000000
+  // if (Rc) CR6 = all_equal | 0 | none_equal | 0
+  // If an element in either VA or VB is NaN the result will be 0x00000000
+  XmmVar v(c.newXmmVar());
+  switch (cmpop) {
+  // Supported ops:
+  default:
+    c.movaps(v, e.vr_value(va));
+    c.cmpps(v, e.vr_value(vb), imm(cmpop));
+    break;
+  // Emulated ops:
+  case vcmpxxfp_gt:
+    c.movaps(v, e.vr_value(vb));
+    c.cmpps(v, e.vr_value(va), imm(vcmpxxfp_lt));
+    break;
+  case vcmpxxfp_ge:
+    c.movaps(v, e.vr_value(vb));
+    c.cmpps(v, e.vr_value(va), imm(vcmpxxfp_le));
+    break;
+  }
+  e.update_vr_value(vd, v);
+  if (rc) {
+    InstrEmit_vcmp_cr6_(e, c, v);
+  }
+  e.TraceVR(vd, va, vb);
+  return 0;
 }
 
 XEEMITTER(vcmpeqfp,       0x100000C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxfp_(e, c, i, vcmpxxfp_eq, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpeqfp128,    VX128(6, 0),      VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxfp_(e, c, i, vcmpxxfp_eq, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
-
-XEEMITTER(vcmpequb,       0x10000006, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpequh,       0x10000046, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpequw,       0x10000086, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcmpequw128,    VX128(6, 512),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vcmpgefp,       0x100001C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxfp_(e, c, i, vcmpxxfp_ge, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgefp128,    VX128(6, 128),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxfp_(e, c, i, vcmpxxfp_ge, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
-
 XEEMITTER(vcmpgtfp,       0x100002C6, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxfp_(e, c, i, vcmpxxfp_gt, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgtfp128,    VX128(6, 256),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxfp_(e, c, i, vcmpxxfp_gt, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
 
+enum vcmpxxi_op {
+  vcmpxxi_eq          = 0,
+  vcmpxxi_gt_signed   = 1,
+  vcmpxxi_gt_unsigned = 2,
+};
+int InstrEmit_vcmpxxi_(X64Emitter& e, X86Compiler& c, InstrData& i, vcmpxxi_op cmpop, uint32_t width, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
+  // (VD.xyzw) = (VA.xyzw) OP (VB.xyzw) ? 0xFFFFFFFF : 0x00000000
+  // if (Rc) CR6 = all_equal | 0 | none_equal | 0
+  // If an element in either VA or VB is NaN the result will be 0x00000000
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(va));
+  switch (cmpop) {
+  case vcmpxxi_eq:
+    switch (width) {
+    case 1:
+      c.pcmpeqb(v, e.vr_value(vb));
+      break;
+    case 2:
+      c.pcmpeqw(v, e.vr_value(vb));
+      break;
+    case 4:
+      c.pcmpeqd(v, e.vr_value(vb));
+      break;
+    default: XEASSERTALWAYS(); return 1;
+    }
+    break;
+  case vcmpxxi_gt_signed:
+    switch (width) {
+    case 1:
+      c.pcmpgtb(v, e.vr_value(vb));
+      break;
+    case 2:
+      c.pcmpgtw(v, e.vr_value(vb));
+      break;
+    case 4:
+      c.pcmpgtd(v, e.vr_value(vb));
+      break;
+    default: XEASSERTALWAYS(); return 1;
+    }
+    break;
+  case vcmpxxi_gt_unsigned:
+    // Nasty, as there is no unsigned variant.
+    c.int3();
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  default: XEASSERTALWAYS(); return 1;
+  }
+  e.update_vr_value(vd, v);
+  if (rc) {
+    InstrEmit_vcmp_cr6_(e, c, v);
+  }
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
+XEEMITTER(vcmpequb,       0x10000006, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_eq, 1, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
+}
+XEEMITTER(vcmpequh,       0x10000046, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_eq, 2, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
+}
+XEEMITTER(vcmpequw,       0x10000086, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_eq, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
+}
+XEEMITTER(vcmpequw128,    VX128(6, 512),    VX128_R)(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_eq, 4, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
+}
 XEEMITTER(vcmpgtsb,       0x10000306, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_gt_signed, 1, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgtsh,       0x10000346, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_gt_signed, 2, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgtsw,       0x10000386, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_gt_signed, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgtub,       0x10000206, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_gt_unsigned, 1, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgtuh,       0x10000246, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_gt_unsigned, 2, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-
 XEEMITTER(vcmpgtuw,       0x10000286, VXR )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vcmpxxi_(e, c, i, vcmpxxi_gt_unsigned, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
 
 XEEMITTER(vctsxs,         0x100003CA, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -529,7 +640,6 @@ XEEMITTER(vexptefp,       0x1000018A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vexptefp128,    VX128_3(6, 1712), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -539,7 +649,6 @@ XEEMITTER(vlogefp,        0x100001CA, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vlogefp128,     VX128_3(6, 1776), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -581,7 +690,6 @@ XEEMITTER(vmaxfp,         0x1000040A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vmaxfp128,      VX128(6, 640),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -631,7 +739,6 @@ XEEMITTER(vminfp,         0x1000044A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vminfp128,      VX128(6, 704),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -992,7 +1099,6 @@ XEEMITTER(vpkshss,        0x1000018E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkshss128,     VX128(5, 512),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1002,7 +1108,6 @@ XEEMITTER(vpkswss,        0x100001CE, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkswss128,     VX128(5, 640),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1012,7 +1117,6 @@ XEEMITTER(vpkswus,        0x1000014E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkswus128,     VX128(5, 704),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1022,7 +1126,6 @@ XEEMITTER(vpkuhum,        0x1000000E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkuhum128,     VX128(5, 768),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1032,7 +1135,6 @@ XEEMITTER(vpkuhus,        0x1000008E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkuhus128,     VX128(5, 832),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1042,7 +1144,6 @@ XEEMITTER(vpkshus,        0x1000010E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkshus128,     VX128(5, 576),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1052,7 +1153,6 @@ XEEMITTER(vpkuwum,        0x1000004E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkuwum128,     VX128(5, 896),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1062,7 +1162,6 @@ XEEMITTER(vpkuwus,        0x100000CE, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vpkuwus128,     VX128(5, 960),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1077,7 +1176,6 @@ XEEMITTER(vrefp,          0x1000010A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vrefp128,       VX128_3(6, 1584), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1087,7 +1185,6 @@ XEEMITTER(vrfim,          0x100002CA, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vrfim128,       VX128_3(6, 816),  VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1097,7 +1194,6 @@ XEEMITTER(vrfin,          0x1000020A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vrfin128,       VX128_3(6, 880),  VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1107,7 +1203,6 @@ XEEMITTER(vrfip,          0x1000028A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vrfip128,       VX128_3(6, 944),  VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1117,7 +1212,6 @@ XEEMITTER(vrfiz,          0x1000024A, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vrfiz128,       VX128_3(6, 1008), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1137,7 +1231,6 @@ XEEMITTER(vrlw,           0x10000084, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vrlw128,        VX128(6, 80),     VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1208,7 +1301,6 @@ XEEMITTER(vsel,           0x1000002A, VXA )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vsel128,        VX128(5, 848),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1228,7 +1320,6 @@ XEEMITTER(vsldoi,         0x1000002C, VXA )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1243,7 +1334,6 @@ XEEMITTER(vslo,           0x1000040C, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vslo128,        VX128(5, 912),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1386,7 +1476,6 @@ XEEMITTER(vsraw,          0x10000384, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vsraw128,       VX128(6, 336),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1406,7 +1495,6 @@ XEEMITTER(vsro,           0x1000044C, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vsro128,        VX128(5, 976),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1416,7 +1504,6 @@ XEEMITTER(vsrw,           0x10000284, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vsrw128,        VX128(6, 464),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1522,7 +1609,6 @@ XEEMITTER(vupkhsb,        0x1000020E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vupkhsb128,     VX128(6, 896),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1542,7 +1628,6 @@ XEEMITTER(vupklsb,        0x1000028E, VX  )(X64Emitter& e, X86Compiler& c, Instr
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 XEEMITTER(vupklsb128,     VX128(6, 960),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1551,6 +1636,32 @@ XEEMITTER(vupklsb128,     VX128(6, 960),    VX128  )(X64Emitter& e, X86Compiler&
 XEEMITTER(vupklsh,        0x100002CE, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
+}
+
+__m128 half_to_float5_SSE2(__m128i h) {
+#define SSE_CONST4(name, val) static const __declspec(align(16)) uint name[4] = { (val), (val), (val), (val) }
+#define SSE_CONST(name) *(const __m128i *)&name
+#define SSE_CONSTF(name) *(const __m128 *)&name
+    SSE_CONST4(mask_nosign,         0x7fff);
+    SSE_CONST4(magic,               (254 - 15) << 23);
+    SSE_CONST4(was_infnan,          0x7bff);
+    SSE_CONST4(exp_infnan,          255 << 23);
+    __m128i mnosign     = SSE_CONST(mask_nosign);
+    __m128i expmant     = _mm_and_si128(mnosign, h);
+    __m128i justsign    = _mm_xor_si128(h, expmant);
+    __m128i expmant2    = expmant; // copy (just here for counting purposes)
+    __m128i shifted     = _mm_slli_epi32(expmant, 13);
+    __m128  scaled      = _mm_mul_ps(_mm_castsi128_ps(shifted), *(const __m128 *)&magic);
+    __m128i b_wasinfnan = _mm_cmpgt_epi32(expmant2, SSE_CONST(was_infnan));
+    __m128i sign        = _mm_slli_epi32(justsign, 16);
+    __m128  infnanexp   = _mm_and_ps(_mm_castsi128_ps(b_wasinfnan), SSE_CONSTF(exp_infnan));
+    __m128  sign_inf    = _mm_or_ps(_mm_castsi128_ps(sign), infnanexp);
+    __m128  final       = _mm_or_ps(scaled, sign_inf);
+    // ~11 SSE2 ops.
+    return final;
+#undef SSE_CONST4
+#undef CONST
+#undef CONSTF
 }
 
 XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1592,18 +1703,34 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(X64Emitter& e, X86Compiler&
     break;
   case 3: // VPACK_... 2 FLOAT16s
     {
-      // (VD.x) = fixed_16_to_32(VB.x)
-      // (VD.y) = fixed_16_to_32(VB.y)
+      // (VD.x) = fixed_16_to_32(VB.x (low))
+      // (VD.y) = fixed_16_to_32(VB.x (high))
       // (VD.z) = 0.0
       // (VD.w) = 1.0
       // 1 bit sign, 5 bit exponent, 10 bit mantissa
       // D3D10 half float format
       // TODO(benvanik): fixed_16_to_32 in SSE?
+      // TODO(benvanik): http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+      // Use _mm_cvtph_ps -- requires very modern processors (SSE5+)
+      // Unpacking half floats: http://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+      // Packing half floats: https://gist.github.com/rygorous/2156668
+      // Load source, move from tight pack of X16Y16.... to X16...Y16...
+      // Also zero out the high end.
+      c.int3();
+      c.movaps(vt, e.vr_value(vb));
+      c.save(vt);
+      c.lea(gt, vt.m128());
+      X86CompilerFuncCall* call = c.call(half_to_float5_SSE2);
+      uint32_t args[] = {kX86VarTypeGpq};
+      call->setPrototype(kX86FuncConvDefault, kX86VarTypeXmm, args, XECOUNT(args));
+      call->setArgument(0, gt);
+      call->setReturn(v);
+      // Select XY00.
+      c.xorps(vt, vt);
+      c.shufps(v, vt, imm(0x04));
       // {0.0, 0.0, 0.0, 1.0}
       c.mov(gt, imm(0x3F800000));
-      c.pinsrd(vt, gt.r32(), imm(3));
-      c.movaps(v, vt);
-      c.int3();
+      c.pinsrd(v, gt.r32(), imm(3));
     }
     break;
   default:
@@ -1712,10 +1839,6 @@ void X64RegisterEmitCategoryAltivec() {
   XEREGISTERINSTR(vcmpbfp128,     VX128(6, 384));
   XEREGISTERINSTR(vcmpeqfp,       0x100000C6);
   XEREGISTERINSTR(vcmpeqfp128,    VX128(6, 0));
-  XEREGISTERINSTR(vcmpequb,       0x10000006);
-  XEREGISTERINSTR(vcmpequh,       0x10000046);
-  XEREGISTERINSTR(vcmpequw,       0x10000086);
-  XEREGISTERINSTR(vcmpequw128,    VX128(6, 512));
   XEREGISTERINSTR(vcmpgefp,       0x100001C6);
   XEREGISTERINSTR(vcmpgefp128,    VX128(6, 128));
   XEREGISTERINSTR(vcmpgtfp,       0x100002C6);
@@ -1723,8 +1846,12 @@ void X64RegisterEmitCategoryAltivec() {
   XEREGISTERINSTR(vcmpgtsb,       0x10000306);
   XEREGISTERINSTR(vcmpgtsh,       0x10000346);
   XEREGISTERINSTR(vcmpgtsw,       0x10000386);
+  XEREGISTERINSTR(vcmpequb,       0x10000006);
   XEREGISTERINSTR(vcmpgtub,       0x10000206);
+  XEREGISTERINSTR(vcmpequh,       0x10000046);
   XEREGISTERINSTR(vcmpgtuh,       0x10000246);
+  XEREGISTERINSTR(vcmpequw,       0x10000086);
+  XEREGISTERINSTR(vcmpequw128,    VX128(6, 512));
   XEREGISTERINSTR(vcmpgtuw,       0x10000286);
   XEREGISTERINSTR(vctsxs,         0x100003CA);
   XEREGISTERINSTR(vctuxs,         0x1000038A);

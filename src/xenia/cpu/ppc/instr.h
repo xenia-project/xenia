@@ -348,7 +348,7 @@ typedef struct {
       uint32_t        VD128l  : 5;
       uint32_t                : 6;
     } VX128_P;
-    // kXEPPCInstrFormatVX128
+    // kXEPPCInstrFormatVX128_R
     struct {
       // VD128 = VD128l | (VD128h << 5)
       // VA128 = VA128l | (VA128h << 5) | (VA128H << 6)
