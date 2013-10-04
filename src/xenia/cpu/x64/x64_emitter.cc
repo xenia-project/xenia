@@ -1886,7 +1886,7 @@ XmmVar X64Emitter::ReadMemoryXmm(
   }
 
   // Rebase off of memory base pointer.
-  GpVar real_address = TouchMemoryAddress(cia, addr);
+  GpVar real_address = TouchMemoryAddress(cia, aligned_addr);
 
   XmmVar value(c.newXmmVar());
   c.movaps(value, xmmword_ptr(real_address));
@@ -1955,9 +1955,19 @@ void X64Emitter::WriteMemoryXmm(
   X86Compiler& c = compiler_;
 
   // Align memory address.
+  GpVar aligned_addr(c.newGpVar());
+  c.mov(aligned_addr, addr);
+  switch (alignment) {
+  case 4:
+    c.and_(aligned_addr, imm(~0xF));
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 
   // Rebase off of memory base pointer.
-  GpVar real_address = TouchMemoryAddress(cia, addr);
+  GpVar real_address = TouchMemoryAddress(cia, aligned_addr);
 
   // Byte swap.
   // TODO(benvanik): clone value before modifying it?
