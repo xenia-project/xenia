@@ -1674,6 +1674,48 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(X64Emitter& e, X86Compiler&
   GpVar gt(c.newGpVar());
   XmmVar vt(c.newXmmVar());
   switch (type) {
+  case 0: // VPACK_D3DCOLOR
+    {
+      // http://hlssmod.net/he_code/public/pixelwriter.h
+      // ARGB (WXYZ) -> RGBA (XYZW)
+      c.int3(); // UNTESTED CONVERSION
+      // zzzzZZZZzzzzARGB
+      c.movaps(vt, e.vr_value(vb));
+      // zzzzZZZZzzzzARGB
+      // 000R000G000B000A
+      c.mov(gt, imm(
+          ((1ull << 7) << 56) |
+          ((1ull << 7) << 48) |
+          ((1ull << 7) << 40) |
+          ((0ull) << 32) | // B
+          ((1ull << 7) << 24) |
+          ((1ull << 7) << 16) |
+          ((1ull << 7) << 8) |
+          ((3ull) << 0)) // A
+          ); // lo
+      c.movq(v, gt);
+      c.mov(gt, imm(
+          ((1ull << 7) << 56) |
+          ((1ull << 7) << 48) |
+          ((1ull << 7) << 40) |
+          ((2ull) << 32) | // R
+          ((1ull << 7) << 24) |
+          ((1ull << 7) << 16) |
+          ((1ull << 7) << 8) |
+          ((1ull) << 0)) // G
+          ); // hi
+      c.pinsrq(v, gt, imm(1));
+      c.pshufb(vt, v);
+      // {256*R.0, 256*G.0, 256*B.0, 256*A.0}
+      c.cvtdq2ps(v, vt);
+      // {R.0, G.0, B.0 A.0}
+      // 1/256 = 0.00390625 = 0x3B800000
+      c.mov(gt, imm(0x3B800000));
+      c.movd(vt, gt.r32());
+      c.shufps(vt, vt, imm(0));
+      c.mulps(v, vt);
+    }
+    break;
   case 1: // VPACK_NORMSHORT2
     {
       // (VD.x) = 3.0 + (VB.x)*2^-22
