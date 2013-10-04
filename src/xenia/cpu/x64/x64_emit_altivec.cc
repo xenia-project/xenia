@@ -1678,7 +1678,6 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(X64Emitter& e, X86Compiler&
     {
       // http://hlssmod.net/he_code/public/pixelwriter.h
       // ARGB (WXYZ) -> RGBA (XYZW)
-      c.int3(); // UNTESTED CONVERSION
       // zzzzZZZZzzzzARGB
       c.movaps(vt, e.vr_value(vb));
       // zzzzZZZZzzzzARGB
