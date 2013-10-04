@@ -1251,19 +1251,17 @@ XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(X64Emitter& e, X86Compiler&
     switch (y) {
     case 1:
       // X Y Z W -> Y Z W X
-      c.shufps(v, v, imm(0x6C));
+      c.shufps(v, v, imm(0x39));
       break;
     case 2:
       // X Y Z W -> Z W X Y
-      c.shufps(v, v, imm(0xB1));
+      c.shufps(v, v, imm(0x4E));
       break;
     case 3:
       // X Y Z W -> W X Y Z
-      c.shufps(v, v, imm(0xC6));
+      c.shufps(v, v, imm(0x93));
       break;
-    default:
-      XEASSERTALWAYS();
-      return 1;
+    default: XEASSERTALWAYS(); return 1;
     }
   }
   uint32_t blend_mask =

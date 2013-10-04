@@ -1882,9 +1882,9 @@ XEDISASMR(vspltisw128,    VX128_3(6, 1904), VX128_3)(InstrData& i, InstrDisasm& 
 XEDISASMR(vspltw,         0x1000028C, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vspltw", "Vector Splat Word",
          InstrDisasm::kVMX);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
-  //d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  d.AddUImmOperand(i.VX.VA, 1);
   return d.Finish();
 }
 
