@@ -334,18 +334,95 @@ XEEMITTER(fmaddx,       0xFC00003A, A  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(fmaddsx,      0xEC00003A, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- (frA x frC) + frB
+
+  XmmVar v(c.newXmmVar());
+  // TODO(benvanik): I'm sure there's an SSE op for this.
+  // NOTE: we do (frB - [frA x frC]) as that's pretty much the same.
+  c.movq(v, e.fpr_value(i.A.FRA));
+  c.mulsd(v, e.fpr_value(i.A.FRC));
+  c.addsd(v, e.fpr_value(i.A.FRB));
+#if defined(ROUND_TO_SINGLE)
+  // TODO(benvanik): check rounding mode? etc?
+  // This converts to a single then back to a double to approximate the
+  // rounding on the 360.
+  c.cvtsd2ss(v, v);
+  c.cvtss2sd(v, v);
+#endif  // ROUND_TO_SINGLE
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
+
+  return 0;
 }
 
 XEEMITTER(fmsubx,       0xFC000038, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- (frA x frC) - frB
+
+  XmmVar v(c.newXmmVar());
+  // TODO(benvanik): I'm sure there's an SSE op for this.
+  // NOTE: we do (frB - [frA x frC]) as that's pretty much the same.
+  c.movq(v, e.fpr_value(i.A.FRA));
+  c.mulsd(v, e.fpr_value(i.A.FRC));
+  c.subsd(v, e.fpr_value(i.A.FRB));
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
+
+  return 0;
 }
 
 XEEMITTER(fmsubsx,      0xEC000038, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- (frA x frC) - frB
+
+  XmmVar v(c.newXmmVar());
+  // TODO(benvanik): I'm sure there's an SSE op for this.
+  // NOTE: we do (frB - [frA x frC]) as that's pretty much the same.
+  c.movq(v, e.fpr_value(i.A.FRA));
+  c.mulsd(v, e.fpr_value(i.A.FRC));
+  c.subsd(v, e.fpr_value(i.A.FRB));
+#if defined(ROUND_TO_SINGLE)
+  // TODO(benvanik): check rounding mode? etc?
+  // This converts to a single then back to a double to approximate the
+  // rounding on the 360.
+  c.cvtsd2ss(v, v);
+  c.cvtss2sd(v, v);
+#endif  // ROUND_TO_SINGLE
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  e.TraceFPR(i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
+
+  return 0;
 }
 
 XEEMITTER(fnmaddx,      0xFC00003E, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -620,12 +697,7 @@ XEEMITTER(frspx,        0xFC000018, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 
 // Floating-point compare (A-11)
 
-XEEMITTER(fcmpo,        0xFC000040, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(fcmpu,        0xFC000000, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+int InstrEmit_fcmpx_(X64Emitter& e, X86Compiler& c, InstrData& i, bool ordered) {
   // if (FRA) is a NaN or (FRB) is a NaN then
   //   c <- 0b0001
   // else if (FRA) < (FRB) then
@@ -639,8 +711,38 @@ XEEMITTER(fcmpu,        0xFC000000, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // CR[4*BF:4*BF+3] <- c
   // if (FRA) is an SNaN or (FRB) is an SNaN then
   //   VXSNAN <- 1
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+ 
+  GpVar cc(c.newGpVar());
+  c.xor_(cc, cc);
+
+  c.ucomisd(e.fpr_value(i.X.RA), e.fpr_value(i.X.RB));
+
+  GpVar gt(c.newGpVar());
+  c.mov(gt, imm(0x1)); // nan/etc via PF
+  c.cmovp(cc, gt);
+  c.mov(gt, imm(0x2)); // ==
+  c.cmove(cc, gt);
+  if (i.X.RA != i.X.RB) {
+    c.mov(gt, imm(0x8)); // <
+    c.cmovl(cc, gt);
+    c.mov(gt, imm(0x4)); // >
+    c.cmovg(cc, gt);
+  }
+
+  // TODO(benvanik): update FPCC for mffsx/etc
+
+  const uint32_t crf = i.X.RT >> 2;
+  e.update_cr_value(crf, cc);
+
+  // TODO(benvanik): update VXSNAN
+
+  return 0;
+}
+XEEMITTER(fcmpo,        0xFC000040, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_fcmpx_(e, c, i, true);
+}
+XEEMITTER(fcmpu,        0xFC000000, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_fcmpx_(e, c, i, false);
 }
 
 
