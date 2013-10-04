@@ -442,38 +442,27 @@ XEEMITTER(vcmpbfp128,     VX128(6, 384),    VX128_R)(X64Emitter& e, X86Compiler&
 void InstrEmit_vcmp_cr6_(X64Emitter& e, X86Compiler& c, XmmVar& v) {
   // Testing for all 1's and all 0's.
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
-  // Since none_equal and all_equal are mutually exclusive we optimize
-  // a bit here. This is still terrible.
-  GpVar lo(c.newGpVar());
-  GpVar hi(c.newGpVar());
-  c.pextrq(hi.m64(), v, imm(1));
-  c.movq(lo.m64(), v);
 
   GpVar gt(c.newGpVar());
   GpVar cr(c.newGpVar());
   c.xor_(cr, cr);
-  Label skip(c.newLabel());
 
-  // cmp with 0xFF... and set all_equal
-  c.mov(gt, lo);
-  c.and_(gt, hi);
-  c.test(gt, imm(0));
-  // !eq = all_equal
-  // all_equal= 0b1000
-  c.mov(gt, imm(0x8)); // 0b1000
-  c.cmovne(cr, gt);
-  c.jne(skip);
+  // We do this fast by extracting the high bits (as all bits are the same)
+  // and testing those.
+  GpVar bmask(c.newGpVar());
+  c.pmovmskb(bmask, v);
 
-  // cmp with 0 and set none_equal
-  c.mov(gt, lo);
-  c.or_(gt, hi);
-  c.test(gt, imm(0));
-  // eq = none_equal
-  // none_equal= 0b0010
-  c.mov(gt, imm(0x2)); // 0b0010
-  c.cmove(cr, gt);
+  // zero = none_equal
+  c.test(bmask, bmask);
+  c.mov(gt, imm(0x2)); // none_equal=0b0010
+  c.cmovz(cr, gt);
 
-  c.bind(skip);
+  // !zero = all_equal
+  c.not_(bmask);
+  c.test(bmask, bmask);
+  c.mov(gt, imm(0x8)); // all_equal=0b1000
+  c.cmovz(cr, gt);
+
   e.update_cr_value(6, cr);
 }
 
