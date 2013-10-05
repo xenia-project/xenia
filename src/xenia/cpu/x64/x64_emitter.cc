@@ -1869,6 +1869,7 @@ GpVar X64Emitter::ReadMemory(
   return value;
 }
 
+static __m128i __xmm_byte_swap = _mm_set_epi8( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15);
 XmmVar X64Emitter::ReadMemoryXmm(
     uint32_t cia, GpVar& addr, uint32_t alignment) {
   X86Compiler& c = compiler_;
@@ -1892,15 +1893,9 @@ XmmVar X64Emitter::ReadMemoryXmm(
   c.movaps(value, xmmword_ptr(real_address));
 
   // Byte swap.
-  // http://www.asmcommunity.net/forums/topic/?id=29743
-  XmmVar temp(c.newXmmVar());
-  c.pshufd(value, value, imm(0x1B));  // 00011011b
-  c.pshuflw(value, value, imm(0xB1)); // 10110001b
-  c.pshufhw(value, value, imm(0xB1)); // 10110001b
-  c.movdqa(temp, value);
-  c.psrlw(temp, imm(8));
-  c.psllw(value, imm(8));
-  c.por(value, temp);
+  GpVar byte_swap_addr(c.newGpVar());
+  c.mov(byte_swap_addr, imm((sysint_t)&__xmm_byte_swap));
+  c.pshufb(value, xmmword_ptr(byte_swap_addr));
 
   return value;
 }
@@ -1971,14 +1966,9 @@ void X64Emitter::WriteMemoryXmm(
 
   // Byte swap.
   // TODO(benvanik): clone value before modifying it?
-  XmmVar temp(c.newXmmVar());
-  c.pshufd(value, value, imm(0x1B));  // 00011011b
-  c.pshuflw(value, value, imm(0xB1)); // 10110001b
-  c.pshufhw(value, value, imm(0xB1)); // 10110001b
-  c.movdqa(temp, value);
-  c.psrlw(temp, imm(8));
-  c.psllw(value, imm(8));
-  c.por(value, temp);
+  GpVar byte_swap_addr(c.newGpVar());
+  c.mov(byte_swap_addr, imm((sysint_t)&__xmm_byte_swap));
+  c.pshufb(value, xmmword_ptr(byte_swap_addr));
 
   c.movaps(xmmword_ptr(real_address), value);
 }
