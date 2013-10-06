@@ -89,9 +89,79 @@ XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_lvewx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
+// Shuffle masks to shift the values over and insert zeros from the low bits.
+// We insert 0 into byte 15 in left and into byte 0 in right so that we can
+// or the two vectors.
+static __m128i __lvsl_table_left[16] = {
+  _mm_set_epi8(15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0), // unused
+  _mm_set_epi8(14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15),
+  _mm_set_epi8(13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15),
+  _mm_set_epi8(12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15),
+  _mm_set_epi8(11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15),
+  _mm_set_epi8(10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+};
+static __m128i __lvsl_table_right[16] = {
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0), // unused
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6),
+  _mm_set_epi8( 0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5),
+  _mm_set_epi8( 0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4),
+  _mm_set_epi8( 0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3),
+  _mm_set_epi8( 0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2),
+  _mm_set_epi8( 0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1),
+};
 int InstrEmit_lvsl_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
+  }
+  GpVar sh(c.newGpVar());
+  c.mov(sh, ea);
+  c.and_(sh, imm(0xF));
+  XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
+  // If fully aligned skip complex work and just use left side.
+  Label done(c.newLabel());
+  c.test(sh, sh);
+  c.jz(done);
+  {
+    // Load right side, do shuffles.
+    c.add(ea, imm(0xF));
+    XmmVar v_r = e.ReadMemoryXmm(i.address, ea, 4);
+    GpVar gt(c.newGpVar());
+    c.xor_(gt, gt);
+    c.pinsrb(v, gt.r8(), imm(15));
+    c.pinsrb(v_r, gt.r8(), imm(0));
+    c.shl(sh, imm(4)); // table offset = (16b * sh)
+    c.mov(gt, imm((sysint_t)__lvsl_table_left));
+    c.pshufb(v, xmmword_ptr(gt, sh));
+    c.mov(gt, imm((sysint_t)__lvsl_table_right));
+    c.pshufb(v_r, xmmword_ptr(gt, sh));
+    c.por(v, v_r);
+  }
+  c.bind(done);
+  c.shufps(v, v, imm(0x1B));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd);
+  return 0;
 }
 XEEMITTER(lvsl,           0x7C00000C, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvsl_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
@@ -183,9 +253,37 @@ XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_stvx128(e, c, i);
 }
 
+// The lvlx/lvrx/etc instructions are in Cell docs only:
+// https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
 int InstrEmit_lvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
+  }
+  GpVar sh(c.newGpVar());
+  c.mov(sh, ea);
+  c.and_(sh, imm(0xF));
+  XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
+  // If fully aligned skip complex work.
+  Label done(c.newLabel());
+  c.test(sh, sh);
+  c.jz(done);
+  {
+    // Shift left by the number of bytes offset and fill with zeros.
+    // We reuse the lvsl table here, as it does that for us.
+    GpVar gt(c.newGpVar());
+    c.xor_(gt, gt);
+    c.pinsrb(v, gt.r8(), imm(15));
+    c.shl(sh, imm(4)); // table offset = (16b * sh)
+    c.mov(gt, imm((sysint_t)__lvsl_table_left));
+    c.pshufb(v, xmmword_ptr(gt, sh));
+  }
+  c.bind(done);
+  c.shufps(v, v, imm(0x1B));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd);
+  return 0;
 }
 XEEMITTER(lvlx,           0x7C00040E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvlx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
@@ -201,8 +299,34 @@ XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(X64Emitter& e, X86Compiler&
 }
 
 int InstrEmit_lvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
+  }
+  GpVar sh(c.newGpVar());
+  c.mov(sh, ea);
+  c.and_(sh, imm(0xF));
+  XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
+  // If fully aligned skip complex work.
+  Label done(c.newLabel());
+  c.test(sh, sh);
+  c.jz(done);
+  {
+    // Shift left by the number of bytes offset and fill with zeros.
+    // We reuse the lvsl table here, as it does that for us.
+    GpVar gt(c.newGpVar());
+    c.xor_(gt, gt);
+    c.pinsrb(v, gt.r8(), imm(0));
+    c.shl(sh, imm(4)); // table offset = (16b * sh)
+    c.mov(gt, imm((sysint_t)__lvsl_table_right));
+    c.pshufb(v, xmmword_ptr(gt, sh));
+  }
+  c.bind(done);
+  c.shufps(v, v, imm(0x1B));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd);
+  return 0;
 }
 XEEMITTER(lvrx,           0x7C00044E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvrx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
