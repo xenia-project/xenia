@@ -1877,8 +1877,10 @@ XmmVar X64Emitter::ReadMemoryXmm(
   // Align memory address.
   GpVar aligned_addr(c.newGpVar());
   c.mov(aligned_addr, addr);
+  bool aligned = false;
   switch (alignment) {
   case 4:
+    aligned = true;
     c.and_(aligned_addr, imm(~0xF));
     break;
   default:
@@ -1890,7 +1892,11 @@ XmmVar X64Emitter::ReadMemoryXmm(
   GpVar real_address = TouchMemoryAddress(cia, aligned_addr);
 
   XmmVar value(c.newXmmVar());
-  c.movaps(value, xmmword_ptr(real_address));
+  if (aligned) {
+    c.movaps(value, xmmword_ptr(real_address));
+  } else {
+    c.movups(value, xmmword_ptr(real_address));
+  }
 
   // Byte swap.
   GpVar byte_swap_addr(c.newGpVar());
@@ -1952,9 +1958,11 @@ void X64Emitter::WriteMemoryXmm(
   // Align memory address.
   GpVar aligned_addr(c.newGpVar());
   c.mov(aligned_addr, addr);
+  bool aligned = false;
   switch (alignment) {
   case 4:
     c.and_(aligned_addr, imm(~0xF));
+    aligned = true;
     break;
   default:
     XEASSERTALWAYS();
@@ -1970,7 +1978,11 @@ void X64Emitter::WriteMemoryXmm(
   c.mov(byte_swap_addr, imm((sysint_t)&__xmm_byte_swap));
   c.pshufb(value, xmmword_ptr(byte_swap_addr));
 
-  c.movaps(xmmword_ptr(real_address), value);
+  if (aligned) {
+    c.movaps(xmmword_ptr(real_address), value);
+  } else {
+    c.movups(xmmword_ptr(real_address), value);
+  }
 }
 
 GpVar X64Emitter::get_uint64(uint64_t value) {
