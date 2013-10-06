@@ -105,11 +105,12 @@ public:
   AsmJit::GpVar TouchMemoryAddress(uint32_t cia, AsmJit::GpVar& addr);
   AsmJit::GpVar ReadMemory(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, bool acquire = false);
-  AsmJit::XmmVar ReadMemoryXmm(
-      uint32_t cia, AsmJit::GpVar& addr, uint32_t alignment);
   void WriteMemory(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t size, AsmJit::GpVar& value,
       bool release = false);
+  void ByteSwapXmm(AsmJit::XmmVar& value);
+  AsmJit::XmmVar ReadMemoryXmm(
+      uint32_t cia, AsmJit::GpVar& addr, uint32_t alignment);
   void WriteMemoryXmm(
       uint32_t cia, AsmJit::GpVar& addr, uint32_t alignment,
       AsmJit::XmmVar& value);

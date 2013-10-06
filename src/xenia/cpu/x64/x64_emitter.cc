@@ -1869,43 +1869,6 @@ GpVar X64Emitter::ReadMemory(
   return value;
 }
 
-static __m128i __xmm_byte_swap = _mm_set_epi8( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15);
-XmmVar X64Emitter::ReadMemoryXmm(
-    uint32_t cia, GpVar& addr, uint32_t alignment) {
-  X86Compiler& c = compiler_;
-
-  // Align memory address.
-  GpVar aligned_addr(c.newGpVar());
-  c.mov(aligned_addr, addr);
-  bool aligned = false;
-  switch (alignment) {
-  case 4:
-    aligned = true;
-    c.and_(aligned_addr, imm(~0xF));
-    break;
-  default:
-    XEASSERTALWAYS();
-    break;
-  }
-
-  // Rebase off of memory base pointer.
-  GpVar real_address = TouchMemoryAddress(cia, aligned_addr);
-
-  XmmVar value(c.newXmmVar());
-  if (aligned) {
-    c.movaps(value, xmmword_ptr(real_address));
-  } else {
-    c.movups(value, xmmword_ptr(real_address));
-  }
-
-  // Byte swap.
-  GpVar byte_swap_addr(c.newGpVar());
-  c.mov(byte_swap_addr, imm((sysint_t)&__xmm_byte_swap));
-  c.pshufb(value, xmmword_ptr(byte_swap_addr));
-
-  return value;
-}
-
 void X64Emitter::WriteMemory(
     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
     bool release) {
@@ -1951,6 +1914,49 @@ void X64Emitter::WriteMemory(
   }
 }
 
+static __m128i __xmm_byte_swap = _mm_set_epi8( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15);
+void X64Emitter::ByteSwapXmm(XmmVar& value) {
+  X86Compiler& c = compiler_;
+  // TODO(benvanik): clone value before modifying it?
+  GpVar byte_swap_addr(c.newGpVar());
+  c.mov(byte_swap_addr, imm((sysint_t)&__xmm_byte_swap));
+  c.pshufb(value, xmmword_ptr(byte_swap_addr));
+}
+
+XmmVar X64Emitter::ReadMemoryXmm(
+    uint32_t cia, GpVar& addr, uint32_t alignment) {
+  X86Compiler& c = compiler_;
+
+  // Align memory address.
+  GpVar aligned_addr(c.newGpVar());
+  c.mov(aligned_addr, addr);
+  bool aligned = false;
+  switch (alignment) {
+  case 4:
+    aligned = true;
+    c.and_(aligned_addr, imm(~0xF));
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
+
+  // Rebase off of memory base pointer.
+  GpVar real_address = TouchMemoryAddress(cia, aligned_addr);
+
+  XmmVar value(c.newXmmVar());
+  if (aligned) {
+    c.movaps(value, xmmword_ptr(real_address));
+  } else {
+    c.movups(value, xmmword_ptr(real_address));
+  }
+
+  // Byte swap.
+  ByteSwapXmm(value);
+
+  return value;
+}
+
 void X64Emitter::WriteMemoryXmm(
     uint32_t cia, GpVar& addr, uint32_t alignment, XmmVar& value) {
   X86Compiler& c = compiler_;
@@ -1973,10 +1979,7 @@ void X64Emitter::WriteMemoryXmm(
   GpVar real_address = TouchMemoryAddress(cia, aligned_addr);
 
   // Byte swap.
-  // TODO(benvanik): clone value before modifying it?
-  GpVar byte_swap_addr(c.newGpVar());
-  c.mov(byte_swap_addr, imm((sysint_t)&__xmm_byte_swap));
-  c.pshufb(value, xmmword_ptr(byte_swap_addr));
+  ByteSwapXmm(value);
 
   if (aligned) {
     c.movaps(xmmword_ptr(real_address), value);
