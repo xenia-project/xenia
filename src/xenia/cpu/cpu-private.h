@@ -18,6 +18,7 @@ DECLARE_bool(trace_registers);
 DECLARE_bool(trace_branches);
 DECLARE_bool(trace_user_calls);
 DECLARE_bool(trace_kernel_calls);
+DECLARE_uint64(trace_thread_mask);
 
 DECLARE_string(load_module_map);
 

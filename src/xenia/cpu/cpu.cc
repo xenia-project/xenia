@@ -21,6 +21,8 @@ DEFINE_bool(trace_user_calls, false,
     "Trace all user function calls.");
 DEFINE_bool(trace_kernel_calls, false,
     "Trace all kernel function calls.");
+DEFINE_uint64(trace_thread_mask, -1,
+    "Trace threads with IDs in the mask, or -1 for all.");
 
 
 // Debugging:

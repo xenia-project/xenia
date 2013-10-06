@@ -77,6 +77,10 @@ void _cdecl XeTraceKernelCall(
     xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
     KernelExport* kernel_export) {
   uint32_t thread_id = state->thread_state->thread_id();
+  if (!((1ull << thread_id) & FLAGS_trace_thread_mask)) {
+    return;
+  }
+
   xe_log_line("", thread_id, "XeTraceKernelCall", 't',
               "KERNEL CALL: %.8X -> k.%.8X (%s)%s",
               (uint32_t)call_ia - 4, (uint32_t)cia,
@@ -89,6 +93,10 @@ void _cdecl XeTraceUserCall(
     xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
     FunctionSymbol* fn) {
   uint32_t thread_id = state->thread_state->thread_id();
+  if (!((1ull << thread_id) & FLAGS_trace_thread_mask)) {
+    return;
+  }
+
   xe_log_line("", thread_id, "XeTraceUserCall", 't',
               "USER CALL %.8X -> u.%.8X (%s)",
               (uint32_t)call_ia - 4, (uint32_t)cia, fn->name());
@@ -96,6 +104,11 @@ void _cdecl XeTraceUserCall(
 
 void _cdecl XeTraceBranch(
     xe_ppc_state_t* state, uint64_t cia, uint64_t target_ia) {
+  uint32_t thread_id = state->thread_state->thread_id();
+  if (!((1ull << thread_id) & FLAGS_trace_thread_mask)) {
+    return;
+  }
+
   switch (target_ia) {
   case kXEPPCRegLR:
     target_ia = state->lr;
@@ -105,7 +118,6 @@ void _cdecl XeTraceBranch(
     break;
   }
 
-  uint32_t thread_id = state->thread_state->thread_id();
   xe_log_line("", thread_id, "XeTraceBranch", 't',
               "BRANCH %.8X -> b.%.8X",
               (uint32_t)cia, (uint32_t)target_ia);
@@ -117,6 +129,11 @@ void _cdecl XeTraceFPR(
   char buffer[2048];
   buffer[0] = 0;
   int offset = 0;
+
+  uint32_t thread_id = state->thread_state->thread_id();
+  if (!((1ull << thread_id) & FLAGS_trace_thread_mask)) {
+    return;
+  }
 
   offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
     "%.8X:", state->cia);
@@ -140,7 +157,6 @@ void _cdecl XeTraceFPR(
         "\nf%.2d = %e", fpr4, state->f[fpr4]);
   }
 
-  uint32_t thread_id = state->thread_state->thread_id();
   xe_log_line("", thread_id, "XeTraceFPR", 't', buffer);
 }
 
@@ -150,6 +166,11 @@ void _cdecl XeTraceVR(
   char buffer[2048];
   buffer[0] = 0;
   int offset = 0;
+
+  uint32_t thread_id = state->thread_state->thread_id();
+  if (!((1ull << thread_id) & FLAGS_trace_thread_mask)) {
+    return;
+  }
 
   offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
     "%.8X:", state->cia);
@@ -183,7 +204,6 @@ void _cdecl XeTraceVR(
         state->v[vr4].x, state->v[vr4].y, state->v[vr4].z, state->v[vr4].w);
   }
 
-  uint32_t thread_id = state->thread_state->thread_id();
   xe_log_line("", thread_id, "XeTraceVR", 't', buffer);
 }
 
@@ -192,6 +212,11 @@ void _cdecl XeTraceInstruction(
   char buffer[2048];
   buffer[0] = 0;
   int offset = 0;
+
+  uint32_t thread_id = state->thread_state->thread_id();
+  if (!((1ull << thread_id) & FLAGS_trace_thread_mask)) {
+    return;
+  }
 
   if (FLAGS_trace_registers) {
     offset += xesnprintfa(buffer + offset, XECOUNT(buffer) - offset,
@@ -238,7 +263,6 @@ void _cdecl XeTraceInstruction(
         i.type ? i.type->name : "<unknown>");
   }
 
-  uint32_t thread_id = state->thread_state->thread_id();
   xe_log_line("", thread_id, "XeTraceInstruction", 't', buffer);
 
   // if (cia == 0x82012074) {
