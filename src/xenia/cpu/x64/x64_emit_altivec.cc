@@ -1171,9 +1171,35 @@ XEEMITTER(vor128,         VX128(5, 720),    VX128  )(X64Emitter& e, X86Compiler&
   return InstrEmit_vor_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+// TODO(benvanik): implement this for real!
+__m128i __emulated_vperm(__m128i va, __m128i vb, __m128i vc) {
+  __m128i result = _mm_setzero_si128();
+  for (size_t i = 0; i < 16; i++) {
+    const size_t b = vc.m128i_u8[i] & 0x1F;
+    result.m128i_u8[i] = b < 16 ?
+        va.m128i_u8[15 - b] :
+        vb.m128i_u8[15 - (b - 16)];
+  }
+  return result;
+}
 int InstrEmit_vperm_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Call emulation function.
+  XmmVar tva(c.newXmmVar()), tvb(c.newXmmVar()), tvc(c.newXmmVar());
+  GpVar pva(c.newGpVar()), pvb(c.newGpVar()), pvc(c.newGpVar());
+  c.lea(pva, e.vr_value(va).m128());
+  c.lea(pvb, e.vr_value(vb).m128());
+  c.lea(pvc, e.vr_value(vc).m128());
+  XmmVar v(c.newXmmVar());
+  X86CompilerFuncCall* call = c.call(__emulated_vperm);
+  uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq, kX86VarTypeGpq};
+  call->setPrototype(kX86FuncConvDefault, kX86VarTypeXmm, args, XECOUNT(args));
+  call->setArgument(0, pva);
+  call->setArgument(1, pvb);
+  call->setArgument(2, pvc);
+  call->setReturn(v);
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb, vc);
+  return 0;
 }
 XEEMITTER(vperm,          0x1000002B, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_vperm_(e, c, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
