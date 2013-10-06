@@ -48,6 +48,10 @@ namespace x64 {
 #define VX128_3_VD128 (i.VX128_3.VD128l | (i.VX128_3.VD128h << 5))
 #define VX128_3_VB128 (i.VX128_3.VB128l | (i.VX128_3.VB128h << 5))
 #define VX128_3_IMM   (i.VX128_3.IMM)
+#define VX128_5_VD128 (i.VX128_5.VD128l | (i.VX128_5.VD128h << 5))
+#define VX128_5_VA128 (i.VX128_5.VA128l | (i.VX128_5.VA128h << 5))
+#define VX128_5_VB128 (i.VX128_5.VB128l | (i.VX128_5.VB128h << 5))
+#define VX128_5_SH    (i.VX128_5.SH)
 #define VX128_R_VD128 (i.VX128_R.VD128l | (i.VX128_R.VD128h << 5))
 #define VX128_R_VA128 (i.VX128_R.VA128l | (i.VX128_R.VA128h << 5) | (i.VX128_R.VA128H << 6))
 #define VX128_R_VB128 (i.VX128_R.VB128l | (i.VX128_R.VB128h << 5))
@@ -1184,7 +1188,6 @@ __m128i __emulated_vperm(__m128i va, __m128i vb, __m128i vc) {
 }
 int InstrEmit_vperm_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   // Call emulation function.
-  XmmVar tva(c.newXmmVar()), tvb(c.newXmmVar()), tvc(c.newXmmVar());
   GpVar pva(c.newGpVar()), pvb(c.newGpVar()), pvc(c.newGpVar());
   c.lea(pva, e.vr_value(va).m128());
   c.lea(pvb, e.vr_value(vb).m128());
@@ -1453,13 +1456,37 @@ XEEMITTER(vslb,           0x10000104, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
+int InstrEmit_vsldoi_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t sh) {
+  // (VD) <- ((VA) || (VB)) << (SH << 3)
+  if (!sh) {
+    // No shift?
+    e.update_vr_value(vd, e.vr_value(va));
+    e.TraceVR(vd, va, vb);
+    return 0;
+  }
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(va));
+  XmmVar v_r(c.newXmmVar());
+  c.movaps(v_r, e.vr_value(vb));
+  // (VA << SH) OR (VB >> (16 - SH))
+  GpVar gt(c.newGpVar());
+  c.xor_(gt, gt);
+  c.pinsrb(v, gt.r8(), imm(15));
+  c.pinsrb(v_r, gt.r8(), imm(0));
+  c.mov(gt, imm((sysint_t)&__lvsl_table_left[sh]));
+  c.pshufb(v, xmmword_ptr(gt));
+  c.mov(gt, imm((sysint_t)&__lvsl_table_right[sh]));
+  c.pshufb(v_r, xmmword_ptr(gt));
+  c.por(v, v_r);
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
 XEEMITTER(vsldoi,         0x1000002C, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsldoi_(e, c, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC & 0xF);
 }
 XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsldoi_(e, c, VX128_5_VD128, VX128_5_VA128, VX128_5_VB128, VX128_5_SH);
 }
 
 XEEMITTER(vslh,           0x10000144, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
