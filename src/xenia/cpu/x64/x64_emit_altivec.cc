@@ -380,6 +380,7 @@ XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_lvrx128(e, c, i);
 }
 
+// TODO(benvanik): implement for real - this is in the memcpy path.
 static void __emulated_stvlx(uint64_t addr, __m128i vd) {
   // addr here is the fully translated address.
   const uint8_t eb = addr & 0xF;
@@ -423,6 +424,7 @@ XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_stvlx128(e, c, i);
 }
 
+// TODO(benvanik): implement for real - this is in the memcpy path.
 static void __emulated_stvrx(uint64_t addr, __m128i vd) {
   // addr here is the fully translated address.
   const uint8_t eb = addr & 0xF;
@@ -1263,23 +1265,32 @@ XEEMITTER(vor128,         VX128(5, 720),    VX128  )(X64Emitter& e, X86Compiler&
   return InstrEmit_vor_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-// TODO(benvanik): implement this for real!
-__m128i __emulated_vperm(__m128i va, __m128i vb, __m128i vc) {
-  __m128i result = _mm_setzero_si128();
+// TODO(benvanik): implement this for real! this is in the memcpy path!
+__m128i __emulated_vperm(uint8_t* va, uint8_t* vb, uint8_t* vc) {
+  XECACHEALIGN uint8_t result[16] = {0};
   for (size_t i = 0; i < 16; i++) {
-    const size_t b = vc.m128i_u8[i] & 0x1F;
-    result.m128i_u8[i] = b < 16 ?
-        va.m128i_u8[15 - b] :
-        vb.m128i_u8[15 - (b - 16)];
+#define SWAP_INLINE(x) (((x) & ~0x3) + (3 - ((x) % 4)))
+    size_t m = SWAP_INLINE(i);
+    size_t b = vc[m] & 0x1F;
+    result[m] = b < 16 ?
+        va[SWAP_INLINE(b)] :
+        vb[SWAP_INLINE(b - 16)];
   }
-  return result;
+  return _mm_load_si128((__m128i*)result);
 }
 int InstrEmit_vperm_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   // Call emulation function.
+  XmmVar tva(c.newXmmVar()), tvb(c.newXmmVar()), tvc(c.newXmmVar());
   GpVar pva(c.newGpVar()), pvb(c.newGpVar()), pvc(c.newGpVar());
-  c.lea(pva, e.vr_value(va).m128());
-  c.lea(pvb, e.vr_value(vb).m128());
-  c.lea(pvc, e.vr_value(vc).m128());
+  c.movaps(tva, e.vr_value(va));
+  c.movaps(tvb, e.vr_value(vb));
+  c.movaps(tvc, e.vr_value(vc));
+  c.save(tva);
+  c.save(tvb);
+  c.save(tvc);
+  c.lea(pva, tva.m128());
+  c.lea(pvb, tvb.m128());
+  c.lea(pvc, tvc.m128());
   XmmVar v(c.newXmmVar());
   X86CompilerFuncCall* call = c.call(__emulated_vperm);
   uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq, kX86VarTypeGpq};
