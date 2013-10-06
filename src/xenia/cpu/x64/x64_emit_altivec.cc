@@ -345,9 +345,35 @@ XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_lvrx128(e, c, i);
 }
 
+static void __emulated_stvlx(uint64_t addr, __m128i vd) {
+  // addr here is the fully translated address.
+  const uint8_t eb = addr & 0xF;
+  const size_t size = 16 - eb;
+  uint8_t* p = (uint8_t*)addr;
+  for (size_t i = 0; i < size; i++) {
+    p[i] = vd.m128i_u8[size - eb - 1 - i];
+  }
+}
 int InstrEmit_stvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
+  }
+  ea = e.TouchMemoryAddress(i.address, ea);
+  XmmVar tvd(c.newXmmVar());
+  c.movaps(tvd, e.vr_value(vd));
+  c.shufps(tvd, tvd, imm(0x1B));
+  c.save(tvd);
+  GpVar pvd(c.newGpVar());
+  c.lea(pvd, tvd.m128());
+  X86CompilerFuncCall* call = c.call(__emulated_stvlx);
+  uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq};
+  call->setPrototype(kX86FuncConvDefault, kX86VarTypeGpq, args, XECOUNT(args));
+  call->setArgument(0, ea);
+  call->setArgument(1, pvd);
+  e.TraceVR(vd);
+  return 0;
 }
 XEEMITTER(stvlx,          0x7C00050E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvlx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
@@ -362,9 +388,36 @@ XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_stvlx128(e, c, i);
 }
 
+static void __emulated_stvrx(uint64_t addr, __m128i vd) {
+  // addr here is the fully translated address.
+  const uint8_t eb = addr & 0xF;
+  const size_t size = eb;
+  addr &= ~0xF;
+  uint8_t* p = (uint8_t*)addr;
+  for (size_t i = 0; i < size; i++) {
+    p[i + (size - 1 - i)] = vd.m128i_u8[i];
+  }
+}
 int InstrEmit_stvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
+  }
+  ea = e.TouchMemoryAddress(i.address, ea);
+  XmmVar tvd(c.newXmmVar());
+  c.movaps(tvd, e.vr_value(vd));
+  c.shufps(tvd, tvd, imm(0x1B));
+  c.save(tvd);
+  GpVar pvd(c.newGpVar());
+  c.lea(pvd, tvd.m128());
+  X86CompilerFuncCall* call = c.call(__emulated_stvrx);
+  uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq};
+  call->setPrototype(kX86FuncConvDefault, kX86VarTypeGpq, args, XECOUNT(args));
+  call->setArgument(0, ea);
+  call->setArgument(1, pvd);
+  e.TraceVR(vd);
+  return 0;
 }
 XEEMITTER(stvrx,          0x7C00054E, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_stvrx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
