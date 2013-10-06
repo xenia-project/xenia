@@ -57,6 +57,49 @@ namespace x64 {
 #define VX128_R_VB128 (i.VX128_R.VB128l | (i.VX128_R.VB128h << 5))
 
 
+namespace {
+
+// Shuffle masks to shift the values over and insert zeros from the low bits.
+static __m128i __shift_table_left[16] = {
+  _mm_set_epi8(15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0), // unused
+  _mm_set_epi8(14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15),
+  _mm_set_epi8(13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15),
+  _mm_set_epi8(12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15),
+  _mm_set_epi8(11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15),
+  _mm_set_epi8(10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+};
+static __m128i __shift_table_right[16] = {
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0), // unused
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6),
+  _mm_set_epi8( 0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5),
+  _mm_set_epi8( 0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4),
+  _mm_set_epi8( 0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3),
+  _mm_set_epi8( 0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2),
+  _mm_set_epi8( 0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1),
+};
+
+}
+
+
 XEEMITTER(dst,            0x7C0002AC, XDSS)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -93,44 +136,23 @@ XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_lvewx_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-// Shuffle masks to shift the values over and insert zeros from the low bits.
-// We insert 0 into byte 15 in left and into byte 0 in right so that we can
-// or the two vectors.
-static __m128i __lvsl_table_left[16] = {
-  _mm_set_epi8(15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0), // unused
-  _mm_set_epi8(14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15),
-  _mm_set_epi8(13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15),
-  _mm_set_epi8(12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15),
-  _mm_set_epi8(11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15),
-  _mm_set_epi8(10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-  _mm_set_epi8( 0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-};
-static __m128i __lvsl_table_right[16] = {
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0), // unused
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7),
-  _mm_set_epi8( 0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6),
-  _mm_set_epi8( 0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5),
-  _mm_set_epi8( 0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4),
-  _mm_set_epi8( 0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3),
-  _mm_set_epi8( 0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2),
-  _mm_set_epi8( 0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1),
+static __m128i __lvsl_table[16] = {
+  _mm_set_epi8( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+  _mm_set_epi8( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
+  _mm_set_epi8( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
+  _mm_set_epi8( 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
+  _mm_set_epi8( 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+  _mm_set_epi8( 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
+  _mm_set_epi8( 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
+  _mm_set_epi8( 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
+  _mm_set_epi8( 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
+  _mm_set_epi8( 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
+  _mm_set_epi8(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
+  _mm_set_epi8(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
+  _mm_set_epi8(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
+  _mm_set_epi8(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
+  _mm_set_epi8(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
+  _mm_set_epi8(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
 };
 int InstrEmit_lvsl_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   GpVar ea(c.newGpVar());
@@ -138,30 +160,12 @@ int InstrEmit_lvsl_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
   if (ra) {
     c.add(ea, e.gpr_value(ra));
   }
-  GpVar sh(c.newGpVar());
-  c.mov(sh, ea);
-  c.and_(sh, imm(0xF));
-  XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
-  // If fully aligned skip complex work and just use left side.
-  Label done(c.newLabel());
-  c.test(sh, sh);
-  c.jz(done);
-  {
-    // Load right side, do shuffles.
-    c.add(ea, imm(0xF));
-    XmmVar v_r = e.ReadMemoryXmm(i.address, ea, 4);
-    GpVar gt(c.newGpVar());
-    c.xor_(gt, gt);
-    c.pinsrb(v, gt.r8(), imm(15));
-    c.pinsrb(v_r, gt.r8(), imm(0));
-    c.shl(sh, imm(4)); // table offset = (16b * sh)
-    c.mov(gt, imm((sysint_t)__lvsl_table_left));
-    c.pshufb(v, xmmword_ptr(gt, sh));
-    c.mov(gt, imm((sysint_t)__lvsl_table_right));
-    c.pshufb(v_r, xmmword_ptr(gt, sh));
-    c.por(v, v_r);
-  }
-  c.bind(done);
+  c.and_(ea, imm(0xF));
+  c.shl(ea, imm(4)); // table offset = (16b * sh)
+  GpVar gt(c.newGpVar());
+  c.mov(gt, imm((sysint_t)__lvsl_table));
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, xmmword_ptr(gt, ea));
   c.shufps(v, v, imm(0x1B));
   e.update_vr_value(vd, v);
   e.TraceVR(vd);
@@ -174,9 +178,40 @@ XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(X64Emitter& e, X86Compiler&
   return InstrEmit_lvsl_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
+static __m128i __lvsr_table[16] = {
+  _mm_set_epi8(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31),
+  _mm_set_epi8(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
+  _mm_set_epi8(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
+  _mm_set_epi8(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
+  _mm_set_epi8(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
+  _mm_set_epi8(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
+  _mm_set_epi8(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
+  _mm_set_epi8( 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
+  _mm_set_epi8( 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
+  _mm_set_epi8( 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
+  _mm_set_epi8( 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
+  _mm_set_epi8( 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
+  _mm_set_epi8( 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+  _mm_set_epi8( 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
+  _mm_set_epi8( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
+  _mm_set_epi8( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
+};
 int InstrEmit_lvsr_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(rb));
+  if (ra) {
+    c.add(ea, e.gpr_value(ra));
+  }
+  c.and_(ea, imm(0xF));
+  c.shl(ea, imm(4)); // table offset = (16b * sh)
+  GpVar gt(c.newGpVar());
+  c.mov(gt, imm((sysint_t)__lvsr_table));
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, xmmword_ptr(gt, ea));
+  c.shufps(v, v, imm(0x1B));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd);
+  return 0;
 }
 XEEMITTER(lvsr,           0x7C00004C, X   )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   return InstrEmit_lvsr_(e, c, i, i.X.RT, i.X.RA, i.X.RB);
@@ -280,7 +315,7 @@ int InstrEmit_lvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
     c.xor_(gt, gt);
     c.pinsrb(v, gt.r8(), imm(15));
     c.shl(sh, imm(4)); // table offset = (16b * sh)
-    c.mov(gt, imm((sysint_t)__lvsl_table_left));
+    c.mov(gt, imm((sysint_t)__shift_table_left));
     c.pshufb(v, xmmword_ptr(gt, sh));
   }
   c.bind(done);
@@ -323,7 +358,7 @@ int InstrEmit_lvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
     c.xor_(gt, gt);
     c.pinsrb(v, gt.r8(), imm(0));
     c.shl(sh, imm(4)); // table offset = (16b * sh)
-    c.mov(gt, imm((sysint_t)__lvsl_table_right));
+    c.mov(gt, imm((sysint_t)__shift_table_right));
     c.pshufb(v, xmmword_ptr(gt, sh));
   }
   c.bind(done);
@@ -1526,9 +1561,9 @@ int InstrEmit_vsldoi_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, u
   c.xor_(gt, gt);
   c.pinsrb(v, gt.r8(), imm(15));
   c.pinsrb(v_r, gt.r8(), imm(0));
-  c.mov(gt, imm((sysint_t)&__lvsl_table_left[sh]));
+  c.mov(gt, imm((sysint_t)&__shift_table_left[sh]));
   c.pshufb(v, xmmword_ptr(gt));
-  c.mov(gt, imm((sysint_t)&__lvsl_table_right[sh]));
+  c.mov(gt, imm((sysint_t)&__shift_table_right[sh]));
   c.pshufb(v_r, xmmword_ptr(gt));
   c.por(v, v_r);
   e.update_vr_value(vd, v);
