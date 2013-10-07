@@ -5,6 +5,8 @@
     'gpu-private.h',
     'gpu.cc',
     'gpu.h',
+    'graphics_driver.cc',
+    'graphics_driver.h',
     'graphics_system.cc',
     'graphics_system.h',
     'ring_buffer_worker.cc',

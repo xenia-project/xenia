@@ -12,10 +12,13 @@
 
 #include <xenia/core.h>
 
+#include <xenia/gpu/xenos/registers.h>
+
 
 namespace xe {
 namespace gpu {
 
+class GraphicsDriver;
 
 class RingBufferWorker {
 public:
@@ -24,7 +27,8 @@ public:
 
   xe_memory_ref memory();
 
-  void Initialize(uint32_t ptr, uint32_t page_count);
+  void Initialize(GraphicsDriver* driver,
+                  uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   void UpdateWritePointer(uint32_t value);
@@ -40,6 +44,8 @@ protected:
   xe_memory_ref   memory_;
   xe_thread_ref   thread_;
   bool            running_;
+
+  GraphicsDriver* driver_;
 
   uint32_t        primary_buffer_ptr_;
   uint32_t        primary_buffer_size_;

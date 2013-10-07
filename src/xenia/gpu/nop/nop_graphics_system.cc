@@ -10,6 +10,7 @@
 #include <xenia/gpu/nop/nop_graphics_system.h>
 
 #include <xenia/gpu/gpu-private.h>
+#include <xenia/gpu/nop/nop_graphics_driver.h>
 
 
 using namespace xe;
@@ -42,6 +43,9 @@ NopGraphicsSystem::~NopGraphicsSystem() {
 }
 
 void NopGraphicsSystem::Initialize() {
+  XEASSERTNULL(driver_);
+  driver_ = new NopGraphicsDriver(memory_);
+
   XEASSERTNULL(timer_queue_);
   XEASSERTNULL(vsync_timer_);
 

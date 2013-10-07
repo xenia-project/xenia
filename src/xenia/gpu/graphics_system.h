@@ -23,6 +23,7 @@ class Processor;
 namespace xe {
 namespace gpu {
 
+class GraphicsDriver;
 class RingBufferWorker;
 
 
@@ -53,6 +54,8 @@ public:
   void DispatchInterruptCallback();
 
 public:
+  // TODO(benvanik): have an HasRegisterHandler() so that the JIT can
+  //                 just poke the register file directly.
   static uint64_t ReadRegisterThunk(GraphicsSystem* this_ptr, uint32_t r) {
     return this_ptr->ReadRegister(r);
   }
@@ -67,6 +70,7 @@ protected:
   xe_memory_ref     memory_;
   shared_ptr<cpu::Processor> processor_;
 
+  GraphicsDriver*   driver_;
   RingBufferWorker* worker_;
 
   uint32_t          interrupt_callback_;

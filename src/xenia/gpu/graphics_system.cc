@@ -10,11 +10,14 @@
 #include <xenia/gpu/graphics_system.h>
 
 #include <xenia/cpu/processor.h>
+#include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/ring_buffer_worker.h>
+#include <xenia/gpu/xenos/registers.h>
 
 
 using namespace xe;
 using namespace xe::gpu;
+using namespace xe::gpu::xenos;
 
 
 GraphicsSystem::GraphicsSystem(const CreationParams* params) :
@@ -22,6 +25,9 @@ GraphicsSystem::GraphicsSystem(const CreationParams* params) :
   memory_ = xe_memory_retain(params->memory);
 
   worker_ = new RingBufferWorker(memory_);
+
+  // Set during Initialize();
+  driver_ = 0;
 }
 
 GraphicsSystem::~GraphicsSystem() {
@@ -51,7 +57,8 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
-  worker_->Initialize(ptr, page_count);
+  XEASSERTNOTNULL(driver_);
+  worker_->Initialize(driver_, ptr, page_count);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
@@ -62,26 +69,31 @@ void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
 uint64_t GraphicsSystem::ReadRegister(uint32_t r) {
   XELOGGPU("ReadRegister(%.4X)", r);
 
+  RegisterFile* regs = driver_->register_file();
+
   switch (r) {
   case 0x6544: // ? vblank pending?
     return 1;
   }
 
-  return 0;
+  XEASSERT(r >= 0 && r < kXEGpuRegisterCount);
+  return regs->values[r].u32;
 }
 
 void GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
   XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
 
+  RegisterFile* regs = driver_->register_file();
+
   switch (r) {
     case 0x0714: // CP_RB_WPTR
       worker_->UpdateWritePointer((uint32_t)value);
       break;
-
-    default:
-      XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
-      break;
   }
+
+  XEASSERT(r >= 0 && r < kXEGpuRegisterCount);
+  XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
+  regs->values[r].u32 = (uint32_t)value;
 }
 
 void GraphicsSystem::DispatchInterruptCallback() {

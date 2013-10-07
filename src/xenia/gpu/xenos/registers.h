@@ -18,7 +18,7 @@ namespace gpu {
 namespace xenos {
 
 
-static const uint32_t kXEGpuRegisterCount = 0x3000;
+static const uint32_t kXEGpuRegisterCount = 0x5003;
 
 
 enum Registers {
@@ -33,13 +33,13 @@ const char* GetRegisterName(uint32_t index);
 
 
 union RegisterValue {
-  uint32_t  dword_value;
-  float     float_value;
+  uint32_t  u32;
+  float     f32;
 };
 
 
 struct RegisterFile {
-  RegisterValue   registers[kXEGpuRegisterCount];
+  RegisterValue   values[kXEGpuRegisterCount];
 };
 
 

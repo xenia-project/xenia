@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/ring_buffer_worker.h>
 
+#include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/xenos/packets.h>
 #include <xenia/gpu/xenos/registers.h>
 
@@ -19,7 +20,7 @@ using namespace xe::gpu::xenos;
 
 
 RingBufferWorker::RingBufferWorker(xe_memory_ref memory) :
-    memory_(memory) {
+    memory_(memory), driver_(0) {
   running_ = true;
   write_ptr_index_event_ = CreateEvent(
       NULL, FALSE, FALSE, NULL);
@@ -37,7 +38,9 @@ RingBufferWorker::~RingBufferWorker() {
   CloseHandle(write_ptr_index_event_);
 }
 
-void RingBufferWorker::Initialize(uint32_t ptr, uint32_t page_count) {
+void RingBufferWorker::Initialize(GraphicsDriver* driver,
+                                  uint32_t ptr, uint32_t page_count) {
+  driver_ = driver;
   primary_buffer_ptr_ = ptr;
   primary_buffer_size_ = page_count * 4 * 1024;
   read_ptr_index_ = 0;
@@ -100,6 +103,7 @@ void RingBufferWorker::ThreadStart() {
 
 void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
   uint8_t* p = xe_memory_addr(memory_);
+  RegisterFile* regs = driver_->register_file();
 
   // Adjust pointer base.
   ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (ptr & 0x1FFFFFFF);
@@ -138,7 +142,10 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
           const char* reg_name = xenos::GetRegisterName(base_index + m);
           XELOGGPU("  %.8X -> %.4X %s", reg_data, base_index + m,
                                         reg_name ? reg_name : "");
-          // TODO(benvanik): process register writes.
+          // TODO(benvanik): exec write handler (if special).
+          if (base_index + m < kXEGpuRegisterCount) {
+            regs->values[base_index + m].u32 = reg_data;
+          }
         }
         n += 1 + count;
       }
@@ -158,7 +165,14 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
                                       reg_name_1 ? reg_name_1 : "");
         XELOGGPU("  %.8X -> %.4X %s", reg_data_2, reg_index_2,
                                       reg_name_2 ? reg_name_2 : "");
-        // TODO(benvanik): process register writes.
+        // TODO(benvanik): exec write handler (if special).
+        if (reg_index_1 < kXEGpuRegisterCount) {
+          regs->values[reg_index_1].u32 = reg_data_1;
+        }
+        if (reg_index_2 < kXEGpuRegisterCount) {
+          regs->values[reg_index_2].u32 = reg_data_2;
+        }
+
         n += 1 + 2;
       }
       break;
@@ -242,56 +256,31 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
           // initiate fetch of index buffer and draw
           {
             XELOGGPU("Packet(%.8X): PM4_DRAW_INDX", packet);
+            LOG_DATA(count);
             // d0 = viz query info
             uint32_t d0 = XEGETUINT32BE(packet_base + 1 * 4);
             uint32_t d1 = XEGETUINT32BE(packet_base + 2 * 4);
             uint32_t index_count = d1 >> 16;
             uint32_t prim_type = d1 & 0x3F;
             // Not sure what the other bits mean - 'SrcSel=AutoIndex'?
-            const char* prim_type_name = "UNKNOWN";
-            switch (prim_type) {
-            case 1:
-              prim_type_name = "pointlist";
-              break;
-            case 4:
-              prim_type_name = "trilist";
-              break;
-            case 8:
-              prim_type_name = "rectlist";
-              break;
-            default:
-              XEASSERTALWAYS();
-              break;
-            }
-            XELOGGPU("  %d indices of %s", index_count, prim_type_name);
-            LOG_DATA(count);
+            driver_->DrawIndexed(
+                (XE_GPU_PRIMITIVE_TYPE)prim_type,
+                index_count);
           }
           break;
         case PM4_DRAW_INDX_2:
           // draw using supplied indices in packet
           {
             XELOGGPU("Packet(%.8X): PM4_DRAW_INDX_2", packet);
+            LOG_DATA(count);
             uint32_t d0 = XEGETUINT32BE(packet_base + 1 * 4);
             uint32_t index_count = d0 >> 16;
             uint32_t prim_type = d0 & 0x3F;
             // Not sure what the other bits mean - 'SrcSel=AutoIndex'?
-            const char* prim_type_name = "UNKNOWN";
-            switch (prim_type) {
-            case 1:
-              prim_type_name = "pointlist";
-              break;
-            case 4:
-              prim_type_name = "trilist";
-              break;
-            case 8:
-              prim_type_name = "rectlist";
-              break;
-            default:
-              XEASSERTALWAYS();
-              break;
-            }
-            XELOGGPU("  %d indices of %s", index_count, prim_type_name);
-            LOG_DATA(count);
+            // TODO(benvanik): verify this matches DRAW_INDX
+            driver_->DrawIndexed(
+                (XE_GPU_PRIMITIVE_TYPE)prim_type,
+                index_count);
           }
           break;
 
@@ -299,6 +288,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
           // load sequencer instruction memory (pointer-based)
           {
             XELOGGPU("Packet(%.8X): PM4_IM_LOAD", packet);
+            LOG_DATA(count);
             uint32_t addr_type = XEGETUINT32BE(packet_base + 1 * 4);
             uint32_t type = addr_type & 0x3;
             uint32_t addr = addr_type & ~0x3;
@@ -306,20 +296,11 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             uint32_t start = start_size >> 16;
             uint32_t size = start_size & 0xFFFF; // dwords
             XEASSERT(start == 0);
-            switch (type) {
-            case 0:
-              XELOGGPU("  vertex shader");
-              break;
-            case 1:
-              XELOGGPU("  pixel shader");
-              break;
-            default:
-              XEASSERTALWAYS();
-              break;
-            }
-            XELOGGPU("  %0.8X, %db / %dw",
-                     TRANSLATE_ADDR(addr), size * 4, size);
-            LOG_DATA(count);
+            driver_->SetShader(
+                (XE_GPU_SHADER_TYPE)type,
+                TRANSLATE_ADDR(addr),
+                start,
+                size);
           }
           break;
         case PM4_IM_LOAD_IMMEDIATE:
@@ -331,27 +312,23 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             uint32_t start = start_size >> 16;
             uint32_t size = start_size & 0xFFFF; // dwords
             XEASSERT(start == 0);
-            switch (type) {
-            case 0:
-              XELOGGPU("  vertex shader");
-              break;
-            case 1:
-              XELOGGPU("  pixel shader");
-              break;
-            default:
-              XEASSERTALWAYS();
-              break;
-            }
-            XELOGGPU("  %db / %dw", size * 4, size);
             LOG_DATA(count);
+            driver_->SetShader(
+                (XE_GPU_SHADER_TYPE)type,
+                ptr + n * 4 + 3 * 4,
+                start,
+                size);
           }
           break;
 
         case PM4_INVALIDATE_STATE:
           // selective invalidation of state pointers
-          XELOGGPU("Packet(%.8X): PM4_INVALIDATE_STATE", packet);
-          LOG_DATA(count);
-	        //*cmd++ = 0x00000300;	/* 0x100 = Vertex, 0x200 = Pixel */
+          {
+            XELOGGPU("Packet(%.8X): PM4_INVALIDATE_STATE", packet);
+            LOG_DATA(count);
+            uint32_t mask = XEGETUINT32BE(packet_base + 1 * 4);
+            driver_->InvalidateState(mask);
+          }
           break;
 
         default:
