@@ -1555,6 +1555,42 @@ XEEMITTER(vslb,           0x10000104, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
+static __m128i __shift_table_out[16] = {
+  _mm_set_epi8(15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0), // unused
+  _mm_set_epi8( 0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1),
+  _mm_set_epi8( 0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2),
+  _mm_set_epi8( 0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3),
+  _mm_set_epi8( 0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4),
+  _mm_set_epi8( 0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14),
+  _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15),
+};
+static __m128i __shift_table_in[16] = {
+  _mm_set_epi8(15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15), // unused
+  _mm_set_epi8( 0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8( 9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15),
+  _mm_set_epi8(10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15),
+  _mm_set_epi8(11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15),
+  _mm_set_epi8(12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15),
+  _mm_set_epi8(13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15),
+  _mm_set_epi8(14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15),
+};
 int InstrEmit_vsldoi_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t sh) {
   // (VD) <- ((VA) || (VB)) << (SH << 3)
   if (!sh) {
@@ -1562,7 +1598,15 @@ int InstrEmit_vsldoi_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, u
     e.update_vr_value(vd, e.vr_value(va));
     e.TraceVR(vd, va, vb);
     return 0;
+  } else if (sh == 16) {
+    e.update_vr_value(vd, e.vr_value(vb));
+    e.TraceVR(vd, va, vb);
+    return 0;
   }
+  // TODO(benvanik): optimize for the rotation case:
+  // vsldoi128 vr63,vr63,vr63,4
+  // (ABCD ABCD) << 4b = (BCDA)
+  // TODO(benvanik): rewrite this piece of shit.
   XmmVar v(c.newXmmVar());
   c.movaps(v, e.vr_value(va));
   XmmVar v_r(c.newXmmVar());
@@ -1570,12 +1614,15 @@ int InstrEmit_vsldoi_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, u
   // (VA << SH) OR (VB >> (16 - SH))
   GpVar gt(c.newGpVar());
   c.xor_(gt, gt);
-  c.pinsrb(v, gt.r8(), imm(15));
-  c.pinsrb(v_r, gt.r8(), imm(0));
-  c.mov(gt, imm((sysint_t)&__shift_table_left[sh]));
-  c.pshufb(v, xmmword_ptr(gt));
-  c.mov(gt, imm((sysint_t)&__shift_table_right[sh]));
-  c.pshufb(v_r, xmmword_ptr(gt));
+  c.pinsrb(v, gt.r8(), imm(0));
+  c.pinsrb(v_r, gt.r8(), imm(15));
+  c.mov(gt, imm((sysint_t)&__shift_table_out[sh]));
+  XmmVar shuf(c.newXmmVar());
+  c.movaps(shuf, xmmword_ptr(gt));
+  c.pshufb(v, shuf);
+  c.mov(gt, imm((sysint_t)&__shift_table_in[sh]));
+  c.movaps(shuf, xmmword_ptr(gt));
+  c.pshufb(v_r, shuf);
   c.por(v, v_r);
   e.update_vr_value(vd, v);
   e.TraceVR(vd, va, vb);
