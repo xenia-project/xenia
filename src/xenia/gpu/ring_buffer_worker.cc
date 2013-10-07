@@ -108,6 +108,8 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
   for (uint32_t __m = 0; __m < count; __m++) { \
     XELOGGPU("  %.8X", XEGETUINT32BE(packet_base + 1 * 4 + __m * 4)); \
   }
+#define TRANSLATE_ADDR(p) \
+  ((p & ~0x3) + (primary_buffer_ptr_ & ~0x1FFFFFFF))
 
   XELOGGPU("CommandList(%.8X): executing %dw", ptr, length);
 
@@ -210,6 +212,17 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
           LOG_DATA(count);
           break;
 
+        case PM4_COND_WRITE:
+          // conditional write to memory or register
+          XELOGGPU("Packet(%.8X): PM4_COND_WRITE", packet);
+          LOG_DATA(count);
+          break;
+
+        case PM4_EVENT_WRITE:
+          // generate an event that creates a write to memory when completed
+          XELOGGPU("Packet(%.8X): PM4_EVENT_WRITE", packet);
+          LOG_DATA(count);
+          break;
         case PM4_EVENT_WRITE_SHD:
           // generate a VS|PS_done event
           {
@@ -221,26 +234,124 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             uint32_t d1 = XEGETUINT32BE(packet_base + 2 * 4);
             // value?
             uint32_t d2 = XEGETUINT32BE(packet_base + 3 * 4);
-            XESETUINT32BE(
-                p + (d1 & ~0x3) + (primary_buffer_ptr_ & ~0x1FFFFFFF), d2);
+            XESETUINT32BE(p + TRANSLATE_ADDR(d1), d2);
           }
           break;
 
+        case PM4_DRAW_INDX:
+          // initiate fetch of index buffer and draw
+          {
+            XELOGGPU("Packet(%.8X): PM4_DRAW_INDX", packet);
+            // d0 = viz query info
+            uint32_t d0 = XEGETUINT32BE(packet_base + 1 * 4);
+            uint32_t d1 = XEGETUINT32BE(packet_base + 2 * 4);
+            uint32_t index_count = d1 >> 16;
+            uint32_t prim_type = d1 & 0x3F;
+            // Not sure what the other bits mean - 'SrcSel=AutoIndex'?
+            const char* prim_type_name = "UNKNOWN";
+            switch (prim_type) {
+            case 1:
+              prim_type_name = "pointlist";
+              break;
+            case 4:
+              prim_type_name = "trilist";
+              break;
+            case 8:
+              prim_type_name = "rectlist";
+              break;
+            default:
+              XEASSERTALWAYS();
+              break;
+            }
+            XELOGGPU("  %d indices of %s", index_count, prim_type_name);
+            LOG_DATA(count);
+          }
+          break;
         case PM4_DRAW_INDX_2:
           // draw using supplied indices in packet
-          XELOGGPU("Packet(%.8X): PM4_DRAW_INDX_2", packet);
-          LOG_DATA(count);
+          {
+            XELOGGPU("Packet(%.8X): PM4_DRAW_INDX_2", packet);
+            uint32_t d0 = XEGETUINT32BE(packet_base + 1 * 4);
+            uint32_t index_count = d0 >> 16;
+            uint32_t prim_type = d0 & 0x3F;
+            // Not sure what the other bits mean - 'SrcSel=AutoIndex'?
+            const char* prim_type_name = "UNKNOWN";
+            switch (prim_type) {
+            case 1:
+              prim_type_name = "pointlist";
+              break;
+            case 4:
+              prim_type_name = "trilist";
+              break;
+            case 8:
+              prim_type_name = "rectlist";
+              break;
+            default:
+              XEASSERTALWAYS();
+              break;
+            }
+            XELOGGPU("  %d indices of %s", index_count, prim_type_name);
+            LOG_DATA(count);
+          }
           break;
 
+        case PM4_IM_LOAD:
+          // load sequencer instruction memory (pointer-based)
+          {
+            XELOGGPU("Packet(%.8X): PM4_IM_LOAD", packet);
+            uint32_t addr_type = XEGETUINT32BE(packet_base + 1 * 4);
+            uint32_t type = addr_type & 0x3;
+            uint32_t addr = addr_type & ~0x3;
+            uint32_t start_size = XEGETUINT32BE(packet_base + 2 * 4);
+            uint32_t start = start_size >> 16;
+            uint32_t size = start_size & 0xFFFF; // dwords
+            XEASSERT(start == 0);
+            switch (type) {
+            case 0:
+              XELOGGPU("  vertex shader");
+              break;
+            case 1:
+              XELOGGPU("  pixel shader");
+              break;
+            default:
+              XEASSERTALWAYS();
+              break;
+            }
+            XELOGGPU("  %0.8X, %db / %dw",
+                     TRANSLATE_ADDR(addr), size * 4, size);
+            LOG_DATA(count);
+          }
+          break;
         case PM4_IM_LOAD_IMMEDIATE:
           // load sequencer instruction memory (code embedded in packet)
-          XELOGGPU("Packet(%.8X): PM4_IM_LOAD_IMMEDIATE", packet);
-          LOG_DATA(count);
+          {
+            XELOGGPU("Packet(%.8X): PM4_IM_LOAD_IMMEDIATE", packet);
+            uint32_t type = XEGETUINT32BE(packet_base + 1 * 4);
+            uint32_t start_size = XEGETUINT32BE(packet_base + 2 * 4);
+            uint32_t start = start_size >> 16;
+            uint32_t size = start_size & 0xFFFF; // dwords
+            XEASSERT(start == 0);
+            switch (type) {
+            case 0:
+              XELOGGPU("  vertex shader");
+              break;
+            case 1:
+              XELOGGPU("  pixel shader");
+              break;
+            default:
+              XEASSERTALWAYS();
+              break;
+            }
+            XELOGGPU("  %db / %dw", size * 4, size);
+            LOG_DATA(count);
+          }
           break;
+
         case PM4_INVALIDATE_STATE:
           // selective invalidation of state pointers
           XELOGGPU("Packet(%.8X): PM4_INVALIDATE_STATE", packet);
           LOG_DATA(count);
+	        //*cmd++ = 0x00000300;	/* 0x100 = Vertex, 0x200 = Pixel */
           break;
 
         default:
