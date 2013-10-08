@@ -300,7 +300,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
                 (XE_GPU_SHADER_TYPE)type,
                 TRANSLATE_ADDR(addr),
                 start,
-                size);
+                size * 4);
           }
           break;
         case PM4_IM_LOAD_IMMEDIATE:
@@ -317,7 +317,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
                 (XE_GPU_SHADER_TYPE)type,
                 ptr + n * 4 + 3 * 4,
                 start,
-                size);
+                size * 4);
           }
           break;
 

@@ -10,11 +10,13 @@
 #include <xenia/gpu/nop/nop_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
+#include <xenia/gpu/ucode/ucode_disassembler.h>
 
 
 using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::nop;
+using namespace xe::gpu::ucode;
 
 
 NopGraphicsDriver::NopGraphicsDriver(xe_memory_ref memory) :
@@ -44,9 +46,20 @@ void NopGraphicsDriver::SetShader(
     XE_GPU_SHADER_TYPE type,
     uint32_t address,
     uint32_t start,
-    uint32_t size_dwords) {
+    uint32_t length) {
   XELOGGPU("NOP: set shader %d at %0.8X (%db)",
-           type, address, size_dwords * 4);
+           type, address, length);
+
+  uint8_t* p = xe_memory_addr(memory_, address);
+  uint32_t dw0 = XEGETUINT32BE(p + 0);
+
+  uint32_t* dws = (uint32_t*)xe_malloc(length);
+  for (int n = 0; n < length; n += 4) {
+    dws[n / 4] = XEGETUINT32BE(p + n);
+  }
+
+  UcodeDisassembler disasm;
+  //
 }
 
 void NopGraphicsDriver::DrawIndexed(

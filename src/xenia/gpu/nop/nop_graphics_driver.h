@@ -34,7 +34,7 @@ public:
       XE_GPU_SHADER_TYPE type,
       uint32_t address,
       uint32_t start,
-      uint32_t size_dwords);
+      uint32_t length);
   virtual void DrawIndexed(
       XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);

@@ -15,6 +15,7 @@
 
   'includes': [
     'nop/sources.gypi',
+    'ucode/sources.gypi',
     'xenos/sources.gypi',
   ],
 
