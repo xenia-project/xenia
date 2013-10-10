@@ -21,7 +21,7 @@
   'conditions': [
     ['OS == "win"', {
       'includes': [
-        #'d3d11/sources.gypi',
+        'd3d11/sources.gypi',
       ],
     }],
   ],

@@ -4,6 +4,8 @@
     'd3d11-private.h',
     'd3d11.cc',
     'd3d11.h',
+    'd3d11_graphics_driver.cc',
+    'd3d11_graphics_driver.h',
     'd3d11_graphics_system.cc',
     'd3d11_graphics_system.h',
   ],

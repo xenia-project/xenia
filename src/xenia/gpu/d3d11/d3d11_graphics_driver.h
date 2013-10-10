@@ -7,13 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_D3D11_D3D11_GRAPHICS_SYSTEM_H_
-#define XENIA_GPU_D3D11_D3D11_GRAPHICS_SYSTEM_H_
+#ifndef XENIA_GPU_D3D11_D3D11_GRAPHICS_DRIVER_H_
+#define XENIA_GPU_D3D11_D3D11_GRAPHICS_DRIVER_H_
 
 #include <xenia/core.h>
 
-#include <xenia/gpu/graphics_system.h>
+#include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/d3d11/d3d11-private.h>
+#include <xenia/gpu/xenos/xenos.h>
 
 
 namespace xe {
@@ -21,15 +22,25 @@ namespace gpu {
 namespace d3d11 {
 
 
-GraphicsSystem* Create(const CreationParams* params);
-
-
-class D3D11GraphicsSystem : public GraphicsSystem {
+class D3D11GraphicsDriver : public GraphicsDriver {
 public:
-  D3D11GraphicsSystem(const CreationParams* params);
-  virtual ~D3D11GraphicsSystem();
+  D3D11GraphicsDriver(xe_memory_ref memory);
+  virtual ~D3D11GraphicsDriver();
 
   virtual void Initialize();
+
+  virtual void InvalidateState(
+      uint32_t mask);
+  virtual void SetShader(
+      xenos::XE_GPU_SHADER_TYPE type,
+      uint32_t address,
+      uint32_t start,
+      uint32_t length);
+  virtual void DrawIndexed(
+      xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
+      uint32_t index_count);
+
+protected:
 };
 
 
@@ -38,4 +49,4 @@ public:
 }  // namespace xe
 
 
-#endif  // XENIA_GPU_D3D11_D3D11_GRAPHICS_SYSTEM_H_
+#endif  // XENIA_GPU_D3D11_D3D11_GRAPHICS_DRIVER_H_

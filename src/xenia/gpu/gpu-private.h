@@ -13,7 +13,7 @@
 #include <gflags/gflags.h>
 
 
-// DECLARE_ flags here
+DECLARE_string(gpu);
 
 
 #endif  // XENIA_GPU_PRIVATE_H_

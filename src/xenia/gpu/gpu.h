@@ -18,7 +18,12 @@ namespace gpu {
 
 
 GraphicsSystem* Create(const CreationParams* params);
+
 GraphicsSystem* CreateNop(const CreationParams* params);
+
+#if XE_PLATFORM(WIN32)
+GraphicsSystem* CreateD3D11(const CreationParams* params);
+#endif  // WIN32
 
 
 }  // namespace gpu

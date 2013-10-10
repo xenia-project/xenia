@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/nop/nop_graphics_driver.h>
+#include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/xenos/ucode_disassembler.h>
@@ -15,34 +15,34 @@
 
 using namespace xe;
 using namespace xe::gpu;
-using namespace xe::gpu::nop;
+using namespace xe::gpu::d3d11;
 using namespace xe::gpu::xenos;
 
 
-NopGraphicsDriver::NopGraphicsDriver(xe_memory_ref memory) :
+D3D11GraphicsDriver::D3D11GraphicsDriver(xe_memory_ref memory) :
     GraphicsDriver(memory) {
 }
 
-NopGraphicsDriver::~NopGraphicsDriver() {
+D3D11GraphicsDriver::~D3D11GraphicsDriver() {
 }
 
-void NopGraphicsDriver::Initialize() {
+void D3D11GraphicsDriver::Initialize() {
 }
 
-void NopGraphicsDriver::InvalidateState(
+void D3D11GraphicsDriver::InvalidateState(
     uint32_t mask) {
   if (mask == XE_GPU_INVALIDATE_MASK_ALL) {
-    XELOGGPU("NOP: (invalidate all)");
+    XELOGGPU("D3D11: (invalidate all)");
   }
   if (mask & XE_GPU_INVALIDATE_MASK_VERTEX_SHADER) {
-    XELOGGPU("NOP: invalidate vertex shader");
+    XELOGGPU("D3D11: invalidate vertex shader");
   }
   if (mask & XE_GPU_INVALIDATE_MASK_PIXEL_SHADER) {
-    XELOGGPU("NOP: invalidate pixel shader");
+    XELOGGPU("D3D11: invalidate pixel shader");
   }
 }
 
-void NopGraphicsDriver::SetShader(
+void D3D11GraphicsDriver::SetShader(
     XE_GPU_SHADER_TYPE type,
     uint32_t address,
     uint32_t start,
@@ -51,7 +51,7 @@ void NopGraphicsDriver::SetShader(
   uint32_t dword_count = length / 4;
   XEASSERT(dword_count <= 512);
   if (dword_count > 512) {
-    XELOGGPU("NOP: ignoring shader %d at %0.8X (%db): too long",
+    XELOGGPU("D3D11: ignoring shader %d at %0.8X (%db): too long",
              type, address, length);
     return;
   }
@@ -66,17 +66,17 @@ void NopGraphicsDriver::SetShader(
   if (!source) {
     source = "<failed to disassemble>";
   }
-  XELOGGPU("NOP: set shader %d at %0.8X (%db):\n%s",
+  XELOGGPU("D3D11: set shader %d at %0.8X (%db):\n%s",
            type, address, length, source);
   if (source) {
     xe_free((void*)source);
   }
 }
 
-void NopGraphicsDriver::DrawIndexed(
+void D3D11GraphicsDriver::DrawIndexed(
     XE_GPU_PRIMITIVE_TYPE prim_type,
     uint32_t index_count) {
-  XELOGGPU("NOP: draw indexed %d (%d indicies)",
+  XELOGGPU("D3D11: draw indexed %d (%d indicies)",
            prim_type, index_count);
 
   // TODO(benvanik):
