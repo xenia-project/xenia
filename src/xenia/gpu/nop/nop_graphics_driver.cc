@@ -10,14 +10,13 @@
 #include <xenia/gpu/nop/nop_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
-#include <xenia/gpu/ucode/ucode_disassembler.h>
-#include <xenia/gpu/ucode/ucode_ops.h>
+#include <xenia/gpu/xenos/ucode_disassembler.h>
 
 
 using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::nop;
-using namespace xe::gpu::ucode;
+using namespace xe::gpu::xenos;
 
 
 NopGraphicsDriver::NopGraphicsDriver(xe_memory_ref memory) :
@@ -48,19 +47,30 @@ void NopGraphicsDriver::SetShader(
     uint32_t address,
     uint32_t start,
     uint32_t length) {
-  XELOGGPU("NOP: set shader %d at %0.8X (%db)",
-           type, address, length);
-
+  // Swap shader words.
+  uint32_t dword_count = length / 4;
+  XEASSERT(dword_count <= 512);
+  if (dword_count > 512) {
+    XELOGGPU("NOP: ignoring shader %d at %0.8X (%db): too long",
+             type, address, length);
+    return;
+  }
   uint8_t* p = xe_memory_addr(memory_, address);
-  uint32_t dw0 = XEGETUINT32BE(p + 0);
-
-  uint32_t dws[512] = {0};
-  for (uint32_t n = 0; n < length; n += 4) {
-    dws[n / 4] = XEGETUINT32BE(p + n);
+  uint32_t dwords[512] = {0};
+  for (uint32_t n = 0; n < dword_count; n++) {
+    dwords[n] = XEGETUINT32BE(p + n * 4);
   }
 
-  UcodeDisassembler disasm;
-  disasm.Disassemble(dws, length / 4, type == XE_GPU_SHADER_TYPE_PIXEL);
+  // Disassemble.
+  const char* source = DisassembleShader(type, dwords, dword_count);
+  if (!source) {
+    source = "<failed to disassemble>";
+  }
+  XELOGGPU("NOP: set shader %d at %0.8X (%db):\n%s",
+           type, address, length, source);
+  if (source) {
+    xe_free((void*)source);
+  }
 }
 
 void NopGraphicsDriver::DrawIndexed(

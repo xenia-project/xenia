@@ -7,9 +7,28 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/ucode/ucode.h>
+#ifndef XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
+#define XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
+
+#include <xenia/core.h>
+
+#include <xenia/gpu/xenos/ucode.h>
+#include <xenia/gpu/xenos/xenos.h>
 
 
-using namespace xe;
-using namespace xe::gpu;
-using namespace xe::gpu::ucode;
+namespace xe {
+namespace gpu {
+namespace xenos {
+
+
+const char* DisassembleShader(
+    XE_GPU_SHADER_TYPE type,
+    const uint32_t* dwords, size_t dword_count);
+
+
+}  // namespace xenos
+}  // namespace gpu
+}  // namespace xe
+
+
+#endif  // XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_

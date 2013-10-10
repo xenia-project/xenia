@@ -7,22 +7,9 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_UCODE_UCODE_H_
-#define XENIA_GPU_UCODE_UCODE_H_
-
-#include <xenia/core.h>
+#include <xenia/gpu/xenos/ucode.h>
 
 
-namespace xe {
-namespace gpu {
-namespace ucode {
-
-
-
-
-}  // namespace ucode
-}  // namespace gpu
-}  // namespace xe
-
-
-#endif  // XENIA_GPU_UCODE_UCODE_H_
+using namespace xe;
+using namespace xe::gpu;
+using namespace xe::gpu::xenos;

@@ -14,6 +14,7 @@
 
 #include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/nop/nop-private.h>
+#include <xenia/gpu/xenos/xenos.h>
 
 
 namespace xe {
@@ -31,12 +32,12 @@ public:
   virtual void InvalidateState(
       uint32_t mask);
   virtual void SetShader(
-      XE_GPU_SHADER_TYPE type,
+      xenos::XE_GPU_SHADER_TYPE type,
       uint32_t address,
       uint32_t start,
       uint32_t length);
   virtual void DrawIndexed(
-      XE_GPU_PRIMITIVE_TYPE prim_type,
+      xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);
 
 protected:
