@@ -25,6 +25,8 @@ public:
   UcodeDisassembler();
   ~UcodeDisassembler();
 
+  void Disassemble(uint32_t* dwords, int size_dwords, bool pixel);
+
 private:
 };
 

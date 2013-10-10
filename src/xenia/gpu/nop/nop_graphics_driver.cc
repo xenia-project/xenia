@@ -11,6 +11,7 @@
 
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/ucode/ucode_disassembler.h>
+#include <xenia/gpu/ucode/ucode_ops.h>
 
 
 using namespace xe;
@@ -53,13 +54,13 @@ void NopGraphicsDriver::SetShader(
   uint8_t* p = xe_memory_addr(memory_, address);
   uint32_t dw0 = XEGETUINT32BE(p + 0);
 
-  uint32_t* dws = (uint32_t*)xe_malloc(length);
-  for (int n = 0; n < length; n += 4) {
+  uint32_t dws[512] = {0};
+  for (uint32_t n = 0; n < length; n += 4) {
     dws[n / 4] = XEGETUINT32BE(p + n);
   }
 
   UcodeDisassembler disasm;
-  //
+  disasm.Disassemble(dws, length / 4, type == XE_GPU_SHADER_TYPE_PIXEL);
 }
 
 void NopGraphicsDriver::DrawIndexed(

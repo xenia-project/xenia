@@ -64,6 +64,24 @@ using std::tr1::shared_ptr;
 #endif  // MSVC
 
 #if XE_COMPILER(MSVC)
+#define XEPACKEDSTRUCT(name, value) \
+    __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
+    typedef struct name##_s name;
+#define XEPACKEDSTRUCTANONYMOUS(value) \
+    __pragma(pack(push, 1)) struct value __pragma(pack(pop));
+#define XEPACKEDUNION(name, value) \
+    __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
+    typedef union name##_s name;
+#elif XE_COMPILER(GNUC)
+#define XEPACKEDSTRUCT(name, value) \
+    struct __attribute__((packed)) name
+#define XEPACKEDSTRUCTANONYMOUS(value) \
+    struct __attribute__((packed))
+#define XEPACKEDUNION(name, value) \
+    union __attribute__((packed)) name
+#endif  // MSVC
+
+#if XE_COMPILER(MSVC)
 // http://msdn.microsoft.com/en-us/library/83ythb65.aspx
 #define XECACHEALIGN            __declspec(align(XE_ALIGNMENT))
 #define XECACHEALIGN64          __declspec(align(64))
