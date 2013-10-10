@@ -359,6 +359,10 @@ XEPACKEDUNION(instr_cf_t, {
     uint32_t                                    : 12;
     uint32_t            opc                     : 4;    // instr_cf_opc_t
   });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t            dword_0;
+    uint32_t            dword_1;
+  });
 });
 
 

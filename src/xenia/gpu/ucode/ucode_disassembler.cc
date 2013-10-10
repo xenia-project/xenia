@@ -699,41 +699,41 @@ static void print_cf(instr_cf_t *cf, int level)
  *      which refers to ALU/FETCH instructions that follow it by address.
  *   2) ALU and FETCH instructions
  */
-
+void disasm_exec(uint32_t *dwords, int sizedwords, int level, enum shader_t type, instr_cf_t* cf) {
+  uint32_t sequence = cf->exec.serialize;
+  uint32_t i;
+  for (i = 0; i < cf->exec.count; i++) {
+    uint32_t alu_off = (cf->exec.address + i);
+    if (sequence & 0x1) {
+      disasm_fetch(dwords + alu_off * 3, alu_off, level, sequence & 0x2);
+    } else {
+      disasm_alu(dwords + alu_off * 3, alu_off, level, sequence & 0x2, type);
+    }
+    sequence >>= 2;
+  }
+}
 int disasm_a2xx(uint32_t *dwords, int sizedwords, int level, enum shader_t type)
 {
-  instr_cf_t *cfs = (instr_cf_t *)dwords;
-  int idx, max_idx;
-
-  for (idx = 0; ; idx++) {
-    if (idx > sizedwords) {
-      // Failed to find a control instruction.
-      return 1;
+  instr_cf_t cfa;
+  instr_cf_t cfb;
+  for (int idx = 0; idx < sizedwords; idx += 3) {
+    uint32_t dword_0 = dwords[idx + 0];
+    uint32_t dword_1 = dwords[idx + 1];
+    uint32_t dword_2 = dwords[idx + 2];
+    cfa.dword_0 = dword_0;
+    cfa.dword_1 = dword_1 & 0xFFFF;
+    cfb.dword_0 = (dword_1 >> 16) | (dword_2 << 16);
+    cfb.dword_1 = dword_2 >> 16;
+    print_cf(&cfa, level);
+    if (cf_exec(&cfa)) {
+      disasm_exec(dwords, sizedwords, level, type, &cfa);
     }
-    instr_cf_t *cf = &cfs[idx];
-    if (cf_exec(cf)) {
-      max_idx = 2 * cf->exec.address;
+    print_cf(&cfb, level);
+    if (cf_exec(&cfb)) {
+      disasm_exec(dwords, sizedwords, level, type, &cfb);
+    }
+    if (cfa.opc == EXEC_END || cfb.opc == EXEC_END) {
       break;
-    }
-  }
-
-  for (idx = 0; idx < max_idx; idx++) {
-    instr_cf_t *cf = &cfs[idx];
-
-    print_cf(cf, level);
-
-    if (cf_exec(cf)) {
-      uint32_t sequence = cf->exec.serialize;
-      uint32_t i;
-      for (i = 0; i < cf->exec.count; i++) {
-        uint32_t alu_off = (cf->exec.address + i);
-        if (sequence & 0x1) {
-          disasm_fetch(dwords + alu_off * 3, alu_off, level, sequence & 0x2);
-        } else {
-          disasm_alu(dwords + alu_off * 3, alu_off, level, sequence & 0x2, type);
-        }
-        sequence >>= 2;
-      }
     }
   }
 
