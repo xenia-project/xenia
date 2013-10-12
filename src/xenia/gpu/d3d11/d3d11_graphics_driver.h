@@ -42,20 +42,20 @@ public:
       uint32_t address,
       uint32_t start,
       uint32_t length);
-  virtual void DrawAutoIndexed(
+  virtual void DrawIndexAuto(
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);
 
 private:
-  void UpdateState();
-  void UpdateConstantBuffers();
-  void BindShaders();
-  void PrepareFetchers();
-  void PrepareVertexFetcher(
-      int slot, xenos::xe_gpu_vertex_fetch_t* fetch);
-  void PrepareTextureFetcher(
-      int slot, xenos::xe_gpu_texture_fetch_t* fetch);
-  void PrepareIndexBuffer();
+  int UpdateState();
+  int UpdateConstantBuffers();
+  int BindShaders();
+  int PrepareFetchers();
+  int PrepareVertexFetcher(
+      int fetch_slot, xenos::xe_gpu_vertex_fetch_t* fetch);
+  int PrepareTextureFetcher(
+      int fetch_slot, xenos::xe_gpu_texture_fetch_t* fetch);
+  int PrepareIndexBuffer();
 
 private:
   ID3D11Device*         device_;

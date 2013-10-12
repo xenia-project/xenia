@@ -571,26 +571,6 @@ int disasm_fetch(
   return 0;
 }
 
-int cf_exec(const instr_cf_t* cf) {
-  return (cf->opc == EXEC) ||
-         (cf->opc == EXEC_END) ||
-         (cf->opc == COND_EXEC) ||
-         (cf->opc == COND_EXEC_END) ||
-         (cf->opc == COND_PRED_EXEC) ||
-         (cf->opc == COND_PRED_EXEC_END) ||
-         (cf->opc == COND_EXEC_PRED_CLEAN) ||
-         (cf->opc == COND_EXEC_PRED_CLEAN_END);
-}
-
-int cf_cond_exec(const instr_cf_t* cf) {
-  return (cf->opc == COND_EXEC) ||
-         (cf->opc == COND_EXEC_END) ||
-         (cf->opc == COND_PRED_EXEC) ||
-         (cf->opc == COND_PRED_EXEC_END) ||
-         (cf->opc == COND_EXEC_PRED_CLEAN) ||
-         (cf->opc == COND_EXEC_PRED_CLEAN_END);
-}
-
 void print_cf_nop(Output* output, const instr_cf_t* cf) {
 }
 
@@ -609,7 +589,7 @@ void print_cf_exec(Output* output, const instr_cf_t* cf) {
   if (cf->exec.address_mode == ABSOLUTE_ADDR) {
     output->append(" ABSOLUTE_ADDR");
   }
-  if (cf_cond_exec(cf)) {
+  if (cf->is_cond_exec()) {
     output->append(" COND(%d)", cf->exec.condition);
   }
 }
@@ -732,11 +712,11 @@ char* xenos::DisassembleShader(
     cfb.dword_0 = (dword_1 >> 16) | (dword_2 << 16);
     cfb.dword_1 = dword_2 >> 16;
     print_cf(output, &cfa, 0);
-    if (cf_exec(&cfa)) {
+    if (cfa.is_exec()) {
       disasm_exec(output, dwords, dword_count, 0, type, &cfa);
     }
     print_cf(output, &cfb, 0);
-    if (cf_exec(&cfb)) {
+    if (cfb.is_exec()) {
       disasm_exec(output, dwords, dword_count, 0, type, &cfb);
     }
     if (cfa.opc == EXEC_END || cfb.opc == EXEC_END) {

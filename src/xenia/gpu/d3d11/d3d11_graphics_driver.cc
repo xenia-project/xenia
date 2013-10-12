@@ -104,7 +104,7 @@ void D3D11GraphicsDriver::SetShader(
   }
 }
 
-void D3D11GraphicsDriver::DrawAutoIndexed(
+void D3D11GraphicsDriver::DrawIndexAuto(
     XE_GPU_PRIMITIVE_TYPE prim_type,
     uint32_t index_count) {
   RegisterFile& rf = register_file_;
@@ -113,13 +113,19 @@ void D3D11GraphicsDriver::DrawAutoIndexed(
            prim_type, index_count);
 
   // Misc state.
-  UpdateState();
+  if (UpdateState()) {
+    return;
+  }
 
   // Build constant buffers.
-  UpdateConstantBuffers();
+  if (UpdateConstantBuffers()) {
+    return;
+  }
 
   // Bind shaders.
-  BindShaders();
+  if (BindShaders()) {
+    return;
+  }
 
   // Switch primitive topology.
   // Some are unsupported on D3D11 and must be emulated.
@@ -151,26 +157,66 @@ void D3D11GraphicsDriver::DrawAutoIndexed(
   context_->IASetPrimitiveTopology(primitive_topology);
 
   // Setup all fetchers (vertices/textures).
-  PrepareFetchers();
+  if (PrepareFetchers()) {
+    return;
+  }
 
   // Setup index buffer.
-  PrepareIndexBuffer();
+  if (PrepareIndexBuffer()) {
+    return;
+  }
 
   // Issue draw.
   uint32_t start_index = rf.values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t base_vertex = 0;
   //context_->DrawIndexed(index_count, start_index, base_vertex);
+  context_->Draw(index_count, 0);
 }
 
-void D3D11GraphicsDriver::UpdateState() {
-  //context_->OMSetBlendState(blend_state, blend_factor, sample_mask);
+int D3D11GraphicsDriver::UpdateState() {
+  // General rasterizer state.
+  ID3D11RasterizerState* rasterizer_state = 0;
+  D3D11_RASTERIZER_DESC rasterizer_desc;
+  xe_zero_struct(&rasterizer_desc, sizeof(rasterizer_desc));
+  rasterizer_desc.FillMode              = D3D11_FILL_SOLID; // D3D11_FILL_WIREFRAME;
+  rasterizer_desc.CullMode              = D3D11_CULL_NONE; // D3D11_CULL_FRONT BACK
+  rasterizer_desc.FrontCounterClockwise = false;
+  rasterizer_desc.DepthBias             = 0;
+  rasterizer_desc.DepthBiasClamp        = 0;
+  rasterizer_desc.SlopeScaledDepthBias  = 0;
+  rasterizer_desc.DepthClipEnable       = true;
+  rasterizer_desc.ScissorEnable         = false;
+  rasterizer_desc.MultisampleEnable     = false;
+  rasterizer_desc.AntialiasedLineEnable = false;
+  device_->CreateRasterizerState(&rasterizer_desc, &rasterizer_state);
+  context_->RSSetState(rasterizer_state);
+  XESAFERELEASE(rasterizer_state);
+
+  // Depth-stencil state.
   //context_->OMSetDepthStencilState
-  //context_->RSSetScissorRects
-  //context_->RSSetState
-  //context_->RSSetViewports
+
+  // Blend state.
+  //context_->OMSetBlendState(blend_state, blend_factor, sample_mask);
+
+  // Scissoring.
+  // TODO(benvanik): pull from scissor registers.
+  context_->RSSetScissorRects(0, NULL);
+
+  // Viewport.
+  // If we have resized the window we will want to change this.
+  D3D11_VIEWPORT viewport;
+  viewport.MinDepth = 0.0f;
+  viewport.MaxDepth = 1.0f;
+  viewport.TopLeftX = 0;
+  viewport.TopLeftY = 0;
+  viewport.Width    = 1280;
+  viewport.Height   = 720;
+  context_->RSSetViewports(1, &viewport);
+
+  return 0;
 }
 
-void D3D11GraphicsDriver::UpdateConstantBuffers() {
+int D3D11GraphicsDriver::UpdateConstantBuffers() {
   RegisterFile& rf = register_file_;
 
   D3D11_MAPPED_SUBRESOURCE res;
@@ -197,9 +243,11 @@ void D3D11GraphicsDriver::UpdateConstantBuffers() {
       &rf.values[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031],
       (8) * sizeof(int));
   context_->Unmap(state_.constant_buffers.bool_constants, 0);
+
+  return 0;
 }
 
-void D3D11GraphicsDriver::BindShaders() {
+int D3D11GraphicsDriver::BindShaders() {
   RegisterFile& rf = register_file_;
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = rf.values[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
@@ -212,7 +260,7 @@ void D3D11GraphicsDriver::BindShaders() {
       if (vs->Prepare(&program_cntl)) {
         XELOGGPU("D3D11: failed to prepare vertex shader");
         state_.vertex_shader = NULL;
-        return;
+        return 1;
       }
     }
 
@@ -230,6 +278,10 @@ void D3D11GraphicsDriver::BindShaders() {
 
     //context_->VSSetSamplers
     //context_->VSSetShaderResources
+  } else {
+    context_->VSSetShader(NULL, NULL, 0);
+    context_->IASetInputLayout(NULL);
+    return 1;
   }
 
   // Pixel shader setup.
@@ -240,7 +292,7 @@ void D3D11GraphicsDriver::BindShaders() {
       if (ps->Prepare(&program_cntl)) {
         XELOGGPU("D3D11: failed to prepare pixel shader");
         state_.pixel_shader = NULL;
-        return;
+        return 1;
       }
     }
 
@@ -255,33 +307,48 @@ void D3D11GraphicsDriver::BindShaders() {
 
     //context_->PSSetSamplers
     //context_->PSSetShaderResources
+  } else {
+    context_->PSSetShader(NULL, NULL, 0);
+    return 1;
   }
+
+  return 0;
 }
 
-void D3D11GraphicsDriver::PrepareFetchers() {
+int D3D11GraphicsDriver::PrepareFetchers() {
   RegisterFile& rf = register_file_;
   for (int n = 0; n < 32; n++) {
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + n * 6;
     xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
     if (group->type_0 == 0x2) {
-      PrepareTextureFetcher(n, &group->texture_fetch);
+      if (PrepareTextureFetcher(n, &group->texture_fetch)) {
+        return 1;
+      }
     } else {
       // TODO(benvanik): verify register numbering.
       if (group->type_0 == 0x3) {
-        PrepareVertexFetcher(n * 3 + 0, &group->vertex_fetch_0);
+        if (PrepareVertexFetcher(n * 3 + 0, &group->vertex_fetch_0)) {
+          return 1;
+        }
       }
       if (group->type_1 == 0x3) {
-        PrepareVertexFetcher(n * 3 + 1, &group->vertex_fetch_1);
+        if (PrepareVertexFetcher(n * 3 + 1, &group->vertex_fetch_1)) {
+          return 1;
+        }
       }
       if (group->type_2 == 0x3) {
-        PrepareVertexFetcher(n * 3 + 2, &group->vertex_fetch_2);
+        if (PrepareVertexFetcher(n * 3 + 2, &group->vertex_fetch_2)) {
+          return 1;
+        }
       }
     }
   }
+
+  return 0;
 }
 
-void D3D11GraphicsDriver::PrepareVertexFetcher(
-    int slot, xe_gpu_vertex_fetch_t* fetch) {
+int D3D11GraphicsDriver::PrepareVertexFetcher(
+    int fetch_slot, xe_gpu_vertex_fetch_t* fetch) {
   uint32_t address = (fetch->address << 2) + address_translation_;
   uint32_t size_dwords = fetch->size;
 
@@ -292,9 +359,18 @@ void D3D11GraphicsDriver::PrepareVertexFetcher(
   buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
   buffer_desc.BindFlags       = D3D11_BIND_VERTEX_BUFFER;
   buffer_desc.CPUAccessFlags  = D3D11_CPU_ACCESS_WRITE;
-  device_->CreateBuffer(&buffer_desc, NULL, &buffer);
+  HRESULT hr = device_->CreateBuffer(&buffer_desc, NULL, &buffer);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: unable to create vertex fetch buffer");
+    return 1;
+  }
   D3D11_MAPPED_SUBRESOURCE res;
-  context_->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
+  hr = context_->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: unable to map vertex fetch buffer");
+    XESAFERELEASE(buffer);
+    return 1;
+  }
   uint32_t* src = (uint32_t*)xe_memory_addr(memory_, address);
   uint32_t* dest = (uint32_t*)res.pData;
   for (uint32_t n = 0; n < size_dwords; n++) {
@@ -308,19 +384,31 @@ void D3D11GraphicsDriver::PrepareVertexFetcher(
   }
   context_->Unmap(buffer, 0);
 
-  // TODO(benvanik): fetch from VS.
-  /*uint32_t stride = 0;
+  D3D11VertexShader* vs = state_.vertex_shader;
+  if (!vs) {
+    return 1;
+  }
+  const instr_fetch_vtx_t* vtx = vs->GetFetchVtxBySlot(fetch_slot);
+  if (!vtx->must_be_one) {
+    return 1;
+  }
+  // TODO(benvanik): always dword aligned?
+  uint32_t stride = vtx->stride * 4;
   uint32_t offset = 0;
-  context_->IASetVertexBuffers(slot, 1, &buffer, &stride, &offset);*/
+  int vb_slot = 95 - fetch_slot;
+  context_->IASetVertexBuffers(vb_slot, 1, &buffer, &stride, &offset);
 
   buffer->Release();
+
+  return 0;
 }
 
-void D3D11GraphicsDriver::PrepareTextureFetcher(
-    int slot, xe_gpu_texture_fetch_t* fetch) {
+int D3D11GraphicsDriver::PrepareTextureFetcher(
+    int fetch_slot, xe_gpu_texture_fetch_t* fetch) {
+  return 0;
 }
 
-void D3D11GraphicsDriver::PrepareIndexBuffer() {
+int D3D11GraphicsDriver::PrepareIndexBuffer() {
   RegisterFile& rf = register_file_;
 
 /*
@@ -353,4 +441,6 @@ void D3D11GraphicsDriver::PrepareIndexBuffer() {
   context_->IASetIndexBuffer(buffer, format, 0);
 
   buffer->Release();*/
+
+  return 0;
 }

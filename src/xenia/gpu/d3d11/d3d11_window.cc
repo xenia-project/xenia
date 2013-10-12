@@ -38,7 +38,7 @@ D3D11Window::D3D11Window(
   desc.Flags              = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
   // Setup buffers.
-  desc.BufferCount        = 2;
+  desc.BufferCount        = 1;
   desc.BufferUsage        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   desc.BufferDesc.Width   = width_;
   desc.BufferDesc.Height  = height_;
@@ -93,16 +93,6 @@ D3D11Window::~D3D11Window() {
 }
 
 void D3D11Window::Swap() {
-  // Setup the viewport.
-  //D3D11_VIEWPORT viewport;
-  //viewport.MinDepth = 0.0f;
-  //viewport.MaxDepth = 1.0f;
-  //viewport.TopLeftX = 0;
-  //viewport.TopLeftY = 0;
-  //viewport.Width    = (FLOAT)width_;
-  //viewport.Height   = (FLOAT)height_;
-  //context_->RSSetViewports(1, &viewport);
-
   // Swap buffers.
   // TODO(benvanik): control vsync with flag.
   bool vsync = true;

@@ -361,6 +361,25 @@ XEPACKEDUNION(instr_cf_t, {
     uint32_t            dword_0;
     uint32_t            dword_1;
   });
+
+  bool is_exec() const {
+    return (this->opc == EXEC) ||
+           (this->opc == EXEC_END) ||
+           (this->opc == COND_EXEC) ||
+           (this->opc == COND_EXEC_END) ||
+           (this->opc == COND_PRED_EXEC) ||
+           (this->opc == COND_PRED_EXEC_END) ||
+           (this->opc == COND_EXEC_PRED_CLEAN) ||
+           (this->opc == COND_EXEC_PRED_CLEAN_END);
+  }
+  bool is_cond_exec() const {
+    return (this->opc == COND_EXEC) ||
+           (this->opc == COND_EXEC_END) ||
+           (this->opc == COND_PRED_EXEC) ||
+           (this->opc == COND_PRED_EXEC_END) ||
+           (this->opc == COND_EXEC_PRED_CLEAN) ||
+           (this->opc == COND_EXEC_PRED_CLEAN_END);
+  }
 });
 
 

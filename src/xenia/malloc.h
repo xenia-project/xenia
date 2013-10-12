@@ -13,6 +13,8 @@
 #include <xenia/types.h>
 
 
+#define xe_alloca(size) alloca(size)
+
 void *xe_malloc(const size_t size);
 void *xe_calloc(const size_t size);
 void *xe_realloc(void *ptr, const size_t old_size, const size_t new_size);
