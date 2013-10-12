@@ -33,17 +33,13 @@ public:
 
   void UpdateWritePointer(uint32_t value);
 
+  void Pump();
+
 protected:
-  static void ThreadStartThunk(RingBufferWorker* this_ptr) {
-    this_ptr->ThreadStart();
-  }
-  void ThreadStart();
   void ExecuteSegment(uint32_t ptr, uint32_t length);
 
 protected:
   xe_memory_ref   memory_;
-  xe_thread_ref   thread_;
-  bool            running_;
 
   GraphicsDriver* driver_;
 

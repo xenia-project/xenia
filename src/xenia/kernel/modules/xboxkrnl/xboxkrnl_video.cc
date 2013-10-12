@@ -154,8 +154,6 @@ void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
   // r4 = function ptr (cleanup callback?)
   // r5 = 0
   // r6/r7 = some binary data in .data
-
-  gs->Initialize();
 }
 
 
@@ -366,6 +364,24 @@ SHIM_CALL VdRetrainEDRAM_shim(
 }
 
 
+SHIM_CALL VdSwap_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+      "VdSwap(?)");
+
+  KernelState* kernel_state = shared_kernel_state_;
+  XEASSERTNOTNULL(kernel_state);
+  GraphicsSystem* gs = kernel_state->processor()->graphics_system().get();
+  if (!gs) {
+    return;
+  }
+
+  gs->set_swap_pending(true);
+
+  SHIM_SET_RETURN(0);
+}
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
@@ -387,6 +403,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdPersistDisplay, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAMWorker, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAM, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdSwap, state);
 
   xe_memory_ref memory = state->memory();
   uint8_t* mem = xe_memory_addr(memory);

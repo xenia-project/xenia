@@ -19,11 +19,15 @@ using namespace xe::gpu::d3d11;
 using namespace xe::gpu::xenos;
 
 
-D3D11GraphicsDriver::D3D11GraphicsDriver(xe_memory_ref memory) :
+D3D11GraphicsDriver::D3D11GraphicsDriver(
+    xe_memory_ref memory, ID3D11Device* device) :
     GraphicsDriver(memory) {
+  device_ = device;
+  device_->AddRef();
 }
 
 D3D11GraphicsDriver::~D3D11GraphicsDriver() {
+  device_->Release();
 }
 
 void D3D11GraphicsDriver::Initialize() {

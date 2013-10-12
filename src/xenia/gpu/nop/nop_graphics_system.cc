@@ -34,15 +34,11 @@ NopGraphicsSystem::NopGraphicsSystem(const CreationParams* params) :
 }
 
 NopGraphicsSystem::~NopGraphicsSystem() {
-  if (vsync_timer_) {
-    DeleteTimerQueueTimer(timer_queue_, vsync_timer_, NULL);
-  }
-  if (timer_queue_) {
-    DeleteTimerQueueEx(timer_queue_, NULL);
-  }
 }
 
 void NopGraphicsSystem::Initialize() {
+  GraphicsSystem::Initialize();
+
   XEASSERTNULL(driver_);
   driver_ = new NopGraphicsDriver(memory_);
 
@@ -58,4 +54,18 @@ void NopGraphicsSystem::Initialize() {
       16,
       100,
       WT_EXECUTEINTIMERTHREAD);
+}
+
+void NopGraphicsSystem::Pump() {
+}
+
+void NopGraphicsSystem::Shutdown() {
+  if (vsync_timer_) {
+    DeleteTimerQueueTimer(timer_queue_, vsync_timer_, NULL);
+  }
+  if (timer_queue_) {
+    DeleteTimerQueueEx(timer_queue_, NULL);
+  }
+
+  GraphicsSystem::Shutdown();
 }

@@ -12,9 +12,12 @@
     'path.h',
     'ref.cc',
     'ref.h',
+    'run_loop.h',
     'socket.h',
     'thread.cc',
     'thread.h',
+    'window.cc',
+    'window.h',
   ],
 
   'conditions': [
@@ -42,7 +45,10 @@
         'mutex_win.cc',
         'pal_win.cc',
         'path_win.cc',
+        'run_loop_win.cc',
         'socket_win.cc',
+        'win32_window.cc',
+        'win32_window.h',
       ],
     }],
   ],

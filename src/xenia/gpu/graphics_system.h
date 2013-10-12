@@ -29,9 +29,11 @@ class RingBufferWorker;
 
 class CreationParams {
 public:
-  xe_memory_ref memory;
+  xe_memory_ref     memory;
 
-  CreationParams() : memory(NULL) {}
+  CreationParams() :
+      memory(0) {
+  }
 };
 
 
@@ -43,7 +45,6 @@ public:
   shared_ptr<cpu::Processor> processor();
   void set_processor(shared_ptr<cpu::Processor> processor);
 
-  virtual void Initialize() = 0;
   void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
@@ -52,6 +53,8 @@ public:
   virtual void WriteRegister(uint32_t r, uint64_t value);
 
   void DispatchInterruptCallback();
+  bool swap_pending() const { return swap_pending_; }
+  void set_swap_pending(bool value) { swap_pending_ = value; }
 
 public:
   // TODO(benvanik): have an HasRegisterHandler() so that the JIT can
@@ -65,16 +68,32 @@ public:
   }
 
 protected:
+  virtual void Initialize();
+  virtual void Pump() = 0;
+  virtual void Shutdown();
+
+private:
+  static void ThreadStartThunk(GraphicsSystem* this_ptr) {
+    this_ptr->ThreadStart();
+  }
+  void ThreadStart();
+
+protected:
   GraphicsSystem(const CreationParams* params);
 
   xe_memory_ref     memory_;
   shared_ptr<cpu::Processor> processor_;
+  
+  xe_run_loop_ref   run_loop_;
+  xe_thread_ref     thread_;
+  bool              running_;
 
   GraphicsDriver*   driver_;
   RingBufferWorker* worker_;
 
   uint32_t          interrupt_callback_;
   uint32_t          interrupt_callback_data_;
+  bool              swap_pending_;
 };
 
 

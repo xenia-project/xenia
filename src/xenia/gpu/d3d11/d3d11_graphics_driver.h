@@ -16,6 +16,8 @@
 #include <xenia/gpu/d3d11/d3d11-private.h>
 #include <xenia/gpu/xenos/xenos.h>
 
+#include <d3d11.h>
+
 
 namespace xe {
 namespace gpu {
@@ -24,7 +26,7 @@ namespace d3d11 {
 
 class D3D11GraphicsDriver : public GraphicsDriver {
 public:
-  D3D11GraphicsDriver(xe_memory_ref memory);
+  D3D11GraphicsDriver(xe_memory_ref memory, ID3D11Device* device);
   virtual ~D3D11GraphicsDriver();
 
   virtual void Initialize();
@@ -40,7 +42,8 @@ public:
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);
 
-protected:
+private:
+  ID3D11Device*   device_;
 };
 
 

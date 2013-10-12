@@ -40,6 +40,9 @@
               ['OS == "win"', {
                 'libraries': [
                   'wsock32',
+                  'dxgi',
+                  'd3d11',
+                  'd3dx11',
                 ],
               }],
               ['OS == "mac"', {

@@ -8,5 +8,11 @@
     'd3d11_graphics_driver.h',
     'd3d11_graphics_system.cc',
     'd3d11_graphics_system.h',
+    'd3d11_shader.cc',
+    'd3d11_shader.h',
+    'd3d11_shader_cache.cc',
+    'd3d11_shader_cache.h',
+    'd3d11_window.cc',
+    'd3d11_window.h',
   ],
 }

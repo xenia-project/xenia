@@ -33,6 +33,7 @@ public:
 
 private:
   xe_memory_ref   memory_;
+  xe_run_loop_ref run_loop_;
   shared_ptr<Backend>         backend_;
   shared_ptr<GraphicsSystem>  graphics_system_;
   shared_ptr<Processor>       processor_;
@@ -40,10 +41,12 @@ private:
   shared_ptr<Debugger>        debugger_;
 };
 
-Run::Run() {
+Run::Run() :
+    memory_(0), run_loop_(0) {
 }
 
 Run::~Run() {
+  xe_run_loop_release(run_loop_);
   xe_memory_release(memory_);
 }
 
@@ -62,7 +65,7 @@ int Run::Setup() {
   backend_ = shared_ptr<Backend>(new xe::cpu::x64::X64Backend());
 
   params.memory = memory_;
-  graphics_system_ = shared_ptr<GraphicsSystem>(xe::gpu::CreateNop(&params));
+  graphics_system_ = shared_ptr<GraphicsSystem>(xe::gpu::Create(&params));
 
   debugger_ = shared_ptr<Debugger>(new Debugger());
 

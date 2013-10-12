@@ -7,39 +7,25 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_NOP_NOP_GRAPHICS_SYSTEM_H_
-#define XENIA_GPU_NOP_NOP_GRAPHICS_SYSTEM_H_
+#ifndef XENIA_GPU_SHADER_H_
+#define XENIA_GPU_SHADER_H_
 
 #include <xenia/core.h>
-
-#include <xenia/gpu/graphics_system.h>
-#include <xenia/gpu/nop/nop-private.h>
 
 
 namespace xe {
 namespace gpu {
-namespace nop {
 
 
-class NopGraphicsSystem : public GraphicsSystem {
+class Shader {
 public:
-  NopGraphicsSystem(const CreationParams* params);
-  virtual ~NopGraphicsSystem();
-
-protected:
-  virtual void Initialize();
-  virtual void Pump();
-  virtual void Shutdown();
-
-private:
-  HANDLE timer_queue_;
-  HANDLE vsync_timer_;
+  Shader();
+  virtual ~Shader();
 };
 
 
-}  // namespace nop
 }  // namespace gpu
 }  // namespace xe
 
 
-#endif  // XENIA_GPU_NOP_NOP_GRAPHICS_SYSTEM_H_
+#endif  // XENIA_GPU_SHADER_H_

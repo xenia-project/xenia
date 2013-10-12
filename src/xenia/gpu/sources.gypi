@@ -11,6 +11,10 @@
     'graphics_system.h',
     'ring_buffer_worker.cc',
     'ring_buffer_worker.h',
+    'shader.cc',
+    'shader.h',
+    'shader_cache.cc',
+    'shader_cache.h',
   ],
 
   'includes': [

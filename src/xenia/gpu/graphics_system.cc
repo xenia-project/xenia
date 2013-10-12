@@ -21,19 +21,39 @@ using namespace xe::gpu::xenos;
 
 
 GraphicsSystem::GraphicsSystem(const CreationParams* params) :
-    interrupt_callback_(0), interrupt_callback_data_(0) {
+    interrupt_callback_(0), interrupt_callback_data_(0),
+    swap_pending_(false) {
   memory_ = xe_memory_retain(params->memory);
 
   worker_ = new RingBufferWorker(memory_);
 
   // Set during Initialize();
   driver_ = 0;
+
+  // Create the run loop used for any windows/etc.
+  // This must be done on the thread we create the driver.
+  run_loop_ = xe_run_loop_create();
+
+  // Create worker thread.
+  // This will initialize the graphics system.
+  // Init needs to happen there so that any thread-local stuff
+  // is created on the right thread.
+  running_ = true;
+  thread_ = xe_thread_create(
+      "GraphicsSystem",
+      (xe_thread_callback)ThreadStartThunk, this);
+  xe_thread_start(thread_);
 }
 
 GraphicsSystem::~GraphicsSystem() {
+  // TODO(benvanik): thread join.
+  running_ = false;
+  xe_thread_release(thread_);
+
   // TODO(benvanik): worker join/etc.
   delete worker_;
 
+  xe_run_loop_release(run_loop_);
   xe_memory_release(memory_);
 }
 
@@ -47,6 +67,44 @@ shared_ptr<cpu::Processor> GraphicsSystem::processor() {
 
 void GraphicsSystem::set_processor(shared_ptr<cpu::Processor> processor) {
   processor_ = processor;
+}
+
+void GraphicsSystem::ThreadStart() {
+  xe_run_loop_ref run_loop = xe_run_loop_retain(run_loop_);
+
+  // Initialize driver and ringbuffer.
+  Initialize();
+  XEASSERTNOTNULL(driver_);
+
+  // Main run loop.
+  while (running_) {
+    // Peek main run loop.
+    if (xe_run_loop_pump(run_loop)) {
+      break;
+    }
+    if (!running_) {
+      break;
+    }
+
+    // Pump worker.
+    worker_->Pump();
+
+    // Pump graphics system.
+    Pump();
+  }
+  running_ = false;
+
+  Shutdown();
+
+  xe_run_loop_release(run_loop);
+
+  // TODO(benvanik): call module API to kill?
+}
+
+void GraphicsSystem::Initialize() {
+}
+
+void GraphicsSystem::Shutdown() {
 }
 
 void GraphicsSystem::SetInterruptCallback(uint32_t callback,

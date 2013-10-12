@@ -21,20 +21,12 @@ using namespace xe::gpu::xenos;
 
 RingBufferWorker::RingBufferWorker(xe_memory_ref memory) :
     memory_(memory), driver_(0) {
-  running_ = true;
   write_ptr_index_event_ = CreateEvent(
       NULL, FALSE, FALSE, NULL);
-
-  thread_ = xe_thread_create(
-      "RingBufferWorker",
-      (xe_thread_callback)ThreadStartThunk, this);
 }
 
 RingBufferWorker::~RingBufferWorker() {
-  // TODO(benvanik): thread join.
-  running_ = false;
   SetEvent(write_ptr_index_event_);
-  xe_thread_release(thread_);
   CloseHandle(write_ptr_index_event_);
 }
 
@@ -44,8 +36,6 @@ void RingBufferWorker::Initialize(GraphicsDriver* driver,
   primary_buffer_ptr_ = ptr;
   primary_buffer_size_ = page_count * 4 * 1024;
   read_ptr_index_ = 0;
-
-  xe_thread_start(thread_);
 }
 
 void RingBufferWorker::EnableReadPointerWriteBack(uint32_t ptr,
@@ -64,40 +54,40 @@ void RingBufferWorker::UpdateWritePointer(uint32_t value) {
   SetEvent(write_ptr_index_event_);
 }
 
-void RingBufferWorker::ThreadStart() {
+void RingBufferWorker::Pump() {
   uint8_t* p = xe_memory_addr(memory_);
 
-  while (running_) {
-    if (write_ptr_index_ == 0xBAADF00D ||
-        read_ptr_index_ == write_ptr_index_) {
-      // Wait for the command buffer pointer to move.
-      // TODO(benvanik): only wait for a bit and check running_.
-      WaitForSingleObject(write_ptr_index_event_, INFINITE);
-      if (!running_) {
-        break;
-      }
+  if (write_ptr_index_ == 0xBAADF00D ||
+      read_ptr_index_ == write_ptr_index_) {
+    // Check if the pointer has moved.
+    // We wait a short bit here to yield time. Since we are also running the
+    // main window display we don't want to pause too long, though.
+    const int wait_time_ms = 1;
+    if (WaitForSingleObject(write_ptr_index_event_,
+                            wait_time_ms) == WAIT_TIMEOUT) {
+      return;
     }
-    if (read_ptr_index_ == write_ptr_index_) {
-      continue;
-    }
+  }
+  if (read_ptr_index_ == write_ptr_index_) {
+    return;
+  }
 
-    // Process the new commands.
-    XELOGGPU("Ring buffer thread work");
+  // Process the new commands.
+  XELOGGPU("Ring buffer thread work");
 
-    // TODO(benvanik): handle wrapping around
-    // read_ptr_index_ = (read_ptr_index_ + 1) % (primary_buffer_size_ / 4);
-    XEASSERT(write_ptr_index_ >= read_ptr_index_);
-    uint32_t length = write_ptr_index_ - read_ptr_index_;
-    if (length) {
-      ExecuteSegment(primary_buffer_ptr_ + read_ptr_index_ * 4, length);
-      read_ptr_index_ = write_ptr_index_;
-    }
+  // TODO(benvanik): handle wrapping around
+  // read_ptr_index_ = (read_ptr_index_ + 1) % (primary_buffer_size_ / 4);
+  XEASSERT(write_ptr_index_ >= read_ptr_index_);
+  uint32_t length = write_ptr_index_ - read_ptr_index_;
+  if (length) {
+    ExecuteSegment(primary_buffer_ptr_ + read_ptr_index_ * 4, length);
+    read_ptr_index_ = write_ptr_index_;
+  }
 
-    // TODO(benvanik): use read_ptr_update_freq_ and only issue after moving
-    //     that many indices.
-    if (read_ptr_writeback_ptr_) {
-      XESETUINT32BE(p + read_ptr_writeback_ptr_, read_ptr_index_);
-    }
+  // TODO(benvanik): use read_ptr_update_freq_ and only issue after moving
+  //     that many indices.
+  if (read_ptr_writeback_ptr_) {
+    XESETUINT32BE(p + read_ptr_writeback_ptr_, read_ptr_index_);
   }
 }
 
