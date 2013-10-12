@@ -38,6 +38,11 @@ X_STATUS xeExGetXConfigSetting(
   case 0x0003:
     // XCONFIG_USER_CATEGORY
     switch (setting) {
+    case 0x0009:
+      // Language
+      setting_size = 4;
+      value = 0x00000001; // English
+      break;
     case 0x000A:
       // VideoFlags
       setting_size = 4;

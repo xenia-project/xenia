@@ -204,7 +204,7 @@ SHIM_CALL DbgPrint_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 0);
+      XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = arg_index < 7
           ? SHIM_GET_ARG_32(1 + arg_index)

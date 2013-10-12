@@ -134,6 +134,15 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   XESETUINT16BE(mem + pXboxKrnlVersion + 2, 0xFFFF);
   XESETUINT16BE(mem + pXboxKrnlVersion + 4, 0xFFFF);
   XESETUINT16BE(mem + pXboxKrnlVersion + 6, 0xFFFF);
+
+  // KeTimeStampBundle (ad)
+  uint32_t pKeTimeStampBundle = xe_memory_heap_alloc(memory_, 0, 24, 0);
+  resolver->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::KeTimeStampBundle,
+      pKeTimeStampBundle);
+  XESETUINT64BE(mem + pKeTimeStampBundle + 0,  0);
+  XESETUINT64BE(mem + pKeTimeStampBundle + 8,  0);
+  XESETUINT32BE(mem + pKeTimeStampBundle + 12, 0);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {
