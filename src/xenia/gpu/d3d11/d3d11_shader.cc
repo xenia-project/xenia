@@ -50,7 +50,7 @@ int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
     return 0;
   }
 
-  const void* byte_code = NULL;
+  void* byte_code = NULL;
   size_t byte_code_length = 0;
 
   // Create shader.
@@ -99,7 +99,7 @@ int D3D11PixelShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
     return 0;
   }
 
-  const void* byte_code = NULL;
+  void* byte_code = NULL;
   size_t byte_code_length = 0;
 
   // Create shader.

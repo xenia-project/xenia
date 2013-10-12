@@ -21,7 +21,7 @@ Shader::Shader(
     XE_GPU_SHADER_TYPE type,
     const uint8_t* src_ptr, size_t length,
     uint64_t hash) :
-    type_(type), hash_(hash) {
+    type_(type), hash_(hash), is_prepared_(false) {
   // Verify.
   dword_count_ = length / 4;
   XEASSERT(dword_count_ <= 512);

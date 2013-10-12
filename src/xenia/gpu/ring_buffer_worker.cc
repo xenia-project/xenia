@@ -256,7 +256,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             uint32_t d1 = XEGETUINT32BE(packet_base + 2 * 4);
             uint32_t index_count = d1 >> 16;
             uint32_t prim_type = d1 & 0x3F;
-            uint32_t src_sel = (d0 >> 6) & 0x3;
+            uint32_t src_sel = (d1 >> 6) & 0x3;
             XEASSERT(src_sel == 0x2); // 'SrcSel=AutoIndex'
             driver_->DrawAutoIndexed(
                 (XE_GPU_PRIMITIVE_TYPE)prim_type,
