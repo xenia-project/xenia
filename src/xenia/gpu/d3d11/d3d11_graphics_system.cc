@@ -30,8 +30,8 @@ D3D11GraphicsSystem::D3D11GraphicsSystem(const CreationParams* params) :
 }
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
-  if (device_)        device_->Release();
-  if (dxgi_factory_)  dxgi_factory_->Release();
+  XESAFERELEASE(device_);
+  XESAFERELEASE(dxgi_factory_);
   delete window_;
 }
 

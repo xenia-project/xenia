@@ -39,7 +39,7 @@ public:
       uint32_t address,
       uint32_t start,
       uint32_t length);
-  virtual void DrawIndexed(
+  virtual void DrawAutoIndexed(
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);
 

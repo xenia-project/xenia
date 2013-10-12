@@ -31,7 +31,7 @@ protected:
   virtual Shader* CreateCore(
       xenos::XE_GPU_SHADER_TYPE type,
       const uint8_t* src_ptr, size_t length,
-      uint32_t hash);
+      uint64_t hash);
 
 protected:
   ID3D11Device* device_;

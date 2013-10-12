@@ -27,7 +27,7 @@ D3D11Shader::D3D11Shader(
 }
 
 D3D11Shader::~D3D11Shader() {
-  device_->Release();
+  XESAFERELEASE(device_);
 }
 
 
@@ -35,21 +35,48 @@ D3D11VertexShader::D3D11VertexShader(
     ID3D11Device* device,
     const uint8_t* src_ptr, size_t length,
     uint64_t hash) :
-    handle_(0),
+    handle_(0), input_layout_(0),
     D3D11Shader(device, XE_GPU_SHADER_TYPE_VERTEX,
                 src_ptr, length, hash) {
 }
 
 D3D11VertexShader::~D3D11VertexShader() {
-  if (handle_) handle_->Release();
+  XESAFERELEASE(input_layout_);
+  XESAFERELEASE(handle_);
 }
 
-int D3D11VertexShader::Prepare() {
+int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
   if (handle_) {
     return 0;
   }
 
-  // TODO(benvanik): translate/etc.
+  const void* byte_code = NULL;
+  size_t byte_code_length = 0;
+
+  // Create shader.
+  HRESULT hr = device_->CreateVertexShader(
+      byte_code, byte_code_length,
+      NULL,
+      &handle_);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: failed to create vertex shader");
+    return 1;
+  }
+
+  // Create input layout.
+  uint32_t element_count = 0;
+  D3D11_INPUT_ELEMENT_DESC* element_descs = 0;
+  hr = device_->CreateInputLayout(
+      element_descs,
+      element_count,
+      byte_code, byte_code_length,
+      &input_layout_);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: failed to create vertex shader input layout");
+    return 1;
+  }
+
+  is_prepared_ = true;
   return 0;
 }
 
@@ -64,14 +91,26 @@ D3D11PixelShader::D3D11PixelShader(
 }
 
 D3D11PixelShader::~D3D11PixelShader() {
-  if (handle_) handle_->Release();
+  XESAFERELEASE(handle_);
 }
 
-int D3D11PixelShader::Prepare() {
+int D3D11PixelShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
   if (handle_) {
     return 0;
   }
 
-  // TODO(benvanik): translate/etc.
+  const void* byte_code = NULL;
+  size_t byte_code_length = 0;
+
+  // Create shader.
+  HRESULT hr = device_->CreatePixelShader(
+      byte_code, byte_code_length,
+      NULL,
+      &handle_);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: failed to create vertex shader");
+    return 1;
+  }
+  is_prepared_ = true;
   return 0;
 }

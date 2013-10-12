@@ -119,6 +119,10 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #endif  // GNUC
 #endif  // !MIN
 
+#if XE_PLATFORM(WIN32)
+#define XESAFERELEASE(p)        if (p) { p->Release(); }
+#endif  // WIN32
+
 #define XEBITMASK(a, b) (((unsigned) -1 >> (31 - (b))) & ~((1U << (a)) - 1))
 #define XESELECTBITS(value, a, b) ((value & XEBITMASK(a, b)) >> a)
 

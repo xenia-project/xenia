@@ -42,6 +42,90 @@ typedef enum {
   XE_GPU_PRIMITIVE_TYPE_LINE_LOOP         = 0x0C,
 } XE_GPU_PRIMITIVE_TYPE;
 
+// XE_GPU_REG_SQ_PROGRAM_CNTL
+typedef union {
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t vs_regs            : 8;
+    uint32_t ps_regs            : 8;
+    uint32_t vs_resource        : 1;
+    uint32_t ps_resource        : 1;
+    uint32_t param_gen          : 1;
+    uint32_t unknown0           : 1;
+    uint32_t vs_export_count    : 4;
+    uint32_t vs_export_mode     : 3;
+    uint32_t ps_export_depth    : 1;
+    uint32_t ps_export_count    : 3;
+    uint32_t gen_index_vtx      : 1;
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t dword_0;
+  });
+} xe_gpu_program_cntl_t;
+
+// XE_GPU_REG_SHADER_CONSTANT_FETCH_*
+XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t type               : 2;
+    uint32_t address            : 30;
+    uint32_t unk0               : 2;
+    uint32_t size               : 24;
+    uint32_t unk1               : 6;
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t dword_0;
+    uint32_t dword_1;
+  });
+});
+
+// XE_GPU_REG_SHADER_CONSTANT_FETCH_*
+XEPACKEDUNION(xe_gpu_texture_fetch_t, {
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t unk0;
+    uint32_t unk1;
+    uint32_t unk2;
+    uint32_t unk3;
+    uint32_t unk4;
+    uint32_t unk5;
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t dword_0;
+    uint32_t dword_1;
+    uint32_t dword_2;
+    uint32_t dword_3;
+    uint32_t dword_4;
+    uint32_t dword_5;
+  });
+});
+
+// XE_GPU_REG_SHADER_CONSTANT_FETCH_*
+XEPACKEDUNION(xe_gpu_fetch_group_t, {
+  xe_gpu_texture_fetch_t texture_fetch;
+  XEPACKEDSTRUCTANONYMOUS({
+    xe_gpu_vertex_fetch_t vertex_fetch_0;
+    xe_gpu_vertex_fetch_t vertex_fetch_1;
+    xe_gpu_vertex_fetch_t vertex_fetch_2;
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t dword_0;
+    uint32_t dword_1;
+    uint32_t dword_2;
+    uint32_t dword_3;
+    uint32_t dword_4;
+    uint32_t dword_5;
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t type_0 : 2;
+    uint32_t        : 30;
+    uint32_t        : 32;
+    uint32_t type_1 : 2;
+    uint32_t        : 30;
+    uint32_t        : 32;
+    uint32_t type_2 : 2;
+    uint32_t        : 30;
+    uint32_t        : 32;
+  });
+});
+
 
 }  // namespace xenos
 }  // namespace gpu

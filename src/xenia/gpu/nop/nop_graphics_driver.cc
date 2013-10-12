@@ -64,14 +64,9 @@ void NopGraphicsDriver::SetShader(
   if (source) {
     xe_free(source);
   }
-
-  // Prepare for use.
-  if (shader->Prepare()) {
-    XELOGGPU("NOP: failed to prepare shader");
-  }
 }
 
-void NopGraphicsDriver::DrawIndexed(
+void NopGraphicsDriver::DrawAutoIndexed(
     XE_GPU_PRIMITIVE_TYPE prim_type,
     uint32_t index_count) {
   XELOGGPU("NOP: draw indexed %d (%d indicies)",

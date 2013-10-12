@@ -98,6 +98,9 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
   // Adjust pointer base.
   ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (ptr & 0x1FFFFFFF);
 
+  // Tell the driver what to use for translation.
+  driver_->set_address_translation(primary_buffer_ptr_ & ~0x1FFFFFFF);
+
 #define LOG_DATA(count) \
   for (uint32_t __m = 0; __m < count; __m++) { \
     XELOGGPU("  %.8X", XEGETUINT32BE(packet_base + 1 * 4 + __m * 4)); \
@@ -200,6 +203,7 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             XELOGGPU("Packet(%.8X): PM4_INDIRECT_BUFFER %.8X (%dw)",
                      packet, list_ptr, list_length);
             ExecuteSegment(list_ptr, list_length);
+            driver_->set_address_translation(primary_buffer_ptr_ & ~0x1FFFFFFF);
           }
           break;
 
@@ -252,8 +256,9 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             uint32_t d1 = XEGETUINT32BE(packet_base + 2 * 4);
             uint32_t index_count = d1 >> 16;
             uint32_t prim_type = d1 & 0x3F;
-            // Not sure what the other bits mean - 'SrcSel=AutoIndex'?
-            driver_->DrawIndexed(
+            uint32_t src_sel = (d0 >> 6) & 0x3;
+            XEASSERT(src_sel == 0x2); // 'SrcSel=AutoIndex'
+            driver_->DrawAutoIndexed(
                 (XE_GPU_PRIMITIVE_TYPE)prim_type,
                 index_count);
           }
@@ -266,9 +271,9 @@ void RingBufferWorker::ExecuteSegment(uint32_t ptr, uint32_t length) {
             uint32_t d0 = XEGETUINT32BE(packet_base + 1 * 4);
             uint32_t index_count = d0 >> 16;
             uint32_t prim_type = d0 & 0x3F;
-            // Not sure what the other bits mean - 'SrcSel=AutoIndex'?
-            // TODO(benvanik): verify this matches DRAW_INDX
-            driver_->DrawIndexed(
+            uint32_t src_sel = (d0 >> 6) & 0x3;
+            XEASSERT(src_sel == 0x2); // 'SrcSel=AutoIndex'
+            driver_->DrawAutoIndexed(
                 (XE_GPU_PRIMITIVE_TYPE)prim_type,
                 index_count);
           }

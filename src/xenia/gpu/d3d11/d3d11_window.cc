@@ -82,14 +82,14 @@ D3D11Window::D3D11Window(
 }
 
 D3D11Window::~D3D11Window() {
-  if (render_target_view_)  render_target_view_->Release();
   if (context_) {
     context_->ClearState();
-    context_->Release();
   }
-  if (swap_chain_)    swap_chain_->Release();
-  if (device_)        device_->Release();
-  if (dxgi_factory_)  dxgi_factory_->Release();
+  XESAFERELEASE(render_target_view_);
+  XESAFERELEASE(context_);
+  XESAFERELEASE(swap_chain_);
+  XESAFERELEASE(device_);
+  XESAFERELEASE(dxgi_factory_);
 }
 
 void D3D11Window::Swap() {

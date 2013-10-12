@@ -13,6 +13,7 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/shader.h>
+#include <xenia/gpu/xenos/xenos.h>
 
 #include <d3d11.h>
 
@@ -46,10 +47,14 @@ public:
       uint64_t hash);
   virtual ~D3D11VertexShader();
 
-  virtual int Prepare();
+  ID3D11VertexShader* handle() const { return handle_; }
+  ID3D11InputLayout* input_layout() const { return input_layout_; }
+
+  int Prepare(xenos::xe_gpu_program_cntl_t* program_cntl);
 
 private:
   ID3D11VertexShader* handle_;
+  ID3D11InputLayout*  input_layout_;
 };
 
 
@@ -61,7 +66,9 @@ public:
       uint64_t hash);
   virtual ~D3D11PixelShader();
 
-  virtual int Prepare();
+  ID3D11PixelShader* handle() const { return handle_; }
+
+  int Prepare(xenos::xe_gpu_program_cntl_t* program_cntl);
 
 private:
   ID3D11PixelShader*  handle_;

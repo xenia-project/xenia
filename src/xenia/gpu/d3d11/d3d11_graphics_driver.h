@@ -23,7 +23,9 @@ namespace xe {
 namespace gpu {
 namespace d3d11 {
 
+class D3D11PixelShader;
 class D3D11ShaderCache;
+class D3D11VertexShader;
 
 
 class D3D11GraphicsDriver : public GraphicsDriver {
@@ -40,14 +42,36 @@ public:
       uint32_t address,
       uint32_t start,
       uint32_t length);
-  virtual void DrawIndexed(
+  virtual void DrawAutoIndexed(
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);
 
 private:
-  ID3D11Device*     device_;
+  void UpdateState();
+  void UpdateConstantBuffers();
+  void BindShaders();
+  void PrepareFetchers();
+  void PrepareVertexFetcher(
+      int slot, xenos::xe_gpu_vertex_fetch_t* fetch);
+  void PrepareTextureFetcher(
+      int slot, xenos::xe_gpu_texture_fetch_t* fetch);
+  void PrepareIndexBuffer();
 
-  D3D11ShaderCache* shader_cache_;
+private:
+  ID3D11Device*         device_;
+  ID3D11DeviceContext*  context_;
+  D3D11ShaderCache*     shader_cache_;
+
+  struct {
+    D3D11VertexShader*  vertex_shader;
+    D3D11PixelShader*   pixel_shader;
+
+    struct {
+      ID3D11Buffer*     float_constants;
+      ID3D11Buffer*     bool_constants;
+      ID3D11Buffer*     loop_constants;
+    } constant_buffers;
+  } state_;
 };
 
 

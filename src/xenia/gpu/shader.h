@@ -29,6 +29,7 @@ public:
   const uint32_t* dwords() const { return dwords_; }
   size_t dword_count() const { return dword_count_; }
   uint64_t hash() const { return hash_; }
+  bool is_prepared() const { return is_prepared_; }
 
   // vfetch formats
   // sampler formats
@@ -37,13 +38,12 @@ public:
   // NOTE: xe_free() the returned string!
   char* Disassemble();
 
-  virtual int Prepare();
-
 protected:
   xenos::XE_GPU_SHADER_TYPE type_;
   uint32_t*   dwords_;
   size_t      dword_count_;
   uint64_t    hash_;
+  bool        is_prepared_;
 };
 
 

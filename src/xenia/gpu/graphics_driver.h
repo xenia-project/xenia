@@ -25,6 +25,9 @@ public:
 
   xe_memory_ref memory();
   xenos::RegisterFile* register_file() { return &register_file_; };
+  void set_address_translation(uint32_t value) {
+    address_translation_ = value;
+  }
 
   virtual void Initialize() = 0;
 
@@ -35,7 +38,7 @@ public:
       uint32_t address,
       uint32_t start,
       uint32_t length) = 0;
-  virtual void DrawIndexed(
+  virtual void DrawAutoIndexed(
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count) = 0;
 
@@ -45,6 +48,7 @@ protected:
   xe_memory_ref memory_;
 
   xenos::RegisterFile register_file_;
+  uint32_t address_translation_;
 };
 
 
