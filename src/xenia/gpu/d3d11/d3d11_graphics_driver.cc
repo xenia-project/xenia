@@ -69,6 +69,11 @@ void D3D11GraphicsDriver::SetShader(
   if (source) {
     xe_free(source);
   }
+
+  // Prepare for use.
+  if (shader->Prepare()) {
+    XELOGGPU("D3D11: failed to prepare shader");
+  }
 }
 
 void D3D11GraphicsDriver::DrawIndexed(

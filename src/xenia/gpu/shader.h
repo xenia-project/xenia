@@ -37,6 +37,8 @@ public:
   // NOTE: xe_free() the returned string!
   char* Disassemble();
 
+  virtual int Prepare();
+
 protected:
   xenos::XE_GPU_SHADER_TYPE type_;
   uint32_t*   dwords_;

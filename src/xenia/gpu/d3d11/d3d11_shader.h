@@ -24,12 +24,47 @@ namespace d3d11 {
 
 class D3D11Shader : public Shader {
 public:
+  virtual ~D3D11Shader();
+
+protected:
   D3D11Shader(
       ID3D11Device* device,
       xenos::XE_GPU_SHADER_TYPE type,
       const uint8_t* src_ptr, size_t length,
       uint64_t hash);
-  virtual ~D3D11Shader();
+
+protected:
+  ID3D11Device* device_;
+};
+
+
+class D3D11VertexShader : public D3D11Shader {
+public:
+  D3D11VertexShader(
+      ID3D11Device* device,
+      const uint8_t* src_ptr, size_t length,
+      uint64_t hash);
+  virtual ~D3D11VertexShader();
+
+  virtual int Prepare();
+
+private:
+  ID3D11VertexShader* handle_;
+};
+
+
+class D3D11PixelShader : public D3D11Shader {
+public:
+  D3D11PixelShader(
+      ID3D11Device* device,
+      const uint8_t* src_ptr, size_t length,
+      uint64_t hash);
+  virtual ~D3D11PixelShader();
+
+  virtual int Prepare();
+
+private:
+  ID3D11PixelShader*  handle_;
 };
 
 

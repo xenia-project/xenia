@@ -41,3 +41,7 @@ Shader::~Shader() {
 char* Shader::Disassemble() {
   return DisassembleShader(type_, dwords_, dword_count_);
 }
+
+int Shader::Prepare() {
+  return 0;
+}

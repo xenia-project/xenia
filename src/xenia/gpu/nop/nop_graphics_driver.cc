@@ -64,6 +64,11 @@ void NopGraphicsDriver::SetShader(
   if (source) {
     xe_free(source);
   }
+
+  // Prepare for use.
+  if (shader->Prepare()) {
+    XELOGGPU("NOP: failed to prepare shader");
+  }
 }
 
 void NopGraphicsDriver::DrawIndexed(
