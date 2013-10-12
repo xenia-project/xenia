@@ -346,23 +346,25 @@ int InstrEmit_lvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
   GpVar sh(c.newGpVar());
   c.mov(sh, ea);
   c.and_(sh, imm(0xF));
-  XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
   // If fully aligned skip complex work.
+  XmmVar v(c.newXmmVar());
+  c.pxor(v, v);
   Label done(c.newLabel());
   c.test(sh, sh);
   c.jz(done);
   {
     // Shift left by the number of bytes offset and fill with zeros.
     // We reuse the lvsl table here, as it does that for us.
+    c.movaps(v, e.ReadMemoryXmm(i.address, ea, 4));
     GpVar gt(c.newGpVar());
     c.xor_(gt, gt);
     c.pinsrb(v, gt.r8(), imm(0));
     c.shl(sh, imm(4)); // table offset = (16b * sh)
     c.mov(gt, imm((sysint_t)__shift_table_right));
     c.pshufb(v, xmmword_ptr(gt, sh));
+    c.shufps(v, v, imm(0x1B));
   }
   c.bind(done);
-  c.shufps(v, v, imm(0x1B));
   e.update_vr_value(vd, v);
   e.TraceVR(vd);
   return 0;
