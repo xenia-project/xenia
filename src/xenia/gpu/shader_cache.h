@@ -11,6 +11,8 @@
 #define XENIA_GPU_SHADER_CACHE_H_
 
 #include <xenia/core.h>
+#include <xenia/gpu/shader.h>
+#include <xenia/gpu/xenos/xenos.h>
 
 
 namespace xe {
@@ -21,6 +23,29 @@ class ShaderCache {
 public:
   ShaderCache();
   virtual ~ShaderCache();
+
+  Shader* Create(
+      xenos::XE_GPU_SHADER_TYPE type,
+      const uint8_t* src_ptr, size_t length);
+  Shader* Find(
+      xenos::XE_GPU_SHADER_TYPE type,
+      const uint8_t* src_ptr, size_t length);
+  Shader* FindOrCreate(
+      xenos::XE_GPU_SHADER_TYPE type,
+      const uint8_t* src_ptr, size_t length);
+
+  void Clear();
+
+private:
+  uint64_t Hash(const uint8_t* src_ptr, size_t length);
+
+  std::unordered_map<uint64_t, Shader*> map_;
+
+protected:
+  virtual Shader* CreateCore(
+      xenos::XE_GPU_SHADER_TYPE type,
+      const uint8_t* src_ptr, size_t length,
+      uint64_t hash);
 };
 
 

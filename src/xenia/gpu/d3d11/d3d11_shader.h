@@ -14,6 +14,8 @@
 
 #include <xenia/gpu/shader.h>
 
+#include <d3d11.h>
+
 
 namespace xe {
 namespace gpu {
@@ -22,7 +24,11 @@ namespace d3d11 {
 
 class D3D11Shader : public Shader {
 public:
-  D3D11Shader();
+  D3D11Shader(
+      ID3D11Device* device,
+      xenos::XE_GPU_SHADER_TYPE type,
+      const uint8_t* src_ptr, size_t length,
+      uint64_t hash);
   virtual ~D3D11Shader();
 };
 

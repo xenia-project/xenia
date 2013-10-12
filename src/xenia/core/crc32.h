@@ -7,28 +7,13 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
-#define XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
+#ifndef XENIA_CORE_CRC32_H_
+#define XENIA_CORE_CRC32_H_
 
-#include <xenia/core.h>
-
-#include <xenia/gpu/xenos/ucode.h>
-#include <xenia/gpu/xenos/xenos.h>
+#include <xenia/common.h>
 
 
-namespace xe {
-namespace gpu {
-namespace xenos {
+uint32_t xe_crc32(const void* data, size_t length, uint32_t previous_crc = 0);
 
 
-char* DisassembleShader(
-    XE_GPU_SHADER_TYPE type,
-    const uint32_t* dwords, size_t dword_count);
-
-
-}  // namespace xenos
-}  // namespace gpu
-}  // namespace xe
-
-
-#endif  // XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
+#endif  // XENIA_CORE_CRC32_H_

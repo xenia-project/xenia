@@ -10,7 +10,7 @@
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
-#include <xenia/gpu/xenos/ucode_disassembler.h>
+#include <xenia/gpu/d3d11/d3d11_shader_cache.h>
 
 
 using namespace xe;
@@ -24,9 +24,12 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
     GraphicsDriver(memory) {
   device_ = device;
   device_->AddRef();
+
+  shader_cache_ = new D3D11ShaderCache(device_);
 }
 
 D3D11GraphicsDriver::~D3D11GraphicsDriver() {
+  delete shader_cache_;
   device_->Release();
 }
 
@@ -51,29 +54,20 @@ void D3D11GraphicsDriver::SetShader(
     uint32_t address,
     uint32_t start,
     uint32_t length) {
-  // Swap shader words.
-  uint32_t dword_count = length / 4;
-  XEASSERT(dword_count <= 512);
-  if (dword_count > 512) {
-    XELOGGPU("D3D11: ignoring shader %d at %0.8X (%db): too long",
-             type, address, length);
-    return;
-  }
+  // Find or create shader in the cache.
   uint8_t* p = xe_memory_addr(memory_, address);
-  uint32_t dwords[512] = {0};
-  for (uint32_t n = 0; n < dword_count; n++) {
-    dwords[n] = XEGETUINT32BE(p + n * 4);
-  }
+  Shader* shader = shader_cache_->FindOrCreate(
+      type, p, length);
 
   // Disassemble.
-  const char* source = DisassembleShader(type, dwords, dword_count);
+  char* source = shader->Disassemble();
   if (!source) {
     source = "<failed to disassemble>";
   }
   XELOGGPU("D3D11: set shader %d at %0.8X (%db):\n%s",
            type, address, length, source);
   if (source) {
-    xe_free((void*)source);
+    xe_free(source);
   }
 }
 

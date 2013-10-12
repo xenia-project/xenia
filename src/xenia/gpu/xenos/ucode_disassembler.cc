@@ -716,7 +716,7 @@ void disasm_exec(
 }  // anonymous namespace
 
 
-const char* xenos::DisassembleShader(
+char* xenos::DisassembleShader(
     XE_GPU_SHADER_TYPE type,
     const uint32_t* dwords, size_t dword_count) {
   Output* output = new Output();
@@ -744,7 +744,7 @@ const char* xenos::DisassembleShader(
     }
   }
 
-  const char* result = xestrdupa(output->buffer);
+  char* result = xestrdupa(output->buffer);
   delete output;
   return result;
 }

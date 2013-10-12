@@ -12,7 +12,9 @@
 
 #include <xenia/common.h>
 
+#include <xenia/core/crc32.h>
 #include <xenia/core/file.h>
+#include <xenia/core/hash.h>
 #include <xenia/core/memory.h>
 #include <xenia/core/mmap.h>
 #include <xenia/core/mutex.h>

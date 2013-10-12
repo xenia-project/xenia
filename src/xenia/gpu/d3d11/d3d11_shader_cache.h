@@ -14,6 +14,8 @@
 
 #include <xenia/gpu/shader_cache.h>
 
+#include <D3D11.h>
+
 
 namespace xe {
 namespace gpu {
@@ -22,8 +24,17 @@ namespace d3d11 {
 
 class D3D11ShaderCache : public ShaderCache {
 public:
-  D3D11ShaderCache();
+  D3D11ShaderCache(ID3D11Device* device);
   virtual ~D3D11ShaderCache();
+
+protected:
+  virtual Shader* CreateCore(
+      xenos::XE_GPU_SHADER_TYPE type,
+      const uint8_t* src_ptr, size_t length,
+      uint32_t hash);
+
+protected:
+  ID3D11Device* device_;
 };
 
 

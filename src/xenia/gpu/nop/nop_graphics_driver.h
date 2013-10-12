@@ -19,6 +19,9 @@
 
 namespace xe {
 namespace gpu {
+
+class ShaderCache;
+
 namespace nop {
 
 
@@ -41,6 +44,7 @@ public:
       uint32_t index_count);
 
 protected:
+  ShaderCache*  shader_cache_;
 };
 
 

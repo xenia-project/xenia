@@ -23,6 +23,8 @@ namespace xe {
 namespace gpu {
 namespace d3d11 {
 
+class D3D11ShaderCache;
+
 
 class D3D11GraphicsDriver : public GraphicsDriver {
 public:
@@ -43,7 +45,9 @@ public:
       uint32_t index_count);
 
 private:
-  ID3D11Device*   device_;
+  ID3D11Device*     device_;
+
+  D3D11ShaderCache* shader_cache_;
 };
 
 
