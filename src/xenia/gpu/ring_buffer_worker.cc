@@ -22,7 +22,7 @@ using namespace xe::gpu::xenos;
 RingBufferWorker::RingBufferWorker(xe_memory_ref memory) :
     memory_(memory), driver_(0) {
   write_ptr_index_event_ = CreateEvent(
-      NULL, TRUE, FALSE, NULL);
+      NULL, FALSE, FALSE, NULL);
 
   primary_buffer_ptr_     = 0;
   primary_buffer_size_    = 0;
@@ -78,7 +78,6 @@ void RingBufferWorker::Pump() {
   if (read_ptr_index_ == write_ptr_index_) {
     return;
   }
-  ResetEvent(write_ptr_index_event_);
 
   // Process the new commands.
   XELOGGPU("Ring buffer thread work");
