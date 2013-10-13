@@ -115,6 +115,10 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
+  // TODO(benvanik): an event?
+  while (!driver_) {
+    Sleep(0);
+  }
   XEASSERTNOTNULL(driver_);
   worker_->Initialize(driver_, ptr, page_count);
 }
