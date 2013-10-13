@@ -32,10 +32,16 @@ public:
   uint64_t hash() const { return hash_; }
   bool is_prepared() const { return is_prepared_; }
 
+  const char* disasm_src() const { return disasm_src_; }
+
   const xenos::instr_fetch_vtx_t* GetFetchVtxBySlot(uint32_t fetch_slot);
 
-  // NOTE: xe_free() the returned string!
-  char* Disassemble();
+  typedef struct {
+    uint32_t  positions;
+    uint32_t  params;
+    uint32_t  memories;
+  } alloc_counts_t;
+  const alloc_counts_t& alloc_counts() const { return alloc_counts_; }
 
 private:
   void GatherIO();
@@ -50,6 +56,10 @@ protected:
   uint64_t    hash_;
   bool        is_prepared_;
 
+  char*       disasm_src_;
+
+  alloc_counts_t alloc_counts_;
+  std::vector<xenos::instr_cf_exec_t> execs_;
   std::vector<xenos::instr_cf_alloc_t>  allocs_;
   std::vector<xenos::instr_fetch_vtx_t> fetch_vtxs_;
   xenos::instr_fetch_vtx_t fetch_vtx_slots_[96];

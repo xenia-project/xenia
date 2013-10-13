@@ -83,15 +83,12 @@ void D3D11GraphicsDriver::SetShader(
       type, p, length);
 
   // Disassemble.
-  char* source = shader->Disassemble();
+  const char* source = shader->disasm_src();
   if (!source) {
     source = "<failed to disassemble>";
   }
   XELOGGPU("D3D11: set shader %d at %0.8X (%db):\n%s",
            type, address, length, source);
-  if (source) {
-    xe_free(source);
-  }
 
   // Stash for later.
   switch (type) {
@@ -289,7 +286,7 @@ int D3D11GraphicsDriver::BindShaders() {
   if (ps) {
     if (!ps->is_prepared()) {
       // Prepare for use.
-      if (ps->Prepare(&program_cntl)) {
+      if (ps->Prepare(&program_cntl, vs)) {
         XELOGGPU("D3D11: failed to prepare pixel shader");
         state_.pixel_shader = NULL;
         return 1;

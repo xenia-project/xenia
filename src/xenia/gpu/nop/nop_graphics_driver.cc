@@ -55,15 +55,12 @@ void NopGraphicsDriver::SetShader(
       type, p, length);
 
   // Disassemble.
-  char* source = shader->Disassemble();
+  const char* source = shader->disasm_src();
   if (!source) {
     source = "<failed to disassemble>";
   }
   XELOGGPU("NOP: set shader %d at %0.8X (%db):\n%s",
            type, address, length, source);
-  if (source) {
-    xe_free(source);
-  }
 }
 
 void NopGraphicsDriver::DrawIndexAuto(

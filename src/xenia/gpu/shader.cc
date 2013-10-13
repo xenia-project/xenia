@@ -21,7 +21,8 @@ Shader::Shader(
     XE_GPU_SHADER_TYPE type,
     const uint8_t* src_ptr, size_t length,
     uint64_t hash) :
-    type_(type), hash_(hash), is_prepared_(false) {
+    type_(type), hash_(hash), is_prepared_(false), disasm_src_(NULL) {
+  xe_zero_struct(&alloc_counts_, sizeof(alloc_counts_));
   xe_zero_struct(fetch_vtx_slots_, sizeof(fetch_vtx_slots_));
 
   // Verify.
@@ -37,9 +38,15 @@ Shader::Shader(
 
   // Gather input/output registers/etc.
   GatherIO();
+
+  // Disassemble, for debugging.
+  disasm_src_ = DisassembleShader(type_, dwords_, dword_count_);
 }
 
 Shader::~Shader() {
+  if (disasm_src_) {
+    xe_free(disasm_src_);
+  }
   xe_free(dwords_);
 }
 
@@ -73,9 +80,26 @@ void Shader::GatherIO() {
 
 void Shader::GatherAlloc(const instr_cf_alloc_t* cf) {
   allocs_.push_back(*cf);
+
+  switch (cf->buffer_select) {
+  case SQ_POSITION:
+    // Position (SV_POSITION).
+    alloc_counts_.positions += cf->size + 1;
+    break;
+  case SQ_PARAMETER_PIXEL:
+    // Output to PS (if VS), or frag output (if PS).
+    alloc_counts_.params += cf->size + 1;
+    break;
+  case SQ_MEMORY:
+    // MEMEXPORT?
+    alloc_counts_.memories += cf->size + 1;
+    break;
+  }
 }
 
 void Shader::GatherExec(const instr_cf_exec_t* cf) {
+  execs_.push_back(*cf);
+
   uint32_t sequence = cf->serialize;
   for (uint32_t i = 0; i < cf->count; i++) {
     uint32_t alu_off = (cf->address + i);
@@ -128,8 +152,4 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
 
 const instr_fetch_vtx_t* Shader::GetFetchVtxBySlot(uint32_t fetch_slot) {
   return &fetch_vtx_slots_[fetch_slot];
-}
-
-char* Shader::Disassemble() {
-  return DisassembleShader(type_, dwords_, dword_count_);
 }

@@ -22,6 +22,13 @@ namespace xe {
 namespace gpu {
 namespace d3d11 {
 
+struct Output;
+
+typedef struct {
+  Output*       output;
+  xenos::XE_GPU_SHADER_TYPE type;
+} xe_gpu_translate_ctx_t;
+
 
 class D3D11Shader : public Shader {
 public:
@@ -34,8 +41,18 @@ protected:
       const uint8_t* src_ptr, size_t length,
       uint64_t hash);
 
+  const char* translated_src() const { return translated_src_; }
+  void set_translated_src(char* value);
+
+  int TranslateExec(
+      xe_gpu_translate_ctx_t& ctx, const xenos::instr_cf_exec_t& cf);
+
+  ID3D10Blob* Compile(const char* shader_source);
+
 protected:
   ID3D11Device* device_;
+
+  char*   translated_src_;
 };
 
 
@@ -53,6 +70,9 @@ public:
   int Prepare(xenos::xe_gpu_program_cntl_t* program_cntl);
 
 private:
+  const char* Translate(xenos::xe_gpu_program_cntl_t* program_cntl);
+
+private:
   ID3D11VertexShader* handle_;
   ID3D11InputLayout*  input_layout_;
 };
@@ -68,7 +88,12 @@ public:
 
   ID3D11PixelShader* handle() const { return handle_; }
 
-  int Prepare(xenos::xe_gpu_program_cntl_t* program_cntl);
+  int Prepare(xenos::xe_gpu_program_cntl_t* program_cntl,
+              D3D11VertexShader* input_shader);
+
+private:
+  const char* Translate(xenos::xe_gpu_program_cntl_t* program_cntl,
+                        D3D11VertexShader* input_shader);
 
 private:
   ID3D11PixelShader*  handle_;

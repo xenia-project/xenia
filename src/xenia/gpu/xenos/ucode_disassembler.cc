@@ -255,44 +255,50 @@ int disasm_alu(
 
   output->append("   %sALU:\t", sync ? "(S)" : "   ");
 
-  output->append("%s", vector_instructions[alu->vector_opc].name);
-
-  if (alu->pred_select & 0x2) {
-    // seems to work similar to conditional execution in ARM instruction
-    // set, so let's use a similar syntax for now:
-    output->append((alu->pred_select & 0x1) ? "EQ" : "NE");
+  if (!alu->scalar_write_mask && !alu->vector_write_mask) {
+    output->append("   <nop>\n");
   }
 
-  output->append("\t");
+  if (alu->vector_write_mask) {
+    output->append("%s", vector_instructions[alu->vector_opc].name);
 
-  print_dstreg(output,
-               alu->vector_dest, alu->vector_write_mask, alu->export_data);
-  output->append(" = ");
-  if (vector_instructions[alu->vector_opc].num_srcs == 3) {
+    if (alu->pred_select & 0x2) {
+      // seems to work similar to conditional execution in ARM instruction
+      // set, so let's use a similar syntax for now:
+      output->append((alu->pred_select & 0x1) ? "EQ" : "NE");
+    }
+
+    output->append("\t");
+
+    print_dstreg(output,
+                 alu->vector_dest, alu->vector_write_mask, alu->export_data);
+    output->append(" = ");
+    if (vector_instructions[alu->vector_opc].num_srcs == 3) {
+      print_srcreg(output,
+                   alu->src3_reg, alu->src3_sel, alu->src3_swiz,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+      output->append(", ");
+    }
     print_srcreg(output,
-                 alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                 alu->src3_reg_negate, alu->src3_reg_abs);
-    output->append(", ");
-  }
-  print_srcreg(output,
-               alu->src1_reg, alu->src1_sel, alu->src1_swiz,
-               alu->src1_reg_negate, alu->src1_reg_abs);
-  if (vector_instructions[alu->vector_opc].num_srcs > 1) {
-    output->append(", ");
-    print_srcreg(output,
-                 alu->src2_reg, alu->src2_sel, alu->src2_swiz,
-                 alu->src2_reg_negate, alu->src2_reg_abs);
-  }
+                 alu->src1_reg, alu->src1_sel, alu->src1_swiz,
+                 alu->src1_reg_negate, alu->src1_reg_abs);
+    if (vector_instructions[alu->vector_opc].num_srcs > 1) {
+      output->append(", ");
+      print_srcreg(output,
+                   alu->src2_reg, alu->src2_sel, alu->src2_swiz,
+                   alu->src2_reg_negate, alu->src2_reg_abs);
+    }
 
-  if (alu->vector_clamp) {
-    output->append(" CLAMP");
-  }
+    if (alu->vector_clamp) {
+      output->append(" CLAMP");
+    }
 
-  if (alu->export_data) {
-    print_export_comment(output, alu->vector_dest, type);
-  }
+    if (alu->export_data) {
+      print_export_comment(output, alu->vector_dest, type);
+    }
 
-  output->append("\n");
+    output->append("\n");
+  }
 
   if (alu->scalar_write_mask || !alu->vector_write_mask) {
     // 2nd optional scalar op:

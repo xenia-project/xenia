@@ -297,6 +297,14 @@ XEPACKEDSTRUCT(instr_cf_exec_t, {
     uint32_t            address_mode            : 1;    // instr_addr_mode_t
     uint32_t            opc                     : 4;    // instr_cf_opc_t
   });
+  bool is_cond_exec() const {
+    return (this->opc == COND_EXEC) ||
+           (this->opc == COND_EXEC_END) ||
+           (this->opc == COND_PRED_EXEC) ||
+           (this->opc == COND_PRED_EXEC_END) ||
+           (this->opc == COND_EXEC_PRED_CLEAN) ||
+           (this->opc == COND_EXEC_PRED_CLEAN_END);
+  }
 });
 
 XEPACKEDSTRUCT(instr_cf_loop_t, {

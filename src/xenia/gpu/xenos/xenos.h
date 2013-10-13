@@ -45,8 +45,10 @@ typedef enum {
 // XE_GPU_REG_SQ_PROGRAM_CNTL
 typedef union {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t vs_regs            : 8;
-    uint32_t ps_regs            : 8;
+    uint32_t vs_regs            : 6;
+    uint32_t                    : 2;
+    uint32_t ps_regs            : 6;
+    uint32_t                    : 2;
     uint32_t vs_resource        : 1;
     uint32_t ps_resource        : 1;
     uint32_t param_gen          : 1;
