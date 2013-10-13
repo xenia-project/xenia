@@ -43,15 +43,15 @@ protected:
 
   GraphicsDriver* driver_;
 
-  uint32_t        primary_buffer_ptr_;
-  uint32_t        primary_buffer_size_;
+  uint32_t          primary_buffer_ptr_;
+  uint32_t          primary_buffer_size_;
 
-  uint32_t        read_ptr_index_;
-  uint32_t        read_ptr_update_freq_;
-  uint32_t        read_ptr_writeback_ptr_;
+  uint32_t          read_ptr_index_;
+  uint32_t          read_ptr_update_freq_;
+  uint32_t          read_ptr_writeback_ptr_;
 
-  HANDLE          write_ptr_index_event_;
-  uint32_t        write_ptr_index_;
+  HANDLE            write_ptr_index_event_;
+  volatile uint32_t write_ptr_index_;
 };
 
 

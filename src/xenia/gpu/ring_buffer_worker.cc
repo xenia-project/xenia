@@ -75,7 +75,11 @@ void RingBufferWorker::Pump() {
       return;
     }
   }
-  if (read_ptr_index_ == write_ptr_index_) {
+
+  // Bring local so we don't have to worry about them changing out from under
+  // us.
+  uint32_t write_ptr_index = write_ptr_index_;
+  if (read_ptr_index_ == write_ptr_index) {
     return;
   }
 
@@ -84,11 +88,11 @@ void RingBufferWorker::Pump() {
 
   // TODO(benvanik): handle wrapping around
   // read_ptr_index_ = (read_ptr_index_ + 1) % (primary_buffer_size_ / 4);
-  XEASSERT(write_ptr_index_ > read_ptr_index_);
-  uint32_t length = write_ptr_index_ - read_ptr_index_;
+  XEASSERT(write_ptr_index > read_ptr_index_);
+  uint32_t length = write_ptr_index - read_ptr_index_;
   if (length) {
     ExecuteSegment(primary_buffer_ptr_ + read_ptr_index_ * 4, length);
-    read_ptr_index_ = write_ptr_index_;
+    read_ptr_index_ = write_ptr_index;
   }
 
   // TODO(benvanik): use read_ptr_update_freq_ and only issue after moving
