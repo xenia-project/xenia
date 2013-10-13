@@ -23,6 +23,13 @@ RingBufferWorker::RingBufferWorker(xe_memory_ref memory) :
     memory_(memory), driver_(0) {
   write_ptr_index_event_ = CreateEvent(
       NULL, TRUE, FALSE, NULL);
+
+  primary_buffer_ptr_     = 0;
+  primary_buffer_size_    = 0;
+  read_ptr_index_         = 0;
+  read_ptr_update_freq_   = 0;
+  read_ptr_writeback_ptr_ = 0;
+  write_ptr_index_        = 0;
 }
 
 RingBufferWorker::~RingBufferWorker() {
@@ -32,10 +39,10 @@ RingBufferWorker::~RingBufferWorker() {
 
 void RingBufferWorker::Initialize(GraphicsDriver* driver,
                                   uint32_t ptr, uint32_t page_count) {
-  driver_ = driver;
-  primary_buffer_ptr_ = ptr;
-  primary_buffer_size_ = page_count * 4 * 1024;
-  read_ptr_index_ = 0;
+  driver_               = driver;
+  primary_buffer_ptr_   = ptr;
+  primary_buffer_size_  = page_count * 4 * 1024;
+  read_ptr_index_       = 0;
 }
 
 void RingBufferWorker::EnableReadPointerWriteBack(uint32_t ptr,
@@ -78,7 +85,7 @@ void RingBufferWorker::Pump() {
 
   // TODO(benvanik): handle wrapping around
   // read_ptr_index_ = (read_ptr_index_ + 1) % (primary_buffer_size_ / 4);
-  XEASSERT(write_ptr_index_ >= read_ptr_index_);
+  XEASSERT(write_ptr_index_ > read_ptr_index_);
   uint32_t length = write_ptr_index_ - read_ptr_index_;
   if (length) {
     ExecuteSegment(primary_buffer_ptr_ + read_ptr_index_ * 4, length);
