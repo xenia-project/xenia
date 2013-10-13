@@ -130,6 +130,11 @@ void D3D11GraphicsSystem::Pump() {
 
     // Dispatch interrupt callback to let the game know it can keep drawing.
     DispatchInterruptCallback();
+  } else {
+    // If we have gone too long without an interrupt, fire one.
+    if (xe_pal_now() - last_interrupt_time_ > 16 / 1000.0) {
+      DispatchInterruptCallback();
+    }
   }
 }
 

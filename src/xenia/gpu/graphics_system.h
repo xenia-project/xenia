@@ -93,6 +93,7 @@ protected:
 
   uint32_t          interrupt_callback_;
   uint32_t          interrupt_callback_data_;
+  double            last_interrupt_time_;
   bool              swap_pending_;
 };
 

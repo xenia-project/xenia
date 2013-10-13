@@ -22,7 +22,7 @@ using namespace xe::gpu::xenos;
 
 GraphicsSystem::GraphicsSystem(const CreationParams* params) :
     interrupt_callback_(0), interrupt_callback_data_(0),
-    swap_pending_(false) {
+    last_interrupt_time_(0), swap_pending_(false) {
   memory_ = xe_memory_retain(params->memory);
 
   worker_ = new RingBufferWorker(memory_);
@@ -147,15 +147,18 @@ void GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
     case 0x0714: // CP_RB_WPTR
       worker_->UpdateWritePointer((uint32_t)value);
       break;
+    default:
+      XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
+      break;
   }
 
   XEASSERT(r >= 0 && r < kXEGpuRegisterCount);
-  XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
   regs->values[r].u32 = (uint32_t)value;
 }
 
 void GraphicsSystem::DispatchInterruptCallback() {
   // NOTE: we may be executing in some random thread.
+  last_interrupt_time_ = xe_pal_now();
   if (!interrupt_callback_) {
     return;
   }
