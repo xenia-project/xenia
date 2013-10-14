@@ -336,6 +336,13 @@ void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
   special_registers.push_back(i);
 }
 
+void InstrDisasm::AddFPSCR(InstrRegister::Access access) {
+  InstrRegister i = {
+    InstrRegister::kFPSCR, 0, access
+  };
+  special_registers.push_back(i);
+}
+
 void InstrDisasm::AddRegOperand(
     InstrRegister::RegisterSet set, uint32_t ordinal,
     InstrRegister::Access access, const char* display) {

@@ -299,8 +299,11 @@ XEDISASMR(mcrfs,        0xFC000080, X  )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(mffsx,        0xFC00048E, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("mffs", "Move from FPSCR",
+         InstrDisasm::kFP | (i.X.Rc ? InstrDisasm::kRc : 0));
+  d.AddFPSCR(InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kFPR, i.X.RT, InstrRegister::kWrite);
+  return d.Finish();
 }
 
 XEDISASMR(mtfsb0x,      0xFC00008C, X  )(InstrData& i, InstrDisasm& d) {
@@ -314,8 +317,11 @@ XEDISASMR(mtfsb1x,      0xFC00004C, X  )(InstrData& i, InstrDisasm& d) {
 }
 
 XEDISASMR(mtfsfx,       0xFC00058E, XFL)(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("mtfsf", "Move to FPSCR Fields",
+         InstrDisasm::kFP | (i.XFL.Rc ? InstrDisasm::kRc : 0));
+  d.AddFPSCR(InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kFPR, i.XFL.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(mtfsfix,      0xFC00010C, X  )(InstrData& i, InstrDisasm& d) {

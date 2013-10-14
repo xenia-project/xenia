@@ -1268,7 +1268,10 @@ XEDISASMR(vsl,            0x100001C4, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vslb,           0x10000104, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vslb", "Vector Shift Left Integer Byte",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(vsldoi,         0x1000002C, VXA )(InstrData& i, InstrDisasm& d) {
@@ -1324,31 +1327,49 @@ XEDISASMR(vslw128,        VX128(6, 208),    VX128  )(InstrData& i, InstrDisasm& 
 XEDISASMR(vspltb,         0x1000020C, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vspltb", "Vector Splat Byte",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  d.AddUImmOperand(i.VX.VA & 0xF, 1);
+  return d.Finish();
 }
 
 XEDISASMR(vsplth,         0x1000024C, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vsplth", "Vector Splat Half Word",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  d.AddUImmOperand(i.VX.VA & 0x7, 1);
+  return d.Finish();
 }
 
 XEDISASMR(vspltisb,       0x1000030C, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vspltisb", "Vector Splat Immediate Signed Byte",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  // 5bit -> 8bit sign extend
+  uint64_t v = (i.VX.VA & 0x10) ? (i.VX.VA | 0xFFFFFFFFFFFFFFF0) : i.VX.VA;
+  d.AddSImmOperand(v, 1);
+  return d.Finish();
 }
 
 XEDISASMR(vspltish,       0x1000034C, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vspltish", "Vector Splat Immediate Signed Half Word",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  // 5bit -> 16bit sign extend
+  uint64_t v = (i.VX.VA & 0x10) ? (i.VX.VA | 0xFFFFFFFFFFFFFFF0) : i.VX.VA;
+  d.AddSImmOperand(v, 1);
+  return d.Finish();
 }
 
 XEDISASMR(vspltisw,       0x1000038C, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vspltisw", "Vector Splat Immediate Signed Word",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  // 5bit -> 32bit sign extend
+  uint64_t v = (i.VX.VA & 0x10) ? (i.VX.VA | 0xFFFFFFFFFFFFFFF0) : i.VX.VA;
+  d.AddSImmOperand(v, 1);
+  return d.Finish();
 }
 
 XEDISASMR(vspltisw128,    VX128_3(6, 1904), VX128_3)(InstrData& i, InstrDisasm& d) {

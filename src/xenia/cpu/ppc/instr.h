@@ -171,6 +171,15 @@ typedef struct {
       uint32_t                : 6;
     } XFX;
     // kXEPPCInstrFormatXFL
+    struct {
+      uint32_t        Rc      : 1;
+      uint32_t                : 10;
+      uint32_t        RB      : 5;
+      uint32_t                : 1;
+      uint32_t        FM      : 8;
+      uint32_t                : 1;
+      uint32_t                : 6;
+    } XFL;
     // kXEPPCInstrFormatXS
     struct {
       uint32_t        Rc      : 1;
@@ -478,6 +487,7 @@ public:
   void AddLR(InstrRegister::Access access);
   void AddCTR(InstrRegister::Access access);
   void AddCR(uint32_t bf, InstrRegister::Access access);
+  void AddFPSCR(InstrRegister::Access access);
   void AddRegOperand(InstrRegister::RegisterSet set, uint32_t ordinal,
                      InstrRegister::Access access, const char* display = NULL);
   void AddSImmOperand(uint64_t value, size_t width, const char* display = NULL);
