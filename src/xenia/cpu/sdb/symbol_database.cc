@@ -513,9 +513,11 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
 
     // If we have some address try to see what it is.
     if (block->outgoing_address) {
-      if (block->outgoing_address >= fn->start_address &&
+      if (block->outgoing_address > fn->start_address &&
           block->outgoing_address <= fn->end_address) {
         // Branch into a block in this function.
+        // Note that we make branches to the start address act as function
+        // calls, as they are almost always recursion cases.
         block->outgoing_type = FunctionBlock::kTargetBlock;
         block->outgoing_block = fn->GetBlock(block->outgoing_address);
         if (!block->outgoing_block) {
