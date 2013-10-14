@@ -165,8 +165,12 @@ XEDISASMR(twi,          0x0C000000, D  )(InstrData& i, InstrDisasm& d) {
 // Processor control (A-26)
 
 XEDISASMR(mfcr,         0x7C000026, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("mfcr", "Move From Condition Register", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  for (int n = 0; n < 8; n++) {
+    d.AddCR(0, InstrRegister::kRead);
+  }
+  return d.Finish();
 }
 
 XEDISASMR(mfspr,        0x7C0002A6, XFX)(InstrData& i, InstrDisasm& d) {
