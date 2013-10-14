@@ -34,19 +34,34 @@ X_STATUS xeExGetXConfigSetting(
 
   // TODO(benvanik): have real structs here that just get copied from.
   // http://free60.org/XConfig
+  // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
   case 0x0003:
     // XCONFIG_USER_CATEGORY
     switch (setting) {
-    case 0x0009:
-      // Language
+    case 0x0001: // XCONFIG_USER_TIME_ZONE_BIAS
+    case 0x0002: // XCONFIG_USER_TIME_ZONE_STD_NAME
+    case 0x0003: // XCONFIG_USER_TIME_ZONE_DLT_NAME
+    case 0x0004: // XCONFIG_USER_TIME_ZONE_STD_DATE
+    case 0x0005: // XCONFIG_USER_TIME_ZONE_DLT_DATE
+    case 0x0006: // XCONFIG_USER_TIME_ZONE_STD_BIAS
+    case 0x0007: // XCONFIG_USER_TIME_ZONE_DLT_BIAS
+      setting_size = 4;
+      // TODO(benvanik): get this value.
+      value = 0;
+      break;
+    case 0x0009: // XCONFIG_USER_LANGUAGE
       setting_size = 4;
       value = 0x00000001; // English
       break;
-    case 0x000A:
-      // VideoFlags
+    case 0x000A: // XCONFIG_USER_VIDEO_FLAGS
       setting_size = 4;
       value = 0x00040000;
+      break;
+    case 0x000C: // XCONFIG_USER_RETAIL_FLAGS
+      setting_size = 4;
+      // TODO(benvanik): get this value.
+      value = 0;
       break;
     default:
       XEASSERTALWAYS();
