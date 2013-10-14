@@ -650,6 +650,7 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
     // TODO(benvanik): assert this doesn't occur - means a bad sdb run!
     XELOGCPU("SDB function scan error in %.8X: bb %.8X has unknown exit",
              symbol_->start_address, block->start_address);
+    XEASSERTALWAYS();
     c.ret();
   }
 

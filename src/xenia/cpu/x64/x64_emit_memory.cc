@@ -990,8 +990,29 @@ XEEMITTER(isync,        0x4C00012C, XL )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(ldarx,        0x7C0000A8, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RESERVE <- 1
+  // RESERVE_LENGTH <- 8
+  // RESERVE_ADDR <- real_addr(EA)
+  // RT <- MEM(EA, 8)
+
+  // TODO(benvanik): make this right
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 8, /* acquire */ true);
+  e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
+
+  return 0;
 }
 
 XEEMITTER(lwarx,        0x7C000028, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1021,8 +1042,30 @@ XEEMITTER(lwarx,        0x7C000028, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(stdcx,        0x7C0001AD, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RESERVE stuff...
+  // MEM(EA, 8) <- (RS)
+  // n <- 1 if store performed
+  // CR0[LT GT EQ SO] = 0b00 || n || XER[SO]
+
+  // TODO(benvanik): make this right
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.gpr_value(i.X.RT);
+  e.WriteMemory(i.address, ea, 8, v, /* release */ true);
+
+  // We always succeed.
+  e.update_cr_value(0, e.get_uint64(1 << 2));
+
+  return 0;
 }
 
 XEEMITTER(stwcx,        0x7C00012D, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {

@@ -1554,7 +1554,61 @@ XEEMITTER(vsl,            0x100001C4, VX  )(X64Emitter& e, X86Compiler& c, Instr
 
 XEEMITTER(vslb,           0x10000104, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
+  // o = {0}
+  // for each byte:
+  //   t = shift input by VB[b] *bits*
+  //   o = o | (t & mask)
+  // write o
   return 1;
+}
+
+XEEMITTER(vslh,           0x10000144, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+int InstrEmit_vslw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // VA = |xxxxx|yyyyy|zzzzz|wwwww|
+  // VB = |...sh|...sh|...sh|...sh|
+  // VD = |x<<sh|y<<sh|z<<sh|w<<sh|
+  // There is no SSE op to do this, so we have to do each individually.
+  // TODO(benvanik): update to do in two ops by doing 0/2 and 1/3.
+  GpVar sh(c.newGpVar());
+  GpVar vt(c.newGpVar());
+  XmmVar v(c.newXmmVar());
+  // 0
+  c.pextrb(sh, e.vr_value(vb), imm(0));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(0));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(0));
+  // 1
+  c.pextrb(sh, e.vr_value(vb), imm(1 * 4));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(1));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(1));
+  // 2
+  c.pextrb(sh, e.vr_value(vb), imm(2 * 4));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(2));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(2));
+  // 3
+  c.pextrb(sh, e.vr_value(vb), imm(3 * 4));
+  c.and_(sh, imm(0x1F));
+  c.pextrd(vt, e.vr_value(va), imm(3));
+  c.shl(vt, sh);
+  c.pinsrd(v, vt.r32(), imm(3));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
+XEEMITTER(vslw,           0x10000184, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vslw_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
+XEEMITTER(vslw128,        VX128(6, 208),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vslw_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 static __m128i __shift_table_out[16] = {
@@ -1637,11 +1691,6 @@ XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(X64Emitter& e, X86Compiler&
   return InstrEmit_vsldoi_(e, c, VX128_5_VD128, VX128_5_VA128, VX128_5_VB128, VX128_5_SH);
 }
 
-XEEMITTER(vslh,           0x10000144, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vslo,           0x1000040C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1649,50 +1698,6 @@ XEEMITTER(vslo,           0x1000040C, VX  )(X64Emitter& e, X86Compiler& c, Instr
 XEEMITTER(vslo128,        VX128(5, 912),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
-}
-
-int InstrEmit_vslw_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
-  // VA = |xxxxx|yyyyy|zzzzz|wwwww|
-  // VB = |...sh|...sh|...sh|...sh|
-  // VD = |x<<sh|y<<sh|z<<sh|w<<sh|
-  // There is no SSE op to do this, so we have to do each individually.
-  // TODO(benvanik): update to do in two ops by doing 0/2 and 1/3.
-  GpVar sh(c.newGpVar());
-  GpVar vt(c.newGpVar());
-  XmmVar v(c.newXmmVar());
-  // 0
-  c.pextrb(sh, e.vr_value(vb), imm(0));
-  c.and_(sh, imm(0x1F));
-  c.pextrd(vt, e.vr_value(va), imm(0));
-  c.shl(vt, sh);
-  c.pinsrd(v, vt.r32(), imm(0));
-  // 1
-  c.pextrb(sh, e.vr_value(vb), imm(1 * 4));
-  c.and_(sh, imm(0x1F));
-  c.pextrd(vt, e.vr_value(va), imm(1));
-  c.shl(vt, sh);
-  c.pinsrd(v, vt.r32(), imm(1));
-  // 2
-  c.pextrb(sh, e.vr_value(vb), imm(2 * 4));
-  c.and_(sh, imm(0x1F));
-  c.pextrd(vt, e.vr_value(va), imm(2));
-  c.shl(vt, sh);
-  c.pinsrd(v, vt.r32(), imm(2));
-  // 3
-  c.pextrb(sh, e.vr_value(vb), imm(3 * 4));
-  c.and_(sh, imm(0x1F));
-  c.pextrd(vt, e.vr_value(va), imm(3));
-  c.shl(vt, sh);
-  c.pinsrd(v, vt.r32(), imm(3));
-  e.update_vr_value(vd, v);
-  e.TraceVR(vd, va, vb);
-  return 0;
-}
-XEEMITTER(vslw,           0x10000184, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  return InstrEmit_vslw_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
-}
-XEEMITTER(vslw128,        VX128(6, 208),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  return InstrEmit_vslw_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vspltb,         0x1000020C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1706,8 +1711,24 @@ XEEMITTER(vsplth,         0x1000024C, VX  )(X64Emitter& e, X86Compiler& c, Instr
 }
 
 XEEMITTER(vspltisb,       0x1000030C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD.xyzw) <- sign_extend(uimm)
+  XmmVar v(c.newXmmVar());
+  if (i.VX.VA) {
+    // Sign extend from 5bits -> 8 and load.
+    int32_t simm = (i.VX.VA & 0x10) ? (i.VX.VA | 0xF0) : i.VX.VA;
+    GpVar simm_v(c.newGpVar());
+    c.mov(simm_v, imm(simm));
+    c.movd(v, simm_v.r32());
+    XmmVar z(c.newXmmVar());
+    c.xorps(z, z);
+    c.pshufb(v, z);
+  } else {
+    // Zero out the register.
+    c.xorps(v, v);
+  }
+  e.update_vr_value(i.VX.VD, v);
+  e.TraceVR(i.VX.VD);
+  return 0;
 }
 
 XEEMITTER(vspltish,       0x1000034C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
