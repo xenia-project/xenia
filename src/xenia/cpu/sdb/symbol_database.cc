@@ -632,15 +632,16 @@ bool SymbolDatabase::FillHoles() {
     }
   }
 
+  // TODO(benvanik): re-evaluate if this is worth it.
   bool any_functions_added = false;
-  for (std::vector<HoleInfo>::iterator it = holes.begin(); it != holes.end();
-       ++it) {
-    FunctionSymbol* fn = GetOrInsertFunction(it->start_address);
-    if (!fn->end_address) {
-      fn->end_address = it->end_address;
-      any_functions_added = true;
-    }
-  }
+  //for (std::vector<HoleInfo>::iterator it = holes.begin(); it != holes.end();
+  //     ++it) {
+  //  FunctionSymbol* fn = GetOrInsertFunction(it->start_address);
+  //  if (!fn->end_address) {
+  //    fn->end_address = it->end_address;
+  //    any_functions_added = true;
+  //  }
+  //}
 
   return any_functions_added;
 }
