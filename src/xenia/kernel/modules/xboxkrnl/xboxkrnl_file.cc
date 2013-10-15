@@ -46,7 +46,7 @@ SHIM_CALL NtCreateFile_shim(
   uint32_t creation_disposition = SHIM_GET_ARG_32(7);
 
   XELOGD(
-      "NtCreateFile(%.8X, %d, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
+      "NtCreateFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %d)",
       handle_ptr,
       desired_access,
       object_attributes_ptr,
