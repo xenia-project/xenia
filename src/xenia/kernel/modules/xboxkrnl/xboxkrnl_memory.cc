@@ -141,6 +141,11 @@ X_STATUS xeNtFreeVirtualMemory(
     return X_STATUS_MEMORY_NOT_ALLOCATED;
   }
 
+  // TODO(benvanik): ignore decommits for now.
+  if (free_type == X_MEM_DECOMMIT) {
+    return X_STATUS_SUCCESS;
+  }
+
   // Free.
   uint32_t flags = 0;
   uint32_t freed_size = xe_memory_heap_free(state->memory(), *base_addr_ptr,
