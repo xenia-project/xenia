@@ -63,6 +63,11 @@ X_STATUS xeExGetXConfigSetting(
       // TODO(benvanik): get this value.
       value = 0;
       break;
+    case 0x000E: // XCONFIG_USER_COUNTRY
+      setting_size = 4;
+      // TODO(benvanik): get this value.
+      value = 0;
+      break;
     default:
       XEASSERTALWAYS();
       return X_STATUS_INVALID_PARAMETER_2;
