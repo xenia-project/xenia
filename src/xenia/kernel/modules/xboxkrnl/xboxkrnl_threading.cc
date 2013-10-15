@@ -175,6 +175,30 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(
 }
 
 
+void xeKeQuerySystemTime(uint64_t* time_ptr) {
+  FILETIME t;
+  GetSystemTimeAsFileTime(&t);
+  *time_ptr = ((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime;
+}
+
+
+SHIM_CALL KeQuerySystemTime_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t time_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeQuerySystemTime(%.8X)",
+      time_ptr);
+
+  uint64_t time;
+  xeKeQuerySystemTime(&time);
+
+  if (time_ptr) {
+    SHIM_SET_MEM_64(time_ptr, time);
+  }
+}
+
+
 // The TLS system used here is a bit hacky, but seems to work.
 // Both Win32 and pthreads use unsigned longs as TLS indices, so we can map
 // right into the system for these calls. We're just round tripping the IDs and
@@ -325,6 +349,50 @@ SHIM_CALL KeTlsSetValue_shim(
 }
 
 
+X_STATUS xeNtCreateEvent(uint32_t* handle_ptr, void* obj_attributes,
+                         uint32_t event_type, uint32_t initial_state) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XEvent* ev = new XEvent(state);
+  ev->Initialize(!event_type, !!initial_state);
+
+  // obj_attributes may have a name inside of it, if != NULL.
+  if (obj_attributes) {
+    //ev->SetName(...);
+  }
+
+  *handle_ptr = ev->handle();
+
+  return X_STATUS_SUCCESS;
+}
+
+
+SHIM_CALL NtCreateEvent_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
+  uint32_t event_type = SHIM_GET_ARG_32(2);
+  uint32_t initial_state = SHIM_GET_ARG_32(3);
+
+  XELOGD(
+      "NtCreateEvent(%.8X, %.8X, %d, %d)",
+      handle_ptr, obj_attributes_ptr, event_type, initial_state);
+
+  uint32_t handle;
+  X_STATUS result = xeNtCreateEvent(
+      &handle, SHIM_MEM_ADDR(obj_attributes_ptr),
+      event_type, initial_state);
+
+  if (XSUCCEEDED(result)) {
+    if (handle_ptr) {
+      SHIM_SET_MEM_32(handle_ptr, handle);
+    }
+  }
+  SHIM_SET_RETURN(result);
+}
+
+
 int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -435,12 +503,14 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeQuerySystemTime, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsAlloc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsFree, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
 

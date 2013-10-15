@@ -29,12 +29,15 @@ X_STATUS xeExCreateThread(
 uint32_t xeKeGetCurrentProcessType();
 
 uint64_t xeKeQueryPerformanceFrequency();
+void xeKeQuerySystemTime(uint64_t* time_ptr);
 
 uint32_t xeKeTlsAlloc();
 int KeTlsFree(uint32_t tls_index);
 uint32_t xeKeTlsGetValue(uint32_t tls_index);
 int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value);
 
+X_STATUS xeNtCreateEvent(uint32_t* handle_ptr, void* obj_attributes,
+                         uint32_t event_type, uint32_t initial_state);
 int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait);
 int32_t xeKeResetEvent(void* event_ptr);
 
