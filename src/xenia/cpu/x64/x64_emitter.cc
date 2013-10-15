@@ -536,10 +536,14 @@ int X64Emitter::PrepareBasicBlock(FunctionBlock* block) {
     ppc::InstrDisasm d;
     XEASSERTNOTNULL(i.type->disassemble);
     int result_code = i.type->disassemble(i, d);
-    XEASSERTZERO(result_code);
+    if (result_code) {
+      XELOGE("UNABLE TO DISASSEMBLE INSTR %s", i.type->name);
+      continue;
+    }
+    /*XEASSERTZERO(result_code);
     if (result_code) {
       return result_code;
-    }
+    }*/
 
     // Accumulate access bits.
     access_bits.Extend(d.access_bits);
