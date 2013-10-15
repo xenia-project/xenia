@@ -1552,6 +1552,15 @@ XEEMITTER(vsl,            0x100001C4, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
+// TODO(benvanik): implement for real - this is in the memcpy path.
+static __m128i __emulated_vslb(__m128i va, __m128i vb) {
+  __m128i result;
+  for (int n = 0; n < 16; n++) {
+    int sh = vb.m128i_u8[n] & 0x7;
+    result.m128i_u8[n] = va.m128i_u8[n] << sh;
+  }
+  return result;
+}
 XEEMITTER(vslb,           0x10000104, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   // o = {0}
@@ -1559,7 +1568,26 @@ XEEMITTER(vslb,           0x10000104, VX  )(X64Emitter& e, X86Compiler& c, Instr
   //   t = shift input by VB[b] *bits*
   //   o = o | (t & mask)
   // write o
-  return 1;
+  XmmVar tva(c.newXmmVar());
+  c.movaps(tva, e.vr_value(i.VX.VA));
+  c.save(tva);
+  XmmVar tvb(c.newXmmVar());
+  c.movaps(tvb, e.vr_value(i.VX.VB));
+  c.save(tvb);
+  GpVar pva(c.newGpVar());
+  c.lea(pva, tva.m128());
+  GpVar pvb(c.newGpVar());
+  c.lea(pvb, tvb.m128());
+  XmmVar v(c.newXmmVar());
+  X86CompilerFuncCall* call = c.call(__emulated_vslb);
+  uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq};
+  call->setPrototype(kX86FuncConvDefault, kX86VarTypeGpq, args, XECOUNT(args));
+  call->setArgument(0, pva);
+  call->setArgument(1, pvb);
+  call->setReturn(v);
+  e.update_vr_value(i.VX.VD, v);
+  e.TraceVR(i.VX.VD, i.VX.VA, i.VX.VB);
+  return 0;
 }
 
 XEEMITTER(vslh,           0x10000144, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
