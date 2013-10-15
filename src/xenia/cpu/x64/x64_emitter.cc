@@ -764,6 +764,15 @@ void X64Emitter::TraceUserCall() {
   X86Compiler& c = compiler_;
 
   if (!FLAGS_trace_user_calls) {
+    for (int n = 0; n < 5; n++) {
+      c.nop();
+    }
+    SpillRegisters();
+    GpVar aa(c.newGpVar());
+    c.mov(aa, imm((uint64_t)symbol_->start_address));
+    for (int n = 0; n < 2; n++) {
+      c.nop();
+    }
     return;
   }
 
@@ -799,6 +808,15 @@ void X64Emitter::TraceInstruction(InstrData& i) {
   X86Compiler& c = compiler_;
 
   if (!FLAGS_trace_instructions) {
+    for (int n = 0; n < 2; n++) {
+      c.nop();
+    }
+    SpillRegisters();
+    GpVar aa(c.newGpVar());
+    c.mov(aa, imm((uint64_t)i.address));
+    for (int n = 0; n < 2; n++) {
+      c.nop();
+    }
     return;
   }
 
