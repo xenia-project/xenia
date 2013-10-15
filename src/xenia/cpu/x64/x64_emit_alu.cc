@@ -203,8 +203,65 @@ XEEMITTER(divdx,        0x7C0003D2, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(divdux,       0x7C000392, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // dividend <- (RA)
+  // divisor <- (RB)
+  // if divisor = 0 then
+  //   if OE = 1 then
+  //     XER[OV] <- 1
+  //   return
+  // RT <- dividend ÷ divisor
+
+  GpVar dividend(c.newGpVar());
+  GpVar divisor(c.newGpVar());
+  c.mov(dividend, e.gpr_value(i.XO.RA));
+  c.mov(divisor, e.gpr_value(i.XO.RB));
+
+#if 0
+  // Note that we skip the zero handling block and just avoid the divide if
+  // we are OE=0.
+  BasicBlock* zero_bb = i.XO.OE ?
+      BasicBlock::Create(*e.context(), "", e.fn()) : NULL;
+  BasicBlock* nonzero_bb = BasicBlock::Create(*e.context(), "", e.fn());
+  BasicBlock* after_bb = BasicBlock::Create(*e.context(), "", e.fn());
+  b.CreateCondBr(b.CreateICmpEQ(divisor, b.get_int32(0)),
+                 i.XO.OE ? zero_bb : after_bb, nonzero_bb);
+
+  if (zero_bb) {
+    // Divisor was zero - do XER update.
+    b.SetInsertPoint(zero_bb);
+    e.update_xer_with_overflow(b.getInt1(1));
+    b.CreateBr(after_bb);
+  }
+#endif
+
+  // Divide.
+  GpVar dividend_hi(c.newGpVar());
+  c.alloc(dividend_hi, rdx);
+  c.mov(dividend_hi, imm(0));
+  c.alloc(dividend, rax);
+  c.div(dividend_hi, dividend.r64(), divisor.r64());
+  e.update_gpr_value(i.XO.RT, dividend);
+
+  // If we are OE=1 we need to clear the overflow bit.
+  if (i.XO.OE) {
+    e.update_xer_with_overflow(e.get_uint64(0));
+  }
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, dividend, false);
+  }
+
+  c.unuse(dividend_hi);
+  c.unuse(dividend);
+
+#if 0
+  b.CreateBr(after_bb);
+#endif
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(divwx,        0x7C0003D6, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -351,8 +408,29 @@ XEEMITTER(mulhwux,      0x7C000016, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(mulldx,       0x7C0001D2, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- ((RA) × (RB))[64:127]
+
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  GpVar v_0(c.newGpVar());
+  GpVar v_1(c.newGpVar());
+  c.mov(v_0, e.gpr_value(i.XO.RA));
+  c.mov(v_1, e.gpr_value(i.XO.RB));
+  c.imul(v_0.r64(), v_1.r64());
+  e.update_gpr_value(i.XO.RT, v_0);
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v_0);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(mulli,        0x1C000000, D  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
