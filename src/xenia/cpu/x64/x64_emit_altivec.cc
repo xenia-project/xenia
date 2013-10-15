@@ -1701,8 +1701,23 @@ XEEMITTER(vslo128,        VX128(5, 912),    VX128  )(X64Emitter& e, X86Compiler&
 }
 
 XEEMITTER(vspltb,         0x1000020C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // b <- UIMM*8
+  // do i = 0 to 127 by 8
+  //  (VD)[i:i+7] <- (VB)[b:b+7]
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(i.VX.VB));
+  uint32_t uimm = SWAP_INLINE(i.VX.VA & 0xF);
+  GpVar sel(c.newGpVar());
+  c.mov(sel, imm(uimm));
+  XmmVar sel_v(c.newXmmVar());
+  c.movd(sel_v, sel.r32());
+  XmmVar z(c.newXmmVar());
+  c.xorps(z, z);
+  c.pshufb(sel_v, z);
+  c.pshufb(v, sel_v);
+  e.update_vr_value(i.VX.VD, v);
+  e.TraceVR(i.VX.VD);
+  return 0;
 }
 
 XEEMITTER(vsplth,         0x1000024C, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
