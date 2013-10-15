@@ -115,7 +115,7 @@ void RingBufferWorker::ExecutePrimaryBuffer(
   end_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (end_ptr & 0x1FFFFFFF);
 
   XELOGGPU("[%.8X] ExecutePrimaryBuffer(%dw -> %dw)",
-           start_index, end_index);
+           ptr, start_index, end_index);
 
   // Execute commands!
   PacketArgs args;
@@ -326,7 +326,13 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t d0 = READ_AND_ADVANCE_PTR(); // 3?
           uint32_t d1 = READ_AND_ADVANCE_PTR(); // ptr
           uint32_t d2 = READ_AND_ADVANCE_PTR(); // value?
-          XESETUINT32BE(p + TRANSLATE_ADDR(d1), d2);
+          if (!(d1 & 0xC0000000)) {
+            XESETUINT32BE(p + TRANSLATE_ADDR(d1), d2);
+          } else {
+            // TODO(benvanik): read up on PM4_EVENT_WRITE_SHD.
+            // No clue. Maybe relative write based on a register base?
+            XELOGE("UNKNOWN FORM OF PM4_EVENT_WRITE_SHD");
+          }
         }
         break;
 
