@@ -42,6 +42,7 @@ public:
     kTypeModule   = 0x00000001,
     kTypeThread   = 0x00000002,
     kTypeEvent    = 0x00000003,
+    kTypeFile     = 0x00000004,
   };
 
   XObject(KernelState* kernel_state, Type type);

@@ -52,8 +52,10 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
 
   // Register all exported functions.
   RegisterDebugExports(resolver, kernel_state_.get());
+  RegisterFileExports(resolver, kernel_state_.get());
   RegisterHalExports(resolver, kernel_state_.get());
   RegisterMemoryExports(resolver, kernel_state_.get());
+  RegisterMiscExports(resolver, kernel_state_.get());
   RegisterModuleExports(resolver, kernel_state_.get());
   RegisterRtlExports(resolver, kernel_state_.get());
   RegisterThreadingExports(resolver, kernel_state_.get());

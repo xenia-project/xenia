@@ -28,11 +28,12 @@ class KernelState;
 // be using to stash their variables.
 extern KernelState* shared_kernel_state_;
 
-
 // Registration functions, one per file.
 void RegisterDebugExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterFileExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterHalExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterMemoryExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterMiscExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterModuleExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterRtlExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterThreadingExports(ExportResolver* export_resolver,

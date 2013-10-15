@@ -3,6 +3,8 @@
   'sources': [
     'xevent.cc',
     'xevent.h',
+    'xfile.cc',
+    'xfile.h',
     'xmodule.cc',
     'xmodule.h',
     'xthread.cc',
