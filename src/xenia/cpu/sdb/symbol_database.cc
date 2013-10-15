@@ -349,6 +349,7 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
 
       if (i.I.LK) {
         XELOGSDB("bl %.8X -> %.8X", addr, target);
+        block->outgoing_type = FunctionBlock::kTargetFunction;
 
         // Queue call target if needed.
         GetOrInsertFunction(target);
@@ -511,14 +512,24 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
        it != fn->blocks.end(); ++it) {
     FunctionBlock* block = it->second;
 
-    // If we have some address try to see what it is.
     if (block->outgoing_address) {
-      if (block->outgoing_address > fn->start_address &&
-          block->outgoing_address <= fn->end_address) {
-        // Branch into a block in this function.
-        // Note that we make branches to the start address act as function
-        // calls, as they are almost always recursion cases.
-        block->outgoing_type = FunctionBlock::kTargetBlock;
+      // If we have some address try to see what it is.
+      if (block->outgoing_type == FunctionBlock::kTargetUnknown) {
+        if (block->outgoing_address > fn->start_address &&
+            block->outgoing_address <= fn->end_address) {
+          // Branch into a block in this function.
+          // Note that we make branches to the start address act as function
+          // calls, as they are almost always recursion cases.
+          block->outgoing_type = FunctionBlock::kTargetBlock;
+        } else {
+          // Function call.
+          block->outgoing_type = FunctionBlock::kTargetFunction;
+        }
+      }
+      
+      // If we were already specified, use that.
+      switch (block->outgoing_type) {
+      case FunctionBlock::kTargetBlock:
         block->outgoing_block = fn->GetBlock(block->outgoing_address);
         if (!block->outgoing_block) {
           // Block target not found - we may need to split.
@@ -528,12 +539,12 @@ int SymbolDatabase::AnalyzeFunction(FunctionSymbol* fn) {
           XELOGE("block target not found: %.8X", block->outgoing_address);
           XEASSERTALWAYS();
         }
-      } else {
-        // Function call.
-        block->outgoing_type = FunctionBlock::kTargetFunction;
+        break;
+      case FunctionBlock::kTargetFunction:
         block->outgoing_function = GetFunction(block->outgoing_address);
         XEASSERTNOTNULL(block->outgoing_function);
         FunctionSymbol::AddCall(fn, block->outgoing_function);
+        break;
       }
     }
   }
