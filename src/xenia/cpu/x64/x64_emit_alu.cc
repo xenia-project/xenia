@@ -398,13 +398,61 @@ XEEMITTER(mulhdux,      0x7C000012, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(mulhwx,       0x7C000096, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT[32:64] <- ((RA)[32:63] × (RB)[32:63])[0:31]
+
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  GpVar v_0(c.newGpVar());
+  GpVar v_1(c.newGpVar());
+  GpVar hi(c.newGpVar());
+  c.alloc(v_0, rax);
+  c.alloc(hi, rdx);
+  c.mov(v_0.r32(), e.gpr_value(i.XO.RA).r32());
+  c.mov(v_1.r32(), e.gpr_value(i.XO.RB).r32());
+  c.imul(hi.r32(), v_0.r32(), v_1.r32());
+  e.update_gpr_value(i.XO.RT, hi);
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, hi);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(mulhwux,      0x7C000016, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT[32:64] <- ((RA)[32:63] × (RB)[32:63])[0:31]
+
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  GpVar v_0(c.newGpVar());
+  GpVar v_1(c.newGpVar());
+  GpVar hi(c.newGpVar());
+  c.alloc(v_0, rax);
+  c.alloc(hi, rdx);
+  c.mov(v_0.r32(), e.gpr_value(i.XO.RA).r32());
+  c.mov(v_1.r32(), e.gpr_value(i.XO.RB).r32());
+  c.mul(hi.r32(), v_0.r32(), v_1.r32());
+  e.update_gpr_value(i.XO.RT, hi);
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, hi);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(mulldx,       0x7C0001D2, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
