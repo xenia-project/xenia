@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_FILE_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_FILE_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_IO_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_IO_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -26,4 +26,4 @@ namespace xboxkrnl {
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_FILE_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_IO_H_

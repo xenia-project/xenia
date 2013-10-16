@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_file.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_nt.h>
 
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
@@ -54,7 +54,7 @@ SHIM_CALL NtCreateFile_shim(
       allocation_size_ptr,
       file_attributes,
       share_access,
-	  creation_disposition);
+      creation_disposition);
 
   // object_attributes is:
   //   void *root_directory
@@ -104,11 +104,11 @@ SHIM_CALL NtClose_shim(
 }  // namespace xe
 
 
-void xe::kernel::xboxkrnl::RegisterFileExports(
+void xe::kernel::xboxkrnl::RegisterNtExports(
     ExportResolver* export_resolver, KernelState* state) {
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtClose, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateFile, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReadFile, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtClose, state);
 }
