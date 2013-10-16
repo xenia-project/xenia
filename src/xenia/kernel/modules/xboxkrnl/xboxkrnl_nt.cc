@@ -12,6 +12,7 @@
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
+#include <xenia/kernel/modules/xboxkrnl/xobject.h>
 
 
 using namespace xe;
@@ -26,7 +27,17 @@ namespace xboxkrnl {
 
 SHIM_CALL NtClose_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
+  uint32_t handle = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "NtClose(%.8X)",
+      handle);
+
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+
+  result = state->object_table()->RemoveHandle(handle);
+
+  SHIM_SET_RETURN(result);
 }
 
 

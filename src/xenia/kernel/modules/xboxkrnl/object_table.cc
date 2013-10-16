@@ -132,17 +132,20 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   } else {
     ObjectTableEntry& entry = table_[slot];
     if (entry.object) {
+      // Release after we lose the lock.
       object = entry.object;
-
-      // Release the object handle now that it is out of the table.
-      object->ReleaseHandle();
-      object->Release();
     } else {
       result = X_STATUS_INVALID_HANDLE;
     }
   }
 
   xe_mutex_unlock(table_mutex_);
+
+  if (object) {
+    // Release the object handle now that it is out of the table.
+    object->ReleaseHandle();
+    object->Release();
+  }
 
   return result;
 }
@@ -175,5 +178,6 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 
   xe_mutex_unlock(table_mutex_);
 
+  *out_object = object;
   return result;
 }

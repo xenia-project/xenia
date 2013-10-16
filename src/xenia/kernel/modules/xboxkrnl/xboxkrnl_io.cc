@@ -80,6 +80,10 @@ SHIM_CALL NtCreateFile_shim(
     FileEntry* file_entry = (FileEntry*)entry;
     XFile* file = new XFile(state, file_entry);
     handle = file->handle();
+
+    // TODO(benvanik): open/create/etc.
+
+    file->Release();
     result  = X_STATUS_SUCCESS;
     info    = X_FILE_OPENED;
   }
@@ -103,7 +107,51 @@ SHIM_CALL NtOpenFile_shim(
 
 SHIM_CALL NtReadFile_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t event_handle = SHIM_GET_ARG_32(1);
+  uint32_t apc_routine_ptr = SHIM_GET_ARG_32(2);
+  uint32_t apc_context = SHIM_GET_ARG_32(3);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(4);
+  uint32_t buffer = SHIM_GET_ARG_32(5);
+  uint32_t buffer_length = SHIM_GET_ARG_32(6);
+  uint32_t byte_offset_ptr = SHIM_GET_ARG_32(7);
+  uint32_t key = SHIM_GET_ARG_32(8);
+
+  XELOGD(
+      "NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %d, %.8X)",
+      file_handle,
+      event_handle,
+      apc_routine_ptr,
+      apc_context,
+      io_status_block_ptr,
+      buffer,
+      buffer_length,
+      byte_offset_ptr,
+      key);
+
+  // Async not supported yet.
+  XEASSERTNULL(apc_routine_ptr);
+
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  uint32_t info = 0;
+
+  XFile* file = NULL;
+  result = state->object_table()->GetObject(
+      file_handle, (XObject**)&file);
+  if (result == X_STATUS_SUCCESS) {
+    // TODO(benvanik): read!
+
+    file->Release();
+    result = X_STATUS_SUCCESS;
+    info = 0; // number of bytes read
+  }
+
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+
+  SHIM_SET_RETURN(result);
 }
 
 SHIM_CALL NtQueryInformationFile_shim(
