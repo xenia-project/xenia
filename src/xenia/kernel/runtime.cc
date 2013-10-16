@@ -10,12 +10,13 @@
 #include <xenia/kernel/runtime.h>
 
 #include <xenia/kernel/modules/modules.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/filesystem.h>
 
 
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::kernel;
-using namespace xe::kernel::fs;
+using namespace xe::kernel::xboxkrnl::fs;
 
 
 Runtime::Runtime(shared_ptr<cpu::Processor> processor,

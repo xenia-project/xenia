@@ -37,6 +37,7 @@
   ],
 
   'includes': [
+    'fs/sources.gypi',
     'objects/sources.gypi',
   ],
 }

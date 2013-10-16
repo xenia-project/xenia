@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/entry.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/entry.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
-using namespace xe::kernel::fs;
+using namespace xe::kernel::xboxkrnl::fs;
 
 
 Entry::Entry(Type type, Device* device, const char* path) :

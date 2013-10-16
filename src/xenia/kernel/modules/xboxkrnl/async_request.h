@@ -21,6 +21,7 @@ namespace kernel {
 namespace xboxkrnl {
 
 class XEvent;
+class XObject;
 
 
 class XAsyncRequest {

@@ -16,7 +16,6 @@
 
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/xex2.h>
-#include <xenia/kernel/fs/filesystem.h>
 
 
 namespace xe {
@@ -26,6 +25,9 @@ namespace cpu {
 namespace kernel {
 namespace xboxkrnl {
   class XboxkrnlModule;
+namespace fs {
+  class FileSystem;
+}
 }
 namespace xam {
   class XamModule;
@@ -50,7 +52,7 @@ public:
   xe_memory_ref memory();
   shared_ptr<cpu::Processor> processor();
   shared_ptr<ExportResolver> export_resolver();
-  shared_ptr<fs::FileSystem> filesystem();
+  shared_ptr<xboxkrnl::fs::FileSystem> filesystem();
 
   int LaunchXexFile(const xechar_t* path);
   int LaunchDiscImage(const xechar_t* path);
@@ -61,7 +63,7 @@ private:
   xe_memory_ref   memory_;
   shared_ptr<cpu::Processor> processor_;
   shared_ptr<ExportResolver> export_resolver_;
-  shared_ptr<fs::FileSystem> filesystem_;
+  shared_ptr<xboxkrnl::fs::FileSystem> filesystem_;
 
   auto_ptr<xboxkrnl::XboxkrnlModule> xboxkrnl_;
   auto_ptr<xam::XamModule> xam_;

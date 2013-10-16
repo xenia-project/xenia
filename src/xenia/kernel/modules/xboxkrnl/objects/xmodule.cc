@@ -9,6 +9,8 @@
 
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
+#include <xenia/cpu/cpu.h>
+#include <xenia/kernel/runtime.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 

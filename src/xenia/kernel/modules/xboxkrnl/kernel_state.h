@@ -16,16 +16,25 @@
 #include <xenia/kernel/export.h>
 #include <xenia/kernel/kernel_module.h>
 #include <xenia/kernel/xbox.h>
-#include <xenia/kernel/fs/filesystem.h>
 #include <xenia/kernel/modules/xboxkrnl/object_table.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/filesystem.h>
+
+
+namespace xe {
+namespace cpu {
+class Processor;
+}
+}
 
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-
 class XModule;
+namespace fs {
+class FileSystem;
+}
 
 
 class KernelState {

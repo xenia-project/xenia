@@ -7,19 +7,20 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_FS_FILESYSTEM_H_
-#define XENIA_KERNEL_FS_FILESYSTEM_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_FS_FILESYSTEM_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_FS_FILESYSTEM_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 #include <vector>
 
-#include <xenia/kernel/fs/entry.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/entry.h>
 
 
 namespace xe {
 namespace kernel {
+namespace xboxkrnl {
 namespace fs {
 
 
@@ -48,8 +49,9 @@ private:
 
 
 }  // namespace fs
+}  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_FS_FILESYSTEM_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_FS_FILESYSTEM_H_

@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/devices/local_directory_device.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/devices/local_directory_device.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
-using namespace xe::kernel::fs;
+using namespace xe::kernel::xboxkrnl::fs;
 
 
 namespace {

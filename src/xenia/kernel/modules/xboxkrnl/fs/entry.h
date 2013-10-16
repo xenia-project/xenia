@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_FS_ENTRY_H_
-#define XENIA_KERNEL_FS_ENTRY_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_FS_ENTRY_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_FS_ENTRY_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -16,6 +16,7 @@
 
 namespace xe {
 namespace kernel {
+namespace xboxkrnl {
 namespace fs {
 
 
@@ -81,8 +82,9 @@ public:
 
 
 }  // namespace fs
+}  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_FS_ENTRY_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_FS_ENTRY_H_

@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_video.h>
 
+#include <xenia/cpu/cpu.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/kernel/shim_utils.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>

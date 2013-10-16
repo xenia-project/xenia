@@ -7,35 +7,44 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_FS_DEVICES_LOCAL_DIRECTORY_DEVICE_H_
-#define XENIA_KERNEL_FS_DEVICES_LOCAL_DIRECTORY_DEVICE_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_DISC_IMAGE_DEVICE_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_DISC_IMAGE_DEVICE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-#include <xenia/kernel/fs/device.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/device.h>
 
 
 namespace xe {
 namespace kernel {
+namespace xboxkrnl {
 namespace fs {
 
 
-class LocalDirectoryDevice : public Device {
+class GDFX;
+
+
+class DiscImageDevice : public Device {
 public:
-  LocalDirectoryDevice(const char* path, const xechar_t* local_path);
-  virtual ~LocalDirectoryDevice();
+  DiscImageDevice(const char* path, const xechar_t* local_path);
+  virtual ~DiscImageDevice();
+
+  int Init();
 
   virtual Entry* ResolvePath(const char* path);
 
 private:
   xechar_t*   local_path_;
+  xe_mmap_ref mmap_;
+  GDFX*       gdfx_;
 };
 
 
 }  // namespace fs
+}  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_FS_DEVICES_LOCAL_DIRECTORY_DEVICE_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_DISC_IMAGE_DEVICE_H_

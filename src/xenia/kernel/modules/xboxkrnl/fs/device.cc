@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/device.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/device.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
-using namespace xe::kernel::fs;
+using namespace xe::kernel::xboxkrnl::fs;
 
 
 Device::Device(const char* path) {

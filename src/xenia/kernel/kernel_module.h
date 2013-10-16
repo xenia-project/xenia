@@ -13,29 +13,19 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-#include <xenia/kernel/export.h>
-#include <xenia/kernel/runtime.h>
-
 
 namespace xe {
 namespace kernel {
 
 
+class ExportResolver;
 class Runtime;
 
 
 class KernelModule {
 public:
-  KernelModule(Runtime* runtime) {
-    runtime_  = runtime;
-    memory_   = runtime->memory();
-    export_resolver_ = runtime->export_resolver();
-  }
-
-  virtual ~KernelModule() {
-    export_resolver_.reset();
-    xe_memory_release(memory_);
-  }
+  KernelModule(Runtime* runtime);
+  virtual ~KernelModule();
 
 protected:
   Runtime*        runtime_;

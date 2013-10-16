@@ -17,8 +17,8 @@
 
 using namespace xe;
 using namespace xe::kernel;
-using namespace xe::kernel::fs;
 using namespace xe::kernel::xboxkrnl;
+using namespace xe::kernel::xboxkrnl::fs;
 
 
 namespace xe {

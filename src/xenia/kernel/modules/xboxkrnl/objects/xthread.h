@@ -16,6 +16,13 @@
 
 
 namespace xe {
+namespace cpu {
+class ThreadState;
+}
+}
+
+
+namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 

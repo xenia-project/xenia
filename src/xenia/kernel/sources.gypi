@@ -4,6 +4,7 @@
     'export.cc',
     'export.h',
     'kernel.h',
+    'kernel_module.cc',
     'kernel_module.h',
     'runtime.cc',
     'runtime.h',
@@ -15,7 +16,6 @@
   ],
 
   'includes': [
-    'fs/sources.gypi',
     'modules/sources.gypi',
     'util/sources.gypi',
   ],

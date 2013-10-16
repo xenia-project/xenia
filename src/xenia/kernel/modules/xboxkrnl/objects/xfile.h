@@ -13,8 +13,8 @@
 #include <xenia/kernel/modules/xboxkrnl/xobject.h>
 
 #include <xenia/kernel/xbox.h>
-#include <xenia/kernel/fs/entry.h>
 #include <xenia/kernel/modules/xboxkrnl/async_request.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/entry.h>
 
 
 namespace xe {

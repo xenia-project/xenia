@@ -10,6 +10,7 @@
 #include <xenia/kernel/modules/xam/xam_info.h>
 
 #include <xenia/kernel/shim_utils.h>
+#include <xenia/kernel/xex2.h>
 #include <xenia/kernel/modules/xam/xam_private.h>
 #include <xenia/kernel/modules/xam/xam_state.h>
 

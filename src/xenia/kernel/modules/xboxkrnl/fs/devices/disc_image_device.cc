@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/devices/disc_image_device.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/devices/disc_image_device.h>
 
-#include <xenia/kernel/fs/gdfx.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/gdfx.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
-using namespace xe::kernel::fs;
+using namespace xe::kernel::xboxkrnl::fs;
 
 
 namespace {
