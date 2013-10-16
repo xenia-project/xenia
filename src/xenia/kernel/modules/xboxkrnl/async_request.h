@@ -20,6 +20,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
+class KernelState;
 class XEvent;
 class XObject;
 
@@ -29,24 +30,24 @@ public:
   typedef void (*CompletionCallback)(XAsyncRequest* request, void* context);
 
   XAsyncRequest(
-      XObject* object,
+      KernelState* kernel_state, XObject* object,
       CompletionCallback callback, void* callback_context);
   virtual ~XAsyncRequest();
 
+  KernelState* kernel_state() const { return kernel_state_; }
   XObject* object() const { return object_; }
 
-  XEvent* wait_event() const { return wait_event_; }
-  uint32_t apc_routine() const { return apc_routine_; }
-  uint32_t apc_context() const { return apc_context_; }
+  void AddWaitEvent(XEvent* ev);
 
   // Complete(result)
 
 protected:
+  KernelState*        kernel_state_;
   XObject*            object_;
   CompletionCallback  callback_;
   void*               callback_context_;
 
-  XEvent*     wait_event_;
+  std::vector<XEvent*>  wait_events_;
   uint32_t    apc_routine_;
   uint32_t    apc_context_;
 };

@@ -33,6 +33,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_USER_APC                               ((uint32_t)0x000000C0L)
 #define X_STATUS_ALERTED                                ((uint32_t)0x00000101L)
 #define X_STATUS_TIMEOUT                                ((uint32_t)0x00000102L)
+#define X_STATUS_PENDING                                ((uint32_t)0x00000103L)
 #define X_STATUS_UNSUCCESSFUL                           ((uint32_t)0xC0000001L)
 #define X_STATUS_NOT_IMPLEMENTED                        ((uint32_t)0xC0000002L)
 #define X_STATUS_ACCESS_VIOLATION                       ((uint32_t)0xC0000005L)
