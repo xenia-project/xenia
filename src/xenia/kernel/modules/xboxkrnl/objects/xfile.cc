@@ -10,15 +10,16 @@
 #include <xenia/kernel/modules/xboxkrnl/objects/xfile.h>
 
 #include <xenia/kernel/modules/xboxkrnl/objects/xevent.h>
-#include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
+using namespace xe::kernel::fs;
 using namespace xe::kernel::xboxkrnl;
 
 
-XFile::XFile(KernelState* kernel_state) :
+XFile::XFile(KernelState* kernel_state, FileEntry* entry) :
+    entry_(entry),
     XObject(kernel_state, kTypeFile) {
 }
 

@@ -13,6 +13,7 @@
 #include <xenia/kernel/modules/xboxkrnl/xobject.h>
 
 #include <xenia/kernel/xbox.h>
+#include <xenia/kernel/fs/entry.h>
 
 
 namespace xe {
@@ -22,10 +23,11 @@ namespace xboxkrnl {
 
 class XFile : public XObject {
 public:
-  XFile(KernelState* kernel_state);
+  XFile(KernelState* kernel_state, fs::FileEntry* entry);
   virtual ~XFile();
 
 private:
+  fs::FileEntry*  entry_;
 };
 
 

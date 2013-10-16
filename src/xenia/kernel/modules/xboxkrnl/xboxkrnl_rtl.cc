@@ -176,10 +176,16 @@ void xeRtlInitAnsiString(uint32_t destination_ptr, uint32_t source_ptr) {
 
   const char* source = source_ptr ? (char*)IMPL_MEM_ADDR(source_ptr) : NULL;
 
-  uint16_t length = source ? (uint16_t)xestrlena(source) : 0;
-  IMPL_SET_MEM_16(destination_ptr + 2, length * 2);
-  IMPL_SET_MEM_16(destination_ptr + 0, length * 2);
-  IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
+  if (source) {
+    uint16_t length = (uint16_t)xestrlena(source);
+    IMPL_SET_MEM_16(destination_ptr + 0, length);
+    IMPL_SET_MEM_16(destination_ptr + 2, length + 1);
+    IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
+  } else {
+    IMPL_SET_MEM_16(destination_ptr + 0, 0);
+    IMPL_SET_MEM_16(destination_ptr + 2, 0);
+    IMPL_SET_MEM_32(destination_ptr + 4, 0);
+  }
 }
 
 
@@ -243,10 +249,16 @@ void xeRtlInitUnicodeString(uint32_t destination_ptr, uint32_t source_ptr) {
   const wchar_t* source =
       source_ptr ? (const wchar_t*)IMPL_MEM_ADDR(source_ptr) : NULL;
 
-  uint16_t length = source ? (uint16_t)xestrlenw(source) : 0;
-  IMPL_SET_MEM_16(destination_ptr + 0, length * 2);
-  IMPL_SET_MEM_16(destination_ptr + 2, length * 2);
-  IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
+  if (source) {
+    uint16_t length = (uint16_t)xestrlenw(source);
+    IMPL_SET_MEM_16(destination_ptr + 0, length * 2);
+    IMPL_SET_MEM_16(destination_ptr + 2, (length + 1) * 2);
+    IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
+  } else {
+    IMPL_SET_MEM_16(destination_ptr + 0, 0);
+    IMPL_SET_MEM_16(destination_ptr + 2, 0);
+    IMPL_SET_MEM_32(destination_ptr + 4, 0);
+  }
 }
 
 
