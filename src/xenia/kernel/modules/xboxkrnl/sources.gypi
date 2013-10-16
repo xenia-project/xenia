@@ -1,6 +1,8 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'async_request.cc',
+    'async_request.h',
     'kernel_state.cc',
     'kernel_state.h',
     'module.cc',

@@ -14,6 +14,7 @@
 
 #include <xenia/kernel/xbox.h>
 #include <xenia/kernel/fs/entry.h>
+#include <xenia/kernel/modules/xboxkrnl/async_request.h>
 
 
 namespace xe {
@@ -25,6 +26,9 @@ class XFile : public XObject {
 public:
   XFile(KernelState* kernel_state, fs::FileEntry* entry);
   virtual ~XFile();
+
+  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
+                XAsyncRequest* request);
 
 private:
   fs::FileEntry*  entry_;

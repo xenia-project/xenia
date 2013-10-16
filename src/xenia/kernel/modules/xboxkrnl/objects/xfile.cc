@@ -25,3 +25,8 @@ XFile::XFile(KernelState* kernel_state, FileEntry* entry) :
 
 XFile::~XFile() {
 }
+
+X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
+                     XAsyncRequest* request) {
+  return X_STATUS_ACCESS_DENIED;
+}
