@@ -199,17 +199,19 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
       XELOGGPU("[%.8X] Packet(%.8X): set registers:",
                packet_ptr, packet);
       uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
-      uint32_t base_index = (packet & 0xFFFF);
+      uint32_t base_index = (packet & 0x7FFF);
+      uint32_t write_one_reg = (packet >> 15) & 0x1;
       for (uint32_t m = 0; m < count; m++) {
         uint32_t reg_data = READ_PTR();
-        const char* reg_name = xenos::GetRegisterName(base_index + m);
+        uint32_t target_index = write_one_reg ? base_index : base_index + m;
+        const char* reg_name = xenos::GetRegisterName(target_index);
         XELOGGPU("[%.8X]   %.8X -> %.4X %s",
                  args.ptr,
-                 reg_data, base_index + m, reg_name ? reg_name : "");
+                 reg_data, target_index, reg_name ? reg_name : "");
         ADVANCE_PTR(1);
         // TODO(benvanik): exec write handler (if special).
-        if (base_index + m < kXEGpuRegisterCount) {
-          regs->values[base_index + m].u32 = reg_data;
+        if (target_index < kXEGpuRegisterCount) {
+          regs->values[target_index].u32 = reg_data;
         }
       }
       return 1 + count;
