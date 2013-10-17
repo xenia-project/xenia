@@ -65,7 +65,6 @@
             'DebugInformationFormat': '3',
             'ExceptionHandling': '1', # /EHsc
             'AdditionalOptions': [
-              '/MP',    # Multiprocessor build
               #'/TP',    # Compile as C++
               '/EHsc',  # C++ exception handling,
             ],
