@@ -33,6 +33,8 @@ public:
   xe_mmap_ref mmap() const { return mmap_; }
   GDFXEntry* gdfx_entry() const { return gdfx_entry_; }
 
+  virtual X_STATUS QueryInfo(XFileInfo* out_info);
+
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length);
 

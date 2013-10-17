@@ -322,25 +322,11 @@ SHIM_CALL NtQueryInformationFile_shim(
       //   ULONG         Unknown;
       // };
       XEASSERT(length == 56);
-      XFile::FileInfo file_info;
+      XFileInfo file_info;
       result = file->QueryInfo(&file_info);
       if (XSUCCEEDED(result)) {
         info = 56;
-        SHIM_SET_MEM_64(file_info_ptr,
-            file_info.creation_time);
-        SHIM_SET_MEM_64(file_info_ptr + 8,
-            file_info.last_access_time);
-        SHIM_SET_MEM_64(file_info_ptr + 16,
-            file_info.last_write_time);
-        SHIM_SET_MEM_64(file_info_ptr + 24,
-            file_info.change_time);
-        SHIM_SET_MEM_64(file_info_ptr + 32,
-            file_info.allocation_size);
-        SHIM_SET_MEM_64(file_info_ptr + 40,
-            file_info.file_length);
-        SHIM_SET_MEM_32(file_info_ptr + 48,
-            file_info.attributes);
-        SHIM_SET_MEM_32(file_info_ptr + 52, 0); // Unknown!
+        file_info.Write(SHIM_MEM_BASE, file_info_ptr);
       }
       break;
     default:
@@ -386,9 +372,11 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
   Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
   if (entry && entry->type() == Entry::kTypeFile) {
     // Found.
-    // TODO(benvanik): set file_info_ptr data
-    XEASSERTALWAYS();
-    result = X_STATUS_SUCCESS;
+    XFileInfo file_info;
+    result = entry->QueryInfo(&file_info);
+    if (XSUCCEEDED(result)) {
+      file_info.Write(SHIM_MEM_BASE, file_info_ptr);
+    }
   }
 
   SHIM_SET_RETURN(result);

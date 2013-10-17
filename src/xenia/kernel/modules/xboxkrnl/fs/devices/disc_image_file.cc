@@ -29,17 +29,8 @@ DiscImageFile::DiscImageFile(
 DiscImageFile::~DiscImageFile() {
 }
 
-X_STATUS DiscImageFile::QueryInfo(FileInfo* out_info) {
-  XEASSERTNOTNULL(out_info);
-  GDFXEntry* gdfx_entry = entry_->gdfx_entry();
-  out_info->creation_time     = 0;
-  out_info->last_access_time  = 0;
-  out_info->last_write_time   = 0;
-  out_info->change_time       = 0;
-  out_info->allocation_size   = 2048;
-  out_info->file_length       = gdfx_entry->size;
-  out_info->attributes        = gdfx_entry->attributes;
-  return X_STATUS_SUCCESS;
+X_STATUS DiscImageFile::QueryInfo(XFileInfo* out_info) {
+  return entry_->QueryInfo(out_info);
 }
 
 X_STATUS DiscImageFile::ReadSync(

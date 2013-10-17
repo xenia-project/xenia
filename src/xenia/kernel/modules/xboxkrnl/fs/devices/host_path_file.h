@@ -30,7 +30,7 @@ public:
                HostPathEntry* entry, HANDLE file_handle);
   virtual ~HostPathFile();
 
-  virtual X_STATUS QueryInfo(FileInfo* out_info);
+  virtual X_STATUS QueryInfo(XFileInfo* out_info);
 
 protected:
   virtual X_STATUS ReadSync(

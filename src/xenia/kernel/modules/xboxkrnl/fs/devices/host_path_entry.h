@@ -30,6 +30,8 @@ public:
 
   const xechar_t* local_path() { return local_path_; }
 
+  virtual X_STATUS QueryInfo(XFileInfo* out_info);
+
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length);
 

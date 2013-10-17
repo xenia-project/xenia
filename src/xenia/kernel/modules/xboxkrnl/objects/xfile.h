@@ -22,10 +22,32 @@ namespace xboxkrnl {
 class XAsyncRequest;
 class XEvent;
 
+class XFileInfo {
+public:
+  // FILE_NETWORK_OPEN_INFORMATION
+  uint64_t          creation_time;
+  uint64_t          last_access_time;
+  uint64_t          last_write_time;
+  uint64_t          change_time;
+  uint64_t          allocation_size;
+  uint64_t          file_length;
+  X_FILE_ATTRIBUTES attributes;
+
+  void Write(uint8_t* base, uint32_t p) {
+    XESETUINT64BE(base + p, creation_time);
+    XESETUINT64BE(base + p + 8, last_access_time);
+    XESETUINT64BE(base + p + 16, last_write_time);
+    XESETUINT64BE(base + p + 24, change_time);
+    XESETUINT64BE(base + p + 32, allocation_size);
+    XESETUINT64BE(base + p + 40, file_length);
+    XESETUINT32BE(base + p + 48, attributes);
+    XESETUINT32BE(base + p + 52, 0); // pad
+  }
+};
+
 
 class XFile : public XObject {
 public:
-  XFile(KernelState* kernel_state, uint32_t desired_access);
   virtual ~XFile();
 
   size_t position() const { return position_; }
@@ -34,16 +56,7 @@ public:
   virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                         uint32_t alertable, uint64_t* opt_timeout);
 
-  typedef struct {
-    uint64_t          creation_time;
-    uint64_t          last_access_time;
-    uint64_t          last_write_time;
-    uint64_t          change_time;
-    uint64_t          allocation_size;
-    uint64_t          file_length;
-    X_FILE_ATTRIBUTES attributes;
-  } FileInfo;
-  virtual X_STATUS QueryInfo(FileInfo* out_info);
+  virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);
@@ -51,6 +64,7 @@ public:
                 XAsyncRequest* request);
 
 protected:
+  XFile(KernelState* kernel_state, uint32_t desired_access);
   virtual X_STATUS ReadSync(
       void* buffer, size_t buffer_length, size_t byte_offset,
       size_t* out_bytes_read) = 0;

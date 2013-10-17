@@ -21,6 +21,7 @@ namespace kernel {
 namespace xboxkrnl {
 class KernelState;
 class XFile;
+class XFileInfo;
 namespace fs {
 
 class Device;
@@ -54,6 +55,8 @@ public:
   Device* device() const { return device_; }
   const char* path() const { return path_; }
   const char* name() const { return name_; }
+
+  virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
 
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length) = 0;

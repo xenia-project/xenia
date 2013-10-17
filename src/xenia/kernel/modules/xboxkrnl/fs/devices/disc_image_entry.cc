@@ -52,6 +52,18 @@ DiscImageEntry::~DiscImageEntry() {
   xe_mmap_release(mmap_);
 }
 
+X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
+  XEASSERTNOTNULL(out_info);
+  out_info->creation_time     = 0;
+  out_info->last_access_time  = 0;
+  out_info->last_write_time   = 0;
+  out_info->change_time       = 0;
+  out_info->allocation_size   = 2048;
+  out_info->file_length       = gdfx_entry_->size;
+  out_info->attributes        = gdfx_entry_->attributes;
+  return X_STATUS_SUCCESS;
+}
+
 MemoryMapping* DiscImageEntry::CreateMemoryMapping(
     xe_file_mode file_mode, const size_t offset, const size_t length) {
   if (file_mode & kXEFileModeWrite) {

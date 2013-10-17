@@ -38,12 +38,6 @@ X_STATUS XFile::Wait(uint32_t wait_reason, uint32_t processor_mode,
       wait_reason, processor_mode, alertable, opt_timeout);
 }
 
-X_STATUS XFile::QueryInfo(FileInfo* out_info) {
-  XEASSERTNOTNULL(out_info);
-  xe_zero_struct(out_info, sizeof(FileInfo));
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
 X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
                      size_t* out_bytes_read) {
   if (byte_offset == -1) {

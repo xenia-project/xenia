@@ -48,6 +48,26 @@ HostPathEntry::~HostPathEntry() {
   xe_free(local_path_);
 }
 
+X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
+  XEASSERTNOTNULL(out_info);
+
+  WIN32_FILE_ATTRIBUTE_DATA data;
+  if (!GetFileAttributesEx(
+      local_path_, GetFileExInfoStandard, &data)) {
+    return X_STATUS_ACCESS_DENIED;
+  }
+
+#define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
+  out_info->creation_time     = COMBINE_TIME(data.ftCreationTime);
+  out_info->last_access_time  = COMBINE_TIME(data.ftLastAccessTime);
+  out_info->last_write_time   = COMBINE_TIME(data.ftLastWriteTime);
+  out_info->change_time       = COMBINE_TIME(data.ftLastWriteTime);
+  out_info->allocation_size   = 4096;
+  out_info->file_length       = ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+  out_info->attributes        = (X_FILE_ATTRIBUTES)data.dwFileAttributes;
+  return X_STATUS_SUCCESS;
+}
+
 MemoryMapping* HostPathEntry::CreateMemoryMapping(
     xe_file_mode file_mode, const size_t offset, const size_t length) {
   xe_mmap_ref mmap = xe_mmap_open(file_mode, local_path_, offset, length);
