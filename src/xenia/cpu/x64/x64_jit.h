@@ -43,6 +43,7 @@ protected:
   int CheckProcessor();
   void DumpCPUInfo();
 
+  xe_mutex_t*     jit_lock_;
   X64Emitter*     emitter_;
 };
 

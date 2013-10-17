@@ -76,6 +76,7 @@ private:
   sdb::SymbolTable*   sym_table_;
   JIT*                jit_;
   std::vector<ExecModule*> modules_;
+  xe_mutex_t*         sym_lock_;
 
   xe_mutex_t*         interrupt_thread_lock_;
   ThreadState*        interrupt_thread_state_;

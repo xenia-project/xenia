@@ -50,6 +50,7 @@ Processor::Processor(xe_memory_ref memory, shared_ptr<Backend> backend) :
     interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL) {
   memory_ = xe_memory_retain(memory);
   backend_ = backend;
+  sym_lock_ = xe_mutex_alloc(10000);
 
   InitializeIfNeeded();
 }
@@ -71,6 +72,7 @@ Processor::~Processor() {
 
   delete jit_;
   delete sym_table_;
+  xe_mutex_free(sym_lock_);
 
   graphics_system_.reset();
   export_resolver_.reset();
@@ -158,7 +160,9 @@ int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
   // Initialize the module and prepare it for execution.
   XEEXPECTZERO(jit_->InitModule(exec_module));
 
+  xe_mutex_lock(sym_lock_);
   modules_.push_back(exec_module);
+  xe_mutex_unlock(sym_lock_);
 
   result_code = 0;
 XECLEANUP:
@@ -183,7 +187,9 @@ int Processor::LoadXexModule(const char* name, const char* path,
   // Initialize the module and prepare it for execution.
   XEEXPECTZERO(jit_->InitModule(exec_module));
 
+  xe_mutex_lock(sym_lock_);
   modules_.push_back(exec_module);
+  xe_mutex_unlock(sym_lock_);
 
   result_code = 0;
 XECLEANUP:
@@ -264,6 +270,7 @@ uint64_t Processor::ExecuteInterrupt(uint32_t address,
 
 FunctionSymbol* Processor::GetFunction(uint32_t address) {
   // Attempt to grab the function symbol from the global lookup table.
+  // The symbol table takes a lock so it should be safe.
   FunctionSymbol* fn_symbol = sym_table_->GetFunction(address);
   if (fn_symbol) {
     return fn_symbol;
@@ -274,13 +281,16 @@ FunctionSymbol* Processor::GetFunction(uint32_t address) {
   // symbol is not found (likely) it will do analysis on it.
   // TODO(benvanik): make this more efficient. Could use a binary search or
   //     something more clever.
+  xe_mutex_lock(sym_lock_);
   for (std::vector<ExecModule*>::iterator it = modules_.begin();
       it != modules_.end(); ++it) {
     fn_symbol = (*it)->FindFunctionSymbol(address);
     if (fn_symbol) {
+      xe_mutex_unlock(sym_lock_);
       return fn_symbol;
     }
   }
+  xe_mutex_unlock(sym_lock_);
 
   // Not found at all? That seems wrong...
   XEASSERTALWAYS();

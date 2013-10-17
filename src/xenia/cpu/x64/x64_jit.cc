@@ -27,10 +27,12 @@ using namespace AsmJit;
 X64JIT::X64JIT(xe_memory_ref memory, SymbolTable* sym_table) :
     JIT(memory, sym_table),
     emitter_(NULL) {
+  jit_lock_ = xe_mutex_alloc(10000);
 }
 
 X64JIT::~X64JIT() {
   delete emitter_;
+  xe_mutex_free(jit_lock_);
 }
 
 int X64JIT::Setup() {
@@ -160,17 +162,20 @@ int X64JIT::UninitModule(ExecModule* module) {
 
 void* X64JIT::GetFunctionPointer(sdb::FunctionSymbol* fn_symbol) {
   // Check function.
+  // TODO(benvanik): make this lock-free (or spin).
+  xe_mutex_lock(jit_lock_);
   x64_function_t fn_ptr = (x64_function_t)fn_symbol->impl_value;
   if (!fn_ptr) {
     // Function hasn't been prepped yet - make it now inline.
     // The emitter will lock and do other fancy things, if required.
     if (emitter_->PrepareFunction(fn_symbol)) {
+      xe_mutex_unlock(jit_lock_);
       return NULL;
     }
     fn_ptr = (x64_function_t)fn_symbol->impl_value;
     XEASSERTNOTNULL(fn_ptr);
   }
-
+  xe_mutex_unlock(jit_lock_);
   return fn_ptr;
 }
 
