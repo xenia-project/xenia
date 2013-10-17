@@ -138,8 +138,13 @@ void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
   // TODO(benvanik): ensure byte order is correct - we're writing back the
   // swapped arg value.
 
-  for (uint32_t n = 0; n < length / 4; n++, p++) {
-    *p = pattern;
+  uint32_t count = length >> 2;
+  uint32_t native_pattern = XESWAP32BE(pattern);
+
+  // TODO: unroll loop?
+
+  for (uint32_t n = 0; n < count; n++, p++) {
+    *p = native_pattern;
   }
 }
 
