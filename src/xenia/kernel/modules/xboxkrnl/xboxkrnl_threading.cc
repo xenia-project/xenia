@@ -135,6 +135,28 @@ SHIM_CALL ExCreateThread_shim(
 }
 
 
+uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
+  // TODO(benvanik): implement.
+  return affinity;
+}
+
+
+SHIM_CALL KeSetAffinityThread_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t thread = SHIM_GET_ARG_32(0);
+  uint32_t affinity = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "KeSetAffinityThread(%.8X, %.8X)",
+      thread,
+      affinity);
+
+  void* thread_ptr = SHIM_MEM_ADDR(thread);
+  uint32_t result = xeKeSetAffinityThread(thread_ptr, affinity);
+  SHIM_SET_RETURN(result);
+}
+
+
 uint32_t xeKeGetCurrentProcessType() {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -207,9 +229,6 @@ SHIM_CALL KeQuerySystemTime_shim(
 
 // http://msdn.microsoft.com/en-us/library/ms686801
 uint32_t xeKeTlsAlloc() {
-  KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
-
   // DWORD
 
   uint32_t tls_index;
@@ -241,9 +260,6 @@ SHIM_CALL KeTlsAlloc_shim(
 
 // http://msdn.microsoft.com/en-us/library/ms686804
 int KeTlsFree(uint32_t tls_index) {
-  KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
-
   // BOOL
   // _In_  DWORD dwTlsIndex
 
@@ -278,9 +294,6 @@ SHIM_CALL KeTlsFree_shim(
 
 // http://msdn.microsoft.com/en-us/library/ms686812
 uint32_t xeKeTlsGetValue(uint32_t tls_index) {
-  KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
-
   // LPVOID
   // _In_  DWORD dwTlsIndex
 
@@ -316,9 +329,6 @@ SHIM_CALL KeTlsGetValue_shim(
 
 // http://msdn.microsoft.com/en-us/library/ms686818
 int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value) {
-  KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
-
   // BOOL
   // _In_      DWORD dwTlsIndex,
   // _In_opt_  LPVOID lpTlsValue
@@ -554,6 +564,7 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
 void xe::kernel::xboxkrnl::RegisterThreadingExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
 

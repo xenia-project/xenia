@@ -10,6 +10,7 @@
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 #include <xenia/cpu/cpu.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_threading.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xevent.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 
@@ -21,6 +22,7 @@ using namespace xe::kernel::xboxkrnl;
 
 namespace {
   static uint32_t next_xthread_id = 0;
+  static uint32_t current_thread_tls = xeKeTlsAlloc();
 }
 
 
@@ -69,6 +71,10 @@ XThread::~XThread() {
     // TODO(benvanik): platform kill
     XELOGE("Thread disposed without exiting");
   }
+}
+
+uint32_t XThread::GetCurrentThreadHandle() {
+  return xeKeTlsGetValue(current_thread_tls);
 }
 
 uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
@@ -172,6 +178,7 @@ X_STATUS XThread::Exit(int exit_code) {
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  xeKeTlsSetValue(current_thread_tls, thread->handle());
   thread->Execute();
   thread->Release();
   return 0;
@@ -210,6 +217,7 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 
 static void* XThreadStartCallbackPthreads(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  xeKeTlsSetValue(current_thread_tls, thread->handle());
   thread->Execute();
   thread->Release();
   return 0;

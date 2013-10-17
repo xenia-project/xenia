@@ -36,6 +36,7 @@ void RegisterMemoryExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterMiscExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterModuleExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterNtExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterObExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterRtlExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterThreadingExports(ExportResolver* export_resolver,
                               KernelState* state);

@@ -10,6 +10,7 @@
 #include <xenia/kernel/modules/xboxkrnl/object_table.h>
 
 #include <xenia/kernel/modules/xboxkrnl/xobject.h>
+#include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 
 using namespace xe;
@@ -154,6 +155,14 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
   XEASSERTNOTNULL(out_object);
 
   X_STATUS result = X_STATUS_SUCCESS;
+
+  if (handle == 0xFFFFFFFF) {
+    // CurrentProcess
+    XEASSERTALWAYS();
+  } else if (handle == 0xFFFFFFFE) {
+    // CurrentThread
+    handle = XThread::GetCurrentThreadHandle();
+  }
 
   xe_mutex_lock(table_mutex_);
 

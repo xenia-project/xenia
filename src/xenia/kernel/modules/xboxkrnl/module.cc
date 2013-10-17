@@ -58,6 +58,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* runtime) :
   RegisterMiscExports(resolver, kernel_state_.get());
   RegisterModuleExports(resolver, kernel_state_.get());
   RegisterNtExports(resolver, kernel_state_.get());
+  RegisterObExports(resolver, kernel_state_.get());
   RegisterRtlExports(resolver, kernel_state_.get());
   RegisterThreadingExports(resolver, kernel_state_.get());
   RegisterVideoExports(resolver, kernel_state_.get());

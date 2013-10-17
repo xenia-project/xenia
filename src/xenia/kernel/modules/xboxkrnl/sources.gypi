@@ -23,6 +23,8 @@
     'xboxkrnl_module.h',
     'xboxkrnl_nt.cc',
     'xboxkrnl_nt.h',
+    'xboxkrnl_ob.cc',
+    'xboxkrnl_ob.h',
     'xboxkrnl_ordinals.h',
     'xboxkrnl_private.h',
     'xboxkrnl_rtl.cc',

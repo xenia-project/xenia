@@ -26,6 +26,8 @@ X_STATUS xeExCreateThread(
     uint32_t xapi_thread_startup,
     uint32_t start_address, uint32_t start_context, uint32_t creation_flags);
 
+uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity);
+
 uint32_t xeKeGetCurrentProcessType();
 
 uint64_t xeKeQueryPerformanceFrequency();

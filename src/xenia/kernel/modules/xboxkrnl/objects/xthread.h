@@ -39,6 +39,7 @@ public:
           uint32_t creation_flags);
   virtual ~XThread();
 
+  static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId(const uint8_t* thread_state_block);
 
   uint32_t thread_id();
