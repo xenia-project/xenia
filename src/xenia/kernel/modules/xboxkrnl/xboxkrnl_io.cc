@@ -39,26 +39,14 @@ SHIM_CALL NtCreateFile_shim(
   uint32_t share_access = SHIM_GET_ARG_32(6);
   uint32_t creation_disposition = SHIM_GET_ARG_32(7);
 
-  struct OBJECT_ATTRIBUTES {
-    uint32_t  root_directory;
-    uint32_t  object_name_ptr;
-    uint32_t  attributes;
-  } attrs;
-  attrs.root_directory  = SHIM_MEM_32(object_attributes_ptr);
-  attrs.object_name_ptr = SHIM_MEM_32(object_attributes_ptr + 4);
-  attrs.attributes      = SHIM_MEM_32(object_attributes_ptr + 8);
-  X_ANSI_STRING object_name;
-  object_name.length          = SHIM_MEM_16(attrs.object_name_ptr);
-  object_name.maximum_length  = SHIM_MEM_16(attrs.object_name_ptr + 2);
-  object_name.buffer          =
-      (char*)SHIM_MEM_ADDR(SHIM_MEM_32(attrs.object_name_ptr + 4));
+  X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
 
   XELOGD(
       "NtCreateFile(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X, %d, %d)",
       handle_ptr,
       desired_access,
       object_attributes_ptr,
-      object_name.buffer,
+      attrs.object_name.buffer,
       io_status_block_ptr,
       allocation_size_ptr,
       file_attributes,
@@ -76,7 +64,7 @@ SHIM_CALL NtCreateFile_shim(
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->filesystem();
-  Entry* entry = fs->ResolvePath(object_name.buffer);
+  Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
   XFile* file = NULL;
   if (entry && entry->type() == Entry::kTypeFile) {
     // Open the file.
@@ -231,12 +219,49 @@ SHIM_CALL NtReadFile_shim(
 
 SHIM_CALL NtQueryInformationFile_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
+  uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
+  uint32_t length = SHIM_GET_ARG_32(3);
+  uint32_t file_info_class = SHIM_GET_ARG_32(4);
+
+  XELOGD(
+      "NtQueryInformationFile(%.8X, %.8X, %.8X, %.8X, %.8X)",
+      file_handle,
+      io_status_block_ptr,
+      file_info_ptr,
+      length,
+      file_info_class);
+
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 
 SHIM_CALL NtQueryFullAttributesFile_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
+  uint32_t object_attributes_ptr = SHIM_GET_ARG_32(0);
+  uint32_t file_info_ptr = SHIM_GET_ARG_32(1);
+
+  X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
+
+  XELOGD(
+      "NtQueryFullAttributesFile(%.8X(%s), %.8X)",
+      object_attributes_ptr,
+      attrs.object_name.buffer,
+      file_info_ptr);
+
+  X_STATUS result = X_STATUS_NO_SUCH_FILE;
+
+  // Resolve the file using the virtual file system.
+  FileSystem* fs = state->filesystem();
+  Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
+  if (entry && entry->type() == Entry::kTypeFile) {
+    // Found.
+    // TODO(benvanik): set file_info_ptr data
+    XEASSERTALWAYS();
+    result = X_STATUS_SUCCESS;
+  }
+
+  SHIM_SET_RETURN(result);
 }
 
 SHIM_CALL NtQueryVolumeInformationFile_shim(

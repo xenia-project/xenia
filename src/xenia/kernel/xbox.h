@@ -107,11 +107,64 @@ typedef uint32_t X_STATUS;
 #define X_LANGUAGE_JAPANESE       2
 
 
-typedef struct {
+class X_ANSI_STRING {
+public:
   uint16_t  length;
   uint16_t  maximum_length;
   char*     buffer;
-} X_ANSI_STRING;
+
+  X_ANSI_STRING() {
+    Zero();
+  }
+  X_ANSI_STRING(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    length = XEGETUINT16BE(base + p);
+    maximum_length = XEGETUINT16BE(base + p + 2);
+    if (maximum_length) {
+      buffer = (char*)(base + XEGETUINT32BE(base + p + 4));
+    } else {
+      buffer = 0;
+    }
+  }
+  void Zero() {
+    length = maximum_length = 0;
+    buffer = 0;
+  }
+};
+
+
+class X_OBJECT_ATTRIBUTES {
+public:
+  uint32_t      root_directory;
+  uint32_t      object_name_ptr;
+  X_ANSI_STRING object_name;
+  uint32_t      attributes;
+
+  X_OBJECT_ATTRIBUTES() {
+    Zero();
+  }
+  X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    root_directory  = XEGETUINT32BE(base + p);
+    object_name_ptr = XEGETUINT32BE(base + p + 4);
+    if (object_name_ptr) {
+      object_name.Read(base, object_name_ptr);
+    } else {
+      object_name.Zero();
+    }
+    attributes      = XEGETUINT32BE(base + p + 8);
+  }
+  void Zero() {
+    root_directory = 0;
+    object_name_ptr = 0;
+    object_name.Zero();
+    attributes = 0;
+  }
+};
 
 
 }  // namespace kernel

@@ -30,6 +30,7 @@ namespace kernel {
       (xe_kernel_export_shim_fn)export_name##_shim, \
       NULL);
 
+#define SHIM_MEM_BASE         ppc_state->membase
 #define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : NULL)
 
 #define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a))
