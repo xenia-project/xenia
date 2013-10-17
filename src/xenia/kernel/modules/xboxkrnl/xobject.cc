@@ -73,6 +73,10 @@ void XObject::Release() {
   }
 }
 
+X_STATUS XObject::Delete() {
+  return shared_kernel_state_->object_table()->RemoveHandle(handle_);
+}
+
 X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
                        uint32_t alertable, uint64_t* opt_timeout) {
   return X_STATUS_SUCCESS;

@@ -13,13 +13,17 @@
 #include <xenia/kernel/modules/xboxkrnl/xobject.h>
 
 #include <xenia/kernel/xbox.h>
-#include <xenia/kernel/modules/xboxkrnl/async_request.h>
-#include <xenia/kernel/modules/xboxkrnl/fs/entry.h>
 
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
+class XAsyncRequest;
+class XEvent;
+namespace fs {
+class FileEntry;
+}
 
 
 class XFile : public XObject {
@@ -27,11 +31,23 @@ public:
   XFile(KernelState* kernel_state, fs::FileEntry* entry);
   virtual ~XFile();
 
+  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
+                        uint32_t alertable, uint64_t* opt_timeout);
+
+  // TODO(benvanik): Create/Open
+
+  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
+                size_t* out_bytes_read);
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 XAsyncRequest* request);
 
 private:
   fs::FileEntry*  entry_;
+  XEvent*         async_event_;
+
+  // TODO(benvanik): create flags, open state, etc.
+
+  size_t          position_;
 };
 
 

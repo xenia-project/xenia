@@ -57,6 +57,7 @@ public:
   bool ReleaseHandle();
   void Retain();
   void Release();
+  X_STATUS Delete();
 
   // Reference()
   // Dereference()

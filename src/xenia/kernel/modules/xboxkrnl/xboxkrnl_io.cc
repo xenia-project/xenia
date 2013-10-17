@@ -10,8 +10,10 @@
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_io.h>
 
 #include <xenia/kernel/shim_utils.h>
+#include <xenia/kernel/modules/xboxkrnl/async_request.h>
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
+#include <xenia/kernel/modules/xboxkrnl/objects/xevent.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xfile.h>
 
 
@@ -105,6 +107,16 @@ SHIM_CALL NtOpenFile_shim(
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 
+class xeNtReadFileState {
+public:
+  uint32_t x;
+};
+void xeNtReadFileCompleted(XAsyncRequest* request, xeNtReadFileState* state) {
+  // TODO(benvanik): set io_status_block_ptr
+  delete request;
+  delete state;
+}
+
 SHIM_CALL NtReadFile_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
@@ -115,10 +127,10 @@ SHIM_CALL NtReadFile_shim(
   uint32_t buffer = SHIM_GET_ARG_32(5);
   uint32_t buffer_length = SHIM_GET_ARG_32(6);
   uint32_t byte_offset_ptr = SHIM_GET_ARG_32(7);
-  uint32_t key = SHIM_GET_ARG_32(8);
+  size_t byte_offset = byte_offset_ptr ? SHIM_MEM_64(byte_offset_ptr) : 0;
 
   XELOGD(
-      "NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %d, %.8X)",
+      "NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %d)",
       file_handle,
       event_handle,
       apc_routine_ptr,
@@ -126,29 +138,84 @@ SHIM_CALL NtReadFile_shim(
       io_status_block_ptr,
       buffer,
       buffer_length,
-      byte_offset_ptr,
-      key);
+      byte_offset_ptr);
 
   // Async not supported yet.
   XEASSERTNULL(apc_routine_ptr);
 
-  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  X_STATUS result = X_STATUS_SUCCESS;
   uint32_t info = 0;
 
-  XFile* file = NULL;
-  result = state->object_table()->GetObject(
-      file_handle, (XObject**)&file);
-  if (result == X_STATUS_SUCCESS) {
-    // TODO(benvanik): read!
+  // Grab event to signal.
+  XEvent* ev = NULL;
+  bool signal_event = false;
+  if (event_handle) {
+    result = state->object_table()->GetObject(
+        event_handle, (XObject**)&ev);
+  }
 
-    file->Release();
-    result = X_STATUS_SUCCESS;
-    info = 0; // number of bytes read
+  // Grab file.
+  XFile* file = NULL;
+  if (XSUCCEEDED(result)) {
+    result = state->object_table()->GetObject(
+        file_handle, (XObject**)&file);
+  }
+
+  // Execute read.
+  if (XSUCCEEDED(result)) {
+    // Reset event before we begin.
+    if (ev) {
+      ev->Reset();
+    }
+
+    // TODO(benvanik): async path.
+    if (true) {
+      // Synchronous request.
+      if (byte_offset == 0xFFFFFFFFfffffffe) {
+        // FILE_USE_FILE_POINTER_POSITION
+        byte_offset = -1;
+      }
+
+      // Read now.
+      size_t bytes_read = 0;
+      result = file->Read(
+          SHIM_MEM_ADDR(buffer), buffer_length, byte_offset,
+          &bytes_read);
+      if (XSUCCEEDED(result)) {
+        info = (int32_t)bytes_read;
+      }
+
+      // Mark that we should signal the event now. We do this after
+      // we have written the info out.
+      signal_event = true;
+    } else {
+      // X_STATUS_PENDING if not returning immediately.
+      // XFile is waitable and signalled after each async req completes.
+      // reset the input event (->Reset())
+      /*xeNtReadFileState* call_state = new xeNtReadFileState();
+      XAsyncRequest* request = new XAsyncRequest(
+          state, file,
+          (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
+          call_state);*/
+      //result = file->Read(buffer, buffer_length, byte_offset, request);
+      result = X_STATUS_PENDING;
+      info = 0;
+    }
   }
 
   if (io_status_block_ptr) {
     SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+
+  if (file) {
+    file->Release();
+  }
+  if (ev) {
+    if (signal_event) {
+      ev->Set(0, false);
+    }
+    ev->Release();
   }
 
   SHIM_SET_RETURN(result);

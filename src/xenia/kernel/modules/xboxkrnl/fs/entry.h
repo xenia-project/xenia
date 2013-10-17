@@ -13,10 +13,15 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <xenia/kernel/xbox.h>
+
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
+class XAsyncRequest;
+
 namespace fs {
 
 
@@ -66,6 +71,16 @@ public:
   virtual ~FileEntry();
 
   //virtual void Query() = 0;
+
+  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
+                size_t* out_bytes_read) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
+  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
+                XAsyncRequest* request) {
+    // queue completion of failure
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length) = 0;
