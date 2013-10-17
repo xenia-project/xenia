@@ -575,6 +575,10 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
   // most constant values are set within their own blocks anyway.
   clear_all_constant_gpr_values();
 
+  // TODO: this fixes crashes when not using instruction/branch tracing. Figure out why it's broken.
+  c.save(c.getGpArg(0));
+  c.save(c.getGpArg(1));
+
   // This will create a label if it hasn't already been done.
   std::map<uint32_t, Label>::iterator label_it =
       bbs_.find(block->start_address);
