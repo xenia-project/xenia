@@ -25,13 +25,11 @@ class XEvent;
 
 class XFile : public XObject {
 public:
-  XFile(KernelState* kernel_state);
+  XFile(KernelState* kernel_state, uint32_t desired_access);
   virtual ~XFile();
 
   virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                         uint32_t alertable, uint64_t* opt_timeout);
-
-  // TODO(benvanik): Create/Open
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);
@@ -39,9 +37,12 @@ public:
                 XAsyncRequest* request);
 
 protected:
-  // open/read/write/etc
+  virtual X_STATUS ReadSync(
+      void* buffer, size_t buffer_length, size_t byte_offset,
+      size_t* out_bytes_read) = 0;
 
 private:
+  uint32_t        desired_access_;
   XEvent*         async_event_;
 
   // TODO(benvanik): create flags, open state, etc.

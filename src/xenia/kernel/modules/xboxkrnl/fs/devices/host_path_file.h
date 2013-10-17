@@ -26,11 +26,18 @@ class HostPathEntry;
 
 class HostPathFile : public XFile {
 public:
-  HostPathFile(KernelState* kernel_state, HostPathEntry* entry);
+  HostPathFile(KernelState* kernel_state, uint32_t desired_access,
+               HostPathEntry* entry, HANDLE file_handle);
   virtual ~HostPathFile();
+
+protected:
+  virtual X_STATUS ReadSync(
+      void* buffer, size_t buffer_length, size_t byte_offset,
+      size_t* out_bytes_read);
 
 private:
   HostPathEntry* entry_;
+  HANDLE         file_handle_;
 };
 
 

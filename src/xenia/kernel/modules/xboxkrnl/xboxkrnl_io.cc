@@ -80,7 +80,11 @@ SHIM_CALL NtCreateFile_shim(
   XFile* file = NULL;
   if (entry && entry->type() == Entry::kTypeFile) {
     // Open the file.
-    result = entry->Open(state, &file);
+    result = entry->Open(
+        state,
+        desired_access,
+        false, // TODO(benvanik): pick async mode, if needed.
+        &file);
   } else {
     result = X_STATUS_NO_SUCH_FILE;
     info = X_FILE_DOES_NOT_EXIST;

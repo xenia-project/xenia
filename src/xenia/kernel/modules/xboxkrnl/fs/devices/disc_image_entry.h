@@ -30,12 +30,15 @@ public:
                  xe_mmap_ref mmap, GDFXEntry* gdfx_entry);
   virtual ~DiscImageEntry();
 
+  xe_mmap_ref mmap() const { return mmap_; }
+  GDFXEntry* gdfx_entry() const { return gdfx_entry_; }
+
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length);
 
   virtual X_STATUS Open(
       KernelState* kernel_state,
-      /* mode etc */
+      uint32_t desired_access, bool async,
       XFile** out_file);
 
 private:

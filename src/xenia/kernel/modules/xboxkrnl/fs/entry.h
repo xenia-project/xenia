@@ -60,6 +60,7 @@ public:
 
   virtual X_STATUS Open(
       KernelState* kernel_state,
+      uint32_t desired_access, bool async,
       XFile** out_file) = 0;
 
 private:

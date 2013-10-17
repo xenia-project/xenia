@@ -70,15 +70,8 @@ MemoryMapping* DiscImageEntry::CreateMemoryMapping(
 
 X_STATUS DiscImageEntry::Open(
     KernelState* kernel_state,
-    /* mode etc */
+    uint32_t desired_access, bool async,
     XFile** out_file) {
-  //*out_file = new DiscImageFile...
-  return X_STATUS_NOT_IMPLEMENTED;
+  *out_file = new DiscImageFile(kernel_state, desired_access, this);
+  return X_STATUS_SUCCESS;
 }
-/*    size_t real_offset = gdfx_entry_->offset + byte_offset;
-    size_t real_length = MIN(buffer_length, gdfx_entry_->size - byte_offset);
-    xe_copy_memory(
-        buffer, buffer_length,
-        xe_mmap_get_addr(mmap_) + real_offset, real_length);
-    *out_bytes_read = real_length;
-    return X_STATUS_SUCCESS;*/

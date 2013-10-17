@@ -65,7 +65,24 @@ MemoryMapping* HostPathEntry::CreateMemoryMapping(
 
 X_STATUS HostPathEntry::Open(
     KernelState* kernel_state,
+    uint32_t desired_access, bool async,
     XFile** out_file) {
-  //*out_file = new DiscImageFile...
-  return X_STATUS_NOT_IMPLEMENTED;
+  DWORD share_mode = FILE_SHARE_READ;
+  DWORD creation_disposition = OPEN_EXISTING;
+  DWORD flags_and_attributes = async ? FILE_FLAG_OVERLAPPED : 0;
+  HANDLE file = CreateFile(
+      local_path_,
+      desired_access,
+      share_mode,
+      NULL,
+      creation_disposition,
+      flags_and_attributes,
+      NULL);
+  if (!file) {
+    // TODO(benvanik): pick correct response.
+    return X_STATUS_ACCESS_DENIED;
+  }
+
+  *out_file = new HostPathFile(kernel_state, desired_access, this, file);
+  return X_STATUS_SUCCESS;
 }

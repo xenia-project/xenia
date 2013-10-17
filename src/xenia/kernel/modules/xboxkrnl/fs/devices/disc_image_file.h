@@ -26,8 +26,15 @@ class DiscImageEntry;
 
 class DiscImageFile : public XFile {
 public:
-  DiscImageFile(KernelState* kernel_state, DiscImageEntry* entry);
+  DiscImageFile(KernelState* kernel_state, uint32_t desired_access,
+                DiscImageEntry* entry);
   virtual ~DiscImageFile();
+
+
+protected:
+  virtual X_STATUS ReadSync(
+      void* buffer, size_t buffer_length, size_t byte_offset,
+      size_t* out_bytes_read);
 
 private:
   DiscImageEntry* entry_;
