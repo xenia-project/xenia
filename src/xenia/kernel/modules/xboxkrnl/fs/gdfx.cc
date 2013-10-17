@@ -25,7 +25,7 @@ namespace {
 
 
 GDFXEntry::GDFXEntry() :
-    attributes(0), offset(0), size(0) {
+    attributes(X_FILE_ATTRIBUTE_NONE), offset(0), size(0) {
 }
 
 GDFXEntry::~GDFXEntry() {
@@ -144,7 +144,7 @@ GDFX::Error GDFX::ReadAllEntries(ParseState& state,
   root_entry_->offset = 0;
   root_entry_->size   = 0;
   root_entry_->name   = "";
-  root_entry_->attributes = GDFXEntry::kAttrFolder;
+  root_entry_->attributes = X_FILE_ATTRIBUTE_DIRECTORY;
 
   if (!ReadEntry(state, root_buffer, 0, root_entry_)) {
     return kErrorOutOfMemory;
@@ -172,12 +172,12 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
   GDFXEntry* entry = new GDFXEntry();
   entry->name = std::string(name, name_length);
   entry->name.append(1, '\0');
-  entry->attributes = attributes;
+  entry->attributes = (X_FILE_ATTRIBUTES)attributes;
 
   // Add to parent.
   parent->children.push_back(entry);
 
-  if (attributes & GDFXEntry::kAttrFolder) {
+  if (attributes & X_FILE_ATTRIBUTE_DIRECTORY) {
     // Folder.
     entry->offset = 0;
     entry->size   = 0;

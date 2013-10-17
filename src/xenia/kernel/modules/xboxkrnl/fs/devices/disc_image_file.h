@@ -30,6 +30,7 @@ public:
                 DiscImageEntry* entry);
   virtual ~DiscImageFile();
 
+  virtual X_STATUS QueryInfo(FileInfo* out_info);
 
 protected:
   virtual X_STATUS ReadSync(

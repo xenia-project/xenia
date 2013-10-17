@@ -30,6 +30,8 @@ public:
                HostPathEntry* entry, HANDLE file_handle);
   virtual ~HostPathFile();
 
+  virtual X_STATUS QueryInfo(FileInfo* out_info);
+
 protected:
   virtual X_STATUS ReadSync(
       void* buffer, size_t buffer_length, size_t byte_offset,

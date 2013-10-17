@@ -91,7 +91,7 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
     XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), next_slash + 1));
   }
 
-  Entry::Type type = gdfx_entry->attributes & GDFXEntry::kAttrFolder ?
+  Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?
       Entry::kTypeDirectory : Entry::kTypeFile;
   return new DiscImageEntry(
       type, this, path, mmap_, gdfx_entry);

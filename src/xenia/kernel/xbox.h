@@ -107,6 +107,82 @@ typedef uint32_t X_STATUS;
 #define X_LANGUAGE_JAPANESE       2
 
 
+typedef enum _X_FILE_ATTRIBUTES {
+  X_FILE_ATTRIBUTE_NONE         = 0x0000,
+  X_FILE_ATTRIBUTE_READONLY     = 0x0001,
+  X_FILE_ATTRIBUTE_HIDDEN       = 0x0002,
+  X_FILE_ATTRIBUTE_SYSTEM       = 0x0004,
+  X_FILE_ATTRIBUTE_DIRECTORY    = 0x0010,
+  X_FILE_ATTRIBUTE_ARCHIVE      = 0x0020,
+  X_FILE_ATTRIBUTE_DEVICE       = 0x0040,
+  X_FILE_ATTRIBUTE_NORMAL       = 0x0080,
+  X_FILE_ATTRIBUTE_TEMPORARY    = 0x0100,
+  X_FILE_ATTRIBUTE_COMPRESSED   = 0x0800,
+  X_FILE_ATTRIBUTE_ENCRYPTED    = 0x4000,
+} X_FILE_ATTRIBUTES;
+
+
+typedef enum _X_FILE_INFORMATION_CLASS {
+  XFileDirectoryInformation = 1,
+  XFileFullDirectoryInformation,
+  XFileBothDirectoryInformation,
+  XFileBasicInformation,
+  XFileStandardInformation,
+  XFileInternalInformation,
+  XFileEaInformation,
+  XFileAccessInformation,
+  XFileNameInformation,
+  XFileRenameInformation,
+  XFileLinkInformation,
+  XFileNamesInformation,
+  XFileDispositionInformation,
+  XFilePositionInformation,
+  XFileFullEaInformation,
+  XFileModeInformation,
+  XFileAlignmentInformation,
+  XFileAllInformation,
+  XFileAllocationInformation,
+  XFileEndOfFileInformation,
+  XFileAlternateNameInformation,
+  XFileStreamInformation,
+  XFilePipeInformation,
+  XFilePipeLocalInformation,
+  XFilePipeRemoteInformation,
+  XFileMailslotQueryInformation,
+  XFileMailslotSetInformation,
+  XFileCompressionInformation,
+  XFileObjectIdInformation,
+  XFileCompletionInformation,
+  XFileMoveClusterInformation,
+  XFileQuotaInformation,
+  XFileReparsePointInformation,
+  XFileNetworkOpenInformation,
+  XFileAttributeTagInformation,
+  XFileTrackingInformation,
+  XFileIdBothDirectoryInformation,
+  XFileIdFullDirectoryInformation,
+  XFileValidDataLengthInformation,
+  XFileShortNameInformation,
+  XFileIoCompletionNotificationInformation,
+  XFileIoStatusBlockRangeInformation,
+  XFileIoPriorityHintInformation,
+  XFileSfioReserveInformation,
+  XFileSfioVolumeInformation,
+  XFileHardLinkInformation,
+  XFileProcessIdsUsingFileInformation,
+  XFileNormalizedNameInformation,
+  XFileNetworkPhysicalNameInformation,
+  XFileIdGlobalTxDirectoryInformation,
+  XFileIsRemoteDeviceInformation,
+  XFileAttributeCacheInformation,
+  XFileNumaNodeInformation,
+  XFileStandardLinkInformation,
+  XFileRemoteProtocolInformation,
+  XFileReplaceCompletionInformation,
+  XFileMaximumInformation
+} X_FILE_INFORMATION_CLASS;
+
+
 class X_ANSI_STRING {
 public:
   uint16_t  length;

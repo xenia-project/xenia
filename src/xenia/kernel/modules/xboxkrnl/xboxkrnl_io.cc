@@ -233,7 +233,79 @@ SHIM_CALL NtQueryInformationFile_shim(
       length,
       file_info_class);
 
-  SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
+  X_STATUS result = X_STATUS_SUCCESS;
+  uint32_t info = 0;
+
+  // Grab file.
+  XFile* file = NULL;
+  result = state->object_table()->GetObject(
+      file_handle, (XObject**)&file);
+
+  if (XSUCCEEDED(result)) {
+    result = X_STATUS_SUCCESS;
+    switch (file_info_class) {
+    case XFilePositionInformation:
+      // struct FILE_POSITION_INFORMATION {
+      //   LARGE_INTEGER CurrentByteOffset;
+      // };
+      XEASSERT(length == 8);
+      info = 8;
+      SHIM_SET_MEM_64(file_info_ptr, file->position());
+      break;
+    case XFileNetworkOpenInformation:
+      // struct FILE_NETWORK_OPEN_INFORMATION {
+      //   LARGE_INTEGER CreationTime;
+      //   LARGE_INTEGER LastAccessTime;
+      //   LARGE_INTEGER LastWriteTime;
+      //   LARGE_INTEGER ChangeTime;
+      //   LARGE_INTEGER AllocationSize;
+      //   LARGE_INTEGER EndOfFile;
+      //   ULONG         FileAttributes;
+      //   ULONG         Unknown;
+      // };
+      XEASSERT(length == 56);
+      XFile::FileInfo file_info;
+      result = file->QueryInfo(&file_info);
+      if (XSUCCEEDED(result)) {
+        info = 56;
+        SHIM_SET_MEM_64(file_info_ptr,
+            file_info.creation_time);
+        SHIM_SET_MEM_64(file_info_ptr + 8,
+            file_info.last_access_time);
+        SHIM_SET_MEM_64(file_info_ptr + 16,
+            file_info.last_write_time);
+        SHIM_SET_MEM_64(file_info_ptr + 24,
+            file_info.change_time);
+        SHIM_SET_MEM_64(file_info_ptr + 32,
+            file_info.allocation_size);
+        SHIM_SET_MEM_64(file_info_ptr + 40,
+            file_info.file_length);
+        SHIM_SET_MEM_32(file_info_ptr + 48,
+            file_info.attributes);
+        SHIM_SET_MEM_32(file_info_ptr + 52, 0); // Unknown!
+      }
+      break;
+    default:
+      // Unsupported, for now.
+      XEASSERTALWAYS();
+      info = 0;
+      break;
+    }
+  }
+
+  if (XFAILED(result)) {
+    info = 0;
+  }
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+
+  if (file) {
+    file->Release();
+  }
+
+  SHIM_SET_RETURN(result);
 }
 
 SHIM_CALL NtQueryFullAttributesFile_shim(

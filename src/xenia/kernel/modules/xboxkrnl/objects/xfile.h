@@ -28,8 +28,21 @@ public:
   XFile(KernelState* kernel_state, uint32_t desired_access);
   virtual ~XFile();
 
+  size_t position() const { return position_; }
+
   virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                         uint32_t alertable, uint64_t* opt_timeout);
+
+  typedef struct {
+    uint64_t          creation_time;
+    uint64_t          last_access_time;
+    uint64_t          last_write_time;
+    uint64_t          change_time;
+    uint64_t          allocation_size;
+    uint64_t          file_length;
+    X_FILE_ATTRIBUTES attributes;
+  } FileInfo;
+  virtual X_STATUS QueryInfo(FileInfo* out_info);
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);

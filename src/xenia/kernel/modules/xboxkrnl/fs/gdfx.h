@@ -15,6 +15,7 @@
 
 #include <vector>
 
+#include <xenia/kernel/xbox.h>
 #include <xenia/kernel/modules/xboxkrnl/fs/entry.h>
 
 
@@ -29,16 +30,6 @@ class GDFX;
 
 class GDFXEntry {
 public:
-  enum Attributes {
-    kAttrNone       = 0x00000000,
-    kAttrReadOnly   = 0x00000001,
-    kAttrHidden     = 0x00000002,
-    kAttrSystem     = 0x00000004,
-    kAttrFolder     = 0x00000010,
-    kAttrArchived   = 0x00000020,
-    kAttrNormal     = 0x00000080,
-  };
-
   GDFXEntry();
   ~GDFXEntry();
 
@@ -46,10 +37,10 @@ public:
 
   void Dump(int indent);
 
-  std::string   name;
-  uint32_t      attributes;
-  size_t        offset;
-  size_t        size;
+  std::string       name;
+  X_FILE_ATTRIBUTES attributes;
+  size_t            offset;
+  size_t            size;
 
   std::vector<GDFXEntry*> children;
 };
