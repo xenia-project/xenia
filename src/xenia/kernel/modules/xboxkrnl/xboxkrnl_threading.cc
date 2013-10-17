@@ -137,6 +137,8 @@ SHIM_CALL ExCreateThread_shim(
 
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
   // TODO(benvanik): implement.
+  // TODO(benvanik): this also needs ObReferenceObjectByHandle to not
+  //     return dummy values.
   return affinity;
 }
 
