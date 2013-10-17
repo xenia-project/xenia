@@ -10,68 +10,13 @@
 #include <xenia/kernel/modules/xboxkrnl/fs/devices/disc_image_device.h>
 
 #include <xenia/kernel/modules/xboxkrnl/fs/gdfx.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/devices/disc_image_entry.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl::fs;
 
-
-namespace {
-
-
-class DiscImageMemoryMapping : public MemoryMapping {
-public:
-  DiscImageMemoryMapping(uint8_t* address, size_t length, xe_mmap_ref mmap) :
-      MemoryMapping(address, length) {
-    mmap_ = xe_mmap_retain(mmap);
-  }
-
-  virtual ~DiscImageMemoryMapping() {
-    xe_mmap_release(mmap_);
-  }
-
-private:
-  xe_mmap_ref mmap_;
-};
-
-
-class DiscImageFileEntry : public FileEntry {
-public:
-  DiscImageFileEntry(Device* device, const char* path,
-                     xe_mmap_ref mmap, GDFXEntry* gdfx_entry) :
-      FileEntry(device, path),
-      gdfx_entry_(gdfx_entry) {
-    mmap_ = xe_mmap_retain(mmap);
-  }
-
-  virtual ~DiscImageFileEntry() {
-    xe_mmap_release(mmap_);
-  }
-
-  virtual MemoryMapping* CreateMemoryMapping(
-      xe_file_mode file_mode, const size_t offset, const size_t length) {
-    if (file_mode & kXEFileModeWrite) {
-      // Only allow reads.
-      return NULL;
-    }
-
-    size_t real_offset = gdfx_entry_->offset + offset;
-    size_t real_length = length ?
-        MIN(length, gdfx_entry_->size) : gdfx_entry_->size;
-    return new DiscImageMemoryMapping(
-        xe_mmap_get_addr(mmap_) + real_offset,
-        real_length,
-        mmap_);
-  }
-
-private:
-  xe_mmap_ref mmap_;
-  GDFXEntry*  gdfx_entry_;
-};
-
-
-}
 
 
 DiscImageDevice::DiscImageDevice(const char* path, const xechar_t* local_path) :
@@ -146,11 +91,8 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
     XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), next_slash + 1));
   }
 
-  if (gdfx_entry->attributes & GDFXEntry::kAttrFolder) {
-    //return new DiscImageDirectoryEntry(mmap_, gdfx_entry);
-    XEASSERTALWAYS();
-    return NULL;
-  } else {
-    return new DiscImageFileEntry(this, path, mmap_, gdfx_entry);
-  }
+  Entry::Type type = gdfx_entry->attributes & GDFXEntry::kAttrFolder ?
+      Entry::kTypeDirectory : Entry::kTypeFile;
+  return new DiscImageEntry(
+      type, this, path, mmap_, gdfx_entry);
 }

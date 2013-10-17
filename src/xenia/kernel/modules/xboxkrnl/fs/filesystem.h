@@ -33,8 +33,7 @@ public:
   ~FileSystem();
 
   int RegisterDevice(const char* path, Device* device);
-  int RegisterLocalDirectoryDevice(const char* path,
-                                   const xechar_t* local_path);
+  int RegisterHostPathDevice(const char* path, const xechar_t* local_path);
   int RegisterDiscImageDevice(const char* path, const xechar_t* local_path);
 
   int CreateSymbolicLink(const char* path, const char* target);

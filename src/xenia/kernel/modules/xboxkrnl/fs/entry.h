@@ -19,13 +19,25 @@
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
-
-class XAsyncRequest;
-
+class KernelState;
+class XFile;
 namespace fs {
 
-
 class Device;
+
+
+class MemoryMapping {
+public:
+  MemoryMapping(uint8_t* address, size_t length);
+  virtual ~MemoryMapping();
+
+  uint8_t* address() const { return address_; }
+  size_t length() const { return length_; }
+
+private:
+  uint8_t*    address_;
+  size_t      length_;
+};
 
 
 class Entry {
@@ -38,61 +50,23 @@ public:
   Entry(Type type, Device* device, const char* path);
   virtual ~Entry();
 
-  Type type();
-  Device* device();
-  const char* path();
-  const char* name();
+  Type type() const { return type_; }
+  Device* device() const { return device_; }
+  const char* path() const { return path_; }
+  const char* name() const { return name_; }
+
+  virtual MemoryMapping* CreateMemoryMapping(
+      xe_file_mode file_mode, const size_t offset, const size_t length) = 0;
+
+  virtual X_STATUS Open(
+      KernelState* kernel_state,
+      XFile** out_file) = 0;
 
 private:
   Type      type_;
   Device*   device_;
   char*     path_;
   char*     name_;
-};
-
-
-class MemoryMapping {
-public:
-  MemoryMapping(uint8_t* address, size_t length);
-  virtual ~MemoryMapping();
-
-  uint8_t* address();
-  size_t length();
-
-private:
-  uint8_t*    address_;
-  size_t      length_;
-};
-
-
-class FileEntry : public Entry {
-public:
-  FileEntry(Device* device, const char* path);
-  virtual ~FileEntry();
-
-  //virtual void Query() = 0;
-
-  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                size_t* out_bytes_read) {
-    return X_STATUS_NOT_IMPLEMENTED;
-  }
-  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                XAsyncRequest* request) {
-    // queue completion of failure
-    return X_STATUS_NOT_IMPLEMENTED;
-  }
-
-  virtual MemoryMapping* CreateMemoryMapping(
-      xe_file_mode file_mode, const size_t offset, const size_t length) = 0;
-};
-
-
-class DirectoryEntry : public Entry {
-public:
-  DirectoryEntry(Device* device, const char* path);
-  virtual ~DirectoryEntry();
-
-  //virtual void Query() = 0;
 };
 
 

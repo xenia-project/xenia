@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_LOCAL_DIRECTORY_DEVICE_H_
-#define XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_LOCAL_DIRECTORY_DEVICE_H_
+#ifndef XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_HOST_PATH_DEVICE_H_
+#define XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_HOST_PATH_DEVICE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -22,10 +22,10 @@ namespace xboxkrnl {
 namespace fs {
 
 
-class LocalDirectoryDevice : public Device {
+class HostPathDevice : public Device {
 public:
-  LocalDirectoryDevice(const char* path, const xechar_t* local_path);
-  virtual ~LocalDirectoryDevice();
+  HostPathDevice(const char* path, const xechar_t* local_path);
+  virtual ~HostPathDevice();
 
   virtual Entry* ResolvePath(const char* path);
 
@@ -40,4 +40,4 @@ private:
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_LOCAL_DIRECTORY_DEVICE_H_
+#endif  // XENIA_KERNEL_MODULES_XBOXKRNL_FS_DEVICES_HOST_PATH_DEVICE_H_

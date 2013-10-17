@@ -174,7 +174,9 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
   }
 
   // Retain the object pointer.
-  object->Retain();
+  if (object) {
+    object->Retain();
+  }
 
   xe_mutex_unlock(table_mutex_);
 

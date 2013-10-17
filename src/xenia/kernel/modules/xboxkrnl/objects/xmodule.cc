@@ -68,10 +68,9 @@ X_STATUS XModule::LoadFromFile(const char* path) {
     XELOGE("Invalid file type: %s", path);
     return X_STATUS_NO_SUCH_FILE;
   }
-  fs::FileEntry* fs_file = static_cast<fs::FileEntry*>(fs_entry);
 
   // Map into memory.
-  fs::MemoryMapping* mmap = fs_file->CreateMemoryMapping(kXEFileModeRead, 0, 0);
+  fs::MemoryMapping* mmap = fs_entry->CreateMemoryMapping(kXEFileModeRead, 0, 0);
   if (!mmap) {
     return X_STATUS_UNSUCCESSFUL;
   }

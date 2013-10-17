@@ -77,14 +77,18 @@ SHIM_CALL NtCreateFile_shim(
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->filesystem();
   Entry* entry = fs->ResolvePath(object_name.buffer);
+  XFile* file = NULL;
   if (entry && entry->type() == Entry::kTypeFile) {
-    // Create file handle wrapper.
-    FileEntry* file_entry = (FileEntry*)entry;
-    XFile* file = new XFile(state, file_entry);
+    // Open the file.
+    result = entry->Open(state, &file);
+  } else {
+    result = X_STATUS_NO_SUCH_FILE;
+    info = X_FILE_DOES_NOT_EXIST;
+  }
+
+  if (XSUCCEEDED(result)) {
+    // Handle ref is incremented, so return that.
     handle = file->handle();
-
-    // TODO(benvanik): open/create/etc.
-
     file->Release();
     result  = X_STATUS_SUCCESS;
     info    = X_FILE_OPENED;

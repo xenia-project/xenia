@@ -15,6 +15,14 @@ using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl::fs;
 
 
+MemoryMapping::MemoryMapping(uint8_t* address, size_t length) :
+    address_(address), length_(length) {
+}
+
+MemoryMapping::~MemoryMapping() {
+}
+
+
 Entry::Entry(Type type, Device* device, const char* path) :
     type_(type),
     device_(device) {
@@ -26,52 +34,4 @@ Entry::Entry(Type type, Device* device, const char* path) :
 Entry::~Entry() {
   xe_free(path_);
   xe_free(name_);
-}
-
-Entry::Type Entry::type() {
-  return type_;
-}
-
-Device* Entry::device() {
-  return device_;
-}
-
-const char* Entry::path() {
-  return path_;
-}
-
-const char* Entry::name() {
-  return name_;
-}
-
-
-MemoryMapping::MemoryMapping(uint8_t* address, size_t length) :
-    address_(address), length_(length) {
-}
-
-MemoryMapping::~MemoryMapping() {
-}
-
-uint8_t* MemoryMapping::address() {
-  return address_;
-}
-
-size_t MemoryMapping::length() {
-  return length_;
-}
-
-
-FileEntry::FileEntry(Device* device, const char* path) :
-    Entry(kTypeFile, device, path) {
-}
-
-FileEntry::~FileEntry() {
-}
-
-
-DirectoryEntry::DirectoryEntry(Device* device, const char* path) :
-    Entry(kTypeDirectory, device, path) {
-}
-
-DirectoryEntry::~DirectoryEntry() {
 }

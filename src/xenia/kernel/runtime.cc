@@ -84,7 +84,7 @@ int Runtime::LaunchXexFile(const xechar_t* path) {
   parent_path[file_name - path] = 0;
 
   // Register the local directory in the virtual filesystem.
-  result_code = filesystem_->RegisterLocalDirectoryDevice(
+  result_code = filesystem_->RegisterHostPathDevice(
       "\\Device\\Harddisk1\\Partition0", parent_path);
   if (result_code) {
     XELOGE("Unable to mount local directory");

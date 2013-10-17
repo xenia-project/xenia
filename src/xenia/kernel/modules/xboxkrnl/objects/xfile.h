@@ -21,14 +21,11 @@ namespace xboxkrnl {
 
 class XAsyncRequest;
 class XEvent;
-namespace fs {
-class FileEntry;
-}
 
 
 class XFile : public XObject {
 public:
-  XFile(KernelState* kernel_state, fs::FileEntry* entry);
+  XFile(KernelState* kernel_state);
   virtual ~XFile();
 
   virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
@@ -41,8 +38,10 @@ public:
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 XAsyncRequest* request);
 
+protected:
+  // open/read/write/etc
+
 private:
-  fs::FileEntry*  entry_;
   XEvent*         async_event_;
 
   // TODO(benvanik): create flags, open state, etc.

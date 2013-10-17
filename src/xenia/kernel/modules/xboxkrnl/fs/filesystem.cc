@@ -10,7 +10,7 @@
 #include <xenia/kernel/modules/xboxkrnl/fs/filesystem.h>
 
 #include <xenia/kernel/modules/xboxkrnl/fs/devices/disc_image_device.h>
-#include <xenia/kernel/modules/xboxkrnl/fs/devices/local_directory_device.h>
+#include <xenia/kernel/modules/xboxkrnl/fs/devices/host_path_device.h>
 
 
 using namespace xe;
@@ -37,9 +37,9 @@ int FileSystem::RegisterDevice(const char* path, Device* device) {
   return 0;
 }
 
-int FileSystem::RegisterLocalDirectoryDevice(
+int FileSystem::RegisterHostPathDevice(
     const char* path, const xechar_t* local_path) {
-  Device* device = new LocalDirectoryDevice(path, local_path);
+  Device* device = new HostPathDevice(path, local_path);
   return RegisterDevice(path, device);
 }
 

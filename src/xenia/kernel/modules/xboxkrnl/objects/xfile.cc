@@ -10,18 +10,15 @@
 #include <xenia/kernel/modules/xboxkrnl/objects/xfile.h>
 
 #include <xenia/kernel/modules/xboxkrnl/async_request.h>
-#include <xenia/kernel/modules/xboxkrnl/fs/entry.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xevent.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
-using namespace xe::kernel::xboxkrnl::fs;
 
 
-XFile::XFile(KernelState* kernel_state, FileEntry* entry) :
-    entry_(entry),
+XFile::XFile(KernelState* kernel_state) :
     position_(0),
     XObject(kernel_state, kTypeFile) {
   async_event_ = new XEvent(kernel_state);
@@ -46,10 +43,11 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
   if (byte_offset == -1) {
     // Read from current position.
   }
-  X_STATUS result = entry_->Read(buffer, buffer_length, byte_offset, out_bytes_read);
-  if (XSUCCEEDED(result)) {
-    position_ += *out_bytes_read;
-  }
+  // X_STATUS result = entry_->Read(buffer, buffer_length, byte_offset, out_bytes_read);
+  // if (XSUCCEEDED(result)) {
+  //   position_ += *out_bytes_read;
+  // }
+  X_STATUS result = X_STATUS_NOT_IMPLEMENTED;
   return result;
 }
 
@@ -58,5 +56,7 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
   // Also tack on our event so that any waiters wake.
   request->AddWaitEvent(async_event_);
   position_ = byte_offset;
-  return entry_->Read(buffer, buffer_length, byte_offset, request);
+  //return entry_->Read(buffer, buffer_length, byte_offset, request);
+  X_STATUS result = X_STATUS_NOT_IMPLEMENTED;
+  return result;
 }
