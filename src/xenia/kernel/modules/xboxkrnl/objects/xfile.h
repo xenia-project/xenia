@@ -29,6 +29,7 @@ public:
   virtual ~XFile();
 
   size_t position() const { return position_; }
+  void set_position(size_t value) { position_ = value; }
 
   virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                         uint32_t alertable, uint64_t* opt_timeout);

@@ -217,6 +217,64 @@ SHIM_CALL NtReadFile_shim(
   SHIM_SET_RETURN(result);
 }
 
+SHIM_CALL NtSetInformationFile_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
+  uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
+  uint32_t length = SHIM_GET_ARG_32(3);
+  uint32_t file_info_class = SHIM_GET_ARG_32(4);
+
+  XELOGD(
+      "NtSetInformationFile(%.8X, %.8X, %.8X, %.8X, %.8X)",
+      file_handle,
+      io_status_block_ptr,
+      file_info_ptr,
+      length,
+      file_info_class);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+  uint32_t info = 0;
+
+  // Grab file.
+  XFile* file = NULL;
+  result = state->object_table()->GetObject(
+      file_handle, (XObject**)&file);
+
+  if (XSUCCEEDED(result)) {
+    result = X_STATUS_SUCCESS;
+    switch (file_info_class) {
+    case XFilePositionInformation:
+      // struct FILE_POSITION_INFORMATION {
+      //   LARGE_INTEGER CurrentByteOffset;
+      // };
+      XEASSERT(length == 8);
+      info = 8;
+      file->set_position(SHIM_MEM_64(file_info_ptr));
+      break;
+    default:
+      // Unsupported, for now.
+      XEASSERTALWAYS();
+      info = 0;
+      break;
+    }
+  }
+
+  if (XFAILED(result)) {
+    info = 0;
+  }
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+
+  if (file) {
+    file->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
 SHIM_CALL NtQueryInformationFile_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
@@ -353,6 +411,7 @@ void xe::kernel::xboxkrnl::RegisterIoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtOpenFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReadFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryInformationFile, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtSetInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVolumeInformationFile, state);
 }
