@@ -424,6 +424,33 @@ SHIM_CALL KeSetEvent_shim(
 }
 
 
+SHIM_CALL NtSetEvent_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t event_handle = SHIM_GET_ARG_32(0);
+  uint32_t previous_state_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "NtSetEvent(%.8X, %.8X)",
+      event_handle, previous_state_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XEvent* ev = NULL;
+  result = state->object_table()->GetObject(
+      event_handle, (XObject**)&ev);
+  if (XSUCCEEDED(result)) {
+    int32_t was_signalled = ev->Set(0, false);
+    if (previous_state_ptr) {
+      SHIM_SET_MEM_32(previous_state_ptr, was_signalled);
+    }
+
+    ev->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 int32_t xeKeResetEvent(void* event_ptr) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -491,6 +518,34 @@ SHIM_CALL KeWaitForSingleObject_shim(
 }
 
 
+SHIM_CALL NtWaitForSingleObjectEx_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t object_handle = SHIM_GET_ARG_32(0);
+  uint32_t timeout = SHIM_GET_ARG_32(1);
+  uint32_t alertable = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "NtWaitForSingleObjectEx(%.8X, %.8X, %.1X)",
+      object_handle, timeout, alertable);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XObject* object = NULL;
+  result = state->object_table()->GetObject(
+      object_handle, &object);
+  if (XSUCCEEDED(result)) {
+    uint64_t timeout_ns = timeout * 1000000 / 100;
+    timeout_ns = ~timeout_ns; // Relative.
+    result = object->Wait(
+        3, 1, alertable,
+        timeout == 0xFFFFFFFF ? 0 : &timeout_ns);
+    object->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
@@ -512,7 +567,9 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
 }
