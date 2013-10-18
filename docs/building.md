@@ -6,6 +6,30 @@ video drivers for your card.
 
 ## Setup
 
+### Windows
+
+* [Python 2.7](http://www.python.org/download/releases/2.7.5/)
+
+Install and add Python to your PATH (`C:\Python27\`).
+
+#### Visual Studio 2013
+
+Should work out of the box - just load the sln.
+
+#### Visual Studio 2012 (Express)
+
+Basic testing has been done with 2012 Express (all I have access to).
+
+* [Windows 8 SDK](http://msdn.microsoft.com/en-us/windows/desktop/aa904949.aspx)
+* [Visual Studio 2012 Express for Desktop](http://go.microsoft.com/?linkid=9816758)
+
+#### Debugging
+
+VS behaves oddly with the debug paths. Open the xenia-run project properties
+and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
+'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
+the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
+
 ### OS X
 
 Only tested on OS X 10.8 (Mountain Lion).
@@ -23,27 +47,6 @@ Only tested on Ubuntu 12.10.
 Pretty much just install what's asked for as you try to `xb setup` or
 `xb build`.
 
-### Windows
-
-* [Python 2.7](http://www.python.org/download/releases/2.7.3/)
-
-Install both and add Python to your PATH (`C:\Python27\`).
-Depending on your Visual Studio version you'll need to use one of the provided
-command prompts (until I write my own) to perform all `xenia-build` tasks.
-
-#### Visual Studio 2012 (Express)
-
-Basic testing has been done with 2012 Express (all I have access to).
-Use the `VS2012 x64 Cross Tools Command Prompt` as your shell.
-
-* [Windows 8 SDK](http://msdn.microsoft.com/en-us/windows/desktop/aa904949.aspx)
-* [Visual Studio 2012 Express for Desktop](http://go.microsoft.com/?linkid=9816758)
-
-VS2012 behaves oddly with the debug paths. Open the xenia-run project properties
-and set the 'Command' to `$(ProjectDir)$(OutputPath)$(TargetFileName)` and the
-'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
-the file to run in the 'Command Arguments' field.
-
 ## xenia-build
 
 A simple build script is included to manage basic tasks such as building
@@ -51,7 +54,11 @@ dependencies.
 
     ./xenia-build.py --help
 
-The `xeniarc` bash file has some aliases that save some keypresses.
+On Windows the `xb.bat` file enables you to issue all commands by just typing
+`xb`. Note that you should run everything from the root `xenia\` folder.
+
+On Linux/OSX the `xeniarc` bash file has some aliases that save some
+keypresses:
 
     source xeniarc
     xb  -> python xenia-build.py
@@ -109,6 +116,9 @@ something is really wrong.
 Use the wrapper shell scripts under `bin/` to run tools. They will ensure the
 tools are built (but not that they are up to date) before running and allow
 switching between the debug and release variants with `--debug`.
+
+To make life easier you can use `--flagfile=myflags.txt` to specify all
+arguments, including using `--target=my.xex` to pick an executable.
 
 ### xenia-info
 

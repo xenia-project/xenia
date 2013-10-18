@@ -47,6 +47,7 @@
             'gflags/src/windows/port.cc',
           ],
           'defines': [
+            'PATH_SEPARATOR=\'\\\\\'',
             'GFLAGS_DLL_DECL=',
             'GFLAGS_DLL_DEFINE_FLAG=',
             'GFLAGS_DLL_DECLARE_FLAG=',

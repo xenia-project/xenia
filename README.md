@@ -4,7 +4,7 @@ Xenia - Xbox 360 Emulator Research Project
 Xenia is an experimental emulator for the Xbox 360. It does not run games (yet),
 and if you are unable to understand that please leave now.
 
-Come chat with us in #xenia on freenode.
+Come chat with us in [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
 
 Currently supported features:
 
@@ -24,11 +24,25 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
+Windows:
+
+    # install python 2.7 and VS2010/2012/2013
+    git clone https://github.com/benvanik/xenia.git
+    cd xenia
+    xb setup
+    # open build\xenia\xenia.sln and start xenia-run
+
+Linux/OSX:
+
+    # install clang/xcode/etc
     git clone https://github.com/benvanik/xenia.git
     cd xenia && source xeniarc
     xb setup
     xb build
     ./bin/xenia-run some.xex
+
+When fetching updates use `xb pull` to automatically fetch everything and
+update gyp files/etc.
 
 ## Building
 
@@ -36,23 +50,3 @@ See [building](docs/building.md) for setup and information about the
 `xenia-build` script.
 
 ## Known Issues
-
-### asmjit bug
-
-asmjit has an issue with removing unreachable code that will cause assertion
-failures/exiting when running. Until it is patched you must go and modify
-a file after checking out the project.
-
-```
---- a/third_party/asmjit/src/asmjit/x86/x86compileritem.cpp
-+++ b/third_party/asmjit/src/asmjit/x86/x86compileritem.cpp
-@@ -114,7 +114,7 @@ CompilerItem* X86CompilerTarget::translate(CompilerContext& cc)
-     return NULL;
-   }
-
--  if (x86Context._isUnreachable)
-+  if (0)//x86Context._isUnreachable)
-   {
-     // If the context has "isUnreachable" flag set and there is no state then
-     // it means that this code will be never called. This is a problem, because
-```

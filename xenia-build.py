@@ -9,6 +9,7 @@ __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,15 @@ def main():
     print('(unfortunately gyp doesn\'t work with 3!)')
     sys.exit(1)
     return
+
+  # Grab Visual Studio version and execute shell to set up environment.
+  if sys.platform == 'win32':
+    vs_version = import_vs_environment()
+    if not vs_version:
+      print('ERROR: Visual Studio not found!')
+      print('Ensure you have a VS1XXCOMNTOOLS environment variable!')
+      sys.exit(1)
+      return
 
   # Grab all commands.
   commands = discover_commands()
@@ -54,6 +64,57 @@ def main():
     raise
     return_code = 1
   sys.exit(return_code)
+
+
+def import_vs_environment():
+  """Finds the installed Visual Studio version and imports
+  interesting environment variables into os.environ.
+
+  Returns:
+    A version such as 2010, 2012, or 2013 or None if no VS is found.
+  """
+  version = 0
+  tools_path = ''
+  if 'VS120COMNTOOLS' in os.environ:
+    version = 2013
+    tools_path = os.environ['VS120COMNTOOLS']
+  elif 'VS110COMNTOOLS' in os.environ:
+    version = 2012
+    tools_path = os.environ['VS110COMNTOOLS']
+  elif 'VS100COMNTOOLS' in os.environ:
+    version = 2010
+    tools_path = os.environ['VS100COMNTOOLS']
+  if version == 0:
+    return None
+  tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+
+  args = [tools_path, '&&', 'set']
+  popen = subprocess.Popen(
+      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  variables, _ = popen.communicate()
+  envvars_to_save = (
+      'devenvdir',
+      'include',
+      'lib',
+      'libpath',
+      'path',
+      'pathext',
+      'systemroot',
+      'temp',
+      'tmp',
+      'windowssdkdir',
+      )
+  for line in variables.splitlines():
+    for envvar in envvars_to_save:
+      if re.match(envvar + '=', line.lower()):
+        var, setting = line.split('=', 1)
+        if envvar == 'path':
+          setting = os.path.dirname(sys.executable) + os.pathsep + setting
+        os.environ[var.upper()] = setting
+        break
+
+  os.environ['VSVERSION'] = str(version)
+  return version
 
 
 def discover_commands():
@@ -298,13 +359,15 @@ def run_gyp(format):
       'gyp',
       '--include=common.gypi',
       '-f %s' % (format),
-      # Set the VS version.
-      # TODO(benvanik): allow user to set?
-      '-G msvs_version=2010',
       # Removes the out/ from ninja builds.
       '-G output_dir=.',
       '--depth=.',
+      '--toplevel-dir=.',
       '--generator-output=build/xenia/',
+      # Set the VS version.
+      '-G msvs_version=%s' % (os.environ['VSVERSION'] or 2013),
+      #'-D windows_sdk_dir=%s' % (os.environ['WINDOWSSDKDIR']),
+      '-D windows_sdk_dir="C:\\Program Files (x86)\\Windows Kits\\8.1"',
       'xenia.gyp',
       ]))
 

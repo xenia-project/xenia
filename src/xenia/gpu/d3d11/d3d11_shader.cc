@@ -11,7 +11,7 @@
 
 #include <xenia/gpu/xenos/ucode.h>
 
-#include <d3dx11.h>
+#include <d3dcompiler.h>
 
 
 using namespace xe;
@@ -97,7 +97,7 @@ ID3D10Blob* D3D11Shader::Compile(const char* shader_source) {
   // Compile shader to bytecode blob.
   ID3D10Blob* shader_blob = 0;
   ID3D10Blob* error_blob = 0;
-  HRESULT hr = D3DX11CompileFromMemory(
+  HRESULT hr = D3DCompile(
       shader_source, strlen(shader_source),
       file_name,
       defines, NULL,
@@ -105,8 +105,7 @@ ID3D10Blob* D3D11Shader::Compile(const char* shader_source) {
       type_ == XE_GPU_SHADER_TYPE_VERTEX ?
           "vs_5_0" : "ps_5_0",
       flags1, flags2,
-      NULL,
-      &shader_blob, &error_blob, NULL);
+      &shader_blob, &error_blob);
   if (error_blob) {
     char* msg = (char*)error_blob->GetBufferPointer();
     XELOGE("D3D11: shader compile failed with %s", msg);

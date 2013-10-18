@@ -39,10 +39,13 @@
             'conditions': [
               ['OS == "win"', {
                 'libraries': [
+                  'kernel32',
+                  'user32',
+                  'ole32',
                   'wsock32',
                   'dxgi',
                   'd3d11',
-                  'd3dx11',
+                  'd3dcompiler',
                 ],
               }],
               ['OS == "mac"', {
@@ -61,6 +64,20 @@
           }],
         ],
       },
+      'conditions': [
+        ['OS == "win"', {
+          'copies': [
+            {
+              'files': [
+                # Depending on which SDK you have...
+                '<(windows_sdk_dir)/redist/d3d/x64/d3dcompiler_46.dll',
+                '<(windows_sdk_dir)/redist/d3d/x64/d3dcompiler_47.dll',
+              ],
+              'destination': '<(PRODUCT_DIR)',
+            },
+          ],
+        }],
+      ],
 
       'cflags': [
       ],
