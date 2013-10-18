@@ -26,7 +26,8 @@ def main():
 
   # Check python version.
   if sys.version_info < (2, 7):
-    print 'ERROR: python 2.7+ required'
+    print('ERROR: python 2.7 required')
+    print('(unfortunately gyp doesn\'t work with 3!)')
     sys.exit(1)
     return
 
@@ -38,7 +39,7 @@ def main():
     if len(sys.argv) < 2:
       raise ValueError('No command given')
     command_name = sys.argv[1]
-    if not commands.has_key(command_name):
+    if not command_name in commands:
       raise ValueError('Command "%s" not found' % (command_name))
 
     command = commands[command_name]
@@ -46,7 +47,7 @@ def main():
                               args=sys.argv[2:],
                               cwd=os.getcwd())
   except ValueError:
-    print usage(commands)
+    print(usage(commands))
     return_code = 1
   except Exception as e:
     #print e
@@ -86,8 +87,7 @@ def usage(commands):
   s = 'xenia-build.py command [--help]\n'
   s += '\n'
   s += 'Commands:\n'
-  command_names = commands.keys()
-  command_names.sort()
+  command_names = sorted(commands.keys())
   for command_name in command_names:
     s += '  %s\n' % (command_name)
     command_help = commands[command_name].help_short
@@ -193,39 +193,39 @@ class SetupCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, cwd):
-    print 'Setting up the build environment...'
-    print ''
+    print('Setting up the build environment...')
+    print('')
 
     # Setup submodules.
-    print '- git submodule init / update...'
+    print('- git submodule init / update...')
     shell_call('git submodule init')
     shell_call('git submodule update')
-    print ''
+    print('')
 
     # Disable core.filemode on Windows to prevent weird file mode diffs in git.
     # TODO(benvanik): check cygwin test - may be wrong when using Windows python
     if os.path.exists('/Cygwin.bat'):
-      print '- setting filemode off on cygwin...'
+      print('- setting filemode off on cygwin...')
       shell_call('git config core.filemode false')
       shell_call('git submodule foreach git config core.filemode false')
-      print ''
+      print('')
 
     # Run the ninja bootstrap to build it, if it's missing.
     if (not os.path.exists('third_party/ninja/ninja') and
        not os.path.exists('third_party/ninja/ninja.exe')):
-      print '- preparing ninja...'
+      print('- preparing ninja...')
       # Windows needs --x64 to force building the 64-bit ninja.
       extra_args = ''
       if sys.platform == 'win32':
         extra_args = '--x64'
       shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
-      print ''
+      print('')
 
     # Binutils.
     # TODO(benvanik): disable on Windows
-    print '- binutils...'
+    print('- binutils...')
     if sys.platform == 'win32':
-      print 'WARNING: ignoring binutils on Windows... don\'t change tests!'
+      print('WARNING: ignoring binutils on Windows... don\'t change tests!')
     else:
       if not os.path.exists('build/binutils'):
         os.makedirs('build/binutils')
@@ -243,16 +243,16 @@ class SetupCommand(Command):
           ]))
       shell_call('make')
       os.chdir(cwd)
-    print ''
+    print('')
 
     post_update_deps('debug')
     post_update_deps('release')
 
-    print '- running gyp...'
+    print('- running gyp...')
     run_all_gyps()
-    print ''
+    print('')
 
-    print 'Success!'
+    print('Success!')
     return 0
 
 
@@ -266,25 +266,25 @@ class PullCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, cwd):
-    print 'Pulling...'
-    print ''
+    print('Pulling...')
+    print('')
 
-    print '- pulling self...'
+    print('- pulling self...')
     shell_call('git pull')
-    print ''
+    print('')
 
-    print '- pulling dependencies...'
+    print('- pulling dependencies...')
     shell_call('git submodule update')
-    print ''
+    print('')
 
     post_update_deps('debug')
     post_update_deps('release')
 
-    print '- running gyp...'
+    print('- running gyp...')
     run_all_gyps()
-    print ''
+    print('')
 
-    print 'Success!'
+    print('Success!')
     return 0
 
 
@@ -329,13 +329,13 @@ class GypCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, cwd):
-    print 'Running gyp...'
-    print ''
+    print('Running gyp...')
+    print('')
 
     # Update GYP.
     run_all_gyps()
 
-    print 'Success!'
+    print('Success!')
     return 0
 
 
@@ -354,21 +354,21 @@ class BuildCommand(Command):
     debug = '--debug' in args
     config = 'debug' if debug else 'release'
 
-    print 'Building %s...' % (config)
-    print ''
+    print('Building %s...' % (config))
+    print('')
 
-    print '- running gyp for ninja...'
+    print('- running gyp for ninja...')
     run_gyp('ninja')
-    print ''
+    print('')
 
-    print '- building xenia in %s...' % (config)
+    print('- building xenia in %s...' % (config))
     result = shell_call('ninja -C build/xenia/%s' % (config),
                         throw_on_error=False)
-    print ''
+    print('')
     if result != 0:
       return result
 
-    print 'Success!'
+    print('Success!')
     return 0
 
 
@@ -382,21 +382,21 @@ class TestCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, cwd):
-    print 'Testing...'
-    print ''
+    print('Testing...')
+    print('')
 
     # First run make and update all of the test files.
     # TOOD(benvanik): disable on Windows
-    print 'Updating test files...'
+    print('Updating test files...')
     result = shell_call('make -C test/codegen/')
-    print ''
+    print('')
     if result != 0:
       return result
 
     # Start the test runner.
-    print 'Launching test runner...'
+    print('Launching test runner...')
     result = shell_call('bin/xenia-test')
-    print ''
+    print('')
 
     return result
 
@@ -411,15 +411,15 @@ class CleanCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, cwd):
-    print 'Cleaning build artifacts...'
-    print ''
+    print('Cleaning build artifacts...')
+    print('')
 
-    print '- removing build/xenia/...'
+    print('- removing build/xenia/...')
     if os.path.isdir('build/xenia/'):
       shutil.rmtree('build/xenia/')
-    print ''
+    print('')
 
-    print 'Success!'
+    print('Success!')
     return 0
 
 
@@ -433,15 +433,15 @@ class NukeCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, cwd):
-    print 'Cleaning build artifacts...'
-    print ''
+    print('Cleaning build artifacts...')
+    print('')
 
-    print '- removing build/...'
+    print('- removing build/...')
     if os.path.isdir('build/'):
       shutil.rmtree('build/')
-    print ''
+    print('')
 
-    print 'Success!'
+    print('Success!')
     return 0
 
 
