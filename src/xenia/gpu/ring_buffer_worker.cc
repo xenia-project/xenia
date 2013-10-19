@@ -289,7 +289,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t cpu_mask = READ_AND_ADVANCE_PTR();
           for (int n = 0; n < 6; n++) {
             if (cpu_mask & (1 << n)) {
-              graphics_system_->DispatchInterruptCallback(n);
+              graphics_system_->DispatchInterruptCallback(1, n);
             }
           }
         }

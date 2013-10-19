@@ -22,7 +22,7 @@ using namespace xe::gpu::d3d11;
 namespace {
 
 void __stdcall D3D11GraphicsSystemVsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN) {
-  gs->DispatchInterruptCallback();
+  gs->DispatchInterruptCallback(0);
 }
 
 }
@@ -135,7 +135,7 @@ void D3D11GraphicsSystem::Initialize() {
   driver_ = new D3D11GraphicsDriver(memory_, device_);
 
   // Initial vsync kick.
-  DispatchInterruptCallback();
+  DispatchInterruptCallback(0);
 }
 
 void D3D11GraphicsSystem::Pump() {
@@ -145,10 +145,12 @@ void D3D11GraphicsSystem::Pump() {
     // Swap window.
     // If we are set to vsync this will block.
     window_->Swap();
+
+    DispatchInterruptCallback(0);
   } else {
     // If we have gone too long without an interrupt, fire one.
     if (xe_pal_now() - last_interrupt_time_ > 16 / 1000.0) {
-      DispatchInterruptCallback();
+      DispatchInterruptCallback(0);
     }
   }
 }

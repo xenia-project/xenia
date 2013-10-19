@@ -160,7 +160,8 @@ void GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
   regs->values[r].u32 = (uint32_t)value;
 }
 
-void GraphicsSystem::DispatchInterruptCallback(uint32_t cpu) {
+void GraphicsSystem::DispatchInterruptCallback(
+  uint32_t source, uint32_t cpu) {
   // Pick a CPU, if needed. We're going to guess 2. Because.
   if (cpu == 0xFFFFFFFF) {
     cpu = 2;
@@ -172,5 +173,5 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t cpu) {
     return;
   }
   processor_->ExecuteInterrupt(
-      cpu, interrupt_callback_, 1, interrupt_callback_data_);
+      cpu, interrupt_callback_, source, interrupt_callback_data_);
 }
