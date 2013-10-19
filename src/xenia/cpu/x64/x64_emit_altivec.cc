@@ -22,6 +22,8 @@ namespace xe {
 namespace cpu {
 namespace x64 {
 
+#define SHUFPS_SWAP_DWORDS 0x1B
+
 
 // Most of this file comes from:
 // http://biallas.net/doc/vmx128/vmx128.txt
@@ -166,7 +168,7 @@ int InstrEmit_lvsl_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
   c.mov(gt, imm((sysint_t)__lvsl_table));
   XmmVar v(c.newXmmVar());
   c.movaps(v, xmmword_ptr(gt, ea));
-  c.shufps(v, v, imm(0x1B));
+  c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
   e.update_vr_value(vd, v);
   e.TraceVR(vd);
   return 0;
@@ -208,7 +210,7 @@ int InstrEmit_lvsr_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
   c.mov(gt, imm((sysint_t)__lvsr_table));
   XmmVar v(c.newXmmVar());
   c.movaps(v, xmmword_ptr(gt, ea));
-  c.shufps(v, v, imm(0x1B));
+  c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
   e.update_vr_value(vd, v);
   e.TraceVR(vd);
   return 0;
@@ -227,7 +229,7 @@ int InstrEmit_lvx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uin
     c.add(ea, e.gpr_value(ra));
   }
   XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
-  c.shufps(v, v, imm(0x1B));
+  c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
   e.update_vr_value(vd, v);
   e.TraceVR(vd);
   return 0;
@@ -274,7 +276,7 @@ int InstrEmit_stvx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
     c.add(ea, e.gpr_value(ra));
   }
   XmmVar v = e.vr_value(vd);
-  c.shufps(v, v, imm(0x1B));
+  c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
   e.WriteMemoryXmm(i.address, ea, 4, v);
   e.TraceVR(vd);
   return 0;
@@ -319,7 +321,7 @@ int InstrEmit_lvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
     c.pshufb(v, xmmword_ptr(gt, sh));
   }
   c.bind(done);
-  c.shufps(v, v, imm(0x1B));
+  c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
   e.update_vr_value(vd, v);
   e.TraceVR(vd);
   return 0;
@@ -362,7 +364,7 @@ int InstrEmit_lvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, ui
     c.shl(sh, imm(4)); // table offset = (16b * sh)
     c.mov(gt, imm((sysint_t)__shift_table_right));
     c.pshufb(v, xmmword_ptr(gt, sh));
-    c.shufps(v, v, imm(0x1B));
+    c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
   }
   c.bind(done);
   e.update_vr_value(vd, v);
@@ -401,7 +403,7 @@ int InstrEmit_stvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, u
   ea = e.TouchMemoryAddress(i.address, ea);
   XmmVar tvd(c.newXmmVar());
   c.movaps(tvd, e.vr_value(vd));
-  c.shufps(tvd, tvd, imm(0x1B));
+  c.shufps(tvd, tvd, imm(SHUFPS_SWAP_DWORDS));
   c.save(tvd);
   GpVar pvd(c.newGpVar());
   c.lea(pvd, tvd.m128());
@@ -446,7 +448,7 @@ int InstrEmit_stvrx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, u
   ea = e.TouchMemoryAddress(i.address, ea);
   XmmVar tvd(c.newXmmVar());
   c.movaps(tvd, e.vr_value(vd));
-  c.shufps(tvd, tvd, imm(0x1B));
+  c.shufps(tvd, tvd, imm(SHUFPS_SWAP_DWORDS));
   c.save(tvd);
   GpVar pvd(c.newGpVar());
   c.lea(pvd, tvd.m128());
