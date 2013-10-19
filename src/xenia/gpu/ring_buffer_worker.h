@@ -46,6 +46,7 @@ private:
   void ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
   uint32_t ExecutePacket(PacketArgs& args);
+  void WriteRegister(uint32_t index, uint32_t value);
 
 protected:
   xe_memory_ref   memory_;

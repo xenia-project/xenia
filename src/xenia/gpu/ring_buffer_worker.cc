@@ -209,10 +209,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
                  args.ptr,
                  reg_data, target_index, reg_name ? reg_name : "");
         ADVANCE_PTR(1);
-        // TODO(benvanik): exec write handler (if special).
-        if (target_index < kXEGpuRegisterCount) {
-          regs->values[target_index].u32 = reg_data;
-        }
+        WriteRegister(target_index, reg_data);
       }
       return 1 + count;
     }
@@ -237,13 +234,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
       XELOGGPU("[%.8X]   %.8X -> %.4X %s",
                reg_ptr_2,
                reg_data_2, reg_index_2, reg_name_2 ? reg_name_2 : "");
-      // TODO(benvanik): exec write handler (if special).
-      if (reg_index_1 < kXEGpuRegisterCount) {
-        regs->values[reg_index_1].u32 = reg_data_1;
-      }
-      if (reg_index_2 < kXEGpuRegisterCount) {
-        regs->values[reg_index_2].u32 = reg_data_2;
-      }
+      WriteRegister(reg_index_1, reg_data_1);
+      WriteRegister(reg_index_2, reg_data_2);
       return 1 + 2;
     }
     break;
@@ -369,7 +361,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // & imm
             value &= and_mask;
           }
-          regs->values[rmw_info & 0x1FFF].u32 = value;
+          WriteRegister(rmw_info & 0x1FFF, value);
         }
         break;
 
@@ -430,8 +422,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
               XESETUINT32BE(p + TRANSLATE_ADDR(write_reg_addr), write_data);
             } else {
               // Register.
-              XEASSERT(write_reg_addr < kXEGpuRegisterCount);
-              regs->values[write_reg_addr].u32 = write_data;
+              WriteRegister(write_reg_addr, write_data);
             }
           }
         }
@@ -566,4 +557,22 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
   }
 
   return 0;
+}
+
+void RingBufferWorker::WriteRegister(uint32_t index, uint32_t value) {
+  RegisterFile* regs = driver_->register_file();
+  XEASSERT(index < kXEGpuRegisterCount);
+  regs->values[index].u32 = value;
+
+  // Scratch register writeback.
+  if (index >= XE_GPU_REG_SCRATCH_REG0 && index <= XE_GPU_REG_SCRATCH_REG7) {
+    uint32_t scratch_reg = index - XE_GPU_REG_SCRATCH_REG0;
+    if ((1 << scratch_reg) & regs->values[XE_GPU_REG_SCRATCH_UMSK].u32) {
+      // Enabled - write to address.
+      uint8_t* p = xe_memory_addr(memory_);
+      uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
+      uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
+      XESETUINT32BE(p + TRANSLATE_ADDR(mem_addr), value);
+    }
+  }
 }
