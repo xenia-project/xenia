@@ -97,6 +97,14 @@ XEFORCEINLINE double XESWAPF64BE(double value) {
 #define XESETUINT32BE(p, v)             (*((uint32_t*)(p)) = XESWAP32BE((uint32_t)v))
 #define XESETINT64BE(p, v)              (*( (int64_t*)(p)) = XESWAP64BE( (int64_t)v))
 #define XESETUINT64BE(p, v)             (*((uint64_t*)(p)) = XESWAP64BE((uint64_t)v))
+#define XESETINT8LE(p, v)               (*(  (int8_t*)(p)) =   (int8_t)v)
+#define XESETUINT8LE(p, v)              (*( (uint8_t*)(p)) =  (uint8_t)v)
+#define XESETINT16LE(p, v)              (*( (int16_t*)(p)) =  (int16_t)v)
+#define XESETUINT16LE(p, v)             (*((uint16_t*)(p)) = (uint16_t)v)
+#define XESETINT32LE(p, v)              (*( (int32_t*)(p)) =  (int32_t)v)
+#define XESETUINT32LE(p, v)             (*((uint32_t*)(p)) = (uint32_t)v)
+#define XESETINT64LE(p, v)              (*( (int64_t*)(p)) =  (int64_t)v)
+#define XESETUINT64LE(p, v)             (*((uint64_t*)(p)) = (uint64_t)v)
 
 
 #endif  // XENIA_BYTE_ORDER_H_

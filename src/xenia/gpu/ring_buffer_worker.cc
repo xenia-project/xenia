@@ -483,13 +483,10 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // Write value.
             data_value = value;
           }
-          if (!(address & 0xC0000000)) {
-            XESETUINT32BE(p + TRANSLATE_ADDR(address), data_value);
-          } else {
-            // TODO(benvanik): read up on PM4_EVENT_WRITE_SHD.
-            // No clue. Maybe relative write based on a register base?
-            XELOGE("UNKNOWN FORM OF PM4_EVENT_WRITE_SHD");
-          }
+          uint32_t endianness = address >> 29;
+          address &= ~0xC0000000;
+          data_value = GpuSwap(data_value, endianness);
+          XESETUINT32BE(p + TRANSLATE_ADDR(address), data_value);
         }
         break;
 
