@@ -106,15 +106,10 @@ int X64JIT::CheckProcessor() {
 
   // TODO(benvanik): ensure features we want are supported.
 
-  // TODO(benvanik): check for SSE modes we use.
-  if (!(mask & kX86FeatureSse3)) {
-    XELOGE("CPU does not support SSE3+ instructions!");
-    DumpCPUInfo();
-    return 1;
-  }
+  DumpCPUInfo();
   if (!(mask & kX86FeatureSse41)) {
-    XELOGW("CPU does not support SSE4.1+ instructions, performance degraded!");
-    DumpCPUInfo();
+    XELOGW("CPU does not support SSE4.1+ instructions!");
+    return 1;
   }
 
   return 0;

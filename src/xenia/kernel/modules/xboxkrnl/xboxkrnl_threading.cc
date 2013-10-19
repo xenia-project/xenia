@@ -137,8 +137,6 @@ SHIM_CALL ExCreateThread_shim(
 
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
   // TODO(benvanik): implement.
-  // TODO(benvanik): this also needs ObReferenceObjectByHandle to not
-  //     return dummy values.
   return affinity;
 }
 
@@ -152,6 +150,9 @@ SHIM_CALL KeSetAffinityThread_shim(
       "KeSetAffinityThread(%.8X, %.8X)",
       thread,
       affinity);
+
+  // TODO(benvanik): expecting dummy values from ObReferenceObjectByHandle.
+  XEASSERT(thread == 0xDEADF00D);
 
   void* thread_ptr = SHIM_MEM_ADDR(thread);
   uint32_t result = xeKeSetAffinityThread(thread_ptr, affinity);
