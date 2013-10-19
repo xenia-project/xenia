@@ -42,6 +42,9 @@ private:
   IDXGIFactory1*  dxgi_factory_;
   ID3D11Device*   device_;
   D3D11Window*    window_;
+
+  HANDLE          timer_queue_;
+  HANDLE          vsync_timer_;
 };
 
 

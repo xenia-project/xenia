@@ -21,11 +21,16 @@ using namespace xe::gpu::d3d11;
 
 namespace {
 
+void __stdcall D3D11GraphicsSystemVsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN) {
+  gs->DispatchInterruptCallback();
+}
+
 }
 
 
 D3D11GraphicsSystem::D3D11GraphicsSystem(const CreationParams* params) :
     window_(0), dxgi_factory_(0), device_(0),
+    timer_queue_(NULL), vsync_timer_(NULL),
     GraphicsSystem(params) {
 }
 
@@ -37,6 +42,19 @@ D3D11GraphicsSystem::~D3D11GraphicsSystem() {
 
 void D3D11GraphicsSystem::Initialize() {
   GraphicsSystem::Initialize();
+
+  XEASSERTNULL(timer_queue_);
+  XEASSERTNULL(vsync_timer_);
+
+  timer_queue_ = CreateTimerQueue();
+  CreateTimerQueueTimer(
+    &vsync_timer_,
+    timer_queue_,
+    (WAITORTIMERCALLBACK)D3D11GraphicsSystemVsyncCallback,
+    this,
+    16,
+    100,
+    WT_EXECUTEINTIMERTHREAD);
 
   // Create DXGI factory so we can get a swap chain/etc.
   HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1),
@@ -127,9 +145,6 @@ void D3D11GraphicsSystem::Pump() {
     // Swap window.
     // If we are set to vsync this will block.
     window_->Swap();
-
-    // Dispatch interrupt callback to let the game know it can keep drawing.
-    DispatchInterruptCallback();
   } else {
     // If we have gone too long without an interrupt, fire one.
     if (xe_pal_now() - last_interrupt_time_ > 16 / 1000.0) {
@@ -139,5 +154,14 @@ void D3D11GraphicsSystem::Pump() {
 }
 
 void D3D11GraphicsSystem::Shutdown() {
+  if (vsync_timer_) {
+    DeleteTimerQueueTimer(timer_queue_, vsync_timer_, NULL);
+  }
+  if (timer_queue_) {
+    DeleteTimerQueueEx(timer_queue_, NULL);
+  }
+
+  // TODO(benvanik): release D3D stuff here?
+
   GraphicsSystem::Shutdown();
 }
