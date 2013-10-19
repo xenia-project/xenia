@@ -576,8 +576,8 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
   clear_all_constant_gpr_values();
 
   // TODO: this fixes crashes when not using instruction/branch tracing. Figure out why it's broken.
-  c.save(c.getGpArg(0));
-  c.save(c.getGpArg(1));
+  c.spill(c.getGpArg(0));
+  c.spill(c.getGpArg(1));
 
   // This will create a label if it hasn't already been done.
   std::map<uint32_t, Label>::iterator label_it =
