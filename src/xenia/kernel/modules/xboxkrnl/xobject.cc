@@ -90,6 +90,28 @@ void XObject::UnlockType() {
   xe_mutex_unlock(shared_kernel_state_->object_mutex_);
 }
 
+void XObject::SetNativePointer(uint32_t native_ptr) {
+  XObject::LockType();
+
+  DISPATCH_HEADER* header_be =
+      (DISPATCH_HEADER*)xe_memory_addr(kernel_state_->memory(), native_ptr);
+  DISPATCH_HEADER header;
+  header.type_flags = XESWAP32(header_be->type_flags);
+  header.signal_state = XESWAP32(header_be->signal_state);
+  header.wait_list_flink = XESWAP32(header_be->wait_list_flink);
+  header.wait_list_blink = XESWAP32(header_be->wait_list_blink);
+
+  XEASSERT(!(header.wait_list_blink & 0x1));
+
+  // Stash pointer in struct.
+  uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
+  object_ptr |= 0x1;
+  header_be->wait_list_flink = XESWAP32((uint32_t)(object_ptr >> 32));
+  header_be->wait_list_blink = XESWAP32((uint32_t)(object_ptr & 0xFFFFFFFF));
+
+  XObject::UnlockType();
+}
+
 XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr) {
   // Unfortunately the XDK seems to inline some KeInitialize calls, meaning
   // we never see it and just randomly start getting passed events/timers/etc.

@@ -102,6 +102,10 @@ uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
   return XEGETUINT32BE(thread_state_block + 0x14C);
 }
 
+uint32_t XThread::thread_state() {
+  return thread_state_address_;
+}
+
 uint32_t XThread::thread_id() {
   return thread_id_;
 }
@@ -134,6 +138,9 @@ X_STATUS XThread::Create() {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
+
+  // Set native info.
+  SetNativePointer(thread_state_address_);
 
   XModule* module = kernel_state()->GetExecutableModule();
 

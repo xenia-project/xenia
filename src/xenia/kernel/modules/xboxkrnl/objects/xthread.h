@@ -43,6 +43,7 @@ public:
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId(const uint8_t* thread_state_block);
 
+  uint32_t thread_state();
   uint32_t thread_id();
   uint32_t last_error();
   void set_last_error(uint32_t error_code);

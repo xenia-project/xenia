@@ -72,6 +72,7 @@ public:
 protected:
   Runtime* runtime();
   xe_memory_ref memory(); // unretained
+  void SetNativePointer(uint32_t native_ptr);
 
 private:
   KernelState*  kernel_state_;

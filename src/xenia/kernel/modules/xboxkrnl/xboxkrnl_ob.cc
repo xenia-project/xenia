@@ -13,6 +13,7 @@
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/modules/xboxkrnl/xobject.h>
+#include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
 
 
 using namespace xe;
@@ -46,6 +47,14 @@ SHIM_CALL ObReferenceObjectByHandle_shim(
 
     // TODO(benvanik): get native value, if supported.
     uint32_t native_ptr = 0xDEADF00D;
+    switch (object_type_ptr) {
+    case 0xD01BBEEF: // ExThreadObjectType
+      {
+        XThread* thread = (XThread*)object;
+        native_ptr = thread->thread_state();
+      }
+      break;
+    }
 
     if (out_object_ptr) {
       SHIM_SET_MEM_32(out_object_ptr, native_ptr);

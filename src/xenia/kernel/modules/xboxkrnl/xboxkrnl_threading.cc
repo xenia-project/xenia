@@ -28,6 +28,7 @@ namespace xboxkrnl {
 
 // r13 + 0x100: pointer to thread local state
 // Thread local state:
+//   0x058: kernel time
 //   0x14C: thread id
 //   0x150: if >0 then error states don't get set
 //   0x160: last error
@@ -136,7 +137,14 @@ SHIM_CALL ExCreateThread_shim(
 
 
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
-  // TODO(benvanik): implement.
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
+  if (thread) {
+    // TODO(benvanik): implement.
+  }
+
   return affinity;
 }
 
@@ -150,9 +158,6 @@ SHIM_CALL KeSetAffinityThread_shim(
       "KeSetAffinityThread(%.8X, %.8X)",
       thread,
       affinity);
-
-  // TODO(benvanik): expecting dummy values from ObReferenceObjectByHandle.
-  XEASSERT(thread == 0xDEADF00D);
 
   void* thread_ptr = SHIM_MEM_ADDR(thread);
   uint32_t result = xeKeSetAffinityThread(thread_ptr, affinity);
