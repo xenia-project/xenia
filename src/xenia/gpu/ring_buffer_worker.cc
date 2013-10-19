@@ -289,27 +289,152 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
 
       case PM4_WAIT_REG_MEM:
         // wait until a register or memory location is a specific value
-        XELOGGPU("[%.8X] Packet(%.8X): PM4_WAIT_REG_MEM",
-                 packet_ptr, packet);
-        LOG_DATA(count);
-        ADVANCE_PTR(count);
+        {
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_WAIT_REG_MEM",
+                   packet_ptr, packet);
+          LOG_DATA(count);
+          uint32_t wait_info = READ_AND_ADVANCE_PTR();
+          uint32_t poll_reg_addr = READ_AND_ADVANCE_PTR();
+          uint32_t ref = READ_AND_ADVANCE_PTR();
+          uint32_t mask = READ_AND_ADVANCE_PTR();
+          uint32_t wait = READ_AND_ADVANCE_PTR();
+          bool matched = false;
+          do {
+            uint32_t value;
+            if (wait_info & 0x10) {
+              // Memory.
+              value = XEGETUINT32BE(p + TRANSLATE_ADDR(poll_reg_addr));
+            } else {
+              // Register.
+              XEASSERT(poll_reg_addr < kXEGpuRegisterCount);
+              value = regs->values[poll_reg_addr].u32;
+            }
+            switch (wait_info & 0x7) {
+            case 0x0: // Always.
+              matched = true;
+              break;
+            case 0x1: // Less than reference.
+              matched = (value & mask) < ref;
+              break;
+            case 0x2: // Less than or equal to reference.
+              matched = (value & mask) <= ref;
+              break;
+            case 0x3: // Equal to reference.
+              matched = (value & mask) == ref;
+              break;
+            case 0x4: // Not equal to reference.
+              matched = (value & mask) != ref;
+              break;
+            case 0x5: // Greater than or equal to reference.
+              matched = (value & mask) >= ref;
+              break;
+            case 0x6: // Greater than reference.
+              matched = (value & mask) > ref;
+              break;
+            default:
+              XELOGE("Unsupported wait comparison type!");
+              XEASSERTALWAYS();
+              break;
+            }
+            if (!matched) {
+              // Wait.
+              SwitchToThread();
+            }
+          } while (!matched);
+        }
         break;
 
       case PM4_REG_RMW:
         // register read/modify/write
         // ? (used during shader upload and edram setup)
-        XELOGGPU("[%.8X] Packet(%.8X): PM4_REG_RMW",
-                 packet_ptr, packet);
-        LOG_DATA(count);
-        ADVANCE_PTR(count);
+        {
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_REG_RMW",
+                   packet_ptr, packet);
+          LOG_DATA(count);
+          uint32_t rmw_info = READ_AND_ADVANCE_PTR();
+          uint32_t and_mask = READ_AND_ADVANCE_PTR();
+          uint32_t or_mask = READ_AND_ADVANCE_PTR();
+          uint32_t value = regs->values[rmw_info & 0x1FFF].u32;
+          if ((rmw_info >> 30) & 0x1) {
+            // | reg
+            value |= regs->values[or_mask & 0x1FFF].u32;
+          } else {
+            // | imm
+            value |= or_mask;
+          }
+          if ((rmw_info >> 31) & 0x1) {
+            // & reg
+            value &= regs->values[and_mask & 0x1FFF].u32;
+          } else {
+            // & imm
+            value &= and_mask;
+          }
+          regs->values[rmw_info & 0x1FFF].u32 = value;
+        }
         break;
 
       case PM4_COND_WRITE:
         // conditional write to memory or register
-        XELOGGPU("[%.8X] Packet(%.8X): PM4_COND_WRITE",
-                 packet_ptr, packet);
-        LOG_DATA(count);
-        ADVANCE_PTR(count);
+        {
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_COND_WRITE",
+                   packet_ptr, packet);
+          LOG_DATA(count);
+          uint32_t wait_info = READ_AND_ADVANCE_PTR();
+          uint32_t poll_reg_addr = READ_AND_ADVANCE_PTR();
+          uint32_t ref = READ_AND_ADVANCE_PTR();
+          uint32_t mask = READ_AND_ADVANCE_PTR();
+          uint32_t wait = READ_AND_ADVANCE_PTR();
+          uint32_t write_reg_addr = READ_AND_ADVANCE_PTR();
+          uint32_t write_data = READ_AND_ADVANCE_PTR();
+          uint32_t value;
+          if (wait_info & 0x10) {
+            // Memory.
+            value = XEGETUINT32BE(p + TRANSLATE_ADDR(poll_reg_addr));
+          } else {
+            // Register.
+            XEASSERT(poll_reg_addr < kXEGpuRegisterCount);
+            value = regs->values[poll_reg_addr].u32;
+          }
+          bool matched = false;
+          switch (wait_info & 0x7) {
+          case 0x0: // Always.
+            matched = true;
+            break;
+          case 0x1: // Less than reference.
+            matched = (value & mask) < ref;
+            break;
+          case 0x2: // Less than or equal to reference.
+            matched = (value & mask) <= ref;
+            break;
+          case 0x3: // Equal to reference.
+            matched = (value & mask) == ref;
+            break;
+          case 0x4: // Not equal to reference.
+            matched = (value & mask) != ref;
+            break;
+          case 0x5: // Greater than or equal to reference.
+            matched = (value & mask) >= ref;
+            break;
+          case 0x6: // Greater than reference.
+            matched = (value & mask) > ref;
+            break;
+          default:
+            XELOGE("Unsupported wait comparison type!");
+            XEASSERTALWAYS();
+            break;
+          }
+          if (matched) {
+            // Write.
+            if (wait_info & 0x100) {
+              // Memory.
+              XESETUINT32BE(p + TRANSLATE_ADDR(write_reg_addr), write_data);
+            } else {
+              // Register.
+              XEASSERT(write_reg_addr < kXEGpuRegisterCount);
+              regs->values[write_reg_addr].u32 = write_data;
+            }
+          }
+        }
         break;
 
       case PM4_EVENT_WRITE:
@@ -326,6 +451,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
                    packet_ptr, packet);
           LOG_DATA(count);
           uint32_t d0 = READ_AND_ADVANCE_PTR(); // 3?
+          XEASSERT(d0 == 0x3);
           uint32_t d1 = READ_AND_ADVANCE_PTR(); // ptr
           uint32_t d2 = READ_AND_ADVANCE_PTR(); // value?
           if (!(d1 & 0xC0000000)) {
