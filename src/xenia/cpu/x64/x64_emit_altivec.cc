@@ -389,10 +389,9 @@ static void __emulated_stvlx(uint64_t addr, __m128i vd) {
   // addr here is the fully translated address.
   const uint8_t eb = addr & 0xF;
   const size_t size = 16 - eb;
-  addr &= ~0xF;
   uint8_t* p = (uint8_t*)addr;
   for (size_t i = 0; i < size; i++) {
-    p[i] = vd.m128i_u8[size - eb - 1 - i];
+    p[i] = vd.m128i_u8[size - i];
   }
 }
 int InstrEmit_stvlx_(X64Emitter& e, X86Compiler& c, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
@@ -436,6 +435,7 @@ static void __emulated_stvrx(uint64_t addr, __m128i vd) {
   const size_t size = eb;
   addr &= ~0xF;
   uint8_t* p = (uint8_t*)addr;
+  // Note that if the input is already 16b aligned no bytes are stored.
   for (size_t i = 0; i < size; i++) {
     p[i + (size - 1 - i)] = vd.m128i_u8[i];
   }
