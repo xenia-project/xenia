@@ -109,9 +109,15 @@ void X64Emitter::Unlock() {
   xe_mutex_unlock(lock_);
 }
 
+#define STACK_ALIGNMENT_CHECK 0
+
 int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   int result_code = 1;
   Lock();
+
+#if STACK_ALIGNMENT_CHECK
+  Label l(assembler_.newLabel());
+#endif  // STACK_ALIGNMENT_CHECK
 
   if (symbol->impl_value) {
     result_code = 0;
@@ -136,6 +142,15 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   // mov r9, [symbol]
   // call [OnDemandCompileTrampoline]
   // jmp [rax]
+
+#if STACK_ALIGNMENT_CHECK
+  assembler_.mov(rax, rsp);
+  assembler_.and_(rax, imm(0xF));
+  assembler_.test(rax, rax);
+  assembler_.jz(l);
+  assembler_.int3();
+  assembler_.bind(l);
+#endif  // STACK_ALIGNMENT_CHECK
 
 #if defined(ASMJIT_WINDOWS)
   // Calling convetion: kX86FuncConvX64W
