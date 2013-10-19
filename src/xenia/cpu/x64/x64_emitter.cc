@@ -1156,9 +1156,12 @@ void X64Emitter::write_gpu_register(uint32_t r, GpVar& v) {
   X86Compiler& c = compiler_;
 
   GpVar this_imm(c.newGpVar());
+  c.alloc(this_imm, rcx);
   c.mov(this_imm, imm((uint64_t)gpu_this_));
   GpVar reg_imm(c.newGpVar());
+  c.alloc(reg_imm, rdx);
   c.mov(reg_imm, imm(r & 0xFFFF));
+  c.alloc(v, r8);
 
   X86CompilerFuncCall* call = c.call(gpu_write_);
   call->setPrototype(kX86FuncConvDefault,
