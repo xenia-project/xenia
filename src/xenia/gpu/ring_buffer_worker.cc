@@ -10,6 +10,7 @@
 #include <xenia/gpu/ring_buffer_worker.h>
 
 #include <xenia/gpu/graphics_driver.h>
+#include <xenia/gpu/graphics_system.h>
 #include <xenia/gpu/xenos/packets.h>
 #include <xenia/gpu/xenos/registers.h>
 
@@ -19,8 +20,9 @@ using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
 
-RingBufferWorker::RingBufferWorker(xe_memory_ref memory) :
-    memory_(memory), driver_(0) {
+RingBufferWorker::RingBufferWorker(
+    GraphicsSystem* graphics_system, xe_memory_ref memory) :
+    graphics_system_(graphics_system), memory_(memory), driver_(0) {
   write_ptr_index_event_ = CreateEvent(
       NULL, FALSE, FALSE, NULL);
 
@@ -31,11 +33,21 @@ RingBufferWorker::RingBufferWorker(xe_memory_ref memory) :
   read_ptr_writeback_ptr_ = 0;
   write_ptr_index_        = 0;
   write_ptr_max_index_    = 0;
+
+  LARGE_INTEGER perf_counter;
+  QueryPerformanceCounter(&perf_counter);
+  counter_base_ = perf_counter.QuadPart;
 }
 
 RingBufferWorker::~RingBufferWorker() {
   SetEvent(write_ptr_index_event_);
   CloseHandle(write_ptr_index_event_);
+}
+
+uint64_t RingBufferWorker::GetCounter() {
+  LARGE_INTEGER perf_counter;
+  QueryPerformanceCounter(&perf_counter);
+  return perf_counter.QuadPart - counter_base_;
 }
 
 void RingBufferWorker::Initialize(GraphicsDriver* driver,
@@ -268,6 +280,21 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
         ADVANCE_PTR(count);
         break;
 
+      case PM4_INTERRUPT:
+        // generate interrupt from the command stream
+        {
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_INTERRUPT",
+                   packet_ptr, packet);
+          LOG_DATA(count);
+          uint32_t cpu_mask = READ_AND_ADVANCE_PTR();
+          for (int n = 0; n < 6; n++) {
+            if (cpu_mask & (1 << n)) {
+              graphics_system_->DispatchInterruptCallback(n);
+            }
+          }
+        }
+        break;
+
       case PM4_INDIRECT_BUFFER:
         // indirect buffer dispatch
         {
@@ -302,8 +329,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
               value = regs->values[poll_reg_addr].u32;
             }
             switch (wait_info & 0x7) {
-            case 0x0: // Always.
-              matched = true;
+            case 0x0: // Never.
+              matched = false;
               break;
             case 0x1: // Less than reference.
               matched = (value & mask) < ref;
@@ -323,14 +350,17 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             case 0x6: // Greater than reference.
               matched = (value & mask) > ref;
               break;
-            default:
-              XELOGE("Unsupported wait comparison type!");
-              XEASSERTALWAYS();
+            case 0x7: // Always
+              matched = true;
               break;
             }
             if (!matched) {
               // Wait.
-              SwitchToThread();
+              if (wait >= 0x100) {
+                Sleep(wait / 0x100);
+              } else {
+                SwitchToThread();
+              }
             }
           } while (!matched);
         }
@@ -375,7 +405,6 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t poll_reg_addr = READ_AND_ADVANCE_PTR();
           uint32_t ref = READ_AND_ADVANCE_PTR();
           uint32_t mask = READ_AND_ADVANCE_PTR();
-          uint32_t wait = READ_AND_ADVANCE_PTR();
           uint32_t write_reg_addr = READ_AND_ADVANCE_PTR();
           uint32_t write_data = READ_AND_ADVANCE_PTR();
           uint32_t value;
@@ -389,8 +418,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           }
           bool matched = false;
           switch (wait_info & 0x7) {
-          case 0x0: // Always.
-            matched = true;
+          case 0x0: // Never.
+            matched = false;
             break;
           case 0x1: // Less than reference.
             matched = (value & mask) < ref;
@@ -410,9 +439,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           case 0x6: // Greater than reference.
             matched = (value & mask) > ref;
             break;
-          default:
-            XELOGE("Unsupported wait comparison type!");
-            XEASSERTALWAYS();
+          case 0x7: // Always
+            matched = true;
             break;
           }
           if (matched) {
@@ -441,12 +469,22 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_EVENT_WRITE_SHD",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t d0 = READ_AND_ADVANCE_PTR(); // 3?
-          XEASSERT(d0 == 0x3);
-          uint32_t d1 = READ_AND_ADVANCE_PTR(); // ptr
-          uint32_t d2 = READ_AND_ADVANCE_PTR(); // value?
-          if (!(d1 & 0xC0000000)) {
-            XESETUINT32BE(p + TRANSLATE_ADDR(d1), d2);
+          uint32_t initiator = READ_AND_ADVANCE_PTR();
+          uint32_t address = READ_AND_ADVANCE_PTR();
+          uint32_t value = READ_AND_ADVANCE_PTR();
+          // Writeback initiator.
+          WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x1F);
+          uint32_t data_value;
+          if ((initiator >> 31) & 0x1) {
+            // Write counter (GPU clock counter?).
+            // TODO(benvanik): 64-bit write?
+            data_value = (uint32_t)GetCounter();
+          } else {
+            // Write value.
+            data_value = value;
+          }
+          if (!(address & 0xC0000000)) {
+            XESETUINT32BE(p + TRANSLATE_ADDR(address), data_value);
           } else {
             // TODO(benvanik): read up on PM4_EVENT_WRITE_SHD.
             // No clue. Maybe relative write based on a register base?
@@ -540,6 +578,35 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           LOG_DATA(count);
           uint32_t mask = READ_AND_ADVANCE_PTR();
           driver_->InvalidateState(mask);
+        }
+        break;
+
+      case PM4_SET_BIN_MASK_LO:
+        {
+          uint32_t value = READ_AND_ADVANCE_PTR();
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_LO = %.8X",
+                   packet_ptr, packet, value);
+        }
+        break;
+      case PM4_SET_BIN_MASK_HI:
+        {
+          uint32_t value = READ_AND_ADVANCE_PTR();
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_HI = %.8X",
+                   packet_ptr, packet, value);
+        }
+        break;
+      case PM4_SET_BIN_SELECT_LO:
+        {
+          uint32_t value = READ_AND_ADVANCE_PTR();
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_LO = %.8X",
+                   packet_ptr, packet, value);
+        }
+        break;
+      case PM4_SET_BIN_SELECT_HI:
+        {
+          uint32_t value = READ_AND_ADVANCE_PTR();
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_HI = %.8X",
+                   packet_ptr, packet, value);
         }
         break;
 

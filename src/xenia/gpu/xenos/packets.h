@@ -67,9 +67,16 @@ enum Type3Opcode {
   PM4_SET_BIN_SELECT        = 0x51,   // sets the 64-bit BIN_SELECT register in the PFP
 
   PM4_CONTEXT_UPDATE        = 0x5e,   // updates the current context, if needed
-  PM4_INTERRUPT             = 0x40,   // generate interrupt from the command stream
+  PM4_INTERRUPT             = 0x54,   // generate interrupt from the command stream
 
   PM4_IM_STORE              = 0x2c,   // copy sequencer instruction memory to system memory
+
+  // Tiled rendering:
+  // https://www.google.com/patents/US20060055701
+  PM4_SET_BIN_MASK_LO       = 0x60,
+  PM4_SET_BIN_MASK_HI       = 0x61,
+  PM4_SET_BIN_SELECT_LO     = 0x62,
+  PM4_SET_BIN_SELECT_HI     = 0x63,
 };
 
 

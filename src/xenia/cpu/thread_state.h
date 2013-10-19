@@ -29,9 +29,8 @@ public:
               uint32_t thread_id);
   ~ThreadState();
 
-  uint32_t thread_id() const;
-
-  xe_ppc_state_t* ppc_state();
+  uint32_t thread_id() const { return thread_id_; }
+  xe_ppc_state_t* ppc_state() const { return ppc_state_; }
 
 private:
   uint32_t stack_size_;
@@ -42,7 +41,8 @@ private:
   uint32_t thread_state_address_;
   uint32_t thread_id_;
 
-  xe_ppc_state_t  ppc_state_;
+  // NOTE: must be 64b aligned for SSE ops.
+  xe_ppc_state_t* ppc_state_;
 };
 
 

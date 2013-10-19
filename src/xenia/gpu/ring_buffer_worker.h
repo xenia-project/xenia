@@ -19,13 +19,16 @@ namespace xe {
 namespace gpu {
 
 class GraphicsDriver;
+class GraphicsSystem;
 
 class RingBufferWorker {
 public:
-  RingBufferWorker(xe_memory_ref memory);
+  RingBufferWorker(GraphicsSystem* graphics_system, xe_memory_ref memory);
   virtual ~RingBufferWorker();
 
   xe_memory_ref memory();
+
+  uint64_t GetCounter();
 
   void Initialize(GraphicsDriver* driver,
                   uint32_t ptr, uint32_t page_count);
@@ -49,9 +52,11 @@ private:
   void WriteRegister(uint32_t index, uint32_t value);
 
 protected:
-  xe_memory_ref   memory_;
+  xe_memory_ref     memory_;
+  GraphicsSystem*   graphics_system_;
+  GraphicsDriver*   driver_;
 
-  GraphicsDriver* driver_;
+  uint64_t          counter_base_;
 
   uint32_t          primary_buffer_ptr_;
   uint32_t          primary_buffer_size_;

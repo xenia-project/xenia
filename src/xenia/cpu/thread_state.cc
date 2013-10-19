@@ -26,27 +26,23 @@ ThreadState::ThreadState(
 
   stack_address_ = xe_memory_heap_alloc(memory_, 0, stack_size, 0);
 
-  xe_zero_struct(&ppc_state_, sizeof(ppc_state_));
+  // Allocate with 64b alignment.
+  ppc_state_ = (xe_ppc_state_t*)xe_malloc_aligned(sizeof(xe_ppc_state_t));
+  XEASSERT(((uint64_t)ppc_state_ & 0xF) == 0);
+  xe_zero_struct(ppc_state_, sizeof(xe_ppc_state_t));
 
   // Stash pointers to common structures that callbacks may need.
-  ppc_state_.membase      = xe_memory_addr(memory_, 0);
-  ppc_state_.processor    = processor;
-  ppc_state_.thread_state = this;
+  ppc_state_->membase       = xe_memory_addr(memory_, 0);
+  ppc_state_->processor     = processor;
+  ppc_state_->thread_state  = this;
 
   // Set initial registers.
-  ppc_state_.r[1] = stack_address_ + stack_size;
-  ppc_state_.r[13] = thread_state_address_;
+  ppc_state_->r[1]          = stack_address_ + stack_size;
+  ppc_state_->r[13]         = thread_state_address_;
 }
 
 ThreadState::~ThreadState() {
+  xe_free_aligned(ppc_state_);
   xe_memory_heap_free(memory_, stack_address_, 0);
   xe_memory_release(memory_);
-}
-
-uint32_t ThreadState::thread_id() const {
-  return thread_id_;
-}
-
-xe_ppc_state_t* ThreadState::ppc_state() {
-  return &ppc_state_;
 }

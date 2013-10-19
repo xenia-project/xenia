@@ -11,6 +11,7 @@
 
 #include <xenia/cpu/jit.h>
 #include <xenia/cpu/ppc/disasm.h>
+#include <xenia/cpu/ppc/state.h>
 #include <xenia/gpu/graphics_system.h>
 
 
@@ -67,6 +68,7 @@ Processor::~Processor() {
   }
   modules_.clear();
 
+  xe_memory_heap_free(memory_, interrupt_thread_block_, 2048);
   DeallocThread(interrupt_thread_state_);
   xe_mutex_free(interrupt_thread_lock_);
 
@@ -107,6 +109,9 @@ int Processor::Setup() {
 
   interrupt_thread_lock_ = xe_mutex_alloc(10000);
   interrupt_thread_state_ = AllocThread(16 * 1024, 0, 0);
+  interrupt_thread_block_ = xe_memory_heap_alloc(
+      memory_, 0, 2048, 0);
+  interrupt_thread_state_->ppc_state()->r[13] = interrupt_thread_block_;
 
   sym_table_ = new SymbolTable();
 
@@ -259,11 +264,19 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
   return ppc_state->r[3];
 }
 
-uint64_t Processor::ExecuteInterrupt(uint32_t address,
+uint64_t Processor::ExecuteInterrupt(uint32_t cpu,
+                                     uint32_t address,
                                      uint64_t arg0, uint64_t arg1) {
   // Acquire lock on interrupt thread (we can only dispatch one at a time).
   xe_mutex_lock(interrupt_thread_lock_);
+
+  // Set 0x10C(r13) to the current CPU ID.
+  uint8_t* p = xe_memory_addr(memory_, 0);
+  XESETUINT8BE(p + interrupt_thread_block_ + 0x10C, cpu);
+
+  // Execute interrupt.
   uint64_t result = Execute(interrupt_thread_state_, address, arg0, arg1);
+
   xe_mutex_unlock(interrupt_thread_lock_);
   return result;
 }

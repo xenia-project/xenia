@@ -62,7 +62,8 @@ public:
   uint64_t Execute(ThreadState* thread_state, uint32_t address,
                    uint64_t arg0, uint64_t arg1);
 
-  uint64_t ExecuteInterrupt(uint32_t address, uint64_t arg0, uint64_t arg1);
+  uint64_t ExecuteInterrupt(
+      uint32_t cpu, uint32_t address, uint64_t arg0, uint64_t arg1);
 
   sdb::FunctionSymbol* GetFunction(uint32_t address);
   void* GetFunctionPointer(uint32_t address);
@@ -80,6 +81,7 @@ private:
 
   xe_mutex_t*         interrupt_thread_lock_;
   ThreadState*        interrupt_thread_state_;
+  uint32_t            interrupt_thread_block_;
 };
 
 

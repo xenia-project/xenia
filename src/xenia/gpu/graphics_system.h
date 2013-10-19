@@ -52,7 +52,7 @@ public:
   virtual uint64_t ReadRegister(uint32_t r);
   virtual void WriteRegister(uint32_t r, uint64_t value);
 
-  void DispatchInterruptCallback();
+  void DispatchInterruptCallback(uint32_t cpu = 0xFFFFFFFF);
   bool swap_pending() const { return swap_pending_; }
   void set_swap_pending(bool value) { swap_pending_ = value; }
 

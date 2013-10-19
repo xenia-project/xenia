@@ -25,7 +25,7 @@ GraphicsSystem::GraphicsSystem(const CreationParams* params) :
     last_interrupt_time_(0), swap_pending_(false) {
   memory_ = xe_memory_retain(params->memory);
 
-  worker_ = new RingBufferWorker(memory_);
+  worker_ = new RingBufferWorker(this, memory_);
 
   // Set during Initialize();
   driver_ = 0;
@@ -160,12 +160,17 @@ void GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
   regs->values[r].u32 = (uint32_t)value;
 }
 
-void GraphicsSystem::DispatchInterruptCallback() {
+void GraphicsSystem::DispatchInterruptCallback(uint32_t cpu) {
+  // Pick a CPU, if needed. We're going to guess 2. Because.
+  if (cpu == 0xFFFFFFFF) {
+    cpu = 2;
+  }
+
   // NOTE: we may be executing in some random thread.
   last_interrupt_time_ = xe_pal_now();
   if (!interrupt_callback_) {
     return;
   }
   processor_->ExecuteInterrupt(
-      interrupt_callback_, 0, interrupt_callback_data_);
+      cpu, interrupt_callback_, 1, interrupt_callback_data_);
 }
