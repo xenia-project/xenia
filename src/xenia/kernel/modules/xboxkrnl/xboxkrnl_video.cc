@@ -279,6 +279,30 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
 }
 
 
+void xeVdGetSystemCommandBuffer(uint32_t* p0, uint32_t* p1) {
+  *p0 = 0xBEEF0000;
+  *p1 = 0xBEEF0001;
+}
+
+
+SHIM_CALL VdGetSystemCommandBuffer_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t p0_ptr = SHIM_GET_ARG_32(0);
+  uint32_t p1_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+    "VdGetSystemCommandBuffer(%.8X, %.8X)",
+    p0_ptr,
+    p1_ptr);
+
+  uint32_t p0 = 0;
+  uint32_t p1 = 0;
+  xeVdGetSystemCommandBuffer(&p0, &p1);
+  SHIM_SET_MEM_32(p0_ptr, p0);
+  SHIM_SET_MEM_32(p1_ptr, p1);
+}
+
+
 void xeVdSetSystemCommandBufferGpuIdentifierAddress(uint32_t unk) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -398,6 +422,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdGetSystemCommandBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe",
       VdSetSystemCommandBufferGpuIdentifierAddress, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdIsHSIOTrainingSucceeded, state);
