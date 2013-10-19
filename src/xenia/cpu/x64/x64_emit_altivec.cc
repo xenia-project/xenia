@@ -389,6 +389,7 @@ static void __emulated_stvlx(uint64_t addr, __m128i vd) {
   // addr here is the fully translated address.
   const uint8_t eb = addr & 0xF;
   const size_t size = 16 - eb;
+  addr &= ~0xF;
   uint8_t* p = (uint8_t*)addr;
   for (size_t i = 0; i < size; i++) {
     p[i] = vd.m128i_u8[size - eb - 1 - i];
