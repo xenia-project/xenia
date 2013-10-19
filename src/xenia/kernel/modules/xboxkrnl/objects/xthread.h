@@ -39,6 +39,7 @@ public:
           uint32_t creation_flags);
   virtual ~XThread();
 
+  static XThread* GetCurrentThread();
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId(const uint8_t* thread_state_block);
 
@@ -53,6 +54,11 @@ public:
 
   virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                         uint32_t alertable, uint64_t* opt_timeout);
+
+  static void EnterCriticalRegion();
+  static void LeaveCriticalRegion();
+  uint32_t RaiseIrql(uint32_t new_irql);
+  void LowerIrql(uint32_t new_irql);
 
 private:
   X_STATUS PlatformCreate();
@@ -72,6 +78,8 @@ private:
   uint32_t      tls_address_;
   uint32_t      thread_state_address_;
   cpu::ThreadState* thread_state_;
+
+  uint32_t      irql_;
 
   XEvent*       event_;
 };

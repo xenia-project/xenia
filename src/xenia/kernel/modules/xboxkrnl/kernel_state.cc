@@ -10,6 +10,7 @@
 #include <xenia/kernel/modules/xboxkrnl/kernel_state.h>
 
 #include <xenia/kernel/runtime.h>
+#include <xenia/kernel/modules/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/modules/xboxkrnl/xobject.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xmodule.h>
 #include <xenia/kernel/modules/xboxkrnl/objects/xthread.h>
@@ -46,6 +47,10 @@ KernelState::~KernelState() {
   filesystem_.reset();
   processor_.reset();
   xe_memory_release(memory_);
+}
+
+KernelState* KernelState::shared() {
+  return shared_kernel_state_;
 }
 
 Runtime* KernelState::runtime() {

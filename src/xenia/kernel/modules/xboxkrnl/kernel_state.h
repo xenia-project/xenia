@@ -42,6 +42,8 @@ public:
   KernelState(Runtime* runtime);
   ~KernelState();
 
+  static KernelState* shared();
+
   Runtime* runtime();
   xe_memory_ref memory();
   cpu::Processor* processor();

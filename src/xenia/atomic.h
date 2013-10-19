@@ -28,6 +28,8 @@
     ((void)OSAtomicAdd32Barrier(amount, value))
 #define xe_atomic_sub_32(amount, value) \
     ((void)OSAtomicAdd32Barrier(-amount, value))
+#define xe_atomic_exchange_32(newValue, value) \
+    TODOTODO
 #define xe_atomic_cas_32(oldValue, newValue, value) \
     OSAtomicCompareAndSwap32Barrier(oldValue, newValue, value)
 
@@ -49,6 +51,8 @@ typedef OSQueueHead xe_atomic_stack_t;
     ((void)InterlockedExchangeAdd((volatile LONG*)value, amount))
 #define xe_atomic_sub_32(amount, value) \
     ((void)InterlockedExchangeSubtract((volatile unsigned*)value, amount))
+#define xe_atomic_exchange_32(newValue, value) \
+    InterlockedExchange((volatile LONG*)value, newValue)
 #define xe_atomic_cas_32(oldValue, newValue, value) \
     (InterlockedCompareExchange((volatile LONG*)value, newValue, oldValue) == oldValue)
 
@@ -77,6 +81,8 @@ XEFORCEINLINE void* xe_atomic_stack_dequeue(xe_atomic_stack_t* stack,
     __sync_fetch_and_add(value, amount)
 #define xe_atomic_sub_32(amount, value) \
     __sync_fetch_and_sub(value, amount)
+#define xe_atomic_exchange_32(newValue, value) \
+    TODOTODO
 #define xe_atomic_cas_32(oldValue, newValue, value) \
     __sync_bool_compare_and_swap(value, oldValue, newValue)
 

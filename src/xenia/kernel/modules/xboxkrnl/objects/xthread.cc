@@ -23,6 +23,8 @@ using namespace xe::kernel::xboxkrnl;
 namespace {
   static uint32_t next_xthread_id = 0;
   static uint32_t current_thread_tls = xeKeTlsAlloc();
+  static xe_mutex_t* critical_region_ = xe_mutex_alloc(10000);
+  static XThread* shared_kernel_thread_ = 0;
 }
 
 
@@ -36,7 +38,8 @@ XThread::XThread(KernelState* kernel_state,
     thread_handle_(0),
     thread_state_address_(0),
     thread_state_(0),
-    event_(NULL) {
+    event_(NULL),
+    irql_(0) {
   creation_params_.stack_size           = stack_size;
   creation_params_.xapi_thread_startup  = xapi_thread_startup;
   creation_params_.start_address        = start_address;
@@ -73,8 +76,26 @@ XThread::~XThread() {
   }
 }
 
+XThread* XThread::GetCurrentThread() {
+  XThread* thread = (XThread*)xeKeTlsGetValue(current_thread_tls);
+  if (!thread) {
+    // Assume this is some shared interrupt thread/etc.
+    XThread::EnterCriticalRegion();
+    thread = shared_kernel_thread_;
+    if (!thread) {
+      thread = new XThread(
+          KernelState::shared(), 32 * 1024, 0, 0, 0, 0);
+      shared_kernel_thread_ = thread;
+      xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
+    }
+    XThread::LeaveCriticalRegion();
+  }
+  return thread;
+}
+
 uint32_t XThread::GetCurrentThreadHandle() {
-  return xeKeTlsGetValue(current_thread_tls);
+  XThread* thread = XThread::GetCurrentThread();
+  return thread->handle();
 }
 
 uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
@@ -178,8 +199,9 @@ X_STATUS XThread::Exit(int exit_code) {
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
-  xeKeTlsSetValue(current_thread_tls, thread->handle());
+  xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
   thread->Execute();
+  xeKeTlsSetValue(current_thread_tls, NULL);
   thread->Release();
   return 0;
 }
@@ -217,8 +239,9 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 
 static void* XThreadStartCallbackPthreads(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
-  xeKeTlsSetValue(current_thread_tls, thread->handle());
+  xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
   thread->Execute();
+  xeKeTlsSetValue(current_thread_tls, NULL);
   thread->Release();
   return 0;
 }
@@ -298,4 +321,21 @@ void XThread::Execute() {
 X_STATUS XThread::Wait(uint32_t wait_reason, uint32_t processor_mode,
                        uint32_t alertable, uint64_t* opt_timeout) {
   return event_->Wait(wait_reason, processor_mode, alertable, opt_timeout);
+}
+
+void XThread::EnterCriticalRegion() {
+  // Global critical region. This isn't right, but is easy.
+  xe_mutex_lock(critical_region_);
+}
+
+void XThread::LeaveCriticalRegion() {
+  xe_mutex_unlock(critical_region_);
+}
+
+uint32_t XThread::RaiseIrql(uint32_t new_irql) {
+  return xe_atomic_exchange_32(new_irql, &irql_);
+}
+
+void XThread::LowerIrql(uint32_t new_irql) {
+  irql_ = new_irql;
 }

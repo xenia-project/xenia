@@ -35,8 +35,8 @@ void xeKeQuerySystemTime(uint64_t* time_ptr);
 
 uint32_t xeKeTlsAlloc();
 int KeTlsFree(uint32_t tls_index);
-uint32_t xeKeTlsGetValue(uint32_t tls_index);
-int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value);
+uint64_t xeKeTlsGetValue(uint32_t tls_index);
+int xeKeTlsSetValue(uint32_t tls_index, uint64_t tls_value);
 
 X_STATUS xeNtCreateEvent(uint32_t* handle_ptr, void* obj_attributes,
                          uint32_t event_type, uint32_t initial_state);
@@ -49,6 +49,9 @@ X_STATUS xeKeWaitForSingleObject(
 
 uint32_t xeKfAcquireSpinLock(void* lock_ptr);
 void xeKfReleaseSpinLock(void* lock_ptr, uint32_t old_irql);
+
+void xeKeEnterCriticalRegion();
+void xeKeLeaveCriticalRegion();
 
 
 }  // namespace xboxkrnl

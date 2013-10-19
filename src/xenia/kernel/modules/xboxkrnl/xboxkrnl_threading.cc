@@ -296,16 +296,16 @@ SHIM_CALL KeTlsFree_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ms686812
-uint32_t xeKeTlsGetValue(uint32_t tls_index) {
+uint64_t xeKeTlsGetValue(uint32_t tls_index) {
   // LPVOID
   // _In_  DWORD dwTlsIndex
 
-  uint32_t value = 0;
+  uint64_t value = 0;
 
 #if XE_PLATFORM(WIN32)
-  value = (uint32_t)((uint64_t)TlsGetValue(tls_index));
+  value = (uint64_t)TlsGetValue(tls_index);
 #else
-  value = (uint32_t)((uint64_t)pthread_getspecific(tls_index));
+  value = (uint64_t)pthread_getspecific(tls_index);
 #endif  // WIN32
 
   if (!value) {
@@ -325,13 +325,13 @@ SHIM_CALL KeTlsGetValue_shim(
       "KeTlsGetValue(%.8X)",
       tls_index);
 
-  uint32_t result = xeKeTlsGetValue(tls_index);
+  uint64_t result = xeKeTlsGetValue(tls_index);
   SHIM_SET_RETURN(result);
 }
 
 
 // http://msdn.microsoft.com/en-us/library/ms686818
-int xeKeTlsSetValue(uint32_t tls_index, uint32_t tls_value) {
+int xeKeTlsSetValue(uint32_t tls_index, uint64_t tls_value) {
   // BOOL
   // _In_      DWORD dwTlsIndex,
   // _In_opt_  LPVOID lpTlsValue
@@ -560,11 +560,15 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
 
 
 uint32_t xeKfAcquireSpinLock(void* lock_ptr) {
+  // Lock.
   while (!xe_atomic_cas_32(0, 1, lock_ptr)) {
     // Spin!
+    // TODO(benvanik): error on deadlock?
   }
-  // TODO(benvanik): set dispatch level.
-  return 0;
+
+  // Raise IRQL to DISPATCH.
+  XThread* thread = XThread::GetCurrentThread();
+  return thread->RaiseIrql(2);
 }
 
 
@@ -583,7 +587,11 @@ SHIM_CALL KfAcquireSpinLock_shim(
 
 
 void xeKfReleaseSpinLock(void* lock_ptr, uint32_t old_irql) {
-  // TODO(benvanik): reset dispatch level.
+  // Restore IRQL.
+  XThread* thread = XThread::GetCurrentThread();
+  thread->LowerIrql(old_irql);
+
+  // Unlock.
   xe_atomic_dec_32(lock_ptr);
 }
 
@@ -599,6 +607,32 @@ SHIM_CALL KfReleaseSpinLock_shim(
     old_irql);
 
   xeKfReleaseSpinLock(SHIM_MEM_ADDR(lock_ptr), old_irql);
+}
+
+
+void xeKeEnterCriticalRegion() {
+  XThread::EnterCriticalRegion();
+}
+
+
+SHIM_CALL KeEnterCriticalRegion_shim(
+  xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+    "KeEnterCriticalRegion()");
+  xeKeEnterCriticalRegion();
+}
+
+
+void xeKeLeaveCriticalRegion() {
+  XThread::LeaveCriticalRegion();
+}
+
+
+SHIM_CALL KeLeaveCriticalRegion_shim(
+  xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD(
+    "KeLeaveCriticalRegion()");
+  xeKeLeaveCriticalRegion();
 }
 
 
@@ -632,4 +666,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KfAcquireSpinLock, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KfReleaseSpinLock, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);
 }
