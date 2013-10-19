@@ -1852,6 +1852,8 @@ GpVar X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
   return real_address;
 }
 
+uint64_t X64Emitter::reserved_addr_ = 0;
+
 GpVar X64Emitter::ReadMemory(
     uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
   X86Compiler& c = compiler_;
@@ -1859,12 +1861,15 @@ GpVar X64Emitter::ReadMemory(
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
 
+  // Acquire semantics -- make reservation for address.
+  // Note that we overwrite any other reservation.
   if (acquire) {
-    // TODO(benvanik): acquire semantics.
-    // load_value->setAlignment(size);
-    // load_value->setVolatile(true);
-    // load_value->setAtomic(Acquire);
-    XELOGE("Ignoring acquire semantics on read -- TODO");
+    GpVar reservation(c.newGpVar());
+    c.mov(reservation, real_address);
+    GpVar reserved_addr(c.newGpVar());
+    c.mov(reserved_addr, imm((sysint_t)&X64Emitter::reserved_addr_));
+    c.lock();
+    c.xchg(reservation, qword_ptr(reserved_addr));
   }
 
   GpVar value(c.newGpVar());
@@ -1904,6 +1909,31 @@ void X64Emitter::WriteMemory(
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
 
+  // Release semantics - clear reservation.
+  Label reservation_mismatch(c.newLabel());
+  if (release) {
+    // Atomically swap 0 with the reserved_addr_ -- this clears the reservation
+    // and lets us compare -- if we match, we can write.
+    GpVar reservation(c.newGpVar());
+    c.alloc(reservation, rax);
+    c.xor_(reservation, reservation);
+    GpVar reserved_addr(c.newGpVar());
+    c.mov(reserved_addr, imm((sysint_t)&X64Emitter::reserved_addr_));
+    c.lock();
+    c.xchg(reservation, qword_ptr(reserved_addr));
+    // If reservation was not for address, skip write.
+    GpVar cr(c.newGpVar());
+    c.xor_(cr, cr);
+    GpVar cr_set(c.newGpVar());
+    c.mov(cr_set, imm(1 << 2));
+    c.cmp(reservation, real_address);
+    c.unuse(reservation);
+    c.cmove(cr, cr_set);
+    update_cr_value(0, cr);
+    c.test(cr, cr);
+    c.jz(reservation_mismatch, kCondHintUnlikely);
+  }
+
   GpVar tmp;
   switch (size) {
     case 1:
@@ -1932,12 +1962,8 @@ void X64Emitter::WriteMemory(
       return;
   }
 
-  // TODO(benvanik): release semantics
   if (release) {
-  //   store_value->setAlignment(size);
-  //   store_value->setVolatile(true);
-  //   store_value->setAtomic(Release);
-    XELOGE("Ignoring release semantics on write -- TODO");
+    c.bind(reservation_mismatch);
   }
 }
 

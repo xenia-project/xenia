@@ -142,6 +142,8 @@ private:
   void*                 gpu_read_;
   void*                 gpu_write_;
 
+  static uint64_t       reserved_addr_;
+
   AsmJit::Logger*       logger_;
   AsmJit::X86Assembler  assembler_;
   AsmJit::X86Compiler   compiler_;
