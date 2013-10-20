@@ -295,13 +295,58 @@ XEEMITTER(fselx,        0xFC00002E, A  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(fsqrtx,       0xFC00002C, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Double precision:
+  // frD <- sqrt(frB)
+
+  XmmVar v(c.newXmmVar());
+  c.movq(v, e.fpr_value(i.A.FRA));
+  c.sqrtsd(v, v);
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  e.TraceFPR(i.A.FRT, i.A.FRB);
+
+  return 0;
 }
 
 XEEMITTER(fsqrtsx,      0xEC00002C, A  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Single precision:
+  // frD <- sqrt(frB)
+
+  XmmVar v(c.newXmmVar());
+  c.movq(v, e.fpr_value(i.A.FRA));
+  c.sqrtsd(v, v);
+#if defined(ROUND_TO_SINGLE)
+  // TODO(benvanik): check rounding mode? etc?
+  // This converts to a single then back to a double to approximate the
+  // rounding on the 360.
+  c.cvtsd2ss(v, v);
+  c.cvtss2sd(v, v);
+#endif  // ROUND_TO_SINGLE
+  e.update_fpr_value(i.A.FRT, v);
+
+  // TODO(benvanik): update status/control register.
+
+  if (i.A.Rc) {
+    // With cr0 update.
+    XEASSERTALWAYS();
+    //e.update_cr_with_cond(0, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+
+  e.TraceFPR(i.A.FRT, i.A.FRB);
+
+  return 0;
 }
 
 
