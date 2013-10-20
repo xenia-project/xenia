@@ -211,8 +211,40 @@ XEEMITTER(addis,        0x3C000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(addmex,       0x7C0001D4, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- (RA) + CA - 1
+
+  // Add in carry flag from XER, only if needed.
+  // It may be possible to do this much more efficiently.
+  GpVar xer(c.newGpVar());
+  c.mov(xer, e.xer_value());
+  c.shr(xer, imm(29));
+  c.and_(xer, imm(1));
+  c.sub(xer, imm(1));
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.add(v, xer);
+  GpVar cc(c.newGpVar());
+  c.setc(cc.r8());
+
+  e.update_gpr_value(i.XO.RT, v);
+  e.update_xer_with_carry(cc);
+
+  if (i.XO.OE) {
+    // With XER[SO] update too.
+    //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    // Just CA update.
+    //e.update_xer_with_carry(b.CreateExtractValue(v, 1));
+  }
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(addzex,       0x7C000194, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
