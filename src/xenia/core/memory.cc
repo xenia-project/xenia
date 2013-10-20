@@ -25,9 +25,9 @@
 #define DEFAULT_GRANULARITY     64 * 1024
 #define DEFAULT_TRIM_THRESHOLD  MAX_SIZE_T
 #define MALLOC_ALIGNMENT        32
+#define MALLOC_INSPECT_ALL      1
 #if XE_DEBUG
 #define FOOTERS                 1
-#define MALLOC_INSPECT_ALL      1
 #endif  // XE_DEBUG
 #include <third_party/dlmalloc/malloc.c.h>
 
