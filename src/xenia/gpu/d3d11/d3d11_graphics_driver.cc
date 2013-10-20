@@ -423,12 +423,11 @@ int D3D11GraphicsDriver::PrepareVertexFetcher(
   uint32_t* src = (uint32_t*)xe_memory_addr(memory_, address);
   uint32_t* dest = (uint32_t*)res.pData;
   for (uint32_t n = 0; n < size_dwords; n++) {
-    union {
-      uint32_t i;
-      float f;
-    } d = {XESWAP32(src[n])};
-    XELOGGPU("v%.3d %0.8X %g", n, d.i, d.f);
-
+    // union {
+    //   uint32_t i;
+    //   float f;
+    // } d = {XESWAP32(src[n])};
+    // XELOGGPU("v%.3d %0.8X %g", n, d.i, d.f);
     dest[n] = XESWAP32(src[n]);
   }
   context_->Unmap(buffer, 0);
@@ -486,7 +485,7 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
     uint32_t* dest = (uint32_t*)res.pData;
     for (uint32_t n = 0; n < index_count; n++) {
       uint32_t d = { XESWAP32(src[n]) };
-      XELOGGPU("i%.4d %0.8X", n, d);
+      //XELOGGPU("i%.4d %0.8X", n, d);
       dest[n] = d;
     }
   } else {
@@ -494,7 +493,7 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
     uint16_t* dest = (uint16_t*)res.pData;
     for (uint32_t n = 0; n < index_count; n++) {
       uint16_t d = XESWAP16(src[n]);
-      XELOGGPU("i%.4d, %.4X", n, d);
+      //XELOGGPU("i%.4d, %.4X", n, d);
       dest[n] = d;
     }
   }
