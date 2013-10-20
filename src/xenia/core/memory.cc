@@ -31,8 +31,12 @@
 #endif  // XE_DEBUG
 #include <third_party/dlmalloc/malloc.c.h>
 
-DEFINE_bool(log_heap, false,
-            "Log heap structure on alloc/free.");
+DEFINE_bool(
+    log_heap, false,
+    "Log heap structure on alloc/free.");
+DEFINE_uint64(
+    heap_guard_pages, 0,
+    "Allocate the given number of guard pages around all heap chunks.");
 
 
 /**
@@ -208,15 +212,21 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
 void xe_memory_heap_dump_handler(
     void* start, void* end, size_t used_bytes, void* context) {
   xe_memory_ref memory = (xe_memory_ref)context;
-  uint32_t guest_start = (uint32_t)((uintptr_t)start - (uintptr_t)memory->ptr);
-  uint32_t guest_end = (uint32_t)((uintptr_t)end - (uintptr_t)memory->ptr);
+  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  uint64_t start_addr = (uint64_t)start + heap_guard_size;
+  uint64_t end_addr = (uint64_t)end - heap_guard_size;
+  uint32_t guest_start = (uint32_t)(start_addr - (uintptr_t)memory->ptr);
+  uint32_t guest_end = (uint32_t)(end_addr - (uintptr_t)memory->ptr);
   XELOGI(" - %.8X-%.8X (%9db) %.16llX-%.16llX - %9db used",
          guest_start, guest_end, (guest_end - guest_start),
-         (uint64_t)start, (uint64_t)end,
+         start_addr, end_addr,
          used_bytes);
 }
 void xe_memory_heap_dump(xe_memory_ref memory) {
   XELOGI("xe_memory_heap_dump:");
+  if (FLAGS_heap_guard_pages) {
+    XELOGI("  (heap guard pages enabled, stats will be wrong)");
+  }
   struct mallinfo info = mspace_mallinfo(memory->heap);
   XELOGI("    arena: %lld", info.arena);
   XELOGI("  ordblks: %lld", info.ordblks);
@@ -239,7 +249,22 @@ uint32_t xe_memory_heap_alloc(
   if (!base_address) {
     // Normal allocation from the managed heap.
     XEIGNORE(xe_mutex_lock(memory->heap_mutex));
-    uint8_t* p = (uint8_t*)mspace_memalign(memory->heap, alignment, size);
+    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+    if (heap_guard_size) {
+      alignment = (uint32_t)MAX(alignment, heap_guard_size);
+      size = (uint32_t)XEROUNDUP(size, heap_guard_size);
+    }
+    uint8_t* p = (uint8_t*)mspace_memalign(
+        memory->heap,
+        alignment,
+        size + heap_guard_size * 2);
+    if (FLAGS_heap_guard_pages) {
+      size_t real_size = mspace_usable_size(p);
+      DWORD old_protect;
+      VirtualProtect(p, heap_guard_size, PAGE_NOACCESS, &old_protect);
+      p += heap_guard_size;
+      VirtualProtect(p + size, heap_guard_size, PAGE_NOACCESS, &old_protect);
+    }
     if (FLAGS_log_heap) {
       xe_memory_heap_dump(memory);
     }
@@ -279,7 +304,10 @@ int xe_memory_heap_free(
   uint8_t* p = (uint8_t*)memory->ptr + address;
   if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
     // Heap allocated address.
+    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+    p += heap_guard_size;
     size_t real_size = mspace_usable_size(p);
+    real_size -= heap_guard_size * 2;
     if (!real_size) {
       return 0;
     }
@@ -304,6 +332,8 @@ int xe_memory_heap_free(
 bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
   uint8_t* p = (uint8_t*)memory->ptr + address;
   if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
+    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+    p += heap_guard_size;
     // Within heap range, ask dlmalloc.
     return mspace_usable_size(p) > 0;
   } else {
@@ -315,6 +345,9 @@ bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
 int xe_memory_protect(
     xe_memory_ref memory, uint32_t address, uint32_t size, uint32_t access) {
   uint8_t* p = (uint8_t*)memory->ptr + address;
+
+  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  p += heap_guard_size;
 
 #if XE_PLATFORM(WIN32)
   DWORD new_protect = 0;
