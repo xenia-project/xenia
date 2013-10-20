@@ -199,7 +199,7 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
 
 uint32_t xe_memory_heap_alloc(
     xe_memory_ref memory, uint32_t base_address, uint32_t size,
-    uint32_t flags) {
+    uint32_t flags, uint32_t alignment) {
   XEASSERT(flags == 0);
 
   // If we were given a base address we are outside of the normal heap and
@@ -207,7 +207,7 @@ uint32_t xe_memory_heap_alloc(
   if (!base_address) {
     // Normal allocation from the managed heap.
     XEIGNORE(xe_mutex_lock(memory->heap_mutex));
-    uint8_t* p = (uint8_t*)mspace_malloc(memory->heap, size);
+    uint8_t* p = (uint8_t*)mspace_memalign(memory->heap, alignment, size);
     XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
     if (!p) {
       return 0;

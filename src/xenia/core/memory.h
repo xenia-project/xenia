@@ -51,7 +51,8 @@ enum {
 };
 
 uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_address,
-                              uint32_t size, uint32_t flags);
+                              uint32_t size, uint32_t flags,
+                              uint32_t alignment = 0x20);
 int  xe_memory_heap_free(xe_memory_ref memory, uint32_t addr, uint32_t size);
 
 bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address);

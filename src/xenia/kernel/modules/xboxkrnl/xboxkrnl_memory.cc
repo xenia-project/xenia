@@ -234,7 +234,7 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
   // Allocate.
   uint32_t flags = 0;
   uint32_t base_address = xe_memory_heap_alloc(
-      state->memory(), 0, adjusted_size, flags);
+      state->memory(), 0, adjusted_size, flags, alignment);
   if (!base_address) {
     // Failed - assume no memory available.
     return 0;
