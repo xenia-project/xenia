@@ -1541,13 +1541,24 @@ XEEMITTER(vrsqrtefp128,   VX128_3(6, 1648), VX128_3)(X64Emitter& e, X86Compiler&
   return InstrEmit_vrsqrtefp_(e, c, VX128_3_VD128, VX128_3_VB128);
 }
 
+int InstrEmit_vsel_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+  // http://markplusplus.wordpress.com/2007/03/14/fast-sse-select-operation/
+  XmmVar a(c.newXmmVar());
+  c.movaps(a, e.vr_value(va));
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(vb));
+  c.xorps(v, a);
+  c.andps(v, e.vr_value(vc));
+  c.xorps(v, a);
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb, vc);
+  return 0;
+}
 XEEMITTER(vsel,           0x1000002A, VXA )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsel_(e, c, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
 XEEMITTER(vsel128,        VX128(5, 848),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsel_(e, c, VX128_VD128, VX128_VA128, VX128_VB128, VX128_VD128);
 }
 
 XEEMITTER(vsl,            0x100001C4, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
