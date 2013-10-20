@@ -332,9 +332,9 @@ int xe_memory_heap_free(
 bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
   uint8_t* p = (uint8_t*)memory->ptr + address;
   if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
-    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
-    p += heap_guard_size;
     // Within heap range, ask dlmalloc.
+    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+    p -= heap_guard_size;
     return mspace_usable_size(p) > 0;
   } else {
     // Maybe -- could Query here (though that may be expensive).
