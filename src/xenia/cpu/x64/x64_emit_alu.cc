@@ -687,13 +687,87 @@ XEEMITTER(subfex,       0x7C000110, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(subfmex,      0x7C0001D0, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- ¬(RA) + CA - 1
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.not_(v);
+
+  // Add in carry flag from XER, only if needed.
+  // It may be possible to do this much more efficiently.
+  GpVar xer(c.newGpVar());
+  c.mov(xer, e.xer_value());
+  c.shr(xer, imm(29));
+  c.and_(xer, imm(1));
+  Label post_stc_label = c.newLabel();
+  c.jz(post_stc_label, kCondHintLikely);
+  c.stc();
+  c.bind(post_stc_label);
+
+  c.adc(v, imm(-1));
+  GpVar cc(c.newGpVar());
+  c.setc(cc.r8());
+
+  e.update_gpr_value(i.XO.RT, v);
+
+  if (i.XO.OE) {
+    // With XER update.
+    XEASSERTALWAYS();
+    //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    e.update_xer_with_carry(cc);
+  }
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(subfzex,      0x7C000190, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- ¬(RA) + CA
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.not_(v);
+
+  // Add in carry flag from XER, only if needed.
+  // It may be possible to do this much more efficiently.
+  GpVar xer(c.newGpVar());
+  c.mov(xer, e.xer_value());
+  c.shr(xer, imm(29));
+  c.and_(xer, imm(1));
+  Label post_stc_label = c.newLabel();
+  c.jz(post_stc_label, kCondHintLikely);
+  c.stc();
+  c.bind(post_stc_label);
+
+  c.adc(v, imm(0));
+  GpVar cc(c.newGpVar());
+  c.setc(cc.r8());
+
+  e.update_gpr_value(i.XO.RT, v);
+
+  if (i.XO.OE) {
+    // With XER update.
+    XEASSERTALWAYS();
+    //e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    e.update_xer_with_carry(cc);
+  }
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 
