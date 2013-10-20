@@ -1874,7 +1874,7 @@ GpVar X64Emitter::TouchMemoryAddress(uint32_t cia, GpVar& addr) {
 uint64_t X64Emitter::reserved_addr_ = 0;
 
 GpVar X64Emitter::ReadMemory(
-    uint32_t cia, GpVar& addr, uint32_t size, bool acquire) {
+    uint32_t cia, GpVar& addr, uint32_t size, bool acquire, bool bswap) {
   X86Compiler& c = compiler_;
 
   // Rebase off of memory base pointer.
@@ -1900,16 +1900,22 @@ GpVar X64Emitter::ReadMemory(
     case 2:
       c.mov(value.r16(), word_ptr(real_address));
       c.and_(value, imm(0xFFFF));
-      c.xchg(value.r8Lo(), value.r8Hi());
+      if (bswap) {
+        c.xchg(value.r8Lo(), value.r8Hi());
+      }
       break;
     case 4:
       c.mov(value.r32(), dword_ptr(real_address));
       // No need to and -- the mov to e*x will extend for us.
-      c.bswap(value.r32());
+      if (bswap) {
+        c.bswap(value.r32());
+      }
       break;
     case 8:
       c.mov(value, qword_ptr(real_address));
-      c.bswap(value.r64());
+      if (bswap) {
+        c.bswap(value.r64());
+      }
       break;
     default:
       XEASSERTALWAYS();
@@ -1922,7 +1928,7 @@ GpVar X64Emitter::ReadMemory(
 
 void X64Emitter::WriteMemory(
     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
-    bool release) {
+    bool release, bool bswap) {
   X86Compiler& c = compiler_;
 
   // Rebase off of memory base pointer.
@@ -1961,19 +1967,25 @@ void X64Emitter::WriteMemory(
     case 2:
       tmp = c.newGpVar();
       c.mov(tmp, value);
-      c.xchg(tmp.r8Lo(), tmp.r8Hi());
+      if (bswap) {
+        c.xchg(tmp.r8Lo(), tmp.r8Hi());
+      }
       c.mov(word_ptr(real_address), tmp.r16());
       break;
     case 4:
       tmp = c.newGpVar();
       c.mov(tmp, value);
-      c.bswap(tmp.r32());
+      if (bswap) {
+        c.bswap(tmp.r32());
+      }
       c.mov(dword_ptr(real_address), tmp.r32());
       break;
     case 8:
       tmp = c.newGpVar();
       c.mov(tmp, value);
-      c.bswap(tmp.r64());
+      if (bswap) {
+        c.bswap(tmp.r64());
+      }
       c.mov(qword_ptr(real_address), tmp.r64());
       break;
     default:

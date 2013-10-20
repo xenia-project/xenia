@@ -413,33 +413,75 @@ XEDISASMR(stwx,         0x7C00012E, X  )(InstrData& i, InstrDisasm& d) {
 // Integer load and store with byte reverse (A-1
 
 XEDISASMR(lhbrx,        0x7C00062C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("lhbrx", "Load Halfword Byte-Reverse Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(lwbrx,        0x7C00042C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("lwbrx", "Load Word Byte-Reverse Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(ldbrx,        0x7C000428, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("ldbrx", "Load Doubleword Byte-Reverse Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(sthbrx,       0x7C00072C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("sthbrx", "Store Halfword Byte-Reverse Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(stwbrx,       0x7C00052C, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("stwbrx", "Store Word Byte-Reverse Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(stdbrx,       0x7C000528, X  )(InstrData& i, InstrDisasm& d) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  d.Init("stdbrx", "Store Doubleword Byte-Reverse Indexed", 0);
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 

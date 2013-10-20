@@ -911,33 +911,125 @@ XEEMITTER(stwx,         0x7C00012E, X  )(X64Emitter& e, X86Compiler& c, InstrDat
 // Integer load and store with byte reverse (A-1
 
 XEEMITTER(lhbrx,        0x7C00062C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- i48.0 || bswap(MEM(EA, 2))
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 2, false, false);
+  // Zero extend done by ReadMemory.
+  e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
+
+  return 0;
 }
 
 XEEMITTER(lwbrx,        0x7C00042C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- i32.0 || bswap(MEM(EA, 4))
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 4, false, false);
+  // Zero extend done by ReadMemory.
+  e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
+
+  return 0;
 }
 
 XEEMITTER(ldbrx,        0x7C000428, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // RT <- bswap(MEM(EA, 8))
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.ReadMemory(i.address, ea, 8, false, false);
+  e.update_gpr_value(i.X.RT, v);
+
+  e.clear_constant_gpr_value(i.X.RT);
+
+  return 0;
 }
 
 XEEMITTER(sthbrx,       0x7C00072C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 2) <- bswap((RS)[48:63])
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.D.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.gpr_value(i.X.RT);
+  e.WriteMemory(i.address, ea, 2, v, false, false);
+
+  return 0;
 }
 
 XEEMITTER(stwbrx,       0x7C00052C, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 4) <- bswap((RS)[32:63])
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.gpr_value(i.X.RT);
+  e.WriteMemory(i.address, ea, 4, v, false, false);
+
+  return 0;
 }
 
 XEEMITTER(stdbrx,       0x7C000528, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // if RA = 0 then
+  //   b <- 0
+  // else
+  //   b <- (RA)
+  // EA <- b + (RB)
+  // MEM(EA, 8) <- bswap(RS)
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RB));
+  if (i.X.RA) {
+    c.add(ea, e.gpr_value(i.X.RA));
+  }
+  GpVar v = e.gpr_value(i.X.RT);
+  e.WriteMemory(i.address, ea, 8, v, false, false);
+
+  return 0;
 }
 
 
