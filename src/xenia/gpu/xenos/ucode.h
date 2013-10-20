@@ -454,11 +454,11 @@ XEPACKEDSTRUCT(instr_fetch_tex_t, {
     uint32_t            fetch_valid_only        : 1;
     uint32_t            const_idx               : 5;
     uint32_t            tx_coord_denorm         : 1;
-    uint32_t            src_swiz                : 6;
+    uint32_t            src_swiz                : 6;    // xyz
   });
   /* dword1: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            dst_swiz                : 12;
+    uint32_t            dst_swiz                : 12;   // xyzw
     uint32_t            mag_filter              : 2;    // instr_tex_filter_t
     uint32_t            min_filter              : 2;    // instr_tex_filter_t
     uint32_t            mip_filter              : 2;    // instr_tex_filter_t

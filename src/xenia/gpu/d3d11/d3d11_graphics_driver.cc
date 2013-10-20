@@ -101,34 +101,22 @@ void D3D11GraphicsDriver::SetShader(
   }
 }
 
-void D3D11GraphicsDriver::DrawIndexBuffer(
-    XE_GPU_PRIMITIVE_TYPE prim_type,
-    bool index_32bit, uint32_t index_count,
-    uint32_t index_base, uint32_t index_size, uint32_t endianness) {
-  XELOGGPU("D3D11: draw index buffer");
-}
-
-void D3D11GraphicsDriver::DrawIndexAuto(
-    XE_GPU_PRIMITIVE_TYPE prim_type,
-    uint32_t index_count) {
+int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   RegisterFile& rf = register_file_;
-
-  XELOGGPU("D3D11: draw indexed %d (%d indicies)",
-           prim_type, index_count);
 
   // Misc state.
   if (UpdateState()) {
-    return;
+    return 1;
   }
 
   // Build constant buffers.
   if (UpdateConstantBuffers()) {
-    return;
+    return 1;
   }
 
   // Bind shaders.
   if (BindShaders()) {
-    return;
+    return 1;
   }
 
   // Switch primitive topology.
@@ -156,17 +144,56 @@ void D3D11GraphicsDriver::DrawIndexAuto(
   case XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST:
   case XE_GPU_PRIMITIVE_TYPE_LINE_LOOP:
     XELOGE("D3D11: unsupported primitive type %d", prim_type);
-    return;
+    return 1;
   }
   context_->IASetPrimitiveTopology(primitive_topology);
 
   // Setup all fetchers (vertices/textures).
   if (PrepareFetchers()) {
+    return 1;
+  }
+
+  // All ready to draw (except index buffer)!
+
+  return 0;
+}
+
+void D3D11GraphicsDriver::DrawIndexBuffer(
+    XE_GPU_PRIMITIVE_TYPE prim_type,
+    bool index_32bit, uint32_t index_count,
+    uint32_t index_base, uint32_t index_size, uint32_t endianness) {
+  RegisterFile& rf = register_file_;
+
+  XELOGGPU("D3D11: draw indexed %d (%d indicies) from %.8X",
+           prim_type, index_count, index_base);
+
+  // Setup shaders/etc.
+  if (SetupDraw(prim_type)) {
     return;
   }
 
   // Setup index buffer.
-  if (PrepareIndexBuffer()) {
+  if (PrepareIndexBuffer(
+      index_32bit, index_count, index_base, index_size, endianness)) {
+    return;
+  }
+
+  // Issue draw.
+  uint32_t start_index = 0; //rf.values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
+  uint32_t base_vertex = 0;
+  context_->DrawIndexed(index_count, start_index, base_vertex);
+}
+
+void D3D11GraphicsDriver::DrawIndexAuto(
+    XE_GPU_PRIMITIVE_TYPE prim_type,
+    uint32_t index_count) {
+  RegisterFile& rf = register_file_;
+
+  XELOGGPU("D3D11: draw indexed %d (%d indicies)",
+           prim_type, index_count);
+
+  // Setup shaders/etc.
+  if (SetupDraw(prim_type)) {
     return;
   }
 
@@ -309,7 +336,25 @@ int D3D11GraphicsDriver::BindShaders() {
         sizeof(state_.constant_buffers) / sizeof(ID3D11Buffer*),
         (ID3D11Buffer**)&state_.constant_buffers);
 
-    //context_->PSSetSamplers
+    // TODO(benvanik): set samplers for all inputs.
+    D3D11_SAMPLER_DESC sampler_desc;
+    xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
+    //sampler_desc.Filter = ?
+    sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.MipLODBias = 0;
+    sampler_desc.MaxAnisotropy = 1;
+    sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    //sampler_desc.BorderColor = ...;
+    sampler_desc.MinLOD = 0;
+    sampler_desc.MaxLOD = 0;
+    ID3D11SamplerState* sampler_state = NULL;
+    device_->CreateSamplerState(&sampler_desc, &sampler_state);
+    ID3D11SamplerState* sampler_states[] = { sampler_state };
+    context_->PSSetSamplers(0, XECOUNT(sampler_states), sampler_states);
+    sampler_state->Release();
+
     //context_->PSSetShaderResources
   } else {
     context_->PSSetShader(NULL, NULL, 0);
@@ -409,11 +454,20 @@ int D3D11GraphicsDriver::PrepareVertexFetcher(
 
 int D3D11GraphicsDriver::PrepareTextureFetcher(
     int fetch_slot, xe_gpu_texture_fetch_t* fetch) {
+  RegisterFile& rf = register_file_;
+
+  // maybe << 2?
+  uint32_t address = (fetch->address << 4) + address_translation_;
   return 0;
 }
 
-int D3D11GraphicsDriver::PrepareIndexBuffer() {
+int D3D11GraphicsDriver::PrepareIndexBuffer(
+    bool index_32bit, uint32_t index_count,
+    uint32_t index_base, uint32_t index_size, uint32_t endianness) {
   RegisterFile& rf = register_file_;
+
+  uint32_t address = (index_base << 2) + address_translation_;
+  //uint32_t size_dwords = fetch->size;
 
 /*
   ID3D11Buffer* buffer = 0;
@@ -446,5 +500,5 @@ int D3D11GraphicsDriver::PrepareIndexBuffer() {
 
   buffer->Release();*/
 
-  return 0;
+  return 1;
 }

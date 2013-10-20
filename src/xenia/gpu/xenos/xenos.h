@@ -98,12 +98,26 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t unk0;
-    uint32_t unk1;
-    uint32_t unk2;
-    uint32_t unk3;
-    uint32_t unk4;
-    uint32_t unk5;
+    uint32_t type               : 2;  // dword_0
+    uint32_t unk0               : 20;
+    uint32_t pitch              : 9;
+    uint32_t tiled              : 1;
+    uint32_t format             : 6;  // dword_1
+    uint32_t endianness         : 2;
+    uint32_t unk1               : 4;
+    uint32_t address            : 20;
+    union {                           // dword_2
+      struct {
+        uint32_t width          : 13;
+        uint32_t height         : 13;
+        uint32_t unksize2d      : 6;
+      } size_2d;
+    };
+    uint32_t unk3;                    // dword_3
+    uint32_t unk4;                    // dword_4
+    uint32_t unk5               : 9;  // dword_5
+    uint32_t dimension          : 2;
+    uint32_t unk5b              : 21;
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;

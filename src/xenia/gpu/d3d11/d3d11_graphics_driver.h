@@ -51,6 +51,7 @@ public:
       uint32_t index_count);
 
 private:
+  int SetupDraw(xenos::XE_GPU_PRIMITIVE_TYPE prim_type);
   int UpdateState();
   int UpdateConstantBuffers();
   int BindShaders();
@@ -59,7 +60,9 @@ private:
       int fetch_slot, xenos::xe_gpu_vertex_fetch_t* fetch);
   int PrepareTextureFetcher(
       int fetch_slot, xenos::xe_gpu_texture_fetch_t* fetch);
-  int PrepareIndexBuffer();
+  int PrepareIndexBuffer(
+      bool index_32bit, uint32_t index_count,
+      uint32_t index_base, uint32_t index_size, uint32_t endianness);
 
 private:
   ID3D11Device*         device_;

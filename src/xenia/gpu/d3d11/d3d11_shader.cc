@@ -605,10 +605,15 @@ void AppendDestReg(
       break;
     }
   }
+  // TODO(benvanik): masking!
   if (mask != 0xf) {
-    ctx.output->append(".");
+    // ctx.output->append(".");
     for (int i = 0; i < 4; i++) {
-      ctx.output->append("%c", (mask & 0x1) ? chan_names[i] : '_');
+      // TODO(benvanik): mask out values? mix in old value as temp?
+      // ctx.output->append("%c", (mask & 0x1) ? chan_names[i] : 'w');
+      if (!(mask & 0x1)) {
+        XELOGW("D3D11 shader compiler skipping dest write mask!");
+      }
       mask >>= 1;
     }
   }
@@ -1177,7 +1182,117 @@ int TranslateTextureFetch(
   xe_gpu_translate_ctx_t& ctx, const instr_fetch_tex_t* tex, int sync) {
   Output* output = ctx.output;
 
-  return 1;
+  // Disassemble.
+  static const char *filter[] = {
+    "POINT",    // TEX_FILTER_POINT
+    "LINEAR",   // TEX_FILTER_LINEAR
+    "BASEMAP",  // TEX_FILTER_BASEMAP
+  };
+  static const char *aniso_filter[] = {
+    "DISABLED", // ANISO_FILTER_DISABLED
+    "MAX_1_1",  // ANISO_FILTER_MAX_1_1
+    "MAX_2_1",  // ANISO_FILTER_MAX_2_1
+    "MAX_4_1",  // ANISO_FILTER_MAX_4_1
+    "MAX_8_1",  // ANISO_FILTER_MAX_8_1
+    "MAX_16_1", // ANISO_FILTER_MAX_16_1
+  };
+  static const char *arbitrary_filter[] = {
+    "2x4_SYM",  // ARBITRARY_FILTER_2X4_SYM
+    "2x4_ASYM", // ARBITRARY_FILTER_2X4_ASYM
+    "4x2_SYM",  // ARBITRARY_FILTER_4X2_SYM
+    "4x2_ASYM", // ARBITRARY_FILTER_4X2_ASYM
+    "4x4_SYM",  // ARBITRARY_FILTER_4X4_SYM
+    "4x4_ASYM", // ARBITRARY_FILTER_4X4_ASYM
+  };
+  static const char *sample_loc[] = {
+    "CENTROID", // SAMPLE_CENTROID
+    "CENTER",   // SAMPLE_CENTER
+  };
+  uint32_t src_swiz = tex->src_swiz;
+  output->append("  //   %sFETCH:\t", sync ? "(S)" : "   ");
+  if (tex->pred_select) {
+    output->append(tex->pred_condition ? "EQ" : "NE");
+  }
+  print_fetch_dst(output, tex->dst_reg, tex->dst_swiz);
+  output->append(" = R%u.", tex->src_reg);
+  for (int i = 0; i < 3; i++) {
+    output->append("%c", chan_names[src_swiz & 0x3]);
+    src_swiz >>= 2;
+  }
+  output->append(" CONST(%u)", tex->const_idx);
+  if (tex->fetch_valid_only) {
+    output->append(" VALID_ONLY");
+  }
+  if (tex->tx_coord_denorm) {
+    output->append(" DENORM");
+  }
+  if (tex->mag_filter != TEX_FILTER_USE_FETCH_CONST) {
+    output->append(" MAG(%s)", filter[tex->mag_filter]);
+  }
+  if (tex->min_filter != TEX_FILTER_USE_FETCH_CONST) {
+    output->append(" MIN(%s)", filter[tex->min_filter]);
+  }
+  if (tex->mip_filter != TEX_FILTER_USE_FETCH_CONST) {
+    output->append(" MIP(%s)", filter[tex->mip_filter]);
+  }
+  if (tex->aniso_filter != ANISO_FILTER_USE_FETCH_CONST) {
+    output->append(" ANISO(%s)", aniso_filter[tex->aniso_filter]);
+  }
+  if (tex->arbitrary_filter != ARBITRARY_FILTER_USE_FETCH_CONST) {
+    output->append(" ARBITRARY(%s)", arbitrary_filter[tex->arbitrary_filter]);
+  }
+  if (tex->vol_mag_filter != TEX_FILTER_USE_FETCH_CONST) {
+    output->append(" VOL_MAG(%s)", filter[tex->vol_mag_filter]);
+  }
+  if (tex->vol_min_filter != TEX_FILTER_USE_FETCH_CONST) {
+    output->append(" VOL_MIN(%s)", filter[tex->vol_min_filter]);
+  }
+  if (!tex->use_comp_lod) {
+    output->append(" LOD(%u)", tex->use_comp_lod);
+    output->append(" LOD_BIAS(%u)", tex->lod_bias);
+  }
+  if (tex->use_reg_lod) {
+    output->append(" REG_LOD(%u)", tex->use_reg_lod);
+  }
+  if (tex->use_reg_gradients) {
+    output->append(" USE_REG_GRADIENTS");
+  }
+  output->append(" LOCATION(%s)", sample_loc[tex->sample_location]);
+  if (tex->offset_x || tex->offset_y || tex->offset_z) {
+    output->append(" OFFSET(%u,%u,%u)", tex->offset_x, tex->offset_y, tex->offset_z);
+  }
+  output->append("\n");
+
+  // Translate.
+  src_swiz = tex->src_swiz;
+  output->append("  ");
+  output->append("r%u.xyzw", tex->dst_reg);
+  output->append(" = ");
+  uint32_t fetch_slot = tex->const_idx * 3;
+  //output->append("i.vf%u_%d.", fetch_slot, vtx->offset);
+  // Texture2D some_texture;
+  // SamplerState some_sampler;
+  // some_texture.Sample(some_sampler, coords)
+  output->append("float4(1.0, 0.0, 0.0, 1.0).");
+  // Pass one over dest does xyzw and fakes the special values.
+  // TODO(benvanik): detect and set as rN = float4(samp.xyz, 1.0); / etc
+  uint32_t dst_swiz = tex->dst_swiz;
+  for (int i = 0; i < 4; i++) {
+    output->append("%c", chan_names[dst_swiz & 0x3]);
+    dst_swiz >>= 3;
+  }
+  output->append(";\n");
+  // Do another pass to set constant values.
+  dst_swiz = tex->dst_swiz;
+  for (int i = 0; i < 4; i++) {
+    if ((dst_swiz & 0x7) == 4) {
+      output->append("  r%u.%c = 0.0;\n", tex->dst_reg, chan_names[i]);
+    } else if ((dst_swiz & 0x7) == 5) {
+      output->append("  r%u.%c = 1.0;\n", tex->dst_reg, chan_names[i]);
+    }
+    dst_swiz >>= 3;
+  }
+  return 0;
 }
 
 struct {
