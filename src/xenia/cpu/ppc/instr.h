@@ -98,6 +98,8 @@ static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
   //   mask[mstart:63] = ones
   //   mask[0:mstop] = ones
   //   mask[all other bits] = zeros
+  mstart &= 0x3F;
+  mstop &= 0x3F;
   uint64_t value =
       (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
   return mstart <= mstop ? value : ~value;

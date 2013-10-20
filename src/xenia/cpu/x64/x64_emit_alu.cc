@@ -974,7 +974,7 @@ XEEMITTER(andisx,       0x74000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.clear_constant_gpr_value(i.D.RA);
   }
 
-  return 1;
+  return 0;
 }
 
 XEEMITTER(cntlzdx,      0x7C000074, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1351,8 +1351,41 @@ XEEMITTER(rld,          0x78000000, MDS)(X64Emitter& e, X86Compiler& c, InstrDat
     return 1;
   } else if (i.MD.idx == 3) {
     // XEEMITTER(rldimix,      0x7800000C, MD )
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
+    // n <- sh[5] || sh[0:4]
+    // r <- ROTL64((RS), n)
+    // b <- me[5] || me[0:4]
+    // m <- MASK(b, ¬n)
+    // RA <- (r & m) | ((RA)&¬m)
+
+    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+    uint64_t m = XEMASK(mb, ~sh);
+
+    GpVar v(c.newGpVar());
+    c.mov(v, e.gpr_value(i.MD.RT));
+    if (sh) {
+      c.rol(v, imm(sh));
+    }
+    if (m != 0xFFFFFFFFFFFFFFFF) {
+      GpVar mask(c.newGpVar());
+      c.mov(mask, e.get_uint64(m));
+      c.and_(v, mask);
+      GpVar ra(c.newGpVar());
+      c.mov(ra, e.gpr_value(i.MD.RA));
+      c.not_(mask);
+      c.and_(ra, mask);
+      c.or_(v, ra);
+    }
+    e.update_gpr_value(i.MD.RA, v);
+
+    if (i.MD.Rc) {
+      // With cr0 update.
+      e.update_cr_with_cond(0, v);
+    }
+
+    e.clear_constant_gpr_value(i.MD.RA);
+
+    return 0;
   } else {
     XEINSTRNOTIMPLEMENTED();
     return 1;
