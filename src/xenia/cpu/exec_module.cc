@@ -56,7 +56,7 @@ int ExecModule::PrepareXexModule(xe_xex2_ref xex) {
       new sdb::XexSymbolDatabase(memory_, export_resolver_.get(),
                                  sym_table_, xex));
 
-  code_addr_low_ = 0;
+  code_addr_low_ = UINT_MAX;
   code_addr_high_ = 0;
   const xe_xex2_header_t* header = xe_xex2_get_header(xex);
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
