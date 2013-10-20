@@ -607,6 +607,14 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
         }
         break;
 
+      // Ignored packets - useful if breaking on the default handler below.
+      case 0x50: // 0xC0015000 usually 2 words, 0xFFFFFFFF / 0x00000000
+        XELOGGPU("[%.8X] Packet(%.8X): unknown!",
+                 packet_ptr, packet);
+        LOG_DATA(count);
+        ADVANCE_PTR(count);
+        break;
+
       default:
         XELOGGPU("[%.8X] Packet(%.8X): unknown!",
                  packet_ptr, packet);
