@@ -1,5 +1,73 @@
 #include <idc.idc>
 
+static is_bad_name(s)
+{
+  auto p;
+
+  if (s == "")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 4);
+  if (p == "unk_" ||
+      p == "loc_" ||
+      p == "sub_" ||
+      p == "off_" ||
+      p == "flt_" ||
+      p == "dbl_")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 5);
+  if (p == "byte_" ||
+      p == "word_")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 6);
+  if (p == "dword_" ||
+      p == "qword_")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 7);
+  if (p == "locret_" ||
+      p == "__imp__")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 8);
+  if (p == "xam_xex_")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 9);
+  if (p == "xboxkrnl_")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 10);
+  if (p == "j_xam_xex_")
+  {
+    return 1;
+  }
+
+  p = substr(s, 0, 15);
+  if (p == "j_xboxkrnl_exe_")
+  {
+    return 1;
+  }
+
+  return 0;
+}
+
 static main()
 {
   auto just_code;
@@ -56,25 +124,17 @@ static main()
   {
     seg_base++;
 
-    item_start = NextHead(seg_start, seg_end);
-    while (item_start != BADADDR)
+    item_start = seg_start;
+    while (item_start < seg_end)
     {
-      item_end = ItemEnd(item_start);
+      item_end = item_start + 4;
       if (item_end == BADADDR)
       {
         break;
       }
 
       item_name = GetTrueNameEx(BADADDR, item_start);
-      if (item_name != "" &&
-          substr(item_name, 0, 4) != "loc_" &&
-          substr(item_name, 0, 4) != "sub_" &&
-          substr(item_name, 0, 4) != "off_" &&
-          substr(item_name, 0, 4) != "flt_" &&
-          substr(item_name, 0, 5) != "byte_" &&
-          substr(item_name, 0, 5) != "word_" &&
-          substr(item_name, 0, 6) != "dword_" &&
-          substr(item_name, 0, 6) != "qword_")
+      if (is_bad_name(item_name) == 0)
       {
         item_flags = GetFlags(item_start);
         if (just_code == 0 || (item_flags & FF_CODE) == FF_CODE)
@@ -82,7 +142,7 @@ static main()
           fprintf(handle, " %04x:%08x    %-29s %08x       %s\n", seg_base, item_start - seg_start, item_name, item_start, "<???>");
         }
       }
-      item_start = NextHead(item_end, seg_end);
+      item_start = item_start + 4;
     }
 
     seg_start = NextSeg(seg_start);
