@@ -167,7 +167,8 @@ SHIM_CALL NtReadFile_shim(
     // TODO(benvanik): async path.
     if (true) {
       // Synchronous request.
-      if (byte_offset == 0xFFFFFFFFfffffffe) {
+      if (!byte_offset_ptr ||
+          byte_offset == 0xFFFFFFFFfffffffe) {
         // FILE_USE_FILE_POINTER_POSITION
         byte_offset = -1;
       }
