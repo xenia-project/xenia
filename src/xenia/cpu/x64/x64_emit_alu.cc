@@ -1479,8 +1479,30 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(rlwnmx,       0x5C000000, M  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // n <- (RB)[59:63]
+  // r <- ROTL32((RS)[32:63], n)
+  // m <- MASK(MB+32, ME+32)
+  // RA <- r & m
+
+  GpVar v(c.newGpVar());
+  c.mov(v.r32(), e.gpr_value(i.M.RT).r32()); // truncate
+
+  GpVar sh(c.newGpVar());
+  c.mov(sh, e.gpr_value(i.M.SH));
+  c.and_(sh, imm(0x1F));
+  c.rol(v.r32(), sh);
+
+  c.and_(v, imm(XEMASK(i.M.MB + 32, i.M.ME + 32)));
+  e.update_gpr_value(i.M.RA, v);
+
+  if (i.M.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.M.RA);
+
+  return 0;
 }
 
 
