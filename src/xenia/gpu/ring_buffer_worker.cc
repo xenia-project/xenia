@@ -36,7 +36,8 @@ RingBufferWorker::RingBufferWorker(
 
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
-  counter_base_ = perf_counter.QuadPart;
+  time_base_ = perf_counter.QuadPart;
+  counter_ = 0;
 }
 
 RingBufferWorker::~RingBufferWorker() {
@@ -44,10 +45,10 @@ RingBufferWorker::~RingBufferWorker() {
   CloseHandle(write_ptr_index_event_);
 }
 
-uint64_t RingBufferWorker::GetCounter() {
+uint64_t RingBufferWorker::QueryTime() {
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
-  return perf_counter.QuadPart - counter_base_;
+  return perf_counter.QuadPart - time_base_;
 }
 
 void RingBufferWorker::Initialize(GraphicsDriver* driver,
@@ -476,9 +477,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x1F);
           uint32_t data_value;
           if ((initiator >> 31) & 0x1) {
-            // Write counter (GPU clock counter?).
-            // TODO(benvanik): 64-bit write?
-            data_value = (uint32_t)GetCounter();
+            // Write counter (GPU vblank counter?).
+            data_value = counter_;
           } else {
             // Write value.
             data_value = value;

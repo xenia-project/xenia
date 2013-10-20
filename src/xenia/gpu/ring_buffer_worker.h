@@ -28,7 +28,9 @@ public:
 
   xe_memory_ref memory();
 
-  uint64_t GetCounter();
+  uint64_t QueryTime();
+  uint32_t counter() const { return counter_; }
+  void increment_counter() { counter_++; }
 
   void Initialize(GraphicsDriver* driver,
                   uint32_t ptr, uint32_t page_count);
@@ -56,7 +58,8 @@ protected:
   GraphicsSystem*   graphics_system_;
   GraphicsDriver*   driver_;
 
-  uint64_t          counter_base_;
+  uint64_t          time_base_;
+  uint32_t          counter_;
 
   uint32_t          primary_buffer_ptr_;
   uint32_t          primary_buffer_size_;

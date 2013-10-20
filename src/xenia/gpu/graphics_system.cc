@@ -160,6 +160,10 @@ void GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
   regs->values[r].u32 = (uint32_t)value;
 }
 
+void GraphicsSystem::MarkVblank() {
+  worker_->increment_counter();
+}
+
 void GraphicsSystem::DispatchInterruptCallback(
     uint32_t source, uint32_t cpu) {
   // Pick a CPU, if needed. We're going to guess 2. Because.

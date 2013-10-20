@@ -22,6 +22,7 @@ using namespace xe::gpu::d3d11;
 namespace {
 
 void __stdcall D3D11GraphicsSystemVsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN) {
+  gs->MarkVblank();
   gs->DispatchInterruptCallback(0);
 }
 

@@ -21,6 +21,7 @@ using namespace xe::gpu::nop;
 namespace {
 
 void __stdcall NopGraphicsSystemVsyncCallback(NopGraphicsSystem* gs, BOOLEAN) {
+  gs->MarkVblank();
   gs->DispatchInterruptCallback(0);
 }
 
