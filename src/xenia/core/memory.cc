@@ -9,6 +9,7 @@
 
 #include <xenia/core/memory.h>
 
+#include <gflags/gflags.h>
 #include <xenia/core/mutex.h>
 
 #if !XE_PLATFORM(WIN32)
@@ -24,7 +25,14 @@
 #define DEFAULT_GRANULARITY     64 * 1024
 #define DEFAULT_TRIM_THRESHOLD  MAX_SIZE_T
 #define MALLOC_ALIGNMENT        32
+#if XE_DEBUG
+#define FOOTERS                 1
+#define MALLOC_INSPECT_ALL      1
+#endif  // XE_DEBUG
 #include <third_party/dlmalloc/malloc.c.h>
+
+DEFINE_bool(log_heap, false,
+            "Log heap structure on alloc/free.");
 
 
 /**
@@ -197,6 +205,30 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
   return 0;
 }
 
+void xe_memory_heap_dump_handler(
+    void* start, void* end, size_t used_bytes, void* context) {
+  xe_memory_ref memory = (xe_memory_ref)context;
+  uint32_t guest_start = (uint32_t)((uintptr_t)start - (uintptr_t)memory->ptr);
+  uint32_t guest_end = (uint32_t)((uintptr_t)end - (uintptr_t)memory->ptr);
+  XELOGI(" - %.8X-%.8X (%9db) %.16llX-%.16llX - %9db used",
+         guest_start, guest_end, (guest_end - guest_start),
+         (uint64_t)start, (uint64_t)end,
+         used_bytes);
+}
+void xe_memory_heap_dump(xe_memory_ref memory) {
+  XELOGI("xe_memory_heap_dump:");
+  struct mallinfo info = mspace_mallinfo(memory->heap);
+  XELOGI("    arena: %lld", info.arena);
+  XELOGI("  ordblks: %lld", info.ordblks);
+  XELOGI("    hblks: %lld", info.hblks);
+  XELOGI("   hblkhd: %lld", info.hblkhd);
+  XELOGI("  usmblks: %lld", info.usmblks);
+  XELOGI(" uordblks: %lld", info.uordblks);
+  XELOGI(" fordblks: %lld", info.fordblks);
+  XELOGI(" keepcost: %lld", info.keepcost);
+  mspace_inspect_all(memory->heap, xe_memory_heap_dump_handler, memory);
+}
+
 uint32_t xe_memory_heap_alloc(
     xe_memory_ref memory, uint32_t base_address, uint32_t size,
     uint32_t flags, uint32_t alignment) {
@@ -208,6 +240,9 @@ uint32_t xe_memory_heap_alloc(
     // Normal allocation from the managed heap.
     XEIGNORE(xe_mutex_lock(memory->heap_mutex));
     uint8_t* p = (uint8_t*)mspace_memalign(memory->heap, alignment, size);
+    if (FLAGS_log_heap) {
+      xe_memory_heap_dump(memory);
+    }
     XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
     if (!p) {
       return 0;
@@ -251,6 +286,9 @@ int xe_memory_heap_free(
 
     XEIGNORE(xe_mutex_lock(memory->heap_mutex));
     mspace_free(memory->heap, p);
+    if (FLAGS_log_heap) {
+      xe_memory_heap_dump(memory);
+    }
     XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
     return (uint32_t)real_size;
   } else {

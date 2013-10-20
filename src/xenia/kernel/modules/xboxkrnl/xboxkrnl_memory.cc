@@ -33,7 +33,6 @@ X_STATUS xeNtAllocateVirtualMemory(
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
-  // _In_     ULONG_PTR ZeroBits,
   // _Inout_  PSIZE_T RegionSize,
   // _In_     ULONG AllocationType,
   // _In_     ULONG Protect

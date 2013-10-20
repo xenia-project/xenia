@@ -50,6 +50,8 @@ enum {
   XE_MEMORY_ACCESS_WRITE    = (1 << 2)
 };
 
+void xe_memory_heap_dump(xe_memory_ref memory);
+
 uint32_t xe_memory_heap_alloc(xe_memory_ref memory, uint32_t base_address,
                               uint32_t size, uint32_t flags,
                               uint32_t alignment = 0x20);
