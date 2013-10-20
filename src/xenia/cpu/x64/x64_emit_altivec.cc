@@ -898,13 +898,20 @@ XEEMITTER(vmaddcfp128,    VX128(5, 272),    VX128  )(X64Emitter& e, X86Compiler&
   return 0;
 }
 
+int InstrEmit_vmaxfp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- max((VA), (VB))
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(va));
+  c.maxps(v, e.vr_value(vb));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
 XEEMITTER(vmaxfp,         0x1000040A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vmaxfp_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vmaxfp128,      VX128(6, 640),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vmaxfp_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vmaxsb,         0x10000102, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -947,13 +954,20 @@ XEEMITTER(vmhraddshs,     0x10000021, VXA )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
+int InstrEmit_vminfp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- min((VA), (VB))
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(va));
+  c.minps(v, e.vr_value(vb));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
+}
 XEEMITTER(vminfp,         0x1000044A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vminfp_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vminfp128,      VX128(6, 704),    VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vminfp_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vminsb,         0x10000302, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
