@@ -91,7 +91,11 @@ XEDISASMR(ldux,         0x7C00006A, X  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(ldx,          0x7C00002A, X  )(InstrData& i, InstrDisasm& d) {
   d.Init("ldx", "Load Doubleword Indexed", 0);
   d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
   d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
@@ -308,11 +312,7 @@ XEDISASMR(stdu,         0xF8000001, DS )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(stdux,        0x7C00016A, X  )(InstrData& i, InstrDisasm& d) {
   d.Init("stdux", "Store Doubleword with Update Indexed", 0);
   d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
-    if (i.DS.RA) {
-    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
-  } else {
-    d.AddUImmOperand(0, 1);
-  }
+  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
   d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }
@@ -320,7 +320,11 @@ XEDISASMR(stdux,        0x7C00016A, X  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(stdx,         0x7C00012A, X  )(InstrData& i, InstrDisasm& d) {
   d.Init("stdx", "Store Doubleword Indexed", 0);
   d.AddRegOperand(InstrRegister::kGPR, i.X.RT, InstrRegister::kRead);
-  d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kReadWrite);
+  if (i.X.RA) {
+    d.AddRegOperand(InstrRegister::kGPR, i.X.RA, InstrRegister::kRead);
+  } else {
+    d.AddUImmOperand(0, 1);
+  }
   d.AddRegOperand(InstrRegister::kGPR, i.X.RB, InstrRegister::kRead);
   return d.Finish();
 }

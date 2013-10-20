@@ -690,6 +690,23 @@ XEEMITTER(stdu,         0xF8000001, DS )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(stdux,        0x7C00016A, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  // EA <- (RA) + (RB)
+  // MEM(EA, 8) <- (RS)
+  // RA <- EA
+
+  GpVar ea(c.newGpVar());
+  c.mov(ea, e.gpr_value(i.X.RA));
+  c.add(ea, e.gpr_value(i.X.RB));
+  GpVar v = e.gpr_value(i.X.RT);
+  e.WriteMemory(i.address, ea, 8, v);
+  e.update_gpr_value(i.X.RA, ea);
+
+  e.clear_constant_gpr_value(i.X.RA);
+
+  return 0;
+}
+
+XEEMITTER(stdx, 0x7C00012A, X)(X64Emitter& e, X86Compiler& c, InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -704,23 +721,6 @@ XEEMITTER(stdux,        0x7C00016A, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   }
   GpVar v = e.gpr_value(i.X.RT);
   e.WriteMemory(i.address, ea, 8, v);
-
-  return 0;
-}
-
-XEEMITTER(stdx,         0x7C00012A, X  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  // EA <- (RA) + (RB)
-  // MEM(EA, 8) <- (RS)
-  // RA <- EA
-
-  GpVar ea(c.newGpVar());
-  c.mov(ea, e.gpr_value(i.X.RA));
-  c.add(ea, e.gpr_value(i.X.RB));
-  GpVar v = e.gpr_value(i.X.RT);
-  e.WriteMemory(i.address, ea, 8, v);
-  e.update_gpr_value(i.X.RA, ea);
-
-  e.clear_constant_gpr_value(i.X.RA);
 
   return 0;
 }
