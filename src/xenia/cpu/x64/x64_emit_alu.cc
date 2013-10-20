@@ -51,8 +51,32 @@ XEEMITTER(addx,         0x7C000214, XO )(X64Emitter& e, X86Compiler& c, InstrDat
 }
 
 XEEMITTER(addcx,        0x7C000014, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RD <- (RA) + (RB)
+  // CA <- carry bit
+
+  GpVar v(c.newGpVar());
+  c.mov(v, e.gpr_value(i.XO.RA));
+  c.add(v, e.gpr_value(i.XO.RB));
+  GpVar cc(c.newGpVar());
+  c.setc(cc.r8());
+
+  if (i.XO.OE) {
+    // With XER update.
+    XEASSERTALWAYS();
+    //e.update_xer_with_overflow(EFLAGS OF?);
+  }
+
+  e.update_gpr_value(i.XO.RT, v);
+  e.update_xer_with_carry(cc);
+
+  if (i.XO.Rc) {
+    // With cr0 update.
+    e.update_cr_with_cond(0, v);
+  }
+
+  e.clear_constant_gpr_value(i.XO.RT);
+
+  return 0;
 }
 
 XEEMITTER(addex,        0x7C000114, XO )(X64Emitter& e, X86Compiler& c, InstrData& i) {
