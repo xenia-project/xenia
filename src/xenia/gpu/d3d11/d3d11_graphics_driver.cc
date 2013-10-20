@@ -101,6 +101,13 @@ void D3D11GraphicsDriver::SetShader(
   }
 }
 
+void D3D11GraphicsDriver::DrawIndexBuffer(
+    XE_GPU_PRIMITIVE_TYPE prim_type,
+    bool index_32bit, uint32_t index_count,
+    uint32_t index_base, uint32_t index_size, uint32_t endianness) {
+  XELOGGPU("D3D11: draw index buffer");
+}
+
 void D3D11GraphicsDriver::DrawIndexAuto(
     XE_GPU_PRIMITIVE_TYPE prim_type,
     uint32_t index_count) {

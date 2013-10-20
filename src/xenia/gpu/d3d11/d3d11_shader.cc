@@ -1173,6 +1173,13 @@ int TranslateVertexFetch(
   return 0;
 }
 
+int TranslateTextureFetch(
+  xe_gpu_translate_ctx_t& ctx, const instr_fetch_tex_t* tex, int sync) {
+  Output* output = ctx.output;
+
+  return 1;
+}
+
 struct {
   const char *name;
 } cf_instructions[] = {
@@ -1237,6 +1244,10 @@ int D3D11Shader::TranslateExec(xe_gpu_translate_ctx_t& ctx, const instr_cf_exec_
         }
         break;
       case TEX_FETCH:
+        if (TranslateTextureFetch(ctx, &fetch->tex, sync)) {
+          return 1;
+        }
+        break;
       case TEX_GET_BORDER_COLOR_FRAC:
       case TEX_GET_COMP_TEX_LOD:
       case TEX_GET_GRADIENTS:

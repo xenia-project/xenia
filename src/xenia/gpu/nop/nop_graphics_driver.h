@@ -39,6 +39,10 @@ public:
       uint32_t address,
       uint32_t start,
       uint32_t length);
+  virtual void DrawIndexBuffer(
+      xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
+      bool index_32bit, uint32_t index_count,
+      uint32_t index_base, uint32_t index_size, uint32_t endianness);
   virtual void DrawIndexAuto(
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);

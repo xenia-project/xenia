@@ -502,10 +502,23 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t index_count = d1 >> 16;
           uint32_t prim_type = d1 & 0x3F;
           uint32_t src_sel = (d1 >> 6) & 0x3;
-          XEASSERT(src_sel == 0x2); // 'SrcSel=AutoIndex'
-          driver_->DrawIndexAuto(
-              (XE_GPU_PRIMITIVE_TYPE)prim_type,
-              index_count);
+          if (src_sel == 0x0) {
+            uint32_t index_base = READ_AND_ADVANCE_PTR();
+            uint32_t index_size = READ_AND_ADVANCE_PTR();
+            uint32_t endianness = index_size >> 29;
+            index_size &= 0x00FFFFFF;
+            bool index_32bit = (d1 >> 11) & 0x1;
+            driver_->DrawIndexBuffer(
+                (XE_GPU_PRIMITIVE_TYPE)prim_type,
+                index_32bit, index_count, index_base, index_size, endianness);
+          } else if (src_sel == 0x2) {
+            driver_->DrawIndexAuto(
+                (XE_GPU_PRIMITIVE_TYPE)prim_type,
+                index_count);
+          } else {
+            // Unknown source select.
+            XEASSERTALWAYS();
+          }
         }
         break;
       case PM4_DRAW_INDX_2:

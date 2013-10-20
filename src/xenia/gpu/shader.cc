@@ -112,6 +112,8 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
         GatherVertexFetch(&fetch->vtx);
         break;
       case TEX_FETCH:
+        GatherTextureFetch(&fetch->tex);
+        break;
       case TEX_GET_BORDER_COLOR_FRAC:
       case TEX_GET_COMP_TEX_LOD:
       case TEX_GET_GRADIENTS:
@@ -152,4 +154,10 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
 
 const instr_fetch_vtx_t* Shader::GetFetchVtxBySlot(uint32_t fetch_slot) {
   return &fetch_vtx_slots_[fetch_slot];
+}
+
+void Shader::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {
+  fetch_texs_.push_back(*tex);
+
+  // slots
 }

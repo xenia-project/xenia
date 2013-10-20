@@ -48,6 +48,7 @@ private:
   void GatherAlloc(const xenos::instr_cf_alloc_t* cf);
   void GatherExec(const xenos::instr_cf_exec_t* cf);
   void GatherVertexFetch(const xenos::instr_fetch_vtx_t* vtx);
+  void GatherTextureFetch(const xenos::instr_fetch_tex_t* tex);
 
 protected:
   xenos::XE_GPU_SHADER_TYPE type_;
@@ -63,6 +64,7 @@ protected:
   std::vector<xenos::instr_cf_alloc_t>  allocs_;
   std::vector<xenos::instr_fetch_vtx_t> fetch_vtxs_;
   xenos::instr_fetch_vtx_t fetch_vtx_slots_[96];
+  std::vector<xenos::instr_fetch_tex_t> fetch_texs_;
 };
 
 
