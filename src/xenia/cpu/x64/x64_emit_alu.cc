@@ -1540,7 +1540,7 @@ XEEMITTER(srawx,        0x7C000630, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   GpVar ca(c.newGpVar());
   Label skip(c.newLabel());
   Label full(c.newLabel());
-  c.test(sh, imm(0));
+  c.test(sh, sh);
   c.jnz(full);
   {
     // No shift, just a fancy sign extend and CA clearer.
