@@ -1131,6 +1131,7 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
 
     // Call target.
     // void fn(ppc_state*, uint64_t)
+    c.mov(arg2, imm(cia + 4));
     call = c.call(target_ptr);
     call->setComment("Indirection branch");
     call->setPrototype(kX86FuncConvDefault,

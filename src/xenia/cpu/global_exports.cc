@@ -36,7 +36,6 @@ void _cdecl XeTrap(
 void* _cdecl XeIndirectBranch(
     xe_ppc_state_t* state, uint64_t target, uint64_t br_ia) {
   // TODO(benvanik): track this statistic - this path is very slow!
-  XEASSERT(target != 0xBEBEBEBE);
   Processor* processor = state->processor;
   void* target_ptr = processor->GetFunctionPointer((uint32_t)target);
   // target_ptr will be null when the given target is not a function.
