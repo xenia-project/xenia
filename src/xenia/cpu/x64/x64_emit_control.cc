@@ -56,9 +56,9 @@ int XeEmitIndirectBranchTo(
     // TODO(benvanik): 'lr_mismatch' debug info.
     // Note: we need to test on *only* the 32-bit target, as the target ptr may
     //     have garbage in the upper 32 bits.
-    c.test(target.r32(), c.getGpArg(1).r32());
+    c.cmp(target.r32(), c.getGpArg(1).r32());
     // TODO(benvanik): evaluate hint here.
-    c.jnz(e.GetReturnLabel(), kCondHintLikely);
+    c.je(e.GetReturnLabel(), kCondHintLikely);
   }
 
   // Defer to the generator, which will do fancy things.
