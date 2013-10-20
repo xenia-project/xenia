@@ -179,7 +179,7 @@ void D3D11GraphicsDriver::DrawIndexBuffer(
   }
 
   // Issue draw.
-  uint32_t start_index = 0; //rf.values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
+  uint32_t start_index = rf.values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t base_vertex = 0;
   context_->DrawIndexed(index_count, start_index, base_vertex);
 }
@@ -466,39 +466,45 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
     uint32_t index_base, uint32_t index_size, uint32_t endianness) {
   RegisterFile& rf = register_file_;
 
-  uint32_t address = (index_base << 2) + address_translation_;
-  //uint32_t size_dwords = fetch->size;
+  uint32_t address = index_base + address_translation_;
 
-/*
+  // All that's done so far:
+  XEASSERT(endianness == 0x2);
+
   ID3D11Buffer* buffer = 0;
   D3D11_BUFFER_DESC buffer_desc;
   xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
-  buffer_desc.ByteWidth       = size_dwords * 4;
+  buffer_desc.ByteWidth       = index_size;
   buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
   buffer_desc.BindFlags       = D3D11_BIND_INDEX_BUFFER;
   buffer_desc.CPUAccessFlags  = D3D11_CPU_ACCESS_WRITE;
   device_->CreateBuffer(&buffer_desc, NULL, &buffer);
   D3D11_MAPPED_SUBRESOURCE res;
   context_->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
-  uint32_t* src = (uint32_t*)xe_memory_addr(memory_, address);
-  uint32_t* dest = (uint32_t*)res.pData;
-  for (uint32_t n = 0; n < size_dwords; n++) {
-    union {
-      uint32_t i;
-      float f;
-    } d = {XESWAP32(src[n])};
-    XELOGGPU("v%.3d %0.8X %g", n, d.i, d.f);
-
-    dest[n] = XESWAP32(src[n]);
+  if (index_32bit) {
+    uint32_t* src = (uint32_t*)xe_memory_addr(memory_, address);
+    uint32_t* dest = (uint32_t*)res.pData;
+    for (uint32_t n = 0; n < index_count; n++) {
+      uint32_t d = { XESWAP32(src[n]) };
+      XELOGGPU("i%.4d %0.8X", n, d);
+      dest[n] = d;
+    }
+  } else {
+    uint16_t* src = (uint16_t*)xe_memory_addr(memory_, address);
+    uint16_t* dest = (uint16_t*)res.pData;
+    for (uint32_t n = 0; n < index_count; n++) {
+      uint16_t d = XESWAP16(src[n]);
+      XELOGGPU("i%.4d, %.4X", n, d);
+      dest[n] = d;
+    }
   }
   context_->Unmap(buffer, 0);
 
   DXGI_FORMAT format;
-  format = DXGI_FORMAT_R16_UINT;
-  format = DXGI_FORMAT_R32_UINT;
+  format = index_32bit ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
   context_->IASetIndexBuffer(buffer, format, 0);
 
-  buffer->Release();*/
+  buffer->Release();
 
-  return 1;
+  return 0;
 }

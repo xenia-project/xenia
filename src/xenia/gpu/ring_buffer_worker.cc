@@ -508,6 +508,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             uint32_t endianness = index_size >> 29;
             index_size &= 0x00FFFFFF;
             bool index_32bit = (d1 >> 11) & 0x1;
+            index_size *= index_32bit ? 4 : 2;
             driver_->DrawIndexBuffer(
                 (XE_GPU_PRIMITIVE_TYPE)prim_type,
                 index_32bit, index_count, index_base, index_size, endianness);
