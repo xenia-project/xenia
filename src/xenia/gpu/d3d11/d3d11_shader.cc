@@ -425,7 +425,7 @@ int D3D11PixelShader::Prepare(xe_gpu_program_cntl_t* program_cntl,
       NULL,
       &handle_);
   if (FAILED(hr)) {
-    XELOGE("D3D11: failed to create vertex shader");
+    XELOGE("D3D11: failed to create pixel shader");
     xe_free(byte_code);
     return 1;
   }

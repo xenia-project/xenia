@@ -305,7 +305,7 @@ int xe_memory_heap_free(
   if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
     // Heap allocated address.
     size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
-    p += heap_guard_size;
+    p -= heap_guard_size;
     size_t real_size = mspace_usable_size(p);
     real_size -= heap_guard_size * 2;
     if (!real_size) {
@@ -313,6 +313,11 @@ int xe_memory_heap_free(
     }
 
     XEIGNORE(xe_mutex_lock(memory->heap_mutex));
+    if (FLAGS_heap_guard_pages) {
+      DWORD old_protect;
+      VirtualProtect(p, heap_guard_size, PAGE_READWRITE, &old_protect);
+      VirtualProtect(p + heap_guard_size + real_size, heap_guard_size, PAGE_READWRITE, &old_protect);
+    }
     mspace_free(memory->heap, p);
     if (FLAGS_log_heap) {
       xe_memory_heap_dump(memory);
