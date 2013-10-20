@@ -652,7 +652,13 @@ void X64Emitter::GenerateBasicBlock(FunctionBlock* block) {
 
     typedef int (*InstrEmitter)(X64Emitter& g, X86Compiler& c, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
+
     TraceInstruction(i);
+
+    if (i.address == FLAGS_break_on_instruction) {
+      c.int3();
+    }
+
     if (!i.type->emit || emit(*this, compiler_, i)) {
       // This printf is handy for sort/uniquify to find instructions.
       printf("unimplinstr %s\n", i.type->name);
@@ -1877,6 +1883,14 @@ GpVar X64Emitter::ReadMemory(
     uint32_t cia, GpVar& addr, uint32_t size, bool acquire, bool bswap) {
   X86Compiler& c = compiler_;
 
+  if (FLAGS_break_on_memory) {
+    Label l(c.newLabel());
+    c.cmp(addr.r32(), imm(FLAGS_break_on_memory));
+    c.jne(l);
+    c.int3();
+    c.bind(l);
+  }
+
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
 
@@ -1930,6 +1944,14 @@ void X64Emitter::WriteMemory(
     uint32_t cia, GpVar& addr, uint32_t size, GpVar& value,
     bool release, bool bswap) {
   X86Compiler& c = compiler_;
+
+  if (FLAGS_break_on_memory) {
+    Label l(c.newLabel());
+    c.cmp(addr.r32(), imm(FLAGS_break_on_memory));
+    c.jne(l);
+    c.int3();
+    c.bind(l);
+  }
 
   // Rebase off of memory base pointer.
   GpVar real_address = TouchMemoryAddress(cia, addr);
@@ -2011,6 +2033,14 @@ XmmVar X64Emitter::ReadMemoryXmm(
     uint32_t cia, GpVar& addr, uint32_t alignment) {
   X86Compiler& c = compiler_;
 
+  if (FLAGS_break_on_memory) {
+    Label l(c.newLabel());
+    c.cmp(addr.r32(), imm(FLAGS_break_on_memory));
+    c.jne(l);
+    c.int3();
+    c.bind(l);
+  }
+
   // Align memory address.
   GpVar aligned_addr(c.newGpVar());
   c.mov(aligned_addr, addr);
@@ -2044,6 +2074,14 @@ XmmVar X64Emitter::ReadMemoryXmm(
 void X64Emitter::WriteMemoryXmm(
     uint32_t cia, GpVar& addr, uint32_t alignment, XmmVar& value) {
   X86Compiler& c = compiler_;
+
+  if (FLAGS_break_on_memory) {
+    Label l(c.newLabel());
+    c.cmp(addr.r32(), imm(FLAGS_break_on_memory));
+    c.jne(l);
+    c.int3();
+    c.bind(l);
+  }
 
   // Align memory address.
   GpVar aligned_addr(c.newGpVar());
