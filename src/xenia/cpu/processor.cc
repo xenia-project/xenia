@@ -145,9 +145,10 @@ int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
   int result_code = 1;
 
   // Place the data into memory at the desired address.
-  XEEXPECTZERO(xe_copy_memory(xe_memory_addr(memory_, start_address),
-                              xe_memory_get_length(memory_),
-                              addr, length));
+  XEEXPECTNOTZERO(xe_memory_heap_alloc(
+      memory_, start_address, (uint32_t)length, 0));
+  XEEXPECTZERO(xe_copy_memory(
+      xe_memory_addr(memory_, start_address), length, addr, length));
 
   char name_a[XE_MAX_PATH];
   XEEXPECTTRUE(xestrnarrow(name_a, XECOUNT(name_a), name));
@@ -172,6 +173,7 @@ int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
   result_code = 0;
 XECLEANUP:
   if (result_code) {
+    xe_memory_heap_free(memory_, start_address, (uint32_t)length);
     delete exec_module;
   }
   xe_mmap_release(mmap);

@@ -27,7 +27,6 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options);
 xe_memory_ref xe_memory_retain(xe_memory_ref memory);
 void xe_memory_release(xe_memory_ref memory);
 
-size_t xe_memory_get_length(xe_memory_ref memory);
 uint8_t *xe_memory_addr(xe_memory_ref memory, size_t guest_addr = 0);
 
 void xe_memory_copy(xe_memory_ref memory,

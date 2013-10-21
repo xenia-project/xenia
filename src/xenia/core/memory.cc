@@ -27,7 +27,7 @@
 #define MALLOC_ALIGNMENT        32
 #define MALLOC_INSPECT_ALL      1
 #if XE_DEBUG
-#define FOOTERS                 1
+#define FOOTERS                 0
 #endif  // XE_DEBUG
 #include <third_party/dlmalloc/malloc.c.h>
 
@@ -67,21 +67,38 @@ DEFINE_uint64(
  * for previous commits and assert that we really isn't committing twice.
  */
 
-#define XE_MEMORY_HEAP_LOW    0x20000000
+#define XE_MEMORY_HEAP_LOW    0x00000000
 #define XE_MEMORY_HEAP_HIGH   0x40000000
 
 
 struct xe_memory {
   xe_ref_t ref;
 
-  size_t      system_page_size;
+  size_t        system_page_size;
 
-  size_t      length;
-  void*       ptr;
+  HANDLE        mapping;
+  uint8_t*      mapping_base;
+  union {
+    struct {
+      uint8_t*  v00000000;
+      uint8_t*  v40000000;
+      uint8_t*  v80000000;
+      uint8_t*  vA0000000;
+      uint8_t*  vC0000000;
+      uint8_t*  vE0000000;
+    };
+    uint8_t*    all_views[6];
+  } views;
 
-  xe_mutex_t* heap_mutex;
-  mspace      heap;
+  xe_mutex_t*   heap_mutex;
+  size_t        heap_size;
+  uint8_t*      heap_ptr;
+  mspace        heap;
 };
+
+
+int xe_memory_map_views(xe_memory_ref memory, uint8_t* mapping_base);
+void xe_memory_unmap_views(xe_memory_ref memory);
 
 
 xe_memory_ref xe_memory_create(xe_memory_options_t options) {
@@ -89,49 +106,59 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
   xe_memory_ref memory = (xe_memory_ref)xe_calloc(sizeof(xe_memory));
   xe_ref_init((xe_ref)memory);
 
-#if XE_PLATFORM(WIN32)
   SYSTEM_INFO si;
   GetSystemInfo(&si);
   memory->system_page_size = si.dwPageSize;
-#else
-#error need to implement page size retrieval
-#endif  // WIN32
 
-  memory->length = 0xC0000000;
+  // Create main page file-backed mapping. This is all reserved but
+  // uncommitted (so it shouldn't expand page file).
+  memory->mapping = CreateFileMapping(
+      INVALID_HANDLE_VALUE,
+      NULL,
+      PAGE_READWRITE | SEC_RESERVE,
+      0, 0xFFFFFFFF, // entire 4gb space
+      NULL);
+  if (!memory->mapping) {
+    XELOGE("Unable to reserve the 4gb guest address space.");
+    XEASSERTNOTNULL(memory->mapping);
+    XEFAIL();
+  }
 
-#if XE_PLATFORM(WIN32)
-  // Reserve the entire usable address space.
-  // We're 64-bit, so this should be no problem.
-  memory->ptr = VirtualAlloc(0, memory->length,
-                             MEM_RESERVE,
-                             PAGE_READWRITE);
-  XEEXPECTNOTNULL(memory->ptr);
-#else
-  memory->ptr = mmap(0, memory->length, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANON, -1, 0);
-  XEEXPECT(memory->ptr != MAP_FAILED);
-  XEEXPECTNOTNULL(memory->ptr);
-#endif  // WIN32
+  // Attempt to create our views. This may fail at the first address
+  // we pick, so try a few times.
+  memory->mapping_base = 0;
+  for (size_t n = 32; n < 64; n++) {
+    uint8_t* mapping_base = (uint8_t*)(1ull << n);
+    if (!xe_memory_map_views(memory, mapping_base)) {
+      memory->mapping_base = mapping_base;
+      break;
+    }
+  }
+  if (!memory->mapping_base) {
+    XELOGE("Unable to find a continuous block in the 64bit address space.");
+    XEASSERTALWAYS();
+    XEFAIL();
+  }
 
   // Lock used around heap allocs/frees.
   memory->heap_mutex = xe_mutex_alloc(10000);
   XEEXPECTNOTNULL(memory->heap_mutex);
 
   // Commit the memory where our heap will live.
-  // We don't allocate at 0 to make bad writes easier to find.
+  // TODO(benvanik): replace dlmalloc with an implementation that can commit
+  //     as it goes.
   uint32_t heap_offset = XE_MEMORY_HEAP_LOW;
   uint32_t heap_size = XE_MEMORY_HEAP_HIGH - XE_MEMORY_HEAP_LOW;
-  uint8_t* heap_ptr = (uint8_t*)memory->ptr + heap_offset;
-#if XE_PLATFORM(WIN32)
-  void* heap_result = VirtualAlloc(heap_ptr, heap_size,
-                                   MEM_COMMIT, PAGE_READWRITE);
+  memory->heap_size = heap_size;
+  memory->heap_ptr = memory->views.v00000000 + heap_offset;
+  void* heap_result = VirtualAlloc(
+      memory->heap_ptr, heap_size,
+      MEM_COMMIT,
+      PAGE_READWRITE);
   XEEXPECTNOTNULL(heap_result);
-#else
-#error ?
-#endif  // WIN32
 
   // Allocate the mspace for our heap.
-  memory->heap = create_mspace_with_base(heap_ptr, heap_size, 0);
+  memory->heap = create_mspace_with_base(memory->heap_ptr, heap_size, 0);
 
   return memory;
 
@@ -152,12 +179,52 @@ void xe_memory_dealloc(xe_memory_ref memory) {
     memory->heap_mutex = NULL;
   }
 
-#if XE_PLATFORM(WIN32)
   // This decommits all pages and releases everything.
-  XEIGNORE(VirtualFree(memory->ptr, 0, MEM_RELEASE));
-#else
-  munmap(memory->ptr, memory->length);
-#endif  // WIN32
+  XEIGNORE(VirtualFree(memory->heap_ptr, 0, MEM_RELEASE));
+
+  // Unmap all views and close mapping.
+  if (memory->mapping) {
+    xe_memory_unmap_views(memory);
+    CloseHandle(memory->mapping);
+  }
+}
+
+int xe_memory_map_views(xe_memory_ref memory, uint8_t* mapping_base) {
+  static struct {
+    uint32_t  virtual_address_start;
+    uint32_t  virtual_address_end;
+    uint32_t  target_address;
+  } map_info[] = {
+    0x00000000, 0x3FFFFFFF, 0x00000000, // (1024mb) - virtual 4k pages
+    0x40000000, 0x7FFFFFFF, 0x40000000, // (1024mb) - virtual 64k pages
+    0x80000000, 0x9FFFFFFF, 0x80000000, //  (512mb) - xex pages
+    0xA0000000, 0xBFFFFFFF, 0xA0000000, //  (512mb) - physical 64k pages
+    0xC0000000, 0xDFFFFFFF, 0xA0000000, //          - physical 16mb pages
+    0xE0000000, 0xFFFFFFFF, 0xA0000000, //          - physical 4k pages
+  };
+  XEASSERT(XECOUNT(map_info) == XECOUNT(memory->views.all_views));
+  for (size_t n = 0; n < XECOUNT(map_info); n++) {
+    memory->views.all_views[n] = (uint8_t*)MapViewOfFileEx(
+      memory->mapping,
+      FILE_MAP_ALL_ACCESS,
+      0x00000000, map_info[n].target_address,
+      map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
+      mapping_base + map_info[n].virtual_address_start);
+    XEEXPECTNOTNULL(memory->views.all_views[n]);
+  }
+  return 0;
+
+XECLEANUP:
+  xe_memory_unmap_views(memory);
+  return 1;
+}
+
+void xe_memory_unmap_views(xe_memory_ref memory) {
+  for (size_t n = 0; n < XECOUNT(memory->views.all_views); n++) {
+    if (memory->views.all_views[n]) {
+      UnmapViewOfFile(memory->views.all_views[n]);
+    }
+  }
 }
 
 xe_memory_ref xe_memory_retain(xe_memory_ref memory) {
@@ -169,18 +236,14 @@ void xe_memory_release(xe_memory_ref memory) {
   xe_ref_release((xe_ref)memory, (xe_ref_dealloc_t)xe_memory_dealloc);
 }
 
-size_t xe_memory_get_length(xe_memory_ref memory) {
-  return memory->length;
-}
-
 uint8_t *xe_memory_addr(xe_memory_ref memory, size_t guest_addr) {
-  return (uint8_t*)memory->ptr + guest_addr;
+  return memory->mapping_base + guest_addr;
 }
 
 void xe_memory_copy(xe_memory_ref memory,
                     uint32_t dest, uint32_t src, uint32_t size) {
-  uint8_t* pdest = (uint8_t*)memory->ptr + dest;
-  uint8_t* psrc = (uint8_t*)memory->ptr + src;
+  uint8_t* pdest = memory->mapping_base + dest;
+  uint8_t* psrc = memory->mapping_base + src;
   XEIGNORE(xe_copy_memory(pdest, size, psrc, size));
 }
 
@@ -201,7 +264,7 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
         matched++;
       }
       if (matched == value_count) {
-        return (uint32_t)((uint8_t*)p - (uint8_t*)memory->ptr);
+        return (uint32_t)((uint8_t*)p - memory->mapping_base);
       }
     }
     p++;
@@ -215,12 +278,19 @@ void xe_memory_heap_dump_handler(
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   uint64_t start_addr = (uint64_t)start + heap_guard_size;
   uint64_t end_addr = (uint64_t)end - heap_guard_size;
-  uint32_t guest_start = (uint32_t)(start_addr - (uintptr_t)memory->ptr);
-  uint32_t guest_end = (uint32_t)(end_addr - (uintptr_t)memory->ptr);
-  XELOGI(" - %.8X-%.8X (%9db) %.16llX-%.16llX - %9db used",
-         guest_start, guest_end, (guest_end - guest_start),
-         start_addr, end_addr,
-         used_bytes);
+  uint32_t guest_start =
+      (uint32_t)(start_addr - (uintptr_t)memory->mapping_base);
+  uint32_t guest_end =
+      (uint32_t)(end_addr - (uintptr_t)memory->mapping_base);
+  if (used_bytes > 0) {
+    XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
+           guest_start, guest_end, (guest_end - guest_start),
+           start_addr, end_addr,
+           used_bytes);
+  } else {
+    XELOGI(" -                                 %.16llX-%.16llX - %9db used",
+           start_addr, end_addr, used_bytes);
+  }
 }
 void xe_memory_heap_dump(xe_memory_ref memory) {
   XELOGI("xe_memory_heap_dump:");
@@ -272,7 +342,7 @@ uint32_t xe_memory_heap_alloc(
     if (!p) {
       return 0;
     }
-    return (uint32_t)((uintptr_t)p - (uintptr_t)memory->ptr);
+    return (uint32_t)((uintptr_t)p - (uintptr_t)memory->mapping_base);
   } else {
     if (base_address >= XE_MEMORY_HEAP_LOW &&
         base_address < XE_MEMORY_HEAP_HIGH) {
@@ -281,8 +351,7 @@ uint32_t xe_memory_heap_alloc(
       return 0;
     }
 
-    uint8_t* p = (uint8_t*)memory->ptr + base_address;
-#if XE_PLATFORM(WIN32)
+    uint8_t* p = memory->mapping_base + base_address;
     // TODO(benvanik): check if address range is in use with a query.
 
     void* pv = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
@@ -291,9 +360,6 @@ uint32_t xe_memory_heap_alloc(
       XEASSERTALWAYS();
       return 0;
     }
-#else
-#error ?
-#endif  // WIN32
 
     return base_address;
   }
@@ -301,7 +367,7 @@ uint32_t xe_memory_heap_alloc(
 
 int xe_memory_heap_free(
     xe_memory_ref memory, uint32_t address, uint32_t size) {
-  uint8_t* p = (uint8_t*)memory->ptr + address;
+  uint8_t* p = memory->mapping_base + address;
   if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
     // Heap allocated address.
     size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -326,16 +392,12 @@ int xe_memory_heap_free(
     return (uint32_t)real_size;
   } else {
     // A placed address. Decommit.
-#if XE_PLATFORM(WIN32)
     return VirtualFree(p, size, MEM_DECOMMIT) ? 0 : 1;
-#else
-#error decommit
-#endif  // WIN32
   }
 }
 
 bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
-  uint8_t* p = (uint8_t*)memory->ptr + address;
+  uint8_t* p = memory->mapping_base + address;
   if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
     // Within heap range, ask dlmalloc.
     size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -349,12 +411,11 @@ bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
 
 int xe_memory_protect(
     xe_memory_ref memory, uint32_t address, uint32_t size, uint32_t access) {
-  uint8_t* p = (uint8_t*)memory->ptr + address;
+  uint8_t* p = memory->mapping_base + address;
 
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   p += heap_guard_size;
 
-#if XE_PLATFORM(WIN32)
   DWORD new_protect = 0;
   if (access & XE_MEMORY_ACCESS_WRITE) {
     new_protect = PAGE_READWRITE;
@@ -365,14 +426,4 @@ int xe_memory_protect(
   }
   DWORD old_protect;
   return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
-#else
-  int prot = 0;
-  if (access & XE_MEMORY_ACCESS_READ) {
-    prot = PROT_READ;
-  }
-  if (access & XE_MEMORY_ACCESS_WRITE) {
-    prot = PROT_WRITE;
-  }
-  return mprotect(p, size, prot);
-#endif  // WIN32
 }
