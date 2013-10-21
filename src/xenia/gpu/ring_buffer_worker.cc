@@ -200,6 +200,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
   ADVANCE_PTR(1);
   const uint32_t packet_type = packet >> 30;
   if (packet == 0) {
+    XELOGGPU("[%.8X] Packet(%.8X): 0?",
+             packet_ptr, packet);
     return 1;
   }
 
@@ -255,6 +257,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
   case 0x02:
     // Type-2 packet.
     // No-op. Do nothing.
+    XELOGGPU("[%.8X] Packet(%.8X): padding",
+             packet_ptr, packet);
     return 1;
   case 0x03:
     {
@@ -323,7 +327,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             uint32_t value;
             if (wait_info & 0x10) {
               // Memory.
-              value = XEGETUINT32BE(p + TRANSLATE_ADDR(poll_reg_addr));
+              value = XEGETUINT32LE(p + TRANSLATE_ADDR(poll_reg_addr));
+              uint32_t endianness = poll_reg_addr & 0x3;
+              value = GpuSwap(value, endianness);
             } else {
               // Register.
               XEASSERT(poll_reg_addr < kXEGpuRegisterCount);
@@ -411,7 +417,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t value;
           if (wait_info & 0x10) {
             // Memory.
-            value = XEGETUINT32BE(p + TRANSLATE_ADDR(poll_reg_addr));
+            value = XEGETUINT32LE(p + TRANSLATE_ADDR(poll_reg_addr));
+            uint32_t endianness = poll_reg_addr & 0x3;
+            value = GpuSwap(value, endianness);
           } else {
             // Register.
             XEASSERT(poll_reg_addr < kXEGpuRegisterCount);
@@ -448,7 +456,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // Write.
             if (wait_info & 0x100) {
               // Memory.
-              XESETUINT32BE(p + TRANSLATE_ADDR(write_reg_addr), write_data);
+              uint32_t endianness = write_reg_addr & 0x3;
+              write_data = GpuSwap(write_data, endianness);
+              XESETUINT32LE(p + TRANSLATE_ADDR(write_reg_addr), write_data);
             } else {
               // Register.
               WriteRegister(write_reg_addr, write_data);
@@ -459,10 +469,19 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
 
       case PM4_EVENT_WRITE:
         // generate an event that creates a write to memory when completed
-        XELOGGPU("[%.8X] Packet(%.8X): PM4_EVENT_WRITE",
-                 packet_ptr, packet);
-        LOG_DATA(count);
-        ADVANCE_PTR(count);
+        {
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_EVENT_WRITE (unimplemented!)",
+                   packet_ptr, packet);
+          LOG_DATA(count);
+          uint32_t initiator = READ_AND_ADVANCE_PTR();
+          if (count == 1) {
+            // Just an event flag? Where does this write?
+          } else {
+            // Write to an address.
+            XEASSERTALWAYS();
+            ADVANCE_PTR(count - 1);
+          }
+        }
         break;
       case PM4_EVENT_WRITE_SHD:
         // generate a VS|PS_done event
@@ -483,10 +502,10 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // Write value.
             data_value = value;
           }
-          uint32_t endianness = address >> 29;
-          address &= ~0xC0000000;
+          uint32_t endianness = address & 0x3;
+          address &= ~0x3;
           data_value = GpuSwap(data_value, endianness);
-          XESETUINT32BE(p + TRANSLATE_ADDR(address), data_value);
+          XESETUINT32LE(p + TRANSLATE_ADDR(address), data_value);
         }
         break;
 
