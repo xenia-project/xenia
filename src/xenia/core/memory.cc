@@ -116,7 +116,7 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
       INVALID_HANDLE_VALUE,
       NULL,
       PAGE_READWRITE | SEC_RESERVE,
-      0, 0xFFFFFFFF, // entire 4gb space
+      1, 0, // entire 4gb space
       NULL);
   if (!memory->mapping) {
     XELOGE("Unable to reserve the 4gb guest address space.");
