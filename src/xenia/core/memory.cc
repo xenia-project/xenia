@@ -65,10 +65,37 @@ DEFINE_uint64(
  * commit the requested memory as needed. This bypasses the standard heap, but
  * XEXs should never be overwriting anything so that's fine. We can also query
  * for previous commits and assert that we really isn't committing twice.
+ *
+ * GPU memory is mapped onto the lower 512mb of the virtual 4k range (0).
+ * So 0xA0000000 = 0x00000000. A more sophisticated allocator could handle
+ * this.
  */
 
-#define XE_MEMORY_HEAP_LOW    0x00000000
-#define XE_MEMORY_HEAP_HIGH   0x40000000
+#define XE_MEMORY_PHYSICAL_HEAP_LOW   0x00000000
+#define XE_MEMORY_PHYSICAL_HEAP_HIGH  0x20000000
+#define XE_MEMORY_VIRTUAL_HEAP_LOW    0x20000000
+#define XE_MEMORY_VIRTUAL_HEAP_HIGH   0x40000000
+
+
+typedef struct {
+  xe_memory_ref memory;
+  xe_mutex_t*   mutex;
+  size_t        size;
+  uint8_t*      ptr;
+  mspace        space;
+
+  int Initialize(xe_memory_ref memory, uint32_t low, uint32_t high);
+  void Cleanup();
+  void Dump();
+  uint32_t Alloc(uint32_t base_address,
+                 uint32_t size, uint32_t flags,
+                 uint32_t alignment);
+  uint32_t Free(uint32_t address, uint32_t size);
+
+private:
+  static void DumpHandler(
+      void* start, void* end, size_t used_bytes, void* context);
+} xe_memory_heap_t;
 
 
 struct xe_memory {
@@ -90,10 +117,8 @@ struct xe_memory {
     uint8_t*    all_views[6];
   } views;
 
-  xe_mutex_t*   heap_mutex;
-  size_t        heap_size;
-  uint8_t*      heap_ptr;
-  mspace        heap;
+  xe_memory_heap_t virtual_heap;
+  xe_memory_heap_t physical_heap;
 };
 
 
@@ -102,7 +127,6 @@ void xe_memory_unmap_views(xe_memory_ref memory);
 
 
 xe_memory_ref xe_memory_create(xe_memory_options_t options) {
-
   xe_memory_ref memory = (xe_memory_ref)xe_calloc(sizeof(xe_memory));
   xe_ref_init((xe_ref)memory);
 
@@ -140,25 +164,11 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
     XEFAIL();
   }
 
-  // Lock used around heap allocs/frees.
-  memory->heap_mutex = xe_mutex_alloc(10000);
-  XEEXPECTNOTNULL(memory->heap_mutex);
-
-  // Commit the memory where our heap will live.
-  // TODO(benvanik): replace dlmalloc with an implementation that can commit
-  //     as it goes.
-  uint32_t heap_offset = XE_MEMORY_HEAP_LOW;
-  uint32_t heap_size = XE_MEMORY_HEAP_HIGH - XE_MEMORY_HEAP_LOW;
-  memory->heap_size = heap_size;
-  memory->heap_ptr = memory->views.v00000000 + heap_offset;
-  void* heap_result = VirtualAlloc(
-      memory->heap_ptr, heap_size,
-      MEM_COMMIT,
-      PAGE_READWRITE);
-  XEEXPECTNOTNULL(heap_result);
-
-  // Allocate the mspace for our heap.
-  memory->heap = create_mspace_with_base(memory->heap_ptr, heap_size, 0);
+  // Prepare heaps.
+  memory->virtual_heap.Initialize(
+      memory, XE_MEMORY_VIRTUAL_HEAP_LOW, XE_MEMORY_VIRTUAL_HEAP_HIGH);
+  memory->physical_heap.Initialize(
+      memory, XE_MEMORY_PHYSICAL_HEAP_LOW, XE_MEMORY_PHYSICAL_HEAP_HIGH);
 
   return memory;
 
@@ -168,19 +178,9 @@ XECLEANUP:
 }
 
 void xe_memory_dealloc(xe_memory_ref memory) {
-  if (memory->heap_mutex && memory->heap) {
-    xe_mutex_lock(memory->heap_mutex);
-    destroy_mspace(memory->heap);
-    memory->heap = NULL;
-    xe_mutex_unlock(memory->heap_mutex);
-  }
-  if (memory->heap_mutex) {
-    xe_mutex_free(memory->heap_mutex);
-    memory->heap_mutex = NULL;
-  }
-
-  // This decommits all pages and releases everything.
-  XEIGNORE(VirtualFree(memory->heap_ptr, 0, MEM_RELEASE));
+  // Cleanup heaps.
+  memory->virtual_heap.Cleanup();
+  memory->physical_heap.Cleanup();
 
   // Unmap all views and close mapping.
   if (memory->mapping) {
@@ -198,9 +198,9 @@ int xe_memory_map_views(xe_memory_ref memory, uint8_t* mapping_base) {
     0x00000000, 0x3FFFFFFF, 0x00000000, // (1024mb) - virtual 4k pages
     0x40000000, 0x7FFFFFFF, 0x40000000, // (1024mb) - virtual 64k pages
     0x80000000, 0x9FFFFFFF, 0x80000000, //  (512mb) - xex pages
-    0xA0000000, 0xBFFFFFFF, 0xA0000000, //  (512mb) - physical 64k pages
-    0xC0000000, 0xDFFFFFFF, 0xA0000000, //          - physical 16mb pages
-    0xE0000000, 0xFFFFFFFF, 0xA0000000, //          - physical 4k pages
+    0xA0000000, 0xBFFFFFFF, 0x60000000, //  (512mb) - physical 64k pages
+    0xC0000000, 0xDFFFFFFF, 0x60000000, //          - physical 16mb pages
+    0xE0000000, 0xFFFFFFFF, 0x60000000, //          - physical 4k pages
   };
   XEASSERT(XECOUNT(map_info) == XECOUNT(memory->views.all_views));
   for (size_t n = 0; n < XECOUNT(map_info); n++) {
@@ -272,80 +272,27 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
   return 0;
 }
 
-void xe_memory_heap_dump_handler(
-    void* start, void* end, size_t used_bytes, void* context) {
-  xe_memory_ref memory = (xe_memory_ref)context;
-  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
-  uint64_t start_addr = (uint64_t)start + heap_guard_size;
-  uint64_t end_addr = (uint64_t)end - heap_guard_size;
-  uint32_t guest_start =
-      (uint32_t)(start_addr - (uintptr_t)memory->mapping_base);
-  uint32_t guest_end =
-      (uint32_t)(end_addr - (uintptr_t)memory->mapping_base);
-  if (used_bytes > 0) {
-    XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
-           guest_start, guest_end, (guest_end - guest_start),
-           start_addr, end_addr,
-           used_bytes);
-  } else {
-    XELOGI(" -                                 %.16llX-%.16llX - %9db used",
-           start_addr, end_addr, used_bytes);
-  }
-}
-void xe_memory_heap_dump(xe_memory_ref memory) {
-  XELOGI("xe_memory_heap_dump:");
-  if (FLAGS_heap_guard_pages) {
-    XELOGI("  (heap guard pages enabled, stats will be wrong)");
-  }
-  struct mallinfo info = mspace_mallinfo(memory->heap);
-  XELOGI("    arena: %lld", info.arena);
-  XELOGI("  ordblks: %lld", info.ordblks);
-  XELOGI("    hblks: %lld", info.hblks);
-  XELOGI("   hblkhd: %lld", info.hblkhd);
-  XELOGI("  usmblks: %lld", info.usmblks);
-  XELOGI(" uordblks: %lld", info.uordblks);
-  XELOGI(" fordblks: %lld", info.fordblks);
-  XELOGI(" keepcost: %lld", info.keepcost);
-  mspace_inspect_all(memory->heap, xe_memory_heap_dump_handler, memory);
-}
-
 uint32_t xe_memory_heap_alloc(
     xe_memory_ref memory, uint32_t base_address, uint32_t size,
     uint32_t flags, uint32_t alignment) {
-  XEASSERT(flags == 0);
-
   // If we were given a base address we are outside of the normal heap and
   // will place wherever asked (so long as it doesn't overlap the heap).
   if (!base_address) {
     // Normal allocation from the managed heap.
-    XEIGNORE(xe_mutex_lock(memory->heap_mutex));
-    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
-    if (heap_guard_size) {
-      alignment = (uint32_t)MAX(alignment, heap_guard_size);
-      size = (uint32_t)XEROUNDUP(size, heap_guard_size);
+    if (flags & XE_MEMORY_FLAG_PHYSICAL) {
+      return memory->physical_heap.Alloc(base_address, size, flags, alignment);
+    } else {
+      return memory->virtual_heap.Alloc(base_address, size, flags, alignment);
     }
-    uint8_t* p = (uint8_t*)mspace_memalign(
-        memory->heap,
-        alignment,
-        size + heap_guard_size * 2);
-    if (FLAGS_heap_guard_pages) {
-      size_t real_size = mspace_usable_size(p);
-      DWORD old_protect;
-      VirtualProtect(p, heap_guard_size, PAGE_NOACCESS, &old_protect);
-      p += heap_guard_size;
-      VirtualProtect(p + size, heap_guard_size, PAGE_NOACCESS, &old_protect);
-    }
-    if (FLAGS_log_heap) {
-      xe_memory_heap_dump(memory);
-    }
-    XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
-    if (!p) {
+  } else {
+    if (base_address >= XE_MEMORY_VIRTUAL_HEAP_LOW &&
+        base_address < XE_MEMORY_VIRTUAL_HEAP_HIGH) {
+      // Overlapping managed heap.
+      XEASSERTALWAYS();
       return 0;
     }
-    return (uint32_t)((uintptr_t)p - (uintptr_t)memory->mapping_base);
-  } else {
-    if (base_address >= XE_MEMORY_HEAP_LOW &&
-        base_address < XE_MEMORY_HEAP_HIGH) {
+    if (base_address >= XE_MEMORY_PHYSICAL_HEAP_LOW &&
+        base_address < XE_MEMORY_PHYSICAL_HEAP_HIGH) {
       // Overlapping managed heap.
       XEASSERTALWAYS();
       return 0;
@@ -367,38 +314,25 @@ uint32_t xe_memory_heap_alloc(
 
 int xe_memory_heap_free(
     xe_memory_ref memory, uint32_t address, uint32_t size) {
-  uint8_t* p = memory->mapping_base + address;
-  if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
-    // Heap allocated address.
-    size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
-    p -= heap_guard_size;
-    size_t real_size = mspace_usable_size(p);
-    real_size -= heap_guard_size * 2;
-    if (!real_size) {
-      return 0;
-    }
-
-    XEIGNORE(xe_mutex_lock(memory->heap_mutex));
-    if (FLAGS_heap_guard_pages) {
-      DWORD old_protect;
-      VirtualProtect(p, heap_guard_size, PAGE_READWRITE, &old_protect);
-      VirtualProtect(p + heap_guard_size + real_size, heap_guard_size, PAGE_READWRITE, &old_protect);
-    }
-    mspace_free(memory->heap, p);
-    if (FLAGS_log_heap) {
-      xe_memory_heap_dump(memory);
-    }
-    XEIGNORE(xe_mutex_unlock(memory->heap_mutex));
-    return (uint32_t)real_size;
+  if (address >= XE_MEMORY_VIRTUAL_HEAP_LOW &&
+      address < XE_MEMORY_VIRTUAL_HEAP_HIGH) {
+    return memory->virtual_heap.Free(address, size);
+  } else if (address >= XE_MEMORY_PHYSICAL_HEAP_LOW &&
+             address < XE_MEMORY_PHYSICAL_HEAP_HIGH) {
+    return memory->physical_heap.Free(address, size);
   } else {
     // A placed address. Decommit.
+    uint8_t* p = memory->mapping_base + address;
     return VirtualFree(p, size, MEM_DECOMMIT) ? 0 : 1;
   }
 }
 
 bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address) {
   uint8_t* p = memory->mapping_base + address;
-  if (address >= XE_MEMORY_HEAP_LOW && address < XE_MEMORY_HEAP_HIGH) {
+  if ((address >= XE_MEMORY_VIRTUAL_HEAP_LOW &&
+       address < XE_MEMORY_VIRTUAL_HEAP_HIGH) ||
+      (address >= XE_MEMORY_PHYSICAL_HEAP_LOW &&
+       address < XE_MEMORY_PHYSICAL_HEAP_HIGH)) {
     // Within heap range, ask dlmalloc.
     size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
     p -= heap_guard_size;
@@ -426,4 +360,142 @@ int xe_memory_protect(
   }
   DWORD old_protect;
   return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
+}
+
+
+int xe_memory_heap_t::Initialize(xe_memory_ref memory, uint32_t low, uint32_t high) {
+  this->memory = memory;
+
+  // Lock used around heap allocs/frees.
+  mutex = xe_mutex_alloc(10000);
+  if (!mutex) {
+    return 1;
+  }
+
+  // Commit the memory where our heap will live and allocate it.
+  // TODO(benvanik): replace dlmalloc with an implementation that can commit
+  //     as it goes.
+  size = high - low;
+  ptr = memory->views.v00000000 + low;
+  void* heap_result = VirtualAlloc(
+    ptr, size, MEM_COMMIT, PAGE_READWRITE);
+  if (!heap_result) {
+    return 1;
+  }
+  space = create_mspace_with_base(ptr, size, 0);
+  return 0;
+}
+
+void xe_memory_heap_t::Cleanup() {
+  if (mutex && space) {
+    xe_mutex_lock(mutex);
+    destroy_mspace(space);
+    space = NULL;
+    xe_mutex_unlock(mutex);
+  }
+  if (mutex) {
+    xe_mutex_free(mutex);
+    mutex = NULL;
+  }
+
+  XEIGNORE(VirtualFree(ptr, 0, MEM_RELEASE));
+}
+
+void xe_memory_heap_t::Dump() {
+  XELOGI("xe_memory_heap_dump:");
+  if (FLAGS_heap_guard_pages) {
+    XELOGI("  (heap guard pages enabled, stats will be wrong)");
+  }
+  struct mallinfo info = mspace_mallinfo(space);
+  XELOGI("    arena: %lld", info.arena);
+  XELOGI("  ordblks: %lld", info.ordblks);
+  XELOGI("    hblks: %lld", info.hblks);
+  XELOGI("   hblkhd: %lld", info.hblkhd);
+  XELOGI("  usmblks: %lld", info.usmblks);
+  XELOGI(" uordblks: %lld", info.uordblks);
+  XELOGI(" fordblks: %lld", info.fordblks);
+  XELOGI(" keepcost: %lld", info.keepcost);
+  mspace_inspect_all(space, DumpHandler, this);
+}
+
+void xe_memory_heap_t::DumpHandler(
+  void* start, void* end, size_t used_bytes, void* context) {
+  xe_memory_heap_t* heap = (xe_memory_heap_t*)context;
+  xe_memory_ref memory = heap->memory;
+  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  uint64_t start_addr = (uint64_t)start + heap_guard_size;
+  uint64_t end_addr = (uint64_t)end - heap_guard_size;
+  uint32_t guest_start =
+    (uint32_t)(start_addr - (uintptr_t)memory->mapping_base);
+  uint32_t guest_end =
+    (uint32_t)(end_addr - (uintptr_t)memory->mapping_base);
+  if (used_bytes > 0) {
+    XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
+            guest_start, guest_end, (guest_end - guest_start),
+            start_addr, end_addr,
+            used_bytes);
+  } else {
+    XELOGI(" -                                 %.16llX-%.16llX - %9db used",
+            start_addr, end_addr, used_bytes);
+  }
+}
+
+uint32_t xe_memory_heap_t::Alloc(
+    uint32_t base_address, uint32_t size, uint32_t flags,
+    uint32_t alignment) {
+  XEIGNORE(xe_mutex_lock(mutex));
+  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  if (heap_guard_size) {
+    alignment = (uint32_t)MAX(alignment, heap_guard_size);
+    size = (uint32_t)XEROUNDUP(size, heap_guard_size);
+  }
+  uint8_t* p = (uint8_t*)mspace_memalign(
+    space,
+    alignment,
+    size + heap_guard_size * 2);
+  if (FLAGS_heap_guard_pages) {
+    size_t real_size = mspace_usable_size(p);
+    DWORD old_protect;
+    VirtualProtect(p, heap_guard_size, PAGE_NOACCESS, &old_protect);
+    p += heap_guard_size;
+    VirtualProtect(p + size, heap_guard_size, PAGE_NOACCESS, &old_protect);
+  }
+  if (FLAGS_log_heap) {
+    Dump();
+  }
+  XEIGNORE(xe_mutex_unlock(mutex));
+  if (!p) {
+    return 0;
+  }
+  return (uint32_t)((uintptr_t)p - (uintptr_t)memory->mapping_base);
+}
+
+uint32_t xe_memory_heap_t::Free(uint32_t address, uint32_t size) {
+  uint8_t* p = memory->mapping_base + address;
+
+  // Heap allocated address.
+  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  p -= heap_guard_size;
+  size_t real_size = mspace_usable_size(p);
+  real_size -= heap_guard_size * 2;
+  if (!real_size) {
+    return 0;
+  }
+
+  XEIGNORE(xe_mutex_lock(mutex));
+  if (FLAGS_heap_guard_pages) {
+    DWORD old_protect;
+    VirtualProtect(
+      p, heap_guard_size,
+      PAGE_READWRITE, &old_protect);
+    VirtualProtect(
+      p + heap_guard_size + real_size, heap_guard_size,
+      PAGE_READWRITE, &old_protect);
+  }
+  mspace_free(space, p);
+  if (FLAGS_log_heap) {
+    Dump();
+  }
+  XEIGNORE(xe_mutex_unlock(mutex));
+  return (uint32_t)real_size;
 }

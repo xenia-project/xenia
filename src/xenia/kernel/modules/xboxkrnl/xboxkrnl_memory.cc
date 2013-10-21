@@ -231,15 +231,13 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
   XEASSERT(max_addr_range == 0xFFFFFFFF);
 
   // Allocate.
-  uint32_t flags = 0;
+  uint32_t flags = XE_MEMORY_FLAG_PHYSICAL;
   uint32_t base_address = xe_memory_heap_alloc(
       state->memory(), 0, adjusted_size, flags, alignment);
   if (!base_address) {
     // Failed - assume no memory available.
     return 0;
   }
-
-  // TODO(benvanik): address should be in 0xA0000000+ range.
 
   return base_address;
 }
@@ -273,6 +271,9 @@ void xeMmFreePhysicalMemory(uint32_t type, uint32_t base_address) {
 
   // base_address = result of MmAllocatePhysicalMemory.
 
+  // Strip off physical bits before passing down.
+  base_address &= ~0xE0000000;
+
   // TODO(benvanik): free memory.
   XELOGE("xeMmFreePhysicalMemory NOT IMPLEMENTED");
   //uint32_t size = ?;
@@ -304,6 +305,14 @@ uint32_t xeMmGetPhysicalAddress(uint32_t base_address) {
   // We are always using virtual addresses, right now, since we don't need
   // physical ones. We could munge up the address here to another mapped view
   // of memory.
+
+  /*if (protect_bits & X_MEM_LARGE_PAGES) {
+    base_address |= 0xA0000000;
+  } else if (protect_bits & X_MEM_16MB_PAGES) {
+    base_address |= 0xC0000000;
+  } else {
+    base_address |= 0xE0000000;
+  }*/
 
   return base_address;
 }

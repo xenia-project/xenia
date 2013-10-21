@@ -42,6 +42,7 @@ uint32_t xe_memory_search_aligned(xe_memory_ref memory, size_t start,
 
 enum {
   XE_MEMORY_FLAG_64KB_PAGES = (1 << 1),
+  XE_MEMORY_FLAG_PHYSICAL   = (1 << 2),
 };
 
 enum {
