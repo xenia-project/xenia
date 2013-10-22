@@ -305,6 +305,26 @@ SHIM_CALL MmFreePhysicalMemory_shim(
 }
 
 
+uint32_t xeMmQueryAddressProtect(uint32_t base_address) {
+  XELOGW("MmQueryAddressProtect faked!");
+  return 0;
+}
+
+
+SHIM_CALL MmQueryAddressProtect_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t base_address = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "MmQueryAddressProtect(%.8X)",
+      base_address);
+
+  uint32_t result = xeMmQueryAddressProtect(base_address);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
 uint32_t xeMmGetPhysicalAddress(uint32_t base_address) {
   // PHYSICAL_ADDRESS MmGetPhysicalAddress(
@@ -354,5 +374,6 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   //SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
+  //SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
 }
