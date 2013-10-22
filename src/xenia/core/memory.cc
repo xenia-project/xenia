@@ -79,12 +79,14 @@ DEFINE_uint64(
 
 typedef struct {
   xe_memory_ref memory;
+  bool          physical;
   xe_mutex_t*   mutex;
   size_t        size;
   uint8_t*      ptr;
   mspace        space;
 
-  int Initialize(xe_memory_ref memory, uint32_t low, uint32_t high);
+  int Initialize(xe_memory_ref memory, uint32_t low, uint32_t high,
+                 bool physical);
   void Cleanup();
   void Dump();
   uint32_t Alloc(uint32_t base_address,
@@ -166,9 +168,11 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
 
   // Prepare heaps.
   memory->virtual_heap.Initialize(
-      memory, XE_MEMORY_VIRTUAL_HEAP_LOW, XE_MEMORY_VIRTUAL_HEAP_HIGH);
+      memory, XE_MEMORY_VIRTUAL_HEAP_LOW, XE_MEMORY_VIRTUAL_HEAP_HIGH,
+      false);
   memory->physical_heap.Initialize(
-      memory, XE_MEMORY_PHYSICAL_HEAP_LOW, XE_MEMORY_PHYSICAL_HEAP_HIGH);
+      memory, XE_MEMORY_PHYSICAL_HEAP_LOW, XE_MEMORY_PHYSICAL_HEAP_HIGH,
+      true);
 
   return memory;
 
@@ -198,18 +202,18 @@ int xe_memory_map_views(xe_memory_ref memory, uint8_t* mapping_base) {
     0x00000000, 0x3FFFFFFF, 0x00000000, // (1024mb) - virtual 4k pages
     0x40000000, 0x7FFFFFFF, 0x40000000, // (1024mb) - virtual 64k pages
     0x80000000, 0x9FFFFFFF, 0x80000000, //  (512mb) - xex pages
-    0xA0000000, 0xBFFFFFFF, 0x60000000, //  (512mb) - physical 64k pages
-    0xC0000000, 0xDFFFFFFF, 0x60000000, //          - physical 16mb pages
-    0xE0000000, 0xFFFFFFFF, 0x60000000, //          - physical 4k pages
+    0xA0000000, 0xBFFFFFFF, 0x00000000, //  (512mb) - physical 64k pages
+    0xC0000000, 0xDFFFFFFF, 0x00000000, //          - physical 16mb pages
+    0xE0000000, 0xFFFFFFFF, 0x00000000, //          - physical 4k pages
   };
   XEASSERT(XECOUNT(map_info) == XECOUNT(memory->views.all_views));
   for (size_t n = 0; n < XECOUNT(map_info); n++) {
     memory->views.all_views[n] = (uint8_t*)MapViewOfFileEx(
-      memory->mapping,
-      FILE_MAP_ALL_ACCESS,
-      0x00000000, map_info[n].target_address,
-      map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
-      mapping_base + map_info[n].virtual_address_start);
+        memory->mapping,
+        FILE_MAP_ALL_ACCESS,
+        0x00000000, map_info[n].target_address,
+        map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
+        mapping_base + map_info[n].virtual_address_start);
     XEEXPECTNOTNULL(memory->views.all_views[n]);
   }
   return 0;
@@ -363,8 +367,10 @@ int xe_memory_protect(
 }
 
 
-int xe_memory_heap_t::Initialize(xe_memory_ref memory, uint32_t low, uint32_t high) {
+int xe_memory_heap_t::Initialize(
+    xe_memory_ref memory, uint32_t low, uint32_t high, bool physical) {
   this->memory = memory;
+  this->physical = physical;
 
   // Lock used around heap allocs/frees.
   mutex = xe_mutex_alloc(10000);
@@ -378,7 +384,7 @@ int xe_memory_heap_t::Initialize(xe_memory_ref memory, uint32_t low, uint32_t hi
   size = high - low;
   ptr = memory->views.v00000000 + low;
   void* heap_result = VirtualAlloc(
-    ptr, size, MEM_COMMIT, PAGE_READWRITE);
+      ptr, size, MEM_COMMIT, PAGE_READWRITE);
   if (!heap_result) {
     return 1;
   }
@@ -402,7 +408,8 @@ void xe_memory_heap_t::Cleanup() {
 }
 
 void xe_memory_heap_t::Dump() {
-  XELOGI("xe_memory_heap_dump:");
+  XELOGI("xe_memory_heap::Dump - %s",
+         physical ? "physical" : "virtual");
   if (FLAGS_heap_guard_pages) {
     XELOGI("  (heap guard pages enabled, stats will be wrong)");
   }
@@ -426,17 +433,17 @@ void xe_memory_heap_t::DumpHandler(
   uint64_t start_addr = (uint64_t)start + heap_guard_size;
   uint64_t end_addr = (uint64_t)end - heap_guard_size;
   uint32_t guest_start =
-    (uint32_t)(start_addr - (uintptr_t)memory->mapping_base);
+      (uint32_t)(start_addr - (uintptr_t)memory->mapping_base);
   uint32_t guest_end =
-    (uint32_t)(end_addr - (uintptr_t)memory->mapping_base);
+      (uint32_t)(end_addr - (uintptr_t)memory->mapping_base);
   if (used_bytes > 0) {
     XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
-            guest_start, guest_end, (guest_end - guest_start),
-            start_addr, end_addr,
-            used_bytes);
+           guest_start, guest_end, (guest_end - guest_start),
+           start_addr, end_addr,
+           used_bytes);
   } else {
     XELOGI(" -                                 %.16llX-%.16llX - %9db used",
-            start_addr, end_addr, used_bytes);
+           start_addr, end_addr, used_bytes);
   }
 }
 
@@ -444,21 +451,26 @@ uint32_t xe_memory_heap_t::Alloc(
     uint32_t base_address, uint32_t size, uint32_t flags,
     uint32_t alignment) {
   XEIGNORE(xe_mutex_lock(mutex));
+  size_t alloc_size = size;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   if (heap_guard_size) {
     alignment = (uint32_t)MAX(alignment, heap_guard_size);
-    size = (uint32_t)XEROUNDUP(size, heap_guard_size);
+    alloc_size = (uint32_t)XEROUNDUP(size, heap_guard_size);
   }
   uint8_t* p = (uint8_t*)mspace_memalign(
-    space,
-    alignment,
-    size + heap_guard_size * 2);
+      space,
+      alignment,
+      alloc_size + heap_guard_size * 2);
   if (FLAGS_heap_guard_pages) {
     size_t real_size = mspace_usable_size(p);
     DWORD old_protect;
-    VirtualProtect(p, heap_guard_size, PAGE_NOACCESS, &old_protect);
+    VirtualProtect(
+        p, heap_guard_size,
+        PAGE_NOACCESS, &old_protect);
     p += heap_guard_size;
-    VirtualProtect(p + size, heap_guard_size, PAGE_NOACCESS, &old_protect);
+    VirtualProtect(
+        p + alloc_size, heap_guard_size,
+        PAGE_NOACCESS, &old_protect);
   }
   if (FLAGS_log_heap) {
     Dump();
@@ -467,6 +479,27 @@ uint32_t xe_memory_heap_t::Alloc(
   if (!p) {
     return 0;
   }
+
+  if (physical) {
+    // If physical, we need to commit the memory in the physical address ranges
+    // so that it can be accessed.
+    VirtualAlloc(
+        memory->views.vA0000000 + (p - memory->views.v00000000),
+        size,
+        MEM_COMMIT,
+        PAGE_READWRITE);
+    VirtualAlloc(
+        memory->views.vC0000000 + (p - memory->views.v00000000),
+        size,
+        MEM_COMMIT,
+        PAGE_READWRITE);
+    VirtualAlloc(
+        memory->views.vE0000000 + (p - memory->views.v00000000),
+        size,
+        MEM_COMMIT,
+        PAGE_READWRITE);
+  }
+
   return (uint32_t)((uintptr_t)p - (uintptr_t)memory->mapping_base);
 }
 
@@ -486,16 +519,33 @@ uint32_t xe_memory_heap_t::Free(uint32_t address, uint32_t size) {
   if (FLAGS_heap_guard_pages) {
     DWORD old_protect;
     VirtualProtect(
-      p, heap_guard_size,
-      PAGE_READWRITE, &old_protect);
+        p, heap_guard_size,
+        PAGE_READWRITE, &old_protect);
     VirtualProtect(
-      p + heap_guard_size + real_size, heap_guard_size,
-      PAGE_READWRITE, &old_protect);
+        p + heap_guard_size + real_size, heap_guard_size,
+        PAGE_READWRITE, &old_protect);
   }
   mspace_free(space, p);
   if (FLAGS_log_heap) {
     Dump();
   }
   XEIGNORE(xe_mutex_unlock(mutex));
+
+  if (physical) {
+    // If physical, decommit from physical ranges too.
+    VirtualFree(
+        memory->views.vA0000000 + (p - memory->views.v00000000),
+        size,
+        MEM_DECOMMIT);
+    VirtualFree(
+        memory->views.vC0000000 + (p - memory->views.v00000000),
+        size,
+        MEM_DECOMMIT);
+    VirtualFree(
+        memory->views.vE0000000 + (p - memory->views.v00000000),
+        size,
+        MEM_DECOMMIT);
+  }
+
   return (uint32_t)real_size;
 }
