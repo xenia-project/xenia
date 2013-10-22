@@ -222,7 +222,7 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
 
   // Round up the region size and alignment to the next page.
   uint32_t adjusted_size = XEROUNDUP(region_size, page_size);
-  uint32_t adjusted_alignment = XEROUNDUP(alignment, page_size);;
+  uint32_t adjusted_alignment = XEROUNDUP(alignment, page_size);
 
   // Callers can pick an address to allocate with min_addr_range/max_addr_range
   // and the memory must be allocated there. I haven't seen a game do this,
