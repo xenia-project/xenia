@@ -220,8 +220,9 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
     page_size = 16 * 1024 * 1024;
   }
 
-  // Round up the region size to the next page.
+  // Round up the region size and alignment to the next page.
   uint32_t adjusted_size = XEROUNDUP(region_size, page_size);
+  uint32_t adjusted_alignment = XEROUNDUP(alignment, page_size);;
 
   // Callers can pick an address to allocate with min_addr_range/max_addr_range
   // and the memory must be allocated there. I haven't seen a game do this,
@@ -233,7 +234,7 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
   // Allocate.
   uint32_t flags = XE_MEMORY_FLAG_PHYSICAL;
   uint32_t base_address = xe_memory_heap_alloc(
-      state->memory(), 0, adjusted_size, flags, alignment);
+      state->memory(), 0, adjusted_size, flags, adjusted_alignment);
   if (!base_address) {
     // Failed - assume no memory available.
     return 0;
