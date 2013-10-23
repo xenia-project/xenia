@@ -41,8 +41,11 @@ XamModule::XamModule(Runtime* runtime) :
   shared_xam_state_ = xam_state.get();
 
   // Register all exported functions.
+  RegisterContentExports(export_resolver_.get(), xam_state.get());
   RegisterInfoExports(export_resolver_.get(), xam_state.get());
+  RegisterInputExports(export_resolver_.get(), xam_state.get());
   RegisterNetExports(export_resolver_.get(), xam_state.get());
+  RegisterUserExports(export_resolver_.get(), xam_state.get());
   RegisterVideoExports(export_resolver_.get(), xam_state.get());
 }
 

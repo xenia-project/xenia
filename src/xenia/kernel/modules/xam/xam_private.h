@@ -30,8 +30,11 @@ extern XamState* shared_xam_state_;
 
 
 // Registration functions, one per file.
+void RegisterContentExports(ExportResolver* export_resolver, XamState* state);
 void RegisterInfoExports(ExportResolver* export_resolver, XamState* state);
+void RegisterInputExports(ExportResolver* export_resolver, XamState* state);
 void RegisterNetExports(ExportResolver* export_resolver, XamState* state);
+void RegisterUserExports(ExportResolver* export_resolver, XamState* state);
 void RegisterVideoExports(ExportResolver* export_resolver, XamState* state);
 
 
