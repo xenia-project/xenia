@@ -174,6 +174,11 @@ xe_memory_ref xe_memory_create(xe_memory_options_t options) {
       memory, XE_MEMORY_PHYSICAL_HEAP_LOW, XE_MEMORY_PHYSICAL_HEAP_HIGH,
       true);
 
+  // GPU writeback.
+  VirtualAlloc(
+      memory->mapping_base + 0xC0000000, 0x00100000,
+      MEM_COMMIT, PAGE_READWRITE);
+
   return memory;
 
 XECLEANUP:
@@ -182,6 +187,11 @@ XECLEANUP:
 }
 
 void xe_memory_dealloc(xe_memory_ref memory) {
+  // GPU writeback.
+  VirtualFree(
+      memory->mapping_base + 0xC0000000, 0x00100000,
+      MEM_DECOMMIT);
+
   // Cleanup heaps.
   memory->virtual_heap.Cleanup();
   memory->physical_heap.Cleanup();
