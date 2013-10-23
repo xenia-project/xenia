@@ -5,6 +5,8 @@
     'xam_info.h',
     'xam_module.cc',
     'xam_module.h',
+    'xam_net.cc',
+    'xam_net.h',
     'xam_ordinals.h',
     'xam_private.h',
     'xam_state.cc',
