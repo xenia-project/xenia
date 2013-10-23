@@ -148,9 +148,6 @@ void RingBufferWorker::ExecutePrimaryBuffer(
 }
 
 void RingBufferWorker::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
-  // Adjust pointer base.
-  ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (ptr & 0x1FFFFFFF);
-
   XELOGGPU("[%.8X] ExecuteIndirectBuffer(%dw)", ptr, length);
 
   // Execute commands!
@@ -173,9 +170,6 @@ void RingBufferWorker::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
              packet_ptr + (1 + __m) * 4, \
              XEGETUINT32BE(packet_base + 1 * 4 + __m * 4)); \
   }
-
-#define TRANSLATE_ADDR(p) \
-  ((p & ~0x3) + (primary_buffer_ptr_ & ~0x1FFFFFFF))
 
 void RingBufferWorker::AdvancePtr(PacketArgs& args, uint32_t n) {
   args.ptr = args.ptr + n * 4;
@@ -224,7 +218,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
                  args.ptr,
                  reg_data, target_index, reg_name ? reg_name : "");
         ADVANCE_PTR(1);
-        WriteRegister(target_index, reg_data);
+        WriteRegister(packet_ptr, target_index, reg_data);
       }
       return 1 + count;
     }
@@ -249,8 +243,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
       XELOGGPU("[%.8X]   %.8X -> %.4X %s",
                reg_ptr_2,
                reg_data_2, reg_index_2, reg_name_2 ? reg_name_2 : "");
-      WriteRegister(reg_index_1, reg_data_1);
-      WriteRegister(reg_index_2, reg_data_2);
+      WriteRegister(packet_ptr, reg_index_1, reg_data_1);
+      WriteRegister(packet_ptr, reg_index_2, reg_data_2);
       return 1 + 2;
     }
     break;
@@ -307,7 +301,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t list_length = READ_PTR();
           XELOGGPU("[%.8X] Packet(%.8X): PM4_INDIRECT_BUFFER %.8X (%dw)",
                    packet_ptr, packet, list_ptr, list_length);
-          ExecuteIndirectBuffer(list_ptr, list_length);
+          ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
         }
         break;
 
@@ -329,7 +323,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
               // Memory.
               XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(poll_reg_addr & 0x3);
               poll_reg_addr &= ~0x3;
-              value = XEGETUINT32LE(p + TRANSLATE_ADDR(poll_reg_addr));
+              value = XEGETUINT32LE(p + GpuToCpu(packet_ptr, poll_reg_addr));
               value = GpuSwap(value, endianness);
             } else {
               // Register.
@@ -399,7 +393,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // & imm
             value &= and_mask;
           }
-          WriteRegister(rmw_info & 0x1FFF, value);
+          WriteRegister(packet_ptr, rmw_info & 0x1FFF, value);
         }
         break;
 
@@ -418,9 +412,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t value;
           if (wait_info & 0x10) {
             // Memory.
-            value = XEGETUINT32LE(p + TRANSLATE_ADDR(poll_reg_addr));
             XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(poll_reg_addr & 0x3);
             poll_reg_addr &= ~0x3;
+            value = XEGETUINT32LE(p + GpuToCpu(packet_ptr, poll_reg_addr));
             value = GpuSwap(value, endianness);
           } else {
             // Register.
@@ -461,10 +455,11 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
               XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(write_reg_addr & 0x3);
               write_reg_addr &= ~0x3;
               write_data = GpuSwap(write_data, endianness);
-              XESETUINT32LE(p + TRANSLATE_ADDR(write_reg_addr), write_data);
+              XESETUINT32LE(p + GpuToCpu(packet_ptr, write_reg_addr),
+                            write_data);
             } else {
               // Register.
-              WriteRegister(write_reg_addr, write_data);
+              WriteRegister(packet_ptr, write_reg_addr, write_data);
             }
           }
         }
@@ -496,7 +491,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           uint32_t address = READ_PTR();
           uint32_t value = READ_PTR();
           // Writeback initiator.
-          WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x1F);
+          WriteRegister(packet_ptr, XE_GPU_REG_VGT_EVENT_INITIATOR,
+                        initiator & 0x1F);
           uint32_t data_value;
           if ((initiator >> 31) & 0x1) {
             // Write counter (GPU vblank counter?).
@@ -508,7 +504,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(address & 0x3);
           address &= ~0x3;
           data_value = GpuSwap(data_value, endianness);
-          XESETUINT32LE(p + TRANSLATE_ADDR(address), data_value);
+          XESETUINT32LE(p + GpuToCpu(packet_ptr, address), data_value);
         }
         break;
 
@@ -576,7 +572,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XEASSERT(start == 0);
           driver_->SetShader(
               (XE_GPU_SHADER_TYPE)type,
-              TRANSLATE_ADDR(addr),
+              GpuToCpu(packet_ptr, addr),
               start,
               size * 4);
         }
@@ -667,7 +663,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
   return 0;
 }
 
-void RingBufferWorker::WriteRegister(uint32_t index, uint32_t value) {
+void RingBufferWorker::WriteRegister(
+    uint32_t packet_ptr, uint32_t index, uint32_t value) {
   RegisterFile* regs = driver_->register_file();
   XEASSERT(index < kXEGpuRegisterCount);
   regs->values[index].u32 = value;
@@ -680,7 +677,7 @@ void RingBufferWorker::WriteRegister(uint32_t index, uint32_t value) {
       uint8_t* p = xe_memory_addr(memory_);
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
-      XESETUINT32BE(p + TRANSLATE_ADDR(mem_addr), value);
+      XESETUINT32BE(p + GpuToCpu(primary_buffer_ptr_, mem_addr), value);
     }
   }
 }

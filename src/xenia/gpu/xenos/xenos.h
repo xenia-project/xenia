@@ -65,6 +65,17 @@ XEFORCEINLINE uint32_t GpuSwap(uint32_t value, XE_GPU_ENDIAN endianness) {
   }
 }
 
+XEFORCEINLINE uint32_t GpuToCpu(uint32_t p) {
+  return p;
+}
+
+XEFORCEINLINE uint32_t GpuToCpu(uint32_t base, uint32_t p) {
+  uint32_t upper = base & 0xFF000000;
+  uint32_t lower = p & 0x00FFFFFF;
+  return upper + lower;// -(((base >> 20) + 0x200) & 0x1000);
+}
+
+
 // XE_GPU_REG_SQ_PROGRAM_CNTL
 typedef union {
   XEPACKEDSTRUCTANONYMOUS({
