@@ -42,18 +42,25 @@ typedef enum {
   XE_GPU_PRIMITIVE_TYPE_LINE_LOOP         = 0x0C,
 } XE_GPU_PRIMITIVE_TYPE;
 
-XEFORCEINLINE uint32_t GpuSwap(uint32_t value, uint32_t endianness) {
+typedef enum {
+  XE_GPU_ENDIAN_NONE                      = 0x0,
+  XE_GPU_ENDIAN_8IN16                     = 0x1,
+  XE_GPU_ENDIAN_8IN32                     = 0x2,
+  XE_GPU_ENDIAN_16IN32                    = 0x3,
+} XE_GPU_ENDIAN;
+
+XEFORCEINLINE uint32_t GpuSwap(uint32_t value, XE_GPU_ENDIAN endianness) {
   switch (endianness) {
   default:
-  case 0x0: // No swap.
+  case XE_GPU_ENDIAN_NONE: // No swap.
     return value;
-  case 0x1: // Swap bytes in half words.
+  case XE_GPU_ENDIAN_8IN16: // Swap bytes in half words.
     return ((value << 8) & 0xFF00FF00) |
            ((value >> 8) & 0x00FF00FF);
-  case 0x2: // Swap bytes.
+  case XE_GPU_ENDIAN_8IN32: // Swap bytes.
     // NOTE: we are likely doing two swaps here. Wasteful. Oh well.
     return XESWAP32(value);
-  case 0x3: // Swap half words.
+  case XE_GPU_ENDIAN_16IN32: // Swap half words.
     return ((value >> 16) & 0xFFFF) | (value << 16);
   }
 }

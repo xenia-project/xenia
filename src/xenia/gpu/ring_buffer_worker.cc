@@ -185,10 +185,10 @@ void RingBufferWorker::AdvancePtr(PacketArgs& args, uint32_t n) {
   }
 }
 #define ADVANCE_PTR(n) AdvancePtr(args, n)
+#define PEEK_PTR() \
+    XEGETUINT32BE(p + args.ptr)
 #define READ_PTR() \
-  XEGETUINT32BE(p + args.ptr)
-#define READ_AND_ADVANCE_PTR() \
-  XEGETUINT32BE(p + args.ptr); ADVANCE_PTR(1);
+    XEGETUINT32BE(p + args.ptr); ADVANCE_PTR(1);
 
 uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
   uint8_t* p = xe_memory_addr(memory_);
@@ -196,7 +196,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
 
   uint32_t packet_ptr = args.ptr;
   const uint8_t* packet_base = p + packet_ptr;
-  const uint32_t packet = READ_PTR();
+  const uint32_t packet = PEEK_PTR();
   ADVANCE_PTR(1);
   const uint32_t packet_type = packet >> 30;
   if (packet == 0) {
@@ -217,7 +217,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
       uint32_t base_index = (packet & 0x7FFF);
       uint32_t write_one_reg = (packet >> 15) & 0x1;
       for (uint32_t m = 0; m < count; m++) {
-        uint32_t reg_data = READ_PTR();
+        uint32_t reg_data = PEEK_PTR();
         uint32_t target_index = write_one_reg ? base_index : base_index + m;
         const char* reg_name = xenos::GetRegisterName(target_index);
         XELOGGPU("[%.8X]   %.8X -> %.4X %s",
@@ -238,9 +238,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
       uint32_t reg_index_1 = packet & 0x7FF;
       uint32_t reg_index_2 = (packet >> 11) & 0x7FF;
       uint32_t reg_ptr_1 = args.ptr;
-      uint32_t reg_data_1 = READ_AND_ADVANCE_PTR();
+      uint32_t reg_data_1 = READ_PTR();
       uint32_t reg_ptr_2 = args.ptr;
-      uint32_t reg_data_2 = READ_AND_ADVANCE_PTR();
+      uint32_t reg_data_2 = READ_PTR();
       const char* reg_name_1 = xenos::GetRegisterName(reg_index_1);
       const char* reg_name_2 = xenos::GetRegisterName(reg_index_2);
       XELOGGPU("[%.8X]   %.8X -> %.4X %s",
@@ -291,7 +291,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_INTERRUPT",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t cpu_mask = READ_AND_ADVANCE_PTR();
+          uint32_t cpu_mask = READ_PTR();
           for (int n = 0; n < 6; n++) {
             if (cpu_mask & (1 << n)) {
               graphics_system_->DispatchInterruptCallback(1, n);
@@ -303,8 +303,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
       case PM4_INDIRECT_BUFFER:
         // indirect buffer dispatch
         {
-          uint32_t list_ptr = READ_AND_ADVANCE_PTR();
-          uint32_t list_length = READ_AND_ADVANCE_PTR();
+          uint32_t list_ptr = READ_PTR();
+          uint32_t list_length = READ_PTR();
           XELOGGPU("[%.8X] Packet(%.8X): PM4_INDIRECT_BUFFER %.8X (%dw)",
                    packet_ptr, packet, list_ptr, list_length);
           ExecuteIndirectBuffer(list_ptr, list_length);
@@ -317,18 +317,19 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_WAIT_REG_MEM",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t wait_info = READ_AND_ADVANCE_PTR();
-          uint32_t poll_reg_addr = READ_AND_ADVANCE_PTR();
-          uint32_t ref = READ_AND_ADVANCE_PTR();
-          uint32_t mask = READ_AND_ADVANCE_PTR();
-          uint32_t wait = READ_AND_ADVANCE_PTR();
+          uint32_t wait_info = READ_PTR();
+          uint32_t poll_reg_addr = READ_PTR();
+          uint32_t ref = READ_PTR();
+          uint32_t mask = READ_PTR();
+          uint32_t wait = READ_PTR();
           bool matched = false;
           do {
             uint32_t value;
             if (wait_info & 0x10) {
               // Memory.
+              XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(poll_reg_addr & 0x3);
+              poll_reg_addr &= ~0x3;
               value = XEGETUINT32LE(p + TRANSLATE_ADDR(poll_reg_addr));
-              uint32_t endianness = poll_reg_addr & 0x3;
               value = GpuSwap(value, endianness);
             } else {
               // Register.
@@ -380,9 +381,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_REG_RMW",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t rmw_info = READ_AND_ADVANCE_PTR();
-          uint32_t and_mask = READ_AND_ADVANCE_PTR();
-          uint32_t or_mask = READ_AND_ADVANCE_PTR();
+          uint32_t rmw_info = READ_PTR();
+          uint32_t and_mask = READ_PTR();
+          uint32_t or_mask = READ_PTR();
           uint32_t value = regs->values[rmw_info & 0x1FFF].u32;
           if ((rmw_info >> 30) & 0x1) {
             // | reg
@@ -408,17 +409,18 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_COND_WRITE",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t wait_info = READ_AND_ADVANCE_PTR();
-          uint32_t poll_reg_addr = READ_AND_ADVANCE_PTR();
-          uint32_t ref = READ_AND_ADVANCE_PTR();
-          uint32_t mask = READ_AND_ADVANCE_PTR();
-          uint32_t write_reg_addr = READ_AND_ADVANCE_PTR();
-          uint32_t write_data = READ_AND_ADVANCE_PTR();
+          uint32_t wait_info = READ_PTR();
+          uint32_t poll_reg_addr = READ_PTR();
+          uint32_t ref = READ_PTR();
+          uint32_t mask = READ_PTR();
+          uint32_t write_reg_addr = READ_PTR();
+          uint32_t write_data = READ_PTR();
           uint32_t value;
           if (wait_info & 0x10) {
             // Memory.
             value = XEGETUINT32LE(p + TRANSLATE_ADDR(poll_reg_addr));
-            uint32_t endianness = poll_reg_addr & 0x3;
+            XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(poll_reg_addr & 0x3);
+            poll_reg_addr &= ~0x3;
             value = GpuSwap(value, endianness);
           } else {
             // Register.
@@ -456,7 +458,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // Write.
             if (wait_info & 0x100) {
               // Memory.
-              uint32_t endianness = write_reg_addr & 0x3;
+              XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(write_reg_addr & 0x3);
+              write_reg_addr &= ~0x3;
               write_data = GpuSwap(write_data, endianness);
               XESETUINT32LE(p + TRANSLATE_ADDR(write_reg_addr), write_data);
             } else {
@@ -473,7 +476,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_EVENT_WRITE (unimplemented!)",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t initiator = READ_AND_ADVANCE_PTR();
+          uint32_t initiator = READ_PTR();
           if (count == 1) {
             // Just an event flag? Where does this write?
           } else {
@@ -489,9 +492,9 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_EVENT_WRITE_SHD",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t initiator = READ_AND_ADVANCE_PTR();
-          uint32_t address = READ_AND_ADVANCE_PTR();
-          uint32_t value = READ_AND_ADVANCE_PTR();
+          uint32_t initiator = READ_PTR();
+          uint32_t address = READ_PTR();
+          uint32_t value = READ_PTR();
           // Writeback initiator.
           WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x1F);
           uint32_t data_value;
@@ -502,7 +505,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
             // Write value.
             data_value = value;
           }
-          uint32_t endianness = address & 0x3;
+          XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(address & 0x3);
           address &= ~0x3;
           data_value = GpuSwap(data_value, endianness);
           XESETUINT32LE(p + TRANSLATE_ADDR(address), data_value);
@@ -516,14 +519,14 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
                    packet_ptr, packet);
           LOG_DATA(count);
           // d0 = viz query info
-          uint32_t d0 = READ_AND_ADVANCE_PTR();
-          uint32_t d1 = READ_AND_ADVANCE_PTR();
+          uint32_t d0 = READ_PTR();
+          uint32_t d1 = READ_PTR();
           uint32_t index_count = d1 >> 16;
           uint32_t prim_type = d1 & 0x3F;
           uint32_t src_sel = (d1 >> 6) & 0x3;
           if (src_sel == 0x0) {
-            uint32_t index_base = READ_AND_ADVANCE_PTR();
-            uint32_t index_size = READ_AND_ADVANCE_PTR();
+            uint32_t index_base = READ_PTR();
+            uint32_t index_size = READ_PTR();
             uint32_t endianness = index_size >> 29;
             index_size &= 0x00FFFFFF;
             bool index_32bit = (d1 >> 11) & 0x1;
@@ -547,7 +550,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_DRAW_INDX_2",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t d0 = READ_AND_ADVANCE_PTR();
+          uint32_t d0 = READ_PTR();
           uint32_t index_count = d0 >> 16;
           uint32_t prim_type = d0 & 0x3F;
           uint32_t src_sel = (d0 >> 6) & 0x3;
@@ -564,10 +567,10 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_IM_LOAD",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t addr_type = READ_AND_ADVANCE_PTR();
+          uint32_t addr_type = READ_PTR();
           uint32_t type = addr_type & 0x3;
           uint32_t addr = addr_type & ~0x3;
-          uint32_t start_size = READ_AND_ADVANCE_PTR();
+          uint32_t start_size = READ_PTR();
           uint32_t start = start_size >> 16;
           uint32_t size = start_size & 0xFFFF; // dwords
           XEASSERT(start == 0);
@@ -584,8 +587,8 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_IM_LOAD_IMMEDIATE",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t type = READ_AND_ADVANCE_PTR();
-          uint32_t start_size = READ_AND_ADVANCE_PTR();
+          uint32_t type = READ_PTR();
+          uint32_t start_size = READ_PTR();
           uint32_t start = start_size >> 16;
           uint32_t size = start_size & 0xFFFF; // dwords
           XEASSERT(start == 0);
@@ -606,35 +609,35 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XELOGGPU("[%.8X] Packet(%.8X): PM4_INVALIDATE_STATE",
                    packet_ptr, packet);
           LOG_DATA(count);
-          uint32_t mask = READ_AND_ADVANCE_PTR();
+          uint32_t mask = READ_PTR();
           driver_->InvalidateState(mask);
         }
         break;
 
       case PM4_SET_BIN_MASK_LO:
         {
-          uint32_t value = READ_AND_ADVANCE_PTR();
+          uint32_t value = READ_PTR();
           XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_LO = %.8X",
                    packet_ptr, packet, value);
         }
         break;
       case PM4_SET_BIN_MASK_HI:
         {
-          uint32_t value = READ_AND_ADVANCE_PTR();
+          uint32_t value = READ_PTR();
           XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_HI = %.8X",
                    packet_ptr, packet, value);
         }
         break;
       case PM4_SET_BIN_SELECT_LO:
         {
-          uint32_t value = READ_AND_ADVANCE_PTR();
+          uint32_t value = READ_PTR();
           XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_LO = %.8X",
                    packet_ptr, packet, value);
         }
         break;
       case PM4_SET_BIN_SELECT_HI:
         {
-          uint32_t value = READ_AND_ADVANCE_PTR();
+          uint32_t value = READ_PTR();
           XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_HI = %.8X",
                    packet_ptr, packet, value);
         }
