@@ -24,7 +24,8 @@ ThreadState::ThreadState(
     thread_id_(thread_id) {
   memory_ = processor->memory();
 
-  stack_address_ = xe_memory_heap_alloc(memory_, 0, stack_size, 0);
+  stack_address_ = xe_memory_heap_alloc(
+      memory_, 0, stack_size, XE_MEMORY_FLAG_ZERO);
 
   // Allocate with 64b alignment.
   ppc_state_ = (xe_ppc_state_t*)xe_malloc_aligned(sizeof(xe_ppc_state_t));

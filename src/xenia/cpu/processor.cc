@@ -110,7 +110,7 @@ int Processor::Setup() {
   interrupt_thread_lock_ = xe_mutex_alloc(10000);
   interrupt_thread_state_ = AllocThread(16 * 1024, 0, 0);
   interrupt_thread_block_ = xe_memory_heap_alloc(
-      memory_, 0, 2048, 0);
+      memory_, 0, 2048, XE_MEMORY_FLAG_ZERO);
   interrupt_thread_state_->ppc_state()->r[13] = interrupt_thread_block_;
 
   sym_table_ = new SymbolTable();
@@ -146,7 +146,7 @@ int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {
 
   // Place the data into memory at the desired address.
   XEEXPECTNOTZERO(xe_memory_heap_alloc(
-      memory_, start_address, (uint32_t)length, 0));
+      memory_, start_address, (uint32_t)length, XE_MEMORY_FLAG_ZERO));
   XEEXPECTZERO(xe_copy_memory(
       xe_memory_addr(memory_, start_address), length, addr, length));
 

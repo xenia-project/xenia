@@ -293,11 +293,20 @@ uint32_t xe_memory_heap_alloc(
   // will place wherever asked (so long as it doesn't overlap the heap).
   if (!base_address) {
     // Normal allocation from the managed heap.
+    uint32_t result;
     if (flags & XE_MEMORY_FLAG_PHYSICAL) {
-      return memory->physical_heap.Alloc(base_address, size, flags, alignment);
+      result = memory->physical_heap.Alloc(
+          base_address, size, flags, alignment);
     } else {
-      return memory->virtual_heap.Alloc(base_address, size, flags, alignment);
+      result = memory->virtual_heap.Alloc(
+          base_address, size, flags, alignment);
     }
+    if (result) {
+      if (flags & XE_MEMORY_FLAG_ZERO) {
+        xe_zero_struct(memory->mapping_base + result, size);
+      }
+    }
+    return result;
   } else {
     if (base_address >= XE_MEMORY_VIRTUAL_HEAP_LOW &&
         base_address < XE_MEMORY_VIRTUAL_HEAP_HIGH) {
@@ -320,6 +329,10 @@ uint32_t xe_memory_heap_alloc(
       // Failed.
       XEASSERTALWAYS();
       return 0;
+    }
+
+    if (flags & XE_MEMORY_FLAG_ZERO) {
+      xe_zero_struct(pv, size);
     }
 
     return base_address;
