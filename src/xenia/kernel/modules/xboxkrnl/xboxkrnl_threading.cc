@@ -205,6 +205,31 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(
 }
 
 
+X_STATUS xeKeDelayExecutionThread(
+    uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
+  XThread* thread = XThread::GetCurrentThread();
+  return thread->Delay(processor_mode, alertable, interval);
+}
+
+
+SHIM_CALL KeDelayExecutionThread_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t processor_mode = SHIM_GET_ARG_32(0);
+  uint32_t alertable = SHIM_GET_ARG_32(1);
+  uint32_t interval_ptr = SHIM_GET_ARG_32(2);
+  uint64_t interval = SHIM_MEM_64(interval_ptr);
+
+  XELOGD(
+    "KeDelayExecutionThread(%.8X, %d, %.8X(%.16llX)",
+    processor_mode, alertable, interval_ptr, interval);
+
+  X_STATUS result = xeKeDelayExecutionThread(
+      processor_mode, alertable, interval);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 void xeKeQuerySystemTime(uint64_t* time_ptr) {
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
@@ -654,6 +679,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeDelayExecutionThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQuerySystemTime, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsAlloc, state);

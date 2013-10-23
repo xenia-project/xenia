@@ -33,6 +33,9 @@ uint32_t xeKeGetCurrentProcessType();
 uint64_t xeKeQueryPerformanceFrequency();
 void xeKeQuerySystemTime(uint64_t* time_ptr);
 
+X_STATUS xeKeDelayExecutionThread(
+    uint32_t processor_mode, uint32_t alertable, uint64_t interval);
+
 uint32_t xeKeTlsAlloc();
 int KeTlsFree(uint32_t tls_index);
 uint64_t xeKeTlsGetValue(uint32_t tls_index);

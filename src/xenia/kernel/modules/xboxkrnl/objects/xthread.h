@@ -61,6 +61,9 @@ public:
   uint32_t RaiseIrql(uint32_t new_irql);
   void LowerIrql(uint32_t new_irql);
 
+  X_STATUS Delay(
+      uint32_t processor_mode, uint32_t alertable, uint64_t interval);
+
 private:
   X_STATUS PlatformCreate();
   void PlatformDestroy();

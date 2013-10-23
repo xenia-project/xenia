@@ -348,3 +348,29 @@ uint32_t XThread::RaiseIrql(uint32_t new_irql) {
 void XThread::LowerIrql(uint32_t new_irql) {
   irql_ = new_irql;
 }
+
+X_STATUS XThread::Delay(
+  uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
+  int64_t timeout_ticks = interval;
+  DWORD timeout_ms;
+  if (timeout_ticks > 0) {
+    // Absolute time, based on January 1, 1601.
+    // TODO(benvanik): convert time to relative time.
+    XEASSERTALWAYS();
+    timeout_ms = 0;
+  } else if (timeout_ticks < 0) {
+    // Relative time.
+    timeout_ms = (DWORD)(-timeout_ticks / 10000); // Ticks -> MS
+  } else {
+    timeout_ms = 0;
+  }
+  DWORD result = SleepEx(timeout_ms, alertable ? TRUE : FALSE);
+  switch (result) {
+  case 0:
+    return X_STATUS_SUCCESS;
+  case WAIT_IO_COMPLETION:
+    return X_STATUS_USER_APC;
+  default:
+    return X_STATUS_ALERTED;
+  }
+}
