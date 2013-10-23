@@ -557,6 +557,35 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
         }
         break;
 
+      case PM4_SET_CONSTANT:
+        // load constant into chip and to memory
+        {
+          XELOGGPU("[%.8X] Packet(%.8X): PM4_SET_CONSTANT",
+                   packet_ptr, packet);
+          // PM4_REG(reg) ((0x4 << 16) | (GSL_HAL_SUBBLOCK_OFFSET(reg)))
+          //                                     reg - 0x2000
+          uint32_t offset_type = READ_PTR();
+          uint32_t index = offset_type & 0x7FF;
+          uint32_t type = (offset_type >> 16) & 0xFF;
+          switch (type) {
+          case 0x4: // REGISTER
+            index += 0x2000;
+            for (int n = 0; n < count - 1; n++, index++) {
+              uint32_t data = READ_PTR();
+              const char* reg_name = xenos::GetRegisterName(index);
+              XELOGGPU("[%.8X]   %.8X -> %.4X %s",
+                       packet_ptr + (1 + n) * 4,
+                       data, index, reg_name? reg_name : "");
+              WriteRegister(packet_ptr, index, data);
+            }
+            break;
+          default:
+            XEASSERTALWAYS();
+            break;
+          }
+        }
+        break;
+
       case PM4_IM_LOAD:
         // load sequencer instruction memory (pointer-based)
         {
