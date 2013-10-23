@@ -241,13 +241,14 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
   }
 
   // Move the address into the right range.
-  if (protect_bits & X_MEM_LARGE_PAGES) {
-    base_address |= 0xA0000000;
-  } else if (protect_bits & X_MEM_16MB_PAGES) {
-    base_address |= 0xC0000000;
-  } else {
-    base_address |= 0xE0000000;
-  }
+  //if (protect_bits & X_MEM_LARGE_PAGES) {
+  //  base_address += 0xA0000000;
+  //} else if (protect_bits & X_MEM_16MB_PAGES) {
+  //  base_address += 0xC0000000;
+  //} else {
+  //  base_address += 0xE0000000;
+  //}
+  base_address += 0xA0000000;
 
   return base_address;
 }
