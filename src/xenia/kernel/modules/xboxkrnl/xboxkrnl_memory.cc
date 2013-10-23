@@ -307,8 +307,13 @@ SHIM_CALL MmFreePhysicalMemory_shim(
 
 
 uint32_t xeMmQueryAddressProtect(uint32_t base_address) {
-  XELOGW("MmQueryAddressProtect faked!");
-  return 0;
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  uint32_t access = xe_memory_query_protect(
+      state->memory(), base_address);
+
+  return access;
 }
 
 
@@ -375,6 +380,6 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   //SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
-  //SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
 }

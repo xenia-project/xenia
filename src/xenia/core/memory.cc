@@ -12,6 +12,9 @@
 #include <gflags/gflags.h>
 #include <xenia/core/mutex.h>
 
+// TODO(benvanik): move xbox.h out
+#include <xenia/kernel/xbox.h>
+
 #if !XE_PLATFORM(WIN32)
 #include <sys/mman.h>
 #endif  // WIN32
@@ -377,14 +380,12 @@ int xe_memory_protect(
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   p += heap_guard_size;
 
-  DWORD new_protect = 0;
-  if (access & XE_MEMORY_ACCESS_WRITE) {
-    new_protect = PAGE_READWRITE;
-  } else if (access & XE_MEMORY_ACCESS_READ) {
-    new_protect = PAGE_READONLY;
-  } else {
-    new_protect = PAGE_NOACCESS;
-  }
+  DWORD new_protect = access;
+  new_protect = new_protect & (
+      X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
+      X_PAGE_WRITECOPY | X_PAGE_GUARD | X_PAGE_NOCACHE |
+      X_PAGE_WRITECOMBINE);
+
   DWORD old_protect;
   return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
 }
@@ -571,4 +572,14 @@ uint32_t xe_memory_heap_t::Free(uint32_t address, uint32_t size) {
   }
 
   return (uint32_t)real_size;
+}
+
+uint32_t xe_memory_query_protect(xe_memory_ref memory, uint32_t address) {
+  uint8_t* p = memory->mapping_base + address;
+  MEMORY_BASIC_INFORMATION info;
+  size_t info_size = VirtualQuery((void*)p, &info, sizeof(info));
+  if (!info_size) {
+    return 0;
+  }
+  return info.Protect;
 }

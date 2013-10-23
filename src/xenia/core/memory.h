@@ -61,5 +61,7 @@ int  xe_memory_heap_free(xe_memory_ref memory, uint32_t addr, uint32_t size);
 bool xe_memory_is_valid(xe_memory_ref memory, uint32_t address);
 int xe_memory_protect(xe_memory_ref memory, uint32_t address, uint32_t size,
                       uint32_t access);
+uint32_t xe_memory_query_protect(xe_memory_ref memory, uint32_t address);
+
 
 #endif  // XENIA_CORE_MEMORY_H_
