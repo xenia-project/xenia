@@ -7,6 +7,8 @@
     'kernel_state.h',
     'object_table.cc',
     'object_table.h',
+    'xboxkrnl_audio.cc',
+    'xboxkrnl_audio.h',
     'xboxkrnl_debug.cc',
     'xboxkrnl_debug.h',
     'xboxkrnl_hal.cc',

@@ -29,6 +29,7 @@ class KernelState;
 extern KernelState* shared_kernel_state_;
 
 // Registration functions, one per file.
+void RegisterAudioExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterDebugExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterHalExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterIoExports(ExportResolver* export_resolver, KernelState* state);

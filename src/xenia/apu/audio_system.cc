@@ -104,13 +104,20 @@ bool AudioSystem::HandlesRegister(uint32_t addr) {
   return (addr & 0xFFFF0000) == 0x7FEA0000;
 }
 
+// free60 may be useful here, however it looks like it's using a different
+// piece of hardware:
+// https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
+
 uint64_t AudioSystem::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("ReadRegister(%.4X)", r);
+  // 1800h is read on startup and stored -- context? buffers?
+  // 1818h is read during a lock?
   return 0;
 }
 
 void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
+  // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
 }
