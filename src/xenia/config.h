@@ -24,6 +24,7 @@
 #define XE_OPTION_LOG_DEBUG             1
 #define XE_OPTION_LOG_CPU               1
 #define XE_OPTION_LOG_SDB               0
+#define XE_OPTION_LOG_APU               1
 #define XE_OPTION_LOG_GPU               1
 #define XE_OPTION_LOG_KERNEL            1
 #define XE_OPTION_LOG_FS                1

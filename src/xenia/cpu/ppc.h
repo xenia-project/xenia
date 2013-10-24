@@ -13,6 +13,7 @@
 #include <xenia/common.h>
 
 #include <xenia/cpu/ppc/instr.h>
+#include <xenia/cpu/ppc/registers.h>
 #include <xenia/cpu/ppc/state.h>
 
 #endif  // XENIA_CPU_PPC_H_

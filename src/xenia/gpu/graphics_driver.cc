@@ -24,7 +24,3 @@ GraphicsDriver::GraphicsDriver(xe_memory_ref memory) :
 GraphicsDriver::~GraphicsDriver() {
   xe_memory_release(memory_);
 }
-
-xe_memory_ref GraphicsDriver::memory() {
-  return xe_memory_retain(memory_);
-}

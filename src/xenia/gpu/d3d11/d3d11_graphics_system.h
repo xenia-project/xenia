@@ -13,7 +13,7 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/graphics_system.h>
-#include <xenia/gpu/d3d11/d3d11-private.h>
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 
 #include <d3d11.h>
 
@@ -25,12 +25,12 @@ namespace d3d11 {
 class D3D11Window;
 
 
-GraphicsSystem* Create(const CreationParams* params);
+GraphicsSystem* Create(Emulator* emulator);
 
 
 class D3D11GraphicsSystem : public GraphicsSystem {
 public:
-  D3D11GraphicsSystem(const CreationParams* params);
+  D3D11GraphicsSystem(Emulator* emulator);
   virtual ~D3D11GraphicsSystem();
 
 protected:

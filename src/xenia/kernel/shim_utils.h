@@ -14,7 +14,7 @@
 #include <xenia/core.h>
 
 #include <xenia/cpu/ppc.h>
-#include <xenia/kernel/export.h>
+#include <xenia/export_resolver.h>
 #include <xenia/kernel/kernel_module.h>
 
 

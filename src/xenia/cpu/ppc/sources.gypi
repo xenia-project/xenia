@@ -10,6 +10,7 @@
     'instr.cc',
     'instr.h',
     'instr_tables.h',
+    'registers.h',
     'state.cc',
     'state.h',
   ],

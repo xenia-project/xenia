@@ -9,7 +9,7 @@
 
 #include <xenia/cpu/thread_state.h>
 
-#include <xenia/core/memory.h>
+#include <xenia/memory.h>
 #include <xenia/cpu/processor.h>
 
 

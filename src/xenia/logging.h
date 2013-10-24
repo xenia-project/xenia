@@ -64,6 +64,11 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
 #else
 #define XELOGSDB(fmt, ...) XE_EMPTY_MACRO
 #endif
+#if XE_OPTION(LOG_APU)
+#define XELOGAPU(fmt, ...) XELOGCORE('A', fmt, ##__VA_ARGS__)
+#else
+#define XELOGAPU(fmt, ...) XE_EMPTY_MACRO
+#endif
 #if XE_OPTION(LOG_GPU)
 #define XELOGGPU(fmt, ...) XELOGCORE('G', fmt, ##__VA_ARGS__)
 #else

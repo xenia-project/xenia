@@ -21,7 +21,7 @@ namespace sdb {
 class RawSymbolDatabase : public SymbolDatabase {
 public:
   RawSymbolDatabase(xe_memory_ref memory,
-                    kernel::ExportResolver* export_resolver,
+                    ExportResolver* export_resolver,
                     SymbolTable* sym_table,
                     uint32_t start_address, uint32_t end_address);
   virtual ~RawSymbolDatabase();

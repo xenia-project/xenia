@@ -7,8 +7,6 @@
     'file.h',
     'hash.cc',
     'hash.h',
-    'memory.cc',
-    'memory.h',
     'mmap.h',
     'mutex.h',
     'pal.h',

@@ -15,13 +15,12 @@
 #include <xenia/cpu/sdb.h>
 #include <xenia/cpu/ppc/instr.h>
 #include <xenia/cpu/ppc/state.h>
-#include <xenia/kernel/export.h>
+#include <xenia/export_resolver.h>
 
 
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::sdb;
-using namespace xe::kernel;
 
 
 namespace {

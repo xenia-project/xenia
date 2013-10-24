@@ -11,8 +11,8 @@
 #define XENIA_CPU_X64_X64_EMITTER_H_
 
 #include <xenia/cpu/global_exports.h>
+#include <xenia/cpu/ppc.h>
 #include <xenia/cpu/sdb.h>
-#include <xenia/cpu/ppc/instr.h>
 
 #include <asmjit/asmjit.h>
 
@@ -31,7 +31,7 @@ public:
   X64Emitter(xe_memory_ref memory);
   ~X64Emitter();
 
-  void SetupGpuPointers(void* gpu_this, void* gpu_read, void* gpu_write);
+  void AddRegisterAccessCallbacks(ppc::RegisterAccessCallbacks callbacks);
 
   void Lock();
   void Unlock();
@@ -74,6 +74,9 @@ public:
   void set_constant_gpr_value(uint32_t n, uint64_t value);
   void clear_constant_gpr_value(uint32_t n);
   void clear_all_constant_gpr_values();
+
+  bool check_constant_gpr_read(uint32_t addr, AsmJit::GpVar* reg);
+  bool check_constant_gpr_write(uint32_t addr, AsmJit::GpVar& reg);
 
   AsmJit::GpVar xer_value();
   void update_xer_value(AsmJit::GpVar& value);
@@ -139,9 +142,7 @@ private:
   xe_mutex_t*           lock_;
   uint32_t              cpu_feature_mask_;
 
-  void*                 gpu_this_;
-  void*                 gpu_read_;
-  void*                 gpu_write_;
+  std::vector<ppc::RegisterAccessCallbacks> access_callbacks_;
 
   static uint64_t       reserved_addr_;
 

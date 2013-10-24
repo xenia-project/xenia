@@ -14,23 +14,23 @@
 #include <xenia/core.h>
 
 
+XEDECLARECLASS1(xe, Emulator);
+XEDECLARECLASS1(xe, ExportResolver);
+
+
 namespace xe {
 namespace kernel {
 
 
-class ExportResolver;
-class Runtime;
-
-
 class KernelModule {
 public:
-  KernelModule(Runtime* runtime);
+  KernelModule(Emulator* emulator);
   virtual ~KernelModule();
 
 protected:
-  Runtime*        runtime_;
+  Emulator*       emulator_;
   xe_memory_ref   memory_;
-  shared_ptr<ExportResolver> export_resolver_;
+  ExportResolver* export_resolver_;
 };
 
 

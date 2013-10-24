@@ -570,7 +570,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           switch (type) {
           case 0x4: // REGISTER
             index += 0x2000;
-            for (int n = 0; n < count - 1; n++, index++) {
+            for (uint32_t n = 0; n < count - 1; n++, index++) {
               uint32_t data = READ_PTR();
               const char* reg_name = xenos::GetRegisterName(index);
               XELOGGPU("[%.8X]   %.8X -> %.4X %s",

@@ -11,13 +11,11 @@
 #define XENIA_GPU_GRAPHICS_SYSTEM_H_
 
 #include <xenia/core.h>
+#include <xenia/xbox.h>
 
 
-namespace xe {
-namespace cpu {
-class Processor;
-}  // namespace cpu
-}  // namespace xe
+XEDECLARECLASS1(xe, Emulator);
+XEDECLARECLASS2(xe, cpu, Processor);
 
 
 namespace xe {
@@ -27,46 +25,28 @@ class GraphicsDriver;
 class RingBufferWorker;
 
 
-class CreationParams {
-public:
-  xe_memory_ref     memory;
-
-  CreationParams() :
-      memory(0) {
-  }
-};
-
-
 class GraphicsSystem {
 public:
   virtual ~GraphicsSystem();
 
-  xe_memory_ref memory();
-  shared_ptr<cpu::Processor> processor();
-  void set_processor(shared_ptr<cpu::Processor> processor);
+  Emulator* emulator() const { return emulator_; }
+  xe_memory_ref memory() const { return memory_; }
+  cpu::Processor* processor() const { return processor_; }
+
+  virtual X_STATUS Setup();
 
   void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
-  virtual uint64_t ReadRegister(uint32_t r);
-  virtual void WriteRegister(uint32_t r, uint64_t value);
+  bool HandlesRegister(uint32_t addr);
+  virtual uint64_t ReadRegister(uint32_t addr);
+  virtual void WriteRegister(uint32_t addr, uint64_t value);
 
   void MarkVblank();
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu = 0xFFFFFFFF);
   bool swap_pending() const { return swap_pending_; }
   void set_swap_pending(bool value) { swap_pending_ = value; }
-
-public:
-  // TODO(benvanik): have an HasRegisterHandler() so that the JIT can
-  //                 just poke the register file directly.
-  static uint64_t ReadRegisterThunk(GraphicsSystem* this_ptr, uint32_t r) {
-    return this_ptr->ReadRegister(r);
-  }
-  static void WriteRegisterThunk(GraphicsSystem* this_ptr, uint32_t r,
-                                 uint64_t value) {
-    this_ptr->WriteRegister(r, value);
-  }
 
 protected:
   virtual void Initialize();
@@ -79,12 +59,24 @@ private:
   }
   void ThreadStart();
 
-protected:
-  GraphicsSystem(const CreationParams* params);
+  static bool HandlesRegisterThunk(GraphicsSystem* gs, uint32_t addr) {
+    return gs->HandlesRegister(addr);
+  }
+  static uint64_t ReadRegisterThunk(GraphicsSystem* gs, uint32_t addr) {
+    return gs->ReadRegister(addr);
+  }
+  static void WriteRegisterThunk(GraphicsSystem* gs, uint32_t addr,
+                                 uint64_t value) {
+    gs->WriteRegister(addr, value);
+  }
 
+protected:
+  GraphicsSystem(Emulator* emulator);
+
+  Emulator*         emulator_;
   xe_memory_ref     memory_;
-  shared_ptr<cpu::Processor> processor_;
-  
+  cpu::Processor*   processor_;
+
   xe_run_loop_ref   run_loop_;
   xe_thread_ref     thread_;
   bool              running_;

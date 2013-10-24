@@ -29,8 +29,8 @@ public:
   virtual ~X64JIT();
 
   virtual int Setup();
-  virtual void SetupGpuPointers(void* gpu_this,
-                                void* gpu_read, void* gpu_write);
+  virtual void AddRegisterAccessCallbacks(
+      ppc::RegisterAccessCallbacks callbacks);
 
   virtual int InitModule(ExecModule* module);
   virtual int UninitModule(ExecModule* module);

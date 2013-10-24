@@ -13,7 +13,7 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/graphics_driver.h>
-#include <xenia/gpu/d3d11/d3d11-private.h>
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/gpu/xenos/xenos.h>
 
 #include <d3d11.h>

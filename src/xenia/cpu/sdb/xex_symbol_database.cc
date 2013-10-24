@@ -17,7 +17,6 @@ using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
-using namespace xe::kernel;
 
 
 namespace {

@@ -16,7 +16,7 @@
 #include <map>
 #include <vector>
 
-#include <xenia/kernel/export.h>
+#include <xenia/export_resolver.h>
 #include <xenia/cpu/sdb/symbol.h>
 #include <xenia/cpu/sdb/symbol_table.h>
 
@@ -28,7 +28,7 @@ namespace sdb {
 
 class SymbolDatabase {
 public:
-  SymbolDatabase(xe_memory_ref memory, kernel::ExportResolver* export_resolver,
+  SymbolDatabase(xe_memory_ref memory, ExportResolver* export_resolver,
                  SymbolTable* sym_table);
   virtual ~SymbolDatabase();
 
@@ -64,7 +64,7 @@ protected:
   virtual bool IsValueInTextRange(uint32_t value) = 0;
 
   xe_memory_ref   memory_;
-  kernel::ExportResolver* export_resolver_;
+  ExportResolver* export_resolver_;
   SymbolTable*    sym_table_;
   size_t          function_count_;
   size_t          variable_count_;

@@ -13,16 +13,19 @@
 #include <xenia/gpu/graphics_system.h>
 
 
+XEDECLARECLASS1(xe, Emulator);
+
+
 namespace xe {
 namespace gpu {
 
 
-GraphicsSystem* Create(const CreationParams* params);
+GraphicsSystem* Create(Emulator* emulator);
 
-GraphicsSystem* CreateNop(const CreationParams* params);
+GraphicsSystem* CreateNop(Emulator* emulator);
 
 #if XE_PLATFORM(WIN32)
-GraphicsSystem* CreateD3D11(const CreationParams* params);
+GraphicsSystem* CreateD3D11(Emulator* emulator);
 #endif  // WIN32
 
 

@@ -9,16 +9,15 @@
 
 #include <xenia/cpu/processor.h>
 
+#include <xenia/emulator.h>
 #include <xenia/cpu/jit.h>
 #include <xenia/cpu/ppc/disasm.h>
 #include <xenia/cpu/ppc/state.h>
-#include <xenia/gpu/graphics_system.h>
 
 
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::sdb;
-using namespace xe::kernel;
 
 
 namespace {
@@ -46,11 +45,14 @@ namespace {
 }
 
 
-Processor::Processor(xe_memory_ref memory, shared_ptr<Backend> backend) :
+Processor::Processor(Emulator* emulator, Backend* backend) :
     sym_table_(NULL), jit_(NULL),
     interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL) {
-  memory_ = xe_memory_retain(memory);
+  emulator_ = emulator;
   backend_ = backend;
+  memory_ = xe_memory_retain(emulator->memory());
+  export_resolver_ = emulator->export_resolver();
+
   sym_lock_ = xe_mutex_alloc(10000);
 
   InitializeIfNeeded();
@@ -76,32 +78,7 @@ Processor::~Processor() {
   delete sym_table_;
   xe_mutex_free(sym_lock_);
 
-  graphics_system_.reset();
-  export_resolver_.reset();
-  backend_.reset();
   xe_memory_release(memory_);
-}
-
-xe_memory_ref Processor::memory() {
-  return xe_memory_retain(memory_);
-}
-
-shared_ptr<gpu::GraphicsSystem> Processor::graphics_system() {
-  return graphics_system_;
-}
-
-void Processor::set_graphics_system(
-    shared_ptr<gpu::GraphicsSystem> graphics_system) {
-  graphics_system_ = graphics_system;
-}
-
-shared_ptr<ExportResolver> Processor::export_resolver() {
-  return export_resolver_;
-}
-
-void Processor::set_export_resolver(
-    shared_ptr<ExportResolver> export_resolver) {
-  export_resolver_ = export_resolver;
 }
 
 int Processor::Setup() {
@@ -121,13 +98,13 @@ int Processor::Setup() {
     return 1;
   }
 
-  XEASSERTNOTNULL(graphics_system_.get());
-  jit_->SetupGpuPointers(
-      graphics_system_.get(),
-      (void*)&xe::gpu::GraphicsSystem::ReadRegisterThunk,
-      (void*)&xe::gpu::GraphicsSystem::WriteRegisterThunk);
-
   return 0;
+}
+
+void Processor::AddRegisterAccessCallbacks(
+    ppc::RegisterAccessCallbacks callbacks) {
+  XEASSERTNOTNULL(jit_);
+  jit_->AddRegisterAccessCallbacks(callbacks);
 }
 
 int Processor::LoadRawBinary(const xechar_t* path, uint32_t start_address) {

@@ -13,7 +13,7 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/graphics_driver.h>
-#include <xenia/gpu/nop/nop-private.h>
+#include <xenia/gpu/nop/nop_gpu-private.h>
 #include <xenia/gpu/xenos/xenos.h>
 
 

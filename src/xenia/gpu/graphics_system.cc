@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/graphics_system.h>
 
+#include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/ring_buffer_worker.h>
@@ -16,33 +17,21 @@
 
 
 using namespace xe;
+using namespace xe::cpu::ppc;
 using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
 
-GraphicsSystem::GraphicsSystem(const CreationParams* params) :
+GraphicsSystem::GraphicsSystem(Emulator* emulator) :
+    emulator_(emulator),
+    thread_(0), running_(false), driver_(0), worker_(0),
     interrupt_callback_(0), interrupt_callback_data_(0),
     last_interrupt_time_(0), swap_pending_(false) {
-  memory_ = xe_memory_retain(params->memory);
-
-  worker_ = new RingBufferWorker(this, memory_);
-
-  // Set during Initialize();
-  driver_ = 0;
+  memory_ = xe_memory_retain(emulator->memory());
 
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
-
-  // Create worker thread.
-  // This will initialize the graphics system.
-  // Init needs to happen there so that any thread-local stuff
-  // is created on the right thread.
-  running_ = true;
-  thread_ = xe_thread_create(
-      "GraphicsSystem",
-      (xe_thread_callback)ThreadStartThunk, this);
-  xe_thread_start(thread_);
 }
 
 GraphicsSystem::~GraphicsSystem() {
@@ -57,16 +46,31 @@ GraphicsSystem::~GraphicsSystem() {
   xe_memory_release(memory_);
 }
 
-xe_memory_ref GraphicsSystem::memory() {
-  return xe_memory_retain(memory_);
-}
+X_STATUS GraphicsSystem::Setup() {
+  processor_ = emulator_->processor();
 
-shared_ptr<cpu::Processor> GraphicsSystem::processor() {
-  return processor_;
-}
+  // Create worker.
+  worker_ = new RingBufferWorker(this, memory_);
 
-void GraphicsSystem::set_processor(shared_ptr<cpu::Processor> processor) {
-  processor_ = processor;
+  // Let the processor know we want register access callbacks.
+  RegisterAccessCallbacks callbacks;
+  callbacks.context = this;
+  callbacks.handles = (RegisterHandlesCallback)HandlesRegisterThunk;
+  callbacks.read    = (RegisterReadCallback)ReadRegisterThunk;
+  callbacks.write   = (RegisterWriteCallback)WriteRegisterThunk;
+  emulator_->processor()->AddRegisterAccessCallbacks(callbacks);
+
+  // Create worker thread.
+  // This will initialize the graphics system.
+  // Init needs to happen there so that any thread-local stuff
+  // is created on the right thread.
+  running_ = true;
+  thread_ = xe_thread_create(
+      "GraphicsSystem",
+      (xe_thread_callback)ThreadStartThunk, this);
+  xe_thread_start(thread_);
+
+  return X_STATUS_SUCCESS;
 }
 
 void GraphicsSystem::ThreadStart() {
@@ -128,7 +132,12 @@ void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
   worker_->EnableReadPointerWriteBack(ptr, block_size);
 }
 
-uint64_t GraphicsSystem::ReadRegister(uint32_t r) {
+bool GraphicsSystem::HandlesRegister(uint32_t addr) {
+  return (addr & 0xFFFF0000) == 0x7FC80000;
+}
+
+uint64_t GraphicsSystem::ReadRegister(uint32_t addr) {
+  uint32_t r = addr & 0xFFFF;
   XELOGGPU("ReadRegister(%.4X)", r);
 
   RegisterFile* regs = driver_->register_file();
@@ -142,7 +151,8 @@ uint64_t GraphicsSystem::ReadRegister(uint32_t r) {
   return regs->values[r].u32;
 }
 
-void GraphicsSystem::WriteRegister(uint32_t r, uint64_t value) {
+void GraphicsSystem::WriteRegister(uint32_t addr, uint64_t value) {
+  uint32_t r = addr & 0xFFFF;
   XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
 
   RegisterFile* regs = driver_->register_file();

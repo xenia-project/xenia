@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_KERNEL_H_
 #define XENIA_KERNEL_KERNEL_H_
 
-#include <xenia/kernel/runtime.h>
-#include <xenia/kernel/modules/modules.h>
+#include <xenia/kernel/modules.h>
 
 #endif  // XENIA_KERNEL_KERNEL_H_

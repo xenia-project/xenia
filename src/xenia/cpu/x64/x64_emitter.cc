@@ -94,11 +94,9 @@ X64Emitter::~X64Emitter() {
   lock_ = NULL;
 }
 
-void X64Emitter::SetupGpuPointers(void* gpu_this,
-                                  void* gpu_read, void* gpu_write) {
-  gpu_this_ = gpu_this;
-  gpu_read_ = gpu_read;
-  gpu_write_ = gpu_write;
+void X64Emitter::AddRegisterAccessCallbacks(
+    RegisterAccessCallbacks callbacks) {
+  access_callbacks_.push_back(callbacks);
 }
 
 void X64Emitter::Lock() {
@@ -1155,44 +1153,6 @@ int X64Emitter::GenerateIndirectionBranch(uint32_t cia, GpVar& target,
   return 0;
 }
 
-GpVar X64Emitter::read_gpu_register(uint32_t r) {
-  X86Compiler& c = compiler_;
-
-  GpVar this_imm(c.newGpVar());
-  c.mov(this_imm, imm((uint64_t)gpu_this_));
-  GpVar reg_imm(c.newGpVar());
-  c.mov(reg_imm, imm(r & 0xFFFF));
-
-  X86CompilerFuncCall* call = c.call(gpu_read_);
-  call->setPrototype(kX86FuncConvDefault,
-      FuncBuilder2<uint64_t, void*, uint32_t>());
-  call->setArgument(0, this_imm);
-  call->setArgument(1, reg_imm);
-  GpVar res(c.newGpVar());
-  call->setReturn(res);
-
-  return res;
-}
-
-void X64Emitter::write_gpu_register(uint32_t r, GpVar& v) {
-  X86Compiler& c = compiler_;
-
-  GpVar this_imm(c.newGpVar());
-  c.alloc(this_imm, rcx);
-  c.mov(this_imm, imm((uint64_t)gpu_this_));
-  GpVar reg_imm(c.newGpVar());
-  c.alloc(reg_imm, rdx);
-  c.mov(reg_imm, imm(r & 0xFFFF));
-  c.alloc(v, r8);
-
-  X86CompilerFuncCall* call = c.call(gpu_write_);
-  call->setPrototype(kX86FuncConvDefault,
-      FuncBuilder3<void, void*, uint32_t, uint64_t>());
-  call->setArgument(0, this_imm);
-  call->setArgument(1, reg_imm);
-  call->setArgument(2, v);
-}
-
 void X64Emitter::SetupLocals() {
   X86Compiler& c = compiler_;
 
@@ -1503,6 +1463,69 @@ void X64Emitter::clear_all_constant_gpr_values() {
     gpr_values_[n].is_constant = false;
     gpr_values_[n].value = 0;
   }
+}
+
+bool X64Emitter::check_constant_gpr_read(uint32_t addr, GpVar* reg) {
+  X86Compiler& c = compiler_;
+
+  for (std::vector<RegisterAccessCallbacks>::const_iterator it =
+       access_callbacks_.begin(); it != access_callbacks_.end(); ++it) {
+    if (!it->handles(it->context, addr)) {
+      continue;
+    }
+    
+    GpVar this_imm(c.newGpVar());
+    c.mov(this_imm, imm((uint64_t)it->context));
+    GpVar reg_imm(c.newGpVar());
+    c.mov(reg_imm, imm(addr));
+
+    X86CompilerFuncCall* call = c.call(it->read);
+    call->setPrototype(
+        kX86FuncConvDefault,
+        FuncBuilder2<uint64_t, void*, uint32_t>());
+    call->setArgument(0, this_imm);
+    call->setArgument(1, reg_imm);
+    GpVar res(c.newGpVar());
+    call->setReturn(res);
+    *reg = res;
+
+    // Don't let the caller handle the write.
+    return true;
+  }
+
+  return false;
+}
+
+bool X64Emitter::check_constant_gpr_write(uint32_t addr, GpVar& reg) {
+  X86Compiler& c = compiler_;
+  
+  for (std::vector<RegisterAccessCallbacks>::const_iterator it =
+       access_callbacks_.begin(); it != access_callbacks_.end(); ++it) {
+    if (!it->handles(it->context, addr)) {
+      continue;
+    }
+
+    GpVar this_imm(c.newGpVar());
+    c.alloc(this_imm, rcx);
+    c.mov(this_imm, imm((uint64_t)it->context));
+    GpVar reg_imm(c.newGpVar());
+    c.alloc(reg_imm, rdx);
+    c.mov(reg_imm, imm(addr));
+    c.alloc(reg, r8);
+
+    X86CompilerFuncCall* call = c.call(it->write);
+    call->setPrototype(
+        kX86FuncConvDefault,
+        FuncBuilder3<void, void*, uint32_t, uint64_t>());
+    call->setArgument(0, this_imm);
+    call->setArgument(1, reg_imm);
+    call->setArgument(2, reg);
+
+    // Don't let the caller handle the write.
+    return true;
+  }
+
+  return false;
 }
 
 GpVar X64Emitter::xer_value() {

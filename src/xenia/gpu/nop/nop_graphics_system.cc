@@ -28,8 +28,8 @@ void __stdcall NopGraphicsSystemVsyncCallback(NopGraphicsSystem* gs, BOOLEAN) {
 }
 
 
-NopGraphicsSystem::NopGraphicsSystem(const CreationParams* params) :
-    GraphicsSystem(params),
+NopGraphicsSystem::NopGraphicsSystem(Emulator* emulator) :
+    GraphicsSystem(emulator),
     timer_queue_(NULL),
     vsync_timer_(NULL) {
 }

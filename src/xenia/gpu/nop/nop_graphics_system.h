@@ -13,7 +13,7 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/graphics_system.h>
-#include <xenia/gpu/nop/nop-private.h>
+#include <xenia/gpu/nop/nop_gpu-private.h>
 
 
 namespace xe {
@@ -23,7 +23,7 @@ namespace nop {
 
 class NopGraphicsSystem : public GraphicsSystem {
 public:
-  NopGraphicsSystem(const CreationParams* params);
+  NopGraphicsSystem(Emulator* emulator);
   virtual ~NopGraphicsSystem();
 
 protected:

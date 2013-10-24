@@ -18,6 +18,7 @@
 
 using namespace xe;
 using namespace xe::cpu;
+using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
 using namespace xe::cpu::x64;
 
@@ -53,9 +54,8 @@ XECLEANUP:
   return result_code;
 }
 
-void X64JIT::SetupGpuPointers(void* gpu_this,
-                              void* gpu_read, void* gpu_write) {
-  emitter_->SetupGpuPointers(gpu_this, gpu_read, gpu_write);
+void X64JIT::AddRegisterAccessCallbacks(RegisterAccessCallbacks callbacks) {
+  emitter_->AddRegisterAccessCallbacks(callbacks);
 }
 
 namespace {

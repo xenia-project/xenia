@@ -18,15 +18,10 @@
 #include <xenia/cpu/exec_module.h>
 #include <xenia/cpu/thread_state.h>
 #include <xenia/cpu/sdb/symbol_table.h>
-#include <xenia/kernel/export.h>
-#include <xenia/kernel/xex2.h>
 
 
-namespace xe {
-namespace gpu {
-class GraphicsSystem;
-}  // namespace gpu
-}  // namespace xe
+XEDECLARECLASS1(xe, Emulator);
+XEDECLARECLASS1(xe, ExportResolver);
 
 
 namespace xe {
@@ -37,16 +32,15 @@ class JIT;
 
 class Processor {
 public:
-  Processor(xe_memory_ref memory, shared_ptr<Backend> backend);
+  Processor(Emulator* emulator, Backend* backend);
   ~Processor();
 
-  xe_memory_ref memory();
-  shared_ptr<gpu::GraphicsSystem> graphics_system();
-  void set_graphics_system(shared_ptr<gpu::GraphicsSystem> graphics_system);
-  shared_ptr<kernel::ExportResolver> export_resolver();
-  void set_export_resolver(shared_ptr<kernel::ExportResolver> export_resolver);
+  xe_memory_ref memory() const { return memory_; }
+  ExportResolver* export_resolver() const { return export_resolver_; }
 
   int Setup();
+
+  void AddRegisterAccessCallbacks(ppc::RegisterAccessCallbacks callbacks);
 
   int LoadRawBinary(const xechar_t* path, uint32_t start_address);
   int LoadXexModule(const char* name, const char* path, xe_xex2_ref xex);
@@ -69,19 +63,19 @@ public:
   void* GetFunctionPointer(uint32_t address);
 
 private:
-  xe_memory_ref       memory_;
-  shared_ptr<Backend> backend_;
-  shared_ptr<gpu::GraphicsSystem>     graphics_system_;
-  shared_ptr<kernel::ExportResolver>  export_resolver_;
+  Emulator*             emulator_;
+  Backend*              backend_;
+  xe_memory_ref         memory_;
+  ExportResolver*       export_resolver_;
 
-  sdb::SymbolTable*   sym_table_;
-  JIT*                jit_;
+  sdb::SymbolTable*     sym_table_;
+  JIT*                  jit_;
   std::vector<ExecModule*> modules_;
-  xe_mutex_t*         sym_lock_;
+  xe_mutex_t*           sym_lock_;
 
-  xe_mutex_t*         interrupt_thread_lock_;
-  ThreadState*        interrupt_thread_state_;
-  uint32_t            interrupt_thread_block_;
+  xe_mutex_t*           interrupt_thread_lock_;
+  ThreadState*          interrupt_thread_state_;
+  uint32_t              interrupt_thread_block_;
 };
 
 

@@ -16,11 +16,10 @@
 using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::sdb;
-using namespace xe::kernel;
 
 
 ExecModule::ExecModule(
-    xe_memory_ref memory, shared_ptr<ExportResolver> export_resolver,
+    xe_memory_ref memory, ExportResolver* export_resolver,
     SymbolTable* sym_table,
     const char* module_name, const char* module_path) {
   memory_ = xe_memory_retain(memory);
@@ -42,7 +41,7 @@ SymbolDatabase* ExecModule::sdb() {
 
 int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
-      new sdb::RawSymbolDatabase(memory_, export_resolver_.get(),
+      new sdb::RawSymbolDatabase(memory_, export_resolver_,
                                  sym_table_, start_address, end_address));
 
   code_addr_low_ = start_address;
@@ -53,7 +52,7 @@ int ExecModule::PrepareRawBinary(uint32_t start_address, uint32_t end_address) {
 
 int ExecModule::PrepareXexModule(xe_xex2_ref xex) {
   sdb_ = shared_ptr<sdb::SymbolDatabase>(
-      new sdb::XexSymbolDatabase(memory_, export_resolver_.get(),
+      new sdb::XexSymbolDatabase(memory_, export_resolver_,
                                  sym_table_, xex));
 
   code_addr_low_ = UINT_MAX;

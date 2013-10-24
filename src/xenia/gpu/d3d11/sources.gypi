@@ -1,9 +1,9 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'd3d11-private.h',
-    'd3d11.cc',
-    'd3d11.h',
+    'd3d11_gpu-private.h',
+    'd3d11_gpu.cc',
+    'd3d11_gpu.h',
     'd3d11_graphics_driver.cc',
     'd3d11_graphics_driver.h',
     'd3d11_graphics_system.cc',

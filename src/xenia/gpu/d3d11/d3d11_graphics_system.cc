@@ -21,7 +21,8 @@ using namespace xe::gpu::d3d11;
 
 namespace {
 
-void __stdcall D3D11GraphicsSystemVsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN) {
+void __stdcall D3D11GraphicsSystemVsyncCallback(
+    D3D11GraphicsSystem* gs, BOOLEAN) {
   gs->MarkVblank();
   gs->DispatchInterruptCallback(0);
 }
@@ -29,10 +30,10 @@ void __stdcall D3D11GraphicsSystemVsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN
 }
 
 
-D3D11GraphicsSystem::D3D11GraphicsSystem(const CreationParams* params) :
+D3D11GraphicsSystem::D3D11GraphicsSystem(Emulator* emulator) :
     window_(0), dxgi_factory_(0), device_(0),
     timer_queue_(NULL), vsync_timer_(NULL),
-    GraphicsSystem(params) {
+    GraphicsSystem(emulator) {
 }
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
@@ -78,7 +79,7 @@ void D3D11GraphicsSystem::Initialize() {
   }
   // Just go with the default for now.
   adapter = 0;
-  
+
   D3D_DRIVER_TYPE driver_type =
       adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE;
 

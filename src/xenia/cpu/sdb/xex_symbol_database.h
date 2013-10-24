@@ -23,7 +23,7 @@ namespace sdb {
 class XexSymbolDatabase : public SymbolDatabase {
 public:
   XexSymbolDatabase(xe_memory_ref memory,
-                    kernel::ExportResolver* export_resolver,
+                    ExportResolver* export_resolver,
                     SymbolTable* sym_table, xe_xex2_ref xex);
   virtual ~XexSymbolDatabase();
 

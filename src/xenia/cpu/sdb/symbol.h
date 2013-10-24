@@ -15,7 +15,7 @@
 #include <map>
 #include <vector>
 
-#include <xenia/kernel/export.h>
+#include <xenia/export_resolver.h>
 
 
 namespace xe {
@@ -125,7 +125,7 @@ public:
   FunctionType  type;
   uint32_t      flags;
 
-  kernel::KernelExport* kernel_export;
+  KernelExport* kernel_export;
   ExceptionEntrySymbol* ee;
 
   // Implementation-specific value. This could be a JIT'ed function ref
@@ -147,9 +147,9 @@ public:
   VariableSymbol();
   virtual ~VariableSymbol();
 
-  uint32_t  address;
+  uint32_t      address;
 
-  kernel::KernelExport* kernel_export;
+  KernelExport* kernel_export;
 };
 
 class ExceptionEntrySymbol : public Symbol {

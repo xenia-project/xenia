@@ -2,6 +2,6 @@
 {
   'includes': [
     'xenia-run/xenia-run.gypi',
-    'xenia-test/xenia-test.gypi',
+    #'xenia-test/xenia-test.gypi',
   ],
 }

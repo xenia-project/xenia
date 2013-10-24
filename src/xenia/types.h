@@ -24,6 +24,21 @@ using std::tr1::shared_ptr;
 
 #define XEUNREFERENCED(expr)    (void)(expr)
 
+#define XEDECLARECLASS1(ns1, name) \
+    namespace ns1 { class name; }
+#define XEDECLARECLASS2(ns1, ns2, name) \
+    namespace ns1 { namespace ns2 { \
+      class name; \
+    } }
+#define XEDECLARECLASS3(ns1, ns2, ns3, name) \
+    namespace ns1 { namespace ns2 { namespace ns3 { \
+      class name; \
+    } } }
+#define XEDECLARECLASS4(ns1, ns2, ns3, ns4, name) \
+    namespace ns1 { namespace ns2 { namespace ns3 { namespace ns4 { \
+      class name; \
+    } } } }
+
 #if XE_COMPILER(MSVC)
 #define XEASSUME(expr)          __analysis_assume(expr)
 #else

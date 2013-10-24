@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include <xenia/emulator.h>
 #include <xenia/dbg/content_source.h>
 #include <xenia/dbg/listener.h>
 
@@ -25,7 +26,8 @@ DEFINE_int32(remote_debug_port, 6200,
     "Websocket port to listen for debugger connections on.");
 
 
-Debugger::Debugger() {
+Debugger::Debugger(Emulator* emulator) :
+    emulator_(emulator) {
   //listener_ = auto_ptr<Listener>(new WsListener(this, FLAGS_remote_debug_port));
 }
 

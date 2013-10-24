@@ -20,12 +20,12 @@ using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::ppc;
 using namespace xe::cpu::sdb;
-using namespace xe::kernel;
 
 
 SymbolDatabase::SymbolDatabase(xe_memory_ref memory,
                                ExportResolver* export_resolver,
-                               SymbolTable* sym_table) {
+                               SymbolTable* sym_table) :
+    function_count_(0), variable_count_(0) {
   memory_ = xe_memory_retain(memory);
   export_resolver_ = export_resolver;
   sym_table_ = sym_table;

@@ -12,9 +12,14 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
+#include <xenia/emulator.h>
+#include <xenia/xbox.h>
+
+#include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/dbg/debugger.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/kernel/kernel.h>
+
 
 #endif  // XENIA_H_

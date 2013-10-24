@@ -13,9 +13,9 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <xenia/export_resolver.h>
 #include <xenia/cpu/ppc/state.h>
 #include <xenia/cpu/sdb/symbol.h>
-#include <xenia/kernel/export.h>
 
 
 namespace xe {
@@ -33,7 +33,7 @@ typedef struct {
       xe_ppc_state_t* state, uint64_t cia, uint64_t ea);
   void (_cdecl *XeTraceKernelCall)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
-      kernel::KernelExport* kernel_export);
+      KernelExport* kernel_export);
   void (_cdecl *XeTraceUserCall)(
       xe_ppc_state_t* state, uint64_t cia, uint64_t call_ia,
       sdb::FunctionSymbol* fn);

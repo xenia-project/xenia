@@ -9,21 +9,20 @@
 
 #include <xenia/kernel/kernel_module.h>
 
-#include <xenia/kernel/export.h>
-#include <xenia/kernel/runtime.h>
+#include <xenia/emulator.h>
+#include <xenia/export_resolver.h>
 
 
 using namespace xe;
 using namespace xe::kernel;
 
 
-KernelModule::KernelModule(Runtime* runtime) {
-  runtime_  = runtime;
-  memory_   = runtime->memory();
-  export_resolver_ = runtime->export_resolver();
+KernelModule::KernelModule(Emulator* emulator) :
+    emulator_(emulator) {
+  memory_ = xe_memory_retain(emulator_->memory());
+  export_resolver_ = emulator->export_resolver();
 }
 
 KernelModule::~KernelModule() {
-  export_resolver_.reset();
   xe_memory_release(memory_);
 }

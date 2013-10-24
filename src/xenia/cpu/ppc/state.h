@@ -13,12 +13,8 @@
 #include <stdint.h>
 
 
-namespace xe {
-namespace cpu {
-class Processor;
-class ThreadState;
-}  // namespace cpu
-}  // namespace xe
+XEDECLARECLASS2(xe, cpu, Processor);
+XEDECLARECLASS2(xe, cpu, ThreadState);
 
 
 // namespace FPRF {

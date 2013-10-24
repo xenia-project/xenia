@@ -454,8 +454,8 @@ XEEMITTER(lwz,          0x80000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   uint64_t constant_ea;
   if (i.D.RA && e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
     constant_ea += XEEXTS16(i.D.DS);
-    if ((constant_ea & 0xFFFF0000) == 0x7FC80000) {
-      GpVar reg(e.read_gpu_register((uint32_t)constant_ea));
+    GpVar reg;
+    if (e.check_constant_gpr_read((uint32_t)constant_ea, &reg)) {
       e.update_gpr_value(i.D.RT, reg);
       e.clear_constant_gpr_value(i.D.RT);
       return 0;
@@ -824,8 +824,7 @@ XEEMITTER(stw,          0x90000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   uint64_t constant_ea;
   if (i.D.RA && e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
     constant_ea += XEEXTS16(i.D.DS);
-    if ((constant_ea & 0xFFFF0000) == 0x7FC80000) {
-      e.write_gpu_register((uint32_t)constant_ea, e.gpr_value(i.D.RT));
+    if (e.check_constant_gpr_write((uint32_t)constant_ea, e.gpr_value(i.D.RT))) {
       return 0;
     }
   }
