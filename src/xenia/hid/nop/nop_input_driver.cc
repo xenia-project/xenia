@@ -7,27 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_NOP_NOP_APU_H_
-#define XENIA_APU_NOP_NOP_APU_H_
+#include <xenia/hid/nop/nop_input_driver.h>
 
-#include <xenia/core.h>
-
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, apu, AudioSystem);
+#include <xenia/hid/hid-private.h>
 
 
-namespace xe {
-namespace apu {
-namespace nop {
+using namespace xe;
+using namespace xe::hid;
+using namespace xe::hid::nop;
 
 
-AudioSystem* Create(Emulator* emulator);
+NopInputDriver::NopInputDriver(InputSystem* input_system) :
+    InputDriver(input_system) {
+}
 
+NopInputDriver::~NopInputDriver() {
+}
 
-}  // namespace nop
-}  // namespace apu
-}  // namespace xe
-
-
-#endif  // XENIA_APU_NOP_NOP_APU_H_
+X_STATUS NopInputDriver::Setup() {
+  return X_STATUS_SUCCESS;
+}

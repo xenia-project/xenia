@@ -7,27 +7,25 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_NOP_NOP_APU_H_
-#define XENIA_APU_NOP_NOP_APU_H_
+#ifndef XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_
+#define XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_
 
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, apu, AudioSystem);
+#include <xenia/hid/xinput/xinput_hid.h>
 
 
 namespace xe {
-namespace apu {
-namespace nop {
+namespace hid {
+namespace xinput {
 
 
-AudioSystem* Create(Emulator* emulator);
 
 
-}  // namespace nop
-}  // namespace apu
+
+}  // namespace xinput
+}  // namespace hid
 }  // namespace xe
 
 
-#endif  // XENIA_APU_NOP_NOP_APU_H_
+#endif  // XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_

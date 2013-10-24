@@ -21,6 +21,7 @@ XEDECLARECLASS2(xe, cpu, Backend);
 XEDECLARECLASS2(xe, cpu, Processor);
 XEDECLARECLASS2(xe, dbg, Debugger);
 XEDECLARECLASS2(xe, gpu, GraphicsSystem);
+XEDECLARECLASS2(xe, hid, InputSystem);
 XEDECLARECLASS3(xe, kernel, xam, XamModule);
 XEDECLARECLASS3(xe, kernel, xboxkrnl, XboxkrnlModule);
 XEDECLARECLASS4(xe, kernel, xboxkrnl, fs, FileSystem);
@@ -42,6 +43,7 @@ public:
   cpu::Processor* processor() const { return processor_; }
   apu::AudioSystem* audio_system() const { return audio_system_; }
   gpu::GraphicsSystem* graphics_system() const { return graphics_system_; }
+  hid::InputSystem* input_system() const { return input_system_; }
 
   ExportResolver* export_resolver() const { return export_resolver_; }
   kernel::xboxkrnl::fs::FileSystem* file_system() const { return file_system_; }
@@ -62,6 +64,7 @@ private:
   cpu::Processor*         processor_;
   apu::AudioSystem*       audio_system_;
   gpu::GraphicsSystem*    graphics_system_;
+  hid::InputSystem*       input_system_;
 
   ExportResolver*         export_resolver_;
   kernel::xboxkrnl::fs::FileSystem* file_system_;

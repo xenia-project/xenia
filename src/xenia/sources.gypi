@@ -33,6 +33,7 @@
     'cpu/sources.gypi',
     'dbg/sources.gypi',
     'gpu/sources.gypi',
+    'hid/sources.gypi',
     'kernel/sources.gypi',
   ],
 }

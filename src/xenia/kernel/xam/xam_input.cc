@@ -80,7 +80,7 @@ SHIM_CALL XamInputSetState_shim(
 
 void xe::kernel::xam::RegisterInputExports(
     ExportResolver* export_resolver, XamState* state) {
-  SHIM_SET_MAPPING("xam.exe", XamInputGetCapabilities, state);
+  SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetState, state);
   SHIM_SET_MAPPING("xam.xex", XamInputSetState, state);
 }
