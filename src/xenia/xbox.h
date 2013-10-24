@@ -25,8 +25,8 @@ typedef uint32_t X_HANDLE;
 // http://msdn.microsoft.com/en-us/library/cc704588.aspx
 // Adding as needed.
 typedef uint32_t X_STATUS;
-#define XFAILED(s) (s & X_STATUS_UNSUCCESSFUL)
-#define XSUCCEEDED(s) !XFAILED(s)
+#define XFAILED(s)        ((s) < 0)
+#define XSUCCEEDED(s)     ((s) >= 0)
 #define X_STATUS_SUCCESS                                ((uint32_t)0x00000000L)
 #define X_STATUS_ABANDONED_WAIT_0                       ((uint32_t)0x00000080L)
 #define X_STATUS_USER_APC                               ((uint32_t)0x000000C0L)
@@ -52,7 +52,7 @@ typedef uint32_t X_STATUS;
 
 // HRESULT (ERROR_*)
 // Adding as needed.
-typedef uint32_t X_RESULT;
+typedef uint32_t XRESULT;
 #define X_ERROR_SUCCESS                                 ((uint32_t)0x00000000L)
 #define X_ERROR_ACCESS_DENIED                           ((uint32_t)0x80070005L)
 #define X_ERROR_BUSY                                    ((uint32_t)0x800700AAL)
@@ -247,6 +247,135 @@ public:
     object_name_ptr = 0;
     object_name.Zero();
     attributes = 0;
+  }
+};
+
+
+typedef enum _X_INPUT_FLAG {
+  X_INPUT_FLAG_GAMEPAD      = 0x00000001,
+} X_INPUT_FLAG;
+
+class X_INPUT_GAMEPAD {
+public:
+  uint16_t          buttons;
+  uint8_t           left_trigger;
+  uint8_t           right_trigger;
+  int16_t           thumb_lx;
+  int16_t           thumb_ly;
+  int16_t           thumb_rx;
+  int16_t           thumb_ry;
+
+  X_INPUT_GAMEPAD() {
+    Zero();
+  }
+  X_INPUT_GAMEPAD(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    buttons = XEGETUINT16BE(base + p);
+    left_trigger = XEGETUINT8BE(base + p + 2);
+    right_trigger = XEGETUINT8BE(base + p + 3);
+    thumb_lx = XEGETINT16BE(base + p + 4);
+    thumb_ly = XEGETINT16BE(base + p + 6);
+    thumb_rx = XEGETINT16BE(base + p + 8);
+    thumb_ry = XEGETINT16BE(base + p + 10);
+  }
+  void Write(uint8_t* base, uint32_t p) {
+    XESETUINT16BE(base + p, buttons);
+    XESETUINT8BE(base + p + 2, left_trigger);
+    XESETUINT8BE(base + p + 3, right_trigger);
+    XESETINT16BE(base + p + 4, thumb_lx);
+    XESETINT16BE(base + p + 6, thumb_ly);
+    XESETINT16BE(base + p + 8, thumb_rx);
+    XESETINT16BE(base + p + 10, thumb_ry);
+  }
+  void Zero() {
+    buttons = 0;
+    left_trigger = right_trigger = 0;
+    thumb_lx = thumb_ly = thumb_rx = thumb_ry = 0;
+  }
+};
+class X_INPUT_STATE {
+public:
+  uint32_t          packet_number;
+  X_INPUT_GAMEPAD   gamepad;
+
+  X_INPUT_STATE() {
+    Zero();
+  }
+  X_INPUT_STATE(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    packet_number = XEGETUINT32BE(base + p);
+    gamepad.Read(base, p + 4);
+  }
+  void Write(uint8_t* base, uint32_t p) {
+    XESETUINT32BE(base + p, packet_number);
+    gamepad.Write(base, p + 4);
+  }
+  void Zero() {
+    packet_number = 0;
+    gamepad.Zero();
+  }
+};
+class X_INPUT_VIBRATION {
+public:
+  uint16_t          left_motor_speed;
+  uint16_t          right_motor_speed;
+
+  X_INPUT_VIBRATION() {
+    Zero();
+  }
+  X_INPUT_VIBRATION(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    left_motor_speed  = XEGETUINT16BE(base + p);
+    right_motor_speed = XEGETUINT16BE(base + p + 2);
+  }
+  void Write(uint8_t* base, uint32_t p) {
+    XESETUINT16BE(base + p, left_motor_speed);
+    XESETUINT16BE(base + p + 2, right_motor_speed);
+  }
+  void Zero() {
+    left_motor_speed = right_motor_speed = 0;
+  }
+};
+class X_INPUT_CAPABILITIES {
+public:
+  uint8_t           type;
+  uint8_t           sub_type;
+  uint16_t          flags;
+  X_INPUT_GAMEPAD   gamepad;
+  X_INPUT_VIBRATION vibration;
+
+  X_INPUT_CAPABILITIES() {
+    Zero();
+  }
+  X_INPUT_CAPABILITIES(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    type      = XEGETUINT8BE(base + p);
+    sub_type  = XEGETUINT8BE(base + p + 1);
+    flags     = XEGETUINT16BE(base + p + 2);
+    gamepad.Read(base, p + 4);
+    vibration.Read(base, p + 4 + 12);
+  }
+  void Write(uint8_t* base, uint32_t p) {
+    XESETUINT8BE(base + p, type);
+    XESETUINT8BE(base + p + 1, sub_type);
+    XESETUINT16BE(base + p + 2, flags);
+    gamepad.Write(base, p + 4);
+    vibration.Write(base, p + 4 + 12);
+  }
+  void Zero() {
+    type = 0;
+    sub_type = 0;
+    flags = 0;
+    gamepad.Zero();
+    vibration.Zero();
   }
 };
 

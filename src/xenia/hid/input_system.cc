@@ -41,3 +41,18 @@ X_STATUS InputSystem::Setup() {
 void InputSystem::AddDriver(InputDriver* driver) {
   drivers_.push_back(driver);
 }
+
+XRESULT InputSystem::GetCapabilities(
+    uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) {
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}
+
+XRESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE& out_state) {
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}
+
+XRESULT InputSystem::SetState(
+    uint32_t user_index, X_INPUT_VIBRATION& vibration) {
+  // or X_ERROR_BUSY
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}

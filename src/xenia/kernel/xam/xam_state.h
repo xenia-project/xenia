@@ -27,6 +27,7 @@ public:
   XamState(Emulator* emulator);
   ~XamState();
 
+  Emulator* emulator() const { return emulator_; }
   xe_memory_ref memory() const { return memory_; }
 
 private:
