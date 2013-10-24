@@ -280,6 +280,8 @@ void XModule::Dump() {
           known_count++;
           if (kernel_export->is_implemented) {
             impl_count++;
+          } else {
+            unimpl_count++;
           }
         } else {
           unknown_count++;
@@ -306,14 +308,15 @@ void XModule::Dump() {
           name = kernel_export->name;
           implemented = kernel_export->is_implemented;
         }
-        if (info->thunk_address) {
-          printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
-                 info->value_address, info->thunk_address, info->ordinal,
-                 info->ordinal, implemented ? "  " : "!!", name);
-        } else {
+        if (kernel_export && kernel_export->type == KernelExport::Variable) {
           printf("   V %.8X          %.3X (%3d) %s %s\n",
                  info->value_address, info->ordinal, info->ordinal,
                  implemented ? "  " : "!!", name);
+        } else if (info->thunk_address) {
+          printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
+                 info->value_address, info->thunk_address, info->ordinal,
+                 info->ordinal, implemented ? "  " : "!!", name);
+
         }
       }
 
