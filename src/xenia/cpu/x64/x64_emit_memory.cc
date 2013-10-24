@@ -450,7 +450,7 @@ XEEMITTER(lwz,          0x80000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // EA <- b + EXTS(D)
   // RT <- i32.0 || MEM(EA, 4)
 
-  // Special GPU access (0x7FC8xxxx).
+  // Special register access check.
   uint64_t constant_ea;
   if (i.D.RA && e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
     constant_ea += XEEXTS16(i.D.DS);
@@ -820,7 +820,7 @@ XEEMITTER(stw,          0x90000000, D  )(X64Emitter& e, X86Compiler& c, InstrDat
   // EA <- b + EXTS(D)
   // MEM(EA, 4) <- (RS)[32:63]
 
-  // Special GPU access (0x7FC8xxxx).
+  // Special register access check.
   uint64_t constant_ea;
   if (i.D.RA && e.get_constant_gpr_value(i.D.RA, &constant_ea)) {
     constant_ea += XEEXTS16(i.D.DS);
@@ -938,6 +938,20 @@ XEEMITTER(lwbrx,        0x7C00042C, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   //   b <- (RA)
   // EA <- b + (RB)
   // RT <- i32.0 || bswap(MEM(EA, 4))
+
+  // Special register access check.
+  uint64_t constant_ra = 0, constant_rb = 0;
+  if ((!i.X.RA || e.get_constant_gpr_value(i.X.RA, &constant_ra)) &&
+      e.get_constant_gpr_value(i.X.RB, &constant_rb)) {
+    uint64_t constant_ea = constant_ra + constant_rb;
+    GpVar reg;
+    if (e.check_constant_gpr_read((uint32_t)constant_ea, &reg)) {
+      c.bswap(reg);
+      e.update_gpr_value(i.X.RT, reg);
+      e.clear_constant_gpr_value(i.D.RT);
+      return 0;
+    }
+  }
 
   GpVar ea(c.newGpVar());
   c.mov(ea, e.gpr_value(i.X.RB));
