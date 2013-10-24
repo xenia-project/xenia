@@ -231,6 +231,17 @@ SHIM_CALL DbgPrint_shim(
 }
 
 
+void xeDbgBreakPoint() {
+  DebugBreak();
+}
+
+
+SHIM_CALL DbgBreakPoint_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  XELOGD("DbgBreakPoint()");
+}
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
@@ -239,4 +250,5 @@ SHIM_CALL DbgPrint_shim(
 void xe::kernel::xboxkrnl::RegisterDebugExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", DbgBreakPoint, state);
 }

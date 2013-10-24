@@ -25,8 +25,8 @@ typedef uint32_t X_HANDLE;
 // http://msdn.microsoft.com/en-us/library/cc704588.aspx
 // Adding as needed.
 typedef uint32_t X_STATUS;
-#define XFAILED(s)        ((s) < 0)
-#define XSUCCEEDED(s)     ((s) >= 0)
+#define XSUCCEEDED(s)     ((s & 0xC0000000) == 0)
+#define XFAILED(s)        (!XSUCCEEDED(s))
 #define X_STATUS_SUCCESS                                ((uint32_t)0x00000000L)
 #define X_STATUS_ABANDONED_WAIT_0                       ((uint32_t)0x00000080L)
 #define X_STATUS_USER_APC                               ((uint32_t)0x000000C0L)

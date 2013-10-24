@@ -21,6 +21,9 @@ namespace kernel {
 namespace xboxkrnl {
 
 
+void xeDbgBreakPoint();
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
