@@ -136,6 +136,46 @@ SHIM_CALL ExCreateThread_shim(
 }
 
 
+X_STATUS xeNtResumeThread(uint32_t handle, uint32_t* out_suspend_count) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XThread* thread = NULL;
+  result = state->object_table()->GetObject(
+      handle, (XObject**)&thread);
+  if (XSUCCEEDED(result)) {
+    result = thread->Resume(out_suspend_count);
+    thread->Release();
+  }
+
+  return result;
+}
+
+
+SHIM_CALL NtResumeThread_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t suspend_count_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+    "NtResumeThread(%.8X, %.8X)",
+    handle,
+    suspend_count_ptr);
+
+  uint32_t suspend_count;
+  X_STATUS result = xeNtResumeThread(handle, &suspend_count);
+  if (XSUCCEEDED(result)) {
+    if (suspend_count_ptr) {
+      SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
+    }
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -523,6 +563,28 @@ SHIM_CALL KeResetEvent_shim(
 }
 
 
+SHIM_CALL NtClearEvent_shim(
+    xe_ppc_state_t* ppc_state, KernelState* state) {
+  uint32_t event_handle = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "NtClearEvent(%.8X)",
+      event_handle);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XEvent* ev = NULL;
+  result = state->object_table()->GetObject(
+      event_handle, (XObject**)&ev);
+  if (XSUCCEEDED(result)) {
+    ev->Reset();
+    ev->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint64_t* opt_timeout) {
@@ -674,6 +736,7 @@ SHIM_CALL KeLeaveCriticalRegion_shim(
 void xe::kernel::xboxkrnl::RegisterThreadingExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
@@ -691,6 +754,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtClearEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
