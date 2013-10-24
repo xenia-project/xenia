@@ -26,6 +26,13 @@ public:
 
   virtual X_STATUS Setup() = 0;
 
+  virtual XRESULT GetCapabilities(
+      uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) = 0;
+  virtual XRESULT GetState(
+      uint32_t user_index, X_INPUT_STATE& out_state) = 0;
+  virtual XRESULT SetState(
+      uint32_t user_index, X_INPUT_VIBRATION& vibration) = 0;
+
 protected:
   InputDriver(InputSystem* input_system);
 

@@ -44,15 +44,35 @@ void InputSystem::AddDriver(InputDriver* driver) {
 
 XRESULT InputSystem::GetCapabilities(
     uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) {
+  for (std::vector<InputDriver*>::iterator it = drivers_.begin();
+       it != drivers_.end(); ++it) {
+    InputDriver* driver = *it;
+    if (XSUCCEEDED(driver->GetCapabilities(user_index, flags, out_caps))) {
+      return X_ERROR_SUCCESS;
+    }
+  }
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
 XRESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE& out_state) {
+  for (std::vector<InputDriver*>::iterator it = drivers_.begin();
+       it != drivers_.end(); ++it) {
+    InputDriver* driver = *it;
+    if (XSUCCEEDED(driver->GetState(user_index, out_state))) {
+      return X_ERROR_SUCCESS;
+    }
+  }
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
 XRESULT InputSystem::SetState(
     uint32_t user_index, X_INPUT_VIBRATION& vibration) {
-  // or X_ERROR_BUSY
+  for (std::vector<InputDriver*>::iterator it = drivers_.begin();
+       it != drivers_.end(); ++it) {
+    InputDriver* driver = *it;
+    if (XSUCCEEDED(driver->SetState(user_index, vibration))) {
+      return X_ERROR_SUCCESS;
+    }
+  }
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }

@@ -46,6 +46,7 @@
                   'dxgi',
                   'd3d11',
                   'd3dcompiler',
+                  'xinput',
                 ],
               }],
               ['OS == "mac"', {

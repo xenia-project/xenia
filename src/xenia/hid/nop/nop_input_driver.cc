@@ -27,3 +27,21 @@ NopInputDriver::~NopInputDriver() {
 X_STATUS NopInputDriver::Setup() {
   return X_STATUS_SUCCESS;
 }
+
+// TODO(benvanik): spoof a device so that games don't stop waiting for
+//     a controller to be plugged in.
+
+XRESULT NopInputDriver::GetCapabilities(
+    uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) {
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}
+
+XRESULT NopInputDriver::GetState(
+    uint32_t user_index, X_INPUT_STATE& out_state) {
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}
+
+XRESULT NopInputDriver::SetState(
+    uint32_t user_index, X_INPUT_VIBRATION& vibration) {
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}
