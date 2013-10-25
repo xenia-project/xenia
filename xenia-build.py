@@ -277,8 +277,8 @@ class SetupCommand(Command):
       print('- preparing ninja...')
       # Windows needs --x64 to force building the 64-bit ninja.
       extra_args = ''
-      if sys.platform == 'win32':
-        extra_args = '--x64'
+      #if sys.platform == 'win32':
+      #  extra_args = '--x64'
       shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
       print('')
 
