@@ -962,7 +962,7 @@ void X64Emitter::TraceFPR(uint32_t fpr0, uint32_t fpr1,
                           uint32_t fpr4) {
   X86Compiler& c = compiler_;
 
-  if (!FLAGS_trace_instructions) {
+  if (!FLAGS_trace_registers) {
     return;
   }
 
@@ -1007,7 +1007,7 @@ void X64Emitter::TraceVR(uint32_t vr0, uint32_t vr1, uint32_t vr2,
                          uint32_t vr3, uint32_t vr4) {
   X86Compiler& c = compiler_;
 
-  if (!FLAGS_trace_instructions) {
+  if (!FLAGS_trace_registers) {
     return;
   }
 
