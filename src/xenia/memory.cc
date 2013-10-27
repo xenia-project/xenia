@@ -40,6 +40,9 @@ DEFINE_bool(
 DEFINE_uint64(
     heap_guard_pages, 0,
     "Allocate the given number of guard pages around all heap chunks.");
+DEFINE_bool(
+    scribble_heap, false,
+    "Scribble 0xCD into all allocated heap memory.");
 
 
 /**
@@ -524,6 +527,11 @@ uint32_t xe_memory_heap_t::Alloc(
         PAGE_READWRITE);
   }
 
+  if (FLAGS_scribble_heap) {
+    // Trash the memory so that we can see bad read-before-write bugs easier.
+    memset(p, 0xCD, alloc_size);
+  }
+
   return (uint32_t)((uintptr_t)p - (uintptr_t)memory->mapping_base);
 }
 
@@ -537,6 +545,11 @@ uint32_t xe_memory_heap_t::Free(uint32_t address, uint32_t size) {
   real_size -= heap_guard_size * 2;
   if (!real_size) {
     return 0;
+  }
+
+  if (FLAGS_scribble_heap) {
+    // Trash the memory so that we can see bad read-before-write bugs easier.
+    memset(p, 0xDC, size);
   }
 
   XEIGNORE(xe_mutex_lock(mutex));
