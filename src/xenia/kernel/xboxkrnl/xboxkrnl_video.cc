@@ -392,11 +392,11 @@ SHIM_CALL VdRetrainEDRAM_shim(
 
 SHIM_CALL VdSwap_shim(
     xe_ppc_state_t* ppc_state, KernelState* state) {
-  uint32_t unk0 = SHIM_GET_ARG_32(0);
+  uint32_t unk0 = SHIM_GET_ARG_32(0); // ptr into primary ringbuffer
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t unk3 = SHIM_GET_ARG_32(3);
-  uint32_t unk4 = SHIM_GET_ARG_32(4);
+  uint32_t unk3 = SHIM_GET_ARG_32(3); // ptr to 0xBEEF0000
+  uint32_t unk4 = SHIM_GET_ARG_32(4); // 0xBEEF0001
   uint32_t unk5 = SHIM_GET_ARG_32(5);
   uint32_t unk6 = SHIM_GET_ARG_32(6);
   uint32_t unk7 = SHIM_GET_ARG_32(7);
@@ -420,6 +420,11 @@ SHIM_CALL VdSwap_shim(
   }
 
   gs->set_swap_pending(true);
+
+  // The caller seems to reserve 64 words (256b) in the primary ringbuffer
+  // for this method to do what it needs. We just zero them out. We could
+  // encode the parameters in the stream for the ringbuffer, if needed.
+  xe_zero_struct(SHIM_MEM_ADDR(unk0), 64 * 4);
 
   SHIM_SET_RETURN(0);
 }
