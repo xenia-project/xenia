@@ -531,6 +531,9 @@ uint32_t xe_memory_heap_t::Alloc(
       FLAGS_scribble_heap) {
     // Trash the memory so that we can see bad read-before-write bugs easier.
     memset(p, 0xCD, alloc_size);
+  } else {
+    // Implicit clear.
+    memset(p, 0, alloc_size);
   }
 
   return (uint32_t)((uintptr_t)p - (uintptr_t)memory->mapping_base);
