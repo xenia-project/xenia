@@ -81,6 +81,7 @@ void AudioSystem::ThreadStart() {
 
     // Pump worker.
     //worker_->Pump();
+    Sleep(1000);
 
     // Pump audio system.
     Pump();
