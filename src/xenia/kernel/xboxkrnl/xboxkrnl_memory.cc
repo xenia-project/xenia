@@ -77,7 +77,7 @@ X_STATUS xeNtAllocateVirtualMemory(
   }
 
   // Allocate.
-  uint32_t flags = 0;
+  uint32_t flags = (allocation_type & X_MEM_NOZERO);
   uint32_t addr = xe_memory_heap_alloc(
       state->memory(), *base_addr_ptr, adjusted_size, flags);
   if (!addr) {

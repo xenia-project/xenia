@@ -527,7 +527,8 @@ uint32_t xe_memory_heap_t::Alloc(
         PAGE_READWRITE);
   }
 
-  if (FLAGS_scribble_heap) {
+  if ((flags & X_MEM_NOZERO) &&
+      FLAGS_scribble_heap) {
     // Trash the memory so that we can see bad read-before-write bugs easier.
     memset(p, 0xCD, alloc_size);
   }
