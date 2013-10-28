@@ -232,12 +232,12 @@ struct {
     INSTR(KILLONEs, 1), // 39
     INSTR(SQRT_IEEE, 1), // 40
     {0, 0},
-    INSTR(MUL_CONST_0, 1), // 42
-    INSTR(MUL_CONST_1, 1), // 43
-    INSTR(ADD_CONST_0, 1), // 44
-    INSTR(ADD_CONST_1, 1), // 45
-    INSTR(SUB_CONST_0, 1), // 46
-    INSTR(SUB_CONST_1, 1), // 47
+    INSTR(MUL_CONST_0, 2), // 42
+    INSTR(MUL_CONST_1, 2), // 43
+    INSTR(ADD_CONST_0, 2), // 44
+    INSTR(ADD_CONST_1, 2), // 45
+    INSTR(SUB_CONST_0, 2), // 46
+    INSTR(SUB_CONST_1, 2), // 47
     INSTR(SIN, 1), // 48
     INSTR(COS, 1), // 49
     INSTR(RETAIN_PREV, 1), // 50
@@ -342,7 +342,7 @@ struct {
     {0},
     {0},
     TYPE(FMT_8_8_8_8), // 6
-    {0},
+    TYPE(FMT_2_10_10_10), // 7
     {0},
     {0},
     TYPE(FMT_8_8), // 10

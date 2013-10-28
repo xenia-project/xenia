@@ -22,6 +22,8 @@ using namespace xe::gpu::xenos;
 
 namespace {
 
+const uint32_t MAX_INTERPOLATORS = 16;
+
 const int OUTPUT_CAPACITY = 64 * 1024;
 
 }  // anonymous namespace
@@ -199,6 +201,13 @@ int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
             DXGI_FORMAT_R8G8B8A8_SINT : DXGI_FORMAT_R8G8B8A8_UINT;
       }
       break;
+    case FMT_2_10_10_10:
+      if (!vtx.num_format_all) {
+        vtx_format = DXGI_FORMAT_R10G10B10A2_UNORM;
+      } else {
+        vtx_format = DXGI_FORMAT_R10G10B10A2_UINT;
+      }
+      break;
     case FMT_8_8:
       if (!vtx.num_format_all) {
         vtx_format = vtx.format_comp_all ?
@@ -336,7 +345,7 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
   if (alloc_counts_.params) {
     output->append(
       "  float4 o[%d] : XE_O;\n",
-      alloc_counts_.params);
+      MAX_INTERPOLATORS);
   }
   output->append(
     "};\n");
@@ -348,16 +357,20 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
 
   // TODO(benvanik): remove this, if possible (though the compiler may be smart
   //     enough to do it for us).
-  for (uint32_t n = 0; n < alloc_counts_.params; n++) {
-    output->append(
-      "  o.o[%d] = float4(0.0, 0.0, 0.0, 0.0);\n", n);
+  if (alloc_counts_.params) {
+    for (uint32_t n = 0; n < MAX_INTERPOLATORS; n++) {
+      output->append(
+        "  o.o[%d] = float4(0.0, 0.0, 0.0, 0.0);\n", n);
+    }
   }
 
   // Add temporaries for any registers we may use.
-  for (uint32_t n = 0; n <= program_cntl->vs_regs; n++) {
+  uint32_t temp_regs = program_cntl->vs_regs + program_cntl->ps_regs;
+  for (uint32_t n = 0; n <= temp_regs; n++) {
     output->append(
-      "  float4 r%d;\n", n);
+      "  float4 r%d = c[%d];\n", n, n);
   }
+  output->append("  float4 t;\n");
 
   // Execute blocks.
   for (std::vector<instr_cf_exec_t>::iterator it = execs_.begin();
@@ -474,7 +487,7 @@ const char* D3D11PixelShader::Translate(
   if (input_alloc_counts.params) {
     output->append(
       "  float4 o[%d] : XE_O;\n",
-      input_alloc_counts.params);
+      MAX_INTERPOLATORS);
   }
   output->append(
     "};\n");
@@ -500,15 +513,19 @@ const char* D3D11PixelShader::Translate(
     "  PS_OUTPUT o;\n");
 
   // Add temporary registers.
-  for (uint32_t n = 0; n <= program_cntl->ps_regs; n++) {
+  uint32_t temp_regs = program_cntl->vs_regs + program_cntl->ps_regs;
+  for (uint32_t n = 0; n <= MAX(15, temp_regs); n++) {
     output->append(
-      "  float4 r%d;\n", n);
+      "  float4 r%d = c[%d];\n", n, n);
   }
+  output->append("  float4 t;\n");
 
   // Bring registers local.
-  for (uint32_t n = 0; n < input_alloc_counts.params; n++) {
-    output->append(
-      "  r%d = i.o[%d];\n", n, n);
+  if (input_alloc_counts.params) {
+    for (uint32_t n = 0; n < MAX_INTERPOLATORS; n++) {
+      output->append(
+        "  r%d = i.o[%d];\n", n, n);
+    }
   }
 
   // Execute blocks.
@@ -568,9 +585,9 @@ void AppendSrcReg(
   }
 }
 
-void AppendDestReg(
+void AppendDestRegName(
     xe_gpu_translate_ctx_t& ctx,
-    uint32_t num, uint32_t mask, uint32_t dst_exp) {
+    uint32_t num, uint32_t dst_exp) {
   if (!dst_exp) {
     // Register.
     ctx.output->append("r%u", num);
@@ -605,17 +622,43 @@ void AppendDestReg(
       break;
     }
   }
-  // TODO(benvanik): masking!
-  if (mask != 0xf) {
-    // ctx.output->append(".");
+}
+
+void AppendDestReg(
+    xe_gpu_translate_ctx_t& ctx,
+    uint32_t num, uint32_t mask, uint32_t dst_exp) {
+  if (mask != 0xF) {
+    // If masking, store to a temporary variable and clean it up later.
+    ctx.output->append("t");
+  } else {
+    // Store directly to output.
+    AppendDestRegName(ctx, num, dst_exp);
+  }
+}
+
+void AppendDestRegPost(
+    xe_gpu_translate_ctx_t& ctx,
+    uint32_t num, uint32_t mask, uint32_t dst_exp) {
+  if (mask != 0xF) {
+    // Masking.
+    ctx.output->append("  ");
+    AppendDestRegName(ctx, num, dst_exp);
+    ctx.output->append(" = float4(");
     for (int i = 0; i < 4; i++) {
       // TODO(benvanik): mask out values? mix in old value as temp?
       // ctx.output->append("%c", (mask & 0x1) ? chan_names[i] : 'w');
       if (!(mask & 0x1)) {
-        XELOGW("D3D11 shader compiler skipping dest write mask!");
+        AppendDestRegName(ctx, num, dst_exp);
+      } else {
+        ctx.output->append("t");
       }
+      ctx.output->append(".%c", chan_names[i]);
       mask >>= 1;
+      if (i < 3) {
+        ctx.output->append(", ");
+      }
     }
+    ctx.output->append(");\n");
   }
 }
 
@@ -694,6 +737,7 @@ int TranslateALU_ADDv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -713,6 +757,7 @@ int TranslateALU_MULv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -741,6 +786,7 @@ int TranslateALU_MAXv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -760,6 +806,7 @@ int TranslateALU_MINv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -777,6 +824,7 @@ int TranslateALU_FRACv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -794,6 +842,7 @@ int TranslateALU_TRUNCv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -811,6 +860,7 @@ int TranslateALU_FLOORv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -835,6 +885,47 @@ int TranslateALU_MULADDv(
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  return 0;
+}
+
+int TranslateALU_DOT4v(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("dot(");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(", ");
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(")");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  return 0;
+}
+
+int TranslateALU_DOT3v(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("dot(float4(");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").xyz, float4(");
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").xyz)");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
 }
 
@@ -865,8 +956,8 @@ static xe_gpu_translate_alu_info_t vector_alu_instrs[0x20] = {
   ALU_INSTR(CNDEv,              3),  // 12
   ALU_INSTR(CNDGTEv,            3),  // 13
   ALU_INSTR(CNDGTv,             3),  // 14
-  ALU_INSTR(DOT4v,              2),  // 15
-  ALU_INSTR(DOT3v,              2),  // 16
+  ALU_INSTR_IMPL(DOT4v,              2),  // 15
+  ALU_INSTR_IMPL(DOT3v,              2),  // 16
   ALU_INSTR(DOT2ADDv,           3),  // 17 -- ???
   ALU_INSTR(CUBEv,              2),  // 18
   ALU_INSTR(MAX4v,              1),  // 19
@@ -924,12 +1015,12 @@ static xe_gpu_translate_alu_info_t scalar_alu_instrs[0x40] = {
   ALU_INSTR(KILLONEs,           1),  // 39
   ALU_INSTR(SQRT_IEEE,          1),  // 40
   { 0, 0, false },
-  ALU_INSTR(MUL_CONST_0,        1),  // 42
-  ALU_INSTR(MUL_CONST_1,        1),  // 43
-  ALU_INSTR(ADD_CONST_0,        1),  // 44
-  ALU_INSTR(ADD_CONST_1,        1),  // 45
-  ALU_INSTR(SUB_CONST_0,        1),  // 46
-  ALU_INSTR(SUB_CONST_1,        1),  // 47
+  ALU_INSTR(MUL_CONST_0,        2),  // 42
+  ALU_INSTR(MUL_CONST_1,        2),  // 43
+  ALU_INSTR(ADD_CONST_0,        2),  // 44
+  ALU_INSTR(ADD_CONST_1,        2),  // 45
+  ALU_INSTR(SUB_CONST_0,        2),  // 46
+  ALU_INSTR(SUB_CONST_1,        2),  // 47
   ALU_INSTR(SIN,                1),  // 48
   ALU_INSTR(COS,                1),  // 49
   ALU_INSTR(RETAIN_PREV,        1),  // 50
@@ -1045,7 +1136,7 @@ struct {
     {0},
     {0},
     TYPE(FMT_8_8_8_8), // 6
-    {0},
+    TYPE(FMT_2_10_10_10), // 7
     {0},
     {0},
     TYPE(FMT_8_8), // 10
