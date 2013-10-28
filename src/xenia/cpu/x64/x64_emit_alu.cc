@@ -1233,7 +1233,7 @@ XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     uint64_t dummy;
     if (e.get_constant_gpr_value(i.X.RT, &dummy)) {
       e.set_constant_gpr_value(i.X.RA, dummy);
-	  is_constant = true;
+      is_constant = true;
     }
     c.mov(v, e.gpr_value(i.X.RT));
   } else {
