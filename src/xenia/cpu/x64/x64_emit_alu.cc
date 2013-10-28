@@ -1228,7 +1228,13 @@ XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrDat
   // RA <- (RS) | (RB)
 
   GpVar v(c.newGpVar());
+  bool is_constant = false;
   if (i.X.RT == i.X.RB) {
+    uint64_t dummy;
+    if (e.get_constant_gpr_value(i.X.RT, &dummy)) {
+      e.set_constant_gpr_value(i.X.RA, dummy);
+	  is_constant = true;
+    }
     c.mov(v, e.gpr_value(i.X.RT));
   } else {
     c.mov(v, e.gpr_value(i.X.RT));
@@ -1241,7 +1247,9 @@ XEEMITTER(orx,          0x7C000378, X  )(X64Emitter& e, X86Compiler& c, InstrDat
     e.update_cr_with_cond(0, v);
   }
 
-  e.clear_constant_gpr_value(i.X.RA);
+  if (is_constant == false) {
+    e.clear_constant_gpr_value(i.X.RA);
+  }
 
   return 0;
 }
