@@ -143,7 +143,11 @@ uint64_t GraphicsSystem::ReadRegister(uint32_t addr) {
   RegisterFile* regs = driver_->register_file();
 
   switch (r) {
+  case 0x6530: // ????
+    return 1;
   case 0x6544: // ? vblank pending?
+    return 1;
+  case 0x6584: // ????
     return 1;
   }
 
