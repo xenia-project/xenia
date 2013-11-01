@@ -32,7 +32,7 @@ X_STATUS XInputInputDriver::Setup() {
   return X_STATUS_SUCCESS;
 }
 
-XRESULT XInputInputDriver::GetCapabilities(
+X_RESULT XInputInputDriver::GetCapabilities(
     uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) {
   XINPUT_CAPABILITIES native_caps;
   DWORD result = XInputGetCapabilities(user_index, flags, &native_caps);
@@ -58,7 +58,7 @@ XRESULT XInputInputDriver::GetCapabilities(
   return result;
 }
 
-XRESULT XInputInputDriver::GetState(
+X_RESULT XInputInputDriver::GetState(
     uint32_t user_index, X_INPUT_STATE& out_state) {
   XINPUT_STATE native_state;
   DWORD result = XInputGetState(user_index, &native_state);
@@ -78,7 +78,7 @@ XRESULT XInputInputDriver::GetState(
   return result;
 }
 
-XRESULT XInputInputDriver::SetState(
+X_RESULT XInputInputDriver::SetState(
     uint32_t user_index, X_INPUT_VIBRATION& vibration) {
   XINPUT_VIBRATION native_vibration;
   native_vibration.wLeftMotorSpeed = vibration.left_motor_speed;

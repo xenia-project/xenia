@@ -28,11 +28,11 @@ public:
 
   virtual X_STATUS Setup();
 
-  virtual XRESULT GetCapabilities(
+  virtual X_RESULT GetCapabilities(
       uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps);
-  virtual XRESULT GetState(
+  virtual X_RESULT GetState(
       uint32_t user_index, X_INPUT_STATE& out_state);
-  virtual XRESULT SetState(
+  virtual X_RESULT SetState(
       uint32_t user_index, X_INPUT_VIBRATION& vibration);
 
 protected:

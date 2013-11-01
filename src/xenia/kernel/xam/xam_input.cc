@@ -48,7 +48,7 @@ SHIM_CALL XamInputGetCapabilities_shim(
   InputSystem* input_system = state->emulator()->input_system();
 
   X_INPUT_CAPABILITIES caps;
-  XRESULT result = input_system->GetCapabilities(user_index, flags, caps);
+  X_RESULT result = input_system->GetCapabilities(user_index, flags, caps);
   if (XSUCCEEDED(result)) {
     caps.Write(SHIM_MEM_BASE, caps_ptr);
   }
@@ -75,7 +75,7 @@ SHIM_CALL XamInputGetState_shim(
   InputSystem* input_system = state->emulator()->input_system();
 
   X_INPUT_STATE input_state;
-  XRESULT result = input_system->GetState(user_index, input_state);
+  X_RESULT result = input_system->GetState(user_index, input_state);
   if (XSUCCEEDED(result)) {
     input_state.Write(SHIM_MEM_BASE, state_ptr);
   }
@@ -102,7 +102,7 @@ SHIM_CALL XamInputSetState_shim(
   InputSystem* input_system = state->emulator()->input_system();
 
   X_INPUT_VIBRATION vibration(SHIM_MEM_BASE, vibration_ptr);
-  XRESULT result = input_system->SetState(user_index, vibration);
+  X_RESULT result = input_system->SetState(user_index, vibration);
   SHIM_SET_RETURN(result);
 }
 
