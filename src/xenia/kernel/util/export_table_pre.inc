@@ -23,12 +23,11 @@
  */
 
 
-#define XE_EXPORT(module, ordinal, name, signature, type, flags) \
+#define XE_EXPORT(module, ordinal, name, type, flags) \
   { \
     ordinal, \
     KernelExport::type, \
     flags, \
-    #signature, \
     #name, \
   }
 

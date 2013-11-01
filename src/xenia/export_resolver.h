@@ -34,7 +34,6 @@ public:
   uint32_t      ordinal;
   ExportType    type;
   uint32_t      flags;
-  char          signature[16];
   char          name[96];
 
   bool          is_implemented;
