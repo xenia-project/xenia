@@ -8,20 +8,10 @@ video drivers for your card.
 
 ### Windows
 
+* Visual Studio 2013
 * [Python 2.7](http://www.python.org/download/releases/2.7.5/)
 
-Install and add Python to your PATH (`C:\Python27\`).
-
-#### Visual Studio 2013
-
-Should work out of the box - just load the sln.
-
-#### Visual Studio 2012 (Express)
-
-Basic testing has been done with 2012 Express (all I have access to).
-
-* [Windows 8 SDK](http://msdn.microsoft.com/en-us/windows/desktop/aa904949.aspx)
-* [Visual Studio 2012 Express for Desktop](http://go.microsoft.com/?linkid=9816758)
+Ensure Python is in your PATH (`C:\Python27\`).
 
 #### Debugging
 
@@ -29,23 +19,6 @@ VS behaves oddly with the debug paths. Open the xenia-run project properties
 and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
-
-### OS X
-
-Only tested on OS X 10.8 (Mountain Lion).
-
-* [Xcode 4](http://developer.apple.com/xcode/) + command line tools
-* [Homebrew](http://mxcl.github.com/homebrew/)
-
-### Linux
-
-Only tested on Ubuntu 12.10.
-
-* random things (`sudo apt-get install make flex bison texinfo`)
-* clang (`sudo apt-get install clang`)
-
-Pretty much just install what's asked for as you try to `xb setup` or
-`xb build`.
 
 ## xenia-build
 

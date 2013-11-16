@@ -26,20 +26,11 @@ legally purchased devices and games and information made public on the internet
 
 Windows:
 
-    # install python 2.7 and VS2010/2012/2013
+    # install python 2.7 and VS2013
     git clone https://github.com/benvanik/xenia.git
     cd xenia
     xb setup
     # open build\xenia\xenia.sln and start xenia-run
-
-Linux/OSX:
-
-    # install clang/xcode/etc
-    git clone https://github.com/benvanik/xenia.git
-    cd xenia && source xeniarc
-    xb setup
-    xb build
-    ./bin/xenia-run some.xex
 
 When fetching updates use `xb pull` to automatically fetch everything and
 update gyp files/etc.
@@ -48,5 +39,7 @@ update gyp files/etc.
 
 See [building](docs/building.md) for setup and information about the
 `xenia-build` script.
+
+## FAQ
 
 ## Known Issues
