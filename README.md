@@ -85,3 +85,13 @@ in keeping all the platforms building any other way.
 manually execute commands have fun, nothing is stopping you.
 
 ## Known Issues
+
+### Release Mode Crashes
+
+There are some stack alignment issues with the JITed code, so release mode
+dies on an unaligned SSE operation.
+
+### Use of stdout
+
+Currently everything is traced to stdout, which is slow and silly. A better
+tracing format is being worked on.
