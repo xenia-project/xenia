@@ -357,7 +357,6 @@ def run_gyp(format):
   """
   shell_call(' '.join([
       'gyp',
-      '--include=common.gypi',
       '-f %s' % (format),
       # Removes the out/ from ninja builds.
       '-G output_dir=.',
