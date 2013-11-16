@@ -369,6 +369,10 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
     "VS_OUTPUT main(VS_INPUT i) {\n"
     "  VS_OUTPUT o;\n");
 
+  // Always write position, as some shaders seem to only write certain values.
+  output->append(
+    "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n");
+
   // TODO(benvanik): remove this, if possible (though the compiler may be smart
   //     enough to do it for us).
   if (alloc_counts_.params) {
