@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_shader.h>
 
+#include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/xenos/ucode.h>
 
 #include <d3dcompiler.h>
@@ -88,13 +89,26 @@ ID3D10Blob* D3D11Shader::Compile(const char* shader_source) {
   uint32_t flags2 = 0;
 
   // Create a name.
-  char file_name[64];
+  const char* base_path = "";
+  if (FLAGS_dump_shaders.size()) {
+    base_path = FLAGS_dump_shaders.c_str();
+  }
+  char file_name[XE_MAX_PATH];
   xesnprintfa(file_name, XECOUNT(file_name),
-      "gen_%.16XLL.%s",
+      "%s/gen_%.16XLL.%s",
+      base_path,
       hash_,
       type_ == XE_GPU_SHADER_TYPE_VERTEX ? "vs" : "ps");
 
-  // TODO(benvanik): dump to disk so tools can find it.
+  if (FLAGS_dump_shaders.size()) {
+    FILE* f = fopen(file_name, "w");
+    fprintf(f, shader_source);
+    fprintf(f, "\n\n");
+    fprintf(f, "/*\n");
+    fprintf(f, disasm_src_);
+    fprintf(f, " */\n");
+    fclose(f);
+  }
 
   // Compile shader to bytecode blob.
   ID3D10Blob* shader_blob = 0;
@@ -1089,7 +1103,7 @@ int TranslateALU(
     // Disassemble scalar op.
     xe_gpu_translate_alu_info_t& is = scalar_alu_instrs[alu->scalar_opc];
     output->append("  //  ");
-    output->append("                          \t");
+    output->append("\t");
     if (is.name) {
       output->append("\t    \t%s\t", is.name);
     } else {
