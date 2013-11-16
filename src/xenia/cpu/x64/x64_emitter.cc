@@ -144,8 +144,8 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
 #if STACK_ALIGNMENT_CHECK
   assembler_.mov(rax, rsp);
   assembler_.and_(rax, imm(0xF));
-  assembler_.test(rax, rax);
-  assembler_.jz(l);
+  assembler_.cmp(rax, imm(0x8));
+  assembler_.je(l);
   assembler_.int3();
   assembler_.bind(l);
 #endif  // STACK_ALIGNMENT_CHECK
@@ -155,11 +155,11 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   // Arguments passed as RCX, RDX, R8, R9
   assembler_.push(rcx); // ppc_state
   assembler_.push(rdx); // lr
-  assembler_.sub(rsp, imm(0x20));
+  assembler_.sub(rsp, imm(0x18));
   assembler_.mov(rcx, imm((uint64_t)this));
   assembler_.mov(rdx, imm((uint64_t)symbol));
   assembler_.call(X64Emitter::OnDemandCompileTrampoline);
-  assembler_.add(rsp, imm(0x20));
+  assembler_.add(rsp, imm(0x18));
   assembler_.pop(rdx); // lr
   assembler_.pop(rcx); // ppc_state
   assembler_.jmp(rax);
@@ -168,11 +168,11 @@ int X64Emitter::PrepareFunction(FunctionSymbol* symbol) {
   // Arguments passed as RDI, RSI, RDX, RCX, R8, R9
   assembler_.push(rdi); // ppc_state
   assembler_.push(rsi); // lr
-  assembler_.sub(rsp, imm(0x20));
+  assembler_.sub(rsp, imm(0x18));
   assembler_.mov(rdi, imm((uint64_t)this));
   assembler_.mov(rsi, imm((uint64_t)symbol));
   assembler_.call(X64Emitter::OnDemandCompileTrampoline);
-  assembler_.add(rsp, imm(0x20));
+  assembler_.add(rsp, imm(0x18));
   assembler_.pop(rsi); // lr
   assembler_.pop(rdi); // ppc_state
   assembler_.jmp(rax);
@@ -325,6 +325,17 @@ int X64Emitter::MakeFunction(FunctionSymbol* symbol) {
 
   // Perform final assembly/relocation.
   symbol->impl_value = assembler_.make();
+
+  // TODO(benvanik): figure this out
+  //RUNTIME_FUNCTION* fn_table =
+  //    (RUNTIME_FUNCTION*)xe_malloc(sizeof(RUNTIME_FUNCTION));
+  //UNWIND_INFO* unwind_info =
+  //    (UNWIND_INFO*)xe_malloc(sizeof(UNWIND_INFO));
+  //fn_table[0].BeginAddress = 0;
+  //fn_table[0].EndAddress = assembler_.getCodeSize();
+  //fn_table[0].UnwindInfoAddress = ;
+  //fn_table[0].UnwindData = 0;
+  //RtlAddFunctionTable(fn_table, 1, (DWORD64)symbol->impl_value);
 
   if (FLAGS_log_codegen) {
     XELOGCPU("Compile(%s): compiled to 0x%p (%db)",
