@@ -892,11 +892,11 @@ int TranslateALU_MULADDv(
     ctx.output->append("saturate(");
   }
   ctx.output->append("mad(");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(", ");
   AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
   ctx.output->append(", ");
   AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
-  ctx.output->append(", ");
-  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
   ctx.output->append(")");
   if (alu.vector_clamp) {
     ctx.output->append(")");
