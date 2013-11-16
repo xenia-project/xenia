@@ -58,7 +58,7 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE& out_state) {
   for (std::vector<InputDriver*>::iterator it = drivers_.begin();
        it != drivers_.end(); ++it) {
     InputDriver* driver = *it;
-    if (XSUCCEEDED(driver->GetState(user_index, out_state))) {
+    if (driver->GetState(user_index, out_state) == X_ERROR_SUCCESS) {
       return X_ERROR_SUCCESS;
     }
   }
