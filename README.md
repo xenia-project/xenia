@@ -71,4 +71,17 @@ non-Windows platforms.
 DirectX 11 support is required. To get full speed and compatibility Mantle may
 be required in the future (which means R9 AMD cards and up).
 
+### (some argument over an unimportant technical choice)
+
+In general: 'I don't care.'
+
+Here's a short list of common ones:
+
+* 'Why Python 2.7? 3 is awesome!' -- agreed, but gyp needs 2.7.
+* 'Why this GYP stuff?' -- CMake sucks, managing Xcode projects by hand sucks,
+and for the large cross-platform project this will become I'm not interested
+in keeping all the platforms building any other way.
+* 'Why this xenia-build.py stuff?' -- I like it, it helps me. If you want to
+manually execute commands have fun, nothing is stopping you.
+
 ## Known Issues
