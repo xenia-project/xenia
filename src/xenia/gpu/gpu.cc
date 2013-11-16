@@ -20,6 +20,10 @@ DEFINE_string(gpu, "any",
     "Graphics system. Use: [any, nop, d3d11]");
 
 
+DEFINE_bool(trace_ring_buffer, false,
+    "Trace GPU ring buffer packets.");
+
+
 #include <xenia/gpu/nop/nop_gpu.h>
 GraphicsSystem* xe::gpu::CreateNop(Emulator* emulator) {
   return xe::gpu::nop::Create(emulator);

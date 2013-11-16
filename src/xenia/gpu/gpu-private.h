@@ -15,5 +15,7 @@
 
 DECLARE_string(gpu);
 
+DECLARE_bool(trace_ring_buffer);
+
 
 #endif  // XENIA_GPU_PRIVATE_H_
