@@ -12,9 +12,9 @@
 
   'variables': {
     'configurations': {
-      'debug': {
+      'Debug': {
       },
-      'release': {
+      'Release': {
       },
     },
 
@@ -77,22 +77,12 @@
               '/EHsc',  # C++ exception handling,
             ],
           },
-          #'VCLibrarianTool': {
-          #  'AdditionalLibraryDirectories!':
-          #    ['<(DEPTH)/third_party/platformsdk_win7/files/Lib'],
-          #  'AdditionalLibraryDirectories':
-          #    ['<(DEPTH)/third_party/platformsdk_win7/files/Lib/x64'],
-          #},
           'VCLinkerTool': {
             'GenerateDebugInformation': 'true',
             #'LinkIncremental': '1', # 1 = NO, 2 = YES
             'TargetMachine': '17', # x86 - 64
             'AdditionalLibraryDirectories': [
             ],
-            #'AdditionalLibraryDirectories!':
-            #  ['<(DEPTH)/third_party/platformsdk_win7/files/Lib'],
-            #'AdditionalLibraryDirectories':
-            #  ['<(DEPTH)/third_party/platformsdk_win7/files/Lib/x64'],
           },
         },
 
@@ -120,14 +110,14 @@
         ],
       },
 
-      'debug': {
+      'Debug': {
         'inherit_from': ['common_base',],
         'defines': [
           'DEBUG',
           'ASMJIT_DEBUG=',
         ],
         'msvs_configuration_attributes': {
-          'OutputDirectory': '<(DEPTH)\\build\\xenia\\debug',
+          'OutputDirectory': '<(DEPTH)\\build\\xenia\\Debug',
         },
         'msvs_settings': {
           'VCCLCompilerTool': {
@@ -148,11 +138,11 @@
           'GCC_OPTIMIZATION_LEVEL': '0',
         },
       },
-      'debug_x64': {
-        'inherit_from': ['debug',],
+      'Debug_x64': {
+        'inherit_from': ['Debug',],
       },
 
-      'release': {
+      'Release': {
         'inherit_from': ['common_base',],
         'defines': [
           'RELEASE',
@@ -181,8 +171,8 @@
           },
         },
       },
-      'release_x64': {
-        'inherit_from': ['release',],
+      'Release_x64': {
+        'inherit_from': ['Release',],
       },
     },
   },
@@ -191,7 +181,7 @@
     {
       'target_name': 'xenia',
       'product_name': 'xenia',
-      'type': '<(library)',
+      'type': 'static_library',
 
       'dependencies': [
         'asmjit',
