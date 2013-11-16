@@ -489,14 +489,20 @@ XEEMITTER(vaddcuw,        0x10000180, VX  )(X64Emitter& e, X86Compiler& c, Instr
   return 1;
 }
 
-XEEMITTER(vaddfp,         0x1000000A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+int InstrEmit_vaddfp_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- (VA) + (VB) (4 x fp)
+  XmmVar v(c.newXmmVar());
+  c.movaps(v, e.vr_value(va));
+  c.addps(v, e.vr_value(vb));
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, va, vb);
+  return 0;
 }
-
+XEEMITTER(vaddfp,         0x1000000A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
+  return InstrEmit_vaddfp_(e, c, i.VX.VD, i.VX.VA, i.VX.VB);
+}
 XEEMITTER(vaddfp128,      VX128(5, 16),     VX128  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vaddfp_(e, c, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vaddsbs,        0x10000300, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
@@ -1450,13 +1456,21 @@ XEEMITTER(vrfim128,       VX128_3(6, 816),  VX128_3)(X64Emitter& e, X86Compiler&
   return 1;
 }
 
+int InstrEmit_vrfin_(X64Emitter& e, X86Compiler& c, uint32_t vd, uint32_t vb) {
+  // (VD) <- RoundToNearest(VB)
+  // TODO(benvanik): check if this is right - may want to leave as dq.
+  XmmVar v(c.newXmmVar());
+  c.cvtps2dq(v, e.vr_value(vd));
+  c.cvtdq2ps(v, v);
+  e.update_vr_value(vd, v);
+  e.TraceVR(vd, vb);
+  return 0;
+}
 XEEMITTER(vrfin,          0x1000020A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfin_(e, c, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vrfin128,       VX128_3(6, 880),  VX128_3)(X64Emitter& e, X86Compiler& c, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfin_(e, c, VX128_3_VD128, VX128_3_VB128);
 }
 
 XEEMITTER(vrfip,          0x1000028A, VX  )(X64Emitter& e, X86Compiler& c, InstrData& i) {

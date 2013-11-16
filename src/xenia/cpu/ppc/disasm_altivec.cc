@@ -347,13 +347,16 @@ XEDISASMR(vaddcuw,        0x10000180, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vaddfp,         0x1000000A, VX  )(InstrData& i, InstrDisasm& d) {
   d.Init("vaddfp", "Vector Add Floating Point",
          InstrDisasm::kVMX);
-  return 1;
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VD, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VA, InstrRegister::kRead);
+  d.AddRegOperand(InstrRegister::kVMX, i.VX.VB, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(vaddfp128,      VX128(5, 16),     VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vaddfp128", "Vector128 Add Floating Point",
          InstrDisasm::kVMX);
-  return 1;
+  return GeneralVX128(i, d);
 }
 
 XEDISASMR(vaddsbs,        0x10000300, VX  )(InstrData& i, InstrDisasm& d) {
@@ -1168,7 +1171,11 @@ XEDISASMR(vrfin,          0x1000020A, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vrfin128,       VX128_3(6, 880),  VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vrfin128", "Vector128 Round to Floating-Point Integer Nearest",
          InstrDisasm::kVMX);
-  return 1;
+  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
+  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
+  d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
+  return d.Finish();
 }
 
 XEDISASMR(vrfip,          0x1000028A, VX  )(InstrData& i, InstrDisasm& d) {
