@@ -17,8 +17,8 @@ Coming soon (maybe):
 ## Disclaimer
 
 The goal of this project is to experiment, research, and educate on the topic
-of emulation of modern devices and operating systems. <b>It is not for enabling
-illegal activity</b>. All information is obtained via reverse engineering of
+of emulation of modern devices and operating systems. **It is not for enabling
+illegal activity**. All information is obtained via reverse engineering of
 legally purchased devices and games and information made public on the internet
 (you'd be surprised what's indexed on Google...).
 
@@ -41,5 +41,34 @@ See [building](docs/building.md) for setup and information about the
 `xenia-build` script.
 
 ## FAQ
+
+### Can I get an exe?
+
+**NO**. I am not releasing binaries - at least not for awhile. Don't be an
+idiot and download a binary claiming to be of this project. In fact, don't
+be an idiot and download *any* binary claiming to be an Xbox 360 or PS3
+emulator from *any* source, especially not YouTube videos and shady websites.
+Come on people. Jeez.
+
+### What kind of machine do I need to run this?
+
+You'll need 64-bit Windows 7 with a processor supporting at least SSE4.
+It's only tested on Windows 8 and that may become a requirement as several of
+the APIs exposed there are beneficial to emulation. In general if you have to
+ask if your machine is good enough to run games at a decent speed the answer is
+no.
+
+### What about Linux/OSX?
+
+The project is designed to support non-Windows platforms but until it's running
+games it's not worth the maintenance burden. If you're a really passionate
+Linux/OSX-based developer and want to help out, run Bootcamp/VM and contribute
+an OpenGL 4 driver - that'll be the most difficult part in porting to
+non-Windows platforms.
+
+### What kind of GPU do I need?
+
+DirectX 11 support is required. To get full speed and compatibility Mantle may
+be required in the future (which means R9 AMD cards and up).
 
 ## Known Issues
