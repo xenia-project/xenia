@@ -968,7 +968,80 @@ int TranslateALU_DOT2ADDv(
   return 0;
 }
 
+// CUBEv
+
+int TranslateALU_MAX4v(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("max(");
+  ctx.output->append("max(");
+  ctx.output->append("max(");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(".x, ");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(".y), ");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(".z), ");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(".w)");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  return 0;
+}
+
 // ...
+
+int TranslateALU_MAXs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  if ((alu.src3_swiz & 0x3) == (((alu.src3_swiz >> 2) + 1) & 0x3)) {
+    // This is a mov.
+    AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  } else {
+    ctx.output->append("max(");
+    AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+    ctx.output->append(".x, ");
+    AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+    ctx.output->append(".y).xxxx");
+  }
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
+
+int TranslateALU_MINs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("min(");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".x, ");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".y).xxxx");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
 
 typedef int (*xe_gpu_translate_alu_fn)(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu);
@@ -1001,7 +1074,7 @@ static xe_gpu_translate_alu_info_t vector_alu_instrs[0x20] = {
   ALU_INSTR_IMPL(DOT3v,              2),  // 16
   ALU_INSTR_IMPL(DOT2ADDv,           3),  // 17 -- ???
   ALU_INSTR(CUBEv,              2),  // 18
-  ALU_INSTR(MAX4v,              1),  // 19
+  ALU_INSTR_IMPL(MAX4v,              1),  // 19
   ALU_INSTR(PRED_SETE_PUSHv,    2),  // 20
   ALU_INSTR(PRED_SETNE_PUSHv,   2),  // 21
   ALU_INSTR(PRED_SETGT_PUSHv,   2),  // 22
@@ -1019,8 +1092,8 @@ static xe_gpu_translate_alu_info_t scalar_alu_instrs[0x40] = {
   ALU_INSTR(MULs,               1),  // 2
   ALU_INSTR(MUL_PREVs,          1),  // 3
   ALU_INSTR(MUL_PREV2s,         1),  // 4
-  ALU_INSTR(MAXs,               1),  // 5
-  ALU_INSTR(MINs,               1),  // 6
+  ALU_INSTR_IMPL(MAXs,               1),  // 5
+  ALU_INSTR_IMPL(MINs,               1),  // 6
   ALU_INSTR(SETEs,              1),  // 7
   ALU_INSTR(SETGTs,             1),  // 8
   ALU_INSTR(SETGTEs,            1),  // 9
