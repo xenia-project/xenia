@@ -95,7 +95,7 @@ ID3D10Blob* D3D11Shader::Compile(const char* shader_source) {
   }
   char file_name[XE_MAX_PATH];
   xesnprintfa(file_name, XECOUNT(file_name),
-      "%s/gen_%.16XLL.%s",
+      "%s/gen_%.16llX.%s",
       base_path,
       hash_,
       type_ == XE_GPU_SHADER_TYPE_VERTEX ? "vs" : "ps");
