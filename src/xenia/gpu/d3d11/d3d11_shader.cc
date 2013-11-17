@@ -828,6 +828,54 @@ int TranslateALU_MINv(
   return 0;
 }
 
+int TranslateALU_SETXXv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu, const char* op) {
+  AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("float4((");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").x %s (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").x ? 1.0 : 0.0, (");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").y %s (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").y ? 1.0 : 0.0, (");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").z %s (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").z ? 1.0 : 0.0, (");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").w %s (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").w ? 1.0 : 0.0)");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  return 0;
+}
+int TranslateALU_SETEv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXv(ctx, alu, "==");
+}
+int TranslateALU_SETGTv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXv(ctx, alu, ">");
+}
+int TranslateALU_SETGTEv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXv(ctx, alu, ">=");
+}
+int TranslateALU_SETNEv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXv(ctx, alu, "!=");
+}
+
 int TranslateALU_FRACv(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
   AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -882,8 +930,6 @@ int TranslateALU_FLOORv(
   return 0;
 }
 
-// ...
-
 int TranslateALU_MULADDv(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
   AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -904,6 +950,59 @@ int TranslateALU_MULADDv(
   ctx.output->append(";\n");
   AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return 0;
+}
+
+int TranslateALU_CNDXXv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu, const char* op) {
+  AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  // TODO(benvanik): check argument order - could be 3 as compare and 1 and 2 as values.
+  ctx.output->append("float4((");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").x %s 0.0 ? (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").x : (");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(").x, (");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").y %s 0.0 ? (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").y : (");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(").y, (");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").z %s 0.0 ? (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").z : (");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(").z, (");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").w %s 0.0 ? (", op);
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").w : (");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(").w)");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  return 0;
+}
+int TranslateALU_CNDEv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_CNDXXv(ctx, alu, "==");
+}
+int TranslateALU_CNDGTEv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_CNDXXv(ctx, alu, ">=");
+}
+int TranslateALU_CNDGTv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_CNDXXv(ctx, alu, ">");
 }
 
 int TranslateALU_DOT4v(
@@ -1043,6 +1142,40 @@ int TranslateALU_MINs(
   return 0;
 }
 
+int TranslateALU_SETXXs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu, const char* op) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.scalar_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("((");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".x %s 0.0) ? 1.0 : 0.0).xxxx", op);
+  if (alu.scalar_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
+int TranslateALU_SETEs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXs(ctx, alu, "==");
+}
+int TranslateALU_SETGTs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXs(ctx, alu, ">");
+}
+int TranslateALU_SETGTEs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXs(ctx, alu, ">=");
+}
+int TranslateALU_SETNEs(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SETXXs(ctx, alu, "!=");
+}
+
 int TranslateALU_MUL_CONST_0(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
   AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
@@ -1146,17 +1279,17 @@ static xe_gpu_translate_alu_info_t vector_alu_instrs[0x20] = {
   ALU_INSTR_IMPL(MULv,               2),  // 1
   ALU_INSTR_IMPL(MAXv,               2),  // 2
   ALU_INSTR_IMPL(MINv,               2),  // 3
-  ALU_INSTR(SETEv,              2),  // 4
-  ALU_INSTR(SETGTv,             2),  // 5
-  ALU_INSTR(SETGTEv,            2),  // 6
-  ALU_INSTR(SETNEv,             2),  // 7
+  ALU_INSTR_IMPL(SETEv,              2),  // 4
+  ALU_INSTR_IMPL(SETGTv,             2),  // 5
+  ALU_INSTR_IMPL(SETGTEv,            2),  // 6
+  ALU_INSTR_IMPL(SETNEv,             2),  // 7
   ALU_INSTR_IMPL(FRACv,              1),  // 8
   ALU_INSTR_IMPL(TRUNCv,             1),  // 9
   ALU_INSTR_IMPL(FLOORv,             1),  // 10
   ALU_INSTR_IMPL(MULADDv,            3),  // 11
-  ALU_INSTR(CNDEv,              3),  // 12
-  ALU_INSTR(CNDGTEv,            3),  // 13
-  ALU_INSTR(CNDGTv,             3),  // 14
+  ALU_INSTR_IMPL(CNDEv,              3),  // 12
+  ALU_INSTR_IMPL(CNDGTEv,            3),  // 13
+  ALU_INSTR_IMPL(CNDGTv,             3),  // 14
   ALU_INSTR_IMPL(DOT4v,              2),  // 15
   ALU_INSTR_IMPL(DOT3v,              2),  // 16
   ALU_INSTR_IMPL(DOT2ADDv,           3),  // 17 -- ???
@@ -1181,10 +1314,10 @@ static xe_gpu_translate_alu_info_t scalar_alu_instrs[0x40] = {
   ALU_INSTR(MUL_PREV2s,         1),  // 4
   ALU_INSTR_IMPL(MAXs,               1),  // 5
   ALU_INSTR_IMPL(MINs,               1),  // 6
-  ALU_INSTR(SETEs,              1),  // 7
-  ALU_INSTR(SETGTs,             1),  // 8
-  ALU_INSTR(SETGTEs,            1),  // 9
-  ALU_INSTR(SETNEs,             1),  // 10
+  ALU_INSTR_IMPL(SETEs,              1),  // 7
+  ALU_INSTR_IMPL(SETGTs,             1),  // 8
+  ALU_INSTR_IMPL(SETGTEs,            1),  // 9
+  ALU_INSTR_IMPL(SETNEs,             1),  // 10
   ALU_INSTR(FRACs,              1),  // 11
   ALU_INSTR(TRUNCs,             1),  // 12
   ALU_INSTR(FLOORs,             1),  // 13
