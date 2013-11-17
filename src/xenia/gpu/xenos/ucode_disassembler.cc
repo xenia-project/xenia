@@ -303,22 +303,42 @@ int disasm_alu(
   if (alu->scalar_write_mask || !alu->vector_write_mask) {
     // 2nd optional scalar op:
 
-    output->append("%s", levels[level]);
-    output->append("                          \t\t\t\t\t");
+    if (alu->vector_write_mask) {
+      output->append("%s", levels[level]);
+      output->append("                          \t\t\t\t\t\t    \t");
+    }
 
     if (scalar_instructions[alu->scalar_opc].name) {
-      output->append("\t    \t%s\t", scalar_instructions[alu->scalar_opc].name);
+      output->append("%s\t", scalar_instructions[alu->scalar_opc].name);
     } else {
-      output->append("\t    \tOP(%u)\t", alu->scalar_opc);
+      output->append("OP(%u)\t", alu->scalar_opc);
     }
 
     print_dstreg(output,
                  alu->scalar_dest, alu->scalar_write_mask, alu->export_data);
     output->append(" = ");
-    print_srcreg(output,
-                 alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                 alu->src3_reg_negate, alu->src3_reg_abs);
-    // TODO ADD/MUL must have another src?!?
+    if (scalar_instructions[alu->scalar_opc].num_srcs == 2) {
+      // MUL/ADD/etc
+      // Clever, CONST_0 and CONST_1 are just an extra storage bit.
+      // ADD_CONST_0 dest, [const], [reg]
+      uint32_t src3_swiz = alu->src3_swiz & ~0x3C;
+      uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
+      uint32_t swiz_b = (src3_swiz & 0x3);
+      print_srcreg(output,
+                   alu->src3_reg, 0, 0,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+      output->append(".%c", chan_names[swiz_a]);
+      output->append(", ");
+      uint32_t reg2 = (alu->scalar_opc & 1) | (alu->src3_swiz & 0x3C) | (alu->src3_sel << 1);
+      print_srcreg(output,
+                   reg2, 1, 0,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+      output->append(".%c", chan_names[swiz_b]);
+    } else {
+      print_srcreg(output,
+                   alu->src3_reg, alu->src3_sel, alu->src3_swiz,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+    }
     if (alu->scalar_clamp) {
       output->append(" CLAMP");
     }

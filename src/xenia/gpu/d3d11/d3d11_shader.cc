@@ -1002,7 +1002,7 @@ int TranslateALU_MAXs(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
   AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   ctx.output->append(" = ");
-  if (alu.vector_clamp) {
+  if (alu.scalar_clamp) {
     ctx.output->append("saturate(");
   }
   if ((alu.src3_swiz & 0x3) == (((alu.src3_swiz >> 2) + 1) & 0x3)) {
@@ -1015,7 +1015,7 @@ int TranslateALU_MAXs(
     AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
     ctx.output->append(".y).xxxx");
   }
-  if (alu.vector_clamp) {
+  if (alu.scalar_clamp) {
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
@@ -1027,7 +1027,7 @@ int TranslateALU_MINs(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
   AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   ctx.output->append(" = ");
-  if (alu.vector_clamp) {
+  if (alu.scalar_clamp) {
     ctx.output->append("saturate(");
   }
   ctx.output->append("min(");
@@ -1035,12 +1035,99 @@ int TranslateALU_MINs(
   ctx.output->append(".x, ");
   AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
   ctx.output->append(".y).xxxx");
-  if (alu.vector_clamp) {
+  if (alu.scalar_clamp) {
     ctx.output->append(")");
   }
   ctx.output->append(";\n");
   AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return 0;
+}
+
+int TranslateALU_MUL_CONST_0(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.scalar_clamp) {
+    ctx.output->append("saturate(");
+  }
+  uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
+  uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
+  uint32_t swiz_b = (src3_swiz & 0x3);
+  uint32_t reg2 = (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
+  ctx.output->append("(");
+  AppendSrcReg(ctx, alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".%c * ", chan_names[swiz_a]);
+  AppendSrcReg(ctx, reg2, 1, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".%c", chan_names[swiz_b]);
+  ctx.output->append(").xxxx");
+  if (alu.scalar_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
+int TranslateALU_MUL_CONST_1(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_MUL_CONST_0(ctx, alu);
+}
+
+int TranslateALU_ADD_CONST_0(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.scalar_clamp) {
+    ctx.output->append("saturate(");
+  }
+  uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
+  uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
+  uint32_t swiz_b = (src3_swiz & 0x3);
+  uint32_t reg2 = (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
+  ctx.output->append("(");
+  AppendSrcReg(ctx, alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".%c + ", chan_names[swiz_a]);
+  AppendSrcReg(ctx, reg2, 1, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".%c", chan_names[swiz_b]);
+  ctx.output->append(").xxxx");
+  if (alu.scalar_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
+int TranslateALU_ADD_CONST_1(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_ADD_CONST_0(ctx, alu);
+}
+
+int TranslateALU_SUB_CONST_0(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.scalar_clamp) {
+    ctx.output->append("saturate(");
+  }
+  uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
+  uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
+  uint32_t swiz_b = (src3_swiz & 0x3);
+  uint32_t reg2 = (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
+  ctx.output->append("(");
+  AppendSrcReg(ctx, alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".%c - ", chan_names[swiz_a]);
+  AppendSrcReg(ctx, reg2, 1, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".%c", chan_names[swiz_b]);
+  ctx.output->append(").xxxx");
+  if (alu.scalar_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
+int TranslateALU_SUB_CONST_1(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  return TranslateALU_SUB_CONST_0(ctx, alu);
 }
 
 typedef int (*xe_gpu_translate_alu_fn)(
@@ -1129,12 +1216,12 @@ static xe_gpu_translate_alu_info_t scalar_alu_instrs[0x40] = {
   ALU_INSTR(KILLONEs,           1),  // 39
   ALU_INSTR(SQRT_IEEE,          1),  // 40
   { 0, 0, false },
-  ALU_INSTR(MUL_CONST_0,        2),  // 42
-  ALU_INSTR(MUL_CONST_1,        2),  // 43
-  ALU_INSTR(ADD_CONST_0,        2),  // 44
-  ALU_INSTR(ADD_CONST_1,        2),  // 45
-  ALU_INSTR(SUB_CONST_0,        2),  // 46
-  ALU_INSTR(SUB_CONST_1,        2),  // 47
+  ALU_INSTR_IMPL(MUL_CONST_0,        2),  // 42
+  ALU_INSTR_IMPL(MUL_CONST_1,        2),  // 43
+  ALU_INSTR_IMPL(ADD_CONST_0,        2),  // 44
+  ALU_INSTR_IMPL(ADD_CONST_1,        2),  // 45
+  ALU_INSTR_IMPL(SUB_CONST_0,        2),  // 46
+  ALU_INSTR_IMPL(SUB_CONST_1,        2),  // 47
   ALU_INSTR(SIN,                1),  // 48
   ALU_INSTR(COS,                1),  // 49
   ALU_INSTR(RETAIN_PREV,        1),  // 50
@@ -1213,10 +1300,26 @@ int TranslateALU(
     print_dstreg(output,
                  alu->scalar_dest, alu->scalar_write_mask, alu->export_data);
     output->append(" = ");
-    print_srcreg(output,
-                 alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                 alu->src3_reg_negate, alu->src3_reg_abs);
-    // TODO ADD/MUL must have another src?!?
+    if (is.num_srcs == 2) {
+      // ADD_CONST_0 dest, [const], [reg]
+      uint32_t src3_swiz = alu->src3_swiz & ~0x3C;
+      uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
+      uint32_t swiz_b = (src3_swiz & 0x3);
+      print_srcreg(output,
+                   alu->src3_reg, 0, 0,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+      output->append(".%c", chan_names[swiz_a]);
+      output->append(", ");
+      uint32_t reg2 = (alu->scalar_opc & 1) | (alu->src3_swiz & 0x3C) | (alu->src3_sel << 1);
+      print_srcreg(output,
+                   reg2, 1, 0,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+      output->append(".%c", chan_names[swiz_b]);
+    } else {
+      print_srcreg(output,
+                   alu->src3_reg, alu->src3_sel, alu->src3_swiz,
+                   alu->src3_reg_negate, alu->src3_reg_abs);
+    }
     if (alu->scalar_clamp) {
       output->append(" CLAMP");
     }
