@@ -946,6 +946,30 @@ int TranslateALU_DOT3v(
   return 0;
 }
 
+int TranslateALU_DOT2ADDv(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.vector_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("dot(float4(");
+  AppendSrcReg(ctx, alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  ctx.output->append(").xy, float4(");
+  AppendSrcReg(ctx, alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  ctx.output->append(").xy) + ");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(".x");
+  if (alu.vector_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  return 0;
+}
+
+// ...
+
 typedef int (*xe_gpu_translate_alu_fn)(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu);
 typedef struct {
@@ -975,7 +999,7 @@ static xe_gpu_translate_alu_info_t vector_alu_instrs[0x20] = {
   ALU_INSTR(CNDGTv,             3),  // 14
   ALU_INSTR_IMPL(DOT4v,              2),  // 15
   ALU_INSTR_IMPL(DOT3v,              2),  // 16
-  ALU_INSTR(DOT2ADDv,           3),  // 17 -- ???
+  ALU_INSTR_IMPL(DOT2ADDv,           3),  // 17 -- ???
   ALU_INSTR(CUBEv,              2),  // 18
   ALU_INSTR(MAX4v,              1),  // 19
   ALU_INSTR(PRED_SETE_PUSHv,    2),  // 20

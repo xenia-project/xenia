@@ -304,7 +304,7 @@ int disasm_alu(
     // 2nd optional scalar op:
 
     output->append("%s", levels[level]);
-    output->append("                          \t");
+    output->append("                          \t\t\t\t\t");
 
     if (scalar_instructions[alu->scalar_opc].name) {
       output->append("\t    \t%s\t", scalar_instructions[alu->scalar_opc].name);
