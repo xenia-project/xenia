@@ -8,7 +8,6 @@
  */
 
 #include <alloy/compiler/passes/simplification_pass.h>
-#include <alloy/hir/function_builder.h>
 
 using namespace alloy;
 using namespace alloy::compiler;

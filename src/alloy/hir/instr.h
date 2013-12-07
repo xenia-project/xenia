@@ -53,6 +53,8 @@ public:
   void set_src1(Value* value);
   void set_src2(Value* value);
   void set_src3(Value* value);
+
+  void Remove();
 };
 
 

@@ -374,14 +374,17 @@ void FunctionBuilder::Comment(const char* format, ...) {
   i->src2.value = i->src3.value = NULL;
 }
 
-void FunctionBuilder::Nop() {
+const OpcodeInfo* FunctionBuilder::GetNopOpcode() const {
   STATIC_OPCODE(
       OPCODE_NOP,
       "nop",
       OPCODE_SIG_X,
       OPCODE_FLAG_IGNORE);
+  return &opcode;
+}
 
-  Instr* i = AppendInstr(opcode, 0);
+void FunctionBuilder::Nop() {
+  Instr* i = AppendInstr(*GetNopOpcode(), 0);
   i->src1.value = i->src2.value = i->src3.value = NULL;
 }
 

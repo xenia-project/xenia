@@ -38,7 +38,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   //compiler_->AddPass(new passes::ByteSwapEliminationPass());
   compiler_->AddPass(new passes::SimplificationPass());
   //compiler_->AddPass(new passes::DeadStoreEliminationPass());
-  //compiler_->AddPass(new passes::DeadCodeEliminationPass());
+  compiler_->AddPass(new passes::DeadCodeEliminationPass());
 
   Backend* backend = frontend->runtime()->backend();
   assembler_ = backend->CreateAssembler();

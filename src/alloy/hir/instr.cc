@@ -47,3 +47,33 @@ void Instr::set_src3(Value* value) {
   src3.value = value;
   src3_use = value ? value->AddUse(block->arena, this) : NULL;
 }
+
+void Instr::Remove() {
+  if (dest) {
+    XEASSERT(!dest->use_head);
+    dest->def = NULL;
+  }
+  if (src1_use) {
+    src1.value->RemoveUse(src1_use);
+    src1_use = NULL;
+  }
+  if (src2_use) {
+    src2.value->RemoveUse(src2_use);
+    src2_use = NULL;
+  }
+  if (src3_use) {
+    src3.value->RemoveUse(src3_use);
+    src3_use = NULL;
+  }
+
+  if (prev) {
+    prev->next = next;
+  } else {
+    block->instr_head = next;
+  }
+  if (next) {
+    next->prev = prev;
+  } else {
+    block->instr_tail = prev;
+  }
+}

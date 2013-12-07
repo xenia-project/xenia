@@ -12,7 +12,7 @@
 
 //#include <alloy/compiler/passes/constant_propagation_pass.h>
 //#include <alloy/compiler/passes/context_promotion_pass.h>
-//#include <alloy/compiler/passes/dead_code_elimination_pass.h>
+#include <alloy/compiler/passes/dead_code_elimination_pass.h>
 //#include <alloy/compiler/passes/dead_store_elimination_pass.h>
 #include <alloy/compiler/passes/simplification_pass.h>
 
@@ -69,7 +69,7 @@
 //     store_context +100, v0  <-- removed due to following store
 //     store_context +100, v1
 //   This is more generally done by DSE, however if it could be done here
-//   instead as it may be faster (at least on the block-level). 
+//   instead as it may be faster (at least on the block-level).
 //
 // - ConstantPropagation
 //   One ContextPromotion has run there will likely be a whole slew of

@@ -7,37 +7,32 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_HIR_BLOCK_H_
-#define ALLOY_HIR_BLOCK_H_
+#ifndef ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
+#define ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
 
-#include <alloy/core.h>
+#include <alloy/compiler/pass.h>
 
 
 namespace alloy {
-namespace hir {
-
-class FunctionBuilder;
-class Instr;
-class Label;
+namespace compiler {
+namespace passes {
 
 
-class Block {
+class DeadCodeEliminationPass : public Pass {
 public:
-  Arena* arena;
+  DeadCodeEliminationPass();
+  virtual ~DeadCodeEliminationPass();
 
-  Block* next;
-  Block* prev;
+  virtual int Run(hir::FunctionBuilder* builder);
 
-  Label* label_head;
-  Label* label_tail;
-
-  Instr* instr_head;
-  Instr* instr_tail;
+private:
+  void MakeNopRecursive(const hir::OpcodeInfo* nop, hir::Instr* i);
 };
 
 
-}  // namespace hir
+}  // namespace passes
+}  // namespace compiler
 }  // namespace alloy
 
 
-#endif  // ALLOY_HIR_BLOCK_H_
+#endif  // ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
