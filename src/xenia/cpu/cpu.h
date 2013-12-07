@@ -11,8 +11,8 @@
 #define XENIA_CPU_CPU_H_
 
 #include <xenia/cpu/processor.h>
-
-// TODO(benvanik): conditionally include?
-#include <xenia/cpu/x64/x64_backend.h>
+#include <xenia/cpu/xenon_runtime.h>
+#include <xenia/cpu/xenon_thread_state.h>
+#include <xenia/cpu/xex_module.h>
 
 #endif  // XENIA_CPU_CPU_H_

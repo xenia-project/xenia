@@ -97,7 +97,7 @@ X_STATUS xeExGetXConfigSetting(
 
 
 SHIM_CALL ExGetXConfigSetting_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint16_t category = SHIM_GET_ARG_16(0);
   uint16_t setting = SHIM_GET_ARG_16(1);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
@@ -149,7 +149,7 @@ int xeXexCheckExecutablePriviledge(uint32_t privilege) {
 
 
 SHIM_CALL XexCheckExecutablePrivilege_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t privilege = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -186,7 +186,7 @@ int xeXexGetModuleHandle(const char* module_name,
 
 
 SHIM_CALL XexGetModuleHandle_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
   const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
   uint32_t module_handle_ptr = SHIM_GET_ARG_32(1);
@@ -206,12 +206,12 @@ SHIM_CALL XexGetModuleHandle_shim(
 
 
 // SHIM_CALL XexGetModuleSection_shim(
-//     xe_ppc_state_t* ppc_state, KernelState* state) {
+//     PPCContext* ppc_state, KernelState* state) {
 // }
 
 
 // SHIM_CALL XexGetProcedureAddress_shim(
-//     xe_ppc_state_t* ppc_state, KernelState* state) {
+//     PPCContext* ppc_state, KernelState* state) {
 // }
 
 

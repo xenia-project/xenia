@@ -15,7 +15,9 @@
 #include <xenia/kernel/xboxkrnl/objects/xmodule.h>
 
 
+using namespace alloy;
 using namespace xe;
+using namespace xe::cpu;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
@@ -61,13 +63,13 @@ XThread::~XThread() {
   PlatformDestroy();
 
   if (thread_state_) {
-    kernel_state()->processor()->DeallocThread(thread_state_);
+    delete thread_state_;
   }
   if (tls_address_) {
-    xe_memory_heap_free(kernel_state()->memory(), tls_address_, 0);
+    kernel_state()->memory()->HeapFree(tls_address_, 0);
   }
   if (thread_state_address_) {
-    xe_memory_heap_free(kernel_state()->memory(), thread_state_address_, 0);
+    kernel_state()->memory()->HeapFree(thread_state_address_, 0);
   }
 
   if (thread_handle_) {
@@ -111,12 +113,12 @@ uint32_t XThread::thread_id() {
 }
 
 uint32_t XThread::last_error() {
-  uint8_t *p = xe_memory_addr(memory(), thread_state_address_);
+  uint8_t *p = memory()->Translate(thread_state_address_);
   return XEGETUINT32BE(p + 0x160);
 }
 
 void XThread::set_last_error(uint32_t error_code) {
-  uint8_t *p = xe_memory_addr(memory(), thread_state_address_);
+  uint8_t *p = memory()->Translate(thread_state_address_);
   XESETUINT32BE(p + 0x160, error_code);
 }
 
@@ -133,8 +135,8 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  thread_state_address_ = xe_memory_heap_alloc(
-      memory(), 0, 2048, XE_MEMORY_FLAG_ZERO);
+  thread_state_address_ = (uint32_t)memory()->HeapAlloc(
+      0, 2048, MEMORY_FLAG_ZERO);
   if (!thread_state_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -148,8 +150,8 @@ X_STATUS XThread::Create() {
   // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();
   uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
-  tls_address_ = xe_memory_heap_alloc(
-      memory(), 0, tls_size, XE_MEMORY_FLAG_ZERO);
+  tls_address_ = (uint32_t)memory()->HeapAlloc(
+      0, tls_size, MEMORY_FLAG_ZERO);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     module->Release();
@@ -158,11 +160,11 @@ X_STATUS XThread::Create() {
 
   // Copy in default TLS info.
   // TODO(benvanik): is this correct?
-  xe_memory_copy(memory(),
+  memory()->Copy(
       tls_address_, header->tls_info.raw_data_address, tls_size);
 
   // Setup the thread state block (last error/etc).
-  uint8_t *p = xe_memory_addr(memory(), thread_state_address_);
+  uint8_t *p = memory()->Translate(thread_state_address_);
   XESETUINT32BE(p + 0x000, tls_address_);
   XESETUINT32BE(p + 0x100, thread_state_address_);
   XESETUINT32BE(p + 0x14C, thread_id_);
@@ -171,13 +173,9 @@ X_STATUS XThread::Create() {
 
   // Allocate processor thread state.
   // This is thread safe.
-  thread_state_ = kernel_state()->processor()->AllocThread(
-      creation_params_.stack_size, thread_state_address_, thread_id_);
-  if (!thread_state_) {
-    XELOGW("Unable to allocate processor thread state");
-    module->Release();
-    return X_STATUS_NO_MEMORY;
-  }
+  thread_state_ = new XenonThreadState(
+      kernel_state()->processor()->runtime(),
+      thread_id_, creation_params_.stack_size, thread_state_address_);
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {

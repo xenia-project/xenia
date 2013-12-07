@@ -57,7 +57,7 @@ uint32_t xeRtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr,
 
 
 SHIM_CALL RtlCompareMemory_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t source1 = SHIM_GET_ARG_32(0);
   uint32_t source2 = SHIM_GET_ARG_32(1);
   uint32_t length = SHIM_GET_ARG_32(2);
@@ -107,7 +107,7 @@ uint32_t xeRtlCompareMemoryUlong(uint32_t source_ptr, uint32_t length,
 
 
 SHIM_CALL RtlCompareMemoryUlong_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t source = SHIM_GET_ARG_32(0);
   uint32_t length = SHIM_GET_ARG_32(1);
   uint32_t pattern = SHIM_GET_ARG_32(2);
@@ -150,7 +150,7 @@ void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
 
 
 SHIM_CALL RtlFillMemoryUlong_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t destination = SHIM_GET_ARG_32(0);
   uint32_t length = SHIM_GET_ARG_32(1);
   uint32_t pattern = SHIM_GET_ARG_32(2);
@@ -195,7 +195,7 @@ void xeRtlInitAnsiString(uint32_t destination_ptr, uint32_t source_ptr) {
 
 
 SHIM_CALL RtlInitAnsiString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
@@ -226,7 +226,7 @@ void xeRtlFreeAnsiString(uint32_t string_ptr) {
 
 
 SHIM_CALL RtlFreeAnsiString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t string_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlFreeAnsiString(%.8X)", string_ptr);
@@ -268,7 +268,7 @@ void xeRtlInitUnicodeString(uint32_t destination_ptr, uint32_t source_ptr) {
 
 
 SHIM_CALL RtlInitUnicodeString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
@@ -300,7 +300,7 @@ void xeRtlFreeUnicodeString(uint32_t string_ptr) {
 
 
 SHIM_CALL RtlFreeUnicodeString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t string_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlFreeUnicodeString(%.8X)", string_ptr);
@@ -336,7 +336,7 @@ X_STATUS xeRtlUnicodeStringToAnsiString(
 
 
 SHIM_CALL RtlUnicodeStringToAnsiString_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
   uint32_t alloc_dest = SHIM_GET_ARG_32(2);
@@ -352,7 +352,7 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(
 
 // TODO: clean me up!
 SHIM_CALL _vsnprintf_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
 
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t count = SHIM_GET_ARG_32(1);
@@ -569,7 +569,7 @@ uint32_t xeRtlNtStatusToDosError(X_STATUS status) {
 
 
 SHIM_CALL RtlNtStatusToDosError_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t status = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -618,7 +618,7 @@ uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
 
 
 SHIM_CALL RtlImageXexHeaderField_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t xex_header_base    = SHIM_GET_ARG_32(0);
   uint32_t image_field        = SHIM_GET_ARG_32(1);
 
@@ -690,7 +690,7 @@ void xeRtlInitializeCriticalSection(uint32_t cs_ptr) {
 
 
 SHIM_CALL RtlInitializeCriticalSection_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
@@ -727,7 +727,7 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(
 
 
 SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
   uint32_t spin_count = SHIM_GET_ARG_32(1);
 
@@ -780,7 +780,7 @@ spin:
 
 
 SHIM_CALL RtlEnterCriticalSection_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
@@ -818,7 +818,7 @@ uint32_t xeRtlTryEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
 
 
 SHIM_CALL RtlTryEnterCriticalSection_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
@@ -858,7 +858,7 @@ void xeRtlLeaveCriticalSection(uint32_t cs_ptr) {
 
 
 SHIM_CALL RtlLeaveCriticalSection_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);

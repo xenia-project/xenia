@@ -23,7 +23,7 @@ namespace nop {
 
 class NopAudioDriver : public AudioDriver {
 public:
-  NopAudioDriver(xe_memory_ref memory);
+  NopAudioDriver(Memory* memory);
   virtual ~NopAudioDriver();
 
   virtual void Initialize();

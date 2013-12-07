@@ -17,7 +17,7 @@ using namespace xe::apu;
 using namespace xe::apu::nop;
 
 
-NopAudioDriver::NopAudioDriver(xe_memory_ref memory) :
+NopAudioDriver::NopAudioDriver(Memory* memory) :
     AudioDriver(memory) {
 }
 

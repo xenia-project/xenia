@@ -26,7 +26,7 @@ namespace xam {
 
 
 SHIM_CALL XGetAVPack_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   // DWORD
   // Not sure what the values are for this, but 6 is VGA.
   // Other likely values are 3/4/8 for HDMI or something.
@@ -37,7 +37,7 @@ SHIM_CALL XGetAVPack_shim(
 
 
 SHIM_CALL XGetGameRegion_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   XELOGD("XGetGameRegion()");
 
   SHIM_SET_RETURN(XEX_REGION_ALL);
@@ -45,7 +45,7 @@ SHIM_CALL XGetGameRegion_shim(
 
 
 SHIM_CALL XGetLanguage_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   XELOGD("XGetLanguage()");
 
   uint32_t desired_language = X_LANGUAGE_ENGLISH;

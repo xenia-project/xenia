@@ -18,11 +18,13 @@
 #include <third_party/mspack/mspack.h>
 #include <third_party/pe/pe_image.h>
 
+using namespace alloy;
+
 
 typedef struct xe_xex2 {
   xe_ref_t ref;
 
-  xe_memory_ref     memory;
+  Memory*           memory;
 
   xe_xex2_header_t  header;
 
@@ -35,17 +37,17 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
 int xe_xex2_decrypt_key(xe_xex2_header_t *header);
 int xe_xex2_read_image(xe_xex2_ref xex,
                        const uint8_t *xex_addr, const size_t xex_length,
-                       xe_memory_ref memory);
+                       Memory* memory);
 int xe_xex2_load_pe(xe_xex2_ref xex);
 
 
-xe_xex2_ref xe_xex2_load(xe_memory_ref memory,
+xe_xex2_ref xe_xex2_load(Memory* memory,
                          const void* addr, const size_t length,
                          xe_xex2_options_t options) {
   xe_xex2_ref xex = (xe_xex2_ref)xe_calloc(sizeof(xe_xex2));
   xe_ref_init((xe_ref)xex);
 
-  xex->memory = xe_memory_retain(memory);
+  xex->memory = memory;
   xex->sections = new std::vector<PESection*>();
 
   XEEXPECTZERO(xe_xex2_read_header((const uint8_t*)addr, length, &xex->header));
@@ -79,7 +81,7 @@ void xe_xex2_dealloc(xe_xex2_ref xex) {
     xe_free(library->records);
   }
 
-  xe_memory_release(xex->memory);
+  xex->memory = NULL;
 }
 
 xe_xex2_ref xe_xex2_retain(xe_xex2_ref xex) {
@@ -529,19 +531,19 @@ void xe_xex2_decrypt_buffer(const uint8_t *session_key,
 int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
                                     const uint8_t *xex_addr,
                                     const size_t xex_length,
-                                    xe_memory_ref memory) {
+                                    Memory* memory) {
   // Allocate in-place the XEX memory.
   const size_t exe_length = xex_length - header->exe_offset;
   size_t uncompressed_size = exe_length;
-  uint32_t alloc_result = xe_memory_heap_alloc(
-      memory, header->exe_address, (uint32_t)uncompressed_size,
-      XE_MEMORY_FLAG_ZERO);
+  uint32_t alloc_result = (uint32_t)memory->HeapAlloc(
+      header->exe_address, uncompressed_size,
+      MEMORY_FLAG_ZERO);
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
            header->exe_address, uncompressed_size);
     return 2;
   }
-  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
+  uint8_t *buffer = memory->Translate(header->exe_address);
 
   const uint8_t *p = (const uint8_t*)xex_addr + header->exe_offset;
 
@@ -563,7 +565,7 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
 int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
                                         const uint8_t *xex_addr,
                                         const size_t xex_length,
-                                        xe_memory_ref memory) {
+                                        Memory* memory) {
   const size_t exe_length = xex_length - header->exe_offset;
   const uint8_t* source_buffer = (const uint8_t*)xex_addr + header->exe_offset;
   const uint8_t *p = source_buffer;
@@ -579,15 +581,15 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
   }
 
   // Allocate in-place the XEX memory.
-  uint32_t alloc_result = xe_memory_heap_alloc(
-      memory, header->exe_address, (uint32_t)uncompressed_size,
-      XE_MEMORY_FLAG_ZERO);
+  uint32_t alloc_result = (uint32_t)memory->HeapAlloc(
+      header->exe_address, uncompressed_size,
+      MEMORY_FLAG_ZERO);
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
            header->exe_address, uncompressed_size);
     XEFAIL();
   }
-  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
+  uint8_t *buffer = memory->Translate(header->exe_address);
   uint8_t *d = buffer;
 
   uint32_t rk[4 * (MAXNR + 1)];
@@ -637,7 +639,7 @@ XECLEANUP:
 int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
                                   const uint8_t *xex_addr,
                                   const size_t xex_length,
-                                  xe_memory_ref memory) {
+                                  Memory* memory) {
   const size_t exe_length = xex_length - header->exe_offset;
   const uint8_t *exe_buffer = (const uint8_t*)xex_addr + header->exe_offset;
 
@@ -717,16 +719,16 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
   }
 
   // Allocate in-place the XEX memory.
-  uint32_t alloc_result = xe_memory_heap_alloc(
-      memory, header->exe_address, (uint32_t)uncompressed_size,
-      XE_MEMORY_FLAG_ZERO);
+  uint32_t alloc_result = (uint32_t)memory->HeapAlloc(
+      header->exe_address, uncompressed_size,
+      MEMORY_FLAG_ZERO);
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.",
            header->exe_address, uncompressed_size);
     result_code = 2;
     XEFAIL();
   }
-  uint8_t *buffer = (uint8_t*)xe_memory_addr(memory, header->exe_address);
+  uint8_t *buffer = memory->Translate(header->exe_address);
 
   // Setup decompressor and decompress.
   sys = mspack_memory_sys_create();
@@ -774,7 +776,7 @@ XECLEANUP:
 }
 
 int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
-                       const size_t xex_length, xe_memory_ref memory) {
+                       const size_t xex_length, Memory* memory) {
   const xe_xex2_header_t *header = &xex->header;
   switch (header->file_format_info.compression_type) {
   case XEX_COMPRESSION_NONE:
@@ -794,7 +796,7 @@ int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
 
 int xe_xex2_load_pe(xe_xex2_ref xex) {
   const xe_xex2_header_t* header = &xex->header;
-  const uint8_t* p = xe_memory_addr(xex->memory, header->exe_address);
+  const uint8_t* p = xex->memory->Translate(header->exe_address);
 
   // Verify DOS signature (MZ).
   const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
@@ -891,7 +893,7 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
                              const xe_xex2_import_library_t *library,
                              xe_xex2_import_info_t **out_import_infos,
                              size_t *out_import_info_count) {
-  uint8_t *mem = (uint8_t*)xe_memory_addr(xex->memory, 0);
+  uint8_t *mem = xex->memory->membase();
   const xe_xex2_header_t *header = xe_xex2_get_header(xex);
 
   // Find library index for verification.

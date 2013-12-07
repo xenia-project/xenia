@@ -21,7 +21,7 @@ using namespace xe::gpu::xenos;
 
 
 D3D11GraphicsDriver::D3D11GraphicsDriver(
-    xe_memory_ref memory, ID3D11Device* device) :
+    Memory* memory, ID3D11Device* device) :
     GraphicsDriver(memory) {
   device_ = device;
   device_->AddRef();
@@ -78,7 +78,7 @@ void D3D11GraphicsDriver::SetShader(
     uint32_t start,
     uint32_t length) {
   // Find or create shader in the cache.
-  uint8_t* p = xe_memory_addr(memory_, address);
+  uint8_t* p = memory_->Translate(address);
   Shader* shader = shader_cache_->FindOrCreate(
       type, p, length);
 
@@ -420,7 +420,7 @@ int D3D11GraphicsDriver::PrepareVertexFetcher(
     XESAFERELEASE(buffer);
     return 1;
   }
-  uint32_t* src = (uint32_t*)xe_memory_addr(memory_, address);
+  uint32_t* src = (uint32_t*)memory_->Translate(address);
   uint32_t* dest = (uint32_t*)res.pData;
   for (uint32_t n = 0; n < size_dwords; n++) {
     // union {
@@ -481,7 +481,7 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
   D3D11_MAPPED_SUBRESOURCE res;
   context_->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
   if (index_32bit) {
-    uint32_t* src = (uint32_t*)xe_memory_addr(memory_, address);
+    uint32_t* src = (uint32_t*)memory_->Translate(address);
     uint32_t* dest = (uint32_t*)res.pData;
     for (uint32_t n = 0; n < index_count; n++) {
       uint32_t d = { XESWAP32(src[n]) };
@@ -489,7 +489,7 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
       dest[n] = d;
     }
   } else {
-    uint16_t* src = (uint16_t*)xe_memory_addr(memory_, address);
+    uint16_t* src = (uint16_t*)memory_->Translate(address);
     uint16_t* dest = (uint16_t*)res.pData;
     for (uint32_t n = 0; n < index_count; n++) {
       uint16_t d = XESWAP16(src[n]);

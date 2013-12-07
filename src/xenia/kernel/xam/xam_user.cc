@@ -25,7 +25,7 @@ namespace xam {
 
 
 SHIM_CALL XamUserGetXUID_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t xuid_ptr = SHIM_GET_ARG_32(1);
 
@@ -43,7 +43,7 @@ SHIM_CALL XamUserGetXUID_shim(
 
 
 SHIM_CALL XamUserGetSigninState_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
 
   XELOGD(

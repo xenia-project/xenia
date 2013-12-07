@@ -17,7 +17,7 @@
 
 namespace xe {
 namespace cpu {
-class ThreadState;
+class XenonThreadState;
 }
 }
 
@@ -82,7 +82,7 @@ private:
   void*         thread_handle_;
   uint32_t      tls_address_;
   uint32_t      thread_state_address_;
-  cpu::ThreadState* thread_state_;
+  cpu::XenonThreadState* thread_state_;
 
   uint32_t      irql_;
 

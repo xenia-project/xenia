@@ -99,7 +99,7 @@ X_STATUS xeExCreateThread(
 
 
 SHIM_CALL ExCreateThread_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t stack_size = SHIM_GET_ARG_32(1);
   uint32_t thread_id_ptr = SHIM_GET_ARG_32(2);
@@ -155,7 +155,7 @@ X_STATUS xeNtResumeThread(uint32_t handle, uint32_t* out_suspend_count) {
 
 
 SHIM_CALL NtResumeThread_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t suspend_count_ptr = SHIM_GET_ARG_32(1);
 
@@ -190,7 +190,7 @@ uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
 
 
 SHIM_CALL KeSetAffinityThread_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t thread = SHIM_GET_ARG_32(0);
   uint32_t affinity = SHIM_GET_ARG_32(1);
 
@@ -216,7 +216,7 @@ uint32_t xeKeGetCurrentProcessType() {
 
 
 SHIM_CALL KeGetCurrentProcessType_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
       "KeGetCurrentProcessType()");
 
@@ -236,7 +236,7 @@ uint64_t xeKeQueryPerformanceFrequency() {
 
 
 SHIM_CALL KeQueryPerformanceFrequency_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
       "KeQueryPerformanceFrequency()");
 
@@ -253,7 +253,7 @@ X_STATUS xeKeDelayExecutionThread(
 
 
 SHIM_CALL KeDelayExecutionThread_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t processor_mode = SHIM_GET_ARG_32(0);
   uint32_t alertable = SHIM_GET_ARG_32(1);
   uint32_t interval_ptr = SHIM_GET_ARG_32(2);
@@ -278,7 +278,7 @@ void xeKeQuerySystemTime(uint64_t* time_ptr) {
 
 
 SHIM_CALL KeQuerySystemTime_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t time_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -322,7 +322,7 @@ uint32_t xeKeTlsAlloc() {
 
 
 SHIM_CALL KeTlsAlloc_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
       "KeTlsAlloc()");
 
@@ -353,7 +353,7 @@ int KeTlsFree(uint32_t tls_index) {
 
 
 SHIM_CALL KeTlsFree_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t tls_index = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -388,7 +388,7 @@ uint64_t xeKeTlsGetValue(uint32_t tls_index) {
 
 
 SHIM_CALL KeTlsGetValue_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t tls_index = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -419,7 +419,7 @@ int xeKeTlsSetValue(uint32_t tls_index, uint64_t tls_value) {
 
 
 SHIM_CALL KeTlsSetValue_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t tls_index = SHIM_GET_ARG_32(0);
   uint32_t tls_value = SHIM_GET_ARG_32(1);
 
@@ -452,7 +452,7 @@ X_STATUS xeNtCreateEvent(uint32_t* handle_ptr, void* obj_attributes,
 
 
 SHIM_CALL NtCreateEvent_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
   uint32_t event_type = SHIM_GET_ARG_32(2);
@@ -491,7 +491,7 @@ int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait) {
 
 
 SHIM_CALL KeSetEvent_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t event_ref = SHIM_GET_ARG_32(0);
   uint32_t increment = SHIM_GET_ARG_32(1);
   uint32_t wait = SHIM_GET_ARG_32(2);
@@ -508,7 +508,7 @@ SHIM_CALL KeSetEvent_shim(
 
 
 SHIM_CALL NtSetEvent_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t event_handle = SHIM_GET_ARG_32(0);
   uint32_t previous_state_ptr = SHIM_GET_ARG_32(1);
 
@@ -549,7 +549,7 @@ int32_t xeKeResetEvent(void* event_ptr) {
 
 
 SHIM_CALL KeResetEvent_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t event_ref = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -564,7 +564,7 @@ SHIM_CALL KeResetEvent_shim(
 
 
 SHIM_CALL NtClearEvent_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t event_handle = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -602,7 +602,7 @@ X_STATUS xeKeWaitForSingleObject(
 
 
 SHIM_CALL KeWaitForSingleObject_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t object = SHIM_GET_ARG_32(0);
   uint32_t wait_reason = SHIM_GET_ARG_32(1);
   uint32_t processor_mode = SHIM_GET_ARG_32(2);
@@ -624,7 +624,7 @@ SHIM_CALL KeWaitForSingleObject_shim(
 
 
 SHIM_CALL NtWaitForSingleObjectEx_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t object_handle = SHIM_GET_ARG_32(0);
   uint32_t timeout = SHIM_GET_ARG_32(1);
   uint32_t alertable = SHIM_GET_ARG_32(2);
@@ -665,7 +665,7 @@ uint32_t xeKfAcquireSpinLock(void* lock_ptr) {
 
 
 SHIM_CALL KfAcquireSpinLock_shim(
-  xe_ppc_state_t* ppc_state, KernelState* state) {
+  PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -689,7 +689,7 @@ void xeKfReleaseSpinLock(void* lock_ptr, uint32_t old_irql) {
 
 
 SHIM_CALL KfReleaseSpinLock_shim(
-  xe_ppc_state_t* ppc_state, KernelState* state) {
+  PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
   uint32_t old_irql = SHIM_GET_ARG_32(1);
 
@@ -708,7 +708,7 @@ void xeKeEnterCriticalRegion() {
 
 
 SHIM_CALL KeEnterCriticalRegion_shim(
-  xe_ppc_state_t* ppc_state, KernelState* state) {
+  PPCContext* ppc_state, KernelState* state) {
   XELOGD(
     "KeEnterCriticalRegion()");
   xeKeEnterCriticalRegion();
@@ -721,7 +721,7 @@ void xeKeLeaveCriticalRegion() {
 
 
 SHIM_CALL KeLeaveCriticalRegion_shim(
-  xe_ppc_state_t* ppc_state, KernelState* state) {
+  PPCContext* ppc_state, KernelState* state) {
   XELOGD(
     "KeLeaveCriticalRegion()");
   xeKeLeaveCriticalRegion();

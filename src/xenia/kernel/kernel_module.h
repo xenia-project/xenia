@@ -28,9 +28,9 @@ public:
   virtual ~KernelModule();
 
 protected:
-  Emulator*       emulator_;
-  xe_memory_ref   memory_;
-  ExportResolver* export_resolver_;
+  Emulator*         emulator_;
+  Memory*           memory_;
+  ExportResolver*   export_resolver_;
 };
 
 

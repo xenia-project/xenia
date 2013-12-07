@@ -31,7 +31,7 @@ XObject::~XObject() {
   XEASSERTZERO(pointer_ref_count_);
 }
 
-xe_memory_ref XObject::memory() {
+Memory* XObject::memory() const {
   return kernel_state_->memory();
 }
 
@@ -86,7 +86,7 @@ void XObject::SetNativePointer(uint32_t native_ptr) {
   XObject::LockType();
 
   DISPATCH_HEADER* header_be =
-      (DISPATCH_HEADER*)xe_memory_addr(kernel_state_->memory(), native_ptr);
+      (DISPATCH_HEADER*)kernel_state_->memory()->Translate(native_ptr);
   DISPATCH_HEADER header;
   header.type_flags = XESWAP32(header_be->type_flags);
   header.signal_state = XESWAP32(header_be->signal_state);

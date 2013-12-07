@@ -13,13 +13,15 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-#include <xenia/cpu/ppc.h>
+#include <alloy/frontend/ppc/ppc_context.h>
 #include <xenia/export_resolver.h>
 #include <xenia/kernel/kernel_module.h>
 
 
 namespace xe {
 namespace kernel {
+
+using PPCContext = alloy::frontend::ppc::PPCContext;
 
 
 #define SHIM_CALL             void _cdecl
@@ -52,7 +54,7 @@ namespace kernel {
 #define SHIM_SET_RETURN(v)    SHIM_SET_GPR_64(3, v)
 
 
-#define IMPL_MEM_ADDR(a)      (a ? xe_memory_addr(state->memory(), a) : NULL)
+#define IMPL_MEM_ADDR(a)      (a ? state->memory()->Translate(a) : NULL)
 
 #define IMPL_MEM_16(a)        (uint16_t)XEGETUINT16BE(IMPL_MEM_ADDR(a))
 #define IMPL_MEM_32(a)        (uint32_t)XEGETUINT32BE(IMPL_MEM_ADDR(a))

@@ -18,11 +18,9 @@ using namespace xe::kernel;
 
 
 KernelModule::KernelModule(Emulator* emulator) :
-    emulator_(emulator) {
-  memory_ = xe_memory_retain(emulator_->memory());
+    emulator_(emulator), memory_(emulator->memory()) {
   export_resolver_ = emulator->export_resolver();
 }
 
 KernelModule::~KernelModule() {
-  xe_memory_release(memory_);
 }

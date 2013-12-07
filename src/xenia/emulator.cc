@@ -11,6 +11,7 @@
 
 #include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
+#include <xenia/cpu/xenon_memory.h>
 #include <xenia/dbg/debugger.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/hid/hid.h>
@@ -34,7 +35,7 @@ using namespace xe::kernel::xboxkrnl::fs;
 Emulator::Emulator(const xechar_t* command_line) :
     memory_(0),
     debugger_(0),
-    cpu_backend_(0), processor_(0),
+    processor_(0),
     audio_system_(0), graphics_system_(0), input_system_(0),
     export_resolver_(0), file_system_(0),
     xboxkrnl_(0), xam_(0) {
@@ -53,23 +54,20 @@ Emulator::~Emulator() {
   delete graphics_system_;
   delete audio_system_;
   delete processor_;
-  delete cpu_backend_;
 
   delete debugger_;
 
   delete export_resolver_;
-
-  xe_memory_release(memory_);
 }
 
 X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
   // Create memory system first, as it is required for other systems.
-  xe_memory_options_t memory_options;
-  xe_zero_struct(&memory_options, sizeof(memory_options));
-  memory_ = xe_memory_create(memory_options);
+  memory_ = new XenonMemory();
   XEEXPECTNOTNULL(memory_);
+  result = memory_->Initialize();
+  XEEXPECTZERO(result);
 
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = new ExportResolver();
@@ -80,9 +78,7 @@ X_STATUS Emulator::Setup() {
   XEEXPECTNOTNULL(debugger_);
 
   // Initialize the CPU.
-  cpu_backend_ = new xe::cpu::x64::X64Backend();
-  XEEXPECTNOTNULL(cpu_backend_);
-  processor_ = new Processor(this, cpu_backend_);
+  processor_ = new Processor(this);
   XEEXPECTNOTNULL(processor_);
 
   // Initialize the APU.

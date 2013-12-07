@@ -17,7 +17,6 @@
 
 XEDECLARECLASS1(xe, ExportResolver);
 XEDECLARECLASS2(xe, apu, AudioSystem);
-XEDECLARECLASS2(xe, cpu, Backend);
 XEDECLARECLASS2(xe, cpu, Processor);
 XEDECLARECLASS2(xe, dbg, Debugger);
 XEDECLARECLASS2(xe, gpu, GraphicsSystem);
@@ -36,7 +35,7 @@ public:
   ~Emulator();
 
   const xechar_t* command_line() const { return command_line_; }
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
 
   dbg::Debugger* debugger() const { return debugger_; }
 
@@ -55,12 +54,11 @@ public:
   X_STATUS LaunchDiscImage(const xechar_t* path);
 
 private:
-  xechar_t        command_line_[XE_MAX_PATH];
-  xe_memory_ref   memory_;
+  xechar_t          command_line_[XE_MAX_PATH];
+  Memory*           memory_;
 
   dbg::Debugger*          debugger_;
 
-  cpu::Backend*           cpu_backend_;
   cpu::Processor*         processor_;
   apu::AudioSystem*       audio_system_;
   gpu::GraphicsSystem*    graphics_system_;

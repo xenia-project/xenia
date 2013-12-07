@@ -64,7 +64,7 @@ public:
   static XObject* GetObject(KernelState* kernel_state, void* native_ptr);
 
 protected:
-  xe_memory_ref memory(); // unretained
+  Memory* memory() const;
   void SetNativePointer(uint32_t native_ptr);
 
   KernelState*  kernel_state_;

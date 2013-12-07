@@ -21,14 +21,14 @@ class AudioDriver {
 public:
   virtual ~AudioDriver();
 
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
 
   virtual void Initialize() = 0;
 
 protected:
-  AudioDriver(xe_memory_ref memory);
+  AudioDriver(Memory* memory);
 
-  xe_memory_ref memory_;
+  Memory* memory_;
 };
 
 

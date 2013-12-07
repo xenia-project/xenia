@@ -29,14 +29,14 @@ public:
   virtual ~AudioSystem();
 
   Emulator* emulator() const { return emulator_; }
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
 
   virtual X_STATUS Setup();
 
-  bool HandlesRegister(uint32_t addr);
-  virtual uint64_t ReadRegister(uint32_t addr);
-  virtual void WriteRegister(uint32_t addr, uint64_t value);
+  bool HandlesRegister(uint64_t addr);
+  virtual uint64_t ReadRegister(uint64_t addr);
+  virtual void WriteRegister(uint64_t addr, uint64_t value);
 
 protected:
   virtual void Initialize();
@@ -49,13 +49,13 @@ private:
   }
   void ThreadStart();
 
-  static bool HandlesRegisterThunk(AudioSystem* as, uint32_t addr) {
+  static bool HandlesRegisterThunk(AudioSystem* as, uint64_t addr) {
     return as->HandlesRegister(addr);
   }
-  static uint64_t ReadRegisterThunk(AudioSystem* as, uint32_t addr) {
+  static uint64_t ReadRegisterThunk(AudioSystem* as, uint64_t addr) {
     return as->ReadRegister(addr);
   }
-  static void WriteRegisterThunk(AudioSystem* as, uint32_t addr,
+  static void WriteRegisterThunk(AudioSystem* as, uint64_t addr,
                                  uint64_t value) {
     as->WriteRegister(addr, value);
   }
@@ -64,7 +64,7 @@ protected:
   AudioSystem(Emulator* emulator);
 
   Emulator*         emulator_;
-  xe_memory_ref     memory_;
+  Memory*           memory_;
   cpu::Processor*   processor_;
 
   xe_run_loop_ref   run_loop_;

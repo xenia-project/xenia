@@ -14,6 +14,7 @@
 #include <xenia/kernel/xboxkrnl/xboxkrnl_private.h>
 
 
+using namespace alloy;
 using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
@@ -78,8 +79,8 @@ X_STATUS xeNtAllocateVirtualMemory(
 
   // Allocate.
   uint32_t flags = (allocation_type & X_MEM_NOZERO);
-  uint32_t addr = xe_memory_heap_alloc(
-      state->memory(), *base_addr_ptr, adjusted_size, flags);
+  uint32_t addr = (uint32_t)state->memory()->HeapAlloc(
+      *base_addr_ptr, adjusted_size, flags);
   if (!addr) {
     // Failed - assume no memory available.
     return X_STATUS_NO_MEMORY;
@@ -94,7 +95,7 @@ X_STATUS xeNtAllocateVirtualMemory(
 
 
 SHIM_CALL NtAllocateVirtualMemory_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t base_addr_ptr      = SHIM_GET_ARG_32(0);
   uint32_t base_addr_value    = SHIM_MEM_32(base_addr_ptr);
   uint32_t region_size_ptr    = SHIM_GET_ARG_32(1);
@@ -147,8 +148,8 @@ X_STATUS xeNtFreeVirtualMemory(
 
   // Free.
   uint32_t flags = 0;
-  uint32_t freed_size = xe_memory_heap_free(state->memory(), *base_addr_ptr,
-                                            flags);
+  uint32_t freed_size = state->memory()->HeapFree(
+      *base_addr_ptr, flags);
   if (!freed_size) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -160,7 +161,7 @@ X_STATUS xeNtFreeVirtualMemory(
 
 
 SHIM_CALL NtFreeVirtualMemory_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t base_addr_ptr      = SHIM_GET_ARG_32(0);
   uint32_t base_addr_value    = SHIM_MEM_32(base_addr_ptr);
   uint32_t region_size_ptr    = SHIM_GET_ARG_32(1);
@@ -232,9 +233,9 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
   XEASSERT(max_addr_range == 0xFFFFFFFF);
 
   // Allocate.
-  uint32_t flags = XE_MEMORY_FLAG_PHYSICAL;
-  uint32_t base_address = xe_memory_heap_alloc(
-      state->memory(), 0, adjusted_size, flags, adjusted_alignment);
+  uint32_t flags = MEMORY_FLAG_PHYSICAL;
+  uint32_t base_address = (uint32_t)state->memory()->HeapAlloc(
+      0, adjusted_size, flags, adjusted_alignment);
   if (!base_address) {
     // Failed - assume no memory available.
     return 0;
@@ -255,7 +256,7 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
 
 
 SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t type = SHIM_GET_ARG_32(0);
   uint32_t region_size = SHIM_GET_ARG_32(1);
   uint32_t protect_bits = SHIM_GET_ARG_32(2);
@@ -294,7 +295,7 @@ void xeMmFreePhysicalMemory(uint32_t type, uint32_t base_address) {
 
 
 SHIM_CALL MmFreePhysicalMemory_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t type = SHIM_GET_ARG_32(0);
   uint32_t base_address = SHIM_GET_ARG_32(1);
 
@@ -310,15 +311,14 @@ uint32_t xeMmQueryAddressProtect(uint32_t base_address) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
 
-  uint32_t access = xe_memory_query_protect(
-      state->memory(), base_address);
+  uint32_t access = state->memory()->QueryProtect(base_address);
 
   return access;
 }
 
 
 SHIM_CALL MmQueryAddressProtect_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -355,7 +355,7 @@ uint32_t xeMmGetPhysicalAddress(uint32_t base_address) {
 
 
 SHIM_CALL MmGetPhysicalAddress_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
 
   XELOGD(

@@ -30,7 +30,7 @@ class D3D11VertexShader;
 
 class D3D11GraphicsDriver : public GraphicsDriver {
 public:
-  D3D11GraphicsDriver(xe_memory_ref memory, ID3D11Device* device);
+  D3D11GraphicsDriver(Memory* memory, ID3D11Device* device);
   virtual ~D3D11GraphicsDriver();
 
   virtual void Initialize();

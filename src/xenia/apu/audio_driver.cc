@@ -14,10 +14,9 @@ using namespace xe;
 using namespace xe::apu;
 
 
-AudioDriver::AudioDriver(xe_memory_ref memory) {
-  memory_ = xe_memory_retain(memory);
+AudioDriver::AudioDriver(Memory* memory) :
+    memory_(memory) {
 }
 
 AudioDriver::~AudioDriver() {
-  xe_memory_release(memory_);
 }

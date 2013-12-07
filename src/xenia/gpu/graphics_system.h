@@ -30,7 +30,7 @@ public:
   virtual ~GraphicsSystem();
 
   Emulator* emulator() const { return emulator_; }
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
 
   virtual X_STATUS Setup();
@@ -39,9 +39,9 @@ public:
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
-  bool HandlesRegister(uint32_t addr);
-  virtual uint64_t ReadRegister(uint32_t addr);
-  virtual void WriteRegister(uint32_t addr, uint64_t value);
+  bool HandlesRegister(uint64_t addr);
+  virtual uint64_t ReadRegister(uint64_t addr);
+  virtual void WriteRegister(uint64_t addr, uint64_t value);
 
   void MarkVblank();
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu = 0xFFFFFFFF);
@@ -59,13 +59,13 @@ private:
   }
   void ThreadStart();
 
-  static bool HandlesRegisterThunk(GraphicsSystem* gs, uint32_t addr) {
+  static bool HandlesRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
     return gs->HandlesRegister(addr);
   }
-  static uint64_t ReadRegisterThunk(GraphicsSystem* gs, uint32_t addr) {
+  static uint64_t ReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
     return gs->ReadRegister(addr);
   }
-  static void WriteRegisterThunk(GraphicsSystem* gs, uint32_t addr,
+  static void WriteRegisterThunk(GraphicsSystem* gs, uint64_t addr,
                                  uint64_t value) {
     gs->WriteRegister(addr, value);
   }
@@ -74,7 +74,7 @@ protected:
   GraphicsSystem(Emulator* emulator);
 
   Emulator*         emulator_;
-  xe_memory_ref     memory_;
+  Memory*           memory_;
   cpu::Processor*   processor_;
 
   xe_run_loop_ref   run_loop_;

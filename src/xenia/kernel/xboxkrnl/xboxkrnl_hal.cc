@@ -42,7 +42,7 @@ void xeHalReturnToFirmware(uint32_t routine) {
 
 
 SHIM_CALL HalReturnToFirmware_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t routine = SHIM_GET_ARG_32(0);
 
   XELOGD(

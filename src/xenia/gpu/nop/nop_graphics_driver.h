@@ -27,7 +27,7 @@ namespace nop {
 
 class NopGraphicsDriver : public GraphicsDriver {
 public:
-  NopGraphicsDriver(xe_memory_ref memory);
+  NopGraphicsDriver(Memory* memory);
   virtual ~NopGraphicsDriver();
 
   virtual void Initialize();

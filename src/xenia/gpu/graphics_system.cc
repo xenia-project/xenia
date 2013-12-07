@@ -17,18 +17,16 @@
 
 
 using namespace xe;
-using namespace xe::cpu::ppc;
+using namespace xe::cpu;
 using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
 
 GraphicsSystem::GraphicsSystem(Emulator* emulator) :
-    emulator_(emulator),
+    emulator_(emulator), memory_(emulator->memory()),
     thread_(0), running_(false), driver_(0), worker_(0),
     interrupt_callback_(0), interrupt_callback_data_(0),
     last_interrupt_time_(0), swap_pending_(false) {
-  memory_ = xe_memory_retain(emulator->memory());
-
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
@@ -43,7 +41,6 @@ GraphicsSystem::~GraphicsSystem() {
   delete worker_;
 
   xe_run_loop_release(run_loop_);
-  xe_memory_release(memory_);
 }
 
 X_STATUS GraphicsSystem::Setup() {
@@ -132,11 +129,11 @@ void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
   worker_->EnableReadPointerWriteBack(ptr, block_size);
 }
 
-bool GraphicsSystem::HandlesRegister(uint32_t addr) {
+bool GraphicsSystem::HandlesRegister(uint64_t addr) {
   return (addr & 0xFFFF0000) == 0x7FC80000;
 }
 
-uint64_t GraphicsSystem::ReadRegister(uint32_t addr) {
+uint64_t GraphicsSystem::ReadRegister(uint64_t addr) {
   uint32_t r = addr & 0xFFFF;
   XELOGGPU("ReadRegister(%.4X)", r);
 
@@ -155,7 +152,7 @@ uint64_t GraphicsSystem::ReadRegister(uint32_t addr) {
   return regs->values[r].u32;
 }
 
-void GraphicsSystem::WriteRegister(uint32_t addr, uint64_t value) {
+void GraphicsSystem::WriteRegister(uint64_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
   XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
 

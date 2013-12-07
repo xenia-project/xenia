@@ -15,6 +15,7 @@
 
 
 using namespace xe;
+using namespace xe::cpu;
 using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
@@ -86,6 +87,10 @@ X_STATUS XModule::LoadFromFile(const char* path) {
 }
 
 X_STATUS XModule::LoadFromMemory(const void* addr, const size_t length) {
+  Processor* processor = kernel_state()->processor();
+  XenonRuntime* runtime = processor->runtime();
+  XexModule* xex_module = NULL;
+  
   // Load the XEX into memory and decrypt.
   xe_xex2_options_t xex_options;
   xe_zero_struct(&xex_options, sizeof(xex_options));
@@ -93,11 +98,15 @@ X_STATUS XModule::LoadFromMemory(const void* addr, const size_t length) {
   XEEXPECTNOTNULL(xex_);
 
   // Prepare the module for execution.
-  XEEXPECTZERO(kernel_state()->processor()->LoadXexModule(name_, path_, xex_));
+  // Runtime takes ownership.
+  xex_module = new XexModule(runtime);
+  XEEXPECTZERO(xex_module->Load(name_, path_, xex_));
+  XEEXPECTZERO(runtime->AddModule(xex_module));
 
   return X_STATUS_SUCCESS;
 
 XECLEANUP:
+  delete xex_module;
   return X_STATUS_UNSUCCESSFUL;
 }
 

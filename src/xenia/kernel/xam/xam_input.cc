@@ -29,7 +29,7 @@ namespace xam {
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 SHIM_CALL XamInputGetCapabilities_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t caps_ptr = SHIM_GET_ARG_32(2);
@@ -58,7 +58,7 @@ SHIM_CALL XamInputGetCapabilities_shim(
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 SHIM_CALL XamInputGetState_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t state_ptr = SHIM_GET_ARG_32(1);
 
@@ -85,7 +85,7 @@ SHIM_CALL XamInputGetState_shim(
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
 SHIM_CALL XamInputSetState_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t vibration_ptr = SHIM_GET_ARG_32(1);
 

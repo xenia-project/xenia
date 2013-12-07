@@ -19,7 +19,7 @@ using namespace xe::gpu::nop;
 using namespace xe::gpu::xenos;
 
 
-NopGraphicsDriver::NopGraphicsDriver(xe_memory_ref memory) :
+NopGraphicsDriver::NopGraphicsDriver(Memory* memory) :
     GraphicsDriver(memory) {
   shader_cache_ = new ShaderCache();
 }
@@ -50,7 +50,7 @@ void NopGraphicsDriver::SetShader(
     uint32_t start,
     uint32_t length) {
   // Find or create shader in the cache.
-  uint8_t* p = xe_memory_addr(memory_, address);
+  uint8_t* p = memory_->Translate(address);
   Shader* shader = shader_cache_->FindOrCreate(
       type, p, length);
 

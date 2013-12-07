@@ -22,9 +22,8 @@ using namespace xe::kernel::xboxkrnl;
 
 
 KernelState::KernelState(Emulator* emulator) :
-    emulator_(emulator),
+    emulator_(emulator), memory_(emulator->memory()),
     executable_module_(NULL) {
-  memory_       = xe_memory_retain(emulator->memory());
   processor_    = emulator->processor();
   file_system_  = emulator->file_system();
 
@@ -38,8 +37,6 @@ KernelState::~KernelState() {
   // Delete all objects.
   xe_mutex_free(object_mutex_);
   delete object_table_;
-
-  xe_memory_release(memory_);
 }
 
 KernelState* KernelState::shared() {

@@ -12,10 +12,14 @@
 
 #include <xenia/common.h>
 
+#include <alloy/memory.h>
+namespace xe {
+  using Memory = alloy::Memory;
+}  // namespace xe
+
 #include <xenia/core/crc32.h>
 #include <xenia/core/file.h>
 #include <xenia/core/hash.h>
-#include <xenia/memory.h>
 #include <xenia/core/mmap.h>
 #include <xenia/core/mutex.h>
 #include <xenia/core/pal.h>

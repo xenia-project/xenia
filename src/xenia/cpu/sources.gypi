@@ -1,25 +1,18 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'backend.h',
     'cpu-private.h',
     'cpu.cc',
     'cpu.h',
-    'exec_module.cc',
-    'exec_module.h',
-    'global_exports.cc',
-    'global_exports.h',
-    'jit.h',
-    'ppc.h',
     'processor.cc',
     'processor.h',
-    'thread_state.cc',
-    'thread_state.h',
-  ],
-
-  'includes': [
-    'ppc/sources.gypi',
-    'sdb/sources.gypi',
-    'x64/sources.gypi',
+    'xenon_memory.cc',
+    'xenon_memory.h',
+    'xenon_runtime.cc',
+    'xenon_runtime.h',
+    'xenon_thread_state.cc',
+    'xenon_thread_state.h',
+    'xex_module.cc',
+    'xex_module.h',
   ],
 }

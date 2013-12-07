@@ -15,8 +15,6 @@
     'logging.h',
     'malloc.cc',
     'malloc.h',
-    'memory.cc',
-    'memory.h',
     'platform.cc',
     'platform.h',
     'platform_includes.h',

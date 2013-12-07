@@ -27,7 +27,7 @@ namespace xboxkrnl {
 
 
 SHIM_CALL XMACreateContext_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -41,7 +41,7 @@ SHIM_CALL XMACreateContext_shim(
 
 
 SHIM_CALL XMAReleaseContext_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(

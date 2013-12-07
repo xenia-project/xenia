@@ -23,7 +23,7 @@ class GraphicsDriver {
 public:
   virtual ~GraphicsDriver();
 
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
   xenos::RegisterFile* register_file() { return &register_file_; };
   void set_address_translation(uint32_t value) {
     address_translation_ = value;
@@ -48,9 +48,9 @@ public:
       uint32_t index_count) = 0;
 
 protected:
-  GraphicsDriver(xe_memory_ref memory);
+  GraphicsDriver(Memory* memory);
 
-  xe_memory_ref memory_;
+  Memory* memory_;
 
   xenos::RegisterFile register_file_;
   uint32_t address_translation_;

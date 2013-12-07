@@ -27,7 +27,7 @@ namespace xboxkrnl {
 
 // TODO: clean me up!
 SHIM_CALL DbgPrint_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
 
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   if (format_ptr == 0) {
@@ -237,7 +237,7 @@ void xeDbgBreakPoint() {
 
 
 SHIM_CALL DbgBreakPoint_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD("DbgBreakPoint()");
 }
 

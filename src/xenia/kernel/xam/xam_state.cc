@@ -23,11 +23,9 @@ namespace {
 
 
 XamState::XamState(Emulator* emulator) :
-    emulator_(emulator) {
-  memory_ = xe_memory_retain(emulator->memory());
-  export_resolver_ = emulator->export_resolver();
+    emulator_(emulator), memory_(emulator->memory()),
+    export_resolver_(emulator->export_resolver()) {
 }
 
 XamState::~XamState() {
-  xe_memory_release(memory_);
 }

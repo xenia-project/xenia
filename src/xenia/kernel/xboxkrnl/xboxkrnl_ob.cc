@@ -27,7 +27,7 @@ namespace xboxkrnl {
 
 
 SHIM_CALL ObReferenceObjectByHandle_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t object_type_ptr = SHIM_GET_ARG_32(1);
   uint32_t out_object_ptr = SHIM_GET_ARG_32(2);
@@ -66,7 +66,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(
 
 
 SHIM_CALL ObDereferenceObject_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t native_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(

@@ -16,14 +16,12 @@
 
 using namespace xe;
 using namespace xe::apu;
-using namespace xe::cpu::ppc;
+using namespace xe::cpu;
 
 
 AudioSystem::AudioSystem(Emulator* emulator) :
-    emulator_(emulator),
+    emulator_(emulator), memory_(emulator->memory()),
     thread_(0), running_(false), driver_(0) {
-  memory_ = xe_memory_retain(emulator->memory());
-
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
@@ -35,7 +33,6 @@ AudioSystem::~AudioSystem() {
   xe_thread_release(thread_);
 
   xe_run_loop_release(run_loop_);
-  xe_memory_release(memory_);
 }
 
 X_STATUS AudioSystem::Setup() {
@@ -101,7 +98,7 @@ void AudioSystem::Initialize() {
 void AudioSystem::Shutdown() {
 }
 
-bool AudioSystem::HandlesRegister(uint32_t addr) {
+bool AudioSystem::HandlesRegister(uint64_t addr) {
   return (addr & 0xFFFF0000) == 0x7FEA0000;
 }
 
@@ -109,7 +106,7 @@ bool AudioSystem::HandlesRegister(uint32_t addr) {
 // piece of hardware:
 // https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
 
-uint64_t AudioSystem::ReadRegister(uint32_t addr) {
+uint64_t AudioSystem::ReadRegister(uint64_t addr) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
@@ -117,7 +114,7 @@ uint64_t AudioSystem::ReadRegister(uint32_t addr) {
   return 0;
 }
 
-void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
+void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
   // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation

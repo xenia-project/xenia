@@ -30,7 +30,7 @@ public:
   ~InputSystem();
 
   Emulator* emulator() const { return emulator_; }
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
 
   X_STATUS Setup();
@@ -44,7 +44,7 @@ public:
 
 private:
   Emulator*         emulator_;
-  xe_memory_ref     memory_;
+  Memory*           memory_;
   cpu::Processor*   processor_;
 
   std::vector<InputDriver*> drivers_;

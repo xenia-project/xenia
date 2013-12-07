@@ -29,7 +29,7 @@ namespace xboxkrnl {
 
 
 SHIM_CALL NtCreateFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t desired_access = SHIM_GET_ARG_32(1);
   uint32_t object_attributes_ptr = SHIM_GET_ARG_32(2);
@@ -99,7 +99,7 @@ SHIM_CALL NtCreateFile_shim(
 }
 
 SHIM_CALL NtOpenFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 
@@ -114,7 +114,7 @@ void xeNtReadFileCompleted(XAsyncRequest* request, xeNtReadFileState* state) {
 }
 
 SHIM_CALL NtReadFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t event_handle = SHIM_GET_ARG_32(1);
   uint32_t apc_routine_ptr = SHIM_GET_ARG_32(2);
@@ -219,7 +219,7 @@ SHIM_CALL NtReadFile_shim(
 }
 
 SHIM_CALL NtSetInformationFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
   uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
@@ -277,7 +277,7 @@ SHIM_CALL NtSetInformationFile_shim(
 }
 
 SHIM_CALL NtQueryInformationFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
   uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
@@ -354,7 +354,7 @@ SHIM_CALL NtQueryInformationFile_shim(
 }
 
 SHIM_CALL NtQueryFullAttributesFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t object_attributes_ptr = SHIM_GET_ARG_32(0);
   uint32_t file_info_ptr = SHIM_GET_ARG_32(1);
 
@@ -384,7 +384,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
 }
 
 SHIM_CALL NtQueryVolumeInformationFile_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 

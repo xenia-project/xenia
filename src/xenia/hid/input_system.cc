@@ -19,8 +19,7 @@ using namespace xe::hid;
 
 
 InputSystem::InputSystem(Emulator* emulator) :
-    emulator_(emulator) {
-  memory_ = xe_memory_retain(emulator->memory());
+    emulator_(emulator), memory_(emulator->memory()) {
 }
 
 InputSystem::~InputSystem() {
@@ -29,7 +28,6 @@ InputSystem::~InputSystem() {
     InputDriver* driver = *it;
     delete driver;
   }
-  xe_memory_release(memory_);
 }
 
 X_STATUS InputSystem::Setup() {

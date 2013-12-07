@@ -32,13 +32,13 @@ void xeKeBugCheckEx(uint32_t code, uint32_t param1, uint32_t param2, uint32_t pa
 }
 
 SHIM_CALL KeBugCheck_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t code = SHIM_GET_ARG_32(0);
   xeKeBugCheckEx(code, 0, 0, 0, 0);
 }
 
 SHIM_CALL KeBugCheckEx_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t code = SHIM_GET_ARG_32(0);
   uint32_t param1 = SHIM_GET_ARG_32(1);
   uint32_t param2 = SHIM_GET_ARG_32(2);

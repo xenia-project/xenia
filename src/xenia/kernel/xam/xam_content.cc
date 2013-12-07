@@ -25,7 +25,7 @@ namespace xam {
 
 
 SHIM_CALL XamContentGetLicenseMask_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t unk0_ptr = SHIM_GET_ARG_32(0);
   uint32_t unk1_ptr = SHIM_GET_ARG_32(1);
 

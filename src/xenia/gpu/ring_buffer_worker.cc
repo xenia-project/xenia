@@ -25,7 +25,7 @@ using namespace xe::gpu::xenos;
 
 
 RingBufferWorker::RingBufferWorker(
-    GraphicsSystem* graphics_system, xe_memory_ref memory) :
+    GraphicsSystem* graphics_system, Memory* memory) :
     graphics_system_(graphics_system), memory_(memory), driver_(0) {
   write_ptr_index_event_ = CreateEvent(
       NULL, FALSE, FALSE, NULL);
@@ -87,7 +87,7 @@ void RingBufferWorker::UpdateWritePointer(uint32_t value) {
 }
 
 void RingBufferWorker::Pump() {
-  uint8_t* p = xe_memory_addr(memory_);
+  uint8_t* p = memory_->membase();
 
   if (write_ptr_index_ == 0xBAADF00D ||
       read_ptr_index_ == write_ptr_index_) {
@@ -189,7 +189,7 @@ void RingBufferWorker::AdvancePtr(PacketArgs& args, uint32_t n) {
     XEGETUINT32BE(p + args.ptr); ADVANCE_PTR(1);
 
 uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
-  uint8_t* p = xe_memory_addr(memory_);
+  uint8_t* p = memory_->membase();
   RegisterFile* regs = driver_->register_file();
 
   uint32_t packet_ptr = args.ptr;
@@ -730,7 +730,7 @@ void RingBufferWorker::WriteRegister(
     uint32_t scratch_reg = index - XE_GPU_REG_SCRATCH_REG0;
     if ((1 << scratch_reg) & regs->values[XE_GPU_REG_SCRATCH_UMSK].u32) {
       // Enabled - write to address.
-      uint8_t* p = xe_memory_addr(memory_);
+      uint8_t* p = memory_->membase();
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
       XESETUINT32BE(p + GpuToCpu(primary_buffer_ptr_, mem_addr), value);

@@ -27,7 +27,7 @@ namespace xam {
 
 
 SHIM_CALL XGetVideoMode_shim(
-  xe_ppc_state_t* ppc_state, XamState* state) {
+  PPCContext* ppc_state, XamState* state) {
   xe::kernel::xboxkrnl::X_VIDEO_MODE *video_mode = (xe::kernel::xboxkrnl::X_VIDEO_MODE*)SHIM_MEM_ADDR(SHIM_GET_ARG_32(0));
   xeVdQueryVideoMode(video_mode, true);
 }

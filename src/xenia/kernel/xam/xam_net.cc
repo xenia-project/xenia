@@ -25,7 +25,7 @@ namespace xam {
 
 
 SHIM_CALL NetDll_XNetStartup_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t one = SHIM_GET_ARG_32(0);
   uint32_t params_ptr = SHIM_GET_ARG_32(1);
 
@@ -39,7 +39,7 @@ SHIM_CALL NetDll_XNetStartup_shim(
 
 
 SHIM_CALL NetDll_WSAStartup_shim(
-    xe_ppc_state_t* ppc_state, XamState* state) {
+    PPCContext* ppc_state, XamState* state) {
   uint32_t one = SHIM_GET_ARG_32(0);
   uint32_t version = SHIM_GET_ARG_16(1);
   uint32_t data_ptr = SHIM_GET_ARG_32(2);

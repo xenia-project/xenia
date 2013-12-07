@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_XEX2_H_
 
 #include <xenia/core.h>
-
 #include <xenia/kernel/xex2_info.h>
 
 typedef struct {
@@ -46,7 +45,7 @@ public:
   uint32_t    flags;          // kXEPESection*
 };
 
-xe_xex2_ref xe_xex2_load(xe_memory_ref memory,
+xe_xex2_ref xe_xex2_load(xe::Memory* memory,
                          const void* addr, const size_t length,
                          xe_xex2_options_t options);
 xe_xex2_ref xe_xex2_retain(xe_xex2_ref xex);

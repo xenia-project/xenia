@@ -49,7 +49,7 @@ void xeVdGetCurrentDisplayGamma(uint32_t* arg0, float* arg1) {
 
 
 SHIM_CALL VdGetCurrentDisplayGamma_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t arg0_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg1_ptr = SHIM_GET_ARG_32(1);
 
@@ -69,7 +69,7 @@ SHIM_CALL VdGetCurrentDisplayGamma_shim(
 
 
 SHIM_CALL VdGetCurrentDisplayInformation_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -92,7 +92,7 @@ uint32_t xeVdQueryVideoFlags() {
 
 
 SHIM_CALL VdQueryVideoFlags_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
       "VdQueryVideoFlags()");
 
@@ -131,7 +131,7 @@ void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap) {
 
 
 SHIM_CALL VdQueryVideoMode_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);
   X_VIDEO_MODE *video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
 
@@ -160,7 +160,7 @@ void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
 
 
 SHIM_CALL VdInitializeEngines_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t callback = SHIM_GET_ARG_32(1);
   uint32_t unk1 = SHIM_GET_ARG_32(2);
@@ -192,7 +192,7 @@ void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data) {
 
 
 SHIM_CALL VdSetGraphicsInterruptCallback_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t callback = SHIM_GET_ARG_32(0);
   uint32_t user_data = SHIM_GET_ARG_32(1);
 
@@ -224,7 +224,7 @@ void xeVdInitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
 
 
 SHIM_CALL VdInitializeRingBuffer_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
   uint32_t page_count = SHIM_GET_ARG_32(1);
 
@@ -268,7 +268,7 @@ void xeVdEnableRingBufferRPtrWriteBack(uint32_t ptr, uint32_t block_size) {
 
 
 SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
   uint32_t block_size = SHIM_GET_ARG_32(1);
 
@@ -287,7 +287,7 @@ void xeVdGetSystemCommandBuffer(uint32_t* p0, uint32_t* p1) {
 
 
 SHIM_CALL VdGetSystemCommandBuffer_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t p0_ptr = SHIM_GET_ARG_32(0);
   uint32_t p1_ptr = SHIM_GET_ARG_32(1);
 
@@ -317,7 +317,7 @@ void xeVdSetSystemCommandBufferGpuIdentifierAddress(uint32_t unk) {
 
 
 SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -341,7 +341,7 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 
 
 SHIM_CALL VdIsHSIOTrainingSucceeded_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
       "VdIsHSIOTrainingSucceeded()");
 
@@ -352,7 +352,7 @@ SHIM_CALL VdIsHSIOTrainingSucceeded_shim(
 
 
 SHIM_CALL VdPersistDisplay_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
       "VdPersistDisplay(?)");
 
@@ -362,7 +362,7 @@ SHIM_CALL VdPersistDisplay_shim(
 
 
 SHIM_CALL VdRetrainEDRAMWorker_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -374,7 +374,7 @@ SHIM_CALL VdRetrainEDRAMWorker_shim(
 
 
 SHIM_CALL VdRetrainEDRAM_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
@@ -391,7 +391,7 @@ SHIM_CALL VdRetrainEDRAM_shim(
 
 
 SHIM_CALL VdSwap_shim(
-    xe_ppc_state_t* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0); // ptr into primary ringbuffer
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
@@ -454,13 +454,13 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAM, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSwap, state);
 
-  xe_memory_ref memory = state->memory();
-  uint8_t* mem = xe_memory_addr(memory);
+  Memory* memory = state->memory();
+  uint8_t* mem = memory->membase();
 
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't
   // have to do anything. We may want to read it back later, though.
-  uint32_t pVdGlobalDevice = xe_memory_heap_alloc(memory, 0, 4, 0);
+  uint32_t pVdGlobalDevice = (uint32_t)memory->HeapAlloc(0, 4, 0);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalDevice,
       pVdGlobalDevice);
@@ -468,7 +468,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
-  uint32_t pVdGlobalXamDevice = xe_memory_heap_alloc(memory, 0, 4, 0);
+  uint32_t pVdGlobalXamDevice = (uint32_t)memory->HeapAlloc(0, 4, 0);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalXamDevice,
       pVdGlobalXamDevice);
@@ -476,7 +476,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
-  uint32_t pVdGpuClockInMHz = xe_memory_heap_alloc(memory, 0, 4, 0);
+  uint32_t pVdGpuClockInMHz = (uint32_t)memory->HeapAlloc(0, 4, 0);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGpuClockInMHz,
       pVdGpuClockInMHz);
@@ -484,7 +484,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.
-  uint32_t pVdHSIOCalibrationLock = xe_memory_heap_alloc(memory, 0, 28, 0);
+  uint32_t pVdHSIOCalibrationLock = (uint32_t)memory->HeapAlloc(0, 28, 0);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdHSIOCalibrationLock,
       pVdHSIOCalibrationLock);

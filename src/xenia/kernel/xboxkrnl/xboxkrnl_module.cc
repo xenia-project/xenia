@@ -61,13 +61,13 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
   RegisterThreadingExports(export_resolver_, kernel_state_);
   RegisterVideoExports(export_resolver_, kernel_state_);
 
-  uint8_t* mem = xe_memory_addr(memory_);
+  uint8_t* mem = memory_->membase();
 
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.
   // Offset 0x18 is a 4b pointer to a handler function that seems to take two
   // arguments. If we wanted to see what would happen we could fake that.
-  uint32_t pKeDebugMonitorData = xe_memory_heap_alloc(memory_, 0, 256, 0);
+  uint32_t pKeDebugMonitorData = (uint32_t)memory_->HeapAlloc(0, 256, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeDebugMonitorData,
       pKeDebugMonitorData);
@@ -75,7 +75,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
-  uint32_t pKeCertMonitorData = xe_memory_heap_alloc(memory_, 0, 4, 0);
+  uint32_t pKeCertMonitorData = (uint32_t)memory_->HeapAlloc(0, 4, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeCertMonitorData,
       pKeCertMonitorData);
@@ -86,7 +86,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
   // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
   // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
   // was whether an HDD was present. Not sure what the other flags are.
-  uint32_t pXboxHardwareInfo = xe_memory_heap_alloc(memory_, 0, 16, 0);
+  uint32_t pXboxHardwareInfo = (uint32_t)memory_->HeapAlloc(0, 16, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxHardwareInfo,
       pXboxHardwareInfo);
@@ -103,13 +103,12 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
   // 0x80101000 <- our module structure
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
-  uint32_t ppXexExecutableModuleHandle =
-      xe_memory_heap_alloc(memory_, 0, 4, 0);
+  uint32_t ppXexExecutableModuleHandle = (uint32_t)memory_->HeapAlloc(0, 4, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XexExecutableModuleHandle,
       ppXexExecutableModuleHandle);
   uint32_t pXexExecutableModuleHandle =
-      xe_memory_heap_alloc(memory_, 0, 256, 0);
+      (uint32_t)memory_->HeapAlloc(0, 256, 0);
   XESETUINT32BE(mem + ppXexExecutableModuleHandle, pXexExecutableModuleHandle);
   XESETUINT32BE(mem + pXexExecutableModuleHandle + 0x58, 0x80101100);
 
@@ -117,7 +116,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
   // The name of the xex. Not sure this is ever really used on real devices.
   // Perhaps it's how swap disc/etc data is sent?
   // Always set to "default.xex" (with quotes) for now.
-  uint32_t pExLoadedCommandLine = xe_memory_heap_alloc(memory_, 0, 1024, 0);
+  uint32_t pExLoadedCommandLine = (uint32_t)memory_->HeapAlloc(0, 1024, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::ExLoadedCommandLine,
       pExLoadedCommandLine);
@@ -128,7 +127,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
-  uint32_t pXboxKrnlVersion = xe_memory_heap_alloc(memory_, 0, 8, 0);
+  uint32_t pXboxKrnlVersion = (uint32_t)memory_->HeapAlloc(0, 8, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxKrnlVersion,
       pXboxKrnlVersion);
@@ -138,7 +137,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator) :
   XESETUINT16BE(mem + pXboxKrnlVersion + 6, 0xFFFF);
 
   // KeTimeStampBundle (ad)
-  uint32_t pKeTimeStampBundle = xe_memory_heap_alloc(memory_, 0, 24, 0);
+  uint32_t pKeTimeStampBundle = (uint32_t)memory_->HeapAlloc(0, 24, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeTimeStampBundle,
       pKeTimeStampBundle);

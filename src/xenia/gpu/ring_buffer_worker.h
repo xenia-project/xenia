@@ -23,10 +23,10 @@ class GraphicsSystem;
 
 class RingBufferWorker {
 public:
-  RingBufferWorker(GraphicsSystem* graphics_system, xe_memory_ref memory);
+  RingBufferWorker(GraphicsSystem* graphics_system, Memory* memory);
   virtual ~RingBufferWorker();
 
-  xe_memory_ref memory();
+  Memory* memory() const { return memory_; }
 
   uint64_t QueryTime();
   uint32_t counter() const { return counter_; }
@@ -54,7 +54,7 @@ private:
   void WriteRegister(uint32_t packet_ptr, uint32_t index, uint32_t value);
 
 protected:
-  xe_memory_ref     memory_;
+  Memory*           memory_;
   GraphicsSystem*   graphics_system_;
   GraphicsDriver*   driver_;
 

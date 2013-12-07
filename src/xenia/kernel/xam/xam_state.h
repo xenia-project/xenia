@@ -28,11 +28,11 @@ public:
   ~XamState();
 
   Emulator* emulator() const { return emulator_; }
-  xe_memory_ref memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
 
 private:
   Emulator*       emulator_;
-  xe_memory_ref   memory_;
+  Memory*         memory_;
   ExportResolver* export_resolver_;
 };
 
