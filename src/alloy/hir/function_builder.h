@@ -34,6 +34,8 @@ public:
 
   void Dump(StringBuffer* str);
 
+  Arena* arena() const { return arena_; }
+
   uint32_t attributes() const { return attributes_; }
   void set_attributes(uint32_t value) { attributes_ = value; }
 

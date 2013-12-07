@@ -40,7 +40,7 @@ void* Arena::Alloc(size_t size) {
     if (active_chunk_->capacity - active_chunk_->offset < size) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        XEASSERT(size < size); // need to support larger chunks
+        XEASSERT(size < chunk_size_); // need to support larger chunks
         next = new Chunk(chunk_size_);
         active_chunk_->next = next;
       }

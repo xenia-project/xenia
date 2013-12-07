@@ -22,6 +22,8 @@ class Label;
 
 class Block {
 public:
+  Arena* arena;
+
   Block* next;
   Block* prev;
 

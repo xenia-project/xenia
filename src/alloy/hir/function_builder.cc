@@ -238,6 +238,7 @@ void FunctionBuilder::InsertLabel(Label* label, Instr* prev_instr) {
   Block* next_block = prev_instr->block->next;
 
   Block* new_block = arena_->Alloc<Block>();
+  new_block->arena = arena_;
   new_block->prev = prev_block;
   new_block->next = next_block;
   if (prev_block) {
@@ -269,6 +270,7 @@ void FunctionBuilder::InsertLabel(Label* label, Instr* prev_instr) {
 
 Block* FunctionBuilder::AppendBlock() {
   Block* block = arena_->Alloc<Block>();
+  block->arena = arena_;
   block->next = NULL;
   block->prev = block_tail_;
   if (block_tail_) {
@@ -314,6 +316,10 @@ Instr* FunctionBuilder::AppendInstr(
   instr->opcode = &opcode_info;
   instr->flags = flags;
   instr->dest = dest;
+  instr->src1_use = instr->src2_use = instr->src3_use = NULL;
+  if (dest) {
+    dest->def = instr;
+  }
   // Rely on callers to set src args.
   // This prevents redundant stores.
   return instr;
@@ -324,6 +330,8 @@ Value* FunctionBuilder::AllocValue(TypeName type) {
   value->ordinal = next_value_ordinal_++;
   value->type = type;
   value->flags = 0;
+  value->def = NULL;
+  value->use_head = NULL;
   value->tag = NULL;
   return value;
 }
@@ -334,6 +342,8 @@ Value* FunctionBuilder::CloneValue(Value* source) {
   value->type = source->type;
   value->flags = source->flags;
   value->constant.i64 = source->constant.i64;
+  value->def = NULL;
+  value->use_head = NULL;
   value->tag = NULL;
   return value;
 }
@@ -400,7 +410,7 @@ void FunctionBuilder::DebugBreakTrue(Value* cond) {
   }
 
   Instr* i = AppendInstr(opcode, 0);
-  i->src1.value = cond;
+  i->set_src1(cond);
   i->src2.value = i->src3.value = NULL;
   EndBlock();
 }
@@ -430,7 +440,7 @@ void FunctionBuilder::TrapTrue(Value* cond) {
   }
 
   Instr* i = AppendInstr(opcode, 0);
-  i->src1.value = cond;
+  i->set_src1(cond);
   i->src2.value = i->src3.value = NULL;
   EndBlock();
 }
@@ -463,7 +473,7 @@ void FunctionBuilder::CallTrue(
   }
 
   Instr* i = AppendInstr(opcode, call_flags);
-  i->src1.value = cond;
+  i->set_src1(cond);
   i->src2.symbol_info = symbol_info;
   i->src3.value = NULL;
   EndBlock();
@@ -479,7 +489,7 @@ void FunctionBuilder::CallIndirect(
 
   ASSERT_ADDRESS_TYPE(value);
   Instr* i = AppendInstr(opcode, call_flags);
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   EndBlock();
 }
@@ -499,8 +509,8 @@ void FunctionBuilder::CallIndirectTrue(
 
   ASSERT_ADDRESS_TYPE(value);
   Instr* i = AppendInstr(opcode, call_flags);
-  i->src1.value = cond;
-  i->src2.value = value;
+  i->set_src1(cond);
+  i->set_src2(value);
   i->src3.value = NULL;
   EndBlock();
 }
@@ -547,7 +557,7 @@ void FunctionBuilder::BranchIf(
   }
 
   Instr* i = AppendInstr(opcode, branch_flags);
-  i->src1.value = cond;
+  i->set_src1(cond);
   i->src2.label = true_label;
   i->src3.label = false_label;
   EndBlock();
@@ -567,7 +577,7 @@ void FunctionBuilder::BranchTrue(
   }
 
   Instr* i = AppendInstr(opcode, branch_flags);
-  i->src1.value = cond;
+  i->set_src1(cond);
   i->src2.label = label;
   i->src3.value = NULL;
   EndBlock();
@@ -587,7 +597,7 @@ void FunctionBuilder::BranchFalse(
   }
 
   Instr* i = AppendInstr(opcode, branch_flags);
-  i->src1.value = cond;
+  i->set_src1(cond);
   i->src2.label = label;
   i->src3.value = NULL;
   EndBlock();
@@ -609,7 +619,7 @@ Value* FunctionBuilder::Assign(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -632,7 +642,7 @@ Value* FunctionBuilder::Cast(Value* value, TypeName target_type) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -655,7 +665,7 @@ Value* FunctionBuilder::ZeroExtend(Value* value, TypeName target_type) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -678,7 +688,7 @@ Value* FunctionBuilder::SignExtend(Value* value, TypeName target_type) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -704,7 +714,7 @@ Value* FunctionBuilder::Truncate(Value* value, TypeName target_type) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -728,7 +738,7 @@ Value* FunctionBuilder::Convert(Value* value, TypeName target_type,
   Instr* i = AppendInstr(
       opcode, round_mode,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -751,7 +761,7 @@ Value* FunctionBuilder::Round(Value* value, RoundMode round_mode) {
   Instr* i = AppendInstr(
       opcode, round_mode,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -768,7 +778,7 @@ Value* FunctionBuilder::VectorConvertI2F(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -785,7 +795,7 @@ Value* FunctionBuilder::VectorConvertF2I(Value* value, RoundMode round_mode) {
   Instr* i = AppendInstr(
       opcode, round_mode,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -887,7 +897,7 @@ void FunctionBuilder::StoreContext(size_t offset, Value* value) {
 
   Instr* i = AppendInstr(opcode, 0);
   i->src1.offset = offset;
-  i->src2.value = value;
+  i->set_src2(value);
   i->src3.value = NULL;
 }
 
@@ -903,7 +913,7 @@ Value* FunctionBuilder::Load(
   Instr* i = AppendInstr(
       opcode, load_flags,
       AllocValue(type));
-  i->src1.value = address;
+  i->set_src1(address);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -920,7 +930,7 @@ Value* FunctionBuilder::LoadAcquire(
   Instr* i = AppendInstr(
       opcode, load_flags,
       AllocValue(type));
-  i->src1.value = address;
+  i->set_src1(address);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -935,8 +945,8 @@ void FunctionBuilder::Store(
 
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(opcode, store_flags);
-  i->src1.value = address;
-  i->src2.value = value;
+  i->set_src1(address);
+  i->set_src2(value);
   i->src3.value = NULL;
 }
 
@@ -951,8 +961,8 @@ Value* FunctionBuilder::StoreRelease(
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(opcode, store_flags,
       AllocValue(INT8_TYPE));
-  i->src1.value = address;
-  i->src2.value = value;
+  i->set_src1(address);
+  i->set_src2(value);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -967,7 +977,7 @@ void FunctionBuilder::Prefetch(
 
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(opcode, prefetch_flags);
-  i->src1.value = address;
+  i->set_src1(address);
   i->src2.offset = length;
   i->src3.value = NULL;
 }
@@ -989,8 +999,8 @@ Value* FunctionBuilder::Max(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1012,8 +1022,8 @@ Value* FunctionBuilder::Min(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1035,9 +1045,9 @@ Value* FunctionBuilder::Select(Value* cond, Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = cond;
-  i->src2.value = value1;
-  i->src3.value = value2;
+  i->set_src1(cond);
+  i->set_src2(value1);
+  i->set_src3(value2);
   return i->dest;
 }
 
@@ -1055,7 +1065,7 @@ Value* FunctionBuilder::IsTrue(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(INT8_TYPE));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1074,7 +1084,7 @@ Value* FunctionBuilder::IsFalse(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(INT8_TYPE));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1089,8 +1099,8 @@ Value* FunctionBuilder::CompareXX(
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(INT8_TYPE));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1195,7 +1205,7 @@ Value* FunctionBuilder::DidCarry(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(INT8_TYPE));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1210,7 +1220,7 @@ Value* FunctionBuilder::DidOverflow(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(INT8_TYPE));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1226,8 +1236,8 @@ Value* FunctionBuilder::VectorCompareXX(
   Instr* i = AppendInstr(
       opcode, part_type,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1308,8 +1318,8 @@ Value* FunctionBuilder::Add(
   Instr* i = AppendInstr(
       opcode, arithmetic_flags,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1344,9 +1354,9 @@ Value* FunctionBuilder::AddWithCarry(
   Instr* i = AppendInstr(
       opcode, arithmetic_flags,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
-  i->src3.value = value3;
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->set_src3(value3);
   return i->dest;
 }
 
@@ -1376,8 +1386,8 @@ Value* FunctionBuilder::Sub(
   Instr* i = AppendInstr(
       opcode, arithmetic_flags,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1400,8 +1410,8 @@ Value* FunctionBuilder::Mul(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1424,8 +1434,8 @@ Value* FunctionBuilder::Div(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1448,8 +1458,8 @@ Value* FunctionBuilder::Rem(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1480,9 +1490,9 @@ Value* FunctionBuilder::MulAdd(Value* value1, Value* value2, Value* value3) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
-  i->src3.value = value3;
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->set_src3(value3);
   return i->dest;
 }
 
@@ -1512,9 +1522,9 @@ Value* FunctionBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
-  i->src3.value = value3;
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->set_src3(value3);
   return i->dest;
 }
 
@@ -1536,7 +1546,7 @@ Value* FunctionBuilder::Neg(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1559,7 +1569,7 @@ Value* FunctionBuilder::Abs(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1582,7 +1592,7 @@ Value* FunctionBuilder::Sqrt(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1599,7 +1609,7 @@ Value* FunctionBuilder::RSqrt(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1618,8 +1628,8 @@ Value* FunctionBuilder::DotProduct3(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(FLOAT32_TYPE));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1638,8 +1648,8 @@ Value* FunctionBuilder::DotProduct4(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(FLOAT32_TYPE));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1668,8 +1678,8 @@ Value* FunctionBuilder::And(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1698,8 +1708,8 @@ Value* FunctionBuilder::Or(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1724,8 +1734,8 @@ Value* FunctionBuilder::Xor(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1748,7 +1758,7 @@ Value* FunctionBuilder::Not(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1780,8 +1790,8 @@ Value* FunctionBuilder::Shl(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1803,8 +1813,8 @@ Value* FunctionBuilder::VectorShl(Value* value1, Value* value2,
   Instr* i = AppendInstr(
       opcode, part_type,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1834,8 +1844,8 @@ Value* FunctionBuilder::Shr(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1868,8 +1878,8 @@ Value* FunctionBuilder::Sha(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1898,8 +1908,8 @@ Value* FunctionBuilder::RotateLeft(Value* value1, Value* value2) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = value1;
-  i->src2.value = value2;
+  i->set_src1(value1);
+  i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -1923,7 +1933,7 @@ Value* FunctionBuilder::ByteSwap(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1945,7 +1955,7 @@ Value* FunctionBuilder::CountLeadingZeros(Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(INT8_TYPE));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -1962,9 +1972,9 @@ Value* FunctionBuilder::Insert(Value* value, uint32_t index, Value* part) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.offset = index;
-  i->src3.value = part;
+  i->set_src3(part);
   return i->dest;
 }
 
@@ -1980,7 +1990,7 @@ Value* FunctionBuilder::Extract(Value* value, uint32_t index, TypeName target_ty
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.offset = index;
   i->src3.value = NULL;
   return i->dest;
@@ -1998,7 +2008,7 @@ Value* FunctionBuilder::Splat(Value* value, TypeName target_type) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(target_type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
@@ -2020,9 +2030,9 @@ Value* FunctionBuilder::Permute(
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value1->type));
-  i->src1.value = control;
-  i->src2.value = value1;
-  i->src3.value = value2;
+  i->set_src1(control);
+  i->set_src2(value1);
+  i->set_src3(value2);
   return i->dest;
 }
 
@@ -2046,7 +2056,7 @@ Value* FunctionBuilder::Swizzle(
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = value;
+  i->set_src1(value);
   i->src2.offset = swizzle_mask;
   i->src3.value = NULL;
   return i->dest;
@@ -2067,9 +2077,9 @@ Value* FunctionBuilder::CompareExchange(
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(exchange_value->type));
-  i->src1.value = address;
-  i->src2.value = compare_value;
-  i->src3.value = exchange_value;
+  i->set_src1(address);
+  i->set_src2(compare_value);
+  i->set_src3(exchange_value);
   return i->dest;
 }
 
@@ -2085,8 +2095,8 @@ Value* FunctionBuilder::AtomicAdd(Value* address, Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = address;
-  i->src2.value = value;
+  i->set_src1(address);
+  i->set_src2(value);
   i->src3.value = NULL;
   return i->dest;
 }
@@ -2103,8 +2113,8 @@ Value* FunctionBuilder::AtomicSub(Value* address, Value* value) {
   Instr* i = AppendInstr(
       opcode, 0,
       AllocValue(value->type));
-  i->src1.value = address;
-  i->src2.value = value;
+  i->set_src1(address);
+  i->set_src2(value);
   i->src3.value = NULL;
   return i->dest;
 }

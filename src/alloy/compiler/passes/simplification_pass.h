@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_COMPILER_PASSES_MEM2REG_PASS_H_
-#define ALLOY_COMPILER_PASSES_MEM2REG_PASS_H_
+#ifndef ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
+#define ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
 
 #include <alloy/compiler/pass.h>
 
@@ -18,10 +18,15 @@ namespace compiler {
 namespace passes {
 
 
-class Mem2RegPass : public Pass {
+class SimplificationPass : public Pass {
 public:
-  Mem2RegPass();
-  virtual ~Mem2RegPass();
+  SimplificationPass();
+  virtual ~SimplificationPass();
+
+  virtual int Run(hir::FunctionBuilder* builder);
+
+private:
+  hir::Value* CheckValue(hir::Value* value);
 };
 
 
@@ -30,4 +35,4 @@ public:
 }  // namespace alloy
 
 
-#endif  // ALLOY_COMPILER_PASSES_MEM2REG_PASS_H_
+#endif  // ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_

@@ -17,6 +17,8 @@
 namespace alloy {
 namespace hir {
 
+class Instr;
+
 
 enum TypeName {
   INT8_TYPE,
@@ -37,6 +39,13 @@ enum ValueFlags {
 
 class Value {
 public:
+  typedef struct Use_s {
+    Instr*  instr;
+    Use_s*  prev;
+    Use_s*  next;
+  } Use;
+
+public:
   uint32_t ordinal;
   TypeName type;
 
@@ -51,7 +60,13 @@ public:
     vec128_t    v128;
   } constant;
 
-  void*   tag;
+  Instr*    def;
+  Use*      use_head;
+
+  void*     tag;
+
+  Use* AddUse(Arena* arena, Instr* instr);
+  void RemoveUse(Use* use);
 
   void set_zero(TypeName type) {
     this->type = type;

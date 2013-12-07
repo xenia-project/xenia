@@ -13,6 +13,29 @@ using namespace alloy;
 using namespace alloy::hir;
 
 
+Value::Use* Value::AddUse(Arena* arena, Instr* instr) {
+  Use* use = arena->Alloc<Use>();
+  use->instr = instr;
+  use->prev = NULL;
+  use->next = use_head;
+  if (use_head) {
+    use_head->prev = use;
+  }
+  use_head = use;
+  return use;
+}
+
+void Value::RemoveUse(Use* use) {
+  if (use == use_head) {
+    use_head = use->next;
+  } else {
+    use->prev->next = use->next;
+  }
+  if (use->next) {
+    use->next->prev = use->prev;
+  }
+}
+
 uint64_t Value::AsUint64() {
   XEASSERT(IsConstant());
   switch (type) {

@@ -45,6 +45,14 @@ public:
   Op      src1;
   Op      src2;
   Op      src3;
+
+  Value::Use* src1_use;
+  Value::Use* src2_use;
+  Value::Use* src3_use;
+
+  void set_src1(Value* value);
+  void set_src2(Value* value);
+  void set_src3(Value* value);
 };
 
 

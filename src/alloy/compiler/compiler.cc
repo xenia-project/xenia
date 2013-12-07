@@ -46,7 +46,9 @@ int Compiler::Compile(FunctionBuilder* builder) {
   //                 stop changing things, etc.
   for (PassList::iterator it = passes_.begin(); it != passes_.end(); ++it) {
     Pass* pass = *it;
-    //
+    if (pass->Run(builder)) {
+      return 1;
+    }
   }
 
   return 0;

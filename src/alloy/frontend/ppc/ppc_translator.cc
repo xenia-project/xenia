@@ -32,8 +32,13 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
 
   compiler_ = new Compiler();
 
-  // TODO(benvanik): passes in a sensible order/etc.
-  compiler_->AddPass(new passes::Mem2RegPass());
+  //compiler_->AddPass(new passes::ContextPromotionPass());
+  //compiler_->AddPass(new passes::ConstantPropagationPass());
+  //compiler_->AddPass(new passes::TypePropagationPass());
+  //compiler_->AddPass(new passes::ByteSwapEliminationPass());
+  compiler_->AddPass(new passes::SimplificationPass());
+  //compiler_->AddPass(new passes::DeadStoreEliminationPass());
+  //compiler_->AddPass(new passes::DeadCodeEliminationPass());
 
   Backend* backend = frontend->runtime()->backend();
   assembler_ = backend->CreateAssembler();

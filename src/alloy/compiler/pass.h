@@ -12,6 +12,8 @@
 
 #include <alloy/core.h>
 
+#include <alloy/hir/function_builder.h>
+
 
 namespace alloy {
 namespace compiler {
@@ -21,6 +23,8 @@ class Pass {
 public:
   Pass();
   virtual ~Pass();
+
+  virtual int Run(hir::FunctionBuilder* builder) = 0;
 };
 
 
