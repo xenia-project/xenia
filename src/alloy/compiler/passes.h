@@ -48,48 +48,13 @@
 //
 // Run order:
 //   ContextPromotion
+//   Simplification
 //   ConstantPropagation
 //   TypePropagation
 //   ByteSwapElimination
 //   Simplification
 //   DeadStoreElimination
 //   DeadCodeElimination
-//
-// - ContextPromotion
-//   Like mem2reg, but because context memory is unaliasable it's easier to
-//   check and convert LoadContext/StoreContext into value operations.
-//   Example of load->value promotion:
-//     v0 = load_context +100
-//     store_context +200, v0
-//     v1 = load_context +100  <-- replace with v1 = v0
-//     store_context +200, v1
-//
-//   It'd be possible in this stage to also remove redundant context stores:
-//   Example of dead store elimination:
-//     store_context +100, v0  <-- removed due to following store
-//     store_context +100, v1
-//   This is more generally done by DSE, however if it could be done here
-//   instead as it may be faster (at least on the block-level).
-//
-// - ConstantPropagation
-//   Once ContextPromotion has run there will likely be a whole slew of
-//   constants that can be pushed through the function.
-//   Example:
-//     store_context +100, 1000
-//     v0 = load_context +100
-//     v1 = add v0, v0
-//     store_context +200, v1
-//   after PromoteContext:
-//     store_context +100, 1000
-//     v0 = 1000
-//     v1 = add v0, v0
-//     store_context +200, v1
-//   after PropagateConstants:
-//     store_context +100, 1000
-//     v0 = 1000
-//     v1 = add 1000, 1000
-//     store_context +200, 2000
-//   A DCE run after this should clean up any of the values no longer needed.
 //
 // - TypePropagation
 //    There are many extensions/truncations in generated code right now due to
@@ -143,19 +108,6 @@
 //     ... (DCE takes care of this) ...
 //     store v87.i64, v21.i32
 //
-// - Simplification
-//   Run over the instructions and rename assigned variables:
-//     v1 = v0
-//     v2 = v1
-//     v3 = add v0, v2
-//   becomes:
-//     v1 = v0  (will be removed by DCE)
-//     v2 = v0  (will be removed by DCE)
-//     v3 = add v0, v0
-//   This could be run several times, as it could make other passes faster
-//   to compute (for example, ConstantPropagation). DCE will take care of
-//   the useless assigns.
-//
 // - DeadStoreElimination
 //   Generic DSE pass, removing all redundant stores. ContextPromotion may be
 //   able to take care of most of these, as the input assembly is generally
@@ -179,27 +131,6 @@
 //     store_context +301, v4       or before a call
 //     store_context +302, v5
 //     branch_true v5, ...
-//
-// - DeadCodeElimination
-//   ContextPromotion/DSE will likely leave around a lot of dead statements.
-//   Code generated for comparison/testing produces many unused statements and
-//   with proper use analysis it should be possible to remove most of them:
-//   After context promotion/simplification:
-//     v33.i8 = compare_ult v31.i32, 0
-//     v34.i8 = compare_ugt v31.i32, 0
-//     v35.i8 = compare_eq v31.i32, 0
-//     store_context +300, v33.i8
-//     store_context +301, v34.i8
-//     store_context +302, v35.i8
-//     branch_true v35.i8, loc_8201A484
-//   After DSE:
-//     v33.i8 = compare_ult v31.i32, 0
-//     v34.i8 = compare_ugt v31.i32, 0
-//     v35.i8 = compare_eq v31.i32, 0
-//     branch_true v35.i8, loc_8201A484
-//   After DCE:
-//     v35.i8 = compare_eq v31.i32, 0
-//     branch_true v35.i8, loc_8201A484
 //
 
 #endif  // ALLOY_COMPILER_PASSES_H_
