@@ -60,10 +60,18 @@ int ContextPromotionPass::Run(FunctionBuilder* builder) {
   // This is more generally done by DSE, however if it could be done here
   // instead as it may be faster (at least on the block-level).
 
+  // Promote loads to values.
   // Process each block independently, for now.
   Block* block = builder->first_block();
   while (block) {
     PromoteBlock(block);
+    block = block->next;
+  }
+
+  // Remove all dead stores.
+  block = builder->first_block();
+  while (block) {
+    RemoveDeadStoresBlock(block);
     block = block->next;
   }
 
@@ -92,18 +100,35 @@ void ContextPromotionPass::PromoteBlock(Block* block) {
     } else if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
       Value* value = i->src2.value;
-      Value* previous_value = context_values_[offset];
-      if (previous_value &&
-          previous_value->def &&
-          previous_value->def->opcode == &OPCODE_STORE_CONTEXT_info) {
-        // Legit previous value from a useless store.
-        // Remove the store entirely.
-        previous_value->def->Remove();
-      }
       // Store value into the table for later.
       context_values_[offset] = value;
     }
 
     i = i->next;
+  }
+}
+
+void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
+  // TODO(benvanik): use a bitvector.
+  // To avoid clearing the structure, we use a token.
+  Value* token = (Value*)block;
+
+  // Walk backwards and mark offsets that are written to.
+  // If the offset was written to earlier, ignore the store.
+  Instr* i = block->instr_tail;
+  while (i) {
+    Instr* prev = i->prev;
+    if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
+      size_t offset = i->src1.offset;
+      Value* value = i->src2.value;
+      if (context_values_[offset] != token) {
+        // Mark offset as written to.
+        context_values_[offset] = token;
+      } else {
+        // Already written to. Remove this store.
+        i->Remove();
+      }
+    }
+    i = prev;
   }
 }

@@ -29,6 +29,7 @@ public:
 
 private:
   void PromoteBlock(hir::Block* block);
+  void RemoveDeadStoresBlock(hir::Block* block);
 
 private:
   size_t context_values_size_;
