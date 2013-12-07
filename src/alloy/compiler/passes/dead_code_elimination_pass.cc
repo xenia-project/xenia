@@ -53,8 +53,6 @@ int DeadCodeEliminationPass::Run(FunctionBuilder* builder) {
   // all removed ops with NOP and then do a single pass that removes them
   // all.
 
-  const OpcodeInfo* nop = builder->GetNopOpcode();
-
   bool any_removed = false;
   Block* block = builder->first_block();
   while (block) {
@@ -67,7 +65,7 @@ int DeadCodeEliminationPass::Run(FunctionBuilder* builder) {
       if (!(opcode->flags & OPCODE_FLAG_VOLATILE) &&
           i->dest && !i->dest->use_head) {
         // Has no uses and is not volatile. This instruction can die!
-        MakeNopRecursive(nop, i);
+        MakeNopRecursive(i);
         any_removed = true;
       }
 
@@ -84,7 +82,7 @@ int DeadCodeEliminationPass::Run(FunctionBuilder* builder) {
       Instr* i = block->instr_head;
       while (i) {
         Instr* next = i->next;
-        if (i->opcode->num == OPCODE_NOP) {
+        if (i->opcode == &OPCODE_NOP_info) {
           // Nop - remove!
           i->Remove();
         }
@@ -97,9 +95,8 @@ int DeadCodeEliminationPass::Run(FunctionBuilder* builder) {
   return 0;
 }
 
-void DeadCodeEliminationPass::MakeNopRecursive(
-    const OpcodeInfo* nop, Instr* i) {
-  i->opcode = nop;
+void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {
+  i->opcode = &hir::OPCODE_NOP_info;
   i->dest->def = NULL;
   i->dest = NULL;
 
@@ -113,7 +110,7 @@ void DeadCodeEliminationPass::MakeNopRecursive(
     if (!value->use_head) { \
       /* Value is now unused, so recursively kill it. */ \
       if (value->def && value->def != i) { \
-        MakeNopRecursive(nop, value->def); \
+        MakeNopRecursive(value->def); \
       } \
     } \
   }

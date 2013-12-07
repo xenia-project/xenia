@@ -7,23 +7,19 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/pass.h>
-
-#include <alloy/compiler/compiler.h>
+#include <alloy/hir/opcodes.h>
 
 using namespace alloy;
-using namespace alloy::compiler;
+using namespace alloy::hir;
 
 
-Pass::Pass() :
-    runtime_(0), compiler_(0) {
-}
+namespace alloy {
+namespace hir {
 
-Pass::~Pass() {
-}
+#define DEFINE_OPCODE(num, name, sig, flags) \
+    static const OpcodeInfo num##_info = { flags, sig, name, num, };
+#include <alloy/hir/opcodes.inl>
+#undef DEFINE_OPCODE
 
-int Pass::Initialize(Compiler* compiler) {
-  runtime_ = compiler->runtime();
-  compiler_ = compiler;
-  return 0;
-}
+}  // namespace hir
+}  // namespace alloy

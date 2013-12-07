@@ -13,6 +13,8 @@
 #include <alloy/core.h>
 #include <alloy/hir/function_builder.h>
 
+namespace alloy { namespace runtime { class Runtime; } }
+
 
 namespace alloy {
 namespace compiler {
@@ -22,8 +24,10 @@ class Pass;
 
 class Compiler {
 public:
-  Compiler();
+  Compiler(runtime::Runtime* runtime);
   ~Compiler();
+
+  runtime::Runtime* runtime() const { return runtime_; }
   
   void AddPass(Pass* pass);
 
@@ -32,6 +36,8 @@ public:
   int Compile(hir::FunctionBuilder* builder);
 
 private:
+  runtime::Runtime* runtime_;
+
   typedef std::vector<Pass*> PassList;
   PassList passes_;
 };

@@ -10,6 +10,7 @@
 #include <alloy/frontend/ppc/ppc_frontend.h>
 
 #include <alloy/frontend/tracing.h>
+#include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_emit.h>
 #include <alloy/frontend/ppc/ppc_translator.h>
@@ -54,6 +55,10 @@ namespace {
 PPCFrontend::PPCFrontend(Runtime* runtime) :
     Frontend(runtime) {
   InitializeIfNeeded();
+
+  ContextInfo* info = new ContextInfo(sizeof(PPCContext));
+  // Add fields/etc.
+  context_info_ = info;
 }
 
 PPCFrontend::~PPCFrontend() {

@@ -12,6 +12,7 @@
 
 #include <alloy/core.h>
 #include <alloy/memory.h>
+#include <alloy/frontend/context_info.h>
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 
@@ -31,6 +32,7 @@ public:
 
   runtime::Runtime* runtime() const { return runtime_; }
   Memory* memory() const;
+  ContextInfo* context_info() const { return context_info_; }
 
   virtual int Initialize();
 
@@ -42,6 +44,7 @@ public:
 
 protected:
   runtime::Runtime* runtime_;
+  ContextInfo* context_info_;
 };
 
 

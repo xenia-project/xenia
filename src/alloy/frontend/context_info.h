@@ -7,23 +7,30 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/pass.h>
+#ifndef ALLOY_FRONTEND_CONTEXT_INFO_H_
+#define ALLOY_FRONTEND_CONTEXT_INFO_H_
 
-#include <alloy/compiler/compiler.h>
-
-using namespace alloy;
-using namespace alloy::compiler;
+#include <alloy/core.h>
 
 
-Pass::Pass() :
-    runtime_(0), compiler_(0) {
-}
+namespace alloy {
+namespace frontend {
 
-Pass::~Pass() {
-}
 
-int Pass::Initialize(Compiler* compiler) {
-  runtime_ = compiler->runtime();
-  compiler_ = compiler;
-  return 0;
-}
+class ContextInfo {
+public:
+  ContextInfo(size_t size);
+  ~ContextInfo();
+
+  size_t size() const { return size_; }
+
+private:
+  size_t size_;
+};
+
+
+}  // namespace frontend
+}  // namespace alloy
+
+
+#endif  // ALLOY_FRONTEND_CONTEXT_INFO_H_

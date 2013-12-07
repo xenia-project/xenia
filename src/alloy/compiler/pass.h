@@ -14,9 +14,13 @@
 
 #include <alloy/hir/function_builder.h>
 
+namespace alloy { namespace runtime { class Runtime; } }
+
 
 namespace alloy {
 namespace compiler {
+
+class Compiler;
 
 
 class Pass {
@@ -24,7 +28,13 @@ public:
   Pass();
   virtual ~Pass();
 
+  virtual int Initialize(Compiler* compiler);
+
   virtual int Run(hir::FunctionBuilder* builder) = 0;
+
+protected:
+  runtime::Runtime* runtime_;
+  Compiler* compiler_;
 };
 
 

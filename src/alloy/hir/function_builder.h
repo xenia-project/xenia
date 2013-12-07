@@ -55,7 +55,6 @@ public:
 
   void Comment(const char* format, ...);
 
-  const OpcodeInfo* GetNopOpcode() const;
   void Nop();
 
   // trace info/etc

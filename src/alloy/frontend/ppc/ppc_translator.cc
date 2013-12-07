@@ -30,9 +30,9 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   scanner_ = new PPCScanner(frontend);
   builder_ = new PPCFunctionBuilder(frontend);
 
-  compiler_ = new Compiler();
+  compiler_ = new Compiler(frontend->runtime());
 
-  //compiler_->AddPass(new passes::ContextPromotionPass());
+  compiler_->AddPass(new passes::ContextPromotionPass());
   //compiler_->AddPass(new passes::ConstantPropagationPass());
   //compiler_->AddPass(new passes::TypePropagationPass());
   //compiler_->AddPass(new passes::ByteSwapEliminationPass());

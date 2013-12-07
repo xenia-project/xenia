@@ -7,23 +7,15 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/pass.h>
-
-#include <alloy/compiler/compiler.h>
+#include <alloy/frontend/context_info.h>
 
 using namespace alloy;
-using namespace alloy::compiler;
+using namespace alloy::frontend;
 
 
-Pass::Pass() :
-    runtime_(0), compiler_(0) {
+ContextInfo::ContextInfo(size_t size) :
+    size_(size) {
 }
 
-Pass::~Pass() {
-}
-
-int Pass::Initialize(Compiler* compiler) {
-  runtime_ = compiler->runtime();
-  compiler_ = compiler;
-  return 0;
+ContextInfo::~ContextInfo() {
 }

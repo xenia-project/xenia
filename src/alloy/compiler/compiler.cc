@@ -15,9 +15,11 @@
 using namespace alloy;
 using namespace alloy::compiler;
 using namespace alloy::hir;
+using namespace alloy::runtime;
 
 
-Compiler::Compiler() {
+Compiler::Compiler(Runtime* runtime) :
+    runtime_(runtime) {
   alloy::tracing::WriteEvent(EventType::Init({
   }));
 }
@@ -35,6 +37,7 @@ Compiler::~Compiler() {
 }
 
 void Compiler::AddPass(Pass* pass) {
+  pass->Initialize(this);
   passes_.push_back(pass);
 }
 

@@ -65,13 +65,13 @@ int SimplificationPass::Run(FunctionBuilder* builder) {
 
 Value* SimplificationPass::CheckValue(Value* value) {
   Instr* def = value->def;
-  if (def && def->opcode->num == OPCODE_ASSIGN) {
+  if (def && def->opcode == &OPCODE_ASSIGN_info) {
     // Value comes from an assignment - recursively find if it comes from
     // another assignment. It probably doesn't, if we already replaced it.
     Value* replacement = def->src1.value;
     while (true) {
       def = replacement->def;
-      if (!def || def->opcode->num != OPCODE_ASSIGN) {
+      if (!def || def->opcode != &OPCODE_ASSIGN_info) {
         break;
       }
       replacement = def->src1.value;

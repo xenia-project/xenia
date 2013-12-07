@@ -19,7 +19,7 @@ void Instr::set_src1(Value* value) {
   if (src1.value == value) {
     return;
   }
-  if (src1.value) {
+  if (src1_use) {
     src1.value->RemoveUse(src1_use);
   }
   src1.value = value;
@@ -30,7 +30,7 @@ void Instr::set_src2(Value* value) {
   if (src2.value == value) {
     return;
   }
-  if (src2.value) {
+  if (src2_use) {
     src2.value->RemoveUse(src2_use);
   }
   src2.value = value;
@@ -41,7 +41,7 @@ void Instr::set_src3(Value* value) {
   if (src3.value == value) {
     return;
   }
-  if (src3.value) {
+  if (src3_use) {
     src3.value->RemoveUse(src3_use);
   }
   src3.value = value;

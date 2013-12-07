@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
-#define ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
+#ifndef ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
+#define ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
 #include <alloy/compiler/pass.h>
 
@@ -18,15 +18,21 @@ namespace compiler {
 namespace passes {
 
 
-class DeadCodeEliminationPass : public Pass {
+class ContextPromotionPass : public Pass {
 public:
-  DeadCodeEliminationPass();
-  virtual ~DeadCodeEliminationPass();
+  ContextPromotionPass();
+  virtual ~ContextPromotionPass();
+
+  virtual int Initialize(Compiler* compiler);
 
   virtual int Run(hir::FunctionBuilder* builder);
 
 private:
-  void MakeNopRecursive(hir::Instr* i);
+  void PromoteBlock(hir::Block* block);
+
+private:
+  size_t context_values_size_;
+  hir::Value** context_values_;
 };
 
 
@@ -35,4 +41,4 @@ private:
 }  // namespace alloy
 
 
-#endif  // ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
+#endif  // ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_

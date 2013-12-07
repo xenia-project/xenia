@@ -18,10 +18,11 @@ using namespace alloy::runtime;
 
 
 Frontend::Frontend(Runtime* runtime) :
-    runtime_(runtime) {
+    runtime_(runtime), context_info_(0) {
 }
 
 Frontend::~Frontend() {
+  delete context_info_;
 }
 
 Memory* Frontend::memory() const {
