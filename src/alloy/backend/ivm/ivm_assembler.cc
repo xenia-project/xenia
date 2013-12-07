@@ -9,11 +9,13 @@
 
 #include <alloy/backend/ivm/ivm_assembler.h>
 
+#include <alloy/backend/backend.h>
 #include <alloy/backend/tracing.h>
 #include <alloy/backend/ivm/ivm_intcode.h>
 #include <alloy/backend/ivm/ivm_function.h>
 #include <alloy/hir/function_builder.h>
 #include <alloy/hir/label.h>
+#include <alloy/runtime/runtime.h>
 
 using namespace alloy;
 using namespace alloy::backend;
@@ -55,6 +57,7 @@ int IVMAssembler::Assemble(
   IVMFunction* fn = new IVMFunction(symbol_info);
 
   TranslationContext ctx;
+  ctx.access_callbacks = backend_->runtime()->access_callbacks();
   ctx.register_count = 0;
   ctx.intcode_count = 0;
   ctx.intcode_arena = &intcode_arena_;

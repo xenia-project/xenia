@@ -33,6 +33,9 @@ public:
   Memory* memory() const { return memory_; }
   frontend::Frontend* frontend() const { return frontend_; }
   backend::Backend* backend() const { return backend_; }
+  RegisterAccessCallbacks* access_callbacks() const {
+    return access_callbacks_;
+  }
 
   int Initialize(frontend::Frontend* frontend, backend::Backend* backend = 0);
 
@@ -41,7 +44,8 @@ public:
   int LookupFunctionInfo(uint64_t address, FunctionInfo** out_symbol_info);
   int ResolveFunction(uint64_t address, Function** out_function);
 
-  void AddRegisterAccessCallbacks(RegisterAccessCallbacks callbacks);
+  void AddRegisterAccessCallbacks(
+      const RegisterAccessCallbacks& callbacks);
 
   //uint32_t CreateCallback(void (*callback)(void* data), void* data);
 
@@ -58,6 +62,8 @@ protected:
   Mutex*              modules_lock_;
   typedef std::vector<Module*> ModuleList;
   ModuleList          modules_;
+
+  RegisterAccessCallbacks* access_callbacks_;
 };
 
 

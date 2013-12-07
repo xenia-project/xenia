@@ -21,11 +21,13 @@ typedef uint64_t (*RegisterReadCallback)(void* context, uint64_t addr);
 typedef void (*RegisterWriteCallback)(void* context, uint64_t addr,
                                       uint64_t value);
 
-typedef struct {
+typedef struct RegisterAccessCallbacks_s {
   void* context;
   RegisterHandlesCallback handles;
   RegisterReadCallback read;
   RegisterWriteCallback write;
+
+  RegisterAccessCallbacks_s* next;
 } RegisterAccessCallbacks;
 
 

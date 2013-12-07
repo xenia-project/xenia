@@ -26,6 +26,8 @@ public:
   Backend(runtime::Runtime* runtime);
   virtual ~Backend();
 
+  runtime::Runtime* runtime() const { return runtime_; }
+
   virtual int Initialize();
 
   virtual void* AllocThreadData();

@@ -25,7 +25,8 @@ DEFINE_string(runtime_backend, "any",
 
 
 Runtime::Runtime(Memory* memory) :
-    memory_(memory), backend_(0), frontend_(0) {
+    memory_(memory), backend_(0), frontend_(0),
+    access_callbacks_(0) {
   tracing::Initialize();
   modules_lock_ = AllocMutex(10000);
 }
@@ -39,6 +40,14 @@ Runtime::~Runtime() {
   }
   UnlockMutex(modules_lock_);
   FreeMutex(modules_lock_);
+
+  RegisterAccessCallbacks* cbs = access_callbacks_;
+  while (cbs) {
+    RegisterAccessCallbacks* next = cbs->next;
+    delete cbs;
+    cbs = next;
+  }
+  access_callbacks_ = NULL;
 
   delete frontend_;
   delete backend_;
@@ -213,6 +222,10 @@ int Runtime::DemandFunction(
   return 0;
 }
 
-void Runtime::AddRegisterAccessCallbacks(RegisterAccessCallbacks callbacks) {
-  //
+void Runtime::AddRegisterAccessCallbacks(
+    const RegisterAccessCallbacks& callbacks) {
+  RegisterAccessCallbacks* cbs = new RegisterAccessCallbacks();
+  xe_copy_struct(cbs, &callbacks, sizeof(callbacks));
+  cbs->next = access_callbacks_;
+  access_callbacks_ = cbs;
 }

@@ -10,6 +10,7 @@
 #include <alloy/backend/ivm/ivm_function.h>
 
 #include <alloy/backend/tracing.h>
+#include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
 
 using namespace alloy;
@@ -43,6 +44,7 @@ int IVMFunction::CallImpl(ThreadState* thread_state) {
   ics.context = (uint8_t*)thread_state->raw_context();
   ics.membase = thread_state->memory()->membase();
   ics.did_carry = 0;
+  ics.access_callbacks = thread_state->runtime()->access_callbacks();
   ics.thread_state = thread_state;
   ics.return_address = 0xBEBEBEBE;
 
