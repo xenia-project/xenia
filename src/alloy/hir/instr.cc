@@ -50,7 +50,6 @@ void Instr::set_src3(Value* value) {
 
 void Instr::Remove() {
   if (dest) {
-    XEASSERT(!dest->use_head);
     dest->def = NULL;
   }
   if (src1_use) {

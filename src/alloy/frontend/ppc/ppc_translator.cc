@@ -33,7 +33,8 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   compiler_ = new Compiler(frontend->runtime());
 
   compiler_->AddPass(new passes::ContextPromotionPass());
-  //compiler_->AddPass(new passes::ConstantPropagationPass());
+  compiler_->AddPass(new passes::SimplificationPass());
+  compiler_->AddPass(new passes::ConstantPropagationPass());
   //compiler_->AddPass(new passes::TypePropagationPass());
   //compiler_->AddPass(new passes::ByteSwapEliminationPass());
   compiler_->AddPass(new passes::SimplificationPass());

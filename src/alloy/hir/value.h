@@ -128,6 +128,11 @@ public:
     flags |= VALUE_IS_CONSTANT;
     constant.v128 = value;
   }
+  void set_from(const Value* other) {
+    type = other->type;
+    flags = other->flags;
+    constant.v128 = other->constant.v128;
+  }
 
   inline bool IsConstant() const {
     return !!(flags & VALUE_IS_CONSTANT);
@@ -184,6 +189,7 @@ public:
   void Neg();
   void Abs();
   void Sqrt();
+  void RSqrt();
   void And(Value* other);
   void Or(Value* other);
   void Xor(Value* other);

@@ -122,23 +122,111 @@ void Value::Round(RoundMode round_mode) {
 }
 
 void Value::Add(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 += other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 += other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 += other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 += other->constant.i64;
+    break;
+  case FLOAT32_TYPE:
+    constant.f32 += other->constant.f32;
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 += other->constant.f64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Sub(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 -= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 -= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 -= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 -= other->constant.i64;
+    break;
+  case FLOAT32_TYPE:
+    constant.f32 -= other->constant.f32;
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 -= other->constant.f64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Mul(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 *= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 *= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 *= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 *= other->constant.i64;
+    break;
+  case FLOAT32_TYPE:
+    constant.f32 *= other->constant.f32;
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 *= other->constant.f64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Div(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 /= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 /= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 /= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 /= other->constant.i64;
+    break;
+  case FLOAT32_TYPE:
+    constant.f32 /= other->constant.f32;
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 /= other->constant.f64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Rem(Value* other) {
@@ -157,58 +245,249 @@ void Value::MulSub(Value* dest, Value* value1, Value* value2, Value* value3) {
 }
 
 void Value::Neg() {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = -constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 = -constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 = -constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 = -constant.i64;
+    break;
+  case FLOAT32_TYPE:
+    constant.f32 = -constant.f32;
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 = -constant.f64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Abs() {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = abs(constant.i8);
+    break;
+  case INT16_TYPE:
+    constant.i16 = abs(constant.i16);
+    break;
+  case INT32_TYPE:
+    constant.i32 = abs(constant.i32);
+    break;
+  case INT64_TYPE:
+    constant.i64 = abs(constant.i64);
+    break;
+  case FLOAT32_TYPE:
+    constant.f32 = abs(constant.f32);
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 = abs(constant.f64);
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Sqrt() {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  switch (type) {
+  case FLOAT32_TYPE:
+    constant.f32 = 1.0f / sqrtf(constant.f32);
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 = 1.0 / sqrt(constant.f64);
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
+}
+
+void Value::RSqrt() {
+  switch (type) {
+  case FLOAT32_TYPE:
+    constant.f32 = sqrt(constant.f32);
+    break;
+  case FLOAT64_TYPE:
+    constant.f64 = sqrt(constant.f64);
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::And(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 &= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 &= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 &= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 &= other->constant.i64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Or(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 |= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 |= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 |= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 |= other->constant.i64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Xor(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 ^= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 ^= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 ^= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 ^= other->constant.i64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Not() {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = ~constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 = ~constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 = ~constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 = ~constant.i64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Shl(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 <<= other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 <<= other->constant.i16;
+    break;
+  case INT32_TYPE:
+    constant.i32 <<= other->constant.i32;
+    break;
+  case INT64_TYPE:
+    constant.i64 <<= other->constant.i64;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Shr(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = (uint8_t)constant.i8 >> other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 = (uint16_t)constant.i16 >> other->constant.i8;
+    break;
+  case INT32_TYPE:
+    constant.i32 = (uint32_t)constant.i32 >> other->constant.i8;
+    break;
+  case INT64_TYPE:
+    constant.i64 = (uint16_t)constant.i64 >> other->constant.i8;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::Sha(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  XEASSERT(type == other->type);
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = constant.i8 >> other->constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 = constant.i16 >> other->constant.i8;
+    break;
+  case INT32_TYPE:
+    constant.i32 = constant.i32 >> other->constant.i8;
+    break;
+  case INT64_TYPE:
+    constant.i64 = constant.i64 >> other->constant.i8;
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 void Value::ByteSwap() {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = constant.i8;
+    break;
+  case INT16_TYPE:
+    constant.i16 = XESWAP16(constant.i16);
+    break;
+  case INT32_TYPE:
+    constant.i32 = XESWAP32(constant.i32);
+    break;
+  case INT64_TYPE:
+    constant.i64 = XESWAP64(constant.i64);
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
 bool Value::Compare(Opcode opcode, Value* other) {

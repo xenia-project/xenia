@@ -1024,21 +1024,6 @@ Value* FunctionBuilder::AddWithCarry(
     uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
   XEASSERT(value3->type == INT8_TYPE);
-  
-  // TODO(benvanik): optimize when flags set.
-  if (!arithmetic_flags) {
-    if (value3->IsConstantZero()) {
-      return Add(value1, value2);
-    } else if (value1->IsConstantZero()) {
-      return Add(value2, value3);
-    } else if (value2->IsConstantZero()) {
-      return Add(value1, value3);
-    } else if (value1->IsConstant() && value2->IsConstant()) {
-      Value* dest = CloneValue(value1);
-      dest->Add(value2);
-      return Add(dest, value3);
-    }
-  }
 
   Instr* i = AppendInstr(
       OPCODE_ADD_CARRY_info, arithmetic_flags,
@@ -1053,19 +1038,6 @@ Value* FunctionBuilder::Sub(
     Value* value1, Value* value2, uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  // TODO(benvanik): optimize when flags set.
-  if (!arithmetic_flags) {
-    if (value1->IsConstantZero()) {
-      return Neg(value1);
-    } else if (value2->IsConstantZero()) {
-      return value1;
-    } else if (value1->IsConstant() && value2->IsConstant()) {
-      Value* dest = CloneValue(value1);
-      dest->Sub(value2);
-      return dest;
-    }
-  }
-
   Instr* i = AppendInstr(
       OPCODE_SUB_info, arithmetic_flags,
       AllocValue(value1->type));
@@ -1077,12 +1049,6 @@ Value* FunctionBuilder::Sub(
 
 Value* FunctionBuilder::Mul(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
-
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Mul(value2);
-    return dest;
-  }
 
   Instr* i = AppendInstr(
       OPCODE_MUL_info, 0,
@@ -1096,12 +1062,6 @@ Value* FunctionBuilder::Mul(Value* value1, Value* value2) {
 Value* FunctionBuilder::Div(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Div(value2);
-    return dest;
-  }
-
   Instr* i = AppendInstr(
       OPCODE_DIV_info, 0,
       AllocValue(value1->type));
@@ -1113,12 +1073,6 @@ Value* FunctionBuilder::Div(Value* value1, Value* value2) {
 
 Value* FunctionBuilder::Rem(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
-
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Rem(value2);
-    return dest;
-  }
 
   Instr* i = AppendInstr(
       OPCODE_REM_info, 0,
@@ -1135,12 +1089,7 @@ Value* FunctionBuilder::MulAdd(Value* value1, Value* value2, Value* value3) {
 
   bool c1 = value1->IsConstant();
   bool c2 = value2->IsConstant();
-  bool c3 = value3->IsConstant();
-  if (c1 && c2 && c3) {
-    Value* dest = AllocValue(value1->type);
-    Value::MulAdd(dest, value1, value2, value3);
-    return dest;
-  } else if (c1 && c2) {
+  if (c1 && c2) {
     Value* dest = CloneValue(value1);
     dest->Mul(value2);
     return Add(dest, value3);
@@ -1161,12 +1110,7 @@ Value* FunctionBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
 
   bool c1 = value1->IsConstant();
   bool c2 = value2->IsConstant();
-  bool c3 = value3->IsConstant();
-  if (c1 && c2 && c3) {
-    Value* dest = AllocValue(value1->type);
-    Value::MulSub(dest, value1, value2, value3);
-    return dest;
-  } else if (c1 && c2) {
+  if (c1 && c2) {
     Value* dest = CloneValue(value1);
     dest->Mul(value2);
     return Sub(dest, value3);
@@ -1184,12 +1128,6 @@ Value* FunctionBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
 Value* FunctionBuilder::Neg(Value* value) {
   ASSERT_NON_VECTOR_TYPE(value);
 
-  if (value->IsConstant()) {
-    Value* dest = CloneValue(value);
-    dest->Neg();
-    return dest;
-  }
-
   Instr* i = AppendInstr(
       OPCODE_NEG_info, 0,
       AllocValue(value->type));
@@ -1201,12 +1139,6 @@ Value* FunctionBuilder::Neg(Value* value) {
 Value* FunctionBuilder::Abs(Value* value) {
   ASSERT_NON_VECTOR_TYPE(value);
 
-  if (value->IsConstant()) {
-    Value* dest = CloneValue(value);
-    dest->Abs();
-    return dest;
-  }
-
   Instr* i = AppendInstr(
       OPCODE_ABS_info, 0,
       AllocValue(value->type));
@@ -1217,12 +1149,6 @@ Value* FunctionBuilder::Abs(Value* value) {
 
 Value* FunctionBuilder::Sqrt(Value* value) {
   ASSERT_FLOAT_TYPE(value);
-
-  if (value->IsConstant()) {
-    Value* dest = CloneValue(value);
-    dest->Sqrt();
-    return dest;
-  }
 
   Instr* i = AppendInstr(
       OPCODE_SQRT_info, 0,
@@ -1276,14 +1202,12 @@ Value* FunctionBuilder::And(Value* value1, Value* value2) {
   ASSERT_INTEGER_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (value1->IsConstantZero()) {
+  if (value1 == value2) {
+    return value1;
+  } else if (value1->IsConstantZero()) {
     return value1;
   } else if (value2->IsConstantZero()) {
     return value2;
-  } else if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->And(value2);
-    return dest;
   }
 
   Instr* i = AppendInstr(
@@ -1300,14 +1224,12 @@ Value* FunctionBuilder::Or(Value* value1, Value* value2) {
   ASSERT_INTEGER_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (value1->IsConstantZero()) {
+  if (value1 == value2) {
+    return value1;
+  } else if (value1->IsConstantZero()) {
     return value2;
   } else if (value2->IsConstantZero()) {
     return value1;
-  } else if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Or(value2);
-    return dest;
   }
 
   Instr* i = AppendInstr(
@@ -1324,10 +1246,8 @@ Value* FunctionBuilder::Xor(Value* value1, Value* value2) {
   ASSERT_INTEGER_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Xor(value2);
-    return dest;
+  if (value1 == value2) {
+    return LoadZero(value1->type);
   }
 
   Instr* i = AppendInstr(
@@ -1368,11 +1288,6 @@ Value* FunctionBuilder::Shl(Value* value1, Value* value2) {
   if (value2->type != INT8_TYPE) {
     value2 = Truncate(value2, INT8_TYPE);
   }
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Shl(value2);
-    return dest;
-  }
 
   Instr* i = AppendInstr(
       OPCODE_SHL_info, 0,
@@ -1410,11 +1325,6 @@ Value* FunctionBuilder::Shr(Value* value1, Value* value2) {
   if (value2->type != INT8_TYPE) {
     value2 = Truncate(value2, INT8_TYPE);
   }
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Shr(value2);
-    return dest;
-  }
 
   Instr* i = AppendInstr(
       OPCODE_SHR_info, 0,
@@ -1437,11 +1347,6 @@ Value* FunctionBuilder::Sha(Value* value1, Value* value2) {
   }
   if (value2->type != INT8_TYPE) {
     value2 = Truncate(value2, INT8_TYPE);
-  }
-  if (value1->IsConstant() && value2->IsConstant()) {
-    Value* dest = CloneValue(value1);
-    dest->Sha(value2);
-    return dest;
   }
 
   Instr* i = AppendInstr(
@@ -1480,11 +1385,6 @@ Value* FunctionBuilder::RotateLeft(Value* value1, Value* value2) {
 Value* FunctionBuilder::ByteSwap(Value* value) {
   if (value->type == INT8_TYPE) {
     return value;
-  }
-  if (value->IsConstant()) {
-    Value* dest = CloneValue(value);
-    dest->ByteSwap();
-    return dest;
   }
 
   Instr* i = AppendInstr(
