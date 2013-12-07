@@ -21,6 +21,11 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 
 
+// TODO(benvanik): make a compile time flag?
+//#define DYNAMIC_REGISTER_ACCESS_CHECK(address) false
+#define DYNAMIC_REGISTER_ACCESS_CHECK(address) ((address & 0xFF000000) == 0x7F000000)
+
+
 namespace alloy {
 namespace backend {
 namespace ivm {
@@ -1133,7 +1138,7 @@ int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_LOAD_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_LOAD_REGISTER_I8_DYNAMIC(ics, i);
   }
   DPRINT("%d (%X) = load.i8 %.8X\n",
@@ -1146,7 +1151,7 @@ uint32_t IntCode_LOAD_I8(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_LOAD_REGISTER_I16_DYNAMIC(ics, i);
   }
   DPRINT("%d (%X) = load.i16 %.8X\n",
@@ -1159,7 +1164,7 @@ uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_LOAD_REGISTER_I32_DYNAMIC(ics, i);
   }
   DPRINT("%d (%X) = load.i32 %.8X\n",
@@ -1172,7 +1177,7 @@ uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_LOAD_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_LOAD_REGISTER_I64(ics, i);
   }
   DPRINT("%lld (%llX) = load.i64 %.8X\n",
@@ -1226,7 +1231,7 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_STORE_REGISTER_I8_DYNAMIC(ics, i);
   }
   DPRINT("store.i8 %.8X = %d (%X)\n",
@@ -1237,7 +1242,7 @@ uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_STORE_REGISTER_I16_DYNAMIC(ics, i);
   }
   DPRINT("store.i16 %.8X = %d (%X)\n",
@@ -1248,7 +1253,7 @@ uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_STORE_REGISTER_I32_DYNAMIC(ics, i);
   }
   DPRINT("store.i32 %.8X = %d (%X)\n",
@@ -1259,7 +1264,7 @@ uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  if ((address & 0xFF000000) == 0x7F000000) {
+  if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_STORE_REGISTER_I64_DYNAMIC(ics, i);
   }
   DPRINT("store.i64 %.8X = %lld (%llX)\n",
