@@ -425,14 +425,15 @@ XEDISASMR(orcx,         0x7C000338, X  )(InstrData& i, InstrDisasm& d) {
 
 XEDISASMR(ori,          0x60000000, D  )(InstrData& i, InstrDisasm& d) {
   if (!i.D.RA && !i.D.RT && !i.D.DS) {
-    d.Init("no-op", "OR Immediate", 0);
+    d.Init("nop", "OR Immediate", 0);
+    return d.Finish();
   } else {
     d.Init("ori", "OR Immediate", 0);
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
+    d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
+    d.AddUImmOperand(i.D.DS, 2);
+    return d.Finish();
   }
-  d.AddRegOperand(InstrRegister::kGPR, i.D.RA, InstrRegister::kWrite);
-  d.AddRegOperand(InstrRegister::kGPR, i.D.RT, InstrRegister::kRead);
-  d.AddUImmOperand(i.D.DS, 2);
-  return d.Finish();
 }
 
 XEDISASMR(oris,         0x64000000, D  )(InstrData& i, InstrDisasm& d) {

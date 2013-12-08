@@ -800,6 +800,10 @@ XEEMITTER(orcx,         0x7C000338, X  )(PPCFunctionBuilder& f, InstrData& i) {
 
 XEEMITTER(ori,          0x60000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   // RA <- (RS) | (i48.0 || UI)
+  if (!i.D.RA && !i.D.RT && !i.D.DS) {
+    f.Nop();
+    return 0;
+  }
   Value* ra = f.Or(
       f.LoadGPR(i.D.RT),
       f.LoadConstant((uint64_t)i.D.DS));
