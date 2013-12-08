@@ -853,125 +853,93 @@ XEEMITTER(xoris,        0x6C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Integer rotate (A-6)
 
-//XEEMITTER(rld,          0x78000000, MDS)(PPCFunctionBuilder& f, InstrData& i) {
-//  if (i.MD.idx == 0) {
-//    // XEEMITTER(rldiclx,      0x78000000, MD )
-//    // n <- sh[5] || sh[0:4]
-//    // r <- ROTL64((RS), n)
-//    // b <- mb[5] || mb[0:4]
-//    // m <- MASK(b, 63)
-//    // RA <- r & m
-//
-//    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
-//    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
-//    uint64_t m = XEMASK(mb, 63);
-//
-//    GpVar v(c.newGpVar());
-//    c.mov(v, f.LoadGPR(i.MD.RT));
-//    if (sh) {
-//      c.rol(v, imm(sh));
-//    }
-//    if (m != 0xFFFFFFFFFFFFFFFF) {
-//      GpVar mask(c.newGpVar());
-//      c.mov(mask, imm(m));
-//      c.and_(v, mask);
-//    }
-//    f.StoreGPR(i.MD.RA, v);
-//
-//    if (i.MD.Rc) {
-//      // With cr0 update.
-//      f.UpdateCR(0, v);
-//    }
-//
-//    e.clear_constant_gpr_value(i.MD.RA);
-//
-//    return 0;
-//  } else if (i.MD.idx == 1) {
-//    // XEEMITTER(rldicrx,      0x78000004, MD )
-//    // n <- sh[5] || sh[0:4]
-//    // r <- ROTL64((RS), n)
-//    // e <- me[5] || me[0:4]
-//    // m <- MASK(0, e)
-//    // RA <- r & m
-//
-//    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
-//    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
-//    uint64_t m = XEMASK(0, mb);
-//
-//    GpVar v(c.newGpVar());
-//    c.mov(v, f.LoadGPR(i.MD.RT));
-//    if (sh) {
-//      c.rol(v, imm(sh));
-//    }
-//    if (m != 0xFFFFFFFFFFFFFFFF) {
-//      GpVar mask(c.newGpVar());
-//      c.mov(mask, imm(m));
-//      c.and_(v, mask);
-//    }
-//    f.StoreGPR(i.MD.RA, v);
-//
-//    if (i.MD.Rc) {
-//      // With cr0 update.
-//      f.UpdateCR(0, v);
-//    }
-//
-//    e.clear_constant_gpr_value(i.MD.RA);
-//
-//    return 0;
-//  } else if (i.MD.idx == 2) {
-//    // XEEMITTER(rldicx,       0x78000008, MD )
-//    XEINSTRNOTIMPLEMENTED();
-//    return 1;
-//  } else if (i.MDS.idx == 8) {
-//    // XEEMITTER(rldclx,       0x78000010, MDS)
-//    XEINSTRNOTIMPLEMENTED();
-//    return 1;
-//  } else if (i.MDS.idx == 9) {
-//    // XEEMITTER(rldcrx,       0x78000012, MDS)
-//    XEINSTRNOTIMPLEMENTED();
-//    return 1;
-//  } else if (i.MD.idx == 3) {
-//    // XEEMITTER(rldimix,      0x7800000C, MD )
-//    // n <- sh[5] || sh[0:4]
-//    // r <- ROTL64((RS), n)
-//    // b <- me[5] || me[0:4]
-//    // m <- MASK(b, ¬n)
-//    // RA <- (r & m) | ((RA)&¬m)
-//
-//    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
-//    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
-//    uint64_t m = XEMASK(mb, ~sh);
-//
-//    GpVar v(c.newGpVar());
-//    c.mov(v, f.LoadGPR(i.MD.RT));
-//    if (sh) {
-//      c.rol(v, imm(sh));
-//    }
-//    if (m != 0xFFFFFFFFFFFFFFFF) {
-//      GpVar mask(c.newGpVar());
-//      c.mov(mask, e.get_uint64(m));
-//      c.and_(v, mask);
-//      GpVar ra(c.newGpVar());
-//      c.mov(ra, f.LoadGPR(i.MD.RA));
-//      c.not_(mask);
-//      c.and_(ra, mask);
-//      c.or_(v, ra);
-//    }
-//    f.StoreGPR(i.MD.RA, v);
-//
-//    if (i.MD.Rc) {
-//      // With cr0 update.
-//      f.UpdateCR(0, v);
-//    }
-//
-//    e.clear_constant_gpr_value(i.MD.RA);
-//
-//    return 0;
-//  } else {
-//    XEINSTRNOTIMPLEMENTED();
-//    return 1;
-//  }
-//}
+XEEMITTER(rld,          0x78000000, MDS)(PPCFunctionBuilder& f, InstrData& i) {
+  if (i.MD.idx == 0) {
+    // XEEMITTER(rldiclx,      0x78000000, MD )
+    // n <- sh[5] || sh[0:4]
+    // r <- ROTL64((RS), n)
+    // b <- mb[5] || mb[0:4]
+    // m <- MASK(b, 63)
+    // RA <- r & m
+    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+    uint64_t m = XEMASK(mb, 63);
+    Value* v = f.LoadGPR(i.MD.RT);
+    if (sh) {
+      v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+    }
+    if (m != 0xFFFFFFFFFFFFFFFF) {
+      v = f.And(v, f.LoadConstant(m));
+    }
+    if (i.MD.Rc) {
+      f.UpdateCR(0, v);
+    }
+    f.StoreGPR(i.MD.RA, v);
+    return 0;
+  } else if (i.MD.idx == 1) {
+    // XEEMITTER(rldicrx,      0x78000004, MD )
+    // n <- sh[5] || sh[0:4]
+    // r <- ROTL64((RS), n)
+    // e <- me[5] || me[0:4]
+    // m <- MASK(0, e)
+    // RA <- r & m
+    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+    uint64_t m = XEMASK(0, mb);
+    Value* v = f.LoadGPR(i.MD.RT);
+    if (sh) {
+      v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+    }
+    if (m != 0xFFFFFFFFFFFFFFFF) {
+      v = f.And(v, f.LoadConstant(m));
+    }
+    if (i.MD.Rc) {
+      f.UpdateCR(0, v);
+    }
+    f.StoreGPR(i.MD.RA, v);
+    return 0;
+  } else if (i.MD.idx == 2) {
+    // XEEMITTER(rldicx,       0x78000008, MD )
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  } else if (i.MDS.idx == 8) {
+    // XEEMITTER(rldclx,       0x78000010, MDS)
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  } else if (i.MDS.idx == 9) {
+    // XEEMITTER(rldcrx,       0x78000012, MDS)
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  } else if (i.MD.idx == 3) {
+    // XEEMITTER(rldimix,      0x7800000C, MD )
+    // n <- sh[5] || sh[0:4]
+    // r <- ROTL64((RS), n)
+    // b <- me[5] || me[0:4]
+    // m <- MASK(b, ¬n)
+    // RA <- (r & m) | ((RA)&¬m)
+    uint32_t sh = (i.MD.SH5 << 5) | i.MD.SH;
+    uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+    uint64_t m = XEMASK(mb, ~sh);
+    Value* v = f.LoadGPR(i.MD.RT);
+    if (sh) {
+      v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+    }
+    if (m != 0xFFFFFFFFFFFFFFFF) {
+      Value* ra = f.LoadGPR(i.MD.RA);
+      v = f.Or(
+          f.And(v, f.LoadConstant(m)),
+          f.And(ra, f.LoadConstant(~m)));
+    }
+    if (i.MD.Rc) {
+      f.UpdateCR(0, v);
+    }
+    f.StoreGPR(i.MD.RA, v);
+    return 0;
+  } else {
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+}
 
 XEEMITTER(rlwimix,      0x50000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
   // n <- SH
@@ -1372,7 +1340,7 @@ void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(xorx,         0x7C000278);
   XEREGISTERINSTR(xori,         0x68000000);
   XEREGISTERINSTR(xoris,        0x6C000000);
-  // XEREGISTERINSTR(rld,          0x78000000);
+  XEREGISTERINSTR(rld,          0x78000000);
   // -- // XEREGISTERINSTR(rldclx,       0x78000010);
   // -- // XEREGISTERINSTR(rldcrx,       0x78000012);
   // -- // XEREGISTERINSTR(rldicx,       0x78000008);
