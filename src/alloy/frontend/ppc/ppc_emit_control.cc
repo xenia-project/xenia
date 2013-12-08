@@ -32,10 +32,12 @@ int InstrEmit_branch(
   // The docs say always, though...
   // Note that we do the update before we branch/call as we need it to
   // be correct for returns.
+  Value* return_address = f.LoadConstant(cia + 4);
+  f.SetReturnAddress(return_address);
   if (lk) {
-    f.StoreLR(f.LoadConstant(cia + 4));
+    f.StoreLR(return_address);
   }
-  
+
   if (!lk) {
     // If LR is not set this call will never return here.
     call_flags |= CALL_TAIL;
@@ -301,8 +303,8 @@ XEEMITTER(bclrx,        0x4C000020, XL )(PPCFunctionBuilder& f, InstrData& i) {
   if (!i.XL.LK && !ok) {
     // Return (most likely).
     // TODO(benvanik): test? ReturnCheck()?
-    f.Return();
-    return 0;
+    //f.Return();
+    //return 0;
   }
 
   return InstrEmit_branch(

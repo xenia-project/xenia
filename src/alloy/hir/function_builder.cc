@@ -459,6 +459,12 @@ void FunctionBuilder::Return() {
   EndBlock();
 }
 
+void FunctionBuilder::SetReturnAddress(Value* value) {
+  Instr* i = AppendInstr(OPCODE_SET_RETURN_ADDRESS_info, 0);
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+}
+
 void FunctionBuilder::Branch(Label* label, uint32_t branch_flags) {
   Instr* i = AppendInstr(OPCODE_BRANCH_info, branch_flags);
   i->src1.label = label;

@@ -34,10 +34,10 @@ public:
   Type type() const { return type_; }
   uint64_t address() const { return address_; }
 
-  int Call(ThreadState* thread_state);
+  int Call(ThreadState* thread_state, uint64_t return_address);
 
 protected:
-  virtual int CallImpl(ThreadState* thread_state) = 0;
+  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address) = 0;
 
 protected:
   Type        type_;
@@ -57,7 +57,7 @@ public:
   void* arg1() const { return arg1_; }
 
 protected:
-  virtual int CallImpl(ThreadState* thread_state);
+  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address);
 
 protected:
   Handler handler_;

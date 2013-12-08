@@ -34,7 +34,7 @@ void IVMFunction::Setup(TranslationContext& ctx) {
   intcodes_ = (IntCode*)ctx.intcode_arena->CloneContents();
 }
 
-int IVMFunction::CallImpl(ThreadState* thread_state) {
+int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // Setup register file on stack.
   size_t register_file_size = register_count_ * sizeof(Register);
   Register* register_file = (Register*)alloca(register_file_size);
@@ -46,7 +46,8 @@ int IVMFunction::CallImpl(ThreadState* thread_state) {
   ics.did_carry = 0;
   ics.access_callbacks = thread_state->runtime()->access_callbacks();
   ics.thread_state = thread_state;
-  ics.return_address = 0xBEBEBEBE;
+  ics.return_address = return_address;
+  ics.call_return_address = 0;
 
   // TODO(benvanik): DID_CARRY -- need HIR to set a OPCODE_FLAG_SET_CARRY
   //                 or something so the fns can set an ics flag.

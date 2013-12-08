@@ -23,12 +23,12 @@ Function::Function(Type type, uint64_t address) :
 Function::~Function() {
 }
 
-int Function::Call(ThreadState* thread_state) {
+int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   ThreadState* original_thread_state = ThreadState::Get();
   if (original_thread_state != thread_state) {
     ThreadState::Bind(thread_state);
   }
-  int result = CallImpl(thread_state);
+  int result = CallImpl(thread_state, return_address);
   if (original_thread_state != thread_state) {
     ThreadState::Bind(original_thread_state);
   }
@@ -44,7 +44,8 @@ ExternFunction::ExternFunction(
 ExternFunction::~ExternFunction() {
 }
 
-int ExternFunction::CallImpl(ThreadState* thread_state) {
+int ExternFunction::CallImpl(ThreadState* thread_state,
+                             uint64_t return_address) {
   if (!handler_) {
     XELOGW("undefined extern call to %.8X", address());
     return 0;

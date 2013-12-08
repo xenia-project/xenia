@@ -75,6 +75,12 @@ DEFINE_OPCODE(
     OPCODE_FLAG_BRANCH);
 
 DEFINE_OPCODE(
+    OPCODE_SET_RETURN_ADDRESS,
+    "set_return_address",
+    OPCODE_SIG_X_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_BRANCH,
     "branch",
     OPCODE_SIG_X_L,

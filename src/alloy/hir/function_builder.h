@@ -70,6 +70,7 @@ public:
   void CallIndirect(Value* value, uint32_t call_flags = 0);
   void CallIndirectTrue(Value* cond, Value* value, uint32_t call_flags = 0);
   void Return();
+  void SetReturnAddress(Value* value);
 
   void Branch(Label* label, uint32_t branch_flags = 0);
   void BranchIf(Value* cond, Label* true_label, Label* false_label,

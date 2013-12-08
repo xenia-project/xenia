@@ -47,6 +47,7 @@ typedef struct {
   runtime::RegisterAccessCallbacks* access_callbacks;
   runtime::ThreadState* thread_state;
   uint64_t      return_address;
+  uint64_t      call_return_address;
 } IntCodeState;
 
 

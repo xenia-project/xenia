@@ -523,10 +523,13 @@ int Translate_TRAP_TRUE(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_CALL_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
   FunctionInfo* symbol_info = (FunctionInfo*)ics.rf[reg].u64;
-  Function* fn;
+  Function* fn = NULL;
   ics.thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  XEASSERTNOTNULL(fn);
   // TODO(benvanik): proper tail call support, somehow.
-  fn->Call(ics.thread_state);
+  uint64_t return_address =
+      (i->flags & CALL_TAIL) ? ics.return_address : ics.call_return_address;
+  fn->Call(ics.thread_state, return_address);
   if (i->flags & CALL_TAIL) {
     return IA_RETURN;
   }
@@ -589,16 +592,21 @@ int Translate_CALL_TRUE(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_CALL_INDIRECT_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
+  uint64_t target = ics.rf[reg].u64;
+
   // Check if return address - if so, return.
-  /*if (ics.rf[reg].u64 == ics.return_address) {
+  if (target == ics.return_address) {
     return IA_RETURN;
-  }*/
+  }
 
   // Real call.
-  Function* fn;
-  ics.thread_state->runtime()->ResolveFunction(ics.rf[reg].u64, &fn);
+  Function* fn = NULL;
+  ics.thread_state->runtime()->ResolveFunction(target, &fn);
+  XEASSERTNOTNULL(fn);
   // TODO(benvanik): proper tail call support, somehow.
-  fn->Call(ics.thread_state);
+  uint64_t return_address =
+      (i->flags & CALL_TAIL) ? ics.return_address : ics.call_return_address;
+  fn->Call(ics.thread_state, return_address);
   if (i->flags & CALL_TAIL) {
     return IA_RETURN;
   }
@@ -665,6 +673,14 @@ uint32_t IntCode_RETURN(IntCodeState& ics, const IntCode* i) {
 }
 int Translate_RETURN(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_RETURN);
+}
+
+uint32_t IntCode_SET_RETURN_ADDRESS(IntCodeState& ics, const IntCode* i) {
+  ics.call_return_address = ics.rf[i->src1_reg].u32;
+  return IA_NEXT;
+}
+int Translate_SET_RETURN_ADDRESS(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_SET_RETURN_ADDRESS);
 }
 
 uint32_t IntCode_BRANCH_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
@@ -1167,6 +1183,7 @@ uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     return IntCode_LOAD_REGISTER_I32_DYNAMIC(ics, i);
   }
+  DFLUSH();
   DPRINT("%d (%X) = load.i32 %.8X\n",
          *((int32_t*)(ics.membase + address)),
          *((uint32_t*)(ics.membase + address)),
@@ -2827,6 +2844,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_CALL_INDIRECT,
   Translate_CALL_INDIRECT_TRUE,
   Translate_RETURN,
+  Translate_SET_RETURN_ADDRESS,
 
   Translate_BRANCH,
   Translate_BRANCH_IF,

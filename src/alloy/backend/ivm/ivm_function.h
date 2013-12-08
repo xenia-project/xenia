@@ -29,7 +29,8 @@ public:
   void Setup(TranslationContext& ctx);
 
 protected:
-  virtual int CallImpl(runtime::ThreadState* thread_state);
+  virtual int CallImpl(runtime::ThreadState* thread_state,
+                       uint64_t return_address);
 
 private:
 

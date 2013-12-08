@@ -47,7 +47,7 @@ int alloy_sandbox(int argc, xechar_t** argv) {
 
   Function* fn;
   runtime->ResolveFunction(0x82000000, &fn);
-  fn->Call(thread_state);
+  fn->Call(thread_state, 0xBEBEBEBE);
 
   delete thread_state;
 
