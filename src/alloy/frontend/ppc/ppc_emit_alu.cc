@@ -692,11 +692,6 @@ XEEMITTER(cntlzwx,      0x7C000034, X  )(PPCFunctionBuilder& f, InstrData& i) {
 
 XEEMITTER(eqvx,         0x7C000238, X  )(PPCFunctionBuilder& f, InstrData& i) {
   // RA <- (RS) == (RB)
-
-  // UNTESTED: ensure this is correct.
-  XEASSERTALWAYS();
-  f.DebugBreak();
-
   Value* ra = f.Xor(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   ra = f.Not(ra);
   if (i.X.Rc) {

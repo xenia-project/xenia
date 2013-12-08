@@ -546,6 +546,24 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
+// TODO(benvanik): MSR is used for toggling interrupts, and it'd be nice to
+//                 obey that setting. It's usually guarding atomic stores.
+
+XEEMITTER(mfmsr,        0x7C0000A6, X  )(PPCFunctionBuilder& f, InstrData& i) {
+  f.Nop();
+  return 0;
+}
+
+XEEMITTER(mtmsr,        0x7C000124, X  )(PPCFunctionBuilder& f, InstrData& i) {
+  f.Nop();
+  return 0;
+}
+
+XEEMITTER(mtmsrd,       0x7C000164, X  )(PPCFunctionBuilder& f, InstrData& i) {
+  f.Nop();
+  return 0;
+}
+
 
 void RegisterEmitCategoryControl() {
   XEREGISTERINSTR(bx,           0x48000000);
@@ -571,6 +589,9 @@ void RegisterEmitCategoryControl() {
   XEREGISTERINSTR(mftb,         0x7C0002E6);
   XEREGISTERINSTR(mtcrf,        0x7C000120);
   XEREGISTERINSTR(mtspr,        0x7C0003A6);
+  XEREGISTERINSTR(mfmsr,        0x7C0000A6);
+  XEREGISTERINSTR(mtmsr,        0x7C000124);
+  XEREGISTERINSTR(mtmsrd,       0x7C000164);
 }
 
 
