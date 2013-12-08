@@ -32,6 +32,7 @@ public:
   inline uint8_t* Translate(uint64_t guest_address) const {
     return membase_ + guest_address;
   };
+  inline uint32_t* reserve_address() { return &reserve_address_; }
 
   virtual int Initialize();
 
@@ -53,6 +54,7 @@ public:
 protected:
   size_t    system_page_size_;
   uint8_t*  membase_;
+  uint32_t  reserve_address_;
 };
 
 

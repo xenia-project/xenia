@@ -39,10 +39,13 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   size_t register_file_size = register_count_ * sizeof(Register);
   Register* register_file = (Register*)alloca(register_file_size);
 
+  Memory* memory = thread_state->memory();
+
   IntCodeState ics;
   ics.rf = register_file;
   ics.context = (uint8_t*)thread_state->raw_context();
-  ics.membase = thread_state->memory()->membase();
+  ics.membase = memory->membase();
+  ics.reserve_address = memory->reserve_address();
   ics.did_carry = 0;
   ics.access_callbacks = thread_state->runtime()->access_callbacks();
   ics.thread_state = thread_state;
