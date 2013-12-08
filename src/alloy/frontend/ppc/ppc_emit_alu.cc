@@ -621,7 +621,7 @@ XEEMITTER(cmpli,        0x28000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
 
 XEEMITTER(andx,         0x7C000038, X  )(PPCFunctionBuilder& f, InstrData& i) {
   // RA <- (RS) & (RB)
-  Value* ra = f.Add(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
+  Value* ra = f.And(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
@@ -631,7 +631,7 @@ XEEMITTER(andx,         0x7C000038, X  )(PPCFunctionBuilder& f, InstrData& i) {
 
 XEEMITTER(andcx,        0x7C000078, X  )(PPCFunctionBuilder& f, InstrData& i) {
   // RA <- (RS) & ¬(RB)
-  Value* ra = f.Add(f.LoadGPR(i.X.RT), f.Not(f.LoadGPR(i.X.RB)));
+  Value* ra = f.And(f.LoadGPR(i.X.RT), f.Not(f.LoadGPR(i.X.RB)));
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
@@ -641,7 +641,7 @@ XEEMITTER(andcx,        0x7C000078, X  )(PPCFunctionBuilder& f, InstrData& i) {
 
 XEEMITTER(andix,        0x70000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   // RA <- (RS) & (i48.0 || UI)
-  Value* ra = f.Add(
+  Value* ra = f.And(
       f.LoadGPR(i.D.RT),
       f.LoadConstant((uint64_t)i.D.DS));
   f.UpdateCR(0, ra);
@@ -651,7 +651,7 @@ XEEMITTER(andix,        0x70000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
 
 XEEMITTER(andisx,       0x74000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   // RA <- (RS) & (i32.0 || UI || i16.0)
-  Value* ra = f.Add(
+  Value* ra = f.And(
       f.LoadGPR(i.D.RT),
       f.LoadConstant((uint64_t)(i.D.DS << 16)));
   f.UpdateCR(0, ra);
