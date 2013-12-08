@@ -22,7 +22,7 @@ SymbolInfo::~SymbolInfo() {
 }
 
 FunctionInfo::FunctionInfo(Module* module, uint64_t address) :
-    end_address_(0), function_(0),
+    end_address_(0), behavior_(BEHAVIOR_DEFAULT), function_(0),
     SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address) {
 }
 

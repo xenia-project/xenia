@@ -12,6 +12,7 @@
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
+#include <alloy/runtime/runtime.h>
 
 using namespace alloy;
 using namespace alloy::frontend;
@@ -27,10 +28,11 @@ PPCScanner::~PPCScanner() {
 }
 
 bool PPCScanner::IsRestGprLr(uint64_t address) {
-  // TODO(benvanik): detect type.
-  /*FunctionSymbol* fn = GetFunction(addr);
-  return fn && (fn->flags & FunctionSymbol::kFlagRestGprLr);*/
-  return false;
+  FunctionInfo* symbol_info;
+  if (frontend_->runtime()->LookupFunctionInfo(address, &symbol_info)) {
+    return false;
+  }
+  return symbol_info->behavior() == FunctionInfo::BEHAVIOR_EPILOG_RETURN;
 }
 
 int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
@@ -136,7 +138,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         // (Indirect branches may still go beyond, but no way of knowing).
         if (target >= start_address &&
             target < address && furthest_target <= address) {
-          XELOGSDB("function end %.8X (back b)", addr);
+          XELOGSDB("function end %.8X (back b)", address);
           ends_fn = true;
         }
 
@@ -144,7 +146,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         // address it's definitely a tail call.
         if (!ends_fn &&
             target < start_address && furthest_target <= address) {
-          XELOGSDB("function end %.8X (back b before addr)", addr);
+          XELOGSDB("function end %.8X (back b before addr)", address);
           ends_fn = true;
         }
 
@@ -155,7 +157,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         if (!ends_fn &&
             furthest_target <= address &&
             IsRestGprLr(target)) {
-          XELOGSDB("function end %.8X (__restgprlr_*)", addr);
+          XELOGSDB("function end %.8X (__restgprlr_*)", address);
           ends_fn = true;
         }
 
@@ -224,17 +226,17 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
     } else if (i.type->opcode == 0x4C000020) {
       // bclr/bclrl
       if (i.XL.LK) {
-        XELOGSDB("bclrl %.8X", addr);
+        XELOGSDB("bclrl %.8X", address);
       } else {
-        XELOGSDB("bclr %.8X", addr);
+        XELOGSDB("bclr %.8X", address);
       }
       ends_block = true;
     } else if (i.type->opcode == 0x4C000420) {
       // bcctr/bcctrl
       if (i.XL.LK) {
-        XELOGSDB("bcctrl %.8X", addr);
+        XELOGSDB("bcctrl %.8X", address);
       } else {
-        XELOGSDB("bcctr %.8X", addr);
+        XELOGSDB("bcctr %.8X", address);
       }
       ends_block = true;
     }

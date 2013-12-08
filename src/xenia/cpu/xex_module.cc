@@ -390,6 +390,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveGprLr;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 4;
     }
@@ -402,6 +403,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestGprLr;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG_RETURN);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 4;
     }
@@ -416,6 +418,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveFpr;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 4;
     }
@@ -428,6 +431,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestFpr;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 4;
     }
@@ -446,6 +450,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 2 * 4;
     }
@@ -457,6 +462,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 2 * 4;
     }
@@ -468,6 +474,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 2 * 4;
     }
@@ -479,6 +486,7 @@ int XexModule::FindSaveRest() {
       // TODO(benvanik): set name
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
+      symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG);
       symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
       address += 2 * 4;
     }

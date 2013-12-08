@@ -53,6 +53,14 @@ protected:
 
 class FunctionInfo : public SymbolInfo {
 public:
+  enum Behavior {
+    BEHAVIOR_DEFAULT  = 0,
+    BEHAVIOR_PROLOG,
+    BEHAVIOR_EPILOG,
+    BEHAVIOR_EPILOG_RETURN,
+  };
+
+public:
   FunctionInfo(Module* module, uint64_t address);
   virtual ~FunctionInfo();
 
@@ -60,11 +68,15 @@ public:
   uint64_t end_address() const { return end_address_; }
   void set_end_address(uint64_t value) { end_address_ = value; }
 
+  Behavior behavior() const { return behavior_; }
+  void set_behavior(Behavior value) { behavior_ = value; }
+
   Function* function() const { return function_; }
   void set_function(Function* value) { function_ = value; }
 
 private:
   uint64_t  end_address_;
+  Behavior  behavior_;
   Function* function_;
 };
 
