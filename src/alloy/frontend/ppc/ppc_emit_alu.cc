@@ -1130,56 +1130,34 @@ XEEMITTER(srwx,         0x7C000430, X  )(PPCFunctionBuilder& f, InstrData& i) {
 //   return 0;
 // }
 
-// XEEMITTER(sradix,       0x7C000674, XS )(PPCFunctionBuilder& f, InstrData& i) {
-//   // n <- sh[5] || sh[0-4]
-//   // r <- ROTL[64](rS, 64 - n)
-//   // m ← MASK(n, 63)
-//   // S ← rS[0]
-//   // rA <- (r & m) | (((64)S) & ¬ m)
-//   // XER[CA] <- S & ((r & ¬ m) ¦ 0)
+XEEMITTER(sradix,       0x7C000674, XS )(PPCFunctionBuilder& f, InstrData& i) {
+  // n <- sh[5] || sh[0-4]
+  // r <- ROTL[64](rS, 64 - n)
+  // m ← MASK(n, 63)
+  // S ← rS[0]
+  // rA <- (r & m) | (((64)S) & ¬ m)
+  // XER[CA] <- S & ((r & ¬ m) ¦ 0)
+  // if n == 0: rA <- rS, XER[CA] = 0
+  // if n >= 64: rA <- 64 sign bits of rS, XER[CA] = sign bit of rS
+  Value* v = f.LoadGPR(i.XS.RT);
+  int8_t sh = (i.XS.SH5 << 5) | i.XS.SH;
 
-//   // if n == 0: rA <- rS, XER[CA] = 0
-//   // if n >= 64: rA <- 64 sign bits of rS, XER[CA] = sign bit of rS
+  // CA is set if any bits are shifted out of the right and if the result
+  // is negative.
+  XEASSERT(sh);
+  uint64_t mask = XEMASK(64 - sh, 63);
+  Value* ca = f.And(
+      f.Shr(v, 63),
+      f.IsTrue(f.And(v, f.LoadConstant(mask))));
+  f.StoreCA(ca);
 
-//   GpVar v(c.newGpVar());
-//   c.mov(v, f.LoadGPR(i.XS.RA));
-//   GpVar sh(c.newGpVar());
-//   c.mov(sh, imm((i.XS.SH5 << 5) | i.XS.SH));
-
-//   // CA is set if any bits are shifted out of the right and if the result
-//   // is negative. Start tracking that here.
-//   GpVar ca(c.newGpVar());
-//   c.mov(ca, imm(0xFFFFFFFFFFFFFFFF));
-//   GpVar ca_sh(c.newGpVar());
-//   c.mov(ca_sh, imm(63));
-//   c.sub(ca_sh, sh);
-//   c.shl(ca, ca_sh);
-//   c.shr(ca, ca_sh);
-//   c.and_(ca, v);
-//   c.cmp(ca, imm(0));
-//   c.xor_(ca, ca);
-//   c.setnz(ca.r8());
-
-//   // Shift right.
-//   c.sar(v, sh);
-
-//   // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
-//   // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-//   // We already have ca set to indicate the pos 63 bit, now just and in sign.
-//   GpVar ca_2(c.newGpVar());
-//   c.mov(ca_2, v);
-//   c.shr(ca_2, imm(63));
-//   c.and_(ca, ca_2);
-
-//   f.StoreGPR(i.XS.RT, v);
-//   e.update_xer_with_carry(ca);
-
-//   if (i.X.Rc) {
-//     f.UpdateCR(0, v);
-//   }
-//   e.clear_constant_gpr_value(i.X.RA);
-//   return 0;
-// }
+  v = f.Sha(v, sh);
+  if (i.X.Rc) {
+    f.UpdateCR(0, v);
+  }
+  f.StoreGPR(i.XS.RA, v);
+  return 0;
+}
 
 // XEEMITTER(srawx,        0x7C000630, X  )(PPCFunctionBuilder& f, InstrData& i) {
 //   // n <- rB[59-63]
@@ -1260,19 +1238,13 @@ XEEMITTER(srawix,       0x7C000670, X  )(PPCFunctionBuilder& f, InstrData& i) {
     ca = f.LoadZero(INT8_TYPE);
   } else {
     // CA is set if any bits are shifted out of the right and if the result
-    // is negative. Start tracking that here.
-    ca = f.IsTrue(
-        f.And(v, f.LoadConstant((uint32_t)~XEMASK(32 + i.X.RB, 64))));
+    // is negative.
+    uint32_t mask = (uint32_t)XEMASK(64 - i.X.RB, 63);
+    ca = f.And(
+        f.Shr(v, 31),
+        f.IsTrue(f.And(v, f.LoadConstant(mask))));
 
-    // Shift right.
     v = f.Sha(v, (int8_t)i.X.RB),
-
-    // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
-    // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-    // We already have ca set to indicate the shift bits, now just and in sign.
-    ca = f.And(ca, f.IsTrue(f.Shr(v, 31)));
-
-    // Sign extend out to 64bit.
     v = f.SignExtend(v, INT64_TYPE);
   }
   f.StoreCA(ca);
@@ -1350,7 +1322,7 @@ void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(srdx,         0x7C000436);
   XEREGISTERINSTR(srwx,         0x7C000430);
   // XEREGISTERINSTR(sradx,        0x7C000634);
-  // XEREGISTERINSTR(sradix,       0x7C000674);
+  XEREGISTERINSTR(sradix,       0x7C000674);
   // XEREGISTERINSTR(srawx,        0x7C000630);
   XEREGISTERINSTR(srawix,       0x7C000670);
 }
