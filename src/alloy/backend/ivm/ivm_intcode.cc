@@ -2779,9 +2779,9 @@ uint32_t IntCode_CNTLZ_I8(IntCodeState& ics, const IntCode* i) {
   // CHECK
   XEASSERTALWAYS();
   DWORD index;
-  DWORD mask = ics.rf[i->src1_reg].i16;
+  DWORD mask = ics.rf[i->src1_reg].i8;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)(index - 24) ^ 0x7 : 0x7;
+  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)(index - 24) ^ 0x7 : 8;
   return IA_NEXT;
 }
 uint32_t IntCode_CNTLZ_I16(IntCodeState& ics, const IntCode* i) {
@@ -2790,21 +2790,21 @@ uint32_t IntCode_CNTLZ_I16(IntCodeState& ics, const IntCode* i) {
   DWORD index;
   DWORD mask = ics.rf[i->src1_reg].i16;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)(index - 16) ^ 0xF : 0xF;
+  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)(index - 16) ^ 0xF : 16;
   return IA_NEXT;
 }
 uint32_t IntCode_CNTLZ_I32(IntCodeState& ics, const IntCode* i) {
   DWORD index;
   DWORD mask = ics.rf[i->src1_reg].i32;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)index ^ 0x1F : 0x1F;
+  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)index ^ 0x1F : 32;
   return IA_NEXT;
 }
 uint32_t IntCode_CNTLZ_I64(IntCodeState& ics, const IntCode* i) {
   DWORD index;
   DWORD64 mask = ics.rf[i->src1_reg].i64;
   BOOLEAN is_nonzero = _BitScanReverse64(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)index ^ 0x3F : 0x3F;
+  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)index ^ 0x3F : 64;
   return IA_NEXT;
 }
 int Translate_CNTLZ(TranslationContext& ctx, Instr* i) {
