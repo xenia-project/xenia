@@ -228,7 +228,7 @@ XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCFunctionBuilder& f, Inst
 // https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
 int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.LoadVectorLeft(ea, VEC128_TYPE);
+  Value* v = f.ByteSwap(f.LoadVectorLeft(ea, VEC128_TYPE));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -247,7 +247,7 @@ XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCFunctionBuilder& f, Inst
 
 int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.LoadVectorRight(ea, VEC128_TYPE);
+  Value* v = f.ByteSwap(f.LoadVectorRight(ea, VEC128_TYPE));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -266,7 +266,7 @@ XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCFunctionBuilder& f, Inst
 
 int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.LoadVR(vd);
+  Value* v = f.ByteSwap(f.LoadVR(vd));
   f.StoreVectorLeft(ea, v);
   return 0;
 }
@@ -285,7 +285,7 @@ XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCFunctionBuilder& f, Inst
 
 int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.LoadVR(vd);
+  Value* v = f.ByteSwap(f.LoadVR(vd));
   f.StoreVectorRight(ea, v);
   return 0;
 }
