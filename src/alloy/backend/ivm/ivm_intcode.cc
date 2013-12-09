@@ -1900,7 +1900,7 @@ int Translate_VECTOR_COMPARE_UGE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-#define CHECK_DID_CARRY(v1, v2) ((v2) > ~(v1))
+#define CHECK_DID_CARRY(v1, v2) (((uint64_t)v2) > ~((uint64_t)v1))
 #define ADD_DID_CARRY(a, b) CHECK_DID_CARRY(a, b)
 uint32_t IntCode_ADD_I8_I8(IntCodeState& ics, const IntCode* i) {
   int8_t a = ics.rf[i->src1_reg].i8; int8_t b = ics.rf[i->src2_reg].i8;
