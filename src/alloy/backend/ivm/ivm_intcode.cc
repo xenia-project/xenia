@@ -2977,6 +2977,51 @@ int Translate_EXTRACT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fn);
 }
 
+uint32_t IntCode_INSERT_INT8_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const size_t offset = ics.rf[i->src2_reg].i64;
+  const uint8_t part = ics.rf[i->src3_reg].i8;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (size_t n = 0; n < 16; n++) {
+    dest.b16[n] = (n == offset) ? part : src1.b16[n];
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_INSERT_INT16_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const size_t offset = ics.rf[i->src2_reg].i64;
+  const uint16_t part = ics.rf[i->src3_reg].i16;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (size_t n = 0; n < 8; n++) {
+    dest.s8[n] = (n == offset) ? part : src1.s8[n];
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_INSERT_INT32_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const size_t offset = ics.rf[i->src2_reg].i64;
+  const uint32_t part = ics.rf[i->src3_reg].i32;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (size_t n = 0; n < 4; n++) {
+    dest.i4[n] = (n == offset) ? part : src1.i4[n];
+  }
+  return IA_NEXT;
+}
+int Translate_INSERT(TranslationContext& ctx, Instr* i) {
+  // Can do more as needed.
+  static IntCodeFn fns[] = {
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+    IntCode_INSERT_INT8_V128, IntCode_INSERT_INT16_V128, IntCode_INSERT_INT32_V128, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
+  };
+  IntCodeFn fn = fns[i->src1.value->type * MAX_TYPENAME + i->src3.value->type];
+  return DispatchToC(ctx, i, fn);
+}
+
 uint32_t IntCode_SPLAT_V128_INT8(IntCodeState& ics, const IntCode* i) {
   int8_t src1 = ics.rf[i->src1_reg].i8;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
@@ -3039,7 +3084,7 @@ uint32_t IntCode_PERMUTE_V128_BY_INT32(IntCodeState& ics, const IntCode* i) {
   }
   return IA_NEXT;
 }
-uint32_t IntCode_PERMUTE_V128_BY_VEC128(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_PERMUTE_V128_BY_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
@@ -3063,7 +3108,7 @@ int Translate_PERMUTE(TranslationContext& ctx, Instr* i) {
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_PERMUTE_V128_BY_VEC128,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_PERMUTE_V128_BY_V128,
   };
   IntCodeFn fn = fns[i->src1.value->type * MAX_TYPENAME + i->dest->type];
   return DispatchToC(ctx, i, fn);
@@ -3191,7 +3236,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_ROTATE_LEFT,
   Translate_BYTE_SWAP,
   Translate_CNTLZ,
-  TranslateInvalid, //Translate_INSERT
+  Translate_INSERT,
   Translate_EXTRACT,
   Translate_SPLAT,
   Translate_PERMUTE,
