@@ -1159,65 +1159,34 @@ XEEMITTER(sradix,       0x7C000674, XS )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-// XEEMITTER(srawx,        0x7C000630, X  )(PPCFunctionBuilder& f, InstrData& i) {
-//   // n <- rB[59-63]
-//   // r <- ROTL32((RS)[32:63], 64-n)
-//   // m <- MASK(n+32, 63)
-//   // s <- (RS)[32]
-//   // RA <- r&m | (i64.s)&¬m
-//   // CA <- s & ((r&¬m)[32:63]≠0)
-
-//   // if n == 0: rA <- sign_extend(rS), XER[CA] = 0
-//   // if n >= 32: rA <- 64 sign bits of rS, XER[CA] = sign bit of lo_32(rS)
-
-//   GpVar v(c.newGpVar());
-//   c.mov(v, f.LoadGPR(i.X.RT));
-//   GpVar sh(c.newGpVar());
-//   c.mov(sh, f.LoadGPR(i.X.RB));
-//   c.and_(sh, imm(0x7F));
-
-//   GpVar ca(c.newGpVar());
-//   Label skip(c.newLabel());
-//   Label full(c.newLabel());
-//   c.test(sh, sh);
-//   c.jnz(full);
-//   {
-//     // No shift, just a fancy sign extend and CA clearer.
-//     c.cdqe(v);
-//     c.mov(ca, imm(0));
-//   }
-//   c.jmp(skip);
-//   c.bind(full);
-//   {
-//     // CA is set if any bits are shifted out of the right and if the result
-//     // is negative. Start tracking that here.
-//     c.mov(ca, v);
-//     c.and_(ca, imm(~XEMASK(32 + i.X.RB, 64)));
-//     c.cmp(ca, imm(0));
-//     c.xor_(ca, ca);
-//     c.setnz(ca.r8());
-
-//     // Shift right and sign extend the 32bit part.
-//     c.sar(v.r32(), imm(i.X.RB));
-//     c.cdqe(v);
-
-//     // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
-//     // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-//     // We already have ca set to indicate the shift bits, now just and in sign.
-//     GpVar ca_2(c.newGpVar());
-//     c.mov(ca_2, v.r32());
-//     c.shr(ca_2, imm(31));
-//     c.and_(ca, ca_2);
-//   }
-//   c.bind(skip);
-
-//   f.StoreGPR(i.X.RA, v);
-//   e.update_xer_with_carry(ca);
-//   if (i.X.Rc) {
-//     f.UpdateCR(0, v);
-//   }
-//   return 0;
-// }
+XEEMITTER(srawx,        0x7C000630, X  )(PPCFunctionBuilder& f, InstrData& i) {
+  // n <- rB[59-63]
+  // r <- ROTL32((RS)[32:63], 64-n)
+  // m <- MASK(n+32, 63)
+  // s <- (RS)[32]
+  // RA <- r&m | (i64.s)&¬m
+  // CA <- s & ((r&¬m)[32:63]≠0)
+  // if n == 0: rA <- sign_extend(rS), XER[CA] = 0
+  // if n >= 32: rA <- 64 sign bits of rS, XER[CA] = sign bit of lo_32(rS)
+  Value* v = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
+  Value* sh = f.And(
+      f.Truncate(f.LoadGPR(i.X.RB), INT32_TYPE),
+      f.LoadConstant((int8_t)0x7F));
+  // CA is set if any bits are shifted out of the right and if the result
+  // is negative.
+  Value* mask = f.Not(f.Shl(f.LoadConstant(-1), sh));
+  Value* ca = f.And(
+      f.Shr(v, 31),
+      f.IsTrue(f.And(v, mask)));
+  f.StoreCA(ca);
+  v = f.Sha(v, sh),
+  v = f.SignExtend(v, INT64_TYPE);
+  f.StoreGPR(i.X.RA, v);
+  if (i.X.Rc) {
+    f.UpdateCR(0, v);
+  }
+  return 0;
+}
 
 XEEMITTER(srawix,       0x7C000670, X  )(PPCFunctionBuilder& f, InstrData& i) {
   // n <- SH
@@ -1226,10 +1195,8 @@ XEEMITTER(srawix,       0x7C000670, X  )(PPCFunctionBuilder& f, InstrData& i) {
   // s <- (RS)[32]
   // RA <- r&m | (i64.s)&¬m
   // CA <- s & ((r&¬m)[32:63]≠0)
-
   // if n == 0: rA <- sign_extend(rS), XER[CA] = 0
   // if n >= 32: rA <- 64 sign bits of rS, XER[CA] = sign bit of lo_32(rS)
-
   Value* v = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
   Value* ca;
   if (!i.X.RB) {
@@ -1323,7 +1290,7 @@ void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(srwx,         0x7C000430);
   // XEREGISTERINSTR(sradx,        0x7C000634);
   XEREGISTERINSTR(sradix,       0x7C000674);
-  // XEREGISTERINSTR(srawx,        0x7C000630);
+  XEREGISTERINSTR(srawx,        0x7C000630);
   XEREGISTERINSTR(srawix,       0x7C000670);
 }
 

@@ -1249,85 +1249,51 @@ XEEMITTER(vslw128,        VX128(6, 208),    VX128  )(PPCFunctionBuilder& f, Inst
   return InstrEmit_vslw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-// static __m128i __shift_table_out[16] = {
-//   _mm_set_epi8(15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0), // unused
-//   _mm_set_epi8( 0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1),
-//   _mm_set_epi8( 0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2),
-//   _mm_set_epi8( 0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3),
-//   _mm_set_epi8( 0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4),
-//   _mm_set_epi8( 0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8,  7),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9,  8),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10,  9),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11, 10),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12, 11),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13, 12),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14, 13),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15, 14),
-//   _mm_set_epi8( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 15),
-// };
-// static __m128i __shift_table_in[16] = {
-//   _mm_set_epi8(15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15), // unused
-//   _mm_set_epi8( 0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8( 9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15, 15),
-//   _mm_set_epi8(10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15, 15),
-//   _mm_set_epi8(11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15, 15),
-//   _mm_set_epi8(12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15, 15),
-//   _mm_set_epi8(13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15, 15),
-//   _mm_set_epi8(14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0, 15),
-// };
-// int InstrEmit_vsldoi_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t sh) {
-//   // (VD) <- ((VA) || (VB)) << (SH << 3)
-//   if (!sh) {
-//     // No shift?
-//     f.StoreVR(vd, f.LoadVR(va));
-//     e.TraceVR(vd, va, vb);
-//     return 0;
-//   } else if (sh == 16) {
-//     f.StoreVR(vd, f.LoadVR(vb));
-//     e.TraceVR(vd, va, vb);
-//     return 0;
-//   }
-//   // TODO(benvanik): optimize for the rotation case:
-//   // vsldoi128 vr63,vr63,vr63,4
-//   // (ABCD ABCD) << 4b = (BCDA)
-//   // TODO(benvanik): rewrite this piece of shit.
-//   XmmVar v(c.newXmmVar());
-//   c.movaps(v, f.LoadVR(va));
-//   XmmVar v_r(c.newXmmVar());
-//   c.movaps(v_r, f.LoadVR(vb));
-//   // (VA << SH) OR (VB >> (16 - SH))
-//   GpVar gt(c.newGpVar());
-//   c.xor_(gt, gt);
-//   c.pinsrb(v, gt.r8(), imm(0));
-//   c.pinsrb(v_r, gt.r8(), imm(15));
-//   c.mov(gt, imm((sysint_t)&__shift_table_out[sh]));
-//   XmmVar shuf(c.newXmmVar());
-//   c.movaps(shuf, xmmword_ptr(gt));
-//   c.pshufb(v, shuf);
-//   c.mov(gt, imm((sysint_t)&__shift_table_in[sh]));
-//   c.movaps(shuf, xmmword_ptr(gt));
-//   c.pshufb(v_r, shuf);
-//   c.por(v, v_r);
-//   f.StoreVR(vd, v);
-//   e.TraceVR(vd, va, vb);
-//   return 0;
-// }
-// XEEMITTER(vsldoi,         0x1000002C, VXA )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_vsldoi_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC & 0xF);
-// }
-// XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_vsldoi_(f, VX128_5_VD128, VX128_5_VA128, VX128_5_VB128, VX128_5_SH);
-// }
+static uint8_t __vsldoi_table[16][16] = {
+  {15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0}, // unused
+  {16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1},
+  {17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2},
+  {18, 17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3},
+  {19, 18, 17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4},
+  {20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5},
+  {21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6},
+  {22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7},
+  {23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,  9,  8},
+  {24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,  9},
+  {25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10},
+  {26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11},
+  {27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12},
+  {28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13},
+  {29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14},
+  {30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15},
+};
+int InstrEmit_vsldoi_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t sh) {
+  // (VD) <- ((VA) || (VB)) << (SH << 3)
+  if (!sh) {
+    f.StoreVR(vd, f.LoadVR(va));
+    return 0;
+  } else if (sh == 16) {
+    f.StoreVR(vd, f.LoadVR(vb));
+    return 0;
+  }
+  // TODO(benvanik): optimize for the rotation case:
+  // vsldoi128 vr63,vr63,vr63,4
+  // (ABCD ABCD) << 4b = (BCDA)
+  // (VA << SH) OR (VB >> (16 - SH))
+  Value* control = f.LoadConstant(*((vec128_t*)(__vsldoi_table[sh])));
+  Value* v = f.Permute(
+      control,
+      f.LoadVR(va),
+      f.LoadVR(vb), INT8_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(vsldoi,         0x1000002C, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_vsldoi_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC & 0xF);
+}
+XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_vsldoi_(f, VX128_5_VD128, VX128_5_VA128, VX128_5_VB128, VX128_5_SH);
+}
 
 XEEMITTER(vslo,           0x1000040C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1637,45 +1603,27 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCFunctionBuilder& f, Inst
   switch (type) {
   case 0: // VPACK_D3DCOLOR
     {
-      XEASSERTALWAYS();
-      return 1;
       // http://hlssmod.net/he_code/public/pixelwriter.h
       // ARGB (WXYZ) -> RGBA (XYZW)
       // zzzzZZZZzzzzARGB
-      //c.movaps(vt, f.LoadVR(vb));
-      //// zzzzZZZZzzzzARGB
-      //// 000R000G000B000A
-      //c.mov(gt, imm(
-      //    ((1ull << 7) << 56) |
-      //    ((1ull << 7) << 48) |
-      //    ((1ull << 7) << 40) |
-      //    ((0ull) << 32) | // B
-      //    ((1ull << 7) << 24) |
-      //    ((1ull << 7) << 16) |
-      //    ((1ull << 7) << 8) |
-      //    ((3ull) << 0)) // A
-      //    ); // lo
-      //c.movq(v, gt);
-      //c.mov(gt, imm(
-      //    ((1ull << 7) << 56) |
-      //    ((1ull << 7) << 48) |
-      //    ((1ull << 7) << 40) |
-      //    ((2ull) << 32) | // R
-      //    ((1ull << 7) << 24) |
-      //    ((1ull << 7) << 16) |
-      //    ((1ull << 7) << 8) |
-      //    ((1ull) << 0)) // G
-      //    ); // hi
-      //c.pinsrq(v, gt, imm(1));
-      //c.pshufb(vt, v);
-      //// {256*R.0, 256*G.0, 256*B.0, 256*A.0}
-      //c.cvtdq2ps(v, vt);
-      //// {R.0, G.0, B.0 A.0}
-      //// 1/256 = 0.00390625 = 0x3B800000
-      //c.mov(gt, imm(0x3B800000));
-      //c.movd(vt, gt.r32());
-      //c.shufps(vt, vt, imm(0));
-      //c.mulps(v, vt);
+      v = f.LoadVR(vb);
+      // 0zzzZZZZzzzzARGB
+      v = f.Insert(v, 0, f.LoadConstant((int8_t)0));
+      // 000R000G000B000A
+      vec128_t shuf_v = { 0 };
+      shuf_v.b16[3] = 13;
+      shuf_v.b16[7] = 14;
+      shuf_v.b16[11] = 15;
+      shuf_v.b16[15] = 12;
+      Value* shuf = f.LoadConstant(shuf_v);
+      v = f.Permute(shuf, v, v, INT8_TYPE);
+      // {256*R.0, 256*G.0, 256*B.0, 256*A.0}
+      v = f.VectorConvertI2F(v);
+      // {R.0, G.0, B.0 A.0}
+      // 1/256 = 0.00390625 = 0x3B800000
+      v = f.Mul(
+          v,
+          f.Splat(f.LoadConstant((uint32_t)0x3B800000), VEC128_TYPE));
     }
     break;
   case 1: // VPACK_NORMSHORT2
@@ -1955,8 +1903,8 @@ void RegisterEmitCategoryAltivec() {
   XEREGISTERINSTR(vslo128,        VX128(5, 912));
   XEREGISTERINSTR(vslw,           0x10000184);
   XEREGISTERINSTR(vslw128,        VX128(6, 208));
-  // XEREGISTERINSTR(vsldoi,         0x1000002C);
-  // XEREGISTERINSTR(vsldoi128,      VX128_5(4, 16));
+  XEREGISTERINSTR(vsldoi,         0x1000002C);
+  XEREGISTERINSTR(vsldoi128,      VX128_5(4, 16));
   XEREGISTERINSTR(vspltb,         0x1000020C);
   XEREGISTERINSTR(vsplth,         0x1000024C);
   XEREGISTERINSTR(vspltw,         0x1000028C);
