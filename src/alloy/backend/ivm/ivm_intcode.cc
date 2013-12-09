@@ -592,7 +592,7 @@ int Translate_CALL_TRUE(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_CALL_INDIRECT_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
-  uint64_t target = ics.rf[reg].u64;
+  uint64_t target = ics.rf[reg].u32;
 
   // Check if return address - if so, return.
   if (target == ics.return_address) {

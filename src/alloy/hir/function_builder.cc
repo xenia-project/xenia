@@ -1455,8 +1455,6 @@ Value* FunctionBuilder::Splat(Value* value, TypeName target_type) {
 Value* FunctionBuilder::Permute(
     Value* control, Value* value1, Value* value2, TypeName part_type) {
   ASSERT_TYPES_EQUAL(value1, value2);
-  // For now.
-  XEASSERT(part_type == INT32_TYPE || part_type == FLOAT32_TYPE);
 
   // TODO(benvanik): could do some of this as constants.
 

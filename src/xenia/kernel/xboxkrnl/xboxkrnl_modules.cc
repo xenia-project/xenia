@@ -210,9 +210,38 @@ SHIM_CALL XexGetModuleHandle_shim(
 // }
 
 
-// SHIM_CALL XexGetProcedureAddress_shim(
-//     PPCContext* ppc_state, KernelState* state) {
-// }
+SHIM_CALL XexGetProcedureAddress_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t module_handle = SHIM_GET_ARG_32(0);
+  uint32_t ordinal = SHIM_GET_ARG_32(1);
+  uint32_t out_function_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "XexGetProcedureAddress(%.8X, %.8X, %.8X)",
+      module_handle, ordinal, out_function_ptr);
+
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+
+  XModule* module = NULL;
+
+  if (!module_handle) {
+    module = state->GetExecutableModule();
+  } else {
+    result = state->object_table()->GetObject(
+        module_handle, (XObject**)&module);
+  }
+
+  if (XSUCCEEDED(result)) {
+    // TODO(benvanik): implement. May need to create stub functions on the fly.
+    // module->GetProcAddressByOrdinal(ordinal);
+    result = X_STATUS_INVALID_HANDLE;
+  }
+  if (module) {
+    module->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
 
 
 }  // namespace xboxkrnl
@@ -228,5 +257,5 @@ void xe::kernel::xboxkrnl::RegisterModuleExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleHandle, state);
   // SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleSection, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);
 }
