@@ -382,7 +382,7 @@ int TranslateInvalid(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_COMMENT(IntCodeState& ics, const IntCode* i) {
   char* value = (char*)(i->src1_reg | ((uint64_t)i->src2_reg << 32));
-  IPRINT("%s\n", value);
+  IPRINT("XE[t] :%d: %s\n", ics.thread_state->GetThreadID(), value);
   IFLUSH();
   return IA_NEXT;
 }

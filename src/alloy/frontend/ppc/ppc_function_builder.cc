@@ -96,15 +96,15 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
         AnnotateLabel(address, label);
       }
       if (!i.type) {
-        Comment("%.8X: %.8X ???", address, i.code);
+        Comment("%.8X %.8X ???", address, i.code);
       } else if (i.type->disassemble) {
         ppc::InstrDisasm d;
         i.type->disassemble(i, d);
         std::string disasm;
         d.Dump(disasm);
-        Comment("%.8X: %.8X %s", address, i.code, disasm.c_str());
+        Comment("%.8X %.8X %s", address, i.code, disasm.c_str());
       } else {
-        Comment("%.8X: %.8X %s ???", address, i.code, i.type->name);
+        Comment("%.8X %.8X %s ???", address, i.code, i.type->name);
       }
     }
 
