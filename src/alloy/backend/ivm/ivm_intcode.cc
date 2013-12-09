@@ -1025,6 +1025,10 @@ uint32_t IntCode_CONVERT_F32_TO_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = (double)ics.rf[i->src1_reg].f32;
   return IA_NEXT;
 }
+uint32_t IntCode_CONVERT_F64_TO_I32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i32 = (int32_t)ics.rf[i->src1_reg].f64;
+  return IA_NEXT;
+}
 uint32_t IntCode_CONVERT_F64_TO_I64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i64 = (int64_t)ics.rf[i->src1_reg].f64;
   return IA_NEXT;
@@ -1041,7 +1045,7 @@ int Translate_CONVERT(TranslationContext& ctx, Instr* i) {
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_ASSIGN_I32, IntCode_INVALID_TYPE, IntCode_CONVERT_I32_TO_F32, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_ASSIGN_I64, IntCode_INVALID_TYPE, IntCode_CONVERT_I64_TO_F64, IntCode_INVALID_TYPE,
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_CONVERT_F32_TO_I32, IntCode_INVALID_TYPE, IntCode_ASSIGN_F32, IntCode_CONVERT_F32_TO_F64, IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_CONVERT_F64_TO_I64, IntCode_CONVERT_F64_TO_F32, IntCode_ASSIGN_F64, IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_CONVERT_F64_TO_I32, IntCode_CONVERT_F64_TO_I64, IntCode_CONVERT_F64_TO_F32, IntCode_ASSIGN_F64, IntCode_INVALID_TYPE,
     IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_INVALID_TYPE, IntCode_ASSIGN_V128,
   };
   IntCodeFn fn = fns[i->src1.value->type * MAX_TYPENAME + i->dest->type];
