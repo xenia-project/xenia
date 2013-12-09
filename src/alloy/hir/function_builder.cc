@@ -781,6 +781,28 @@ Value* FunctionBuilder::Load(
   return i->dest;
 }
 
+Value* FunctionBuilder::LoadVectorLeft(
+    Value* address, TypeName type, uint32_t load_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(
+      OPCODE_LOAD_VECTOR_LEFT_info, load_flags,
+      AllocValue(type));
+  i->set_src1(address);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* FunctionBuilder::LoadVectorRight(
+    Value* address, TypeName type, uint32_t load_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(
+      OPCODE_LOAD_VECTOR_RIGHT_info, load_flags,
+      AllocValue(type));
+  i->set_src1(address);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* FunctionBuilder::LoadAcquire(
     Value* address, TypeName type, uint32_t load_flags) {
   ASSERT_ADDRESS_TYPE(address);
@@ -810,6 +832,26 @@ Value* FunctionBuilder::StoreRelease(
   i->set_src2(value);
   i->src3.value = NULL;
   return i->dest;
+}
+
+void FunctionBuilder::StoreVectorLeft(
+    Value* address, Value* value, uint32_t store_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  ASSERT_VECTOR_TYPE(value);
+  Instr* i = AppendInstr(OPCODE_STORE_VECTOR_LEFT_info, store_flags);
+  i->set_src1(address);
+  i->set_src2(value);
+  i->src3.value = NULL;
+}
+
+void FunctionBuilder::StoreVectorRight(
+    Value* address, Value* value, uint32_t store_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  ASSERT_VECTOR_TYPE(value);
+  Instr* i = AppendInstr(OPCODE_STORE_VECTOR_RIGHT_info, store_flags);
+  i->set_src1(address);
+  i->set_src2(value);
+  i->src3.value = NULL;
 }
 
 void FunctionBuilder::Prefetch(

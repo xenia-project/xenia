@@ -140,12 +140,7 @@ XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_lvsl_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea;
-  if (ra) {
-    ea = f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
-  } else {
-    ea = f.LoadGPR(rb);
-  }
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
   Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShl(sh);
   f.StoreVR(vd, v);
@@ -159,12 +154,7 @@ XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_lvsr_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea;
-  if (ra) {
-    ea = f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
-  } else {
-    ea = f.LoadGPR(rb);
-  }
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
   Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShr(sh);
   f.StoreVR(vd, v);
@@ -234,185 +224,83 @@ XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCFunctionBuilder& f, Inst
   return InstrEmit_stvx128(f, i);
 }
 
-// // The lvlx/lvrx/etc instructions are in Cell docs only:
-// // https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
-// int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-//   GpVar ea(c.newGpVar());
-//   c.mov(ea, e.gpr_value(rb));
-//   if (ra) {
-//     c.add(ea, e.gpr_value(ra));
-//   }
-//   GpVar sh(c.newGpVar());
-//   c.mov(sh, ea);
-//   c.and_(sh, imm(0xF));
-//   XmmVar v = e.ReadMemoryXmm(i.address, ea, 4);
-//   // If fully aligned skip complex work.
-//   Label done(c.newLabel());
-//   c.test(sh, sh);
-//   c.jz(done);
-//   {
-//     // Shift left by the number of bytes offset and fill with zeros.
-//     // We reuse the lvsl table here, as it does that for us.
-//     GpVar gt(c.newGpVar());
-//     c.xor_(gt, gt);
-//     c.pinsrb(v, gt.r8(), imm(15));
-//     c.shl(sh, imm(4)); // table offset = (16b * sh)
-//     c.mov(gt, imm((sysint_t)__shift_table_left));
-//     c.pshufb(v, xmmword_ptr(gt, sh));
-//   }
-//   c.bind(done);
-//   c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
-//   f.StoreVR(vd, v);
-//   e.TraceVR(vd);
-//   return 0;
-// }
-// XEEMITTER(lvlx,           0x7C00040E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
-// XEEMITTER(lvlx128,        VX128_1(4, 1027), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvlx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
-// }
-// XEEMITTER(lvlxl,          0x7C00060E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvlx(f, i);
-// }
-// XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvlx128(f, i);
-// }
+// The lvlx/lvrx/etc instructions are in Cell docs only:
+// https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
+int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* v = f.LoadVectorLeft(ea, VEC128_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(lvlx,           0x7C00040E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(lvlx128,        VX128_1(4, 1027), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvlx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
+}
+XEEMITTER(lvlxl,          0x7C00060E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvlx(f, i);
+}
+XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvlx128(f, i);
+}
 
-// int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-//   GpVar ea(c.newGpVar());
-//   c.mov(ea, e.gpr_value(rb));
-//   if (ra) {
-//     c.add(ea, e.gpr_value(ra));
-//   }
-//   GpVar sh(c.newGpVar());
-//   c.mov(sh, ea);
-//   c.and_(sh, imm(0xF));
-//   // If fully aligned skip complex work.
-//   XmmVar v(c.newXmmVar());
-//   c.pxor(v, v);
-//   Label done(c.newLabel());
-//   c.test(sh, sh);
-//   c.jz(done);
-//   {
-//     // Shift left by the number of bytes offset and fill with zeros.
-//     // We reuse the lvsl table here, as it does that for us.
-//     c.movaps(v, e.ReadMemoryXmm(i.address, ea, 4));
-//     GpVar gt(c.newGpVar());
-//     c.xor_(gt, gt);
-//     c.pinsrb(v, gt.r8(), imm(0));
-//     c.shl(sh, imm(4)); // table offset = (16b * sh)
-//     c.mov(gt, imm((sysint_t)__shift_table_right));
-//     c.pshufb(v, xmmword_ptr(gt, sh));
-//     c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
-//   }
-//   c.bind(done);
-//   f.StoreVR(vd, v);
-//   e.TraceVR(vd);
-//   return 0;
-// }
-// XEEMITTER(lvrx,           0x7C00044E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
-// XEEMITTER(lvrx128,        VX128_1(4, 1091), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvrx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
-// }
-// XEEMITTER(lvrxl,          0x7C00064E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvrx(f, i);
-// }
-// XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvrx128(f, i);
-// }
+int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* v = f.LoadVectorRight(ea, VEC128_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(lvrx,           0x7C00044E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(lvrx128,        VX128_1(4, 1091), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvrx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
+}
+XEEMITTER(lvrxl,          0x7C00064E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvrx(f, i);
+}
+XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvrx128(f, i);
+}
 
-// // TODO(benvanik): implement for real - this is in the memcpy path.
-// static void __emulated_stvlx(uint64_t addr, __m128i vd) {
-//   // addr here is the fully translated address.
-//   const uint8_t eb = addr & 0xF;
-//   const size_t size = 16 - eb;
-//   uint8_t* p = (uint8_t*)addr;
-//   for (size_t i = 0; i < size; i++) {
-//     p[i] = vd.m128i_u8[15 - i];
-//   }
-// }
-// int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-//   GpVar ea(c.newGpVar());
-//   c.mov(ea, e.gpr_value(rb));
-//   if (ra) {
-//     c.add(ea, e.gpr_value(ra));
-//   }
-//   ea = e.TouchMemoryAddress(i.address, ea);
-//   XmmVar tvd(c.newXmmVar());
-//   c.movaps(tvd, f.LoadVR(vd));
-//   c.shufps(tvd, tvd, imm(SHUFPS_SWAP_DWORDS));
-//   c.save(tvd);
-//   GpVar pvd(c.newGpVar());
-//   c.lea(pvd, tvd.m128());
-//   X86CompilerFuncCall* call = c.call(__emulated_stvlx);
-//   uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq};
-//   call->setPrototype(kX86FuncConvDefault, kX86VarTypeGpq, args, XECOUNT(args));
-//   call->setArgument(0, ea);
-//   call->setArgument(1, pvd);
-//   e.TraceVR(vd);
-//   return 0;
-// }
-// XEEMITTER(stvlx,          0x7C00050E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
-// XEEMITTER(stvlx128,       VX128_1(4, 1283), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvlx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
-// }
-// XEEMITTER(stvlxl,         0x7C00070E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvlx(f, i);
-// }
-// XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvlx128(f, i);
-// }
+int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* v = f.LoadVR(vd);
+  f.StoreVectorLeft(ea, v);
+  return 0;
+}
+XEEMITTER(stvlx,          0x7C00050E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(stvlx128,       VX128_1(4, 1283), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvlx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
+}
+XEEMITTER(stvlxl,         0x7C00070E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvlx(f, i);
+}
+XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvlx128(f, i);
+}
 
-// // TODO(benvanik): implement for real - this is in the memcpy path.
-// static void __emulated_stvrx(uint64_t addr, __m128i vd) {
-//   // addr here is the fully translated address.
-//   const uint8_t eb = addr & 0xF;
-//   const size_t size = eb;
-//   addr &= ~0xF;
-//   uint8_t* p = (uint8_t*)addr;
-//   // Note that if the input is already 16b aligned no bytes are stored.
-//   for (size_t i = 0; i < size; i++) {
-//     p[size - 1 - i] = vd.m128i_u8[i];
-//   }
-// }
-// int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-//   GpVar ea(c.newGpVar());
-//   c.mov(ea, e.gpr_value(rb));
-//   if (ra) {
-//     c.add(ea, e.gpr_value(ra));
-//   }
-//   ea = e.TouchMemoryAddress(i.address, ea);
-//   XmmVar tvd(c.newXmmVar());
-//   c.movaps(tvd, f.LoadVR(vd));
-//   c.shufps(tvd, tvd, imm(SHUFPS_SWAP_DWORDS));
-//   c.save(tvd);
-//   GpVar pvd(c.newGpVar());
-//   c.lea(pvd, tvd.m128());
-//   X86CompilerFuncCall* call = c.call(__emulated_stvrx);
-//   uint32_t args[] = {kX86VarTypeGpq, kX86VarTypeGpq};
-//   call->setPrototype(kX86FuncConvDefault, kX86VarTypeGpq, args, XECOUNT(args));
-//   call->setArgument(0, ea);
-//   call->setArgument(1, pvd);
-//   e.TraceVR(vd);
-//   return 0;
-// }
-// XEEMITTER(stvrx,          0x7C00054E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
-// XEEMITTER(stvrx128,       VX128_1(4, 1347), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvrx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
-// }
-// XEEMITTER(stvrxl,         0x7C00074E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvrx(f, i);
-// }
-// XEEMITTER(stvrxl128,      VX128_1(4, 1859), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_stvrx128(f, i);
-// }
+int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* v = f.LoadVR(vd);
+  f.StoreVectorRight(ea, v);
+  return 0;
+}
+XEEMITTER(stvrx,          0x7C00054E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(stvrx128,       VX128_1(4, 1347), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvrx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
+}
+XEEMITTER(stvrxl,         0x7C00074E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvrx(f, i);
+}
+XEEMITTER(stvrxl128,      VX128_1(4, 1859), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_stvrx128(f, i);
+}
 
 XEEMITTER(mfvscr,         0x10000604, VX  )(PPCFunctionBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1896,22 +1784,22 @@ void RegisterEmitCategoryAltivec() {
   XEREGISTERINSTR(stvx128,        VX128_1(4, 451));
   XEREGISTERINSTR(stvxl,          0x7C0003CE);
   XEREGISTERINSTR(stvxl128,       VX128_1(4, 963));
-  // XEREGISTERINSTR(lvlx,           0x7C00040E);
-  // XEREGISTERINSTR(lvlx128,        VX128_1(4, 1027));
-  // XEREGISTERINSTR(lvlxl,          0x7C00060E);
-  // XEREGISTERINSTR(lvlxl128,       VX128_1(4, 1539));
-  // XEREGISTERINSTR(lvrx,           0x7C00044E);
-  // XEREGISTERINSTR(lvrx128,        VX128_1(4, 1091));
-  // XEREGISTERINSTR(lvrxl,          0x7C00064E);
-  // XEREGISTERINSTR(lvrxl128,       VX128_1(4, 1603));
-  // XEREGISTERINSTR(stvlx,          0x7C00050E);
-  // XEREGISTERINSTR(stvlx128,       VX128_1(4, 1283));
-  // XEREGISTERINSTR(stvlxl,         0x7C00070E);
-  // XEREGISTERINSTR(stvlxl128,      VX128_1(4, 1795));
-  // XEREGISTERINSTR(stvrx,          0x7C00054E);
-  // XEREGISTERINSTR(stvrx128,       VX128_1(4, 1347));
-  // XEREGISTERINSTR(stvrxl,         0x7C00074E);
-  // XEREGISTERINSTR(stvrxl128,      VX128_1(4, 1859));
+  XEREGISTERINSTR(lvlx,           0x7C00040E);
+  XEREGISTERINSTR(lvlx128,        VX128_1(4, 1027));
+  XEREGISTERINSTR(lvlxl,          0x7C00060E);
+  XEREGISTERINSTR(lvlxl128,       VX128_1(4, 1539));
+  XEREGISTERINSTR(lvrx,           0x7C00044E);
+  XEREGISTERINSTR(lvrx128,        VX128_1(4, 1091));
+  XEREGISTERINSTR(lvrxl,          0x7C00064E);
+  XEREGISTERINSTR(lvrxl128,       VX128_1(4, 1603));
+  XEREGISTERINSTR(stvlx,          0x7C00050E);
+  XEREGISTERINSTR(stvlx128,       VX128_1(4, 1283));
+  XEREGISTERINSTR(stvlxl,         0x7C00070E);
+  XEREGISTERINSTR(stvlxl128,      VX128_1(4, 1795));
+  XEREGISTERINSTR(stvrx,          0x7C00054E);
+  XEREGISTERINSTR(stvrx128,       VX128_1(4, 1347));
+  XEREGISTERINSTR(stvrxl,         0x7C00074E);
+  XEREGISTERINSTR(stvrxl128,      VX128_1(4, 1859));
 
   XEREGISTERINSTR(mfvscr,         0x10000604);
   XEREGISTERINSTR(mtvscr,         0x10000644);

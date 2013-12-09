@@ -118,8 +118,15 @@ public:
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
   Value* LoadAcquire(Value* address, TypeName type, uint32_t load_flags = 0);
+  Value* LoadVectorLeft(Value* address, TypeName type,
+                        uint32_t load_flags = 0);
+  Value* LoadVectorRight(Value* address, TypeName type,
+                         uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
   Value* StoreRelease(Value* address, Value* value, uint32_t store_flags = 0);
+  void StoreVectorLeft(Value* address, Value* value, uint32_t store_flags = 0);
+  void StoreVectorRight(Value* address, Value* value,
+                        uint32_t store_flags = 0);
   void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
 
   Value* Max(Value* value1, Value* value2);
