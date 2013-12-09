@@ -110,6 +110,9 @@ public:
   Value* LoadConstant(double value);
   Value* LoadConstant(const vec128_t& value);
 
+  Value* LoadVectorShl(Value* sh);
+  Value* LoadVectorShr(Value* sh);
+
   Value* LoadContext(size_t offset, TypeName type);
   void StoreContext(size_t offset, Value* value);
 

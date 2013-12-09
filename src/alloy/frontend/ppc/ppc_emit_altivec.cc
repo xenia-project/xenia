@@ -139,89 +139,43 @@ XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(PPCFunctionBuilder& f, Inst
   return InstrEmit_lvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-// static __m128i __lvsl_table[16] = {
-//   _mm_set_epi8( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
-//   _mm_set_epi8( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
-//   _mm_set_epi8( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
-//   _mm_set_epi8( 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
-//   _mm_set_epi8( 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-//   _mm_set_epi8( 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
-//   _mm_set_epi8( 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
-//   _mm_set_epi8( 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
-//   _mm_set_epi8( 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
-//   _mm_set_epi8( 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
-//   _mm_set_epi8(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
-//   _mm_set_epi8(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
-//   _mm_set_epi8(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
-//   _mm_set_epi8(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
-//   _mm_set_epi8(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
-//   _mm_set_epi8(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
-// };
-// int InstrEmit_lvsl_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-//   GpVar ea(c.newGpVar());
-//   c.mov(ea, e.gpr_value(rb));
-//   if (ra) {
-//     c.add(ea, e.gpr_value(ra));
-//   }
-//   c.and_(ea, imm(0xF));
-//   c.shl(ea, imm(4)); // table offset = (16b * sh)
-//   GpVar gt(c.newGpVar());
-//   c.mov(gt, imm((sysint_t)__lvsl_table));
-//   XmmVar v(c.newXmmVar());
-//   c.movaps(v, xmmword_ptr(gt, ea));
-//   c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
-//   f.StoreVR(vd, v);
-//   e.TraceVR(vd);
-//   return 0;
-// }
-// XEEMITTER(lvsl,           0x7C00000C, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
-// XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
+int InstrEmit_lvsl_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  Value* ea;
+  if (ra) {
+    ea = f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
+  } else {
+    ea = f.LoadGPR(rb);
+  }
+  Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
+  Value* v = f.LoadVectorShl(sh);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(lvsl,           0x7C00000C, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
 
-// static __m128i __lvsr_table[16] = {
-//   _mm_set_epi8(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31),
-//   _mm_set_epi8(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
-//   _mm_set_epi8(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
-//   _mm_set_epi8(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
-//   _mm_set_epi8(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
-//   _mm_set_epi8(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
-//   _mm_set_epi8(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
-//   _mm_set_epi8( 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
-//   _mm_set_epi8( 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
-//   _mm_set_epi8( 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
-//   _mm_set_epi8( 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
-//   _mm_set_epi8( 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
-//   _mm_set_epi8( 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-//   _mm_set_epi8( 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
-//   _mm_set_epi8( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
-//   _mm_set_epi8( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
-// };
-// int InstrEmit_lvsr_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-//   GpVar ea(c.newGpVar());
-//   c.mov(ea, e.gpr_value(rb));
-//   if (ra) {
-//     c.add(ea, e.gpr_value(ra));
-//   }
-//   c.and_(ea, imm(0xF));
-//   c.shl(ea, imm(4)); // table offset = (16b * sh)
-//   GpVar gt(c.newGpVar());
-//   c.mov(gt, imm((sysint_t)__lvsr_table));
-//   XmmVar v(c.newXmmVar());
-//   c.movaps(v, xmmword_ptr(gt, ea));
-//   c.shufps(v, v, imm(SHUFPS_SWAP_DWORDS));
-//   f.StoreVR(vd, v);
-//   e.TraceVR(vd);
-//   return 0;
-// }
-// XEEMITTER(lvsr,           0x7C00004C, X   )(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
-// XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
-//   return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
-// }
+int InstrEmit_lvsr_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  Value* ea;
+  if (ra) {
+    ea = f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
+  } else {
+    ea = f.LoadGPR(rb);
+  }
+  Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
+  Value* v = f.LoadVectorShr(sh);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(lvsr,           0x7C00004C, X   )(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
+XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+  return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
+}
 
 int InstrEmit_lvx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
@@ -1926,10 +1880,10 @@ void RegisterEmitCategoryAltivec() {
   XEREGISTERINSTR(lvehx,          0x7C00004E);
   XEREGISTERINSTR(lvewx,          0x7C00008E);
   XEREGISTERINSTR(lvewx128,       VX128_1(4, 131));
-  // XEREGISTERINSTR(lvsl,           0x7C00000C);
-  // XEREGISTERINSTR(lvsl128,        VX128_1(4, 3));
-  // XEREGISTERINSTR(lvsr,           0x7C00004C);
-  // XEREGISTERINSTR(lvsr128,        VX128_1(4, 67));
+  XEREGISTERINSTR(lvsl,           0x7C00000C);
+  XEREGISTERINSTR(lvsl128,        VX128_1(4, 3));
+  XEREGISTERINSTR(lvsr,           0x7C00004C);
+  XEREGISTERINSTR(lvsr128,        VX128_1(4, 67));
   XEREGISTERINSTR(lvx,            0x7C0000CE);
   XEREGISTERINSTR(lvx128,         VX128_1(4, 195));
   XEREGISTERINSTR(lvxl,           0x7C0002CE);

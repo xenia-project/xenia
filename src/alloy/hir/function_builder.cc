@@ -734,6 +734,26 @@ Value* FunctionBuilder::LoadConstant(const vec128_t& value) {
   return dest;
 }
 
+Value* FunctionBuilder::LoadVectorShl(Value* sh) {
+  XEASSERT(sh->type == INT8_TYPE);
+  Instr* i = AppendInstr(
+      OPCODE_LOAD_VECTOR_SHL_info, 0,
+      AllocValue(VEC128_TYPE));
+  i->set_src1(sh);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* FunctionBuilder::LoadVectorShr(Value* sh) {
+  XEASSERT(sh->type == INT8_TYPE);
+  Instr* i = AppendInstr(
+      OPCODE_LOAD_VECTOR_SHR_info, 0,
+      AllocValue(VEC128_TYPE));
+  i->set_src1(sh);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* FunctionBuilder::LoadContext(size_t offset, TypeName type) {
   Instr* i = AppendInstr(
       OPCODE_LOAD_CONTEXT_info, 0,

@@ -159,6 +159,18 @@ DEFINE_OPCODE(
     0);
 
 DEFINE_OPCODE(
+    OPCODE_LOAD_VECTOR_SHL,
+    "load_vector_shl",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
+    OPCODE_LOAD_VECTOR_SHR,
+    "load_vector_shr",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_LOAD_CONTEXT,
     "load_context",
     OPCODE_SIG_V_O,

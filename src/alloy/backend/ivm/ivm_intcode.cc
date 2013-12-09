@@ -1066,6 +1066,67 @@ int Translate_VECTOR_CONVERT_I2F(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_I2F);
 }
 
+static uint8_t __lvsl_table[16][16] = {
+  { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15},
+  { 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16},
+  { 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17},
+  { 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18},
+  { 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
+  { 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+  { 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
+  { 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22},
+  { 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23},
+  { 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24},
+  {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25},
+  {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26},
+  {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27},
+  {13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28},
+  {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
+  {15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
+};
+static uint8_t __lvsr_table[16][16] = {
+  {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
+  {15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
+  {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
+  {13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28},
+  {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27},
+  {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26},
+  {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25},
+  { 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24},
+  { 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23},
+  { 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22},
+  { 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
+  { 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+  { 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
+  { 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18},
+  { 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17},
+  { 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16},
+};
+
+uint32_t IntCode_LOAD_VECTOR_SHL(IntCodeState& ics, const IntCode* i) {
+  int8_t sh = ics.rf[i->src1_reg].i8;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = __lvsl_table[sh][n];
+  }
+  return IA_NEXT;
+}
+int Translate_LOAD_VECTOR_SHL(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_LOAD_VECTOR_SHL);
+}
+
+uint32_t IntCode_LOAD_VECTOR_SHR(IntCodeState& ics, const IntCode* i) {
+  int8_t sh = ics.rf[i->src1_reg].i8;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.b16[n] = __lvsr_table[sh][n];
+  }
+  return IA_NEXT;
+}
+int Translate_LOAD_VECTOR_SHR(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_LOAD_VECTOR_SHR);
+}
+
 uint32_t IntCode_LOAD_CONTEXT_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.context + ics.rf[i->src1_reg].u64));
   DPRINT("%d (%.X) = ctx i8 +%d\n", ics.rf[i->dest_reg].i8, ics.rf[i->dest_reg].u8, ics.rf[i->src1_reg].u64);
@@ -3002,6 +3063,9 @@ static const TranslateFn dispatch_table[] = {
   TranslateInvalid, //Translate_ROUND,
   Translate_VECTOR_CONVERT_I2F,
   TranslateInvalid, //Translate_VECTOR_CONVERT_F2I,
+
+  Translate_LOAD_VECTOR_SHL,
+  Translate_LOAD_VECTOR_SHR,
 
   Translate_LOAD_CONTEXT,
   Translate_STORE_CONTEXT,
