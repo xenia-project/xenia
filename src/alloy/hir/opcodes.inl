@@ -508,13 +508,13 @@ DEFINE_OPCODE(
 DEFINE_OPCODE(
     OPCODE_INSERT,
     "insert",
-    OPCODE_SIG_V_V_O_V,
+    OPCODE_SIG_V_V_V_V,
     0);
 
 DEFINE_OPCODE(
     OPCODE_EXTRACT,
     "extract",
-    OPCODE_SIG_V_V_O,
+    OPCODE_SIG_V_V_V,
     0);
 
 DEFINE_OPCODE(

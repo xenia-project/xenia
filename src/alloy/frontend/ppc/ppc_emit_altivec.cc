@@ -186,18 +186,29 @@ XEEMITTER(lvxl128,        VX128_1(4, 707),  VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 XEEMITTER(stvebx,         0x7C00010E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* ea = i.X.RA ? f.Add(f.LoadGPR(i.X.RA), f.LoadGPR(i.X.RB)) : f.LoadGPR(i.X.RB);
+  Value* el = f.And(ea, f.LoadConstant(0xFull));
+  Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT8_TYPE);
+  f.Store(ea, v);
+  return 0;
 }
 
 XEEMITTER(stvehx,         0x7C00014E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* ea = i.X.RA ? f.Add(f.LoadGPR(i.X.RA), f.LoadGPR(i.X.RB)) : f.LoadGPR(i.X.RB);
+  ea = f.And(ea, f.LoadConstant(~0x1ull));
+  Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 1);
+  Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT16_TYPE);
+  f.Store(ea, f.ByteSwap(v));
+  return 0;
 }
 
 int InstrEmit_stvewx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  ea = f.And(ea, f.LoadConstant(~0x3ull));
+  Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 2);
+  Value* v = f.Extract(f.LoadVR(vd), el, INT32_TYPE);
+  f.Store(ea, f.ByteSwap(v));
+  return 0;
 }
 XEEMITTER(stvewx,         0x7C00018E, X   )(PPCFunctionBuilder& f, InstrData& i) {
   return InstrEmit_stvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
@@ -1608,7 +1619,7 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCFunctionBuilder& f, Inst
       // zzzzZZZZzzzzARGB
       v = f.LoadVR(vb);
       // 0zzzZZZZzzzzARGB
-      v = f.Insert(v, 0, f.LoadConstant((int8_t)0));
+      v = f.Insert(v, 0ull, f.LoadConstant((int8_t)0));
       // 000R000G000B000A
       vec128_t shuf_v = { 0 };
       shuf_v.b16[3] = 13;

@@ -183,8 +183,10 @@ public:
   Value* RotateLeft(Value* value1, Value* value2);
   Value* ByteSwap(Value* value);
   Value* CountLeadingZeros(Value* value);
-  Value* Insert(Value* value, uint32_t index, Value* part);
-  Value* Extract(Value* value, uint32_t index, TypeName target_type);
+  Value* Insert(Value* value, Value* index, Value* part);
+  Value* Insert(Value* value, uint64_t index, Value* part);
+  Value* Extract(Value* value, Value* index, TypeName target_type);
+  Value* Extract(Value* value, uint64_t index, TypeName target_type);
   // i8->i16/i32/... (i8|i8 / i8|i8|i8|i8 / ...)
   // i8/i16/i32 -> vec128
   Value* Splat(Value* value, TypeName target_type);

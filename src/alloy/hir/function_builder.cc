@@ -1479,28 +1479,38 @@ Value* FunctionBuilder::CountLeadingZeros(Value* value) {
   return i->dest;
 }
 
-Value* FunctionBuilder::Insert(Value* value, uint32_t index, Value* part) {
+Value* FunctionBuilder::Insert(Value* value, Value* index, Value* part) {
   // TODO(benvanik): could do some of this as constants.
 
   Instr* i = AppendInstr(
       OPCODE_INSERT_info, 0,
       AllocValue(value->type));
   i->set_src1(value);
-  i->src2.offset = index;
+  i->set_src2(ZeroExtend(index, INT64_TYPE));
   i->set_src3(part);
   return i->dest;
 }
 
-Value* FunctionBuilder::Extract(Value* value, uint32_t index, TypeName target_type) {
+Value* FunctionBuilder::Insert(Value* value, uint64_t index, Value* part) {
+  return Insert(value, LoadConstant(index), part);
+}
+
+Value* FunctionBuilder::Extract(Value* value, Value* index,
+                                TypeName target_type) {
   // TODO(benvanik): could do some of this as constants.
 
   Instr* i = AppendInstr(
       OPCODE_EXTRACT_info, 0,
       AllocValue(target_type));
   i->set_src1(value);
-  i->src2.offset = index;
+  i->set_src2(ZeroExtend(index, INT64_TYPE));
   i->src3.value = NULL;
   return i->dest;
+}
+
+Value* FunctionBuilder::Extract(Value* value, uint64_t index,
+                                TypeName target_type) {
+  return Extract(value, LoadConstant(index), target_type);
 }
 
 Value* FunctionBuilder::Splat(Value* value, TypeName target_type) {
