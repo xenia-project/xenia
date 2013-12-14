@@ -882,11 +882,16 @@ XEEMITTER(rld,          0x78000000, MDS)(PPCFunctionBuilder& f, InstrData& i) {
     uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
     uint64_t m = XEMASK(0, mb);
     Value* v = f.LoadGPR(i.MD.RT);
-    if (sh) {
-      v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
-    }
-    if (m != 0xFFFFFFFFFFFFFFFF) {
-      v = f.And(v, f.LoadConstant(m));
+    if (mb == 63 - sh) {
+      // Shift left.
+      v = f.Shl(v, f.LoadConstant((int8_t)sh));
+    } else {
+      if (sh) {
+        v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+      }
+      if (m != 0xFFFFFFFFFFFFFFFF) {
+        v = f.And(v, f.LoadConstant(m));
+      }
     }
     if (i.MD.Rc) {
       f.UpdateCR(0, v);
