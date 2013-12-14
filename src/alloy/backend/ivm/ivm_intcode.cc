@@ -1056,10 +1056,10 @@ int Translate_CONVERT(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_VECTOR_CONVERT_I2F(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.f4[0] = (float)(int32_t)dest.i4[0];
-  dest.f4[1] = (float)(int32_t)dest.i4[1];
-  dest.f4[2] = (float)(int32_t)dest.i4[2];
-  dest.f4[3] = (float)(int32_t)dest.i4[3];
+  dest.f4[0] = (float)(int32_t)src1.i4[0];
+  dest.f4[1] = (float)(int32_t)src1.i4[1];
+  dest.f4[2] = (float)(int32_t)src1.i4[2];
+  dest.f4[3] = (float)(int32_t)src1.i4[3];
   return IA_NEXT;
 }
 int Translate_VECTOR_CONVERT_I2F(TranslationContext& ctx, Instr* i) {
