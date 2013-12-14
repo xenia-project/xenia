@@ -1149,14 +1149,20 @@ uint32_t IntCode_LOAD_CONTEXT_I64(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_LOAD_CONTEXT_F32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f32 = *((float*)(ics.context + ics.rf[i->src1_reg].u64));
+  DPRINT("%e (%.X) = ctx f32 +%d\n", ics.rf[i->dest_reg].f32, ics.rf[i->dest_reg].u32, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = *((double*)(ics.context + ics.rf[i->src1_reg].u64));
+  DPRINT("%lle (%.llX) = ctx f64 +%d\n", ics.rf[i->dest_reg].f64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.context + ics.rf[i->src1_reg].u64));
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%d\n",
+         ics.rf[i->dest_reg].v128.f4[0], ics.rf[i->dest_reg].v128.f4[1], ics.rf[i->dest_reg].v128.f4[2], ics.rf[i->dest_reg].v128.f4[3],
+         ics.rf[i->dest_reg].v128.i4[0], ics.rf[i->dest_reg].v128.i4[1], ics.rf[i->dest_reg].v128.i4[2], ics.rf[i->dest_reg].v128.i4[3],
+         ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 int Translate_LOAD_CONTEXT(TranslationContext& ctx, Instr* i) {
@@ -1194,14 +1200,19 @@ uint32_t IntCode_STORE_CONTEXT_I64(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_CONTEXT_F32(IntCodeState& ics, const IntCode* i) {
   *((float*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f32;
+  DPRINT("ctx f32 +%d = %e (%.X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].u32);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_F64(IntCodeState& ics, const IntCode* i) {
   *((double*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f64;
+  DPRINT("ctx f64 +%d = %lle (%.llX)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
   *((vec128_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].v128;
+  DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", ics.rf[i->src1_reg].u64,
+         ics.rf[i->src2_reg].v128.f4[0], ics.rf[i->src2_reg].v128.f4[1], ics.rf[i->src2_reg].v128.f4[2], ics.rf[i->src2_reg].v128.f4[3],
+         ics.rf[i->src2_reg].v128.i4[0], ics.rf[i->src2_reg].v128.i4[1], ics.rf[i->src2_reg].v128.i4[2], ics.rf[i->src2_reg].v128.i4[3]);
   return IA_NEXT;
 }
 int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
@@ -1272,17 +1283,35 @@ uint32_t IntCode_LOAD_I64(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_LOAD_F32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
+  DPRINT("%e (%X) = load.f32 %.8X\n",
+         *((float*)(ics.membase + address)),
+         *((uint64_t*)(ics.membase + address)),
+         address);
+  DFLUSH();
   ics.rf[i->dest_reg].f32 = *((float*)(ics.membase + address));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_F64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
+  DPRINT("%lle (%llX) = load.f64 %.8X\n",
+         *((double*)(ics.membase + address)),
+         *((uint64_t*)(ics.membase + address)),
+         address);
+  DFLUSH();
   ics.rf[i->dest_reg].f64 = *((double*)(ics.membase + address));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.membase + (address & ~0xF)));
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = *((uint32_t*)(ics.membase + (address & ~0xF) + n * 4));
+  }
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load v128 %.8X\n",
+         dest.f4[0], dest.f4[1], dest.f4[2], dest.f4[3],
+         dest.i4[0], dest.i4[1], dest.i4[2], dest.i4[3],
+         address);
+  DFLUSH();
   return IA_NEXT;
 }
 int Translate_LOAD(TranslationContext& ctx, Instr* i) {
@@ -1442,16 +1471,27 @@ uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_F32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
+  DPRINT("store.f32 %.8X = %e (%X)\n",
+         address, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].i32);
+  DFLUSH();
   *((float*)(ics.membase + address)) = ics.rf[i->src2_reg].f32;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_F64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
+  DPRINT("store.f64 %.8X = %lle (%llX)\n",
+         address, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].i64);
+  DFLUSH();
   *((double*)(ics.membase + address)) = ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
+  DPRINT("store v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
+         address,
+         ics.rf[i->src2_reg].v128.f4[0], ics.rf[i->src2_reg].v128.f4[1], ics.rf[i->src2_reg].v128.f4[2], ics.rf[i->src2_reg].v128.f4[3],
+         ics.rf[i->src2_reg].v128.i4[0], ics.rf[i->src2_reg].v128.i4[1], ics.rf[i->src2_reg].v128.i4[2], ics.rf[i->src2_reg].v128.i4[3]);
+  DFLUSH();
   *((vec128_t*)(ics.membase + (address & ~0xF))) = ics.rf[i->src2_reg].v128;
   return IA_NEXT;
 }
@@ -2881,8 +2921,9 @@ uint32_t IntCode_BYTE_SWAP_I64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_BYTE_SWAP_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.low = XESWAP64(src1.high);
-  dest.high = XESWAP64(src1.low);
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = XESWAP32(src1.i4[n]);
+  }
   return IA_NEXT;
 }
 int Translate_BYTE_SWAP(TranslationContext& ctx, Instr* i) {
