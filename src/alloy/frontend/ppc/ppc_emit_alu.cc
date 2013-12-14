@@ -1050,13 +1050,14 @@ XEEMITTER(slwx,         0x7C000030, X  )(PPCFunctionBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(srdx,         0x7C000436, X  )(PPCFunctionBuilder& f, InstrData& i) {
-  // n <- (RB)[59:63]
+  // n <- (RB)[58:63]
   // r <- ROTL64((RS), 64-n)
-  // if (RB)[58] = 0 then
+  // if (RB)[57] = 0 then
   //   m <- MASK(n, 63)
   // else
   //   m <- i64.0
   // RA <- r & m
+  // TODO(benvanik): if >3F, zero out the result.
   Value* v = f.Shr(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
@@ -1073,6 +1074,7 @@ XEEMITTER(srwx,         0x7C000430, X  )(PPCFunctionBuilder& f, InstrData& i) {
   // else
   //   m <- i64.0
   // RA <- r & m
+  // TODO(benvanik): if >1F, zero out the result.
   Value* v = f.Shr(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE),
                    f.LoadGPR(i.X.RB));
   v = f.ZeroExtend(v, INT64_TYPE);
