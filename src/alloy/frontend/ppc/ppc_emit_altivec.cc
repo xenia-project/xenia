@@ -801,7 +801,7 @@ int InstrEmit_vmrghw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t 
   // (VD.z) = (VA.y)
   // (VD.w) = (VB.y)
   Value* v = f.Permute(
-      f.LoadConstant(0x05010400),
+      f.LoadConstant(0x00040105),
       f.LoadVR(va),
       f.LoadVR(vb),
       INT32_TYPE);
@@ -831,7 +831,7 @@ int InstrEmit_vmrglw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t 
   // (VD.z) = (VA.w)
   // (VD.w) = (VB.w)
   Value* v = f.Permute(
-      f.LoadConstant(0x07030602),
+      f.LoadConstant(0x02060307),
       f.LoadVR(va),
       f.LoadVR(vb),
       INT32_TYPE);
@@ -1164,7 +1164,11 @@ XEEMITTER(vrlw128,        VX128(6, 80),     VX128  )(PPCFunctionBuilder& f, Inst
 XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(PPCFunctionBuilder& f, InstrData& i) {
   const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
   const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
-  uint32_t blend_mask = i.VX128_4.IMM;
+  uint32_t blend_mask_src = i.VX128_4.IMM;
+  uint32_t blend_mask = 0;
+  for (int n = 0; n < 4; n++) {
+    blend_mask |= ((blend_mask_src >> n) ? n : (n + 4)) << ((3 - n) * 8);
+  }
   uint32_t rotate = i.VX128_4.z;
   // This is just a fancy permute.
   // X Y Z W, rotated left by 2 = Z W X Y
@@ -1193,8 +1197,10 @@ XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(PPCFunctionBuilder& f, Inst
   } else {
     v = f.LoadVR(vb);
   }
-  v = f.Permute(
-      f.LoadConstant(blend_mask), v, f.LoadVR(vd), FLOAT32_TYPE);
+  if (blend_mask != 0x00010203) {
+    v = f.Permute(
+        f.LoadConstant(blend_mask), v, f.LoadVR(vd), INT32_TYPE);
+  }
   f.StoreVR(vd, v);
   return 0;
 }

@@ -3071,12 +3071,10 @@ uint32_t IntCode_PERMUTE_V128_BY_INT32(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t i = 0; i < 4; i++) {
-#define SWAP_INLINE(x) (((x) & ~0x3) + (3 - ((x) % 4)))
-    size_t m = SWAP_INLINE(i);
-    size_t b = (src1 >> (m * 8)) & 0x3;
-    dest.i4[m] = b < 4 ?
-        src2.i4[SWAP_INLINE(b)] :
-        src3.i4[SWAP_INLINE(b - 4)];
+    size_t b = (src1 >> ((3 - i) * 8)) & 0x7;
+    dest.i4[i] = b < 4 ?
+        src2.i4[b] :
+        src3.i4[b - 4];
   }
   return IA_NEXT;
 }
@@ -3086,12 +3084,10 @@ uint32_t IntCode_PERMUTE_V128_BY_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t i = 0; i < 16; i++) {
-#define SWAP_INLINE(x) (((x) & ~0x3) + (3 - ((x) % 4)))
-    size_t m = SWAP_INLINE(i);
-    size_t b = src1.b16[m] & 0x1F;
-    dest.b16[m] = b < 16 ?
-        src2.b16[SWAP_INLINE(b)] :
-        src3.b16[SWAP_INLINE(b - 16)];
+    size_t b = src1.b16[i] & 0x1F;
+    dest.b16[i] = b < 16 ?
+        src2.b16[b] :
+        src3.b16[b - 16];
   }
   return IA_NEXT;
 }

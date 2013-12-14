@@ -49,7 +49,7 @@ enum ArithmeticFlags {
   ARITHMETIC_SET_CARRY = (1 << 1),
 };
 enum Permutes {
-  PERMUTE_XY_ZW = 0x05040100,
+  PERMUTE_XY_ZW = 0x00010405,
 };
 enum Swizzles {
   SWIZZLE_XYZW_TO_XYZW = 0xE4,
