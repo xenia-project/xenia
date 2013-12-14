@@ -1648,7 +1648,7 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCFunctionBuilder& f, Inst
       // (VD.x) = 3.0 + (VB.x)*2^-22
       // (VD.y) = 3.0 + (VB.y)*2^-22
       // (VD.z) = 0.0
-      // (VD.w) = 3.0
+      // (VD.w) = 1.0
       // v = VB.x|VB.y|0|0
       v = f.Permute(
           f.LoadConstant(PERMUTE_XY_ZW),
