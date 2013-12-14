@@ -1698,7 +1698,7 @@ int Translate_SELECT(TranslationContext& ctx, Instr* i) {
     IntCode_SELECT_F64,
     IntCode_SELECT_V128,
   };
-  return DispatchToC(ctx, i, fns[i->src1.value->type]);
+  return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
 uint32_t IntCode_IS_TRUE_I8(IntCodeState& ics, const IntCode* i) {
@@ -2376,11 +2376,11 @@ uint32_t IntCode_MULADD_I64(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_MULADD_F32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 * ics.rf[i->src2_reg].f32 + ics.rf[i->src3_reg].i32;
+  ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 * ics.rf[i->src2_reg].f32 + ics.rf[i->src3_reg].f32;
   return IA_NEXT;
 }
 uint32_t IntCode_MULADD_F64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 * ics.rf[i->src2_reg].f64 + ics.rf[i->src3_reg].i64;
+  ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 * ics.rf[i->src2_reg].f64 + ics.rf[i->src3_reg].f64;
   return IA_NEXT;
 }
 uint32_t IntCode_MULADD_V128(IntCodeState& ics, const IntCode* i) {
@@ -2424,11 +2424,11 @@ uint32_t IntCode_MULSUB_I64(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_MULSUB_F32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 * ics.rf[i->src2_reg].f32 - ics.rf[i->src3_reg].i32;
+  ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 * ics.rf[i->src2_reg].f32 - ics.rf[i->src3_reg].f32;
   return IA_NEXT;
 }
 uint32_t IntCode_MULSUB_F64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 * ics.rf[i->src2_reg].f64 - ics.rf[i->src3_reg].i64;
+  ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 * ics.rf[i->src2_reg].f64 - ics.rf[i->src3_reg].f64;
   return IA_NEXT;
 }
 uint32_t IntCode_MULSUB_V128(IntCodeState& ics, const IntCode* i) {
