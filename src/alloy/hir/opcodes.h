@@ -51,11 +51,16 @@ enum ArithmeticFlags {
 enum Permutes {
   PERMUTE_XY_ZW = 0x00010405,
 };
+#define SWIZZLE_MASK(x, y, z, w) ( \
+    (((x) & 0x3) << 6) | \
+    (((y) & 0x3) << 4) | \
+    (((z) & 0x3) << 2) | \
+    (((w) & 0x3)))
 enum Swizzles {
-  SWIZZLE_XYZW_TO_XYZW = 0xE4,
-  SWIZZLE_XYZW_TO_YZWX = 0x39,
-  SWIZZLE_XYZW_TO_ZWXY = 0x4E,
-  SWIZZLE_XYZW_TO_WXYZ = 0x93,
+  SWIZZLE_XYZW_TO_XYZW = SWIZZLE_MASK(0, 1, 2, 3),
+  SWIZZLE_XYZW_TO_YZWX = SWIZZLE_MASK(1, 2, 3, 0),
+  SWIZZLE_XYZW_TO_ZWXY = SWIZZLE_MASK(2, 3, 0, 1),
+  SWIZZLE_XYZW_TO_WXYZ = SWIZZLE_MASK(3, 0, 1, 2),
 };
 
 
