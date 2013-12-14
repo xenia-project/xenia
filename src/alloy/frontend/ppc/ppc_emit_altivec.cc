@@ -1166,8 +1166,9 @@ XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(PPCFunctionBuilder& f, Inst
   const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
   uint32_t blend_mask_src = i.VX128_4.IMM;
   uint32_t blend_mask = 0;
-  for (int n = 0; n < 4; n++) {
-    blend_mask |= ((blend_mask_src >> n) ? n : (n + 4)) << ((3 - n) * 8);
+  for (int n = 3; n >= 0; n--) {
+    blend_mask |= ((blend_mask_src & 0x1) ? n : (4 + n)) << ((3 - n) * 8);
+    blend_mask_src >>= 1;
   }
   uint32_t rotate = i.VX128_4.z;
   // This is just a fancy permute.
