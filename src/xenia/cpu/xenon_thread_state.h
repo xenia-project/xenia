@@ -20,6 +20,8 @@ namespace cpu {
 
 class XenonRuntime;
 
+using PPCContext = alloy::frontend::ppc::PPCContext;
+
 
 class XenonThreadState : public alloy::runtime::ThreadState {
 public:
@@ -27,7 +29,7 @@ public:
                    size_t stack_size, uint64_t thread_state_address);
   virtual ~XenonThreadState();
 
-  alloy::frontend::ppc::PPCContext* context() const { return context_; }
+  PPCContext* context() const { return context_; }
 
 private:
   size_t    stack_size_;
@@ -38,7 +40,7 @@ private:
   uint64_t  thread_state_address_;
 
   // NOTE: must be 64b aligned for SSE ops.
-  alloy::frontend::ppc::PPCContext* context_;
+  PPCContext* context_;
 };
 
 

@@ -19,6 +19,13 @@ using namespace alloy::runtime;
 using namespace xe::cpu;
 
 
+namespace {
+void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
+  XELOGE("call to undefined kernel import");
+}
+}
+
+
 XexModule::XexModule(
     XenonRuntime* runtime) :
     runtime_(runtime),
@@ -119,20 +126,22 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
     var_info->set_status(SymbolInfo::STATUS_DEFINED);
 
     // Grab, if available.
-    uint32_t* slot = (uint32_t*)(membase + info->value_address);
-    if (kernel_export->type == KernelExport::Function) {
-      // Not exactly sure what this should be...
-      // TODO(benvanik): find out what import variables are.
-      XELOGW("kernel import variable not defined");
-    } else {
-      if (kernel_export->is_implemented) {
-        // Implemented - replace with pointer.
-        *slot = XESWAP32BE(kernel_export->variable_ptr);
+    if (kernel_export) {
+      uint32_t* slot = (uint32_t*)(membase + info->value_address);
+      if (kernel_export->type == KernelExport::Function) {
+        // Not exactly sure what this should be...
+        // TODO(benvanik): find out what import variables are.
+        XELOGW("kernel import variable not defined");
       } else {
-        // Not implemented - write with a dummy value.
-        *slot = XESWAP32BE(0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
-        XELOGCPU("WARNING: imported a variable with no value: %s",
-                 kernel_export->name);
+        if (kernel_export->is_implemented) {
+          // Implemented - replace with pointer.
+          *slot = XESWAP32BE(kernel_export->variable_ptr);
+        } else {
+          // Not implemented - write with a dummy value.
+          *slot = XESWAP32BE(0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
+          XELOGCPU("WARNING: imported a variable with no value: %s",
+                   kernel_export->name);
+        }
       }
     }
 
@@ -152,11 +161,21 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       //fn->set_name(name);
       fn_info->set_status(SymbolInfo::STATUS_DECLARED);
 
+      ExternFunction::Handler handler = 0;
+      void* handler_data = 0;
+      if (kernel_export) {
+        handler = (ExternFunction::Handler)kernel_export->function_data.shim;
+        handler_data = kernel_export->function_data.shim_data;
+      } else {
+        handler = (ExternFunction::Handler)UndefinedImport;
+        handler_data = this;
+      }
+
       DefineFunction(fn_info);
       Function* fn = new ExternFunction(
-          info->thunk_address,
-          (ExternFunction::Handler)kernel_export->function_data.shim,
-          kernel_export->function_data.shim_data,
+        info->thunk_address,
+          handler,
+          handler_data,
           NULL);
       fn_info->set_function(fn);
       fn_info->set_status(SymbolInfo::STATUS_DEFINED);
