@@ -349,7 +349,6 @@ Value* FunctionBuilder::CloneValue(Value* source) {
 }
 
 void FunctionBuilder::Comment(const char* format, ...) {
-
   char buffer[1024];
   va_list args;
   va_start(args, format);
@@ -378,8 +377,10 @@ void FunctionBuilder::DebugBreak() {
 }
 
 void FunctionBuilder::DebugBreakTrue(Value* cond) {
-  if (cond->IsConstantTrue()) {
-    DebugBreak();
+  if (cond->IsConstant()) {
+    if (cond->IsConstantTrue()) {
+      DebugBreak();
+    }
     return;
   }
 
@@ -396,8 +397,10 @@ void FunctionBuilder::Trap() {
 }
 
 void FunctionBuilder::TrapTrue(Value* cond) {
-  if (cond->IsConstantTrue()) {
-    Trap();
+  if (cond->IsConstant()) {
+    if (cond->IsConstantTrue()) {
+      Trap();
+    }
     return;
   }
 
@@ -417,8 +420,10 @@ void FunctionBuilder::Call(
 
 void FunctionBuilder::CallTrue(
     Value* cond, FunctionInfo* symbol_info, uint32_t call_flags) {
-  if (cond->IsConstantTrue()) {
-    Call(symbol_info, call_flags);
+  if (cond->IsConstant()) {
+    if (cond->IsConstantTrue()) {
+      Call(symbol_info, call_flags);
+    }
     return;
   }
 
@@ -440,8 +445,10 @@ void FunctionBuilder::CallIndirect(
 
 void FunctionBuilder::CallIndirectTrue(
     Value* cond, Value* value, uint32_t call_flags) {
-  if (cond->IsConstantTrue()) {
-    CallIndirect(value, call_flags);
+  if (cond->IsConstant()) {
+    if (cond->IsConstantTrue()) {
+      CallIndirect(value, call_flags);
+    }
     return;
   }
 
@@ -474,8 +481,10 @@ void FunctionBuilder::Branch(Label* label, uint32_t branch_flags) {
 
 void FunctionBuilder::BranchTrue(
     Value* cond, Label* label, uint32_t branch_flags) {
-  if (cond->IsConstantTrue()) {
-    Branch(label, branch_flags);
+  if (cond->IsConstant()) {
+    if (cond->IsConstantTrue()) {
+      Branch(label, branch_flags);
+    }
     return;
   }
 
@@ -488,8 +497,10 @@ void FunctionBuilder::BranchTrue(
 
 void FunctionBuilder::BranchFalse(
     Value* cond, Label* label, uint32_t branch_flags) {
-  if (cond->IsConstantFalse()) {
-    Branch(label, branch_flags);
+  if (cond->IsConstant()) {
+    if (cond->IsConstantFalse()) {
+      Branch(label, branch_flags);
+    }
     return;
   }
 
