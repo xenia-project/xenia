@@ -239,7 +239,14 @@ XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCFunctionBuilder& f, Inst
 // https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
 int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.ByteSwap(f.LoadVectorLeft(ea, VEC128_TYPE));
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  // ea &= ~0xF (load takes care of this)
+  // v = (new << eb)
+  Value* v = f.Permute(
+      f.LoadVectorShl(eb),
+      f.ByteSwap(f.Load(ea, VEC128_TYPE)),
+      f.LoadZero(VEC128_TYPE),
+      INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -258,7 +265,14 @@ XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCFunctionBuilder& f, Inst
 
 int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.ByteSwap(f.LoadVectorRight(ea, VEC128_TYPE));
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  // ea &= ~0xF (load takes care of this)
+  // v = (new >> (16 - eb))
+  Value* v = f.Permute(
+      f.LoadVectorShr(f.Sub(f.LoadConstant((int8_t)16), eb)),
+      f.LoadZero(VEC128_TYPE),
+      f.ByteSwap(f.Load(ea, VEC128_TYPE)),
+      INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -276,9 +290,30 @@ XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  // NOTE: if eb == 0 (so 16b aligned) this equals new_value
+  //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.ByteSwap(f.LoadVR(vd));
-  f.StoreVectorLeft(ea, v);
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  Value* new_value = f.ByteSwap(f.LoadVR(vd));
+  // ea &= ~0xF (load takes care of this)
+  Value* old_value = f.Load(ea, VEC128_TYPE);
+  // v = (new >> eb) | (old & (ONE << (16 - eb)))
+  Value* v = f.Permute(
+      f.LoadVectorShr(eb),
+      f.LoadZero(VEC128_TYPE),
+      new_value,
+      INT8_TYPE);
+  v = f.Or(
+      v,
+      f.And(
+          old_value,
+          f.Permute(
+              f.LoadVectorShl(f.Sub(f.LoadConstant((int8_t)16), eb)),
+              f.Not(f.LoadZero(VEC128_TYPE)),
+              f.LoadZero(VEC128_TYPE),
+              INT8_TYPE)));
+  // ea &= ~0xF (store takes care of this)
+  f.Store(ea, v);
   return 0;
 }
 XEEMITTER(stvlx,          0x7C00050E, X   )(PPCFunctionBuilder& f, InstrData& i) {
@@ -295,9 +330,31 @@ XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+  // NOTE: if eb == 0 (so 16b aligned) this equals new_value
+  //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
-  Value* v = f.ByteSwap(f.LoadVR(vd));
-  f.StoreVectorRight(ea, v);
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  Value* ebits = f.Mul(eb, f.LoadConstant((int8_t)8));
+  Value* new_value = f.ByteSwap(f.LoadVR(vd));
+  // ea &= ~0xF (load takes care of this)
+  Value* old_value = f.Load(ea, VEC128_TYPE);
+  // v = (new << (16 - eb)) | (old & (ONE >> eb))
+  Value* v = f.Permute(
+      f.LoadVectorShl(f.Sub(f.LoadConstant((int8_t)16), eb)),
+      new_value,
+      f.LoadZero(VEC128_TYPE),
+      INT8_TYPE);
+  v = f.Or(
+      v,
+      f.And(
+          old_value,
+          f.Permute(
+              f.LoadVectorShr(eb),
+              f.LoadZero(VEC128_TYPE),
+              f.Not(f.LoadZero(VEC128_TYPE)),
+              INT8_TYPE)));
+  // ea &= ~0xF (store takes care of this)
+  f.Store(ea, v);
   return 0;
 }
 XEEMITTER(stvrx,          0x7C00054E, X   )(PPCFunctionBuilder& f, InstrData& i) {

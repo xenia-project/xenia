@@ -401,6 +401,10 @@ void Value::Not() {
   case INT64_TYPE:
     constant.i64 = ~constant.i64;
     break;
+  case VEC128_TYPE:
+    constant.v128.low = ~constant.v128.low;
+    constant.v128.high = ~constant.v128.high;
+    break;
   default:
     XEASSERTALWAYS();
     break;

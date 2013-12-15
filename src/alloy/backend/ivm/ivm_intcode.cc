@@ -1340,46 +1340,6 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
-uint32_t IntCode_LOAD_VECTOR_LEFT_V128(IntCodeState& ics, const IntCode* i) {
-  const uint32_t address = ics.rf[i->src1_reg].u32;
-  const size_t eb = address & 0xF;
-  const size_t size = 16 - eb;
-  const uint8_t* p = ics.membase + address;
-  vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < size; i++) {
-    dest.b16[size - 1 - i] = p[i];
-  }
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load_vector_left v128 %.8X\n",
-         dest.f4[0], dest.f4[1], dest.f4[2], dest.f4[3],
-         dest.i4[0], dest.i4[1], dest.i4[2], dest.i4[3],
-         address);
-  DFLUSH();
-  return IA_NEXT;
-}
-int Translate_LOAD_VECTOR_LEFT(TranslationContext& ctx, Instr* i) {
-  return DispatchToC(ctx, i, IntCode_LOAD_VECTOR_LEFT_V128);
-}
-
-uint32_t IntCode_LOAD_VECTOR_RIGHT_V128(IntCodeState& ics, const IntCode* i) {
-  const uint32_t address = ics.rf[i->src1_reg].u32;
-  const size_t eb = address & 0xF;
-  const size_t size = eb;
-  const uint8_t* p = ics.membase + address;
-  vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < size; i++) {
-    dest.b16[i] = p[size - 1 - i];
-  }
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load_vector_right v128 %.8X\n",
-         dest.f4[0], dest.f4[1], dest.f4[2], dest.f4[3],
-         dest.i4[0], dest.i4[1], dest.i4[2], dest.i4[3],
-         address);
-  DFLUSH();
-  return IA_NEXT;
-}
-int Translate_LOAD_VECTOR_RIGHT(TranslationContext& ctx, Instr* i) {
-  return DispatchToC(ctx, i, IntCode_LOAD_VECTOR_RIGHT_V128);
-}
-
 uint32_t IntCode_LOAD_ACQUIRE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   xe_atomic_exchange_32(address, ics.reserve_address);
@@ -1612,38 +1572,6 @@ int Translate_STORE_RELEASE(TranslationContext& ctx, Instr* i) {
     IntCode_STORE_RELEASE_V128,
   };
   return DispatchToC(ctx, i, fns[i->src2.value->type]);
-}
-
-uint32_t IntCode_STORE_VECTOR_LEFT_V128(IntCodeState& ics, const IntCode* i) {
-  const uint32_t address = ics.rf[i->src1_reg].u32;
-  const size_t eb = address & 0xF;
-  const size_t size = 16 - eb;
-  uint8_t* p = ics.membase + address;
-  const vec128_t& src = ics.rf[i->src2_reg].v128;
-  // Note that if the input is already 16b aligned no bytes are stored.
-  for (size_t i = 0; i < size; i++) {
-    p[i] = src.b16[15 - i];
-  }
-  return IA_NEXT;
-}
-int Translate_STORE_VECTOR_LEFT(TranslationContext& ctx, Instr* i) {
-  return DispatchToC(ctx, i, IntCode_STORE_VECTOR_LEFT_V128);
-}
-
-uint32_t IntCode_STORE_VECTOR_RIGHT_V128(IntCodeState& ics, const IntCode* i) {
-  const uint32_t address = ics.rf[i->src1_reg].u32;
-  const size_t eb = address & 0xF;
-  const size_t size = eb;
-  uint8_t* p = ics.membase + (address & ~0xF);
-  const vec128_t& src = ics.rf[i->src2_reg].v128;
-  // Note that if the input is already 16b aligned no bytes are stored.
-  for (size_t i = 0; i < size; i++) {
-    p[size - 1 - i] = src.b16[i];
-  }
-  return IA_NEXT;
-}
-int Translate_STORE_VECTOR_RIGHT(TranslationContext& ctx, Instr* i) {
-  return DispatchToC(ctx, i, IntCode_STORE_VECTOR_RIGHT_V128);
 }
 
 uint32_t IntCode_PREFETCH(IntCodeState& ics, const IntCode* i) {
@@ -3222,12 +3150,8 @@ static const TranslateFn dispatch_table[] = {
 
   Translate_LOAD,
   Translate_LOAD_ACQUIRE,
-  Translate_LOAD_VECTOR_LEFT,
-  Translate_LOAD_VECTOR_RIGHT,
   Translate_STORE,
   Translate_STORE_RELEASE,
-  Translate_STORE_VECTOR_LEFT,
-  Translate_STORE_VECTOR_RIGHT,
   Translate_PREFETCH,
 
   TranslateInvalid, //Translate_MAX,
