@@ -59,7 +59,21 @@ void Value::Cast(TypeName target_type) {
 }
 
 void Value::ZeroExtend(TypeName target_type) {
-  // TODO(benvanik): big matrix.
+  switch (type) {
+  case INT8_TYPE:
+    type = target_type;
+    constant.i64 = constant.i64 & ~0xFF;
+    return;
+  case INT16_TYPE:
+    type = target_type;
+    constant.i64 = constant.i64 & ~0xFFFF;
+    return;
+  case INT32_TYPE:
+    type = target_type;
+    constant.i64 = constant.i64 & ~0xFFFFFFFF;
+    return;
+  }
+  // Unsupported types.
   XEASSERTALWAYS();
 }
   
@@ -412,19 +426,19 @@ void Value::Not() {
 }
 
 void Value::Shl(Value* other) {
-  XEASSERT(type == other->type);
+  XEASSERT(other->type == INT8_TYPE);
   switch (type) {
   case INT8_TYPE:
     constant.i8 <<= other->constant.i8;
     break;
   case INT16_TYPE:
-    constant.i16 <<= other->constant.i16;
+    constant.i16 <<= other->constant.i8;
     break;
   case INT32_TYPE:
-    constant.i32 <<= other->constant.i32;
+    constant.i32 <<= other->constant.i8;
     break;
   case INT64_TYPE:
-    constant.i64 <<= other->constant.i64;
+    constant.i64 <<= other->constant.i8;
     break;
   default:
     XEASSERTALWAYS();
@@ -433,7 +447,7 @@ void Value::Shl(Value* other) {
 }
 
 void Value::Shr(Value* other) {
-  XEASSERT(type == other->type);
+  XEASSERT(other->type == INT8_TYPE);
   switch (type) {
   case INT8_TYPE:
     constant.i8 = (uint8_t)constant.i8 >> other->constant.i8;
@@ -454,7 +468,7 @@ void Value::Shr(Value* other) {
 }
 
 void Value::Sha(Value* other) {
-  XEASSERT(type == other->type);
+  XEASSERT(other->type == INT8_TYPE);
   switch (type) {
   case INT8_TYPE:
     constant.i8 = constant.i8 >> other->constant.i8;
