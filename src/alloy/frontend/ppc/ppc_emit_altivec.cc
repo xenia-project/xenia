@@ -294,9 +294,9 @@ int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
   //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
-  Value* new_value = f.ByteSwap(f.LoadVR(vd));
+  Value* new_value = f.LoadVR(vd);
   // ea &= ~0xF (load takes care of this)
-  Value* old_value = f.Load(ea, VEC128_TYPE);
+  Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // v = (new >> eb) | (old & (ONE << (16 - eb)))
   Value* v = f.Permute(
       f.LoadVectorShr(eb),
@@ -313,7 +313,7 @@ int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
               f.LoadZero(VEC128_TYPE),
               INT8_TYPE)));
   // ea &= ~0xF (store takes care of this)
-  f.Store(ea, v);
+  f.Store(ea, f.ByteSwap(v));
   return 0;
 }
 XEEMITTER(stvlx,          0x7C00050E, X   )(PPCFunctionBuilder& f, InstrData& i) {
@@ -335,9 +335,9 @@ int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   Value* ebits = f.Mul(eb, f.LoadConstant((int8_t)8));
-  Value* new_value = f.ByteSwap(f.LoadVR(vd));
+  Value* new_value = f.LoadVR(vd);
   // ea &= ~0xF (load takes care of this)
-  Value* old_value = f.Load(ea, VEC128_TYPE);
+  Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // v = (new << (16 - eb)) | (old & (ONE >> eb))
   Value* v = f.Permute(
       f.LoadVectorShl(f.Sub(f.LoadConstant((int8_t)16), eb)),
@@ -354,7 +354,7 @@ int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
               f.Not(f.LoadZero(VEC128_TYPE)),
               INT8_TYPE)));
   // ea &= ~0xF (store takes care of this)
-  f.Store(ea, v);
+  f.Store(ea, f.ByteSwap(v));
   return 0;
 }
 XEEMITTER(stvrx,          0x7C00054E, X   )(PPCFunctionBuilder& f, InstrData& i) {

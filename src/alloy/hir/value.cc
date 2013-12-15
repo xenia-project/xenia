@@ -62,15 +62,15 @@ void Value::ZeroExtend(TypeName target_type) {
   switch (type) {
   case INT8_TYPE:
     type = target_type;
-    constant.i64 = constant.i64 & ~0xFF;
+    constant.i64 = constant.i64 & 0xFF;
     return;
   case INT16_TYPE:
     type = target_type;
-    constant.i64 = constant.i64 & ~0xFFFF;
+    constant.i64 = constant.i64 & 0xFFFF;
     return;
   case INT32_TYPE:
     type = target_type;
-    constant.i64 = constant.i64 & ~0xFFFFFFFF;
+    constant.i64 = constant.i64 & 0xFFFFFFFF;
     return;
   }
   // Unsupported types.

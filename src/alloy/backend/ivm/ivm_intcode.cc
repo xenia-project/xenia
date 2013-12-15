@@ -1066,7 +1066,7 @@ int Translate_VECTOR_CONVERT_I2F(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_I2F);
 }
 
-static uint8_t __lvsl_table[16][16] = {
+static uint8_t __lvsl_table[17][16] = {
   { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15},
   { 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16},
   { 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17},
@@ -1083,8 +1083,9 @@ static uint8_t __lvsl_table[16][16] = {
   {13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28},
   {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
   {15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
+  {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
 };
-static uint8_t __lvsr_table[16][16] = {
+static uint8_t __lvsr_table[17][16] = {
   {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
   {15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
   {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
@@ -1101,10 +1102,11 @@ static uint8_t __lvsr_table[16][16] = {
   { 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18},
   { 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17},
   { 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16},
+  { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15},
 };
 
 uint32_t IntCode_LOAD_VECTOR_SHL(IntCodeState& ics, const IntCode* i) {
-  int8_t sh = ics.rf[i->src1_reg].i8;
+  int8_t sh = ics.rf[i->src1_reg].i8 & 0x1F;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
     dest.b16[n] = __lvsl_table[sh][n];
@@ -1116,9 +1118,9 @@ int Translate_LOAD_VECTOR_SHL(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_LOAD_VECTOR_SHR(IntCodeState& ics, const IntCode* i) {
-  int8_t sh = ics.rf[i->src1_reg].i8;
+  int8_t sh = ics.rf[i->src1_reg].i8 & 0x1F;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 4; n++) {
+  for (int n = 0; n < 16; n++) {
     dest.b16[n] = __lvsr_table[sh][n];
   }
   return IA_NEXT;
