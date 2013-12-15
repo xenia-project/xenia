@@ -508,7 +508,7 @@ uint32_t RingBufferWorker::ExecutePacket(PacketArgs& args) {
           XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(address & 0x3);
           address &= ~0x3;
           data_value = GpuSwap(data_value, endianness);
-          XESETUINT32LE(p + GpuToCpu(packet_ptr, address), data_value);
+          XESETUINT32LE(p + GpuToCpu(address), data_value);
         }
         break;
 
