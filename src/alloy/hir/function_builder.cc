@@ -472,24 +472,6 @@ void FunctionBuilder::Branch(Label* label, uint32_t branch_flags) {
   EndBlock();
 }
 
-void FunctionBuilder::BranchIf(
-    Value* cond, Label* true_label, Label* false_label,
-    uint32_t branch_flags) {
-  if (cond->IsConstantTrue()) {
-    Branch(true_label, branch_flags);
-    return;
-  } else if (cond->IsConstantFalse()) {
-    Branch(false_label, branch_flags);
-    return;
-  }
-
-  Instr* i = AppendInstr(OPCODE_BRANCH_IF_info, branch_flags);
-  i->set_src1(cond);
-  i->src2.label = true_label;
-  i->src3.label = false_label;
-  EndBlock();
-}
-
 void FunctionBuilder::BranchTrue(
     Value* cond, Label* label, uint32_t branch_flags) {
   if (cond->IsConstantTrue()) {

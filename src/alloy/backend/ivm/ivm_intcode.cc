@@ -693,61 +693,6 @@ int Translate_BRANCH(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_BRANCH);
 }
 
-uint32_t IntCode_BRANCH_IF_I8(IntCodeState& ics, const IntCode* i) {
-  if (ics.rf[i->src1_reg].u8) {
-    return IntCode_BRANCH_XX(ics, i, i->src2_reg);
-  } else {
-    return IntCode_BRANCH_XX(ics, i, i->src3_reg);
-  }
-}
-uint32_t IntCode_BRANCH_IF_I16(IntCodeState& ics, const IntCode* i) {
-  if (ics.rf[i->src1_reg].u16) {
-    return IntCode_BRANCH_XX(ics, i, i->src2_reg);
-  } else {
-    return IntCode_BRANCH_XX(ics, i, i->src3_reg);
-  }
-}
-uint32_t IntCode_BRANCH_IF_I32(IntCodeState& ics, const IntCode* i) {
-  if (ics.rf[i->src1_reg].u32) {
-    return IntCode_BRANCH_XX(ics, i, i->src2_reg);
-  } else {
-    return IntCode_BRANCH_XX(ics, i, i->src3_reg);
-  }
-}
-uint32_t IntCode_BRANCH_IF_I64(IntCodeState& ics, const IntCode* i) {
-  if (ics.rf[i->src1_reg].u64) {
-    return IntCode_BRANCH_XX(ics, i, i->src2_reg);
-  } else {
-    return IntCode_BRANCH_XX(ics, i, i->src3_reg);
-  }
-}
-uint32_t IntCode_BRANCH_IF_F32(IntCodeState& ics, const IntCode* i) {
-  if (ics.rf[i->src1_reg].f32) {
-    return IntCode_BRANCH_XX(ics, i, i->src2_reg);
-  } else {
-    return IntCode_BRANCH_XX(ics, i, i->src3_reg);
-  }
-}
-uint32_t IntCode_BRANCH_IF_F64(IntCodeState& ics, const IntCode* i) {
-  if (ics.rf[i->src1_reg].f64) {
-    return IntCode_BRANCH_XX(ics, i, i->src2_reg);
-  } else {
-    return IntCode_BRANCH_XX(ics, i, i->src3_reg);
-  }
-}
-int Translate_BRANCH_IF(TranslationContext& ctx, Instr* i) {
-  static IntCodeFn fns[] = {
-    IntCode_BRANCH_IF_I8,
-    IntCode_BRANCH_IF_I16,
-    IntCode_BRANCH_IF_I32,
-    IntCode_BRANCH_IF_I64,
-    IntCode_BRANCH_IF_F32,
-    IntCode_BRANCH_IF_F64,
-    IntCode_INVALID_TYPE,
-  };
-  return DispatchToC(ctx, i, fns[i->src1.value->type]);
-}
-
 uint32_t IntCode_BRANCH_TRUE_I8(IntCodeState& ics, const IntCode* i) {
   if (ics.rf[i->src1_reg].u8) {
     return IntCode_BRANCH_XX(ics, i, i->src2_reg);
@@ -3130,7 +3075,6 @@ static const TranslateFn dispatch_table[] = {
   Translate_SET_RETURN_ADDRESS,
 
   Translate_BRANCH,
-  Translate_BRANCH_IF,
   Translate_BRANCH_TRUE,
   Translate_BRANCH_FALSE,
 

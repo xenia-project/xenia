@@ -73,8 +73,6 @@ public:
   void SetReturnAddress(Value* value);
 
   void Branch(Label* label, uint32_t branch_flags = 0);
-  void BranchIf(Value* cond, Label* true_label, Label* false_label,
-                uint32_t branch_flags = 0);
   void BranchTrue(Value* cond, Label* label,
                   uint32_t branch_flags = 0);
   void BranchFalse(Value* cond, Label* label,
