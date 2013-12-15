@@ -48,7 +48,10 @@ void Instr::set_src3(Value* value) {
   src3_use = value ? value->AddUse(block->arena, this) : NULL;
 }
 
-void Instr::Remove() {
+void Instr::Replace(const OpcodeInfo* opcode, uint16_t flags) {
+  this->opcode = opcode;
+  this->flags = flags;
+
   if (dest) {
     dest->def = NULL;
   }
@@ -64,6 +67,11 @@ void Instr::Remove() {
     src3.value->RemoveUse(src3_use);
     src3_use = NULL;
   }
+}
+
+void Instr::Remove() {
+  // Remove all srcs/dest.
+  Replace(&OPCODE_NOP_info, 0);
 
   if (prev) {
     prev->next = next;

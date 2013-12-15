@@ -48,6 +48,72 @@ int ConstantPropagationPass::Run(FunctionBuilder* builder) {
     while (i) {
       Value* v = i->dest;
       switch (i->opcode->num) {
+      case OPCODE_DEBUG_BREAK_TRUE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            i->Replace(&OPCODE_DEBUG_BREAK_info, i->flags);
+          } else {
+            i->Remove();
+          }
+        }
+        break;
+
+      case OPCODE_TRAP_TRUE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            i->Replace(&OPCODE_TRAP_info, i->flags);
+          } else {
+            i->Remove();
+          }
+        }
+        break;
+
+      case OPCODE_CALL_TRUE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            auto symbol_info = i->src2.symbol_info;
+            i->Replace(&OPCODE_CALL_info, i->flags);
+            i->src1.symbol_info = symbol_info;
+          } else {
+            i->Remove();
+          }
+        }
+        break;
+      case OPCODE_CALL_INDIRECT_TRUE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            auto value = i->src2.value;
+            i->Replace(&OPCODE_CALL_INDIRECT_info, i->flags);
+            i->set_src1(value);
+          } else {
+            i->Remove();
+          }
+        }
+        break;
+
+      case OPCODE_BRANCH_TRUE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            auto label = i->src2.label;
+            i->Replace(&OPCODE_BRANCH_info, i->flags);
+            i->src1.label = label;
+          } else {
+            i->Remove();
+          }
+        }
+        break;
+      case OPCODE_BRANCH_FALSE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantFalse()) {
+            auto label = i->src2.label;
+            i->Replace(&OPCODE_BRANCH_info, i->flags);
+            i->src1.label = label;
+          } else {
+            i->Remove();
+          }
+        }
+        break;
+
       case OPCODE_CAST:
         if (i->src1.value->IsConstant()) {
           TypeName target_type = v->type;
@@ -80,6 +146,39 @@ int ConstantPropagationPass::Run(FunctionBuilder* builder) {
           i->Remove();
         }
         break;
+
+      case OPCODE_SELECT:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            v->set_from(i->src2.value);
+          } else {
+            v->set_from(i->src3.value);
+          }
+          i->Remove();
+        }
+        break;
+      case OPCODE_IS_TRUE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantTrue()) {
+            v->set_constant((int8_t)1);
+          } else {
+            v->set_constant((int8_t)0);
+          }
+          i->Remove();
+        }
+        break;
+      case OPCODE_IS_FALSE:
+        if (i->src1.value->IsConstant()) {
+          if (i->src1.value->IsConstantFalse()) {
+            v->set_constant((int8_t)1);
+          } else {
+            v->set_constant((int8_t)0);
+          }
+          i->Remove();
+        }
+        break;
+
+      // TODO(benvanik): compares
 
       case OPCODE_ADD:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
@@ -183,6 +282,7 @@ int ConstantPropagationPass::Run(FunctionBuilder* builder) {
           i->Remove();
         }
         break;
+      // TODO(benvanik): VECTOR_SHL
       case OPCODE_SHR:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
           v->set_from(i->src1.value);
@@ -197,11 +297,19 @@ int ConstantPropagationPass::Run(FunctionBuilder* builder) {
           i->Remove();
         }
         break;
+      // TODO(benvanik): ROTATE_LEFT
       case OPCODE_BYTE_SWAP:
         if (i->src1.value->IsConstant()) {
           v->set_from(i->src1.value);
           v->ByteSwap();
           i->Remove();
+        }
+        break;
+      // TODO(benvanik): INSERT/EXTRACT
+      // TODO(benvanik): SPLAT/PERMUTE/SWIZZLE
+      case OPCODE_SPLAT:
+        if (i->src1.value->IsConstant()) {
+          // Quite a few of these, from building vec128s.
         }
         break;
       }

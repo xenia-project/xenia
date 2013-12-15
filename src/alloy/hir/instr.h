@@ -54,6 +54,7 @@ public:
   void set_src2(Value* value);
   void set_src3(Value* value);
 
+  void Replace(const OpcodeInfo* opcode, uint16_t flags);
   void Remove();
 };
 
