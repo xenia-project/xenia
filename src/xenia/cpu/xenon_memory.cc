@@ -197,9 +197,10 @@ int XenonMemory::Initialize() {
       XENON_MEMORY_PHYSICAL_HEAP_LOW, XENON_MEMORY_PHYSICAL_HEAP_HIGH);
 
   // GPU writeback.
+  // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
   VirtualAlloc(
-      Translate(0xC0000000 + system_page_size_),
-      0x00100000 - system_page_size_,
+      Translate(0xC0000000),
+      0x00100000,
       MEM_COMMIT, PAGE_READWRITE);
 
   return 0;
