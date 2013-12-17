@@ -26,7 +26,7 @@ namespace gdb {
 
 class GDBClient : public DebugClient {
 public:
-  GDBClient(DebugServer* debug_server, int socket_id);
+  GDBClient(DebugServer* debug_server, socket_t socket_id);
   virtual ~GDBClient();
 
   socket_t socket_id();

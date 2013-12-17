@@ -29,10 +29,10 @@ namespace ws {
 
 class WSClient : public DebugClient {
 public:
-  WSClient(DebugServer* debug_server, int socket_id);
+  WSClient(DebugServer* debug_server, socket_t socket_id);
   virtual ~WSClient();
 
-  socket_t socket_id();
+  socket_t socket_id() const { return socket_id_; }
 
   virtual int Setup();
 

@@ -278,6 +278,7 @@
                   'user32',
                   'ole32',
                   'wsock32',
+                  'Ws2_32',
                   'dxgi',
                   'd3d11',
                   'd3dcompiler',

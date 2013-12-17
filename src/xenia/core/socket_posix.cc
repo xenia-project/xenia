@@ -77,6 +77,18 @@ int xe_socket_bind(socket_t socket, uint32_t port) {
   return 0;
 }
 
+int xe_socket_bind_loopback(socket_t socket) {
+  struct sockaddr_in socket_addr;
+  socket_addr.sin_family      = AF_INET;
+  socket_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  socket_addr.sin_port        = htons(0);
+  int r = bind(socket, (struct sockaddr*)&socket_addr, sizeof(socket_addr));
+  if (r == SOCKET_ERROR) {
+    return 1;
+  }
+  return 0;
+}
+
 int xe_socket_listen(socket_t socket) {
   int r = listen(socket, 5);
   if (r < 0) {
@@ -88,8 +100,8 @@ int xe_socket_listen(socket_t socket) {
 int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
   struct sockaddr_in client_addr;
   socklen_t client_count = sizeof(client_addr);
-  int client_socket_id = accept(socket, (struct sockaddr*)&client_addr,
-                                &client_count);
+  socket_t client_socket_id = accept(
+      socket, (struct sockaddr*)&client_addr, &client_count);
   if (client_socket_id < 0) {
     return 1;
   }

@@ -25,7 +25,7 @@ using namespace xe::debug;
 using namespace xe::debug::protocols::ws;
 
 
-WSClient::WSClient(DebugServer* debug_server, int socket_id) :
+WSClient::WSClient(DebugServer* debug_server, socket_t socket_id) :
     DebugClient(debug_server),
     thread_(NULL),
     socket_id_(socket_id) {
@@ -50,10 +50,6 @@ WSClient::~WSClient() {
   xe_mutex_free(mutex);
 
   xe_thread_release(thread_);
-}
-
-int WSClient::socket_id() {
-  return socket_id_;
 }
 
 int WSClient::Setup() {

@@ -17,7 +17,7 @@ using namespace xe::debug;
 using namespace xe::debug::protocols::gdb;
 
 #if 0
-GDBClient::GDBClient(DebugServer* debug_server, int socket_id) :
+GDBClient::GDBClient(DebugServer* debug_server, socket_t socket_id) :
     DebugClient(debug_server),
     thread_(NULL),
     socket_id_(socket_id) {

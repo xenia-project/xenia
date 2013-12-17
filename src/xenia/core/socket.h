@@ -14,7 +14,7 @@
 #include <xenia/core.h>
 
 
-typedef int socket_t;
+typedef intptr_t socket_t;
 #define XE_INVALID_SOCKET -1
 
 
@@ -29,6 +29,7 @@ void xe_socket_set_nodelay(socket_t socket, bool value);
 void xe_socket_set_nonblock(socket_t socket, bool value);
 
 int xe_socket_bind(socket_t socket, uint32_t port);
+int xe_socket_bind_loopback(socket_t socket);
 int xe_socket_listen(socket_t socket);
 
 typedef struct {
