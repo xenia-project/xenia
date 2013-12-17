@@ -28,10 +28,10 @@ DEFINE_bool(wait_for_debugger, false,
 
 DebugServer::DebugServer(Emulator* emulator) :
     emulator_(emulator) {
-  //protocols_.push_back(
-  //    new protocols::gdb::GDBProtocol(this, gdb_port));
   protocols_.push_back(
-      new protocols::ws::WSProtocol(this));
+      new protocols::gdb::GDBProtocol(this));
+  //protocols_.push_back(
+  //    new protocols::ws::WSProtocol(this));
 }
 
 DebugServer::~DebugServer() {
@@ -55,13 +55,13 @@ int DebugServer::Startup() {
   }
 
   // If desired, wait until the first client connects.
-  if (FLAGS_wait_for_debugger) {
-    //XELOGI("Waiting for debugger on port %d...", FLAGS_remote_debug_port);
-    //if (listener_->WaitForClient()) {
-    //  return 1;
-    //}
+  //if (FLAGS_wait_for_debugger) {
+    XELOGI("Waiting for debugger...");
+    if (protocols_[0]->WaitForClient()) {
+      return 1;
+    }
     XELOGI("Debugger attached, continuing...");
-  }
+  //}
 
   return 0;
 }

@@ -5,5 +5,7 @@
     'gdb_client.h',
     'gdb_protocol.cc',
     'gdb_protocol.h',
+    'message.cc',
+    'message.h',
   ],
 }

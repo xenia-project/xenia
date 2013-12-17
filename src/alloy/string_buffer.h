@@ -21,11 +21,15 @@ public:
   StringBuffer(size_t initial_capacity = 0);
   ~StringBuffer();
 
+  size_t length() const { return offset_; }
+
   void Reset();
 
   void Append(const char* format, ...);
+  void AppendVarargs(const char* format, va_list args);
+  void AppendBytes(const uint8_t* buffer, size_t length);
 
-  const char* GetString();
+  const char* GetString() const;
   char* ToString();
 
 private:

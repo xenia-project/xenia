@@ -10,17 +10,19 @@
 #include <xenia/debug/protocols/gdb/gdb_client.h>
 
 #include <xenia/debug/debug_server.h>
+#include <xenia/debug/protocols/gdb/message.h>
 
 
 using namespace xe;
 using namespace xe::debug;
 using namespace xe::debug::protocols::gdb;
 
-#if 0
+
 GDBClient::GDBClient(DebugServer* debug_server, socket_t socket_id) :
     DebugClient(debug_server),
     thread_(NULL),
-    socket_id_(socket_id) {
+    socket_id_(socket_id),
+    current_reader_(0), send_queue_stalled_(false) {
   mutex_ = xe_mutex_alloc(1000);
 
   loop_ = xe_socket_loop_create(socket_id);
@@ -31,6 +33,19 @@ GDBClient::~GDBClient() {
   xe_mutex_lock(mutex);
 
   mutex_ = NULL;
+
+  delete current_reader_;
+  for (auto it = message_reader_pool_.begin();
+       it != message_reader_pool_.end(); ++it) {
+    delete *it;
+  }
+  for (auto it = message_writer_pool_.begin();
+       it != message_writer_pool_.end(); ++it) {
+    delete *it;
+  }
+  for (auto it = send_queue_.begin(); it != send_queue_.end(); ++it) {
+    delete *it;
+  }
 
   xe_socket_close(socket_id_);
   socket_id_ = 0;
@@ -44,16 +59,12 @@ GDBClient::~GDBClient() {
   xe_thread_release(thread_);
 }
 
-int GDBClient::socket_id() {
-  return socket_id_;
-}
-
 int GDBClient::Setup() {
   // Prep the socket.
   xe_socket_set_keepalive(socket_id_, true);
   xe_socket_set_nodelay(socket_id_, true);
 
-  thread_ = xe_thread_create("Debugger Client", StartCallback, this);
+  thread_ = xe_thread_create("GDB Debugger Client", StartCallback, this);
   return xe_thread_start(thread_);
 }
 
@@ -62,186 +73,7 @@ void GDBClient::StartCallback(void* param) {
   client->EventThread();
 }
 
-namespace {
-
-int64_t WsClientSendCallback(wslay_event_context_ptr ctx,
-                             const uint8_t* data, size_t len, int flags,
-                             void* user_data) {
-  GDBClient* client = reinterpret_cast<GDBClient*>(user_data);
-
-  int error_code = 0;
-  int64_t r;
-  while ((r = xe_socket_send(client->socket_id(), data, len, 0,
-                             &error_code)) == -1 && error_code == EINTR);
-  if (r == -1) {
-    if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
-      wslay_event_set_error(ctx, GDBLAY_ERR_WOULDBLOCK);
-    } else {
-      wslay_event_set_error(ctx, GDBLAY_ERR_CALLBACK_FAILURE);
-    }
-  }
-  return r;
-}
-
-int64_t WsClientRecvCallback(wslay_event_context_ptr ctx,
-                             uint8_t* data, size_t len, int flags,
-                             void* user_data) {
-  GDBClient* client = reinterpret_cast<GDBClient*>(user_data);
-
-  int error_code = 0;
-  int64_t r;
-  while ((r = xe_socket_recv(client->socket_id(), data, len, 0,
-                             &error_code)) == -1 && error_code == EINTR);
-  if (r == -1) {
-    if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
-      wslay_event_set_error(ctx, GDBLAY_ERR_WOULDBLOCK);
-    } else {
-      wslay_event_set_error(ctx, GDBLAY_ERR_CALLBACK_FAILURE);
-    }
-  } else if (r == 0) {
-    wslay_event_set_error(ctx, GDBLAY_ERR_CALLBACK_FAILURE);
-    r = -1;
-  }
-  return r;
-}
-
-void GDBClientOnMsgCallback(wslay_event_context_ptr ctx,
-                           const struct wslay_event_on_msg_recv_arg* arg,
-                           void* user_data) {
-  if (wslay_is_ctrl_frame(arg->opcode)) {
-    // Ignore control frames.
-    return;
-  }
-
-  GDBClient* client = reinterpret_cast<GDBClient*>(user_data);
-  switch (arg->opcode) {
-    case GDBLAY_TEXT_FRAME:
-      XELOGW("Text frame ignored; use binary messages");
-      break;
-    case GDBLAY_BINARY_FRAME:
-      client->OnMessage(arg->msg, arg->msg_length);
-      break;
-    default:
-      // Unknown opcode - some frame stuff?
-      break;
-  }
-}
-
-std::string EncodeBase64(const uint8_t* input, size_t length) {
-  static const char b64[] =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  std::string result;
-  size_t remaining = length;
-  size_t n = 0;
-  while (remaining) {
-    result.push_back(b64[input[n] >> 2]);
-    result.push_back(b64[((input[n] & 0x03) << 4) |
-                         ((input[n + 1] & 0xf0) >> 4)]);
-    remaining--;
-    if (remaining) {
-      result.push_back(b64[((input[n + 1] & 0x0f) << 2) |
-                           ((input[n + 2] & 0xc0) >> 6)]);
-      remaining--;
-    } else {
-      result.push_back('=');
-    }
-    if (remaining) {
-      result.push_back(b64[input[n + 2] & 0x3f]);
-      remaining--;
-    } else {
-      result.push_back('=');
-    }
-    n += 3;
-  }
-  return result;
-}
-
-}
-
 int GDBClient::PerformHandshake() {
-  std::string headers;
-  uint8_t buffer[4096];
-  int error_code = 0;
-  int64_t r;
-  while (true) {
-    while ((r = xe_socket_recv(socket_id_, buffer, sizeof(buffer), 0,
-                               &error_code)) == -1 && error_code == EINTR);
-    if (r == -1) {
-      if (error_code == EWOULDBLOCK || error_code == EAGAIN) {
-        if (!headers.size()) {
-          // Nothing read yet - spin.
-          continue;
-        }
-        break;
-      } else {
-        XELOGE("HTTP header read failure");
-        return 1;
-      }
-    } else if (r == 0) {
-      // EOF.
-      XELOGE("HTTP header EOF");
-      return 2;
-    } else {
-      headers.append(buffer, buffer + r);
-      if (headers.size() > 8192) {
-        XELOGE("HTTP headers exceeded max buffer size");
-        return 3;
-      }
-    }
-  }
-
-  if (headers.find("\r\n\r\n") == std::string::npos) {
-    XELOGE("Incomplete HTTP headers: %s", headers.c_str());
-    return 1;
-  }
-
-  // Parse the headers to verify its a websocket request.
-  std::string::size_type keyhdstart;
-  if (headers.find("Upgrade: websocket\r\n") == std::string::npos ||
-      headers.find("Connection: Upgrade\r\n") == std::string::npos ||
-      (keyhdstart = headers.find("Sec-WebSocket-Key: ")) ==
-          std::string::npos) {
-    XELOGW("HTTP connection does not contain websocket headers");
-    return 2;
-  }
-  keyhdstart += 19;
-  std::string::size_type keyhdend = headers.find("\r\n", keyhdstart);
-  std::string client_key = headers.substr(keyhdstart, keyhdend - keyhdstart);
-  std::string accept_key = client_key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-  uint8_t accept_sha[20];
-  SHA1((uint8_t*)accept_key.c_str(), accept_key.size(), accept_sha);
-  accept_key = EncodeBase64(accept_sha, sizeof(accept_sha));
-
-  // Write the response to upgrade the connection.
-  std::string response =
-      "HTTP/1.1 101 Switching Protocols\r\n"
-      "Upgrade: websocket\r\n"
-      "Connection: Upgrade\r\n"
-      "Sec-WebSocket-Accept: " + accept_key + "\r\n"
-      "\r\n";
-  size_t write_offset = 0;
-  size_t write_length = response.size();
-  while (true) {
-    while ((r = xe_socket_send(socket_id_,
-                               (uint8_t*)response.c_str() + write_offset,
-                               write_length, 0, &error_code)) == -1 &&
-           error_code == EINTR);
-    if (r == -1) {
-      if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
-        break;
-      } else {
-        XELOGE("HTTP response write failure");
-        return 4;
-      }
-    } else {
-      write_offset += r;
-      write_length -= r;
-      if (!write_length) {
-        break;
-      }
-    }
-  }
-
   return 0;
 }
 
@@ -255,90 +87,288 @@ void GDBClient::EventThread() {
     return;
   }
 
-  // Prep callbacks.
-  struct wslay_event_callbacks callbacks = {
-    (wslay_event_recv_callback)WsClientRecvCallback,
-    (wslay_event_send_callback)WsClientSendCallback,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    GDBClientOnMsgCallback,
-  };
-
-  // Prep the websocket server context.
-  wslay_event_context_ptr ctx;
-  wslay_event_context_server_init(&ctx, &callbacks, this);
-
   // Loop forever.
-  while (wslay_event_want_read(ctx) || wslay_event_want_write(ctx)) {
+  while (true) {
     // Wait on the event.
-    if (xe_socket_loop_poll(loop_,
-                            !!wslay_event_want_read(ctx),
-                            !!wslay_event_want_write(ctx))) {
+    if (xe_socket_loop_poll(loop_, true, send_queue_stalled_)) {
       break;
     }
 
     // Handle any self-generated events to queue messages.
-    if (xe_socket_loop_check_queued_write(loop_)) {
-      xe_mutex_lock(mutex_);
-      for (std::vector<struct wslay_event_msg>::iterator it =
-           pending_messages_.begin(); it != pending_messages_.end(); it++) {
-        struct wslay_event_msg* msg = &*it;
-        wslay_event_queue_msg(ctx, msg);
-      }
-      pending_messages_.clear();
-      xe_mutex_unlock(mutex_);
+    xe_mutex_lock(mutex_);
+    for (auto it = pending_messages_.begin();
+          it != pending_messages_.end(); it++) {
+      MessageWriter* message = *it;
+      send_queue_.push_back(message);
     }
+    pending_messages_.clear();
+    xe_mutex_unlock(mutex_);
 
     // Handle websocket messages.
-    if ((xe_socket_loop_check_socket_recv(loop_) && wslay_event_recv(ctx)) ||
-        (xe_socket_loop_check_socket_send(loop_) && wslay_event_send(ctx))) {
+    if (xe_socket_loop_check_socket_recv(loop_) && CheckReceive()) {
       // Error handling the event.
       XELOGE("Error handling WebSocket data");
       break;
     }
+    if (!send_queue_stalled_ || xe_socket_loop_check_socket_send(loop_)) {
+      if (PumpSendQueue()) {
+        // Error handling the event.
+        XELOGE("Error handling WebSocket data");
+        break;
+      }
+    }
   }
-
-  wslay_event_context_free(ctx);
 }
 
-void GDBClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
-  if (!count) {
-    return;
+int GDBClient::CheckReceive() {
+  uint8_t buffer[4096];
+  while (true) {
+    int error_code = 0;
+    int64_t r = xe_socket_recv(
+        socket_id_, buffer, sizeof(buffer), 0, &error_code);
+    if (r == -1) {
+      if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
+        return 0;
+      } else {
+        return 1;
+      }
+    } else if (r == 0) {
+      return 1;
+    } else {
+      // Append current reader until #.
+      int64_t pos = 0;
+      if (current_reader_) {
+        for (; pos < r; pos++) {
+          if (buffer[pos] == '#') {
+            pos++;
+            current_reader_->Append(buffer, pos);
+            MessageReader* message = current_reader_;
+            current_reader_ = NULL;
+            DispatchMessage(message);
+            break;
+          }
+        }
+      }
+
+      // Loop reading all messages in the buffer.
+      for (; pos < r; pos++) {
+        if (buffer[pos] == '$') {
+          if (message_reader_pool_.size()) {
+            current_reader_ = message_reader_pool_.back();
+            message_reader_pool_.pop_back();
+            current_reader_->Reset();
+          } else {
+            current_reader_ = new MessageReader();
+          }
+          size_t start_pos = pos;
+
+          // Scan until next #.
+          bool found_end = false;
+          for (; pos < r; pos++) {
+            if (buffer[pos] == '#') {
+              pos++;
+              current_reader_->Append(buffer + start_pos, pos - start_pos);
+              MessageReader* message = current_reader_;
+              current_reader_ = NULL;
+              DispatchMessage(message);
+              found_end = true;
+              break;
+            }
+          }
+          if (!found_end) {
+            // Ran out of bytes before message ended, keep around.
+            current_reader_->Append(buffer + start_pos, r - start_pos);
+          }
+          break;
+        }
+      }
+    }
   }
 
-  size_t combined_length;
-  uint8_t* combined_buffer;
-  if (count == 1) {
-    // Single buffer, just copy.
-    combined_length = lengths[0];
-    combined_buffer = (uint8_t*)xe_malloc(lengths[0]);
-    XEIGNORE(xe_copy_memory(combined_buffer, combined_length,
-                            buffers[0], lengths[0]));
+  return 0;
+}
+
+void GDBClient::DispatchMessage(MessageReader* message) {
+  // $[message]#
+  const char* str = message->GetString();
+  str++; // skip $
+
+  printf("GDB: %s", str);
+
+  bool handled = false;
+  switch (str[0]) {
+  case '!':
+    // Enable extended mode.
+    Send("OK");
+    handled = true;
+    break;
+  case 'v':
+    // Verbose packets.
+    if (strstr(str, "vRun") == str) {
+      Send("S05");
+      handled = true;
+    } else if (strstr(str, "vCont") == str) {
+      Send("S05");
+      handled = true;
+    }
+    break;
+  case 'q':
+    // Query packets.
+    switch (str[1]) {
+    case 'C':
+      // Get current thread ID.
+      Send("QC01");
+      handled = true;
+      break;
+    case 'R':
+      // Command.
+      Send("OK");
+      handled = true;
+      break;
+    default:
+      if (strstr(str, "qfThreadInfo") == str) {
+        // Start of thread list request.
+        Send("m01");
+        handled = true;
+      } else if (strstr(str, "qsThreadInfo") == str) {
+        // Continuation of thread list.
+        Send("l"); // l = last
+        handled = true;
+      }
+      break;
+    }
+    break;
+    
+#if 0
+  case 'H':
+    // Set current thread.
+    break;
+#endif
+
+  case 'g':
+    // Read all registers.
+    HandleReadRegisters(str + 1);
+    handled = true;
+    break;
+  case 'G':
+    // Write all registers.
+    HandleWriteRegisters(str + 1);
+    handled = true;
+    break;
+  case 'p':
+    // Read register.
+    HandleReadRegister(str + 1);
+    handled = true;
+    break;
+  case 'P':
+    // Write register.
+    HandleWriteRegister(str + 1);
+    handled = true;
+    break;
+
+  case 'm':
+    // Read memory.
+    HandleReadMemory(str + 1);
+    handled = true;
+  case 'M':
+    // Write memory.
+    HandleWriteMemory(str + 1);
+    handled = true;
+    break;
+
+  case 'Z':
+    // Insert breakpoint.
+    HandleAddBreakpoint(str + 1);
+    handled = true;
+    break;
+  case 'z':
+    // Remove breakpoint.
+    HandleRemoveBreakpoint(str + 1);
+    handled = true;
+    break;
+
+  case '?':
+    // Query halt reason.
+    Send("S05");
+    handled = true;
+    break;
+  case 'c':
+    // Continue.
+    // Deprecated: vCont should be used instead.
+    // NOTE: reply is sent on halt, not right now.
+    Send("S05");
+    handled = true;
+    break;
+  case 's':
+    // Single step.
+    // NOTE: reply is sent on halt, not right now.
+    Send("S05");
+    handled = true;
+    break;
+  }
+
+  if (!handled) {
+    // Unknown packet type. We should ACK just to keep IDA happy.
+    XELOGW("Unknown GDB packet type: %c", str[0]);
+    Send("");
+  }
+}
+
+int GDBClient::PumpSendQueue() {
+  send_queue_stalled_ = false;
+  for (auto it = send_queue_.begin(); it != send_queue_.end(); it++) {
+    MessageWriter* message = *it;
+    int error_code = 0;
+    int64_t r;
+    const uint8_t* data = message->buffer() + message->offset();
+    size_t bytes_remaining = message->length();
+    while (bytes_remaining) {
+      r = xe_socket_send(
+          socket_id_, data, bytes_remaining, 0, &error_code);
+      if (r == -1) {
+        if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
+          // Message did not finish sending.
+          send_queue_stalled_ = true;
+          return 0;
+        } else {
+          return 1;
+        }
+      } else {
+        bytes_remaining -= r;
+        data += r;
+        message->set_offset(message->offset() + r);
+      }
+    }
+    if (!bytes_remaining) {
+      xe_mutex_lock(mutex_);
+      message_writer_pool_.push_back(message);
+      xe_mutex_unlock(mutex_);
+    }
+  }
+  return 0;
+}
+
+MessageWriter* GDBClient::BeginSend() {
+  MessageWriter* message = NULL;
+  xe_mutex_lock(mutex_);
+  if (message_writer_pool_.size()) {
+    message = message_writer_pool_.back();
+    message_writer_pool_.pop_back();
+  }
+  xe_mutex_unlock(mutex_);
+  if (message) {
+    message->Reset();
   } else {
-    // Multiple buffers, merge.
-    combined_length = 0;
-    for (size_t n = 0; n < count; n++) {
-      combined_length += lengths[n];
-    }
-    combined_buffer = (uint8_t*)xe_malloc(combined_length);
-    for (size_t n = 0, offset = 0; n < count; n++) {
-      XEIGNORE(xe_copy_memory(
-          combined_buffer + offset, combined_length - offset,
-          buffers[n], lengths[n]));
-      offset += lengths[n];
-    }
+    message = new MessageWriter();
   }
+  return message;
+}
 
-  struct wslay_event_msg msg = {
-    GDBLAY_BINARY_FRAME,
-    combined_buffer,
-    combined_length,
-  };
+void GDBClient::EndSend(MessageWriter* message) {
+  message->Finalize();
 
   xe_mutex_lock(mutex_);
-  pending_messages_.push_back(msg);
+  pending_messages_.push_back(message);
   bool needs_signal = pending_messages_.size() == 1;
   xe_mutex_unlock(mutex_);
 
@@ -347,4 +377,72 @@ void GDBClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
     xe_socket_loop_set_queued_write(loop_);
   }
 }
-#endif
+
+void GDBClient::Send(const char* format, ...) {
+  auto message = BeginSend();
+  va_list args;
+  va_start(args, format);
+  message->AppendVarargs(format, args);
+  va_end(args);
+  EndSend(message);
+}
+
+void GDBClient::HandleReadRegisters(const char* str) {
+  auto message = BeginSend();
+  for (int32_t n = 0; n < 32; n++) {
+    // gpr
+    message->Append("%08X", n);
+  }
+  for (int64_t n = 0; n < 32; n++) {
+    // fpr
+    message->Append("%016llX", n);
+  }
+  message->Append("%08X", 0x8202FB40); // pc
+  message->Append("%08X", 65); // msr
+  message->Append("%08X", 66); // cr
+  message->Append("%08X", 67); // lr
+  message->Append("%08X", 68); // ctr
+  message->Append("%08X", 69); // xer
+  message->Append("%08X", 70); // fpscr
+  EndSend(message);
+}
+
+void GDBClient::HandleWriteRegisters(const char* str) {
+  Send("OK");
+}
+
+void GDBClient::HandleReadRegister(const char* str) {
+  // p...HH
+  // HH = hex digit indicating register #
+  auto message = BeginSend();
+  message->Append("%.8X", 0x8202FB40);
+  EndSend(message);
+}
+
+void GDBClient::HandleWriteRegister(const char* str) {
+  Send("OK");
+}
+
+void GDBClient::HandleReadMemory(const char* str) {
+  // m...ADDR,SIZE
+  uint32_t addr;
+  uint32_t size;
+  scanf("%X,%X", &addr, &size);
+  auto message = BeginSend();
+  for (size_t n = 0; n < size; n++) {
+    message->Append("00");
+  }
+  EndSend(message);
+}
+
+void GDBClient::HandleWriteMemory(const char* str) {
+  Send("OK");
+}
+
+void GDBClient::HandleAddBreakpoint(const char* str) {
+  Send("OK");
+}
+
+void GDBClient::HandleRemoveBreakpoint(const char* str) {
+  Send("OK");
+}

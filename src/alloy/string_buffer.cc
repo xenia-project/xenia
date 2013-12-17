@@ -29,12 +29,16 @@ void StringBuffer::Reset() {
 }
 
 void StringBuffer::Append(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  AppendVarargs(format, args);
+  va_end(args);
+}
+
+void StringBuffer::AppendVarargs(const char* format, va_list args) {
   while (true) {
-    va_list args;
-    va_start(args, format);
     int len = xevsnprintfa(
         buffer_ + offset_, capacity_ - offset_ - 1, format, args);
-    va_end(args);
     if (len == -1) {
       size_t old_capacity = capacity_;
       capacity_ = capacity_ * 2;
@@ -48,7 +52,20 @@ void StringBuffer::Append(const char* format, ...) {
   buffer_[offset_] = 0;
 }
 
-const char* StringBuffer::GetString() {
+void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
+  if (offset_ + length > capacity_) {
+    size_t old_capacity = capacity_;
+    capacity_ = MAX(capacity_ * 2, capacity_ + length);
+    buffer_ = (char*)xe_realloc(buffer_, old_capacity, capacity_);
+  }
+  xe_copy_memory(
+      buffer_ + offset_, capacity_ - offset_,
+      buffer, length);
+  offset_ += length;
+  buffer_[offset_] = 0;
+}
+
+const char* StringBuffer::GetString() const {
   return buffer_;
 }
 
