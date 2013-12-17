@@ -7,34 +7,36 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DBG_WS_CLIENT_H_
-#define XENIA_DBG_WS_CLIENT_H_
+#ifndef XENIA_DEBUG_PROTOCOLS_WS_WS_CLIENT_H_
+#define XENIA_DEBUG_PROTOCOLS_WS_WS_CLIENT_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 #include <vector>
 
-#include <xenia/dbg/client.h>
+#include <xenia/debug/debug_client.h>
 
 
 struct wslay_event_msg;
 
 
 namespace xe {
-namespace dbg {
+namespace debug {
+namespace protocols {
+namespace ws {
 
 
-class WsClient : public Client {
+class WSClient : public DebugClient {
 public:
-  WsClient(Debugger* debugger, int socket_id);
-  virtual ~WsClient();
+  WSClient(DebugServer* debug_server, int socket_id);
+  virtual ~WSClient();
 
   socket_t socket_id();
 
   virtual int Setup();
 
-  virtual void Write(uint8_t** buffers, size_t* lengths, size_t count);
+  void Write(uint8_t** buffers, size_t* lengths, size_t count);
 
 private:
   static void StartCallback(void* param);
@@ -42,7 +44,7 @@ private:
   int PerformHandshake();
   void EventThread();
 
-  xe_thread_ref thread_;
+  xe_thread_ref     thread_;
 
   socket_t          socket_id_;
   xe_socket_loop_t* loop_;
@@ -51,8 +53,10 @@ private:
 };
 
 
-}  // namespace dbg
+}  // namespace ws
+}  // namespace protocols
+}  // namespace debug
 }  // namespace xe
 
 
-#endif  // XENIA_DBG_WS_CLIENT_H_
+#endif  // XENIA_DEBUG_PROTOCOLS_WS_WS_CLIENT_H_

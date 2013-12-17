@@ -7,28 +7,38 @@
  ******************************************************************************
  */
 
-#include <xenia/dbg/ws_listener.h>
+#include <xenia/debug/protocols/gdb/gdb_protocol.h>
 
-#include <xenia/dbg/ws_client.h>
+#include <xenia/debug/protocols/gdb/gdb_client.h>
+
+#include <gflags/gflags.h>
+
+
+DEFINE_int32(gdb_debug_port, 6201,
+    "Remote debugging port for GDB TCP connections.");
 
 
 using namespace xe;
-using namespace xe::dbg;
+using namespace xe::debug;
+using namespace xe::debug::protocols::gdb;
 
 
-WsListener::WsListener(Debugger* debugger, uint32_t port) :
-    Listener(debugger),
-    port_(port) {
-
+GDBProtocol::GDBProtocol(DebugServer* debug_server) :
+    Protocol(debug_server) {
+  port_ = FLAGS_gdb_debug_port;
 }
 
-WsListener::~WsListener() {
+GDBProtocol::~GDBProtocol() {
   if (socket_id_) {
     xe_socket_close(socket_id_);
   }
 }
 
-int WsListener::Setup() {
+int GDBProtocol::Setup() {
+  if (port_ == 0 || port_ == -1) {
+    return 0;
+  }
+
   xe_socket_init();
 
   socket_id_ = xe_socket_create_tcp();
@@ -53,18 +63,22 @@ int WsListener::Setup() {
   return 0;
 }
 
-int WsListener::WaitForClient() {
+int GDBProtocol::WaitForClient() {
+  if (!socket_id_) {
+    return 1;
+  }
+
   // Accept the first connection we get.
   xe_socket_connection_t client_info;
   if (xe_socket_accept(socket_id_, &client_info)) {
     return 1;
   }
 
-  XELOGI("Debugger connected from %s", client_info.addr);
+  XELOGI("GDB debugger connected from %s", client_info.addr);
 
   // Create the client object.
   // Note that the client will delete itself when done.
-  WsClient* client = new WsClient(debugger_, client_info.socket);
+  GDBClient* client = new GDBClient(debug_server_, client_info.socket);
   if (client->Setup()) {
     // Client failed to setup - abort.
     return 1;

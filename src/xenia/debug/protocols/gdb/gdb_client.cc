@@ -7,25 +7,18 @@
  ******************************************************************************
  */
 
-#include <xenia/dbg/ws_client.h>
+#include <xenia/debug/protocols/gdb/gdb_client.h>
 
-#include <xenia/dbg/debugger.h>
-#include <xenia/dbg/simple_sha1.h>
-
-#if XE_PLATFORM(WIN32)
-// Required for wslay.
-typedef SSIZE_T ssize_t;
-#endif  // WIN32
-
-#include <wslay/wslay.h>
+#include <xenia/debug/debug_server.h>
 
 
 using namespace xe;
-using namespace xe::dbg;
+using namespace xe::debug;
+using namespace xe::debug::protocols::gdb;
 
-
-WsClient::WsClient(Debugger* debugger, int socket_id) :
-    Client(debugger),
+#if 0
+GDBClient::GDBClient(DebugServer* debug_server, int socket_id) :
+    DebugClient(debug_server),
     thread_(NULL),
     socket_id_(socket_id) {
   mutex_ = xe_mutex_alloc(1000);
@@ -33,7 +26,7 @@ WsClient::WsClient(Debugger* debugger, int socket_id) :
   loop_ = xe_socket_loop_create(socket_id);
 }
 
-WsClient::~WsClient() {
+GDBClient::~GDBClient() {
   xe_mutex_t* mutex = mutex_;
   xe_mutex_lock(mutex);
 
@@ -51,11 +44,11 @@ WsClient::~WsClient() {
   xe_thread_release(thread_);
 }
 
-int WsClient::socket_id() {
+int GDBClient::socket_id() {
   return socket_id_;
 }
 
-int WsClient::Setup() {
+int GDBClient::Setup() {
   // Prep the socket.
   xe_socket_set_keepalive(socket_id_, true);
   xe_socket_set_nodelay(socket_id_, true);
@@ -64,8 +57,8 @@ int WsClient::Setup() {
   return xe_thread_start(thread_);
 }
 
-void WsClient::StartCallback(void* param) {
-  WsClient* client = reinterpret_cast<WsClient*>(param);
+void GDBClient::StartCallback(void* param) {
+  GDBClient* client = reinterpret_cast<GDBClient*>(param);
   client->EventThread();
 }
 
@@ -74,7 +67,7 @@ namespace {
 int64_t WsClientSendCallback(wslay_event_context_ptr ctx,
                              const uint8_t* data, size_t len, int flags,
                              void* user_data) {
-  WsClient* client = reinterpret_cast<WsClient*>(user_data);
+  GDBClient* client = reinterpret_cast<GDBClient*>(user_data);
 
   int error_code = 0;
   int64_t r;
@@ -82,9 +75,9 @@ int64_t WsClientSendCallback(wslay_event_context_ptr ctx,
                              &error_code)) == -1 && error_code == EINTR);
   if (r == -1) {
     if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
-      wslay_event_set_error(ctx, WSLAY_ERR_WOULDBLOCK);
+      wslay_event_set_error(ctx, GDBLAY_ERR_WOULDBLOCK);
     } else {
-      wslay_event_set_error(ctx, WSLAY_ERR_CALLBACK_FAILURE);
+      wslay_event_set_error(ctx, GDBLAY_ERR_CALLBACK_FAILURE);
     }
   }
   return r;
@@ -93,7 +86,7 @@ int64_t WsClientSendCallback(wslay_event_context_ptr ctx,
 int64_t WsClientRecvCallback(wslay_event_context_ptr ctx,
                              uint8_t* data, size_t len, int flags,
                              void* user_data) {
-  WsClient* client = reinterpret_cast<WsClient*>(user_data);
+  GDBClient* client = reinterpret_cast<GDBClient*>(user_data);
 
   int error_code = 0;
   int64_t r;
@@ -101,18 +94,18 @@ int64_t WsClientRecvCallback(wslay_event_context_ptr ctx,
                              &error_code)) == -1 && error_code == EINTR);
   if (r == -1) {
     if (error_code == EAGAIN || error_code == EWOULDBLOCK) {
-      wslay_event_set_error(ctx, WSLAY_ERR_WOULDBLOCK);
+      wslay_event_set_error(ctx, GDBLAY_ERR_WOULDBLOCK);
     } else {
-      wslay_event_set_error(ctx, WSLAY_ERR_CALLBACK_FAILURE);
+      wslay_event_set_error(ctx, GDBLAY_ERR_CALLBACK_FAILURE);
     }
   } else if (r == 0) {
-    wslay_event_set_error(ctx, WSLAY_ERR_CALLBACK_FAILURE);
+    wslay_event_set_error(ctx, GDBLAY_ERR_CALLBACK_FAILURE);
     r = -1;
   }
   return r;
 }
 
-void WsClientOnMsgCallback(wslay_event_context_ptr ctx,
+void GDBClientOnMsgCallback(wslay_event_context_ptr ctx,
                            const struct wslay_event_on_msg_recv_arg* arg,
                            void* user_data) {
   if (wslay_is_ctrl_frame(arg->opcode)) {
@@ -120,12 +113,12 @@ void WsClientOnMsgCallback(wslay_event_context_ptr ctx,
     return;
   }
 
-  WsClient* client = reinterpret_cast<WsClient*>(user_data);
+  GDBClient* client = reinterpret_cast<GDBClient*>(user_data);
   switch (arg->opcode) {
-    case WSLAY_TEXT_FRAME:
+    case GDBLAY_TEXT_FRAME:
       XELOGW("Text frame ignored; use binary messages");
       break;
-    case WSLAY_BINARY_FRAME:
+    case GDBLAY_BINARY_FRAME:
       client->OnMessage(arg->msg, arg->msg_length);
       break;
     default:
@@ -165,7 +158,7 @@ std::string EncodeBase64(const uint8_t* input, size_t length) {
 
 }
 
-int WsClient::PerformHandshake() {
+int GDBClient::PerformHandshake() {
   std::string headers;
   uint8_t buffer[4096];
   int error_code = 0;
@@ -252,7 +245,7 @@ int WsClient::PerformHandshake() {
   return 0;
 }
 
-void WsClient::EventThread() {
+void GDBClient::EventThread() {
   // Enable non-blocking IO on the socket.
   xe_socket_set_nonblock(socket_id_, true);
 
@@ -270,7 +263,7 @@ void WsClient::EventThread() {
     NULL,
     NULL,
     NULL,
-    WsClientOnMsgCallback,
+    GDBClientOnMsgCallback,
   };
 
   // Prep the websocket server context.
@@ -310,7 +303,7 @@ void WsClient::EventThread() {
   wslay_event_context_free(ctx);
 }
 
-void WsClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
+void GDBClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
   if (!count) {
     return;
   }
@@ -339,7 +332,7 @@ void WsClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
   }
 
   struct wslay_event_msg msg = {
-    WSLAY_BINARY_FRAME,
+    GDBLAY_BINARY_FRAME,
     combined_buffer,
     combined_length,
   };
@@ -354,3 +347,4 @@ void WsClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
     xe_socket_loop_set_queued_write(loop_);
   }
 }
+#endif

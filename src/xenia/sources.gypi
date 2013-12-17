@@ -29,7 +29,7 @@
     'apu/sources.gypi',
     'core/sources.gypi',
     'cpu/sources.gypi',
-    'dbg/sources.gypi',
+    'debug/sources.gypi',
     'gpu/sources.gypi',
     'hid/sources.gypi',
     'kernel/sources.gypi',

@@ -6,6 +6,7 @@
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
     'third_party/sparsehash.gypi',
+    'third_party/wslay.gypi',
   ],
 
   'default_configuration': 'release',
@@ -248,12 +249,14 @@
         'asmjit',
         'beaengine',
         'gflags',
+        'wslay',
         'alloy',
       ],
       'export_dependent_settings': [
         'asmjit',
         'beaengine',
         'gflags',
+        'wslay',
         'alloy',
       ],
 

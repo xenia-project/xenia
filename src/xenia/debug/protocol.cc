@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#include <xenia/dbg/listener.h>
+#include <xenia/debug/protocol.h>
 
 
 using namespace xe;
-using namespace xe::dbg;
+using namespace xe::debug;
 
 
-Listener::Listener(Debugger* debugger) :
-    debugger_(debugger) {
+Protocol::Protocol(DebugServer* debug_server) :
+    debug_server_(debug_server) {
 }
 
-Listener::~Listener() {
+Protocol::~Protocol() {
 }

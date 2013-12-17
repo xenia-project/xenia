@@ -7,26 +7,28 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DBG_WS_LISTENER_H_
-#define XENIA_DBG_WS_LISTENER_H_
+#ifndef XENIA_DEBUG_PROTOCOLS_GDB_GDB_PROTOCOL_H_
+#define XENIA_DEBUG_PROTOCOLS_GDB_GDB_PROTOCOL_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-#include <xenia/dbg/listener.h>
+#include <xenia/debug/protocol.h>
+
+
+XEDECLARECLASS2(xe, debug, DebugServer);
 
 
 namespace xe {
-namespace dbg {
+namespace debug {
+namespace protocols {
+namespace gdb {
 
 
-class Debugger;
-
-
-class WsListener : public Listener {
+class GDBProtocol : public Protocol {
 public:
-  WsListener(Debugger* debugger, uint32_t port);
-  virtual ~WsListener();
+  GDBProtocol(DebugServer* debug_server);
+  virtual ~GDBProtocol();
 
   virtual int Setup();
   virtual int WaitForClient();
@@ -38,8 +40,10 @@ protected:
 };
 
 
-}  // namespace dbg
+}  // namespace gdb
+}  // namespace protocols
+}  // namespace debug
 }  // namespace xe
 
 
-#endif  // XENIA_DBG_WS_LISTENER_H_
+#endif  // XENIA_DEBUG_PROTOCOLS_GDB_GDB_PROTOCOL_H_

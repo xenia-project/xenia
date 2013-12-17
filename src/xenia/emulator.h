@@ -18,7 +18,7 @@
 XEDECLARECLASS1(xe, ExportResolver);
 XEDECLARECLASS2(xe, apu, AudioSystem);
 XEDECLARECLASS2(xe, cpu, Processor);
-XEDECLARECLASS2(xe, dbg, Debugger);
+XEDECLARECLASS2(xe, debug, DebugServer);
 XEDECLARECLASS2(xe, gpu, GraphicsSystem);
 XEDECLARECLASS2(xe, hid, InputSystem);
 XEDECLARECLASS3(xe, kernel, xam, XamModule);
@@ -37,7 +37,7 @@ public:
   const xechar_t* command_line() const { return command_line_; }
   Memory* memory() const { return memory_; }
 
-  dbg::Debugger* debugger() const { return debugger_; }
+  debug::DebugServer* debug_server() const { return debug_server_; }
 
   cpu::Processor* processor() const { return processor_; }
   apu::AudioSystem* audio_system() const { return audio_system_; }
@@ -57,7 +57,7 @@ private:
   xechar_t          command_line_[XE_MAX_PATH];
   Memory*           memory_;
 
-  dbg::Debugger*          debugger_;
+  debug::DebugServer*     debug_server_;
 
   cpu::Processor*         processor_;
   apu::AudioSystem*       audio_system_;

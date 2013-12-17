@@ -7,35 +7,20 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DBG_LISTENER_H_
-#define XENIA_DBG_LISTENER_H_
+#include <xenia/debug/debug_client.h>
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <xenia/debug/debug_server.h>
 
 
-namespace xe {
-namespace dbg {
+using namespace xe;
+using namespace xe::debug;
 
 
-class Debugger;
+DebugClient::DebugClient(DebugServer* debug_server) :
+    debug_server_(debug_server) {
+  debug_server_->AddClient(this);
+}
 
-
-class Listener {
-public:
-  Listener(Debugger* debugger);
-  virtual ~Listener();
-
-  virtual int Setup() = 0;
-  virtual int WaitForClient() = 0;
-
-protected:
-  Debugger*   debugger_;
-};
-
-
-}  // namespace dbg
-}  // namespace xe
-
-
-#endif  // XENIA_DBG_LISTENER_H_
+DebugClient::~DebugClient() {
+  debug_server_->RemoveClient(this);
+}
