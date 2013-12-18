@@ -40,3 +40,21 @@ var DebugClient = function(endpoint) {
 
 
 var client = new DebugClient('ws://127.0.0.1:6200');
+
+
+var myTextArea = document.querySelector('.debugger-fnview-textarea');
+var myCodeMirror = CodeMirror.fromTextArea(myTextArea, {
+  mode: 'javascript',
+  theme: 'default',
+  indentUnit: 2,
+  tabSize: 2,
+
+  lineNumbers: true,
+  firstLineNumber: 0,
+  lineNumberFormatter: function(line) {
+    return String('0x00000000' + line);
+  },
+  gutters: [],
+
+  //readOnly: true,
+});
