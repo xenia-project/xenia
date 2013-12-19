@@ -61,6 +61,11 @@ int WSClient::Setup() {
   return xe_thread_start(thread_);
 }
 
+void WSClient::Close() {
+  xe_socket_close(socket_id_);
+  socket_id_ = 0;
+}
+
 void WSClient::StartCallback(void* param) {
   WSClient* client = reinterpret_cast<WSClient*>(param);
   client->EventThread();
@@ -305,6 +310,7 @@ void WSClient::EventThread() {
   }
 
   wslay_event_context_free(ctx);
+  delete this;
 }
 
 void WSClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {

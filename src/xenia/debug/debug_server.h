@@ -42,6 +42,8 @@ private:
 private:
   Emulator* emulator_;
   std::vector<Protocol*> protocols_;
+
+  xe_mutex_t* lock_;
   std::vector<DebugClient*> clients_;
 };
 

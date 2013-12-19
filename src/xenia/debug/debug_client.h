@@ -27,6 +27,7 @@ public:
   virtual ~DebugClient();
 
   virtual int Setup() = 0;
+  virtual void Close() = 0;
 
 protected:
   DebugServer* debug_server_;

@@ -24,11 +24,22 @@ DEFINE_int32(ws_debug_port, 6200,
 
 
 WSProtocol::WSProtocol(DebugServer* debug_server) :
+    port_(0), socket_id_(0), thread_(0), running_(false),
+    accepted_event_(INVALID_HANDLE_VALUE),
     Protocol(debug_server) {
   port_ = FLAGS_ws_debug_port;
 }
 
 WSProtocol::~WSProtocol() {
+  if (thread_) {
+    // Join thread.
+    running_ = false;
+    xe_thread_release(thread_);
+    thread_ = 0;
+  }
+  if (accepted_event_ != INVALID_HANDLE_VALUE) {
+    CloseHandle(accepted_event_);
+  }
   if (socket_id_) {
     xe_socket_close(socket_id_);
   }
@@ -60,29 +71,46 @@ int WSProtocol::Setup() {
     return 1;
   }
 
-  return 0;
+  accepted_event_ = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+  thread_ = xe_thread_create("WS Debugger Listener", StartCallback, this);
+  running_ = true;
+  return xe_thread_start(thread_);
+}
+
+void WSProtocol::StartCallback(void* param) {
+  WSProtocol* protocol = reinterpret_cast<WSProtocol*>(param);
+  protocol->AcceptThread();
+}
+
+void WSProtocol::AcceptThread() {
+  while (running_) {
+    if (!socket_id_) {
+      break;
+    }
+
+    // Accept the first connection we get.
+    xe_socket_connection_t client_info;
+    if (xe_socket_accept(socket_id_, &client_info)) {
+      XELOGE("WS debugger failed to accept connection");
+      break;
+    }
+
+    XELOGI("WS debugger connected from %s", client_info.addr);
+
+    // Create the client object.
+    // Note that the client will delete itself when done.
+    WSClient* client = new WSClient(debug_server_, client_info.socket);
+    if (client->Setup()) {
+      // Client failed to setup - abort.
+      continue;
+    }
+
+    SetEvent(accepted_event_);
+  }
 }
 
 int WSProtocol::WaitForClient() {
-  if (!socket_id_) {
-    return 1;
-  }
-
-  // Accept the first connection we get.
-  xe_socket_connection_t client_info;
-  if (xe_socket_accept(socket_id_, &client_info)) {
-    return 1;
-  }
-
-  XELOGI("WS debugger connected from %s", client_info.addr);
-
-  // Create the client object.
-  // Note that the client will delete itself when done.
-  WSClient* client = new WSClient(debug_server_, client_info.socket);
-  if (client->Setup()) {
-    // Client failed to setup - abort.
-    return 1;
-  }
-
+  WaitForSingleObject(accepted_event_, INFINITE);
   return 0;
 }

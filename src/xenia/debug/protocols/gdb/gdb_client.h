@@ -35,6 +35,7 @@ public:
   socket_t socket_id() const { return socket_id_; }
 
   virtual int Setup();
+  virtual void Close();
 
 private:
   static void StartCallback(void* param);

@@ -231,6 +231,7 @@ void xe_socket_loop_destroy(xe_socket_loop_t* loop) {
 int xe_socket_loop_poll(xe_socket_loop_t* loop,
                         bool check_read, bool check_write) {
   // Prep events object.
+  loop->events[0].events = 0;
   if (check_read) {
     loop->events[0].events |= POLLIN;
   }

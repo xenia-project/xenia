@@ -27,15 +27,20 @@ DEFINE_bool(wait_for_debugger, false,
 
 
 DebugServer::DebugServer(Emulator* emulator) :
-    emulator_(emulator) {
-  protocols_.push_back(
-      new protocols::gdb::GDBProtocol(this));
+    emulator_(emulator), lock_(0) {
+  lock_ = xe_mutex_alloc(10000);
+
   //protocols_.push_back(
-  //    new protocols::ws::WSProtocol(this));
+  //    new protocols::gdb::GDBProtocol(this));
+  protocols_.push_back(
+      new protocols::ws::WSProtocol(this));
 }
 
 DebugServer::~DebugServer() {
   Shutdown();
+
+  xe_free(lock_);
+  lock_ = 0;
 }
 
 int DebugServer::Startup() {
@@ -67,6 +72,8 @@ int DebugServer::Startup() {
 }
 
 void DebugServer::Shutdown() {
+  xe_mutex_lock(lock_);
+
   std::vector<DebugClient*> clients(clients_.begin(), clients_.end());
   clients_.clear();
   for (std::vector<DebugClient*>::iterator it = clients.begin();
@@ -80,18 +87,35 @@ void DebugServer::Shutdown() {
        it != protocols.end(); ++it) {
     delete *it;
   }
+
+  xe_mutex_unlock(lock_);
 }
 
 void DebugServer::AddClient(DebugClient* debug_client) {
+  xe_mutex_lock(lock_);
+
+  // Only one debugger at a time right now. Kill any old one.
+  while (clients_.size()) {
+    DebugClient* old_client = clients_.back();
+    clients_.pop_back();
+    old_client->Close();
+  }
+
   clients_.push_back(debug_client);
+
+  xe_mutex_unlock(lock_);
 }
 
 void DebugServer::RemoveClient(DebugClient* debug_client) {
+  xe_mutex_lock(lock_);
+
   for (std::vector<DebugClient*>::iterator it = clients_.begin();
        it != clients_.end(); ++it) {
     if (*it == debug_client) {
       clients_.erase(it);
-      return;
+      break;
     }
   }
+
+  xe_mutex_unlock(lock_);
 }

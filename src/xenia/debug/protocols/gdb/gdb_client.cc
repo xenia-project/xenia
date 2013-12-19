@@ -68,6 +68,11 @@ int GDBClient::Setup() {
   return xe_thread_start(thread_);
 }
 
+void GDBClient::Close() {
+  xe_socket_close(socket_id_);
+  socket_id_ = 0;
+}
+
 void GDBClient::StartCallback(void* param) {
   GDBClient* client = reinterpret_cast<GDBClient*>(param);
   client->EventThread();
