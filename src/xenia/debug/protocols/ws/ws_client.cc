@@ -223,34 +223,28 @@ int WSClient::PerformHandshake() {
     xesnprintfa(title_id, XECOUNT(title_id), "%.8X",
                 header->execution_info.title_id);
 
-    ostringstream response;
+    ostringstream response_body;
     if (module) {
-      response <<
-          "HTTP/1.0 200 OK\r\n"
-          "Content-Type: application/json\r\n"
-          "Connection: close\r\n"
-          "\r\n";
-      response << "[{";
-      response <<
+      response_body << "[{";
+      response_body <<
           "\"name\": \"" << module->name() << "\",";
-      response <<
-          "\"path\": \"" << module->path() << "\",";
-      response <<
+      response_body <<
           "\"titleId\": \"" << title_id << "\"";
-      response << "}]";
-      response <<
-          "\r\n"
-          "\r\n";
+      response_body << "}]";
     } else {
-      response <<
+      response_body <<
+          "[]";
+    }
+    size_t content_length = response_body.str().length();
+    ostringstream response;
+    response <<
           "HTTP/1.0 200 OK\r\n"
           "Content-Type: application/json\r\n"
           "Connection: close\r\n"
-          "\r\n"
-          "[]"
-          "\r\n"
+          "Access-Control-Allow-Origin: *\r\n"
+          "Content-Length: " << content_length << "\r\n"
           "\r\n";
-    }
+    response << response_body.str();
     error_code = WriteResponse(response.str());
     if (error_code) {
       return error_code;

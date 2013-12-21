@@ -35,6 +35,10 @@ XModule::XModule(KernelState* kernel_state, const char* path) :
   if (slash) {
     XEIGNORE(xestrcpya(name_, XECOUNT(name_), slash + 1));
   }
+  char* dot = xestrrchra(name_, '.');
+  if (dot) {
+    *dot = 0;
+  }
 }
 
 XModule::~XModule() {

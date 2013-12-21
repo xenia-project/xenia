@@ -35,6 +35,15 @@ socket_t xe_socket_create_tcp() {
 }
 
 void xe_socket_close(socket_t socket) {
+  struct linger so_linger;
+  so_linger.l_onoff = TRUE;
+  so_linger.l_linger = 30;
+  setsockopt(
+      socket,
+      SOL_SOCKET,
+      SO_LINGER,
+      (const char*)&so_linger,
+      sizeof so_linger);
   shutdown(socket, SD_SEND);
   closesocket(socket);
 }
