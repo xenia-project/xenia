@@ -24,11 +24,18 @@ using namespace xe::debug::protocols::gdb;
 
 
 GDBProtocol::GDBProtocol(DebugServer* debug_server) :
+    port_(0), socket_id_(0), thread_(0), running_(false),
     Protocol(debug_server) {
   port_ = FLAGS_gdb_debug_port;
 }
 
 GDBProtocol::~GDBProtocol() {
+  if (thread_) {
+    // Join thread.
+    running_ = false;
+    xe_thread_release(thread_);
+    thread_ = 0;
+  }
   if (socket_id_) {
     xe_socket_close(socket_id_);
   }
@@ -60,29 +67,39 @@ int GDBProtocol::Setup() {
     return 1;
   }
 
+  thread_ = xe_thread_create("GDB Debugger Listener", StartCallback, this);
+  running_ = true;
+  return xe_thread_start(thread_);
+
   return 0;
 }
 
-int GDBProtocol::WaitForClient() {
-  if (!socket_id_) {
-    return 1;
+void GDBProtocol::StartCallback(void* param) {
+  GDBProtocol* protocol = reinterpret_cast<GDBProtocol*>(param);
+  protocol->AcceptThread();
+}
+
+void GDBProtocol::AcceptThread() {
+  while (running_) {
+    if (!socket_id_) {
+      break;
+    }
+
+    // Accept the first connection we get.
+    xe_socket_connection_t client_info;
+    if (xe_socket_accept(socket_id_, &client_info)) {
+      XELOGE("WS debugger failed to accept connection");
+      break;
+    }
+
+    XELOGI("WS debugger connected from %s", client_info.addr);
+
+    // Create the client object.
+    // Note that the client will delete itself when done.
+    GDBClient* client = new GDBClient(debug_server_, client_info.socket);
+    if (client->Setup()) {
+      // Client failed to setup - abort.
+      continue;
+    }
   }
-
-  // Accept the first connection we get.
-  xe_socket_connection_t client_info;
-  if (xe_socket_accept(socket_id_, &client_info)) {
-    return 1;
-  }
-
-  XELOGI("GDB debugger connected from %s", client_info.addr);
-
-  // Create the client object.
-  // Note that the client will delete itself when done.
-  GDBClient* client = new GDBClient(debug_server_, client_info.socket);
-  if (client->Setup()) {
-    // Client failed to setup - abort.
-    return 1;
-  }
-
-  return 0;
 }

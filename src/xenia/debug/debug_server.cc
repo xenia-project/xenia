@@ -30,8 +30,10 @@ DebugServer::DebugServer(Emulator* emulator) :
     emulator_(emulator), lock_(0) {
   lock_ = xe_mutex_alloc(10000);
 
-  //protocols_.push_back(
-  //    new protocols::gdb::GDBProtocol(this));
+  client_event_ = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+  protocols_.push_back(
+      new protocols::gdb::GDBProtocol(this));
   protocols_.push_back(
       new protocols::ws::WSProtocol(this));
 }
@@ -39,8 +41,17 @@ DebugServer::DebugServer(Emulator* emulator) :
 DebugServer::~DebugServer() {
   Shutdown();
 
+  CloseHandle(client_event_);
+
   xe_free(lock_);
   lock_ = 0;
+}
+
+bool DebugServer::has_clients() {
+  xe_mutex_lock(lock_);
+  bool has_clients = clients_.size() > 0;
+  xe_mutex_unlock(lock_);
+  return has_clients;
 }
 
 int DebugServer::Startup() {
@@ -66,7 +77,7 @@ int DebugServer::BeforeEntry() {
   // If desired, wait until the first client connects.
   //if (FLAGS_wait_for_debugger) {
     XELOGI("Waiting for debugger...");
-    if (protocols_[0]->WaitForClient()) {
+    if (WaitForClient()) {
       return 1;
     }
     XELOGI("Debugger attached, continuing...");
@@ -95,6 +106,13 @@ void DebugServer::Shutdown() {
   xe_mutex_unlock(lock_);
 }
 
+int DebugServer::WaitForClient() {
+  while (!has_clients()) {
+    WaitForSingleObject(client_event_, INFINITE);
+  }
+  return 0;
+}
+
 void DebugServer::AddClient(DebugClient* debug_client) {
   xe_mutex_lock(lock_);
 
@@ -108,6 +126,8 @@ void DebugServer::AddClient(DebugClient* debug_client) {
   clients_.push_back(debug_client);
 
   xe_mutex_unlock(lock_);
+
+  SetEvent(client_event_);
 }
 
 void DebugServer::RemoveClient(DebugClient* debug_client) {

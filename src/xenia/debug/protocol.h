@@ -27,7 +27,6 @@ public:
   virtual ~Protocol();
 
   virtual int Setup() = 0;
-  virtual int WaitForClient() = 0;
 
 protected:
   DebugServer* debug_server_;

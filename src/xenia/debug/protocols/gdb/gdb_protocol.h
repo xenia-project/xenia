@@ -31,12 +31,18 @@ public:
   virtual ~GDBProtocol();
 
   virtual int Setup();
-  virtual int WaitForClient();
+
+private:
+  static void StartCallback(void* param);
+  void AcceptThread();
 
 protected:
   uint32_t port_;
 
   socket_t socket_id_;
+
+  xe_thread_ref thread_;
+  bool          running_;
 };
 
 

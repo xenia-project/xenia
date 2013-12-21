@@ -32,9 +32,13 @@ public:
 
   Emulator* emulator() const { return emulator_; }
 
+  bool has_clients();
+
   int Startup();
   int BeforeEntry();
   void Shutdown();
+
+  int WaitForClient();
 
 private:
   void AddClient(DebugClient* debug_client);
@@ -48,6 +52,7 @@ private:
 
   xe_mutex_t* lock_;
   std::vector<DebugClient*> clients_;
+  HANDLE client_event_;
 };
 
 

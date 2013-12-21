@@ -9,6 +9,7 @@
 
 #include <xenia/debug/protocols/ws/ws_protocol.h>
 
+#include <xenia/debug/debug_server.h>
 #include <xenia/debug/protocols/ws/ws_client.h>
 
 #include <gflags/gflags.h>
@@ -25,7 +26,6 @@ DEFINE_int32(ws_debug_port, 6200,
 
 WSProtocol::WSProtocol(DebugServer* debug_server) :
     port_(0), socket_id_(0), thread_(0), running_(false),
-    accepted_event_(INVALID_HANDLE_VALUE),
     Protocol(debug_server) {
   port_ = FLAGS_ws_debug_port;
 }
@@ -36,9 +36,6 @@ WSProtocol::~WSProtocol() {
     running_ = false;
     xe_thread_release(thread_);
     thread_ = 0;
-  }
-  if (accepted_event_ != INVALID_HANDLE_VALUE) {
-    CloseHandle(accepted_event_);
   }
   if (socket_id_) {
     xe_socket_close(socket_id_);
@@ -70,8 +67,6 @@ int WSProtocol::Setup() {
     xe_socket_close(socket_id_);
     return 1;
   }
-
-  accepted_event_ = CreateEvent(NULL, FALSE, FALSE, NULL);
 
   thread_ = xe_thread_create("WS Debugger Listener", StartCallback, this);
   running_ = true;
@@ -105,12 +100,5 @@ void WSProtocol::AcceptThread() {
       // Client failed to setup - abort.
       continue;
     }
-
-    SetEvent(accepted_event_);
   }
-}
-
-int WSProtocol::WaitForClient() {
-  WaitForSingleObject(accepted_event_, INFINITE);
-  return 0;
 }
