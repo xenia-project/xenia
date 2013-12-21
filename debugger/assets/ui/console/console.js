@@ -7,21 +7,28 @@
  ******************************************************************************
  */
 
-/*
-var myTextArea = document.querySelector('.debugger-fnview-textarea');
-var myCodeMirror = CodeMirror.fromTextArea(myTextArea, {
-  mode: 'javascript',
-  theme: 'default',
-  indentUnit: 2,
-  tabSize: 2,
+'use strict';
 
-  lineNumbers: true,
-  firstLineNumber: 0,
-  lineNumberFormatter: function(line) {
-    return String('0x00000000' + line);
-  },
-  gutters: [],
+var module = angular.module('xe.ui.console', [
+  'xe.log'
+]);
 
-  //readOnly: true,
+
+module.controller('ConsoleController', function($scope, log) {
+  $scope.log = log;
+
+  $scope.commandText = '';
+
+  $scope.issueCommand = function() {
+    var command = $scope.commandText;
+    $scope.commandText = '';
+    if (!command) {
+      return;
+    }
+
+    log.appendLine('@' + command);
+
+    // TODO(benvanik): execute.
+    console.log(command);
+  };
 });
-*/

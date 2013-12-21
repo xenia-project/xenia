@@ -7,21 +7,13 @@
  ******************************************************************************
  */
 
-/*
-var myTextArea = document.querySelector('.debugger-fnview-textarea');
-var myCodeMirror = CodeMirror.fromTextArea(myTextArea, {
-  mode: 'javascript',
-  theme: 'default',
-  indentUnit: 2,
-  tabSize: 2,
+'use strict';
 
-  lineNumbers: true,
-  firstLineNumber: 0,
-  lineNumberFormatter: function(line) {
-    return String('0x00000000' + line);
-  },
-  gutters: [],
 
-  //readOnly: true,
-});
-*/
+function inherits(childCtor, parentCtor) {
+  function tempCtor() {};
+  tempCtor.prototype = parentCtor.prototype;
+  childCtor.superClass_ = parentCtor.prototype;
+  childCtor.prototype = new tempCtor();
+  childCtor.prototype.constructor = childCtor;
+};

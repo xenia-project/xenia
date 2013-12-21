@@ -7,21 +7,20 @@
  ******************************************************************************
  */
 
-/*
-var myTextArea = document.querySelector('.debugger-fnview-textarea');
-var myCodeMirror = CodeMirror.fromTextArea(myTextArea, {
-  mode: 'javascript',
-  theme: 'default',
-  indentUnit: 2,
-  tabSize: 2,
+'use strict';
 
-  lineNumbers: true,
-  firstLineNumber: 0,
-  lineNumberFormatter: function(line) {
-    return String('0x00000000' + line);
-  },
-  gutters: [],
+var module = angular.module('xe.directives', []);
 
-  //readOnly: true,
+
+module.directive('uiEnter', function() {
+  return function($scope, element, attrs) {
+    element.bind("keydown keypress", function(e) {
+      if(e.which === 13) {
+        $scope.$apply(function(){
+          $scope.$eval(attrs.uiEnter);
+        });
+        e.preventDefault();
+      }
+    });
+  };
 });
-*/
