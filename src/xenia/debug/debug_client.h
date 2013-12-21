@@ -30,6 +30,9 @@ public:
   virtual void Close() = 0;
 
 protected:
+  void MakeReady();
+
+protected:
   DebugServer* debug_server_;
 };
 

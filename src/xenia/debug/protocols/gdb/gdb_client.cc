@@ -89,8 +89,11 @@ void GDBClient::EventThread() {
   // First run the HTTP handshake.
   // This will fail if the connection is not for websockets.
   if (PerformHandshake()) {
+    delete this;
     return;
   }
+
+  MakeReady();
 
   // Loop forever.
   while (true) {

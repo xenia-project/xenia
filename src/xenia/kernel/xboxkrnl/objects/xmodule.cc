@@ -132,9 +132,6 @@ X_STATUS XModule::Launch(uint32_t flags) {
 
   XELOGI("Launching module...");
 
-  // Set as the main module, while running.
-  kernel_state()->SetExecutableModule(this);
-
   Dump();
 
   // Create a thread to run in.
@@ -154,7 +151,6 @@ X_STATUS XModule::Launch(uint32_t flags) {
   // Wait until thread completes.
   thread->Wait(0, 0, 0, NULL);
 
-  kernel_state()->SetExecutableModule(NULL);
   thread->Release();
 
   return X_STATUS_SUCCESS;

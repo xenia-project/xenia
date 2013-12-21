@@ -47,6 +47,9 @@ public:
   ExportResolver* export_resolver() const { return export_resolver_; }
   kernel::xboxkrnl::fs::FileSystem* file_system() const { return file_system_; }
 
+  kernel::xboxkrnl::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_; }
+  kernel::xam::XamModule* xam() const { return xam_; }
+
   X_STATUS Setup();
 
   // TODO(benvanik): raw binary.

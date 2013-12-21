@@ -39,6 +39,8 @@ public:
   XboxkrnlModule(Emulator* emulator);
   virtual ~XboxkrnlModule();
 
+  KernelState* kernel_state() const { return kernel_state_; }
+
   int LaunchModule(const char* path);
 
 private:

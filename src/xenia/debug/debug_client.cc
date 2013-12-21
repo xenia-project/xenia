@@ -18,9 +18,12 @@ using namespace xe::debug;
 
 DebugClient::DebugClient(DebugServer* debug_server) :
     debug_server_(debug_server) {
-  debug_server_->AddClient(this);
 }
 
 DebugClient::~DebugClient() {
   debug_server_->RemoveClient(this);
+}
+
+void DebugClient::MakeReady() {
+  debug_server_->AddClient(this);
 }

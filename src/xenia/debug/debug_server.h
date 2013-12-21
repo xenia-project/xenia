@@ -30,7 +30,10 @@ public:
   DebugServer(Emulator* emulator);
   virtual ~DebugServer();
 
+  Emulator* emulator() const { return emulator_; }
+
   int Startup();
+  int BeforeEntry();
   void Shutdown();
 
 private:

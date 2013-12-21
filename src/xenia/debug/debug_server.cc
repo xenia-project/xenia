@@ -44,6 +44,10 @@ DebugServer::~DebugServer() {
 }
 
 int DebugServer::Startup() {
+  return 0;
+}
+
+int DebugServer::BeforeEntry() {
   // HACK(benvanik): say we are ok even if we have no listener.
   if (!protocols_.size()) {
     return 0;

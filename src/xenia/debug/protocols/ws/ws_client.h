@@ -43,6 +43,7 @@ private:
   static void StartCallback(void* param);
 
   int PerformHandshake();
+  int WriteResponse(std::string& response);
   void EventThread();
 
   xe_thread_ref     thread_;

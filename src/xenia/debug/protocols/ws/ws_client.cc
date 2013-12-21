@@ -9,20 +9,28 @@
 
 #include <xenia/debug/protocols/ws/ws_client.h>
 
+#include <iomanip>
+#include <sstream>
+
+#include <xenia/emulator.h>
 #include <xenia/debug/debug_server.h>
 #include <xenia/debug/protocols/ws/simple_sha1.h>
+#include <xenia/kernel/xboxkrnl/kernel_state.h>
+#include <xenia/kernel/xboxkrnl/xboxkrnl_module.h>
+#include <xenia/kernel/xboxkrnl/objects/xmodule.h>
 
 #if XE_PLATFORM(WIN32)
 // Required for wslay.
 typedef SSIZE_T ssize_t;
 #endif  // WIN32
-
 #include <wslay/wslay.h>
 
 
+using namespace std;
 using namespace xe;
 using namespace xe::debug;
 using namespace xe::debug::protocols::ws;
+using namespace xe::kernel::xboxkrnl;
 
 
 WSClient::WSClient(DebugServer* debug_server, socket_t socket_id) :
@@ -204,6 +212,54 @@ int WSClient::PerformHandshake() {
     return 1;
   }
 
+  // If this is a get for the session list, just produce that and return.
+  // We could stub out better handling here, if we wanted.
+  if (headers.find("GET /sessions") != std::string::npos) {
+    Emulator* emulator = debug_server_->emulator();
+    KernelState* kernel_state = emulator->xboxkrnl()->kernel_state();
+    XModule* module = kernel_state->GetExecutableModule();
+    const xe_xex2_header_t* header = module->xex_header();
+    char title_id[9];
+    xesnprintfa(title_id, XECOUNT(title_id), "%.8X",
+                header->execution_info.title_id);
+
+    ostringstream response;
+    if (module) {
+      response <<
+          "HTTP/1.0 200 OK\r\n"
+          "Content-Type: application/json\r\n"
+          "Connection: close\r\n"
+          "\r\n";
+      response << "[{";
+      response <<
+          "\"name\": \"" << module->name() << "\",";
+      response <<
+          "\"path\": \"" << module->path() << "\",";
+      response <<
+          "\"titleId\": \"" << title_id << "\"";
+      response << "}]";
+      response <<
+          "\r\n"
+          "\r\n";
+    } else {
+      response <<
+          "HTTP/1.0 200 OK\r\n"
+          "Content-Type: application/json\r\n"
+          "Connection: close\r\n"
+          "\r\n"
+          "[]"
+          "\r\n"
+          "\r\n";
+    }
+    error_code = WriteResponse(response.str());
+    if (error_code) {
+      return error_code;
+    }
+
+    // Eh, we just kill the connection here.
+    return 1;
+  }
+
   // Parse the headers to verify its a websocket request.
   std::string::size_type keyhdstart;
   if (headers.find("Upgrade: websocket\r\n") == std::string::npos ||
@@ -228,6 +284,12 @@ int WSClient::PerformHandshake() {
       "Connection: Upgrade\r\n"
       "Sec-WebSocket-Accept: " + accept_key + "\r\n"
       "\r\n";
+  return WriteResponse(response);
+}
+
+int WSClient::WriteResponse(std::string& response) {
+  int error_code = 0;
+  int64_t r;
   size_t write_offset = 0;
   size_t write_length = response.size();
   while (true) {
@@ -250,7 +312,6 @@ int WSClient::PerformHandshake() {
       }
     }
   }
-
   return 0;
 }
 
@@ -261,8 +322,11 @@ void WSClient::EventThread() {
   // First run the HTTP handshake.
   // This will fail if the connection is not for websockets.
   if (PerformHandshake()) {
+    delete this;
     return;
   }
+
+  MakeReady();
 
   // Prep callbacks.
   struct wslay_event_callbacks callbacks = {
