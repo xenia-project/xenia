@@ -17,7 +17,7 @@
 
 #include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
-#include <xenia/dbg/debugger.h>
+#include <xenia/debug/debug_server.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/kernel/kernel.h>
 
