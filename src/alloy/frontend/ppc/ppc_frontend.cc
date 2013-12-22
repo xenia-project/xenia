@@ -92,10 +92,11 @@ int PPCFrontend::DeclareFunction(
 }
 
 int PPCFrontend::DefineFunction(
-    FunctionInfo* symbol_info,
+    FunctionInfo* symbol_info, bool with_debug_info,
     Function** out_function) {
   PPCTranslator* translator = translator_pool_.Allocate(this);
-  int result = translator->Translate(symbol_info, out_function);
+  int result = translator->Translate(
+      symbol_info, with_debug_info, out_function);
   translator_pool_.Release(translator);
   return result;
 }

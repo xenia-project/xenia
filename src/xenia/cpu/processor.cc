@@ -230,7 +230,7 @@ json_t* Processor::OnDebugRequest(
     // If we ever wanted absolute x64 addresses/etc we could
     // use the x64 from the function in the symbol table.
     Function* fn;
-    if (runtime_->frontend()->DefineFunction(info, &fn)) {
+    if (runtime_->frontend()->DefineFunction(info, true, &fn)) {
       succeeded = false;
       return json_string("Unable to resolve function");
     }

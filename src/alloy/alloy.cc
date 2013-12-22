@@ -7,20 +7,17 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_ALLOY_PRIVATE_H_
-#define ALLOY_ALLOY_PRIVATE_H_
+#include <alloy/alloy.h>
+#include <alloy/alloy-private.h>
 
-#include <alloy/core.h>
-
-#include <gflags/gflags.h>
+using namespace alloy;
 
 
-DECLARE_bool(debug);
+#if DEBUG
+#define DEFAULT_DEBUG_FLAG true
+#else
+#define DEFAULT_DEBUG_FLAG false
+#endif
 
-
-namespace alloy {
-
-}  // namespace alloy
-
-
-#endif  // ALLOY_ALLOY_PRIVATE_H_
+DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
+    "Allow debugging and retain debug information.");

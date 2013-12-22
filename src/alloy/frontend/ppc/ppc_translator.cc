@@ -9,6 +9,7 @@
 
 #include <alloy/frontend/ppc/ppc_translator.h>
 
+#include <alloy/alloy-private.h>
 #include <alloy/compiler/passes.h>
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
@@ -56,6 +57,7 @@ PPCTranslator::~PPCTranslator() {
 
 int PPCTranslator::Translate(
     FunctionInfo* symbol_info,
+    bool with_debug_info,
     Function** out_function) {
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
@@ -70,7 +72,10 @@ int PPCTranslator::Translate(
   }
 
   // NOTE: we only want to do this when required, as it's expensive to build.
-  DebugInfo* debug_info = new DebugInfo();
+  DebugInfo* debug_info = NULL;
+  if (FLAGS_debug || with_debug_info) {
+    debug_info = new DebugInfo();
+  }
 
   // Stash source.
   if (debug_info) {

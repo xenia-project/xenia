@@ -2,6 +2,7 @@
 {
   'sources': [
     'alloy-private.h',
+    'alloy.cc',
     'alloy.h',
     'arena.cc',
     'arena.h',
