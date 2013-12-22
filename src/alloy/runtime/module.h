@@ -10,6 +10,8 @@
 #ifndef ALLOY_RUNTIME_MODULE_H_
 #define ALLOY_RUNTIME_MODULE_H_
 
+#include <functional>
+
 #include <alloy/core.h>
 #include <alloy/memory.h>
 #include <alloy/runtime/symbol_info.h>
@@ -40,6 +42,8 @@ public:
 
   SymbolInfo::Status DefineFunction(FunctionInfo* symbol_info);
   SymbolInfo::Status DefineVariable(VariableInfo* symbol_info);
+
+  void ForEachFunction(std::function<void (FunctionInfo*)> callback);
 
 private:
   SymbolInfo::Status DeclareSymbol(

@@ -63,17 +63,17 @@ module.service('DataSource', function($q) {
     });
   };
 
-  DataSource.prototype.getModule = function(moduleId) {
+  DataSource.prototype.getModule = function(moduleName) {
     return this.issue({
       command: 'cpu.get_module',
-      moduleId: moduleId
+      module: moduleName
     });
   };
 
-  DataSource.prototype.getFunctionList = function(moduleId) {
+  DataSource.prototype.getFunctionList = function(moduleName) {
     return this.issue({
       command: 'cpu.get_function_list',
-      moduleId: moduleId
+      module: moduleName
     });
   };
 

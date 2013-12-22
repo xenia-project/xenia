@@ -27,6 +27,9 @@ namespace runtime {
 
 class Runtime {
 public:
+  typedef std::vector<Module*> ModuleList;
+
+public:
   Runtime(Memory* memory);
   virtual ~Runtime();
 
@@ -40,6 +43,8 @@ public:
   int Initialize(frontend::Frontend* frontend, backend::Backend* backend = 0);
 
   int AddModule(Module* module);
+  Module* GetModule(const char* name);
+  ModuleList GetModules();
 
   int LookupFunctionInfo(uint64_t address, FunctionInfo** out_symbol_info);
   int ResolveFunction(uint64_t address, Function** out_function);
@@ -60,7 +65,6 @@ protected:
 
   EntryTable          entry_table_;
   Mutex*              modules_lock_;
-  typedef std::vector<Module*> ModuleList;
   ModuleList          modules_;
 
   RegisterAccessCallbacks* access_callbacks_;

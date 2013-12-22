@@ -152,3 +152,15 @@ SymbolInfo::Status Module::DefineFunction(FunctionInfo* symbol_info) {
 SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
   return DefineSymbol((SymbolInfo*)symbol_info);
 }
+
+void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
+  LockMutex(lock_);
+  for (SymbolMap::iterator it = map_.begin();
+       it != map_.end(); ++it) {
+    if (it->second->type() == SymbolInfo::TYPE_FUNCTION) {
+      FunctionInfo* info = (FunctionInfo*)it->second;
+      callback(info);
+    }
+  }
+  UnlockMutex(lock_);
+}

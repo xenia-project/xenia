@@ -116,6 +116,29 @@ int Runtime::AddModule(Module* module) {
   return 0;
 }
 
+Module* Runtime::GetModule(const char* name) {
+  Module* result = NULL;
+  LockMutex(modules_lock_);
+  for (ModuleList::iterator it = modules_.begin();
+       it != modules_.end(); ++it) {
+    Module* module = *it;
+    if (xestrcmpa(module->name(), name) == 0) {
+      result = module;
+      break;
+    }
+  }
+  UnlockMutex(modules_lock_);
+  return result;
+}
+
+Runtime::ModuleList Runtime::GetModules() {
+  ModuleList clone;
+  LockMutex(modules_lock_);
+  clone = modules_;
+  UnlockMutex(modules_lock_);
+  return clone;
+}
+
 int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
   *out_function = NULL;
   Entry* entry;

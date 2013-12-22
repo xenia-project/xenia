@@ -14,6 +14,7 @@
 #include <xenia/emulator.h>
 #include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>
+#include <xenia/cpu/xex_module.h>
 
 
 using namespace alloy;
@@ -169,5 +170,90 @@ uint64_t Processor::ExecuteInterrupt(
 json_t* Processor::OnDebugRequest(
     const char* command, json_t* request, bool& succeeded) {
   succeeded = true;
-  return json_null();
+  if (xestrcmpa(command, "get_module_list") == 0) {
+    json_t* list = json_array();
+    Runtime::ModuleList modules = runtime_->GetModules();
+    for (Runtime::ModuleList::iterator it = modules.begin();
+         it != modules.end(); ++it) {
+      XexModule* module = (XexModule*)(*it);
+      json_t* module_json = json_object();
+      json_t* module_name_json = json_string(module->name());
+      json_object_set_new(module_json, "name", module_name_json);
+      json_array_append_new(list, module_json);
+    }
+    return list;
+  /*} else if (xestrcmpa(command, "get_module") == 0) {
+    return json_null();*/
+  } else if (xestrcmpa(command, "get_function_list") == 0) {
+    json_t* module_name_json = json_object_get(request, "module");
+    if (!module_name_json || !json_is_string(module_name_json)) {
+      succeeded = false;
+      return json_string("Module name not specified");
+    }
+    const char* module_name = json_string_value(module_name_json);
+    XexModule* module = (XexModule*)runtime_->GetModule(module_name);
+    if (!module) {
+      succeeded = false;
+      return json_string("Module not found");
+    }
+    json_t* list = json_array();
+    module->ForEachFunction([&](FunctionInfo* info) {
+      json_t* fn_json = json_object();
+      // TODO(benvanik): get name
+      char name_buffer[32];
+      xesnprintfa(name_buffer, XECOUNT(name_buffer), "sub_%.8X",
+                  info->address());
+      json_t* name_json = json_string(name_buffer);
+      json_object_set_new(fn_json, "name", name_json);
+      json_t* address_json = json_integer(info->address());
+      json_object_set_new(fn_json, "address", address_json);
+      json_t* link_status_json = json_integer(info->status());
+      json_object_set_new(fn_json, "linkStatus", link_status_json);
+      json_array_append_new(list, fn_json);
+    });
+    return list;
+  } else if (xestrcmpa(command, "get_function") == 0) {
+    json_t* address_json = json_object_get(request, "address");
+    if (!address_json || !json_is_number(address_json)) {
+      succeeded = false;
+      return json_string("Function address not specified");
+    }
+    uint64_t address = (uint64_t)json_number_value(address_json);
+
+    FunctionInfo* info;
+    if (runtime_->LookupFunctionInfo(address, &info)) {
+      succeeded = false;
+      return json_string("Function not found");
+    }
+
+    // Demand a new function with all debug info retained.
+    // If we ever wanted absolute x64 addresses/etc we could
+    // use the x64 from the function in the symbol table.
+    Function* fn;
+    if (runtime_->frontend()->DefineFunction(info, &fn)) {
+      succeeded = false;
+      return json_string("Unable to resolve function");
+    }
+
+    json_t* fn_json = json_object();
+    // TODO(benvanik): get name
+    char name_buffer[32];
+    xesnprintfa(name_buffer, XECOUNT(name_buffer), "sub_%.8X",
+                info->address());
+    json_t* name_json = json_string(name_buffer);
+    json_object_set_new(fn_json, "name", name_json);
+    json_t* start_address_json = json_integer(info->address());
+    json_object_set_new(fn_json, "startAddress", start_address_json);
+    json_t* end_address_json = json_integer(info->end_address());
+    json_object_set_new(fn_json, "endAddress", end_address_json);
+    json_t* link_status_json = json_integer(info->status());
+    json_object_set_new(fn_json, "linkStatus", link_status_json);
+
+    delete fn;
+
+    return fn_json;
+  } else {
+    succeeded = false;
+    return json_string("Unknown command");
+  }
 }

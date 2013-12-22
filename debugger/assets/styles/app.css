@@ -156,20 +156,35 @@ body {
   right: 0;
   bottom: 0;
   padding: 5px;
-  overflow: scroll;
+  overflow-x: auto;
+  overflow-y: scroll;
+}
+.debugger-fnlist-list > table > tbody > tr > td {
+  padding: 0;
+  line-height: 1.2em;
+  font-family: monospace;
+  border: 0;
 }
 .debugger-fnlist-footer {
   order: 3;
   flex: 0 0 auto;
   padding: 5px;
 }
-.debugger-fnview {
+.debugger-fnview-outer {
   order: 2;
   flex: 1 1 auto;
-  display: flex;
-  flex-flow: column nowrap;
+  position: relative;
   border-left: 2px solid #ddd;
   border-right: 2px solid #ddd;
+}
+.debugger-fnview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  flex-flow: column nowrap;
 }
 .debugger-fnview-header {
   order: 1;

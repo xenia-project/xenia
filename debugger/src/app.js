@@ -14,10 +14,12 @@ var module = angular.module('app', [
   'ui.router',
   'xe.datasources',
   'xe.directives',
+  'xe.filters',
   'xe.log',
   'xe.router',
   'xe.session',
   'xe.ui.code',
+  'xe.ui.code.functionView',
   'xe.ui.console',
   'xe.ui.navbar'
 ]);

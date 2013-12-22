@@ -1,75 +1,35 @@
 <div class="debugger-main" ng-controller="CodeTabController">
   <div class="debugger-header">
     debug header/toolbar/etc
-    <div ui-view></div>
   </div>
   <div class="debugger-body">
     <div class="debugger-fnlist">
       <div class="debugger-fnlist-header">
         <div class="btn-group btn-group-xs full-width">
           <button type="button" class="btn btn-default dropdown-toggle full-width" data-toggle="dropdown">
-            module_name.xex <span class="caret"></span>
+            {{selectedModule.name}} <span class="caret"></span>
           </button>
           <ul class="dropdown-menu" role="menu">
-            <li><a href="#">module 1</a></li>
-            <li><a href="#">module 2</a></li>
+            <li ng-repeat="module in moduleList"><a href="" ng-click="selectModule(module)">{{module.name}}</a></li>
           </ul>
         </div>
       </div>
       <div class="debugger-fnlist-body">
         <div class="debugger-fnlist-list">
-          fn<br/>fn<br/>fn
+          <table class="table table-hover">
+            <tr ng-repeat="fn in functionList | filter:functionFilter | orderBy:'address'">
+              <td><a ui-sref="session.code.function({module: selectedModule.name, function: (fn.address | hex32)})">{{fn.name}}</a></td>
+            </tr>
+          </table>
         </div>
       </div>
       <div class="debugger-fnlist-footer">
         <div class="input-group input-group-sm">
-          <span class="input-group-addon">@</span>
-          <input type="text" class="form-control" placeholder="Filter">
+          <input type="text" class="form-control" placeholder="Filter" ng-model="functionFilter" ui-escape="functionFilter = ''">
         </div>
       </div>
     </div>
-    <div class="debugger-fnview">
-      <div class="debugger-fnview-header">
-        <div class="debugger-fnview-header-left">
-          <span class="debugger-fnview-header-name">function name</span>
-          <span class="debugger-fnview-header-address">(0x80000000-0x80000000)</span>
-        </div>
-        <div class="debugger-fnview-header-right">
-          <div class="btn-toolbar" role="toolbar">
-            <div class="btn-group btn-group-sm">
-              <button type="button" class="btn btn-default" ng-model="radioModel" btn-radio="'PPC'">PPC</button>
-              <button type="button" class="btn btn-default" ng-model="radioModel" btn-radio="'HIR'">HIR</button>
-              <button type="button" class="btn btn-default" ng-model="radioModel" btn-radio="'LIR'">LIR</button>
-            </div>
-            <div class="btn-group btn-group-sm">
-              <button type="button" class="btn btn-default">1</button>
-              <button type="button" class="btn btn-default">2</button>
-              <div class="btn-group btn-group-sm">
-                <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
-                  Dropdown
-                  <span class="caret"></span>
-                </button>
-                <ul class="dropdown-menu">
-                  <li><a href="#">Dropdown link</a></li>
-                  <li><a href="#">Dropdown link</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="debugger-fnview-body">
-        <div class="debugger-fnview-codeview">
-          <textarea class="debugger-fnview-textarea"></textarea>
-        </div>
-        <div class="debugger-fnview-graphview">
-          graph!
-        </div>
-      </div>
-      <div class="debugger-fnview-footer">
-        footer
-      </div>
-    </div>
+    <div class="debugger-fnview-outer" ui-view></div>
     <div class="debugger-tools">
       <div class="debugger-tools-threads">
         <div class="btn-group btn-group-xs full-width">

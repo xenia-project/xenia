@@ -26,7 +26,7 @@ module.config(function($stateProvider, $urlRouterProvider) {
     templateUrl: 'assets/ui/session.html',
     resolve: {
       app: 'app',
-      session: function($stateParams, $urlRouter, $state, $q, $timeout,
+      session: function($stateParams, $state, $q,
                         Session, app) {
         // If we are given a session we assume the user is trying to connect to
         // it. Attempt that now. If we fail we redirect to home, otherwise we
@@ -100,7 +100,11 @@ module.config(function($stateProvider, $urlRouterProvider) {
   $stateProvider.state('session.code.function', {
     url: '/:module/:function',
     templateUrl: 'assets/ui/code/function-view.html',
-    controller: function($stateParams) {
+    controller: function($scope, $stateParams) {
+      $scope.moduleName = $stateParams.module;
+      $scope.functionAddress = parseInt($stateParams.function, 16);
+      $scope.$emit('xxx');
+      $scope.$broadcast('yyy');
     },
     onEnter: function() {},
     onExit: function() {}
