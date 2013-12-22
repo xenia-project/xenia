@@ -14,7 +14,7 @@ using namespace alloy::runtime;
 
 
 DebugInfo::DebugInfo() :
-    source_disasm_(0),
+    source_disasm_(0), source_json_(0),
     raw_hir_disasm_(0),
     hir_disasm_(0),
     raw_lir_disasm_(0),
@@ -24,6 +24,7 @@ DebugInfo::DebugInfo() :
 
 DebugInfo::~DebugInfo() {
   xe_free(source_disasm_);
+  xe_free(source_json_);
   xe_free(raw_hir_disasm_);
   xe_free(hir_disasm_);
   xe_free(raw_lir_disasm_);

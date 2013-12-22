@@ -231,6 +231,28 @@ body {
   bottom: 0;
   height: 100%;
 }
+.debugger-fnview-gutter-icon {
+  width: 30px;
+}
+.debugger-fnview-gutter-icon-el {
+}
+.debugger-fnview-gutter-addr {
+  width: 70px;
+}
+.debugger-fnview-gutter-addr-el {
+}
+.debugger-fnview-gutter-addr-el-inactive {
+  color: #999;
+}
+.debugger-fnview-gutter-code {
+  width: 76px;
+  background-color: #fff;
+  border-left: 1px solid #ddd;
+}
+.debugger-fnview-gutter-code-el {
+  padding-left: 6px;
+  color: #aaa;
+}
 .debugger-fnview-graphview {
   order: 2;
   flex: 0 0 auto;

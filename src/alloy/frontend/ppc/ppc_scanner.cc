@@ -9,6 +9,8 @@
 
 #include <alloy/frontend/ppc/ppc_scanner.h>
 
+#include <map>
+
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
@@ -277,4 +279,82 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
 
   XELOGSDB("Finished analyzing %.8X", start_address);
   return 0;
+}
+
+std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
+  Memory* memory = frontend_->memory();
+  const uint8_t* p = memory->membase();
+
+  std::map<uint64_t, BlockInfo> block_map;
+
+  uint64_t start_address = symbol_info->address();
+  uint64_t end_address = symbol_info->end_address();
+  bool in_block = false;
+  uint64_t block_start = 0;
+  InstrData i;
+  for (uint64_t address = start_address;
+       address <= end_address; address += 4) {
+    i.address = address;
+    i.code = XEGETUINT32BE(p + address);
+    if (!i.code) {
+      continue;
+    }
+
+    // TODO(benvanik): find a way to avoid using the opcode tables.
+    // This lookup is *expensive* and should be avoided when scanning.
+    i.type = GetInstrType(i.code);
+
+    if (!in_block) {
+      in_block = true;
+      block_start = address;
+    }
+
+    bool ends_block = false;
+    if (!i.type) {
+      // Invalid instruction.
+    } else if (i.code == 0x4E800020) {
+      // blr -- unconditional branch to LR.
+      ends_block = true;
+    } else if (i.code == 0x4E800420) {
+      // bctr -- unconditional branch to CTR.
+      ends_block = true;
+    } else if (i.type->opcode == 0x48000000) {
+      // b/ba/bl/bla
+      uint32_t target =
+          (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
+      ends_block = true;
+    } else if (i.type->opcode == 0x40000000) {
+      // bc/bca/bcl/bcla
+      uint32_t target =
+          (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
+      ends_block = true;
+    } else if (i.type->opcode == 0x4C000020) {
+      // bclr/bclrl
+      ends_block = true;
+    } else if (i.type->opcode == 0x4C000420) {
+      // bcctr/bcctrl
+      ends_block = true;
+    }
+
+    if (ends_block) {
+      in_block = false;
+      block_map[block_start] = {
+        block_start,
+        address,
+      };
+    }
+  }
+
+  if (in_block) {
+    block_map[block_start] = {
+      block_start,
+      end_address,
+    };
+  }
+
+  std::vector<BlockInfo> blocks;
+  for (auto it = block_map.begin(); it != block_map.end(); ++it) {
+    blocks.push_back(it->second);
+  }
+  return blocks;
 }

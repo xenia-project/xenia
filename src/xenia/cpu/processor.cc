@@ -256,7 +256,7 @@ json_t* Processor::OnDebugRequest(
 
     json_t* disasm_json = json_object();
     json_t* disasm_str_json;
-    disasm_str_json = json_string(debug_info->source_disasm());
+    disasm_str_json = json_loads(debug_info->source_json(), 0, NULL);
     json_object_set_new(disasm_json, "source", disasm_str_json);
     disasm_str_json = json_string(debug_info->raw_hir_disasm());
     json_object_set_new(disasm_json, "rawHir", disasm_str_json);

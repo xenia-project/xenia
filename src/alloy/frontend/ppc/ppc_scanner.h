@@ -20,6 +20,11 @@ namespace ppc {
 
 class PPCFrontend;
 
+typedef struct BlockInfo_t {
+  uint64_t start_address;
+  uint64_t end_address;
+} BlockInfo;
+
 
 class PPCScanner {
 public:
@@ -27,6 +32,8 @@ public:
   ~PPCScanner();
 
   int FindExtents(runtime::FunctionInfo* symbol_info);
+
+  std::vector<BlockInfo> FindBlocks(runtime::FunctionInfo* symbol_info);
 
 private:
   bool IsRestGprLr(uint64_t address);

@@ -37,6 +37,8 @@ public:
 private:
   void DumpSource(runtime::FunctionInfo* symbol_info,
                   StringBuffer* string_buffer);
+  void DumpSourceJson(runtime::FunctionInfo* symbol_info,
+                      StringBuffer* string_buffer);
 
 private:
   PPCFrontend*          frontend_;

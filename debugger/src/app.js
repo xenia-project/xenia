@@ -105,7 +105,10 @@ module.service('app', function(
 });
 
 
-module.run(function($rootScope, app, log) {
+module.run(function($rootScope, $state, $stateParams, app, log) {
+  $rootScope.$state = $state;
+  $rootScope.$stateParams = $stateParams;
+
   $rootScope.app = app;
   $rootScope.log = log;
 });

@@ -3,11 +3,11 @@
     <a class="navbar-brand" href="http://xenia.jp/" target="_blank">Xenia</a>
   </div>
   <ul class="nav navbar-nav" ng-show="app.session">
-    <li ui-sref-active="active"><a ui-sref="session.code">Code</a></li>
-    <li ui-sref-active="active"><a ui-sref="session.memory">Memory</a></li>
-    <li ui-sref-active="active"><a ui-sref="session.kernel">Kernel</a></li>
-    <li ui-sref-active="active"><a ui-sref="session.gpu">GPU</a></li>
-    <li ui-sref-active="active"><a ui-sref="session.apu">APU</a></li>
+    <li ng-class="{ active: $state.includes('session.code') }"><a ui-sref="session.code">Code</a></li>
+    <li ng-class="{ active: $state.includes('session.memory') }"><a ui-sref="session.memory">Memory</a></li>
+    <li ng-class="{ active: $state.includes('session.kernel') }"><a ui-sref="session.kernel">Kernel</a></li>
+    <li ng-class="{ active: $state.includes('session.gpu') }"><a ui-sref="session.gpu">GPU</a></li>
+    <li ng-class="{ active: $state.includes('session.apu') }"><a ui-sref="session.apu">APU</a></li>
   </ul>
   <p class="navbar-text navbar-right"></p>
   <ul class="nav navbar-nav navbar-right">
