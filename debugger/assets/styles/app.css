@@ -170,6 +170,9 @@ body {
   flex: 0 0 auto;
   padding: 5px;
 }
+.debugger-fnlist-footer .input-group {
+  width: 100%;
+}
 .debugger-fnview-outer {
   order: 2;
   flex: 1 1 auto;
