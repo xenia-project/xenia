@@ -10,8 +10,9 @@
 #ifndef XENIA_CPU_PROCESSOR_H_
 #define XENIA_CPU_PROCESSOR_H_
 
-#include <xenia/core.h>
 #include <alloy/runtime/register_access.h>
+#include <xenia/core.h>
+#include <xenia/debug/debug_target.h>
 
 #include <vector>
 
@@ -31,7 +32,7 @@ using RegisterReadCallback = alloy::runtime::RegisterReadCallback;
 using RegisterWriteCallback = alloy::runtime::RegisterWriteCallback;
 
 
-class Processor {
+class Processor : public debug::DebugTarget {
 public:
   Processor(Emulator* emulator);
   ~Processor();
@@ -54,6 +55,9 @@ public:
 
   uint64_t ExecuteInterrupt(
       uint32_t cpu, uint64_t address, uint64_t arg0, uint64_t arg1);
+
+  virtual json_t* OnDebugRequest(
+      const char* command, json_t* request, bool& succeeded);
 
 private:
   Emulator*           emulator_;

@@ -15,6 +15,7 @@
 
 #include <xenia/emulator.h>
 #include <xenia/debug/debug_server.h>
+#include <xenia/debug/debug_target.h>
 #include <xenia/debug/protocols/ws/simple_sha1.h>
 #include <xenia/kernel/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/xboxkrnl/xboxkrnl_module.h>
@@ -494,17 +495,22 @@ json_t* WSClient::HandleMessage(const char* command, json_t* request,
   // Get target.
   char target_name[16] = { 0 };
   const char* dot = xestrchra(command, '.');
-  if (dot) {
-    if (dot - command > XECOUNT(target_name)) {
-      return NULL;
-    }
-    xestrncpya(target_name, XECOUNT(target_name),
-               command, dot - command);
+  if (!dot) {
+    return json_string("No debug target specified.");
   }
+  if (dot - command > XECOUNT(target_name)) {
+    return NULL;
+  }
+  xestrncpya(target_name, XECOUNT(target_name),
+              command, dot - command);
   const char* sub_command = command + (dot - command + 1);
 
-  // Lookup target and dispatch.
+  // Lookup target.
+  DebugTarget* target = debug_server_->GetTarget(target_name);
+  if (!target) {
+    return json_string("Unknown debug target prefix.");
+  }
 
-  succeeded = true;
-  return json_null();
+  // Dispatch.
+  return target->OnDebugRequest(sub_command, request, succeeded);
 }

@@ -9,6 +9,8 @@
 
 #include <xenia/cpu/processor.h>
 
+#include <jansson.h>
+
 #include <xenia/emulator.h>
 #include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>
@@ -51,11 +53,16 @@ Processor::Processor(Emulator* emulator) :
     emulator_(emulator), export_resolver_(emulator->export_resolver()),
     runtime_(0), memory_(emulator->memory()),
     interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL),
-    interrupt_thread_block_(0) {
+    interrupt_thread_block_(0),
+    DebugTarget(emulator->debug_server()) {
   InitializeIfNeeded();
+
+  emulator_->debug_server()->AddTarget("cpu", this);
 }
 
 Processor::~Processor() {
+  emulator_->debug_server()->RemoveTarget("cpu");
+
   if (interrupt_thread_block_) {
     memory_->HeapFree(interrupt_thread_block_, 2048);
     delete interrupt_thread_state_;
@@ -157,4 +164,10 @@ uint64_t Processor::ExecuteInterrupt(
 
   xe_mutex_unlock(interrupt_thread_lock_);
   return result;
+}
+
+json_t* Processor::OnDebugRequest(
+    const char* command, json_t* request, bool& succeeded) {
+  succeeded = true;
+  return json_null();
 }

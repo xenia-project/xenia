@@ -18,6 +18,7 @@
 
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS2(xe, debug, DebugClient);
+XEDECLARECLASS2(xe, debug, DebugTarget);
 XEDECLARECLASS2(xe, debug, Protocol);
 
 
@@ -38,6 +39,10 @@ public:
   int BeforeEntry();
   void Shutdown();
 
+  void AddTarget(const char* name, DebugTarget* target);
+  void RemoveTarget(const char* name);
+  DebugTarget* GetTarget(const char* name);
+
   int WaitForClient();
 
 private:
@@ -51,6 +56,8 @@ private:
   std::vector<Protocol*> protocols_;
 
   xe_mutex_t* lock_;
+  typedef std::unordered_map<std::string, DebugTarget*> TargetMap;
+  TargetMap targets_;
   std::vector<DebugClient*> clients_;
   HANDLE client_event_;
 };

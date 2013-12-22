@@ -106,6 +106,25 @@ void DebugServer::Shutdown() {
   xe_mutex_unlock(lock_);
 }
 
+void DebugServer::AddTarget(const char* name, DebugTarget* target) {
+  xe_mutex_lock(lock_);
+  targets_[name] = target;
+  xe_mutex_unlock(lock_);
+}
+
+void DebugServer::RemoveTarget(const char* name) {
+  xe_mutex_lock(lock_);
+  targets_[name] = NULL;
+  xe_mutex_unlock(lock_);
+}
+
+DebugTarget* DebugServer::GetTarget(const char* name) {
+  xe_mutex_lock(lock_);
+  DebugTarget* target = targets_[name];
+  xe_mutex_unlock(lock_);
+  return target;
+}
+
 int DebugServer::WaitForClient() {
   while (!has_clients()) {
     WaitForSingleObject(client_event_, INFINITE);

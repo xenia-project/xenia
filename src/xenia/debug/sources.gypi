@@ -5,6 +5,7 @@
     'debug_client.h',
     'debug_server.cc',
     'debug_server.h',
+    'debug_target.h',
     'protocol.cc',
     'protocol.h',
   ],
