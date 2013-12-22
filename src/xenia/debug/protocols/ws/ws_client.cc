@@ -11,6 +11,7 @@
 
 #include <iomanip>
 #include <sstream>
+#include <third_party/jansson/src/jansson.h>
 
 #include <xenia/emulator.h>
 #include <xenia/debug/debug_server.h>
@@ -133,10 +134,10 @@ void WSClientOnMsgCallback(wslay_event_context_ptr ctx,
   WSClient* client = reinterpret_cast<WSClient*>(user_data);
   switch (arg->opcode) {
     case WSLAY_TEXT_FRAME:
-      XELOGW("Text frame ignored; use binary messages");
+      client->OnMessage(arg->msg, arg->msg_length);
       break;
     case WSLAY_BINARY_FRAME:
-      //client->OnMessage(arg->msg, arg->msg_length);
+      // Ignored.
       break;
     default:
       // Unknown opcode - some frame stuff?
@@ -371,7 +372,18 @@ void WSClient::EventThread() {
   delete this;
 }
 
-void WSClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
+void WSClient::Write(const char* value) {
+  const uint8_t* buffers[] = {
+    (uint8_t*)value,
+  };
+  size_t lengths[] = {
+    sizeof(char) * xestrlena(value),
+  };
+  Write(buffers, lengths, XECOUNT(buffers), false);
+}
+
+void WSClient::Write(const uint8_t** buffers, size_t* lengths, size_t count,
+                     bool binary) {
   if (!count) {
     return;
   }
@@ -400,7 +412,7 @@ void WSClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
   }
 
   struct wslay_event_msg msg = {
-    WSLAY_BINARY_FRAME,
+    binary ? WSLAY_BINARY_FRAME : WSLAY_TEXT_FRAME,
     combined_buffer,
     combined_length,
   };
@@ -414,4 +426,85 @@ void WSClient::Write(uint8_t** buffers, size_t* lengths, size_t count) {
     // Notify the poll().
     xe_socket_loop_set_queued_write(loop_);
   }
+}
+
+void WSClient::OnMessage(const uint8_t* data, size_t length) {
+  //
+  const char* s = (const char*)data;
+  printf(s);
+  // command
+  // requestId
+
+  json_error_t error;
+  json_t* request = json_loadb(
+      (const char*)data, length, JSON_DECODE_INT_AS_REAL, &error);
+  if (!request) {
+    // Failed to parse.
+    XELOGE("Failed to parse JSON request: %d:%d %s %s",
+           error.line, error.column,
+           error.source, error.text);
+    return;
+  }
+  if (!json_is_object(request)) {
+    XELOGE("Expected JSON object");
+    json_decref(request);
+    return;
+  }
+
+  json_t* request_id_json = json_object_get(request, "requestId");
+  if (!request_id_json || !json_is_number(request_id_json)) {
+    XELOGE("Need requestId field");
+    json_decref(request);
+    return;
+  }
+  json_t* command_json = json_object_get(request, "command");
+  if (!command_json || !json_is_string(command_json)) {
+    XELOGE("Need command field");
+    json_decref(request);
+    return;
+  }
+
+  // Handle command.
+  bool succeeded = false;
+  const char* command = json_string_value(command_json);
+  json_t* result_json = HandleMessage(command, request, succeeded);
+  if (!result_json) {
+    result_json = json_null();
+  }
+
+  // Prepare response.
+  json_t* response = json_object();
+  json_object_set(response, "requestId", request_id_json);
+  json_t* status_json = succeeded ? json_true() : json_false();
+  json_object_set_new(response, "status", status_json);
+  json_object_set_new(response, "result", result_json);
+
+  // Encode response to string and send back.
+  const char* response_string = json_dumps(response, JSON_INDENT(2));
+  Write(response_string);
+
+  json_decref(request);
+  json_decref(response);
+}
+
+json_t* WSClient::HandleMessage(const char* command, json_t* request,
+                                bool& succeeded) {
+  succeeded = false;
+
+  // Get target.
+  char target_name[16] = { 0 };
+  const char* dot = xestrchra(command, '.');
+  if (dot) {
+    if (dot - command > XECOUNT(target_name)) {
+      return NULL;
+    }
+    xestrncpya(target_name, XECOUNT(target_name),
+               command, dot - command);
+  }
+  const char* sub_command = command + (dot - command + 1);
+
+  // Lookup target and dispatch.
+
+  succeeded = true;
+  return json_null();
 }

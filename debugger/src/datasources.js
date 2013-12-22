@@ -12,20 +12,88 @@
 var module = angular.module('xe.datasources', []);
 
 
-var DataSource = function(source) {
-  this.source = source;
-  this.online = false;
-  this.status = 'disconnected';
-};
-DataSource.prototype.open = function() {};
-DataSource.prototype.dispose = function() {};
+module.service('DataSource', function($q) {
+  var DataSource = function(source) {
+    this.source = source;
+    this.online = false;
+    this.status = 'disconnected';
+  };
+  DataSource.prototype.open = function() {};
+  DataSource.prototype.dispose = function() {};
+  DataSource.prototype.issue = function(command) {};
 
+  DataSource.prototype.addBreakpoint = function(breakpoint) {
+    return this.addBreakpoints([breakpoint]);
+  };
 
-module.service('RemoteDataSource', function($q) {
+  DataSource.prototype.addBreakpoints = function(breakpoints) {
+    if (!breakpoints.length) {
+      var d = $q.defer();
+      d.resolve();
+      return d.promise;
+    }
+    return this.issue({
+      command: 'cpu.add_breakpoints',
+      breakpoints: breakpoints.map(function(breakpoint) {
+        return breakpoint.toJSON();
+      })
+    });
+  };
+
+  DataSource.prototype.removeBreakpoint = function(breakpointId) {
+    return this.removeBreakpoints([breakpointId]);
+  };
+
+  DataSource.prototype.removeBreakpoints = function(breakpointIds) {
+    return this.issue({
+      command: 'cpu.remove_breakpoints',
+      breakpointIds: breakpointIds
+    });
+  };
+
+  DataSource.prototype.removeAllBreakpoints = function() {
+    return this.issue({
+      command: 'cpu.remove_all_breakpoints'
+    });
+  };
+
+  DataSource.prototype.getModuleList = function() {
+    return this.issue({
+      command: 'cpu.get_module_list'
+    });
+  };
+
+  DataSource.prototype.getModule = function(moduleId) {
+    return this.issue({
+      command: 'cpu.get_module',
+      moduleId: moduleId
+    });
+  };
+
+  DataSource.prototype.getFunctionList = function(moduleId) {
+    return this.issue({
+      command: 'cpu.get_function_list',
+      moduleId: moduleId
+    });
+  };
+
+  DataSource.prototype.getFunction = function(address) {
+    return this.issue({
+      command: 'cpu.get_function',
+      address: address
+    });
+  };
+
+  return DataSource;
+});
+
+module.service('RemoteDataSource', function($q, DataSource) {
   var RemoteDataSource = function(url) {
     DataSource.call(this, url);
     this.url = url;
     this.socket = null;
+    this.nextRequestId_ = 1;
+    this.pendingRequests_ = {};
   };
   inherits(RemoteDataSource, DataSource);
 
@@ -62,12 +130,28 @@ module.service('RemoteDataSource', function($q) {
 
     this.socket.onmessage = (function(e) {
       console.log('message', e.data);
+      var json = JSON.parse(e.data);
+      if (json.requestId) {
+        // Response to a previous request.
+        var request = this.pendingRequests_[json.requestId];
+        if (request) {
+          delete this.pendingRequests_[json.requestId];
+          if (json.status) {
+            request.deferred.resolve(json.result);
+          } else {
+            request.deferred.reject(json.result);
+          }
+        }
+      } else {
+        // Notification.
+      }
     }).bind(this);
 
     return d.promise;
   };
 
   RemoteDataSource.prototype.dispose = function() {
+    this.pendingRequests_ = {};
     this.online = false;
     this.status = 'disconnected';
     if (this.socket) {
@@ -77,11 +161,20 @@ module.service('RemoteDataSource', function($q) {
     DataSource.prototype.dispose.call(this);
   };
 
+  RemoteDataSource.prototype.issue = function(command) {
+    var d = $q.defer();
+    command.requestId = this.nextRequestId_++;
+    this.socket.send(JSON.stringify(command));
+    command.deferred = d;
+    this.pendingRequests_[command.requestId] = command;
+    return d.promise;
+  };
+
   return RemoteDataSource;
 });
 
 
-module.service('FileDataSource', function($q) {
+module.service('FileDataSource', function($q, DataSource) {
   var FileDataSource = function(file) {
     DataSource.call(this, file.name);
     this.file = file;

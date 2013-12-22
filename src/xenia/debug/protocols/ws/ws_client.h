@@ -19,6 +19,7 @@
 
 
 struct wslay_event_msg;
+struct json_t;
 
 
 namespace xe {
@@ -37,7 +38,12 @@ public:
   virtual int Setup();
   virtual void Close();
 
-  void Write(uint8_t** buffers, size_t* lengths, size_t count);
+  void Write(const char* value);
+  void Write(const uint8_t** buffers, size_t* lengths, size_t count,
+             bool binary = true);
+
+  void OnMessage(const uint8_t* data, size_t length);
+  json_t* HandleMessage(const char* command, json_t* request, bool& succeeded);
 
 private:
   static void StartCallback(void* param);

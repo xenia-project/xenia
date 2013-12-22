@@ -19,3 +19,6 @@
 [submodule "third_party/wslay"]
 	path = third_party/wslay
 	url = https://github.com/benvanik/wslay.git
+[submodule "third_party/jansson"]
+	path = third_party/jansson
+	url = https://github.com/akheron/jansson.git

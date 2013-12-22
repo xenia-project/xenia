@@ -13,11 +13,14 @@
   <ul class="nav navbar-nav navbar-right">
     <li class="dropdown">
       <div class="btn-group navbar-btn">
-        <button type="button" class="btn btn-default" ng-click="connectClicked()" ng-disabled="app.loading">
+        <button type="button" class="btn btn-default" ng-click="connect()" ng-disabled="app.loading">
           <span class="glyphicon glyphicon-link"></span> Connect
         </button>
-        <button type="button" class="btn btn-default" ng-click="openClicked()" ng-disabled="app.loading">
+        <button type="button" class="btn btn-default" ng-click="open()" ng-disabled="app.loading">
           <span class="glyphicon glyphicon-file"></span> Open
+        </button>
+        <button type="button" class="btn btn-default" ng-click="refresh()" ng-disabled="app.loading">
+          <span class="glyphicon glyphicon-refresh"></span> Refresh
         </button>
         <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" ng-disabled="app.loading">
           <span class="glyphicon glyphicon-cog"></span> <span class="caret"></span>

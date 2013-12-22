@@ -13,9 +13,13 @@ var module = angular.module('xe.ui.navbar', []);
 
 
 module.controller('NavbarController', function(
-    $scope, $state, app, log) {
+    $rootScope, $scope, $state, app, log) {
 
-  $scope.connectClicked = function() {
+  $scope.refresh = function() {
+    $rootScope.$emit('refresh');
+  };
+
+  $scope.connect = function() {
     // TODO(benvanik): show a fancy dialog or something.
     var oldSession = app.session;
     app.connect().then(function(session) {
@@ -34,7 +38,7 @@ module.controller('NavbarController', function(
     });
   };
 
-  $scope.openClicked = function() {
+  $scope.open = function() {
     var inputEl = document.createElement('input');
     inputEl.type = 'file';
     inputEl.accept = '.xe-trace,application/x-extension-xe-trace';

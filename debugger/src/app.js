@@ -17,6 +17,7 @@ var module = angular.module('app', [
   'xe.log',
   'xe.router',
   'xe.session',
+  'xe.ui.code',
   'xe.ui.console',
   'xe.ui.navbar'
 ]);
