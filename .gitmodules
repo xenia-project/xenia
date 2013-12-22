@@ -10,9 +10,6 @@
 [submodule "third_party/sparsehash"]
 	path = third_party/sparsehash
 	url = https://github.com/benvanik/sparsehash.git
-[submodule "third_party/asmjit"]
-	path = third_party/asmjit
-	url = https://github.com/benvanik/asmjit.git
 [submodule "third_party/beaengine"]
 	path = third_party/beaengine
 	url = https://github.com/benvanik/beaengine.git

@@ -2,7 +2,6 @@
 {
   'includes': [
     'tools/tools.gypi',
-    'third_party/asmjit.gypi',
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
     'third_party/jansson.gypi',
@@ -247,7 +246,6 @@
       'type': 'static_library',
 
       'dependencies': [
-        'asmjit',
         'beaengine',
         'gflags',
         'jansson',
@@ -255,7 +253,6 @@
         'alloy',
       ],
       'export_dependent_settings': [
-        'asmjit',
         'beaengine',
         'gflags',
         'jansson',
