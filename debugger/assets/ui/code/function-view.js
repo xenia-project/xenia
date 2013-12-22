@@ -126,7 +126,9 @@ module.controller('FunctionViewController', function(
     // Set last to make all option changes stick.
     switch (codeType) {
     case 'source':
-      updateSourceCode(fn);
+      cm.operation(function() {
+        updateSourceCode(fn);
+      });
       break;
     default:
       var value = fn ? fn.disasm[codeType] : null;
