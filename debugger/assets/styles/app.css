@@ -238,6 +238,15 @@ body {
   width: 30px;
 }
 .debugger-fnview-gutter-icon-el {
+  padding-left: 7px;
+  position: relative;
+  top: -6px;
+  display: inline-block;
+  -webkit-font-smoothing: antialiased;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  font-size: 28px;
 }
 .debugger-fnview-gutter-addr {
   width: 70px;

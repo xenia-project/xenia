@@ -16,7 +16,7 @@ var module = angular.module('xe.ui.code.functionView', [
 
 
 module.controller('FunctionViewController', function(
-    $rootScope, $scope, app, log) {
+    $rootScope, $scope, app, log, Breakpoint) {
   $scope.codeType = 'source';
 
   function refresh() {
@@ -93,6 +93,8 @@ module.controller('FunctionViewController', function(
         el.classList.add('debugger-fnview-gutter-code-el');
         el.innerText = hex32(line[2]);
         cm.setGutterMarker(n, 'debugger-fnview-gutter-code', el);
+
+        updateLineIcon(n, line);
       }
     }
   };
@@ -138,11 +140,57 @@ module.controller('FunctionViewController', function(
   };
   $scope.$watch('codeType', updateCode);
 
+  function updateLineIcon(line, sourceLine) {
+    var cm = $scope.codeMirror;
+    if (sourceLine[0] != 'i') {
+      return;
+    }
+    var address = sourceLine[1];
+    var breakpoint = app.session.breakpoints[address];
+    var el;
+    if (breakpoint) {
+      el = document.createElement('span');
+      el.classList.add('debugger-fnview-gutter-icon-el');
+      if (breakpoint.enabled) {
+        el.innerHTML = '&#9679;';
+      } else {
+        el.innerHTML = '&#9676;';
+      }
+    } else {
+      el = null;
+    }
+    cm.setGutterMarker(line, 'debugger-fnview-gutter-icon', el);
+  };
+
+  function toggleBreakpoint(line, sourceLine, shiftKey) {
+    var address = sourceLine[1];
+    var breakpoint = app.session.breakpoints[address];
+    if (breakpoint) {
+      // Existing breakpoint - toggle or remove.
+      if (shiftKey || !breakpoint.enabled) {
+        app.session.toggleBreakpoint(breakpoint, !breakpoint.enabled);
+      } else {
+        app.session.removeBreakpoint(breakpoint);
+      }
+    } else {
+      // New breakpoint needed.
+      breakpoint = app.session.addCodeBreakpoint(address);
+    }
+
+    updateLineIcon(line, sourceLine);
+  };
+
   $scope.codeMirror.on('gutterClick', function(
       instance, line, gutterClass, e) {
     if (e.which == 1) {
-      if (gutterClass == 'debugger-fnview-gutter-icon') {
-        console.log('click', e);
+      if (gutterClass == 'debugger-fnview-gutter-icon' ||
+          gutterClsas == 'debugger-fnview-gutter-addr') {
+        var sourceLine = $scope.sourceLines[line];
+        if (!sourceLine || sourceLine[0] != 'i') {
+          return;
+        }
+        e.preventDefault();
+        toggleBreakpoint(line, sourceLine, e.shiftKey);
       }
     }
   });

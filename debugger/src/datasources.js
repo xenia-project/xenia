@@ -12,6 +12,45 @@
 var module = angular.module('xe.datasources', []);
 
 
+module.service('Breakpoint', function() {
+  // http://stackoverflow.com/a/2117523/377392
+  var uuidFormat = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
+  function uuid4() {
+    return uuidFormat.replace(/[xy]/g, function(c) {
+      var r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+      return v.toString(16);
+    });
+  };
+
+  var Breakpoint = function(opt_id) {
+    this.id = opt_id || uuid4();
+    this.type = Breakpoint.Type.TEMP;
+    this.address = 0;
+    this.enabled = true;
+  };
+  Breakpoint.Type = {
+    TEMP: 'temp',
+    CODE: 'code'
+  };
+  Breakpoint.fromJSON = function(json) {
+    var breakpoint = new Breakpoint(json.id);
+    breakpoint.type = json.type;
+    breakpoint.address = json.address;
+    breakpoint.enabled = json.enabled;
+    return breakpoint;
+  };
+  Breakpoint.prototype.toJSON = function() {
+    return {
+      'id': this.id,
+      'type': this.type,
+      'address': this.address,
+      'enabled': this.enabled
+    };
+  };
+  return Breakpoint;
+});
+
+
 module.service('DataSource', function($q) {
   var DataSource = function(source) {
     this.source = source;
