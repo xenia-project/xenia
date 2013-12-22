@@ -21,7 +21,11 @@ module.controller('CodeTabController', function(
   $scope.selectedModule = null;
   $scope.functionList = [];
 
-  $rootScope.$on('refresh', function() {
+  function refresh() {
+    if (!app.session || !app.session.dataSource) {
+      $scope.moduleList = [];
+      return;
+    }
     var dataSource = app.session.dataSource;
 
     dataSource.getModuleList().then(function(list) {
@@ -38,7 +42,8 @@ module.controller('CodeTabController', function(
     });
 
     console.log('refresh');
-  });
+  };
+  $rootScope.$on('refresh', refresh);
 
   $scope.selectModule = function(module) {
     var moduleChange = module != $scope.selectedModule;
@@ -55,4 +60,8 @@ module.controller('CodeTabController', function(
       log.error('Unable to fetch function list');
     });
   };
+
+  if (app.session.dataSource) {
+    refresh();
+  }
 });

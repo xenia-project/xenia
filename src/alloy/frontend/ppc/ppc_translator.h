@@ -34,6 +34,10 @@ public:
                 runtime::Function** out_function);
 
 private:
+  void DumpSource(runtime::FunctionInfo* symbol_info,
+                  StringBuffer* string_buffer);
+
+private:
   PPCFrontend*          frontend_;
   PPCScanner*           scanner_;
   PPCFunctionBuilder*   builder_;

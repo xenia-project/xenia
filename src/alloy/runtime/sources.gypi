@@ -1,6 +1,8 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'debug_info.cc',
+    'debug_info.h',
     'entry_table.cc',
     'entry_table.h',
     'function.cc',

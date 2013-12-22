@@ -13,6 +13,7 @@
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/frontend/ppc/ppc_scanner.h>
 #include <alloy/runtime/runtime.h>
 
@@ -34,6 +35,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
 
   compiler_->AddPass(new passes::ContextPromotionPass());
   compiler_->AddPass(new passes::SimplificationPass());
+  // TODO(benvanik): run repeatedly?
   compiler_->AddPass(new passes::ConstantPropagationPass());
   //compiler_->AddPass(new passes::TypePropagationPass());
   //compiler_->AddPass(new passes::ByteSwapEliminationPass());
@@ -55,9 +57,6 @@ PPCTranslator::~PPCTranslator() {
 int PPCTranslator::Translate(
     FunctionInfo* symbol_info,
     Function** out_function) {
-  char* pre_ir = NULL;
-  char* post_ir = NULL;
-
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
   if (!symbol_info->has_end_address()) {
@@ -70,13 +69,24 @@ int PPCTranslator::Translate(
     }
   }
 
+  // NOTE: we only want to do this when required, as it's expensive to build.
+  DebugInfo* debug_info = new DebugInfo();
+
+  // Stash source.
+  if (debug_info) {
+    DumpSource(symbol_info, &string_buffer_);
+    debug_info->set_source_disasm(string_buffer_.ToString());
+    string_buffer_.Reset();
+  }
+
   // Emit function.
   int result = builder_->Emit(symbol_info);
   XEEXPECTZERO(result);
 
-  if (true) {
+  // Stash raw HIR.
+  if (debug_info) {
     builder_->Dump(&string_buffer_);
-    pre_ir = string_buffer_.ToString();
+    debug_info->set_raw_hir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
 
@@ -84,24 +94,64 @@ int PPCTranslator::Translate(
   result = compiler_->Compile(builder_);
   XEEXPECTZERO(result);
 
-  if (true) {
+  // Stash optimized HIR.
+  if (debug_info) {
     builder_->Dump(&string_buffer_);
-    post_ir = string_buffer_.ToString();
+    debug_info->set_hir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
 
   // Assemble to backend machine code.
-  result = assembler_->Assemble(symbol_info, builder_, out_function);
+  result = assembler_->Assemble(symbol_info, builder_, debug_info, out_function);
   XEEXPECTZERO(result);
 
   result = 0;
 
 XECLEANUP:
-  if (pre_ir) xe_free(pre_ir);
-  if (post_ir) xe_free(post_ir);
+  if (result) {
+    delete debug_info;
+  }
   builder_->Reset();
   compiler_->Reset();
   assembler_->Reset();
   string_buffer_.Reset();
   return result;
 };
+
+void PPCTranslator::DumpSource(
+    runtime::FunctionInfo* symbol_info, StringBuffer* string_buffer) {
+  Memory* memory = frontend_->memory();
+  const uint8_t* p = memory->membase();
+
+  // TODO(benvanik): get/make up symbol name.
+  string_buffer->Append("%s fn %.8X-%.8X %s\n",
+      symbol_info->module()->name(),
+      symbol_info->address(), symbol_info->end_address(),
+      "(symbol name)");
+
+  uint64_t start_address = symbol_info->address();
+  uint64_t end_address = symbol_info->end_address();
+  InstrData i;
+  for (uint64_t address = start_address, offset = 0; address <= end_address;
+       address += 4, offset++) {
+    i.address = address;
+    i.code = XEGETUINT32BE(p + address);
+    // TODO(benvanik): find a way to avoid using the opcode tables.
+    i.type = GetInstrType(i.code);
+
+    // TODO(benvanik): labels and such
+
+    if (!i.type) {
+      string_buffer->Append("%.8X %.8X ???", address, i.code);
+    } else if (i.type->disassemble) {
+      ppc::InstrDisasm d;
+      i.type->disassemble(i, d);
+      std::string disasm;
+      d.Dump(disasm);
+      string_buffer->Append("%.8X %.8X %s", address, i.code, disasm.c_str());
+    } else {
+      string_buffer->Append("%.8X %.8X %s ???", address, i.code, i.type->name);
+    }
+    string_buffer->Append("\n");
+  }
+}

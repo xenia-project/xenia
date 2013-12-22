@@ -11,6 +11,7 @@
 #define ALLOY_RUNTIME_FUNCTION_H_
 
 #include <alloy/core.h>
+#include <alloy/runtime/debug_info.h>
 
 
 namespace alloy {
@@ -34,6 +35,9 @@ public:
   Type type() const { return type_; }
   uint64_t address() const { return address_; }
 
+  DebugInfo* debug_info() const { return debug_info_; }
+  void set_debug_info(DebugInfo* debug_info) { debug_info_ = debug_info; }
+
   int Call(ThreadState* thread_state, uint64_t return_address);
 
 protected:
@@ -42,6 +46,7 @@ protected:
 protected:
   Type        type_;
   uint64_t    address_;
+  DebugInfo*  debug_info_;
 };
 
 

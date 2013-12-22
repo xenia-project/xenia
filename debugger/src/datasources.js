@@ -87,7 +87,7 @@ module.service('DataSource', function($q) {
   return DataSource;
 });
 
-module.service('RemoteDataSource', function($q, DataSource) {
+module.service('RemoteDataSource', function($q, log, DataSource) {
   var RemoteDataSource = function(url) {
     DataSource.call(this, url);
     this.url = url;
@@ -121,6 +121,7 @@ module.service('RemoteDataSource', function($q, DataSource) {
         d.reject(e.code + ' ' + e.reason);
       } else {
         this.status = 'disconnected';
+        log.info('Disconnected');
       }
     }).bind(this);
 

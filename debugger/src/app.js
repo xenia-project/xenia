@@ -41,6 +41,7 @@ module.service('app', function(
     this.close();
 
     this.session = session;
+    $rootScope.$emit('refresh');
   };
 
   App.prototype.close = function() {

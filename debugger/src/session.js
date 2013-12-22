@@ -13,7 +13,7 @@ var module = angular.module('xe.session', []);
 
 
 module.service('Session', function(
-    $q, $http, log, FileDataSource, RemoteDataSource) {
+    $rootScope, $q, $http, log, FileDataSource, RemoteDataSource) {
   var Session = function(id, opt_dataSource) {
     this.id = id;
 
@@ -85,6 +85,7 @@ module.service('Session', function(
     if (this.dataSource) {
       this.dataSource.dispose();
       this.dataSource = null;
+      $rootScope.$emit('refresh');
     }
   };
 

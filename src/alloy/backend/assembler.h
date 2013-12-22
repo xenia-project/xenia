@@ -18,6 +18,7 @@ namespace hir {
 class FunctionBuilder;
 }
 namespace runtime {
+class DebugInfo;
 class Function;
 class FunctionInfo;
 class Runtime;
@@ -41,7 +42,7 @@ public:
 
   virtual int Assemble(
       runtime::FunctionInfo* symbol_info, hir::FunctionBuilder* builder,
-      runtime::Function** out_function) = 0;
+      runtime::DebugInfo* debug_info, runtime::Function** out_function) = 0;
 
 protected:
   Backend* backend_;

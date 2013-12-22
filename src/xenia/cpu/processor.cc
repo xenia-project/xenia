@@ -234,6 +234,11 @@ json_t* Processor::OnDebugRequest(
       succeeded = false;
       return json_string("Unable to resolve function");
     }
+    DebugInfo* debug_info = fn->debug_info();
+    if (!debug_info) {
+      succeeded = false;
+      return json_string("No debug info present for function");
+    }
 
     json_t* fn_json = json_object();
     // TODO(benvanik): get name
@@ -248,6 +253,22 @@ json_t* Processor::OnDebugRequest(
     json_object_set_new(fn_json, "endAddress", end_address_json);
     json_t* link_status_json = json_integer(info->status());
     json_object_set_new(fn_json, "linkStatus", link_status_json);
+
+    json_t* disasm_json = json_object();
+    json_t* disasm_str_json;
+    disasm_str_json = json_string(debug_info->source_disasm());
+    json_object_set_new(disasm_json, "source", disasm_str_json);
+    disasm_str_json = json_string(debug_info->raw_hir_disasm());
+    json_object_set_new(disasm_json, "rawHir", disasm_str_json);
+    disasm_str_json = json_string(debug_info->hir_disasm());
+    json_object_set_new(disasm_json, "hir", disasm_str_json);
+    disasm_str_json = json_string(debug_info->raw_lir_disasm());
+    json_object_set_new(disasm_json, "rawLir", disasm_str_json);
+    disasm_str_json = json_string(debug_info->lir_disasm());
+    json_object_set_new(disasm_json, "lir", disasm_str_json);
+    disasm_str_json = json_string(debug_info->machine_code_disasm());
+    json_object_set_new(disasm_json, "machineCode", disasm_str_json);
+    json_object_set_new(fn_json, "disasm", disasm_json);
 
     delete fn;
 

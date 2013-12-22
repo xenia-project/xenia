@@ -53,8 +53,9 @@ void IVMAssembler::Reset() {
 
 int IVMAssembler::Assemble(
     FunctionInfo* symbol_info, FunctionBuilder* builder,
-    Function** out_function) {
+    DebugInfo* debug_info, Function** out_function) {
   IVMFunction* fn = new IVMFunction(symbol_info);
+  fn->set_debug_info(debug_info);
 
   TranslationContext ctx;
   ctx.access_callbacks = backend_->runtime()->access_callbacks();

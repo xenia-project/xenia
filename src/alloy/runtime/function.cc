@@ -17,7 +17,7 @@ using namespace alloy::runtime;
 
 
 Function::Function(Type type, uint64_t address) :
-    type_(type), address_(address) {
+    type_(type), address_(address), debug_info_(0) {
 }
 
 Function::~Function() {
