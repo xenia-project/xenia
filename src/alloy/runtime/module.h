@@ -21,11 +21,12 @@ namespace alloy {
 namespace runtime {
 
 class Function;
+class Runtime;
 
 
 class Module {
 public:
-  Module(Memory* memory);
+  Module(Runtime* runtime);
   virtual ~Module();
 
   Memory* memory() const { return memory_; }
@@ -45,12 +46,15 @@ public:
 
   void ForEachFunction(std::function<void (FunctionInfo*)> callback);
 
+  int ReadMap(const char* file_name);
+
 private:
   SymbolInfo::Status DeclareSymbol(
       SymbolInfo::Type type, uint64_t address, SymbolInfo** out_symbol_info);
   SymbolInfo::Status DefineSymbol(SymbolInfo* symbol_info);
 
 protected:
+  Runtime* runtime_;
   Memory* memory_;
 
 private:

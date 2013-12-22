@@ -195,11 +195,16 @@ int Runtime::LookupFunctionInfo(
     return 1;
   }
 
+  return LookupFunctionInfo(code_module, address, out_symbol_info);
+}
+
+int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
+                                FunctionInfo** out_symbol_info) {
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
   FunctionInfo* symbol_info = NULL;
   SymbolInfo::Status symbol_status =
-      code_module->DeclareFunction(address, &symbol_info);
+      module->DeclareFunction(address, &symbol_info);
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undeclared, so declare now.
     int result = frontend_->DeclareFunction(symbol_info);

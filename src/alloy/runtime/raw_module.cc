@@ -13,10 +13,10 @@ using namespace alloy;
 using namespace alloy::runtime;
 
 
-RawModule::RawModule(Memory* memory) :
+RawModule::RawModule(Runtime* runtime) :
     name_(0),
     base_address_(0), low_address_(0), high_address_(0),
-    Module(memory) {
+    Module(runtime) {
 }
 
 RawModule::~RawModule() {

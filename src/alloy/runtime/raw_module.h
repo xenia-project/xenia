@@ -19,7 +19,7 @@ namespace runtime {
 
 class RawModule : public Module {
 public:
-  RawModule(Memory* memory);
+  RawModule(Runtime* runtime);
   virtual ~RawModule();
 
   int LoadFile(uint64_t base_address, const char* path);

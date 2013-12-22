@@ -9,12 +9,17 @@
 
 #include <alloy/runtime/module.h>
 
+#include <fstream>
+#include <sstream>
+
+#include <alloy/runtime/runtime.h>
+
 using namespace alloy;
 using namespace alloy::runtime;
 
 
-Module::Module(Memory* memory) :
-    memory_(memory) {
+Module::Module(Runtime* runtime) :
+    runtime_(runtime), memory_(runtime->memory()) {
   lock_ = AllocMutex(10000);
 }
 
@@ -163,4 +168,75 @@ void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
     }
   }
   UnlockMutex(lock_);
+}
+
+int Module::ReadMap(const char* file_name) {
+  std::ifstream infile(file_name);
+
+  // Skip until '  Address'. Skip the next blank line.
+  std::string line;
+  while (std::getline(infile, line)) {
+    if (line.find("  Address") == 0) {
+      // Skip the next line.
+      std::getline(infile, line);
+      break;
+    }
+  }
+
+  std::stringstream sstream;
+  std::string ignore;
+  std::string name;
+  std::string addr_str;
+  std::string type_str;
+  while (std::getline(infile, line)) {
+    // Remove newline.
+    while (line.size() &&
+           (line[line.size() - 1] == '\r' ||
+            line[line.size() - 1] == '\n')) {
+      line.erase(line.end() - 1);
+    }
+
+    // End when we hit the first whitespace.
+    if (line.size() == 0) {
+      break;
+    }
+
+    // Line is [ws][ignore][ws][name][ws][hex addr][ws][(f)][ws][library]
+    sstream.clear();
+    sstream.str(line);
+    sstream >> std::ws;
+    sstream >> ignore;
+    sstream >> std::ws;
+    sstream >> name;
+    sstream >> std::ws;
+    sstream >> addr_str;
+    sstream >> std::ws;
+    sstream >> type_str;
+
+    uint32_t address = (uint32_t)strtoul(addr_str.c_str(), NULL, 16);
+    if (!address) {
+      continue;
+    }
+
+    if (type_str == "f") {
+      // Function.
+      FunctionInfo* fn_info;
+      if (runtime_->LookupFunctionInfo(this, address, &fn_info)) {
+        continue;
+      }
+      // Don't overwrite names we've set elsewhere.
+      if (!fn_info->name()) {
+        // If it's an mangled C++ name (?name@...) just use the name.
+        if (name[0] == '?') {
+          size_t at = name.find('@');
+          name = name.substr(1, at - 1);
+        }
+        fn_info->set_name(name.c_str());
+      }
+    } else {
+      // Variable.
+    }
+  }
+
+  return 0;
 }

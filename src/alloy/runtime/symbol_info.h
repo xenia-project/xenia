@@ -44,11 +44,16 @@ public:
   void set_status(Status value) { status_ = value; }
   uint64_t address() const { return address_; }
 
+  const char* name() const { return name_; }
+  void set_name(const char* name);
+
 protected:
   Type      type_;
   Module*   module_;
   Status    status_;
   uint64_t  address_;
+
+  char*     name_;
 };
 
 class FunctionInfo : public SymbolInfo {

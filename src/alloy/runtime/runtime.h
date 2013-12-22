@@ -47,6 +47,8 @@ public:
   ModuleList GetModules();
 
   int LookupFunctionInfo(uint64_t address, FunctionInfo** out_symbol_info);
+  int LookupFunctionInfo(Module* module, uint64_t address,
+                         FunctionInfo** out_symbol_info);
   int ResolveFunction(uint64_t address, Function** out_function);
 
   void AddRegisterAccessCallbacks(

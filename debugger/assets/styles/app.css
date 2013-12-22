@@ -134,7 +134,7 @@ body {
   flex: 0 0 auto;
   display: flex;
   flex-flow: column nowrap;
-  max-width: 200px;
+  min-width: 270px;
 }
 .debugger-fnlist-header {
   order: 1;

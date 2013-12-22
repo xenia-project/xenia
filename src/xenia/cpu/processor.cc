@@ -199,11 +199,14 @@ json_t* Processor::OnDebugRequest(
     json_t* list = json_array();
     module->ForEachFunction([&](FunctionInfo* info) {
       json_t* fn_json = json_object();
-      // TODO(benvanik): get name
+      const char* name = info->name();
       char name_buffer[32];
-      xesnprintfa(name_buffer, XECOUNT(name_buffer), "sub_%.8X",
-                  info->address());
-      json_t* name_json = json_string(name_buffer);
+      if (!name) {
+        xesnprintfa(name_buffer, XECOUNT(name_buffer), "sub_%.8X",
+                    info->address());
+        name = name_buffer;
+      }
+      json_t* name_json = json_string(name);
       json_object_set_new(fn_json, "name", name_json);
       json_t* address_json = json_integer(info->address());
       json_object_set_new(fn_json, "address", address_json);
@@ -241,11 +244,14 @@ json_t* Processor::OnDebugRequest(
     }
 
     json_t* fn_json = json_object();
-    // TODO(benvanik): get name
+    const char* name = info->name();
     char name_buffer[32];
-    xesnprintfa(name_buffer, XECOUNT(name_buffer), "sub_%.8X",
-                info->address());
-    json_t* name_json = json_string(name_buffer);
+    if (!name) {
+      xesnprintfa(name_buffer, XECOUNT(name_buffer), "sub_%.8X",
+                  info->address());
+      name = name_buffer;
+    }
+    json_t* name_json = json_string(name);
     json_object_set_new(fn_json, "name", name_json);
     json_t* start_address_json = json_integer(info->address());
     json_object_set_new(fn_json, "startAddress", start_address_json);

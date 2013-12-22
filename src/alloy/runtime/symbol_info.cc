@@ -15,10 +15,20 @@ using namespace alloy::runtime;
 
 SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address) :
     type_(type), status_(STATUS_DEFINING),
-    module_(module), address_(address) {
+    module_(module), address_(address), name_(0) {
 }
 
 SymbolInfo::~SymbolInfo() {
+  if (name_) {
+    xe_free(name_);
+  }
+}
+
+void SymbolInfo::set_name(const char* name) {
+  if (name_) {
+    xe_free(name_);
+  }
+  name_ = xestrdupa(name);
 }
 
 FunctionInfo::FunctionInfo(Module* module, uint64_t address) :

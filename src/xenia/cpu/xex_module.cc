@@ -10,7 +10,7 @@
 #include <xenia/cpu/xex_module.h>
 
 #include <alloy/runtime/tracing.h>
-
+#include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/export_resolver.h>
 
@@ -31,7 +31,7 @@ XexModule::XexModule(
     runtime_(runtime),
     name_(0), path_(0), xex_(0),
     base_address_(0), low_address_(0), high_address_(0),
-    Module(runtime->memory()) {
+    Module(runtime) {
 }
 
 XexModule::~XexModule() {
@@ -82,7 +82,11 @@ int XexModule::Load(const char* name, const char* path, xe_xex2_ref xex) {
   name_ = xestrdupa(name);
   path_ = xestrdupa(path);
   // TODO(benvanik): debug info
-  // TODO(benvanik): load map file.
+
+  // Load a specified module map and diff.
+  if (FLAGS_load_module_map.size()) {
+    ReadMap(FLAGS_load_module_map.c_str());
+  }
 
   return 0;
 }
@@ -158,7 +162,7 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       fn_info->set_end_address(info->thunk_address + 16 - 4);
       //fn->type = FunctionSymbol::Kernel;
       //fn->kernel_export = kernel_export;
-      //fn->set_name(name);
+      fn_info->set_name(name);
       fn_info->set_status(SymbolInfo::STATUS_DECLARED);
 
       ExternFunction::Handler handler = 0;
@@ -406,7 +410,7 @@ int XexModule::FindSaveRest() {
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 2 * 4);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveGprLr;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
@@ -419,7 +423,7 @@ int XexModule::FindSaveRest() {
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 3 * 4);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestGprLr;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG_RETURN);
@@ -434,7 +438,7 @@ int XexModule::FindSaveRest() {
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveFpr;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
@@ -447,7 +451,7 @@ int XexModule::FindSaveRest() {
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestFpr;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG);
@@ -466,7 +470,7 @@ int XexModule::FindSaveRest() {
       xesnprintfa(name, XECOUNT(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
@@ -478,7 +482,7 @@ int XexModule::FindSaveRest() {
       xesnprintfa(name, XECOUNT(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_PROLOG);
@@ -490,7 +494,7 @@ int XexModule::FindSaveRest() {
       xesnprintfa(name, XECOUNT(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG);
@@ -502,7 +506,7 @@ int XexModule::FindSaveRest() {
       xesnprintfa(name, XECOUNT(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
-      // TODO(benvanik): set name
+      symbol_info->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
       symbol_info->set_behavior(FunctionInfo::BEHAVIOR_EPILOG);

@@ -38,7 +38,7 @@ int alloy_sandbox(int argc, xechar_t** argv) {
   //     runtime);
   runtime->Initialize(backend);
 
-  RawModule* module = new RawModule(runtime->memory());
+  RawModule* module = new RawModule(runtime);
   module->LoadFile(0x82000000, "test\\codegen\\instr_add.bin");
   runtime->AddModule(module);
 
