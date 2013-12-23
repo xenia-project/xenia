@@ -14,6 +14,7 @@
 #include <alloy/memory.h>
 #include <alloy/backend/backend.h>
 #include <alloy/frontend/frontend.h>
+#include <alloy/runtime/debugger.h>
 #include <alloy/runtime/entry_table.h>
 #include <alloy/runtime/module.h>
 #include <alloy/runtime/register_access.h>
@@ -34,6 +35,7 @@ public:
   virtual ~Runtime();
 
   Memory* memory() const { return memory_; }
+  Debugger* debugger() const { return debugger_; }
   frontend::Frontend* frontend() const { return frontend_; }
   backend::Backend* backend() const { return backend_; }
   RegisterAccessCallbacks* access_callbacks() const {
@@ -61,6 +63,8 @@ private:
 
 protected:
   Memory*             memory_;
+
+  Debugger*           debugger_;
 
   frontend::Frontend* frontend_;
   backend::Backend*   backend_;

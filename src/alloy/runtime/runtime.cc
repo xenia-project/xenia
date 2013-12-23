@@ -25,7 +25,7 @@ DEFINE_string(runtime_backend, "any",
 
 
 Runtime::Runtime(Memory* memory) :
-    memory_(memory), backend_(0), frontend_(0),
+    memory_(memory), debugger_(0), backend_(0), frontend_(0),
     access_callbacks_(0) {
   tracing::Initialize();
   modules_lock_ = AllocMutex(10000);
@@ -51,6 +51,7 @@ Runtime::~Runtime() {
 
   delete frontend_;
   delete backend_;
+  delete debugger_;
 
   tracing::Flush();
 }
@@ -66,6 +67,9 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   if (result) {
     return result;
   }
+
+  // Create debugger first. Other types hook up to it.
+  debugger_ = new Debugger(this);
 
   if (frontend_ || backend_) {
     return 1;

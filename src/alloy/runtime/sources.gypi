@@ -3,6 +3,8 @@
   'sources': [
     'debug_info.cc',
     'debug_info.h',
+    'debugger.cc',
+    'debugger.h',
     'entry_table.cc',
     'entry_table.h',
     'function.cc',
@@ -22,6 +24,5 @@
   ],
 
   'includes': [
-    #'simple/sources.gypi',
   ],
 }

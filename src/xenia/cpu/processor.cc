@@ -11,6 +11,7 @@
 
 #include <jansson.h>
 
+#include <alloy/runtime/debugger.h>
 #include <xenia/emulator.h>
 #include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>
@@ -55,6 +56,7 @@ Processor::Processor(Emulator* emulator) :
     runtime_(0), memory_(emulator->memory()),
     interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL),
     interrupt_thread_block_(0),
+    breakpoints_lock_(0),
     DebugTarget(emulator->debug_server()) {
   InitializeIfNeeded();
 
@@ -63,6 +65,15 @@ Processor::Processor(Emulator* emulator) :
 
 Processor::~Processor() {
   emulator_->debug_server()->RemoveTarget("cpu");
+
+  xe_mutex_lock(breakpoints_lock_);
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
+    Breakpoint* breakpoint = it->second;
+    delete breakpoint;
+  }
+  breakpoints_.clear();
+  xe_mutex_unlock(breakpoints_lock_);
+  xe_mutex_free(breakpoints_lock_);
 
   if (interrupt_thread_block_) {
     memory_->HeapFree(interrupt_thread_block_, 2048);
@@ -97,6 +108,8 @@ int Processor::Setup() {
   interrupt_thread_block_ = memory_->HeapAlloc(
       0, 2048, MEMORY_FLAG_ZERO);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
+
+  breakpoints_lock_ = xe_mutex_alloc(10000);
 
   return 0;
 }
@@ -280,12 +293,94 @@ json_t* Processor::OnDebugRequest(
 
     return fn_json;
   } else if (xestrcmpa(command, "add_breakpoints") == 0) {
-    // breakpoints: []
+    // breakpoints: [{}]
+    json_t* breakpoints_json = json_object_get(request, "breakpoints");
+    if (!breakpoints_json || !json_is_array(breakpoints_json)) {
+      succeeded = false;
+      return json_string("Breakpoints not specified");
+    }
+    if (!json_array_size(breakpoints_json)) {
+      // No-op;
+      return json_null();
+    }
+    for (size_t n = 0; n < json_array_size(breakpoints_json); n++) {
+      json_t* breakpoint_json = json_array_get(breakpoints_json, n);
+      if (!breakpoint_json || !json_is_object(breakpoint_json)) {
+        succeeded = false;
+        return json_string("Invalid breakpoint type");
+      }
+
+      json_t* breakpoint_id_json = json_object_get(breakpoint_json, "id");
+      json_t* type_json = json_object_get(breakpoint_json, "type");
+      json_t* address_json = json_object_get(breakpoint_json, "address");
+      if (!breakpoint_id_json || !json_is_string(breakpoint_id_json) ||
+          !type_json || !json_is_string(type_json) ||
+          !address_json || !json_is_number(address_json)) {
+        succeeded = false;
+        return json_string("Invalid breakpoint members");
+      }
+      const char* breakpoint_id = json_string_value(breakpoint_id_json);
+      const char* type_str = json_string_value(type_json);
+      uint64_t address = (uint64_t)json_number_value(address_json);
+      Breakpoint::Type type;
+      if (xestrcmpa(type_str, "temp") == 0) {
+        type = Breakpoint::TEMP_TYPE;
+      } else if (xestrcmpa(type_str, "code") == 0) {
+        type = Breakpoint::CODE_TYPE;
+      } else {
+        succeeded = false;
+        return json_string("Unknown breakpoint type");
+      }
+
+      Breakpoint* breakpoint = new Breakpoint(
+          type, address);
+      xe_mutex_lock(breakpoints_lock_);
+      breakpoints_[breakpoint_id] = breakpoint;
+      int result = runtime_->debugger()->AddBreakpoint(breakpoint);
+      xe_mutex_unlock(breakpoints_lock_);
+      if (result) {
+        succeeded = false;
+        return json_string("Error adding breakpoint");
+      }
+    }
     return json_null();
   } else if (xestrcmpa(command, "remove_breakpoints") == 0) {
     // breakpointIds: ['id']
+    json_t* breakpoint_ids_json = json_object_get(request, "breakpointIds");
+    if (!breakpoint_ids_json || !json_is_array(breakpoint_ids_json)) {
+      succeeded = false;
+      return json_string("Breakpoint IDs not specified");
+    }
+    if (!json_array_size(breakpoint_ids_json)) {
+      // No-op;
+      return json_null();
+    }
+    for (size_t n = 0; n < json_array_size(breakpoint_ids_json); n++) {
+      json_t* breakpoint_id_json = json_array_get(breakpoint_ids_json, n);
+      if (!breakpoint_id_json || !json_is_string(breakpoint_id_json)) {
+        succeeded = false;
+        return json_string("Invalid breakpoint ID type");
+      }
+      const char* breakpoint_id = json_string_value(breakpoint_id_json);
+      xe_mutex_lock(breakpoints_lock_);
+      Breakpoint* breakpoint = breakpoints_[breakpoint_id];
+      if (breakpoint) {
+        breakpoints_.erase(breakpoint_id);
+        runtime_->debugger()->RemoveBreakpoint(breakpoint);
+        delete breakpoint;
+      }
+      xe_mutex_unlock(breakpoints_lock_);
+    }
     return json_null();
   } else if (xestrcmpa(command, "remove_all_breakpoints") == 0) {
+    xe_mutex_lock(breakpoints_lock_);
+    runtime_->debugger()->RemoveAllBreakpoints();
+    for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
+      Breakpoint* breakpoint = it->second;
+      delete breakpoint;
+    }
+    breakpoints_.clear();
+    xe_mutex_unlock(breakpoints_lock_);
     return json_null();
   } else {
     succeeded = false;

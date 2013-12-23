@@ -16,6 +16,7 @@
 
 #include <vector>
 
+XEDECLARECLASS2(alloy, runtime, Breakpoint);
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS1(xe, ExportResolver);
 XEDECLARECLASS2(xe, cpu, XenonMemory);
@@ -69,6 +70,10 @@ private:
   xe_mutex_t*         interrupt_thread_lock_;
   XenonThreadState*   interrupt_thread_state_;
   uint64_t            interrupt_thread_block_;
+
+  xe_mutex_t*         breakpoints_lock_;
+  typedef std::unordered_map<std::string, alloy::runtime::Breakpoint*> BreakpointMap;
+  BreakpointMap breakpoints_;
 };
 
 
