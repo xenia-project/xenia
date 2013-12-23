@@ -21,6 +21,8 @@ XEDECLARECLASS2(xe, debug, DebugClient);
 XEDECLARECLASS2(xe, debug, DebugTarget);
 XEDECLARECLASS2(xe, debug, Protocol);
 
+struct json_t;
+
 
 namespace xe {
 namespace debug {
@@ -42,6 +44,8 @@ public:
   void AddTarget(const char* name, DebugTarget* target);
   void RemoveTarget(const char* name);
   DebugTarget* GetTarget(const char* name);
+
+  void BroadcastEvent(json_t* event_json);
 
   int WaitForClient();
 

@@ -32,6 +32,9 @@ public:
   void* backend_data() const { return backend_data_; }
   void* raw_context() const { return raw_context_; }
 
+  virtual int Suspend(uint32_t timeout_ms = UINT_MAX) = 0;
+  virtual int Resume() = 0;
+
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();
   static uint32_t GetThreadID();

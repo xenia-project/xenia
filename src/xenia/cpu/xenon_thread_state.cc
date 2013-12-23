@@ -46,12 +46,24 @@ XenonThreadState::XenonThreadState(
 
   alloy::tracing::WriteEvent(EventType::ThreadInit({
   }));
+
+  runtime_->debugger()->OnThreadCreated(this);
 }
 
 XenonThreadState::~XenonThreadState() {
+  runtime_->debugger()->OnThreadDestroyed(this);
+
   alloy::tracing::WriteEvent(EventType::ThreadDeinit({
   }));
 
   xe_free_aligned(context_);
   memory_->HeapFree(stack_address_, stack_size_);
+}
+
+int XenonThreadState::Suspend(uint32_t timeout_ms) {
+  return 0;
+}
+
+int XenonThreadState::Resume() {
+  return 0;
 }

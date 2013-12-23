@@ -91,6 +91,7 @@ private:
     typedef std::unordered_map<std::string, alloy::runtime::Breakpoint*> BreakpointMap;
     BreakpointMap breakpoints_;
   };
+  xe_mutex_t* debug_client_states_lock_;
   typedef std::unordered_map<uint32_t, DebugClientState*> DebugClientStateMap;
   DebugClientStateMap debug_client_states_;
 };

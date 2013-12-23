@@ -371,7 +371,12 @@ void WSClient::EventThread() {
   delete this;
 }
 
-void WSClient::Write(const char* value) {
+void WSClient::SendEvent(json_t* event_json) {
+  char* str = json_dumps(event_json, 0);
+  Write(str);
+}
+
+void WSClient::Write(char* value) {
   const uint8_t* buffers[] = {
     (uint8_t*)value,
   };
@@ -475,7 +480,8 @@ void WSClient::OnMessage(const uint8_t* data, size_t length) {
   json_object_set_new(response, "result", result_json);
 
   // Encode response to string and send back.
-  const char* response_string = json_dumps(response, JSON_INDENT(2));
+  // String freed by Write.
+  char* response_string = json_dumps(response, JSON_INDENT(2));
   Write(response_string);
 
   json_decref(request);

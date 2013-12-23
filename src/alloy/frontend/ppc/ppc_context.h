@@ -65,7 +65,7 @@ typedef union {
 #pragma pack(push, 4)
 typedef struct XECACHEALIGN64 PPCContext_s {
   // Most frequently used registers first.
-  uint64_t    r[32];            // General purpose registers
+  uint64_t    r[32];              // General purpose registers
   uint64_t    lr;                 // Link register
   uint64_t    ctr;                // Count register
 
@@ -190,6 +190,7 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   uint8_t*              membase;
   runtime::Runtime*     runtime;
   runtime::ThreadState* thread_state;
+  uint32_t              suspend_flag;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,

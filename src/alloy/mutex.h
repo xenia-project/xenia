@@ -10,7 +10,7 @@
 #ifndef ALLOY_MUTEX_H_
 #define ALLOY_MUTEX_H_
 
-#include <alloy/core.h>
+#include <xenia/common.h>
 
 
 namespace alloy {

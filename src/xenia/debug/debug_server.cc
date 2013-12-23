@@ -126,6 +126,15 @@ DebugTarget* DebugServer::GetTarget(const char* name) {
   return target;
 }
 
+void DebugServer::BroadcastEvent(json_t* event_json) {
+  // TODO(benvanik): avoid lock somehow?
+  xe_mutex_lock(lock_);
+  for (auto client : clients_) {
+    client->SendEvent(event_json);
+  }
+  xe_mutex_unlock(lock_);
+}
+
 int DebugServer::WaitForClient() {
   while (!has_clients()) {
     WaitForSingleObject(client_event_, INFINITE);

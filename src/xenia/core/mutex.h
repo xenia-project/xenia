@@ -16,7 +16,7 @@
 typedef struct xe_mutex xe_mutex_t;
 
 
-xe_mutex_t* xe_mutex_alloc(uint32_t spin_count);
+xe_mutex_t* xe_mutex_alloc(uint32_t spin_count = 10000);
 void xe_mutex_free(xe_mutex_t* mutex);
 
 int xe_mutex_lock(xe_mutex_t* mutex);

@@ -38,7 +38,9 @@ public:
   virtual int Setup();
   virtual void Close();
 
-  void Write(const char* value);
+  virtual void SendEvent(json_t* event_json);
+
+  void Write(char* value);
   void Write(const uint8_t** buffers, size_t* lengths, size_t count,
              bool binary = true);
 

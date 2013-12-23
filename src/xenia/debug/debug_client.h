@@ -16,6 +16,8 @@
 
 XEDECLARECLASS2(xe, debug, DebugServer);
 
+struct json_t;
+
 
 namespace xe {
 namespace debug {
@@ -30,6 +32,8 @@ public:
 
   virtual int Setup() = 0;
   virtual void Close() = 0;
+
+  virtual void SendEvent(json_t* event_json) = 0;
 
 protected:
   void MakeReady();

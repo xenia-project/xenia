@@ -37,6 +37,8 @@ public:
   virtual int Setup();
   virtual void Close();
 
+  virtual void SendEvent(json_t* event_json) {}
+
 private:
   static void StartCallback(void* param);
 

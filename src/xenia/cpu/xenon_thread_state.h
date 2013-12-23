@@ -31,6 +31,9 @@ public:
 
   PPCContext* context() const { return context_; }
 
+  virtual int Suspend(uint32_t timeout_ms = UINT_MAX);
+  virtual int Resume();
+
 private:
   size_t    stack_size_;
   uint64_t  thread_state_address;

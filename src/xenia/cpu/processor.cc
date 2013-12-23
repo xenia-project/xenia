@@ -59,18 +59,23 @@ Processor::Processor(Emulator* emulator) :
     DebugTarget(emulator->debug_server()) {
   InitializeIfNeeded();
 
+  debug_client_states_lock_ = xe_mutex_alloc();
+
   emulator_->debug_server()->AddTarget("cpu", this);
 }
 
 Processor::~Processor() {
   emulator_->debug_server()->RemoveTarget("cpu");
 
+  xe_mutex_lock(debug_client_states_lock_);
   for (auto it = debug_client_states_.begin();
        it != debug_client_states_.end(); ++it) {
     DebugClientState* client_state = it->second;
     delete client_state;
   }
   debug_client_states_.clear();
+  xe_mutex_unlock(debug_client_states_lock_);
+  xe_mutex_free(debug_client_states_lock_);
 
   if (interrupt_thread_block_) {
     memory_->HeapFree(interrupt_thread_block_, 2048);
@@ -98,6 +103,31 @@ int Processor::Setup() {
   if (result) {
     return result;
   }
+
+  // Setup debugger events.
+  auto debugger = runtime_->debugger();
+  auto debug_server = emulator_->debug_server();
+  debugger->breakpoint_hit.AddListener(
+      [debug_server](BreakpointHitEvent& e) {
+    const char* breakpoint_id = e.breakpoint()->id();
+    if (!breakpoint_id) {
+      // This is not a breakpoint we know about. Ignore.
+      return;
+    }
+
+    json_t* event_json = json_object();
+    json_t* type_json = json_string("breakpoint");
+    json_object_set_new(event_json, "type", type_json);
+
+    json_t* thread_id_json = json_integer(e.thread_state()->thread_id());
+    json_object_set_new(event_json, "threadId", thread_id_json);
+    json_t* breakpoint_id_json = json_string(breakpoint_id);
+    json_object_set_new(event_json, "breakpointId", breakpoint_id_json);
+
+    debug_server->BroadcastEvent(event_json);
+
+    json_decref(event_json);
+  });
 
   interrupt_thread_lock_ = xe_mutex_alloc(10000);
   interrupt_thread_state_ = new XenonThreadState(
@@ -177,19 +207,26 @@ uint64_t Processor::ExecuteInterrupt(
 
 void Processor::OnDebugClientConnected(uint32_t client_id) {
   DebugClientState* client_state = new DebugClientState(runtime_);
+  xe_mutex_lock(debug_client_states_lock_);
   debug_client_states_[client_id] = client_state;
+  xe_mutex_unlock(debug_client_states_lock_);
 }
 
 void Processor::OnDebugClientDisconnected(uint32_t client_id) {
   DebugClientState* client_state = debug_client_states_[client_id];
+  xe_mutex_lock(debug_client_states_lock_);
   debug_client_states_.erase(client_id);
+  xe_mutex_unlock(debug_client_states_lock_);
   delete client_state;
 }
 
 json_t* Processor::OnDebugRequest(
     uint32_t client_id, const char* command, json_t* request,
     bool& succeeded) {
+  xe_mutex_lock(debug_client_states_lock_);
   DebugClientState* client_state = debug_client_states_[client_id];
+  xe_mutex_unlock(debug_client_states_lock_);
+  XEASSERTNOTNULL(client_state);
 
   succeeded = true;
   if (xestrcmpa(command, "get_module_list") == 0) {
@@ -343,6 +380,7 @@ json_t* Processor::OnDebugRequest(
 
       Breakpoint* breakpoint = new Breakpoint(
           type, address);
+      breakpoint->set_id(breakpoint_id);
       if (client_state->AddBreakpoint(breakpoint_id, breakpoint)) {
         succeeded = false;
         return json_string("Error adding breakpoint");

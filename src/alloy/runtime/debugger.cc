@@ -25,11 +25,55 @@ Breakpoint::~Breakpoint() {
 
 Debugger::Debugger(Runtime* runtime) :
     runtime_(runtime) {
+  threads_lock_ = AllocMutex();
   breakpoints_lock_ = AllocMutex();
 }
 
 Debugger::~Debugger() {
   FreeMutex(breakpoints_lock_);
+  FreeMutex(threads_lock_);
+}
+
+int Debugger::SuspendAllThreads(uint32_t timeout_ms) {
+  int result = 0;
+  LockMutex(threads_lock_);
+  for (auto it = threads_.begin(); it != threads_.end(); ++it) {
+    ThreadState* thread_state = it->second;
+    if (thread_state->Suspend(timeout_ms)) {
+      result = 1;
+    }
+  }
+  UnlockMutex(threads_lock_);
+  return result;
+}
+
+int Debugger::ResumeThread(uint32_t thread_id) {
+  LockMutex(threads_lock_);
+  auto it = threads_.find(thread_id);
+  if (it == threads_.end()) {
+    UnlockMutex(threads_lock_);
+    return 1;
+  }
+
+  // Found thread. Note that it could be deleted as soon as we unlock.
+  ThreadState* thread_state = it->second;
+  int result = thread_state->Resume();
+
+  UnlockMutex(threads_lock_);
+  return result;
+}
+
+int Debugger::ResumeAllThreads() {
+  int result = 0;
+  LockMutex(threads_lock_);
+  for (auto it = threads_.begin(); it != threads_.end(); ++it) {
+    ThreadState* thread_state = it->second;
+    if (thread_state->Resume()) {
+      result = 1;
+    }
+  }
+  UnlockMutex(threads_lock_);
+  return result;
 }
 
 int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
@@ -106,6 +150,21 @@ void Debugger::FindBreakpoints(
   UnlockMutex(breakpoints_lock_);
 }
 
+void Debugger::OnThreadCreated(ThreadState* thread_state) {
+  LockMutex(threads_lock_);
+  threads_[thread_state->thread_id()] = thread_state;
+  UnlockMutex(threads_lock_);
+}
+
+void Debugger::OnThreadDestroyed(ThreadState* thread_state) {
+  LockMutex(threads_lock_);
+  auto it = threads_.find(thread_state->thread_id());
+  if (it != threads_.end()) {
+    threads_.erase(it);
+  }
+  UnlockMutex(threads_lock_);
+}
+
 void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
                                  Function* function) {
   // Man, I'd love not to take this lock.
@@ -134,5 +193,12 @@ void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
 
 void Debugger::OnBreakpointHit(
     ThreadState* thread_state, Breakpoint* breakpoint) {
-  //
+  // Suspend all threads immediately.
+  SuspendAllThreads();
+
+  // Notify listeners.
+  BreakpointHitEvent e(this, thread_state, breakpoint);
+  breakpoint_hit(e);
+
+  // Note that we stay suspended.
 }
