@@ -53,6 +53,7 @@ uint32_t AllocConstant(TranslationContext& ctx, uint64_t value,
   IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
   ic->intcode_fn = IntCode_INT_LOAD_CONSTANT;
   ic->flags = 0;
+  ic->debug_flags = 0;
   ic->dest_reg = ctx.register_count++;
   ic->constant.u64 = value;
   if (out_ic) {
@@ -66,6 +67,7 @@ uint32_t AllocConstant(TranslationContext& ctx, Value* value) {
   IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
   ic->intcode_fn = IntCode_INT_LOAD_CONSTANT;
   ic->flags = 0;
+  ic->debug_flags = 0;
   ic->dest_reg = ctx.register_count++;
   ic->constant.v128 = value->constant.v128;
   return ic->dest_reg;
@@ -155,6 +157,7 @@ int DispatchToC(TranslationContext& ctx, Instr* i, IntCodeFn fn) {
   IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
   ic->intcode_fn = fn;
   ic->flags = i->flags;
+  ic->debug_flags = 0;
   ic->dest_reg = dest_reg;
   ic->src1_reg = src1_reg;
   ic->src2_reg = src2_reg;
@@ -210,6 +213,7 @@ int DispatchRegisterRead(
   IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
   ic->intcode_fn = fn;
   ic->flags = i->flags;
+  ic->debug_flags = 0;
   ic->dest_reg = dest_reg;
   ic->src1_reg = src1_reg;
   ic->src2_reg = (uint32_t)((uint64_t)cbs);
@@ -312,6 +316,7 @@ int DispatchRegisterWrite(
   IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
   ic->intcode_fn = fn;
   ic->flags = i->flags;
+  ic->debug_flags = 0;
   ic->dest_reg = (uint32_t)(((uint64_t)cbs) >> 32);
   ic->src1_reg = src1_reg;
   ic->src2_reg = src2_reg;
@@ -391,6 +396,7 @@ int Translate_COMMENT(TranslationContext& ctx, Instr* i) {
   IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
   ic->intcode_fn = IntCode_COMMENT;
   ic->flags = i->flags;
+  ic->debug_flags = 0;
   // HACK HACK HACK
   char* src = xestrdupa((char*)i->src1.offset);
   uint64_t src_p = (uint64_t)src;
@@ -404,6 +410,21 @@ uint32_t IntCode_NOP(IntCodeState& ics, const IntCode* i) {
 }
 int Translate_NOP(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_NOP);
+}
+
+uint32_t IntCode_SOURCE_OFFSET(IntCodeState& ics, const IntCode* i) {
+  return IA_NEXT;
+}
+int Translate_SOURCE_OFFSET(TranslationContext& ctx, Instr* i) {
+  int result = DispatchToC(ctx, i, IntCode_SOURCE_OFFSET);
+  if (result) {
+    return result;
+  }
+  auto entry = ctx.source_map_arena->Alloc<SourceMapEntry>();
+  entry->intcode_index = ctx.intcode_count - 1;
+  entry->source_offset = i->src1.offset;
+  ctx.source_map_count++;
+  return 0;
 }
 
 uint32_t IntCode_DEBUG_BREAK(IntCodeState& ics, const IntCode* i) {
@@ -3060,6 +3081,8 @@ static const TranslateFn dispatch_table[] = {
   Translate_COMMENT,
 
   Translate_NOP,
+
+  Translate_SOURCE_OFFSET,
 
   Translate_DEBUG_BREAK,
   Translate_DEBUG_BREAK_TRUE,

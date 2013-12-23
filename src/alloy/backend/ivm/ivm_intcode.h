@@ -63,6 +63,7 @@ typedef uint32_t (*IntCodeFn)(
 typedef struct IntCode_s {
   IntCodeFn intcode_fn;
   uint16_t  flags;
+  uint16_t  debug_flags;
 
   uint32_t  dest_reg;
   union {
@@ -88,12 +89,20 @@ typedef struct LabelRef_s {
 } LabelRef;
 
 
+typedef struct SourceMapEntry_s {
+  uint64_t    source_offset;
+  uint64_t    intcode_index;
+} SourceMapEntry;
+
+
 typedef struct {
   runtime::RegisterAccessCallbacks* access_callbacks;
 
   uint32_t  register_count;
   size_t    intcode_count;
   Arena*    intcode_arena;
+  size_t    source_map_count;
+  Arena*    source_map_arena;
   Arena*    scratch_arena;
   LabelRef* label_ref_head;
 } TranslationContext;

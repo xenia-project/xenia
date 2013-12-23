@@ -69,6 +69,8 @@ enum Opcode {
 
   OPCODE_NOP,
 
+  OPCODE_SOURCE_OFFSET,
+
   OPCODE_DEBUG_BREAK,
   OPCODE_DEBUG_BREAK_TRUE,
 
@@ -174,6 +176,7 @@ enum OpcodeFlags {
   OPCODE_FLAG_COMMUNATIVE = (1 << 3),
   OPCODE_FLAG_VOLATILE    = (1 << 4),
   OPCODE_FLAG_IGNORE      = (1 << 5),
+  OPCODE_FLAG_HIDE        = (1 << 6),
 };
 
 enum OpcodeSignatureType {
@@ -188,6 +191,7 @@ enum OpcodeSignatureType {
 enum OpcodeSignature {
   OPCODE_SIG_X        = (OPCODE_SIG_TYPE_X),
   OPCODE_SIG_X_L      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_L << 3),
+  OPCODE_SIG_X_O      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_O << 3),
   OPCODE_SIG_X_O_V    = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_O << 3) | (OPCODE_SIG_TYPE_V << 6),
   OPCODE_SIG_X_S      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_S << 3),
   OPCODE_SIG_X_V      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3),

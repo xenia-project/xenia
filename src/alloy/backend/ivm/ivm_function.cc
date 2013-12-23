@@ -21,25 +21,84 @@ using namespace alloy::runtime;
 
 IVMFunction::IVMFunction(FunctionInfo* symbol_info) :
     register_count_(0), intcode_count_(0), intcodes_(0),
+    source_map_count_(0), source_map_(0),
     GuestFunction(symbol_info) {
 }
 
 IVMFunction::~IVMFunction() {
   xe_free(intcodes_);
+  xe_free(source_map_);
 }
 
 void IVMFunction::Setup(TranslationContext& ctx) {
   register_count_ = ctx.register_count;
   intcode_count_ = ctx.intcode_count;
   intcodes_ = (IntCode*)ctx.intcode_arena->CloneContents();
+  source_map_count_ = ctx.source_map_count;
+  source_map_ = (SourceMapEntry*)ctx.source_map_arena->CloneContents();
+}
+
+IntCode* IVMFunction::GetIntCodeAtSourceOffset(uint64_t offset) {
+  for (size_t n = 0; n < source_map_count_; n++) {
+    auto entry = &source_map_[n];
+    if (entry->source_offset == offset) {
+      return &intcodes_[entry->intcode_index];
+    }
+  }
+  return NULL;
 }
 
 int IVMFunction::AddBreakpointImpl(Breakpoint* breakpoint) {
+  auto i = GetIntCodeAtSourceOffset(breakpoint->address());
+  if (!i) {
+    return 1;
+  }
+
+  // TEMP breakpoints always overwrite normal ones.
+  if (!i->debug_flags ||
+      breakpoint->type() == Breakpoint::TEMP_TYPE) {
+    uint64_t breakpoint_ptr = (uint64_t)breakpoint;
+    i->src2_reg = (uint32_t)breakpoint_ptr;
+    i->src3_reg = (uint32_t)(breakpoint_ptr >> 32);
+  }
+
+  // Increment breakpoint counter.
+  ++i->debug_flags;
+
   return 0;
 }
 
 int IVMFunction::RemoveBreakpointImpl(Breakpoint* breakpoint) {
+  auto i = GetIntCodeAtSourceOffset(breakpoint->address());
+  if (!i) {
+    return 1;
+  }
+
+  // Decrement breakpoint counter.
+  --i->debug_flags;
+  i->src2_reg = i->src3_reg = 0;
+
+  // If there were other breakpoints, see what they were.
+  if (i->debug_flags) {
+    auto old_breakpoint = FindBreakpoint(breakpoint->address());
+    if (old_breakpoint) {
+      uint64_t breakpoint_ptr = (uint64_t)breakpoint;
+      i->src2_reg = (uint32_t)breakpoint_ptr;
+      i->src3_reg = (uint32_t)(breakpoint_ptr >> 32);
+    }
+  }
+
   return 0;
+}
+
+void IVMFunction::OnBreakpointHit(ThreadState* thread_state, IntCode* i) {
+  uint64_t breakpoint_ptr = i->src2_reg | (uint64_t(i->src3_reg) << 32);
+  Breakpoint* breakpoint = (Breakpoint*)breakpoint_ptr;
+
+  // Notify debugger.
+  // The debugger may choose to wait (blocking us).
+  auto debugger = thread_state->runtime()->debugger();
+  debugger->OnBreakpointHit(thread_state, breakpoint);
 }
 
 int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
@@ -65,7 +124,12 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
 
   uint32_t ia = 0;
   while (true) {
-    const IntCode* i = &intcodes_[ia];
+    IntCode* i = &intcodes_[ia];
+
+    if (i->debug_flags) {
+      OnBreakpointHit(thread_state, i);
+    }
+
     uint32_t new_ia = i->intcode_fn(ics, i);
     if (new_ia == IA_NEXT) {
       ia++;

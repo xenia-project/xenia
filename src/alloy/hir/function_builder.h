@@ -57,6 +57,8 @@ public:
 
   void Nop();
 
+  void SourceOffset(uint64_t offset);
+
   // trace info/etc
   void DebugBreak();
   void DebugBreakTrue(Value* cond);

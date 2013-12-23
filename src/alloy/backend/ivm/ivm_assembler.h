@@ -35,6 +35,7 @@ public:
 
 private:
   Arena     intcode_arena_;
+  Arena     source_map_arena_;
   Arena     scratch_arena_;
 };
 

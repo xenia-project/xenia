@@ -119,6 +119,10 @@ void FunctionBuilder::Dump(StringBuffer* str) {
 
     Instr* i = block->instr_head;
     while (i) {
+      if (i->opcode->flags & OPCODE_FLAG_HIDE) {
+        i = i->next;
+        continue;
+      }
       if (i->opcode->num == OPCODE_COMMENT) {
         str->Append("  ; %s\n", (char*)i->src1.offset);
         i = i->next;
@@ -368,6 +372,12 @@ void FunctionBuilder::Comment(const char* format, ...) {
 void FunctionBuilder::Nop() {
   Instr* i = AppendInstr(OPCODE_NOP_info, 0);
   i->src1.value = i->src2.value = i->src3.value = NULL;
+}
+
+void FunctionBuilder::SourceOffset(uint64_t offset) {
+  Instr* i = AppendInstr(OPCODE_SOURCE_OFFSET_info, 0);
+  i->src1.offset = offset;
+  i->src2.value = i->src3.value = NULL;
 }
 
 void FunctionBuilder::DebugBreak() {

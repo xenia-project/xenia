@@ -45,6 +45,7 @@ public:
   int Call(ThreadState* thread_state, uint64_t return_address);
 
 protected:
+  Breakpoint* FindBreakpoint(uint64_t address);
   virtual int AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
   virtual int RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
   virtual int CallImpl(ThreadState* thread_state, uint64_t return_address) = 0;

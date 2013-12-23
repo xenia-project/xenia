@@ -9,6 +9,7 @@
 
 #include <alloy/runtime/function.h>
 
+#include <alloy/runtime/debugger.h>
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
 
@@ -55,6 +56,20 @@ int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
   }
   UnlockMutex(lock_);
   return found ? 0 : 1;
+}
+
+Breakpoint* Function::FindBreakpoint(uint64_t address) {
+  LockMutex(lock_);
+  Breakpoint* result = NULL;
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
+    Breakpoint* breakpoint = *it;
+    if (breakpoint->address() == address) {
+      result = breakpoint;
+      break;
+    }
+  }
+  UnlockMutex(lock_);
+  return result;
 }
 
 int Function::Call(ThreadState* thread_state, uint64_t return_address) {

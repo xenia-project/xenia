@@ -108,6 +108,10 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
       }
     }
 
+    // Mark source offset for debugging.
+    // We could omit this if we never wanted to debug.
+    SourceOffset(i.address);
+
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", i.address, i.code);
       Comment("INVALID!");

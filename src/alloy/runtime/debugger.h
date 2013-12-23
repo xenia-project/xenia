@@ -21,6 +21,7 @@ namespace runtime {
 class Function;
 class FunctionInfo;
 class Runtime;
+class ThreadState;
 
 
 class Breakpoint {
@@ -55,6 +56,7 @@ public:
       uint64_t address, std::vector<Breakpoint*>& out_breakpoints);
 
   void OnFunctionDefined(FunctionInfo* symbol_info, Function* function);
+  void OnBreakpointHit(ThreadState* thread_state, Breakpoint* breakpoint);
 
 private:
   Runtime* runtime_;

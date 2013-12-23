@@ -25,6 +25,7 @@ using namespace alloy::runtime;
 
 
 IVMAssembler::IVMAssembler(Backend* backend) :
+    source_map_arena_(128 * 1024),
     Assembler(backend) {
 }
 
@@ -47,6 +48,7 @@ int IVMAssembler::Initialize() {
 
 void IVMAssembler::Reset() {
   intcode_arena_.Reset();
+  source_map_arena_.Reset();
   scratch_arena_.Reset();
   Assembler::Reset();
 }
@@ -62,6 +64,8 @@ int IVMAssembler::Assemble(
   ctx.register_count = 0;
   ctx.intcode_count = 0;
   ctx.intcode_arena = &intcode_arena_;
+  ctx.source_map_count = 0;
+  ctx.source_map_arena = &source_map_arena_;
   ctx.scratch_arena = &scratch_arena_;
   ctx.label_ref_head = NULL;
 

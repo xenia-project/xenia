@@ -131,3 +131,8 @@ void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
     }
   }
 }
+
+void Debugger::OnBreakpointHit(
+    ThreadState* thread_state, Breakpoint* breakpoint) {
+  //
+}
