@@ -428,11 +428,7 @@ void WSClient::Write(const uint8_t** buffers, size_t* lengths, size_t count,
 }
 
 void WSClient::OnMessage(const uint8_t* data, size_t length) {
-  //
   const char* s = (const char*)data;
-  printf(s);
-  // command
-  // requestId
 
   json_error_t error;
   json_t* request = json_loadb(
@@ -522,5 +518,6 @@ json_t* WSClient::HandleMessage(const char* command, json_t* request,
   }
 
   // Dispatch.
-  return target->OnDebugRequest(sub_command, request, succeeded);
+  return target->OnDebugRequest(
+      client_id(), sub_command, request, succeeded);
 }

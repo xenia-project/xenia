@@ -57,8 +57,11 @@ public:
   uint64_t ExecuteInterrupt(
       uint32_t cpu, uint64_t address, uint64_t arg0, uint64_t arg1);
 
+  virtual void OnDebugClientConnected(uint32_t client_id);
+  virtual void OnDebugClientDisconnected(uint32_t client_id);
   virtual json_t* OnDebugRequest(
-      const char* command, json_t* request, bool& succeeded);
+      uint32_t client_id, const char* command, json_t* request,
+      bool& succeeded);
 
 private:
   Emulator*           emulator_;
@@ -71,9 +74,25 @@ private:
   XenonThreadState*   interrupt_thread_state_;
   uint64_t            interrupt_thread_block_;
 
-  xe_mutex_t*         breakpoints_lock_;
-  typedef std::unordered_map<std::string, alloy::runtime::Breakpoint*> BreakpointMap;
-  BreakpointMap breakpoints_;
+  class DebugClientState {
+  public:
+    DebugClientState(XenonRuntime* runtime);
+    ~DebugClientState();
+
+    int AddBreakpoint(const char* breakpoint_id,
+                      alloy::runtime::Breakpoint* breakpoint);
+    int RemoveBreakpoint(const char* breakpoint_id);
+    int RemoveAllBreakpoints();
+
+  private:
+    XenonRuntime* runtime_;
+
+    xe_mutex_t* breakpoints_lock_;
+    typedef std::unordered_map<std::string, alloy::runtime::Breakpoint*> BreakpointMap;
+    BreakpointMap breakpoints_;
+  };
+  typedef std::unordered_map<uint32_t, DebugClientState*> DebugClientStateMap;
+  DebugClientStateMap debug_client_states_;
 };
 
 

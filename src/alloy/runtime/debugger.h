@@ -47,7 +47,6 @@ public:
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
-  int RemoveAllBreakpoints();
 
 private:
   Runtime* runtime_;

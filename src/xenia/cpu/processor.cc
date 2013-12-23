@@ -56,7 +56,6 @@ Processor::Processor(Emulator* emulator) :
     runtime_(0), memory_(emulator->memory()),
     interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL),
     interrupt_thread_block_(0),
-    breakpoints_lock_(0),
     DebugTarget(emulator->debug_server()) {
   InitializeIfNeeded();
 
@@ -66,14 +65,12 @@ Processor::Processor(Emulator* emulator) :
 Processor::~Processor() {
   emulator_->debug_server()->RemoveTarget("cpu");
 
-  xe_mutex_lock(breakpoints_lock_);
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-    Breakpoint* breakpoint = it->second;
-    delete breakpoint;
+  for (auto it = debug_client_states_.begin();
+       it != debug_client_states_.end(); ++it) {
+    DebugClientState* client_state = it->second;
+    delete client_state;
   }
-  breakpoints_.clear();
-  xe_mutex_unlock(breakpoints_lock_);
-  xe_mutex_free(breakpoints_lock_);
+  debug_client_states_.clear();
 
   if (interrupt_thread_block_) {
     memory_->HeapFree(interrupt_thread_block_, 2048);
@@ -108,8 +105,6 @@ int Processor::Setup() {
   interrupt_thread_block_ = memory_->HeapAlloc(
       0, 2048, MEMORY_FLAG_ZERO);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
-
-  breakpoints_lock_ = xe_mutex_alloc(10000);
 
   return 0;
 }
@@ -180,8 +175,22 @@ uint64_t Processor::ExecuteInterrupt(
   return result;
 }
 
+void Processor::OnDebugClientConnected(uint32_t client_id) {
+  DebugClientState* client_state = new DebugClientState(runtime_);
+  debug_client_states_[client_id] = client_state;
+}
+
+void Processor::OnDebugClientDisconnected(uint32_t client_id) {
+  DebugClientState* client_state = debug_client_states_[client_id];
+  debug_client_states_.erase(client_id);
+  delete client_state;
+}
+
 json_t* Processor::OnDebugRequest(
-    const char* command, json_t* request, bool& succeeded) {
+    uint32_t client_id, const char* command, json_t* request,
+    bool& succeeded) {
+  DebugClientState* client_state = debug_client_states_[client_id];
+
   succeeded = true;
   if (xestrcmpa(command, "get_module_list") == 0) {
     json_t* list = json_array();
@@ -334,11 +343,7 @@ json_t* Processor::OnDebugRequest(
 
       Breakpoint* breakpoint = new Breakpoint(
           type, address);
-      xe_mutex_lock(breakpoints_lock_);
-      breakpoints_[breakpoint_id] = breakpoint;
-      int result = runtime_->debugger()->AddBreakpoint(breakpoint);
-      xe_mutex_unlock(breakpoints_lock_);
-      if (result) {
+      if (client_state->AddBreakpoint(breakpoint_id, breakpoint)) {
         succeeded = false;
         return json_string("Error adding breakpoint");
       }
@@ -362,28 +367,63 @@ json_t* Processor::OnDebugRequest(
         return json_string("Invalid breakpoint ID type");
       }
       const char* breakpoint_id = json_string_value(breakpoint_id_json);
-      xe_mutex_lock(breakpoints_lock_);
-      Breakpoint* breakpoint = breakpoints_[breakpoint_id];
-      if (breakpoint) {
-        breakpoints_.erase(breakpoint_id);
-        runtime_->debugger()->RemoveBreakpoint(breakpoint);
-        delete breakpoint;
+      if (client_state->RemoveBreakpoint(breakpoint_id)) {
+        succeeded = false;
+        return json_string("Unable to remove breakpoints");
       }
-      xe_mutex_unlock(breakpoints_lock_);
     }
     return json_null();
   } else if (xestrcmpa(command, "remove_all_breakpoints") == 0) {
-    xe_mutex_lock(breakpoints_lock_);
-    runtime_->debugger()->RemoveAllBreakpoints();
-    for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-      Breakpoint* breakpoint = it->second;
-      delete breakpoint;
+    if (client_state->RemoveAllBreakpoints()) {
+      succeeded = false;
+      return json_string("Unable to remove breakpoints");
     }
-    breakpoints_.clear();
-    xe_mutex_unlock(breakpoints_lock_);
     return json_null();
   } else {
     succeeded = false;
     return json_string("Unknown command");
   }
+}
+
+Processor::DebugClientState::DebugClientState(XenonRuntime* runtime) :
+    runtime_(runtime) {
+  breakpoints_lock_ = xe_mutex_alloc(10000);
+}
+
+Processor::DebugClientState::~DebugClientState() {
+  RemoveAllBreakpoints();
+  xe_mutex_free(breakpoints_lock_);
+}
+
+int Processor::DebugClientState::AddBreakpoint(
+    const char* breakpoint_id, Breakpoint* breakpoint) {
+  xe_mutex_lock(breakpoints_lock_);
+  breakpoints_[breakpoint_id] = breakpoint;
+  int result = runtime_->debugger()->AddBreakpoint(breakpoint);
+  xe_mutex_unlock(breakpoints_lock_);
+  return result;
+}
+
+int Processor::DebugClientState::RemoveBreakpoint(const char* breakpoint_id) {
+  xe_mutex_lock(breakpoints_lock_);
+  Breakpoint* breakpoint = breakpoints_[breakpoint_id];
+  if (breakpoint) {
+    breakpoints_.erase(breakpoint_id);
+    runtime_->debugger()->RemoveBreakpoint(breakpoint);
+    delete breakpoint;
+  }
+  xe_mutex_unlock(breakpoints_lock_);
+  return 0;
+}
+
+int Processor::DebugClientState::RemoveAllBreakpoints() {
+  xe_mutex_lock(breakpoints_lock_);
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
+    Breakpoint* breakpoint = it->second;
+    runtime_->debugger()->RemoveBreakpoint(breakpoint);
+    delete breakpoint;
+  }
+  breakpoints_.clear();
+  xe_mutex_unlock(breakpoints_lock_);
+  return 0;
 }

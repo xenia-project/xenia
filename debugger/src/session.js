@@ -142,7 +142,10 @@ module.service('Session', function(
     // Add breakpoints.
     var breakpointList = [];
     for (var key in this.breakpoints) {
-      breakpointList.push(this.breakpoints[key]);
+      var breakpoint = this.breakpoints[key];
+      if (breakpoint.enabled) {
+        breakpointList.push(breakpoint);
+      }
     }
     ps.push(this.dataSource.addBreakpoints(breakpointList));
 

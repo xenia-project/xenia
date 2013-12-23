@@ -13,6 +13,7 @@
 
 #include <xenia/emulator.h>
 #include <xenia/debug/debug_client.h>
+#include <xenia/debug/debug_target.h>
 #include <xenia/debug/protocol.h>
 #include <xenia/debug/protocols/gdb/gdb_protocol.h>
 #include <xenia/debug/protocols/ws/ws_protocol.h>
@@ -144,13 +145,25 @@ void DebugServer::AddClient(DebugClient* debug_client) {
 
   clients_.push_back(debug_client);
 
-  xe_mutex_unlock(lock_);
+  // Notify targets.
+  for (auto it = targets_.begin(); it != targets_.end(); ++it) {
+    it->second->OnDebugClientConnected(debug_client->client_id());
+  }
 
+  xe_mutex_unlock(lock_);
+}
+
+void DebugServer::ReadyClient(DebugClient* debug_client) {
   SetEvent(client_event_);
 }
 
 void DebugServer::RemoveClient(DebugClient* debug_client) {
   xe_mutex_lock(lock_);
+
+  // Notify targets.
+  for (auto it = targets_.begin(); it != targets_.end(); ++it) {
+    it->second->OnDebugClientDisconnected(debug_client->client_id());
+  }
 
   for (std::vector<DebugClient*>::iterator it = clients_.begin();
        it != clients_.end(); ++it) {

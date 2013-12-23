@@ -47,6 +47,7 @@ public:
 
 private:
   void AddClient(DebugClient* debug_client);
+  void ReadyClient(DebugClient* debug_client);
   void RemoveClient(DebugClient* debug_client);
 
   friend class DebugClient;

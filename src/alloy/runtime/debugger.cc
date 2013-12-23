@@ -28,13 +28,9 @@ Debugger::~Debugger() {
 }
 
 int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
-  return 1;
+  return 0;
 }
 
 int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
-  return 1;
-}
-
-int Debugger::RemoveAllBreakpoints() {
-  return 1;
+  return 0;
 }

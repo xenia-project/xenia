@@ -30,8 +30,11 @@ public:
 
   DebugServer* debug_server() const { return debug_server_; }
 
+  virtual void OnDebugClientConnected(uint32_t client_id) {}
+  virtual void OnDebugClientDisconnected(uint32_t client_id) {}
   virtual json_t* OnDebugRequest(
-      const char* command, json_t* request, bool& succeeded) = 0;
+      uint32_t client_id, const char* command, json_t* request,
+      bool& succeeded) = 0;
 
 protected:
   DebugServer* debug_server_;

@@ -16,8 +16,14 @@ using namespace xe;
 using namespace xe::debug;
 
 
+uint32_t DebugClient::next_client_id_ = 1;
+
+
 DebugClient::DebugClient(DebugServer* debug_server) :
-    debug_server_(debug_server) {
+    debug_server_(debug_server),
+    readied_(false) {
+  client_id_ = next_client_id_++;
+  debug_server_->AddClient(this);
 }
 
 DebugClient::~DebugClient() {
@@ -25,5 +31,9 @@ DebugClient::~DebugClient() {
 }
 
 void DebugClient::MakeReady() {
-  debug_server_->AddClient(this);
+  if (readied_) {
+    return;
+  }
+  debug_server_->ReadyClient(this);
+  readied_ = true;
 }

@@ -26,6 +26,8 @@ public:
   DebugClient(DebugServer* debug_server);
   virtual ~DebugClient();
 
+  uint32_t client_id() const { return client_id_; }
+
   virtual int Setup() = 0;
   virtual void Close() = 0;
 
@@ -33,7 +35,11 @@ protected:
   void MakeReady();
 
 protected:
+  static uint32_t next_client_id_;
+
   DebugServer* debug_server_;
+  uint32_t client_id_;
+  bool readied_;
 };
 
 
