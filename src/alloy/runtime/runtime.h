@@ -48,6 +48,8 @@ public:
   Module* GetModule(const char* name);
   ModuleList GetModules();
 
+  std::vector<Function*> FindFunctionsWithAddress(uint64_t address);
+
   int LookupFunctionInfo(uint64_t address, FunctionInfo** out_symbol_info);
   int LookupFunctionInfo(Module* module, uint64_t address,
                          FunctionInfo** out_symbol_info);

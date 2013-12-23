@@ -63,6 +63,7 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
     // Create and return for initialization.
     entry = new Entry();
     entry->address = address;
+    entry->end_address = 0;
     entry->status = Entry::STATUS_COMPILING;
     entry->function = 0;
     map_[address] = entry;
@@ -71,4 +72,20 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
   UnlockMutex(lock_);
   *out_entry = entry;
   return status;
+}
+
+std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
+  std::vector<Function*> fns;
+  LockMutex(lock_);
+  for (auto it = map_.begin(); it != map_.end(); ++it) {
+    Entry* entry = it->second;
+    if (address >= entry->address &&
+        address <= entry->end_address) {
+      if (entry->status == Entry::STATUS_READY) {
+        fns.push_back(entry->function);
+      }
+    }
+  }
+  UnlockMutex(lock_);
+  return fns;
 }

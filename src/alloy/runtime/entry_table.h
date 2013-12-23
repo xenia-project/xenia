@@ -28,6 +28,7 @@ typedef struct Entry_t {
   } Status;
 
   uint64_t  address;
+  uint64_t  end_address;
   Status    status;
   Function* function;
 } Entry;
@@ -40,6 +41,8 @@ public:
 
   Entry* Get(uint64_t address);
   Entry::Status GetOrCreate(uint64_t address, Entry** out_entry);
+
+  std::vector<Function*> FindWithAddress(uint64_t address);
 
 private:
   // TODO(benvanik): replace with a better data structure.

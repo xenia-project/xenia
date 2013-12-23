@@ -34,6 +34,14 @@ void IVMFunction::Setup(TranslationContext& ctx) {
   intcodes_ = (IntCode*)ctx.intcode_arena->CloneContents();
 }
 
+int IVMFunction::AddBreakpointImpl(Breakpoint* breakpoint) {
+  return 0;
+}
+
+int IVMFunction::RemoveBreakpointImpl(Breakpoint* breakpoint) {
+  return 0;
+}
+
 int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // Setup register file on stack.
   size_t register_file_size = register_count_ * sizeof(Register);

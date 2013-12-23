@@ -12,10 +12,14 @@
 
 #include <alloy/core.h>
 
+#include <map>
+
 
 namespace alloy {
 namespace runtime {
 
+class Function;
+class FunctionInfo;
 class Runtime;
 
 
@@ -47,9 +51,17 @@ public:
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
+  void FindBreakpoints(
+      uint64_t address, std::vector<Breakpoint*>& out_breakpoints);
+
+  void OnFunctionDefined(FunctionInfo* symbol_info, Function* function);
 
 private:
   Runtime* runtime_;
+
+  Mutex* breakpoints_lock_;
+  typedef std::multimap<uint64_t, Breakpoint*> BreakpointsMultimap;
+  BreakpointsMultimap breakpoints_;
 };
 
 

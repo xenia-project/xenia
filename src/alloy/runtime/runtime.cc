@@ -143,6 +143,10 @@ Runtime::ModuleList Runtime::GetModules() {
   return clone;
 }
 
+std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {
+  return entry_table_.FindWithAddress(address);
+}
+
 int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
   *out_function = NULL;
   Entry* entry;
@@ -162,6 +166,7 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
       entry->status = Entry::STATUS_FAILED;
       return result;
     }
+    entry->end_address = symbol_info->end_address();
     status = entry->status = Entry::STATUS_READY;
   }
   if (status == Entry::STATUS_READY) {
@@ -240,6 +245,10 @@ int Runtime::DemandFunction(
       return result;
     }
     symbol_info->set_function(function);
+
+    // Before we give the symbol back to the rest, let the debugger know.
+    debugger_->OnFunctionDefined(symbol_info, function);
+
     symbol_info->set_status(SymbolInfo::STATUS_DEFINED);
     symbol_status = symbol_info->status();
   }

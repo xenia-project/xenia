@@ -18,9 +18,43 @@ using namespace alloy::runtime;
 
 Function::Function(Type type, uint64_t address) :
     type_(type), address_(address), debug_info_(0) {
+  // TODO(benvanik): create on demand?
+  lock_ = AllocMutex();
 }
 
 Function::~Function() {
+  FreeMutex(lock_);
+}
+
+int Function::AddBreakpoint(Breakpoint* breakpoint) {
+  LockMutex(lock_);
+  bool found = false;
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
+    if (*it == breakpoint) {
+      found = true;
+    }
+  }
+  if (!found) {
+    breakpoints_.push_back(breakpoint);
+    AddBreakpointImpl(breakpoint);
+  }
+  UnlockMutex(lock_);
+  return found ? 1 : 0;
+}
+
+int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
+  LockMutex(lock_);
+  bool found = false;
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
+    if (*it == breakpoint) {
+      breakpoints_.erase(it);
+      RemoveBreakpointImpl(breakpoint);
+      found = true;
+      break;
+    }
+  }
+  UnlockMutex(lock_);
+  return found ? 0 : 1;
 }
 
 int Function::Call(ThreadState* thread_state, uint64_t return_address) {
