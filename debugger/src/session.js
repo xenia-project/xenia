@@ -52,7 +52,9 @@ module.service('Session', function(
     };
     for (var key in this.breakpoints) {
       var breakpoint = this.breakpoints[key];
-      json.breakpoints.push(breakpoint.toJSON());
+      if (breakpoint.type != Breakpoint.TEMP) {
+        json.breakpoints.push(breakpoint.toJSON());
+      }
     }
     window.localStorage[this.id] = JSON.stringify(json);
   };
@@ -100,8 +102,11 @@ module.service('Session', function(
     p.then((function() {
       log.info('Connected!');
       log.clearProgress();
-      this.setDataSource(dataSource);
-      d.resolve(this);
+      this.setDataSource(dataSource).then((function() {
+        d.resolve(this);
+      }).bind(this), (function(e) {
+        d.reject(e);
+      }).bind(this));
     }).bind(this), (function(e) {
       log.error('Unable to connect: ' + e);
       log.clearProgress();
@@ -119,22 +124,42 @@ module.service('Session', function(
   };
 
   Session.prototype.setDataSource = function(dataSource) {
+    var d = $q.defer();
     if (this.dataSource) {
       this.dataSource.dispose();
       this.dataSource = null;
-      $rootScope.$emit('refresh');
     }
+    $rootScope.$emit('refresh');
     if (!dataSource) {
-      return;
+      d.resolve();
+      return d.promise;
     }
 
     this.dataSource = dataSource;
 
+    var ps = [];
+
+    // Add breakpoints.
     var breakpointList = [];
     for (var key in this.breakpoints) {
       breakpointList.push(this.breakpoints[key]);
     }
-    this.dataSource.addBreakpoints(breakpointList);
+    ps.push(this.dataSource.addBreakpoints(breakpointList));
+
+    $q.all(ps).then((function() {
+      this.dataSource.makeReady().then(function() {
+        d.resolve();
+      }, function(e) {
+        log.error('Error making target ready: ' + e);
+        d.reject(e);
+      });
+    }).bind(this), (function(e) {
+      log.error('Errors preparing target: ' + e);
+      this.disconnect();
+      d.reject(e);
+    }).bind(this));
+
+    return d.promise;
   };
 
   Session.prototype.addBreakpoint = function(breakpoint) {

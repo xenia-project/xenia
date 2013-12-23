@@ -279,6 +279,14 @@ json_t* Processor::OnDebugRequest(
     delete fn;
 
     return fn_json;
+  } else if (xestrcmpa(command, "add_breakpoints") == 0) {
+    // breakpoints: []
+    return json_null();
+  } else if (xestrcmpa(command, "remove_breakpoints") == 0) {
+    // breakpointIds: ['id']
+    return json_null();
+  } else if (xestrcmpa(command, "remove_all_breakpoints") == 0) {
+    return json_null();
   } else {
     succeeded = false;
     return json_string("Unknown command");

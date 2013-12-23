@@ -61,6 +61,39 @@ module.service('DataSource', function($q) {
   DataSource.prototype.dispose = function() {};
   DataSource.prototype.issue = function(command) {};
 
+  DataSource.prototype.makeReady = function() {
+    return this.issue({
+      command: 'debug.make_ready'
+    });
+  };
+
+  DataSource.prototype.getModuleList = function() {
+    return this.issue({
+      command: 'cpu.get_module_list'
+    });
+  };
+
+  DataSource.prototype.getModule = function(moduleName) {
+    return this.issue({
+      command: 'cpu.get_module',
+      module: moduleName
+    });
+  };
+
+  DataSource.prototype.getFunctionList = function(moduleName) {
+    return this.issue({
+      command: 'cpu.get_function_list',
+      module: moduleName
+    });
+  };
+
+  DataSource.prototype.getFunction = function(address) {
+    return this.issue({
+      command: 'cpu.get_function',
+      address: address
+    });
+  };
+
   DataSource.prototype.addBreakpoint = function(breakpoint) {
     return this.addBreakpoints([breakpoint]);
   };
@@ -93,33 +126,6 @@ module.service('DataSource', function($q) {
   DataSource.prototype.removeAllBreakpoints = function() {
     return this.issue({
       command: 'cpu.remove_all_breakpoints'
-    });
-  };
-
-  DataSource.prototype.getModuleList = function() {
-    return this.issue({
-      command: 'cpu.get_module_list'
-    });
-  };
-
-  DataSource.prototype.getModule = function(moduleName) {
-    return this.issue({
-      command: 'cpu.get_module',
-      module: moduleName
-    });
-  };
-
-  DataSource.prototype.getFunctionList = function(moduleName) {
-    return this.issue({
-      command: 'cpu.get_function_list',
-      module: moduleName
-    });
-  };
-
-  DataSource.prototype.getFunction = function(address) {
-    return this.issue({
-      command: 'cpu.get_function',
-      address: address
     });
   };
 

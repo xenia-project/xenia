@@ -36,9 +36,9 @@ using namespace xe::kernel::xboxkrnl;
 
 
 WSClient::WSClient(DebugServer* debug_server, socket_t socket_id) :
-    DebugClient(debug_server),
     thread_(NULL),
-    socket_id_(socket_id) {
+    socket_id_(socket_id),
+    DebugClient(debug_server) {
   mutex_ = xe_mutex_alloc(1000);
 
   loop_ = xe_socket_loop_create(socket_id);
@@ -322,8 +322,6 @@ void WSClient::EventThread() {
     return;
   }
 
-  MakeReady();
-
   // Prep callbacks.
   struct wslay_event_callbacks callbacks = {
     (wslay_event_recv_callback)WSClientRecvCallback,
@@ -504,6 +502,18 @@ json_t* WSClient::HandleMessage(const char* command, json_t* request,
   xestrncpya(target_name, XECOUNT(target_name),
               command, dot - command);
   const char* sub_command = command + (dot - command + 1);
+
+  // Check debugger meta commands.
+  if (xestrcmpa(target_name, "debug") == 0) {
+    succeeded = true;
+    if (xestrcmpa(sub_command, "make_ready") == 0) {
+      MakeReady();
+      return json_true();
+    } else {
+      succeeded = false;
+      return json_string("Unknown command");
+    }
+  }
 
   // Lookup target.
   DebugTarget* target = debug_server_->GetTarget(target_name);
