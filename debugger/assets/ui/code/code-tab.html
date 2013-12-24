@@ -20,13 +20,18 @@
   <div class="debugger-body">
     <div class="debugger-fnlist">
       <div class="debugger-fnlist-header">
-        <div class="btn-group btn-group-xs full-width">
+        <div class="debugger-fnlist-header-left btn-group btn-group-xs full-width">
           <button type="button" class="btn btn-default dropdown-toggle full-width" data-toggle="dropdown">
             {{selectedModule.name}} <span class="caret"></span>
           </button>
           <ul class="dropdown-menu" role="menu">
             <li ng-repeat="module in moduleList"><a href="" ng-click="selectModule(module)">{{module.name}}</a></li>
           </ul>
+        </div>
+        <div class="debugger-fnlist-header-right btn-group btn-group-xs">
+          <button type="button" class="btn btn-default" ng-click="showModuleInfo(selectedModule)">
+            Info
+          </button>
         </div>
       </div>
       <div class="debugger-fnlist-body">

@@ -245,8 +245,8 @@ json_t* Processor::OnDebugRequest(
       json_array_append_new(list, module_json);
     }
     return list;
-  /*} else if (xestrcmpa(command, "get_module") == 0) {
-    return json_null();*/
+  } else if (xestrcmpa(command, "get_module") == 0) {
+    return json_null();
   } else if (xestrcmpa(command, "get_function_list") == 0) {
     json_t* module_name_json = json_object_get(request, "module");
     if (!module_name_json || !json_is_string(module_name_json)) {

@@ -10,13 +10,14 @@
 'use strict';
 
 var module = angular.module('xe.ui.code', [
+  'ui.bootstrap',
   'xe.log',
   'xe.session'
 ]);
 
 
 module.controller('CodeTabController', function(
-    $rootScope, $scope, app, log) {
+    $rootScope, $scope, $modal, app, log) {
   $scope.moduleList = [];
   $scope.selectedModule = null;
   $scope.functionList = [];
@@ -58,6 +59,22 @@ module.controller('CodeTabController', function(
       $scope.functionList = list;
     }, function(e) {
       log.error('Unable to fetch function list');
+    });
+  };
+
+  $scope.showModuleInfo = function(module) {
+    var modalInstance = $modal.open({
+      templateUrl: 'assets/ui/code/module-info.html',
+      controller: 'ModuleInfoController',
+      windowClass: 'debugger-module-info'
+//      resolve: {
+//        items: function () {
+//          return $scope.items;
+//        }
+//      }
+    });
+    modalInstance.result.then(function() {
+    }, function () {
     });
   };
 

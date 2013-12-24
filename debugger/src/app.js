@@ -20,6 +20,7 @@ var module = angular.module('app', [
   'xe.session',
   'xe.ui.code',
   'xe.ui.code.functionView',
+  'xe.ui.code.moduleInfo',
   'xe.ui.console',
   'xe.ui.navbar'
 ]);

@@ -140,6 +140,17 @@ body {
   order: 1;
   flex: 0 0 auto;
   padding: 5px;
+  display: flex;
+  flex-flow: row nowrap;
+}
+.debugger-fnlist-header-left {
+  order: 1;
+  flex: 1 1 auto;
+  padding-right: 5px;
+}
+.debugger-fnlist-header-right {
+  order: 2;
+  flex: 0 0 auto;
 }
 .debugger-fnlist-body {
   order: 2;
@@ -304,4 +315,20 @@ body {
   order: 3;
   flex: 1 1 auto;
   padding: 5px;
+}
+
+.debugger-module-info {
+  display: block;
+  pointer-events: none;
+}
+.debugger-module-info.fade .modal-dialog {
+  -webkit-transition: none;
+  -webkit-transform: translate(0,0);
+}
+.debugger-module-info div {
+  pointer-events: auto;
+}
+.debugger-module-info .modal-body {
+  max-height: 80vh;
+  overflow-y: auto;
 }
