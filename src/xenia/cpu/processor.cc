@@ -218,6 +218,10 @@ void Processor::OnDebugClientDisconnected(uint32_t client_id) {
   debug_client_states_.erase(client_id);
   xe_mutex_unlock(debug_client_states_lock_);
   delete client_state;
+
+  // Whenever we support multiple clients we will need to respect pause
+  // settings. For now, resume until running.
+  runtime_->debugger()->ResumeAllThreads(true);
 }
 
 json_t* Processor::OnDebugRequest(
@@ -416,6 +420,21 @@ json_t* Processor::OnDebugRequest(
       succeeded = false;
       return json_string("Unable to remove breakpoints");
     }
+    return json_null();
+  } else if (xestrcmpa(command, "continue") == 0) {
+    if (runtime_->debugger()->ResumeAllThreads()) {
+      succeeded = false;
+      return json_string("Unable to resume threads");
+    }
+    return json_null();
+  } else if (xestrcmpa(command, "break") == 0) {
+    if (runtime_->debugger()->SuspendAllThreads()) {
+      succeeded = false;
+      return json_string("Unable to suspend threads");
+    }
+    return json_null();
+  } else if (xestrcmpa(command, "step") == 0) {
+    // threadId
     return json_null();
   } else {
     succeeded = false;

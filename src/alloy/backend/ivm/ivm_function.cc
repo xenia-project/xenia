@@ -119,11 +119,19 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   ics.return_address = return_address;
   ics.call_return_address = 0;
 
+  volatile int* suspend_flag_address = thread_state->suspend_flag_address();
+
   // TODO(benvanik): DID_CARRY -- need HIR to set a OPCODE_FLAG_SET_CARRY
   //                 or something so the fns can set an ics flag.
 
   uint32_t ia = 0;
   while (true) {
+    // Check suspend. We could do this only on certain instructions, if we
+    // wanted to speed things up.
+    if (*suspend_flag_address) {
+      thread_state->EnterSuspend();
+    }
+
     IntCode* i = &intcodes_[ia];
 
     if (i->debug_flags) {

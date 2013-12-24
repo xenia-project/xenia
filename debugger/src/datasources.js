@@ -145,9 +145,10 @@ module.service('DataSource', function($q) {
     });
   };
 
-  DataSource.prototype.stepNext = function() {
+  DataSource.prototype.stepNext = function(threadId) {
     return this.issue({
-      command: 'cpu.step'
+      command: 'cpu.step',
+      threadId: threadId
     });
   };
 

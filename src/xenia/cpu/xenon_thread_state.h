@@ -31,8 +31,10 @@ public:
 
   PPCContext* context() const { return context_; }
 
+  virtual volatile int* suspend_flag_address() const;
   virtual int Suspend(uint32_t timeout_ms = UINT_MAX);
-  virtual int Resume();
+  virtual int Resume(bool force = false);
+  virtual void EnterSuspend();
 
 private:
   size_t    stack_size_;
@@ -44,6 +46,8 @@ private:
 
   // NOTE: must be 64b aligned for SSE ops.
   PPCContext* context_;
+
+  HANDLE    debug_break_;
 };
 
 

@@ -190,7 +190,7 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   uint8_t*              membase;
   runtime::Runtime*     runtime;
   runtime::ThreadState* thread_state;
-  uint32_t              suspend_flag;
+  volatile int          suspend_flag;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,

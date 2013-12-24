@@ -84,7 +84,7 @@ public:
 
   int SuspendAllThreads(uint32_t timeout_ms = UINT_MAX);
   int ResumeThread(uint32_t thread_id);
-  int ResumeAllThreads();
+  int ResumeAllThreads(bool force = false);
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);

@@ -63,12 +63,12 @@ int Debugger::ResumeThread(uint32_t thread_id) {
   return result;
 }
 
-int Debugger::ResumeAllThreads() {
+int Debugger::ResumeAllThreads(bool force) {
   int result = 0;
   LockMutex(threads_lock_);
   for (auto it = threads_.begin(); it != threads_.end(); ++it) {
     ThreadState* thread_state = it->second;
-    if (thread_state->Resume()) {
+    if (thread_state->Resume(force)) {
       result = 1;
     }
   }

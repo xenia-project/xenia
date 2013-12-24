@@ -224,26 +224,31 @@ module.service('Session', function(
   };
 
   Session.prototype.onBreakpointHit = function(breakpointId, threadId) {
-    var breakpoint = this.breakpointsById[breakpointId];
-    var thread = null; // TODO
-    if (!breakpoint) {
-      log.error('Breakpoint hit but not found');
-      return;
-    }
-
     // Now paused!
     this.paused = true;
 
-    $state.go('session.code.function', {
-      'function': breakpoint.fnAddress.toString(16).toUpperCase(),
-      'a': breakpoint.address.toString(16).toUpperCase()
-    }, {
-      notify: false,
-      reloadOnSearch: false
-    });
+    if (breakpointId) {
+      var breakpoint = this.breakpointsById[breakpointId];
+      var thread = null; // TODO
+      if (!breakpoint) {
+        log.error('Breakpoint hit but not found');
+        return;
+      }
 
-    //
-    log.info('breakpoint!!');
+      log.info('Breakpoint hit at 0x' +
+               breakpoint.address.toString(16).toUpperCase() + '.');
+
+      $state.go('session.code.function', {
+        'function': breakpoint.fnAddress.toString(16).toUpperCase(),
+        'a': breakpoint.address.toString(16).toUpperCase()
+      }, {
+        notify: false,
+        reloadOnSearch: false
+      });
+    } else {
+      // Just a general pause.
+      log.info('Execution paused.');
+    }
   };
 
   Session.prototype.continueExecution = function() {
@@ -252,6 +257,7 @@ module.service('Session', function(
     }
     this.paused = false;
     this.dataSource.continueExecution().then(function() {
+      log.info('Execution resumed.');
     }, function(e) {
       log.error('Unable to continue: ' + e);
     });
@@ -261,18 +267,20 @@ module.service('Session', function(
     if (!this.dataSource) {
       return;
     }
+    this.paused = true;
     this.dataSource.breakExecution().then(function() {
+      log.info('Execution paused.');
     }, function(e) {
       log.error('Unable to break: ' + e);
     });
   };
 
-  Session.prototype.stepNext = function() {
+  Session.prototype.stepNext = function(threadId) {
     if (!this.dataSource) {
       return;
     }
     this.paused = false;
-    this.dataSource.breakExecution().then(function() {
+    this.dataSource.stepNext(threadId).then(function() {
     }, function(e) {
       log.error('Unable to step: ' + e);
     });

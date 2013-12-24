@@ -247,7 +247,7 @@ module.controller('FunctionViewController', function(
       instance, line, gutterClass, e) {
     if (e.which == 1) {
       if (gutterClass == 'debugger-fnview-gutter-icon' ||
-          gutterClsas == 'debugger-fnview-gutter-addr') {
+          gutterClass == 'debugger-fnview-gutter-addr') {
         var sourceLine = $scope.sourceLines[line];
         if (!sourceLine || sourceLine[0] != 'i') {
           return;
