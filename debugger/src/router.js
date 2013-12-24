@@ -98,13 +98,11 @@ module.config(function($stateProvider, $urlRouterProvider) {
     onExit: function() {}
   });
   $stateProvider.state('session.code.function', {
-    url: '/:module/:function',
+    url: '/:function?a',
     templateUrl: 'assets/ui/code/function-view.html',
     controller: function($scope, $stateParams) {
-      $scope.moduleName = $stateParams.module;
       $scope.functionAddress = parseInt($stateParams.function, 16);
-      $scope.$emit('xxx');
-      $scope.$broadcast('yyy');
+      $scope.highlightAddress = parseInt($stateParams.a, 16);
     },
     onEnter: function() {},
     onExit: function() {}

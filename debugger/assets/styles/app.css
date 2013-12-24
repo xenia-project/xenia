@@ -265,6 +265,9 @@ body {
   padding-left: 6px;
   color: #aaa;
 }
+.debugger-fnview-line-highlight-bg {
+  background-color: red;
+}
 .debugger-fnview-graphview {
   order: 2;
   flex: 0 0 auto;

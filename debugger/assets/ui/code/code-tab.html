@@ -1,6 +1,21 @@
 <div class="debugger-main" ng-controller="CodeTabController">
   <div class="debugger-header">
-    debug header/toolbar/etc
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-success" ng-click="app.session.continueExecution()" ng-disabled="!app.session.dataSource || !app.session.paused">
+        <span class="glyphicon glyphicon-play"></span>
+      </button>
+      <button type="button" class="btn btn-danger" ng-click="app.session.breakExecution()" ng-disabled="!app.session.dataSource || app.session.paused">
+        <span class="glyphicon glyphicon-pause"></span>
+      </button>
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-default" ng-click="showLocation()" ng-disabled="!app.session.dataSource || !app.session.paused">
+        <span class="glyphicon glyphicon glyphicon-arrow-right"></span>
+      </button>
+      <button type="button" class="btn btn-default" ng-click="app.session.stepNext()" ng-disabled="!app.session.dataSource || !app.session.paused">
+        <span class="glyphicon glyphicon-step-forward"></span>
+      </button>
+    </div>
   </div>
   <div class="debugger-body">
     <div class="debugger-fnlist">
@@ -18,7 +33,7 @@
         <div class="debugger-fnlist-list">
           <table class="table table-hover">
             <tr ng-repeat="fn in functionList | filter:functionFilter | orderBy:'address'">
-              <td><a ui-sref="session.code.function({module: selectedModule.name, function: (fn.address | hex32)})">{{fn.name}}</a></td>
+              <td><a ui-sref="session.code.function({function: (fn.address | hex32)})">{{fn.name}}</a></td>
             </tr>
           </table>
         </div>

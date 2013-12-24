@@ -25,6 +25,7 @@ module.service('Breakpoint', function() {
   var Breakpoint = function(opt_id) {
     this.id = opt_id || uuid4();
     this.type = Breakpoint.Type.TEMP;
+    this.fnAddress = 0;
     this.address = 0;
     this.enabled = true;
   };
@@ -35,6 +36,7 @@ module.service('Breakpoint', function() {
   Breakpoint.fromJSON = function(json) {
     var breakpoint = new Breakpoint(json.id);
     breakpoint.type = json.type;
+    breakpoint.fnAddress = json.fnAddress;
     breakpoint.address = json.address;
     breakpoint.enabled = json.enabled;
     return breakpoint;
@@ -43,6 +45,7 @@ module.service('Breakpoint', function() {
     return {
       'id': this.id,
       'type': this.type,
+      'fnAddress': this.fnAddress,
       'address': this.address,
       'enabled': this.enabled
     };
@@ -52,8 +55,9 @@ module.service('Breakpoint', function() {
 
 
 module.service('DataSource', function($q) {
-  var DataSource = function(source) {
+  var DataSource = function(source, delegate) {
     this.source = source;
+    this.delegate = delegate;
     this.online = false;
     this.status = 'disconnected';
   };
@@ -129,12 +133,31 @@ module.service('DataSource', function($q) {
     });
   };
 
+  DataSource.prototype.continueExecution = function() {
+    return this.issue({
+      command: 'cpu.continue'
+    });
+  };
+
+  DataSource.prototype.breakExecution = function() {
+    return this.issue({
+      command: 'cpu.break'
+    });
+  };
+
+  DataSource.prototype.stepNext = function() {
+    return this.issue({
+      command: 'cpu.step'
+    });
+  };
+
   return DataSource;
 });
 
-module.service('RemoteDataSource', function($q, log, DataSource) {
-  var RemoteDataSource = function(url) {
-    DataSource.call(this, url);
+module.service('RemoteDataSource', function(
+    $rootScope, $q, log, DataSource) {
+  var RemoteDataSource = function(url, delegate) {
+    DataSource.call(this, url, delegate);
     this.url = url;
     this.socket = null;
     this.nextRequestId_ = 1;
@@ -152,22 +175,26 @@ module.service('RemoteDataSource', function($q, log, DataSource) {
 
     this.socket = new WebSocket(url, []);
     this.socket.onopen = (function() {
-      // TODO(benvanik): handshake
+      $rootScope.$apply((function() {
+        // TODO(benvanik): handshake
 
-      this.online = true;
-      this.status = 'connected';
-      d.resolve();
+        this.online = true;
+        this.status = 'connected';
+        d.resolve();
+      }).bind(this));
     }).bind(this);
 
     this.socket.onclose = (function(e) {
-      this.online = false;
-      if (this.status == 'connecting') {
-        this.status = 'disconnected';
-        d.reject(e.code + ' ' + e.reason);
-      } else {
-        this.status = 'disconnected';
-        log.info('Disconnected');
-      }
+      $rootScope.$apply((function() {
+        this.online = false;
+        if (this.status == 'connecting') {
+          this.status = 'disconnected';
+          d.reject(e.code + ' ' + e.reason);
+        } else {
+          this.status = 'disconnected';
+          log.info('Disconnected');
+        }
+      }).bind(this));
     }).bind(this);
 
     this.socket.onerror = (function(e) {
@@ -175,25 +202,40 @@ module.service('RemoteDataSource', function($q, log, DataSource) {
     }).bind(this);
 
     this.socket.onmessage = (function(e) {
-      console.log('message', e.data);
-      var json = JSON.parse(e.data);
-      if (json.requestId) {
-        // Response to a previous request.
-        var request = this.pendingRequests_[json.requestId];
-        if (request) {
-          delete this.pendingRequests_[json.requestId];
-          if (json.status) {
-            request.deferred.resolve(json.result);
-          } else {
-            request.deferred.reject(json.result);
-          }
-        }
-      } else {
-        // Notification.
-      }
+      $rootScope.$apply((function() {
+        this.socketMessage(e);
+      }).bind(this));
     }).bind(this);
 
     return d.promise;
+  };
+
+  RemoteDataSource.prototype.socketMessage = function(e) {
+    console.log('message', e.data);
+    var json = JSON.parse(e.data);
+    if (json.requestId) {
+      // Response to a previous request.
+      var request = this.pendingRequests_[json.requestId];
+      if (request) {
+        delete this.pendingRequests_[json.requestId];
+        if (json.status) {
+          request.deferred.resolve(json.result);
+        } else {
+          request.deferred.reject(json.result);
+        }
+      }
+    } else {
+      // Notification.
+      switch (json.type) {
+      case 'breakpoint':
+        this.delegate.onBreakpointHit(
+            json.breakpointId, json.threadId);
+        break;
+      default:
+        log.error('Unknown notification type: ' + json.type);
+        break;
+      }
+    }
   };
 
   RemoteDataSource.prototype.dispose = function() {
@@ -221,8 +263,8 @@ module.service('RemoteDataSource', function($q, log, DataSource) {
 
 
 module.service('FileDataSource', function($q, DataSource) {
-  var FileDataSource = function(file) {
-    DataSource.call(this, file.name);
+  var FileDataSource = function(file, delegate) {
+    DataSource.call(this, file.name, delegate);
     this.file = file;
   };
   inherits(FileDataSource, DataSource);

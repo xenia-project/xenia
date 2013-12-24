@@ -13,14 +13,17 @@ var module = angular.module('xe.session', []);
 
 
 module.service('Session', function(
-    $rootScope, $q, $http, log,
+    $rootScope, $q, $http, $state, log,
     Breakpoint, FileDataSource, RemoteDataSource) {
   var Session = function(id, opt_dataSource) {
     this.id = id;
 
     this.breakpoints = {};
+    this.breakpointsById = {};
 
     this.dataSource = opt_dataSource || null;
+
+    this.paused = false;
 
     this.loadState();
   };
@@ -31,7 +34,11 @@ module.service('Session', function(
   };
 
   Session.prototype.loadState = function() {
-    var json = JSON.parse(window.localStorage[this.id]);
+    var raw = window.localStorage[this.id];
+    if (!raw) {
+      return;
+    }
+    var json = JSON.parse(raw);
     if (!json) {
       return;
     }
@@ -40,8 +47,9 @@ module.service('Session', function(
     this.breakpoints = {};
     for (var n = 0; n < breakpointList.length; n++) {
       var breakpointJson = breakpointList[n];
-      this.breakpoints[breakpointJson.address] =
-          Breakpoint.fromJSON(breakpointJson);
+      var breakpoint = Breakpoint.fromJSON(breakpointJson);
+      this.breakpoints[breakpointJson.address] = breakpoint;
+      this.breakpointsById[breakpoint.id] = breakpoint;
     }
   };
 
@@ -50,8 +58,8 @@ module.service('Session', function(
       id: this.id,
       breakpoints: []
     };
-    for (var key in this.breakpoints) {
-      var breakpoint = this.breakpoints[key];
+    for (var key in this.breakpointsById) {
+      var breakpoint = this.breakpointsById[key];
       if (breakpoint.type != Breakpoint.TEMP) {
         json.breakpoints.push(breakpoint.toJSON());
       }
@@ -97,7 +105,7 @@ module.service('Session', function(
 
     var d = $q.defer();
 
-    var dataSource = new RemoteDataSource(url);
+    var dataSource = new RemoteDataSource(url, this);
     var p = dataSource.open();
     p.then((function() {
       log.info('Connected!');
@@ -167,6 +175,7 @@ module.service('Session', function(
 
   Session.prototype.addBreakpoint = function(breakpoint) {
     this.breakpoints[breakpoint.address] = breakpoint;
+    this.breakpointsById[breakpoint.id] = breakpoint;
     if (this.dataSource) {
       this.dataSource.addBreakpoint(breakpoint);
     }
@@ -174,17 +183,19 @@ module.service('Session', function(
     return breakpoint;
   };
 
-  Session.prototype.addTempBreakpoint = function(address) {
+  Session.prototype.addTempBreakpoint = function(fnAddress, address) {
     var breakpoint = new Breakpoint();
     breakpoint.type = Breakpoint.Type.TEMP;
+    breakpoint.fnAddress = fnAddress;
     breakpoint.address = address;
     breakpoint.enabled = true;
     return this.addBreakpoint(breakpoint);
   };
 
-  Session.prototype.addCodeBreakpoint = function(address) {
+  Session.prototype.addCodeBreakpoint = function(fnAddress, address) {
     var breakpoint = new Breakpoint();
     breakpoint.type = Breakpoint.Type.CODE;
+    breakpoint.fnAddress = fnAddress;
     breakpoint.address = address;
     breakpoint.enabled = true;
     return this.addBreakpoint(breakpoint);
@@ -192,6 +203,7 @@ module.service('Session', function(
 
   Session.prototype.removeBreakpoint = function(breakpoint) {
     delete this.breakpoints[breakpoint.address];
+    delete this.breakpointsById[breakpoint.id];
     if (this.dataSource) {
       this.dataSource.removeBreakpoint(breakpoint.id);
     }
@@ -209,6 +221,61 @@ module.service('Session', function(
       }
     }
     this.saveState();
+  };
+
+  Session.prototype.onBreakpointHit = function(breakpointId, threadId) {
+    var breakpoint = this.breakpointsById[breakpointId];
+    var thread = null; // TODO
+    if (!breakpoint) {
+      log.error('Breakpoint hit but not found');
+      return;
+    }
+
+    // Now paused!
+    this.paused = true;
+
+    $state.go('session.code.function', {
+      'function': breakpoint.fnAddress.toString(16).toUpperCase(),
+      'a': breakpoint.address.toString(16).toUpperCase()
+    }, {
+      notify: false,
+      reloadOnSearch: false
+    });
+
+    //
+    log.info('breakpoint!!');
+  };
+
+  Session.prototype.continueExecution = function() {
+    if (!this.dataSource) {
+      return;
+    }
+    this.paused = false;
+    this.dataSource.continueExecution().then(function() {
+    }, function(e) {
+      log.error('Unable to continue: ' + e);
+    });
+  };
+
+  Session.prototype.breakExecution = function() {
+    if (!this.dataSource) {
+      return;
+    }
+    this.dataSource.breakExecution().then(function() {
+    }, function(e) {
+      log.error('Unable to break: ' + e);
+    });
+  };
+
+  Session.prototype.stepNext = function() {
+    if (!this.dataSource) {
+      return;
+    }
+    this.paused = false;
+    this.dataSource.breakExecution().then(function() {
+    }, function(e) {
+      log.error('Unable to step: ' + e);
+    });
   };
 
   return Session;

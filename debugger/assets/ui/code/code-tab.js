@@ -61,6 +61,10 @@ module.controller('CodeTabController', function(
     });
   };
 
+  $scope.showLocation = function() {
+    //
+  };
+
   if (app.session.dataSource) {
     refresh();
   }

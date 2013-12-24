@@ -16,8 +16,9 @@ var module = angular.module('xe.ui.code.functionView', [
 
 
 module.controller('FunctionViewController', function(
-    $rootScope, $scope, app, log, Breakpoint) {
+    $rootScope, $scope, $location, app, log, Breakpoint) {
   $scope.codeType = 'source';
+  $scope.highlightInfo = null;
 
   function refresh() {
     if (!app.session || !app.session.dataSource) {
@@ -35,6 +36,46 @@ module.controller('FunctionViewController', function(
   };
   $rootScope.$on('refresh', refresh);
   $scope.$watch('functionAddress', refresh);
+
+  function updateHighlight(address) {
+    if (!$scope.sourceLines || $scope.codeType != 'source') {
+      return;
+    }
+    if ($scope.highlightInfo) {
+      if ($scope.highlightInfo.address == address) {
+        return;
+      }
+      var oldLine = $scope.highlightInfo.line;
+      if ($scope.highlightInfo.widget) {
+        $scope.highlightInfo.widget.clear();
+      }
+      $scope.highlightInfo = null;
+      updateLine(oldLine);
+    }
+    // TODO(benvanik): a better mapping.
+    var line = -1;
+    for (var n = 0; n < $scope.sourceLines.length; n++) {
+      var sourceLine = $scope.sourceLines[n];
+      if (sourceLine[0] == 'i' &&
+          sourceLine[1] == address) {
+        line = n;
+        break;
+      }
+    }
+    if (line != -1) {
+      $scope.highlightInfo = {
+        address: address,
+        line: line,
+        widget: null
+      };
+      updateLine(line);
+    }
+  };
+  $scope.$watch(function() {
+    return $location.search();
+  }, function(search) {
+    updateHighlight(parseInt(search.a, 16));
+  });
 
   var textArea = document.querySelector('.debugger-fnview-textarea');
   $scope.codeMirror = CodeMirror.fromTextArea(textArea, {
@@ -94,7 +135,7 @@ module.controller('FunctionViewController', function(
         el.innerText = hex32(line[2]);
         cm.setGutterMarker(n, 'debugger-fnview-gutter-code', el);
 
-        updateLineIcon(n, line);
+        updateLine(n);
       }
     }
   };
@@ -140,7 +181,8 @@ module.controller('FunctionViewController', function(
   };
   $scope.$watch('codeType', updateCode);
 
-  function updateLineIcon(line, sourceLine) {
+  function updateLine(line) {
+    var sourceLine = $scope.sourceLines[line];
     var cm = $scope.codeMirror;
     if (sourceLine[0] != 'i') {
       return;
@@ -160,6 +202,26 @@ module.controller('FunctionViewController', function(
       el = null;
     }
     cm.setGutterMarker(line, 'debugger-fnview-gutter-icon', el);
+
+    var highlightInfo = $scope.highlightInfo;
+    if (highlightInfo && highlightInfo.line == line) {
+      /*
+      if (!highlightInfo.widget) {
+        el = document.createElement('div');
+        el.style.width = '100%';
+        el.style.height = '20px';
+        el.style.backgroundColor = 'red';
+        el.innerHTML = 'hi!';
+        highlightInfo.widget = cm.addLineWidget(line, el, {
+          coverGutter: false
+        });
+        cm.scrollIntoView(line, 50);
+      }
+      */
+      cm.addLineClass(line, 'background', 'debugger-fnview-line-highlight-bg');
+    } else {
+      cm.removeLineClass(line, 'background');
+    }
   };
 
   function toggleBreakpoint(line, sourceLine, shiftKey) {
@@ -174,10 +236,11 @@ module.controller('FunctionViewController', function(
       }
     } else {
       // New breakpoint needed.
-      breakpoint = app.session.addCodeBreakpoint(address);
+      breakpoint = app.session.addCodeBreakpoint(
+          $scope.functionAddress, address);
     }
 
-    updateLineIcon(line, sourceLine);
+    updateLine(line);
   };
 
   $scope.codeMirror.on('gutterClick', function(
