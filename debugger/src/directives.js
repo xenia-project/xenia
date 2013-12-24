@@ -14,7 +14,7 @@ var module = angular.module('xe.directives', []);
 
 module.directive('uiEnter', function() {
   return function($scope, element, attrs) {
-    element.bind("keydown keypress", function(e) {
+    element.bind('keydown keypress', function(e) {
       if(e.which === 13) {
         $scope.$apply(function(){
           $scope.$eval(attrs.uiEnter);
@@ -27,7 +27,7 @@ module.directive('uiEnter', function() {
 
 module.directive('uiEscape', function() {
   return function($scope, element, attrs) {
-    element.bind("keydown keypress", function(e) {
+    element.bind('keydown keypress', function(e) {
       if(e.which === 27) {
         $scope.$apply(function(){
           $scope.$eval(attrs.uiEscape);
@@ -35,6 +35,17 @@ module.directive('uiEscape', function() {
         e.preventDefault();
       }
     });
+  };
+});
+
+module.directive('uiScrollDownOn', function() {
+  return {
+    priority: 1,
+    link: function($scope, element, attrs) {
+      $scope.$watch(attrs.uiScrollDownOn, function() {
+        element[0].scrollTop = element[0].scrollHeight;
+      });
+    }
   };
 });
 

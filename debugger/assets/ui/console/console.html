@@ -1,6 +1,6 @@
 <div class="console" ng-controller="ConsoleController">
   <div class="console-part-log">
-    <div class="console-log-outer">
+    <div class="console-log-outer" ui-scroll-down-on="log.lines.length">
       <ul>
         <li ng-repeat="line in log.lines track by $index">{{line}}</li>
       </ul>
