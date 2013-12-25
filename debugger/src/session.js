@@ -132,6 +132,8 @@ module.service('Session', function(
   };
 
   Session.prototype.setDataSource = function(dataSource) {
+    var self = this;
+
     var d = $q.defer();
     if (this.dataSource) {
       this.dataSource.dispose();
@@ -156,6 +158,29 @@ module.service('Session', function(
       }
     }
     ps.push(this.dataSource.addBreakpoints(breakpointList));
+
+    // Fetch main module info.
+    // We need this for entry point info/etc.
+    var moduleInfoDeferred = $q.defer();
+    this.dataSource.getModuleList().then(function(moduleList) {
+      if (!moduleList.length) {
+        // Uh.
+        log.error('No modules loaded on startup!');
+        moduleInfoDeferred.reject(new Error('No modules found'));
+        return;
+      }
+      moduleList.forEach(function(module) {
+        dataSource.getModule(module.name).then(function(moduleInfo) {
+          // Put a breakpoint at the entry point.
+          var entryPoint = moduleInfo.exeEntryPoint;
+          self.addTempBreakpoint(entryPoint, entryPoint);
+          moduleInfoDeferred.resolve();
+        });
+      });
+    }, function(e) {
+      moduleInfoDeferred.reject(e);
+    });
+    ps.push(moduleInfoDeferred.promise);
 
     $q.all(ps).then((function() {
       this.dataSource.makeReady().then(function() {
@@ -227,6 +252,8 @@ module.service('Session', function(
     // Now paused!
     this.paused = true;
 
+    $rootScope.$emit('refresh');
+
     if (breakpointId) {
       var breakpoint = this.breakpointsById[breakpointId];
       var thread = null; // TODO
@@ -239,10 +266,11 @@ module.service('Session', function(
                breakpoint.address.toString(16).toUpperCase() + '.');
 
       $state.go('session.code.function', {
-        'function': breakpoint.fnAddress.toString(16).toUpperCase(),
-        'a': breakpoint.address.toString(16).toUpperCase()
+        sessionId: this.id,
+        function: breakpoint.fnAddress.toString(16).toUpperCase(),
+        a: breakpoint.address.toString(16).toUpperCase()
       }, {
-        notify: false,
+        notify: true,
         reloadOnSearch: false
       });
     } else {
@@ -270,6 +298,7 @@ module.service('Session', function(
     this.paused = true;
     this.dataSource.breakExecution().then(function() {
       log.info('Execution paused.');
+      $rootScope.$emit('refresh');
     }, function(e) {
       log.error('Unable to break: ' + e);
     });

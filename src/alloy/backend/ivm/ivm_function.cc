@@ -82,7 +82,7 @@ int IVMFunction::RemoveBreakpointImpl(Breakpoint* breakpoint) {
   if (i->debug_flags) {
     auto old_breakpoint = FindBreakpoint(breakpoint->address());
     if (old_breakpoint) {
-      uint64_t breakpoint_ptr = (uint64_t)breakpoint;
+      uint64_t breakpoint_ptr = (uint64_t)old_breakpoint;
       i->src2_reg = (uint32_t)breakpoint_ptr;
       i->src3_reg = (uint32_t)(breakpoint_ptr >> 32);
     }

@@ -190,7 +190,7 @@ module.controller('FunctionViewController', function(
     var address = sourceLine[1];
     var breakpoint = app.session.breakpoints[address];
     var el;
-    if (breakpoint) {
+    if (breakpoint && breakpoint.type == 'code') {
       el = document.createElement('span');
       el.classList.add('debugger-fnview-gutter-icon-el');
       if (breakpoint.enabled) {

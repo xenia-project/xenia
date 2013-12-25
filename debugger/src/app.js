@@ -54,13 +54,22 @@ module.service('app', function(
   };
 
   App.prototype.open = function(sessionId) {
+    var d = $q.defer();
+
+    // Ignore if already open.
+    if (this.session && this.session.id == sessionId) {
+      d.resolve(this.session);
+      return d.promise;
+    }
+
+    // Close existing.
     this.close();
 
-    var d = $q.defer();
     this.loading = true;
 
     log.info('Opening session ' + sessionId);
 
+    // Open session.
     var session = new Session(sessionId);
     this.loading = false;
     this.setSession(session);
