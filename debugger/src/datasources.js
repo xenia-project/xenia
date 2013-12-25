@@ -61,6 +61,11 @@ module.service('DataSource', function($q) {
     this.delegate = delegate;
     this.online = false;
     this.status = 'disconnected';
+
+    this.cache_ = {
+      modules: {},
+      functions: {}
+    };
   };
   inherits(DataSource, EventEmitter);
   DataSource.prototype.open = function() {};
@@ -80,10 +85,22 @@ module.service('DataSource', function($q) {
   };
 
   DataSource.prototype.getModule = function(moduleName) {
-    return this.issue({
+    var d = $q.defer();
+    var cached = this.cache_.modules[moduleName];
+    if (cached) {
+      d.resolve(cached);
+      return d.promise;
+    }
+    this.issue({
       command: 'cpu.get_module',
       module: moduleName
-    });
+    }).then((function(result) {
+      this.cache_.modules[moduleName] = result;
+      d.resolve(result);
+    }).bind(this), (function(e) {
+      d.reject(e);
+    }).bind(this));
+    return d.promise;
   };
 
   DataSource.prototype.getFunctionList = function(moduleName) {
@@ -94,10 +111,22 @@ module.service('DataSource', function($q) {
   };
 
   DataSource.prototype.getFunction = function(address) {
-    return this.issue({
+    var d = $q.defer();
+    var cached = this.cache_.functions[address];
+    if (cached) {
+      d.resolve(cached);
+      return d.promise;
+    }
+    this.issue({
       command: 'cpu.get_function',
       address: address
-    });
+    }).then((function(result) {
+          this.cache_.functions[address] = result;
+          d.resolve(result);
+        }).bind(this), (function(e) {
+          d.reject(e);
+        }).bind(this));
+    return d.promise;
   };
 
   DataSource.prototype.addBreakpoint = function(breakpoint) {
