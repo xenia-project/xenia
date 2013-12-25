@@ -109,7 +109,7 @@ module.config(function($stateProvider, $urlRouterProvider) {
   });
 
   $stateProvider.state('session.memory', {
-    url: '/memory',
+    url: '/memory?a',
     templateUrl: 'assets/ui/memory/memory-tab.html',
     controller: function($stateParams) {
     },

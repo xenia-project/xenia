@@ -21,6 +21,31 @@ module.controller('ModuleInfoController', function(
   $scope.moduleName = moduleName;
   $scope.moduleInfo = moduleInfo;
 
+  $scope.headerSort = {
+    column: 'key',
+    reverse: false
+  };
+  $scope.sectionSort = {
+    column: 'startAddress',
+    reverse: false
+  };
+  $scope.staticLibrarySort = {
+    column: 'name',
+    reverse: false
+  };
+  $scope.importSort = {
+    column: 'ordinal',
+    reverse: false
+  };
+  $scope.changeSort = function(sort, column) {
+    if (sort.column == column) {
+      sort.reverse = !sort.reverse;
+    } else {
+      sort.column = column;
+      sort.reverse = false;
+    }
+  };
+
   $scope.close = function() {
     $scope.$close(null);
   };

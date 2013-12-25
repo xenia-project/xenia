@@ -336,3 +336,44 @@ body {
   max-height: 80vh;
   overflow-y: auto;
 }
+.debugger-module-info-outer-table {
+}
+.debugger-module-info-outer-table tbody tr td:nth-child(1) {
+  width: 110px;
+}
+.debugger-module-info-inner-table {
+  width: 300px;
+}
+.debugger-module-info-inner-table td:nth-child(1) {
+  text-align: right;
+}
+.debugger-module-info-headers {
+  width: 400px;
+}
+.debugger-module-info-sections {
+  width: 400px;
+}
+.debugger-module-info-static-libraries {
+  width: 400px;
+}
+.debugger-module-info-imports {
+  width: 900px;
+}
+.debugger-module-info-imports td:nth-child(1) {
+  width: 40px;
+}
+.debugger-module-info-imports td:nth-child(2) {
+  width: 64px;
+}
+.debugger-module-info-imports td:nth-child(3) {
+  width: 60px;
+}
+.debugger-module-info-imports td:nth-child(4) {
+  width: 100%;
+}
+.debugger-module-info-imports td:nth-child(5) {
+  width: 80px;
+}
+.debugger-module-info-imports td:nth-child(6) {
+  width: 80px;
+}

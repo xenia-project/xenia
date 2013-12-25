@@ -12,6 +12,16 @@
 var module = angular.module('xe.filters', []);
 
 
+module.filter('hex16', function() {
+  return function(number) {
+    if (number !== null && number !== undefined) {
+      var str = '' + number.toString(16).toUpperCase();
+      while (str.length < 4) str = '0' + str;
+      return str;
+    }
+  };
+});
+
 module.filter('hex32', function() {
   return function(number) {
     if (number !== null && number !== undefined) {

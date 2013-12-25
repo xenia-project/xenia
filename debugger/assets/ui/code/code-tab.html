@@ -38,7 +38,7 @@
         <div class="debugger-fnlist-list">
           <table class="table table-hover">
             <tr ng-repeat="fn in functionList | filter:functionFilter | orderBy:'address'">
-              <td><a ui-sref="session.code.function({function: (fn.address | hex32)})">{{fn.name}}</a></td>
+              <td><a xe-coderef="{{fn.address|hex32}}">{{fn.name}}</a></td>
             </tr>
           </table>
         </div>

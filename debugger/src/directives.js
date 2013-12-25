@@ -9,7 +9,9 @@
 
 'use strict';
 
-var module = angular.module('xe.directives', []);
+var module = angular.module('xe.directives', [
+  'ui.router'
+]);
 
 
 module.directive('uiEnter', function() {
@@ -49,3 +51,39 @@ module.directive('uiScrollDownOn', function() {
   };
 });
 
+module.directive('xeCoderef', function($state) {
+  return {
+    priority: 1,
+    link: function($scope, element, attrs) {
+      var target = attrs.xeCoderef;
+      var stateName = 'session.code.function';
+      var stateParams = {
+        function: target,
+        a: null
+      };
+      element.attr('href', $state.href(stateName, stateParams));
+      element.bind('click', function(e) {
+        e.preventDefault();
+        $state.go(stateName, stateParams);
+      });
+    }
+  };
+});
+
+module.directive('xeMemref', function($state) {
+  return {
+    priority: 1,
+    link: function($scope, element, attrs) {
+      var target = attrs.xeMemref;
+      var stateName = 'session.memory';
+      var stateParams = {
+        a: target
+      };
+      element.attr('href', $state.href(stateName, stateParams));
+      element.bind('click', function(e) {
+        e.preventDefault();
+        $state.go(stateName, stateParams);
+      });
+    }
+  };
+});

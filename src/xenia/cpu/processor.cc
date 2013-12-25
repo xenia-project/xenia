@@ -500,8 +500,6 @@ json_t* Processor::DumpModule(XexModule* module, bool& succeeded) {
     json_object_set_integer_new(
         header_entry_json, "key", opt_header->key);
     json_object_set_integer_new(
-        header_entry_json, "offset", opt_header->offset);
-    json_object_set_integer_new(
         header_entry_json, "length", opt_header->length);
     json_object_set_integer_new(
         header_entry_json, "value", opt_header->value);
@@ -610,7 +608,7 @@ json_t* Processor::DumpModule(XexModule* module, bool& succeeded) {
           import_json, "valueAddress", info->value_address);
       if (kernel_export && kernel_export->type == KernelExport::Variable) {
         json_object_set_string_new(
-            import_json, "type", "function");
+            import_json, "type", "variable");
       } else if (kernel_export) {
         json_object_set_string_new(
             import_json, "type", "function");
