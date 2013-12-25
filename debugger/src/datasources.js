@@ -64,6 +64,7 @@ module.service('DataSource', function($q) {
 
     this.cache_ = {
       modules: {},
+      moduleFunctionLists: {},
       functions: {}
     };
   };
@@ -104,10 +105,29 @@ module.service('DataSource', function($q) {
   };
 
   DataSource.prototype.getFunctionList = function(moduleName) {
-    return this.issue({
+    var d = $q.defer();
+    var cached = this.cache_.moduleFunctionLists[moduleName];
+    this.issue({
       command: 'cpu.get_function_list',
-      module: moduleName
-    });
+      module: moduleName,
+      since: cached ? cached.version : 0
+    }).then((function(result) {
+      if (cached) {
+        cached.version = result.version;
+        for (var n = 0; n < result.list.length; n++) {
+          cached.list.push(result.list[n]);
+        }
+      } else {
+        cached = this.cache_.moduleFunctionLists[moduleName] = {
+          version: result.version,
+          list: result.list
+        };
+      }
+      d.resolve(cached.list);
+    }).bind(this), (function(e) {
+      d.reject(e);
+    }).bind(this));
+    return d.promise;
   };
 
   DataSource.prototype.getFunction = function(address) {

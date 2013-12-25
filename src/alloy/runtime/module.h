@@ -45,6 +45,8 @@ public:
   SymbolInfo::Status DefineVariable(VariableInfo* symbol_info);
 
   void ForEachFunction(std::function<void (FunctionInfo*)> callback);
+  void ForEachFunction(size_t since, size_t& version,
+                       std::function<void (FunctionInfo*)> callback);
 
   int ReadMap(const char* file_name);
 
@@ -62,6 +64,8 @@ private:
   Mutex* lock_;
   typedef std::tr1::unordered_map<uint64_t, SymbolInfo*> SymbolMap;
   SymbolMap map_;
+  typedef std::vector<SymbolInfo*> SymbolList;
+  SymbolList list_;
 };
 
 

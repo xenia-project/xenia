@@ -225,6 +225,32 @@ void Processor::OnDebugClientDisconnected(uint32_t client_id) {
   runtime_->debugger()->ResumeAllThreads(true);
 }
 
+json_t* json_object_set_string_new(
+    json_t* object, const char* key, const char* value) {
+  json_t* value_json = json_string(value);
+  json_object_set_new(object, key, value_json);
+  return value_json;
+}
+
+json_t* json_object_set_string_format_new(
+    json_t* object, const char* key, const char* format, ...) {
+  char buffer[1024];
+  va_list args;
+  va_start(args, format);
+  xevsnprintfa(buffer, XECOUNT(buffer), format, args);
+  va_end(args);
+  json_t* value_json = json_string(buffer);
+  json_object_set_new(object, key, value_json);
+  return value_json;
+}
+
+json_t* json_object_set_integer_new(
+    json_t* object, const char* key, json_int_t value) {
+  json_t* value_json = json_integer(value);
+  json_object_set_new(object, key, value_json);
+  return value_json;
+}
+
 json_t* Processor::OnDebugRequest(
     uint32_t client_id, const char* command, json_t* request,
     bool& succeeded) {
@@ -240,8 +266,7 @@ json_t* Processor::OnDebugRequest(
     for (auto it = modules.begin(); it != modules.end(); ++it) {
       XexModule* module = (XexModule*)(*it);
       json_t* module_json = json_object();
-      json_t* module_name_json = json_string(module->name());
-      json_object_set_new(module_json, "name", module_name_json);
+      json_object_set_string_new(module_json, "name", module->name());
       json_array_append_new(list, module_json);
     }
     return list;
@@ -270,8 +295,16 @@ json_t* Processor::OnDebugRequest(
       succeeded = false;
       return json_string("Module not found");
     }
+    json_t* since_json = json_object_get(request, "since");
+    if (since_json && !json_is_number(since_json)) {
+      succeeded = false;
+      return json_string("Version since is an invalid type");
+    }
+    size_t since = since_json ?
+        (size_t)json_number_value(since_json) : 0;
     json_t* list = json_array();
-    module->ForEachFunction([&](FunctionInfo* info) {
+    size_t version = 0;
+    module->ForEachFunction(since, version, [&](FunctionInfo* info) {
       json_t* fn_json = json_object();
       const char* name = info->name();
       char name_buffer[32];
@@ -280,15 +313,15 @@ json_t* Processor::OnDebugRequest(
                     info->address());
         name = name_buffer;
       }
-      json_t* name_json = json_string(name);
-      json_object_set_new(fn_json, "name", name_json);
-      json_t* address_json = json_integer(info->address());
-      json_object_set_new(fn_json, "address", address_json);
-      json_t* link_status_json = json_integer(info->status());
-      json_object_set_new(fn_json, "linkStatus", link_status_json);
+      json_object_set_string_new(fn_json, "name", name);
+      json_object_set_integer_new(fn_json, "address", info->address());
+      json_object_set_integer_new(fn_json, "linkStatus", info->status());
       json_array_append_new(list, fn_json);
     });
-    return list;
+    json_t* result = json_object();
+    json_object_set_integer_new(result, "version", version);
+    json_object_set_new(result, "list", list);
+    return result;
   } else if (xestrcmpa(command, "get_function") == 0) {
     json_t* address_json = json_object_get(request, "address");
     if (!address_json || !json_is_number(address_json)) {
@@ -395,32 +428,6 @@ json_t* Processor::OnDebugRequest(
     succeeded = false;
     return json_string("Unknown command");
   }
-}
-
-json_t* json_object_set_string_new(
-    json_t* object, const char* key, const char* value) {
-  json_t* value_json = json_string(value);
-  json_object_set_new(object, key, value_json);
-  return value_json;
-}
-
-json_t* json_object_set_string_format_new(
-    json_t* object, const char* key, const char* format, ...) {
-  char buffer[1024];
-  va_list args;
-  va_start(args, format);
-  xevsnprintfa(buffer, XECOUNT(buffer), format, args);
-  va_end(args);
-  json_t* value_json = json_string(buffer);
-  json_object_set_new(object, key, value_json);
-  return value_json;
-}
-
-json_t* json_object_set_integer_new(
-    json_t* object, const char* key, json_int_t value) {
-  json_t* value_json = json_integer(value);
-  json_object_set_new(object, key, value_json);
-  return value_json;
 }
 
 json_t* Processor::DumpModule(XexModule* module, bool& succeeded) {

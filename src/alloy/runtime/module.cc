@@ -97,6 +97,7 @@ SymbolInfo::Status Module::DeclareSymbol(
       break;
     }
     map_[address] = symbol_info;
+    list_.push_back(symbol_info);
     status = SymbolInfo::STATUS_NEW;
   }
   UnlockMutex(lock_);
@@ -160,10 +161,25 @@ SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
 
 void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
   LockMutex(lock_);
-  for (SymbolMap::iterator it = map_.begin();
-       it != map_.end(); ++it) {
-    if (it->second->type() == SymbolInfo::TYPE_FUNCTION) {
-      FunctionInfo* info = (FunctionInfo*)it->second;
+  for (auto it = list_.begin(); it != list_.end(); ++it) {
+    SymbolInfo* symbol_info = *it;
+    if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
+      FunctionInfo* info = (FunctionInfo*)symbol_info;
+      callback(info);
+    }
+  }
+  UnlockMutex(lock_);
+}
+
+void Module::ForEachFunction(size_t since, size_t& version,
+                             std::function<void (FunctionInfo*)> callback) {
+  LockMutex(lock_);
+  size_t count = list_.size();
+  version = count;
+  for (size_t n = since; n < count; n++) {
+    SymbolInfo* symbol_info = list_[n];
+    if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
+      FunctionInfo* info = (FunctionInfo*)symbol_info;
       callback(info);
     }
   }
