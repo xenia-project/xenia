@@ -146,6 +146,12 @@ module.service('Session', function(
     }
 
     this.dataSource = dataSource;
+    this.dataSource.on('online', function() {
+      //
+    }, this);
+    this.dataSource.on('offline', function() {
+      this.setDataSource(null);
+    }, this);
 
     var ps = [];
 

@@ -13,7 +13,7 @@
     </style>
   </head>
   <body ng-controller="AppController">
-    <div class="app-main">
+    <div class="app-main" ng-class="{disconnected: !app.session.dataSource || !app.session.dataSource.online}">
       <div class="app-header" ng-include="'assets/ui/navbar.html'"></div>
       <div class="app-body tab-content" ui-view></div>
       <div class="app-console navbar-default" ng-include="'assets/ui/console/console.html'"></div>

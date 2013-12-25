@@ -508,7 +508,9 @@ json_t* WSClient::HandleMessage(const char* command, json_t* request,
   // Check debugger meta commands.
   if (xestrcmpa(target_name, "debug") == 0) {
     succeeded = true;
-    if (xestrcmpa(sub_command, "make_ready") == 0) {
+    if (xestrcmpa(sub_command, "ping") == 0) {
+      return json_true();
+    } else if (xestrcmpa(sub_command, "make_ready") == 0) {
       MakeReady();
       return json_true();
     } else {

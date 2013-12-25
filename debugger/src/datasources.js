@@ -56,11 +56,13 @@ module.service('Breakpoint', function() {
 
 module.service('DataSource', function($q) {
   var DataSource = function(source, delegate) {
+    EventEmitter.call(this);
     this.source = source;
     this.delegate = delegate;
     this.online = false;
     this.status = 'disconnected';
   };
+  inherits(DataSource, EventEmitter);
   DataSource.prototype.open = function() {};
   DataSource.prototype.dispose = function() {};
   DataSource.prototype.issue = function(command) {};
@@ -181,6 +183,7 @@ module.service('RemoteDataSource', function(
 
         this.online = true;
         this.status = 'connected';
+        this.emit('online');
         d.resolve();
       }).bind(this));
     }).bind(this);
@@ -194,6 +197,7 @@ module.service('RemoteDataSource', function(
         } else {
           this.status = 'disconnected';
           log.info('Disconnected');
+          this.emit('offline');
         }
       }).bind(this));
     }).bind(this);

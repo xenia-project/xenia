@@ -17,3 +17,45 @@ function inherits(childCtor, parentCtor) {
   childCtor.prototype = new tempCtor();
   childCtor.prototype.constructor = childCtor;
 };
+
+var EventEmitter = function() {
+  this.events_ = {};
+};
+EventEmitter.prototype.dispose = function() {
+  this.events_ = {};
+};
+EventEmitter.prototype.on = function(name, listener, opt_scope) {
+  var listeners = this.events_[name];
+  if (!listeners) {
+    listeners = this.events_[name] = [];
+  }
+  listeners.push({
+    callback: listener,
+    scope: opt_scope || null
+  });
+};
+EventEmitter.prototype.off = function(name, listener, opt_scope) {
+  var listeners = this.events_[name];
+  if (!listeners) {
+    return;
+  }
+  for (var n = 0; n < listeners.length; n++) {
+    if (listeners[n].callback == listener) {
+      listeners.splice(n, 1);
+      if (!listeners.length) {
+        delete this.events_[name];
+      }
+      return;
+    }
+  }
+}
+EventEmitter.prototype.emit = function(name, args) {
+  var listeners = this.events_[name];
+  if (!listeners) {
+    return;
+  }
+  for (var n = 0; n < listeners.length; n++) {
+    var listener = listeners[n];
+    listener.callback.apply(listener.scope, args);
+  }
+};

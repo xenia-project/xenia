@@ -48,6 +48,10 @@ body {
   right: 0;
   bottom: 0;
 }
+.disconnected .app-body {
+  opacity: 0.25;
+  pointer-events: none;
+}
 .tab-pane {
   position: absolute;
   left: 0;
