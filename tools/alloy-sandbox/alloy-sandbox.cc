@@ -24,8 +24,6 @@ using namespace xe::cpu;
 
 
 int alloy_sandbox(int argc, xechar_t** argv) {
-  int result_code = 1;
-
   XenonMemory* memory = new XenonMemory();
 
   ExportResolver* export_resolver = new ExportResolver();
@@ -47,14 +45,19 @@ int alloy_sandbox(int argc, xechar_t** argv) {
 
   Function* fn;
   runtime->ResolveFunction(0x82000000, &fn);
+  auto ctx = thread_state->context();
+  ctx->lr = 0xBEBEBEBE;
+  ctx->r[5] = 10;
+  ctx->r[25] = 25;
   fn->Call(thread_state, 0xBEBEBEBE);
+  auto result = ctx->r[11];
 
   delete thread_state;
 
   delete runtime;
   delete memory;
 
-  return result_code;
+  return 0;
 }
 // ehhh
 #include <xenia/platform.cc>
