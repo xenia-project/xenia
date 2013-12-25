@@ -66,12 +66,16 @@ module.controller('CodeTabController', function(
     var modalInstance = $modal.open({
       templateUrl: 'assets/ui/code/module-info.html',
       controller: 'ModuleInfoController',
-      windowClass: 'debugger-module-info'
-//      resolve: {
-//        items: function () {
-//          return $scope.items;
-//        }
-//      }
+      windowClass: 'debugger-module-info',
+      resolve: {
+        moduleName: function() {
+          return $scope.selectedModule.name;
+        },
+        moduleInfo: function() {
+          return app.session.dataSource.getModule(
+              $scope.selectedModule.name);
+        }
+      }
     });
     modalInstance.result.then(function() {
     }, function () {

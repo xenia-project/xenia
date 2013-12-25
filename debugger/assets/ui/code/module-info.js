@@ -17,7 +17,10 @@ var module = angular.module('xe.ui.code.moduleInfo', [
 
 
 module.controller('ModuleInfoController', function(
-    $rootScope, $scope, $modal, log) {
+    $rootScope, $scope, $modal, log, moduleName, moduleInfo) {
+  $scope.moduleName = moduleName;
+  $scope.moduleInfo = moduleInfo;
+
   $scope.close = function() {
     $scope.$close(null);
   };

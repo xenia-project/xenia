@@ -321,6 +321,9 @@ body {
   display: block;
   pointer-events: none;
 }
+.debugger-module-info .modal-dialog {
+  width: 60vw;
+}
 .debugger-module-info.fade .modal-dialog {
   -webkit-transition: none;
   -webkit-transform: translate(0,0);
@@ -329,6 +332,7 @@ body {
   pointer-events: auto;
 }
 .debugger-module-info .modal-body {
+  max-width: 60vw;
   max-height: 80vh;
   overflow-y: auto;
 }

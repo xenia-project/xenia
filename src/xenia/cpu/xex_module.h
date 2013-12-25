@@ -26,6 +26,8 @@ public:
   XexModule(XenonRuntime* runtime);
   virtual ~XexModule();
 
+  xe_xex2_ref xex() const { return xex_; }
+
   int Load(const char* name, const char* path, xe_xex2_ref xex);
 
   virtual const char* name() const { return name_; }

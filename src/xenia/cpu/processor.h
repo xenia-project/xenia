@@ -22,6 +22,7 @@ XEDECLARECLASS1(xe, ExportResolver);
 XEDECLARECLASS2(xe, cpu, XenonMemory);
 XEDECLARECLASS2(xe, cpu, XenonRuntime);
 XEDECLARECLASS2(xe, cpu, XenonThreadState);
+XEDECLARECLASS2(xe, cpu, XexModule);
 
 
 namespace xe {
@@ -62,6 +63,10 @@ public:
   virtual json_t* OnDebugRequest(
       uint32_t client_id, const char* command, json_t* request,
       bool& succeeded);
+
+private:
+  json_t* DumpModule(XexModule* module, bool& succeeded);
+  json_t* DumpFunction(uint64_t address, bool& succeeded);
 
 private:
   Emulator*           emulator_;
