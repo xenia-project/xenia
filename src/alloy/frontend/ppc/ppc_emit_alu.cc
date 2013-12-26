@@ -971,6 +971,8 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
   Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
+  // TODO(benvanik): optimize srwi
+  // TODO(benvanik): optimize slwi
   // The compiler will generate a bunch of these for the special case of SH=0.
   // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.

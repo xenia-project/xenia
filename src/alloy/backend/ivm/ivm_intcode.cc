@@ -1112,7 +1112,7 @@ uint32_t IntCode_LOAD_CONTEXT_I32(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_LOAD_CONTEXT_I64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%d (%.X) = ctx i64 +%d\n", ics.rf[i->dest_reg].i64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
+  DPRINT("%lld (%.llX) = ctx i64 +%d\n", ics.rf[i->dest_reg].i64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_F32(IntCodeState& ics, const IntCode* i) {
@@ -1163,7 +1163,7 @@ uint32_t IntCode_STORE_CONTEXT_I32(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_CONTEXT_I64(IntCodeState& ics, const IntCode* i) {
   *((int64_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i64;
-  DPRINT("ctx i64 +%d = %d (%.X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
+  DPRINT("ctx i64 +%d = %lld (%.llX)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_F32(IntCodeState& ics, const IntCode* i) {
@@ -2792,10 +2792,12 @@ uint32_t IntCode_ROTATE_LEFT_I16(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_ROTATE_LEFT_I32(IntCodeState& ics, const IntCode* i) {
+  // TODO(benvanik): use _rtol on vc++
   ics.rf[i->dest_reg].i32 = ROTL<uint32_t>(ics.rf[i->src1_reg].i32, ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_ROTATE_LEFT_I64(IntCodeState& ics, const IntCode* i) {
+  // TODO(benvanik): use _rtol64 on vc++
   ics.rf[i->dest_reg].i64 = ROTL<uint64_t>(ics.rf[i->src1_reg].i64, ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
