@@ -31,3 +31,15 @@ module.filter('hex32', function() {
     }
   };
 });
+
+module.filter('exp8', function() {
+  return function(number) {
+    if (number !== null && number !== undefined) {
+      var str = number.toExponential(8);
+      if (number >= 0) {
+        str = ' ' + str;
+      }
+      return str;
+    }
+  }
+});

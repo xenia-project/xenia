@@ -37,7 +37,7 @@
       <div class="debugger-fnlist-body">
         <div class="debugger-fnlist-list">
           <table class="table table-hover">
-            <tr ng-repeat="fn in functionList | filter:functionFilter | orderBy:'address'">
+            <tr ng-repeat="fn in functionList track by $index | filter:functionFilter | orderBy:'address'">
               <td><a xe-coderef="{{fn.address|hex32}}">{{fn.name}}</a></td>
             </tr>
           </table>
@@ -72,7 +72,64 @@
         callstack
       </div>
       <div class="debugger-tools-registers">
-        registers
+        <div class="debugger-tools-registers-container special">
+          <div class="debugger-tools-registers-entry">
+            <span class="name">pc</span>
+            <input class="hex-value"
+                   value="{{app.session.activeThread.context.pc|hex32}}"
+                   popover="TODO: template to link to code/memory"
+                   popover-trigger="focus"
+                   onclick="this.select()">
+          </div>
+          <div class="debugger-tools-registers-entry">
+            <span class="name">lr</span>
+            <input class="hex-value"
+                   value="{{app.session.activeThread.context.lr|hex32}}"
+                   popover="TODO: template to link to code/memory"
+                   popover-trigger="focus"
+                   onclick="this.select()">
+          </div>
+          <div class="debugger-tools-registers-entry">
+            <span class="name">ctr</span>
+            <input class="hex-value"
+                   value="{{app.session.activeThread.context.ctrh}}"
+                   popover="TODO: template to link to code/memory"
+                   popover-trigger="focus"
+                   onclick="this.select()">
+            <input class="int-value"
+                   value="{{app.session.activeThread.context.ctrs}}"
+                   onclick="this.select()">
+          </div>
+        </div>
+        <div class="debugger-tools-registers-container gpr">
+          <div ng-repeat="v in app.session.activeThread.context.r track by $index"
+               class="debugger-tools-registers-entry">
+            <span class="name">r{{$index}}</span>
+            <input class="hex-value"
+                   value="{{app.session.activeThread.context.rh[$index]}}"
+                   popover="TODO: template to link to code/memory"
+                   popover-trigger="focus"
+                   onclick="this.select()">
+            <input class="int-value"
+                   value="{{app.session.activeThread.context.rs[$index]}}"
+                   onclick="this.select()">
+          </div>
+        </div>
+        <div class="debugger-tools-registers-container fpr">
+          <div ng-repeat="v in app.session.activeThread.context.f track by $index"
+               class="debugger-tools-registers-entry">
+            <span class="name">f{{$index}}</span>
+            <span class="value" tooltip="{{app.session.activeThread.context.fh[$index]}}">{{v|exp8}}</span>
+          </div>
+        </div>
+        <!--
+        <div class="debugger-tools-registers-container">
+          <div ng-repeat="v in app.session.activeThread.context.v track by $index"
+               class="debugger-tools-registers-entry vec">
+            <span class="name">v{{$index}}</span> <span class="value">{{v}}</span>
+          </div>
+        </div>
+        -->
       </div>
     </div>
   </div>

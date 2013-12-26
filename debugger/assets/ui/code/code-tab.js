@@ -18,6 +18,7 @@ var module = angular.module('xe.ui.code', [
 
 module.controller('CodeTabController', function(
     $rootScope, $scope, $modal, app, log) {
+  $scope.app = app;
   $scope.moduleList = [];
   $scope.selectedModule = null;
   $scope.functionList = [];

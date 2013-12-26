@@ -722,13 +722,24 @@ json_t* Processor::DumpThreadState(XenonThreadState* thread_state) {
   json_object_set_integer_new(
       result, "threadStateAddress", thread_state->thread_state_address());
 
+  char value[32];
+
   json_t* context_json = json_object();
   auto context = thread_state->context();
 
   json_object_set_new(
+      context_json, "pc", json_integer(0));
+  json_object_set_new(
       context_json, "lr", json_integer(context->lr));
+
   json_object_set_new(
       context_json, "ctr", json_integer(context->ctr));
+  xesnprintfa(value, XECOUNT(value), "%.16llX", context->ctr);
+  json_object_set_new(
+      context_json, "ctrh", json_string(value));
+  xesnprintfa(value, XECOUNT(value), "%lld", context->ctr);
+  json_object_set_new(
+      context_json, "ctrs", json_string(value));
 
   // xer
   // cr*
@@ -739,12 +750,34 @@ json_t* Processor::DumpThreadState(XenonThreadState* thread_state) {
     json_array_append_new(r_json, json_integer(context->r[n]));
   }
   json_object_set_new(context_json, "r", r_json);
+  json_t* rh_json = json_array();
+  for (size_t n = 0; n < 32; n++) {
+    xesnprintfa(value, XECOUNT(value), "%.16llX", context->r[n]);
+    json_array_append_new(rh_json, json_string(value));
+  }
+  json_object_set_new(context_json, "rh", rh_json);
+  json_t* rs_json = json_array();
+  for (size_t n = 0; n < 32; n++) {
+    xesnprintfa(value, XECOUNT(value), "%lld", context->r[n]);
+    json_array_append_new(rs_json, json_string(value));
+  }
+  json_object_set_new(context_json, "rs", rs_json);
 
   json_t* f_json = json_array();
   for (size_t n = 0; n < 32; n++) {
     json_array_append_new(f_json, json_real(context->f[n]));
   }
   json_object_set_new(context_json, "f", f_json);
+  json_t* fh_json = json_array();
+  for (size_t n = 0; n < 32; n++) {
+    union {
+      double f;
+      uint64_t i;
+    } fi = { context->f[n] };
+    xesnprintfa(value, XECOUNT(value), "%.16llX", fi.i);
+    json_array_append_new(fh_json, json_string(value));
+  }
+  json_object_set_new(context_json, "fh", fh_json);
 
   json_t* v_json = json_array();
   for (size_t n = 0; n < 128; n++) {

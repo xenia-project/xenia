@@ -342,6 +342,68 @@ body {
   order: 3;
   flex: 1 1 auto;
   padding: 5px;
+  overflow-y: auto;
+}
+.debugger-tools-registers-container {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-content: flex-start;
+  align-items: flex-start;
+  margin-bottom: 5px;
+}
+.debugger-tools-registers-entry {
+  flex: 0 0 auto;
+  font-family: monospace;
+  padding-right: 5px;
+  width: 160px;
+}
+.debugger-tools-registers-entry .name {
+  font-weight: bold;
+  width: 26px;
+  display: inline-block;
+  text-align: right;
+}
+.debugger-tools-registers-entry .value {
+}
+.debugger-tools-registers-container.special {
+  height: 46px;
+}
+.debugger-tools-registers-container.gpr {
+  height: 332px;
+}
+.special .debugger-tools-registers-entry,
+.gpr .debugger-tools-registers-entry {
+  width: 300px;
+}
+.debugger-tools-registers-entry .hex-value {
+  border-style: none;
+  padding: 0;
+  width: 130px;
+  text-align: right;
+}
+.debugger-tools-registers-entry .int-value {
+  display: inline-block;
+  border-style: none;
+  padding: 0;
+  width: 92px;
+  text-align: right;
+}
+.debugger-tools-registers-container.fpr {
+  height: 172px;
+}
+.fpr .debugger-tools-registers-entry {
+  width: 170px;
+}
+.fpr .debugger-tools-registers-entry .value {
+  white-space: pre;
+}
+.vec .debugger-tools-registers-entry {
+  width: 160px;
+}
+.vec .debugger-tools-registers-entry .name {
+  width: 35px;
 }
 
 .debugger-module-info {
