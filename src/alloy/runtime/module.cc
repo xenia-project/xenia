@@ -144,6 +144,7 @@ SymbolInfo::Status Module::DefineSymbol(SymbolInfo* symbol_info) {
       Sleep(0);
       LockMutex(lock_);
     } while (symbol_info->status() == SymbolInfo::STATUS_DEFINING);
+    status = symbol_info->status();
   } else {
     status = symbol_info->status();
   }
