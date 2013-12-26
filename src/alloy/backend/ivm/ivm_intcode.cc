@@ -2209,19 +2209,19 @@ int Translate_MUL(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_DIV_I8(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 / ics.rf[i->src2_reg].i8;
+  ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].u8 / ics.rf[i->src2_reg].u8;
   return IA_NEXT;
 }
 uint32_t IntCode_DIV_I16(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i16 = ics.rf[i->src1_reg].i16 / ics.rf[i->src2_reg].i16;
+  ics.rf[i->dest_reg].i16 = ics.rf[i->src1_reg].u16 / ics.rf[i->src2_reg].u16;
   return IA_NEXT;
 }
 uint32_t IntCode_DIV_I32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i32 = ics.rf[i->src1_reg].i32 / ics.rf[i->src2_reg].i32;
+  ics.rf[i->dest_reg].i32 = ics.rf[i->src1_reg].u32 / ics.rf[i->src2_reg].u32;
   return IA_NEXT;
 }
 uint32_t IntCode_DIV_I64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i64 = ics.rf[i->src1_reg].i64 / ics.rf[i->src2_reg].i64;
+  ics.rf[i->dest_reg].i64 = ics.rf[i->src1_reg].u64 / ics.rf[i->src2_reg].u64;
   return IA_NEXT;
 }
 uint32_t IntCode_DIV_F32(IntCodeState& ics, const IntCode* i) {
