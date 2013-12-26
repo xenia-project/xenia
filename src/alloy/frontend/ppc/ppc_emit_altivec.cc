@@ -334,7 +334,6 @@ int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
   //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
-  Value* ebits = f.Mul(eb, f.LoadConstant((int8_t)8));
   Value* new_value = f.LoadVR(vd);
   // ea &= ~0xF (load takes care of this)
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));

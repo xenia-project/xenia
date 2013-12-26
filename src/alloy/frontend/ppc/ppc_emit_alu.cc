@@ -957,7 +957,6 @@ XEEMITTER(rlwimix,      0x50000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
     v = f.And(v, f.LoadConstant(m));
   }
   v = f.ZeroExtend(v, INT64_TYPE);
-  Value* ra = f.LoadGPR(i.M.RA);
   v = f.Or(v, f.And(f.LoadGPR(i.M.RA), f.LoadConstant((~(uint64_t)m))));
   if (i.M.Rc) {
     f.UpdateCR(0, v);

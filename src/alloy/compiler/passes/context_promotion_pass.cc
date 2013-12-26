@@ -120,7 +120,6 @@ void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
     Instr* prev = i->prev;
     if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
-      Value* value = i->src2.value;
       if (context_values_[offset] != token) {
         // Mark offset as written to.
         context_values_[offset] = token;
