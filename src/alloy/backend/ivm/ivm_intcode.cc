@@ -1884,7 +1884,7 @@ int Translate_DID_CARRY(TranslationContext& ctx, Instr* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128; \
   vec128_t& dest = ics.rf[i->dest_reg].v128; \
   for (int n = 0; n < count; n++) { \
-    dest.value[n] = (type)src1.value[n] op (type)src1.value[n]; \
+    dest.value[n] = (type)src1.value[n] op (type)src2.value[n]; \
   } \
   return IA_NEXT;
 
