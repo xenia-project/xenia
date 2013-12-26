@@ -40,7 +40,6 @@ public:
   virtual void EnterSuspend();
 
 private:
-  uint32_t  thread_id_;
   uint64_t  stack_address_;
   size_t    stack_size_;
   uint64_t  thread_state_address_;

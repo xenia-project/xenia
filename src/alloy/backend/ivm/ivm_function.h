@@ -40,7 +40,6 @@ private:
 
 private:
   size_t    register_count_;
-  Register* constant_regiters_;
   size_t    intcode_count_;
   IntCode*  intcodes_;
   size_t          source_map_count_;
