@@ -1,18 +1,18 @@
 <div class="debugger-main" ng-controller="CodeTabController">
   <div class="debugger-header">
     <div class="btn-group btn-group-sm">
-      <button type="button" class="btn btn-success" ng-click="app.session.continueExecution()" ng-disabled="!app.session.dataSource || !app.session.paused">
+      <button type="button" class="btn btn-success" ng-click="app.session.continueExecution()" ng-disabled="!app.session.paused">
         <span class="glyphicon glyphicon-play"></span>
       </button>
-      <button type="button" class="btn btn-danger" ng-click="app.session.breakExecution()" ng-disabled="!app.session.dataSource || app.session.paused">
+      <button type="button" class="btn btn-danger" ng-click="app.session.breakExecution()" ng-disabled="app.session.paused">
         <span class="glyphicon glyphicon-pause"></span>
       </button>
     </div>
     <div class="btn-group btn-group-sm">
-      <button type="button" class="btn btn-default" ng-click="showLocation()" ng-disabled="!app.session.dataSource || !app.session.paused">
+      <button type="button" class="btn btn-default" ng-click="showLocation()" ng-disabled="!app.session.paused">
         <span class="glyphicon glyphicon glyphicon-arrow-right"></span>
       </button>
-      <button type="button" class="btn btn-default" ng-click="app.session.stepNext()" ng-disabled="!app.session.dataSource || !app.session.paused">
+      <button type="button" class="btn btn-default" ng-click="app.session.stepNext()" ng-disabled="!app.session.paused">
         <span class="glyphicon glyphicon-step-forward"></span>
       </button>
     </div>
@@ -21,7 +21,7 @@
     <div class="debugger-fnlist">
       <div class="debugger-fnlist-header">
         <div class="debugger-fnlist-header-left btn-group btn-group-xs full-width">
-          <button type="button" class="btn btn-default dropdown-toggle full-width" data-toggle="dropdown">
+          <button type="button" class="btn btn-default dropdown-toggle left-align full-width" data-toggle="dropdown">
             {{selectedModule.name}} <span class="caret"></span>
           </button>
           <ul class="dropdown-menu" role="menu">
@@ -29,7 +29,7 @@
           </ul>
         </div>
         <div class="debugger-fnlist-header-right btn-group btn-group-xs">
-          <button type="button" class="btn btn-default" ng-click="showModuleInfo(selectedModule)">
+          <button type="button" class="btn btn-default" ng-click="showModuleInfo()">
             Info
           </button>
         </div>
@@ -52,14 +52,20 @@
     <div class="debugger-fnview-outer" ui-view></div>
     <div class="debugger-tools">
       <div class="debugger-tools-threads">
-        <div class="btn-group btn-group-xs full-width">
-          <button type="button" class="btn btn-default dropdown-toggle full-width" data-toggle="dropdown">
-            thread 0 <span class="caret"></span>
+        <div class="debugger-tools-threads-header-left btn-group btn-group-xs full-width">
+          <button type="button" class="btn btn-default left-align dropdown-toggle full-width" data-toggle="dropdown">
+            Thread {{app.session.activeThread.id}}: {{app.session.activeThread.name}} <span class="caret"></span>
           </button>
           <ul class="dropdown-menu" role="menu">
-            <li><a href="#">thread 1</a></li>
-            <li><a href="#">thread 2</a></li>
+            <li ng-repeat="thread in app.session.state.threadList | orderBy:'id'">
+              <a href="" ng-click="app.session.activeThread = thread;">Thread {{thread.id}}: {{thread.name}}</a>
+            </li>
           </ul>
+        </div>
+        <div class="debugger-tools-threads-header-right btn-group btn-group-xs">
+          <button type="button" class="btn btn-default" ng-click="showThreadInfo()">
+            Info
+          </button>
         </div>
       </div>
       <div class="debugger-tools-callstack">

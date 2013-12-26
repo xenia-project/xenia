@@ -67,6 +67,7 @@ public:
 private:
   json_t* DumpModule(XexModule* module, bool& succeeded);
   json_t* DumpFunction(uint64_t address, bool& succeeded);
+  json_t* DumpThreadState(XenonThreadState* thread_state);
 
 private:
   Emulator*           emulator_;

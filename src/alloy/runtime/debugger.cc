@@ -76,6 +76,15 @@ int Debugger::ResumeAllThreads(bool force) {
   return result;
 }
 
+void Debugger::ForEachThread(std::function<void(ThreadState*)> callback) {
+  LockMutex(threads_lock_);
+  for (auto it = threads_.begin(); it != threads_.end(); ++it) {
+    ThreadState* thread_state = it->second;
+    callback(thread_state);
+  }
+  UnlockMutex(threads_lock_);
+}
+
 int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
   // Add to breakpoints map.
   LockMutex(breakpoints_lock_);

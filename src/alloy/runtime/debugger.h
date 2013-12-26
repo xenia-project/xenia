@@ -86,6 +86,8 @@ public:
   int ResumeThread(uint32_t thread_id);
   int ResumeAllThreads(bool force = false);
 
+  void ForEachThread(std::function<void (ThreadState*)> callback);
+
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
   void FindBreakpoints(

@@ -330,6 +330,17 @@ json_t* Processor::OnDebugRequest(
     }
     uint64_t address = (uint64_t)json_number_value(address_json);
     return DumpFunction(address, succeeded);
+  } else if (xestrcmpa(command, "get_thread_states") == 0) {
+    json_t* result = json_object();
+    runtime_->debugger()->ForEachThread([&](ThreadState* thread_state) {
+      json_t* state_json = DumpThreadState((XenonThreadState*)thread_state);
+      char threadIdString[32];
+      xesnprintfa(
+          threadIdString, XECOUNT(threadIdString),
+          "%d", thread_state->thread_id());
+      json_object_set_new(result, threadIdString, state_json);
+    });
+    return result;
   } else if (xestrcmpa(command, "add_breakpoints") == 0) {
     // breakpoints: [{}]
     json_t* breakpoints_json = json_object_get(request, "breakpoints");
@@ -697,6 +708,61 @@ json_t* Processor::DumpFunction(uint64_t address, bool& succeeded) {
 
   succeeded = true;
   return fn_json;
+}
+
+json_t* Processor::DumpThreadState(XenonThreadState* thread_state) {
+  json_t* result = json_object();
+
+  json_object_set_integer_new(result, "id", thread_state->thread_id());
+  json_object_set_string_new(result, "name", thread_state->name());
+  json_object_set_integer_new(
+      result, "stackAddress", thread_state->stack_address());
+  json_object_set_integer_new(
+      result, "stackSize", thread_state->stack_size());
+  json_object_set_integer_new(
+      result, "threadStateAddress", thread_state->thread_state_address());
+
+  json_t* context_json = json_object();
+  auto context = thread_state->context();
+
+  json_object_set_new(
+      context_json, "lr", json_integer(context->lr));
+  json_object_set_new(
+      context_json, "ctr", json_integer(context->ctr));
+
+  // xer
+  // cr*
+  // fpscr
+
+  json_t* r_json = json_array();
+  for (size_t n = 0; n < 32; n++) {
+    json_array_append_new(r_json, json_integer(context->r[n]));
+  }
+  json_object_set_new(context_json, "r", r_json);
+
+  json_t* f_json = json_array();
+  for (size_t n = 0; n < 32; n++) {
+    json_array_append_new(f_json, json_real(context->f[n]));
+  }
+  json_object_set_new(context_json, "f", f_json);
+
+  json_t* v_json = json_array();
+  for (size_t n = 0; n < 128; n++) {
+    auto& v = context->v[n];
+    json_t* vec4_json = json_array();
+    json_array_append_new(vec4_json, json_integer(v.ix));
+    json_array_append_new(vec4_json, json_integer(v.iy));
+    json_array_append_new(vec4_json, json_integer(v.iz));
+    json_array_append_new(vec4_json, json_integer(v.iw));
+    json_array_append_new(v_json, vec4_json);
+  }
+  json_object_set_new(context_json, "v", v_json);
+
+  json_object_set_new(result, "context", context_json);
+
+  // TODO(benvanik): callstack
+
+  return result;
 }
 
 Processor::DebugClientState::DebugClientState(XenonRuntime* runtime) :

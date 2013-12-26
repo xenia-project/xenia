@@ -61,12 +61,6 @@ module.service('DataSource', function($q) {
     this.delegate = delegate;
     this.online = false;
     this.status = 'disconnected';
-
-    this.cache_ = {
-      modules: {},
-      moduleFunctionLists: {},
-      functions: {}
-    };
   };
   inherits(DataSource, EventEmitter);
   DataSource.prototype.open = function() {};
@@ -86,68 +80,34 @@ module.service('DataSource', function($q) {
   };
 
   DataSource.prototype.getModule = function(moduleName) {
-    var d = $q.defer();
-    var cached = this.cache_.modules[moduleName];
-    if (cached) {
-      d.resolve(cached);
-      return d.promise;
-    }
-    this.issue({
+    return this.issue({
       command: 'cpu.get_module',
       module: moduleName
-    }).then((function(result) {
-      this.cache_.modules[moduleName] = result;
-      d.resolve(result);
-    }).bind(this), (function(e) {
-      d.reject(e);
-    }).bind(this));
-    return d.promise;
+    });
   };
 
-  DataSource.prototype.getFunctionList = function(moduleName) {
-    var d = $q.defer();
-    var cached = this.cache_.moduleFunctionLists[moduleName];
-    this.issue({
+  DataSource.prototype.getFunctionList = function(moduleName, opt_since) {
+    return this.issue({
       command: 'cpu.get_function_list',
       module: moduleName,
-      since: cached ? cached.version : 0
-    }).then((function(result) {
-      if (cached) {
-        cached.version = result.version;
-        for (var n = 0; n < result.list.length; n++) {
-          cached.list.push(result.list[n]);
-        }
-      } else {
-        cached = this.cache_.moduleFunctionLists[moduleName] = {
-          version: result.version,
-          list: result.list
-        };
-      }
-      d.resolve(cached.list);
-    }).bind(this), (function(e) {
-      d.reject(e);
-    }).bind(this));
-    return d.promise;
+      since: opt_since || 0
+    });
   };
 
   DataSource.prototype.getFunction = function(address) {
-    var d = $q.defer();
-    var cached = this.cache_.functions[address];
-    if (cached) {
-      d.resolve(cached);
-      return d.promise;
-    }
-    this.issue({
+    return this.issue({
       command: 'cpu.get_function',
       address: address
-    }).then((function(result) {
-          this.cache_.functions[address] = result;
-          d.resolve(result);
-        }).bind(this), (function(e) {
-          d.reject(e);
-        }).bind(this));
-    return d.promise;
+    });
   };
+
+  DataSource.prototype.getThreadStates = function() {
+    return this.issue({
+      command: 'cpu.get_thread_states'
+    });
+  };
+
+  // set registers/etc?
 
   DataSource.prototype.addBreakpoint = function(breakpoint) {
     return this.addBreakpoints([breakpoint]);

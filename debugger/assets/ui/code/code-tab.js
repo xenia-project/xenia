@@ -23,24 +23,19 @@ module.controller('CodeTabController', function(
   $scope.functionList = [];
 
   function refresh() {
-    if (!app.session || !app.session.dataSource) {
+    if (!app.session) {
       $scope.moduleList = [];
       return;
     }
-    var dataSource = app.session.dataSource;
 
-    dataSource.getModuleList().then(function(list) {
-      $scope.moduleList = list;
-      if (!$scope.selectedModule) {
-        if (list.length) {
-          $scope.selectModule(list[0]);
-        }
-      } else {
-        $scope.selectModule($scope.selectedModule);
+    $scope.moduleList = app.session.state.getModuleList();
+    if (!$scope.selectedModule) {
+      if ($scope.moduleList.length) {
+        $scope.selectModule($scope.moduleList[0]);
       }
-    }, function(e) {
-      log.error('Unable to fetch module list');
-    });
+    } else {
+      $scope.selectModule($scope.selectedModule);
+    }
 
     console.log('refresh');
   };
@@ -54,15 +49,10 @@ module.controller('CodeTabController', function(
       $scope.functionList = [];
     }
 
-    var dataSource = app.session.dataSource;
-    dataSource.getFunctionList(module.name).then(function(list) {
-      $scope.functionList = list;
-    }, function(e) {
-      log.error('Unable to fetch function list');
-    });
+    $scope.functionList = app.session.state.getFunctionList(module.name);
   };
 
-  $scope.showModuleInfo = function(module) {
+  $scope.showModuleInfo = function() {
     var modalInstance = $modal.open({
       templateUrl: 'assets/ui/code/module-info.html',
       controller: 'ModuleInfoController',
@@ -72,13 +62,23 @@ module.controller('CodeTabController', function(
           return $scope.selectedModule.name;
         },
         moduleInfo: function() {
-          return app.session.dataSource.getModule(
+          return app.session.state.getModule(
               $scope.selectedModule.name);
         }
       }
     });
-    modalInstance.result.then(function() {
-    }, function () {
+  };
+
+  $scope.showThreadInfo = function() {
+    var modalInstance = $modal.open({
+      templateUrl: 'assets/ui/code/thread-info.html',
+      controller: 'ThreadInfoController',
+      windowClass: 'debugger-module-info',
+      resolve: {
+        thread: function() {
+          return app.session.activeThread;
+        }
+      }
     });
   };
 

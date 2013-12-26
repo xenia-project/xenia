@@ -31,6 +31,7 @@ public:
 
   const char* GetString() const;
   char* ToString();
+  char* EncodeBase64();
 
 private:
   char*   buffer_;

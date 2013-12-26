@@ -1,7 +1,7 @@
 <div class="debugger-fnview" ng-controller="FunctionViewController">
   <div class="debugger-fnview-header">
     <div class="debugger-fnview-header-left">
-      <span class="debugger-fnview-header-name" ng-bind="fn.name"></span>
+      <span class="debugger-fnview-header-name" ng-bind="fn.name"></span><br/>
       <span class="debugger-fnview-header-address">(0x{{fn.startAddress | hex32}}-0x{{fn.endAddress | hex32}})</span>
     </div>
     <div class="debugger-fnview-header-right">
@@ -14,6 +14,7 @@
           <button type="button" class="btn btn-default" ng-model="codeType" btn-radio="'lir'">LIR</button>
           <button type="button" class="btn btn-default" ng-model="codeType" btn-radio="'machineCode'">MC</button>
         </div>
+        <!--
         <div class="btn-group btn-group-sm">
           <button type="button" class="btn btn-default">1</button>
           <button type="button" class="btn btn-default">2</button>
@@ -28,6 +29,7 @@
             </ul>
           </div>
         </div>
+        -->
       </div>
     </div>
   </div>

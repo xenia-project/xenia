@@ -15,6 +15,154 @@ var module = angular.module('xe.session', []);
 module.service('Session', function(
     $rootScope, $q, $http, $state, log,
     Breakpoint, FileDataSource, RemoteDataSource) {
+  var State = function(session) {
+    this.session = session;
+    this.clear();
+  };
+  State.prototype.clear = function() {
+    this.cache_ = {
+      moduleList: [],
+      modules: {},
+      moduleFunctionLists: {},
+      functions: {},
+      threadStates: {},
+      threadList: []
+    };
+  };
+  State.prototype.sync = function() {
+    var cache = this.cache_;
+    var dataSource = this.session.dataSource;
+    if (!dataSource) {
+      var d = $q.defer();
+      d.resolve();
+      return d.promise;
+    }
+    var ps = [];
+
+    // Update all modules/functions.
+    var modulesUpdated = $q.defer();
+    ps.push(modulesUpdated.promise);
+    dataSource.getModuleList().then((function(list) {
+      cache.moduleList = list;
+
+      // Update module information.
+      var moduleFetches = [];
+      list.forEach(function(module) {
+        if (cache.modules[module.name]) {
+          return;
+        }
+        var moduleFetch = $q.defer();
+        moduleFetches.push(moduleFetch.promise);
+        dataSource.getModule(module.name).
+            then(function(moduleInfo) {
+          cache.modules[module.name] = moduleInfo;
+          moduleFetch.resolve();
+        }, function(e) {
+          moduleFetch.reject(e);
+        });
+      });
+
+      // Update function lists for each module.
+      list.forEach(function(module) {
+        var cached = cache.moduleFunctionLists[module.name];
+        var functionListFetch = $q.defer();
+        moduleFetches.push(functionListFetch);
+        dataSource.getFunctionList(module.name, cached ? cached.version : 0).
+            then(function(result) {
+          if (cached) {
+            cached.version = result.version;
+            for (var n = 0; n < result.list.length; n++) {
+              cached.list.push(result.list[n]);
+            }
+          } else {
+            cached = cache.moduleFunctionLists[module.name] = {
+              version: result.version,
+              list: result.list
+            };
+          }
+          functionListFetch.resolve();
+        }, function(e) {
+          functionListFetch.reject(e);
+        });
+      });
+
+      $q.all(moduleFetches).then(function() {
+        modulesUpdated.resolve();
+      }, function(e) {
+        modulesUpdated.reject();
+      });
+    }).bind(this), function(e) {
+      modulesUpdated.reject(e);
+    });
+
+    // Update threads/thread states.
+    var threadsUpdated = $q.defer();
+    ps.push(threadsUpdated.promise);
+    dataSource.getThreadStates().then((function(states) {
+      cache.threadStates = states;
+      cache.threadList = [];
+      for (var threadId in states) {
+        cache.threadList.push(states[threadId]);
+      }
+      threadsUpdated.resolve();
+    }).bind(this), function(e) {
+      threadsUpdated.reject(e);
+    });
+
+    var d = $q.defer();
+    $q.all(ps).then((function() {
+      d.resolve();
+    }).bind(this), (function(e) {
+      d.reject(e);
+    }).bind(this));
+    return d.promise;
+  };
+  State.prototype.getModuleList = function() {
+    return this.cache_.moduleList;
+  };
+  State.prototype.getModule = function(moduleName) {
+    return this.cache_.modules[moduleName] || null;
+  };
+  State.prototype.getFunctionList = function(moduleName) {
+    var cached = this.cache_.moduleFunctionLists[moduleName];
+    return cached ? cached.list : [];
+  };
+  State.prototype.getFunction = function(address) {
+    return this.cache_.functions[address] || null;
+  };
+  State.prototype.fetchFunction = function(address) {
+    var cache = this.cache_;
+    var d = $q.defer();
+    var cached = cache.functions[address];
+    if (cached) {
+      d.resolve(cached);
+      return d.promise;
+    }
+    var dataSource = this.session.dataSource;
+    if (!dataSource) {
+      d.reject(new Error('Not online.'));
+      return d.promise;
+    }
+    dataSource.getFunction(address).then(function(result) {
+      cache.functions[address] = result;
+      d.resolve(result);
+    }, function(e) {
+      d.reject(e);
+    });
+    return d.promise;
+  }
+  Object.defineProperty(State.prototype, 'threadList', {
+    get: function() {
+      return this.cache_.threadList || [];
+    }
+  });
+  State.prototype.getThreadStates = function() {
+    return this.cache_.threadStates || {};
+  };
+  State.prototype.getThreadState = function(threadId) {
+    return this.cache_.threadStates[threadId] || null;
+  };
+
   var Session = function(id, opt_dataSource) {
     this.id = id;
 
@@ -22,6 +170,9 @@ module.service('Session', function(
     this.breakpointsById = {};
 
     this.dataSource = opt_dataSource || null;
+    this.state = new State(this);
+
+    this.activeThread = null;
 
     this.paused = false;
 
@@ -144,6 +295,8 @@ module.service('Session', function(
       d.resolve();
       return d.promise;
     }
+    this.state.clear();
+    this.activeThread = null;
 
     this.dataSource = dataSource;
     this.dataSource.on('online', function() {
@@ -165,28 +318,31 @@ module.service('Session', function(
     }
     ps.push(this.dataSource.addBreakpoints(breakpointList));
 
-    // Fetch main module info.
-    // We need this for entry point info/etc.
-    var moduleInfoDeferred = $q.defer();
-    this.dataSource.getModuleList().then(function(moduleList) {
+    // Perform a full sync.
+    var syncDeferred = $q.defer();
+    ps.push(syncDeferred.promise);
+    this.state.sync().then((function() {
+      // Put a breakpoint at the entry point.
+      // TODO(benvanik): make an option?
+      var moduleList = this.state.getModuleList();
       if (!moduleList.length) {
-        // Uh.
-        log.error('No modules loaded on startup!');
-        moduleInfoDeferred.reject(new Error('No modules found'));
+        log.error('No modules found!');
+        syncDeferred.reject(new Error('No modules found.'));
         return;
       }
-      moduleList.forEach(function(module) {
-        dataSource.getModule(module.name).then(function(moduleInfo) {
-          // Put a breakpoint at the entry point.
-          var entryPoint = moduleInfo.exeEntryPoint;
-          self.addTempBreakpoint(entryPoint, entryPoint);
-          moduleInfoDeferred.resolve();
-        });
-      });
-    }, function(e) {
-      moduleInfoDeferred.reject(e);
-    });
-    ps.push(moduleInfoDeferred.promise);
+      var moduleInfo = this.state.getModule(moduleList[0].name);
+      if (!moduleInfo) {
+        log.error('Main module not found!');
+        syncDeferred.reject(new Error('Main module not found.'));
+        return;
+      }
+      var entryPoint = moduleInfo.exeEntryPoint;
+      self.addTempBreakpoint(entryPoint, entryPoint);
+
+      syncDeferred.resolve();
+    }).bind(this), (function(e) {
+      syncDeferred.reject(e);
+    }).bind(this));
 
     $q.all(ps).then((function() {
       this.dataSource.makeReady().then(function() {
@@ -258,15 +414,24 @@ module.service('Session', function(
     // Now paused!
     this.paused = true;
 
-    $rootScope.$emit('refresh');
+    this.state.sync().then((function() {
+      // Switch active thread.
+      var thread = this.state.getThreadState(threadId);
+      this.activeThread = thread;
 
-    if (breakpointId) {
-      var breakpoint = this.breakpointsById[breakpointId];
-      var thread = null; // TODO
-      if (!breakpoint) {
-        log.error('Breakpoint hit but not found');
+      if (!breakpointId) {
+        // Just a general pause.
+        log.info('Execution paused.');
         return;
       }
+
+      var breakpoint = this.breakpointsById[breakpointId];
+      if (!breakpoint) {
+        log.error('Breakpoint hit but not found.');
+        return;
+      }
+
+      // TODO(benvanik): stash current breakpoint/thread/etc.
 
       log.info('Breakpoint hit at 0x' +
                breakpoint.address.toString(16).toUpperCase() + '.');
@@ -279,10 +444,9 @@ module.service('Session', function(
         notify: true,
         reloadOnSearch: false
       });
-    } else {
-      // Just a general pause.
-      log.info('Execution paused.');
-    }
+    }).bind(this), (function(e) {
+      log.error('Unable to synchronize state,');
+    }).bind(this));
   };
 
   Session.prototype.continueExecution = function() {

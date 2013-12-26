@@ -10,6 +10,9 @@
 .full-width {
   width: 100%;
 }
+.left-align {
+  text-align: left;
+}
 
 body {
   margin: 0;
@@ -194,6 +197,7 @@ body {
   position: relative;
   border-left: 2px solid #ddd;
   border-right: 2px solid #ddd;
+  min-width: 720px;
 }
 .debugger-fnview {
   position: absolute;
@@ -215,6 +219,7 @@ body {
   order: 1;
   flex: 1 1 auto;
   padding: 5px;
+  line-height: 1;
 }
 .debugger-fnview-header-name {
   font-size: 21px;
@@ -227,6 +232,7 @@ body {
   order: 2;
   flex: 0 0 auto;
   padding: 5px;
+  margin-top: 3px;
 }
 .debugger-fnview-body {
   order: 2;
@@ -300,20 +306,37 @@ body {
   flex: 0 0 auto;
   display: flex;
   flex-flow: column nowrap;
-  min-width: 200px;
+  width: 40%;
 }
 .debugger-tools-threads {
   order: 1;
   flex: 0 0 auto;
   padding: 5px;
 }
+.debugger-tools-threads {
+  order: 1;
+  flex: 0 0 auto;
+  padding: 5px;
+  display: flex;
+  flex-flow: row nowrap;
+}
+.debugger-tools-threads-header-left {
+  order: 1;
+  flex: 1 1 auto;
+  padding-right: 5px;
+}
+.debugger-tools-threads-header-right {
+  order: 2;
+  flex: 0 0 auto;
+}
 .debugger-tools-callstack {
   order: 2;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   padding: 5px;
   border-top: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
   position: relative;
+  height: 100px;
 }
 .debugger-tools-registers {
   order: 3;

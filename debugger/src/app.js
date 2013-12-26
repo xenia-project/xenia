@@ -21,6 +21,7 @@ var module = angular.module('app', [
   'xe.ui.code',
   'xe.ui.code.functionView',
   'xe.ui.code.moduleInfo',
+  'xe.ui.code.threadInfo',
   'xe.ui.console',
   'xe.ui.navbar'
 ]);

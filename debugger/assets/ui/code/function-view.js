@@ -21,17 +21,15 @@ module.controller('FunctionViewController', function(
   $scope.highlightInfo = null;
 
   function refresh() {
-    if (!app.session || !app.session.dataSource) {
+    if (!app.session) {
       $scope.fn = null;
       return;
     }
-    var dataSource = app.session.dataSource;
-
-    dataSource.getFunction($scope.functionAddress).then(function(fn) {
+    app.session.state.fetchFunction($scope.functionAddress).then(function(fn) {
       $scope.fn = fn;
       updateCode();
     }, function(e) {
-      log.error('Unable to fetch function');
+      log.error('Unable to fetch function.');
     });
   };
   $rootScope.$on('refresh', refresh);

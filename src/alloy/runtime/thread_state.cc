@@ -22,7 +22,7 @@ __declspec(thread) ThreadState* thread_state_ = NULL;
 
 ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id) :
     runtime_(runtime), memory_(runtime->memory()),
-    thread_id_(thread_id),
+    thread_id_(thread_id), name_(0),
     backend_data_(0), raw_context_(0) {
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
@@ -40,6 +40,19 @@ ThreadState::~ThreadState() {
   if (thread_state_ == this) {
     thread_state_ = NULL;
   }
+  if (name_) {
+    xe_free(name_);
+  }
+}
+
+void ThreadState::set_name(const char* value) {
+  if (value == name_) {
+    return;
+  }
+  if (name_) {
+    xe_free(name_);
+  }
+  name_ = xestrdupa(value);
 }
 
 void ThreadState::Bind(ThreadState* thread_state) {
