@@ -103,8 +103,11 @@ void IVMFunction::OnBreakpointHit(ThreadState* thread_state, IntCode* i) {
 
 int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // Setup register file on stack.
+  const size_t max_stack_alloc = 16 * 1024;
   size_t register_file_size = register_count_ * sizeof(Register);
-  Register* register_file = (Register*)alloca(register_file_size);
+  Register* register_file = (Register*)(
+      register_file_size >= max_stack_alloc ?
+      xe_malloc(register_file_size) : alloca(register_file_size));
 
   Memory* memory = thread_state->memory();
 
@@ -146,6 +149,10 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
     } else {
       ia = new_ia;
     }
+  }
+
+  if (register_file_size >= max_stack_alloc) {
+    xe_free(register_file);
   }
 
   return 0;
