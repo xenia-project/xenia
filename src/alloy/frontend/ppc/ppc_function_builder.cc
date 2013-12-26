@@ -49,11 +49,10 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
   instr_count_ =
       (symbol_info->end_address() - symbol_info->address()) / 4 + 1;
 
-  // TODO(benvanik): get/make up symbol name.
   Comment("%s fn %.8X-%.8X %s",
           symbol_info->module()->name(),
           symbol_info->address(), symbol_info->end_address(),
-          "(symbol name)");
+          symbol_info->name());
 
   // Allocate offset list.
   // This is used to quickly map labels to instructions.

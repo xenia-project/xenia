@@ -132,11 +132,10 @@ void PPCTranslator::DumpSource(
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
-  // TODO(benvanik): get/make up symbol name.
   string_buffer->Append("%s fn %.8X-%.8X %s\n",
       symbol_info->module()->name(),
       symbol_info->address(), symbol_info->end_address(),
-      "(symbol name)");
+      symbol_info->name());
 
   auto blocks = scanner_->FindBlocks(symbol_info);
 
