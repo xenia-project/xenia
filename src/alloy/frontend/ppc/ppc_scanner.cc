@@ -320,13 +320,13 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
       ends_block = true;
     } else if (i.type->opcode == 0x48000000) {
       // b/ba/bl/bla
-      uint32_t target =
-          (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
+      //uint32_t target =
+      //    (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
       ends_block = true;
     } else if (i.type->opcode == 0x40000000) {
       // bc/bca/bcl/bcla
-      uint32_t target =
-          (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
+      //uint32_t target =
+      //    (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
       ends_block = true;
     } else if (i.type->opcode == 0x4C000020) {
       // bclr/bclrl

@@ -23,6 +23,12 @@ namespace frontend {
 namespace ppc {
 
 
+Value* CalculateEA(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb);
+Value* CalculateEA_0(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb);
+Value* CalculateEA_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm);
+Value* CalculateEA_0_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm);
+
+
 #define SHUFPS_SWAP_DWORDS 0x1B
 
 
@@ -140,7 +146,7 @@ XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_lvsl_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShl(sh);
   f.StoreVR(vd, v);
@@ -154,7 +160,7 @@ XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_lvsr_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShr(sh);
   f.StoreVR(vd, v);
@@ -168,7 +174,7 @@ XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_lvx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   f.StoreVR(vd, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
@@ -186,7 +192,7 @@ XEEMITTER(lvxl128,        VX128_1(4, 707),  VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 XEEMITTER(stvebx,         0x7C00010E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-  Value* ea = i.X.RA ? f.Add(f.LoadGPR(i.X.RA), f.LoadGPR(i.X.RB)) : f.LoadGPR(i.X.RB);
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* el = f.And(ea, f.LoadConstant(0xFull));
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT8_TYPE);
   f.Store(ea, v);
@@ -194,7 +200,7 @@ XEEMITTER(stvebx,         0x7C00010E, X   )(PPCFunctionBuilder& f, InstrData& i)
 }
 
 XEEMITTER(stvehx,         0x7C00014E, X   )(PPCFunctionBuilder& f, InstrData& i) {
-  Value* ea = i.X.RA ? f.Add(f.LoadGPR(i.X.RA), f.LoadGPR(i.X.RB)) : f.LoadGPR(i.X.RB);
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   ea = f.And(ea, f.LoadConstant(~0x1ull));
   Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 1);
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT16_TYPE);
@@ -203,7 +209,7 @@ XEEMITTER(stvehx,         0x7C00014E, X   )(PPCFunctionBuilder& f, InstrData& i)
 }
 
 int InstrEmit_stvewx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   ea = f.And(ea, f.LoadConstant(~0x3ull));
   Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 2);
   Value* v = f.Extract(f.LoadVR(vd), el, INT32_TYPE);
@@ -218,7 +224,7 @@ XEEMITTER(stvewx128,      VX128_1(4, 387),  VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_stvx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   f.Store(ea, f.ByteSwap(f.LoadVR(vd)));
   return 0;
 }
@@ -238,7 +244,7 @@ XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCFunctionBuilder& f, Inst
 // The lvlx/lvrx/etc instructions are in Cell docs only:
 // https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
 int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   // ea &= ~0xF (load takes care of this)
   // v = (new << eb)
@@ -264,7 +270,7 @@ XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCFunctionBuilder& f, Inst
 }
 
 int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   // ea &= ~0xF (load takes care of this)
   // v = (new >> (16 - eb))
@@ -292,7 +298,7 @@ XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCFunctionBuilder& f, Inst
 int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   Value* new_value = f.LoadVR(vd);
   // ea &= ~0xF (load takes care of this)
@@ -332,7 +338,7 @@ XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCFunctionBuilder& f, Inst
 int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
-  Value* ea = ra ? f.Add(f.LoadGPR(ra), f.LoadGPR(rb)) : f.LoadGPR(rb);
+  Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   Value* new_value = f.LoadVR(vd);
   // ea &= ~0xF (load takes care of this)
