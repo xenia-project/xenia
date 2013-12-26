@@ -113,6 +113,8 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
     } else if (i.code == 0x4E800420) {
       // bctr -- unconditional branch to CTR.
       // This is generally a jump to a function pointer (non-return).
+      // This is almost always a jump table.
+      // TODO(benvanik): decode jump tables.
       if (furthest_target > address) {
         // Remaining targets within function, not end.
         XELOGSDB("ignoring bctr %.8X (branch to %.8X)", address,
@@ -196,7 +198,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         }
         */
 
-        if (!ends_fn) {
+        if (!ends_fn && !IsRestGprLr(target)) {
           furthest_target = MAX(furthest_target, target);
 
           // TODO(benvanik): perhaps queue up for a speculative check? I think
@@ -222,7 +224,9 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
 
         // TODO(benvanik): GetOrInsertFunction? it's likely a BB
 
-        furthest_target = MAX(furthest_target, target);
+        if (!IsRestGprLr(target)) {
+          furthest_target = MAX(furthest_target, target);
+        }
       }
       ends_block = true;
     } else if (i.type->opcode == 0x4C000020) {
@@ -317,6 +321,8 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
       ends_block = true;
     } else if (i.code == 0x4E800420) {
       // bctr -- unconditional branch to CTR.
+      // This is almost always a jump table.
+      // TODO(benvanik): decode jump tables.
       ends_block = true;
     } else if (i.type->opcode == 0x48000000) {
       // b/ba/bl/bla
