@@ -296,13 +296,23 @@ void FunctionBuilder::InsertLabel(Label* label, Instr* prev_instr) {
   label->block = new_block;
   label->prev = label->next = NULL;
 
-  new_block->instr_head = prev_instr->next;
+  Instr* prev_next = prev_instr->next;
+  Instr* old_prev_tail = prev_block->instr_tail;
+  if (prev_instr->next) {
+    Instr* prev_last = prev_instr->next->prev;
+    prev_last->next = NULL;
+    prev_block->instr_tail = prev_last;
+  }
+  new_block->instr_head = prev_next;
   if (new_block->instr_head) {
     new_block->instr_head->prev = NULL;
-    new_block->instr_tail = prev_block->instr_tail;
+    new_block->instr_tail = old_prev_tail;
   }
-  prev_instr->next = NULL;
-  prev_block->instr_tail = prev_instr;
+
+  for (auto instr = new_block->instr_head; instr != new_block->instr_tail;
+       instr = instr->next) {
+    instr->block = new_block;
+  }
 
   if (current_block_ == prev_block) {
     current_block_ = new_block;
