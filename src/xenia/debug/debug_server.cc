@@ -76,13 +76,13 @@ int DebugServer::BeforeEntry() {
   }
 
   // If desired, wait until the first client connects.
-  //if (FLAGS_wait_for_debugger) {
+  if (FLAGS_wait_for_debugger) {
     XELOGI("Waiting for debugger...");
     if (WaitForClient()) {
       return 1;
     }
     XELOGI("Debugger attached, continuing...");
-  //}
+  }
 
   return 0;
 }
