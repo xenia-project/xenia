@@ -79,8 +79,7 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
 
-    // Stash instruction offset.
-    instr_offset_list_[offset] = last_instr();
+    Instr* prev_instr = last_instr();
 
     // Mark label, if we were assigned one earlier on in the walk.
     // We may still get a label, but it'll be inserted by LookupLabel
@@ -112,6 +111,7 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
     SourceOffset(i.address);
 
     if (!i.type) {
+      instr_offset_list_[offset] = prev_instr->next;
       XELOGCPU("Invalid instruction %.8X %.8X", i.address, i.code);
       Comment("INVALID!");
       //TraceInvalidInstruction(i);
@@ -136,6 +136,20 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
       // This printf is handy for sort/uniquify to find instructions.
       printf("unimplinstr %s\n", i.type->name);
     }
+
+    // Stash instruction offset. We do this down here so that if the function
+    // splits blocks we don't have weird pointers.
+    if (prev_instr && prev_instr->next) {
+      instr_offset_list_[offset] = prev_instr->next;
+    } else if (current_block_) {
+      instr_offset_list_[offset] = current_block_->instr_head;
+    } else if (block_tail_) {
+      instr_offset_list_[offset] = block_tail_->instr_head;
+    } else {
+      XEASSERTALWAYS();
+    }
+    XEASSERT(instr_offset_list_[offset]->next->opcode == &OPCODE_TRAP_TRUE_info ||
+             instr_offset_list_[offset]->next->src1.offset == i.address);
   }
 
   return Finalize();
@@ -174,10 +188,15 @@ Label* PPCFunctionBuilder::LookupLabel(uint64_t address) {
   // the label.
   label = NewLabel();
   label_list_[offset] = label;
-  Instr* prev_instr = instr_offset_list_[offset];
-  if (prev_instr) {
-    // Insert label, breaking up existing instructions.
-    InsertLabel(label, prev_instr);
+  Instr* instr = instr_offset_list_[offset];
+  if (instr) {
+    if (instr->prev) {
+      // Insert label, breaking up existing instructions.
+      InsertLabel(label, instr->prev);
+    } else {
+      // Instruction is at the head of a block, so just add the label.
+      MarkLabel(label, instr->block);
+    }
 
     // Annotate the label, as we won't do it later.
     if (FLAGS_annotate_disassembly) {

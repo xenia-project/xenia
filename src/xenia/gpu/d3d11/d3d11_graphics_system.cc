@@ -151,7 +151,7 @@ void D3D11GraphicsSystem::Pump() {
     DispatchInterruptCallback(0);
   } else {
     // If we have gone too long without an interrupt, fire one.
-    if (xe_pal_now() - last_interrupt_time_ > 16 / 1000.0) {
+    if (xe_pal_now() - last_interrupt_time_ > 500 / 1000.0) {
       DispatchInterruptCallback(0);
     }
   }

@@ -217,7 +217,6 @@ private:
 protected:
   Arena*    arena_;
 
-private:
   uint32_t  attributes_;
 
   uint32_t  next_label_id_;
