@@ -138,7 +138,7 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
     }
   }
 
-  return 0;
+  return Finalize();
 }
 
 void PPCFunctionBuilder::AnnotateLabel(uint64_t address, Label* label) {

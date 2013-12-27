@@ -44,6 +44,41 @@ void FunctionBuilder::Reset() {
   current_block_ = NULL;
 }
 
+int FunctionBuilder::Finalize() {
+  // Scan blocks in order and add fallthrough branches. These are needed for
+  // analysis passes to work. We may have also added blocks out of order and
+  // need to ensure they fall through in the right order.
+  for (auto block = block_head_; block != NULL; block = block->next) {
+    bool needs_branch = false;
+    if (block->instr_tail) {
+      if (!IsUnconditionalJump(block->instr_tail)) {
+        // Add tail branch to block that falls through.
+        needs_branch = true;
+      }
+    } else {
+      // Add tail branch to block with no instructions.
+      // Hopefully an optimization pass will clean this up later.
+      needs_branch = true;
+    }
+    if (needs_branch) {
+      current_block_ = block;
+      if (!block->next) {
+        // No following block.
+        // Sometimes VC++ generates functions with bl at the end even if they
+        // will never return. Just add a return to satisfy things.
+        XELOGW("Fall-through out of the function.");
+        Return();
+        current_block_ = NULL;
+        break;
+      }
+      // Add branch.
+      Branch(block->next, BRANCH_LIKELY);
+      current_block_ = NULL;
+    }
+  }
+  return 0;
+}
+
 void FunctionBuilder::DumpValue(StringBuffer* str, Value* value) {
   if (value->IsConstant()) {
     switch (value->type) {
@@ -186,14 +221,16 @@ Label* FunctionBuilder::NewLabel() {
   return label;
 }
 
-void FunctionBuilder::MarkLabel(Label* label) {
-  if (current_block_ && current_block_->instr_tail) {
-    EndBlock();
+void FunctionBuilder::MarkLabel(Label* label, Block* block) {
+  if (!block) {
+    if (current_block_ && current_block_->instr_tail) {
+      EndBlock();
+    }
+    if (!current_block_) {
+      AppendBlock();
+    }
+    block = current_block_;
   }
-  if (!current_block_) {
-    AppendBlock();
-  }
-  Block* block = current_block_;
   label->block = block;
   label->prev = block->label_tail;
   label->next = NULL;
@@ -297,6 +334,18 @@ void FunctionBuilder::EndBlock() {
     return;
   }
   current_block_ = NULL;
+}
+
+bool FunctionBuilder::IsUnconditionalJump(Instr* instr) {
+  if (instr->opcode == &OPCODE_CALL_info ||
+      instr->opcode == &OPCODE_CALL_INDIRECT_info) {
+    return (instr->flags & CALL_TAIL) != 0;
+  } else if (instr->opcode == &OPCODE_BRANCH_info) {
+    return true;
+  } else if (instr->opcode == &OPCODE_RETURN_info) {
+    return true;
+  }
+  return false;
 }
 
 Instr* FunctionBuilder::AppendInstr(
@@ -487,6 +536,15 @@ void FunctionBuilder::Branch(Label* label, uint32_t branch_flags) {
   i->src1.label = label;
   i->src2.value = i->src3.value = NULL;
   EndBlock();
+}
+
+void FunctionBuilder::Branch(Block* block, uint32_t branch_flags) {
+  if (!block->label_head) {
+    // Block needs a label.
+    Label* label = NewLabel();
+    MarkLabel(label, block);
+  }
+  Branch(block->label_head, branch_flags);
 }
 
 void FunctionBuilder::BranchTrue(

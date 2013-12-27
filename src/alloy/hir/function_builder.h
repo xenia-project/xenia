@@ -31,6 +31,7 @@ public:
   virtual ~FunctionBuilder();
 
   virtual void Reset();
+  virtual int Finalize();
 
   void Dump(StringBuffer* str);
 
@@ -44,7 +45,7 @@ public:
   Instr* last_instr() const;
 
   Label* NewLabel();
-  void MarkLabel(Label* label);
+  void MarkLabel(Label* label, Block* block = 0);
   void InsertLabel(Label* label, Instr* prev_instr);
 
   // static allocations:
@@ -75,6 +76,7 @@ public:
   void SetReturnAddress(Value* value);
 
   void Branch(Label* label, uint32_t branch_flags = 0);
+  void Branch(Block* block, uint32_t branch_flags = 0);
   void BranchTrue(Value* cond, Label* label,
                   uint32_t branch_flags = 0);
   void BranchFalse(Value* cond, Label* label,
@@ -205,6 +207,7 @@ protected:
 private:
   Block* AppendBlock();
   void EndBlock();
+  bool IsUnconditionalJump(Instr* instr);
   Instr* AppendInstr(const OpcodeInfo& opcode, uint16_t flags,
                      Value* dest = 0);
   Value* CompareXX(const OpcodeInfo& opcode, Value* value1, Value* value2);

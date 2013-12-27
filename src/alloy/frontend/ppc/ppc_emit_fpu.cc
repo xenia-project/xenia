@@ -407,7 +407,7 @@ int InstrEmit_fcmpx_(PPCFunctionBuilder& f, InstrData& i, bool ordered) {
   // TODO(benvanik): update VXSNAN
   const uint32_t crf = i.X.RT >> 2;
   // f.UpdateFPRF(v);
-  f.UpdateCR(crf, f.LoadFPR(i.X.RA), f.LoadFPR(i.X.RB), true);
+  f.UpdateCR(crf, f.LoadFPR(i.X.RA), f.LoadFPR(i.X.RB), false);
   return 0;
 }
 XEEMITTER(fcmpo,        0xFC000040, X  )(PPCFunctionBuilder& f, InstrData& i) {
