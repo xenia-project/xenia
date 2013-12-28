@@ -1018,6 +1018,48 @@ int Translate_CONVERT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fn);
 }
 
+uint32_t IntCode_ROUND_F32(IntCodeState& ics, const IntCode* i) {
+  if (i->flags == ROUND_TO_NEAREST) {
+    ics.rf[i->dest_reg].f32 = round(ics.rf[i->src1_reg].f32);
+  } else {
+    ics.rf[i->dest_reg].f32 = floor(ics.rf[i->src1_reg].f32);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_ROUND_F64(IntCodeState& ics, const IntCode* i) {
+  if (i->flags == ROUND_TO_NEAREST) {
+    ics.rf[i->dest_reg].f64 = round(ics.rf[i->src1_reg].f64);
+  } else {
+    ics.rf[i->dest_reg].f64 = floor(ics.rf[i->src1_reg].f64);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_ROUND_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  if (i->flags == ROUND_TO_NEAREST) {
+    for (size_t n = 0; n < 4; n++) {
+      dest.f4[n] = round(src1.f4[n]);
+    }
+  } else {
+    for (size_t n = 0; n < 4; n++) {
+      dest.f4[n] = floor(src1.f4[n]);
+    }
+  }
+  return IA_NEXT;
+}
+int Translate_ROUND(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_ROUND_F32,
+    IntCode_ROUND_F64,
+    IntCode_ROUND_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
 
 uint32_t IntCode_VECTOR_CONVERT_I2F(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
@@ -3109,7 +3151,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_SIGN_EXTEND,
   Translate_TRUNCATE,
   Translate_CONVERT,
-  TranslateInvalid, //Translate_ROUND,
+  Translate_ROUND,
   Translate_VECTOR_CONVERT_I2F,
   TranslateInvalid, //Translate_VECTOR_CONVERT_F2I,
 
