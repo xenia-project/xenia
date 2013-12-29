@@ -32,9 +32,9 @@ int InstrEmit_branch(
   // The docs say always, though...
   // Note that we do the update before we branch/call as we need it to
   // be correct for returns.
-  Value* return_address = f.LoadConstant(cia + 4);
-  f.SetReturnAddress(return_address);
   if (lk) {
+    Value* return_address = f.LoadConstant(cia + 4);
+    f.SetReturnAddress(return_address);
     f.StoreLR(return_address);
   }
 

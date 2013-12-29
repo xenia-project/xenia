@@ -22,14 +22,20 @@ namespace alloy {
 namespace frontend {
 namespace ppc {
 
+#define TRUNCATE_ADDRESSES 0
 
 Value* CalculateEA(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb) {
+#if TRUNCATE_ADDRESSES
   return f.ZeroExtend(f.Add(
       f.Truncate(f.LoadGPR(ra), INT32_TYPE),
       f.Truncate(f.LoadGPR(rb), INT32_TYPE)), INT64_TYPE);
+#else
+  return f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
+#endif  // TRUNCATE_ADDRESSES
 }
 
 Value* CalculateEA_0(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb) {
+#if TRUNCATE_ADDRESSES
   if (ra) {
     return f.ZeroExtend(f.Add(
       f.Truncate(f.LoadGPR(ra), INT32_TYPE),
@@ -37,15 +43,27 @@ Value* CalculateEA_0(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb) {
   } else {
     return f.ZeroExtend(f.Truncate(f.LoadGPR(rb), INT32_TYPE), INT64_TYPE);
   }
+#else
+  if (ra) {
+    return f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
+  } else {
+    return f.LoadGPR(rb);
+  }
+#endif  // TRUNCATE_ADDRESSES
 }
 
 Value* CalculateEA_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm) {
+#if TRUNCATE_ADDRESSES
   return f.ZeroExtend(f.Add(
       f.Truncate(f.LoadGPR(ra), INT32_TYPE),
       f.LoadConstant((int32_t)imm)), INT64_TYPE);
+#else
+  return f.Add(f.LoadGPR(ra), f.LoadConstant(imm));
+#endif  // TRUNCATE_ADDRESSES
 }
 
 Value* CalculateEA_0_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm) {
+#if TRUNCATE_ADDRESSES
   if (ra) {
     return f.ZeroExtend(f.Add(
         f.Truncate(f.LoadGPR(ra), INT32_TYPE),
@@ -53,6 +71,13 @@ Value* CalculateEA_0_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm) {
   } else {
     return f.ZeroExtend(f.LoadConstant((int32_t)imm), INT64_TYPE);
   }
+#else
+  if (ra) {
+    return f.Add(f.LoadGPR(ra), f.LoadConstant(imm));
+  } else {
+    return f.LoadConstant(imm);
+  }
+#endif  // TRUNCATE_ADDRESSES
 }
 
 

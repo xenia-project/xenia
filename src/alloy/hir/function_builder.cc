@@ -137,7 +137,7 @@ void FunctionBuilder::Dump(StringBuffer* str) {
   while (block) {
     if (block == block_head_) {
       str->Append("<entry>:\n");
-    } else {
+    } else if (!block->label_head) {
       str->Append("<block%d>:\n", block_ordinal);
     }
     block_ordinal++;

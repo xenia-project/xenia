@@ -37,7 +37,7 @@
       <div class="debugger-fnlist-body">
         <div class="debugger-fnlist-list">
           <table class="table table-hover">
-            <tr ng-repeat="fn in functionList track by $index | filter:functionFilter | orderBy:'address'">
+            <tr ng-repeat="fn in functionList track by $index | orderBy:'address'">
               <td><a xe-coderef="{{fn.address|hex32}}">{{fn.name}}</a></td>
             </tr>
           </table>
@@ -45,7 +45,7 @@
       </div>
       <div class="debugger-fnlist-footer">
         <div class="input-group input-group-sm">
-          <input type="text" class="form-control" placeholder="Filter" ng-model="functionFilter" ui-escape="functionFilter = ''">
+          <input type="text" class="form-control" placeholder="Filter" ng-model="functionFilter.$" ui-escape="functionFilter = ''">
         </div>
       </div>
     </div>
@@ -122,14 +122,13 @@
             <span class="value" tooltip="{{app.session.activeThread.context.fh[$index]}}">{{v|exp8}}</span>
           </div>
         </div>
-        <!--
         <div class="debugger-tools-registers-container">
           <div ng-repeat="v in app.session.activeThread.context.v track by $index"
                class="debugger-tools-registers-entry vec">
-            <span class="name">v{{$index}}</span> <span class="value">{{v}}</span>
+            <span class="name">v{{$index}}</span>
+            <span class="value">{{v}}</span>
           </div>
         </div>
-        -->
       </div>
     </div>
   </div>
