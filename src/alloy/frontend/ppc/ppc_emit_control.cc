@@ -10,7 +10,7 @@
 #include <alloy/frontend/ppc/ppc_emit-private.h>
 
 #include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_hir_builder.h>
 
 
 using namespace alloy::frontend::ppc;
@@ -24,7 +24,7 @@ namespace ppc {
 
 
 int InstrEmit_branch(
-    PPCFunctionBuilder& f, const char* src, uint64_t cia,
+    PPCHIRBuilder& f, const char* src, uint64_t cia,
     Value* nia, bool lk, Value* cond = NULL, bool expect_true = true) {
   uint32_t call_flags = 0;
 
@@ -93,7 +93,7 @@ int InstrEmit_branch(
 }
 
 
-XEEMITTER(bx,           0x48000000, I  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(bx,           0x48000000, I  )(PPCHIRBuilder& f, InstrData& i) {
   // if AA then
   //   NIA <- EXTS(LI || 0b00)
   // else
@@ -112,7 +112,7 @@ XEEMITTER(bx,           0x48000000, I  )(PPCFunctionBuilder& f, InstrData& i) {
       f, "bx", i.address, f.LoadConstant(nia), i.I.LK);
 }
 
-XEEMITTER(bcx,          0x40000000, B  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(bcx,          0x40000000, B  )(PPCHIRBuilder& f, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
@@ -188,7 +188,7 @@ XEEMITTER(bcx,          0x40000000, B  )(PPCFunctionBuilder& f, InstrData& i) {
       f, "bcx", i.address, f.LoadConstant(nia), i.B.LK, ok, expect_true);
 }
 
-XEEMITTER(bcctrx,       0x4C000420, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(bcctrx,       0x4C000420, XL )(PPCHIRBuilder& f, InstrData& i) {
   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
   // if cond_ok then
   //   NIA <- CTR[0:61] || 0b00
@@ -220,7 +220,7 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(PPCFunctionBuilder& f, InstrData& i) {
       f, "bcctrx", i.address, f.LoadCTR(), i.XL.LK, cond_ok, expect_true);
 }
 
-XEEMITTER(bclrx,        0x4C000020, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(bclrx,        0x4C000020, XL )(PPCHIRBuilder& f, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
@@ -314,47 +314,47 @@ XEEMITTER(bclrx,        0x4C000020, XL )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Condition register logical (A-23)
 
-XEEMITTER(crand,        0x4C000202, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(crand,        0x4C000202, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crandc,       0x4C000102, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(crandc,       0x4C000102, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(creqv,        0x4C000242, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(creqv,        0x4C000242, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crnand,       0x4C0001C2, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(crnand,       0x4C0001C2, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crnor,        0x4C000042, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(crnor,        0x4C000042, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(cror,         0x4C000382, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cror,         0x4C000382, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crorc,        0x4C000342, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(crorc,        0x4C000342, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crxor,        0x4C000182, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(crxor,        0x4C000182, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mcrf,         0x4C000000, XL )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mcrf,         0x4C000000, XL )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -362,7 +362,7 @@ XEEMITTER(mcrf,         0x4C000000, XL )(PPCFunctionBuilder& f, InstrData& i) {
 
 // System linkage (A-24)
 
-XEEMITTER(sc,           0x44000002, SC )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(sc,           0x44000002, SC )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -370,7 +370,7 @@ XEEMITTER(sc,           0x44000002, SC )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Trap (A-25)
 
-int InstrEmit_trap(PPCFunctionBuilder& f, InstrData& i,
+int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i,
                Value* va, Value* vb, uint32_t TO) {
   // if (a < b) & TO[0] then TRAP
   // if (a > b) & TO[1] then TRAP
@@ -406,7 +406,7 @@ int InstrEmit_trap(PPCFunctionBuilder& f, InstrData& i,
   return 0;
 }
 
-XEEMITTER(td,           0x7C000088, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(td,           0x7C000088, X  )(PPCHIRBuilder& f, InstrData& i) {
   // a <- (RA)
   // b <- (RB)
   // if (a < b) & TO[0] then TRAP
@@ -419,7 +419,7 @@ XEEMITTER(td,           0x7C000088, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.X.RT);
 }
 
-XEEMITTER(tdi,          0x08000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(tdi,          0x08000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -431,7 +431,7 @@ XEEMITTER(tdi,          0x08000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.D.RT);
 }
 
-XEEMITTER(tw,           0x7C000008, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(tw,           0x7C000008, X  )(PPCHIRBuilder& f, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
   // if (a < b) & TO[0] then TRAP
@@ -446,7 +446,7 @@ XEEMITTER(tw,           0x7C000008, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.X.RT);
 }
 
-XEEMITTER(twi,          0x0C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(twi,          0x0C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -462,12 +462,12 @@ XEEMITTER(twi,          0x0C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Processor control (A-26)
 
-XEEMITTER(mfcr,         0x7C000026, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mfcr,         0x7C000026, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mfspr,        0x7C0002A6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mfspr,        0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   RT <- SPR(n)
@@ -497,7 +497,7 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mftb,         0x7C0002E6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mftb,         0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   Value* time;
   LARGE_INTEGER counter;
   if (QueryPerformanceCounter(&counter)) {
@@ -510,12 +510,12 @@ XEEMITTER(mftb,         0x7C0002E6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mtcrf,        0x7C000120, XFX)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtcrf,        0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   SPR(n) <- (RS)
@@ -549,17 +549,17 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCFunctionBuilder& f, InstrData& i) {
 // TODO(benvanik): MSR is used for toggling interrupts, and it'd be nice to
 //                 obey that setting. It's usually guarding atomic stores.
 
-XEEMITTER(mfmsr,        0x7C0000A6, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mfmsr,        0x7C0000A6, X  )(PPCHIRBuilder& f, InstrData& i) {
   f.Nop();
   return 0;
 }
 
-XEEMITTER(mtmsr,        0x7C000124, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtmsr,        0x7C000124, X  )(PPCHIRBuilder& f, InstrData& i) {
   f.Nop();
   return 0;
 }
 
-XEEMITTER(mtmsrd,       0x7C000164, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtmsrd,       0x7C000164, X  )(PPCHIRBuilder& f, InstrData& i) {
   f.Nop();
   return 0;
 }

@@ -22,7 +22,7 @@ using namespace alloy::runtime;
 
 ContextPromotionPass::ContextPromotionPass() :
     context_values_size_(0), context_values_(0),
-    Pass() {
+    CompilerPass() {
 }
 
 ContextPromotionPass::~ContextPromotionPass() {
@@ -32,7 +32,7 @@ ContextPromotionPass::~ContextPromotionPass() {
 }
 
 int ContextPromotionPass::Initialize(Compiler* compiler) {
-  if (Pass::Initialize(compiler)) {
+  if (CompilerPass::Initialize(compiler)) {
     return 1;
   }
 
@@ -44,7 +44,7 @@ int ContextPromotionPass::Initialize(Compiler* compiler) {
   return 0;
 }
 
-int ContextPromotionPass::Run(FunctionBuilder* builder) {
+int ContextPromotionPass::Run(HIRBuilder* builder) {
   // Like mem2reg, but because context memory is unaliasable it's easier to
   // check and convert LoadContext/StoreContext into value operations.
   // Example of load->value promotion:

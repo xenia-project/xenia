@@ -13,7 +13,7 @@
 #include <alloy/backend/tracing.h>
 #include <alloy/backend/ivm/ivm_intcode.h>
 #include <alloy/backend/ivm/ivm_function.h>
-#include <alloy/hir/function_builder.h>
+#include <alloy/hir/hir_builder.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
 
@@ -54,7 +54,7 @@ void IVMAssembler::Reset() {
 }
 
 int IVMAssembler::Assemble(
-    FunctionInfo* symbol_info, FunctionBuilder* builder,
+    FunctionInfo* symbol_info, HIRBuilder* builder,
     DebugInfo* debug_info, Function** out_function) {
   IVMFunction* fn = new IVMFunction(symbol_info);
   fn->set_debug_info(debug_info);

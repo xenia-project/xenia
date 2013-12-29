@@ -24,8 +24,8 @@ namespace ppc {
 #define XEREGISTERINSTR(name, opcode) \
     RegisterInstrDisassemble(opcode, (InstrDisassembleFn)InstrDisasm_##name);
 
-//#define XEINSTRNOTIMPLEMENTED()
-#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
+#define XEINSTRNOTIMPLEMENTED()
+//#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
 
 
 }  // namespace ppc

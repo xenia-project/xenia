@@ -16,13 +16,13 @@ using namespace alloy::hir;
 
 
 ConstantPropagationPass::ConstantPropagationPass() :
-    Pass() {
+    CompilerPass() {
 }
 
 ConstantPropagationPass::~ConstantPropagationPass() {
 }
 
-int ConstantPropagationPass::Run(FunctionBuilder* builder) {
+int ConstantPropagationPass::Run(HIRBuilder* builder) {
   // Once ContextPromotion has run there will likely be a whole slew of
   // constants that can be pushed through the function.
   // Example:

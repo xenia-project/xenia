@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_HIR_FUNCTION_BUILDER_H_
-#define ALLOY_HIR_FUNCTION_BUILDER_H_
+#ifndef ALLOY_HIR_HIR_BUILDER_H_
+#define ALLOY_HIR_HIR_BUILDER_H_
 
 #include <alloy/core.h>
 #include <alloy/hir/block.h>
@@ -25,10 +25,10 @@ enum FunctionAttributes {
 };
 
 
-class FunctionBuilder {
+class HIRBuilder {
 public:
-  FunctionBuilder();
-  virtual ~FunctionBuilder();
+  HIRBuilder();
+  virtual ~HIRBuilder();
 
   virtual void Reset();
   virtual int Finalize();
@@ -232,4 +232,4 @@ protected:
 }  // namespace alloy
 
 
-#endif  // ALLOY_HIR_FUNCTION_BUILDER_H_
+#endif  // ALLOY_HIR_HIR_BUILDER_H_

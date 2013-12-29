@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_CONSTANT_PROPAGATION_PASS_H_
 #define ALLOY_COMPILER_PASSES_CONSTANT_PROPAGATION_PASS_H_
 
-#include <alloy/compiler/pass.h>
+#include <alloy/compiler/compiler_pass.h>
 
 
 namespace alloy {
@@ -18,12 +18,12 @@ namespace compiler {
 namespace passes {
 
 
-class ConstantPropagationPass : public Pass {
+class ConstantPropagationPass : public CompilerPass {
 public:
   ConstantPropagationPass();
   virtual ~ConstantPropagationPass();
 
-  virtual int Run(hir::FunctionBuilder* builder);
+  virtual int Run(hir::HIRBuilder* builder);
 
 private:
 };

@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 #define ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
-#include <alloy/compiler/pass.h>
+#include <alloy/compiler/compiler_pass.h>
 
 
 namespace alloy {
@@ -18,14 +18,14 @@ namespace compiler {
 namespace passes {
 
 
-class ContextPromotionPass : public Pass {
+class ContextPromotionPass : public CompilerPass {
 public:
   ContextPromotionPass();
   virtual ~ContextPromotionPass();
 
   virtual int Initialize(Compiler* compiler);
 
-  virtual int Run(hir::FunctionBuilder* builder);
+  virtual int Run(hir::HIRBuilder* builder);
 
 private:
   void PromoteBlock(hir::Block* block);

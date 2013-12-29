@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
 #define ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
 
-#include <alloy/compiler/pass.h>
+#include <alloy/compiler/compiler_pass.h>
 
 
 namespace alloy {
@@ -18,12 +18,12 @@ namespace compiler {
 namespace passes {
 
 
-class SimplificationPass : public Pass {
+class SimplificationPass : public CompilerPass {
 public:
   SimplificationPass();
   virtual ~SimplificationPass();
 
-  virtual int Run(hir::FunctionBuilder* builder);
+  virtual int Run(hir::HIRBuilder* builder);
 
 private:
   hir::Value* CheckValue(hir::Value* value);

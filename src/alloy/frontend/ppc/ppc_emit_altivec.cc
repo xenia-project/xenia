@@ -10,7 +10,7 @@
 #include <alloy/frontend/ppc/ppc_emit-private.h>
 
 #include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_hir_builder.h>
 
 
 using namespace alloy::frontend::ppc;
@@ -23,10 +23,10 @@ namespace frontend {
 namespace ppc {
 
 
-Value* CalculateEA(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb);
-Value* CalculateEA_0(PPCFunctionBuilder& f, uint32_t ra, uint32_t rb);
-Value* CalculateEA_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm);
-Value* CalculateEA_0_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm);
+Value* CalculateEA(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
+Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
+Value* CalculateEA_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm);
+Value* CalculateEA_0_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm);
 
 
 #define SHUFPS_SWAP_DWORDS 0x1B
@@ -109,89 +109,89 @@ Value* CalculateEA_0_i(PPCFunctionBuilder& f, uint32_t ra, uint64_t imm);
 // }
 
 
-XEEMITTER(dst,            0x7C0002AC, XDSS)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(dst,            0x7C0002AC, XDSS)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(dstst,          0x7C0002EC, XDSS)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(dstst,          0x7C0002EC, XDSS)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(dss,            0x7C00066C, XDSS)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(dss,            0x7C00066C, XDSS)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lvebx,          0x7C00000E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvebx,          0x7C00000E, X   )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lvehx,          0x7C00004E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvehx,          0x7C00004E, X   )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_lvewx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_lvewx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(lvewx,          0x7C00008E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvewx,          0x7C00008E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-int InstrEmit_lvsl_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_lvsl_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShl(sh);
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(lvsl,           0x7C00000C, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvsl,           0x7C00000C, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-int InstrEmit_lvsr_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_lvsr_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShr(sh);
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(lvsr,           0x7C00004C, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvsr,           0x7C00004C, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-int InstrEmit_lvx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_lvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   f.StoreVR(vd, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
-XEEMITTER(lvx,            0x7C0000CE, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvx,            0x7C0000CE, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(lvx128,         VX128_1(4, 195),  VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvx128,         VX128_1(4, 195),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-XEEMITTER(lvxl,           0x7C0002CE, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvxl,           0x7C0002CE, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvx(f, i);
 }
-XEEMITTER(lvxl128,        VX128_1(4, 707),  VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvxl128,        VX128_1(4, 707),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvx128(f, i);
 }
 
-XEEMITTER(stvebx,         0x7C00010E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvebx,         0x7C00010E, X   )(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* el = f.And(ea, f.LoadConstant(0xFull));
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT8_TYPE);
@@ -199,7 +199,7 @@ XEEMITTER(stvebx,         0x7C00010E, X   )(PPCFunctionBuilder& f, InstrData& i)
   return 0;
 }
 
-XEEMITTER(stvehx,         0x7C00014E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvehx,         0x7C00014E, X   )(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   ea = f.And(ea, f.LoadConstant(~0x1ull));
   Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 1);
@@ -208,7 +208,7 @@ XEEMITTER(stvehx,         0x7C00014E, X   )(PPCFunctionBuilder& f, InstrData& i)
   return 0;
 }
 
-int InstrEmit_stvewx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_stvewx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   ea = f.And(ea, f.LoadConstant(~0x3ull));
   Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 2);
@@ -216,34 +216,34 @@ int InstrEmit_stvewx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
-XEEMITTER(stvewx,         0x7C00018E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvewx,         0x7C00018E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(stvewx128,      VX128_1(4, 387),  VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvewx128,      VX128_1(4, 387),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 
-int InstrEmit_stvx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_stvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   f.Store(ea, f.ByteSwap(f.LoadVR(vd)));
   return 0;
 }
-XEEMITTER(stvx,           0x7C0001CE, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvx,           0x7C0001CE, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(stvx128,        VX128_1(4, 451),  VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvx128,        VX128_1(4, 451),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-XEEMITTER(stvxl,          0x7C0003CE, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvxl,          0x7C0003CE, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvx(f, i);
 }
-XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvx128(f, i);
 }
 
 // The lvlx/lvrx/etc instructions are in Cell docs only:
 // https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf
-int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_lvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   // ea &= ~0xF (load takes care of this)
@@ -256,20 +256,20 @@ int InstrEmit_lvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t r
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(lvlx,           0x7C00040E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvlx,           0x7C00040E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(lvlx128,        VX128_1(4, 1027), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvlx128,        VX128_1(4, 1027), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvlx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-XEEMITTER(lvlxl,          0x7C00060E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvlxl,          0x7C00060E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvlx(f, i);
 }
-XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvlx128(f, i);
 }
 
-int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_lvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   // ea &= ~0xF (load takes care of this)
@@ -282,20 +282,20 @@ int InstrEmit_lvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t r
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(lvrx,           0x7C00044E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvrx,           0x7C00044E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(lvrx128,        VX128_1(4, 1091), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvrx128,        VX128_1(4, 1091), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvrx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-XEEMITTER(lvrxl,          0x7C00064E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvrxl,          0x7C00064E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvrx(f, i);
 }
-XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(lvrxl128,       VX128_1(4, 1603), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvrx128(f, i);
 }
 
-int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_stvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = CalculateEA_0(f, ra, rb);
@@ -322,20 +322,20 @@ int InstrEmit_stvlx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
-XEEMITTER(stvlx,          0x7C00050E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvlx,          0x7C00050E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(stvlx128,       VX128_1(4, 1283), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvlx128,       VX128_1(4, 1283), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvlx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-XEEMITTER(stvlxl,         0x7C00070E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvlxl,         0x7C00070E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvlx(f, i);
 }
-XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvlxl128,      VX128_1(4, 1795), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvlx128(f, i);
 }
 
-int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
+int InstrEmit_stvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = CalculateEA_0(f, ra, rb);
@@ -362,154 +362,154 @@ int InstrEmit_stvrx_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t 
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
-XEEMITTER(stvrx,          0x7C00054E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvrx,          0x7C00054E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
-XEEMITTER(stvrx128,       VX128_1(4, 1347), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvrx128,       VX128_1(4, 1347), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvrx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
-XEEMITTER(stvrxl,         0x7C00074E, X   )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvrxl,         0x7C00074E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvrx(f, i);
 }
-XEEMITTER(stvrxl128,      VX128_1(4, 1859), VX128_1)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(stvrxl128,      VX128_1(4, 1859), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvrx128(f, i);
 }
 
-XEEMITTER(mfvscr,         0x10000604, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mfvscr,         0x10000604, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtvscr,         0x10000644, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtvscr,         0x10000644, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vaddcuw,        0x10000180, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddcuw,        0x10000180, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vaddfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vaddfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) + (VB) (4 x fp)
   Value* v = f.Add(f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vaddfp,         0x1000000A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddfp,         0x1000000A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vaddfp_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vaddfp128,      VX128(5, 16),     VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddfp128,      VX128(5, 16),     VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vaddfp_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vaddsbs,        0x10000300, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddsbs,        0x10000300, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vaddshs,        0x10000340, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddshs,        0x10000340, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vaddsws,        0x10000380, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddsws,        0x10000380, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vaddubm,        0x10000000, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddubm,        0x10000000, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vaddubs,        0x10000200, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vaddubs,        0x10000200, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vadduhm,        0x10000040, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vadduhm,        0x10000040, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vadduhs,        0x10000240, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vadduhs,        0x10000240, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vadduwm,        0x10000080, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vadduwm,        0x10000080, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vadduws,        0x10000280, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vadduws,        0x10000280, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vand_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vand_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) & (VB)
   Value* v = f.And(f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vand,           0x10000404, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vand,           0x10000404, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vand_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vand128,        VX128(5, 528),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vand128,        VX128(5, 528),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vand_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-int InstrEmit_vandc_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vandc_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) & ¬(VB)
   Value* v = f.And(f.LoadVR(va), f.Not(f.LoadVR(vb)));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vandc,          0x10000444, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vandc,          0x10000444, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vandc_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vandc128,       VX128(5, 592),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vandc128,       VX128(5, 592),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vandc_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vavgsb,         0x10000502, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vavgsb,         0x10000502, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vavgsh,         0x10000542, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vavgsh,         0x10000542, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vavgsw,         0x10000582, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vavgsw,         0x10000582, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vavgub,         0x10000402, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vavgub,         0x10000402, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vavguh,         0x10000442, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vavguh,         0x10000442, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vavguw,         0x10000482, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vavguw,         0x10000482, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vcfsx,          0x1000034A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcfsx,          0x1000034A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- float(VB) / 2^uimm
   uint32_t uimm = VX128_3_IMM;
   uimm = uimm ? (2 << (uimm - 1)) : 1;
@@ -520,34 +520,34 @@ XEEMITTER(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vcfux,          0x1000030A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcfux,          0x1000030A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vcuxwfp128,     VX128_3(6, 752),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcuxwfp128,     VX128_3(6, 752),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vcmpbfp_(PPCFunctionBuilder& f, InstrData& i, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
+int InstrEmit_vcmpbfp_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vcmpbfp,        0x100003C6, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpbfp,        0x100003C6, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpbfp_(f, i, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpbfp128,     VX128(6, 384),    VX128_R)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpbfp128,     VX128(6, 384),    VX128_R)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpbfp_(f, i, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
 
@@ -556,7 +556,7 @@ enum vcmpxxfp_op {
   vcmpxxfp_gt,
   vcmpxxfp_ge,
 };
-int InstrEmit_vcmpxxfp_(PPCFunctionBuilder& f, InstrData& i, vcmpxxfp_op cmpop, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
+int InstrEmit_vcmpxxfp_(PPCHIRBuilder& f, InstrData& i, vcmpxxfp_op cmpop, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
   // (VD.xyzw) = (VA.xyzw) OP (VB.xyzw) ? 0xFFFFFFFF : 0x00000000
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
   // If an element in either VA or VB is NaN the result will be 0x00000000
@@ -582,22 +582,22 @@ int InstrEmit_vcmpxxfp_(PPCFunctionBuilder& f, InstrData& i, vcmpxxfp_op cmpop, 
   return 0;
 }
 
-XEEMITTER(vcmpeqfp,       0x100000C6, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpeqfp,       0x100000C6, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxfp_(f, i, vcmpxxfp_eq, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpeqfp128,    VX128(6, 0),      VX128_R)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpeqfp128,    VX128(6, 0),      VX128_R)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxfp_(f, i, vcmpxxfp_eq, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
-XEEMITTER(vcmpgefp,       0x100001C6, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgefp,       0x100001C6, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxfp_(f, i, vcmpxxfp_ge, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgefp128,    VX128(6, 128),    VX128_R)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgefp128,    VX128(6, 128),    VX128_R)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxfp_(f, i, vcmpxxfp_ge, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
-XEEMITTER(vcmpgtfp,       0x100002C6, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtfp,       0x100002C6, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxfp_(f, i, vcmpxxfp_gt, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgtfp128,    VX128(6, 256),    VX128_R)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtfp128,    VX128(6, 256),    VX128_R)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxfp_(f, i, vcmpxxfp_gt, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
 
@@ -606,7 +606,7 @@ enum vcmpxxi_op {
   vcmpxxi_gt_signed,
   vcmpxxi_gt_unsigned,
 };
-int InstrEmit_vcmpxxi_(PPCFunctionBuilder& f, InstrData& i, vcmpxxi_op cmpop, uint32_t width, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
+int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop, uint32_t width, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {
   // (VD.xyzw) = (VA.xyzw) OP (VB.xyzw) ? 0xFFFFFFFF : 0x00000000
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
   // If an element in either VA or VB is NaN the result will be 0x00000000
@@ -662,83 +662,83 @@ int InstrEmit_vcmpxxi_(PPCFunctionBuilder& f, InstrData& i, vcmpxxi_op cmpop, ui
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vcmpequb,       0x10000006, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpequb,       0x10000006, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_eq, 1, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpequh,       0x10000046, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpequh,       0x10000046, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_eq, 2, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpequw,       0x10000086, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpequw,       0x10000086, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_eq, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpequw128,    VX128(6, 512),    VX128_R)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpequw128,    VX128(6, 512),    VX128_R)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_eq, 4, VX128_R_VD128, VX128_R_VA128, VX128_R_VB128, i.VX128_R.Rc);
 }
-XEEMITTER(vcmpgtsb,       0x10000306, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtsb,       0x10000306, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_signed, 1, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgtsh,       0x10000346, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtsh,       0x10000346, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_signed, 2, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgtsw,       0x10000386, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtsw,       0x10000386, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_signed, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgtub,       0x10000206, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtub,       0x10000206, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_unsigned, 1, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgtuh,       0x10000246, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtuh,       0x10000246, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_unsigned, 2, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
-XEEMITTER(vcmpgtuw,       0x10000286, VXR )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vcmpgtuw,       0x10000286, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_unsigned, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
 }
 
-XEEMITTER(vctsxs,         0x100003CA, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vctsxs,         0x100003CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vctuxs,         0x1000038A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vctuxs,         0x1000038A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vexptefp,       0x1000018A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vexptefp,       0x1000018A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vexptefp128,    VX128_3(6, 1712), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vlogefp,        0x100001CA, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vlogefp128,     VX128_3(6, 1776), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vexptefp128,    VX128_3(6, 1712), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vmaddfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+XEEMITTER(vlogefp,        0x100001CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vlogefp128,     VX128_3(6, 1776), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+int InstrEmit_vmaddfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   // (VD) <- ((VA) * (VC)) + (VB)
   Value* v = f.MulAdd(
       f.LoadVR(va), f.LoadVR(vc), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vmaddfp,        0x1000002E, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaddfp,        0x1000002E, VXA )(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- ((VA) * (VC)) + (VB)
   return InstrEmit_vmaddfp_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
-XEEMITTER(vmaddfp128,     VX128(5, 208),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaddfp128,     VX128(5, 208),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- ((VA) * (VB)) + (VD)
   // NOTE: this resuses VD and swaps the arg order!
   return InstrEmit_vmaddfp_(f, VX128_VD128, VX128_VA128, VX128_VD128, VX128_VB128);
 }
 
-XEEMITTER(vmaddcfp128,    VX128(5, 272),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaddcfp128,    VX128(5, 272),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- ((VA) * (VD)) + (VB)
   Value* v = f.MulAdd(
       f.LoadVR(VX128_VA128), f.LoadVR(VX128_VD128), f.LoadVR(VX128_VB128));
@@ -746,118 +746,118 @@ XEEMITTER(vmaddcfp128,    VX128(5, 272),    VX128  )(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-int InstrEmit_vmaxfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vmaxfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- max((VA), (VB))
   Value* v = f.Max(f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vmaxfp,         0x1000040A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxfp,         0x1000040A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vmaxfp_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vmaxfp128,      VX128(6, 640),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxfp128,      VX128(6, 640),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vmaxfp_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vmaxsb,         0x10000102, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxsb,         0x10000102, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmaxsh,         0x10000142, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxsh,         0x10000142, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmaxsw,         0x10000182, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxsw,         0x10000182, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmaxub,         0x10000002, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxub,         0x10000002, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmaxuh,         0x10000042, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxuh,         0x10000042, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmaxuw,         0x10000082, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmaxuw,         0x10000082, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmhaddshs,      0x10000020, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmhaddshs,      0x10000020, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmhraddshs,     0x10000021, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmhraddshs,     0x10000021, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vminfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vminfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- min((VA), (VB))
   Value* v = f.Min(f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vminfp,         0x1000044A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminfp,         0x1000044A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vminfp_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vminfp128,      VX128(6, 704),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminfp128,      VX128(6, 704),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vminfp_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vminsb,         0x10000302, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminsb,         0x10000302, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vminsh,         0x10000342, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminsh,         0x10000342, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vminsw,         0x10000382, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminsw,         0x10000382, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vminub,         0x10000202, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminub,         0x10000202, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vminuh,         0x10000242, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminuh,         0x10000242, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vminuw,         0x10000282, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vminuw,         0x10000282, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmladduhm,      0x10000022, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmladduhm,      0x10000022, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmrghb,         0x1000000C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrghb,         0x1000000C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmrghh,         0x1000004C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrghh,         0x1000004C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vmrghw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vmrghw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.x) = (VA.x)
   // (VD.y) = (VB.x)
   // (VD.z) = (VA.y)
@@ -870,24 +870,24 @@ int InstrEmit_vmrghw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t 
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vmrghw,         0x1000008C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrghw,         0x1000008C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vmrghw_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vmrghw128,      VX128(6, 768),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrghw128,      VX128(6, 768),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vmrghw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vmrglb,         0x1000010C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrglb,         0x1000010C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmrglh,         0x1000014C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrglh,         0x1000014C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vmrglw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vmrglw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.x) = (VA.z)
   // (VD.y) = (VB.z)
   // (VD.z) = (VA.w)
@@ -900,44 +900,44 @@ int InstrEmit_vmrglw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t 
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vmrglw,         0x1000018C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrglw,         0x1000018C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vmrglw_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vmrglw128,      VX128(6, 832),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmrglw128,      VX128(6, 832),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vmrglw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vmsummbm,       0x10000025, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsummbm,       0x10000025, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmsumshm,       0x10000028, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsumshm,       0x10000028, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmsumshs,       0x10000029, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsumshs,       0x10000029, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmsumubm,       0x10000024, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsumubm,       0x10000024, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmsumuhm,       0x10000026, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsumuhm,       0x10000026, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmsumuhs,       0x10000027, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsumuhs,       0x10000027, VXA )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmsum3fp128,    VX128(5, 400),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsum3fp128,    VX128(5, 400),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   // Dot product XYZ.
   // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z)
   Value* v = f.DotProduct3(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VB128));
@@ -946,7 +946,7 @@ XEEMITTER(vmsum3fp128,    VX128(5, 400),    VX128  )(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-XEEMITTER(vmsum4fp128,    VX128(5, 464),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmsum4fp128,    VX128(5, 464),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   // Dot product XYZW.
   // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z) + (VA.w * VB.w)
   Value* v = f.DotProduct4(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VB128));
@@ -955,54 +955,54 @@ XEEMITTER(vmsum4fp128,    VX128(5, 464),    VX128  )(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-XEEMITTER(vmulesb,        0x10000308, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmulesb,        0x10000308, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmulesh,        0x10000348, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmulesh,        0x10000348, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmuleub,        0x10000208, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmuleub,        0x10000208, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmuleuh,        0x10000248, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmuleuh,        0x10000248, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmulosb,        0x10000108, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmulosb,        0x10000108, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmulosh,        0x10000148, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmulosh,        0x10000148, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmuloub,        0x10000008, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmuloub,        0x10000008, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmulouh,        0x10000048, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmulouh,        0x10000048, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vmulfp128,      VX128(5, 144),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vmulfp128,      VX128(5, 144),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- (VA) * (VB) (4 x fp)
   Value* v = f.Mul(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VB128));
   f.StoreVR(VX128_VD128, v);
   return 0;
 }
 
-int InstrEmit_vnmsubfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+int InstrEmit_vnmsubfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   // (VD) <- -(((VA) * (VC)) - (VB))
   // NOTE: only one rounding should take place, but that's hard...
   // This really needs VFNMSUB132PS/VFNMSUB213PS/VFNMSUB231PS but that's AVX.
@@ -1010,27 +1010,27 @@ int InstrEmit_vnmsubfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vnmsubfp,       0x1000002F, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vnmsubfp,       0x1000002F, VXA )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vnmsubfp_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
-XEEMITTER(vnmsubfp128,    VX128(5, 336),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vnmsubfp128,    VX128(5, 336),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vnmsubfp_(f, VX128_VD128, VX128_VA128, VX128_VB128, VX128_VD128);
 }
 
-int InstrEmit_vnor_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vnor_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- ¬((VA) | (VB))
   Value* v = f.Not(f.Or(f.LoadVR(va), f.LoadVR(vb)));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vnor,           0x10000504, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vnor,           0x10000504, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vnor_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vnor128,        VX128(5, 656),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vnor128,        VX128(5, 656),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vnor_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-int InstrEmit_vor_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vor_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) | (VB)
   if (va == vb) {
     // Copy VA==VB into VD.
@@ -1041,26 +1041,26 @@ int InstrEmit_vor_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb)
   }
   return 0;
 }
-XEEMITTER(vor,            0x10000484, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vor,            0x10000484, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vor_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vor128,         VX128(5, 720),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vor128,         VX128(5, 720),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vor_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-int InstrEmit_vperm_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+int InstrEmit_vperm_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   Value* v = f.Permute(f.LoadVR(vc), f.LoadVR(va), f.LoadVR(vb), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vperm,          0x1000002B, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vperm,          0x1000002B, VXA )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vperm_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
-XEEMITTER(vperm128,       VX128_2(5, 0),    VX128_2)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vperm128,       VX128_2(5, 0),    VX128_2)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vperm_(f, VX128_2_VD128, VX128_2_VA128, VX128_2_VB128, VX128_2_VC);
 }
 
-XEEMITTER(vpermwi128,     VX128_P(6, 528),  VX128_P)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpermwi128,     VX128_P(6, 528),  VX128_P)(PPCHIRBuilder& f, InstrData& i) {
   // (VD.x) = (VB.uimm[6-7])
   // (VD.y) = (VB.uimm[4-5])
   // (VD.z) = (VB.uimm[2-3])
@@ -1073,157 +1073,157 @@ XEEMITTER(vpermwi128,     VX128_P(6, 528),  VX128_P)(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-XEEMITTER(vpkpx,          0x1000030E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkpx,          0x1000030E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vpkshss,        0x1000018E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkshss,        0x1000018E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vpkshss128,     VX128(5, 512),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkswss,        0x100001CE, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkswss128,     VX128(5, 640),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkshss128,     VX128(5, 512),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vpkswus,        0x1000014E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkswss,        0x100001CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vpkswus128,     VX128(5, 704),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkuhum,        0x1000000E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkuhum128,     VX128(5, 768),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkswss128,     VX128(5, 640),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vpkuhus,        0x1000008E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkswus,        0x1000014E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vpkuhus128,     VX128(5, 832),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkshus,        0x1000010E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkshus128,     VX128(5, 576),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkswus128,     VX128(5, 704),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vpkuwum,        0x1000004E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkuhum,        0x1000000E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vpkuwum128,     VX128(5, 896),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkuwus,        0x100000CE, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkuwus128,     VX128(5, 960),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkuhum128,     VX128(5, 768),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkuhus,        0x1000008E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuhus128,     VX128(5, 832),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vrefp,          0x1000010A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkshus,        0x1000010E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vrefp128,       VX128_3(6, 1584), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vrfim,          0x100002CA, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vrfim128,       VX128_3(6, 816),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vpkshus128,     VX128(5, 576),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vrfin_(PPCFunctionBuilder& f, uint32_t vd, uint32_t vb) {
+XEEMITTER(vpkuwum,        0x1000004E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuwum128,     VX128(5, 896),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkuwus,        0x100000CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuwus128,     VX128(5, 960),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vrefp,          0x1000010A, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vrefp128,       VX128_3(6, 1584), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vrfim,          0x100002CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vrfim128,       VX128_3(6, 816),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+int InstrEmit_vrfin_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- RoundToNearest(VB)
   Value* v = f.Round(f.LoadVR(vd), ROUND_TO_NEAREST);
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vrfin,          0x1000020A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrfin,          0x1000020A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vrfin_(f, i.VX.VD, i.VX.VB);
 }
-XEEMITTER(vrfin128,       VX128_3(6, 880),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrfin128,       VX128_3(6, 880),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vrfin_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
-XEEMITTER(vrfip,          0x1000028A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrfip,          0x1000028A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vrfip128,       VX128_3(6, 944),  VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vrfiz,          0x1000024A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vrfiz128,       VX128_3(6, 1008), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrfip128,       VX128_3(6, 944),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vrlb,           0x10000004, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrfiz,          0x1000024A, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vrfiz128,       VX128_3(6, 1008), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vrlh,           0x10000044, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrlb,           0x10000004, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vrlw,           0x10000084, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vrlw128,        VX128(6, 80),     VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrlh,           0x10000044, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrlw,           0x10000084, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vrlw128,        VX128(6, 80),     VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f, InstrData& i) {
   const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
   const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
   uint32_t blend_mask_src = i.VX128_4.IMM;
@@ -1268,7 +1268,7 @@ XEEMITTER(vrlimi128,      VX128_4(6, 1808), VX128_4)(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-int InstrEmit_vrsqrtefp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t vb) {
+int InstrEmit_vrsqrtefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- 1 / sqrt(VB)
   // There are a lot of rules in the Altivec_PEM docs for handlings that
   // result in nan/infinity/etc. They are ignored here. I hope games would
@@ -1277,44 +1277,44 @@ int InstrEmit_vrsqrtefp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t vb) {
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vrsqrtefp,      0x1000014A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrsqrtefp,      0x1000014A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vrsqrtefp_(f, i.VX.VD, i.VX.VB);
 }
-XEEMITTER(vrsqrtefp128,   VX128_3(6, 1648), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vrsqrtefp128,   VX128_3(6, 1648), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vrsqrtefp_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
-int InstrEmit_vsel_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
+int InstrEmit_vsel_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
   Value* a = f.LoadVR(va);
   Value* v = f.Xor(f.And(f.Xor(a, f.LoadVR(vb)), f.LoadVR(vc)), a);
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vsel,           0x1000002A, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsel,           0x1000002A, VXA )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsel_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
-XEEMITTER(vsel128,        VX128(5, 848),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsel128,        VX128(5, 848),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsel_(f, VX128_VD128, VX128_VA128, VX128_VB128, VX128_VD128);
 }
 
-XEEMITTER(vsl,            0x100001C4, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsl,            0x100001C4, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vslb,           0x10000104, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vslb,           0x10000104, VX  )(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.VectorShl(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
 
-XEEMITTER(vslh,           0x10000144, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vslh,           0x10000144, VX  )(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.VectorShl(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
 
-int InstrEmit_vslw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vslw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VA = |xxxxx|yyyyy|zzzzz|wwwww|
   // VB = |...sh|...sh|...sh|...sh|
   // VD = |x<<sh|y<<sh|z<<sh|w<<sh|
@@ -1322,10 +1322,10 @@ int InstrEmit_vslw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vslw,           0x10000184, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vslw,           0x10000184, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vslw_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vslw128,        VX128(6, 208),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vslw128,        VX128(6, 208),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vslw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
@@ -1347,7 +1347,7 @@ static uint8_t __vsldoi_table[16][16] = {
   {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
   {15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
 };
-int InstrEmit_vsldoi_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t sh) {
+int InstrEmit_vsldoi_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t sh) {
   // (VD) <- ((VA) || (VB)) << (SH << 3)
   if (!sh) {
     f.StoreVR(vd, f.LoadVR(va));
@@ -1368,23 +1368,23 @@ int InstrEmit_vsldoi_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t 
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vsldoi,         0x1000002C, VXA )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsldoi,         0x1000002C, VXA )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsldoi_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC & 0xF);
 }
-XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsldoi128,      VX128_5(4, 16),   VX128_5)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsldoi_(f, VX128_5_VD128, VX128_5_VA128, VX128_5_VB128, VX128_5_SH);
 }
 
-XEEMITTER(vslo,           0x1000040C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vslo,           0x1000040C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vslo128,        VX128(5, 912),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vslo128,        VX128(5, 912),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vspltb,         0x1000020C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltb,         0x1000020C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   // b <- UIMM*8
   // do i = 0 to 127 by 8
   //  (VD)[i:i+7] <- (VB)[b:b+7]
@@ -1394,7 +1394,7 @@ XEEMITTER(vspltb,         0x1000020C, VX  )(PPCFunctionBuilder& f, InstrData& i)
   return 0;
 }
 
-XEEMITTER(vsplth,         0x1000024C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsplth,         0x1000024C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   // (VD.xyzw) <- (VB.uimm)
   Value* h = f.Extract(f.LoadVR(i.VX.VB), (i.VX.VA & 0x7), INT16_TYPE);
   Value* v = f.Splat(h, VEC128_TYPE);
@@ -1402,21 +1402,21 @@ XEEMITTER(vsplth,         0x1000024C, VX  )(PPCFunctionBuilder& f, InstrData& i)
   return 0;
 }
 
-int InstrEmit_vspltw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t vb, uint32_t uimm) {
+int InstrEmit_vspltw_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb, uint32_t uimm) {
   // (VD.xyzw) <- (VB.uimm)
   Value* w = f.Extract(f.LoadVR(vb), (uimm & 0x3), INT32_TYPE);
   Value* v = f.Splat(w, VEC128_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vspltw,         0x1000028C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltw,         0x1000028C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vspltw_(f, i.VX.VD, i.VX.VB, i.VX.VA);
 }
-XEEMITTER(vspltw128,      VX128_3(6, 1840), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltw128,      VX128_3(6, 1840), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vspltw_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
-XEEMITTER(vspltisb,       0x1000030C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltisb,       0x1000030C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   // (VD.xyzw) <- sign_extend(uimm)
   Value* v;
   if (i.VX.VA) {
@@ -1431,7 +1431,7 @@ XEEMITTER(vspltisb,       0x1000030C, VX  )(PPCFunctionBuilder& f, InstrData& i)
   return 0;
 }
 
-XEEMITTER(vspltish,       0x1000034C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltish,       0x1000034C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   // (VD.xyzw) <- sign_extend(uimm)
   Value* v;
   if (i.VX.VA) {
@@ -1446,7 +1446,7 @@ XEEMITTER(vspltish,       0x1000034C, VX  )(PPCFunctionBuilder& f, InstrData& i)
   return 0;
 }
 
-int InstrEmit_vspltisw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t uimm) {
+int InstrEmit_vspltisw_(PPCHIRBuilder& f, uint32_t vd, uint32_t uimm) {
   // (VD.xyzw) <- sign_extend(uimm)
   Value* v;
   if (uimm) {
@@ -1460,187 +1460,187 @@ int InstrEmit_vspltisw_(PPCFunctionBuilder& f, uint32_t vd, uint32_t uimm) {
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vspltisw,       0x1000038C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltisw,       0x1000038C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vspltisw_(f, i.VX.VD, i.VX.VA);
 }
-XEEMITTER(vspltisw128,    VX128_3(6, 1904), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vspltisw128,    VX128_3(6, 1904), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vspltisw_(f, VX128_3_VD128, VX128_3_IMM);
 }
 
-XEEMITTER(vsr,            0x100002C4, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsr,            0x100002C4, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsrab,          0x10000304, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsrab,          0x10000304, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsrah,          0x10000344, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsrah,          0x10000344, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsraw,          0x10000384, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsraw,          0x10000384, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vsraw128,       VX128(6, 336),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vsrb,           0x10000204, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsraw128,       VX128(6, 336),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsrh,           0x10000244, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsrb,           0x10000204, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsro,           0x1000044C, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vsro128,        VX128(5, 976),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsrh,           0x10000244, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsrw,           0x10000284, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsro,           0x1000044C, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vsrw128,        VX128(6, 464),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vsubcuw,        0x10000580, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsro128,        VX128(5, 976),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-int InstrEmit_vsubfp_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+XEEMITTER(vsrw,           0x10000284, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vsrw128,        VX128(6, 464),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vsubcuw,        0x10000580, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+int InstrEmit_vsubfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) - (VB) (4 x fp)
   Value* v = f.Sub(f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vsubfp,         0x1000004A, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubfp,         0x1000004A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsubfp_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vsubfp128,      VX128(5, 80),     VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubfp128,      VX128(5, 80),     VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsubfp_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-XEEMITTER(vsubsbs,        0x10000700, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubsbs,        0x10000700, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsubshs,        0x10000740, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubshs,        0x10000740, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsubsws,        0x10000780, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubsws,        0x10000780, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsububm,        0x10000400, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsububm,        0x10000400, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsububs,        0x10000600, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsububs,        0x10000600, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsubuhm,        0x10000440, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubuhm,        0x10000440, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsubuhs,        0x10000640, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubuhs,        0x10000640, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsubuwm,        0x10000480, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubuwm,        0x10000480, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsubuws,        0x10000680, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsubuws,        0x10000680, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsumsws,        0x10000788, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsumsws,        0x10000788, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsum2sws,       0x10000688, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsum2sws,       0x10000688, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsum4sbs,       0x10000708, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsum4sbs,       0x10000708, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsum4shs,       0x10000648, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsum4shs,       0x10000648, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vsum4ubs,       0x10000608, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vsum4ubs,       0x10000608, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vupkhpx,        0x1000034E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupkhpx,        0x1000034E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vupkhsb,        0x1000020E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupkhsb,        0x1000020E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-XEEMITTER(vupkhsb128,     VX128(6, 896),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vupkhsh,        0x1000024E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupkhsb128,     VX128(6, 896),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vupklpx,        0x100003CE, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupkhsh,        0x1000024E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vupklsb,        0x1000028E, VX  )(PPCFunctionBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vupklsb128,     VX128(6, 960),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupklpx,        0x100003CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupklsb,        0x1000028E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vupklsb128,     VX128(6, 960),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -1671,7 +1671,7 @@ XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCFunctionBuilder& f, InstrData& i)
 // #undef CONSTF
 // }
 
-XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   // Can't find many docs on this. Best reference is
   // http://worldcraft.googlecode.com/svn/trunk/src/qylib/math/xmmatrix.inl,
   // which shows how it's used in some cases. Since it's all intrinsics,
@@ -1768,7 +1768,7 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCFunctionBuilder& f, Inst
   return 0;
 }
 
-int InstrEmit_vxor_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+int InstrEmit_vxor_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) ^ (VB)
   Value* v;
   if (va == vb) {
@@ -1780,10 +1780,10 @@ int InstrEmit_vxor_(PPCFunctionBuilder& f, uint32_t vd, uint32_t va, uint32_t vb
   f.StoreVR(vd, v);
   return 0;
 }
-XEEMITTER(vxor,           0x100004C4, VX  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vxor,           0x100004C4, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vxor_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
-XEEMITTER(vxor128,        VX128(5, 784),    VX128  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(vxor128,        VX128(5, 784),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vxor_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 

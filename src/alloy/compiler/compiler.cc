@@ -9,7 +9,7 @@
 
 #include <alloy/compiler/compiler.h>
 
-#include <alloy/compiler/pass.h>
+#include <alloy/compiler/compiler_pass.h>
 #include <alloy/compiler/tracing.h>
 
 using namespace alloy;
@@ -26,9 +26,9 @@ Compiler::Compiler(Runtime* runtime) :
 
 Compiler::~Compiler() {
   Reset();
-  
-  for (PassList::iterator it = passes_.begin(); it != passes_.end(); ++it) {
-    Pass* pass = *it;
+
+  for (auto it = passes_.begin(); it != passes_.end(); ++it) {
+    CompilerPass* pass = *it;
     delete pass;
   }
 
@@ -36,7 +36,7 @@ Compiler::~Compiler() {
   }));
 }
 
-void Compiler::AddPass(Pass* pass) {
+void Compiler::AddPass(CompilerPass* pass) {
   pass->Initialize(this);
   passes_.push_back(pass);
 }
@@ -44,11 +44,11 @@ void Compiler::AddPass(Pass* pass) {
 void Compiler::Reset() {
 }
 
-int Compiler::Compile(FunctionBuilder* builder) {
+int Compiler::Compile(HIRBuilder* builder) {
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
-  for (PassList::iterator it = passes_.begin(); it != passes_.end(); ++it) {
-    Pass* pass = *it;
+  for (auto it = passes_.begin(); it != passes_.end(); ++it) {
+    CompilerPass* pass = *it;
     if (pass->Run(builder)) {
       return 1;
     }

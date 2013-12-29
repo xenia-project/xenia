@@ -30,7 +30,7 @@ public:
   virtual void Reset();
 
   virtual int Assemble(
-      runtime::FunctionInfo* symbol_info, hir::FunctionBuilder* builder,
+      runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
       runtime::DebugInfo* debug_info, runtime::Function** out_function);
 
 private:

@@ -24,8 +24,9 @@ namespace ppc {
 #define XEREGISTERINSTR(name, opcode) \
     RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
-//#define XEINSTRNOTIMPLEMENTED()
-#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
+#define XEINSTRNOTIMPLEMENTED()
+//#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
+//#define XEINSTRNOTIMPLEMENTED() __debugbreak()
 
 
 }  // namespace ppc

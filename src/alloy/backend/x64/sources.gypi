@@ -1,5 +1,21 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'tracing.h',
+    'x64_assembler.cc',
+    'x64_assembler.h',
+    'x64_backend.cc',
+    'x64_backend.h',
+    'x64_codegen.cc',
+    'x64_codegen.h',
+    'x64_emitter.cc',
+    'x64_emitter.h',
+    'x64_function.cc',
+    'x64_function.h',
+  ],
+
+  'includes': [
+    'lir/sources.gypi',
+    'optimizer/sources.gypi',
   ],
 }

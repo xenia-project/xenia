@@ -10,7 +10,7 @@
 #include <alloy/frontend/ppc/ppc_emit-private.h>
 
 #include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_hir_builder.h>
 
 
 using namespace alloy::frontend::ppc;
@@ -35,7 +35,7 @@ namespace ppc {
 
 // Floating-point arithmetic (A-8)
 
-XEEMITTER(faddx,        0xFC00002A, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(faddx,        0xFC00002A, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA) + (frB)
   Value* v = f.Add(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
@@ -48,7 +48,7 @@ XEEMITTER(faddx,        0xFC00002A, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(faddsx,       0xEC00002A, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(faddsx,       0xEC00002A, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA) + (frB)
   Value* v = f.Add(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -62,7 +62,7 @@ XEEMITTER(faddsx,       0xEC00002A, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fdivx,        0xFC000024, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fdivx,        0xFC000024, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- frA / frB
   Value* v = f.Div(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
@@ -75,7 +75,7 @@ XEEMITTER(fdivx,        0xFC000024, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fdivsx,       0xEC000024, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fdivsx,       0xEC000024, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- frA / frB
   Value* v = f.Div(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -89,7 +89,7 @@ XEEMITTER(fdivsx,       0xEC000024, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmulx,        0xFC000032, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmulx,        0xFC000032, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA) x (frC)
   Value* v = f.Mul(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC));
   f.StoreFPR(i.A.FRT, v);
@@ -102,7 +102,7 @@ XEEMITTER(fmulx,        0xFC000032, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmulsx,       0xEC000032, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmulsx,       0xEC000032, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA) x (frC)
   Value* v = f.Mul(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -116,17 +116,17 @@ XEEMITTER(fmulsx,       0xEC000032, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fresx,        0xEC000030, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fresx,        0xEC000030, A  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(frsqrtex,     0xFC000034, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(frsqrtex,     0xFC000034, A  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fsubx,        0xFC000028, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fsubx,        0xFC000028, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA) - (frB)
   Value* v = f.Sub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
@@ -139,7 +139,7 @@ XEEMITTER(fsubx,        0xFC000028, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsubsx,       0xEC000028, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fsubsx,       0xEC000028, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA) - (frB)
   Value* v = f.Sub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -153,7 +153,7 @@ XEEMITTER(fsubsx,       0xEC000028, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fselx,        0xFC00002E, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fselx,        0xFC00002E, A  )(PPCHIRBuilder& f, InstrData& i) {
   // if (frA) >= 0.0
   // then frD <- (frC)
   // else frD <- (frB)
@@ -168,7 +168,7 @@ XEEMITTER(fselx,        0xFC00002E, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsqrtx,       0xFC00002C, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fsqrtx,       0xFC00002C, A  )(PPCHIRBuilder& f, InstrData& i) {
   // Double precision:
   // frD <- sqrt(frB)
   Value* v = f.Sqrt(f.LoadFPR(i.A.FRA));
@@ -182,7 +182,7 @@ XEEMITTER(fsqrtx,       0xFC00002C, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsqrtsx,      0xEC00002C, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fsqrtsx,      0xEC00002C, A  )(PPCHIRBuilder& f, InstrData& i) {
   // Single precision:
   // frD <- sqrt(frB)
   Value* v = f.Sqrt(f.LoadFPR(i.A.FRA));
@@ -200,7 +200,7 @@ XEEMITTER(fsqrtsx,      0xEC00002C, A  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Floating-point multiply-add (A-9)
 
-XEEMITTER(fmaddx,       0xFC00003A, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmaddx,       0xFC00003A, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA x frC) + frB
   Value* v = f.MulAdd(
       f.LoadFPR(i.A.FRA),
@@ -216,7 +216,7 @@ XEEMITTER(fmaddx,       0xFC00003A, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmaddsx,      0xEC00003A, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmaddsx,      0xEC00003A, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA x frC) + frB
   Value* v = f.MulAdd(
       f.LoadFPR(i.A.FRA),
@@ -233,7 +233,7 @@ XEEMITTER(fmaddsx,      0xEC00003A, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmsubx,       0xFC000038, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmsubx,       0xFC000038, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA x frC) - frB
   Value* v = f.MulSub(
       f.LoadFPR(i.A.FRA),
@@ -249,7 +249,7 @@ XEEMITTER(fmsubx,       0xFC000038, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmsubsx,      0xEC000038, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmsubsx,      0xEC000038, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frA x frC) - frB
   Value* v = f.MulSub(
       f.LoadFPR(i.A.FRA),
@@ -266,17 +266,17 @@ XEEMITTER(fmsubsx,      0xEC000038, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnmaddx,      0xFC00003E, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fnmaddx,      0xFC00003E, A  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnmaddsx,     0xEC00003E, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fnmaddsx,     0xEC00003E, A  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnmsubx,      0xFC00003C, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fnmsubx,      0xFC00003C, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- -([frA x frC] - frB)
   Value* v = f.Neg(f.MulSub(
       f.LoadFPR(i.A.FRA),
@@ -292,7 +292,7 @@ XEEMITTER(fnmsubx,      0xFC00003C, A  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnmsubsx,     0xEC00003C, A  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fnmsubsx,     0xEC00003C, A  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- -([frA x frC] - frB)
   Value* v = f.Neg(f.MulSub(
       f.LoadFPR(i.A.FRA),
@@ -312,7 +312,7 @@ XEEMITTER(fnmsubsx,     0xEC00003C, A  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Floating-point rounding and conversion (A-10)
 
-XEEMITTER(fcfidx,       0xFC00069C, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fcfidx,       0xFC00069C, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- signed_int64_to_double( frB )
   Value* v = f.Convert(
       f.Cast(f.LoadFPR(i.A.FRB), INT64_TYPE),
@@ -327,7 +327,7 @@ XEEMITTER(fcfidx,       0xFC00069C, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fctidx,       0xFC00065C, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fctidx,       0xFC00065C, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- double_to_signed_int64( frB )
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
@@ -343,12 +343,12 @@ XEEMITTER(fctidx,       0xFC00065C, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fctidzx,      0xFC00065E, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fctidzx,      0xFC00065E, X  )(PPCHIRBuilder& f, InstrData& i) {
   // TODO(benvanik): assuming round to zero is always set, is that ok?
   return InstrEmit_fctidx(f, i);
 }
 
-XEEMITTER(fctiwx,       0xFC00001C, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fctiwx,       0xFC00001C, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- double_to_signed_int32( frB )
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
@@ -364,12 +364,12 @@ XEEMITTER(fctiwx,       0xFC00001C, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fctiwzx,      0xFC00001E, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fctiwzx,      0xFC00001E, X  )(PPCHIRBuilder& f, InstrData& i) {
   // TODO(benvanik): assuming round to zero is always set, is that ok?
   return InstrEmit_fctiwx(f, i);
 }
 
-XEEMITTER(frspx,        0xFC000018, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(frspx,        0xFC000018, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- Round_single(frB)
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
@@ -388,7 +388,7 @@ XEEMITTER(frspx,        0xFC000018, X  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Floating-point compare (A-11)
 
-int InstrEmit_fcmpx_(PPCFunctionBuilder& f, InstrData& i, bool ordered) {
+int InstrEmit_fcmpx_(PPCHIRBuilder& f, InstrData& i, bool ordered) {
   // if (FRA) is a NaN or (FRB) is a NaN then
   //   c <- 0b0001
   // else if (FRA) < (FRB) then
@@ -410,42 +410,42 @@ int InstrEmit_fcmpx_(PPCFunctionBuilder& f, InstrData& i, bool ordered) {
   f.UpdateCR(crf, f.LoadFPR(i.X.RA), f.LoadFPR(i.X.RB), false);
   return 0;
 }
-XEEMITTER(fcmpo,        0xFC000040, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fcmpo,        0xFC000040, X  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_fcmpx_(f, i, true);
 }
-XEEMITTER(fcmpu,        0xFC000000, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fcmpu,        0xFC000000, X  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_fcmpx_(f, i, false);
 }
 
 
 // Floating-point status and control register (A
 
-XEEMITTER(mcrfs,        0xFC000080, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mcrfs,        0xFC000080, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mffsx,        0xFC00048E, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mffsx,        0xFC00048E, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsb0x,      0xFC00008C, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtfsb0x,      0xFC00008C, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsb1x,      0xFC00004C, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtfsb1x,      0xFC00004C, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsfx,       0xFC00058E, XFL)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtfsfx,       0xFC00058E, XFL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsfix,      0xFC00010C, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mtfsfix,      0xFC00010C, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -453,7 +453,7 @@ XEEMITTER(mtfsfix,      0xFC00010C, X  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Floating-point move (A-21)
 
-XEEMITTER(fabsx,        0xFC000210, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fabsx,        0xFC000210, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- abs(frB)
   Value* v = f.Abs(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
@@ -465,7 +465,7 @@ XEEMITTER(fabsx,        0xFC000210, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmrx,         0xFC000090, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fmrx,         0xFC000090, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- (frB)
   Value* v = f.LoadFPR(i.X.RB);
   f.StoreFPR(i.X.RT, v);
@@ -477,12 +477,12 @@ XEEMITTER(fmrx,         0xFC000090, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnabsx,       0xFC000110, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fnabsx,       0xFC000110, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(fnegx,        0xFC000050, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(fnegx,        0xFC000050, X  )(PPCHIRBuilder& f, InstrData& i) {
   // frD <- ¬ frB[0] || frB[1-63]
   Value* v = f.Neg(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);

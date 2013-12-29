@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_FRONTEND_PPC_PPC_FUNCTION_BUILDER_H_
-#define ALLOY_FRONTEND_PPC_PPC_FUNCTION_BUILDER_H_
+#ifndef ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_
+#define ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_
 
 #include <alloy/core.h>
-#include <alloy/hir/function_builder.h>
+#include <alloy/hir/hir_builder.h>
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 
@@ -23,13 +23,13 @@ namespace ppc {
 class PPCFrontend;
 
 
-class PPCFunctionBuilder : public hir::FunctionBuilder {
+class PPCHIRBuilder : public hir::HIRBuilder {
   using Instr = alloy::hir::Instr;
   using Label = alloy::hir::Label;
   using Value = alloy::hir::Value;
 public:
-  PPCFunctionBuilder(PPCFrontend* frontend);
-  virtual ~PPCFunctionBuilder();
+  PPCHIRBuilder(PPCFrontend* frontend);
+  virtual ~PPCHIRBuilder();
 
   virtual void Reset();
 
@@ -83,4 +83,4 @@ private:
 }  // namespace alloy
 
 
-#endif  // ALLOY_FRONTEND_PPC_PPC_FUNCTION_BUILDER_H_
+#endif  // ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_

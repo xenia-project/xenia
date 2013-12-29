@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/pass.h>
+#include <alloy/compiler/compiler_pass.h>
 
 #include <alloy/compiler/compiler.h>
 
@@ -15,14 +15,14 @@ using namespace alloy;
 using namespace alloy::compiler;
 
 
-Pass::Pass() :
+CompilerPass::CompilerPass() :
     runtime_(0), compiler_(0) {
 }
 
-Pass::~Pass() {
+CompilerPass::~CompilerPass() {
 }
 
-int Pass::Initialize(Compiler* compiler) {
+int CompilerPass::Initialize(Compiler* compiler) {
   runtime_ = compiler->runtime();
   compiler_ = compiler;
   return 0;

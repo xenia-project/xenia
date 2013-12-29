@@ -31,14 +31,15 @@ namespace backend {
 namespace ivm {
 
 
-//#define DPRINT printf
-//#define DFLUSH() fflush(stdout)
-#define DPRINT
-#define DFLUSH()
-//#define IPRINT printf
-//#define IFLUSH() fflush(stdout)
 #define IPRINT
 #define IFLUSH()
+#define DPRINT
+#define DFLUSH()
+
+//#define IPRINT if (ics.thread_state->thread_id() == 1) printf
+//#define IFLUSH() fflush(stdout)
+//#define DPRINT if (ics.thread_state->thread_id() == 1) printf
+//#define DFLUSH() fflush(stdout)
 
 
 uint32_t IntCode_INT_LOAD_CONSTANT(IntCodeState& ics, const IntCode* i) {

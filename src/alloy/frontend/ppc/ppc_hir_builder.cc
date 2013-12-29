@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_hir_builder.h>
 
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_context.h>
@@ -23,24 +23,24 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 
 
-PPCFunctionBuilder::PPCFunctionBuilder(PPCFrontend* frontend) :
+PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend) :
     frontend_(frontend),
-    FunctionBuilder() {
+    HIRBuilder() {
 }
 
-PPCFunctionBuilder::~PPCFunctionBuilder() {
+PPCHIRBuilder::~PPCHIRBuilder() {
 }
 
-void PPCFunctionBuilder::Reset() {
+void PPCHIRBuilder::Reset() {
   start_address_ = 0;
   instr_offset_list_ = NULL;
   label_list_ = NULL;
-  FunctionBuilder::Reset();
+  HIRBuilder::Reset();
 }
 
 const bool FLAGS_annotate_disassembly = true;
 
-int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
+int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
@@ -118,7 +118,7 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
       continue;
     }
 
-    typedef int (*InstrEmitter)(PPCFunctionBuilder& f, InstrData& i);
+    typedef int (*InstrEmitter)(PPCHIRBuilder& f, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
 
     /*if (i.address == FLAGS_break_on_instruction) {
@@ -130,7 +130,7 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
                i.address, i.code, i.type->name);
       Comment("UNIMPLEMENTED!");
-      DebugBreak();
+      //DebugBreak();
       //TraceInvalidInstruction(i);
 
       // This printf is handy for sort/uniquify to find instructions.
@@ -155,14 +155,14 @@ int PPCFunctionBuilder::Emit(FunctionInfo* symbol_info) {
   return Finalize();
 }
 
-void PPCFunctionBuilder::AnnotateLabel(uint64_t address, Label* label) {
+void PPCHIRBuilder::AnnotateLabel(uint64_t address, Label* label) {
   char name_buffer[13];
   xesnprintfa(name_buffer, XECOUNT(name_buffer), "loc_%.8X", address);
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
   xe_copy_struct(label->name, name_buffer, sizeof(name_buffer));
 }
 
-FunctionInfo* PPCFunctionBuilder::LookupFunction(uint64_t address) {
+FunctionInfo* PPCHIRBuilder::LookupFunction(uint64_t address) {
   Runtime* runtime = frontend_->runtime();
   FunctionInfo* symbol_info;
   if (runtime->LookupFunctionInfo(address, &symbol_info)) {
@@ -171,7 +171,7 @@ FunctionInfo* PPCFunctionBuilder::LookupFunction(uint64_t address) {
   return symbol_info;
 }
 
-Label* PPCFunctionBuilder::LookupLabel(uint64_t address) {
+Label* PPCHIRBuilder::LookupLabel(uint64_t address) {
   if (address < start_address_) {
     return NULL;
   }
@@ -206,50 +206,50 @@ Label* PPCFunctionBuilder::LookupLabel(uint64_t address) {
   return label;
 }
 
-//Value* PPCFunctionBuilder::LoadXER() {
+//Value* PPCHIRBuilder::LoadXER() {
 //}
 //
-//void PPCFunctionBuilder::StoreXER(Value* value) {
+//void PPCHIRBuilder::StoreXER(Value* value) {
 //}
 
-Value* PPCFunctionBuilder::LoadLR() {
+Value* PPCHIRBuilder::LoadLR() {
   return LoadContext(offsetof(PPCContext, lr), INT64_TYPE);
 }
 
-void PPCFunctionBuilder::StoreLR(Value* value) {
+void PPCHIRBuilder::StoreLR(Value* value) {
   XEASSERT(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, lr), value);
 }
 
-Value* PPCFunctionBuilder::LoadCTR() {
+Value* PPCHIRBuilder::LoadCTR() {
   return LoadContext(offsetof(PPCContext, ctr), INT64_TYPE);
 }
 
-void PPCFunctionBuilder::StoreCTR(Value* value) {
+void PPCHIRBuilder::StoreCTR(Value* value) {
   XEASSERT(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, ctr), value);
 }
 
-Value* PPCFunctionBuilder::LoadCR(uint32_t n) {
+Value* PPCHIRBuilder::LoadCR(uint32_t n) {
   XEASSERTALWAYS();
   return 0;
 }
 
-Value* PPCFunctionBuilder::LoadCRField(uint32_t n, uint32_t bit) {
+Value* PPCHIRBuilder::LoadCRField(uint32_t n, uint32_t bit) {
   return LoadContext(offsetof(PPCContext, cr0) + (4 * n) + bit, INT8_TYPE);
 }
 
-void PPCFunctionBuilder::StoreCR(uint32_t n, Value* value) {
+void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
   // TODO(benvanik): split bits out and store in values.
   XEASSERTALWAYS();
 }
 
-void PPCFunctionBuilder::UpdateCR(
+void PPCHIRBuilder::UpdateCR(
     uint32_t n, Value* lhs, bool is_signed) {
   UpdateCR(n, lhs, LoadZero(lhs->type), is_signed);
 }
 
-void PPCFunctionBuilder::UpdateCR(
+void PPCHIRBuilder::UpdateCR(
     uint32_t n, Value* lhs, Value* rhs, bool is_signed) {
   Value* lt;
   Value* gt;
@@ -269,7 +269,7 @@ void PPCFunctionBuilder::UpdateCR(
   // StoreContext(offsetof(PPCContext, cr) + (4 * n) + 3, so);
 }
 
-void PPCFunctionBuilder::UpdateCR6(Value* src_value) {
+void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   // Testing for all 1's and all 0's.
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
   // TODO(benvanik): efficient instruction?
@@ -277,51 +277,51 @@ void PPCFunctionBuilder::UpdateCR6(Value* src_value) {
   StoreContext(offsetof(PPCContext, cr6.cr6_none_equal), IsFalse(src_value));
 }
 
-Value* PPCFunctionBuilder::LoadXER() {
+Value* PPCHIRBuilder::LoadXER() {
   XEASSERTALWAYS();
   return NULL;
 }
 
-void PPCFunctionBuilder::StoreXER(Value* value) {
+void PPCHIRBuilder::StoreXER(Value* value) {
   XEASSERTALWAYS();
 }
 
-Value* PPCFunctionBuilder::LoadCA() {
+Value* PPCHIRBuilder::LoadCA() {
   return LoadContext(offsetof(PPCContext, xer_ca), INT8_TYPE);
 }
 
-void PPCFunctionBuilder::StoreCA(Value* value) {
+void PPCHIRBuilder::StoreCA(Value* value) {
   StoreContext(offsetof(PPCContext, xer_ca), value);
 }
 
-Value* PPCFunctionBuilder::LoadGPR(uint32_t reg) {
+Value* PPCHIRBuilder::LoadGPR(uint32_t reg) {
   return LoadContext(
       offsetof(PPCContext, r) + reg * 8, INT64_TYPE);
 }
 
-void PPCFunctionBuilder::StoreGPR(uint32_t reg, Value* value) {
+void PPCHIRBuilder::StoreGPR(uint32_t reg, Value* value) {
   XEASSERT(value->type == INT64_TYPE);
   StoreContext(
       offsetof(PPCContext, r) + reg * 8, value);
 }
 
-Value* PPCFunctionBuilder::LoadFPR(uint32_t reg) {
+Value* PPCHIRBuilder::LoadFPR(uint32_t reg) {
   return LoadContext(
       offsetof(PPCContext, f) + reg * 8, FLOAT64_TYPE);
 }
 
-void PPCFunctionBuilder::StoreFPR(uint32_t reg, Value* value) {
+void PPCHIRBuilder::StoreFPR(uint32_t reg, Value* value) {
   XEASSERT(value->type == FLOAT64_TYPE);
   StoreContext(
       offsetof(PPCContext, f) + reg * 8, value);
 }
 
-Value* PPCFunctionBuilder::LoadVR(uint32_t reg) {
+Value* PPCHIRBuilder::LoadVR(uint32_t reg) {
   return LoadContext(
       offsetof(PPCContext, v) + reg * 16, VEC128_TYPE);
 }
 
-void PPCFunctionBuilder::StoreVR(uint32_t reg, Value* value) {
+void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
   XEASSERT(value->type == VEC128_TYPE);
   StoreContext(
       offsetof(PPCContext, v) + reg * 16, value);

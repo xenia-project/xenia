@@ -2,8 +2,8 @@
 {
   'sources': [
     'block.h',
-    'function_builder.cc',
-    'function_builder.h',
+    'hir_builder.cc',
+    'hir_builder.h',
     'instr.cc',
     'instr.h',
     'label.h',

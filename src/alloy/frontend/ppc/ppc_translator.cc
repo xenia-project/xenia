@@ -10,10 +10,10 @@
 #include <alloy/frontend/ppc/ppc_translator.h>
 
 #include <alloy/alloy-private.h>
-#include <alloy/compiler/passes.h>
+#include <alloy/compiler/compiler_passes.h>
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_hir_builder.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/frontend/ppc/ppc_scanner.h>
 #include <alloy/runtime/runtime.h>
@@ -30,7 +30,7 @@ using namespace alloy::runtime;
 PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
     frontend_(frontend) {
   scanner_ = new PPCScanner(frontend);
-  builder_ = new PPCFunctionBuilder(frontend);
+  builder_ = new PPCHIRBuilder(frontend);
 
   compiler_ = new Compiler(frontend->runtime());
 

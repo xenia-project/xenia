@@ -21,7 +21,7 @@ namespace frontend {
 namespace ppc {
 
 class PPCFrontend;
-class PPCFunctionBuilder;
+class PPCHIRBuilder;
 class PPCScanner;
 
 
@@ -43,7 +43,7 @@ private:
 private:
   PPCFrontend*          frontend_;
   PPCScanner*           scanner_;
-  PPCFunctionBuilder*   builder_;
+  PPCHIRBuilder*   builder_;
   compiler::Compiler*   compiler_;
   backend::Assembler*   assembler_;
 

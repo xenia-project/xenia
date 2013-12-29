@@ -11,7 +11,7 @@
 #define ALLOY_COMPILER_COMPILER_H_
 
 #include <alloy/core.h>
-#include <alloy/hir/function_builder.h>
+#include <alloy/hir/hir_builder.h>
 
 namespace alloy { namespace runtime { class Runtime; } }
 
@@ -19,7 +19,7 @@ namespace alloy { namespace runtime { class Runtime; } }
 namespace alloy {
 namespace compiler {
 
-class Pass;
+class CompilerPass;
 
 
 class Compiler {
@@ -28,17 +28,17 @@ public:
   ~Compiler();
 
   runtime::Runtime* runtime() const { return runtime_; }
-  
-  void AddPass(Pass* pass);
+
+  void AddPass(CompilerPass* pass);
 
   void Reset();
 
-  int Compile(hir::FunctionBuilder* builder);
+  int Compile(hir::HIRBuilder* builder);
 
 private:
   runtime::Runtime* runtime_;
 
-  typedef std::vector<Pass*> PassList;
+  typedef std::vector<CompilerPass*> PassList;
   PassList passes_;
 };
 

@@ -168,6 +168,8 @@ enum Opcode {
   OPCODE_COMPARE_EXCHANGE,
   OPCODE_ATOMIC_ADD,
   OPCODE_ATOMIC_SUB,
+
+  __OPCODE_MAX_VALUE, // Keep at end.
 };
 
 enum OpcodeFlags {

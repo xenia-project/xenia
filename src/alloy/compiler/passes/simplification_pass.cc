@@ -16,13 +16,13 @@ using namespace alloy::hir;
 
 
 SimplificationPass::SimplificationPass() :
-    Pass() {
+    CompilerPass() {
 }
 
 SimplificationPass::~SimplificationPass() {
 }
 
-int SimplificationPass::Run(FunctionBuilder* builder) {
+int SimplificationPass::Run(HIRBuilder* builder) {
   // Run over the instructions and rename assigned variables:
   //   v1 = v0
   //   v2 = v1

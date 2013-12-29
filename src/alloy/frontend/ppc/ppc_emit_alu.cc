@@ -10,7 +10,7 @@
 #include <alloy/frontend/ppc/ppc_emit-private.h>
 
 #include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_function_builder.h>
+#include <alloy/frontend/ppc/ppc_hir_builder.h>
 
 
 using namespace alloy::frontend::ppc;
@@ -25,7 +25,7 @@ namespace ppc {
 
 // Integer arithmetic (A-3)
 
-XEEMITTER(addx,         0x7C000214, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addx,         0x7C000214, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB)
   Value* v = f.Add(
       f.LoadGPR(i.XO.RA),
@@ -41,7 +41,7 @@ XEEMITTER(addx,         0x7C000214, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addcx,        0x7C000014, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addcx,        0x7C000014, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB)
   // CA <- carry bit
   Value* v = f.Add(
@@ -60,7 +60,7 @@ XEEMITTER(addcx,        0x7C000014, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addex,        0x7C000114, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addex,        0x7C000114, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB) + XER[CA]
   Value* v = f.AddWithCarry(
       f.LoadGPR(i.XO.RA),
@@ -79,7 +79,7 @@ XEEMITTER(addex,        0x7C000114, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addi,         0x38000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addi,         0x38000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // if RA = 0 then
   //   RT <- EXTS(SI)
   // else
@@ -93,7 +93,7 @@ XEEMITTER(addi,         0x38000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addic,        0x30000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addic,        0x30000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
   Value* v = f.Add(
       f.LoadGPR(i.D.RA),
@@ -104,7 +104,7 @@ XEEMITTER(addic,        0x30000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addicx,       0x34000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addicx,       0x34000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
   Value* v = f.Add(
       f.LoadGPR(i.D.RA),
@@ -116,7 +116,7 @@ XEEMITTER(addicx,       0x34000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addis,        0x3C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addis,        0x3C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // if RA = 0 then
   //   RT <- EXTS(SI) || i16.0
   // else
@@ -130,7 +130,7 @@ XEEMITTER(addis,        0x3C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addmex,       0x7C0001D4, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addmex,       0x7C0001D4, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA - 1
   Value* v = f.AddWithCarry(
       f.LoadGPR(i.XO.RA),
@@ -152,7 +152,7 @@ XEEMITTER(addmex,       0x7C0001D4, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(addzex,       0x7C000194, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(addzex,       0x7C000194, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA
   Value* v = f.AddWithCarry(
       f.LoadGPR(i.XO.RA),
@@ -174,7 +174,7 @@ XEEMITTER(addzex,       0x7C000194, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(divdx,        0x7C0003D2, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(divdx,        0x7C0003D2, XO )(PPCHIRBuilder& f, InstrData& i) {
   // dividend <- (RA)
   // divisor <- (RB)
   // if divisor = 0 then
@@ -200,7 +200,7 @@ XEEMITTER(divdx,        0x7C0003D2, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(divdux,       0x7C000392, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(divdux,       0x7C000392, XO )(PPCHIRBuilder& f, InstrData& i) {
   // dividend <- (RA)
   // divisor <- (RB)
   // if divisor = 0 then
@@ -226,7 +226,7 @@ f.StoreGPR(i.XO.RT, v);
   return 0;
 }
 
-XEEMITTER(divwx,        0x7C0003D6, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(divwx,        0x7C0003D6, XO )(PPCHIRBuilder& f, InstrData& i) {
   // dividend[0:31] <- (RA)[32:63]
   // divisor[0:31] <- (RB)[32:63]
   // if divisor = 0 then
@@ -254,7 +254,7 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(divwux,       0x7C000396, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(divwux,       0x7C000396, XO )(PPCHIRBuilder& f, InstrData& i) {
   // dividend[0:31] <- (RA)[32:63]
   // divisor[0:31] <- (RB)[32:63]
   // if divisor = 0 then
@@ -282,17 +282,17 @@ XEEMITTER(divwux,       0x7C000396, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mulhdx,       0x7C000092, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mulhdx,       0x7C000092, XO )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mulhdux,      0x7C000012, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mulhdux,      0x7C000012, XO )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mulhwx,       0x7C000096, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mulhwx,       0x7C000096, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT[32:64] <- ((RA)[32:63] × (RB)[32:63])[0:31]
   if (i.XO.OE) {
     // With XER update.
@@ -310,7 +310,7 @@ XEEMITTER(mulhwx,       0x7C000096, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mulhwux,      0x7C000016, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mulhwux,      0x7C000016, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT[32:64] <- ((RA)[32:63] × (RB)[32:63])[0:31]
   if (i.XO.OE) {
     // With XER update.
@@ -328,7 +328,7 @@ XEEMITTER(mulhwux,      0x7C000016, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mulldx,       0x7C0001D2, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mulldx,       0x7C0001D2, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ((RA) × (RB))[64:127]
   if (i.XO.OE) {
     // With XER update.
@@ -343,7 +343,7 @@ XEEMITTER(mulldx,       0x7C0001D2, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mulli,        0x1C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mulli,        0x1C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // prod[0:127] <- (RA) × EXTS(SI)
   // RT <- prod[64:127]
   Value* v = f.Mul(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)));
@@ -351,7 +351,7 @@ XEEMITTER(mulli,        0x1C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mullwx,       0x7C0001D6, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(mullwx,       0x7C0001D6, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA)[32:63] × (RB)[32:63]
   if (i.XO.OE) {
     // With XER update.
@@ -368,7 +368,7 @@ XEEMITTER(mullwx,       0x7C0001D6, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(negx,         0x7C0000D0, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(negx,         0x7C0000D0, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + 1
   if (i.XO.OE) {
     // With XER update.
@@ -401,7 +401,7 @@ XEEMITTER(negx,         0x7C0000D0, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(subfx,        0x7C000050, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(subfx,        0x7C000050, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + (RB) + 1
   Value* v = f.Sub(f.LoadGPR(i.XO.RB), f.LoadGPR(i.XO.RA));
   f.StoreGPR(i.XO.RT, v);
@@ -415,7 +415,7 @@ XEEMITTER(subfx,        0x7C000050, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(subfcx,       0x7C000010, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(subfcx,       0x7C000010, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + (RB) + 1
   Value* v = f.Sub(
       f.LoadGPR(i.XO.RB),
@@ -433,7 +433,7 @@ XEEMITTER(subfcx,       0x7C000010, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(subficx,      0x20000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(subficx,      0x20000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + EXTS(SI) + 1
   Value* v = f.Sub(
       f.LoadConstant(XEEXTS16(i.D.DS)),
@@ -444,7 +444,7 @@ XEEMITTER(subficx,      0x20000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(subfex,       0x7C000110, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(subfex,       0x7C000110, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + (RB) + CA
   Value* v = f.AddWithCarry(
       f.Not(f.LoadGPR(i.XO.RA)),
@@ -463,7 +463,7 @@ XEEMITTER(subfex,       0x7C000110, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(subfmex,      0x7C0001D0, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(subfmex,      0x7C0001D0, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA - 1
   Value* v = f.AddWithCarry(
       f.Not(f.LoadGPR(i.XO.RA)),
@@ -482,7 +482,7 @@ XEEMITTER(subfmex,      0x7C0001D0, XO )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(subfzex,      0x7C000190, XO )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(subfzex,      0x7C000190, XO )(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA
   Value* v = f.AddWithCarry(
       f.Not(f.LoadGPR(i.XO.RA)),
@@ -504,7 +504,7 @@ XEEMITTER(subfzex,      0x7C000190, XO )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Integer compare (A-4)
 
-XEEMITTER(cmp,          0x7C000000, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cmp,          0x7C000000, X  )(PPCHIRBuilder& f, InstrData& i) {
   // if L = 0 then
   //   a <- EXTS((RA)[32:63])
   //   b <- EXTS((RB)[32:63])
@@ -533,7 +533,7 @@ XEEMITTER(cmp,          0x7C000000, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(cmpi,         0x2C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cmpi,         0x2C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // if L = 0 then
   //   a <- EXTS((RA)[32:63])
   // else
@@ -560,7 +560,7 @@ XEEMITTER(cmpi,         0x2C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(cmpl,         0x7C000040, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cmpl,         0x7C000040, X  )(PPCHIRBuilder& f, InstrData& i) {
   // if L = 0 then
   //   a <- i32.0 || (RA)[32:63]
   //   b <- i32.0 || (RB)[32:63]
@@ -589,7 +589,7 @@ XEEMITTER(cmpl,         0x7C000040, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(cmpli,        0x28000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cmpli,        0x28000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // if L = 0 then
   //   a <- i32.0 || (RA)[32:63]
   // else
@@ -619,7 +619,7 @@ XEEMITTER(cmpli,        0x28000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Integer logical (A-5)
 
-XEEMITTER(andx,         0x7C000038, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(andx,         0x7C000038, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (RB)
   Value* ra = f.And(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   if (i.X.Rc) {
@@ -629,7 +629,7 @@ XEEMITTER(andx,         0x7C000038, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(andcx,        0x7C000078, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(andcx,        0x7C000078, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & ¬(RB)
   Value* ra = f.And(f.LoadGPR(i.X.RT), f.Not(f.LoadGPR(i.X.RB)));
   if (i.X.Rc) {
@@ -639,7 +639,7 @@ XEEMITTER(andcx,        0x7C000078, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(andix,        0x70000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(andix,        0x70000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i48.0 || UI)
   Value* ra = f.And(
       f.LoadGPR(i.D.RT),
@@ -649,7 +649,7 @@ XEEMITTER(andix,        0x70000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(andisx,       0x74000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(andisx,       0x74000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i32.0 || UI || i16.0)
   Value* ra = f.And(
       f.LoadGPR(i.D.RT),
@@ -659,7 +659,7 @@ XEEMITTER(andisx,       0x74000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(cntlzdx,      0x7C000074, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cntlzdx,      0x7C000074, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- 0
   // do while n < 64
   //   if (RS)[n] = 1 then leave n
@@ -674,7 +674,7 @@ XEEMITTER(cntlzdx,      0x7C000074, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(cntlzwx,      0x7C000034, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(cntlzwx,      0x7C000034, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- 32
   // do while n < 64
   //   if (RS)[n] = 1 then leave n
@@ -690,7 +690,7 @@ XEEMITTER(cntlzwx,      0x7C000034, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(eqvx,         0x7C000238, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(eqvx,         0x7C000238, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) == (RB)
   Value* ra = f.Xor(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   ra = f.Not(ra);
@@ -701,7 +701,7 @@ XEEMITTER(eqvx,         0x7C000238, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(extsbx,       0x7C000774, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(extsbx,       0x7C000774, X  )(PPCHIRBuilder& f, InstrData& i) {
   // s <- (RS)[56]
   // RA[56:63] <- (RS)[56:63]
   // RA[0:55] <- i56.s
@@ -714,7 +714,7 @@ XEEMITTER(extsbx,       0x7C000774, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(extshx,       0x7C000734, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(extshx,       0x7C000734, X  )(PPCHIRBuilder& f, InstrData& i) {
   // s <- (RS)[48]
   // RA[48:63] <- (RS)[48:63]
   // RA[0:47] <- 48.s
@@ -727,7 +727,7 @@ XEEMITTER(extshx,       0x7C000734, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(extswx,       0x7C0007B4, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(extswx,       0x7C0007B4, X  )(PPCHIRBuilder& f, InstrData& i) {
   // s <- (RS)[32]
   // RA[32:63] <- (RS)[32:63]
   // RA[0:31] <- i32.s
@@ -740,12 +740,12 @@ XEEMITTER(extswx,       0x7C0007B4, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(nandx,        0x7C0003B8, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(nandx,        0x7C0003B8, X  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(norx,         0x7C0000F8, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(norx,         0x7C0000F8, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- ¬((RS) | (RB))
   Value* ra = f.Or(
       f.LoadGPR(i.X.RT),
@@ -758,7 +758,7 @@ XEEMITTER(norx,         0x7C0000F8, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(orx,          0x7C000378, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(orx,          0x7C000378, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | (RB)
   if (i.X.RT == i.X.RB && i.X.RT == i.X.RA &&
       !i.X.Rc) {
@@ -781,7 +781,7 @@ XEEMITTER(orx,          0x7C000378, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(orcx,         0x7C000338, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(orcx,         0x7C000338, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | ¬(RB)
   Value* ra = f.Or(
       f.LoadGPR(i.X.RT),
@@ -793,7 +793,7 @@ XEEMITTER(orcx,         0x7C000338, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(ori,          0x60000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(ori,          0x60000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | (i48.0 || UI)
   if (!i.D.RA && !i.D.RT && !i.D.DS) {
     f.Nop();
@@ -806,7 +806,7 @@ XEEMITTER(ori,          0x60000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(oris,         0x64000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(oris,         0x64000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | (i32.0 || UI || i16.0)
   Value* ra = f.Or(
       f.LoadGPR(i.D.RT),
@@ -815,7 +815,7 @@ XEEMITTER(oris,         0x64000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(xorx,         0x7C000278, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(xorx,         0x7C000278, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (RB)
   Value* ra = f.Xor(
       f.LoadGPR(i.X.RT),
@@ -827,7 +827,7 @@ XEEMITTER(xorx,         0x7C000278, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(xori,         0x68000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(xori,         0x68000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i48.0 || UI)
   Value* ra = f.Xor(
       f.LoadGPR(i.D.RT),
@@ -836,7 +836,7 @@ XEEMITTER(xori,         0x68000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(xoris,        0x6C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(xoris,        0x6C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i32.0 || UI || i16.0)
   Value* ra = f.Xor(
       f.LoadGPR(i.D.RT),
@@ -848,7 +848,7 @@ XEEMITTER(xoris,        0x6C000000, D  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Integer rotate (A-6)
 
-XEEMITTER(rld,          0x78000000, MDS)(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(rld,          0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
   if (i.MD.idx == 0) {
     // XEEMITTER(rldiclx,      0x78000000, MD )
     // n <- sh[5] || sh[0:4]
@@ -941,7 +941,7 @@ XEEMITTER(rld,          0x78000000, MDS)(PPCFunctionBuilder& f, InstrData& i) {
   }
 }
 
-XEEMITTER(rlwimix,      0x50000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(rlwimix,      0x50000000, M  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
@@ -965,7 +965,7 @@ XEEMITTER(rlwimix,      0x50000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(rlwinmx,      0x54000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(rlwinmx,      0x54000000, M  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
@@ -992,7 +992,7 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(rlwnmx,       0x5C000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(rlwnmx,       0x5C000000, M  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- (RB)[59:63]
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
@@ -1016,7 +1016,7 @@ XEEMITTER(rlwnmx,       0x5C000000, M  )(PPCFunctionBuilder& f, InstrData& i) {
 
 // Integer shift (A-7)
 
-XEEMITTER(sldx,         0x7C000036, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(sldx,         0x7C000036, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- (RB)[59:63]
   // r <- ROTL64((RS), n)
   // if (RB)[58] = 0 then
@@ -1032,7 +1032,7 @@ XEEMITTER(sldx,         0x7C000036, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(slwx,         0x7C000030, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(slwx,         0x7C000030, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- (RB)[59:63]
   // r <- ROTL32((RS)[32:63], n)
   // if (RB)[58] = 0 then
@@ -1050,7 +1050,7 @@ XEEMITTER(slwx,         0x7C000030, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(srdx,         0x7C000436, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(srdx,         0x7C000436, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- (RB)[58:63]
   // r <- ROTL64((RS), 64-n)
   // if (RB)[57] = 0 then
@@ -1067,7 +1067,7 @@ XEEMITTER(srdx,         0x7C000436, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(srwx,         0x7C000430, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(srwx,         0x7C000430, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- (RB)[59:63]
   // r <- ROTL32((RS)[32:63], 64-n)
   // if (RB)[58] = 0 then
@@ -1086,7 +1086,7 @@ XEEMITTER(srwx,         0x7C000430, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-// XEEMITTER(sradx,        0x7C000634, X  )(PPCFunctionBuilder& f, InstrData& i) {
+// XEEMITTER(sradx,        0x7C000634, X  )(PPCHIRBuilder& f, InstrData& i) {
 //   // n <- rB[58-63]
 //   // r <- ROTL[64](rS, 64 - n)
 //   // if rB[57] = 0 then m ← MASK(n, 63)
@@ -1138,7 +1138,7 @@ XEEMITTER(srwx,         0x7C000430, X  )(PPCFunctionBuilder& f, InstrData& i) {
 //   return 0;
 // }
 
-XEEMITTER(sradix,       0x7C000674, XS )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(sradix,       0x7C000674, XS )(PPCHIRBuilder& f, InstrData& i) {
   // n <- sh[5] || sh[0-4]
   // r <- ROTL[64](rS, 64 - n)
   // m ← MASK(n, 63)
@@ -1167,7 +1167,7 @@ XEEMITTER(sradix,       0x7C000674, XS )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(srawx,        0x7C000630, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(srawx,        0x7C000630, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- rB[59-63]
   // r <- ROTL32((RS)[32:63], 64-n)
   // m <- MASK(n+32, 63)
@@ -1196,7 +1196,7 @@ XEEMITTER(srawx,        0x7C000630, X  )(PPCFunctionBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(srawix,       0x7C000670, X  )(PPCFunctionBuilder& f, InstrData& i) {
+XEEMITTER(srawix,       0x7C000670, X  )(PPCHIRBuilder& f, InstrData& i) {
   // n <- SH
   // r <- ROTL32((RS)[32:63], 64-n)
   // m <- MASK(n+32, 63)

@@ -44,13 +44,7 @@ public:
     Use_s*  prev;
     Use_s*  next;
   } Use;
-
-public:
-  uint32_t ordinal;
-  TypeName type;
-
-  uint32_t flags;
-  union {
+  typedef union {
     int8_t      i8;
     int16_t     i16;
     int32_t     i32;
@@ -58,7 +52,14 @@ public:
     float       f32;
     double      f64;
     vec128_t    v128;
-  } constant;
+  } ConstantValue;
+
+public:
+  uint32_t ordinal;
+  TypeName type;
+
+  uint32_t flags;
+  ConstantValue constant;
 
   Instr*    def;
   Use*      use_head;

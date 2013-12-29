@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_COMPILER_PASS_H_
-#define ALLOY_COMPILER_PASS_H_
+#ifndef ALLOY_COMPILER_COMPILER_PASS_H_
+#define ALLOY_COMPILER_COMPILER_PASS_H_
 
 #include <alloy/core.h>
 
-#include <alloy/hir/function_builder.h>
+#include <alloy/hir/hir_builder.h>
 
 namespace alloy { namespace runtime { class Runtime; } }
 
@@ -23,14 +23,14 @@ namespace compiler {
 class Compiler;
 
 
-class Pass {
+class CompilerPass {
 public:
-  Pass();
-  virtual ~Pass();
+  CompilerPass();
+  virtual ~CompilerPass();
 
   virtual int Initialize(Compiler* compiler);
 
-  virtual int Run(hir::FunctionBuilder* builder) = 0;
+  virtual int Run(hir::HIRBuilder* builder) = 0;
 
 protected:
   runtime::Runtime* runtime_;
@@ -42,4 +42,4 @@ protected:
 }  // namespace alloy
 
 
-#endif  // ALLOY_COMPILER_PASS_H_
+#endif  // ALLOY_COMPILER_COMPILER_PASS_H_

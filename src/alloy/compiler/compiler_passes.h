@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_COMPILER_PASSES_H_
-#define ALLOY_COMPILER_PASSES_H_
+#ifndef ALLOY_COMPILER_COMPILER_PASSES_H_
+#define ALLOY_COMPILER_COMPILER_PASSES_H_
 
 #include <alloy/compiler/passes/constant_propagation_pass.h>
 #include <alloy/compiler/passes/context_promotion_pass.h>
@@ -133,4 +133,4 @@
 //     branch_true v5, ...
 //
 
-#endif  // ALLOY_COMPILER_PASSES_H_
+#endif  // ALLOY_COMPILER_COMPILER_PASSES_H_

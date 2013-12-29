@@ -16,13 +16,13 @@ using namespace alloy::hir;
 
 
 DeadCodeEliminationPass::DeadCodeEliminationPass() :
-    Pass() {
+    CompilerPass() {
 }
 
 DeadCodeEliminationPass::~DeadCodeEliminationPass() {
 }
 
-int DeadCodeEliminationPass::Run(FunctionBuilder* builder) {
+int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
   // ContextPromotion/DSE will likely leave around a lot of dead statements.
   // Code generated for comparison/testing produces many unused statements and
   // with proper use analysis it should be possible to remove most of them:
