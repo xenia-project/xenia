@@ -7,33 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
-#define ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
+#include <alloy/backend/x64/lir/lir_opcodes.h>
 
-#include <alloy/backend/x64/optimizer/optimizer_pass.h>
+using namespace alloy;
+using namespace alloy::backend::x64::lir;
 
 
 namespace alloy {
 namespace backend {
 namespace x64 {
-namespace optimizer {
-namespace passes {
+namespace lir {
 
+#define DEFINE_OPCODE(num, name, sig, flags) \
+    static const LIROpcodeInfo num##_info = { flags, sig, name, num, };
+#include <alloy/backend/x64/lir/lir_opcodes.inl>
+#undef DEFINE_OPCODE
 
-class RedundantMovPass : public OptimizerPass {
-public:
-  RedundantMovPass();
-  virtual ~RedundantMovPass();
-
-  virtual int Run(lir::LIRBuilder* builder);
-};
-
-
-}  // namespace passes
-}  // namespace optimizer
+}  // namespace lir
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
-
-
-#endif  // ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_

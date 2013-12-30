@@ -4,9 +4,9 @@
     'lir_builder.cc',
     'lir_builder.h',
     'lir_instr.h',
-    'lircodes.cc',
-    'lircodes.h',
-    'lircodes.inl',
+    'lir_opcodes.cc',
+    'lir_opcodes.h',
+    'lir_opcodes.inl',
     'tracing.h',
   ],
 }

@@ -9,5 +9,6 @@
     'ivm_backend.h',
     'ivm_function.cc',
     'ivm_function.h',
+    'tracing.h',
   ],
 }

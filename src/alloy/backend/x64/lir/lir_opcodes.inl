@@ -7,28 +7,9 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_BACKEND_X64_LIR_LIR_INSTR_H_
-#define ALLOY_BACKEND_X64_LIR_LIR_INSTR_H_
 
-#include <alloy/core.h>
-#include <alloy/backend/x64/lir/lir_opcodes.h>
-
-
-namespace alloy {
-namespace backend {
-namespace x64 {
-namespace lir {
-
-
-class LIRInstr {
-public:
-};
-
-
-}  // namespace lir
-}  // namespace x64
-}  // namespace backend
-}  // namespace alloy
-
-
-#endif  // ALLOY_BACKEND_X64_LIR_LIR_INSTR_H_
+ DEFINE_OPCODE(
+     LIR_OPCODE_MOV_I32,
+     "mov.i32",
+     LIR_OPCODE_SIG_X,
+     0);

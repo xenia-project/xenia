@@ -9,8 +9,8 @@
 
 #include <alloy/backend/ivm/ivm_backend.h>
 
-#include <alloy/backend/tracing.h>
 #include <alloy/backend/ivm/ivm_assembler.h>
+#include <alloy/backend/ivm/tracing.h>
 
 using namespace alloy;
 using namespace alloy::backend;

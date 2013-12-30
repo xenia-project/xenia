@@ -23,27 +23,9 @@ const uint32_t ALLOY_BACKEND = alloy::tracing::EventType::ALLOY_BACKEND;
 class EventType {
 public:
   enum {
-    ALLOY_BACKEND_INIT                  = ALLOY_BACKEND | (1),
-    ALLOY_BACKEND_DEINIT                = ALLOY_BACKEND | (2),
-
-    ALLOY_BACKEND_ASSEMBLER             = ALLOY_BACKEND | (1 << 25),
-    ALLOY_BACKEND_ASSEMBLER_INIT        = ALLOY_BACKEND_ASSEMBLER | (1),
-    ALLOY_BACKEND_ASSEMBLER_DEINIT      = ALLOY_BACKEND_ASSEMBLER | (2),
+    ALLOY_BACKEND_IVM                   = ALLOY_BACKEND | (1 << 24),
+    ALLOY_BACKEND_X64                   = ALLOY_BACKEND | (2 << 24),
   };
-
-  typedef struct {
-    static const uint32_t event_type = ALLOY_BACKEND_INIT;
-  } Init;
-  typedef struct {
-    static const uint32_t event_type = ALLOY_BACKEND_DEINIT;
-  } Deinit;
-
-  typedef struct {
-    static const uint32_t event_type = ALLOY_BACKEND_ASSEMBLER_INIT;
-  } AssemblerInit;
-  typedef struct {
-    static const uint32_t event_type = ALLOY_BACKEND_ASSEMBLER_DEINIT;
-  } AssemblerDeinit;
 };
 
 

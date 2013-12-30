@@ -10,9 +10,9 @@
 #include <alloy/backend/ivm/ivm_assembler.h>
 
 #include <alloy/backend/backend.h>
-#include <alloy/backend/tracing.h>
 #include <alloy/backend/ivm/ivm_intcode.h>
 #include <alloy/backend/ivm/ivm_function.h>
+#include <alloy/backend/ivm/tracing.h>
 #include <alloy/hir/hir_builder.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
