@@ -11,15 +11,15 @@
 #define ALLOY_BACKEND_X64_X64_LOWERING_LOWERING_TABLE_H_
 
 #include <alloy/core.h>
+#include <alloy/backend/x64/lir/lir_builder.h>
 #include <alloy/backend/x64/lir/lir_instr.h>
-#include <alloy/hir/instr.h>
+#include <alloy/hir/hir_builder.h>
 
 
 namespace alloy {
 namespace backend {
 namespace x64 {
 class X64Backend;
-namespace lir { class LIRBuilder; }
 namespace lowering {
 
 
@@ -30,7 +30,7 @@ public:
 
   int Initialize();
 
-  int Process(lir::LIRBuilder* builder);
+  int Process(hir::HIRBuilder* hir_builder, lir::LIRBuilder* lir_builder);
 
 public:
   class FnWrapper {

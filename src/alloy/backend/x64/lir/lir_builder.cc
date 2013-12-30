@@ -16,12 +16,20 @@ using namespace alloy::backend::x64::lir;
 
 LIRBuilder::LIRBuilder(X64Backend* backend) :
     backend_(backend) {
+  arena_ = new Arena();
+  Reset();
 }
 
 LIRBuilder::~LIRBuilder() {
+  Reset();
+  delete arena_;
 }
 
 void LIRBuilder::Reset() {
+  next_label_id_ = 0;
+  block_head_ = block_tail_ = NULL;
+  current_block_ = NULL;
+  arena_->Reset();
 }
 
 int LIRBuilder::Finalize() {
@@ -29,4 +37,140 @@ int LIRBuilder::Finalize() {
 }
 
 void LIRBuilder::Dump(StringBuffer* str) {
+  uint32_t block_ordinal = 0;
+  auto block = block_head_;
+  while (block) {
+    if (block == block_head_) {
+      str->Append("<entry>:\n");
+    } else if (!block->label_head) {
+      str->Append("<block%d>:\n", block_ordinal);
+    }
+    block_ordinal++;
+
+    auto label = block->label_head;
+    while (label) {
+      if (label->name) {
+        str->Append("%s:\n", label->name);
+      } else {
+        str->Append("label%d:\n", label->id);
+      }
+      label = label->next;
+    }
+
+    auto i = block->instr_head;
+    while (i) {
+      if (i->opcode->flags & LIR_OPCODE_FLAG_HIDE) {
+        i = i->next;
+        continue;
+      }
+
+      // TODO(benvanik): handle comment
+
+      const LIROpcodeInfo* info = i->opcode;
+      str->Append("  ");
+      if (i->flags) {
+        str->Append("%s.%d", info->name, i->flags);
+      } else {
+        str->Append("%s", info->name);
+      }
+      // TODO(benvanik): args based on signature
+      str->Append("\n");
+      i = i->next;
+    }
+
+    block = block->next;
+  }
+}
+
+LIRBlock* LIRBuilder::current_block() const {
+  return current_block_;
+}
+
+LIRInstr* LIRBuilder::last_instr() const {
+  if (current_block_ && current_block_->instr_tail) {
+    return current_block_->instr_tail;
+  } else if (block_tail_) {
+    return block_tail_->instr_tail;
+  }
+  return NULL;
+}
+
+LIRLabel* LIRBuilder::NewLabel() {
+  LIRLabel* label = arena_->Alloc<LIRLabel>();
+  label->next = label->prev = NULL;
+  label->block = NULL;
+  label->id = next_label_id_++;
+  label->name = NULL;
+  return label;
+}
+
+void LIRBuilder::MarkLabel(LIRLabel* label, LIRBlock* block) {
+  if (!block) {
+    if (current_block_ && current_block_->instr_tail) {
+      EndBlock();
+    }
+    if (!current_block_) {
+      AppendBlock();
+    }
+    block = current_block_;
+  }
+  label->block = block;
+  label->prev = block->label_tail;
+  label->next = NULL;
+  if (label->prev) {
+    label->prev->next = label;
+    block->label_tail = label;
+  } else {
+    block->label_head = block->label_tail = label;
+  }
+}
+
+LIRBlock* LIRBuilder::AppendBlock() {
+  LIRBlock* block = arena_->Alloc<LIRBlock>();
+  block->arena = arena_;
+  block->next = NULL;
+  block->prev = block_tail_;
+  if (block_tail_) {
+    block_tail_->next = block;
+  }
+  block_tail_ = block;
+  if (!block_head_) {
+    block_head_ = block;
+  }
+  current_block_ = block;
+  block->label_head = block->label_tail = NULL;
+  block->instr_head = block->instr_tail = NULL;
+  return block;
+}
+
+void LIRBuilder::EndBlock() {
+  if (current_block_ && !current_block_->instr_tail) {
+    // Block never had anything added to it. Since it likely has an
+    // incoming edge, just keep it around.
+    return;
+  }
+  current_block_ = NULL;
+}
+
+LIRInstr* LIRBuilder::AppendInstr(
+    const LIROpcodeInfo& opcode_info, uint16_t flags) {
+  if (!current_block_) {
+    AppendBlock();
+  }
+  LIRBlock* block = current_block_;
+
+  LIRInstr* instr = arena_->Alloc<LIRInstr>();
+  instr->next = NULL;
+  instr->prev = block->instr_tail;
+  if (block->instr_tail) {
+    block->instr_tail->next = instr;
+  }
+  block->instr_tail = instr;
+  if (!block->instr_head) {
+    block->instr_head = instr;
+  }
+  instr->block = block;
+  instr->opcode = &opcode_info;
+  instr->flags = flags;
+  return instr;
 }

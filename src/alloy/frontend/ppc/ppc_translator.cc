@@ -46,6 +46,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
 
   Backend* backend = frontend->runtime()->backend();
   assembler_ = backend->CreateAssembler();
+  assembler_->Initialize();
 }
 
 PPCTranslator::~PPCTranslator() {

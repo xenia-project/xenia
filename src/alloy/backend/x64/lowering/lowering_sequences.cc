@@ -395,46 +395,6 @@ public:
 #include <alloy/backend/x64/lowering/lowering_lir_opcodes.inl>
 }
 
-enum {
-  REG8, REG16, REG32, REG64, REGXMM,
-
-  AL,   AX,   EAX,  RAX,
-  BL,   BX,   EBX,  RBX,
-  CL,   CX,   ECX,  RCX,
-  DL,   DX,   EDX,  RDX,
-  R8B,  R8W,  R8D,   R8,
-  R9B,  R9W,  R9D,   R9,
-  R10B, R10W, R10D, R10,
-  R11B, R11W, R11D, R11,
-  R12B, R12W, R12D, R12,
-  R13B, R13W, R13D, R13,
-  R14B, R14W, R14D, R14,
-  R15B, R15W, R15D, R15,
-
-  SIL,  SI,   ESI,  RSI,
-  DIL,  DI,   EDI,  RDI,
-
-  RBP,
-  RSP,
-
-  XMM0,
-  XMM1,
-  XMM2,
-  XMM3,
-  XMM4,
-  XMM5,
-  XMM6,
-  XMM7,
-  XMM8,
-  XMM9,
-  XMM10,
-  XMM11,
-  XMM12,
-  XMM13,
-  XMM14,
-  XMM15,
-};
-
 
 void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   Translate<tuple<

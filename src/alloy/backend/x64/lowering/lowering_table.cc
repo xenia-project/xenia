@@ -43,14 +43,60 @@ void LoweringTable::AddSequence(hir::Opcode starting_opcode, FnWrapper* fn) {
   lookup_[starting_opcode] = fn;
 }
 
-int LoweringTable::Process(lir::LIRBuilder* builder) {
-  /*LIRInstr* instr = 0;
-  auto fn = lookup_[instr->opcode->num];
-  while (fn) {
-    if ((*fn)(builder, instr)) {
-      return true;
+int LoweringTable::Process(
+    hir::HIRBuilder* hir_builder, lir::LIRBuilder* lir_builder) {
+  lir_builder->EndBlock();
+
+  // Translate all labels ahead of time.
+  // We stash them on tags to make things easier later on.
+  auto hir_block = hir_builder->first_block();
+  while (hir_block) {
+    auto hir_label = hir_block->label_head;
+    while (hir_label) {
+      // TODO(benvanik): copy name to LIR label.
+      hir_label->tag = lir_builder->NewLabel();
+      hir_label = hir_label->next;
     }
-    fn = fn->next;
-  }*/
+    hir_block = hir_block->next;
+  }
+
+  // Process each block.
+  hir_block = hir_builder->first_block();
+  while (hir_block) {
+    // Force a new block.
+    lir_builder->AppendBlock();
+
+    // Mark labels.
+    auto hir_label = hir_block->label_head;
+    while (hir_label) {
+      auto lir_label = (lir::LIRLabel*)hir_label->tag;
+      lir_builder->MarkLabel(lir_label);
+      hir_label = hir_label->next;
+    }
+
+    // Process instructions.
+    auto hir_instr = hir_block->instr_head;
+    while (hir_instr) {
+      bool processed = false;
+      auto fn = lookup_[hir_instr->opcode->num];
+      while (fn) {
+        if ((*fn)(lir_builder, hir_instr)) {
+          processed = true;
+          break;
+        }
+        fn = fn->next;
+      }
+      if (!processed) {
+        // No sequence found!
+        XELOGE("Unable to process HIR opcode %s", hir_instr->opcode->name);
+        return 1;
+        hir_instr = hir_instr->next;
+      }
+    }
+
+    lir_builder->EndBlock();
+    hir_block = hir_block->next;
+  }
+
   return 0;
 }

@@ -11,6 +11,9 @@
 #define ALLOY_BACKEND_X64_LIR_LIR_BUILDER_H_
 
 #include <alloy/core.h>
+#include <alloy/backend/x64/lir/lir_block.h>
+#include <alloy/backend/x64/lir/lir_instr.h>
+#include <alloy/backend/x64/lir/lir_label.h>
 #include <alloy/backend/x64/lir/lir_opcodes.h>
 
 
@@ -33,9 +36,28 @@ public:
 
   Arena* arena() const { return arena_; }
 
+  LIRBlock* first_block() const { return block_head_; }
+  LIRBlock* current_block() const;
+  LIRInstr* last_instr() const;
+
+  LIRLabel* NewLabel();
+  void MarkLabel(LIRLabel* label, LIRBlock* block = 0);
+
+  // TODO(benvanik): allocations
+
+  LIRBlock* AppendBlock();
+  void EndBlock();
+  LIRInstr* AppendInstr(const LIROpcodeInfo& opcode, uint16_t flags);
+
 protected:
   X64Backend* backend_;
   Arena*      arena_;
+
+  uint32_t    next_label_id_;
+
+  LIRBlock*   block_head_;
+  LIRBlock*   block_tail_;
+  LIRBlock*   current_block_;
 };
 
 

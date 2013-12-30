@@ -75,7 +75,7 @@ int X64Assembler::Assemble(
 
   // Lower HIR -> LIR.
   auto lowering_table = x64_backend_->lowering_table();
-  result = lowering_table->Process(builder_);
+  result = lowering_table->Process(hir_builder, builder_);
   XEEXPECTZERO(result);
 
   // Stash raw LIR.
@@ -98,6 +98,15 @@ int X64Assembler::Assemble(
 
   // Emit machine code.
   // TODO(benvanik): machine code.
+  //result = emitter_->Emit(builder_, &machine_code, &length);
+  XEEXPECTZERO(result);
+
+  // Stash generated machine code.
+  if (debug_info) {
+    //emitter_->Dump(&string_buffer_);
+    debug_info->set_machine_code_disasm(string_buffer_.ToString());
+    string_buffer_.Reset();
+  }
 
   X64Function* fn = new X64Function(symbol_info);
   fn->set_debug_info(debug_info);
