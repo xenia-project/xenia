@@ -29,6 +29,8 @@ enum ArgType {
   NULL_ARG_TYPE,
   VALUE_ARG_TYPE,
   CONSTANT_ARG_TYPE,
+  SYMBOL_ARG_TYPE,
+  LABEL_ARG_TYPE,
   OUT_ARG_TYPE,
   IN_ARG_TYPE,
   REG_ARG_TYPE,
@@ -44,7 +46,13 @@ class NullArg : public Arg<NULL_ARG_TYPE> {};
 template<int TYPE>
 class ValueRef : public Arg<VALUE_ARG_TYPE> {
 public:
-  enum { type = TYPE };
+  const static int type = TYPE;
+};
+class SymbolRef : public Arg<SYMBOL_ARG_TYPE> {
+public:
+};
+class LabelRef : public Arg<LABEL_ARG_TYPE> {
+public:
 };
 template<int TYPE, bool HAS_VALUE = false,
     int8_t INT8_VALUE = 0,
@@ -58,8 +66,8 @@ template<int TYPE, bool HAS_VALUE = false,
     // vec
 class Constant : public Arg<CONSTANT_ARG_TYPE> {
 public:
-  enum { type = TYPE };
-  enum : bool { has_value = HAS_VALUE };
+  const static int type = TYPE;
+  const static bool has_value = HAS_VALUE;
   const static int8_t i8 = INT8_VALUE;
   const static int16_t i16 = INT16_VALUE;
   const static int32_t i32 = INT32_VALUE;
@@ -87,20 +95,20 @@ class Float64Constant : public Constant<FLOAT64_TYPE, true, 0, 0, 0, 0, 0, 0, NU
 template<int SLOT>
 class Out : public Arg<OUT_ARG_TYPE> {
 public:
-  enum { slot = SLOT };
+  const static int slot = SLOT;
 };
 
 template<int SLOT, int ARG>
 class In : public Arg<IN_ARG_TYPE> {
 public:
-  enum { slot = SLOT };
-  enum { arg = ARG };
+  const static int slot = SLOT;
+  const static int arg = ARG;
 };
 
 template<int REG_NAME>
 class Reg : public Arg<REG_ARG_TYPE> {
 public:
-  enum { reg_name = REG_NAME };
+  const static int reg_name = REG_NAME;
 };
 
 
@@ -115,6 +123,14 @@ public:
   template <typename T>
   static bool CheckArg(Instr* instr_list[], Instr::Op& op, IntType<VALUE_ARG_TYPE>) {
     return op.value->type == T::type;
+  }
+  template <typename T>
+  static bool CheckArg(Instr* instr_list[], Instr::Op& op, IntType<SYMBOL_ARG_TYPE>) {
+    return true;
+  }
+  template <typename T>
+  static bool CheckArg(Instr* instr_list[], Instr::Op& op, IntType<LABEL_ARG_TYPE>) {
+    return true;
   }
   template <typename T>
   static bool CheckArg(Instr* instr_list[], Instr::Op& op, IntType<CONSTANT_ARG_TYPE>) {
@@ -397,10 +413,137 @@ public:
 
 
 void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
+  // TODO(benvanik): translate comments somehow - special type?
+  Translate<tuple<
+    HIR_COMMENT<>
+  >, tuple<
+  >> (table);
+
   Translate<tuple<
     HIR_NOP<>
   >, tuple<
   >> (table);
+
+  // --------------------------------------------------------------------------
+  // Debugging
+  // --------------------------------------------------------------------------
+
+  // TODO(benvanik): translate source offsets for mapping
+  Translate<tuple<
+    HIR_SOURCE_OFFSET<Constant<INT64_TYPE>>
+  >, tuple<
+  >> (table);
+
+  Translate<tuple<
+    HIR_DEBUG_BREAK<>
+  >, tuple<
+    // int3
+  >> (table);
+  Translate<tuple<
+    HIR_DEBUG_BREAK_TRUE<ValueRef<INT8_TYPE>>
+  >, tuple<
+    // test if 0
+    // jz label
+    // int3
+    // label:
+  >> (table);
+
+  Translate<tuple<
+    HIR_TRAP<>
+  >, tuple<
+    // int3
+  >> (table);
+  Translate<tuple<
+    HIR_TRAP_TRUE<ValueRef<INT8_TYPE>>
+  >, tuple<
+    // test if 0
+    // jz label
+    // int3
+    // label:
+  >> (table);
+
+  // --------------------------------------------------------------------------
+  // Calls
+  // --------------------------------------------------------------------------
+
+  Translate<tuple<
+    HIR_CALL<SymbolRef>
+  >, tuple<
+    // call
+  >> (table);
+  Translate<tuple<
+    HIR_CALL_TRUE<ValueRef<INT8_TYPE>, SymbolRef>
+  >, tuple<
+    // call
+  >> (table);
+  Translate<tuple<
+    HIR_CALL_INDIRECT<ValueRef<INT32_TYPE>>
+  >, tuple<
+    // call
+  >> (table);
+  Translate<tuple<
+    HIR_CALL_INDIRECT_TRUE<ValueRef<INT8_TYPE>, ValueRef<INT32_TYPE>>
+  >, tuple<
+    // call
+  >> (table);
+  // return / set return address
+
+  // --------------------------------------------------------------------------
+  // Branches
+  // --------------------------------------------------------------------------
+
+  Translate<tuple<
+    HIR_BRANCH<LabelRef>
+  >, tuple<
+    // branch
+  >> (table);
+  Translate<tuple<
+    HIR_BRANCH_TRUE<ValueRef<INT8_TYPE>, LabelRef>
+  >, tuple<
+    // branch
+  >> (table);
+  Translate<tuple<
+    HIR_BRANCH_FALSE<ValueRef<INT8_TYPE>, LabelRef>
+  >, tuple<
+    // branch
+  >> (table);
+
+  // --------------------------------------------------------------------------
+  // Types
+  // --------------------------------------------------------------------------
+
+  // int 8/etc
+  Translate<tuple<
+    HIR_ASSIGN<ValueRef<INT32_TYPE>, ValueRef<INT32_TYPE>>
+  >, tuple<
+    LIR_MOV_I32<Out<0>, In<0, 0>>
+  >> (table);
+
+  // --------------------------------------------------------------------------
+  // Constants
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // Context
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // Memory
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // Comparisons
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // Math
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // Atomic
+  // --------------------------------------------------------------------------
+
+  // Tests:
 
   Translate<tuple<
     HIR_SUB<ValueRef<INT32_TYPE>, ValueRef<INT32_TYPE>, ValueRef<INT32_TYPE>>
