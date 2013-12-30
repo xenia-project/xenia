@@ -22,6 +22,7 @@ public:
   ~Arena();
 
   void Reset();
+  void DebugFill();
 
   void* Alloc(size_t size);
   template<typename T> T* Alloc() {

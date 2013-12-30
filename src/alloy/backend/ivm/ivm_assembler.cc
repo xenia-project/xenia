@@ -69,9 +69,12 @@ int IVMAssembler::Assemble(
   ctx.scratch_arena = &scratch_arena_;
   ctx.label_ref_head = NULL;
 
+  // Reset label tags as we use them.
+  builder->ResetLabelTags();
+
   // Function prologue.
 
-  Block* block = builder->first_block();
+  auto block = builder->first_block();
   while (block) {
     Label* label = block->label_head;
     while (label) {

@@ -35,6 +35,14 @@ void Arena::Reset() {
   }
 }
 
+void Arena::DebugFill() {
+  auto chunk = head_chunk_;
+  while (chunk) {
+    memset(chunk->buffer, 0xCD, chunk->capacity);
+    chunk = chunk->next;
+  }
+}
+
 void* Arena::Alloc(size_t size) {
   if (active_chunk_) {
     if (active_chunk_->capacity - active_chunk_->offset < size) {

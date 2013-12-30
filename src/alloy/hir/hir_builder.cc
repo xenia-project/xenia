@@ -42,6 +42,10 @@ void HIRBuilder::Reset() {
   next_value_ordinal_ = 0;
   block_head_ = block_tail_ = NULL;
   current_block_ = NULL;
+#if XE_DEBUG
+  arena_->DebugFill();
+#endif
+  arena_->Reset();
 }
 
 int HIRBuilder::Finalize() {
@@ -316,6 +320,19 @@ void HIRBuilder::InsertLabel(Label* label, Instr* prev_instr) {
 
   if (current_block_ == prev_block) {
     current_block_ = new_block;
+  }
+}
+
+void HIRBuilder::ResetLabelTags() {
+  // TODO(benvanik): make this faster?
+  auto block = block_head_;
+  while (block) {
+    auto label = block->label_head;
+    while (label) {
+      label->tag = 0;
+      label = label->next;
+    }
+    block = block->next;
   }
 }
 

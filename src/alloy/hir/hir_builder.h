@@ -13,6 +13,7 @@
 #include <alloy/core.h>
 #include <alloy/hir/block.h>
 #include <alloy/hir/instr.h>
+#include <alloy/hir/label.h>
 #include <alloy/hir/opcodes.h>
 #include <alloy/hir/value.h>
 
@@ -47,6 +48,7 @@ public:
   Label* NewLabel();
   void MarkLabel(Label* label, Block* block = 0);
   void InsertLabel(Label* label, Instr* prev_instr);
+  void ResetLabelTags();
 
   // static allocations:
   // Value* AllocStatic(size_t length);
