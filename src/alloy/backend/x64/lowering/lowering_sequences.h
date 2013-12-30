@@ -7,38 +7,27 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_BACKEND_X64_X64_CODEGEN_H_
-#define ALLOY_BACKEND_X64_X64_CODEGEN_H_
+#ifndef ALLOY_BACKEND_X64_X64_LOWERING_LOWERING_SEQUENCES_H_
+#define ALLOY_BACKEND_X64_X64_LOWERING_LOWERING_SEQUENCES_H_
 
 #include <alloy/core.h>
+#include <alloy/hir/instr.h>
 
 
 namespace alloy {
 namespace backend {
 namespace x64 {
+namespace lowering {
 
-class X64Backend;
+class LoweringTable;
 
-
-class X64Codegen {
-public:
-  X64Codegen(X64Backend* backend);
-  ~X64Codegen();
-
-  int Initialize();
-
-  void Reset();
-
-  //
-
-private:
-  X64Backend* backend_;
-};
+void RegisterSequences(LoweringTable* table);
 
 
+}  // namespace lowering
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
 
 
-#endif  // ALLOY_BACKEND_X64_X64_CODEGEN_H_
+#endif  // ALLOY_BACKEND_X64_X64_LOWERING_LOWERING_SEQUENCES_H_

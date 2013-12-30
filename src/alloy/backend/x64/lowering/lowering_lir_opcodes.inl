@@ -7,26 +7,10 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_codegen.h>
-
-#include <alloy/backend/x64/x64_backend.h>
-
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
-using namespace alloy::runtime;
-
-
-X64Codegen::X64Codegen(X64Backend* backend) :
-    backend_(backend) {
-}
-
-X64Codegen::~X64Codegen() {
-}
-
-int X64Codegen::Initialize() {
-  return 0;
-}
-
-void X64Codegen::Reset() {
-}
+DEFINE_LIR_OPCODE_R32_R32(MOV_I32);
+DEFINE_LIR_OPCODE_R32_R32(XOR_I32);
+DEFINE_LIR_OPCODE_R32(DEC_I32);
+DEFINE_LIR_OPCODE_R32_R32(SUB_I32);
+DEFINE_LIR_OPCODE_R32_R32(IMUL_I32);
+DEFINE_LIR_OPCODE_R32_R32_C32(IMUL_I32_AUX);
+DEFINE_LIR_OPCODE_R32(DIV_I32);

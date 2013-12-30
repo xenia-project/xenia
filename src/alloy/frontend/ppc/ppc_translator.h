@@ -43,7 +43,7 @@ private:
 private:
   PPCFrontend*          frontend_;
   PPCScanner*           scanner_;
-  PPCHIRBuilder*   builder_;
+  PPCHIRBuilder*        builder_;
   compiler::Compiler*   compiler_;
   backend::Assembler*   assembler_;
 

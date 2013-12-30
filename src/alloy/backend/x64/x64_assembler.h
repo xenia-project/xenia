@@ -20,6 +20,8 @@ namespace backend {
 namespace x64 {
 
 class X64Backend;
+namespace lir { class LIRBuilder; }
+namespace optimizer { class Optimizer; }
 
 
 class X64Assembler : public Assembler {
@@ -36,6 +38,11 @@ public:
       runtime::DebugInfo* debug_info, runtime::Function** out_function);
 
 private:
+  X64Backend*           x64_backend_;
+  lir::LIRBuilder*      builder_;
+  optimizer::Optimizer* optimizer_;
+
+  StringBuffer          string_buffer_;
 };
 
 

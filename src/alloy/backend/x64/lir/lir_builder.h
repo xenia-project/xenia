@@ -17,23 +17,25 @@
 namespace alloy {
 namespace backend {
 namespace x64 {
+class X64Backend;
 namespace lir {
 
 
 class LIRBuilder {
 public:
-  LIRBuilder();
-  virtual ~LIRBuilder();
+  LIRBuilder(X64Backend* backend);
+  ~LIRBuilder();
 
-  virtual void Reset();
-  virtual int Finalize();
+  void Reset();
+  int Finalize();
 
   void Dump(StringBuffer* str);
 
   Arena* arena() const { return arena_; }
 
 protected:
-  Arena*    arena_;
+  X64Backend* backend_;
+  Arena*      arena_;
 };
 
 

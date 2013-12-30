@@ -6,8 +6,6 @@
     'x64_assembler.h',
     'x64_backend.cc',
     'x64_backend.h',
-    'x64_codegen.cc',
-    'x64_codegen.h',
     'x64_emitter.cc',
     'x64_emitter.h',
     'x64_function.cc',
@@ -16,6 +14,7 @@
 
   'includes': [
     'lir/sources.gypi',
+    'lowering/sources.gypi',
     'optimizer/sources.gypi',
   ],
 }

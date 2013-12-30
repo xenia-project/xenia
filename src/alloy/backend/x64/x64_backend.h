@@ -19,6 +19,8 @@ namespace alloy {
 namespace backend {
 namespace x64 {
 
+namespace lowering { class LoweringTable; }
+
 
 #define ALLOY_HAS_X64_BACKEND 1
 
@@ -28,9 +30,14 @@ public:
   X64Backend(runtime::Runtime* runtime);
   virtual ~X64Backend();
 
+  lowering::LoweringTable* lowering_table() const { return lowering_table_; }
+
   virtual int Initialize();
 
   virtual Assembler* CreateAssembler();
+
+private:
+  lowering::LoweringTable* lowering_table_;
 };
 
 
