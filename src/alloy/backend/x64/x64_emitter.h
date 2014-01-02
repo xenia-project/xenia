@@ -29,8 +29,6 @@ public:
 
   void Reset();
 
-  //
-
 private:
   X64Backend* backend_;
 };

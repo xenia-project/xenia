@@ -15,6 +15,7 @@
 #include <alloy/backend/x64/lir/lir_instr.h>
 #include <alloy/backend/x64/lir/lir_label.h>
 #include <alloy/backend/x64/lir/lir_opcodes.h>
+#include <alloy/hir/value.h>
 
 
 namespace alloy {
@@ -40,16 +41,37 @@ public:
   LIRBlock* current_block() const;
   LIRInstr* last_instr() const;
 
-  LIRLabel* NewLabel();
+  LIRLabel* NewLabel(bool local = false);
+  LIRLabel* NewLocalLabel() { return NewLabel(true); }
   void MarkLabel(LIRLabel* label, LIRBlock* block = 0);
 
   // TODO(benvanik): allocations
 
   LIRBlock* AppendBlock();
   void EndBlock();
-  LIRInstr* AppendInstr(const LIROpcodeInfo& opcode, uint16_t flags);
 
-protected:
+  void Comment(const char* format, ...);
+  void Nop();
+  void SourceOffset(uint64_t offset);
+
+  void DebugBreak();
+  void Trap();
+
+  void Mov();
+
+  void Test(int8_t a, int8_t b);
+  void Test(int16_t a, int16_t b);
+  void Test(int32_t a, int32_t b);
+  void Test(int64_t a, int64_t b);
+  void Test(hir::Value* a, hir::Value* b);
+
+  void JumpEQ(LIRLabel* label);
+  void JumpNE(LIRLabel* label);
+
+private:
+  LIRInstr* AppendInstr(const LIROpcodeInfo& opcode, uint16_t flags = 0);
+
+private:
   X64Backend* backend_;
   Arena*      arena_;
 

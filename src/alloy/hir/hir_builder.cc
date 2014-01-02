@@ -162,7 +162,7 @@ void HIRBuilder::Dump(StringBuffer* str) {
         i = i->next;
         continue;
       }
-      if (i->opcode->num == OPCODE_COMMENT) {
+      if (i->opcode == &OPCODE_COMMENT_info) {
         str->Append("  ; %s\n", (char*)i->src1.offset);
         i = i->next;
         continue;
@@ -222,6 +222,7 @@ Label* HIRBuilder::NewLabel() {
   label->block = NULL;
   label->id = next_label_id_++;
   label->name = NULL;
+  label->tag = NULL;
   return label;
 }
 

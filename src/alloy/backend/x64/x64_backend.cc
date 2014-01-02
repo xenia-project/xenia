@@ -12,6 +12,7 @@
 #include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_assembler.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
+#include <alloy/backend/x64/lowering/lowering_sequences.h>
 
 using namespace alloy;
 using namespace alloy::backend;
@@ -38,6 +39,7 @@ int X64Backend::Initialize() {
   }
 
   lowering_table_ = new LoweringTable(this);
+  RegisterSequences(lowering_table_);
 
   alloy::tracing::WriteEvent(EventType::Init({
   }));

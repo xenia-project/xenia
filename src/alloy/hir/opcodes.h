@@ -66,7 +66,6 @@ enum Swizzles {
 
 enum Opcode {
   OPCODE_COMMENT,
-
   OPCODE_NOP,
 
   OPCODE_SOURCE_OFFSET,

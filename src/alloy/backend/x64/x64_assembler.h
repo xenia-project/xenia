@@ -20,6 +20,7 @@ namespace backend {
 namespace x64 {
 
 class X64Backend;
+class X64Emitter;
 namespace lir { class LIRBuilder; }
 namespace optimizer { class Optimizer; }
 
@@ -38,9 +39,13 @@ public:
       runtime::DebugInfo* debug_info, runtime::Function** out_function);
 
 private:
+  void DumpMachineCode(StringBuffer* str);
+
+private:
   X64Backend*           x64_backend_;
   lir::LIRBuilder*      builder_;
   optimizer::Optimizer* optimizer_;
+  X64Emitter*           emitter_;
 
   StringBuffer          string_buffer_;
 };

@@ -29,6 +29,7 @@ public:
 
   uint32_t  id;
   char*     name;
+  bool      local;
 
   void*     tag;
 };

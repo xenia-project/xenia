@@ -20,13 +20,20 @@ namespace lir {
 
 
 enum LIROpcode {
-  LIR_OPCODE_MOV_I32,
-  LIR_OPCODE_XOR_I32,
-  LIR_OPCODE_DEC_I32,
-  LIR_OPCODE_SUB_I32,
-  LIR_OPCODE_IMUL_I32,
-  LIR_OPCODE_IMUL_I32_AUX,
-  LIR_OPCODE_DIV_I32,
+  LIR_OPCODE_COMMENT,
+  LIR_OPCODE_NOP,
+
+  LIR_OPCODE_SOURCE_OFFSET,
+
+  LIR_OPCODE_DEBUG_BREAK,
+  LIR_OPCODE_TRAP,
+
+  LIR_OPCODE_MOV,
+
+  LIR_OPCODE_TEST,
+
+  LIR_OPCODE_JUMP_EQ,
+  LIR_OPCODE_JUMP_NE,
 
   __LIR_OPCODE_MAX_VALUE, // Keep at end.
 };
@@ -40,35 +47,19 @@ enum LIROpcodeFlags {
   LIR_OPCODE_FLAG_HIDE        = (1 << 6),
 };
 
-enum LIROpcodeSignatureType {
-  // 3 bits max (0-7)
-  LIR_OPCODE_SIG_TYPE_X = 0,
-};
-
-enum LIROpcodeSignature {
-  LIR_OPCODE_SIG_X = (LIR_OPCODE_SIG_TYPE_X),
-  LIR_OPCODE_SIG_R32 = (LIR_OPCODE_SIG_TYPE_X),
-  LIR_OPCODE_SIG_R32_R32 = (LIR_OPCODE_SIG_TYPE_X),
-  LIR_OPCODE_SIG_R32_R32_C32 = (LIR_OPCODE_SIG_TYPE_X),
-};
-
-#define GET_LIR_OPCODE_SIG_TYPE_DEST(sig) (LIROpcodeSignatureType)(sig & 0x7)
-#define GET_LIR_OPCODE_SIG_TYPE_SRC1(sig) (LIROpcodeSignatureType)((sig >> 3) & 0x7)
-#define GET_LIR_OPCODE_SIG_TYPE_SRC2(sig) (LIROpcodeSignatureType)((sig >> 6) & 0x7)
-#define GET_LIR_OPCODE_SIG_TYPE_SRC3(sig) (LIROpcodeSignatureType)((sig >> 9) & 0x7)
-
 typedef struct {
   uint32_t    flags;
-  uint32_t    signature;
   const char* name;
   LIROpcode   num;
 } LIROpcodeInfo;
 
 
-#define DEFINE_OPCODE(num, name, sig, flags) \
+#define DEFINE_OPCODE(num, string_name, flags) \
     extern const LIROpcodeInfo num##_info;
 #include <alloy/backend/x64/lir/lir_opcodes.inl>
 #undef DEFINE_OPCODE
+
+extern const LIROpcodeInfo& GetOpcodeInfo(LIROpcode opcode);
 
 
 }  // namespace lir

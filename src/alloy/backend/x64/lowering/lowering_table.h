@@ -33,28 +33,18 @@ public:
   int Process(hir::HIRBuilder* hir_builder, lir::LIRBuilder* lir_builder);
 
 public:
-  class FnWrapper {
-  public:
-    FnWrapper() : next(0) {}
-    virtual bool operator()(lir::LIRBuilder* builder, hir::Instr*& instr) const = 0;
-    FnWrapper* next;
-  };
-  template<typename T>
-  class TypedFnWrapper : public FnWrapper {
-  public:
-    TypedFnWrapper(T fn) : fn_(fn) {}
-    virtual bool operator()(lir::LIRBuilder* builder, hir::Instr*& instr) const {
-      return fn_(builder, instr);
-    }
-  private:
-    T fn_;
-  };
-
-  void AddSequence(hir::Opcode starting_opcode, FnWrapper* fn);
+  typedef bool(*sequence_fn_t)(lir::LIRBuilder& lb, hir::Instr*& instr);
+  void AddSequence(hir::Opcode starting_opcode, sequence_fn_t fn);
 
 private:
+  class sequence_fn_entry_t {
+  public:
+    sequence_fn_t fn;
+    sequence_fn_entry_t* next;
+  };
+
   X64Backend* backend_;
-  FnWrapper* lookup_[hir::__OPCODE_MAX_VALUE];
+  sequence_fn_entry_t* lookup_[hir::__OPCODE_MAX_VALUE];
 };
 
 

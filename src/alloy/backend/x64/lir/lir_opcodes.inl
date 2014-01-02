@@ -8,37 +8,46 @@
  */
 
 DEFINE_OPCODE(
-    LIR_OPCODE_MOV_I32,
-    "mov.i32",
-    LIR_OPCODE_SIG_R32_R32,
-    0);
+    LIR_OPCODE_COMMENT,
+    "comment",
+    LIR_OPCODE_FLAG_IGNORE)
+
 DEFINE_OPCODE(
-    LIR_OPCODE_XOR_I32,
-    "xor.i32",
-    LIR_OPCODE_SIG_R32_R32,
-    0);
+    LIR_OPCODE_NOP,
+    "nop",
+    LIR_OPCODE_FLAG_IGNORE)
+
 DEFINE_OPCODE(
-    LIR_OPCODE_DEC_I32,
-    "dec.i32",
-    LIR_OPCODE_SIG_R32,
-    0);
+    LIR_OPCODE_SOURCE_OFFSET,
+    "source_offset",
+    LIR_OPCODE_FLAG_IGNORE | LIR_OPCODE_FLAG_HIDE)
+
 DEFINE_OPCODE(
-    LIR_OPCODE_SUB_I32,
-    "sub.i32",
-    LIR_OPCODE_SIG_R32_R32,
-    0);
+    LIR_OPCODE_DEBUG_BREAK,
+    "debug_break",
+    0)
+
 DEFINE_OPCODE(
-    LIR_OPCODE_IMUL_I32,
-    "imul.i32",
-    LIR_OPCODE_SIG_R32_R32,
-    0);
+    LIR_OPCODE_TRAP,
+    "trap",
+    0)
+
 DEFINE_OPCODE(
-    LIR_OPCODE_IMUL_I32_AUX,
-    "imul.i32.aux",
-    LIR_OPCODE_SIG_R32_R32_C32,
-    0);
+    LIR_OPCODE_MOV,
+    "mov",
+    0)
+
 DEFINE_OPCODE(
-    LIR_OPCODE_DIV_I32,
-    "div.i32",
-    LIR_OPCODE_SIG_R32,
-    0);
+    LIR_OPCODE_TEST,
+    "test",
+    0)
+
+DEFINE_OPCODE(
+    LIR_OPCODE_JUMP_EQ,
+    "jump_eq",
+    0)
+
+DEFINE_OPCODE(
+    LIR_OPCODE_JUMP_NE,
+    "jump_ne",
+    0)

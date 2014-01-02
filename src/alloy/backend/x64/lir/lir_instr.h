@@ -65,6 +65,19 @@ enum LIRRegister {
   XMM15,
 };
 
+typedef union {
+  runtime::FunctionInfo* symbol_info;
+  LIRLabel*   label;
+  LIRRegister reg;
+  int8_t      i8;
+  int16_t     i16;
+  int32_t     i32;
+  int64_t     i64;
+  float       f32;
+  double      f64;
+  uint64_t    offset;
+} LIROperand;
+
 
 class LIRInstr {
 public:
@@ -75,21 +88,8 @@ public:
   const LIROpcodeInfo* opcode;
   uint16_t flags;
 
-  typedef union {
-    runtime::FunctionInfo* symbol_info;
-    LIRLabel*   label;
-    LIRRegister reg;
-    int8_t      i8;
-    int16_t     i16;
-    int32_t     i32;
-    int64_t     i64;
-    float       f32;
-    double      f64;
-    uint64_t    offset;
-  } Op;
-
   // TODO(benvanik): make this variable width?
-  Op arg[4];
+  LIROperand arg[4];
 };
 
 

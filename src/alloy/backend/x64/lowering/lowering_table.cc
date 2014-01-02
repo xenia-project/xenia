@@ -23,11 +23,11 @@ LoweringTable::LoweringTable(X64Backend* backend) :
 
 LoweringTable::~LoweringTable() {
   for (size_t n = 0; n < XECOUNT(lookup_); n++) {
-    auto fn = lookup_[n];
-    while (fn) {
-      auto next = fn->next;
-      delete fn;
-      fn = next;
+    auto entry = lookup_[n];
+    while (entry) {
+      auto next = entry->next;
+      delete entry;
+      entry = next;
     }
   }
 }
@@ -37,10 +37,12 @@ int LoweringTable::Initialize() {
   return 0;
 }
 
-void LoweringTable::AddSequence(hir::Opcode starting_opcode, FnWrapper* fn) {
-  auto existing_fn = lookup_[starting_opcode];
-  fn->next = existing_fn;
-  lookup_[starting_opcode] = fn;
+void LoweringTable::AddSequence(hir::Opcode starting_opcode, sequence_fn_t fn) {
+  auto existing_entry = lookup_[starting_opcode];
+  auto new_entry = new sequence_fn_entry_t();
+  new_entry->fn = fn;
+  new_entry->next = existing_entry;
+  lookup_[starting_opcode] = new_entry;
 }
 
 int LoweringTable::Process(
@@ -78,13 +80,13 @@ int LoweringTable::Process(
     auto hir_instr = hir_block->instr_head;
     while (hir_instr) {
       bool processed = false;
-      auto fn = lookup_[hir_instr->opcode->num];
-      while (fn) {
-        if ((*fn)(lir_builder, hir_instr)) {
+      auto entry = lookup_[hir_instr->opcode->num];
+      while (entry) {
+        if ((*entry->fn)(*lir_builder, hir_instr)) {
           processed = true;
           break;
         }
-        fn = fn->next;
+        entry = entry->next;
       }
       if (!processed) {
         // No sequence found!

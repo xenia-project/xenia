@@ -16,11 +16,15 @@
 
       'sources': [
         'beaengine/beaengineSources/BeaEngine.c',
+        'beaengine/include/beaengine/basic_types.h',
+        'beaengine/include/beaengine/BeaEngine.h',
+        'beaengine/include/beaengine/export.h',
+        'beaengine/include/beaengine/macros.h',
       ],
 
       'include_dirs': [
-        'beaengine/include/',
         'beaengine/beaengineSources/',
+        'beaengine/include/',
       ],
 
       'defines': [

@@ -11,6 +11,7 @@
 
 #include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_backend.h>
+#include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/backend/x64/x64_function.h>
 #include <alloy/backend/x64/lir/lir_builder.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
@@ -19,6 +20,10 @@
 #include <alloy/hir/hir_builder.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
+
+namespace BE {
+#include <beaengine/BeaEngine.h>
+}
 
 using namespace alloy;
 using namespace alloy::backend;
@@ -31,8 +36,9 @@ using namespace alloy::runtime;
 
 X64Assembler::X64Assembler(X64Backend* backend) :
     x64_backend_(backend),
-    optimizer_(0),
     builder_(0),
+    optimizer_(0),
+    emitter_(0),
     Assembler(backend) {
 }
 
@@ -40,6 +46,7 @@ X64Assembler::~X64Assembler() {
   alloy::tracing::WriteEvent(EventType::AssemblerDeinit({
   }));
 
+  delete emitter_;
   delete optimizer_;
   delete builder_;
 }
@@ -50,10 +57,12 @@ int X64Assembler::Initialize() {
     return result;
   }
 
+  builder_ = new LIRBuilder(x64_backend_);
+
   optimizer_ = new Optimizer(backend_->runtime());
   optimizer_->AddPass(new passes::RedundantMovPass());
 
-  builder_ = new LIRBuilder(x64_backend_);
+  emitter_ = new X64Emitter(x64_backend_);
 
   alloy::tracing::WriteEvent(EventType::AssemblerInit({
   }));
@@ -64,6 +73,7 @@ int X64Assembler::Initialize() {
 void X64Assembler::Reset() {
   builder_->Reset();
   optimizer_->Reset();
+  emitter_->Reset();
   string_buffer_.Reset();
   Assembler::Reset();
 }
@@ -103,7 +113,7 @@ int X64Assembler::Assemble(
 
   // Stash generated machine code.
   if (debug_info) {
-    //emitter_->Dump(&string_buffer_);
+    DumpMachineCode(&string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
@@ -120,4 +130,21 @@ int X64Assembler::Assemble(
 XECLEANUP:
   Reset();
   return result;
+}
+
+void X64Assembler::DumpMachineCode(StringBuffer* str) {
+  BE::DISASM disasm;
+  xe_zero_struct(&disasm, sizeof(disasm));
+  disasm.Archi = 64;
+  disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;
+  disasm.EIP = 0;// (BE::UIntPtr)assembler_.getCode();
+  BE::UIntPtr eip_end = 0;// assembler_.getCode() + assembler_.getCodeSize();
+  while (disasm.EIP < eip_end) {
+    size_t len = BE::Disasm(&disasm);
+    if (len == BE::UNKNOWN_OPCODE) {
+      break;
+    }
+    str->Append("%p  %s", disasm.EIP, disasm.CompleteInstr);
+    disasm.EIP += len;
+  }
 }

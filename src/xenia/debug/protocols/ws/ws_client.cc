@@ -11,7 +11,7 @@
 
 #include <iomanip>
 #include <sstream>
-#include <third_party/jansson/src/jansson.h>
+#include <jansson.h>
 
 #include <xenia/emulator.h>
 #include <xenia/debug/debug_server.h>

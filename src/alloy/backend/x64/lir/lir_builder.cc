@@ -49,10 +49,18 @@ void LIRBuilder::Dump(StringBuffer* str) {
 
     auto label = block->label_head;
     while (label) {
-      if (label->name) {
-        str->Append("%s:\n", label->name);
+      if (label->local) {
+        if (label->name) {
+          str->Append(".%s:\n", label->name);
+        } else {
+          str->Append(".label%d:\n", label->id);
+        }
       } else {
-        str->Append("label%d:\n", label->id);
+        if (label->name) {
+          str->Append("%s:\n", label->name);
+        } else {
+          str->Append("label%d:\n", label->id);
+        }
       }
       label = label->next;
     }
@@ -63,8 +71,11 @@ void LIRBuilder::Dump(StringBuffer* str) {
         i = i->next;
         continue;
       }
-
-      // TODO(benvanik): handle comment
+      if (i->opcode == &LIR_OPCODE_COMMENT_info) {
+        str->Append("  ; %s\n", (char*)i->arg[0].i64);
+        i = i->next;
+        continue;
+      }
 
       const LIROpcodeInfo* info = i->opcode;
       str->Append("  ");
@@ -95,12 +106,14 @@ LIRInstr* LIRBuilder::last_instr() const {
   return NULL;
 }
 
-LIRLabel* LIRBuilder::NewLabel() {
+LIRLabel* LIRBuilder::NewLabel(bool local) {
   LIRLabel* label = arena_->Alloc<LIRLabel>();
   label->next = label->prev = NULL;
   label->block = NULL;
   label->id = next_label_id_++;
   label->name = NULL;
+  label->local = local;
+  label->tag = NULL;
   return label;
 }
 
@@ -173,4 +186,52 @@ LIRInstr* LIRBuilder::AppendInstr(
   instr->opcode = &opcode_info;
   instr->flags = flags;
   return instr;
+}
+
+void LIRBuilder::Comment(const char* format, ...) {
+  auto instr = AppendInstr(LIR_OPCODE_COMMENT_info);
+}
+
+void LIRBuilder::Nop() {
+  auto instr = AppendInstr(LIR_OPCODE_NOP_info);
+}
+
+void LIRBuilder::SourceOffset(uint64_t offset) {
+  auto instr = AppendInstr(LIR_OPCODE_SOURCE_OFFSET_info);
+}
+
+void LIRBuilder::DebugBreak() {
+  auto instr = AppendInstr(LIR_OPCODE_DEBUG_BREAK_info);
+}
+
+void LIRBuilder::Trap() {
+  auto instr = AppendInstr(LIR_OPCODE_TRAP_info);
+}
+
+void LIRBuilder::Test(int8_t a, int8_t b) {
+  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
+}
+
+void LIRBuilder::Test(int16_t a, int16_t b) {
+  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
+}
+
+void LIRBuilder::Test(int32_t a, int32_t b) {
+  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
+}
+
+void LIRBuilder::Test(int64_t a, int64_t b) {
+  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
+}
+
+void LIRBuilder::Test(hir::Value* a, hir::Value* b) {
+  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
+}
+
+void LIRBuilder::JumpEQ(LIRLabel* label) {
+  auto instr = AppendInstr(LIR_OPCODE_JUMP_EQ_info);
+}
+
+void LIRBuilder::JumpNE(LIRLabel* label) {
+  auto instr = AppendInstr(LIR_OPCODE_JUMP_NE_info);
 }

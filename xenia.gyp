@@ -185,9 +185,11 @@
       'type': 'static_library',
 
       'dependencies': [
+        'beaengine',
         'gflags',
       ],
       'export_dependent_settings': [
+        'beaengine',
         'gflags',
       ],
 
@@ -246,14 +248,12 @@
       'type': 'static_library',
 
       'dependencies': [
-        'beaengine',
         'gflags',
         'jansson',
         'wslay',
         'alloy',
       ],
       'export_dependent_settings': [
-        'beaengine',
         'gflags',
         'jansson',
         'wslay',
