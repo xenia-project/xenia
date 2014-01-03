@@ -26,10 +26,11 @@ public:
   NopGraphicsSystem(Emulator* emulator);
   virtual ~NopGraphicsSystem();
 
+  virtual void Shutdown();
+
 protected:
   virtual void Initialize();
   virtual void Pump();
-  virtual void Shutdown();
 
 private:
   HANDLE timer_queue_;

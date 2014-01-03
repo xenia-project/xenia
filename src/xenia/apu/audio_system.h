@@ -33,6 +33,7 @@ public:
   cpu::Processor* processor() const { return processor_; }
 
   virtual X_STATUS Setup();
+  virtual void Shutdown();
 
   bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
@@ -41,7 +42,6 @@ public:
 protected:
   virtual void Initialize();
   virtual void Pump() = 0;
-  virtual void Shutdown();
 
 private:
   static void ThreadStartThunk(AudioSystem* this_ptr) {

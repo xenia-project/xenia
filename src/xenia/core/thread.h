@@ -28,6 +28,7 @@ xe_thread_ref xe_thread_retain(xe_thread_ref thread);
 void xe_thread_release(xe_thread_ref thread);
 
 int xe_thread_start(xe_thread_ref thread);
+void xe_thread_join(xe_thread_ref thread);
 
 
 #endif  // XENIA_CORE_THREAD_H_

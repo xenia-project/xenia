@@ -28,11 +28,6 @@ AudioSystem::AudioSystem(Emulator* emulator) :
 }
 
 AudioSystem::~AudioSystem() {
-  // TODO(benvanik): thread join.
-  running_ = false;
-  xe_thread_release(thread_);
-
-  xe_run_loop_release(run_loop_);
 }
 
 X_STATUS AudioSystem::Setup() {
@@ -80,12 +75,14 @@ void AudioSystem::ThreadStart() {
     //worker_->Pump();
     Sleep(1000);
 
+    if (!running_) {
+      break;
+    }
+
     // Pump audio system.
     Pump();
   }
   running_ = false;
-
-  Shutdown();
 
   xe_run_loop_release(run_loop);
 
@@ -96,6 +93,11 @@ void AudioSystem::Initialize() {
 }
 
 void AudioSystem::Shutdown() {
+  running_ = false;
+  xe_thread_join(thread_);
+  xe_thread_release(thread_);
+
+  xe_run_loop_release(run_loop_);
 }
 
 bool AudioSystem::HandlesRegister(uint64_t addr) {

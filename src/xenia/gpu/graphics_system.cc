@@ -33,14 +33,6 @@ GraphicsSystem::GraphicsSystem(Emulator* emulator) :
 }
 
 GraphicsSystem::~GraphicsSystem() {
-  // TODO(benvanik): thread join.
-  running_ = false;
-  xe_thread_release(thread_);
-
-  // TODO(benvanik): worker join/etc.
-  delete worker_;
-
-  xe_run_loop_release(run_loop_);
 }
 
 X_STATUS GraphicsSystem::Setup() {
@@ -90,12 +82,14 @@ void GraphicsSystem::ThreadStart() {
     // Pump worker.
     worker_->Pump();
 
+    if (!running_) {
+      break;
+    }
+
     // Pump graphics system.
     Pump();
   }
   running_ = false;
-
-  Shutdown();
 
   xe_run_loop_release(run_loop);
 
@@ -106,6 +100,13 @@ void GraphicsSystem::Initialize() {
 }
 
 void GraphicsSystem::Shutdown() {
+  running_ = false;
+  xe_thread_join(thread_);
+  xe_thread_release(thread_);
+
+  delete worker_;
+
+  xe_run_loop_release(run_loop_);
 }
 
 void GraphicsSystem::SetInterruptCallback(uint32_t callback,

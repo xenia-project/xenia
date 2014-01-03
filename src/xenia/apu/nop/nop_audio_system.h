@@ -26,10 +26,11 @@ public:
   NopAudioSystem(Emulator* emulator);
   virtual ~NopAudioSystem();
 
+  virtual void Shutdown();
+
 protected:
   virtual void Initialize();
   virtual void Pump();
-  virtual void Shutdown();
 
 private:
 };

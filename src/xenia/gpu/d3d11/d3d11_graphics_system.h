@@ -33,10 +33,11 @@ public:
   D3D11GraphicsSystem(Emulator* emulator);
   virtual ~D3D11GraphicsSystem();
 
+  virtual void Shutdown();
+
 protected:
   virtual void Initialize();
   virtual void Pump();
-  virtual void Shutdown();
 
 private:
   IDXGIFactory1*  dxgi_factory_;

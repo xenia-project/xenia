@@ -37,9 +37,6 @@ D3D11GraphicsSystem::D3D11GraphicsSystem(Emulator* emulator) :
 }
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
-  XESAFERELEASE(device_);
-  XESAFERELEASE(dxgi_factory_);
-  delete window_;
 }
 
 void D3D11GraphicsSystem::Initialize() {
@@ -50,13 +47,13 @@ void D3D11GraphicsSystem::Initialize() {
 
   timer_queue_ = CreateTimerQueue();
   CreateTimerQueueTimer(
-    &vsync_timer_,
-    timer_queue_,
-    (WAITORTIMERCALLBACK)D3D11GraphicsSystemVsyncCallback,
-    this,
-    16,
-    100,
-    WT_EXECUTEINTIMERTHREAD);
+      &vsync_timer_,
+      timer_queue_,
+      (WAITORTIMERCALLBACK)D3D11GraphicsSystemVsyncCallback,
+      this,
+      16,
+      100,
+      WT_EXECUTEINTIMERTHREAD);
 
   // Create DXGI factory so we can get a swap chain/etc.
   HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1),
@@ -158,6 +155,8 @@ void D3D11GraphicsSystem::Pump() {
 }
 
 void D3D11GraphicsSystem::Shutdown() {
+  GraphicsSystem::Shutdown();
+  
   if (vsync_timer_) {
     DeleteTimerQueueTimer(timer_queue_, vsync_timer_, NULL);
   }
@@ -165,7 +164,10 @@ void D3D11GraphicsSystem::Shutdown() {
     DeleteTimerQueueEx(timer_queue_, NULL);
   }
 
-  // TODO(benvanik): release D3D stuff here?
-
-  GraphicsSystem::Shutdown();
+  XESAFERELEASE(device_);
+  device_ = 0;
+  XESAFERELEASE(dxgi_factory_);
+  dxgi_factory_ = 0;
+  delete window_;
+  window_ = 0;
 }

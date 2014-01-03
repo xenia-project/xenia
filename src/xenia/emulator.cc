@@ -56,8 +56,13 @@ Emulator::~Emulator() {
   delete file_system_;
 
   delete input_system_;
+
+  // Give the systems time to shutdown before we delete them.
+  graphics_system_->Shutdown();
+  audio_system_->Shutdown();
   delete graphics_system_;
   delete audio_system_;
+
   delete processor_;
 
   delete debug_server_;

@@ -34,6 +34,7 @@ public:
   cpu::Processor* processor() const { return processor_; }
 
   virtual X_STATUS Setup();
+  virtual void Shutdown();
 
   void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
@@ -51,7 +52,6 @@ public:
 protected:
   virtual void Initialize();
   virtual void Pump() = 0;
-  virtual void Shutdown();
 
 private:
   static void ThreadStartThunk(GraphicsSystem* this_ptr) {

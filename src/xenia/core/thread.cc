@@ -104,6 +104,11 @@ int xe_thread_start(xe_thread_ref thread) {
   return 0;
 }
 
+void xe_thread_join(xe_thread_ref thread) {
+  HANDLE thread_handle = (HANDLE)thread->handle;
+  WaitForSingleObject(thread_handle, INFINITE);
+}
+
 #else
 
 static void* xe_thread_callback_pthreads(void* param) {
@@ -135,6 +140,10 @@ int xe_thread_start(xe_thread_ref thread) {
   thread->handle = reinterpret_cast<void*>(thread_handle);
 
   return 0;
+}
+
+void xe_thread_join(xe_thread_ref thread) {
+  pthread_join((pthread_t)thread->handle, NULL);
 }
 
 #endif  // WIN32
