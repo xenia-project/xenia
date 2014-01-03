@@ -76,6 +76,7 @@ typedef union {
   float       f32;
   double      f64;
   uint64_t    offset;
+  char*       string;
 } LIROperand;
 
 

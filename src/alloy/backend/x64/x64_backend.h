@@ -19,6 +19,7 @@ namespace alloy {
 namespace backend {
 namespace x64 {
 
+class X64CodeCache;
 namespace lowering { class LoweringTable; }
 
 
@@ -30,6 +31,7 @@ public:
   X64Backend(runtime::Runtime* runtime);
   virtual ~X64Backend();
 
+  X64CodeCache* code_cache() const { return code_cache_; }
   lowering::LoweringTable* lowering_table() const { return lowering_table_; }
 
   virtual int Initialize();
@@ -37,6 +39,7 @@ public:
   virtual Assembler* CreateAssembler();
 
 private:
+  X64CodeCache* code_cache_;
   lowering::LoweringTable* lowering_table_;
 };
 

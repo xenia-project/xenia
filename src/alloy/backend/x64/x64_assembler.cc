@@ -73,7 +73,6 @@ int X64Assembler::Initialize() {
 void X64Assembler::Reset() {
   builder_->Reset();
   optimizer_->Reset();
-  emitter_->Reset();
   string_buffer_.Reset();
   Assembler::Reset();
 }
@@ -107,13 +106,14 @@ int X64Assembler::Assemble(
   }
 
   // Emit machine code.
-  // TODO(benvanik): machine code.
-  //result = emitter_->Emit(builder_, &machine_code, &length);
+  void* machine_code = 0;
+  size_t code_size = 0;
+  result = emitter_->Emit(builder_, machine_code, code_size);
   XEEXPECTZERO(result);
 
   // Stash generated machine code.
   if (debug_info) {
-    DumpMachineCode(&string_buffer_);
+    DumpMachineCode(machine_code, code_size, &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
@@ -132,19 +132,20 @@ XECLEANUP:
   return result;
 }
 
-void X64Assembler::DumpMachineCode(StringBuffer* str) {
+void X64Assembler::DumpMachineCode(
+    void* machine_code, size_t code_size, StringBuffer* str) {
   BE::DISASM disasm;
   xe_zero_struct(&disasm, sizeof(disasm));
   disasm.Archi = 64;
   disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;
-  disasm.EIP = 0;// (BE::UIntPtr)assembler_.getCode();
-  BE::UIntPtr eip_end = 0;// assembler_.getCode() + assembler_.getCodeSize();
+  disasm.EIP = (BE::UIntPtr)machine_code;
+  BE::UIntPtr eip_end = disasm.EIP + code_size;
   while (disasm.EIP < eip_end) {
     size_t len = BE::Disasm(&disasm);
     if (len == BE::UNKNOWN_OPCODE) {
       break;
     }
-    str->Append("%p  %s", disasm.EIP, disasm.CompleteInstr);
+    str->Append("%p  %s\n", disasm.EIP, disasm.CompleteInstr);
     disasm.EIP += len;
   }
 }

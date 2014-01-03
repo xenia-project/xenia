@@ -18,7 +18,11 @@ namespace backend {
 namespace x64 {
 
 class X64Backend;
+class X64CodeCache;
+namespace lir { class LIRBuilder; }
 
+class XbyakAllocator;
+class XbyakGenerator;
 
 class X64Emitter {
 public:
@@ -27,10 +31,14 @@ public:
 
   int Initialize();
 
-  void Reset();
+  int Emit(lir::LIRBuilder* builder,
+           void*& out_code_address, size_t& out_code_size);
 
 private:
-  X64Backend* backend_;
+  X64Backend*     backend_;
+  X64CodeCache*   code_cache_;
+  XbyakAllocator* allocator_;
+  XbyakGenerator* generator_;
 };
 
 

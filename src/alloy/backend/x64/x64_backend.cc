@@ -11,6 +11,7 @@
 
 #include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_assembler.h>
+#include <alloy/backend/x64/x64_code_cache.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/backend/x64/lowering/lowering_sequences.h>
 
@@ -22,7 +23,7 @@ using namespace alloy::runtime;
 
 
 X64Backend::X64Backend(Runtime* runtime) :
-    lowering_table_(0),
+    code_cache_(0), lowering_table_(0),
     Backend(runtime) {
 }
 
@@ -30,10 +31,17 @@ X64Backend::~X64Backend() {
   alloy::tracing::WriteEvent(EventType::Deinit({
   }));
   delete lowering_table_;
+  delete code_cache_;
 }
 
 int X64Backend::Initialize() {
   int result = Backend::Initialize();
+  if (result) {
+    return result;
+  }
+
+  code_cache_ = new X64CodeCache();
+  result = code_cache_->Initialize();
   if (result) {
     return result;
   }

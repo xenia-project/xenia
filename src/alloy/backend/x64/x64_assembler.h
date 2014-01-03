@@ -39,7 +39,7 @@ public:
       runtime::DebugInfo* debug_info, runtime::Function** out_function);
 
 private:
-  void DumpMachineCode(StringBuffer* str);
+  void DumpMachineCode(void* machine_code, size_t code_size, StringBuffer* str);
 
 private:
   X64Backend*           x64_backend_;

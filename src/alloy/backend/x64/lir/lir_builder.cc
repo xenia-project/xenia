@@ -72,7 +72,7 @@ void LIRBuilder::Dump(StringBuffer* str) {
         continue;
       }
       if (i->opcode == &LIR_OPCODE_COMMENT_info) {
-        str->Append("  ; %s\n", (char*)i->arg[0].i64);
+        str->Append("  ; %s\n", i->arg[0].string);
         i = i->next;
         continue;
       }
@@ -189,7 +189,19 @@ LIRInstr* LIRBuilder::AppendInstr(
 }
 
 void LIRBuilder::Comment(const char* format, ...) {
+  char buffer[1024];
+  va_list args;
+  va_start(args, format);
+  xevsnprintfa(buffer, 1024, format, args);
+  va_end(args);
+  size_t len = xestrlena(buffer);
+  if (!len) {
+    return;
+  }
+  void* p = arena_->Alloc(len + 1);
+  xe_copy_struct(p, buffer, len + 1);
   auto instr = AppendInstr(LIR_OPCODE_COMMENT_info);
+  instr->arg[0].string = (char*)p;
 }
 
 void LIRBuilder::Nop() {

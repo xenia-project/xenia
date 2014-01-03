@@ -55,8 +55,13 @@ int LoweringTable::Process(
   while (hir_block) {
     auto hir_label = hir_block->label_head;
     while (hir_label) {
-      // TODO(benvanik): copy name to LIR label.
-      hir_label->tag = lir_builder->NewLabel();
+      auto lir_label = lir_builder->NewLabel();
+      if (hir_label->name) {
+        size_t label_len = xestrlena(hir_label->name);
+        lir_label->name = (char*)lir_builder->arena()->Alloc(label_len + 1);
+        xe_copy_struct(lir_label->name, hir_label->name, label_len + 1);
+      }
+      hir_label->tag = lir_label;
       hir_label = hir_label->next;
     }
     hir_block = hir_block->next;
