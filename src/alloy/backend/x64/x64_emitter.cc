@@ -103,7 +103,7 @@ void* XbyakGenerator::Emplace(X64CodeCache* code_cache) {
 int XbyakGenerator::Emit(LIRBuilder* builder) {
   // Function prolog.
   // Must be 16b aligned.
-  // Windows is very strict about the form of this and the eiplog:
+  // Windows is very strict about the form of this and the epilog:
   // http://msdn.microsoft.com/en-us/library/tawsa7cb.aspx
   // TODO(benvanik): save off non-volatile registers so we can use them:
   //     RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15
@@ -112,8 +112,12 @@ int XbyakGenerator::Emit(LIRBuilder* builder) {
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
+  const bool emit_prolog = false;
   const size_t stack_size = 16;
-  sub(rsp, stack_size);
+  if (emit_prolog) {
+    sub(rsp, stack_size);
+    // TODO(benvanik): save registers.
+  }
 
   // Body.
   auto block = builder->first_block();
@@ -145,8 +149,10 @@ int XbyakGenerator::Emit(LIRBuilder* builder) {
 
   // Function epilog.
   L("epilog");
-  add(rsp, stack_size);
-  // TODO(benvanik): restore registers.
+  if (emit_prolog) {
+    add(rsp, stack_size);
+    // TODO(benvanik): restore registers.
+  }
   ret();
 
   return 0;

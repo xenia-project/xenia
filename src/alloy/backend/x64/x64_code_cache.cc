@@ -213,12 +213,17 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size) {
   size_t unwind_info_offset = offset;
   offset += UNWIND_INFO_SIZE;
 
+  // TODO(benvanik): take as parameters?
+  bool has_prolog = false;
+  uint8_t prolog_size = 4;
+  uint8_t stack_bytes = 16;
+
   // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
   UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
   unwind_info->Version = 1;
   unwind_info->Flags = 0;
-  unwind_info->SizeOfProlog = 4;
-  unwind_info->CountOfCodes = 1;
+  unwind_info->SizeOfProlog = has_prolog ? prolog_size : 0;
+  unwind_info->CountOfCodes = has_prolog ? 1 : 0;
   unwind_info->FrameRegister = 0;
   unwind_info->FrameOffset = 0;
 
@@ -226,7 +231,8 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size) {
   auto& code_0 = unwind_info->UnwindCode[0];
   code_0.CodeOffset = 4; // end of instruction + 1 == offset of next instruction
   code_0.UnwindOp = UWOP_ALLOC_SMALL;
-  code_0.OpInfo = 16;
+  code_0.OpInfo = stack_bytes;
+  XEASSERT(stack_bytes < 128);
 
   // Add entry.
   auto& fn_entry = fn_table[fn_table_count++];
