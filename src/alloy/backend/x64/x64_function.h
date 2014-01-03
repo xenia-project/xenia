@@ -25,7 +25,7 @@ public:
   X64Function(runtime::FunctionInfo* symbol_info);
   virtual ~X64Function();
 
-  //void Setup(TranslationContext& ctx);
+  void Setup(void* machine_code, size_t code_size);
 
 protected:
   virtual int AddBreakpointImpl(runtime::Breakpoint* breakpoint);
@@ -34,6 +34,8 @@ protected:
                        uint64_t return_address);
 
 private:
+  void* machine_code_;
+  size_t code_size_;
 };
 
 

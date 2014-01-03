@@ -20,10 +20,16 @@ using namespace alloy::runtime;
 
 
 X64Function::X64Function(FunctionInfo* symbol_info) :
+    machine_code_(0), code_size_(0),
     GuestFunction(symbol_info) {
 }
 
 X64Function::~X64Function() {
+}
+
+void X64Function::Setup(void* machine_code, size_t code_size) {
+  machine_code_ = machine_code;
+  code_size_ = code_size;
 }
 
 int X64Function::AddBreakpointImpl(Breakpoint* breakpoint) {
@@ -35,5 +41,7 @@ int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) {
 }
 
 int X64Function::CallImpl(ThreadState* thread_state, uint64_t return_address) {
+  typedef void(*call_t)(ThreadState* thread_state, uint64_t return_address);
+  ((call_t)machine_code_)(thread_state, return_address);
   return 0;
 }

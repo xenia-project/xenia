@@ -120,8 +120,7 @@ int X64Assembler::Assemble(
 
   X64Function* fn = new X64Function(symbol_info);
   fn->set_debug_info(debug_info);
-
-  // TODO(benvanik): set mc
+  fn->Setup(machine_code, code_size);
 
   *out_function = fn;
 
