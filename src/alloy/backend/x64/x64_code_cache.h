@@ -17,6 +17,7 @@ namespace alloy {
 namespace backend {
 namespace x64 {
 
+class X64CodeChunk;
 
 class X64CodeCache {
 public:
@@ -32,23 +33,11 @@ public:
   void* PlaceCode(void* machine_code, size_t code_size);
 
 private:
-  class CodeChunk {
-  public:
-    CodeChunk(size_t chunk_size);
-    ~CodeChunk();
-  public:
-    CodeChunk*  next;
-    size_t      capacity;
-    uint8_t*    buffer;
-    size_t      offset;
-  };
-
-private:
-  static const size_t DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
-  Mutex*      lock_;
-  size_t      chunk_size_;
-  CodeChunk*  head_chunk_;
-  CodeChunk*  active_chunk_;
+  const static size_t DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
+  Mutex*        lock_;
+  size_t        chunk_size_;
+  X64CodeChunk* head_chunk_;
+  X64CodeChunk* active_chunk_;
 };
 
 

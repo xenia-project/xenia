@@ -41,8 +41,8 @@ public:
   LIRBlock* current_block() const;
   LIRInstr* last_instr() const;
 
-  LIRLabel* NewLabel(bool local = false);
-  LIRLabel* NewLocalLabel() { return NewLabel(true); }
+  LIRLabel* NewLabel(const char* name = 0, bool local = false);
+  LIRLabel* NewLocalLabel() { return NewLabel(0, true); }
   void MarkLabel(LIRLabel* label, LIRBlock* block = 0);
 
   // TODO(benvanik): allocations

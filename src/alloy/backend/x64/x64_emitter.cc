@@ -40,6 +40,7 @@ public:
   void* Emplace(X64CodeCache* code_cache);
   int Emit(LIRBuilder* builder);
 private:
+  int EmitInstruction(LIRInstr* instr);
 };
 
 }  // namespace x64
@@ -100,8 +101,54 @@ void* XbyakGenerator::Emplace(X64CodeCache* code_cache) {
 }
 
 int XbyakGenerator::Emit(LIRBuilder* builder) {
-  //
-  xor(rax, rax);
+  // Function prolog.
+  // Must be 16b aligned.
+  // Windows is very strict about the form of this and the eiplog:
+  // http://msdn.microsoft.com/en-us/library/tawsa7cb.aspx
+  // TODO(benvanik): save off non-volatile registers so we can use them:
+  //     RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15
+  //     Only want to do this if we actually use them, though, otherwise
+  //     it just adds overhead.
+  const size_t stack_size = 16;
+  sub(rsp, stack_size);
+
+  // Body.
+  auto block = builder->first_block();
+  while (block) {
+    // Mark block labels.
+    auto label = block->label_head;
+    while (label) {
+      L(label->name);
+      label = label->next;
+    }
+
+    // Add instructions.
+    auto instr = block->instr_head;
+    while (instr) {
+      // Stash offset in debug info.
+      // TODO(benvanik): stash size_ value.
+
+      // Emit.
+      int result = EmitInstruction(instr);
+      if (result) {
+        return result;
+      }
+
+      instr = instr->next;
+    }
+
+    block = block->next;
+  }
+
+  // Function epilog.
+  L("epilog");
+  add(rsp, stack_size);
+  // TODO(benvanik): restore registers.
   ret();
+
+  return 0;
+}
+
+int XbyakGenerator::EmitInstruction(LIRInstr* instr) {
   return 0;
 }

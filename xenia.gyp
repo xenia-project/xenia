@@ -210,6 +210,7 @@
                   'kernel32',
                   'user32',
                   'ole32',
+                  'ntdll',
                 ],
               }],
               ['OS == "mac"', {

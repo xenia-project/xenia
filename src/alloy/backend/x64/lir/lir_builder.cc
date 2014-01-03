@@ -106,14 +106,21 @@ LIRInstr* LIRBuilder::last_instr() const {
   return NULL;
 }
 
-LIRLabel* LIRBuilder::NewLabel(bool local) {
+LIRLabel* LIRBuilder::NewLabel(const char* name, bool local) {
   LIRLabel* label = arena_->Alloc<LIRLabel>();
   label->next = label->prev = NULL;
   label->block = NULL;
   label->id = next_label_id_++;
-  label->name = NULL;
   label->local = local;
   label->tag = NULL;
+  if (!name) {
+    char label_name[32] = "l";
+    _itoa(label->id, label_name + 1, 10);
+    name = label_name;
+  }
+  size_t label_length = xestrlena(name);
+  label->name = (char*)arena_->Alloc(label_length + 1);
+  xe_copy_struct(label->name, name, label_length + 1);
   return label;
 }
 
