@@ -109,6 +109,9 @@ int XbyakGenerator::Emit(LIRBuilder* builder) {
   //     RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15
   //     Only want to do this if we actually use them, though, otherwise
   //     it just adds overhead.
+  // IMPORTANT: any changes to the prolog must be kept in sync with
+  //     X64CodeCache, which dynamically generates exception information.
+  //     Adding or changing anything here must be matched!
   const size_t stack_size = 16;
   sub(rsp, stack_size);
 

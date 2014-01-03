@@ -232,7 +232,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size) {
   auto& fn_entry = fn_table[fn_table_count++];
   fn_entry.BeginAddress = (DWORD)(code - buffer);
   fn_entry.EndAddress = (DWORD)(fn_entry.BeginAddress + code_size);
-  fn_entry.UnwindData = unwind_info_offset;
+  fn_entry.UnwindData = (DWORD)unwind_info_offset;
 
   // Notify the function table that it has new entries.
   RtlGrowFunctionTable(fn_table_handle, fn_table_count);
