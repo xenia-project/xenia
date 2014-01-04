@@ -1454,6 +1454,110 @@ int Translate_PREFETCH(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_PREFETCH);
 }
 
+uint32_t IntCode_MAX_I8_I8(IntCodeState& ics, const IntCode* i) {
+  int8_t a = ics.rf[i->src1_reg].i8; int8_t b = ics.rf[i->src2_reg].i8;
+  ics.rf[i->dest_reg].i8 = MAX(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MAX_I16_I16(IntCodeState& ics, const IntCode* i) {
+  int16_t a = ics.rf[i->src1_reg].i16; int16_t b = ics.rf[i->src2_reg].i16;
+  ics.rf[i->dest_reg].i16 = MAX(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MAX_I32_I32(IntCodeState& ics, const IntCode* i) {
+  int32_t a = ics.rf[i->src1_reg].i32; int32_t b = ics.rf[i->src2_reg].i32;
+  ics.rf[i->dest_reg].i32 = MAX(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MAX_I64_I64(IntCodeState& ics, const IntCode* i) {
+  int64_t a = ics.rf[i->src1_reg].i64; int64_t b = ics.rf[i->src2_reg].i64;
+  ics.rf[i->dest_reg].i64 = MAX(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MAX_F32_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 =
+      MAX(ics.rf[i->src1_reg].f32, ics.rf[i->src2_reg].f32);
+  return IA_NEXT;
+}
+uint32_t IntCode_MAX_F64_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 =
+      MAX(ics.rf[i->src1_reg].f64, ics.rf[i->src2_reg].f64);
+  return IA_NEXT;
+}
+uint32_t IntCode_MAX_V128_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.f4[n] = MAX(src1.f4[n], src2.f4[n]);
+  }
+  return IA_NEXT;
+}
+int Translate_MAX(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_MAX_I8_I8,
+    IntCode_MAX_I16_I16,
+    IntCode_MAX_I32_I32,
+    IntCode_MAX_I64_I64,
+    IntCode_MAX_F32_F32,
+    IntCode_MAX_F64_F64,
+    IntCode_MAX_V128_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t IntCode_MIN_I8_I8(IntCodeState& ics, const IntCode* i) {
+  int8_t a = ics.rf[i->src1_reg].i8; int8_t b = ics.rf[i->src2_reg].i8;
+  ics.rf[i->dest_reg].i8 = MIN(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MIN_I16_I16(IntCodeState& ics, const IntCode* i) {
+  int16_t a = ics.rf[i->src1_reg].i16; int16_t b = ics.rf[i->src2_reg].i16;
+  ics.rf[i->dest_reg].i16 = MIN(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MIN_I32_I32(IntCodeState& ics, const IntCode* i) {
+  int32_t a = ics.rf[i->src1_reg].i32; int32_t b = ics.rf[i->src2_reg].i32;
+  ics.rf[i->dest_reg].i32 = MIN(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MIN_I64_I64(IntCodeState& ics, const IntCode* i) {
+  int64_t a = ics.rf[i->src1_reg].i64; int64_t b = ics.rf[i->src2_reg].i64;
+  ics.rf[i->dest_reg].i64 = MIN(a, b);
+  return IA_NEXT;
+}
+uint32_t IntCode_MIN_F32_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 =
+      MIN(ics.rf[i->src1_reg].f32, ics.rf[i->src2_reg].f32);
+  return IA_NEXT;
+}
+uint32_t IntCode_MIN_F64_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 =
+      MIN(ics.rf[i->src1_reg].f64, ics.rf[i->src2_reg].f64);
+  return IA_NEXT;
+}
+uint32_t IntCode_MIN_V128_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.f4[n] = MIN(src1.f4[n], src2.f4[n]);
+  }
+  return IA_NEXT;
+}
+int Translate_MIN(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_MIN_I8_I8,
+    IntCode_MIN_I16_I16,
+    IntCode_MIN_I32_I32,
+    IntCode_MIN_I64_I64,
+    IntCode_MIN_F32_F32,
+    IntCode_MIN_F64_F64,
+    IntCode_MIN_V128_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
 uint32_t IntCode_SELECT_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 ?
       ics.rf[i->src2_reg].i8 : ics.rf[i->src3_reg].i8;
@@ -3055,8 +3159,8 @@ static const TranslateFn dispatch_table[] = {
   Translate_STORE,
   Translate_PREFETCH,
 
-  TranslateInvalid, //Translate_MAX,
-  TranslateInvalid, //Translate_MIN,
+  Translate_MAX,
+  Translate_MIN,
   Translate_SELECT,
   Translate_IS_TRUE,
   Translate_IS_FALSE,
