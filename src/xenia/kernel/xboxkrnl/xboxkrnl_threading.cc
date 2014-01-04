@@ -13,6 +13,7 @@
 #include <xenia/kernel/xboxkrnl/kernel_state.h>
 #include <xenia/kernel/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/xboxkrnl/objects/xevent.h>
+#include <xenia/kernel/xboxkrnl/objects/xsemaphore.h>
 #include <xenia/kernel/xboxkrnl/objects/xthread.h>
 
 
@@ -656,6 +657,74 @@ SHIM_CALL NtClearEvent_shim(
 }
 
 
+void xeKeInitializeSemaphore(
+    void* semaphore_ptr, int32_t count, int32_t limit) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XSemaphore* sem = (XSemaphore*)XSemaphore::GetObject(
+      state, semaphore_ptr, 5 /* SemaphoreObject */);
+  XEASSERTNOTNULL(sem);
+  if (!sem) {
+    return;
+  }
+
+  sem->Initialize(count, limit);
+}
+
+
+SHIM_CALL KeInitializeSemaphore_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t semaphore_ref = SHIM_GET_ARG_32(0);
+  int32_t count = SHIM_GET_ARG_32(1);
+  int32_t limit = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "KeInitializeSemaphore(%.8X, %d, %d)",
+      semaphore_ref, count, limit);
+
+  void* semaphore_ptr = SHIM_MEM_ADDR(semaphore_ref);
+  xeKeInitializeSemaphore(semaphore_ptr, count, limit);
+}
+
+
+int32_t xeKeReleaseSemaphore(
+    void* semaphore_ptr, int32_t increment, int32_t adjustment, bool wait) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  XSemaphore* sem = (XSemaphore*)XSemaphore::GetObject(state, semaphore_ptr);
+  XEASSERTNOTNULL(sem);
+  if (!sem) {
+    return 0;
+  }
+
+  // TODO(benvanik): increment thread priority?
+  // TODO(benvanik): wait?
+
+  return sem->ReleaseSemaphore(adjustment);
+}
+
+
+SHIM_CALL KeReleaseSemaphore_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t semaphore_ref = SHIM_GET_ARG_32(0);
+  int32_t increment = SHIM_GET_ARG_32(1);
+  int32_t adjustment = SHIM_GET_ARG_32(2);
+  int32_t wait = SHIM_GET_ARG_32(3);
+
+  XELOGD(
+      "KeReleaseSemaphore(%.8X, %d, %d, #d)",
+      semaphore_ref, increment, adjustment, wait);
+
+  void* semaphore_ptr = SHIM_MEM_ADDR(semaphore_ref);
+  int32_t result = xeKeReleaseSemaphore(
+      semaphore_ptr, increment, adjustment, wait == 1);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint64_t* opt_timeout) {
@@ -828,6 +897,9 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtClearEvent, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeSemaphore, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSemaphore, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);

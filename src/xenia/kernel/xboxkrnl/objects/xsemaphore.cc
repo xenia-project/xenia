@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl/objects/xevent.h>
+#include <xenia/kernel/xboxkrnl/objects/xsemaphore.h>
 
 
 using namespace xe;
@@ -15,58 +15,39 @@ using namespace xe::kernel;
 using namespace xe::kernel::xboxkrnl;
 
 
-XEvent::XEvent(KernelState* kernel_state) :
-    XObject(kernel_state, kTypeEvent),
+XSemaphore::XSemaphore(KernelState* kernel_state) :
+    XObject(kernel_state, kTypeSemaphore),
     handle_(NULL) {
 }
 
-XEvent::~XEvent() {
+XSemaphore::~XSemaphore() {
   if (handle_) {
     CloseHandle(handle_);
   }
 }
 
-void XEvent::Initialize(bool manual_reset, bool initial_state) {
+void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   XEASSERTNULL(handle_);
 
-  handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
+  handle_ = CreateSemaphore(NULL, initial_count, maximum_count, NULL);
 }
 
-void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
+void XSemaphore::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
   XEASSERTNULL(handle_);
 
-  bool manual_reset;
-  switch (header.type_flags >> 24) {
-  case 0x00: // EventNotificationObject (manual reset)
-    manual_reset = true;
-    break;
-  case 0x01: // EventSynchronizationObject (auto reset)
-    manual_reset = false;
-    break;
-  default:
-    XEASSERTALWAYS();
-    return;
-  }
-
-  bool initial_state = header.signal_state ? true : false;
-
-  handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
+  // NOT IMPLEMENTED
+  // We expect Initialize to be called shortly.
 }
 
-int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
-  return SetEvent(handle_) ? 1 : 0;
+int32_t XSemaphore::ReleaseSemaphore(int32_t release_count) {
+  LONG previous_count = 0;
+  ::ReleaseSemaphore(handle_, release_count, &previous_count);
+  return previous_count;
 }
 
-int32_t XEvent::Reset() {
-  return ResetEvent(handle_) ? 1 : 0;
-}
-
-void XEvent::Clear() {
-  ResetEvent(handle_);
-}
-
-X_STATUS XEvent::Wait(uint32_t wait_reason, uint32_t processor_mode,
-                      uint32_t alertable, uint64_t* opt_timeout) {
+X_STATUS XSemaphore::Wait(
+    uint32_t wait_reason, uint32_t processor_mode,
+    uint32_t alertable, uint64_t* opt_timeout) {
   DWORD timeout_ms;
   if (opt_timeout) {
     int64_t timeout_ticks = (int64_t)(*opt_timeout);

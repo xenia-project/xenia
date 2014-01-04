@@ -7,6 +7,8 @@
     'xfile.h',
     'xmodule.cc',
     'xmodule.h',
+    'xsemaphore.cc',
+    'xsemaphore.h',
     'xthread.cc',
     'xthread.h',
   ],

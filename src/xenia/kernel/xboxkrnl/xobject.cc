@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/xboxkrnl/xboxkrnl_private.h>
 #include <xenia/kernel/xboxkrnl/objects/xevent.h>
+#include <xenia/kernel/xboxkrnl/objects/xsemaphore.h>
 
 
 using namespace xe;
@@ -104,7 +105,8 @@ void XObject::SetNativePointer(uint32_t native_ptr) {
   XObject::UnlockType();
 }
 
-XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr) {
+XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
+                            int32_t as_type) {
   // Unfortunately the XDK seems to inline some KeInitialize calls, meaning
   // we never see it and just randomly start getting passed events/timers/etc.
   // Luckily it seems like all other calls (Set/Reset/Wait/etc) are used and
@@ -123,6 +125,10 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr) {
   header.wait_list_flink = XESWAP32(header_be->wait_list_flink);
   header.wait_list_blink = XESWAP32(header_be->wait_list_blink);
 
+  if (as_type == -1) {
+    as_type = header.type_flags & 0xFF;
+  }
+
   if (header.wait_list_blink & 0x1) {
     // Already initialized.
     uint64_t object_ptr =
@@ -136,7 +142,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr) {
     // First use, create new.
     // http://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
     XObject* object = NULL;
-    switch (header.type_flags & 0xFF) {
+    switch (as_type) {
     case 0: // EventNotificationObject
     case 1: // EventSynchronizationObject
       {
@@ -145,10 +151,16 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr) {
         object = ev;
       }
       break;
+    case 5: // SemaphoreObject
+      {
+        XSemaphore* sem = new XSemaphore(kernel_state);
+        sem->InitializeNative(native_ptr, header);
+        object = sem;
+      }
+        break;
     case 2: // MutantObject
     case 3: // ProcessObject
     case 4: // QueueObject
-    case 5: // SemaphoreObject
     case 6: // ThreadObject
     case 7: // GateObject
     case 8: // TimerNotificationObject

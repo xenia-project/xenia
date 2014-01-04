@@ -32,10 +32,11 @@ typedef struct {
 class XObject {
 public:
   enum Type {
-    kTypeModule   = 0x00000001,
-    kTypeThread   = 0x00000002,
-    kTypeEvent    = 0x00000003,
-    kTypeFile     = 0x00000004,
+    kTypeModule     = 0x00000001,
+    kTypeThread     = 0x00000002,
+    kTypeEvent      = 0x00000003,
+    kTypeFile       = 0x00000004,
+    kTypeSemaphore  = 0x00000005,
   };
 
   XObject(KernelState* kernel_state, Type type);
@@ -61,7 +62,8 @@ public:
 
   static void LockType();
   static void UnlockType();
-  static XObject* GetObject(KernelState* kernel_state, void* native_ptr);
+  static XObject* GetObject(KernelState* kernel_state, void* native_ptr,
+                            int32_t as_type = -1);
 
 protected:
   Memory* memory() const;
