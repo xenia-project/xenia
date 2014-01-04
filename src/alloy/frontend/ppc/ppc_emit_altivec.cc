@@ -1155,13 +1155,18 @@ XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData
   return 1;
 }
 
+int InstrEmit_vrefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // (VD) <- 1/(VB)
+  vec128_t one = { 1, 1, 1, 1 };
+  Value* v = f.Div(f.LoadConstant(one), f.LoadVR(vd));
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vrefp,          0x1000010A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrefp_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vrefp128,       VX128_3(6, 1584), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrefp_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
 XEEMITTER(vrfim,          0x100002CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
