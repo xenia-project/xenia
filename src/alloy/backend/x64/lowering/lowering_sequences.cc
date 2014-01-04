@@ -90,7 +90,11 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_CALL_TRUE, [](LIRBuilder& lb, Instr*& instr) {
+    auto skip_label = lb.NewLocalLabel();
+    lb.Test(instr->src1.value, instr->src1.value);
+    lb.JumpNE(skip_label);
     // TODO
+    lb.MarkLabel(skip_label);
     instr = instr->next;
     return true;
   });
@@ -102,7 +106,11 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_CALL_INDIRECT_TRUE, [](LIRBuilder& lb, Instr*& instr) {
+    auto skip_label = lb.NewLocalLabel();
+    lb.Test(instr->src1.value, instr->src1.value);
+    lb.JumpNE(skip_label);
     // TODO
+    lb.MarkLabel(skip_label);
     instr = instr->next;
     return true;
   });
@@ -124,19 +132,24 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_BRANCH, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    auto target = (LIRLabel*)instr->src1.label->tag;
+    lb.Jump(target);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_BRANCH_TRUE, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Test(instr->src1.value, instr->src1.value);
+    auto target = (LIRLabel*)instr->src2.label->tag;
+    lb.JumpEQ(target);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_BRANCH_FALSE, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Test(instr->src1.value, instr->src1.value);
+    auto target = (LIRLabel*)instr->src2.label->tag;
+    lb.JumpNE(target);
     instr = instr->next;
     return true;
   });
@@ -146,31 +159,31 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_ASSIGN, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Mov(instr->dest, instr->src1.value);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_CAST, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Mov(instr->dest, instr->src1.value);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_ZERO_EXTEND, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.MovZX(instr->dest, instr->src1.value);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_SIGN_EXTEND, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.MovSX(instr->dest, instr->src1.value);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_TRUNCATE, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Mov(instr->dest, instr->src1.value);
     instr = instr->next;
     return true;
   });
@@ -222,13 +235,19 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_LOAD_CONTEXT, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Mov(
+        instr->dest,
+        LIRRegister(LIRRegisterType::REG64, LIRRegisterName::RCX),
+        instr->src1.offset);
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_STORE_CONTEXT, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    lb.Mov(
+        LIRRegister(LIRRegisterType::REG64, LIRRegisterName::RCX),
+        instr->src1.offset,
+        instr->src2.value);
     instr = instr->next;
     return true;
   });

@@ -9,6 +9,8 @@
 
 #include <alloy/backend/x64/lir/lir_builder.h>
 
+#include <alloy/runtime/symbol_info.h>
+
 using namespace alloy;
 using namespace alloy::backend::x64;
 using namespace alloy::backend::x64::lir;
@@ -72,7 +74,7 @@ void LIRBuilder::Dump(StringBuffer* str) {
         continue;
       }
       if (i->opcode == &LIR_OPCODE_COMMENT_info) {
-        str->Append("  ; %s\n", i->arg[0].string);
+        str->Append("  ; %s\n", i->arg0<const char>());
         i = i->next;
         continue;
       }
@@ -84,12 +86,110 @@ void LIRBuilder::Dump(StringBuffer* str) {
       } else {
         str->Append("%s", info->name);
       }
-      // TODO(benvanik): args based on signature
+      if (i->arg0_type() != LIROperandType::NONE) {
+        str->Append(" ");
+        DumpArg(str, i->arg0_type(), (intptr_t)i + i->arg_offsets.arg0);
+      }
+      if (i->arg1_type() != LIROperandType::NONE) {
+        str->Append(", ");
+        DumpArg(str, i->arg1_type(), (intptr_t)i + i->arg_offsets.arg1);
+      }
+      if (i->arg2_type() != LIROperandType::NONE) {
+        str->Append(", ");
+        DumpArg(str, i->arg2_type(), (intptr_t)i + i->arg_offsets.arg2);
+      }
+      if (i->arg3_type() != LIROperandType::NONE) {
+        str->Append(", ");
+        DumpArg(str, i->arg3_type(), (intptr_t)i + i->arg_offsets.arg3);
+      }
       str->Append("\n");
       i = i->next;
     }
 
     block = block->next;
+  }
+}
+
+void LIRBuilder::DumpArg(StringBuffer* str, LIROperandType type,
+                         intptr_t ptr) {
+  switch (type) {
+  case LIROperandType::NONE:
+    break;
+  case LIROperandType::FUNCTION:
+    if (true) {
+      auto target = (*(runtime::FunctionInfo**)ptr);
+      str->Append(target->name() ? target->name() : "<fn>");
+    }
+    break;
+  case LIROperandType::LABEL:
+    if (true) {
+      auto target = (*(LIRLabel**)ptr);
+      str->Append(target->name);
+    }
+    break;
+  case LIROperandType::OFFSET:
+    if (true) {
+      auto offset = (*(intptr_t*)ptr);
+      str->Append("+%lld", offset);
+    }
+    break;
+  case LIROperandType::STRING:
+    if (true) {
+      str->Append((*(char**)ptr));
+    }
+    break;
+  case LIROperandType::REGISTER:
+    if (true) {
+      LIRRegister* reg = (LIRRegister*)ptr;
+      if (reg->is_virtual()) {
+        switch (reg->type) {
+        case LIRRegisterType::REG8:
+          str->Append("v%d.i8", reg->id & 0x00FFFFFF);
+          break;
+        case LIRRegisterType::REG16:
+          str->Append("v%d.i16", reg->id & 0x00FFFFFF);
+          break;
+        case LIRRegisterType::REG32:
+          str->Append("v%d.i32", reg->id & 0x00FFFFFF);
+          break;
+        case LIRRegisterType::REG64:
+          str->Append("v%d.i64", reg->id & 0x00FFFFFF);
+          break;
+        case LIRRegisterType::REGXMM:
+          str->Append("v%d.xmm", reg->id & 0x00FFFFFF);
+          break;
+        }
+      } else {
+        str->Append(lir::register_names[(int)reg->name]);
+      }
+    }
+    break;
+  case LIROperandType::INT8_CONSTANT:
+    str->Append("%X", *(int8_t*)ptr);
+    break;
+  case LIROperandType::INT16_CONSTANT:
+    str->Append("%X", *(int16_t*)ptr);
+    break;
+  case LIROperandType::INT32_CONSTANT:
+    str->Append("%X", *(int32_t*)ptr);
+    break;
+  case LIROperandType::INT64_CONSTANT:
+    str->Append("%X", *(int64_t*)ptr);
+    break;
+  case LIROperandType::FLOAT32_CONSTANT:
+    str->Append("%F", *(float*)ptr);
+    break;
+  case LIROperandType::FLOAT64_CONSTANT:
+    str->Append("%F", *(double*)ptr);
+    break;
+  case LIROperandType::VEC128_CONSTANT:
+    if (true) {
+      vec128_t* value = (vec128_t*)ptr;
+      str->Append("(%F,%F,%F,%F)",
+                  value->x, value->y, value->z, value->w);
+    }
+    break;
+  default: XEASSERTALWAYS(); break;
   }
 }
 
@@ -192,7 +292,78 @@ LIRInstr* LIRBuilder::AppendInstr(
   instr->block = block;
   instr->opcode = &opcode_info;
   instr->flags = flags;
+  instr->arg_types = {
+    LIROperandType::NONE,
+    LIROperandType::NONE,
+    LIROperandType::NONE,
+    LIROperandType::NONE
+  };
   return instr;
+}
+
+uint8_t LIRBuilder::AppendOperand(
+    LIRInstr* instr, LIROperandType& type, const char* value) {
+  type = LIROperandType::STRING;
+  size_t length = xestrlena(value);
+  auto ptr = (char*)arena_->Alloc(length + 1);
+  xe_copy_struct(ptr, value, length + 1);
+  return (uint8_t)((intptr_t)ptr - (intptr_t)instr);
+}
+
+uint8_t LIRBuilder::AppendOperand(
+    LIRInstr* instr, LIROperandType& type, hir::Value* value) {
+  if (value->IsConstant()) {
+    switch (value->type) {
+    case hir::INT8_TYPE:
+      return AppendOperand(instr, type, value->constant.i8);
+    case hir::INT16_TYPE:
+      return AppendOperand(instr, type, value->constant.i16);
+    case hir::INT32_TYPE:
+      return AppendOperand(instr, type, value->constant.i32);
+    case hir::INT64_TYPE:
+      return AppendOperand(instr, type, value->constant.i64);
+    case hir::FLOAT32_TYPE:
+      return AppendOperand(instr, type, value->constant.f32);
+    case hir::FLOAT64_TYPE:
+      return AppendOperand(instr, type, value->constant.f64);
+    case hir::VEC128_TYPE:
+      return AppendOperand(instr, type, value->constant.v128);
+    default:
+      XEASSERTALWAYS();
+      return 0;
+    }
+  } else {
+    LIRRegisterType reg_type;
+    switch (value->type) {
+    case hir::INT8_TYPE:
+      reg_type = LIRRegisterType::REG8;
+      break;
+    case hir::INT16_TYPE:
+      reg_type = LIRRegisterType::REG16;
+      break;
+    case hir::INT32_TYPE:
+      reg_type = LIRRegisterType::REG32;
+      break;
+    case hir::INT64_TYPE:
+      reg_type = LIRRegisterType::REG64;
+      break;
+    case hir::FLOAT32_TYPE:
+      reg_type = LIRRegisterType::REGXMM;
+      break;
+    case hir::FLOAT64_TYPE:
+      reg_type = LIRRegisterType::REGXMM;
+      break;
+    case hir::VEC128_TYPE:
+      reg_type = LIRRegisterType::REGXMM;
+      break;
+    default:
+      XEASSERTALWAYS();
+      return 0;
+    }
+    // Make it uniqueish by putting it +20000000
+    uint32_t reg_id = 0x20000000 + value->ordinal;
+    return AppendOperand(instr, type, LIRRegister(reg_type, reg_id));
+  }
 }
 
 void LIRBuilder::Comment(const char* format, ...) {
@@ -201,56 +372,7 @@ void LIRBuilder::Comment(const char* format, ...) {
   va_start(args, format);
   xevsnprintfa(buffer, 1024, format, args);
   va_end(args);
-  size_t len = xestrlena(buffer);
-  if (!len) {
-    return;
-  }
-  void* p = arena_->Alloc(len + 1);
-  xe_copy_struct(p, buffer, len + 1);
   auto instr = AppendInstr(LIR_OPCODE_COMMENT_info);
-  instr->arg[0].string = (char*)p;
-}
-
-void LIRBuilder::Nop() {
-  auto instr = AppendInstr(LIR_OPCODE_NOP_info);
-}
-
-void LIRBuilder::SourceOffset(uint64_t offset) {
-  auto instr = AppendInstr(LIR_OPCODE_SOURCE_OFFSET_info);
-}
-
-void LIRBuilder::DebugBreak() {
-  auto instr = AppendInstr(LIR_OPCODE_DEBUG_BREAK_info);
-}
-
-void LIRBuilder::Trap() {
-  auto instr = AppendInstr(LIR_OPCODE_TRAP_info);
-}
-
-void LIRBuilder::Test(int8_t a, int8_t b) {
-  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
-}
-
-void LIRBuilder::Test(int16_t a, int16_t b) {
-  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
-}
-
-void LIRBuilder::Test(int32_t a, int32_t b) {
-  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
-}
-
-void LIRBuilder::Test(int64_t a, int64_t b) {
-  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
-}
-
-void LIRBuilder::Test(hir::Value* a, hir::Value* b) {
-  auto instr = AppendInstr(LIR_OPCODE_TEST_info);
-}
-
-void LIRBuilder::JumpEQ(LIRLabel* label) {
-  auto instr = AppendInstr(LIR_OPCODE_JUMP_EQ_info);
-}
-
-void LIRBuilder::JumpNE(LIRLabel* label) {
-  auto instr = AppendInstr(LIR_OPCODE_JUMP_NE_info);
+  instr->arg_offsets.arg0 =
+      AppendOperand(instr, instr->arg_types.arg0, buffer);
 }

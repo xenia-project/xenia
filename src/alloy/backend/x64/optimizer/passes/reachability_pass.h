@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_BACKEND_X64_OPTIMIZER_PASSES_REDUNDANT_MOV_PASS_H_
-#define ALLOY_BACKEND_X64_OPTIMIZER_PASSES_REDUNDANT_MOV_PASS_H_
+#ifndef ALLOY_BACKEND_X64_OPTIMIZER_PASSES_REACHABILITY_PASS_H_
+#define ALLOY_BACKEND_X64_OPTIMIZER_PASSES_REACHABILITY_PASS_H_
 
 #include <alloy/backend/x64/optimizer/optimizer_pass.h>
 
@@ -20,10 +20,10 @@ namespace optimizer {
 namespace passes {
 
 
-class RedundantMovPass : public OptimizerPass {
+class ReachabilityPass : public OptimizerPass {
 public:
-  RedundantMovPass();
-  virtual ~RedundantMovPass();
+  ReachabilityPass();
+  virtual ~ReachabilityPass();
 
   virtual int Run(lir::LIRBuilder* builder);
 };
@@ -36,4 +36,4 @@ public:
 }  // namespace alloy
 
 
-#endif  // ALLOY_BACKEND_X64_OPTIMIZER_PASSES_REDUNDANT_MOV_PASS_H_
+#endif  // ALLOY_BACKEND_X64_OPTIMIZER_PASSES_REACHABILITY_PASS_H_

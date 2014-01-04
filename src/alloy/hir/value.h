@@ -64,6 +64,7 @@ public:
   Instr*    def;
   Use*      use_head;
 
+  // TODO(benvanik): remove to shrink size.
   void*     tag;
 
   Use* AddUse(Arena* arena, Instr* instr);

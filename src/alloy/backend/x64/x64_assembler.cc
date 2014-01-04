@@ -61,6 +61,7 @@ int X64Assembler::Initialize() {
 
   optimizer_ = new Optimizer(backend_->runtime());
   optimizer_->AddPass(new passes::RedundantMovPass());
+  optimizer_->AddPass(new passes::ReachabilityPass());
 
   emitter_ = new X64Emitter(x64_backend_);
 

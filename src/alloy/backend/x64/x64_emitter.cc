@@ -159,5 +159,65 @@ int XbyakGenerator::Emit(LIRBuilder* builder) {
 }
 
 int XbyakGenerator::EmitInstruction(LIRInstr* instr) {
+  switch (instr->opcode->num) {
+  case LIR_OPCODE_NOP:
+    nop();
+    break;
+
+  case LIR_OPCODE_COMMENT:
+    break;
+
+  case LIR_OPCODE_SOURCE_OFFSET:
+    break;
+  case LIR_OPCODE_DEBUG_BREAK:
+    // TODO(benvanik): replace with debugging primitive.
+    db(0xCC);
+    break;
+  case LIR_OPCODE_TRAP:
+    // TODO(benvanik): replace with debugging primitive.
+    db(0xCC);
+    break;
+
+  case LIR_OPCODE_MOV:
+    if (instr->arg1_type() == LIROperandType::OFFSET) {
+      // mov [reg+offset], value
+      mov(ptr[rax + *instr->arg1<intptr_t>()], rbx);
+    } else if (instr->arg2_type() == LIROperandType::OFFSET) {
+      // mov reg, [reg+offset]
+      mov(rbx, ptr[rax + *instr->arg2<intptr_t>()]);
+    } else {
+      // mov reg, reg
+      mov(rax, rbx);
+    }
+    break;
+  case LIR_OPCODE_MOV_ZX:
+    //mov
+    break;
+  case LIR_OPCODE_MOV_SX:
+    //mov
+    break;
+
+  case LIR_OPCODE_TEST:
+    if (instr->arg0_type() == LIROperandType::REGISTER) {
+      if (instr->arg1_type() == LIROperandType::REGISTER) {
+        //test(instr->arg0<LIRRegister>())
+      }
+    }
+    break;
+
+  case LIR_OPCODE_JUMP_EQ: {
+    auto target = (*instr->arg0<LIRLabel*>());
+    je(target->name, T_NEAR);
+    break;
+  }
+  case LIR_OPCODE_JUMP_NE: {
+    auto target = (*instr->arg0<LIRLabel*>());
+    jne(target->name, T_NEAR);
+    break;
+  }
+  default:
+    // Unhandled.
+    break;
+  }
   return 0;
 }

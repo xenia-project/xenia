@@ -12,6 +12,7 @@
 #include <alloy/hir/block.h>
 #include <alloy/hir/instr.h>
 #include <alloy/hir/label.h>
+#include <alloy/runtime/symbol_info.h>
 
 using namespace alloy;
 using namespace alloy::hir;
@@ -120,10 +121,13 @@ void HIRBuilder::DumpOp(
     }
     break;
   case OPCODE_SIG_TYPE_O:
-    str->Append("+%d", op->offset);
+    str->Append("+%lld", op->offset);
     break;
   case OPCODE_SIG_TYPE_S:
-    str->Append("<function>");
+    if (true) {
+      auto target = op->symbol_info;
+      str->Append(target->name() ? target->name() : "<fn>");
+    }
     break;
   case OPCODE_SIG_TYPE_V:
     DumpValue(str, op->value);

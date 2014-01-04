@@ -25,9 +25,7 @@ namespace x64 {
 namespace lir {
 
 
-enum LIRRegister {
-  REG8, REG16, REG32, REG64, REGXMM,
-
+enum class LIRRegisterName : uint32_t {
   AL,   AX,   EAX,  RAX,
   BL,   BX,   EBX,  RBX,
   CL,   CX,   ECX,  RCX,
@@ -63,22 +61,47 @@ enum LIRRegister {
   XMM13,
   XMM14,
   XMM15,
+
+  VREG0 = 0x10000000,
+};
+extern const char* register_names[74];
+
+enum class LIRRegisterType : uint32_t {
+  REG8,
+  REG16,
+  REG32,
+  REG64,
+  REGXMM,
 };
 
-typedef union {
-  runtime::FunctionInfo* symbol_info;
-  LIRLabel*   label;
-  LIRRegister reg;
-  int8_t      i8;
-  int16_t     i16;
-  int32_t     i32;
-  int64_t     i64;
-  float       f32;
-  double      f64;
-  uint64_t    offset;
-  char*       string;
-} LIROperand;
+typedef struct LIRRegister_s {
+  LIRRegisterType type;
+  union {
+    uint32_t id;
+    LIRRegisterName name;
+  };
+  struct LIRRegister_s(LIRRegisterType _type, uint32_t _id) :
+      type(_type), id((uint32_t)LIRRegisterName::VREG0 + _id) {}
+  struct LIRRegister_s(LIRRegisterType _type, LIRRegisterName _name) :
+      type(_type), name(_name) {}
+  bool is_virtual() const { return id > (uint32_t)LIRRegisterName::VREG0; }
+} LIRRegister;
 
+enum class LIROperandType : uint8_t {
+  NONE = 0,
+  FUNCTION,
+  LABEL,
+  OFFSET,
+  STRING,
+  REGISTER,
+  INT8_CONSTANT,
+  INT16_CONSTANT,
+  INT32_CONSTANT,
+  INT64_CONSTANT,
+  FLOAT32_CONSTANT,
+  FLOAT64_CONSTANT,
+  VEC128_CONSTANT,
+};
 
 class LIRInstr {
 public:
@@ -89,8 +112,28 @@ public:
   const LIROpcodeInfo* opcode;
   uint16_t flags;
 
-  // TODO(benvanik): make this variable width?
-  LIROperand arg[4];
+  struct {
+    LIROperandType arg0;
+    LIROperandType arg1;
+    LIROperandType arg2;
+    LIROperandType arg3;
+  } arg_types;
+  struct {
+    uint8_t arg0;
+    uint8_t arg1;
+    uint8_t arg2;
+    uint8_t arg3;
+  } arg_offsets;
+  LIROperandType arg0_type() const { return arg_types.arg0; }
+  LIROperandType arg1_type() const { return arg_types.arg1; }
+  LIROperandType arg2_type() const { return arg_types.arg2; }
+  LIROperandType arg3_type() const { return arg_types.arg3; }
+  template<typename T> T* arg0() { return (T*)(((uint8_t*)this) + arg_offsets.arg0); }
+  template<typename T> T* arg1() { return (T*)(((uint8_t*)this) + arg_offsets.arg1); }
+  template<typename T> T* arg2() { return (T*)(((uint8_t*)this) + arg_offsets.arg2); }
+  template<typename T> T* arg3() { return (T*)(((uint8_t*)this) + arg_offsets.arg3); }
+
+  void Remove();
 };
 
 
