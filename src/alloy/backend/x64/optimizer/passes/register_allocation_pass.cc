@@ -7,11 +7,21 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_BACKEND_X64_OPTIMIZER_PASSES_H_
-#define ALLOY_BACKEND_X64_OPTIMIZER_PASSES_H_
-
-#include <alloy/backend/x64/optimizer/passes/reachability_pass.h>
-#include <alloy/backend/x64/optimizer/passes/redundant_mov_pass.h>
 #include <alloy/backend/x64/optimizer/passes/register_allocation_pass.h>
 
-#endif  // ALLOY_BACKEND_X64_OPTIMIZER_PASSES_H_
+using namespace alloy;
+using namespace alloy::backend::x64::lir;
+using namespace alloy::backend::x64::optimizer;
+using namespace alloy::backend::x64::optimizer::passes;
+
+
+RegisterAllocationPass::RegisterAllocationPass() :
+    OptimizerPass() {
+}
+
+RegisterAllocationPass::~RegisterAllocationPass() {
+}
+
+int RegisterAllocationPass::Run(LIRBuilder* builder) {
+  return 0;
+}

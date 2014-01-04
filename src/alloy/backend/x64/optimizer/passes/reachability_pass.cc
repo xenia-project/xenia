@@ -28,6 +28,7 @@ int ReachabilityPass::Run(LIRBuilder* builder) {
 
   // TODO(benvanik): dead block removal.
 
+  // Remove unneeded jumps.
   auto block = builder->first_block();
   while (block) {
     auto tail = block->instr_tail;

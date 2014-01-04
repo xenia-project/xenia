@@ -60,6 +60,7 @@ int X64Assembler::Initialize() {
   builder_ = new LIRBuilder(x64_backend_);
 
   optimizer_ = new Optimizer(backend_->runtime());
+  optimizer_->AddPass(new passes::RegisterAllocationPass());
   optimizer_->AddPass(new passes::RedundantMovPass());
   optimizer_->AddPass(new passes::ReachabilityPass());
 
