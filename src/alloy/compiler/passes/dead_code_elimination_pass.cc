@@ -43,6 +43,12 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
   //   v35.i8 = compare_eq v31.i32, 0
   //   branch_true v35.i8, loc_8201A484
 
+  // This also removes useless ASSIGNs:
+  //   v1 = v0
+  //   v2 = add v1, v1
+  // becomes:
+  //   v2 = add v0, v0
+
   // We process DCE by reverse iterating over instructions and looking at the
   // use count of the dest value. If it's zero, we can safely remove the
   // instruction. Once we do that, the use counts of any of the src ops may
@@ -67,6 +73,10 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
         // Has no uses and is not volatile. This instruction can die!
         MakeNopRecursive(i);
         any_removed = true;
+      } else if (opcode == &OPCODE_ASSIGN_info) {
+        // Assignment. These are useless, so just try to remove by completely
+        // replacing the value.
+        ReplaceAssignment(i);
       }
 
       i = prev;
@@ -117,4 +127,26 @@ void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {
   MAKE_NOP_SRC(1);
   MAKE_NOP_SRC(2);
   MAKE_NOP_SRC(3);
+}
+
+void DeadCodeEliminationPass::ReplaceAssignment(Instr* i) {
+  auto src = i->src1.value;
+  auto dest = i->dest;
+
+  auto use = dest->use_head;
+  while (use) {
+    auto use_instr = use->instr;
+    if (use_instr->src1.value == dest) {
+      use_instr->set_src1(src);
+    }
+    if (use_instr->src2.value == dest) {
+      use_instr->set_src2(src);
+    }
+    if (use_instr->src3.value == dest) {
+      use_instr->set_src3(src);
+    }
+    use = use->next;
+  }
+
+  i->Remove();
 }
