@@ -64,6 +64,16 @@ SHIM_CALL NetDll_WSAStartup_shim(
 }
 
 
+SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(
+    PPCContext* ppc_state, XamState* state) {
+  // Games seem to call this before *Startup. If we return 0, they don't even
+  // try.
+  XELOGD(
+      "NetDll_XNetGetEthernetLinkStatus()");
+  SHIM_SET_RETURN(0);
+}
+
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
@@ -73,4 +83,5 @@ void xe::kernel::xam::RegisterNetExports(
     ExportResolver* export_resolver, XamState* state) {
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAStartup, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
 }
