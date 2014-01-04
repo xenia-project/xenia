@@ -36,13 +36,14 @@ XenonThreadState::XenonThreadState(
   xe_zero_struct(context_, sizeof(PPCContext));
 
   // Stash pointers to common structures that callbacks may need.
-  context_->membase       = memory_->membase();
-  context_->runtime       = runtime;
-  context_->thread_state  = this;
+  context_->reserve_address = memory_->reserve_address();
+  context_->membase         = memory_->membase();
+  context_->runtime         = runtime;
+  context_->thread_state    = this;
 
   // Set initial registers.
-  context_->r[1]          = stack_address_ + stack_size;
-  context_->r[13]         = thread_state_address_;
+  context_->r[1]  = stack_address_ + stack_size;
+  context_->r[13] = thread_state_address_;
 
   raw_context_ = context_;
 

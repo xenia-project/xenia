@@ -141,6 +141,8 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
     // splits blocks we don't have weird pointers.
     if (prev_instr && prev_instr->next) {
       instr_offset_list_[offset] = prev_instr->next;
+    } else if (prev_instr) {
+      instr_offset_list_[offset] = prev_instr->block->next->instr_head;
     } else if (current_block_) {
       instr_offset_list_[offset] = current_block_->instr_head;
     } else if (block_tail_) {
@@ -325,4 +327,25 @@ void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
   XEASSERT(value->type == VEC128_TYPE);
   StoreContext(
       offsetof(PPCContext, v) + reg * 16, value);
+}
+
+Value* PPCHIRBuilder::LoadAcquire(
+    Value* address, TypeName type, uint32_t load_flags) {
+  AtomicExchange(
+      LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
+      Truncate(address, INT32_TYPE));
+  return Load(address, type, load_flags);
+}
+
+Value* PPCHIRBuilder::StoreRelease(
+    Value* address, Value* value, uint32_t store_flags) {
+  Value* old_address = AtomicExchange(
+      LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
+      LoadZero(INT32_TYPE));
+  Value* eq = CompareEQ(Truncate(address, INT32_TYPE), old_address);
+  auto skip_label = NewLabel();
+  BranchFalse(eq, skip_label, BRANCH_UNLIKELY);
+  Store(address, value, store_flags);
+  MarkLabel(skip_label);
+  return eq;
 }

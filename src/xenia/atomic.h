@@ -53,6 +53,8 @@ typedef OSQueueHead xe_atomic_stack_t;
     ((void)InterlockedExchangeSubtract((volatile unsigned*)value, amount))
 #define xe_atomic_exchange_32(newValue, value) \
     InterlockedExchange((volatile LONG*)value, newValue)
+#define xe_atomic_exchange_64(newValue, value) \
+    InterlockedExchange64((volatile LONGLONG*)value, newValue)
 #define xe_atomic_cas_32(oldValue, newValue, value) \
     (InterlockedCompareExchange((volatile LONG*)value, newValue, oldValue) == oldValue)
 

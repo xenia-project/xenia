@@ -257,25 +257,17 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_LOAD, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
-    instr = instr->next;
-    return true;
-  });
-
-  table->AddSequence(OPCODE_LOAD_ACQUIRE, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    // TODO(benvanik): dynamic register access check
+    // mov reg, [membase + address.32]
+    // TODO(benvanik): special for f32/f64/v128
     instr = instr->next;
     return true;
   });
 
   table->AddSequence(OPCODE_STORE, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
-    instr = instr->next;
-    return true;
-  });
-
-  table->AddSequence(OPCODE_STORE_RELEASE, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
+    // TODO(benvanik): dynamic register access check
+    // mov [membase + address.32], reg
+    // TODO(benvanik): special for f32/f64/v128
     instr = instr->next;
     return true;
   });
@@ -611,6 +603,12 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](LIRBuilder& lb, Instr*& instr) {
+    // TODO
+    instr = instr->next;
+    return true;
+  });
+
+  table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](LIRBuilder& lb, Instr*& instr) {
     // TODO
     instr = instr->next;
     return true;

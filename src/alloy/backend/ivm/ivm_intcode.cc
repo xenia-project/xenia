@@ -1351,61 +1351,6 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
-uint32_t IntCode_LOAD_ACQUIRE_I8(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.membase + address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_ACQUIRE_I16(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].i16 = *((int16_t*)(ics.membase + address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_ACQUIRE_I32(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].i32 = *((int32_t*)(ics.membase + address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_ACQUIRE_I64(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.membase + address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_ACQUIRE_F32(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].f32 = *((float*)(ics.membase + address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_ACQUIRE_F64(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].f64 = *((double*)(ics.membase + address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_ACQUIRE_V128(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  xe_atomic_exchange_32(address, ics.reserve_address);
-  ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.membase + (address & ~0xF)));
-  return IA_NEXT;
-}
-int Translate_LOAD_ACQUIRE(TranslationContext& ctx, Instr* i) {
-  static IntCodeFn fns[] = {
-    IntCode_LOAD_ACQUIRE_I8,
-    IntCode_LOAD_ACQUIRE_I16,
-    IntCode_LOAD_ACQUIRE_I32,
-    IntCode_LOAD_ACQUIRE_I64,
-    IntCode_LOAD_ACQUIRE_F32,
-    IntCode_LOAD_ACQUIRE_F64,
-    IntCode_LOAD_ACQUIRE_V128,
-  };
-  return DispatchToC(ctx, i, fns[i->dest->type]);
-}
-
 uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
@@ -1499,89 +1444,6 @@ int Translate_STORE(TranslationContext& ctx, Instr* i) {
       cbs = cbs->next;
     }
   }
-  return DispatchToC(ctx, i, fns[i->src2.value->type]);
-}
-
-uint32_t IntCode_STORE_RELEASE_I8(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((int8_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i8;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_RELEASE_I16(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((int16_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i16;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_RELEASE_I32(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((int32_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i32;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_RELEASE_I64(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((int64_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i64;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_RELEASE_F32(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((float*)(ics.membase + address)) = ics.rf[i->src2_reg].f32;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_RELEASE_F64(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((double*)(ics.membase + address)) = ics.rf[i->src2_reg].f64;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_RELEASE_V128(IntCodeState& ics, const IntCode* i) {
-  uint32_t address = ics.rf[i->src1_reg].u32;
-  int8_t stored = 0;
-  if (xe_atomic_exchange_32(0, ics.reserve_address) == address) {
-    *((vec128_t*)(ics.membase + (address & ~0xF))) = ics.rf[i->src2_reg].v128;
-    stored = 1;
-  }
-  ics.rf[i->dest_reg].i8 = stored;
-  return IA_NEXT;
-}
-int Translate_STORE_RELEASE(TranslationContext& ctx, Instr* i) {
-  static IntCodeFn fns[] = {
-    IntCode_STORE_RELEASE_I8,
-    IntCode_STORE_RELEASE_I16,
-    IntCode_STORE_RELEASE_I32,
-    IntCode_STORE_RELEASE_I64,
-    IntCode_STORE_RELEASE_F32,
-    IntCode_STORE_RELEASE_F64,
-    IntCode_STORE_RELEASE_V128,
-  };
   return DispatchToC(ctx, i, fns[i->src2.value->type]);
 }
 
@@ -3121,6 +2983,33 @@ int Translate_SWIZZLE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
 }
 
+uint32_t IntCode_ATOMIC_EXCHANGE_I32(IntCodeState& ics, const IntCode* i) {
+  auto address = (uint8_t*)ics.rf[i->src1_reg].u64;
+  auto new_value = ics.rf[i->src2_reg].u32;
+  auto old_value = xe_atomic_exchange_32(new_value, address);
+  ics.rf[i->dest_reg].u32 = old_value;
+  return IA_NEXT;
+}
+uint32_t IntCode_ATOMIC_EXCHANGE_I64(IntCodeState& ics, const IntCode* i) {
+  auto address = (uint8_t*)ics.rf[i->src1_reg].u64;
+  auto new_value = ics.rf[i->src2_reg].u64;
+  auto old_value = xe_atomic_exchange_64(new_value, address);
+  ics.rf[i->dest_reg].u64 = old_value;
+  return IA_NEXT;
+}
+int Translate_ATOMIC_EXCHANGE(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_ATOMIC_EXCHANGE_I32,
+    IntCode_ATOMIC_EXCHANGE_I64,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  return DispatchToC(ctx, i, fns[i->src2.value->type]);
+}
+
 typedef int (*TranslateFn)(TranslationContext& ctx, Instr* i);
 static const TranslateFn dispatch_table[] = {
   Translate_COMMENT,
@@ -3163,9 +3052,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_STORE_CONTEXT,
 
   Translate_LOAD,
-  Translate_LOAD_ACQUIRE,
   Translate_STORE,
-  Translate_STORE_RELEASE,
   Translate_PREFETCH,
 
   TranslateInvalid, //Translate_MAX,
@@ -3224,6 +3111,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_SWIZZLE,
 
   TranslateInvalid, //Translate_COMPARE_EXCHANGE,
+  Translate_ATOMIC_EXCHANGE,
   TranslateInvalid, //Translate_ATOMIC_ADD,
   TranslateInvalid, //Translate_ATOMIC_SUB,
 };

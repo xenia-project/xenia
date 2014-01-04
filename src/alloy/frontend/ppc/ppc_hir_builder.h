@@ -63,6 +63,9 @@ public:
   Value* LoadVR(uint32_t reg);
   void StoreVR(uint32_t reg, Value* value);
 
+  Value* LoadAcquire(Value* address, hir::TypeName type, uint32_t load_flags = 0);
+  Value* StoreRelease(Value* address, Value* value, uint32_t store_flags = 0);
+
 private:
   void AnnotateLabel(uint64_t address, Label* label);
 

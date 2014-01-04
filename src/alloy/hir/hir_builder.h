@@ -121,9 +121,7 @@ public:
   void StoreContext(size_t offset, Value* value);
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
-  Value* LoadAcquire(Value* address, TypeName type, uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
-  Value* StoreRelease(Value* address, Value* value, uint32_t store_flags = 0);
   void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
 
   Value* Max(Value* value1, Value* value2);
@@ -195,6 +193,7 @@ public:
 
   Value* CompareExchange(Value* address,
                          Value* compare_value, Value* exchange_value);
+  Value* AtomicExchange(Value* address, Value* new_value);
   Value* AtomicAdd(Value* address, Value* value);
   Value* AtomicSub(Value* address, Value* value);
 

@@ -185,6 +185,9 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   //   fpscr.value = (fpscr.value & ~0x000F8000) | v;
   // }
 
+  // Reserve address for load acquire/store release. Shared.
+  uint32_t*             reserve_address;
+
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
   uint8_t*              membase;

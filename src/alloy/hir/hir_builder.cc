@@ -874,17 +874,6 @@ Value* HIRBuilder::Load(
   return i->dest;
 }
 
-Value* HIRBuilder::LoadAcquire(
-    Value* address, TypeName type, uint32_t load_flags) {
-  ASSERT_ADDRESS_TYPE(address);
-  Instr* i = AppendInstr(
-      OPCODE_LOAD_ACQUIRE_info, load_flags,
-      AllocValue(type));
-  i->set_src1(address);
-  i->src2.value = i->src3.value = NULL;
-  return i->dest;
-}
-
 void HIRBuilder::Store(
     Value* address, Value* value, uint32_t store_flags) {
   ASSERT_ADDRESS_TYPE(address);
@@ -892,17 +881,6 @@ void HIRBuilder::Store(
   i->set_src1(address);
   i->set_src2(value);
   i->src3.value = NULL;
-}
-
-Value* HIRBuilder::StoreRelease(
-    Value* address, Value* value, uint32_t store_flags) {
-  ASSERT_ADDRESS_TYPE(address);
-  Instr* i = AppendInstr(OPCODE_STORE_RELEASE_info, store_flags,
-      AllocValue(INT8_TYPE));
-  i->set_src1(address);
-  i->set_src2(value);
-  i->src3.value = NULL;
-  return i->dest;
 }
 
 void HIRBuilder::Prefetch(
@@ -1622,6 +1600,18 @@ Value* HIRBuilder::CompareExchange(
   i->set_src1(address);
   i->set_src2(compare_value);
   i->set_src3(exchange_value);
+  return i->dest;
+}
+
+Value* HIRBuilder::AtomicExchange(Value* address, Value* new_value) {
+  ASSERT_ADDRESS_TYPE(address);
+  ASSERT_INTEGER_TYPE(new_value);
+  Instr* i = AppendInstr(
+      OPCODE_ATOMIC_EXCHANGE_info, 0,
+      AllocValue(new_value->type));
+  i->set_src1(address);
+  i->set_src2(new_value);
+  i->src3.value = NULL;
   return i->dest;
 }
 
