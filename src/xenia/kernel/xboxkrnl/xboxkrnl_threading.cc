@@ -176,6 +176,44 @@ SHIM_CALL NtResumeThread_shim(
 }
 
 
+X_STATUS xeKeResumeThread(void* thread_ptr, uint32_t* out_suspend_count) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
+  if (thread) {
+    result = thread->Resume(out_suspend_count);
+  }
+
+  return result;
+}
+
+
+SHIM_CALL KeResumeThread_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t thread = SHIM_GET_ARG_32(0);
+  uint32_t suspend_count_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+    "KeResumeThread(%.8X, %.8X)",
+    thread,
+    suspend_count_ptr);
+
+  void* thread_ptr = SHIM_MEM_ADDR(thread);
+  uint32_t suspend_count;
+  X_STATUS result = xeKeResumeThread(thread_ptr, &suspend_count);
+  if (XSUCCEEDED(result)) {
+    if (suspend_count_ptr) {
+      SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
+    }
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -737,6 +775,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtResumeThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
