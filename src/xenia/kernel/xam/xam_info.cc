@@ -25,6 +25,18 @@ namespace kernel {
 namespace xam {
 
 
+SHIM_CALL XamGetSystemVersion_shim(
+    PPCContext* ppc_state, XamState* state) {
+  XELOGD("XamGetSystemVersion()");
+  // eh, just picking one. If we go too low we may break new games, but
+  // this value seems to be used for conditionally loading symbols and if
+  // we pretend to be old we have less to worry with implementing.
+  // 0x200A3200
+  // 0x20096B00
+  SHIM_SET_RETURN(0);
+}
+
+
 SHIM_CALL XGetAVPack_shim(
     PPCContext* ppc_state, XamState* state) {
   // DWORD
@@ -71,6 +83,7 @@ SHIM_CALL XGetLanguage_shim(
 
 void xe::kernel::xam::RegisterInfoExports(
     ExportResolver* export_resolver, XamState* state) {
+  SHIM_SET_MAPPING("xam.xex", XamGetSystemVersion, state);
   SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
   SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);
   SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
