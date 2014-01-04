@@ -89,6 +89,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
       MarkLabel(label);
     }
 
+    Instr* first_instr = 0;
     if (FLAGS_annotate_disassembly) {
       if (label) {
         AnnotateLabel(address, label);
@@ -104,14 +105,20 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
       } else {
         Comment("%.8X %.8X %s ???", address, i.code, i.type->name);
       }
+      first_instr = last_instr();
     }
 
     // Mark source offset for debugging.
     // We could omit this if we never wanted to debug.
     SourceOffset(i.address);
+    if (!first_instr) {
+      first_instr = last_instr();
+    }
+
+    // Stash instruction offset. It's either the SOURCE_OFFSET or the COMMENT.
+    instr_offset_list_[offset] = first_instr;
 
     if (!i.type) {
-      instr_offset_list_[offset] = prev_instr->next;
       XELOGCPU("Invalid instruction %.8X %.8X", i.address, i.code);
       Comment("INVALID!");
       //TraceInvalidInstruction(i);
@@ -136,22 +143,6 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
       // This printf is handy for sort/uniquify to find instructions.
       printf("unimplinstr %s\n", i.type->name);
     }
-
-    // Stash instruction offset. We do this down here so that if the function
-    // splits blocks we don't have weird pointers.
-    if (prev_instr && prev_instr->next) {
-      instr_offset_list_[offset] = prev_instr->next;
-    } else if (prev_instr) {
-      instr_offset_list_[offset] = prev_instr->block->next->instr_head;
-    } else if (current_block_) {
-      instr_offset_list_[offset] = current_block_->instr_head;
-    } else if (block_tail_) {
-      instr_offset_list_[offset] = block_tail_->instr_head;
-    } else {
-      XEASSERTALWAYS();
-    }
-    XEASSERT(instr_offset_list_[offset]->next->opcode == &OPCODE_TRAP_TRUE_info ||
-             instr_offset_list_[offset]->next->src1.offset == i.address);
   }
 
   return Finalize();

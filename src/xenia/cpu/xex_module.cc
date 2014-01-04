@@ -134,8 +134,16 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       uint32_t* slot = (uint32_t*)(membase + info->value_address);
       if (kernel_export->type == KernelExport::Function) {
         // Not exactly sure what this should be...
-        // TODO(benvanik): find out what import variables are.
-        XELOGW("kernel import variable not defined");
+        if (info->thunk_address) {
+          // slot = XESWAP32BE(info->thunk_address);
+          // Setting this breaks other emu code that relies on it not being
+          // modified. Not sure what to do.
+        } else {
+          // TODO(benvanik): find out what import variables are.
+          XELOGW("kernel import variable not defined %.8X %s",
+                 info->value_address, kernel_export->name);
+          //*slot = XESWAP32BE(0xF00DF00D);
+        }
       } else {
         if (kernel_export->is_implemented) {
           // Implemented - replace with pointer.
@@ -176,11 +184,14 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       }
 
       DefineFunction(fn_info);
-      Function* fn = new ExternFunction(
-        info->thunk_address,
+      auto fn = new ExternFunction(
+          info->thunk_address,
           handler,
           handler_data,
           NULL);
+      if (kernel_export) {
+        fn->set_name(kernel_export->name);
+      }
       fn_info->set_function(fn);
       fn_info->set_status(SymbolInfo::STATUS_DEFINED);
     }

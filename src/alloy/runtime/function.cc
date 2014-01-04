@@ -86,17 +86,25 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
 
 ExternFunction::ExternFunction(
     uint64_t address, Handler handler, void* arg0, void* arg1) :
+    name_(0),
     handler_(handler), arg0_(arg0), arg1_(arg1),
     Function(Function::EXTERN_FUNCTION, address) {
 }
 
 ExternFunction::~ExternFunction() {
+  if (name_) {
+    xe_free(name_);
+  }
+}
+
+void ExternFunction::set_name(const char* name) {
+  name_ = xestrdupa(name);
 }
 
 int ExternFunction::CallImpl(ThreadState* thread_state,
                              uint64_t return_address) {
   if (!handler_) {
-    XELOGW("undefined extern call to %.8X", address());
+    XELOGW("undefined extern call to %.8X %s", address(), name());
     return 0;
   }
   handler_(thread_state->raw_context(), arg0_, arg1_);

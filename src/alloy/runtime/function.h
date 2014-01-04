@@ -68,6 +68,9 @@ public:
   ExternFunction(uint64_t address, Handler handler, void* arg0, void* arg1);
   virtual ~ExternFunction();
 
+  const char* name() const { return name_; }
+  void set_name(const char* name);
+
   Handler handler() const { return handler_; }
   void* arg0() const { return arg0_; }
   void* arg1() const { return arg1_; }
@@ -76,6 +79,7 @@ protected:
   virtual int CallImpl(ThreadState* thread_state, uint64_t return_address);
 
 protected:
+  char* name_;
   Handler handler_;
   void* arg0_;
   void* arg1_;

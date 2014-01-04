@@ -931,6 +931,8 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
       info_count * sizeof(xe_xex2_import_info_t));
   XEEXPECTNOTNULL(infos);
 
+  XEASSERTNOTZERO(info_count);
+
   // Construct infos.
   for (size_t n = 0, i = 0; n < library->record_count; n++) {
     const uint32_t record = library->records[n];
