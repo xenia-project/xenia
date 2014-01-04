@@ -221,6 +221,7 @@ uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
   XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
   if (thread) {
     // TODO(benvanik): implement.
+    XELOGW("KeSetAffinityThread not implemented");
   }
 
   return affinity;
@@ -239,6 +240,38 @@ SHIM_CALL KeSetAffinityThread_shim(
 
   void* thread_ptr = SHIM_MEM_ADDR(thread);
   uint32_t result = xeKeSetAffinityThread(thread_ptr, affinity);
+  SHIM_SET_RETURN(result);
+}
+
+
+uint32_t xeKeSetBasePriorityThread(void* thread_ptr, int32_t increment) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  int32_t prev_priority = 0;
+
+  XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
+  if (thread) {
+    // TODO(benvanik): implement.
+    XELOGW("KeSetBasePriority not implemented");
+  }
+
+  return prev_priority;
+}
+
+
+SHIM_CALL KeSetBasePriorityThread_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t thread = SHIM_GET_ARG_32(0);
+  uint32_t increment = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "KeSetBasePriorityThread(%.8X, %.8X)",
+      thread,
+      increment);
+
+  void* thread_ptr = SHIM_MEM_ADDR(thread);
+  uint32_t result = xeKeSetBasePriorityThread(thread_ptr, increment);
   SHIM_SET_RETURN(result);
 }
 
@@ -777,6 +810,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetBasePriorityThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
 
