@@ -99,6 +99,7 @@ public:
   uint64_t Alloc(uint64_t base_address, size_t size,
                  uint32_t flags, uint32_t alignment);
   uint64_t Free(uint64_t address, size_t size);
+  size_t QuerySize(uint64_t base_address);
 
   void Dump();
 
@@ -321,6 +322,26 @@ int XenonMemory::HeapFree(uint64_t address, size_t size) {
   }
 }
 
+size_t XenonMemory::QuerySize(uint64_t base_address) {
+  if (base_address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
+      base_address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
+    return virtual_heap_->QuerySize(base_address);
+  } else if (base_address >= XENON_MEMORY_PHYSICAL_HEAP_LOW &&
+             base_address < XENON_MEMORY_PHYSICAL_HEAP_HIGH) {
+    return physical_heap_->QuerySize(base_address);
+  } else {
+    // A placed address. Decommit.
+    uint8_t* p = Translate(base_address);
+    MEMORY_BASIC_INFORMATION mem_info;
+    if (VirtualQuery(p, &mem_info, sizeof(mem_info))) {
+      return mem_info.RegionSize;
+    } else {
+      // Error.
+      return 0;
+    }
+  }
+}
+
 int XenonMemory::Protect(uint64_t address, size_t size, uint32_t access) {
   uint8_t* p = Translate(address);
 
@@ -520,6 +541,21 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
   }));
 
   return (uint64_t)real_size;
+}
+
+size_t XenonMemoryHeap::QuerySize(uint64_t base_address) {
+  uint8_t* p = memory_->Translate(base_address);
+
+  // Heap allocated address.
+  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  p -= heap_guard_size;
+  size_t real_size = mspace_usable_size(p);
+  real_size -= heap_guard_size * 2;
+  if (!real_size) {
+    return 0;
+  }
+
+  return real_size;
 }
 
 void XenonMemoryHeap::Dump() {

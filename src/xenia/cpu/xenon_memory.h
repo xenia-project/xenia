@@ -33,6 +33,8 @@ public:
       uint32_t alignment = 0x20);
   virtual int HeapFree(uint64_t address, size_t size);
 
+  virtual size_t QuerySize(uint64_t base_address);
+
   virtual int Protect(uint64_t address, size_t size, uint32_t access);
   virtual uint32_t QueryProtect(uint64_t address);
 

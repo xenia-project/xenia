@@ -330,6 +330,30 @@ SHIM_CALL MmQueryAddressProtect_shim(
 }
 
 
+uint32_t xeMmQueryAllocationSize(uint32_t base_address) {
+  KernelState* state = shared_kernel_state_;
+  XEASSERTNOTNULL(state);
+
+  size_t size = state->memory()->QuerySize(base_address);
+
+  return (uint32_t)size;
+}
+
+
+SHIM_CALL MmQueryAllocationSize_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t base_address = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "MmQueryAllocationSize(%.8X)",
+      base_address);
+
+  uint32_t result = xeMmQueryAllocationSize(base_address);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 SHIM_CALL MmQueryStatistics_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t stats_ptr = SHIM_GET_ARG_32(0);
@@ -434,6 +458,7 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAllocationSize, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryStatistics, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
 }

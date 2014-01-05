@@ -48,6 +48,8 @@ public:
       uint32_t alignment = 0x20) = 0;
   virtual int HeapFree(uint64_t address, size_t size) = 0;
 
+  virtual size_t QuerySize(uint64_t base_address) = 0;
+
   virtual int Protect(uint64_t address, size_t size, uint32_t access) = 0;
   virtual uint32_t QueryProtect(uint64_t address) = 0;
 
