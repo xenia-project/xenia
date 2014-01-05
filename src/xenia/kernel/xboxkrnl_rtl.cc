@@ -751,12 +751,13 @@ void xeRtlEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
 
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
 spin:
-  if (xe_atomic_inc_32(&cs->lock_count)) {
+  if (xe_atomic_inc_32(&cs->lock_count) != 0) {
     // If this thread already owns the CS increment the recursion count.
     if (cs->owning_thread_id == thread_id) {
       cs->recursion_count++;
       return;
     }
+    xe_atomic_dec_32(&cs->lock_count);
 
     // Thread was locked - spin wait.
     if (spin_wait_remaining) {
