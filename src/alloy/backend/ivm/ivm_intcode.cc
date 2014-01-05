@@ -2489,6 +2489,35 @@ int Translate_DOT_PRODUCT_4(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
 }
 
+uint32_t IntCode_SQRT_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 = sqrt(ics.rf[i->src1_reg].f32);
+  return IA_NEXT;
+}
+uint32_t IntCode_SQRT_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 = sqrt(ics.rf[i->src1_reg].f64);
+  return IA_NEXT;
+}
+uint32_t IntCode_SQRT_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (size_t i = 0; i < 4; i++) {
+    dest.f4[i] = sqrt(src1.f4[i]);
+  }
+  return IA_NEXT;
+}
+int Translate_SQRT(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_SQRT_F32,
+    IntCode_SQRT_F64,
+    IntCode_SQRT_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
 uint32_t IntCode_RSQRT_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
@@ -3192,7 +3221,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_MULSUB,
   Translate_NEG,
   Translate_ABS,
-  TranslateInvalid, //Translate_SQRT,
+  Translate_SQRT,
   Translate_RSQRT,
   Translate_DOT_PRODUCT_3,
   Translate_DOT_PRODUCT_4,
