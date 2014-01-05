@@ -78,7 +78,42 @@ void Value::ZeroExtend(TypeName target_type) {
 }
   
 void Value::SignExtend(TypeName target_type) {
-  // TODO(benvanik): big matrix.
+  switch (type) {
+  case INT8_TYPE:
+    type = target_type;
+    switch (target_type) {
+    case INT16_TYPE:
+      constant.i16 = constant.i8;
+      break;
+    case INT32_TYPE:
+      constant.i32 = constant.i8;
+      break;
+    case INT64_TYPE:
+      constant.i64 = constant.i8;
+      break;
+    }
+    return;
+  case INT16_TYPE:
+    type = target_type;
+    switch (target_type) {
+    case INT32_TYPE:
+      constant.i32 = constant.i16;
+      break;
+    case INT64_TYPE:
+      constant.i64 = constant.i16;
+      break;
+    }
+    return;
+  case INT32_TYPE:
+    type = target_type;
+    switch (target_type) {
+    case INT64_TYPE:
+      constant.i64 = constant.i32;
+      break;
+    }
+    return;
+  }
+  // Unsupported types.
   XEASSERTALWAYS();
 }
 
