@@ -174,6 +174,17 @@ SHIM_CALL VdInitializeEngines_shim(
 }
 
 
+SHIM_CALL VdShutdownEngines_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  XELOGD(
+      "VdShutdownEngines()");
+
+  // Ignored for now.
+  // Games seem to call an Initialize/Shutdown pair to query info, then
+  // re-initialize.
+}
+
+
 void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -440,6 +451,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoMode, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdShutdownEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
