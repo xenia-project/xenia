@@ -70,6 +70,22 @@ X_STATUS XObject::Delete() {
   return shared_kernel_state_->object_table()->RemoveHandle(handle_);
 }
 
+namespace {
+uint32_t ConvertTimeoutTicks(int64_t timeout_ticks) {
+  if (timeout_ticks > 0) {
+    // Absolute time, based on January 1, 1601.
+    // TODO(benvanik): convert time to relative time.
+    XEASSERTALWAYS();
+    return 0;
+  } else if (timeout_ticks < 0) {
+    // Relative time.
+    return (uint32_t)(-timeout_ticks / 10000); // Ticks -> MS
+  } else {
+    return 0;
+  }
+}
+}
+
 X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
                        uint32_t alertable, uint64_t* opt_timeout) {
   void* wait_handle = GetWaitHandle();
@@ -78,23 +94,8 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
     return X_STATUS_SUCCESS;
   }
 
-  DWORD timeout_ms;
-  if (opt_timeout) {
-    int64_t timeout_ticks = (int64_t)(*opt_timeout);
-    if (timeout_ticks > 0) {
-      // Absolute time, based on January 1, 1601.
-      // TODO(benvanik): convert time to relative time.
-      XEASSERTALWAYS();
-      timeout_ms = 0;
-    } else if (timeout_ticks < 0) {
-      // Relative time.
-      timeout_ms = (DWORD)(-timeout_ticks / 10000); // Ticks -> MS
-    } else {
-      timeout_ms = 0;
-    }
-  } else {
-    timeout_ms = INFINITE;
-  }
+  DWORD timeout_ms = opt_timeout ?
+      ConvertTimeoutTicks(*opt_timeout) : INFINITE;
 
   DWORD result = WaitForSingleObjectEx(wait_handle, timeout_ms, alertable);
   switch (result) {
@@ -110,6 +111,26 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
   case WAIT_ABANDONED:
     return X_STATUS_ABANDONED_WAIT_0;
   }
+}
+
+X_STATUS XObject::WaitMultiple(
+    uint32_t count, XObject** objects,
+    uint32_t wait_type, uint32_t wait_reason, uint32_t processor_mode,
+    uint32_t alertable, uint64_t* opt_timeout) {
+  void** wait_handles = (void**)alloca(sizeof(void*) * count);
+  for (uint32_t n = 0; n < count; n++) {
+    wait_handles[n] = objects[n]->GetWaitHandle();
+    XEASSERTNOTNULL(wait_handles[n]);
+  }
+
+  DWORD timeout_ms = opt_timeout ?
+      ConvertTimeoutTicks(*opt_timeout) : INFINITE;
+
+  DWORD result = WaitForMultipleObjectsEx(
+      count, wait_handles,
+      wait_type ? TRUE : FALSE, timeout_ms, alertable);
+
+  return result;
 }
 
 void XObject::LockType() {

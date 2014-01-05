@@ -861,6 +861,45 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
 }
 
 
+SHIM_CALL KeWaitForMultipleObjects_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t count = SHIM_GET_ARG_32(0);
+  uint32_t objects_ptr = SHIM_GET_ARG_32(1);
+  uint32_t wait_type = SHIM_GET_ARG_32(2);
+  uint32_t wait_reason = SHIM_GET_ARG_32(3);
+  uint32_t processor_mode = SHIM_GET_ARG_32(4);
+  uint32_t alertable = SHIM_GET_ARG_32(5);
+  uint32_t timeout_ptr = SHIM_GET_ARG_32(6);
+  uint32_t wait_block_array_ptr = SHIM_GET_ARG_32(7);
+
+  XELOGD(
+      "KeWaitForMultipleObjects(%d, %.8X, %.8X, %.8X, %.8X, %.1X, %.8X, %.8X)",
+      count, objects_ptr, wait_type, wait_reason, processor_mode,
+      alertable, timeout_ptr, wait_block_array_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XObject** objects = (XObject**)alloca(sizeof(XObject*) * count);
+  for (uint32_t n = 0; n < count; n++) {
+    uint32_t object_ptr_ptr = SHIM_MEM_32(objects_ptr + n * 4);
+    void* object_ptr = SHIM_MEM_ADDR(object_ptr_ptr);
+    objects[n] = XObject::GetObject(state, object_ptr);
+    if (!objects[n]) {
+      SHIM_SET_RETURN(X_STATUS_INVALID_PARAMETER);
+      return;
+    }
+  }
+
+  uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+  result = XObject::WaitMultiple(
+      count, objects,
+      wait_type, wait_reason, processor_mode, alertable,
+      timeout_ptr ? &timeout : NULL);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 uint32_t xeKfAcquireSpinLock(void* lock_ptr) {
   // Lock.
   while (!xe_atomic_cas_32(0, 1, lock_ptr)) {
@@ -975,6 +1014,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForMultipleObjects, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KfAcquireSpinLock, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KfReleaseSpinLock, state);
