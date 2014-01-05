@@ -741,8 +741,16 @@ XEEMITTER(extswx,       0x7C0007B4, X  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(nandx,        0x7C0003B8, X  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RA <- ¬((RS) & (RB))
+  Value* ra = f.And(
+      f.LoadGPR(i.X.RT),
+      f.LoadGPR(i.X.RB));
+  ra = f.Not(ra);
+  if (i.X.Rc) {
+    f.UpdateCR(0, ra);
+  }
+  f.StoreGPR(i.X.RA, ra);
+  return 0;
 }
 
 XEEMITTER(norx,         0x7C0000F8, X  )(PPCHIRBuilder& f, InstrData& i) {
