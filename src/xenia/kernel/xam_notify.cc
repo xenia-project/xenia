@@ -100,6 +100,18 @@ SHIM_CALL XNotifyGetNext_shim(
 }
 
 
+SHIM_CALL XNotifyPositionUI_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t position = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XNotifyPositionUI(%.8X)",
+      position);
+
+  // Ignored.
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -108,4 +120,5 @@ void xe::kernel::xam::RegisterNotifyExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamNotifyCreateListener, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyGetNext, state);
+  SHIM_SET_MAPPING("xam.xex", XNotifyPositionUI, state);
 }
