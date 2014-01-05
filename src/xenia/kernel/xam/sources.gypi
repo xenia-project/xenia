@@ -11,6 +11,8 @@
     'xam_module.h',
     'xam_net.cc',
     'xam_net.h',
+    'xam_notify.cc',
+    'xam_notify.h',
     'xam_ordinals.h',
     'xam_private.h',
     'xam_state.cc',

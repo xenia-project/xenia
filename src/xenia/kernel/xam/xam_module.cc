@@ -45,6 +45,7 @@ XamModule::XamModule(Emulator* emulator) :
   RegisterInfoExports(export_resolver_, xam_state_);
   RegisterInputExports(export_resolver_, xam_state_);
   RegisterNetExports(export_resolver_, xam_state_);
+  RegisterNotifyExports(export_resolver_, xam_state_);
   RegisterUserExports(export_resolver_, xam_state_);
   RegisterVideoExports(export_resolver_, xam_state_);
 }

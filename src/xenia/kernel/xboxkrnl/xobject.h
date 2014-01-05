@@ -32,11 +32,12 @@ typedef struct {
 class XObject {
 public:
   enum Type {
-    kTypeModule     = 0x00000001,
-    kTypeThread     = 0x00000002,
-    kTypeEvent      = 0x00000003,
-    kTypeFile       = 0x00000004,
-    kTypeSemaphore  = 0x00000005,
+    kTypeModule,
+    kTypeThread,
+    kTypeEvent,
+    kTypeFile,
+    kTypeSemaphore,
+    kTypeNotifyListener,
   };
 
   XObject(KernelState* kernel_state, Type type);
