@@ -41,6 +41,8 @@ public:
       uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps);
   X_RESULT GetState(uint32_t user_index, X_INPUT_STATE& out_state);
   X_RESULT SetState(uint32_t user_index, X_INPUT_VIBRATION& vibration);
+  X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
+                        X_INPUT_KEYSTROKE& out_keystroke);
 
 private:
   Emulator*         emulator_;

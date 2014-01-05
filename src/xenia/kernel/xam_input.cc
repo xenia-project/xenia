@@ -106,6 +106,71 @@ SHIM_CALL XamInputSetState_shim(
 }
 
 
+// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
+SHIM_CALL XamInputGetKeystroke_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t flags = SHIM_GET_ARG_32(1);
+  uint32_t keystroke_ptr = SHIM_GET_ARG_32(2);
+
+  // http://ffplay360.googlecode.com/svn/Test/Common/AtgXime.cpp
+  // user index = index or XUSER_INDEX_ANY
+  // flags = XINPUT_FLAG_GAMEPAD (| _ANYUSER | _ANYDEVICE)
+
+  XELOGD(
+      "XamInputGetKeystroke(%d, %.8X, %.8X)",
+      user_index,
+      flags,
+      keystroke_ptr);
+
+  if (!keystroke_ptr) {
+    SHIM_SET_RETURN(X_ERROR_BAD_ARGUMENTS);
+    return;
+  }
+
+  InputSystem* input_system = state->emulator()->input_system();
+
+  X_INPUT_KEYSTROKE keystroke;
+  X_RESULT result = input_system->GetKeystroke(user_index, flags, keystroke);
+  if (XSUCCEEDED(result)) {
+    keystroke.Write(SHIM_MEM_BASE, keystroke_ptr);
+  }
+  SHIM_SET_RETURN(result);
+}
+
+
+// Same as non-ex, just takes a pointer to user index.
+SHIM_CALL XamInputGetKeystrokeEx_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index_ptr = SHIM_GET_ARG_32(0);
+  uint32_t flags = SHIM_GET_ARG_32(1);
+  uint32_t keystroke_ptr = SHIM_GET_ARG_32(2);
+
+  uint32_t user_index = SHIM_MEM_32(user_index_ptr);
+
+  XELOGD(
+      "XamInputGetKeystroke(%.8X(%.d), %.8X, %.8X)",
+      user_index_ptr, user_index,
+      flags,
+      keystroke_ptr);
+
+  if (!keystroke_ptr) {
+    SHIM_SET_RETURN(X_ERROR_BAD_ARGUMENTS);
+    return;
+  }
+
+  InputSystem* input_system = state->emulator()->input_system();
+
+  X_INPUT_KEYSTROKE keystroke;
+  X_RESULT result = input_system->GetKeystroke(user_index, flags, keystroke);
+  if (XSUCCEEDED(result)) {
+    SHIM_SET_MEM_32(user_index_ptr, keystroke.user_index);
+    keystroke.Write(SHIM_MEM_BASE, keystroke_ptr);
+  }
+  SHIM_SET_RETURN(result);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -115,4 +180,6 @@ void xe::kernel::xam::RegisterInputExports(
   SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetState, state);
   SHIM_SET_MAPPING("xam.xex", XamInputSetState, state);
+  SHIM_SET_MAPPING("xam.xex", XamInputGetKeystroke, state);
+  SHIM_SET_MAPPING("xam.xex", XamInputGetKeystrokeEx, state);
 }

@@ -86,3 +86,22 @@ X_RESULT XInputInputDriver::SetState(
   DWORD result = XInputSetState(user_index, &native_vibration);
   return result;
 }
+
+X_RESULT XInputInputDriver::GetKeystroke(
+    uint32_t user_index, uint32_t flags, X_INPUT_KEYSTROKE& out_keystroke) {
+  // We may want to filter flags/user_index before sending to native.
+  // flags is reserved on desktop.
+  XINPUT_KEYSTROKE native_keystroke;
+  DWORD result = XInputGetKeystroke(user_index, flags, &native_keystroke);
+  if (result == ERROR_SUCCESS) {
+    out_keystroke.virtual_key = native_keystroke.VirtualKey;
+    out_keystroke.unicode = native_keystroke.Unicode;
+    out_keystroke.flags = native_keystroke.Flags;
+    out_keystroke.user_index = native_keystroke.UserIndex;
+    out_keystroke.hid_code = native_keystroke.HidCode;
+  }
+  // X_ERROR_EMPTY if no new keys
+  // X_ERROR_DEVICE_NOT_CONNECTED if no device
+  // X_ERROR_SUCCESS if key
+  return result;
+}

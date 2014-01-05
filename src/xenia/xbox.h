@@ -59,6 +59,7 @@ typedef uint32_t X_RESULT;
 #define X_ERROR_BUSY                                    ((uint32_t)0x800700AAL)
 #define X_ERROR_DEVICE_NOT_CONNECTED                    ((uint32_t)0x8007048FL)
 #define X_ERROR_CANCELLED                               ((uint32_t)0x800704C7L)
+#define X_ERROR_EMPTY                                   ((uint32_t)0x000010D2L)
 
 // MEM_*, used by NtAllocateVirtualMemory
 #define X_MEM_COMMIT              0x00001000
@@ -394,6 +395,43 @@ public:
     flags = 0;
     gamepad.Zero();
     vibration.Zero();
+  }
+};
+// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx
+class X_INPUT_KEYSTROKE {
+public:
+  uint16_t  virtual_key;
+  uint16_t  unicode;
+  uint16_t  flags;
+  uint8_t   user_index;
+  uint8_t   hid_code;
+
+  X_INPUT_KEYSTROKE() {
+    Zero();
+  }
+  X_INPUT_KEYSTROKE(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    virtual_key = XEGETUINT16BE(base + p + 0);
+    unicode     = XEGETUINT16BE(base + p + 2);
+    flags       = XEGETUINT16BE(base + p + 4);
+    user_index  = XEGETUINT8BE(base + p + 6);
+    hid_code    = XEGETUINT8BE(base + p + 7);
+  }
+  void Write(uint8_t* base, uint32_t p) {
+    XESETUINT16BE(base + p + 0, virtual_key);
+    XESETUINT16BE(base + p + 2, unicode);
+    XESETUINT16BE(base + p + 4, flags);
+    XESETUINT8BE(base + p + 6, user_index);
+    XESETUINT8BE(base + p + 7, hid_code);
+  }
+  void Zero() {
+    virtual_key = 0;
+    unicode = 0;
+    flags = 0;
+    user_index = 0;
+    hid_code = 0;
   }
 };
 

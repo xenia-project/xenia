@@ -45,3 +45,8 @@ X_RESULT NopInputDriver::SetState(
     uint32_t user_index, X_INPUT_VIBRATION& vibration) {
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
+
+X_RESULT NopInputDriver::GetKeystroke(
+    uint32_t user_index, uint32_t flags, X_INPUT_KEYSTROKE& out_keystroke) {
+  return X_ERROR_DEVICE_NOT_CONNECTED;
+}
