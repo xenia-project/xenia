@@ -53,6 +53,20 @@ SHIM_CALL XamUserGetSigninState_shim(
 }
 
 
+SHIM_CALL XamUserGetSigninInfo_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t flags = SHIM_GET_ARG_32(1);
+  uint32_t info_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "XamUserGetSigninInfo(%d, %.8X, %.8X)",
+      user_index, flags, info_ptr);
+
+  SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+}
+
+
 // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/xboxtools.cpp
 SHIM_CALL XamUserReadProfileSettings_shim(
     PPCContext* ppc_state, KernelState* state) {
@@ -125,5 +139,6 @@ void xe::kernel::xam::RegisterUserExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamUserGetXUID, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninState, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
 }

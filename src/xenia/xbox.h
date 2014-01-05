@@ -53,15 +53,18 @@ typedef uint32_t X_STATUS;
 // HRESULT (ERROR_*)
 // Adding as needed.
 typedef uint32_t X_RESULT;
-#define X_ERROR_SUCCESS                                 ((uint32_t)0x00000000L)
-#define X_ERROR_ACCESS_DENIED                           ((uint32_t)0x00000005L)
-#define X_ERROR_INSUFFICIENT_BUFFER                     ((uint32_t)0x0000007AL)
-#define X_ERROR_BAD_ARGUMENTS                           ((uint32_t)0x000000A0L)
-#define X_ERROR_BUSY                                    ((uint32_t)0x000000AAL)
-#define X_ERROR_DEVICE_NOT_CONNECTED                    ((uint32_t)0x0000048FL)
-#define X_ERROR_NOT_FOUND                               ((uint32_t)0x00000490L)
-#define X_ERROR_CANCELLED                               ((uint32_t)0x000004C7L)
-#define X_ERROR_EMPTY                                   ((uint32_t)0x000010D2L)
+#define X_FACILITY_WIN32 7
+#define X_HRESULT_FROM_WIN32(x) ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
+#define X_ERROR_SUCCESS                                 X_HRESULT_FROM_WIN32(0x00000000L)
+#define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
+#define X_ERROR_INSUFFICIENT_BUFFER                     X_HRESULT_FROM_WIN32(0x0000007AL)
+#define X_ERROR_BAD_ARGUMENTS                           X_HRESULT_FROM_WIN32(0x000000A0L)
+#define X_ERROR_BUSY                                    X_HRESULT_FROM_WIN32(0x000000AAL)
+#define X_ERROR_DEVICE_NOT_CONNECTED                    X_HRESULT_FROM_WIN32(0x0000048FL)
+#define X_ERROR_NOT_FOUND                               X_HRESULT_FROM_WIN32(0x00000490L)
+#define X_ERROR_CANCELLED                               X_HRESULT_FROM_WIN32(0x000004C7L)
+#define X_ERROR_NO_SUCH_USER                            X_HRESULT_FROM_WIN32(0x00000525L)
+#define X_ERROR_EMPTY                                   X_HRESULT_FROM_WIN32(0x000010D2L)
 
 // MEM_*, used by NtAllocateVirtualMemory
 #define X_MEM_COMMIT              0x00001000

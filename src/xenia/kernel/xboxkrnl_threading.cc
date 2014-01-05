@@ -656,6 +656,33 @@ SHIM_CALL NtClearEvent_shim(
 }
 
 
+SHIM_CALL NtCreateSemaphore_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
+  int32_t count = SHIM_GET_ARG_32(2);
+  int32_t limit = SHIM_GET_ARG_32(3);
+
+  XELOGD(
+      "NtCreateSemaphore(%.8X, %.8X, %d, %d)",
+      handle_ptr, obj_attributes_ptr, count, limit);
+
+  XSemaphore* sem = new XSemaphore(state);
+  sem->Initialize(count, limit);
+
+  // obj_attributes may have a name inside of it, if != NULL.
+  if (obj_attributes_ptr) {
+    //sem->SetName(...);
+  }
+
+  if (handle_ptr) {
+    SHIM_SET_MEM_32(handle_ptr, sem->handle());
+  }
+
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+}
+
+
 void xeKeInitializeSemaphore(
     void* semaphore_ptr, int32_t count, int32_t limit) {
   KernelState* state = shared_kernel_state_;
@@ -896,6 +923,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtClearEvent, state);
 
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSemaphore, state);
 
