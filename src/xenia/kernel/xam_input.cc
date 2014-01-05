@@ -26,6 +26,34 @@ namespace xe {
 namespace kernel {
 
 
+SHIM_CALL XamResetInactivity_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XamResetInactivity(%d)",
+      unk);
+
+  // Result ignored.
+  SHIM_SET_RETURN(0);
+}
+
+
+SHIM_CALL XamEnableInactivityProcessing_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t zero = SHIM_GET_ARG_32(0);
+  uint32_t unk = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "XamEnableInactivityProcessing(%d, %d)",
+      zero,
+      unk);
+
+  // Expects 0.
+  SHIM_SET_RETURN(0);
+}
+
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 SHIM_CALL XamInputGetCapabilities_shim(
     PPCContext* ppc_state, KernelState* state) {
@@ -176,6 +204,8 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(
 
 void xe::kernel::xam::RegisterInputExports(
     ExportResolver* export_resolver, KernelState* state) {
+  SHIM_SET_MAPPING("xam.xex", XamResetInactivity, state);
+  SHIM_SET_MAPPING("xam.xex", XamEnableInactivityProcessing, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetState, state);
   SHIM_SET_MAPPING("xam.xex", XamInputSetState, state);
