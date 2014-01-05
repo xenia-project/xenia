@@ -54,11 +54,13 @@ typedef uint32_t X_STATUS;
 // Adding as needed.
 typedef uint32_t X_RESULT;
 #define X_ERROR_SUCCESS                                 ((uint32_t)0x00000000L)
-#define X_ERROR_ACCESS_DENIED                           ((uint32_t)0x80070005L)
-#define X_ERROR_BAD_ARGUMENTS                           ((uint32_t)0x800700A0L)
-#define X_ERROR_BUSY                                    ((uint32_t)0x800700AAL)
-#define X_ERROR_DEVICE_NOT_CONNECTED                    ((uint32_t)0x8007048FL)
-#define X_ERROR_CANCELLED                               ((uint32_t)0x800704C7L)
+#define X_ERROR_ACCESS_DENIED                           ((uint32_t)0x00000005L)
+#define X_ERROR_INSUFFICIENT_BUFFER                     ((uint32_t)0x0000007AL)
+#define X_ERROR_BAD_ARGUMENTS                           ((uint32_t)0x000000A0L)
+#define X_ERROR_BUSY                                    ((uint32_t)0x000000AAL)
+#define X_ERROR_DEVICE_NOT_CONNECTED                    ((uint32_t)0x0000048FL)
+#define X_ERROR_NOT_FOUND                               ((uint32_t)0x00000490L)
+#define X_ERROR_CANCELLED                               ((uint32_t)0x000004C7L)
 #define X_ERROR_EMPTY                                   ((uint32_t)0x000010D2L)
 
 // MEM_*, used by NtAllocateVirtualMemory
