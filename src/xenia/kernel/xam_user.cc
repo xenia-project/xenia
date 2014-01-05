@@ -85,12 +85,12 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   uint32_t buffer_size = SHIM_MEM_32(buffer_size_ptr);
 
   XELOGD(
-      "XamUserReadProfileSettings(%d, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, %.8X)",
+      "XamUserReadProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, %.8X)",
       title_id, user_index, unk_0, unk_1, setting_count, setting_ids_ptr,
       buffer_size_ptr, buffer_size, buffer_ptr, overlapped_ptr);
 
   // Title ID = 0 means us.
-  XEASSERTZERO(title_id);
+  // 0xfffe07d1 = profile?
 
   // TODO(benvanik): implement overlapped support
   XEASSERTZERO(overlapped_ptr);
