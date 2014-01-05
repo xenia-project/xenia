@@ -51,6 +51,36 @@ SHIM_CALL XMAReleaseContext_shim(
 }
 
 
+SHIM_CALL XAudioGetVoiceCategoryVolume_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk_0 = SHIM_GET_ARG_32(0);
+  uint32_t out_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "XAudioGetVoiceCategoryVolume(%.8X, %.8X)",
+      unk_0, out_ptr);
+
+  // Expects a floating point single. Volume %?
+  SHIM_SET_MEM_32(out_ptr, 0);
+
+  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+}
+
+
+SHIM_CALL XAudioGetSpeakerConfig_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t config_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XAudioGetSpeakerConfig(%.8X)",
+      config_ptr);
+
+  SHIM_SET_MEM_32(config_ptr, 1); // ?
+
+  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -78,4 +108,7 @@ void xe::kernel::xboxkrnl::RegisterAudioExports(
   // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetLoopData, state);
   // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBufferReadOffset, state);
   // SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetInputBufferReadOffset, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetVoiceCategoryVolume, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetSpeakerConfig, state);
 }
