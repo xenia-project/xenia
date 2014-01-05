@@ -66,17 +66,16 @@ SHIM_CALL XamInputGetState_shim(
       user_index,
       state_ptr);
 
-  if (!state_ptr) {
-    SHIM_SET_RETURN(X_ERROR_BAD_ARGUMENTS);
-    return;
-  }
+  // Games call this with a NULL state ptr, probably as a query.
 
   InputSystem* input_system = state->emulator()->input_system();
 
   X_INPUT_STATE input_state;
   X_RESULT result = input_system->GetState(user_index, input_state);
   if (XSUCCEEDED(result)) {
-    input_state.Write(SHIM_MEM_BASE, state_ptr);
+    if (state_ptr) {
+      input_state.Write(SHIM_MEM_BASE, state_ptr);
+    }
   }
   SHIM_SET_RETURN(result);
 }
