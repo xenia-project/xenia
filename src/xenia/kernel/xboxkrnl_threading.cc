@@ -136,6 +136,22 @@ SHIM_CALL ExCreateThread_shim(
 }
 
 
+SHIM_CALL ExTerminateThread_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t exit_code = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "ExTerminateThread(%d)",
+      exit_code);
+
+  XThread* thread = XThread::GetCurrentThread();
+
+  // NOTE: this kills us right now. We won't return from it.
+  X_STATUS result = thread->Exit(exit_code);
+  SHIM_SET_RETURN(result);
+}
+
+
 X_STATUS xeNtResumeThread(uint32_t handle, uint32_t* out_suspend_count) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -740,12 +756,40 @@ SHIM_CALL KeReleaseSemaphore_shim(
   int32_t wait = SHIM_GET_ARG_32(3);
 
   XELOGD(
-      "KeReleaseSemaphore(%.8X, %d, %d, #d)",
+      "KeReleaseSemaphore(%.8X, %d, %d, %d)",
       semaphore_ref, increment, adjustment, wait);
 
   void* semaphore_ptr = SHIM_MEM_ADDR(semaphore_ref);
   int32_t result = xeKeReleaseSemaphore(
       semaphore_ptr, increment, adjustment, wait == 1);
+
+  SHIM_SET_RETURN(result);
+}
+
+
+SHIM_CALL NtReleaseSemaphore_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t sem_handle = SHIM_GET_ARG_32(0);
+  int32_t release_count = SHIM_GET_ARG_32(1);
+  int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "NtReleaseSemaphore(%.8X, %d, %.8X)",
+      sem_handle, release_count, previous_count_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XSemaphore* sem = NULL;
+  result = state->object_table()->GetObject(
+      sem_handle, (XObject**)&sem);
+  if (XSUCCEEDED(result)) {
+    int32_t previous_count = sem->ReleaseSemaphore(release_count);
+    sem->Release();
+
+    if (previous_count_ptr) {
+      SHIM_SET_MEM_32(previous_count_ptr, previous_count);
+    }
+  }
 
   SHIM_SET_RETURN(result);
 }
@@ -901,6 +945,7 @@ SHIM_CALL KeLeaveCriticalRegion_shim(
 void xe::kernel::xboxkrnl::RegisterThreadingExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", ExTerminateThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
@@ -926,6 +971,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSemaphore, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
