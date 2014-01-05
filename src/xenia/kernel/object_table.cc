@@ -120,6 +120,11 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
 X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
+  handle = TranslateHandle(handle);
+  if (!handle) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
   xe_mutex_lock(table_mutex_);
 
   // Lower 2 bits are ignored.
@@ -155,12 +160,9 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  if (handle == 0xFFFFFFFF) {
-    // CurrentProcess
-    XEASSERTALWAYS();
-  } else if (handle == 0xFFFFFFFE) {
-    // CurrentThread
-    handle = XThread::GetCurrentThreadHandle();
+  handle = TranslateHandle(handle);
+  if (!handle) {
+    return X_STATUS_INVALID_HANDLE;
   }
 
   xe_mutex_lock(table_mutex_);
@@ -190,4 +192,17 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 
   *out_object = object;
   return result;
+}
+
+X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
+  if (handle == 0xFFFFFFFF) {
+    // CurrentProcess
+    XEASSERTALWAYS();
+    return 0;
+  } else if (handle == 0xFFFFFFFE) {
+    // CurrentThread
+    return XThread::GetCurrentThreadHandle();
+  } else {
+    return handle;
+  }
 }

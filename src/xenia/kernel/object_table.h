@@ -33,6 +33,7 @@ public:
   X_STATUS GetObject(X_HANDLE handle, XObject** out_object);
 
 private:
+  X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
 
   typedef struct {

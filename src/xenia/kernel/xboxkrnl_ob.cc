@@ -88,6 +88,62 @@ SHIM_CALL ObDereferenceObject_shim(
 }
 
 
+SHIM_CALL NtDuplicateObject_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t new_handle_ptr = SHIM_GET_ARG_32(1);
+  uint32_t options = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "NtDuplicateObject(%.8X, %.8X, %.8X)",
+      handle, new_handle_ptr, options);
+
+  // NOTE: new_handle_ptr can be zero to just close a handle.
+  // NOTE: this function seems to be used to get the current thread handle
+  //       (passed handle=-2).
+  // Because this function is not like the NT version (with cross process
+  // mumble), my guess is that it's just use for getting real handles.
+  // So we just fake it and properly reference count but not actually make
+  // different handles.
+
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+
+  XObject* obj = 0;
+  result = state->object_table()->GetObject(handle, &obj);
+  if (XSUCCEEDED(result)) {
+    obj->RetainHandle();
+    uint32_t new_handle = obj->handle();
+    if (new_handle_ptr) {
+      SHIM_SET_MEM_32(new_handle_ptr, new_handle);
+    }
+
+    if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
+      // Always close the source object.
+      state->object_table()->RemoveHandle(handle);
+    }
+    obj->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
+SHIM_CALL NtClose_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "NtClose(%.8X)",
+      handle);
+
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+
+  result = state->object_table()->RemoveHandle(handle);
+
+  SHIM_SET_RETURN(result);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -96,4 +152,6 @@ void xe::kernel::xboxkrnl::RegisterObExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ObReferenceObjectByHandle, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObDereferenceObject, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtDuplicateObject, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtClose, state);
 }
