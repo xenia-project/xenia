@@ -40,6 +40,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
       "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
 
   // Register all exported functions.
+  RegisterAudioExports(export_resolver_, kernel_state);
   RegisterDebugExports(export_resolver_, kernel_state);
   RegisterHalExports(export_resolver_, kernel_state);
   RegisterIoExports(export_resolver_, kernel_state);
