@@ -57,13 +57,16 @@ public:
   // Reference()
   // Dereference()
 
-  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
-                        uint32_t alertable, uint64_t* opt_timeout);
+  X_STATUS Wait(
+      uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
+      uint64_t* opt_timeout);
 
   static void LockType();
   static void UnlockType();
   static XObject* GetObject(KernelState* kernel_state, void* native_ptr,
                             int32_t as_type = -1);
+
+  virtual void* GetWaitHandle() { return 0; }
 
 protected:
   Memory* memory() const;

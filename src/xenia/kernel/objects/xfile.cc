@@ -30,11 +30,8 @@ XFile::~XFile() {
   async_event_->Delete();
 }
 
-X_STATUS XFile::Wait(uint32_t wait_reason, uint32_t processor_mode,
-                     uint32_t alertable, uint64_t* opt_timeout) {
-  // Wait until some async operation completes.
-  return async_event_->Wait(
-      wait_reason, processor_mode, alertable, opt_timeout);
+void* XFile::GetWaitHandle() {
+  return async_event_->GetWaitHandle();
 }
 
 X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,

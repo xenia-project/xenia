@@ -36,8 +36,7 @@ public:
   bool DequeueNotification(XNotificationID* out_id, uint32_t* out_data);
   bool DequeueNotification(XNotificationID id, uint32_t* out_data);
 
-  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
-                        uint32_t alertable, uint64_t* opt_timeout);
+  virtual void* GetWaitHandle() { return wait_handle_; }
 
 private:
   HANDLE wait_handle_;

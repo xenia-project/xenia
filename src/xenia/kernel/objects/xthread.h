@@ -52,9 +52,6 @@ public:
 
   void Execute();
 
-  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
-                        uint32_t alertable, uint64_t* opt_timeout);
-
   static void EnterCriticalRegion();
   static void LeaveCriticalRegion();
   uint32_t RaiseIrql(uint32_t new_irql);
@@ -63,6 +60,8 @@ public:
   X_STATUS Resume(uint32_t* out_suspend_count);
   X_STATUS Delay(
       uint32_t processor_mode, uint32_t alertable, uint64_t interval);
+
+  virtual void* GetWaitHandle();
 
 private:
   X_STATUS PlatformCreate();

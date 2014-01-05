@@ -52,15 +52,14 @@ public:
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
 
-  virtual X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
-                        uint32_t alertable, uint64_t* opt_timeout);
-
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 XAsyncRequest* request);
+
+  virtual void* GetWaitHandle();
 
 protected:
   XFile(KernelState* kernel_state, uint32_t desired_access);

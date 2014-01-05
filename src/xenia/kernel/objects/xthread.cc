@@ -324,11 +324,6 @@ void XThread::Execute() {
   }
 }
 
-X_STATUS XThread::Wait(uint32_t wait_reason, uint32_t processor_mode,
-                       uint32_t alertable, uint64_t* opt_timeout) {
-  return event_->Wait(wait_reason, processor_mode, alertable, opt_timeout);
-}
-
 void XThread::EnterCriticalRegion() {
   // Global critical region. This isn't right, but is easy.
   xe_mutex_lock(critical_region_);
@@ -382,4 +377,8 @@ X_STATUS XThread::Delay(
   default:
     return X_STATUS_ALERTED;
   }
+}
+
+void* XThread::GetWaitHandle() {
+  return event_->GetWaitHandle();
 }
