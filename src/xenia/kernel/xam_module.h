@@ -7,35 +7,30 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_KERNEL_MODULE_H_
-#define XENIA_KERNEL_KERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_XAM_H_
+#define XENIA_KERNEL_XAM_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
+#include <xenia/export_resolver.h>
+#include <xenia/kernel/kernel_module.h>
+#include <xenia/kernel/xam_ordinals.h>
 
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, kernel, KernelState);
+// All of the exported functions:
+#include <xenia/kernel/xam_info.h>
 
 
 namespace xe {
 namespace kernel {
 
 
-class KernelModule {
+class XamModule : public KernelModule {
 public:
-  KernelModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~KernelModule();
+  XamModule(Emulator* emulator, KernelState* kernel_state);
+  virtual ~XamModule();
 
-  Emulator* emulator() const { return emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
-
-protected:
-  Emulator*         emulator_;
-  KernelState*      kernel_state_;
-  Memory*           memory_;
-  ExportResolver*   export_resolver_;
+private:
 };
 
 
@@ -43,4 +38,4 @@ protected:
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_KERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_XAM_H_

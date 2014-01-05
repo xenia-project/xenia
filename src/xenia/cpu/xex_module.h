@@ -12,7 +12,7 @@
 
 #include <alloy/runtime/module.h>
 #include <xenia/core.h>
-#include <xenia/kernel/xex2.h>
+#include <xenia/kernel/util/xex2.h>
 
 
 namespace xe {

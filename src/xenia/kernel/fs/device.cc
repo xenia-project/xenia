@@ -7,10 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_H_
-#define XENIA_KERNEL_MODULES_H_
+#include <xenia/kernel/fs/device.h>
 
-#include <xenia/kernel/xam_module.h>
-#include <xenia/kernel/xboxkrnl_module.h>
 
-#endif  // XENIA_KERNEL_MODULES_H_
+using namespace xe;
+using namespace xe::kernel;
+using namespace xe::kernel::fs;
+
+
+Device::Device(const char* path) {
+  path_ = xestrdupa(path);
+}
+
+Device::~Device() {
+  xe_free(path_);
+}
+
+const char* Device::path() {
+  return path_;
+}

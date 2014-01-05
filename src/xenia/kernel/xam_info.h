@@ -7,40 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_KERNEL_MODULE_H_
-#define XENIA_KERNEL_KERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_XAM_INFO_H_
+#define XENIA_KERNEL_XAM_INFO_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, kernel, KernelState);
+#include <xenia/xbox.h>
 
 
 namespace xe {
 namespace kernel {
 
 
-class KernelModule {
-public:
-  KernelModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~KernelModule();
-
-  Emulator* emulator() const { return emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
-
-protected:
-  Emulator*         emulator_;
-  KernelState*      kernel_state_;
-  Memory*           memory_;
-  ExportResolver*   export_resolver_;
-};
 
 
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_KERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_XAM_INFO_H_

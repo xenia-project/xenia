@@ -16,8 +16,9 @@
 #include <xenia/gpu/gpu.h>
 #include <xenia/hid/hid.h>
 #include <xenia/kernel/kernel.h>
+#include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/modules.h>
-#include <xenia/kernel/xboxkrnl/fs/filesystem.h>
+#include <xenia/kernel/fs/filesystem.h>
 
 
 using namespace xe;
@@ -27,9 +28,7 @@ using namespace xe::debug;
 using namespace xe::gpu;
 using namespace xe::hid;
 using namespace xe::kernel;
-using namespace xe::kernel::xam;
-using namespace xe::kernel::xboxkrnl;
-using namespace xe::kernel::xboxkrnl::fs;
+using namespace xe::kernel::fs;
 
 
 Emulator::Emulator(const xechar_t* command_line) :
@@ -38,7 +37,7 @@ Emulator::Emulator(const xechar_t* command_line) :
     processor_(0),
     audio_system_(0), graphics_system_(0), input_system_(0),
     export_resolver_(0), file_system_(0),
-    xboxkrnl_(0), xam_(0) {
+    kernel_state_(0), xam_(0), xboxkrnl_(0) {
   XEIGNORE(xestrcpy(command_line_, XECOUNT(command_line_), command_line));
 }
 
@@ -52,6 +51,7 @@ Emulator::~Emulator() {
 
   delete xam_;
   delete xboxkrnl_;
+  delete kernel_state_;
 
   delete file_system_;
 
@@ -102,7 +102,7 @@ X_STATUS Emulator::Setup() {
   // Initialize the HID.
   input_system_ = xe::hid::Create(this);
   XEEXPECTNOTNULL(input_system_);
-  
+
   // Setup the core components.
   result = processor_->Setup();
   XEEXPECTZERO(result);
@@ -117,10 +117,14 @@ X_STATUS Emulator::Setup() {
   file_system_ = new FileSystem();
   XEEXPECTNOTNULL(file_system_);
 
+  // Shared kernel state.
+  kernel_state_ = new KernelState(this);
+  XEEXPECTNOTNULL(kernel_state_);
+
   // HLE kernel modules.
-  xboxkrnl_ = new XboxkrnlModule(this);
+  xboxkrnl_ = new XboxkrnlModule(this, kernel_state_);
   XEEXPECTNOTNULL(xboxkrnl_);
-  xam_ = new XamModule(this);
+  xam_ = new XamModule(this, kernel_state_);
   XEEXPECTNOTNULL(xam_);
 
   // Prepare the debugger.

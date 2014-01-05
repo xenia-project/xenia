@@ -21,9 +21,10 @@ XEDECLARECLASS2(xe, cpu, Processor);
 XEDECLARECLASS2(xe, debug, DebugServer);
 XEDECLARECLASS2(xe, gpu, GraphicsSystem);
 XEDECLARECLASS2(xe, hid, InputSystem);
-XEDECLARECLASS3(xe, kernel, xam, XamModule);
-XEDECLARECLASS3(xe, kernel, xboxkrnl, XboxkrnlModule);
-XEDECLARECLASS4(xe, kernel, xboxkrnl, fs, FileSystem);
+XEDECLARECLASS2(xe, kernel, KernelState);
+XEDECLARECLASS2(xe, kernel, XamModule);
+XEDECLARECLASS2(xe, kernel, XboxkrnlModule);
+XEDECLARECLASS3(xe, kernel, fs, FileSystem);
 
 
 namespace xe {
@@ -45,10 +46,10 @@ public:
   hid::InputSystem* input_system() const { return input_system_; }
 
   ExportResolver* export_resolver() const { return export_resolver_; }
-  kernel::xboxkrnl::fs::FileSystem* file_system() const { return file_system_; }
+  kernel::fs::FileSystem* file_system() const { return file_system_; }
 
-  kernel::xboxkrnl::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_; }
-  kernel::xam::XamModule* xam() const { return xam_; }
+  kernel::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_; }
+  kernel::XamModule* xam() const { return xam_; }
 
   X_STATUS Setup();
 
@@ -68,10 +69,11 @@ private:
   hid::InputSystem*       input_system_;
 
   ExportResolver*         export_resolver_;
-  kernel::xboxkrnl::fs::FileSystem* file_system_;
+  kernel::fs::FileSystem* file_system_;
 
-  kernel::xboxkrnl::XboxkrnlModule* xboxkrnl_;
-  kernel::xam::XamModule*           xam_;
+  kernel::KernelState*    kernel_state_;
+  kernel::XamModule*      xam_;
+  kernel::XboxkrnlModule* xboxkrnl_;
 };
 
 

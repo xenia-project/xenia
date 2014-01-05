@@ -7,10 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_MODULES_H_
-#define XENIA_KERNEL_MODULES_H_
+#ifndef XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
+#define XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
 
-#include <xenia/kernel/xam_module.h>
-#include <xenia/kernel/xboxkrnl_module.h>
+#include <xenia/common.h>
+#include <xenia/core.h>
 
-#endif  // XENIA_KERNEL_MODULES_H_
+#include <xenia/export_resolver.h>
+
+
+// Build an ordinal enum to make it easy to lookup ordinals.
+#include <xenia/kernel/util/ordinal_table_pre.inc>
+namespace ordinals {
+enum {
+  #include <xenia/kernel/xboxkrnl_table.inc>
+};
+}  // namespace ordinals
+#include <xenia/kernel/util/ordinal_table_post.inc>
+
+
+#endif  // XENIA_KERNEL_XBOXKRNL_ORDINALS_H_

@@ -7,40 +7,42 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_KERNEL_MODULE_H_
-#define XENIA_KERNEL_KERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_DEVICE_H_
+#define XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_DEVICE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, kernel, KernelState);
+#include <xenia/kernel/fs/device.h>
 
 
 namespace xe {
 namespace kernel {
+namespace fs {
 
 
-class KernelModule {
+class GDFX;
+
+
+class DiscImageDevice : public Device {
 public:
-  KernelModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~KernelModule();
+  DiscImageDevice(const char* path, const xechar_t* local_path);
+  virtual ~DiscImageDevice();
 
-  Emulator* emulator() const { return emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
+  int Init();
 
-protected:
-  Emulator*         emulator_;
-  KernelState*      kernel_state_;
-  Memory*           memory_;
-  ExportResolver*   export_resolver_;
+  virtual Entry* ResolvePath(const char* path);
+
+private:
+  xechar_t*   local_path_;
+  xe_mmap_ref mmap_;
+  GDFX*       gdfx_;
 };
 
 
+}  // namespace fs
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_KERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_DEVICE_H_

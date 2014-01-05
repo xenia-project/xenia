@@ -7,40 +7,31 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_KERNEL_MODULE_H_
-#define XENIA_KERNEL_KERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_XBOXKRNL_MODULES_H_
+#define XENIA_KERNEL_XBOXKRNL_MODULES_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, kernel, KernelState);
+#include <xenia/xbox.h>
 
 
 namespace xe {
 namespace kernel {
 
 
-class KernelModule {
-public:
-  KernelModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~KernelModule();
+X_STATUS xeExGetXConfigSetting(
+    uint16_t category, uint16_t setting, void* buffer, uint16_t buffer_size,
+    uint16_t* required_size);
 
-  Emulator* emulator() const { return emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
+int xeXexCheckExecutablePriviledge(uint32_t privilege);
 
-protected:
-  Emulator*         emulator_;
-  KernelState*      kernel_state_;
-  Memory*           memory_;
-  ExportResolver*   export_resolver_;
-};
+int xeXexGetModuleHandle(const char* module_name,
+                         X_HANDLE* module_handle_ptr);
 
 
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_KERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_XBOXKRNL_MODULES_H_

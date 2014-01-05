@@ -7,40 +7,43 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_KERNEL_MODULE_H_
-#define XENIA_KERNEL_KERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_
+#define XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, kernel, KernelState);
+#include <xenia/kernel/objects/xfile.h>
 
 
 namespace xe {
 namespace kernel {
+namespace fs {
+
+class DiscImageEntry;
 
 
-class KernelModule {
+class DiscImageFile : public XFile {
 public:
-  KernelModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~KernelModule();
+  DiscImageFile(KernelState* kernel_state, uint32_t desired_access,
+                DiscImageEntry* entry);
+  virtual ~DiscImageFile();
 
-  Emulator* emulator() const { return emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
+  virtual X_STATUS QueryInfo(XFileInfo* out_info);
 
 protected:
-  Emulator*         emulator_;
-  KernelState*      kernel_state_;
-  Memory*           memory_;
-  ExportResolver*   export_resolver_;
+  virtual X_STATUS ReadSync(
+      void* buffer, size_t buffer_length, size_t byte_offset,
+      size_t* out_bytes_read);
+
+private:
+  DiscImageEntry* entry_;
 };
 
 
+}  // namespace fs
 }  // namespace kernel
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_KERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_

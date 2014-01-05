@@ -17,9 +17,9 @@
 #include <xenia/debug/debug_server.h>
 #include <xenia/debug/debug_target.h>
 #include <xenia/debug/protocols/ws/simple_sha1.h>
-#include <xenia/kernel/xboxkrnl/kernel_state.h>
-#include <xenia/kernel/xboxkrnl/xboxkrnl_module.h>
-#include <xenia/kernel/xboxkrnl/objects/xmodule.h>
+#include <xenia/kernel/kernel_state.h>
+#include <xenia/kernel/xboxkrnl_module.h>
+#include <xenia/kernel/objects/xmodule.h>
 
 #if XE_PLATFORM(WIN32)
 // Required for wslay.
@@ -32,7 +32,7 @@ using namespace std;
 using namespace xe;
 using namespace xe::debug;
 using namespace xe::debug::protocols::ws;
-using namespace xe::kernel::xboxkrnl;
+using namespace xe::kernel;
 
 
 WSClient::WSClient(DebugServer* debug_server, socket_t socket_id) :
