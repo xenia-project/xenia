@@ -330,6 +330,61 @@ SHIM_CALL MmQueryAddressProtect_shim(
 }
 
 
+SHIM_CALL MmQueryStatistics_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t stats_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "MmQueryStatistics(%.8X)",
+      stats_ptr);
+
+uint32_t size = SHIM_MEM_32(stats_ptr + 0);
+  if (size != 104) {
+    SHIM_SET_RETURN(X_STATUS_BUFFER_TOO_SMALL);
+    return;
+  }
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  // Zero out the struct.
+  xe_zero_struct(SHIM_MEM_ADDR(stats_ptr), 104);
+  SHIM_SET_MEM_32(stats_ptr + 0, 104);
+
+  // Set the constants the game is likely asking for.
+  // These numbers are mostly guessed. If the game is just checking for
+  // memory, this should satisfy it. If it's actually verifying things
+  // this won't work :/
+  // https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
+  SHIM_SET_MEM_32(stats_ptr + 4 *  1, 0x00020000); // TotalPhysicalPages
+  SHIM_SET_MEM_32(stats_ptr + 4 *  2, 0x00000300); // KernelPages
+  SHIM_SET_MEM_32(stats_ptr + 4 *  3, 0x00020000); // TitleAvailablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 *  4, 0x2FFF0000); // TitleTotalVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 *  5, 0x00160000); // TitleReservedVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 *  6, 0x00001000); // TitlePhysicalPages
+  SHIM_SET_MEM_32(stats_ptr + 4 *  7, 0x00000010); // TitlePoolPages
+  SHIM_SET_MEM_32(stats_ptr + 4 *  8, 0x00000100); // TitleStackPages
+  SHIM_SET_MEM_32(stats_ptr + 4 *  9, 0x00000100); // TitleImagePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 10, 0x00000100); // TitleHeapPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 11, 0x00000100); // TitleVirtualPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 12, 0x00000100); // TitlePageTablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 13, 0x00000100); // TitleCachePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 14, 0x00000000); // SystemAvailablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 15, 0x00000000); // SystemTotalVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 * 16, 0x00000000); // SystemReservedVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 * 17, 0x00000000); // SystemPhysicalPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 18, 0x00000000); // SystemPoolPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 19, 0x00000000); // SystemStackPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 20, 0x00000000); // SystemImagePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 21, 0x00000000); // SystemHeapPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 22, 0x00000000); // SystemVirtualPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 23, 0x00000000); // SystemPageTablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 24, 0x00000000); // SystemCachePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 25, 0x0001FFFF); // HighestPhysicalPage
+
+  SHIM_SET_RETURN(result);
+}
+
+
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
 uint32_t xeMmGetPhysicalAddress(uint32_t base_address) {
   // PHYSICAL_ADDRESS MmGetPhysicalAddress(
@@ -379,5 +434,6 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryStatistics, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
 }
