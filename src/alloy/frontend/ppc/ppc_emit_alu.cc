@@ -1225,7 +1225,7 @@ XEEMITTER(srawix,       0x7C000670, X  )(PPCHIRBuilder& f, InstrData& i) {
     uint32_t mask = (uint32_t)XEMASK(64 - i.X.RB, 63);
     ca = f.And(
         f.Shr(v, 31),
-        f.IsTrue(f.And(v, f.LoadConstant(mask))));
+        f.ZeroExtend(f.IsTrue(f.And(v, f.LoadConstant(mask))), INT32_TYPE));
 
     v = f.Sha(v, (int8_t)i.X.RB),
     v = f.SignExtend(v, INT64_TYPE);
