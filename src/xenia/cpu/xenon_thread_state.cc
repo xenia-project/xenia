@@ -45,6 +45,10 @@ XenonThreadState::XenonThreadState(
   context_->r[1]  = stack_address_ + stack_size;
   context_->r[13] = thread_state_address_;
 
+  // Pad out stack a bit, as some games seem to overwrite the caller by about
+  // 16 to 32b.
+  context_->r[1] -= 64;
+
   raw_context_ = context_;
 
   alloy::tracing::WriteEvent(EventType::ThreadInit({
