@@ -537,6 +537,11 @@ void Value::ByteSwap() {
   case INT64_TYPE:
     constant.i64 = XESWAP64(constant.i64);
     break;
+  case VEC128_TYPE:
+    for (int n = 0; n < 4; n++) {
+      constant.v128.i4[n] = XESWAP32(constant.v128.i4[n]);
+    }
+    break;
   default:
     XEASSERTALWAYS();
     break;
