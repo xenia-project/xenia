@@ -990,6 +990,46 @@ SHIM_CALL KeWaitForMultipleObjects_shim(
 }
 
 
+SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t signal_handle = SHIM_GET_ARG_32(0);
+  uint32_t wait_handle = SHIM_GET_ARG_32(1);
+  uint32_t alertable = SHIM_GET_ARG_32(2);
+  uint32_t unk_3 = SHIM_GET_ARG_32(3);
+  uint32_t timeout_ptr = SHIM_GET_ARG_32(4);
+
+  XELOGD(
+      "NtSignalAndWaitForSingleObjectEx(%.8X, %.8X, %.1X, %.8X, %.8X)",
+      signal_handle, wait_handle, alertable, unk_3,
+      timeout_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XObject* signal_object = NULL;
+  XObject* wait_object = NULL;
+  result = state->object_table()->GetObject(
+      signal_handle, &signal_object);
+  if (XSUCCEEDED(result)) {
+    result = state->object_table()->GetObject(
+        wait_handle, &wait_object);
+  }
+  if (XSUCCEEDED(result)) {
+    uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+    result = XObject::SignalAndWait(
+        signal_object, wait_object, 3, 1, alertable,
+        timeout_ptr ? &timeout : NULL);
+  }
+  if (signal_object) {
+    signal_object->Release();
+  }
+  if (wait_object) {
+    wait_object->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 uint32_t xeKfAcquireSpinLock(void* lock_ptr) {
   // Lock.
   while (!xe_atomic_cas_32(0, 1, lock_ptr)) {
@@ -1108,6 +1148,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForMultipleObjects, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtSignalAndWaitForSingleObjectEx, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KfAcquireSpinLock, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KfReleaseSpinLock, state);

@@ -113,6 +113,22 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
   }
 }
 
+X_STATUS XObject::SignalAndWait(
+    XObject* signal_object, XObject* wait_object,
+    uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
+    uint64_t* opt_timeout) {
+  DWORD timeout_ms = opt_timeout ?
+      ConvertTimeoutTicks(*opt_timeout) : INFINITE;
+
+  DWORD result = SignalObjectAndWait(
+      signal_object->GetWaitHandle(),
+      wait_object->GetWaitHandle(),
+      timeout_ms,
+      alertable ? TRUE : FALSE);
+
+  return result;
+}
+
 X_STATUS XObject::WaitMultiple(
     uint32_t count, XObject** objects,
     uint32_t wait_type, uint32_t wait_reason, uint32_t processor_mode,
