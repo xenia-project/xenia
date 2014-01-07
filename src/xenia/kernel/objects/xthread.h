@@ -58,6 +58,7 @@ public:
   void LowerIrql(uint32_t new_irql);
 
   X_STATUS Resume(uint32_t* out_suspend_count);
+  X_STATUS Suspend(uint32_t* out_suspend_count);
   X_STATUS Delay(
       uint32_t processor_mode, uint32_t alertable, uint64_t interval);
 

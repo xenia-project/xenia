@@ -26,6 +26,7 @@ X_STATUS xeExCreateThread(
     uint32_t start_address, uint32_t start_context, uint32_t creation_flags);
 
 X_STATUS xeNtResumeThread(uint32_t handle, uint32_t* out_suspend_count);
+X_STATUS xeNtSuspendThread(uint32_t handle, uint32_t* out_suspend_count);
 
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity);
 

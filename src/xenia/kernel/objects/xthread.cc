@@ -353,6 +353,18 @@ X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
   }
 }
 
+X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
+  DWORD result = SuspendThread(thread_handle_);
+  if (result >= 0) {
+    if (out_suspend_count) {
+      *out_suspend_count = result;
+    }
+    return X_STATUS_SUCCESS;
+  } else {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+}
+
 X_STATUS XThread::Delay(
   uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
   int64_t timeout_ticks = interval;
