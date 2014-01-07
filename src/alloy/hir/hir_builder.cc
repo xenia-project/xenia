@@ -1267,6 +1267,28 @@ Value* HIRBuilder::RSqrt(Value* value) {
   return i->dest;
 }
 
+Value* HIRBuilder::Pow2(Value* value) {
+  ASSERT_FLOAT_TYPE(value);
+
+  Instr* i = AppendInstr(
+      OPCODE_POW2_info, 0,
+      AllocValue(value->type));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* HIRBuilder::Log2(Value* value) {
+  ASSERT_FLOAT_TYPE(value);
+
+  Instr* i = AppendInstr(
+      OPCODE_LOG2_info, 0,
+      AllocValue(value->type));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::DotProduct3(Value* value1, Value* value2) {
   ASSERT_VECTOR_TYPE(value1);
   ASSERT_VECTOR_TYPE(value2);

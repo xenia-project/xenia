@@ -392,6 +392,18 @@ DEFINE_OPCODE(
     0);
 
 DEFINE_OPCODE(
+    OPCODE_POW2,
+    "pow2",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
+    OPCODE_LOG2,
+    "log2",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_DOT_PRODUCT_3,
     "dot_product_3",
     OPCODE_SIG_V_V_V,

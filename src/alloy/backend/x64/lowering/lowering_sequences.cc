@@ -490,6 +490,18 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     return true;
   });
 
+  table->AddSequence(OPCODE_POW2, [](LIRBuilder& lb, Instr*& instr) {
+    // TODO
+    instr = instr->next;
+    return true;
+  });
+
+  table->AddSequence(OPCODE_LOG2, [](LIRBuilder& lb, Instr*& instr) {
+    // TODO
+    instr = instr->next;
+    return true;
+  });
+
   table->AddSequence(OPCODE_DOT_PRODUCT_3, [](LIRBuilder& lb, Instr*& instr) {
     // TODO
     instr = instr->next;

@@ -703,22 +703,30 @@ XEEMITTER(vctuxs,         0x1000038A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return 1;
 }
 
+int InstrEmit_vexptefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // (VD) <- pow2(VB)
+  Value* v = f.Pow2(f.LoadVR(vb));
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vexptefp,       0x1000018A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vexptefp_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vexptefp128,    VX128_3(6, 1712), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vexptefp_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
+int InstrEmit_vlogefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // (VD) <- log2(VB)
+  Value* v = f.Log2(f.LoadVR(vb));
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vlogefp,        0x100001CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vlogefp_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vlogefp128,     VX128_3(6, 1776), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vlogefp_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
 int InstrEmit_vmaddfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, uint32_t vc) {
@@ -1158,7 +1166,7 @@ XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData
 int InstrEmit_vrefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- 1/(VB)
   vec128_t one = { 1, 1, 1, 1 };
-  Value* v = f.Div(f.LoadConstant(one), f.LoadVR(vd));
+  Value* v = f.Div(f.LoadConstant(one), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1180,7 +1188,7 @@ XEEMITTER(vrfim128,       VX128_3(6, 816),  VX128_3)(PPCHIRBuilder& f, InstrData
 
 int InstrEmit_vrfin_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- RoundToNearest(VB)
-  Value* v = f.Round(f.LoadVR(vd), ROUND_TO_NEAREST);
+  Value* v = f.Round(f.LoadVR(vb), ROUND_TO_NEAREST);
   f.StoreVR(vd, v);
   return 0;
 }

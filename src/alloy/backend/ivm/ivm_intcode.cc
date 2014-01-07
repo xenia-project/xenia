@@ -2539,6 +2539,64 @@ int Translate_RSQRT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
 }
 
+uint32_t IntCode_POW2_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 = (float)pow(2, ics.rf[i->src1_reg].f32);
+  return IA_NEXT;
+}
+uint32_t IntCode_POW2_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 = pow(2, ics.rf[i->src1_reg].f64);
+  return IA_NEXT;
+}
+uint32_t IntCode_POW2_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (size_t i = 0; i < 4; i++) {
+    dest.f4[i] = (float)pow(2, src1.f4[i]);
+  }
+  return IA_NEXT;
+}
+int Translate_POW2(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_POW2_F32,
+    IntCode_POW2_F64,
+    IntCode_POW2_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t IntCode_LOG2_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 = log2(ics.rf[i->src1_reg].f32);
+  return IA_NEXT;
+}
+uint32_t IntCode_LOG2_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 = log2(ics.rf[i->src1_reg].f64);
+  return IA_NEXT;
+}
+uint32_t IntCode_LOG2_V128(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (size_t i = 0; i < 4; i++) {
+    dest.f4[i] = log2(src1.f4[i]);
+  }
+  return IA_NEXT;
+}
+int Translate_LOG2(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_LOG2_F32,
+    IntCode_LOG2_F64,
+    IntCode_LOG2_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
 uint32_t IntCode_AND_I8_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 & ics.rf[i->src2_reg].i8;
   return IA_NEXT;
@@ -3223,6 +3281,8 @@ static const TranslateFn dispatch_table[] = {
   Translate_ABS,
   Translate_SQRT,
   Translate_RSQRT,
+  Translate_POW2,
+  Translate_LOG2,
   Translate_DOT_PRODUCT_3,
   Translate_DOT_PRODUCT_4,
 
