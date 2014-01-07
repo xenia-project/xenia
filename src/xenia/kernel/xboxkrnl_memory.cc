@@ -446,6 +446,25 @@ SHIM_CALL MmGetPhysicalAddress_shim(
 }
 
 
+SHIM_CALL KeLockL2_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  // Ignored for now. This is just a perf optimization, I think.
+  // It may be useful as a hint for CPU-GPU transfer.
+
+  XELOGD(
+      "KeLockL2(?)");
+
+  SHIM_SET_RETURN(0);
+}
+
+
+SHIM_CALL KeUnlockL2_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  XELOGD(
+      "KeUnlockL2(?)");
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -461,4 +480,7 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAllocationSize, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryStatistics, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeLockL2, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeUnlockL2, state);
 }
