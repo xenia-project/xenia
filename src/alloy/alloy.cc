@@ -13,7 +13,7 @@
 using namespace alloy;
 
 
-#if DEBUG
+#if 0 && DEBUG
 #define DEFAULT_DEBUG_FLAG true
 #else
 #define DEFAULT_DEBUG_FLAG false

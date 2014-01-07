@@ -90,7 +90,7 @@ int PPCTranslator::Translate(
   }
 
   // Emit function.
-  int result = builder_->Emit(symbol_info);
+  int result = builder_->Emit(symbol_info, debug_info != NULL);
   XEEXPECTZERO(result);
 
   // Stash raw HIR.

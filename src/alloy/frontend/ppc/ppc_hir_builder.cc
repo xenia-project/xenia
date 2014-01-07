@@ -35,12 +35,11 @@ void PPCHIRBuilder::Reset() {
   start_address_ = 0;
   instr_offset_list_ = NULL;
   label_list_ = NULL;
+  with_debug_info_ = false;
   HIRBuilder::Reset();
 }
 
-const bool FLAGS_annotate_disassembly = true;
-
-int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
+int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
@@ -49,10 +48,13 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
   instr_count_ =
       (symbol_info->end_address() - symbol_info->address()) / 4 + 1;
 
-  Comment("%s fn %.8X-%.8X %s",
-          symbol_info->module()->name(),
-          symbol_info->address(), symbol_info->end_address(),
-          symbol_info->name());
+  with_debug_info_ = with_debug_info;
+  if (with_debug_info_) {
+    Comment("%s fn %.8X-%.8X %s",
+            symbol_info->module()->name(),
+            symbol_info->address(), symbol_info->end_address(),
+            symbol_info->name());
+  }
 
   // Allocate offset list.
   // This is used to quickly map labels to instructions.
@@ -90,7 +92,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
     }
 
     Instr* first_instr = 0;
-    if (FLAGS_annotate_disassembly) {
+    if (with_debug_info_) {
       if (label) {
         AnnotateLabel(address, label);
       }
@@ -139,9 +141,6 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info) {
       Comment("UNIMPLEMENTED!");
       //DebugBreak();
       //TraceInvalidInstruction(i);
-
-      // This printf is handy for sort/uniquify to find instructions.
-      printf("unimplinstr %s\n", i.type->name);
     }
   }
 
@@ -192,7 +191,7 @@ Label* PPCHIRBuilder::LookupLabel(uint64_t address) {
     }
 
     // Annotate the label, as we won't do it later.
-    if (FLAGS_annotate_disassembly) {
+    if (with_debug_info_) {
       AnnotateLabel(address, label);
     }
   }

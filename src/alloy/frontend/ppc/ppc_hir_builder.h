@@ -33,7 +33,7 @@ public:
 
   virtual void Reset();
 
-  int Emit(runtime::FunctionInfo* symbol_info);
+  int Emit(runtime::FunctionInfo* symbol_info, bool with_debug_info);
 
   runtime::FunctionInfo* LookupFunction(uint64_t address);
   Label* LookupLabel(uint64_t address);
@@ -73,6 +73,7 @@ private:
   PPCFrontend*  frontend_;
 
   // Reset each Emit:
+  bool          with_debug_info_;
   runtime::FunctionInfo* symbol_info_;
   uint64_t      start_address_;
   uint64_t      instr_count_;
