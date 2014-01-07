@@ -448,19 +448,13 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     return true;
   });
 
-  table->AddSequence(OPCODE_REM, [](LIRBuilder& lb, Instr*& instr) {
+  table->AddSequence(OPCODE_MUL_ADD, [](LIRBuilder& lb, Instr*& instr) {
     // TODO
     instr = instr->next;
     return true;
   });
 
-  table->AddSequence(OPCODE_MULADD, [](LIRBuilder& lb, Instr*& instr) {
-    // TODO
-    instr = instr->next;
-    return true;
-  });
-
-  table->AddSequence(OPCODE_MULSUB, [](LIRBuilder& lb, Instr*& instr) {
+  table->AddSequence(OPCODE_MUL_SUB, [](LIRBuilder& lb, Instr*& instr) {
     // TODO
     instr = instr->next;
     return true;

@@ -278,11 +278,6 @@ void Value::Div(Value* other) {
   }
 }
 
-void Value::Rem(Value* other) {
-  // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
-}
-
 void Value::MulAdd(Value* dest, Value* value1, Value* value2, Value* value3) {
   // TODO(benvanik): big matrix.
   XEASSERTALWAYS();

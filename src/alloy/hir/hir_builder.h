@@ -152,9 +152,9 @@ public:
                       uint32_t arithmetic_flags = 0);
   Value* Sub(Value* value1, Value* value2,
              uint32_t arithmetic_flags = 0);
-  Value* Mul(Value* value1, Value* value2);
-  Value* Div(Value* value1, Value* value2);
-  Value* Rem(Value* value1, Value* value2);
+  Value* Mul(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
+  Value* MulHi(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
+  Value* Div(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* MulAdd(Value* value1, Value* value2, Value* value3); // (1 * 2) + 3
   Value* MulSub(Value* value1, Value* value2, Value* value3); // (1 * 2) - 3
   Value* Neg(Value* value);

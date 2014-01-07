@@ -212,8 +212,8 @@ XEEMITTER(divdux,       0x7C000392, XO )(PPCHIRBuilder& f, InstrData& i) {
   // TODO(benvanik): check if zero
   //                 if OE=1, set XER[OV] = 1
   //                 else skip the divide
-  Value* v = f.Div(f.LoadGPR(i.XO.RA), divisor);
-f.StoreGPR(i.XO.RT, v);
+  Value* v = f.Div(f.LoadGPR(i.XO.RA), divisor, ARITHMETIC_UNSIGNED);
+  f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // If we are OE=1 we need to clear the overflow bit.
     //e.update_xer_with_overflow(e.get_uint64(0));
@@ -240,7 +240,7 @@ XEEMITTER(divwx,        0x7C0003D6, XO )(PPCHIRBuilder& f, InstrData& i) {
   //                 if OE=1, set XER[OV] = 1
   //                 else skip the divide
   Value* v = f.Div(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), divisor);
-  v = f.ZeroExtend(v, INT64_TYPE);
+  v = f.SignExtend(v, INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // If we are OE=1 we need to clear the overflow bit.
@@ -267,7 +267,8 @@ XEEMITTER(divwux,       0x7C000396, XO )(PPCHIRBuilder& f, InstrData& i) {
   // TODO(benvanik): check if zero
   //                 if OE=1, set XER[OV] = 1
   //                 else skip the divide
-  Value* v = f.Div(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), divisor);
+  Value* v = f.Div(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), divisor,
+                   ARITHMETIC_UNSIGNED);
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
@@ -283,13 +284,34 @@ XEEMITTER(divwux,       0x7C000396, XO )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mulhdx,       0x7C000092, XO )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- ((RA) × (RB) as 128)[0:63]
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  Value* v = f.MulHi(f.LoadGPR(i.XO.RA), f.LoadGPR(i.XO.RB));
+  f.StoreGPR(i.XO.RT, v);
+  if (i.XO.Rc) {
+    f.UpdateCR(0, v);
+  }
+  return 0;
 }
 
 XEEMITTER(mulhdux,      0x7C000012, XO )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // RT <- ((RA) × (RB) as 128)[0:63]
+  if (i.XO.OE) {
+    // With XER update.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  Value* v = f.MulHi(
+      f.LoadGPR(i.XO.RA), f.LoadGPR(i.XO.RB), ARITHMETIC_UNSIGNED);
+  f.StoreGPR(i.XO.RT, v);
+  if (i.XO.Rc) {
+    f.UpdateCR(0, v);
+  }
+  return 0;
 }
 
 XEEMITTER(mulhwx,       0x7C000096, XO )(PPCHIRBuilder& f, InstrData& i) {
@@ -299,10 +321,9 @@ XEEMITTER(mulhwx,       0x7C000096, XO )(PPCHIRBuilder& f, InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
-  Value* v = f.Mul(
-      f.ZeroExtend(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), INT64_TYPE),
-      f.ZeroExtend(f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), INT64_TYPE));
-  v = f.Shr(v, 32);
+  Value* v = f.SignExtend(f.MulHi(
+      f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
+      f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -317,10 +338,10 @@ XEEMITTER(mulhwux,      0x7C000016, XO )(PPCHIRBuilder& f, InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
-  Value* v = f.Mul(
-      f.ZeroExtend(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), INT64_TYPE),
-      f.ZeroExtend(f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), INT64_TYPE));
-  v = f.Shr(v, 32);
+  Value* v = f.ZeroExtend(f.MulHi(
+      f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
+      f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE),
+      ARITHMETIC_UNSIGNED), INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v, false);

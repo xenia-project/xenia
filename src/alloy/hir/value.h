@@ -185,7 +185,6 @@ public:
   void Sub(Value* other);
   void Mul(Value* other);
   void Div(Value* other);
-  void Rem(Value* other);
   static void MulAdd(Value* dest, Value* value1, Value* value2, Value* value3);
   static void MulSub(Value* dest, Value* value1, Value* value2, Value* value3);
   void Neg();

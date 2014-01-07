@@ -47,6 +47,7 @@ enum PrefetchFlags {
 };
 enum ArithmeticFlags {
   ARITHMETIC_SET_CARRY = (1 << 1),
+  ARITHMETIC_UNSIGNED = (1 << 2),
 };
 enum Permutes {
   PERMUTE_XY_ZW = 0x00010405,
@@ -134,10 +135,10 @@ enum Opcode {
   OPCODE_ADD_CARRY,
   OPCODE_SUB,
   OPCODE_MUL,
+  OPCODE_MUL_HI, // TODO(benvanik): remove this and add INT128 type.
   OPCODE_DIV,
-  OPCODE_REM,
-  OPCODE_MULADD,
-  OPCODE_MULSUB,
+  OPCODE_MUL_ADD,
+  OPCODE_MUL_SUB,
   OPCODE_NEG,
   OPCODE_ABS,
   OPCODE_SQRT,

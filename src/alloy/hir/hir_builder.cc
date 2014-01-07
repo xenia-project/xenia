@@ -1145,11 +1145,12 @@ Value* HIRBuilder::Sub(
   return i->dest;
 }
 
-Value* HIRBuilder::Mul(Value* value1, Value* value2) {
+Value* HIRBuilder::Mul(
+    Value* value1, Value* value2, uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
   Instr* i = AppendInstr(
-      OPCODE_MUL_info, 0,
+      OPCODE_MUL_info, arithmetic_flags,
       AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
@@ -1157,11 +1158,12 @@ Value* HIRBuilder::Mul(Value* value1, Value* value2) {
   return i->dest;
 }
 
-Value* HIRBuilder::Div(Value* value1, Value* value2) {
+Value* HIRBuilder::MulHi(
+    Value* value1, Value* value2, uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
   Instr* i = AppendInstr(
-      OPCODE_DIV_info, 0,
+      OPCODE_MUL_HI_info, arithmetic_flags,
       AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
@@ -1169,11 +1171,12 @@ Value* HIRBuilder::Div(Value* value1, Value* value2) {
   return i->dest;
 }
 
-Value* HIRBuilder::Rem(Value* value1, Value* value2) {
+Value* HIRBuilder::Div(
+    Value* value1, Value* value2, uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
   Instr* i = AppendInstr(
-      OPCODE_REM_info, 0,
+      OPCODE_DIV_info, arithmetic_flags,
       AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
@@ -1194,7 +1197,7 @@ Value* HIRBuilder::MulAdd(Value* value1, Value* value2, Value* value3) {
   }
 
   Instr* i = AppendInstr(
-      OPCODE_MULADD_info, 0,
+      OPCODE_MUL_ADD_info, 0,
       AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
@@ -1215,7 +1218,7 @@ Value* HIRBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
   }
 
   Instr* i = AppendInstr(
-      OPCODE_MULSUB_info, 0,
+      OPCODE_MUL_SUB_info, 0,
       AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);

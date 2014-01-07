@@ -344,25 +344,25 @@ DEFINE_OPCODE(
     OPCODE_FLAG_COMMUNATIVE);
 
 DEFINE_OPCODE(
+    OPCODE_MUL_HI,
+    "mul_hi",
+    OPCODE_SIG_V_V_V,
+    OPCODE_FLAG_COMMUNATIVE);
+
+DEFINE_OPCODE(
     OPCODE_DIV,
     "div",
     OPCODE_SIG_V_V_V,
     0);
 
 DEFINE_OPCODE(
-    OPCODE_REM,
-    "rem",
-    OPCODE_SIG_V_V_V,
-    0);
-
-DEFINE_OPCODE(
-    OPCODE_MULADD,
+    OPCODE_MUL_ADD,
     "mul_add",
     OPCODE_SIG_V_V_V_V,
     0);
 
 DEFINE_OPCODE(
-    OPCODE_MULSUB,
+    OPCODE_MUL_SUB,
     "mul_sub",
     OPCODE_SIG_V_V_V_V,
     0);

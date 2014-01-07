@@ -2204,6 +2204,22 @@ uint32_t IntCode_MUL_V128_V128(IntCodeState& ics, const IntCode* i) {
   }
   return IA_NEXT;
 }
+uint32_t IntCode_MUL_I8_I8_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u8 = ics.rf[i->src1_reg].u8 * ics.rf[i->src2_reg].u8;
+  return IA_NEXT;
+}
+uint32_t IntCode_MUL_I16_I16_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u16 = ics.rf[i->src1_reg].u16 * ics.rf[i->src2_reg].u16;
+  return IA_NEXT;
+}
+uint32_t IntCode_MUL_I32_I32_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u32 = ics.rf[i->src1_reg].u32 * ics.rf[i->src2_reg].u32;
+  return IA_NEXT;
+}
+uint32_t IntCode_MUL_I64_I64_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u64 = ics.rf[i->src1_reg].u64 * ics.rf[i->src2_reg].u64;
+  return IA_NEXT;
+}
 int Translate_MUL(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_MUL_I8_I8,
@@ -2214,34 +2230,184 @@ int Translate_MUL(TranslationContext& ctx, Instr* i) {
     IntCode_MUL_F64_F64,
     IntCode_MUL_V128_V128,
   };
-  return DispatchToC(ctx, i, fns[i->dest->type]);
+  static IntCodeFn fns_unsigned[] = {
+    IntCode_MUL_I8_I8_U,
+    IntCode_MUL_I16_I16_U,
+    IntCode_MUL_I32_I32_U,
+    IntCode_MUL_I64_I64_U,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    return DispatchToC(ctx, i, fns_unsigned[i->dest->type]);
+  } else {
+    return DispatchToC(ctx, i, fns[i->dest->type]);
+  }
 }
 
-uint32_t IntCode_DIV_I8(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].u8 / ics.rf[i->src2_reg].u8;
+namespace {
+uint64_t Mul128(uint64_t xi_low, uint64_t xi_high,
+                uint64_t yi_low, uint64_t yi_high) {
+  // 128bit multiply, simplified for two input 64bit integers.
+  // http://mrob.com/pub/math/int128.c.txt
+#define HI_WORD 0xFFFFFFFF00000000LL
+#define LO_WORD 0x00000000FFFFFFFFLL
+  uint64_t d = xi_low & LO_WORD;
+  uint64_t c = (xi_low & HI_WORD) >> 32LL;
+  uint64_t b = xi_high & LO_WORD;
+  uint64_t a = (xi_high & HI_WORD) >> 32LL;
+  uint64_t h = yi_low & LO_WORD;
+  uint64_t g = (yi_low & HI_WORD) >> 32LL;
+  uint64_t f = yi_high & LO_WORD;
+  uint64_t e = (yi_high & HI_WORD) >> 32LL;
+  uint64_t acc = d * h;
+  uint64_t o1 = acc & LO_WORD;
+  acc >>= 32LL;
+  uint64_t carry = 0;
+
+  uint64_t ac2 = acc + c * h; if (ac2 < acc) { carry++; }
+  acc = ac2 + d * g; if (acc < ac2) { carry++; }
+  uint64_t rv2_lo = o1 | (acc << 32LL);
+  ac2 = (acc >> 32LL) | (carry << 32LL); carry = 0;
+
+  acc = ac2 + b * h; if (acc < ac2) { carry++; }
+  ac2 = acc + c * g; if (ac2 < acc) { carry++; }
+  acc = ac2 + d * f; if (acc < ac2) { carry++; }
+  uint64_t o2 = acc & LO_WORD;
+  ac2 = (acc >> 32LL) | (carry << 32LL);
+
+  acc = ac2 + a * h;
+  ac2 = acc + b * g;
+  acc = ac2 + c * f;
+  ac2 = acc + d * e;
+  uint64_t rv2_hi = (ac2 << 32LL) | o2;
+
+  return rv2_hi;
+}
+}
+
+uint32_t IntCode_MUL_HI_I8_I8(IntCodeState& ics, const IntCode* i) {
+  int16_t v =
+      (int16_t)ics.rf[i->src1_reg].i8 * (int16_t)ics.rf[i->src2_reg].i8;
+  ics.rf[i->dest_reg].i8 = (v >> 8);
   return IA_NEXT;
 }
-uint32_t IntCode_DIV_I16(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i16 = ics.rf[i->src1_reg].u16 / ics.rf[i->src2_reg].u16;
+uint32_t IntCode_MUL_HI_I16_I16(IntCodeState& ics, const IntCode* i) {
+  int32_t v =
+      (int32_t)ics.rf[i->src1_reg].i16 * (int32_t)ics.rf[i->src2_reg].i16;
+  ics.rf[i->dest_reg].i16 = (v >> 16);
   return IA_NEXT;
 }
-uint32_t IntCode_DIV_I32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i32 = ics.rf[i->src1_reg].u32 / ics.rf[i->src2_reg].u32;
+uint32_t IntCode_MUL_HI_I32_I32(IntCodeState& ics, const IntCode* i) {
+  int64_t v =
+      (int64_t)ics.rf[i->src1_reg].i32 * (int64_t)ics.rf[i->src2_reg].i32;
+  ics.rf[i->dest_reg].i32 = (v >> 32);
   return IA_NEXT;
 }
-uint32_t IntCode_DIV_I64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i64 = ics.rf[i->src1_reg].u64 / ics.rf[i->src2_reg].u64;
+uint32_t IntCode_MUL_HI_I64_I64(IntCodeState& ics, const IntCode* i) {
+#if !XE_COMPILER(MSVC)
+  // GCC can, in theory, do this:
+  __int128 v =
+      (__int128)ics.rf[i->src1_reg].i64 * (__int128)ics.rf[i->src2_reg].i64;
+  ics.rf[i->dest_reg].i64 = (v >> 64);
+#else
+  // 128bit multiply, simplified for two input 64bit integers.
+  // http://mrob.com/pub/math/int128.c.txt
+  int64_t xi_low = ics.rf[i->src1_reg].i64;
+  int64_t xi_high = xi_low < 0 ? -1 : 0;
+  int64_t yi_low = ics.rf[i->src2_reg].i64;
+  int64_t yi_high = yi_low < 0 ? -1 : 0;
+  ics.rf[i->dest_reg].i64 = Mul128(xi_low, xi_high, yi_low, yi_high);
+#endif  // !MSVC
   return IA_NEXT;
 }
-uint32_t IntCode_DIV_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_HI_I8_I8_U(IntCodeState& ics, const IntCode* i) {
+  uint16_t v =
+      (uint16_t)ics.rf[i->src1_reg].u8 * (uint16_t)ics.rf[i->src2_reg].u8;
+  ics.rf[i->dest_reg].u8 = (v >> 8);
+  return IA_NEXT;
+}
+uint32_t IntCode_MUL_HI_I16_I16_U(IntCodeState& ics, const IntCode* i) {
+  uint32_t v =
+      (uint32_t)ics.rf[i->src1_reg].u16 * (uint32_t)ics.rf[i->src2_reg].u16;
+  ics.rf[i->dest_reg].u16 = (v >> 16);
+  return IA_NEXT;
+}
+uint32_t IntCode_MUL_HI_I32_I32_U(IntCodeState& ics, const IntCode* i) {
+  uint64_t v =
+      (uint64_t)ics.rf[i->src1_reg].u32 * (uint64_t)ics.rf[i->src2_reg].u32;
+  ics.rf[i->dest_reg].u32 = (v >> 32);
+  return IA_NEXT;
+}
+uint32_t IntCode_MUL_HI_I64_I64_U(IntCodeState& ics, const IntCode* i) {
+#if !XE_COMPILER(MSVC)
+  // GCC can, in theory, do this:
+  __int128 v =
+      (__int128)ics.rf[i->src1_reg].i64 * (__int128)ics.rf[i->src2_reg].i64;
+  ics.rf[i->dest_reg].i64 = (v >> 64);
+#else
+  // 128bit multiply, simplified for two input 64bit integers.
+  // http://mrob.com/pub/math/int128.c.txt
+  int64_t xi_low = ics.rf[i->src1_reg].i64;
+  int64_t xi_high = 0;
+  int64_t yi_low = ics.rf[i->src2_reg].i64;
+  int64_t yi_high = 0;
+  ics.rf[i->dest_reg].i64 = Mul128(xi_low, xi_high, yi_low, yi_high);
+#endif  // !MSVC
+  return IA_NEXT;
+}
+int Translate_MUL_HI(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_MUL_HI_I8_I8,
+    IntCode_MUL_HI_I16_I16,
+    IntCode_MUL_HI_I32_I32,
+    IntCode_MUL_HI_I64_I64,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  static IntCodeFn fns_unsigned[] = {
+    IntCode_MUL_HI_I8_I8_U,
+    IntCode_MUL_HI_I16_I16_U,
+    IntCode_MUL_HI_I32_I32_U,
+    IntCode_MUL_HI_I64_I64_U,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    return DispatchToC(ctx, i, fns_unsigned[i->dest->type]);
+  } else {
+    return DispatchToC(ctx, i, fns[i->dest->type]);
+  }
+}
+
+uint32_t IntCode_DIV_I8_I8(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 / ics.rf[i->src2_reg].i8;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_I16_I16(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i16 = ics.rf[i->src1_reg].i16 / ics.rf[i->src2_reg].i16;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_I32_I32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i32 = ics.rf[i->src1_reg].i32 / ics.rf[i->src2_reg].i32;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_I64_I64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i64 = ics.rf[i->src1_reg].i64 / ics.rf[i->src2_reg].i64;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_F32_F32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 / ics.rf[i->src2_reg].f32;
   return IA_NEXT;
 }
-uint32_t IntCode_DIV_F64(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_DIV_F64_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 / ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
-uint32_t IntCode_DIV_V128(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_DIV_V128_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
@@ -2250,45 +2416,74 @@ uint32_t IntCode_DIV_V128(IntCodeState& ics, const IntCode* i) {
   }
   return IA_NEXT;
 }
+uint32_t IntCode_DIV_I8_I8_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u8 = ics.rf[i->src1_reg].u8 / ics.rf[i->src2_reg].u8;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_I16_I16_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u16 = ics.rf[i->src1_reg].u16 / ics.rf[i->src2_reg].u16;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_I32_I32_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u32 = ics.rf[i->src1_reg].u32 / ics.rf[i->src2_reg].u32;
+  return IA_NEXT;
+}
+uint32_t IntCode_DIV_I64_I64_U(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].u64 = ics.rf[i->src1_reg].u64 / ics.rf[i->src2_reg].u64;
+  return IA_NEXT;
+}
 int Translate_DIV(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
-    IntCode_DIV_I8,
-    IntCode_DIV_I16,
-    IntCode_DIV_I32,
-    IntCode_DIV_I64,
-    IntCode_DIV_F32,
-    IntCode_DIV_F64,
-    IntCode_DIV_V128,
+    IntCode_DIV_I8_I8,
+    IntCode_DIV_I16_I16,
+    IntCode_DIV_I32_I32,
+    IntCode_DIV_I64_I64,
+    IntCode_DIV_F32_F32,
+    IntCode_DIV_F64_F64,
+    IntCode_DIV_V128_V128,
   };
-  return DispatchToC(ctx, i, fns[i->dest->type]);
+  static IntCodeFn fns_unsigned[] = {
+    IntCode_DIV_I8_I8_U,
+    IntCode_DIV_I16_I16_U,
+    IntCode_DIV_I32_I32_U,
+    IntCode_DIV_I64_I64_U,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    return DispatchToC(ctx, i, fns_unsigned[i->dest->type]);
+  } else {
+    return DispatchToC(ctx, i, fns[i->dest->type]);
+  }
 }
 
 // TODO(benvanik): use intrinsics or something
-uint32_t IntCode_MULADD_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 * ics.rf[i->src2_reg].i8 + ics.rf[i->src3_reg].i8;
   return IA_NEXT;
 }
-uint32_t IntCode_MULADD_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_I16(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i16 = ics.rf[i->src1_reg].i16 * ics.rf[i->src2_reg].i16 + ics.rf[i->src3_reg].i16;
   return IA_NEXT;
 }
-uint32_t IntCode_MULADD_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_I32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i32 = ics.rf[i->src1_reg].i32 * ics.rf[i->src2_reg].i32 + ics.rf[i->src3_reg].i32;
   return IA_NEXT;
 }
-uint32_t IntCode_MULADD_I64(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_I64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i64 = ics.rf[i->src1_reg].i64 * ics.rf[i->src2_reg].i64 + ics.rf[i->src3_reg].i64;
   return IA_NEXT;
 }
-uint32_t IntCode_MULADD_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_F32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 * ics.rf[i->src2_reg].f32 + ics.rf[i->src3_reg].f32;
   return IA_NEXT;
 }
-uint32_t IntCode_MULADD_F64(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 * ics.rf[i->src2_reg].f64 + ics.rf[i->src3_reg].f64;
   return IA_NEXT;
 }
-uint32_t IntCode_MULADD_V128(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_ADD_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
@@ -2298,45 +2493,45 @@ uint32_t IntCode_MULADD_V128(IntCodeState& ics, const IntCode* i) {
   }
   return IA_NEXT;
 }
-int Translate_MULADD(TranslationContext& ctx, Instr* i) {
+int Translate_MUL_ADD(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
-    IntCode_MULADD_I8,
-    IntCode_MULADD_I16,
-    IntCode_MULADD_I32,
-    IntCode_MULADD_I64,
-    IntCode_MULADD_F32,
-    IntCode_MULADD_F64,
-    IntCode_MULADD_V128,
+    IntCode_MUL_ADD_I8,
+    IntCode_MUL_ADD_I16,
+    IntCode_MUL_ADD_I32,
+    IntCode_MUL_ADD_I64,
+    IntCode_MUL_ADD_F32,
+    IntCode_MUL_ADD_F64,
+    IntCode_MUL_ADD_V128,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
 // TODO(benvanik): use intrinsics or something
-uint32_t IntCode_MULSUB_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 * ics.rf[i->src2_reg].i8 - ics.rf[i->src3_reg].i8;
   return IA_NEXT;
 }
-uint32_t IntCode_MULSUB_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_I16(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i16 = ics.rf[i->src1_reg].i16 * ics.rf[i->src2_reg].i16 - ics.rf[i->src3_reg].i16;
   return IA_NEXT;
 }
-uint32_t IntCode_MULSUB_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_I32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i32 = ics.rf[i->src1_reg].i32 * ics.rf[i->src2_reg].i32 - ics.rf[i->src3_reg].i32;
   return IA_NEXT;
 }
-uint32_t IntCode_MULSUB_I64(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_I64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i64 = ics.rf[i->src1_reg].i64 * ics.rf[i->src2_reg].i64 - ics.rf[i->src3_reg].i64;
   return IA_NEXT;
 }
-uint32_t IntCode_MULSUB_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_F32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 * ics.rf[i->src2_reg].f32 - ics.rf[i->src3_reg].f32;
   return IA_NEXT;
 }
-uint32_t IntCode_MULSUB_F64(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 * ics.rf[i->src2_reg].f64 - ics.rf[i->src3_reg].f64;
   return IA_NEXT;
 }
-uint32_t IntCode_MULSUB_V128(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_MUL_SUB_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
@@ -2346,15 +2541,15 @@ uint32_t IntCode_MULSUB_V128(IntCodeState& ics, const IntCode* i) {
   }
   return IA_NEXT;
 }
-int Translate_MULSUB(TranslationContext& ctx, Instr* i) {
+int Translate_MUL_SUB(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
-    IntCode_MULSUB_I8,
-    IntCode_MULSUB_I16,
-    IntCode_MULSUB_I32,
-    IntCode_MULSUB_I64,
-    IntCode_MULSUB_F32,
-    IntCode_MULSUB_F64,
-    IntCode_MULSUB_V128,
+    IntCode_MUL_SUB_I8,
+    IntCode_MUL_SUB_I16,
+    IntCode_MUL_SUB_I32,
+    IntCode_MUL_SUB_I64,
+    IntCode_MUL_SUB_F32,
+    IntCode_MUL_SUB_F64,
+    IntCode_MUL_SUB_V128,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
@@ -3273,10 +3468,10 @@ static const TranslateFn dispatch_table[] = {
   Translate_ADD_CARRY,
   Translate_SUB,
   Translate_MUL,
+  Translate_MUL_HI,
   Translate_DIV,
-  TranslateInvalid, //Translate_REM,
-  Translate_MULADD,
-  Translate_MULSUB,
+  Translate_MUL_ADD,
+  Translate_MUL_SUB,
   Translate_NEG,
   Translate_ABS,
   Translate_SQRT,
