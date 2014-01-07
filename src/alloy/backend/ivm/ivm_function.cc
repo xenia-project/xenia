@@ -9,6 +9,7 @@
 
 #include <alloy/backend/ivm/ivm_function.h>
 
+#include <alloy/backend/ivm/ivm_stack.h>
 #include <alloy/backend/tracing.h>
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
@@ -103,11 +104,8 @@ void IVMFunction::OnBreakpointHit(ThreadState* thread_state, IntCode* i) {
 
 int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // Setup register file on stack.
-  const size_t max_stack_alloc = 16 * 1024;
-  size_t register_file_size = register_count_ * sizeof(Register);
-  Register* register_file = (Register*)(
-      register_file_size >= max_stack_alloc ?
-      xe_malloc(register_file_size) : alloca(register_file_size));
+  auto stack = (IVMStack*)thread_state->backend_data();
+  auto register_file = (Register*)stack->Alloc(register_count_);
 
   Memory* memory = thread_state->memory();
 
@@ -151,9 +149,7 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
     }
   }
 
-  if (register_file_size >= max_stack_alloc) {
-    xe_free(register_file);
-  }
+  stack->Free(register_count_);
 
   return 0;
 }

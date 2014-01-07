@@ -8,7 +8,8 @@
     'ivm_backend.cc',
     'ivm_backend.h',
     'ivm_function.cc',
-    'ivm_function.h',
+    'ivm_stack.cc',
+    'ivm_stack.h',
     'tracing.h',
   ],
 }

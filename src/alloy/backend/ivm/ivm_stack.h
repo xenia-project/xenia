@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_BACKEND_IVM_IVM_BACKEND_H_
-#define ALLOY_BACKEND_IVM_IVM_BACKEND_H_
+#ifndef ALLOY_BACKEND_IVM_IVM_STACK_H_
+#define ALLOY_BACKEND_IVM_IVM_STACK_H_
 
 #include <alloy/core.h>
 
-#include <alloy/backend/backend.h>
+#include <alloy/backend/ivm/ivm_intcode.h>
 
 
 namespace alloy {
@@ -20,20 +20,32 @@ namespace backend {
 namespace ivm {
 
 
-#define ALLOY_HAS_IVM_BACKEND 1
-
-
-class IVMBackend : public Backend {
+class IVMStack {
 public:
-  IVMBackend(runtime::Runtime* runtime);
-  virtual ~IVMBackend();
+  IVMStack();
+  ~IVMStack();
 
-  virtual int Initialize();
+  Register* Alloc(size_t register_count);
+  void Free(size_t register_count);
 
-  virtual void* AllocThreadData();
-  virtual void FreeThreadData(void* thread_data);
+private:
+  class Chunk {
+  public:
+    Chunk(size_t chunk_size);
+    ~Chunk();
 
-  virtual Assembler* CreateAssembler();
+    Chunk*    prev;
+    Chunk*    next;
+
+    size_t    capacity;
+    uint8_t*  buffer;
+    size_t    offset;
+  };
+
+private:
+  size_t    chunk_size_;
+  Chunk*    head_chunk_;
+  Chunk*    active_chunk_;
 };
 
 
@@ -42,4 +54,4 @@ public:
 }  // namespace alloy
 
 
-#endif  // ALLOY_BACKEND_IVM_IVM_BACKEND_H_
+#endif  // ALLOY_BACKEND_IVM_IVM_STACK_H_
