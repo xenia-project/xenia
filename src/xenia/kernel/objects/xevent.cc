@@ -56,6 +56,10 @@ int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
   return SetEvent(handle_) ? 1 : 0;
 }
 
+int32_t XEvent::Pulse(uint32_t priority_increment, bool wait) {
+  return PulseEvent(handle_) ? 1 : 0;
+}
+
 int32_t XEvent::Reset() {
   return ResetEvent(handle_) ? 1 : 0;
 }

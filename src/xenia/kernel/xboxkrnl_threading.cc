@@ -661,6 +661,56 @@ SHIM_CALL NtSetEvent_shim(
 }
 
 
+SHIM_CALL KePulseEvent_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t event_ref = SHIM_GET_ARG_32(0);
+  uint32_t increment = SHIM_GET_ARG_32(1);
+  uint32_t wait = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "KePulseEvent(%.8X, %.8X, %.8X)",
+      event_ref, increment, wait);
+
+  int32_t result = 0;
+
+  void* event_ptr = SHIM_MEM_ADDR(event_ref);
+  XEvent* ev = (XEvent*)XObject::GetObject(state, event_ptr);
+  XEASSERTNOTNULL(ev);
+  if (ev) {
+    result = ev->Pulse(increment, !!wait);
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
+SHIM_CALL NtPulseEvent_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t event_handle = SHIM_GET_ARG_32(0);
+  uint32_t previous_state_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "NtPulseEvent(%.8X, %.8X)",
+      event_handle, previous_state_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XEvent* ev = NULL;
+  result = state->object_table()->GetObject(
+      event_handle, (XObject**)&ev);
+  if (XSUCCEEDED(result)) {
+    int32_t was_signalled = ev->Pulse(0, false);
+    if (previous_state_ptr) {
+      SHIM_SET_MEM_32(previous_state_ptr, was_signalled);
+    }
+
+    ev->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 int32_t xeKeResetEvent(void* event_ptr) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -1045,6 +1095,8 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KePulseEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtPulseEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtClearEvent, state);
 
