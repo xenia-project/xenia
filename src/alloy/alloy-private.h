@@ -16,6 +16,7 @@
 
 
 DECLARE_bool(debug);
+DECLARE_bool(always_disasm);
 
 
 namespace alloy {

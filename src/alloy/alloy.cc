@@ -21,3 +21,6 @@ using namespace alloy;
 
 DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
     "Allow debugging and retain debug information.");
+
+DEFINE_bool(always_disasm, false,
+    "Always add debug info to functions, even when no debugger is attached.");

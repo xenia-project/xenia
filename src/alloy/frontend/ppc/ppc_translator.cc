@@ -74,7 +74,7 @@ int PPCTranslator::Translate(
 
   // NOTE: we only want to do this when required, as it's expensive to build.
   DebugInfo* debug_info = NULL;
-  if (FLAGS_debug || with_debug_info) {
+  if (FLAGS_always_disasm || with_debug_info) {
     debug_info = new DebugInfo();
   }
 
