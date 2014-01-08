@@ -246,11 +246,42 @@ SHIM_CALL RtlRaiseException_shim(
   uint32_t record_ptr = SHIM_GET_ARG_32(0);
 
   uint32_t code = SHIM_MEM_32(record_ptr + 0);
+  uint32_t flags = SHIM_MEM_32(record_ptr + 4);
+  // ...
+  uint32_t param_count = SHIM_MEM_32(record_ptr + 16);
 
   XELOGD(
       "RtlRaiseException(%.8X(%.8X))",
       record_ptr, code);
 
+  if (code == 0x406D1388) {
+    // SetThreadName. FFS.
+    uint32_t thread_info_ptr = record_ptr + 20;
+    uint32_t type = SHIM_MEM_32(thread_info_ptr + 0);
+    XEASSERT(type == 0x1000);
+    uint32_t name_ptr = SHIM_MEM_32(thread_info_ptr + 4);
+    uint32_t thread_id = SHIM_MEM_32(thread_info_ptr + 8);
+
+    const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
+
+    XThread* thread = NULL;
+    if (thread_id == -1) {
+      // Current thread.
+      thread = XThread::GetCurrentThread();
+      thread->Retain();
+    } else {
+      // Lookup thread by ID.
+      thread = state->GetThreadByID(thread_id);
+    }
+
+    if (thread) {
+      thread->set_name(name);
+      thread->Release();
+    }
+  }
+
+  // TODO(benvanik): unwinding.
+  // This is going to suck.
   XEASSERTALWAYS();
 }
 
