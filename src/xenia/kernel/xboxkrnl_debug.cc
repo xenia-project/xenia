@@ -241,6 +241,20 @@ SHIM_CALL DbgBreakPoint_shim(
 }
 
 
+SHIM_CALL RtlRaiseException_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t record_ptr = SHIM_GET_ARG_32(0);
+
+  uint32_t code = SHIM_MEM_32(record_ptr + 0);
+
+  XELOGD(
+      "RtlRaiseException(%.8X(%.8X))",
+      record_ptr, code);
+
+  XEASSERTALWAYS();
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -249,4 +263,5 @@ void xe::kernel::xboxkrnl::RegisterDebugExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgBreakPoint, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlRaiseException, state);
 }

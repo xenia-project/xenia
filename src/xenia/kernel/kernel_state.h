@@ -22,6 +22,7 @@
 
 XEDECLARECLASS2(xe, cpu, Processor);
 XEDECLARECLASS2(xe, kernel, XModule);
+XEDECLARECLASS2(xe, kernel, XThread);
 XEDECLARECLASS3(xe, kernel, fs, FileSystem);
 
 
@@ -47,6 +48,10 @@ public:
   XModule* GetExecutableModule();
   void SetExecutableModule(XModule* module);
 
+  void RegisterThread(XThread* thread);
+  void UnregisterThread(XThread* thread);
+  XThread* GetThreadByID(uint32_t thread_id);
+
 private:
   Emulator*       emulator_;
   Memory*         memory_;
@@ -55,6 +60,7 @@ private:
 
   ObjectTable*    object_table_;
   xe_mutex_t*     object_mutex_;
+  std::unordered_map<uint32_t, XThread*> threads_by_id_;
 
   XModule*        executable_module_;
 

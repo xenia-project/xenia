@@ -40,6 +40,7 @@ XThread::XThread(KernelState* kernel_state,
     thread_state_address_(0),
     thread_state_(0),
     event_(NULL),
+    name_(0),
     irql_(0) {
   creation_params_.stack_size           = stack_size;
   creation_params_.xapi_thread_startup  = xapi_thread_startup;
@@ -54,9 +55,15 @@ XThread::XThread(KernelState* kernel_state,
 
   event_ = new XEvent(kernel_state);
   event_->Initialize(true, false);
+
+  // The kernel does not take a reference. We must unregister in the dtor.
+  kernel_state_->RegisterThread(this);
 }
 
 XThread::~XThread() {
+  // Unregister first to prevent lookups while deleting.
+  kernel_state_->UnregisterThread(this);
+
   event_->Release();
 
   PlatformDestroy();
@@ -69,6 +76,9 @@ XThread::~XThread() {
   }
   if (thread_state_address_) {
     kernel_state()->memory()->HeapFree(thread_state_address_, 0);
+  }
+  if (name_) {
+    xe_free(name_);
   }
 
   if (thread_handle_) {
@@ -119,6 +129,37 @@ uint32_t XThread::last_error() {
 void XThread::set_last_error(uint32_t error_code) {
   uint8_t *p = memory()->Translate(thread_state_address_);
   XESETUINT32BE(p + 0x160, error_code);
+}
+
+void XThread::set_name(const char* name) {
+  if (name == name_) {
+    return;
+  }
+  if (name_) {
+    xe_free(name_);
+  }
+  name_ = xestrdupa(name);
+
+#if XE_PLATFORM(WIN32)
+  // Do the nasty set for us.
+  #pragma pack(push, 8)
+  typedef struct tagTHREADNAME_INFO {
+    DWORD dwType; // must be 0x1000
+    LPCSTR szName; // pointer to name (in user addr space)
+    DWORD dwThreadID; // thread ID (-1=caller thread)
+    DWORD dwFlags; // reserved for future use, must be zero
+  } THREADNAME_INFO;
+  #pragma pack(pop)
+  THREADNAME_INFO info;
+  info.dwType = 0x1000;
+  info.szName = name_;
+  info.dwThreadID = ::GetThreadId(thread_handle_);
+  info.dwFlags = 0;
+  __try {
+    RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+  } __except(EXCEPTION_CONTINUE_EXECUTION) {
+  }
+#endif  // WIN32
 }
 
 X_STATUS XThread::Create() {

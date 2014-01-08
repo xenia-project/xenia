@@ -82,3 +82,31 @@ void KernelState::SetExecutableModule(XModule* module) {
     executable_module_->Retain();
   }
 }
+
+void KernelState::RegisterThread(XThread* thread) {
+  xe_mutex_lock(object_mutex_);
+  threads_by_id_[thread->thread_id()] = thread;
+  xe_mutex_unlock(object_mutex_);
+}
+
+void KernelState::UnregisterThread(XThread* thread) {
+  xe_mutex_lock(object_mutex_);
+  auto it = threads_by_id_.find(thread->thread_id());
+  if (it != threads_by_id_.end()) {
+    threads_by_id_.erase(it);
+  }
+  xe_mutex_unlock(object_mutex_);
+}
+
+XThread* KernelState::GetThreadByID(uint32_t thread_id) {
+  XThread* thread = NULL;
+  xe_mutex_lock(object_mutex_);
+  auto it = threads_by_id_.find(thread_id);
+  if (it != threads_by_id_.end()) {
+    thread = it->second;
+    // Caller must release.
+    thread->Retain();
+  }
+  xe_mutex_unlock(object_mutex_);
+  return thread;
+}

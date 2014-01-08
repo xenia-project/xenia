@@ -46,6 +46,8 @@ public:
   uint32_t thread_id();
   uint32_t last_error();
   void set_last_error(uint32_t error_code);
+  const char* name() const { return name_; }
+  void set_name(const char* name);
 
   X_STATUS Create();
   X_STATUS Exit(int exit_code);
@@ -82,6 +84,8 @@ private:
   uint32_t      tls_address_;
   uint32_t      thread_state_address_;
   cpu::XenonThreadState* thread_state_;
+
+  char*         name_;
 
   uint32_t      irql_;
 
