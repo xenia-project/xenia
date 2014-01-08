@@ -75,6 +75,33 @@ SHIM_CALL XGetLanguage_shim(
 }
 
 
+SHIM_CALL XamLoaderGetLaunchDataSize_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t size_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XamLoaderGetLaunchDataSize(%.8X)",
+      size_ptr);
+
+  SHIM_SET_MEM_32(size_ptr, 0);
+
+  SHIM_SET_RETURN(0);
+}
+
+
+SHIM_CALL XamLoaderGetLaunchData_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
+  uint32_t buffer_size = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "XamLoaderGetLaunchData(%.8X, %d)",
+      buffer_ptr, buffer_size);
+
+  SHIM_SET_RETURN(0);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -85,4 +112,7 @@ void xe::kernel::xam::RegisterInfoExports(
   SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
   SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);
   SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
+
+  SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchDataSize, state);
+  SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchData, state);
 }
