@@ -38,6 +38,7 @@ public:
     kTypeSemaphore,
     kTypeNotifyListener,
     kTypeMutant,
+    kTypeTimer,
   };
 
   XObject(KernelState* kernel_state, Type type);
@@ -80,6 +81,8 @@ public:
 protected:
   Memory* memory() const;
   void SetNativePointer(uint32_t native_ptr);
+
+  static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
 
   KernelState*  kernel_state_;
 

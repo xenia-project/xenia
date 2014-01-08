@@ -15,5 +15,7 @@
     'xsemaphore.h',
     'xthread.cc',
     'xthread.h',
+    'xtimer.cc',
+    'xtimer.h',
   ],
 }

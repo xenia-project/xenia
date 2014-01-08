@@ -71,8 +71,7 @@ X_STATUS XObject::Delete() {
   return shared_kernel_state_->object_table()->RemoveHandle(handle_);
 }
 
-namespace {
-uint32_t ConvertTimeoutTicks(int64_t timeout_ticks) {
+uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {
   if (timeout_ticks > 0) {
     // Absolute time, based on January 1, 1601.
     // TODO(benvanik): convert time to relative time.
@@ -85,7 +84,6 @@ uint32_t ConvertTimeoutTicks(int64_t timeout_ticks) {
     return 0;
   }
 }
-}
 
 X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
                        uint32_t alertable, uint64_t* opt_timeout) {
@@ -96,7 +94,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
   }
 
   DWORD timeout_ms = opt_timeout ?
-      ConvertTimeoutTicks(*opt_timeout) : INFINITE;
+      TimeoutTicksToMs(*opt_timeout) : INFINITE;
 
   DWORD result = WaitForSingleObjectEx(wait_handle, timeout_ms, alertable);
   switch (result) {
@@ -119,7 +117,7 @@ X_STATUS XObject::SignalAndWait(
     uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
     uint64_t* opt_timeout) {
   DWORD timeout_ms = opt_timeout ?
-      ConvertTimeoutTicks(*opt_timeout) : INFINITE;
+      TimeoutTicksToMs(*opt_timeout) : INFINITE;
 
   DWORD result = SignalObjectAndWait(
       signal_object->GetWaitHandle(),
@@ -141,7 +139,7 @@ X_STATUS XObject::WaitMultiple(
   }
 
   DWORD timeout_ms = opt_timeout ?
-      ConvertTimeoutTicks(*opt_timeout) : INFINITE;
+      TimeoutTicksToMs(*opt_timeout) : INFINITE;
 
   DWORD result = WaitForMultipleObjectsEx(
       count, wait_handles,

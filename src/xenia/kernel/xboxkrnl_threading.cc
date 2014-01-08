@@ -15,6 +15,7 @@
 #include <xenia/kernel/objects/xmutant.h>
 #include <xenia/kernel/objects/xsemaphore.h>
 #include <xenia/kernel/objects/xthread.h>
+#include <xenia/kernel/objects/xtimer.h>
 #include <xenia/kernel/util/shim_utils.h>
 
 
@@ -945,6 +946,100 @@ SHIM_CALL NtReleaseMutant_shim(
 }
 
 
+SHIM_CALL NtCreateTimer_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
+  uint32_t timer_type = SHIM_GET_ARG_32(2);
+
+  // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
+
+  XELOGD(
+      "NtCreateTimer(%.8X, %.8X, %.1X)",
+      handle_ptr, obj_attributes_ptr, timer_type);
+
+  XTimer* timer = new XTimer(state);
+  timer->Initialize(timer_type);
+
+  // obj_attributes may have a name inside of it, if != NULL.
+  if (obj_attributes_ptr) {
+    //timer->SetName(...);
+  }
+
+  if (handle_ptr) {
+    SHIM_SET_MEM_32(handle_ptr, timer->handle());
+  }
+
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+}
+
+
+SHIM_CALL NtSetTimerEx_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t timer_handle = SHIM_GET_ARG_32(0);
+  uint32_t info_class = SHIM_GET_ARG_32(1);
+  uint32_t info_ptr = SHIM_GET_ARG_32(2);
+  uint32_t info_length = SHIM_GET_ARG_32(3);
+
+  // UNVERIFIED
+  XEASSERTALWAYS();
+
+  XELOGD(
+      "NtSetTimerEx(%.8X, %.8X, %.8X, %d)",
+      timer_handle, info_class, info_ptr, info_length);
+
+  // TIMER_BASIC_INFORMATION
+  XEASSERT(info_class == 0);
+  XEASSERT(info_length == 12);
+
+  uint64_t due_time = SHIM_MEM_64(info_ptr + 0);
+  uint32_t timer_state = SHIM_MEM_32(info_ptr + 8); // unused?
+  uint32_t period_ms = 0; // Not repeating.
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XTimer* timer = NULL;
+  result = state->object_table()->GetObject(
+      timer_handle, (XObject**)&timer);
+  if (XSUCCEEDED(result)) {
+    result = timer->SetTimer(due_time, period_ms);
+    timer->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
+SHIM_CALL NtCancelTimer_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t timer_handle = SHIM_GET_ARG_32(0);
+  uint32_t current_state_ptr = SHIM_GET_ARG_32(1);
+
+  // UNVERIFIED
+  XEASSERTALWAYS();
+
+  XELOGD(
+      "NtCancelTimer(%.8X, %.8X)",
+      timer_handle, current_state_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XTimer* timer = NULL;
+  result = state->object_table()->GetObject(
+      timer_handle, (XObject**)&timer);
+  if (XSUCCEEDED(result)) {
+    result = timer->Cancel();
+    timer->Release();
+
+    if (current_state_ptr) {
+      SHIM_SET_MEM_32(current_state_ptr, 0);
+    }
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint64_t* opt_timeout) {
@@ -1207,6 +1302,10 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateMutant, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseMutant, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateTimer, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtSetTimerEx, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtCancelTimer, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
