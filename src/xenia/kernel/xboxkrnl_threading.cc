@@ -977,24 +977,23 @@ SHIM_CALL NtCreateTimer_shim(
 SHIM_CALL NtSetTimerEx_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t timer_handle = SHIM_GET_ARG_32(0);
-  uint32_t info_class = SHIM_GET_ARG_32(1);
-  uint32_t info_ptr = SHIM_GET_ARG_32(2);
-  uint32_t info_length = SHIM_GET_ARG_32(3);
+  uint32_t due_time_ptr = SHIM_GET_ARG_32(1);
+  uint32_t routine = SHIM_GET_ARG_32(2); // PTIMERAPCROUTINE
+  uint32_t unk_one = SHIM_GET_ARG_32(3);
+  uint32_t routine_arg = SHIM_GET_ARG_32(4);
+  uint32_t resume = SHIM_GET_ARG_32(5);
+  uint32_t period_ms = SHIM_GET_ARG_32(6);
+  uint32_t unk_zero = SHIM_GET_ARG_32(7);
 
-  // UNVERIFIED
-  XEASSERTALWAYS();
+  XEASSERT(unk_one == 1);
+  XEASSERT(unk_zero == 0);
+
+  uint64_t due_time = SHIM_MEM_64(due_time_ptr);
 
   XELOGD(
-      "NtSetTimerEx(%.8X, %.8X, %.8X, %d)",
-      timer_handle, info_class, info_ptr, info_length);
-
-  // TIMER_BASIC_INFORMATION
-  XEASSERT(info_class == 0);
-  XEASSERT(info_length == 12);
-
-  uint64_t due_time = SHIM_MEM_64(info_ptr + 0);
-  uint32_t timer_state = SHIM_MEM_32(info_ptr + 8); // unused?
-  uint32_t period_ms = 0; // Not repeating.
+      "NtSetTimerEx(%.8X, %.8X(%lld), %.8X, %.8X, %.8X, %.1X, %d, %.8X)",
+      timer_handle, due_time_ptr, due_time, routine, unk_one,
+      routine_arg, resume, period_ms, unk_zero);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -1002,7 +1001,8 @@ SHIM_CALL NtSetTimerEx_shim(
   result = state->object_table()->GetObject(
       timer_handle, (XObject**)&timer);
   if (XSUCCEEDED(result)) {
-    result = timer->SetTimer(due_time, period_ms);
+    result = timer->SetTimer(
+        due_time, period_ms, routine, routine_arg, resume ? true : false);
     timer->Release();
   }
 
@@ -1016,7 +1016,7 @@ SHIM_CALL NtCancelTimer_shim(
   uint32_t current_state_ptr = SHIM_GET_ARG_32(1);
 
   // UNVERIFIED
-  XEASSERTALWAYS();
+  DebugBreak();
 
   XELOGD(
       "NtCancelTimer(%.8X, %.8X)",

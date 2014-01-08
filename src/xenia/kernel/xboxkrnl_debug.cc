@@ -282,7 +282,7 @@ SHIM_CALL RtlRaiseException_shim(
 
   // TODO(benvanik): unwinding.
   // This is going to suck.
-  XEASSERTALWAYS();
+  DebugBreak();
 }
 
 

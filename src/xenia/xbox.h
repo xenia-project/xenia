@@ -33,6 +33,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_ALERTED                                ((X_STATUS)0x00000101L)
 #define X_STATUS_TIMEOUT                                ((X_STATUS)0x00000102L)
 #define X_STATUS_PENDING                                ((X_STATUS)0x00000103L)
+#define X_STATUS_TIMER_RESUME_IGNORED                   ((X_STATUS)0x40000025L)
 #define X_STATUS_UNSUCCESSFUL                           ((X_STATUS)0xC0000001L)
 #define X_STATUS_NOT_IMPLEMENTED                        ((X_STATUS)0xC0000002L)
 #define X_STATUS_INFO_LENGTH_MISMATCH                   ((X_STATUS)0xC0000004L)

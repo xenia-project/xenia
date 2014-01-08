@@ -9,6 +9,8 @@
 
 #include <xenia/kernel/objects/xtimer.h>
 
+#include <xenia/cpu/processor.h>
+
 
 using namespace xe;
 using namespace xe::kernel;
@@ -44,14 +46,36 @@ void XTimer::Initialize(uint32_t timer_type) {
   handle_ = CreateWaitableTimer(NULL, manual_reset, NULL);
 }
 
-X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms) {
+X_STATUS XTimer::SetTimer(
+    int64_t due_time, uint32_t period_ms,
+    uint32_t routine, uint32_t routine_arg, bool resume) {
+  // Stash routine for callback.
+  current_routine_ = routine;
+  current_routine_arg_ = routine_arg;
+
   LARGE_INTEGER due_time_li;
   due_time_li.QuadPart = due_time;
-  if (SetWaitableTimer(handle_, &due_time_li, period_ms, NULL, NULL, TRUE)) {
-    return X_STATUS_SUCCESS;
-  } else {
-    return X_STATUS_UNSUCCESSFUL;
+  BOOL result = SetWaitableTimer(
+      handle_, &due_time_li, period_ms,
+      routine ? (PTIMERAPCROUTINE)CompletionRoutine : NULL, this,
+      resume ? TRUE : FALSE);
+
+  // Caller is checking for STATUS_TIMER_RESUME_IGNORED.
+  // This occurs if result == TRUE but error is set.
+  if (!result && GetLastError() == ERROR_NOT_SUPPORTED) {
+    return X_STATUS_TIMER_RESUME_IGNORED;
   }
+
+  return result ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+}
+
+void XTimer::CompletionRoutine(
+    XTimer* timer, DWORD timer_low, DWORD timer_high) {
+  XEASSERT(timer->current_routine_);
+
+  // Queue APC to call back routine with (arg, low, high).
+  // TODO(benvanik): APC dispatch.
+  XELOGE("Timer needs APC!");
 }
 
 X_STATUS XTimer::Cancel() {
