@@ -117,6 +117,8 @@ public:
   Value* LoadVectorShl(Value* sh);
   Value* LoadVectorShr(Value* sh);
 
+  Value* LoadClock();
+
   Value* LoadContext(size_t offset, TypeName type);
   void StoreContext(size_t offset, Value* value);
 

@@ -848,6 +848,14 @@ Value* HIRBuilder::LoadVectorShr(Value* sh) {
   return i->dest;
 }
 
+Value* HIRBuilder::LoadClock() {
+  Instr* i = AppendInstr(
+      OPCODE_LOAD_CLOCK_info, 0,
+      AllocValue(INT64_TYPE));
+  i->src1.value = i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::LoadContext(size_t offset, TypeName type) {
   Instr* i = AppendInstr(
       OPCODE_LOAD_CONTEXT_info, 0,

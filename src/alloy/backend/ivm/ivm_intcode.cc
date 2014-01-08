@@ -1138,6 +1138,19 @@ int Translate_LOAD_VECTOR_SHR(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_LOAD_VECTOR_SHR);
 }
 
+uint32_t IntCode_LOAD_CLOCK(IntCodeState& ics, const IntCode* i) {
+  LARGE_INTEGER counter;
+  uint64_t time = 0;
+  if (QueryPerformanceCounter(&counter)) {
+    time = counter.QuadPart;
+  }
+  ics.rf[i->dest_reg].i64 = time;
+  return IA_NEXT;
+}
+int Translate_LOAD_CLOCK(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_LOAD_CLOCK);
+}
+
 uint32_t IntCode_LOAD_CONTEXT_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.context + ics.rf[i->src1_reg].u64));
   DPRINT("%d (%.X) = ctx i8 +%d\n", ics.rf[i->dest_reg].i8, ics.rf[i->dest_reg].u8, ics.rf[i->src1_reg].u64);
@@ -3433,6 +3446,8 @@ static const TranslateFn dispatch_table[] = {
 
   Translate_LOAD_VECTOR_SHL,
   Translate_LOAD_VECTOR_SHR,
+
+  Translate_LOAD_CLOCK,
 
   Translate_LOAD_CONTEXT,
   Translate_STORE_CONTEXT,

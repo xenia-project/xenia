@@ -498,13 +498,7 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mftb,         0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
-  Value* time;
-  LARGE_INTEGER counter;
-  if (QueryPerformanceCounter(&counter)) {
-    time = f.LoadConstant(counter.QuadPart);
-  } else {
-    time = f.LoadZero(INT64_TYPE);
-  }
+  Value* time = f.LoadClock();
   f.StoreGPR(i.XFX.RT, time);
 
   return 0;

@@ -171,6 +171,12 @@ DEFINE_OPCODE(
     0);
 
 DEFINE_OPCODE(
+    OPCODE_LOAD_CLOCK,
+    "load_clock",
+    OPCODE_SIG_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_LOAD_CONTEXT,
     "load_context",
     OPCODE_SIG_V_O,

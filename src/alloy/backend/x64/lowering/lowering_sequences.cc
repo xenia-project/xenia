@@ -230,6 +230,12 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     return true;
   });
 
+  table->AddSequence(OPCODE_LOAD_CLOCK, [](LIRBuilder& lb, Instr*& instr) {
+    // TODO
+    instr = instr->next;
+    return true;
+  });
+
   // --------------------------------------------------------------------------
   // Context
   // --------------------------------------------------------------------------
