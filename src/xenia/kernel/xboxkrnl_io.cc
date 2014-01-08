@@ -397,6 +397,20 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 
+SHIM_CALL FscSetCacheElementCount_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk_0 = SHIM_GET_ARG_32(0);
+  uint32_t unk_1 = SHIM_GET_ARG_32(1);
+  // unk_0 = 0
+  // unk_1 looks like a count? in what units? 256 is a common value
+
+  XELOGD(
+      "FscSetCacheElementCount(%.8X, %.8X)",
+      unk_0, unk_1);
+
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+}
+
 
 }  // namespace kernel
 }  // namespace xe
@@ -411,4 +425,6 @@ void xe::kernel::xboxkrnl::RegisterIoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVolumeInformationFile, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", FscSetCacheElementCount, state);
 }
