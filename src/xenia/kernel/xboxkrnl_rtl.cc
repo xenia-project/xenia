@@ -867,6 +867,60 @@ SHIM_CALL RtlLeaveCriticalSection_shim(
 }
 
 
+SHIM_CALL RtlTimeToTimeFields_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t time_ptr = SHIM_GET_ARG_32(0);
+  uint32_t time_fields_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("RtlTimeToTimeFields(%.8X, %.8X)", time_ptr, time_fields_ptr);
+
+  uint64_t time = SHIM_MEM_64(time_ptr);
+  FILETIME ft;
+  ft.dwHighDateTime = time >> 32;
+  ft.dwLowDateTime = (uint32_t)time;
+
+  SYSTEMTIME st;
+  FileTimeToSystemTime(&ft, &st);
+
+  SHIM_SET_MEM_16(time_fields_ptr + 0, st.wYear);
+  SHIM_SET_MEM_16(time_fields_ptr + 2, st.wMonth);
+  SHIM_SET_MEM_16(time_fields_ptr + 4, st.wDay);
+  SHIM_SET_MEM_16(time_fields_ptr + 6, st.wHour);
+  SHIM_SET_MEM_16(time_fields_ptr + 8, st.wMinute);
+  SHIM_SET_MEM_16(time_fields_ptr + 10, st.wSecond);
+  SHIM_SET_MEM_16(time_fields_ptr + 12, st.wMilliseconds);
+}
+
+
+SHIM_CALL RtlTimeFieldsToTime_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t time_fields_ptr = SHIM_GET_ARG_32(0);
+  uint32_t time_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("RtlTimeFieldsToTime(%.8X, %.8X)", time_fields_ptr, time_ptr);
+
+  SYSTEMTIME st;
+  st.wYear          = SHIM_MEM_16(time_fields_ptr + 0);
+  st.wMonth         = SHIM_MEM_16(time_fields_ptr + 2);
+  st.wDay           = SHIM_MEM_16(time_fields_ptr + 4);
+  st.wHour          = SHIM_MEM_16(time_fields_ptr + 6);
+  st.wMinute        = SHIM_MEM_16(time_fields_ptr + 8);
+  st.wSecond        = SHIM_MEM_16(time_fields_ptr + 10);
+  st.wMilliseconds  = SHIM_MEM_16(time_fields_ptr + 12);
+
+  FILETIME ft;
+  if (!SystemTimeToFileTime(&st, &ft)) {
+    // set last error = ERROR_INVALID_PARAMETER
+    SHIM_SET_RETURN(0);
+    return;
+  }
+
+  uint64_t time = (uint64_t(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+  SHIM_SET_MEM_64(time_ptr, time);
+  SHIM_SET_RETURN(1);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -884,6 +938,9 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeToTimeFields, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeFieldsToTime, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlNtStatusToDosError, state);
 

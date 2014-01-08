@@ -76,6 +76,8 @@ void XTimer::CompletionRoutine(
   // Queue APC to call back routine with (arg, low, high).
   // TODO(benvanik): APC dispatch.
   XELOGE("Timer needs APC!");
+
+  DebugBreak();
 }
 
 X_STATUS XTimer::Cancel() {
