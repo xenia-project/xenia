@@ -394,6 +394,11 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
 
 SHIM_CALL NtQueryVolumeInformationFile_shim(
     PPCContext* ppc_state, KernelState* state) {
+  // TODO(benvanik): see if this is used.
+  XELOGD(
+      "NtQueryVolumeInformationFile(?)");
+
+  XEASSERTALWAYS();
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 
