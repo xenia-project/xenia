@@ -243,6 +243,30 @@ SHIM_CALL XexGetProcedureAddress_shim(
 }
 
 
+SHIM_CALL ExRegisterTitleTerminateNotification_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t registration_ptr = SHIM_GET_ARG_32(0);
+  uint32_t create = SHIM_GET_ARG_32(1);
+
+  uint32_t routine = SHIM_MEM_32(registration_ptr + 0);
+  uint32_t priority = SHIM_MEM_32(registration_ptr + 4);
+  // list entry flink
+  // list entry blink
+
+  XELOGD(
+      "ExRegisterTitleTerminateNotification(%.8X(%.8X), %.1X)",
+      registration_ptr, routine, create);
+
+  if (create) {
+    // Adding.
+    // TODO(benvanik): add to master list (kernel?).
+  } else {
+    // Removing.
+    // TODO(benvanik): remove from master list.
+  }
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -256,4 +280,6 @@ void xe::kernel::xboxkrnl::RegisterModuleExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleHandle, state);
   // SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleSection, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", ExRegisterTitleTerminateNotification, state);
 }

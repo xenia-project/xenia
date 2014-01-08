@@ -124,7 +124,7 @@ SHIM_CALL NtReadFile_shim(
   size_t byte_offset = byte_offset_ptr ? SHIM_MEM_64(byte_offset_ptr) : 0;
 
   XELOGD(
-      "NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %d)",
+      "NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X(%d))",
       file_handle,
       event_handle,
       apc_routine_ptr,
@@ -132,7 +132,8 @@ SHIM_CALL NtReadFile_shim(
       io_status_block_ptr,
       buffer,
       buffer_length,
-      byte_offset_ptr);
+      byte_offset_ptr,
+      byte_offset);
 
   // Async not supported yet.
   XEASSERTNULL(apc_routine_ptr);
