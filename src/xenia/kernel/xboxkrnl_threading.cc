@@ -399,6 +399,14 @@ SHIM_CALL KeDelayExecutionThread_shim(
 }
 
 
+SHIM_CALL NtYieldExecution_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  XELOGD("NtYieldExecution()");
+  xeKeDelayExecutionThread(0, 0, 0);
+  SHIM_SET_RETURN(0);
+}
+
+
 void xeKeQuerySystemTime(uint64_t* time_ptr) {
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
@@ -1280,6 +1288,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeDelayExecutionThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtYieldExecution, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQuerySystemTime, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsAlloc, state);
