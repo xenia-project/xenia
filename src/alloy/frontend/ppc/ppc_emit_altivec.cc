@@ -58,7 +58,7 @@ Value* CalculateEA_0_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm);
 #define VX128_3_VB128 (i.VX128_3.VB128l | (i.VX128_3.VB128h << 5))
 #define VX128_3_IMM   (i.VX128_3.IMM)
 #define VX128_5_VD128 (i.VX128_5.VD128l | (i.VX128_5.VD128h << 5))
-#define VX128_5_VA128 (i.VX128_5.VA128l | (i.VX128_5.VA128h << 5))
+#define VX128_5_VA128 (i.VX128_5.VA128l | (i.VX128_5.VA128h << 5)) | (i.VX128_5.VA128H << 6)
 #define VX128_5_VB128 (i.VX128_5.VB128l | (i.VX128_5.VB128h << 5))
 #define VX128_5_SH    (i.VX128_5.SH)
 #define VX128_R_VD128 (i.VX128_R.VD128l | (i.VX128_R.VD128h << 5))

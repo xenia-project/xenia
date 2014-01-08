@@ -33,6 +33,28 @@ namespace ppc {
 #define VX128_P(op, xop)  (OP(op) | (((uint32_t)(xop)) & 0x630))
 
 
+#define VX128_VD128 (i.VX128.VD128l | (i.VX128.VD128h << 5))
+#define VX128_VA128 (i.VX128.VA128l | (i.VX128.VA128h << 5) | (i.VX128.VA128H << 6))
+#define VX128_VB128 (i.VX128.VB128l | (i.VX128.VB128h << 5))
+#define VX128_1_VD128 (i.VX128_1.VD128l | (i.VX128_1.VD128h << 5))
+#define VX128_2_VD128 (i.VX128_2.VD128l | (i.VX128_2.VD128h << 5))
+#define VX128_2_VA128 (i.VX128_2.VA128l | (i.VX128_2.VA128h << 5) | (i.VX128_2.VA128H << 6))
+#define VX128_2_VB128 (i.VX128_2.VB128l | (i.VX128_2.VD128h << 5))
+#define VX128_2_VC    (i.VX128_2.VC)
+#define VX128_3_VD128 (i.VX128_3.VD128l | (i.VX128_3.VD128h << 5))
+#define VX128_3_VB128 (i.VX128_3.VB128l | (i.VX128_3.VB128h << 5))
+#define VX128_3_IMM   (i.VX128_3.IMM)
+#define VX128_4_VD128 (i.VX128_4.VD128l | (i.VX128_4.VD128h << 5))
+#define VX128_4_VB128 (i.VX128_4.VB128l | (i.VX128_4.VB128h << 5))
+#define VX128_5_VD128 (i.VX128_5.VD128l | (i.VX128_5.VD128h << 5))
+#define VX128_5_VA128 (i.VX128_5.VA128l | (i.VX128_5.VA128h << 5)) | (i.VX128_5.VA128H << 6)
+#define VX128_5_VB128 (i.VX128_5.VB128l | (i.VX128_5.VB128h << 5))
+#define VX128_5_SH    (i.VX128_5.SH)
+#define VX128_R_VD128 (i.VX128_R.VD128l | (i.VX128_R.VD128h << 5))
+#define VX128_R_VA128 (i.VX128_R.VA128l | (i.VX128_R.VA128h << 5) | (i.VX128_R.VA128H << 6))
+#define VX128_R_VB128 (i.VX128_R.VB128l | (i.VX128_R.VB128h << 5))
+
+
 namespace {
 
 int GeneralVXA(InstrData& i, InstrDisasm& d) {
@@ -44,10 +66,9 @@ int GeneralVXA(InstrData& i, InstrDisasm& d) {
 }
 
 int GeneralVX128(InstrData& i, InstrDisasm& d) {
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
+  const uint32_t vd = VX128_VD128;
+  const uint32_t va = VX128_VA128;
+  const uint32_t vb = VX128_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
@@ -67,7 +88,7 @@ int GeneralX(InstrData& i, InstrDisasm& d, bool store) {
 }
 
 int GeneralVX128_1(InstrData& i, InstrDisasm& d, bool store) {
-  const uint32_t vd = i.VX128_1.VD128l | (i.VX128_1.VD128h << 5);
+  const uint32_t vd = VX128_1_VD128;
   d.AddRegOperand(InstrRegister::kVMX, vd,
       store ? InstrRegister::kRead : InstrRegister::kWrite);
   if (i.VX128_1.RA) {
@@ -80,8 +101,8 @@ int GeneralVX128_1(InstrData& i, InstrDisasm& d, bool store) {
 }
 
 int GeneralVX128_3(InstrData& i, InstrDisasm& d) {
-  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
-  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  const uint32_t vd = VX128_3_VD128;
+  const uint32_t vb = VX128_3_VB128;
   const uint32_t uimm = i.VX128_3.IMM;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
@@ -668,10 +689,9 @@ XEDISASMR(vmaddfp,        0x1000002E, VXA )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vmaddfp128,     VX128(5, 208),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmaddfp128", "Vector128 Multiply Add Floating Point",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
+  const uint32_t vd = VX128_VD128;
+  const uint32_t va = VX128_VA128;
+  const uint32_t vb = VX128_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
@@ -682,10 +702,9 @@ XEDISASMR(vmaddfp128,     VX128(5, 208),    VX128  )(InstrData& i, InstrDisasm& 
 XEDISASMR(vmaddcfp128,    VX128(5, 272),    VX128  )(InstrData& i, InstrDisasm& d) {
   d.Init("vmaddcfp128", "Vector128 Multiply Add Floating Point",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128.VD128l | (i.VX128.VD128h << 5);
-  const uint32_t va = i.VX128.VA128l | (i.VX128.VA128h << 5) |
-                                       (i.VX128.VA128H << 6);
-  const uint32_t vb = i.VX128.VB128l | (i.VX128.VB128h << 5);
+  const uint32_t vd = VX128_VD128;
+  const uint32_t va = VX128_VA128;
+  const uint32_t vb = VX128_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kRead);
@@ -1008,10 +1027,9 @@ XEDISASMR(vperm,          0x1000002B, VXA )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vperm128,       VX128_2(5, 0),    VX128_2)(InstrData& i, InstrDisasm& d) {
   d.Init("vperm128", "Vector128 Permute",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128_2.VD128l | (i.VX128_2.VD128h << 5);
-  const uint32_t va = i.VX128_2.VA128l | (i.VX128_2.VA128h << 5) |
-                                         (i.VX128_2.VA128H << 6);
-  const uint32_t vb = i.VX128_2.VB128l | (i.VX128_2.VB128h << 5);
+  const uint32_t vd = VX128_2_VD128;
+  const uint32_t va = VX128_2_VA128;
+  const uint32_t vb = VX128_2_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
@@ -1171,8 +1189,8 @@ XEDISASMR(vrfin,          0x1000020A, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vrfin128,       VX128_3(6, 880),  VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vrfin128", "Vector128 Round to Floating-Point Integer Nearest",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
-  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  const uint32_t vd = VX128_3_VD128;
+  const uint32_t vb = VX128_3_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
   return d.Finish();
@@ -1229,8 +1247,8 @@ XEDISASMR(vrlw128,        VX128(6, 80),     VX128  )(InstrData& i, InstrDisasm& 
 XEDISASMR(vrlimi128,      VX128_4(6, 1808), VX128_4)(InstrData& i, InstrDisasm& d) {
   d.Init("vrlimi128", "Vector128 Rotate Left Immediate and Mask Insert",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
-  const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
+  const uint32_t vd = VX128_4_VD128;
+  const uint32_t vb = VX128_4_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
   d.AddUImmOperand(i.VX128_4.IMM, 1);
@@ -1247,8 +1265,8 @@ XEDISASMR(vrsqrtefp,      0x1000014A, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vrsqrtefp128,   VX128_3(6, 1648), VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vrsqrtefp128", "Vector128 Reciprocal Square Root Estimate Floating Point",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
-  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  const uint32_t vd = VX128_3_VD128;
+  const uint32_t vb = VX128_3_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
   return d.Finish();
@@ -1290,9 +1308,9 @@ XEDISASMR(vsldoi,         0x1000002C, VXA )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vsldoi128,      VX128_5(4, 16),   VX128_5)(InstrData& i, InstrDisasm& d) {
   d.Init("vsldoi128", "Vector128 Shift Left Double by Octet Immediate",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128_5.VD128l | (i.VX128_5.VD128h << 5);
-  const uint32_t va = i.VX128_5.VA128l | (i.VX128_5.VA128h << 5);
-  const uint32_t vb = i.VX128_5.VB128l | (i.VX128_5.VB128h << 5);
+  const uint32_t vd = VX128_5_VD128;
+  const uint32_t va = VX128_5_VA128;
+  const uint32_t vb = VX128_5_VB128;
   const uint32_t sh = i.VX128_5.SH;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, va, InstrRegister::kRead);
@@ -1619,8 +1637,8 @@ XEDISASMR(vupklsh,        0x100002CE, VX  )(InstrData& i, InstrDisasm& d) {
 XEDISASMR(vupkd3d128,     VX128_3(6, 2032), VX128_3)(InstrData& i, InstrDisasm& d) {
   d.Init("vupkd3d128", "Vector128 Unpack D3Dtype",
          InstrDisasm::kVMX);
-  const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
-  const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
+  const uint32_t vd = VX128_3_VD128;
+  const uint32_t vb = VX128_3_VB128;
   d.AddRegOperand(InstrRegister::kVMX, vd, InstrRegister::kWrite);
   d.AddRegOperand(InstrRegister::kVMX, vb, InstrRegister::kRead);
   d.AddUImmOperand(i.VX128_3.IMM, 1);
