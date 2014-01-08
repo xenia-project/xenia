@@ -328,6 +328,17 @@ SHIM_CALL NtQueryInformationFile_shim(
         file_info.Write(SHIM_MEM_BASE, file_info_ptr);
       }
       break;
+    case XFileMailslotSetInformation:
+      // Read timeout.
+      if (length == 4) {
+        info = 4; // ? it's not a read.
+        uint32_t read_timeout = SHIM_MEM_32(file_info_ptr);
+        // May be INFINITE.
+        // Do something with this?
+      } else {
+        result = X_STATUS_INFO_LENGTH_MISMATCH;
+      }
+      break;
     default:
       // Unsupported, for now.
       XEASSERTALWAYS();

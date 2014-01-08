@@ -928,7 +928,7 @@ SHIM_CALL NtReleaseMutant_shim(
   bool wait = false;
 
   XELOGD(
-      "NtReleaseMutant(%.8X, %8.X)",
+      "NtReleaseMutant(%.8X, %.8X)",
       mutant_handle, unknown);
 
   X_STATUS result = X_STATUS_SUCCESS;
