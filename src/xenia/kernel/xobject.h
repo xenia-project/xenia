@@ -37,6 +37,7 @@ public:
     kTypeFile,
     kTypeSemaphore,
     kTypeNotifyListener,
+    kTypeMutant,
   };
 
   XObject(KernelState* kernel_state, Type type);

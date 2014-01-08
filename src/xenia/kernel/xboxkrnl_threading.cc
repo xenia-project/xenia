@@ -12,6 +12,7 @@
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xevent.h>
+#include <xenia/kernel/objects/xmutant.h>
 #include <xenia/kernel/objects/xsemaphore.h>
 #include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/util/shim_utils.h>
@@ -885,6 +886,65 @@ SHIM_CALL NtReleaseSemaphore_shim(
 }
 
 
+SHIM_CALL NtCreateMutant_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
+  uint32_t initial_owner = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "NtCreateMutant(%.8X, %.8X, %.1X)",
+      handle_ptr, obj_attributes_ptr, initial_owner);
+
+  XMutant* mutant = new XMutant(state);
+  mutant->Initialize(initial_owner ? true : false);
+
+  // obj_attributes may have a name inside of it, if != NULL.
+  if (obj_attributes_ptr) {
+    //mutant->SetName(...);
+  }
+
+  if (handle_ptr) {
+    SHIM_SET_MEM_32(handle_ptr, mutant->handle());
+  }
+
+  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+}
+
+
+SHIM_CALL NtReleaseMutant_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t mutant_handle = SHIM_GET_ARG_32(0);
+  int32_t unknown = SHIM_GET_ARG_32(1);
+  // This doesn't seem to be supported.
+  //int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
+
+  // Whatever arg 1 is all games seem to set it to 0, so whether it's
+  // abandon or wait we just say false. Which is good, cause they are
+  // both ignored.
+  XEASSERTZERO(unknown);
+  uint32_t priority_increment = 0;
+  bool abandon = false;
+  bool wait = false;
+
+  XELOGD(
+      "NtReleaseMutant(%.8X, %8.X)",
+      mutant_handle, unknown);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  XMutant* mutant = NULL;
+  result = state->object_table()->GetObject(
+      mutant_handle, (XObject**)&mutant);
+  if (XSUCCEEDED(result)) {
+    result = mutant->ReleaseMutant(priority_increment, abandon, wait);
+    mutant->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
+
 X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint64_t* opt_timeout) {
@@ -1144,6 +1204,9 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateMutant, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseMutant, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);

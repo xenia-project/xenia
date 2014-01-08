@@ -7,6 +7,8 @@
     'xfile.h',
     'xmodule.cc',
     'xmodule.h',
+    'xmutant.cc',
+    'xmutant.h',
     'xnotify_listener.cc',
     'xnotify_listener.h',
     'xsemaphore.cc',

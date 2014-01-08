@@ -45,6 +45,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_BUFFER_TOO_SMALL                       ((uint32_t)0xC0000023L)
 #define X_STATUS_OBJECT_TYPE_MISMATCH                   ((uint32_t)0xC0000024L)
 #define X_STATUS_INVALID_PAGE_PROTECTION                ((uint32_t)0xC0000045L)
+#define X_STATUS_MUTANT_NOT_OWNED                       ((uint32_t)0xC0000046L)
 #define X_STATUS_MEMORY_NOT_ALLOCATED                   ((uint32_t)0xC00000A0L)
 #define X_STATUS_INVALID_PARAMETER_1                    ((uint32_t)0xC00000EFL)
 #define X_STATUS_INVALID_PARAMETER_2                    ((uint32_t)0xC00000F0L)

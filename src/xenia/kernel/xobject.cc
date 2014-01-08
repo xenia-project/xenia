@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xevent.h>
+#include <xenia/kernel/objects/xmutant.h>
 #include <xenia/kernel/objects/xsemaphore.h>
 
 
@@ -225,6 +226,13 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
         object = ev;
       }
       break;
+    case 2: // MutantObjectt
+      {
+        XMutant* mutant = new XMutant(kernel_state);
+        mutant->InitializeNative(native_ptr, header);
+        object = mutant;
+      }
+      break;
     case 5: // SemaphoreObject
       {
         XSemaphore* sem = new XSemaphore(kernel_state);
@@ -232,7 +240,6 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
         object = sem;
       }
         break;
-    case 2: // MutantObject
     case 3: // ProcessObject
     case 4: // QueueObject
     case 6: // ThreadObject
