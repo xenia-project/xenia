@@ -26,18 +26,23 @@ namespace kernel {
 SHIM_CALL XamUserGetXUID_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t xuid_ptr = SHIM_GET_ARG_32(1);
+  uint32_t unk = SHIM_GET_ARG_32(1);
+  uint32_t xuid_ptr = SHIM_GET_ARG_32(2);
 
   XELOGD(
-      "XamUserGetXUID(%d, %.8X)",
+      "XamUserGetXUID(%d, %.8X, %.8X)",
       user_index,
+      unk,
       xuid_ptr);
 
-  if (xuid_ptr) {
-    SHIM_SET_MEM_32(xuid_ptr, 0xBABEBABE);
+  if (user_index == 0) {
+    if (xuid_ptr) {
+      SHIM_SET_MEM_32(xuid_ptr, 0xBABEBABE);
+    }
+    SHIM_SET_RETURN(0);
+  } else {
+    SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
   }
-
-  SHIM_SET_RETURN(0);
 }
 
 
@@ -49,7 +54,14 @@ SHIM_CALL XamUserGetSigninState_shim(
       "XamUserGetSigninState(%d)",
       user_index);
 
-  SHIM_SET_RETURN(0);
+  // Lie and say we are signed in, but local-only.
+  // This should keep games from asking us to sign in and also keep them
+  // from initializing the network.
+  if (user_index == 0) {
+    SHIM_SET_RETURN(1);
+  } else {
+    SHIM_SET_RETURN(0);
+  }
 }
 
 
@@ -63,7 +75,38 @@ SHIM_CALL XamUserGetSigninInfo_shim(
       "XamUserGetSigninInfo(%d, %.8X, %.8X)",
       user_index, flags, info_ptr);
 
-  SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+  if (user_index == 0) {
+    SHIM_SET_MEM_32(info_ptr + 0, 0xBABEBABE); // XUID
+    SHIM_SET_MEM_32(info_ptr + 4, 1); // maybe zero?
+    SHIM_SET_MEM_32(info_ptr + 8, 1); // signin state, same as above
+    SHIM_SET_MEM_32(info_ptr + 12, 0); // ?
+    SHIM_SET_MEM_32(info_ptr + 16, 0); // ?
+    char* buffer = (char*)SHIM_MEM_ADDR(info_ptr + 20);
+    xestrncpya(buffer, 0x10, "User0", 5);
+    SHIM_SET_RETURN(0);
+  } else {
+    SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+  }
+}
+
+
+SHIM_CALL XamUserGetName_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
+  uint32_t buffer_len = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "XamUserGetName(%d, %.8X, %d)",
+      user_index, buffer_ptr, buffer_len);
+
+  if (user_index == 0) {
+    char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);
+    xestrncpya(buffer, buffer_len, "User0", 5);
+    SHIM_SET_RETURN(0);
+  } else {
+    SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+  }
 }
 
 
@@ -140,5 +183,6 @@ void xe::kernel::xam::RegisterUserExports(
   SHIM_SET_MAPPING("xam.xex", XamUserGetXUID, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninState, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserGetName, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
 }

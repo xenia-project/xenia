@@ -258,7 +258,7 @@ void xeVdEnableRingBufferRPtrWriteBack(uint32_t ptr, uint32_t block_size) {
   gs->EnableReadPointerWriteBack(ptr, block_size);
 
   ptr += 0x20000000;
-  printf("%.8X", ptr);
+  //printf("%.8X", ptr);
   // 0x0110343c
 
   // r3 = 0x2B10(d3d?) + 0x3C

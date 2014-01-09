@@ -197,7 +197,7 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
   if (handle == 0xFFFFFFFF) {
     // CurrentProcess
-    XEASSERTALWAYS();
+    //XEASSERTALWAYS();
     return 0;
   } else if (handle == 0xFFFFFFFE) {
     // CurrentThread
