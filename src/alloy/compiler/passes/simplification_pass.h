@@ -29,6 +29,7 @@ private:
   void EliminateConversions(hir::HIRBuilder* builder);
   void CheckTruncate(hir::Instr* i);
   void CheckZeroExtend(hir::Instr* i);
+  void CheckByteSwap(hir::Instr* i);
 
   void SimplifyAssignments(hir::HIRBuilder* builder);
   hir::Value* CheckValue(hir::Value* value);

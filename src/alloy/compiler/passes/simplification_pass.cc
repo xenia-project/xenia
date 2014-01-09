@@ -56,6 +56,11 @@ void SimplificationPass::EliminateConversions(HIRBuilder* builder) {
       } else if (i->opcode == &OPCODE_ZERO_EXTEND_info) {
         // Matches truncate + zero_extend.
         CheckZeroExtend(i);
+      } else if (i->opcode == &OPCODE_BYTE_SWAP_info) {
+        // Matches byte swap + byte swap.
+        // This is pretty rare within the same basic block, but is in the
+        // memcpy hot path and (probably) worth it. Maybe.
+        CheckByteSwap(i);
       }
       i = i->next;
     }
@@ -102,6 +107,25 @@ void SimplificationPass::CheckZeroExtend(Instr* i) {
   }
   if (def && def->opcode == &OPCODE_TRUNCATE_info) {
     // Value comes from a truncate.
+    if (def->src1.value->type == i->dest->type) {
+      // Types match, use original by turning this into an assign.
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(def->src1.value);
+    }
+  }
+}
+
+void SimplificationPass::CheckByteSwap(Instr* i) {
+  // Walk backward up src's chain looking for a byte swap. We may have
+  // assigns, so skip those.
+  auto src = i->src1.value;
+  Instr* def = src->def;
+  while (def && def->opcode == &OPCODE_ASSIGN_info) {
+    // Skip asignments.
+    def = def->src1.value->def;
+  }
+  if (def && def->opcode == &OPCODE_BYTE_SWAP_info) {
+    // Value comes from a byte swap.
     if (def->src1.value->type == i->dest->type) {
       // Types match, use original by turning this into an assign.
       i->Replace(&OPCODE_ASSIGN_info, 0);
