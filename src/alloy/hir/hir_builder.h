@@ -173,12 +173,14 @@ public:
   Value* Xor(Value* value1, Value* value2);
   Value* Not(Value* value);
   Value* Shl(Value* value1, Value* value2);
-  Value* VectorShl(Value* value1, Value* value2, TypeName part_type);
   Value* Shl(Value* value1, int8_t value2);
+  Value* VectorShl(Value* value1, Value* value2, TypeName part_type);
   Value* Shr(Value* value1, Value* value2);
   Value* Shr(Value* value1, int8_t value2);
+  Value* VectorShr(Value* value1, Value* value2, TypeName part_type);
   Value* Sha(Value* value1, Value* value2);
   Value* Sha(Value* value1, int8_t value2);
+  Value* VectorSha(Value* value1, Value* value2, TypeName part_type);
   Value* RotateLeft(Value* value1, Value* value2);
   Value* ByteSwap(Value* value);
   Value* CountLeadingZeros(Value* value);

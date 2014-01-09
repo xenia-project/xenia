@@ -1433,7 +1433,7 @@ Value* HIRBuilder::Shl(Value* value1, int8_t value2) {
 }
 
 Value* HIRBuilder::VectorShl(Value* value1, Value* value2,
-                                  TypeName part_type) {
+                             TypeName part_type) {
   ASSERT_VECTOR_TYPE(value1);
   ASSERT_VECTOR_TYPE(value2);
 
@@ -1469,6 +1469,20 @@ Value* HIRBuilder::Shr(Value* value1, int8_t value2) {
   return Shr(value1, LoadConstant(value2));
 }
 
+Value* HIRBuilder::VectorShr(Value* value1, Value* value2,
+                             TypeName part_type) {
+  ASSERT_VECTOR_TYPE(value1);
+  ASSERT_VECTOR_TYPE(value2);
+
+  Instr* i = AppendInstr(
+      OPCODE_VECTOR_SHR_info, part_type,
+      AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::Sha(Value* value1, Value* value2) {
   ASSERT_INTEGER_TYPE(value1);
   ASSERT_INTEGER_TYPE(value2);
@@ -1490,6 +1504,20 @@ Value* HIRBuilder::Sha(Value* value1, Value* value2) {
 }
 Value* HIRBuilder::Sha(Value* value1, int8_t value2) {
   return Sha(value1, LoadConstant(value2));
+}
+
+Value* HIRBuilder::VectorSha(Value* value1, Value* value2,
+                             TypeName part_type) {
+  ASSERT_VECTOR_TYPE(value1);
+  ASSERT_VECTOR_TYPE(value2);
+
+  Instr* i = AppendInstr(
+      OPCODE_VECTOR_SHA_info, part_type,
+      AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
 }
 
 Value* HIRBuilder::RotateLeft(Value* value1, Value* value2) {

@@ -464,8 +464,20 @@ DEFINE_OPCODE(
     0);
 
 DEFINE_OPCODE(
+    OPCODE_VECTOR_SHR,
+    "vector_shr",
+    OPCODE_SIG_V_V_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_SHA,
     "sha",
+    OPCODE_SIG_V_V_V,
+    0);
+
+DEFINE_OPCODE(
+    OPCODE_VECTOR_SHA,
+    "vector_sha",
     OPCODE_SIG_V_V_V,
     0);
 

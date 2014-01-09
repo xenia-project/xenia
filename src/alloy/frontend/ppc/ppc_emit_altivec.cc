@@ -1486,50 +1486,67 @@ XEEMITTER(vsr,            0x100002C4, VX  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vsrab,          0x10000304, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (VA) >>a (VB) by bytes
+  Value* v = f.VectorSha(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vsrah,          0x10000344, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (VA) >>a (VB) by halfwords
+  Value* v = f.VectorSha(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
+int InstrEmit_vsraw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- (VA) >>a (VB) by words
+  Value* v = f.VectorSha(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vsraw,          0x10000384, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsraw_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vsraw128,       VX128(6, 336),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsraw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vsrb,           0x10000204, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (VA) >> (VB) by bytes
+  Value* v = f.VectorShr(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vsrh,           0x10000244, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (VA) >> (VB) by halfwords
+  Value* v = f.VectorShr(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
-XEEMITTER(vsro,           0x1000044C, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
+int InstrEmit_vsro_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   return 1;
+}
+XEEMITTER(vsro,           0x1000044C, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vsro_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vsro128,        VX128(5, 976),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsro_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vsrw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- (VA) >> (VB) by words
+  Value* v = f.VectorShr(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vsrw,           0x10000284, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsrw_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vsrw128,        VX128(6, 464),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vsrw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vsubcuw,        0x10000580, VX  )(PPCHIRBuilder& f, InstrData& i) {

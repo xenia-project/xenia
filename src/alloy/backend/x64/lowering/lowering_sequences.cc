@@ -556,7 +556,19 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     return true;
   });
 
+  table->AddSequence(OPCODE_VECTOR_SHR, [](LIRBuilder& lb, Instr*& instr) {
+    // TODO
+    instr = instr->next;
+    return true;
+  });
+
   table->AddSequence(OPCODE_SHA, [](LIRBuilder& lb, Instr*& instr) {
+    // TODO
+    instr = instr->next;
+    return true;
+  });
+
+  table->AddSequence(OPCODE_VECTOR_SHA, [](LIRBuilder& lb, Instr*& instr) {
     // TODO
     instr = instr->next;
     return true;

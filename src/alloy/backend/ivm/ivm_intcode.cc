@@ -3054,6 +3054,46 @@ int Translate_SHR(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
+uint32_t IntCode_VECTOR_SHR_I8(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = src1.b16[n] >> (src2.b16[n] & 0x7);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_SHR_I16(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = src1.s8[n] >> (src2.s8[n] & 0xF);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_SHR_I32(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = src1.i4[n] >> (src2.i4[n] & 0x1F);
+  }
+  return IA_NEXT;
+}
+int Translate_VECTOR_SHR(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_VECTOR_SHR_I8,
+    IntCode_VECTOR_SHR_I16,
+    IntCode_VECTOR_SHR_I32,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  return DispatchToC(ctx, i, fns[i->flags]);
+}
+
 uint32_t IntCode_SHA_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 >> ics.rf[i->src2_reg].i8;
   return IA_NEXT;
@@ -3081,6 +3121,46 @@ int Translate_SHA(TranslationContext& ctx, Instr* i) {
     IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t IntCode_VECTOR_SHA_I8(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = int8_t(src1.b16[n]) >> (src2.b16[n] & 0x7);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_SHA_I16(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = int16_t(src1.s8[n]) >> (src2.s8[n] & 0xF);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_SHA_I32(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = int32_t(src1.i4[n]) >> (src2.i4[n] & 0x1F);
+  }
+  return IA_NEXT;
+}
+int Translate_VECTOR_SHA(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_VECTOR_SHA_I8,
+    IntCode_VECTOR_SHA_I16,
+    IntCode_VECTOR_SHA_I32,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  return DispatchToC(ctx, i, fns[i->flags]);
 }
 
 template<typename T>
@@ -3503,7 +3583,9 @@ static const TranslateFn dispatch_table[] = {
   Translate_SHL,
   Translate_VECTOR_SHL,
   Translate_SHR,
+  Translate_VECTOR_SHR,
   Translate_SHA,
+  Translate_VECTOR_SHA,
   Translate_ROTATE_LEFT,
   Translate_BYTE_SWAP,
   Translate_CNTLZ,
