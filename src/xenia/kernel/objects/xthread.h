@@ -59,6 +59,9 @@ public:
   uint32_t RaiseIrql(uint32_t new_irql);
   void LowerIrql(uint32_t new_irql);
 
+  int32_t QueryPriority();
+  void SetPriority(int32_t increment);
+
   X_STATUS Resume(uint32_t* out_suspend_count);
   X_STATUS Suspend(uint32_t* out_suspend_count);
   X_STATUS Delay(

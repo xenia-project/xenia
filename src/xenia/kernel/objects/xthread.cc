@@ -382,6 +382,14 @@ void XThread::LowerIrql(uint32_t new_irql) {
   irql_ = new_irql;
 }
 
+int32_t XThread::QueryPriority() {
+  return GetThreadPriority(thread_handle_);
+}
+
+void XThread::SetPriority(int32_t increment) {
+  SetThreadPriority(thread_handle_, increment);
+}
+
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
   DWORD result = ResumeThread(thread_handle_);
   if (result >= 0) {

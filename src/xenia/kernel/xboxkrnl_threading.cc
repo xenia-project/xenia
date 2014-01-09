@@ -302,6 +302,26 @@ SHIM_CALL KeSetAffinityThread_shim(
 }
 
 
+SHIM_CALL KeQueryBasePriorityThread_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t thread_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeQueryBasePriorityThread(%.8X)",
+      thread_ptr);
+
+  int32_t priority = 0;
+
+  XThread* thread = (XThread*)XObject::GetObject(
+      state, SHIM_MEM_ADDR(thread_ptr));
+  if (thread) {
+    priority = thread->QueryPriority();
+  }
+
+  SHIM_SET_RETURN(priority);
+}
+
+
 uint32_t xeKeSetBasePriorityThread(void* thread_ptr, int32_t increment) {
   KernelState* state = shared_kernel_state_;
   XEASSERTNOTNULL(state);
@@ -310,8 +330,8 @@ uint32_t xeKeSetBasePriorityThread(void* thread_ptr, int32_t increment) {
 
   XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
   if (thread) {
-    // TODO(benvanik): implement.
-    XELOGW("KeSetBasePriority not implemented");
+    prev_priority = thread->QueryPriority();
+    thread->SetPriority(increment);
   }
 
   return prev_priority;
@@ -1282,6 +1302,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResumeThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSuspendThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryBasePriorityThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetBasePriorityThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
