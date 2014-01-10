@@ -205,13 +205,30 @@ void D3D11GraphicsDriver::DrawIndexAuto(
 }
 
 int D3D11GraphicsDriver::UpdateState() {
+  // https://chromium.googlesource.com/chromiumos/third_party/mesa/+/6173cc19c45d92ef0b7bc6aa008aa89bb29abbda/src/gallium/drivers/freedreno/freedreno_zsa.c
+  // http://cgit.freedesktop.org/mesa/mesa/diff/?id=aac7f06ad843eaa696363e8e9c7781ca30cb4914
+  RegisterFile& rf = register_file_;
+
+  // RB_SURFACE_INFO
+  // RB_DEPTH_INFO
+
   // General rasterizer state.
-  ID3D11RasterizerState* rasterizer_state = 0;
+  uint32_t mode_control = rf.values[XE_GPU_REG_RB_MODECONTROL].u32;
   D3D11_RASTERIZER_DESC rasterizer_desc;
   xe_zero_struct(&rasterizer_desc, sizeof(rasterizer_desc));
   rasterizer_desc.FillMode              = D3D11_FILL_SOLID; // D3D11_FILL_WIREFRAME;
-  rasterizer_desc.CullMode              = D3D11_CULL_NONE; // D3D11_CULL_FRONT BACK
-  rasterizer_desc.FrontCounterClockwise = false;
+  switch (mode_control & 0x3) {
+  case 0:
+    rasterizer_desc.CullMode            = D3D11_CULL_NONE;
+    break;
+  case 1:
+    rasterizer_desc.CullMode            = D3D11_CULL_FRONT;
+    break;
+  case 2:
+    rasterizer_desc.CullMode            = D3D11_CULL_BACK;
+    break;
+  }
+  rasterizer_desc.FrontCounterClockwise = (mode_control & 0x4) == 0;
   rasterizer_desc.DepthBias             = 0;
   rasterizer_desc.DepthBiasClamp        = 0;
   rasterizer_desc.SlopeScaledDepthBias  = 0;
@@ -219,12 +236,59 @@ int D3D11GraphicsDriver::UpdateState() {
   rasterizer_desc.ScissorEnable         = false;
   rasterizer_desc.MultisampleEnable     = false;
   rasterizer_desc.AntialiasedLineEnable = false;
+  ID3D11RasterizerState* rasterizer_state = 0;
   device_->CreateRasterizerState(&rasterizer_desc, &rasterizer_state);
   context_->RSSetState(rasterizer_state);
   XESAFERELEASE(rasterizer_state);
 
   // Depth-stencil state.
-  //context_->OMSetDepthStencilState
+  uint32_t depth_control = rf.values[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  D3D11_DEPTH_STENCIL_DESC depth_stencil_desc;
+  xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
+  // A2XX_RB_DEPTHCONTROL_BACKFACE_ENABLE
+  // ?
+  // A2XX_RB_DEPTHCONTROL_Z_ENABLE
+  depth_stencil_desc.DepthEnable = (depth_control & 0x00000002) != 0;
+  // A2XX_RB_DEPTHCONTROL_Z_WRITE_ENABLE
+  depth_stencil_desc.DepthWriteMask = (depth_control & 0x00000004) ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
+  // A2XX_RB_DEPTHCONTROL_EARLY_Z_ENABLE
+  // ?
+  // A2XX_RB_DEPTHCONTROL_ZFUNC
+  // 0 = never, 7 = always -- almost lines up
+  depth_stencil_desc.DepthFunc = (D3D11_COMPARISON_FUNC)(((depth_control & 0x00000070) >> 4) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCIL_ENABLE
+  depth_stencil_desc.StencilEnable = (depth_control & 0x00000001) != 0;
+  depth_stencil_desc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+  depth_stencil_desc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+  // A2XX_RB_DEPTHCONTROL_STENCILFUNC
+  depth_stencil_desc.FrontFace.StencilFunc =
+      (D3D11_COMPARISON_FUNC)(((depth_control & 0x00000700) >> 8) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILFAIL
+  // 0 = keep, 7 = decr -- almost lines up
+  depth_stencil_desc.FrontFace.StencilFailOp =
+      (D3D11_STENCIL_OP)(((depth_control & 0x00003800) >> 11) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILZPASS
+  depth_stencil_desc.FrontFace.StencilPassOp =
+      (D3D11_STENCIL_OP)(((depth_control & 0x0001C000) >> 14) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILZFAIL
+  depth_stencil_desc.FrontFace.StencilDepthFailOp =
+      (D3D11_STENCIL_OP)(((depth_control & 0x000E0000) >> 17) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILFUNC_BF
+  depth_stencil_desc.BackFace.StencilFunc =
+      (D3D11_COMPARISON_FUNC)(((depth_control & 0x00700000) >> 20) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILFAIL_BF
+  depth_stencil_desc.BackFace.StencilFailOp =
+      (D3D11_STENCIL_OP)(((depth_control & 0x03800000) >> 23) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILZPASS_BF
+  depth_stencil_desc.BackFace.StencilPassOp =
+      (D3D11_STENCIL_OP)(((depth_control & 0x1C000000) >> 26) + 1);
+  // A2XX_RB_DEPTHCONTROL_STENCILZFAIL_BF
+  depth_stencil_desc.BackFace.StencilDepthFailOp =
+      (D3D11_STENCIL_OP)(((depth_control & 0xE0000000) >> 29) + 1);
+  ID3D11DepthStencilState* depth_stencil_state = 0;
+  device_->CreateDepthStencilState(&depth_stencil_desc, &depth_stencil_state);
+  context_->OMSetDepthStencilState(depth_stencil_state, 0 /* stencil ref */);
+  XESAFERELEASE(depth_stencil_state);
 
   // Blend state.
   //context_->OMSetBlendState(blend_state, blend_factor, sample_mask);
