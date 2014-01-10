@@ -42,6 +42,8 @@ See [building](docs/building.md) for setup and information about the
 
 ## Contributors Wanted!
 
+[![Stories in Ready](https://badge.waffle.io/benvanik/xenia.png?label=ready)](https://waffle.io/benvanik/xenia)
+
 Have some spare time, know C++, and want to write an emulator? Contribute!
 There's a ton of work that needs to be done, a lot of which is wide open
 greenfield fun. Fixes and optimizations are always welcome (please!), but
@@ -52,6 +54,8 @@ in addition to that there are some major work areas still untouched:
 * Start [hacking on audio](https://github.com/benvanik/xenia/issues/62)
 * Support [loading of PIRS files](https://github.com/benvanik/xenia/issues/63)
 * Build a [virtual LIVE service](https://github.com/benvanik/xenia/issues/64)
+ 
+See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open).
 
 ## FAQ
 
