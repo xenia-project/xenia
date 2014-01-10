@@ -540,6 +540,18 @@ DEFINE_OPCODE(
     0);
 
 DEFINE_OPCODE(
+    OPCODE_PACK,
+    "pack",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
+    OPCODE_UNPACK,
+    "unpack",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_COMPARE_EXCHANGE,
     "compare_exchange",
     OPCODE_SIG_V_V_V_V,

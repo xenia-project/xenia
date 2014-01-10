@@ -194,7 +194,8 @@ public:
                  TypeName part_type);
   Value* Swizzle(Value* value, TypeName part_type, uint32_t swizzle_mask);
   // SelectBits(cond, value1, value2)
-  // pack/unpack/etc
+  Value* Pack(Value* value, uint32_t pack_flags = 0);
+  Value* Unpack(Value* value, uint32_t pack_flags = 0);
 
   Value* CompareExchange(Value* address,
                          Value* compare_value, Value* exchange_value);

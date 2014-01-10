@@ -1677,6 +1677,28 @@ Value* HIRBuilder::Swizzle(
   return i->dest;
 }
 
+Value* HIRBuilder::Pack(Value* value, uint32_t pack_flags) {
+  ASSERT_VECTOR_TYPE(value);
+  Instr* i = AppendInstr(
+      OPCODE_PACK_info, pack_flags,
+      AllocValue(VEC128_TYPE));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* HIRBuilder::Unpack(Value* value, uint32_t pack_flags) {
+  ASSERT_VECTOR_TYPE(value);
+  // TODO(benvanik): check if this is a constant - sometimes this is just used
+  //     to initialize registers.
+  Instr* i = AppendInstr(
+      OPCODE_UNPACK_info, pack_flags,
+      AllocValue(VEC128_TYPE));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::CompareExchange(
     Value* address, Value* compare_value, Value* exchange_value)  {
   ASSERT_ADDRESS_TYPE(address);

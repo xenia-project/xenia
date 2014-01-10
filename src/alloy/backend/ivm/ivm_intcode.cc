@@ -21,6 +21,10 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 
 
+// TODO(benvanik): reimplement packing functions
+#include <DirectXPackedVector.h>
+
+
 // TODO(benvanik): make a compile time flag?
 //#define DYNAMIC_REGISTER_ACCESS_CHECK(address) false
 #define DYNAMIC_REGISTER_ACCESS_CHECK(address) ((address & 0xFF000000) == 0x7F000000)
@@ -3726,6 +3730,128 @@ int Translate_SWIZZLE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
 }
 
+uint32_t IntCode_PACK_D3DCOLOR(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  // RGBA (XYZW) -> ARGB (WXYZ)
+  dest.ix = dest.iy = dest.iz = 0;
+  float r = roundf(((src1.x < 0) ? 0 : ((1 < src1.x) ? 1 : src1.x)) * 255);
+  float g = roundf(((src1.y < 0) ? 0 : ((1 < src1.y) ? 1 : src1.y)) * 255);
+  float b = roundf(((src1.z < 0) ? 0 : ((1 < src1.z) ? 1 : src1.z)) * 255);
+  float a = roundf(((src1.w < 0) ? 0 : ((1 < src1.w) ? 1 : src1.w)) * 255);
+  dest.iw = ((uint32_t)a << 24) |
+            ((uint32_t)r << 16) |
+            ((uint32_t)g << 8) |
+            ((uint32_t)b);
+  return IA_NEXT;
+}
+uint32_t IntCode_PACK_FLOAT16_2(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  dest.ix = dest.iy = dest.iz = 0;
+  dest.iw =
+      ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.x) << 16) |
+      DirectX::PackedVector::XMConvertFloatToHalf(src1.y);
+  return IA_NEXT;
+}
+uint32_t IntCode_PACK_FLOAT16_4(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  dest.iz =
+      ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.x) << 16) |
+      DirectX::PackedVector::XMConvertFloatToHalf(src1.y);
+  dest.iw =
+      ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.z) << 16) |
+      DirectX::PackedVector::XMConvertFloatToHalf(src1.w);
+  return IA_NEXT;
+}
+uint32_t IntCode_PACK_SHORT_2(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  // sx = 3 + (x / 1<<22)
+  // x = (sx - 3) * 1<<22
+  float sx = src1.x;
+  float sy = src1.y;
+  union {
+    int16_t dx;
+    int16_t dy;
+  };
+  dx = (int16_t)((sx - 3.0f) * (float)(1 << 22));
+  dy = (int16_t)((sy - 3.0f) * (float)(1 << 22));
+  dest.ix = dest.iy = dest.iz = 0;
+  dest.iw = ((uint32_t)dx << 16) | dy;
+  return IA_NEXT;
+}
+int Translate_PACK(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_PACK_D3DCOLOR,
+    IntCode_PACK_FLOAT16_2,
+    IntCode_PACK_FLOAT16_4,
+    IntCode_PACK_SHORT_2,
+  };
+  return DispatchToC(ctx, i, fns[i->flags]);
+}
+
+uint32_t IntCode_UNPACK_D3DCOLOR(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  // ARGB (WXYZ) -> RGBA (XYZW)
+  // XMLoadColor
+  int32_t src = (int32_t)src1.iw;
+  dest.f4[0] = (float)((src >> 16) & 0xFF) * (1.0f / 255.0f);
+  dest.f4[1] = (float)((src >> 8) & 0xFF) * (1.0f / 255.0f);
+  dest.f4[2] = (float)(src & 0xFF) * (1.0f / 255.0f);
+  dest.f4[3] = (float)((src >> 24) & 0xFF) * (1.0f / 255.0f);
+  return IA_NEXT;
+}
+uint32_t IntCode_UNPACK_FLOAT16_2(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  uint32_t src = src1.iw;
+  for (int n = 0; n < 2; n++) {
+    dest.f4[n] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
+    src >>= 16;
+  }
+  dest.f4[2] = 0.0f;
+  dest.f4[3] = 1.0f;
+  return IA_NEXT;
+}
+uint32_t IntCode_UNPACK_FLOAT16_4(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  uint64_t src = src1.iz | ((uint64_t)src1.iw << 32);
+  for (int n = 0; n < 4; n++) {
+    dest.f4[n] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
+    src >>= 16;
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_UNPACK_SHORT_2(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  // XMLoadShortN2
+  union {
+    int16_t sx;
+    int16_t sy;
+  };
+  sx = (int16_t)(src1.iw >> 16);
+  sy = (int16_t)src1.iw;
+  dest.f4[0] = 3.0f + ((float)sx / (float)(1 << 22));
+  dest.f4[1] = 3.0f + ((float)sy / (float)(1 << 22));
+  dest.f4[2] = 0.0f;
+  dest.f4[3] = 1.0f; // 3?
+  return IA_NEXT;
+}
+int Translate_UNPACK(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_UNPACK_D3DCOLOR,
+    IntCode_UNPACK_FLOAT16_2,
+    IntCode_UNPACK_FLOAT16_4,
+    IntCode_UNPACK_SHORT_2,
+  };
+  return DispatchToC(ctx, i, fns[i->flags]);
+}
+
 uint32_t IntCode_ATOMIC_EXCHANGE_I32(IntCodeState& ics, const IntCode* i) {
   auto address = (uint8_t*)ics.rf[i->src1_reg].u64;
   auto new_value = ics.rf[i->src2_reg].u32;
@@ -3860,6 +3986,8 @@ static const TranslateFn dispatch_table[] = {
   Translate_SPLAT,
   Translate_PERMUTE,
   Translate_SWIZZLE,
+  Translate_PACK,
+  Translate_UNPACK,
 
   TranslateInvalid, //Translate_COMPARE_EXCHANGE,
   Translate_ATOMIC_EXCHANGE,

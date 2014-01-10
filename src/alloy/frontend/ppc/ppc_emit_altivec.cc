@@ -1128,88 +1128,6 @@ XEEMITTER(vpermwi128,     VX128_P(6, 528),  VX128_P)(PPCHIRBuilder& f, InstrData
   return 0;
 }
 
-XEEMITTER(vpkpx,          0x1000030E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkshss,        0x1000018E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkshss128,     VX128(5, 512),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkswss,        0x100001CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkswss128,     VX128(5, 640),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkswus,        0x1000014E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkswus128,     VX128(5, 704),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkuhum,        0x1000000E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkuhum128,     VX128(5, 768),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkuhus,        0x1000008E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkuhus128,     VX128(5, 832),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkshus,        0x1000010E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkshus128,     VX128(5, 576),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkuwum,        0x1000004E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkuwum128,     VX128(5, 896),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkuwus,        0x100000CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-XEEMITTER(vpkuwus128,     VX128(5, 960),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 int InstrEmit_vrefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- 1/(VB)
   vec128_t one = { 1, 1, 1, 1 };
@@ -1696,6 +1614,84 @@ XEEMITTER(vsum4ubs,       0x10000608, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return 1;
 }
 
+XEEMITTER(vpkpx,          0x1000030E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkshss,        0x1000018E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkshss128,     VX128(5, 512),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkswss,        0x100001CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkswss128,     VX128(5, 640),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkswus,        0x1000014E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkswus128,     VX128(5, 704),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkuhum,        0x1000000E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuhum128,     VX128(5, 768),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkuhus,        0x1000008E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuhus128,     VX128(5, 832),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkshus,        0x1000010E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkshus128,     VX128(5, 576),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkuwum,        0x1000004E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuwum128,     VX128(5, 896),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vpkuwus,        0x100000CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+XEEMITTER(vpkuwus128,     VX128(5, 960),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+
 XEEMITTER(vupkhpx,        0x1000034E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
@@ -1734,31 +1730,69 @@ XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return 1;
 }
 
-// __m128 half_to_float5_SSE2(__m128i h) {
-// #define SSE_CONST4(name, val) static const __declspec(align(16)) uint name[4] = { (val), (val), (val), (val) }
-// #define SSE_CONST(name) *(const __m128i *)&name
-// #define SSE_CONSTF(name) *(const __m128 *)&name
-//     SSE_CONST4(mask_nosign,         0x7fff);
-//     SSE_CONST4(magic,               (254 - 15) << 23);
-//     SSE_CONST4(was_infnan,          0x7bff);
-//     SSE_CONST4(exp_infnan,          255 << 23);
-//     __m128i mnosign     = SSE_CONST(mask_nosign);
-//     __m128i expmant     = _mm_and_si128(mnosign, h);
-//     __m128i justsign    = _mm_xor_si128(h, expmant);
-//     __m128i expmant2    = expmant; // copy (just here for counting purposes)
-//     __m128i shifted     = _mm_slli_epi32(expmant, 13);
-//     __m128  scaled      = _mm_mul_ps(_mm_castsi128_ps(shifted), *(const __m128 *)&magic);
-//     __m128i b_wasinfnan = _mm_cmpgt_epi32(expmant2, SSE_CONST(was_infnan));
-//     __m128i sign        = _mm_slli_epi32(justsign, 16);
-//     __m128  infnanexp   = _mm_and_ps(_mm_castsi128_ps(b_wasinfnan), SSE_CONSTF(exp_infnan));
-//     __m128  sign_inf    = _mm_or_ps(_mm_castsi128_ps(sign), infnanexp);
-//     __m128  final       = _mm_or_ps(scaled, sign_inf);
-//     // ~11 SSE2 ops.
-//     return final;
-// #undef SSE_CONST4
-// #undef CONST
-// #undef CONSTF
-// }
+XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData& i) {
+  const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
+  const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
+  uint32_t type = i.VX128_4.IMM >> 2;
+  uint32_t shift = i.VX128_4.IMM & 0x3;
+  uint32_t pack = i.VX128_4.z;
+  Value* v = f.LoadVR(vb);
+  switch (type) {
+  case 0: // VPACK_D3DCOLOR
+    v = f.Pack(v, PACK_TYPE_D3DCOLOR);
+    break;
+  case 1: // VPACK_NORMSHORT2
+    v = f.Pack(v, PACK_TYPE_SHORT_2);
+    break;
+  case 3: // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
+    v = f.Pack(v, PACK_TYPE_FLOAT16_2);
+    break;
+  case 5: // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
+    v = f.Pack(v, PACK_TYPE_FLOAT16_4);
+    break;
+  default:
+    XEASSERTALWAYS();
+    return 1;
+  }
+  // http://hlssmod.net/he_code/public/pixelwriter.h
+  // control = prev:0123 | new:4567
+  uint32_t control = 0x00010203; // original
+  uint32_t src = _rotl(0x04050607, shift * 8);
+  uint32_t mask = 0;
+  switch (pack) {
+  case 1: // VPACK_32
+    // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
+    mask = 0x000000FF << (shift * 8);
+    control = (control & ~mask) | (src & mask);
+    break;
+  case 2: // 64bit
+    if (shift < 3) {
+      mask = 0x0000FFFF << (shift * 8);
+    } else {
+      // w
+      src = 0x00000007;
+      mask = 0x000000FF;
+    }
+    control = (control & ~mask) | (src & mask);
+    break;
+  case 3: // 64bit
+    if (shift < 3) {
+      mask = 0x0000FFFF << (shift * 8);
+    } else {
+      // z
+      src = 0x00000006;
+      mask = 0x000000FF;
+    }
+    control = (control & ~mask) | (src & mask);
+    break;
+  default:
+    XEASSERTALWAYS();
+    return 1;
+  }
+  v = f.Permute(f.LoadConstant(control), f.LoadVR(vd), v, INT32_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 
 XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
   // Can't find many docs on this. Best reference is
@@ -1768,86 +1802,19 @@ XEEMITTER(vupkd3d128,     VX128_3(6, 2032), VX128_3)(PPCHIRBuilder& f, InstrData
   const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
   const uint32_t vb = i.VX128_3.VB128l | (i.VX128_3.VB128h << 5);
   const uint32_t type = i.VX128_3.IMM >> 2;
-  Value* v;
+  Value* v = f.LoadVR(vb);
   switch (type) {
   case 0: // VPACK_D3DCOLOR
-    {
-      // http://hlssmod.net/he_code/public/pixelwriter.h
-      // ARGB (WXYZ) -> RGBA (XYZW)
-      // zzzzZZZZzzzzARGB
-      v = f.LoadVR(vb);
-      // 0zzzZZZZzzzzARGB
-      v = f.Insert(v, 0ull, f.LoadConstant((int8_t)0));
-      // 000R000G000B000A
-      vec128_t shuf_v = { 0 };
-      shuf_v.b16[3] = 13;
-      shuf_v.b16[7] = 14;
-      shuf_v.b16[11] = 15;
-      shuf_v.b16[15] = 12;
-      Value* shuf = f.LoadConstant(shuf_v);
-      v = f.Permute(shuf, v, v, INT8_TYPE);
-      // {256*R.0, 256*G.0, 256*B.0, 256*A.0}
-      v = f.VectorConvertI2F(v);
-      // {R.0, G.0, B.0 A.0}
-      // 1/256 = 0.00390625 = 0x3B800000
-      v = f.Mul(
-          v,
-          f.Splat(f.LoadConstant((uint32_t)0x3B800000), VEC128_TYPE));
-    }
+    v = f.Unpack(v, PACK_TYPE_D3DCOLOR);
     break;
   case 1: // VPACK_NORMSHORT2
-    {
-      // (VD.x) = 3.0 + (VB.x)*2^-22
-      // (VD.y) = 3.0 + (VB.y)*2^-22
-      // (VD.z) = 0.0
-      // (VD.w) = 1.0
-      // v = VB.x|VB.y|0|0
-      v = f.Permute(
-          f.LoadConstant(PERMUTE_XY_ZW),
-          f.LoadVR(vb),
-          f.LoadZero(VEC128_TYPE),
-          INT32_TYPE);
-      // *= 2^-22 + {3.0, 3.0, 0, 1.0}
-      vec128_t v3301 = { 3.0, 3.0, 0, 1.0 };
-      v = f.MulAdd(
-          v,
-          f.Splat(f.LoadConstant(0x34800000), VEC128_TYPE),
-          f.LoadConstant(v3301));
-    }
+    v = f.Unpack(v, PACK_TYPE_SHORT_2);
     break;
-  case 3: // VPACK_... 2 FLOAT16s
-    {
-      // (VD.x) = fixed_16_to_32(VB.x (low))
-      // (VD.y) = fixed_16_to_32(VB.x (high))
-      // (VD.z) = 0.0
-      // (VD.w) = 1.0
-      v = f.LoadZero(VEC128_TYPE);
-      f.DebugBreak();
-      // 1 bit sign, 5 bit exponent, 10 bit mantissa
-      // D3D10 half float format
-      // TODO(benvanik): fixed_16_to_32 in SSE?
-      // TODO(benvanik): http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
-      // Use _mm_cvtph_ps -- requires very modern processors (SSE5+)
-      // Unpacking half floats: http://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
-      // Packing half floats: https://gist.github.com/rygorous/2156668
-      // Load source, move from tight pack of X16Y16.... to X16...Y16...
-      // Also zero out the high end.
-      //c.int3();
-      //c.movaps(vt, f.LoadVR(vb));
-      //c.save(vt);
-      //c.lea(gt, vt.m128());
-      //X86CompilerFuncCall* call = c.call(half_to_float5_SSE2);
-      //uint32_t args[] = {kX86VarTypeGpq};
-      //call->setPrototype(kX86FuncConvDefault, kX86VarTypeXmm, args, XECOUNT(args));
-      //call->setArgument(0, gt);
-      //call->setReturn(v);
-      //// Select XY00.
-      //c.xorps(vt, vt);
-      //c.shufps(v, vt, imm(0x04));
-      //// {0.0, 0.0, 0.0, 1.0}
-      //c.mov(gt, imm(0x3F800000));
-      //c.pinsrd(v, gt.r32(), imm(3));
-    }
+  case 3: // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
+    v = f.Unpack(v, PACK_TYPE_FLOAT16_2);
+    break;
+  case 5: // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
+    v = f.Unpack(v, PACK_TYPE_FLOAT16_4);
     break;
   default:
     XEASSERTALWAYS();
