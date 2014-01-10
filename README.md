@@ -4,7 +4,7 @@ Xenia - Xbox 360 Emulator Research Project
 Xenia is an experimental emulator for the Xbox 360. It does not run games (yet),
 and if you are unable to understand that please leave now.
 
-Come chat with us in [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
+Come chat with us **about development topics** in [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
 
 Currently supported features:
 
@@ -39,6 +39,19 @@ update gyp files/etc.
 
 See [building](docs/building.md) for setup and information about the
 `xenia-build` script.
+
+## Contributors Wanted!
+
+Have some spare time, know C++, and want to write an emulator? Contribute!
+There's a ton of work that needs to be done, a lot of which is wide open
+greenfield fun. Fixes and optimizations are always welcome (please!), but
+in addition to that there are some major work areas still untouched:
+
+* Write an [OpenGL driver](https://github.com/benvanik/xenia/issues/59)
+* Add input drivers for [OSX](https://github.com/benvanik/xenia/issues/61) and [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
+* Start [hacking on audio](https://github.com/benvanik/xenia/issues/62)
+* Support [loading of PIRS files](https://github.com/benvanik/xenia/issues/63)
+* Build a [virtual LIVE service](https://github.com/benvanik/xenia/issues/64)
 
 ## FAQ
 
