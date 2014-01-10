@@ -504,20 +504,36 @@ XEEMITTER(vavguw,         0x10000482, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return 1;
 }
 
-XEEMITTER(vcfsx,          0x1000034A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  // (VD) <- float(VB) / 2^uimm
-  uint32_t uimm = VX128_3_IMM;
+int InstrEmit_vcfsx_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb, uint32_t uimm) {
+  // (VD) <- float(VB as signed) / 2^uimm
   uimm = uimm ? (2 << (uimm - 1)) : 1;
   Value* v = f.Div(
-      f.VectorConvertI2F(f.LoadVR(VX128_3_VB128)),
+      f.VectorConvertI2F(f.LoadVR(vb)),
       f.Splat(f.LoadConstant((float)uimm), VEC128_TYPE));
-  f.StoreVR(VX128_3_VD128, v);
+  f.StoreVR(vd, v);
   return 0;
+}
+XEEMITTER(vcfsx,          0x1000034A, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vcfsx_(f, i.VX.VD, i.VX.VB, i.VX.VA);
+}
+XEEMITTER(vcsxwfp128,     VX128_3(6, 688),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vcfsx_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
+}
+
+int InstrEmit_vcfux_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb, uint32_t uimm) {
+  // (VD) <- float(VB as unsigned) / 2^uimm
+  uimm = uimm ? (2 << (uimm - 1)) : 1;
+  Value* v = f.Div(
+      f.VectorConvertI2F(f.LoadVR(vb), ARITHMETIC_UNSIGNED),
+      f.Splat(f.LoadConstant((float)uimm), VEC128_TYPE));
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(vcfux,          0x1000030A, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vcfux_(f, i.VX.VD, i.VX.VB, i.VX.VA);
+}
+XEEMITTER(vcuxwfp128,     VX128_3(6, 752),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vcfux_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
 XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
@@ -525,17 +541,17 @@ XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(PPCHIRBuilder& f, InstrData
   return 1;
 }
 
-XEEMITTER(vcfux,          0x1000030A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vcuxwfp128,     VX128_3(6, 752),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vctsxs,         0x100003CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
+}
+
+XEEMITTER(vctuxs,         0x1000038A, VX  )(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
@@ -691,16 +707,6 @@ XEEMITTER(vcmpgtuh,       0x10000246, VXR )(PPCHIRBuilder& f, InstrData& i) {
 }
 XEEMITTER(vcmpgtuw,       0x10000286, VXR )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpxxi_(f, i, vcmpxxi_gt_unsigned, 4, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
-}
-
-XEEMITTER(vctsxs,         0x100003CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
-XEEMITTER(vctuxs,         0x1000038A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
 }
 
 int InstrEmit_vexptefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {

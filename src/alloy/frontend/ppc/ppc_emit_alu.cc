@@ -1115,57 +1115,46 @@ XEEMITTER(srwx,         0x7C000430, X  )(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-// XEEMITTER(sradx,        0x7C000634, X  )(PPCHIRBuilder& f, InstrData& i) {
-//   // n <- rB[58-63]
-//   // r <- ROTL[64](rS, 64 - n)
-//   // if rB[57] = 0 then m ← MASK(n, 63)
-//   // else m ← (64)0
-//   // S ← rS[0]
-//   // rA <- (r & m) | (((64)S) & ¬ m)
-//   // XER[CA] <- S & ((r & ¬ m) ¦ 0)
+XEEMITTER(sradx,        0x7C000634, X  )(PPCHIRBuilder& f, InstrData& i) {
+  // n <- rB[58-63]
+  // r <- ROTL[64](rS, 64 - n)
+  // if rB[57] = 0 then m ← MASK(n, 63)
+  // else m ← (64)0
+  // S ← rS[0]
+  // rA <- (r & m) | (((64)S) & ¬ m)
+  // XER[CA] <- S & ((r & ¬ m) ¦ 0)
 
-//   // if n == 0: rA <- rS, XER[CA] = 0
-//   // if n >= 64: rA <- 64 sign bits of rS, XER[CA] = sign bit of rS
+  // if n == 0: rA <- rS, XER[CA] = 0
+  // if n >= 64: rA <- 64 sign bits of rS, XER[CA] = sign bit of rS
 
-//   GpVar v(c.newGpVar());
-//   c.mov(v, f.LoadGPR(i.X.RT));
-//   GpVar sh(c.newGpVar());
-//   c.mov(sh, f.LoadGPR(i.X.RB));
-//   c.and_(sh, imm(0x7F));
+  Value* v = f.LoadGPR(i.X.RT);
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
+                    f.LoadConstant((int8_t)0x7F));
 
-//   // CA is set if any bits are shifted out of the right and if the result
-//   // is negative. Start tracking that here.
-//   GpVar ca(c.newGpVar());
-//   c.mov(ca, imm(0xFFFFFFFFFFFFFFFF));
-//   GpVar ca_sh(c.newGpVar());
-//   c.mov(ca_sh, imm(63));
-//   c.sub(ca_sh, sh);
-//   c.shl(ca, ca_sh);
-//   c.shr(ca, ca_sh);
-//   c.and_(ca, v);
-//   c.cmp(ca, imm(0));
-//   c.xor_(ca, ca);
-//   c.setnz(ca.r8());
+  // CA is set if any bits are shifted out of the right and if the result
+  // is negative. Start tracking that here.
+  // TODO(benvanik): dynamically generate mask better than this.
+  Value* ca_sh = f.Sub(f.LoadConstant((int8_t)63), sh);
+  Value* ca =
+      f.Shr(f.Shl(f.LoadConstant(0xFFFFFFFFFFFFFFFFull), ca_sh), ca_sh);
+  ca = f.CompareNE(f.And(ca, v), f.LoadZero(INT64_TYPE));
 
-//   // Shift right.
-//   c.sar(v, sh);
+  // Shift right.
+  v = f.Sha(v, sh);
 
-//   // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
-//   // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-//   // We already have ca set to indicate the pos 63 bit, now just and in sign.
-//   GpVar ca_2(c.newGpVar());
-//   c.mov(ca_2, v);
-//   c.shr(ca_2, imm(63));
-//   c.and_(ca, ca_2);
+  // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
+  // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
+  // We already have ca set to indicate the pos 63 bit, now just and in sign.
+  ca = f.And(ca, f.Shr(v, 63));
 
-//   f.StoreGPR(i.X.RA, v);
-//   e.update_xer_with_carry(ca);
+  f.StoreCA(ca);
+  f.StoreGPR(i.X.RA, v);
 
-//   if (i.X.Rc) {
-//     f.UpdateCR(0, v);
-//   }
-//   return 0;
-// }
+  if (i.X.Rc) {
+    f.UpdateCR(0, v);
+  }
+  return 0;
+}
 
 XEEMITTER(sradix,       0x7C000674, XS )(PPCHIRBuilder& f, InstrData& i) {
   // n <- sh[5] || sh[0-4]
@@ -1189,7 +1178,7 @@ XEEMITTER(sradix,       0x7C000674, XS )(PPCHIRBuilder& f, InstrData& i) {
   f.StoreCA(ca);
 
   v = f.Sha(v, sh);
-  if (i.X.Rc) {
+  if (i.XS.Rc) {
     f.UpdateCR(0, v);
   }
   f.StoreGPR(i.XS.RA, v);
@@ -1325,7 +1314,7 @@ void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(slwx,         0x7C000030);
   XEREGISTERINSTR(srdx,         0x7C000436);
   XEREGISTERINSTR(srwx,         0x7C000430);
-  // XEREGISTERINSTR(sradx,        0x7C000634);
+  XEREGISTERINSTR(sradx,        0x7C000634);
   XEREGISTERINSTR(sradix,       0x7C000674);
   XEREGISTERINSTR(srawx,        0x7C000630);
   XEREGISTERINSTR(srawix,       0x7C000670);
