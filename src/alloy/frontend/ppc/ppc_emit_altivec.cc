@@ -1183,13 +1183,17 @@ XEEMITTER(vrefp128,       VX128_3(6, 1584), VX128_3)(PPCHIRBuilder& f, InstrData
   return InstrEmit_vrefp_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
+int InstrEmit_vrfim_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // (VD) <- RndToFPInt32Floor(VB)
+  Value* v = f.Round(f.LoadVR(vb), ROUND_TO_MINUS_INFINITY);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vrfim,          0x100002CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfim_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vrfim128,       VX128_3(6, 816),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfim_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
 int InstrEmit_vrfin_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
@@ -1205,22 +1209,30 @@ XEEMITTER(vrfin128,       VX128_3(6, 880),  VX128_3)(PPCHIRBuilder& f, InstrData
   return InstrEmit_vrfin_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
+int InstrEmit_vrfip_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // (VD) <- RndToFPInt32Ceil(VB)
+  Value* v = f.Round(f.LoadVR(vb), ROUND_TO_POSITIVE_INFINITY);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vrfip,          0x1000028A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfip_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vrfip128,       VX128_3(6, 944),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfip_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
+int InstrEmit_vrfiz_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // (VD) <- RndToFPInt32Trunc(VB)
+  Value* v = f.Round(f.LoadVR(vb), ROUND_TO_ZERO);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vrfiz,          0x1000024A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfiz_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vrfiz128,       VX128_3(6, 1008), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrfiz_(f, VX128_3_VD128, VX128_3_VB128);
 }
 
 XEEMITTER(vrlb,           0x10000004, VX  )(PPCHIRBuilder& f, InstrData& i) {

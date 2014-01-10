@@ -28,6 +28,8 @@ enum RoundMode {
   // to zero/nearest/etc
   ROUND_TO_ZERO = 0,
   ROUND_TO_NEAREST,
+  ROUND_TO_MINUS_INFINITY,
+  ROUND_TO_POSITIVE_INFINITY,
 };
 enum LoadFlags {
   LOAD_NO_ALIAS   = (1 << 1),
