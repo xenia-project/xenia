@@ -404,48 +404,75 @@ XEEMITTER(vaddfp128,      VX128(5, 16),     VX128  )(PPCHIRBuilder& f, InstrData
 }
 
 XEEMITTER(vaddsbs,        0x10000300, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT8_TYPE, ARITHMETIC_SATURATE);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vaddshs,        0x10000340, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT16_TYPE, ARITHMETIC_SATURATE);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vaddsws,        0x10000380, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT32_TYPE, ARITHMETIC_SATURATE);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vaddubm,        0x10000000, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT8_TYPE, ARITHMETIC_UNSIGNED);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vaddubs,        0x10000200, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT8_TYPE, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vadduhm,        0x10000040, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT16_TYPE, ARITHMETIC_UNSIGNED);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vadduhs,        0x10000240, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT16_TYPE, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vadduwm,        0x10000080, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT32_TYPE, ARITHMETIC_UNSIGNED);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vadduws,        0x10000280, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB),
+                         INT32_TYPE, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
+  f.StoreSAT(f.DidSaturate(v));
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 int InstrEmit_vand_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {

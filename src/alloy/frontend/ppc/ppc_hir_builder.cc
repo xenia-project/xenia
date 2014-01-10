@@ -286,6 +286,14 @@ void PPCHIRBuilder::StoreCA(Value* value) {
   StoreContext(offsetof(PPCContext, xer_ca), value);
 }
 
+Value* PPCHIRBuilder::LoadSAT() {
+  return LoadContext(offsetof(PPCContext, vscr_sat), INT8_TYPE);
+}
+
+void PPCHIRBuilder::StoreSAT(Value* value) {
+  StoreContext(offsetof(PPCContext, vscr_sat), value);
+}
+
 Value* PPCHIRBuilder::LoadGPR(uint32_t reg) {
   return LoadContext(
       offsetof(PPCContext, r) + reg * 8, INT64_TYPE);

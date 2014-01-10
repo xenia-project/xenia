@@ -175,6 +175,8 @@ typedef struct XECACHEALIGN64 PPCContext_s {
     } bits;
   } fpscr;                        // Floating-point status and control register
 
+  uint8_t vscr_sat;
+
   double        f[32];            // Floating-point registers
   vec128_t      v[128];           // VMX128 vector registers
 

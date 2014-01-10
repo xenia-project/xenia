@@ -1164,8 +1164,10 @@ uint32_t IntCode_VECTOR_CONVERT_F2I_SAT(IntCodeState& ics, const IntCode* i) {
       float src = src1.f4[n];
       if (src < 0) {
         dest.i4[n] = 0;
+        ics.did_saturate = 1;
       } else if (src > UINT_MAX) {
         dest.i4[n] = UINT_MAX;
+        ics.did_saturate = 1;
       } else {
         dest.i4[n] = (uint32_t)src;
       }
@@ -1175,8 +1177,10 @@ uint32_t IntCode_VECTOR_CONVERT_F2I_SAT(IntCodeState& ics, const IntCode* i) {
       float src = src1.f4[n];
       if (src < INT_MIN) {
         dest.i4[n] = INT_MIN;
+        ics.did_saturate = 1;
       } else if (src > INT_MAX) {
         dest.i4[n] = INT_MAX;
+        ics.did_saturate = 1;
       } else {
         dest.i4[n] = (int32_t)src;
       }
@@ -2018,6 +2022,14 @@ int Translate_DID_CARRY(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_DID_CARRY);
 }
 
+uint32_t IntCode_DID_SATURATE(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i8 = ics.did_saturate;
+  return IA_NEXT;
+}
+int Translate_DID_SATURATE(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_DID_SATURATE);
+}
+
 #define VECTOR_COMPARER(type, value, count, op) \
   const vec128_t& src1 = ics.rf[i->src1_reg].v128; \
   const vec128_t& src2 = ics.rf[i->src2_reg].v128; \
@@ -2157,6 +2169,7 @@ uint32_t IntCode_ADD_F64_F64(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_ADD_V128_V128(IntCodeState& ics, const IntCode* i) {
+  XEASSERT(!i->flags);
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
@@ -2233,6 +2246,140 @@ int Translate_ADD_CARRY(TranslationContext& ctx, Instr* i) {
     IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t Translate_VECTOR_ADD_I8(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  const uint32_t arithmetic_flags = i->flags >> 8;
+  if (arithmetic_flags & ARITHMETIC_SATURATE) {
+    if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
+      for (int n = 0; n < 16; n++) {
+        uint16_t v = src1.b16[n] + src2.b16[n];
+        if (v > 0xFF) {
+          dest.b16[n] = 0xFF;
+          ics.did_saturate = 1;
+        } else {
+          dest.b16[n] = (uint8_t)v;
+        }
+      }
+    } else {
+      for (int n = 0; n < 16; n++) {
+        int16_t v = (int8_t)src1.b16[n] + (int8_t)src2.b16[n];
+        if (v > 0x7F) {
+          dest.b16[n] = 0x7F;
+          ics.did_saturate = 1;
+        } else if (v < -0x80) {
+          dest.b16[n] = -0x80;
+          ics.did_saturate = 1;
+        } else {
+          dest.b16[n] = (uint8_t)v;
+        }
+      }
+    }
+  } else {
+    for (int n = 0; n < 16; n++) {
+      dest.b16[n] = src1.b16[n] + src2.b16[n];
+    }
+  }
+  return IA_NEXT;
+}
+uint32_t Translate_VECTOR_ADD_I16(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  const uint32_t arithmetic_flags = i->flags >> 8;
+  if (arithmetic_flags & ARITHMETIC_SATURATE) {
+    if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
+      for (int n = 0; n < 8; n++) {
+        uint32_t v = src1.s8[n] + src2.s8[n];
+        if (v > 0xFFFF) {
+          dest.s8[n] = 0xFFFF;
+          ics.did_saturate = 1;
+        } else {
+          dest.s8[n] = (uint16_t)v;
+        }
+      }
+    } else {
+      for (int n = 0; n < 8; n++) {
+        int32_t v = (int16_t)src1.s8[n] + (int16_t)src2.s8[n];
+        if (v > 0x7FFF) {
+          dest.s8[n] = 0x7FFF;
+          ics.did_saturate = 1;
+        } else if (v < -0x8000) {
+          dest.s8[n] = -0x8000;
+          ics.did_saturate = 1;
+        } else {
+          dest.s8[n] = (uint16_t)v;
+        }
+      }
+    }
+  } else {
+    for (int n = 0; n < 8; n++) {
+      dest.s8[n] = src1.s8[n] + src2.s8[n];
+    }
+  }
+  return IA_NEXT;
+}
+uint32_t Translate_VECTOR_ADD_I32(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  const uint32_t arithmetic_flags = i->flags >> 8;
+  if (arithmetic_flags & ARITHMETIC_SATURATE) {
+    if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
+      for (int n = 0; n < 4; n++) {
+        uint64_t v = src1.i4[n] + src2.i4[n];
+        if (v > 0xFFFFFFFF) {
+          dest.i4[n] = 0xFFFFFFFF;
+          ics.did_saturate = 1;
+        } else {
+          dest.i4[n] = (uint32_t)v;
+        }
+      }
+    } else {
+      for (int n = 0; n < 4; n++) {
+        int64_t v = (int32_t)src1.i4[n] + (int32_t)src2.i4[n];
+        if (v > 0x7FFFFFFF) {
+          dest.i4[n] = 0x7FFFFFFF;
+          ics.did_saturate = 1;
+        } else if (v < 0x80000000ull) {
+          dest.i4[n] = 0x80000000;
+          ics.did_saturate = 1;
+        } else {
+          dest.i4[n] = (uint32_t)v;
+        }
+      }
+    }
+  } else {
+    for (int n = 0; n < 4; n++) {
+      dest.i4[n] = src1.i4[n] + src2.i4[n];
+    }
+  }
+  return IA_NEXT;
+}
+uint32_t Translate_VECTOR_ADD_F32(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.f4[n] = src1.f4[n] + src2.f4[n];
+  }
+  return IA_NEXT;
+}
+int Translate_VECTOR_ADD(TranslationContext& ctx, Instr* i) {
+  TypeName part_type = (TypeName)(i->flags & 0xFF);
+  static IntCodeFn fns[] = {
+    Translate_VECTOR_ADD_I8,
+    Translate_VECTOR_ADD_I16,
+    Translate_VECTOR_ADD_I32,
+    IntCode_INVALID_TYPE,
+    Translate_VECTOR_ADD_F32,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
+  };
+  return DispatchToC(ctx, i, fns[part_type]);
 }
 
 #define SUB_DID_CARRY(a, b) \
@@ -3670,6 +3817,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_COMPARE_UGE,
   Translate_DID_CARRY,
   TranslateInvalid, //Translate_DID_OVERFLOW,
+  Translate_DID_SATURATE,
   Translate_VECTOR_COMPARE_EQ,
   Translate_VECTOR_COMPARE_SGT,
   Translate_VECTOR_COMPARE_SGE,
@@ -3678,6 +3826,7 @@ static const TranslateFn dispatch_table[] = {
 
   Translate_ADD,
   Translate_ADD_CARRY,
+  Translate_VECTOR_ADD,
   Translate_SUB,
   Translate_MUL,
   Translate_MUL_HI,

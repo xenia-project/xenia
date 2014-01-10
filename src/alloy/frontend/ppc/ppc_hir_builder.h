@@ -55,6 +55,8 @@ public:
   //void StoreOV(Value* value);
   Value* LoadCA();
   void StoreCA(Value* value);
+  Value* LoadSAT();
+  void StoreSAT(Value* value);
 
   Value* LoadGPR(uint32_t reg);
   void StoreGPR(uint32_t reg, Value* value);

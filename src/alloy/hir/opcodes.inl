@@ -292,10 +292,14 @@ DEFINE_OPCODE(
     "did_carry",
     OPCODE_SIG_V_V,
     0);
-
 DEFINE_OPCODE(
     OPCODE_DID_OVERFLOW,
     "did_overflow",
+    OPCODE_SIG_V_V,
+    0);
+DEFINE_OPCODE(
+    OPCODE_DID_SATURATE,
+    "did_saturate",
     OPCODE_SIG_V_V,
     0);
 
@@ -335,6 +339,12 @@ DEFINE_OPCODE(
     OPCODE_ADD_CARRY,
     "add_carry",
     OPCODE_SIG_V_V_V_V,
+    OPCODE_FLAG_COMMUNATIVE);
+
+DEFINE_OPCODE(
+    OPCODE_VECTOR_ADD,
+    "vector_add",
+    OPCODE_SIG_V_V_V,
     OPCODE_FLAG_COMMUNATIVE);
 
 DEFINE_OPCODE(

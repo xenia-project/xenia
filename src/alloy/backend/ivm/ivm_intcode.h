@@ -45,6 +45,7 @@ typedef struct {
   uint8_t*      membase;
   uint32_t*     reserve_address;
   int8_t        did_carry;
+  int8_t        did_saturate;
   runtime::RegisterAccessCallbacks* access_callbacks;
   runtime::ThreadState* thread_state;
   uint64_t      return_address;
