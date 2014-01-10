@@ -744,11 +744,11 @@ Value* HIRBuilder::VectorConvertI2F(Value* value, uint32_t arithmetic_flags) {
   return i->dest;
 }
 
-Value* HIRBuilder::VectorConvertF2I(Value* value, RoundMode round_mode) {
+Value* HIRBuilder::VectorConvertF2I(Value* value, uint32_t arithmetic_flags) {
   ASSERT_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(
-      OPCODE_VECTOR_CONVERT_F2I_info, round_mode,
+      OPCODE_VECTOR_CONVERT_F2I_info, arithmetic_flags,
       AllocValue(value->type));
   i->set_src1(value);
   i->src2.value = i->src3.value = NULL;

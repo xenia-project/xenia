@@ -50,6 +50,7 @@ enum PrefetchFlags {
 enum ArithmeticFlags {
   ARITHMETIC_SET_CARRY = (1 << 1),
   ARITHMETIC_UNSIGNED = (1 << 2),
+  ARITHMETIC_SATURATE = (1 << 3),
 };
 enum Permutes {
   PERMUTE_XY_ZW = 0x00010405,

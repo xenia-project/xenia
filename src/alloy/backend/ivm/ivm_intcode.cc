@@ -1114,7 +1114,7 @@ int Translate_ROUND(TranslationContext& ctx, Instr* i) {
   }
 }
 
-uint32_t IntCode_VECTOR_CONVERT_I2F(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_CONVERT_I2F_S(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   dest.f4[0] = (float)(int32_t)src1.i4[0];
@@ -1133,7 +1133,63 @@ uint32_t IntCode_VECTOR_CONVERT_I2F_U(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 int Translate_VECTOR_CONVERT_I2F(TranslationContext& ctx, Instr* i) {
-  return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_I2F);
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_I2F_U);
+  } else {
+    return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_I2F_S);
+  }
+}
+
+uint32_t IntCode_VECTOR_CONVERT_F2I(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    dest.i4[0] = (uint32_t)src1.f4[0];
+    dest.i4[1] = (uint32_t)src1.f4[1];
+    dest.i4[2] = (uint32_t)src1.f4[2];
+    dest.i4[3] = (uint32_t)src1.f4[3];
+  } else {
+    dest.i4[0] = (int32_t)src1.f4[0];
+    dest.i4[1] = (int32_t)src1.f4[1];
+    dest.i4[2] = (int32_t)src1.f4[2];
+    dest.i4[3] = (int32_t)src1.f4[3];
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_CONVERT_F2I_SAT(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    for (int n = 0; n < 4; n++) {
+      float src = src1.f4[n];
+      if (src < 0) {
+        dest.i4[n] = 0;
+      } else if (src > UINT_MAX) {
+        dest.i4[n] = UINT_MAX;
+      } else {
+        dest.i4[n] = (uint32_t)src;
+      }
+    }
+  } else {
+    for (int n = 0; n < 4; n++) {
+      float src = src1.f4[n];
+      if (src < INT_MIN) {
+        dest.i4[n] = INT_MIN;
+      } else if (src > INT_MAX) {
+        dest.i4[n] = INT_MAX;
+      } else {
+        dest.i4[n] = (int32_t)src;
+      }
+    }
+  }
+  return IA_NEXT;
+}
+int Translate_VECTOR_CONVERT_F2I(TranslationContext& ctx, Instr* i) {
+  if (i->flags & ARITHMETIC_SATURATE) {
+    return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_F2I_SAT);
+  } else {
+    return DispatchToC(ctx, i, IntCode_VECTOR_CONVERT_F2I);
+  }
 }
 
 static uint8_t __lvsl_table[17][16] = {
@@ -3583,7 +3639,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_CONVERT,
   Translate_ROUND,
   Translate_VECTOR_CONVERT_I2F,
-  TranslateInvalid, //Translate_VECTOR_CONVERT_F2I,
+  Translate_VECTOR_CONVERT_F2I,
 
   Translate_LOAD_VECTOR_SHL,
   Translate_LOAD_VECTOR_SHR,

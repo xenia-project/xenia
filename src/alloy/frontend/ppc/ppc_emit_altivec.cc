@@ -536,24 +536,38 @@ XEEMITTER(vcuxwfp128,     VX128_3(6, 752),  VX128_3)(PPCHIRBuilder& f, InstrData
   return InstrEmit_vcfux_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
-XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+int InstrEmit_vctsxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb, uint32_t uimm) {
+  // (VD) <- int_sat(VB as signed * 2^uimm)
+  uimm = uimm ? (2 << (uimm - 1)) : 1;
+  Value* v = f.Mul(
+      f.LoadVR(vb),
+      f.Splat(f.LoadConstant((float)uimm), VEC128_TYPE));
+  v = f.VectorConvertF2I(v, ARITHMETIC_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
 }
-
-XEEMITTER(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
-
 XEEMITTER(vctsxs,         0x100003CA, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vctsxs_(f, i.VX.VD, i.VX.VB, i.VX.VA);
+}
+XEEMITTER(vcfpsxws128,    VX128_3(6, 560),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vctsxs_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
+int InstrEmit_vctuxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb, uint32_t uimm) {
+  // (VD) <- int_sat(VB as unsigned * 2^uimm)
+  uimm = uimm ? (2 << (uimm - 1)) : 1;
+  Value* v = f.Mul(
+      f.LoadVR(vb),
+      f.Splat(f.LoadConstant((float)uimm), VEC128_TYPE));
+  v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vctuxs,         0x1000038A, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vctuxs_(f, i.VX.VD, i.VX.VB, i.VX.VA);
+}
+XEEMITTER(vcfpuxws128,    VX128_3(6, 624),  VX128_3)(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vctuxs_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
 int InstrEmit_vcmpbfp_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t va, uint32_t vb, uint32_t rc) {

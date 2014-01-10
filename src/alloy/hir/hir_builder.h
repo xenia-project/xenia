@@ -99,7 +99,7 @@ public:
   //     It'd be nice if Convert() supported this, however then we'd need a
   //     VEC128_INT32_TYPE or something.
   Value* VectorConvertI2F(Value* value, uint32_t arithmetic_flags = 0);
-  Value* VectorConvertF2I(Value* value, RoundMode round_mode = ROUND_TO_ZERO);
+  Value* VectorConvertF2I(Value* value, uint32_t arithmetic_flags = 0);
 
   Value* LoadZero(TypeName type);
   Value* LoadConstant(int8_t value);
