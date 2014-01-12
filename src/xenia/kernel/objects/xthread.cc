@@ -10,6 +10,7 @@
 #include <xenia/kernel/objects/xthread.h>
 
 #include <xenia/cpu/cpu.h>
+#include <xenia/kernel/native_list.h>
 #include <xenia/kernel/xboxkrnl_threading.h>
 #include <xenia/kernel/objects/xevent.h>
 #include <xenia/kernel/objects/xuser_module.h>
@@ -53,6 +54,9 @@ XThread::XThread(KernelState* kernel_state,
     creation_params_.stack_size = 16 * 1024 * 1024;
   }
 
+  apc_lock_ = xe_mutex_alloc();
+  apc_list_ = new NativeList(kernel_state->memory());
+
   event_ = new XEvent(kernel_state);
   event_->Initialize(true, false);
 
@@ -63,6 +67,9 @@ XThread::XThread(KernelState* kernel_state,
 XThread::~XThread() {
   // Unregister first to prevent lookups while deleting.
   kernel_state_->UnregisterThread(this);
+
+  delete apc_list_;
+  xe_mutex_free(apc_lock_);
 
   event_->Release();
 
@@ -380,6 +387,14 @@ uint32_t XThread::RaiseIrql(uint32_t new_irql) {
 
 void XThread::LowerIrql(uint32_t new_irql) {
   irql_ = new_irql;
+}
+
+void XThread::LockApc() {
+  xe_mutex_lock(apc_lock_);
+}
+
+void XThread::UnlockApc() {
+  xe_mutex_unlock(apc_lock_);
 }
 
 int32_t XThread::QueryPriority() {

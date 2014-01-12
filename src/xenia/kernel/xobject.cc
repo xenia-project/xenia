@@ -224,7 +224,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
         object = ev;
       }
       break;
-    case 2: // MutantObjectt
+    case 2: // MutantObject
       {
         XMutant* mutant = new XMutant(kernel_state);
         mutant->InitializeNative(native_ptr, header);

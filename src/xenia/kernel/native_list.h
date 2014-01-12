@@ -23,10 +23,10 @@ namespace kernel {
 // List is designed for storing pointers to objects in the guest heap.
 // All values in the list should be assumed to be in big endian.
 
-// Entries, as kernel objects, are assumed to have a LIST_ENTRY struct at +4b.
+// Pass LIST_ENTRY pointers.
 // struct MYOBJ {
 //   uint32_t stuff;
-//   LIST_ENTRY list_entry; <-- manipulated
+//   LIST_ENTRY list_entry; <-- pass this
 //   ...
 // }
 
@@ -34,9 +34,9 @@ class NativeList {
 public:
   NativeList(Memory* memory);
 
-  void Insert(uint32_t ptr);
-  bool IsQueued(uint32_t ptr);
-  void Remove(uint32_t ptr);
+  void Insert(uint32_t list_entry_ptr);
+  bool IsQueued(uint32_t list_entry_ptr);
+  void Remove(uint32_t list_entry_ptr);
   uint32_t Shift();
 
 private:

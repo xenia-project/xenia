@@ -21,40 +21,40 @@ NativeList::NativeList(Memory* memory) :
 
 void NativeList::Insert(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
-  XESETUINT32BE(mem + ptr + 4, head_);
-  XESETUINT32BE(mem + ptr + 8, 0);
+  XESETUINT32BE(mem + ptr + 0, head_);
+  XESETUINT32BE(mem + ptr + 4, 0);
   if (head_) {
-    XESETUINT32BE(mem + head_ + 8, ptr);
+    XESETUINT32BE(mem + head_ + 4, ptr);
   }
   head_ = ptr;
 }
 
 bool NativeList::IsQueued(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
-  uint32_t flink = XEGETUINT32BE(mem + ptr + 4);
-  uint32_t blink = XEGETUINT32BE(mem + ptr + 8);
+  uint32_t flink = XEGETUINT32BE(mem + ptr + 0);
+  uint32_t blink = XEGETUINT32BE(mem + ptr + 4);
   return head_ == ptr || flink || blink;
 }
 
 void NativeList::Remove(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
-  uint32_t flink = XEGETUINT32BE(mem + ptr + 4);
-  uint32_t blink = XEGETUINT32BE(mem + ptr + 8);
+  uint32_t flink = XEGETUINT32BE(mem + ptr + 0);
+  uint32_t blink = XEGETUINT32BE(mem + ptr + 4);
   if (ptr == head_) {
     head_ = flink;
     if (flink) {
-      XESETUINT32BE(mem + flink + 8, 0);
+      XESETUINT32BE(mem + flink + 4, 0);
     }
   } else {
     if (blink) {
-      XESETUINT32BE(mem + blink + 4, flink);
+      XESETUINT32BE(mem + blink + 0, flink);
     }
     if (flink) {
-      XESETUINT32BE(mem + flink + 8, blink);
+      XESETUINT32BE(mem + flink + 4, blink);
     }
   }
+  XESETUINT32BE(mem + ptr + 0, 0);
   XESETUINT32BE(mem + ptr + 4, 0);
-  XESETUINT32BE(mem + ptr + 8, 0);
 }
 
 uint32_t NativeList::Shift() {

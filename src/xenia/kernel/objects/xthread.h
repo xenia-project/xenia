@@ -14,18 +14,13 @@
 
 #include <xenia/xbox.h>
 
-
-namespace xe {
-namespace cpu {
-class XenonThreadState;
-}
-}
+XEDECLARECLASS2(xe, cpu, XenonThreadState);
 
 
 namespace xe {
 namespace kernel {
 
-
+class NativeList;
 class XEvent;
 
 
@@ -59,6 +54,10 @@ public:
   uint32_t RaiseIrql(uint32_t new_irql);
   void LowerIrql(uint32_t new_irql);
 
+  void LockApc();
+  void UnlockApc();
+  NativeList* apc_list() const { return apc_list_; }
+
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
 
@@ -91,6 +90,8 @@ private:
   char*         name_;
 
   uint32_t      irql_;
+  xe_mutex_t*   apc_lock_;
+  NativeList*   apc_list_;
 
   XEvent*       event_;
 };

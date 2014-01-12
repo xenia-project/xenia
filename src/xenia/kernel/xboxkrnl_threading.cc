@@ -1323,6 +1323,159 @@ SHIM_CALL KeLeaveCriticalRegion_shim(
 }
 
 
+SHIM_CALL NtQueueApcThread_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t thread_handle = SHIM_GET_ARG_32(0);
+  uint32_t apc_routine = SHIM_GET_ARG_32(1);
+  uint32_t arg1 = SHIM_GET_ARG_32(2);
+  uint32_t arg2 = SHIM_GET_ARG_32(3);
+  uint32_t arg3 = SHIM_GET_ARG_32(4); // ?
+  XELOGD(
+      "NtQueueApcThread(%.8X, %.8X, %.8X, %.8X, %.8X)",
+      thread_handle, apc_routine, arg1, arg2, arg3);
+
+  // Alloc APC object (from somewhere) and insert.
+}
+
+
+SHIM_CALL KeInitializeApc_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t apc_ptr = SHIM_GET_ARG_32(0);
+  uint32_t thread = SHIM_GET_ARG_32(1);
+  uint32_t kernel_routine = SHIM_GET_ARG_32(2);
+  uint32_t rundown_routine = SHIM_GET_ARG_32(3);
+  uint32_t normal_routine = SHIM_GET_ARG_32(4);
+  uint32_t processor_mode = SHIM_GET_ARG_32(5);
+  uint32_t normal_context = SHIM_GET_ARG_32(6);
+
+  XELOGD(
+      "KeInitializeApc(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
+      apc_ptr, thread, kernel_routine, rundown_routine, normal_routine,
+      processor_mode, normal_context);
+
+  // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
+  // This is 4b shorter than NT - looks like the reserved dword at +4 is gone
+  uint32_t type = 18; // ApcObject
+  uint32_t unk0 = 0;
+  uint32_t size = 0x28;
+  uint32_t unk1 = 0;
+  SHIM_SET_MEM_32(apc_ptr + 0,
+      (type << 24) | (unk0 << 16) | (size << 8) | (unk1));
+  SHIM_SET_MEM_32(apc_ptr + 4, thread); // known offset - derefed by games
+  SHIM_SET_MEM_32(apc_ptr + 8, 0); // flink
+  SHIM_SET_MEM_32(apc_ptr + 12, 0); // blink
+  SHIM_SET_MEM_32(apc_ptr + 16, kernel_routine);
+  SHIM_SET_MEM_32(apc_ptr + 20, rundown_routine);
+  SHIM_SET_MEM_32(apc_ptr + 24, normal_routine);
+  SHIM_SET_MEM_32(apc_ptr + 28, normal_routine ? normal_context : 0);
+  SHIM_SET_MEM_32(apc_ptr + 32, 0); // arg1
+  SHIM_SET_MEM_32(apc_ptr + 36, 0); // arg2
+  uint32_t state_index = 0;
+  uint32_t inserted = 0;
+  SHIM_SET_MEM_32(apc_ptr + 40,
+      (state_index << 24) | (processor_mode << 16) | (inserted << 8));
+}
+
+
+SHIM_CALL KeInsertQueueApc_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t apc_ptr = SHIM_GET_ARG_32(0);
+  uint32_t arg1 = SHIM_GET_ARG_32(1);
+  uint32_t arg2 = SHIM_GET_ARG_32(2);
+  uint32_t priority_increment = SHIM_GET_ARG_32(3);
+
+  XELOGD(
+      "KeInsertQueueApc(%.8X, %.8X, %.8X, %.8X)",
+      apc_ptr, arg1, arg2, priority_increment);
+
+  uint32_t thread_ptr = SHIM_MEM_32(apc_ptr + 4);
+  XThread* thread = (XThread*)XObject::GetObject(
+      state, SHIM_MEM_ADDR(thread_ptr));
+  if (!thread) {
+    SHIM_SET_RETURN(0);
+    return;
+  }
+
+  // Lock thread.
+  thread->LockApc();
+
+  // Fail if already inserted.
+  if (SHIM_MEM_32(apc_ptr + 40) & 0xFF00) {
+    thread->UnlockApc();
+    SHIM_SET_RETURN(0);
+    return;
+  }
+
+  // Prep APC.
+  SHIM_SET_MEM_32(apc_ptr + 32, arg1);
+  SHIM_SET_MEM_32(apc_ptr + 36, arg2);
+  SHIM_SET_MEM_32(apc_ptr + 40,
+      (SHIM_MEM_32(apc_ptr + 40) & ~0xFF00) | (1 << 8));
+
+  auto apc_list = thread->apc_list();
+
+  uint32_t list_entry_ptr = apc_ptr + 8;
+  apc_list->Insert(list_entry_ptr);
+
+  // Unlock thread.
+  thread->UnlockApc();
+
+  SHIM_SET_RETURN(1);
+}
+
+
+SHIM_CALL KeRemoveQueueApc_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t apc_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeRemoveQueueApc(%.8X)",
+      apc_ptr);
+
+  bool result = false;
+
+  uint32_t thread_ptr = SHIM_MEM_32(apc_ptr + 4);
+  XThread* thread = (XThread*)XObject::GetObject(
+      state, SHIM_MEM_ADDR(thread_ptr));
+  if (!thread) {
+    SHIM_SET_RETURN(0);
+    return;
+  }
+
+  thread->LockApc();
+
+  if (!(SHIM_MEM_32(apc_ptr + 40) & 0xFF00)) {
+    thread->UnlockApc();
+    SHIM_SET_RETURN(0);
+    return;
+  }
+
+  auto apc_list = thread->apc_list();
+  uint32_t list_entry_ptr = apc_ptr + 8;
+  if (apc_list->IsQueued(list_entry_ptr)) {
+    apc_list->Remove(list_entry_ptr);
+    result = true;
+  }
+
+  thread->UnlockApc();
+
+  SHIM_SET_RETURN(result ? 1 : 0);
+}
+
+
+SHIM_CALL KiApcNormalRoutineNop_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0); // output?
+  uint32_t unk1 = SHIM_GET_ARG_32(1); // 0x13
+
+  XELOGD(
+      "KiApcNormalRoutineNop(%.8X, %.8X)",
+      unk0, unk1);
+
+  SHIM_SET_RETURN(0);
+}
+
+
 SHIM_CALL KeInitializeDpc_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t dpc_ptr = SHIM_GET_ARG_32(0);
@@ -1334,9 +1487,9 @@ SHIM_CALL KeInitializeDpc_shim(
       dpc_ptr, routine, context);
 
   // KDPC (maybe) 0x18 bytes?
-  uint32_t type = 0;
+  uint32_t type = 19; // DpcObject
   uint32_t importance = 0;
-  uint32_t number = 0;
+  uint32_t number = 0; // ?
   SHIM_SET_MEM_32(dpc_ptr + 0,
       (type << 24) | (importance << 16) | (number));
   SHIM_SET_MEM_32(dpc_ptr + 4, 0); // flink
@@ -1358,6 +1511,8 @@ SHIM_CALL KeInsertQueueDpc_shim(
       "KeInsertQueueDpc(%.8X, %.8X, %.8X)",
       dpc_ptr, arg1, arg2);
 
+  uint32_t list_entry_ptr = dpc_ptr + 4;
+
   // Lock dispatcher.
   auto dispatcher = state->dispatcher();
   dispatcher->Lock();
@@ -1365,7 +1520,7 @@ SHIM_CALL KeInsertQueueDpc_shim(
   auto dpc_list = dispatcher->dpc_list();
 
   // If already in a queue, abort.
-  if (dpc_list->IsQueued(dpc_ptr)) {
+  if (dpc_list->IsQueued(list_entry_ptr)) {
     SHIM_SET_RETURN(0);
     dispatcher->Unlock();
     return;
@@ -1375,7 +1530,7 @@ SHIM_CALL KeInsertQueueDpc_shim(
   SHIM_SET_MEM_32(dpc_ptr + 20, arg1);
   SHIM_SET_MEM_32(dpc_ptr + 24, arg2);
 
-  dpc_list->Insert(dpc_ptr);
+  dpc_list->Insert(list_entry_ptr);
 
   dispatcher->Unlock();
 
@@ -1393,12 +1548,14 @@ SHIM_CALL KeRemoveQueueDpc_shim(
 
   bool result = false;
 
+  uint32_t list_entry_ptr = dpc_ptr + 4;
+
   auto dispatcher = state->dispatcher();
   dispatcher->Lock();
 
   auto dpc_list = dispatcher->dpc_list();
-  if (dpc_list->IsQueued(dpc_ptr)) {
-    dpc_list->Remove(dpc_ptr);
+  if (dpc_list->IsQueued(list_entry_ptr)) {
+    dpc_list->Remove(list_entry_ptr);
     result = true;
   }
 
@@ -1469,6 +1626,12 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);
+
+  //SHIM_SET_MAPPING("xboxkrnl.exe", NtQueueApcThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeApc, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeInsertQueueApc, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeRemoveQueueApc, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KiApcNormalRoutineNop, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInsertQueueDpc, state);
