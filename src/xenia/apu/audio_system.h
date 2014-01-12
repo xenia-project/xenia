@@ -16,6 +16,7 @@
 
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS2(xe, cpu, Processor);
+XEDECLARECLASS2(xe, cpu, XenonThreadState);
 
 
 namespace xe {
@@ -72,6 +73,8 @@ protected:
 
   xe_run_loop_ref   run_loop_;
   xe_thread_ref     thread_;
+  cpu::XenonThreadState* thread_state_;
+  uint32_t          thread_block_;
   bool              running_;
   xe_mutex_t*       lock_;
 

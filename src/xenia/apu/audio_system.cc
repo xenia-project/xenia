@@ -11,6 +11,7 @@
 
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
+#include <xenia/cpu/xenon_thread_state.h>
 #include <xenia/apu/audio_driver.h>
 
 
@@ -43,6 +44,14 @@ X_STATUS AudioSystem::Setup() {
   callbacks.read    = (RegisterReadCallback)ReadRegisterThunk;
   callbacks.write   = (RegisterWriteCallback)WriteRegisterThunk;
   emulator_->processor()->AddRegisterAccessCallbacks(callbacks);
+
+  // Setup worker thread state. This lets us make calls into guest code.
+  thread_state_ = new XenonThreadState(
+      emulator_->processor()->runtime(), 0, 16 * 1024, 0);
+  thread_state_->set_name("Audio Worker");
+  thread_block_ = (uint32_t)memory_->HeapAlloc(
+      0, 2048, alloy::MEMORY_FLAG_ZERO);
+  thread_state_->context()->r[13] = thread_block_;
 
   // Create worker thread.
   // This will initialize the audio system.
@@ -82,8 +91,8 @@ void AudioSystem::ThreadStart() {
     auto clients = clients_;
     xe_mutex_unlock(lock_);
     for (auto it = clients.begin(); it != clients.end(); ++it) {
-      processor->ExecuteInterrupt(
-          0, it->callback, it->wrapped_callback_arg, 0);
+      processor->Execute(
+          thread_state_, it->callback, it->wrapped_callback_arg, 0);
     }
     //worker_->Pump();
     Sleep(1000);
@@ -109,6 +118,9 @@ void AudioSystem::Shutdown() {
   running_ = false;
   xe_thread_join(thread_);
   xe_thread_release(thread_);
+
+  delete thread_state_;
+  memory()->HeapFree(thread_block_, 0);
 
   xe_run_loop_release(run_loop_);
 }

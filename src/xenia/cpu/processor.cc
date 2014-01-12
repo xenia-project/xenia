@@ -133,6 +133,7 @@ int Processor::Setup() {
   interrupt_thread_lock_ = xe_mutex_alloc(10000);
   interrupt_thread_state_ = new XenonThreadState(
       runtime_, 0, 16 * 1024, 0);
+  interrupt_thread_state_->set_name("Interrupt");
   interrupt_thread_block_ = memory_->HeapAlloc(
       0, 2048, MEMORY_FLAG_ZERO);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
