@@ -21,6 +21,8 @@
     'xam_input.h',
     'xam_module.cc',
     'xam_module.h',
+    'xam_msg.cc',
+    'xam_msg.h',
     'xam_net.cc',
     'xam_net.h',
     'xam_notify.cc',

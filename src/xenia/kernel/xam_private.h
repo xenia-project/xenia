@@ -26,6 +26,7 @@ namespace xam {
 void RegisterContentExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterInfoExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterInputExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterMsgExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterNetExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterNotifyExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterUserExports(ExportResolver* export_resolver, KernelState* state);
