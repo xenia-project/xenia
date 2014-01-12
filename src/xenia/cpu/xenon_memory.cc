@@ -578,15 +578,15 @@ void XenonMemoryHeap::Dump() {
 
 void XenonMemoryHeap::DumpHandler(
   void* start, void* end, size_t used_bytes, void* context) {
-  /*xe_memory_heap_t* heap = (xe_memory_heap_t*)context;
-  xe_memory_ref memory = heap->memory;
+  XenonMemoryHeap* heap = (XenonMemoryHeap*)context;
+  XenonMemory* memory = heap->memory_;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   uint64_t start_addr = (uint64_t)start + heap_guard_size;
   uint64_t end_addr = (uint64_t)end - heap_guard_size;
   uint32_t guest_start =
-      (uint32_t)(start_addr - (uintptr_t)memory->mapping_base);
+      (uint32_t)(start_addr - (uintptr_t)memory->mapping_base_);
   uint32_t guest_end =
-      (uint32_t)(end_addr - (uintptr_t)memory->mapping_base);
+      (uint32_t)(end_addr - (uintptr_t)memory->mapping_base_);
   if (used_bytes > 0) {
     XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
            guest_start, guest_end, (guest_end - guest_start),
@@ -595,5 +595,5 @@ void XenonMemoryHeap::DumpHandler(
   } else {
     XELOGI(" -                                 %.16llX-%.16llX - %9db used",
            start_addr, end_addr, used_bytes);
-  }*/
+  }
 }
