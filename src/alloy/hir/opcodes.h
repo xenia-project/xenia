@@ -71,6 +71,8 @@ enum PackType {
   PACK_TYPE_FLOAT16_2 = 1,
   PACK_TYPE_FLOAT16_4 = 2,
   PACK_TYPE_SHORT_2 = 3,
+  PACK_TYPE_S8_IN_16_LO = 4,
+  PACK_TYPE_S8_IN_16_HI = 5,
 };
 
 

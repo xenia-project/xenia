@@ -3790,6 +3790,8 @@ int Translate_PACK(TranslationContext& ctx, Instr* i) {
     IntCode_PACK_FLOAT16_2,
     IntCode_PACK_FLOAT16_4,
     IntCode_PACK_SHORT_2,
+    IntCode_INVALID_TYPE,
+    IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->flags]);
 }
@@ -3844,12 +3846,30 @@ uint32_t IntCode_UNPACK_SHORT_2(IntCodeState& ics, const IntCode* i) {
   dest.f4[3] = 1.0f; // 3?
   return IA_NEXT;
 }
+uint32_t IntCode_UNPACK_S8_IN_16_LO(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = (int16_t)(int8_t)src1.b16[8 + n];
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_UNPACK_S8_IN_16_HI(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = (int16_t)(int8_t)src1.b16[n];
+  }
+  return IA_NEXT;
+}
 int Translate_UNPACK(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_UNPACK_D3DCOLOR,
     IntCode_UNPACK_FLOAT16_2,
     IntCode_UNPACK_FLOAT16_4,
     IntCode_UNPACK_SHORT_2,
+    IntCode_UNPACK_S8_IN_16_LO,
+    IntCode_UNPACK_S8_IN_16_HI,
   };
   return DispatchToC(ctx, i, fns[i->flags]);
 }
