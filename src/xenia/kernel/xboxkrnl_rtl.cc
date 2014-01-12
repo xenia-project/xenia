@@ -365,7 +365,7 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(
 
   auto source = (uint8_t*)SHIM_MEM_ADDR(source_ptr);
   auto destination = (uint16_t*)SHIM_MEM_ADDR(destination_ptr);
-  for (int i = 0; i < copy_len; i++)
+  for (uint32_t i = 0; i < copy_len; i++)
   {
     *destination++ = XESWAP16(*source++);
   }
