@@ -1227,7 +1227,7 @@ uint32_t xeKfAcquireSpinLock(void* lock_ptr) {
 
 
 SHIM_CALL KfAcquireSpinLock_shim(
-  PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD(
@@ -1251,16 +1251,47 @@ void xeKfReleaseSpinLock(void* lock_ptr, uint32_t old_irql) {
 
 
 SHIM_CALL KfReleaseSpinLock_shim(
-  PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
   uint32_t old_irql = SHIM_GET_ARG_32(1);
 
   XELOGD(
-    "KfReleaseSpinLock(%.8X, %d)",
-    lock_ptr,
-    old_irql);
+      "KfReleaseSpinLock(%.8X, %d)",
+      lock_ptr,
+      old_irql);
 
   xeKfReleaseSpinLock(SHIM_MEM_ADDR(lock_ptr), old_irql);
+}
+
+
+SHIM_CALL KeAcquireSpinLockAtRaisedIrql_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t lock_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeAcquireSpinLockAtRaisedIrql(%.8X)",
+      lock_ptr);
+
+  // Lock.
+  void* lock = SHIM_MEM_ADDR(lock_ptr);
+  while (!xe_atomic_cas_32(0, 1, lock)) {
+    // Spin!
+    // TODO(benvanik): error on deadlock?
+  }
+}
+
+
+SHIM_CALL KeReleaseSpinLockFromRaisedIrql_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t lock_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeReleaseSpinLockFromRaisedIrql(%.8X)",
+      lock_ptr);
+
+  // Unlock.
+  void* lock = SHIM_MEM_ADDR(lock_ptr);
+  xe_atomic_dec_32(lock);
 }
 
 
@@ -1270,9 +1301,9 @@ void xeKeEnterCriticalRegion() {
 
 
 SHIM_CALL KeEnterCriticalRegion_shim(
-  PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
-    "KeEnterCriticalRegion()");
+      "KeEnterCriticalRegion()");
   xeKeEnterCriticalRegion();
 }
 
@@ -1283,9 +1314,9 @@ void xeKeLeaveCriticalRegion() {
 
 
 SHIM_CALL KeLeaveCriticalRegion_shim(
-  PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   XELOGD(
-    "KeLeaveCriticalRegion()");
+      "KeLeaveCriticalRegion()");
   xeKeLeaveCriticalRegion();
 }
 
@@ -1344,6 +1375,9 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KfAcquireSpinLock, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KfReleaseSpinLock, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeAcquireSpinLockAtRaisedIrql, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSpinLockFromRaisedIrql, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);
