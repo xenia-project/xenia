@@ -5,6 +5,8 @@
     'xevent.h',
     'xfile.cc',
     'xfile.h',
+    'xkernel_module.cc',
+    'xkernel_module.h',
     'xmodule.cc',
     'xmodule.h',
     'xmutant.cc',
@@ -17,5 +19,7 @@
     'xthread.h',
     'xtimer.cc',
     'xtimer.h',
+    'xuser_module.cc',
+    'xuser_module.h',
   ],
 }

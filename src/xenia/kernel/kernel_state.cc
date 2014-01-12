@@ -10,10 +10,13 @@
 #include <xenia/kernel/kernel_state.h>
 
 #include <xenia/emulator.h>
+#include <xenia/kernel/xam_module.h>
+#include <xenia/kernel/xboxkrnl_module.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/xobject.h>
 #include <xenia/kernel/objects/xmodule.h>
 #include <xenia/kernel/objects/xthread.h>
+#include <xenia/kernel/objects/xuser_module.h>
 
 
 using namespace xe;
@@ -55,12 +58,22 @@ KernelState* KernelState::shared() {
 }
 
 XModule* KernelState::GetModule(const char* name) {
-  // TODO(benvanik): implement lookup. Most games seem to look for xam.xex/etc.
-  XEASSERTALWAYS();
-  return NULL;
+  if (xestrcasecmpa(name, "xam.xex") == 0) {
+    auto module = emulator_->xam();
+    module->Retain();
+    return module;
+  } else if (xestrcasecmpa(name, "xboxkrnl.exe") == 0) {
+    auto module = emulator_->xboxkrnl();
+    module->Retain();
+    return module;
+  } else {
+    // TODO(benvanik): support user modules/loading/etc.
+    XEASSERTALWAYS();
+    return NULL;
+  }
 }
 
-XModule* KernelState::GetExecutableModule() {
+XUserModule* KernelState::GetExecutableModule() {
   if (!executable_module_) {
     return NULL;
   }
@@ -69,7 +82,7 @@ XModule* KernelState::GetExecutableModule() {
   return executable_module_;
 }
 
-void KernelState::SetExecutableModule(XModule* module) {
+void KernelState::SetExecutableModule(XUserModule* module) {
   if (module == executable_module_) {
     return;
   }

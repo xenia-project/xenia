@@ -12,7 +12,7 @@
 #include <xenia/cpu/cpu.h>
 #include <xenia/kernel/xboxkrnl_threading.h>
 #include <xenia/kernel/objects/xevent.h>
-#include <xenia/kernel/objects/xmodule.h>
+#include <xenia/kernel/objects/xuser_module.h>
 
 
 using namespace alloy;
@@ -185,7 +185,7 @@ X_STATUS XThread::Create() {
   // Set native info.
   SetNativePointer(thread_state_address_);
 
-  XModule* module = kernel_state()->GetExecutableModule();
+  XUserModule* module = kernel_state()->GetExecutableModule();
 
   // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();

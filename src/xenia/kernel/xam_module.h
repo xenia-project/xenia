@@ -14,8 +14,8 @@
 #include <xenia/core.h>
 
 #include <xenia/export_resolver.h>
-#include <xenia/kernel/kernel_module.h>
 #include <xenia/kernel/xam_ordinals.h>
+#include <xenia/kernel/objects/xkernel_module.h>
 
 // All of the exported functions:
 #include <xenia/kernel/xam_info.h>
@@ -25,7 +25,7 @@ namespace xe {
 namespace kernel {
 
 
-class XamModule : public KernelModule {
+class XamModule : public XKernelModule {
 public:
   XamModule(Emulator* emulator, KernelState* kernel_state);
   virtual ~XamModule();

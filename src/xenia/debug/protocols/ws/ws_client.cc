@@ -19,7 +19,7 @@
 #include <xenia/debug/protocols/ws/simple_sha1.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_module.h>
-#include <xenia/kernel/objects/xmodule.h>
+#include <xenia/kernel/objects/xuser_module.h>
 
 #if XE_PLATFORM(WIN32)
 // Required for wslay.
@@ -219,7 +219,7 @@ int WSClient::PerformHandshake() {
   if (headers.find("GET /sessions") != std::string::npos) {
     Emulator* emulator = debug_server_->emulator();
     KernelState* kernel_state = emulator->xboxkrnl()->kernel_state();
-    XModule* module = kernel_state->GetExecutableModule();
+    XUserModule* module = kernel_state->GetExecutableModule();
     const xe_xex2_header_t* header = module->xex_header();
     char title_id[9];
     xesnprintfa(title_id, XECOUNT(title_id), "%.8X",

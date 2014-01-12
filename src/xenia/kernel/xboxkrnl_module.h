@@ -14,8 +14,8 @@
 #include <xenia/core.h>
 
 #include <xenia/export_resolver.h>
-#include <xenia/kernel/kernel_module.h>
 #include <xenia/kernel/xboxkrnl_ordinals.h>
+#include <xenia/kernel/objects/xkernel_module.h>
 
 // All of the exported functions:
 #include <xenia/kernel/xboxkrnl_debug.h>
@@ -33,7 +33,7 @@ namespace kernel {
 class KernelState;
 
 
-class XboxkrnlModule : public KernelModule {
+class XboxkrnlModule : public XKernelModule {
 public:
   XboxkrnlModule(Emulator* emulator, KernelState* kernel_state);
   virtual ~XboxkrnlModule();

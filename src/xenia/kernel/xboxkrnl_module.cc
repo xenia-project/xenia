@@ -16,7 +16,7 @@
 #include <xenia/debug/debug_server.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/objects/xmodule.h>
+#include <xenia/kernel/objects/xuser_module.h>
 
 
 using namespace xe;
@@ -29,7 +29,7 @@ DEFINE_bool(abort_before_entry, false,
 
 
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
-    KernelModule(emulator, kernel_state) {
+    XKernelModule(kernel_state, "xe:\\xboxkrnl.exe") {
   // Build the export table used for resolution.
   #include <xenia/kernel/util/export_table_pre.inc>
   static KernelExport xboxkrnl_export_table[] = {
@@ -144,7 +144,7 @@ XboxkrnlModule::~XboxkrnlModule() {
 int XboxkrnlModule::LaunchModule(const char* path) {
   // Create and register the module. We keep it local to this function and
   // dispose it on exit.
-  XModule* module = new XModule(kernel_state_, path);
+  XUserModule* module = new XUserModule(kernel_state_, path);
 
   // Load the module into memory from the filesystem.
   X_STATUS result_code = module->LoadFromFile(path);

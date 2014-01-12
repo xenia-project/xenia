@@ -7,12 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_KERNEL_MODULE_H_
-#define XENIA_KERNEL_KERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
+#define XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-
+#include <xenia/kernel/objects/xmodule.h>
 
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS1(xe, ExportResolver);
@@ -23,17 +21,15 @@ namespace xe {
 namespace kernel {
 
 
-class KernelModule {
+class XKernelModule : public XModule {
 public:
-  KernelModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~KernelModule();
+  XKernelModule(KernelState* kernel_state, const char* path);
+  virtual ~XKernelModule();
 
-  Emulator* emulator() const { return emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
+  virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
 
 protected:
   Emulator*         emulator_;
-  KernelState*      kernel_state_;
   Memory*           memory_;
   ExportResolver*   export_resolver_;
 };
@@ -43,4 +39,4 @@ protected:
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_KERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_

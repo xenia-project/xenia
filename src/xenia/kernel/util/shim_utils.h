@@ -15,7 +15,6 @@
 
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <xenia/export_resolver.h>
-#include <xenia/kernel/kernel_module.h>
 
 
 namespace xe {

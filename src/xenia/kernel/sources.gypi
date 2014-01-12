@@ -4,8 +4,6 @@
     'async_request.cc',
     'async_request.h',
     'kernel.h',
-    'kernel_module.cc',
-    'kernel_module.h',
     'kernel_state.cc',
     'kernel_state.h',
     'modules.h',

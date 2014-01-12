@@ -12,11 +12,7 @@
 
 #include <xenia/kernel/xobject.h>
 
-#include <vector>
-
-#include <xenia/export_resolver.h>
 #include <xenia/xbox.h>
-#include <xenia/kernel/util/xex2.h>
 
 
 namespace xe {
@@ -28,28 +24,14 @@ public:
   XModule(KernelState* kernel_state, const char* path);
   virtual ~XModule();
 
-  const char* path();
-  const char* name();
-  xe_xex2_ref xex();
-  const xe_xex2_header_t* xex_header();
+  const char* path() const { return path_; }
+  const char* name() const { return name_; }
 
-  X_STATUS LoadFromFile(const char* path);
-  X_STATUS LoadFromMemory(const void* addr, const size_t length);
+  virtual void* GetProcAddressByOrdinal(uint16_t ordinal) = 0;
 
-  X_STATUS GetSection(const char* name, uint32_t* out_data, uint32_t* out_size);
-  void* GetProcAddressByOrdinal(uint16_t ordinal);
-
-  X_STATUS Launch(uint32_t flags);
-
-  void Dump();
-
-private:
-  int LoadPE();
-
+protected:
   char            name_[256];
   char            path_[XE_MAX_PATH];
-
-  xe_xex2_ref     xex_;
 };
 
 

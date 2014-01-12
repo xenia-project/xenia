@@ -20,7 +20,7 @@ using namespace xe::kernel::xam;
 
 
 XamModule::XamModule(Emulator* emulator, KernelState* kernel_state) :
-    KernelModule(emulator, kernel_state) {
+    XKernelModule(kernel_state, "xe:\\xam.xex") {
   // Build the export table used for resolution.
   #include <xenia/kernel/util/export_table_pre.inc>
   static KernelExport xam_export_table[] = {

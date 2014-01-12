@@ -11,8 +11,8 @@
 
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/objects/xmodule.h>
 #include <xenia/kernel/objects/xthread.h>
+#include <xenia/kernel/objects/xuser_module.h>
 #include <xenia/kernel/util/shim_utils.h>
 #include <xenia/kernel/util/xex2.h>
 
@@ -596,7 +596,7 @@ uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
   // The only ImageField I've seen in the wild is
   // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
 
-  XModule* module = NULL;
+  XUserModule* module = NULL;
 
   // TODO(benvanik): use xex_header_base to dereference this.
   // Right now we are only concerned with games making this call on their main
