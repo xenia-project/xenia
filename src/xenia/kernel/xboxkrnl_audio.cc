@@ -87,14 +87,12 @@ SHIM_CALL XAudioGetVoiceCategoryVolumeChangeMask_shim(
 
 SHIM_CALL XAudioGetVoiceCategoryVolume_shim(
     PPCContext* ppc_state, KernelState* state) {
-  uint32_t driver_ptr = SHIM_GET_ARG_32(0);
+  uint32_t unk = SHIM_GET_ARG_32(0);
   uint32_t out_ptr = SHIM_GET_ARG_32(1);
 
   XELOGD(
       "XAudioGetVoiceCategoryVolume(%.8X, %.8X)",
-      driver_ptr, out_ptr);
-
-  XEASSERT(driver_ptr == 0xAADD1100);
+      unk, out_ptr);
 
   // Expects a floating point single. Volume %?
   SHIM_SET_MEM_32(out_ptr, 0);
