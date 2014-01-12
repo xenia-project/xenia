@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/xboxkrnl_audio.h>
 
+#include <xenia/emulator.h>
 #include <xenia/apu/apu.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
@@ -75,7 +76,59 @@ SHIM_CALL XAudioGetSpeakerConfig_shim(
       "XAudioGetSpeakerConfig(%.8X)",
       config_ptr);
 
-  SHIM_SET_MEM_32(config_ptr, 1); // ?
+  SHIM_SET_MEM_32(config_ptr, 1);
+
+  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+}
+
+
+SHIM_CALL XAudioRegisterRenderDriverClient_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t callback_ptr = SHIM_GET_ARG_32(0);
+  uint32_t driver_ptr = SHIM_GET_ARG_32(1);
+
+  uint32_t callback = SHIM_MEM_32(callback_ptr + 0);
+  uint32_t callback_arg = SHIM_MEM_32(callback_ptr + 4);
+
+  XELOGD(
+      "XAudioRegisterRenderDriverClient(%.8X(%.8X, %.8X), %.8X)",
+      callback_ptr, callback, callback_arg, driver_ptr);
+
+  auto audio_system = state->emulator()->audio_system();
+  audio_system->RegisterClient(callback, callback_arg);
+
+  SHIM_SET_MEM_32(driver_ptr, 0xAADD1100);
+
+  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+}
+
+
+SHIM_CALL XAudioUnregisterRenderDriverClient_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t driver_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XAudioUnregisterRenderDriverClient(%.8X)",
+      driver_ptr);
+
+  auto audio_system = state->emulator()->audio_system();
+  //audio_system->UnregisterClient(...);
+
+  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+}
+
+
+SHIM_CALL XAudioSubmitRenderDriverFrame_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t driver_ptr = SHIM_GET_ARG_32(0);
+  uint32_t samples_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "XAudioSubmitRenderDriverFrame(%.8X, %.8X)",
+      driver_ptr, samples_ptr);
+
+  auto audio_system = state->emulator()->audio_system();
+  //audio_system->SubmitFrame();
 
   SHIM_SET_RETURN(X_ERROR_SUCCESS);
 }
@@ -111,4 +164,8 @@ void xe::kernel::xboxkrnl::RegisterAudioExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetVoiceCategoryVolume, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetSpeakerConfig, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", XAudioRegisterRenderDriverClient, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XAudioUnregisterRenderDriverClient, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XAudioSubmitRenderDriverFrame, state);
 }

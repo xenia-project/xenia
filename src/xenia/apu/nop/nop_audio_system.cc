@@ -33,6 +33,7 @@ void NopAudioSystem::Initialize() {
 }
 
 void NopAudioSystem::Pump() {
+  //
 }
 
 void NopAudioSystem::Shutdown() {

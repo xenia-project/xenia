@@ -25,9 +25,12 @@ AudioSystem::AudioSystem(Emulator* emulator) :
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
+
+  lock_ = xe_mutex_alloc();
 }
 
 AudioSystem::~AudioSystem() {
+  xe_mutex_free(lock_);
 }
 
 X_STATUS AudioSystem::Setup() {
@@ -61,6 +64,8 @@ void AudioSystem::ThreadStart() {
   Initialize();
   XEASSERTNOTNULL(driver_);
 
+  auto processor = emulator_->processor();
+
   // Main run loop.
   while (running_) {
     // Peek main run loop.
@@ -72,6 +77,14 @@ void AudioSystem::ThreadStart() {
     }
 
     // Pump worker.
+    // mehhh
+    xe_mutex_lock(lock_);
+    auto clients = clients_;
+    xe_mutex_unlock(lock_);
+    for (auto it = clients.begin(); it != clients.end(); ++it) {
+      processor->ExecuteInterrupt(
+          0, it->callback, it->wrapped_callback_arg, 0);
+    }
     //worker_->Pump();
     Sleep(1000);
 
@@ -98,6 +111,16 @@ void AudioSystem::Shutdown() {
   xe_thread_release(thread_);
 
   xe_run_loop_release(run_loop_);
+}
+
+void AudioSystem::RegisterClient(
+    uint32_t callback, uint32_t callback_arg) {
+  uint32_t ptr = (uint32_t)memory()->HeapAlloc(0, 0x4, 0);
+  auto mem = memory()->membase();
+  XESETUINT32BE(mem + ptr, callback_arg);
+  xe_mutex_lock(lock_);
+  clients_.push_back({ callback, callback_arg, ptr });
+  xe_mutex_unlock(lock_);
 }
 
 bool AudioSystem::HandlesRegister(uint64_t addr) {

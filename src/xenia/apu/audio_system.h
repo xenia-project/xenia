@@ -35,6 +35,9 @@ public:
   virtual X_STATUS Setup();
   virtual void Shutdown();
 
+  void RegisterClient(uint32_t callback, uint32_t callback_arg);
+  //void UnregisterClient();
+
   bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
   virtual void WriteRegister(uint64_t addr, uint64_t value);
@@ -70,6 +73,14 @@ protected:
   xe_run_loop_ref   run_loop_;
   xe_thread_ref     thread_;
   bool              running_;
+  xe_mutex_t*       lock_;
+
+  typedef struct {
+    uint32_t callback;
+    uint32_t callback_arg;
+    uint32_t wrapped_callback_arg;
+  } RenderDriverClient;
+  std::vector<RenderDriverClient> clients_;
 
   AudioDriver*      driver_;
 };
