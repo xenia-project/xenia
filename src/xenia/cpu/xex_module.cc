@@ -147,10 +147,10 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       } else {
         if (kernel_export->is_implemented) {
           // Implemented - replace with pointer.
-          *slot = XESWAP32BE(kernel_export->variable_ptr);
+          XESETUINT32BE(slot, kernel_export->variable_ptr);
         } else {
           // Not implemented - write with a dummy value.
-          *slot = XESWAP32BE(0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
+          XESETUINT32BE(slot, 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
           XELOGCPU("WARNING: imported a variable with no value: %s",
                    kernel_export->name);
         }

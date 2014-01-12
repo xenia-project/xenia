@@ -491,6 +491,8 @@ int Translate_DEBUG_BREAK_TRUE(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_TRAP(IntCodeState& ics, const IntCode* i) {
+  // 0x0FE00014 is a 'debug print' where r3 = buffer r4 = length
+  // TODO(benvanik): post software interrupt to debugger.
   __debugbreak();
   return IA_NEXT;
 }
