@@ -22,7 +22,8 @@ using namespace xe::cpu;
 
 AudioSystem::AudioSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
-    thread_(0), running_(false), driver_(0) {
+    thread_(0), running_(false), driver_(0),
+    client_({ 0 }) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
@@ -86,16 +87,16 @@ void AudioSystem::ThreadStart() {
     }
 
     // Pump worker.
-    // mehhh
     xe_mutex_lock(lock_);
-    auto clients = clients_;
+    uint32_t client_callback = client_.callback;
+    uint32_t client_callback_arg = client_.wrapped_callback_arg;
     xe_mutex_unlock(lock_);
-    for (auto it = clients.begin(); it != clients.end(); ++it) {
+    if (client_callback) {
       processor->Execute(
-          thread_state_, it->callback, it->wrapped_callback_arg, 0);
+        thread_state_, client_callback, client_callback_arg, 0);
+    } else {
+      Sleep(500);
     }
-    //worker_->Pump();
-    Sleep(1000);
 
     if (!running_) {
       break;
@@ -127,11 +128,21 @@ void AudioSystem::Shutdown() {
 
 void AudioSystem::RegisterClient(
     uint32_t callback, uint32_t callback_arg) {
+  // Only support one client for now.
+  XEASSERTZERO(client_.callback);
+
   uint32_t ptr = (uint32_t)memory()->HeapAlloc(0, 0x4, 0);
   auto mem = memory()->membase();
   XESETUINT32BE(mem + ptr, callback_arg);
+
   xe_mutex_lock(lock_);
-  clients_.push_back({ callback, callback_arg, ptr });
+  client_ = { callback, callback_arg, ptr };
+  xe_mutex_unlock(lock_);
+}
+
+void AudioSystem::UnregisterClient() {
+  xe_mutex_lock(lock_);
+  client_ = { 0 };
   xe_mutex_unlock(lock_);
 }
 

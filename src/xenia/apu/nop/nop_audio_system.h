@@ -28,6 +28,8 @@ public:
 
   virtual void Shutdown();
 
+  virtual void SubmitFrame(uint32_t samples_ptr);
+
 protected:
   virtual void Initialize();
   virtual void Pump();

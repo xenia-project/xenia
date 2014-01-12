@@ -37,7 +37,8 @@ public:
   virtual void Shutdown();
 
   void RegisterClient(uint32_t callback, uint32_t callback_arg);
-  //void UnregisterClient();
+  void UnregisterClient();
+  virtual void SubmitFrame(uint32_t samples_ptr) = 0;
 
   bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
@@ -76,14 +77,13 @@ protected:
   cpu::XenonThreadState* thread_state_;
   uint32_t          thread_block_;
   bool              running_;
-  xe_mutex_t*       lock_;
 
-  typedef struct {
+  xe_mutex_t*       lock_;
+  struct {
     uint32_t callback;
     uint32_t callback_arg;
     uint32_t wrapped_callback_arg;
-  } RenderDriverClient;
-  std::vector<RenderDriverClient> clients_;
+  } client_;
 
   AudioDriver*      driver_;
 };

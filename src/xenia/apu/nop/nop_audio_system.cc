@@ -36,6 +36,10 @@ void NopAudioSystem::Pump() {
   //
 }
 
+void NopAudioSystem::SubmitFrame(uint32_t samples_ptr) {
+  // Process samples! They are big-endian floats.
+}
+
 void NopAudioSystem::Shutdown() {
   AudioSystem::Shutdown();
 }

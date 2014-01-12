@@ -111,8 +111,10 @@ SHIM_CALL XAudioUnregisterRenderDriverClient_shim(
       "XAudioUnregisterRenderDriverClient(%.8X)",
       driver_ptr);
 
+  XEASSERT(driver_ptr == 0xAADD1100);
+
   auto audio_system = state->emulator()->audio_system();
-  //audio_system->UnregisterClient(...);
+  audio_system->UnregisterClient();
 
   SHIM_SET_RETURN(X_ERROR_SUCCESS);
 }
@@ -127,8 +129,10 @@ SHIM_CALL XAudioSubmitRenderDriverFrame_shim(
       "XAudioSubmitRenderDriverFrame(%.8X, %.8X)",
       driver_ptr, samples_ptr);
 
+  XEASSERT(driver_ptr == 0xAADD1100);
+
   auto audio_system = state->emulator()->audio_system();
-  //audio_system->SubmitFrame();
+  audio_system->SubmitFrame(samples_ptr);
 
   SHIM_SET_RETURN(X_ERROR_SUCCESS);
 }
