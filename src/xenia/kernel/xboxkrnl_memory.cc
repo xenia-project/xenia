@@ -73,6 +73,8 @@ X_STATUS xeNtAllocateVirtualMemory(
   // already happened.
   if (*base_addr_ptr) {
     // Having a pointer already means that this is likely a follow-on COMMIT.
+    XEASSERT(!(allocation_type & X_MEM_RESERVE) &&
+             (allocation_type & X_MEM_COMMIT));
     return X_STATUS_SUCCESS;
   }
 

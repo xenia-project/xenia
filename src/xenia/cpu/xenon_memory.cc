@@ -587,13 +587,13 @@ void XenonMemoryHeap::DumpHandler(
       (uint32_t)(start_addr - (uintptr_t)memory->mapping_base_);
   uint32_t guest_end =
       (uint32_t)(end_addr - (uintptr_t)memory->mapping_base_);
-  if (used_bytes > 0) {
+  if (int32_t(end_addr - start_addr) > 0) {
     XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
            guest_start, guest_end, (guest_end - guest_start),
            start_addr, end_addr,
            used_bytes);
   } else {
     XELOGI(" -                                 %.16llX-%.16llX - %9db used",
-           start_addr, end_addr, used_bytes);
+           start, end, used_bytes);
   }
 }
