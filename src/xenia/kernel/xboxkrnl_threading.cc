@@ -9,7 +9,9 @@
 
 #include <xenia/kernel/xboxkrnl_threading.h>
 
+#include <xenia/kernel/dispatcher.h>
 #include <xenia/kernel/kernel_state.h>
+#include <xenia/kernel/native_list.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xevent.h>
 #include <xenia/kernel/objects/xmutant.h>
@@ -1321,6 +1323,92 @@ SHIM_CALL KeLeaveCriticalRegion_shim(
 }
 
 
+SHIM_CALL KeInitializeDpc_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t dpc_ptr = SHIM_GET_ARG_32(0);
+  uint32_t routine = SHIM_GET_ARG_32(1);
+  uint32_t context = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "KeInitializeDpc(%.8X, %.8X, %.8X)",
+      dpc_ptr, routine, context);
+
+  // KDPC (maybe) 0x18 bytes?
+  uint32_t type = 0;
+  uint32_t importance = 0;
+  uint32_t number = 0;
+  SHIM_SET_MEM_32(dpc_ptr + 0,
+      (type << 24) | (importance << 16) | (number));
+  SHIM_SET_MEM_32(dpc_ptr + 4, 0); // flink
+  SHIM_SET_MEM_32(dpc_ptr + 8, 0); // blink
+  SHIM_SET_MEM_32(dpc_ptr + 12, routine);
+  SHIM_SET_MEM_32(dpc_ptr + 16, context);
+  SHIM_SET_MEM_32(dpc_ptr + 20, 0); // arg1
+  SHIM_SET_MEM_32(dpc_ptr + 24, 0); // arg2
+}
+
+
+SHIM_CALL KeInsertQueueDpc_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t dpc_ptr = SHIM_GET_ARG_32(0);
+  uint32_t arg1 = SHIM_GET_ARG_32(1);
+  uint32_t arg2 = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "KeInsertQueueDpc(%.8X, %.8X, %.8X)",
+      dpc_ptr, arg1, arg2);
+
+  // Lock dispatcher.
+  auto dispatcher = state->dispatcher();
+  dispatcher->Lock();
+
+  auto dpc_list = dispatcher->dpc_list();
+
+  // If already in a queue, abort.
+  if (dpc_list->IsQueued(dpc_ptr)) {
+    SHIM_SET_RETURN(0);
+    dispatcher->Unlock();
+    return;
+  }
+
+  // Prep DPC.
+  SHIM_SET_MEM_32(dpc_ptr + 20, arg1);
+  SHIM_SET_MEM_32(dpc_ptr + 24, arg2);
+
+  dpc_list->Insert(dpc_ptr);
+
+  dispatcher->Unlock();
+
+  SHIM_SET_RETURN(1);
+}
+
+
+SHIM_CALL KeRemoveQueueDpc_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t dpc_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "KeRemoveQueueDpc(%.8X)",
+      dpc_ptr);
+
+  bool result = false;
+
+  auto dispatcher = state->dispatcher();
+  dispatcher->Lock();
+
+  auto dpc_list = dispatcher->dpc_list();
+  if (dpc_list->IsQueued(dpc_ptr)) {
+    dpc_list->Remove(dpc_ptr);
+    result = true;
+  }
+
+  dispatcher->Unlock();
+
+  SHIM_SET_RETURN(result ? 1 : 0);
+}
+
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -1381,4 +1469,8 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeDpc, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeInsertQueueDpc, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeRemoveQueueDpc, state);
 }

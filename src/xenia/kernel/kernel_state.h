@@ -21,6 +21,7 @@
 
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS2(xe, cpu, Processor);
+XEDECLARECLASS2(xe, kernel, Dispatcher);
 XEDECLARECLASS2(xe, kernel, XModule);
 XEDECLARECLASS2(xe, kernel, XThread);
 XEDECLARECLASS2(xe, kernel, XUserModule);
@@ -43,6 +44,8 @@ public:
   cpu::Processor* processor() const { return processor_; }
   fs::FileSystem* file_system() const { return file_system_; }
 
+  Dispatcher* dispatcher() const { return dispatcher_; }
+
   ObjectTable* object_table() const { return object_table_; }
 
   XModule* GetModule(const char* name);
@@ -58,6 +61,8 @@ private:
   Memory*         memory_;
   cpu::Processor* processor_;
   fs::FileSystem* file_system_;
+
+  Dispatcher*     dispatcher_;
 
   ObjectTable*    object_table_;
   xe_mutex_t*     object_mutex_;

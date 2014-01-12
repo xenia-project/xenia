@@ -10,6 +10,7 @@
 #include <xenia/kernel/kernel_state.h>
 
 #include <xenia/emulator.h>
+#include <xenia/kernel/dispatcher.h>
 #include <xenia/kernel/xam_module.h>
 #include <xenia/kernel/xboxkrnl_module.h>
 #include <xenia/kernel/xboxkrnl_private.h>
@@ -35,6 +36,8 @@ KernelState::KernelState(Emulator* emulator) :
   processor_    = emulator->processor();
   file_system_  = emulator->file_system();
 
+  dispatcher_   = new Dispatcher(this);
+
   object_table_ = new ObjectTable();
   object_mutex_ = xe_mutex_alloc(10000);
 
@@ -48,6 +51,8 @@ KernelState::~KernelState() {
   // Delete all objects.
   xe_mutex_free(object_mutex_);
   delete object_table_;
+
+  delete dispatcher_;
 
   XEASSERT(shared_kernel_state_ == this);
   shared_kernel_state_ = NULL;
