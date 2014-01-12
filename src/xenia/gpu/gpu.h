@@ -24,7 +24,7 @@ GraphicsSystem* Create(Emulator* emulator);
 
 GraphicsSystem* CreateNop(Emulator* emulator);
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 GraphicsSystem* CreateD3D11(Emulator* emulator);
 #endif  // WIN32
 

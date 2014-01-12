@@ -465,7 +465,7 @@ uint32_t xeKeTlsAlloc() {
 
   uint32_t tls_index;
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   tls_index = TlsAlloc();
 #else
   pthread_key_t key;
@@ -501,7 +501,7 @@ int KeTlsFree(uint32_t tls_index) {
 
   int result_code = 0;
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   result_code = TlsFree(tls_index);
 #else
   result_code = pthread_key_delete(tls_index) == 0;
@@ -531,7 +531,7 @@ uint64_t xeKeTlsGetValue(uint32_t tls_index) {
 
   uint64_t value = 0;
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   value = (uint64_t)TlsGetValue(tls_index);
 #else
   value = (uint64_t)pthread_getspecific(tls_index);
@@ -567,7 +567,7 @@ int xeKeTlsSetValue(uint32_t tls_index, uint64_t tls_value) {
 
   int result_code = 0;
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   result_code = TlsSetValue(tls_index, (LPVOID)tls_value);
 #else
   result_code = pthread_setspecific(tls_index, (void*)tls_value) == 0;

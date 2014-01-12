@@ -13,7 +13,7 @@
 #include <xenia/platform.h>
 
 
-#if XE_PLATFORM(WINCE) || XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WINCE || XE_PLATFORM_WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -24,17 +24,17 @@
 #undef max
 #endif  // WINCE || WIN32
 
-#if XE_PLATFORM(XBOX360)
+#if XE_PLATFORM_XBOX360
 #include <xtl.h>
 #include <xboxmath.h>
 #endif  // XBOX360
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 // Disable warning C4068: unknown pragma
 #pragma warning(disable : 4068)
 #endif  // MSVC
 
-#if XE_LIKE(POSIX)
+#if XE_LIKE_POSIX
 #include <unistd.h>
 #include <endian.h>
 #endif  // POSIX
@@ -56,7 +56,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 #include <memory>
 #include <unordered_map>
 #else

@@ -19,7 +19,7 @@
 
 #define XEInvalidSize                                   ((size_t)(-1))
 
-#if !XE_LIKE(WIN32)
+#if !XE_LIKE_WIN32
 int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define strcpy_s(dest, destLength, source)              !(strcpy(dest, source) == dest + (destLength*0))
 #define strcat_s(dest, destLength, source)              !(strcat(dest, source) == dest + (destLength*0))
@@ -62,7 +62,7 @@ char* xestrcasestra(const char* str, const char* substr);
 #define xesnprintfa(buffer, bufferCount, format, ...)   _snprintf_s(buffer, bufferCount, bufferCount, format, ##__VA_ARGS__)
 #define xevsnprintfa(buffer, bufferCount, format, args) vsnprintf(buffer, bufferCount, format, args)
 
-#if XE_PLATFORM(WIN32) && defined(UNICODE) && UNICODE
+#if XE_PLATFORM_WIN32 && defined(UNICODE) && UNICODE
 
 typedef wchar_t xechar_t;
 #define XE_WCHAR            1
@@ -115,7 +115,7 @@ typedef char xechar_t;
 #define XT XETEXT
 #define XTS XESTRFORMAT
 
-#if XE_LIKE(WIN32)
+#if XE_LIKE_WIN32
 #define XE_PATH_SEPARATOR   ((xechar_t)'\\')
 #define XE_MAX_PATH         _MAX_PATH
 #else

@@ -14,11 +14,11 @@
 #include <xenia/types.h>
 
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 #define XESWAP16                        _byteswap_ushort
 #define XESWAP32                        _byteswap_ulong
 #define XESWAP64                        _byteswap_uint64
-#elif XE_LIKE(OSX)
+#elif XE_LIKE_OSX
 #include <libkern/OSByteOrder.h>
 #define XESWAP16                        OSSwapInt16
 #define XESWAP32                        OSSwapInt32
@@ -30,7 +30,7 @@
 #endif
 
 
-#if XE_CPU(BIGENDIAN)
+#if XE_CPU_BIGENDIAN
 #define XESWAP16BE(p)                   (p)
 #define XESWAP32BE(p)                   (p)
 #define XESWAP64BE(p)                   (p)
@@ -47,7 +47,7 @@
 #endif
 
 
-#if XE_CPU(BIGENDIAN)
+#if XE_CPU_BIGENDIAN
 #define XESWAPF32BE(p)                  (p)
 #define XESWAPF64BE(p)                  (p)
 XEFORCEINLINE float XESWAPF32LE(float value) {

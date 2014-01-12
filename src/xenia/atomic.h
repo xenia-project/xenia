@@ -17,7 +17,7 @@
 // These functions are modeled off of the Apple OSAtomic routines
 // http://developer.apple.com/library/mac/#documentation/DriversKernelHardware/Reference/libkern_ref/OSAtomic_h/
 
-#if XE_LIKE(OSX)
+#if XE_LIKE_OSX
 #include <libkern/OSAtomic.h>
 
 #define xe_atomic_inc_32(value) \
@@ -41,7 +41,7 @@ typedef OSQueueHead xe_atomic_stack_t;
 #define xe_atomic_stack_dequeue(stack, offset) \
     OSAtomicDequeue((OSQueueHead*)stack, offset)
 
-#elif XE_LIKE(WIN32)
+#elif XE_LIKE_WIN32
 
 #define xe_atomic_inc_32(value) \
     InterlockedIncrement((volatile LONG*)value)
@@ -73,7 +73,7 @@ XEFORCEINLINE void* xe_atomic_stack_dequeue(xe_atomic_stack_t* stack,
   }
 }
 
-#elif XE_LIKE(POSIX)
+#elif XE_LIKE_POSIX
 
 #define xe_atomic_inc_32(value) \
     __sync_add_and_fetch(value, 1)

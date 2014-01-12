@@ -21,7 +21,7 @@ typedef int (*user_main_t)(int argc, xechar_t** argv);
 }
 
 
-#if XE_LIKE(WIN32) && defined(UNICODE) && UNICODE
+#if XE_LIKE_WIN32 && defined(UNICODE) && UNICODE
 
 int xe_main_thunk(
     int argc, wchar_t* argv[],

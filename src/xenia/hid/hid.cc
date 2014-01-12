@@ -21,7 +21,7 @@ DEFINE_string(hid, "any",
 
 
 #include <xenia/hid/nop/nop_hid.h>
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 #include <xenia/hid/xinput/xinput_hid.h>
 #endif  // WIN32
 
@@ -32,7 +32,7 @@ InputSystem* xe::hid::Create(Emulator* emulator) {
 
   if (FLAGS_hid.compare("nop") == 0) {
     input_system->AddDriver(xe::hid::nop::Create(input_system));
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   } else if (FLAGS_hid.compare("xinput") == 0) {
     input_system->AddDriver(xe::hid::xinput::Create(input_system));
 #endif  // WIN32
@@ -42,7 +42,7 @@ InputSystem* xe::hid::Create(Emulator* emulator) {
 
     // NOTE: in any mode we create as many as we can, falling back to nop.
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
     InputDriver* xinput_driver = xe::hid::xinput::Create(input_system);
     if (xinput_driver) {
       input_system->AddDriver(xinput_driver);

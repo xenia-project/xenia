@@ -29,7 +29,7 @@ namespace xe {
 #include <xenia/core/thread.h>
 #include <xenia/core/window.h>
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 #include <xenia/core/win32_window.h>
 #endif  // WIN32
 

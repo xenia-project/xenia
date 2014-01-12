@@ -17,7 +17,7 @@ typedef struct xe_file {
 } xe_file_t;
 
 
-#if XE_LIKE(WIN32)
+#if XE_LIKE_WIN32
 #define fseeko                          _fseeki64
 #define ftello                          _ftelli64
 #endif  // WIN32
@@ -37,7 +37,7 @@ xe_file_ref xe_file_open(const xe_file_mode mode, const xechar_t *path) {
   }
   XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), XT("b")));
 
-#if XE_LIKE(WIN32) && XE_WCHAR
+#if XE_LIKE_WIN32 && XE_WCHAR
   XEEXPECTZERO(_wfopen_s((FILE**)&file->handle, path, mode_string));
 #else
   file->handle = fopen(path, mode_string);

@@ -49,7 +49,7 @@ void xe_thread_release(xe_thread_ref thread) {
   xe_ref_release((xe_ref)thread, (xe_ref_dealloc_t)xe_thread_dealloc);
 }
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 
 // http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 #pragma pack(push,8)
@@ -113,7 +113,7 @@ void xe_thread_join(xe_thread_ref thread) {
 
 static void* xe_thread_callback_pthreads(void* param) {
   xe_thread_t* thread = reinterpret_cast<xe_thread_t*>(param);
-#if XE_LIKE(OSX)
+#if XE_LIKE_OSX
   XEIGNORE(pthread_setname_np(thread->name));
 #else
   pthread_setname_np(pthread_self(), thread->name);

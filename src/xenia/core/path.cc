@@ -23,7 +23,7 @@ void xe_path_join(const xechar_t* left, const xechar_t* right,
 
 void xe_path_get_absolute(const xechar_t* path, xechar_t* out_abs_path,
                           size_t abs_path_size) {
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 #if XE_WCHAR
   _wfullpath(out_abs_path, path, abs_path_size);
 #else

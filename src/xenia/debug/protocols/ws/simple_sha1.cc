@@ -9,7 +9,7 @@
 
 #include <xenia/debug/protocols/ws/simple_sha1.h>
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 #include <winsock2.h>
 #else
 #include <arpa/inet.h>

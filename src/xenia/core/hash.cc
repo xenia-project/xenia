@@ -85,13 +85,13 @@ XEFORCEINLINE uint32_t UNALIGNED_LOAD32(const char *p) {
 }
 #endif
 
-#if XE_CPU(BIGENDIAN)
+#if XE_CPU_BIGENDIAN
 #define uint32_t_in_expected_order(x) (XESWAP32(x))
 #define uint64_in_expected_order(x) (XESWAP64(x))
 #else
 #define uint32_t_in_expected_order(x) (x)
 #define uint64_in_expected_order(x) (x)
-#endif  // XE_CPU(BIGENDIAN)
+#endif  // XE_CPU_BIGENDIAN
 
 #if !defined(LIKELY)
 #if HAVE_BUILTIN_EXPECT

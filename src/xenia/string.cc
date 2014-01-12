@@ -12,7 +12,7 @@
 #include <xenia/common.h>
 
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 
 char* xestrcasestra(const char* str, const char* substr) {
   const size_t len = xestrlena(substr);

@@ -2587,7 +2587,7 @@ uint32_t IntCode_MUL_HI_I32_I32(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_MUL_HI_I64_I64(IntCodeState& ics, const IntCode* i) {
-#if !XE_COMPILER(MSVC)
+#if !XE_COMPILER_MSVC
   // GCC can, in theory, do this:
   __int128 v =
       (__int128)ics.rf[i->src1_reg].i64 * (__int128)ics.rf[i->src2_reg].i64;
@@ -2622,7 +2622,7 @@ uint32_t IntCode_MUL_HI_I32_I32_U(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_MUL_HI_I64_I64_U(IntCodeState& ics, const IntCode* i) {
-#if !XE_COMPILER(MSVC)
+#if !XE_COMPILER_MSVC
   // GCC can, in theory, do this:
   __int128 v =
       (__int128)ics.rf[i->src1_reg].i64 * (__int128)ics.rf[i->src2_reg].i64;

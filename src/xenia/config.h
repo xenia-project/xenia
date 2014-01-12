@@ -11,8 +11,6 @@
 #define XENIA_CONFIG_H_
 
 
-#define XE_OPTION(NAME)     (defined XE_OPTION_##NAME && XE_OPTION_##NAME)
-
 // Enable compile-time and runtime-time assertions.
 #define XE_OPTION_ENABLE_ASSERTS        1
 

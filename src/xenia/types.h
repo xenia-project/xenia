@@ -39,13 +39,13 @@ using std::tr1::shared_ptr;
       class name; \
     } } } }
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 #define XEASSUME(expr)          __analysis_assume(expr)
 #else
 #define XEASSUME(expr)
 #endif  // MSVC
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 #define XECDECL                 __cdecl
 #else
 #define XECDECL
@@ -61,11 +61,11 @@ using std::tr1::shared_ptr;
 #define XEEXTERNC_END
 #endif  // __cplusplus
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 // http://msdn.microsoft.com/en-us/library/z8y1yy88.aspx
 #define XEFORCEINLINE           static __forceinline
 #define XENOINLINE              __declspec(noinline)
-#elif XE_COMPILER(GNUC)
+#elif XE_COMPILER_GNUC
 // http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html
 #if (__GNUC__ >= 4)
 #define XEFORCEINLINE           static __inline__ __attribute__((always_inline))
@@ -78,7 +78,7 @@ using std::tr1::shared_ptr;
 #define XENOINLINE
 #endif  // MSVC
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 #define XEPACKEDSTRUCT(name, value) \
     __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
     typedef struct name##_s name;
@@ -87,7 +87,7 @@ using std::tr1::shared_ptr;
 #define XEPACKEDUNION(name, value) \
     __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
     typedef union name##_s name;
-#elif XE_COMPILER(GNUC)
+#elif XE_COMPILER_GNUC
 #define XEPACKEDSTRUCT(name, value) \
     struct __attribute__((packed)) name
 #define XEPACKEDSTRUCTANONYMOUS(value) \
@@ -96,11 +96,11 @@ using std::tr1::shared_ptr;
     union __attribute__((packed)) name
 #endif  // MSVC
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 // http://msdn.microsoft.com/en-us/library/83ythb65.aspx
 #define XECACHEALIGN            __declspec(align(XE_ALIGNMENT))
 #define XECACHEALIGN64          __declspec(align(64))
-#elif XE_COMPILER(GNUC)
+#elif XE_COMPILER_GNUC
 // http://gcc.gnu.org/onlinedocs/gcc/Type-Attributes.html
 #define XECACHEALIGN            __attribute__ ((aligned(XE_ALIGNMENT)))
 #define XECACHEALIGN64          __attribute__ ((aligned(64)))
@@ -110,20 +110,20 @@ using std::tr1::shared_ptr;
 #endif  // MSVC
 typedef XECACHEALIGN volatile void xe_aligned_void_t;
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 // http://msdn.microsoft.com/en-us/library/ms175773.aspx
 #define XECOUNT(array)          _countof(array)
-#elif XE_COMPILER(GNUC)
+#elif XE_COMPILER_GNUC
 #define XECOUNT(array)          (sizeof(array) / sizeof(__typeof__(array[0])))
 #else
 #define XECOUNT(array)          (sizeof(array) / sizeof(array[0]))
 #endif  // MSVC
 
 #if !defined(MIN)
-#if XE_COMPILER(GNUC)
+#if XE_COMPILER_GNUC
 #define MIN(A, B)               ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); (__a < __b) ? __a : __b; })
 #define MAX(A, B)               ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); (__a < __b) ? __b : __a; })
-//#elif XE_COMPILER(MSVC)
+//#elif XE_COMPILER_MSVC
 // TODO(benvanik): experiment with decltype:
 //     http://msdn.microsoft.com/en-us/library/dd537655.aspx
 #else
@@ -134,7 +134,7 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #endif  // GNUC
 #endif  // !MIN
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 #define XESAFERELEASE(p)        if (p) { p->Release(); }
 #endif  // WIN32
 

@@ -16,7 +16,7 @@
 #include <xenia/string.h>
 
 
-#if XE_COMPILER(GNUC)
+#if XE_COMPILER_GNUC
 #define XE_LOG_LINE_ATTRIBUTE __attribute__ ((format (printf, 5, 6)))
 #else
 #define XE_LOG_LINE_ATTRIBUTE
@@ -26,7 +26,7 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
                  const char* fmt, ...) XE_LOG_LINE_ATTRIBUTE;
 #undef XE_LOG_LINE_ATTRIBUTE
 
-#if XE_OPTION(ENABLE_LOGGING)
+#if XE_OPTION_ENABLE_LOGGING
 #define XELOGCORE(level, fmt, ...) xe_log_line( \
     XE_CURRENT_FILE, XE_CURRENT_LINE, XE_CURRENT_FUNCTION, level, \
     fmt, ##__VA_ARGS__)
@@ -34,52 +34,52 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
 #define XELOGCORE(level, fmt, ...) XE_EMPTY_MACRO
 #endif  // ENABLE_LOGGING
 
-#if XE_OPTION(LOG_ERROR)
+#if XE_OPTION_LOG_ERROR
 #define XELOGE(fmt, ...) XELOGCORE('!', fmt, ##__VA_ARGS__)
 #else
 #define XELOGE(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_WARNING)
+#if XE_OPTION_LOG_WARNING
 #define XELOGW(fmt, ...) XELOGCORE('w', fmt, ##__VA_ARGS__)
 #else
 #define XELOGW(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_INFO)
+#if XE_OPTION_LOG_INFO
 #define XELOGI(fmt, ...) XELOGCORE('i', fmt, ##__VA_ARGS__)
 #else
 #define XELOGI(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_DEBUG)
+#if XE_OPTION_LOG_DEBUG
 #define XELOGD(fmt, ...) XELOGCORE('d', fmt, ##__VA_ARGS__)
 #else
 #define XELOGD(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_CPU)
+#if XE_OPTION_LOG_CPU
 #define XELOGCPU(fmt, ...) XELOGCORE('C', fmt, ##__VA_ARGS__)
 #else
 #define XELOGCPU(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_SDB)
+#if XE_OPTION_LOG_SDB
 #define XELOGSDB(fmt, ...) XELOGCORE('S', fmt, ##__VA_ARGS__)
 #else
 #define XELOGSDB(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_APU)
+#if XE_OPTION_LOG_APU
 #define XELOGAPU(fmt, ...) XELOGCORE('A', fmt, ##__VA_ARGS__)
 #else
 #define XELOGAPU(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_GPU)
+#if XE_OPTION_LOG_GPU
 #define XELOGGPU(fmt, ...) XELOGCORE('G', fmt, ##__VA_ARGS__)
 #else
 #define XELOGGPU(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_KERNEL)
+#if XE_OPTION_LOG_KERNEL
 #define XELOGKERNEL(fmt, ...) XELOGCORE('K', fmt, ##__VA_ARGS__)
 #else
 #define XELOGKERNEL(fmt, ...) XE_EMPTY_MACRO
 #endif
-#if XE_OPTION(LOG_FS)
+#if XE_OPTION_LOG_FS
 #define XELOGFS(fmt, ...) XELOGCORE('F', fmt, ##__VA_ARGS__)
 #else
 #define XELOGFS(fmt, ...) XE_EMPTY_MACRO

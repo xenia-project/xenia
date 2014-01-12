@@ -20,7 +20,7 @@ using namespace xe::cpu;
 // TODO(benvanik): move xbox.h out
 #include <xenia/xbox.h>
 
-#if !XE_PLATFORM(WIN32)
+#if !XE_PLATFORM_WIN32
 #include <sys/mman.h>
 #endif  // WIN32
 

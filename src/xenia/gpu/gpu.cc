@@ -32,7 +32,7 @@ GraphicsSystem* xe::gpu::CreateNop(Emulator* emulator) {
 }
 
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 #include <xenia/gpu/d3d11/d3d11_gpu.h>
 GraphicsSystem* xe::gpu::CreateD3D11(Emulator* emulator) {
   return xe::gpu::d3d11::Create(emulator);
@@ -43,7 +43,7 @@ GraphicsSystem* xe::gpu::CreateD3D11(Emulator* emulator) {
 GraphicsSystem* xe::gpu::Create(Emulator* emulator) {
   if (FLAGS_gpu.compare("nop") == 0) {
     return CreateNop(emulator);
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   } else if (FLAGS_gpu.compare("d3d11") == 0) {
     return CreateD3D11(emulator);
 #endif  // WIN32
@@ -51,7 +51,7 @@ GraphicsSystem* xe::gpu::Create(Emulator* emulator) {
     // Create best available.
     GraphicsSystem* best = NULL;
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
     best = CreateD3D11(emulator);
     if (best) {
       return best;

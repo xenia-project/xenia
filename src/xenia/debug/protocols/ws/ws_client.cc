@@ -21,7 +21,7 @@
 #include <xenia/kernel/xboxkrnl_module.h>
 #include <xenia/kernel/objects/xuser_module.h>
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 // Required for wslay.
 typedef SSIZE_T ssize_t;
 #endif  // WIN32

@@ -20,7 +20,7 @@
 #include <xenia/types.h>
 
 
-#if 0 && XE_COMPILER(MSVC) && defined(UNICODE) && UNICODE
+#if 0 && XE_COMPILER_MSVC && defined(UNICODE) && UNICODE
 // http://msdn.microsoft.com/en-us/library/b0084kay.aspx
 #if !defined(__WFILE__)
 #define WIDEN2(x)           L##x
@@ -38,7 +38,7 @@
 
 
 #define __XE_ASSERT(expr)               assert(expr)
-#if XE_OPTION(ENABLE_ASSERTS)
+#if XE_OPTION_ENABLE_ASSERTS
 #define XEASSERTCORE(expr)              __XE_ASSERT(expr)
 #else
 #define XEASSERTCORE(expr)              XE_EMPTY_MACRO
@@ -54,12 +54,12 @@
 #define XEASSERTNOTNULL(expr)           XEASSERTCORE( (expr) != NULL )
 
 
-#if XE_COMPILER(MSVC)
+#if XE_COMPILER_MSVC
 // http://msdn.microsoft.com/en-us/library/bb918086.aspx
 // TODO(benvanik): if 2010+, use static_assert?
 //     http://msdn.microsoft.com/en-us/library/dd293588.aspx
 #define XESTATICASSERT(expr, message)   _STATIC_ASSERT(expr)
-//#elif XE_COMPILER(GNUC)
+//#elif XE_COMPILER_GNUC
 // http://stackoverflow.com/questions/3385515/static-assert-in-c
 //#define XESTATICASSERT(expr, message)   ({ extern int __attribute__((error("assertion failure: '" #expr "' not true - " #message))) compile_time_check(); ((expr)?0:compile_time_check()),0; })
 #else

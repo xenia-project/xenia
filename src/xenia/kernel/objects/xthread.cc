@@ -147,7 +147,7 @@ void XThread::set_name(const char* name) {
   }
   name_ = xestrdupa(name);
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
   // Do the nasty set for us.
   #pragma pack(push, 8)
   typedef struct tagTHREADNAME_INFO {
@@ -249,7 +249,7 @@ X_STATUS XThread::Exit(int exit_code) {
   return X_STATUS_SUCCESS;
 }
 
-#if XE_PLATFORM(WIN32)
+#if XE_PLATFORM_WIN32
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
@@ -308,7 +308,7 @@ X_STATUS XThread::PlatformCreate() {
 
   int result_code;
   if (creation_params_.creation_flags & X_CREATE_SUSPENDED) {
-#if XE_PLATFORM(OSX)
+#if XE_PLATFORM_OSX
     result_code = pthread_create_suspended_np(
         reinterpret_cast<pthread_t*>(&thread_handle_),
         &attr,
