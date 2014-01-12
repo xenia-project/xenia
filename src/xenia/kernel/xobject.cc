@@ -143,7 +143,7 @@ X_STATUS XObject::WaitMultiple(
 
   DWORD result = WaitForMultipleObjectsEx(
       count, wait_handles,
-      wait_type ? TRUE : FALSE, timeout_ms, alertable);
+      wait_type ? FALSE : TRUE, timeout_ms, alertable);
 
   return result;
 }

@@ -1152,6 +1152,8 @@ SHIM_CALL KeWaitForMultipleObjects_shim(
       count, objects_ptr, wait_type, wait_reason, processor_mode,
       alertable, timeout_ptr, wait_block_array_ptr);
 
+  XEASSERT(wait_type >= 0 && wait_type <= 1);
+
   X_STATUS result = X_STATUS_SUCCESS;
 
   XObject** objects = (XObject**)alloca(sizeof(XObject*) * count);
