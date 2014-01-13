@@ -93,7 +93,6 @@ void XAudio2AudioSystem::Initialize() {
 	  SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
 	  SPEAKER_LOW_FREQUENCY |
 	  SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
-  hr = audio_->CreateSourceVoice(&pcm_voice_, (WAVEFORMATEX*)&waveformat);
   hr = audio_->CreateSourceVoice(
       &pcm_voice_, &waveformat, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
       voice_callback_);
