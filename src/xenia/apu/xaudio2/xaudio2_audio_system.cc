@@ -84,7 +84,7 @@ void XAudio2AudioSystem::Initialize() {
   waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
   waveformat.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
   waveformat.Format.nChannels = 6;
-  waveformat.Format.nSamplesPerSec = 44100;
+  waveformat.Format.nSamplesPerSec = 48000;
   waveformat.Format.wBitsPerSample = 32;
   waveformat.Format.nBlockAlign = (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8; // 4
   waveformat.Format.nAvgBytesPerSec = waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign; // 44100 * 4
@@ -95,7 +95,8 @@ void XAudio2AudioSystem::Initialize() {
 	  SPEAKER_LOW_FREQUENCY |
 	  SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
   hr = audio_->CreateSourceVoice(
-      &pcm_voice_, (WAVEFORMATEX*)&waveformat, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
+      &pcm_voice_, (WAVEFORMATEX*)&waveformat,
+      XAUDIO2_VOICE_NOPITCH | XAUDIO2_VOICE_NOSRC, XAUDIO2_DEFAULT_FREQ_RATIO,
       voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
@@ -112,7 +113,7 @@ void XAudio2AudioSystem::Pump() {
   XAUDIO2_VOICE_STATE state;
   pcm_voice_->GetState(&state);
   auto n = state.BuffersQueued;
-  if (n > 30) {
+  if (n > 60) {
     // A lot of buffers are queued up, and until we use them block.
     ResetEvent(wait_handle_);
   }
