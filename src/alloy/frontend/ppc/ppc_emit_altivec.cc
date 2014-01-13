@@ -1702,7 +1702,7 @@ XEEMITTER(vupklpx,        0x100003CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 int InstrEmit_vupkhsb_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
-  // bytes 0-7 expanded to halfwords 0-8 and sign extended
+  // bytes 0-7 expanded to halfwords 0-7 and sign extended
   Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S8_IN_16_HI);
   f.StoreVR(vd, v);
   return 0;
@@ -1714,15 +1714,8 @@ XEEMITTER(vupkhsb128,     VX128(6, 896),    VX128  )(PPCHIRBuilder& f, InstrData
   return InstrEmit_vupkhsb_(f, VX128_VD128, VX128_VB128);
 }
 
-int InstrEmit_vupkhsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
-  return 1;
-}
-XEEMITTER(vupkhsh,        0x1000024E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_vupkhsh_(f, i.VX.VD, i.VX.VA, i.VX.VB);
-}
-
 int InstrEmit_vupklsb_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
-  // bytes 8-15 expanded to halfwords 0-8 and sign extended
+  // bytes 8-15 expanded to halfwords 0-7 and sign extended
   Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S8_IN_16_LO);
   f.StoreVR(vd, v);
   return 0;
@@ -1734,8 +1727,21 @@ XEEMITTER(vupklsb128,     VX128(6, 960),    VX128  )(PPCHIRBuilder& f, InstrData
   return InstrEmit_vupklsb_(f, VX128_VD128, VX128_VB128);
 }
 
+int InstrEmit_vupkhsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // halfwords 0-3 expanded to words 0-3 and sign extended
+  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_HI);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(vupkhsh,        0x1000024E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vupkhsh_(f, i.VX.VD, i.VX.VA, i.VX.VB);
+}
+
 int InstrEmit_vupklsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
-  return 1;
+  // halfwords 4-7 expanded to words 0-3 and sign extended
+  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_LO);
+  f.StoreVR(vd, v);
+  return 0;
 }
 XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vupklsh_(f, i.VX.VD, i.VX.VA, i.VX.VB);
