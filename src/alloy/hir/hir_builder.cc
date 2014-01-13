@@ -427,7 +427,7 @@ Value* HIRBuilder::CloneValue(Value* source) {
   value->ordinal = next_value_ordinal_++;
   value->type = source->type;
   value->flags = source->flags;
-  value->constant.i64 = source->constant.i64;
+  value->constant.v128 = source->constant.v128;
   value->def = NULL;
   value->use_head = NULL;
   value->tag = NULL;
