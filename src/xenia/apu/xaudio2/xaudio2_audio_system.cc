@@ -74,16 +74,17 @@ void XAudio2AudioSystem::SubmitFrame(uint32_t samples_ptr) {
   // Process samples! They are big-endian floats.
   HRESULT hr;
 
-  auto samples = reinterpret_cast<float*>(emulator_->memory()->membase() + samples_ptr);
-  for (int i = 0; i < _countof(samples_); ++i)
-  {
-	  samples_[i] = XESWAPF32BE(*samples++);
+  int sample_count = 6 * 256;
+  auto samples = reinterpret_cast<float*>(
+      emulator_->memory()->membase() + samples_ptr);
+  for (int i = 0; i < sample_count; ++i) {
+	  samples_[i] = XESWAPF32BE(*(samples + i));
   }
 
   // this is dumb and not right.
   XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
-  buffer.AudioBytes = sizeof(samples_);
+  buffer.AudioBytes = sample_count * sizeof(float);
   buffer.pAudioData = reinterpret_cast<BYTE*>(samples_);
   buffer.PlayBegin = 0;
   buffer.PlayLength = 0;
