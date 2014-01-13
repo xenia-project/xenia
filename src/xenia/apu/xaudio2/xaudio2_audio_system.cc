@@ -10,7 +10,6 @@
 #include <xenia/apu/xaudio2/xaudio2_audio_system.h>
 
 #include <xenia/apu/apu-private.h>
-#include <xenia/apu/xaudio2/xaudio2_audio_driver.h>
 
 #include <xenia/emulator.h>
 
@@ -70,9 +69,6 @@ void XAudio2AudioSystem::Initialize() {
   }
 
   pcm_voice_->Start();
-
-  XEASSERTNULL(driver_);
-  driver_ = new XAudio2AudioDriver(memory_);
 }
 
 void XAudio2AudioSystem::Pump() {

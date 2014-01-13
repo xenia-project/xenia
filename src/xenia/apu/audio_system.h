@@ -22,8 +22,6 @@ XEDECLARECLASS2(xe, cpu, XenonThreadState);
 namespace xe {
 namespace apu {
 
-class AudioDriver;
-
 
 class AudioSystem {
 public:
@@ -85,8 +83,6 @@ protected:
     uint32_t wrapped_callback_arg;
   } client_;
   bool              can_submit_;
-
-  AudioDriver*      driver_;
 };
 
 

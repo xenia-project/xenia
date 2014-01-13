@@ -4,8 +4,6 @@
     'nop_apu-private.h',
     'nop_apu.cc',
     'nop_apu.h',
-    'nop_audio_driver.cc',
-    'nop_audio_driver.h',
     'nop_audio_system.cc',
     'nop_audio_system.h',
   ],

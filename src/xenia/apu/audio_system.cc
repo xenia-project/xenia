@@ -12,7 +12,6 @@
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/cpu/xenon_thread_state.h>
-#include <xenia/apu/audio_driver.h>
 
 
 using namespace xe;
@@ -22,7 +21,7 @@ using namespace xe::cpu;
 
 AudioSystem::AudioSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
-    thread_(0), running_(false), driver_(0),
+    thread_(0), running_(false),
     client_({ 0 }), can_submit_(false) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
@@ -72,7 +71,6 @@ void AudioSystem::ThreadStart() {
 
   // Initialize driver and ringbuffer.
   Initialize();
-  XEASSERTNOTNULL(driver_);
 
   auto processor = emulator_->processor();
 
