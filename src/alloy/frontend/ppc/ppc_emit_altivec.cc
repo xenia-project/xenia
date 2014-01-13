@@ -23,10 +23,7 @@ namespace frontend {
 namespace ppc {
 
 
-Value* CalculateEA(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
 Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
-Value* CalculateEA_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm);
-Value* CalculateEA_0_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm);
 
 
 #define SHUFPS_SWAP_DWORDS 0x1B
