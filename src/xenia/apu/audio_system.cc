@@ -22,7 +22,7 @@ using namespace xe::cpu;
 AudioSystem::AudioSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
     thread_(0), running_(false),
-    client_({ 0 }), can_submit_(false) {
+    client_({ 0 }) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
@@ -85,13 +85,14 @@ void AudioSystem::ThreadStart() {
     }
 
     // Pump worker.
+    // This may block.
     Pump();
 
     xe_mutex_lock(lock_);
     uint32_t client_callback = client_.callback;
     uint32_t client_callback_arg = client_.wrapped_callback_arg;
     xe_mutex_unlock(lock_);
-    if (client_callback && can_submit_) {
+    if (client_callback) {
       processor->Execute(
         thread_state_, client_callback, client_callback_arg, 0);
     } else {

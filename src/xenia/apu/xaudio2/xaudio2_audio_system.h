@@ -41,6 +41,10 @@ private:
   IXAudio2MasteringVoice* mastering_voice_;
   IXAudio2SourceVoice* pcm_voice_;
   float samples_[1536];
+  HANDLE wait_handle_;
+
+  class VoiceCallback;
+  VoiceCallback* voice_callback_;
 };
 
 

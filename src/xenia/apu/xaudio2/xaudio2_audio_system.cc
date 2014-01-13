@@ -19,8 +19,29 @@ using namespace xe::apu;
 using namespace xe::apu::xaudio2;
 
 
+class XAudio2AudioSystem::VoiceCallback : public IXAudio2VoiceCallback {
+public:
+  VoiceCallback(HANDLE wait_handle) : wait_handle_(wait_handle) {}
+  ~VoiceCallback() {}
+
+  void OnStreamEnd() {}
+  void OnVoiceProcessingPassEnd() {}
+  void OnVoiceProcessingPassStart(UINT32 SamplesRequired) {}
+  void OnBufferEnd(void * pBufferContext) {
+    SetEvent(wait_handle_);
+  }
+  void OnBufferStart(void * pBufferContext) {}
+  void OnLoopEnd(void * pBufferContext) {}
+  void OnVoiceError(void * pBufferContext, HRESULT Error) {}
+
+private:
+  HANDLE wait_handle_;
+};
+
+
 XAudio2AudioSystem::XAudio2AudioSystem(Emulator* emulator) :
     audio_(0), mastering_voice_(0), pcm_voice_(0),
+    wait_handle_(NULL), voice_callback_(0),
     AudioSystem(emulator) {
 }
 
@@ -31,6 +52,10 @@ void XAudio2AudioSystem::Initialize() {
   AudioSystem::Initialize();
 
   HRESULT hr;
+
+  wait_handle_ = CreateEvent(NULL, TRUE, TRUE, NULL);
+
+  voice_callback_ = new VoiceCallback(wait_handle_);
 
   hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
@@ -62,11 +87,15 @@ void XAudio2AudioSystem::Initialize() {
   waveformat.nBlockAlign = 2;
   waveformat.wBitsPerSample = 16;
   waveformat.cbSize = 0;
-  hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat);
+  hr = audio_->CreateSourceVoice(
+      &pcm_voice_, &waveformat, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
+      voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
     exit(1);
   }
+
+  //
 
   pcm_voice_->Start();
 }
@@ -76,10 +105,11 @@ void XAudio2AudioSystem::Pump() {
   pcm_voice_->GetState(&state);
   auto n = state.BuffersQueued;
   if (n > 30) {
-    can_submit_ = false;
-  } else {
-    can_submit_ = true;
+    // A lot of buffers are queued up, and until we use them block.
+    ResetEvent(wait_handle_);
   }
+
+  WaitForSingleObject(wait_handle_, INFINITE);
 }
 
 void XAudio2AudioSystem::SubmitFrame(uint32_t samples_ptr) {
@@ -117,5 +147,18 @@ void XAudio2AudioSystem::SubmitFrame(uint32_t samples_ptr) {
 }
 
 void XAudio2AudioSystem::Shutdown() {
+  pcm_voice_->Stop();
+  pcm_voice_->DestroyVoice();
+  pcm_voice_ = NULL;
+
+  mastering_voice_->DestroyVoice();
+  mastering_voice_ = NULL;
+
+  audio_->StopEngine();
+  XESAFERELEASE(audio_);
+
+  delete voice_callback_;
+  CloseHandle(wait_handle_);
+
   AudioSystem::Shutdown();
 }

@@ -82,7 +82,6 @@ protected:
     uint32_t callback_arg;
     uint32_t wrapped_callback_arg;
   } client_;
-  bool              can_submit_;
 };
 
 
