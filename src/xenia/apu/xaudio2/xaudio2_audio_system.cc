@@ -40,6 +40,15 @@ void XAudio2AudioSystem::Initialize() {
     return;
   }
 
+  XAUDIO2_DEBUG_CONFIGURATION config;
+  config.TraceMask        = XAUDIO2_LOG_ERRORS;
+  config.BreakMask        = 0;
+  config.LogThreadID      = FALSE;
+  config.LogTiming        = TRUE;
+  config.LogFunctionName  = TRUE;
+  config.LogFileline      = TRUE;
+  audio_->SetDebugConfiguration(&config);
+
   hr = audio_->CreateMasteringVoice(&mastering_voice_);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
