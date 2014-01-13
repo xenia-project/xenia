@@ -79,14 +79,21 @@ void XAudio2AudioSystem::Initialize() {
     exit(1);
   }
 
-  WAVEFORMATEX waveformat;
-  waveformat.wFormatTag = WAVE_FORMAT_PCM;
-  waveformat.nChannels = 1;
-  waveformat.nSamplesPerSec = 44100;
-  waveformat.nAvgBytesPerSec = 44100 * 2;
-  waveformat.nBlockAlign = 2;
-  waveformat.wBitsPerSample = 16;
-  waveformat.cbSize = 0;
+  WAVEFORMATIEEEFLOATEX waveformat;
+  waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+  waveformat.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+  waveformat.Format.nChannels = 6;
+  waveformat.Format.nSamplesPerSec = 44100;
+  waveformat.Format.wBitsPerSample = 32;
+  waveformat.Format.nBlockAlign = (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8; // 4
+  waveformat.Format.nAvgBytesPerSec = waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign; // 44100 * 4
+  waveformat.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE)-sizeof(WAVEFORMATEX);
+  waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
+  waveformat.dwChannelMask =
+	  SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
+	  SPEAKER_LOW_FREQUENCY |
+	  SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
+  hr = audio_->CreateSourceVoice(&pcm_voice_, (WAVEFORMATEX*)&waveformat);
   hr = audio_->CreateSourceVoice(
       &pcm_voice_, &waveformat, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
       voice_callback_);
