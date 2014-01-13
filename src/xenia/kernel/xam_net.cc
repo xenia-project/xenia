@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include <winsock2.h>
+
 #include <xenia/kernel/xam_net.h>
 
 #include <xenia/kernel/kernel_state.h>
@@ -72,6 +74,100 @@ SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(
   SHIM_SET_RETURN(0);
 }
 
+SHIM_CALL NetDll_inet_addr_shim(
+	PPCContext* ppc_state, KernelState* state) {
+
+	uint32_t cp_ptr = SHIM_GET_ARG_32(0);
+
+	XELOGD(
+		"NetDll_inet_addr(%.8X)",
+		cp_ptr);
+	SHIM_SET_RETURN(INADDR_NONE);
+}
+
+SHIM_CALL NetDll_socket_shim(
+	PPCContext* ppc_state, KernelState* state) {
+
+	uint32_t af = SHIM_GET_ARG_32(0);
+	uint32_t type = SHIM_GET_ARG_32(1);
+	uint32_t protocol = SHIM_GET_ARG_32(2);
+
+	XELOGD(
+		"NetDll_socket(%d, %d, %d)",
+		af,
+		type,
+		protocol);
+	SHIM_SET_RETURN(WSAENETDOWN);
+}
+
+SHIM_CALL NetDll_setsockopt_shim(
+	PPCContext* ppc_state, KernelState* state) {
+
+	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
+	uint32_t level = SHIM_GET_ARG_32(1);
+	uint32_t optname = SHIM_GET_ARG_32(2);
+	uint32_t optval_ptr = SHIM_GET_ARG_32(3);
+	uint32_t optlen = SHIM_GET_ARG_32(4);
+
+	XELOGD(
+		"NetDll_send(%.8X, %d, %d, %.8X, %d)",
+		socket_ptr,
+		level,
+		optname,
+		optval_ptr,
+		optlen);
+	SHIM_SET_RETURN(WSAENETDOWN);
+}
+
+SHIM_CALL NetDll_connect_shim(
+	PPCContext* ppc_state, KernelState* state) {
+
+	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
+	uint32_t sockaddr_ptr = SHIM_GET_ARG_32(1);
+	uint32_t namelen = SHIM_GET_ARG_32(2);
+
+	XELOGD(
+		"NetDll_connect(%.8X, %.8X, %d)",
+		socket_ptr,
+		sockaddr_ptr,
+		namelen);
+	SHIM_SET_RETURN(WSAENETDOWN);
+}
+
+SHIM_CALL NetDll_recv_shim(
+	PPCContext* ppc_state, KernelState* state) {
+
+	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
+	uint32_t buf_ptr = SHIM_GET_ARG_32(1);
+	uint32_t len = SHIM_GET_ARG_32(2);
+	uint32_t flags = SHIM_GET_ARG_32(3);
+
+	XELOGD(
+		"NetDll_recv(%.8X, %.8X, %d, %d)",
+		socket_ptr,
+		buf_ptr,
+		len,
+		flags);
+	SHIM_SET_RETURN(WSAENETDOWN);
+}
+
+SHIM_CALL NetDll_send_shim(
+	PPCContext* ppc_state, KernelState* state) {
+
+	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
+	uint32_t buf_ptr = SHIM_GET_ARG_32(1);
+	uint32_t len = SHIM_GET_ARG_32(2);
+	uint32_t flags = SHIM_GET_ARG_32(3);
+
+	XELOGD(
+		"NetDll_send(%.8X, %.8X, %d, %d)",
+		socket_ptr,
+		buf_ptr,
+		len,
+		flags);
+	SHIM_SET_RETURN(WSAENETDOWN);
+}
+
 
 }  // namespace kernel
 }  // namespace xe
@@ -82,4 +178,10 @@ void xe::kernel::xam::RegisterNetExports(
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_inet_addr, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_socket, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_setsockopt, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_connect, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_recv, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_send, state);
 }
