@@ -126,6 +126,10 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // TODO(benvanik): DID_CARRY -- need HIR to set a OPCODE_FLAG_SET_CARRY
   //                 or something so the fns can set an ics flag.
 
+#ifdef XE_DEBUG
+  size_t source_index = 0;
+#endif
+
   uint32_t ia = 0;
   while (true) {
     // Check suspend. We could do this only on certain instructions, if we
@@ -133,6 +137,20 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
     if (*suspend_flag_address) {
       thread_state->EnterSuspend();
     }
+
+#ifdef XE_DEBUG
+    uint64_t source_offset = -1;
+    if (source_index < this->source_map_count_ &&
+        this->source_map_[source_index].intcode_index <= ia)
+    {
+      while (source_index + 1 < this->source_map_count_ &&
+             this->source_map_[source_index + 1].intcode_index <= ia)
+      {
+        source_index++;
+      }
+      source_offset = this->source_map_[source_index].source_offset;
+    }
+#endif
 
     IntCode* i = &intcodes_[ia];
 
@@ -147,6 +165,9 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
       break;
     } else {
       ia = new_ia;
+#ifdef XE_DEBUG
+      source_index = 0;
+#endif
     }
   }
 
