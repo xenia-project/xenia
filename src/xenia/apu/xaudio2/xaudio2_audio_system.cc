@@ -73,7 +73,7 @@ void XAudio2AudioSystem::Initialize() {
   config.LogFileline      = TRUE;
   audio_->SetDebugConfiguration(&config);
 
-  hr = audio_->CreateMasteringVoice(&mastering_voice_);
+  hr = audio_->CreateMasteringVoice(&mastering_voice_, 6, 48000);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
     XEASSERTALWAYS();
