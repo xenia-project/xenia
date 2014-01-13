@@ -141,11 +141,9 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
 #ifdef XE_DEBUG
     uint64_t source_offset = -1;
     if (source_index < this->source_map_count_ &&
-        this->source_map_[source_index].intcode_index <= ia)
-    {
+        this->source_map_[source_index].intcode_index <= ia) {
       while (source_index + 1 < this->source_map_count_ &&
-             this->source_map_[source_index + 1].intcode_index <= ia)
-      {
+             this->source_map_[source_index + 1].intcode_index <= ia) {
         source_index++;
       }
       source_offset = this->source_map_[source_index].source_offset;
