@@ -60,7 +60,7 @@ void XAudio2AudioSystem::Initialize() {
   hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
     XELOGE("XAudio2Create failed with %.8X", hr);
-    exit(1);
+    XEASSERTALWAYS();
     return;
   }
 
@@ -76,7 +76,8 @@ void XAudio2AudioSystem::Initialize() {
   hr = audio_->CreateMasteringVoice(&mastering_voice_);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
-    exit(1);
+    XEASSERTALWAYS();
+    return;
   }
 
   WAVEFORMATIEEEFLOATEX waveformat;
@@ -94,11 +95,12 @@ void XAudio2AudioSystem::Initialize() {
 	  SPEAKER_LOW_FREQUENCY |
 	  SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
   hr = audio_->CreateSourceVoice(
-      &pcm_voice_, &waveformat, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
+      &pcm_voice_, (WAVEFORMATEX*)&waveformat, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
       voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
-    exit(1);
+    XEASSERTALWAYS();
+    return;
   }
 
   //
@@ -143,12 +145,14 @@ void XAudio2AudioSystem::SubmitFrame(uint32_t samples_ptr) {
   hr = pcm_voice_->SubmitSourceBuffer(&buffer);
   if (FAILED(hr)) {
     XELOGE("SubmitSourceBuffer failed with %.8X", hr);
-    exit(1);
+    XEASSERTALWAYS();
+    return;
   }
   hr = pcm_voice_->Start(0);
   if (FAILED(hr)) {
     XELOGE("Start failed with %.8X", hr);
-    exit(1);
+    XEASSERTALWAYS();
+    return;
   }
 }
 
