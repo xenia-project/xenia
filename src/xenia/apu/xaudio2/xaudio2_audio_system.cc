@@ -67,7 +67,14 @@ void XAudio2AudioSystem::Initialize() {
 }
 
 void XAudio2AudioSystem::Pump() {
-  //
+  XAUDIO2_VOICE_STATE state;
+  pcm_voice_->GetState(&state);
+  auto n = state.BuffersQueued;
+  if (n > 30) {
+    can_submit_ = false;
+  } else {
+    can_submit_ = true;
+  }
 }
 
 void XAudio2AudioSystem::SubmitFrame(uint32_t samples_ptr) {
