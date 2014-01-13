@@ -321,8 +321,7 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, u
               f.Not(f.LoadZero(VEC128_TYPE)),
               f.LoadZero(VEC128_TYPE),
               INT8_TYPE)));
-  // ea &= ~0xF
-  ea = f.And(ea, f.LoadConstant(~0xFull));
+  // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
@@ -363,8 +362,7 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, u
               f.LoadZero(VEC128_TYPE),
               f.Not(f.LoadZero(VEC128_TYPE)),
               INT8_TYPE)));
-  // ea &= ~0xF
-  ea = f.And(ea, f.LoadConstant(~0xFull));
+  // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
