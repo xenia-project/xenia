@@ -86,14 +86,13 @@ void XAudio2AudioSystem::Initialize() {
   waveformat.Format.nChannels = 6;
   waveformat.Format.nSamplesPerSec = 48000;
   waveformat.Format.wBitsPerSample = 32;
-  waveformat.Format.nBlockAlign = (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8; // 4
-  waveformat.Format.nAvgBytesPerSec = waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign; // 44100 * 4
-  waveformat.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE)-sizeof(WAVEFORMATEX);
+  waveformat.Format.nBlockAlign = (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8;
+  waveformat.Format.nAvgBytesPerSec = waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign;
+  waveformat.Format.cbSize = sizeof(waveformat) - sizeof(WAVEFORMATEX);
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
-  waveformat.dwChannelMask =
-	  SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
-	  SPEAKER_LOW_FREQUENCY |
-	  SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
+  waveformat.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
+                             SPEAKER_LOW_FREQUENCY |
+                             SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
   hr = audio_->CreateSourceVoice(
       &pcm_voice_, (WAVEFORMATEX*)&waveformat,
       XAUDIO2_VOICE_NOPITCH | XAUDIO2_VOICE_NOSRC, XAUDIO2_DEFAULT_FREQ_RATIO,
