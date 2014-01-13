@@ -138,6 +138,7 @@ XEEMITTER(bcx,          0x40000000, B  )(PPCHIRBuilder& f, InstrData& i) {
     ctr = f.Sub(ctr, f.LoadConstant((int64_t)1));
     f.StoreCTR(ctr);
     // Ctr check.
+    ctr = f.Truncate(ctr, INT32_TYPE);
     // TODO(benvanik): could do something similar to cond and avoid the
     // is_true/branch_true pairing.
     if (XESELECTBITS(i.B.BO, 1, 1)) {
@@ -243,6 +244,7 @@ XEEMITTER(bclrx,        0x4C000020, XL )(PPCHIRBuilder& f, InstrData& i) {
     ctr = f.Sub(ctr, f.LoadConstant((int64_t)1));
     f.StoreCTR(ctr);
     // Ctr check.
+    ctr = f.Truncate(ctr, INT32_TYPE);
     // TODO(benvanik): could do something similar to cond and avoid the
     // is_true/branch_true pairing.
     if (XESELECTBITS(i.XL.BO, 1, 1)) {
