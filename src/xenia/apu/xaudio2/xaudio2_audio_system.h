@@ -40,6 +40,7 @@ private:
   IXAudio2* audio_;
   IXAudio2MasteringVoice* mastering_voice_;
   IXAudio2SourceVoice* pcm_voice_;
+  int active_channels_;
   float samples_[1536];
   HANDLE wait_handle_;
 
