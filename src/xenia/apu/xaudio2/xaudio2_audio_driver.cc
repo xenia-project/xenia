@@ -7,29 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_APU_H_
-#define XENIA_APU_APU_H_
+#include <xenia/apu/xaudio2/xaudio2_audio_driver.h>
 
-#include <xenia/apu/audio_system.h>
-
-
-XEDECLARECLASS1(xe, Emulator);
+#include <xenia/apu/apu-private.h>
 
 
-namespace xe {
-namespace apu {
+using namespace xe;
+using namespace xe::apu;
+using namespace xe::apu::xaudio2;
 
 
-AudioSystem* Create(Emulator* emulator);
+XAudio2AudioDriver::XAudio2AudioDriver(Memory* memory) :
+    AudioDriver(memory) {
+}
 
-AudioSystem* CreateNop(Emulator* emulator);
+XAudio2AudioDriver::~XAudio2AudioDriver() {
+}
 
-#if XE_PLATFORM_WIN32
-AudioSystem* CreateXAudio2(Emulator* emulator);
-#endif  // WIN32
-
-}  // namespace apu
-}  // namespace xe
-
-
-#endif  // XENIA_APU_APU_H_
+void XAudio2AudioDriver::Initialize() {
+}

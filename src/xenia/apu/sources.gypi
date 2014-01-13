@@ -17,6 +17,7 @@
   'conditions': [
     ['OS == "win"', {
       'includes': [
+        'xaudio2/sources.gypi',
       ],
     }],
   ],

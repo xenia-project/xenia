@@ -284,6 +284,7 @@
                   'd3d11',
                   'd3dcompiler',
                   'xinput',
+                  'xaudio2',
                 ],
               }],
               ['OS == "mac"', {
