@@ -1456,7 +1456,7 @@ uint32_t IntCode_LOAD_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = *((uint32_t*)(ics.membase + (address & ~0xF) + n * 4));
+    dest.i4[n] = *((uint32_t*)(ics.membase + address + n * 4));
   }
   DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load v128 %.8X\n",
          dest.f4[0], dest.f4[1], dest.f4[2], dest.f4[3],
@@ -1558,7 +1558,7 @@ uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].v128.f4[0], ics.rf[i->src2_reg].v128.f4[1], ics.rf[i->src2_reg].v128.f4[2], ics.rf[i->src2_reg].v128.f4[3],
          ics.rf[i->src2_reg].v128.i4[0], ics.rf[i->src2_reg].v128.i4[1], ics.rf[i->src2_reg].v128.i4[2], ics.rf[i->src2_reg].v128.i4[3]);
   DFLUSH();
-  *((vec128_t*)(ics.membase + (address & ~0xF))) = ics.rf[i->src2_reg].v128;
+  *((vec128_t*)(ics.membase + address)) = ics.rf[i->src2_reg].v128;
   return IA_NEXT;
 }
 int Translate_STORE(TranslationContext& ctx, Instr* i) {

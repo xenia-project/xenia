@@ -174,7 +174,7 @@ XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCHIRBuilder& f, InstrData
 }
 
 int InstrEmit_lvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = CalculateEA_0(f, ra, rb);
+  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstant(~0xFull));
   f.StoreVR(vd, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
@@ -224,7 +224,7 @@ XEEMITTER(stvewx128,      VX128_1(4, 387),  VX128_1)(PPCHIRBuilder& f, InstrData
 }
 
 int InstrEmit_stvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
-  Value* ea = CalculateEA_0(f, ra, rb);
+  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstant(~0xFull));
   f.Store(ea, f.ByteSwap(f.LoadVR(vd)));
   return 0;
 }
@@ -246,7 +246,8 @@ XEEMITTER(stvxl128,       VX128_1(4, 963),  VX128_1)(PPCHIRBuilder& f, InstrData
 int InstrEmit_lvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
-  // ea &= ~0xF (load takes care of this)
+  // ea &= ~0xF
+  ea = f.And(ea, f.LoadConstant(~0xFull));
   // v = (new << eb)
   Value* v = f.Permute(
       f.LoadVectorShl(eb),
@@ -272,7 +273,8 @@ XEEMITTER(lvlxl128,       VX128_1(4, 1539), VX128_1)(PPCHIRBuilder& f, InstrData
 int InstrEmit_lvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
-  // ea &= ~0xF (load takes care of this)
+  // ea &= ~0xF
+  ea = f.And(ea, f.LoadConstant(~0xFull));
   // v = (new >> (16 - eb))
   Value* v = f.Permute(
       f.LoadVectorShr(f.Sub(f.LoadConstant((int8_t)16), eb)),
@@ -301,7 +303,8 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, u
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   Value* new_value = f.LoadVR(vd);
-  // ea &= ~0xF (load takes care of this)
+  // ea &= ~0xF
+  ea = f.And(ea, f.LoadConstant(~0xFull));
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // v = (new >> eb) | (old & (ONE << (16 - eb)))
   Value* v = f.Permute(
@@ -318,7 +321,8 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, u
               f.Not(f.LoadZero(VEC128_TYPE)),
               f.LoadZero(VEC128_TYPE),
               INT8_TYPE)));
-  // ea &= ~0xF (store takes care of this)
+  // ea &= ~0xF
+  ea = f.And(ea, f.LoadConstant(~0xFull));
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
@@ -341,7 +345,8 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, u
   Value* ea = CalculateEA_0(f, ra, rb);
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
   Value* new_value = f.LoadVR(vd);
-  // ea &= ~0xF (load takes care of this)
+  // ea &= ~0xF
+  ea = f.And(ea, f.LoadConstant(~0xFull));
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // v = (new << (16 - eb)) | (old & (ONE >> eb))
   Value* v = f.Permute(
@@ -358,7 +363,8 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, u
               f.LoadZero(VEC128_TYPE),
               f.Not(f.LoadZero(VEC128_TYPE)),
               INT8_TYPE)));
-  // ea &= ~0xF (store takes care of this)
+  // ea &= ~0xF
+  ea = f.And(ea, f.LoadConstant(~0xFull));
   f.Store(ea, f.ByteSwap(v));
   return 0;
 }
