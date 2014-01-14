@@ -244,10 +244,11 @@ int Module::ReadMap(const char* file_name) {
       // Don't overwrite names we've set elsewhere.
       if (!fn_info->name()) {
         // If it's an mangled C++ name (?name@...) just use the name.
-        if (name[0] == '?') {
+        // TODO(benvanik): better demangling, or leave it to clients.
+        /*if (name[0] == '?') {
           size_t at = name.find('@');
           name = name.substr(1, at - 1);
-        }
+        }*/
         fn_info->set_name(name.c_str());
       }
     } else {
