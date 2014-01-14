@@ -40,6 +40,8 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 #define SHIM_SET_MEM_16(a, v) (*(uint16_t*)SHIM_MEM_ADDR(a)) = XESWAP16(v)
 #define SHIM_SET_MEM_32(a, v) (*(uint32_t*)SHIM_MEM_ADDR(a)) = XESWAP32(v)
 #define SHIM_SET_MEM_64(a, v) (*(uint64_t*)SHIM_MEM_ADDR(a)) = XESWAP64(v)
+#define SHIM_SET_MEM_F32(a, v) (*(float*)SHIM_MEM_ADDR(a)) = XESWAPF32BE(v)
+#define SHIM_SET_MEM_F64(a, v) (*(double*)SHIM_MEM_ADDR(a)) = XESWAPF64BE(v)
 
 #define SHIM_GPR_16(n)        (uint16_t)(ppc_state->r[n])
 #define SHIM_GPR_32(n)        (uint32_t)(ppc_state->r[n])

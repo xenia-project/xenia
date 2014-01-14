@@ -60,7 +60,7 @@ SHIM_CALL XAudioGetSpeakerConfig_shim(
       "XAudioGetSpeakerConfig(%.8X)",
       config_ptr);
 
-  SHIM_SET_MEM_32(config_ptr, 1);
+  SHIM_SET_MEM_32(config_ptr, 0x00010001);
 
   SHIM_SET_RETURN(X_ERROR_SUCCESS);
 }
@@ -95,7 +95,7 @@ SHIM_CALL XAudioGetVoiceCategoryVolume_shim(
       unk, out_ptr);
 
   // Expects a floating point single. Volume %?
-  SHIM_SET_MEM_32(out_ptr, 0);
+  SHIM_SET_MEM_F32(out_ptr, 1.0f);
 
   SHIM_SET_RETURN(X_ERROR_SUCCESS);
 }
