@@ -26,7 +26,7 @@ def main():
       ])
 
   # Check python version.
-  if sys.version_info < (2, 7):
+  if not sys.version_info[:2] == (2, 7):
     print('ERROR: python 2.7 required')
     print('(unfortunately gyp doesn\'t work with 3!)')
     sys.exit(1)
@@ -35,9 +35,9 @@ def main():
   # Grab Visual Studio version and execute shell to set up environment.
   if sys.platform == 'win32':
     vs_version = import_vs_environment()
-    if not vs_version:
-      print('ERROR: Visual Studio not found!')
-      print('Ensure you have a VS1XXCOMNTOOLS environment variable!')
+    if not vs_version == 2013:
+      print('ERROR: Visual Studio 2013 not found!')
+      print('Ensure you have the VS120COMNTOOLS environment variable!')
       sys.exit(1)
       return
 
