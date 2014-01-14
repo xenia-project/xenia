@@ -125,8 +125,10 @@ void XAudio2AudioSystem::Pump() {
   XAUDIO2_VOICE_STATE state;
   pcm_voice_->GetState(&state);
   auto n = state.BuffersQueued;
-  if (n > 1) {
-    // A lot of buffers are queued up, and until we use them block.
+  if (n > 0) {
+    // Only allow one buffer to be queued at once. We only have one static
+    // store of data, and if we called back the game audio driver it would
+    // overwrite it.
     ResetEvent(wait_handle_);
   }
 

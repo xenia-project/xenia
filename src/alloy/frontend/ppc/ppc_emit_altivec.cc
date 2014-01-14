@@ -139,7 +139,7 @@ XEEMITTER(lvewx,          0x7C00008E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 XEEMITTER(lvewx128,       VX128_1(4, 131),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_lvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
+  return InstrEmit_lvewx_(f, i,  VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
 
 int InstrEmit_lvsl_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
@@ -153,7 +153,7 @@ XEEMITTER(lvsl,           0x7C00000C, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 XEEMITTER(lvsl128,        VX128_1(4, 3),    VX128_1)(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_lvsl_(f, i, i.X.RT, i.X.RA, i.X.RB);
+  return InstrEmit_lvsl_(f, i,  VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
 
 int InstrEmit_lvsr_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
@@ -167,7 +167,7 @@ XEEMITTER(lvsr,           0x7C00004C, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 XEEMITTER(lvsr128,        VX128_1(4, 67),   VX128_1)(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_lvsr_(f, i, i.X.RT, i.X.RA, i.X.RB);
+  return InstrEmit_lvsr_(f, i,  VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
 
 int InstrEmit_lvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
@@ -217,7 +217,7 @@ XEEMITTER(stvewx,         0x7C00018E, X   )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_stvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
 }
 XEEMITTER(stvewx128,      VX128_1(4, 387),  VX128_1)(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_stvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
+  return InstrEmit_stvewx_(f, i, VX128_1_VD128, i.VX128_1.RA, i.VX128_1.RB);
 }
 
 int InstrEmit_stvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra, uint32_t rb) {
