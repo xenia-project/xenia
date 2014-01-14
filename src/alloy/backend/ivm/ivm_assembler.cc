@@ -55,7 +55,8 @@ void IVMAssembler::Reset() {
 
 int IVMAssembler::Assemble(
     FunctionInfo* symbol_info, HIRBuilder* builder,
-    DebugInfo* debug_info, Function** out_function) {
+    uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
+    Function** out_function) {
   IVMFunction* fn = new IVMFunction(symbol_info);
   fn->set_debug_info(debug_info);
 

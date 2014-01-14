@@ -32,7 +32,7 @@ public:
   virtual int DeclareFunction(
       runtime::FunctionInfo* symbol_info);
   virtual int DefineFunction(
-      runtime::FunctionInfo* symbol_info, bool with_debug_info,
+      runtime::FunctionInfo* symbol_info, uint32_t debug_info_flags,
       runtime::Function** out_function);
 
 private:

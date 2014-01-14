@@ -42,7 +42,8 @@ public:
 
   virtual int Assemble(
       runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
-      runtime::DebugInfo* debug_info, runtime::Function** out_function) = 0;
+      uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
+      runtime::Function** out_function) = 0;
 
 protected:
   Backend* backend_;

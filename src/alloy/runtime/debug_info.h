@@ -17,6 +17,22 @@ namespace alloy {
 namespace runtime {
 
 
+enum DebugInfoFlags {
+  DEBUG_INFO_NONE                 = 0,
+
+  DEBUG_INFO_SOURCE_DISASM        = (1 << 1),
+  DEBUG_INFO_RAW_HIR_DISASM       = (1 << 2),
+  DEBUG_INFO_HIR_DISASM           = (1 << 3),
+  DEBUG_INFO_RAW_LIR_DISASM       = (1 << 4),
+  DEBUG_INFO_LIR_DISASM           = (1 << 5),
+  DEBUG_INFO_MACHINE_CODE_DISASM  = (1 << 6),
+
+  DEBUG_INFO_ALL_DISASM           = 0xFFFF,
+
+  DEBUG_INFO_JSON                 = (1 << 16),
+};
+
+
 class DebugInfo {
 public:
   DebugInfo();

@@ -662,7 +662,8 @@ json_t* Processor::DumpFunction(uint64_t address, bool& succeeded) {
   // If we ever wanted absolute x64 addresses/etc we could
   // use the x64 from the function in the symbol table.
   Function* fn;
-  if (runtime_->frontend()->DefineFunction(info, true, &fn)) {
+  if (runtime_->frontend()->DefineFunction(
+      info, DEBUG_INFO_ALL_DISASM | DEBUG_INFO_JSON, &fn)) {
     succeeded = false;
     return json_string("Unable to resolve function");
   }

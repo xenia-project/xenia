@@ -58,7 +58,7 @@ PPCTranslator::~PPCTranslator() {
 
 int PPCTranslator::Translate(
     FunctionInfo* symbol_info,
-    bool with_debug_info,
+    uint32_t debug_info_flags,
     Function** out_function) {
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
@@ -73,20 +73,25 @@ int PPCTranslator::Translate(
   }
 
   // NOTE: we only want to do this when required, as it's expensive to build.
+  if (FLAGS_always_disasm) {
+    debug_info_flags |= DEBUG_INFO_ALL_DISASM;
+  }
   DebugInfo* debug_info = NULL;
-  if (FLAGS_always_disasm || with_debug_info) {
+  if (debug_info_flags) {
     debug_info = new DebugInfo();
   }
 
   // Stash source.
-  if (debug_info) {
+  if (debug_info_flags & DEBUG_INFO_SOURCE_DISASM) {
     DumpSource(symbol_info, &string_buffer_);
     debug_info->set_source_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
 
-    DumpSourceJson(symbol_info, &string_buffer_);
-    debug_info->set_source_json(string_buffer_.ToString());
-    string_buffer_.Reset();
+    if (debug_info_flags & DEBUG_INFO_JSON) {
+      DumpSourceJson(symbol_info, &string_buffer_);
+      debug_info->set_source_json(string_buffer_.ToString());
+      string_buffer_.Reset();
+    }
   }
 
   // Emit function.
@@ -94,7 +99,7 @@ int PPCTranslator::Translate(
   XEEXPECTZERO(result);
 
   // Stash raw HIR.
-  if (debug_info) {
+  if (debug_info_flags & DEBUG_INFO_RAW_HIR_DISASM) {
     builder_->Dump(&string_buffer_);
     debug_info->set_raw_hir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
@@ -105,14 +110,17 @@ int PPCTranslator::Translate(
   XEEXPECTZERO(result);
 
   // Stash optimized HIR.
-  if (debug_info) {
+  if (debug_info_flags & DEBUG_INFO_HIR_DISASM) {
     builder_->Dump(&string_buffer_);
     debug_info->set_hir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
 
   // Assemble to backend machine code.
-  result = assembler_->Assemble(symbol_info, builder_, debug_info, out_function);
+  result = assembler_->Assemble(
+      symbol_info, builder_,
+      debug_info_flags, debug_info,
+      out_function);
   XEEXPECTZERO(result);
 
   result = 0;

@@ -31,7 +31,7 @@ public:
   ~PPCTranslator();
 
   int Translate(runtime::FunctionInfo* symbol_info,
-                bool with_debug_info,
+                uint32_t debug_info_flags,
                 runtime::Function** out_function);
 
 private:

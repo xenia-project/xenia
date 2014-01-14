@@ -81,7 +81,8 @@ void X64Assembler::Reset() {
 
 int X64Assembler::Assemble(
     FunctionInfo* symbol_info, HIRBuilder* hir_builder,
-    DebugInfo* debug_info, Function** out_function) {
+    uint32_t debug_info_flags, DebugInfo* debug_info,
+    Function** out_function) {
   int result = 0;
 
   // Lower HIR -> LIR.
@@ -90,7 +91,7 @@ int X64Assembler::Assemble(
   XEEXPECTZERO(result);
 
   // Stash raw LIR.
-  if (debug_info) {
+  if (debug_info_flags & DEBUG_INFO_RAW_LIR_DISASM) {
     builder_->Dump(&string_buffer_);
     debug_info->set_raw_lir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
@@ -101,7 +102,7 @@ int X64Assembler::Assemble(
   XEEXPECTZERO(result);
 
   // Stash optimized LIR.
-  if (debug_info) {
+  if (debug_info_flags & DEBUG_INFO_LIR_DISASM) {
     builder_->Dump(&string_buffer_);
     debug_info->set_lir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
@@ -114,7 +115,7 @@ int X64Assembler::Assemble(
   XEEXPECTZERO(result);
 
   // Stash generated machine code.
-  if (debug_info) {
+  if (debug_info_flags & DEBUG_INFO_MACHINE_CODE_DISASM) {
     DumpMachineCode(machine_code, code_size, &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();

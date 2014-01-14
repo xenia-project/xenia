@@ -31,7 +31,8 @@ public:
 
   virtual int Assemble(
       runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
-      runtime::DebugInfo* debug_info, runtime::Function** out_function);
+      uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
+      runtime::Function** out_function);
 
 private:
   Arena     intcode_arena_;
