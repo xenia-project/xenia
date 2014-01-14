@@ -12,7 +12,7 @@ be better to wait a bit until things calm down and more of the code is documente
 
 Come chat with us **about development topics** in [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
 
-Currently status:
+Current status:
 
 * Some code runs. [Insert any game name here] doesn't.
 * Asserts! Crashes! Hangs! Blank screens!
