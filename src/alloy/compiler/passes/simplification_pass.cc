@@ -31,13 +31,7 @@ int SimplificationPass::Run(HIRBuilder* builder) {
 void SimplificationPass::EliminateConversions(HIRBuilder* builder) {
   // First, we check for truncates/extensions that can be skipped.
   // This generates some assignments which then the second step will clean up.
-  // Only zero extend truncates can be skipped:
-  //   v1.i32 = truncate v0.i64
-  //   v2.i64 = zero_extend v1.i32
-  // becomes:
-  //   v1.i32 = truncate v0.i64 (may be dead code removed later)
-  //   v2.i64 = v0.i64
-  // But both zero/sign extends can be skipped:
+  // Both zero/sign extends can be skipped:
   //   v1.i64 = zero/sign_extend v0.i32
   //   v2.i32 = truncate v1.i64
   // becomes:
@@ -53,9 +47,6 @@ void SimplificationPass::EliminateConversions(HIRBuilder* builder) {
       if (i->opcode == &OPCODE_TRUNCATE_info) {
         // Matches zero/sign_extend + truncate.
         CheckTruncate(i);
-      } else if (i->opcode == &OPCODE_ZERO_EXTEND_info) {
-        // Matches truncate + zero_extend.
-        CheckZeroExtend(i);
       } else if (i->opcode == &OPCODE_BYTE_SWAP_info) {
         // Matches byte swap + byte swap.
         // This is pretty rare within the same basic block, but is in the
@@ -92,25 +83,6 @@ void SimplificationPass::CheckTruncate(Instr* i) {
         i->Replace(&OPCODE_ASSIGN_info, 0);
         i->set_src1(def->src1.value);
       }
-    }
-  }
-}
-
-void SimplificationPass::CheckZeroExtend(Instr* i) {
-  // Walk backward up src's chain looking for a truncate. We may have
-  // assigns, so skip those.
-  auto src = i->src1.value;
-  Instr* def = src->def;
-  while (def && def->opcode == &OPCODE_ASSIGN_info) {
-    // Skip asignments.
-    def = def->src1.value->def;
-  }
-  if (def && def->opcode == &OPCODE_TRUNCATE_info) {
-    // Value comes from a truncate.
-    if (def->src1.value->type == i->dest->type) {
-      // Types match, use original by turning this into an assign.
-      i->Replace(&OPCODE_ASSIGN_info, 0);
-      i->set_src1(def->src1.value);
     }
   }
 }
