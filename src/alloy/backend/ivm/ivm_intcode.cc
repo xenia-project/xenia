@@ -3851,33 +3851,45 @@ uint32_t IntCode_UNPACK_SHORT_2(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_UNPACK_S8_IN_16_LO(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 8; n++) {
-    dest.s8[n] = (int16_t)(int8_t)src1.b16[8 + n];
-  }
+  dest.s8[0] = (int16_t)(int8_t)src1.b16[8 + 3];
+  dest.s8[1] = (int16_t)(int8_t)src1.b16[8 + 2];
+  dest.s8[2] = (int16_t)(int8_t)src1.b16[8 + 1];
+  dest.s8[3] = (int16_t)(int8_t)src1.b16[8 + 0];
+  dest.s8[4] = (int16_t)(int8_t)src1.b16[8 + 7];
+  dest.s8[5] = (int16_t)(int8_t)src1.b16[8 + 6];
+  dest.s8[6] = (int16_t)(int8_t)src1.b16[8 + 5];
+  dest.s8[7] = (int16_t)(int8_t)src1.b16[8 + 4];
   return IA_NEXT;
 }
 uint32_t IntCode_UNPACK_S8_IN_16_HI(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 8; n++) {
-    dest.s8[n] = (int16_t)(int8_t)src1.b16[n];
-  }
+  dest.s8[0] = (int16_t)(int8_t)src1.b16[3];
+  dest.s8[1] = (int16_t)(int8_t)src1.b16[2];
+  dest.s8[2] = (int16_t)(int8_t)src1.b16[1];
+  dest.s8[3] = (int16_t)(int8_t)src1.b16[0];
+  dest.s8[4] = (int16_t)(int8_t)src1.b16[7];
+  dest.s8[5] = (int16_t)(int8_t)src1.b16[6];
+  dest.s8[6] = (int16_t)(int8_t)src1.b16[5];
+  dest.s8[7] = (int16_t)(int8_t)src1.b16[4];
   return IA_NEXT;
 }
 uint32_t IntCode_UNPACK_S16_IN_32_LO(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 4; n++) {
-    dest.i4[n] = (int32_t)(int16_t)src1.s8[4 + n];
-  }
+  dest.i4[0] = (int32_t)(int16_t)src1.s8[4 + 1];
+  dest.i4[1] = (int32_t)(int16_t)src1.s8[4 + 0];
+  dest.i4[2] = (int32_t)(int16_t)src1.s8[4 + 3];
+  dest.i4[3] = (int32_t)(int16_t)src1.s8[4 + 2];
   return IA_NEXT;
 }
 uint32_t IntCode_UNPACK_S16_IN_32_HI(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 4; n++) {
-    dest.i4[n] = (int32_t)(int16_t)src1.s8[n];
-  }
+  dest.i4[0] = (int32_t)(int16_t)src1.s8[1];
+  dest.i4[1] = (int32_t)(int16_t)src1.s8[0];
+  dest.i4[2] = (int32_t)(int16_t)src1.s8[3];
+  dest.i4[3] = (int32_t)(int16_t)src1.s8[2];
   return IA_NEXT;
 }
 int Translate_UNPACK(TranslationContext& ctx, Instr* i) {
