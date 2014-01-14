@@ -47,7 +47,7 @@ See [building](docs/building.md) for setup and information about the
 
 [![Stories in Ready](https://badge.waffle.io/benvanik/xenia.png?label=ready)](https://waffle.io/benvanik/xenia)
 
-Have some spare time, know avanced C++, and want to write an emulator?
+Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
 is wide open greenfield fun. 
 
