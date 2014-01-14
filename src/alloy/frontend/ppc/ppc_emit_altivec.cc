@@ -1702,6 +1702,36 @@ XEEMITTER(vupklpx,        0x100003CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return 1;
 }
 
+int InstrEmit_vupkhsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // halfwords 0-3 expanded to words 0-3 and sign extended
+  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_HI);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(vupkhsh,        0x1000024E, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vupkhsh_(f, i.VX.VD, i.VX.VB);
+}
+XEEMITTER(vupkhsh128,     0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  uint32_t va = VX128_VA128;
+  XEASSERTZERO(va);
+  return InstrEmit_vupkhsh_(f, VX128_VD128, VX128_VB128);
+}
+
+int InstrEmit_vupklsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // halfwords 4-7 expanded to words 0-3 and sign extended
+  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_LO);
+  f.StoreVR(vd, v);
+  return 0;
+}
+XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  return InstrEmit_vupklsh_(f, i.VX.VD, i.VX.VB);
+}
+XEEMITTER(vupklsh128,     0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
+  uint32_t va = VX128_VA128;
+  XEASSERTZERO(va);
+  return InstrEmit_vupklsh_(f, VX128_VD128, VX128_VB128);
+}
+
 int InstrEmit_vupkhsb_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // bytes 0-7 expanded to halfwords 0-7 and sign extended
   Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S8_IN_16_HI);
@@ -1712,6 +1742,11 @@ XEEMITTER(vupkhsb,        0x1000020E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vupkhsb_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vupkhsb128,     VX128(6, 896),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  uint32_t va = VX128_VA128;
+  if (va == 0x60) {
+    // Hrm, my instruction tables suck.
+    return InstrEmit_vupkhsh_(f, VX128_VD128, VX128_VB128);
+  }
   return InstrEmit_vupkhsb_(f, VX128_VD128, VX128_VB128);
 }
 
@@ -1725,27 +1760,12 @@ XEEMITTER(vupklsb,        0x1000028E, VX  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vupklsb_(f, i.VX.VD, i.VX.VB);
 }
 XEEMITTER(vupklsb128,     VX128(6, 960),    VX128  )(PPCHIRBuilder& f, InstrData& i) {
+  uint32_t va = VX128_VA128;
+  if (va == 0x60) {
+    // Hrm, my instruction tables suck.
+    return InstrEmit_vupklsh_(f, VX128_VD128, VX128_VB128);
+  }
   return InstrEmit_vupklsb_(f, VX128_VD128, VX128_VB128);
-}
-
-int InstrEmit_vupkhsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
-  // halfwords 0-3 expanded to words 0-3 and sign extended
-  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_HI);
-  f.StoreVR(vd, v);
-  return 0;
-}
-XEEMITTER(vupkhsh,        0x1000024E, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_vupkhsh_(f, i.VX.VD, i.VX.VA, i.VX.VB);
-}
-
-int InstrEmit_vupklsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
-  // halfwords 4-7 expanded to words 0-3 and sign extended
-  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_LO);
-  f.StoreVR(vd, v);
-  return 0;
-}
-XEEMITTER(vupklsh,        0x100002CE, VX  )(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_vupklsh_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 
 XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData& i) {
