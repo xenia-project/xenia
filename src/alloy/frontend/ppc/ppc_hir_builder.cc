@@ -269,6 +269,14 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   StoreContext(offsetof(PPCContext, cr6.cr6_none_equal), IsFalse(src_value));
 }
 
+Value* PPCHIRBuilder::LoadFPSCR() {
+	return LoadContext(offsetof(PPCContext, fpscr), INT32_TYPE);
+}
+
+void PPCHIRBuilder::StoreFPSCR(Value* value) {
+	return StoreContext(offsetof(PPCContext, fpscr), value);
+}
+
 Value* PPCHIRBuilder::LoadXER() {
   XEASSERTALWAYS();
   return NULL;
