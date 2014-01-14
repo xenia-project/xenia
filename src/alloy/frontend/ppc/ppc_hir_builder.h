@@ -48,6 +48,8 @@ public:
   void UpdateCR(uint32_t n, Value* lhs, bool is_signed = true);
   void UpdateCR(uint32_t n, Value* lhs, Value* rhs, bool is_signed = true);
   void UpdateCR6(Value* src_value);
+  Value* LoadFPSCR();
+  void StoreFPSCR(Value* value);
   Value* LoadXER();
   void StoreXER(Value* value);
   //void UpdateXERWithOverflow();

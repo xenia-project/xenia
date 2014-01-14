@@ -426,8 +426,23 @@ XEEMITTER(mcrfs,        0xFC000080, X  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mffsx,        0xFC00048E, X  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+	Value* v = f.LoadFPSCR();
+	Value* v1 = f.LoadFPR(i.XFL.RB); //No f.Convert here because this instruction uses the data directly.
+	uint64_t tmp = v1->constant.i64;
+
+	tmp = 0xFFFFFFFF00000000 | v->constant.i32; //Cheapest way I could think of to fill the upper 32 bits with ones and loading it with the value of the FPSCR in the lower 32 bits.
+
+	v1->set_constant(tmp);
+	v1->flags &= ~VALUE_IS_CONSTANT;
+	v1->type = FLOAT64_TYPE; //A kludge, but it avoids exceptions.
+	f.StoreFPR(i.XFL.RB,v1);
+
+	if (i.XFL.Rc)
+	{
+		XEINSTRNOTIMPLEMENTED();
+		return 1;
+	}
+	return 0;
 }
 
 XEEMITTER(mtfsb0x,      0xFC00008C, X  )(PPCHIRBuilder& f, InstrData& i) {
@@ -441,8 +456,26 @@ XEEMITTER(mtfsb1x,      0xFC00004C, X  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mtfsfx,       0xFC00058E, XFL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.LoadFPSCR();
+  Value* v1 = f.LoadFPR(i.XFL.RB); //No f.Convert here because this instruction uses the data directly to replace bits in another register.
+  //Naive, but it should work.
+	uint32_t tmp = v->constant.i32;
+  for(int j = 0;j<8;j++)
+  {
+    if(i.XFL.FM & (1 << j))
+		{
+			tmp &= ~(0xF << (j << 2));
+			tmp |= (v1->constant.i64 >> 32) & (0xF << (j << 2));
+    }
+  }
+	v->set_constant(tmp);
+	f.StoreFPSCR(v);
+	if (i.XFL.Rc)
+	{
+		XEINSTRNOTIMPLEMENTED();
+		return 1;
+	}
+	return 0;
 }
 
 XEEMITTER(mtfsfix,      0xFC00010C, X  )(PPCHIRBuilder& f, InstrData& i) {
