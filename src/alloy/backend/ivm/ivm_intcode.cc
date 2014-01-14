@@ -3681,16 +3681,31 @@ uint32_t IntCode_PERMUTE_V128_BY_INT32(IntCodeState& ics, const IntCode* i) {
   }
   return IA_NEXT;
 }
+static const uint8_t __swap_table[16] = {
+  3, 2, 1, 0,
+  7, 6, 5, 4,
+  11, 10, 9, 8,
+  15, 14, 13, 12,
+};
+uint8_t grab(const vec128_t& src, uint8_t index) {
+  return (index < 8
+      ? (src.low >> (__swap_table[index] << 3))
+      : (src.high >> ((__swap_table[index - 8]) << 3))) & 0xFF;
+}
 uint32_t IntCode_PERMUTE_V128_BY_V128(IntCodeState& ics, const IntCode* i) {
-  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& table = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
-  vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 16; i++) {
-    size_t b = src1.b16[i] & 0x1F;
-    dest.b16[i] = b < 16 ?
-        src2.b16[b] :
-        src3.b16[b - 16];
+  vec128_t& dests = ics.rf[i->dest_reg].v128;
+  dests.low = dests.high = 0;
+  for (size_t n = 0; n < 16; n++) {
+    uint8_t index = table.b16[n] & 0x1F;
+    uint8_t value = index < 16
+        ? grab(src2, index)
+        : grab(src3, index - 16);
+    uint64_t& dest = n < 8 ? dests.low : dests.high;
+    uint8_t shift = __swap_table[(n < 8 ? n : (n - 8))] << 3;
+    dest |= (((uint64_t)value) << shift);
   }
   return IA_NEXT;
 }
