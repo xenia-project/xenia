@@ -4,15 +4,18 @@ Xenia - Xbox 360 Emulator Research Project
 Xenia is an experimental emulator for the Xbox 360. It does not run games (yet),
 and if you are unable to understand that please leave now.
 
+Pull requests are welcome but the code is in a very high churn state and may not
+be accepted, so ask in IRC before taking on anything big. Contributions are
+awesome but the focus of the developers is on writing new code, not teaching
+programming or answering questions. If you'd like to casually help out it may
+be better to wait a bit until things calm down and more of the code is documented.
+
 Come chat with us **about development topics** in [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
 
-Currently supported features:
+Currently status:
 
-* Nothing!
-
-Coming soon (maybe):
-
-* Everything!
+* Some code runs. [Insert any game name here] doesn't.
+* Asserts! Crashes! Hangs! Blank screens!
 
 ## Disclaimer
 
@@ -24,7 +27,7 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-Windows:
+Windows 8.1+:
 
     # install python 2.7 and VS2013
     git clone https://github.com/benvanik/xenia.git
@@ -44,10 +47,17 @@ See [building](docs/building.md) for setup and information about the
 
 [![Stories in Ready](https://badge.waffle.io/benvanik/xenia.png?label=ready)](https://waffle.io/benvanik/xenia)
 
-Have some spare time, know C++, and want to write an emulator? Contribute!
-There's a ton of work that needs to be done, a lot of which is wide open
-greenfield fun. Fixes and optimizations are always welcome (please!), but
-in addition to that there are some major work areas still untouched:
+Have some spare time, know avanced C++, and want to write an emulator?
+Contribute! There's a ton of work that needs to be done, a lot of which
+is wide open greenfield fun. 
+
+That said, the project is currently undergoing a lot of major foundational
+development and core pieces are changing rapidly and poorly documented.
+It'll be difficult to casually hack things in unless you know what you're
+doing.
+
+Fixes and optimizations are always welcome (please!), but in addition to
+that there are some major work areas still untouched:
 
 * Write an [OpenGL driver](https://github.com/benvanik/xenia/issues/59)
 * Add input drivers for [OSX](https://github.com/benvanik/xenia/issues/61) and [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
@@ -55,7 +65,8 @@ in addition to that there are some major work areas still untouched:
 * Support [loading of PIRS files](https://github.com/benvanik/xenia/issues/63)
 * Build a [virtual LIVE service](https://github.com/benvanik/xenia/issues/64)
  
-See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open).
+See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open). It's a good idea to ask on IRC/the bugs before beginning work
+on something.
 
 ## FAQ
 
@@ -100,6 +111,9 @@ and for the large cross-platform project this will become I'm not interested
 in keeping all the platforms building any other way.
 * 'Why this xenia-build.py stuff?' -- I like it, it helps me. If you want to
 manually execute commands have fun, nothing is stopping you.
+* 'Why not just take the code from project X?' -- the point of this project
+is to build something better than previous emulator projects, and learn while
+doing it. The easy way is almost never the best way, and is never as fun.
 
 ## Known Issues
 
