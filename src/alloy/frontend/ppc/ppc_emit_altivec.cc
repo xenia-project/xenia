@@ -631,7 +631,7 @@ int InstrEmit_vcmpxxfp_(PPCHIRBuilder& f, InstrData& i, vcmpxxfp_op cmpop, uint3
     break;
   default:
     XEASSERTALWAYS();
-    break;
+    return 1;
   }
   if (rc) {
     f.UpdateCR6(v);

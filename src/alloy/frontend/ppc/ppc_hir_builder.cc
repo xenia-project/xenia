@@ -149,7 +149,8 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
 
 void PPCHIRBuilder::AnnotateLabel(uint64_t address, Label* label) {
   char name_buffer[13];
-  xesnprintfa(name_buffer, XECOUNT(name_buffer), "loc_%.8X", address);
+  xesnprintfa(name_buffer, XECOUNT(name_buffer),
+              "loc_%.8X", (uint32_t)address);
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
   xe_copy_struct(label->name, name_buffer, sizeof(name_buffer));
 }

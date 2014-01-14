@@ -20,10 +20,10 @@ namespace alloy {
 
 
 Mutex* alloy::AllocMutex(uint32_t spin_count) {
-  Mutex* mutex = (Mutex*)calloc(1, sizeof(Mutex));
+  Mutex* mutex = (Mutex*)xe_calloc(sizeof(Mutex));
 
   if (spin_count) {
-    InitializeCriticalSectionAndSpinCount(&mutex->value, spin_count);
+    XEIGNORE(InitializeCriticalSectionAndSpinCount(&mutex->value, spin_count));
   } else {
     InitializeCriticalSection(&mutex->value);
   }

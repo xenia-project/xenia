@@ -307,7 +307,7 @@ void HIRBuilder::InsertLabel(Label* label, Instr* prev_instr) {
   label->prev = label->next = NULL;
 
   Instr* prev_next = prev_instr->next;
-  Instr* old_prev_tail = prev_block->instr_tail;
+  Instr* old_prev_tail = prev_block ? prev_block->instr_tail : NULL;
   if (prev_instr->next) {
     Instr* prev_last = prev_instr->next->prev;
     prev_last->next = NULL;

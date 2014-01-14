@@ -1242,7 +1242,7 @@ static uint8_t __lvsr_table[17][16] = {
 };
 
 uint32_t IntCode_LOAD_VECTOR_SHL(IntCodeState& ics, const IntCode* i) {
-  int8_t sh = ics.rf[i->src1_reg].i8 & 0x1F;
+  int8_t sh = MIN(16, ics.rf[i->src1_reg].i8);
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
     dest.b16[n] = __lvsl_table[sh][n];
@@ -1254,7 +1254,7 @@ int Translate_LOAD_VECTOR_SHL(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_LOAD_VECTOR_SHR(IntCodeState& ics, const IntCode* i) {
-  int8_t sh = ics.rf[i->src1_reg].i8 & 0x1F;
+  int8_t sh = MIN(16, ics.rf[i->src1_reg].i8);
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
     dest.b16[n] = __lvsr_table[sh][n];

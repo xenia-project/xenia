@@ -674,7 +674,7 @@ XEEMITTER(andisx,       0x74000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i32.0 || UI || i16.0)
   Value* ra = f.And(
       f.LoadGPR(i.D.RT),
-      f.LoadConstant((uint64_t)(i.D.DS << 16)));
+      f.LoadConstant((uint64_t(i.D.DS) << 16)));
   f.UpdateCR(0, ra);
   f.StoreGPR(i.D.RA, ra);
   return 0;
@@ -839,7 +839,7 @@ XEEMITTER(oris,         0x64000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | (i32.0 || UI || i16.0)
   Value* ra = f.Or(
       f.LoadGPR(i.D.RT),
-      f.LoadConstant((uint64_t)(i.D.DS << 16)));
+      f.LoadConstant((uint64_t(i.D.DS) << 16)));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -869,7 +869,7 @@ XEEMITTER(xoris,        0x6C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i32.0 || UI || i16.0)
   Value* ra = f.Xor(
       f.LoadGPR(i.D.RT),
-      f.LoadConstant((uint64_t)(i.D.DS << 16)));
+      f.LoadConstant((uint64_t(i.D.DS) << 16)));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
