@@ -8,8 +8,10 @@ video drivers for your card.
 
 ### Windows
 
+* Windows 8 or 8.1
 * Visual Studio 2013
-* [Python 2.7](http://www.python.org/download/releases/2.7.5/)
+* [Python 2.7](http://www.python.org/download/releases/2.7.6/)
+* If you are on Windows 8, you will also need the [Windows 8.1 SDK](http://msdn.microsoft.com/en-us/windows/desktop/bg162891)
 
 Ensure Python is in your PATH (`C:\Python27\`).
 
