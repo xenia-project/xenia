@@ -70,7 +70,6 @@ protected:
   Memory*           memory_;
   cpu::Processor*   processor_;
 
-  xe_run_loop_ref   run_loop_;
   xe_thread_ref     thread_;
   cpu::XenonThreadState* thread_state_;
   uint32_t          thread_block_;

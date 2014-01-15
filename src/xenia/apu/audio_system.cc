@@ -23,10 +23,6 @@ AudioSystem::AudioSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
     thread_(0), running_(false),
     client_({ 0 }) {
-  // Create the run loop used for any windows/etc.
-  // This must be done on the thread we create the driver.
-  run_loop_ = xe_run_loop_create();
-
   lock_ = xe_mutex_alloc();
 }
 
@@ -67,8 +63,6 @@ X_STATUS AudioSystem::Setup() {
 }
 
 void AudioSystem::ThreadStart() {
-  xe_run_loop_ref run_loop = xe_run_loop_retain(run_loop_);
-
   // Initialize driver and ringbuffer.
   Initialize();
 
@@ -76,14 +70,6 @@ void AudioSystem::ThreadStart() {
 
   // Main run loop.
   while (running_) {
-    // Peek main run loop.
-    if (xe_run_loop_pump(run_loop)) {
-      break;
-    }
-    if (!running_) {
-      break;
-    }
-
     // Pump worker.
     // This may block.
     Pump();
@@ -108,8 +94,6 @@ void AudioSystem::ThreadStart() {
   }
   running_ = false;
 
-  xe_run_loop_release(run_loop);
-
   // TODO(benvanik): call module API to kill?
 }
 
@@ -123,8 +107,6 @@ void AudioSystem::Shutdown() {
 
   delete thread_state_;
   memory()->HeapFree(thread_block_, 0);
-
-  xe_run_loop_release(run_loop_);
 }
 
 void AudioSystem::RegisterClient(
