@@ -93,7 +93,8 @@ void GraphicsSystem::ThreadStart() {
 
   xe_run_loop_release(run_loop);
 
-  // TODO(benvanik): call module API to kill?
+  // TODO(benvanik): call module API to kill? this is a bad shutdown.
+  exit(1);
 }
 
 void GraphicsSystem::Initialize() {

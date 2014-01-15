@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_graphics_system.h>
 
+#include <xenia/emulator.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 #include <xenia/gpu/d3d11/d3d11_window.h>
@@ -122,7 +123,12 @@ void D3D11GraphicsSystem::Initialize() {
   // will take place.
   XEASSERTNULL(window_);
   window_ = new D3D11Window(run_loop_, dxgi_factory_, device_);
-  window_->set_title(XETEXT("Xenia D3D11"));
+  if (window_->Initialize("Xenia D3D11", 1280, 768)) {
+    XELOGE("Failed to create D3D11Window");
+    exit(1);
+    return;
+  }
+  emulator_->set_main_window(window_);
 
   // Listen for alt-enter/etc.
   dxgi_factory_->MakeWindowAssociation(window_->handle(), 0);

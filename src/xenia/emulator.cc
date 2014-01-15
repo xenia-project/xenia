@@ -19,6 +19,7 @@
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/modules.h>
 #include <xenia/kernel/fs/filesystem.h>
+#include <xenia/ui/window.h>
 
 
 using namespace xe;
@@ -29,9 +30,11 @@ using namespace xe::gpu;
 using namespace xe::hid;
 using namespace xe::kernel;
 using namespace xe::kernel::fs;
+using namespace xe::ui;
 
 
 Emulator::Emulator(const xechar_t* command_line) :
+    main_window_(0),
     memory_(0),
     debug_server_(0),
     processor_(0),
@@ -43,6 +46,10 @@ Emulator::Emulator(const xechar_t* command_line) :
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
+
+  if (main_window_) {
+    main_window_->Close();
+  }
 
   // Disconnect all debug clients first.
   if (debug_server_) {

@@ -11,9 +11,10 @@
 
 
 using namespace xe;
-using namespace xe::core;
 using namespace xe::gpu;
 using namespace xe::gpu::d3d11;
+using namespace xe::ui;
+using namespace xe::ui::win32;
 
 
 D3D11Window::D3D11Window(
@@ -29,10 +30,33 @@ D3D11Window::D3D11Window(
   swap_chain_ = 0;
   render_target_view_ = 0;
 
+  // TODO(benvanik): move to emulator main window setter.
+  closing.AddListener([](UIEvent& e) {
+    xe_run_loop_quit(e.window()->run_loop());
+  });
+}
+
+D3D11Window::~D3D11Window() {
+  if (context_) {
+    context_->ClearState();
+  }
+  XESAFERELEASE(render_target_view_);
+  XESAFERELEASE(context_);
+  XESAFERELEASE(swap_chain_);
+  XESAFERELEASE(device_);
+  XESAFERELEASE(dxgi_factory_);
+}
+
+int D3D11Window::Initialize(const char* title, uint32_t width, uint32_t height) {
+  int result = Win32Window::Initialize(title, width, height);
+  if (result) {
+    return result;
+  }
+
   // Setup swap chain.
   DXGI_SWAP_CHAIN_DESC desc;
   xe_zero_struct(&desc, sizeof(desc));
-  desc.OutputWindow       = handle_;
+  desc.OutputWindow       = handle();
   desc.Windowed           = TRUE;
   desc.SwapEffect         = DXGI_SWAP_EFFECT_DISCARD;
   desc.Flags              = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
@@ -40,8 +64,8 @@ D3D11Window::D3D11Window(
   // Setup buffers.
   desc.BufferCount        = 1;
   desc.BufferUsage        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  desc.BufferDesc.Width   = width_;
-  desc.BufferDesc.Height  = height_;
+  desc.BufferDesc.Width   = width;
+  desc.BufferDesc.Height  = height;
   desc.BufferDesc.Format  = DXGI_FORMAT_R8G8B8A8_UNORM;
   desc.BufferDesc.RefreshRate.Numerator   = 60;
   desc.BufferDesc.RefreshRate.Denominator = 1;
@@ -57,8 +81,7 @@ D3D11Window::D3D11Window(
       &swap_chain_);
   if (FAILED(hr)) {
     XELOGE("CreateSwapChain failed with %.8X", hr);
-    exit(1);
-    return;
+    return 1;
   }
 
   // Create a render target view to draw into.
@@ -67,29 +90,18 @@ D3D11Window::D3D11Window(
       0, __uuidof(ID3D11Texture2D), (void**)&back_buffer);
   if (FAILED(hr)) {
     XELOGE("GetBuffer (back_buffer) failed with %.8X", hr);
-    exit(1);
-    return;
+    return 1;
   }
   hr = device_->CreateRenderTargetView(
       back_buffer, NULL, &render_target_view_);
   back_buffer->Release();
   if (FAILED(hr)) {
     XELOGE("CreateRenderTargetView (back_buffer) failed with %.8X", hr);
-    exit(1);
-    return;
+    return 1;
   }
   context_->OMSetRenderTargets(1, &render_target_view_, NULL);
-}
 
-D3D11Window::~D3D11Window() {
-  if (context_) {
-    context_->ClearState();
-  }
-  XESAFERELEASE(render_target_view_);
-  XESAFERELEASE(context_);
-  XESAFERELEASE(swap_chain_);
-  XESAFERELEASE(device_);
-  XESAFERELEASE(dxgi_factory_);
+  return 0;
 }
 
 void D3D11Window::Swap() {
@@ -102,13 +114,13 @@ void D3D11Window::Swap() {
   }
 }
 
-void D3D11Window::OnResize(uint32_t width, uint32_t height) {
-  Win32Window::OnResize(width, height);
+bool D3D11Window::OnResize(uint32_t width, uint32_t height) {
+  if (!Win32Window::OnResize(width, height)) {
+    return false;
+  }
 
   // TODO(benvanik): resize swap buffers?
+
+  return true;
 }
 
-void D3D11Window::OnClose() {
-  // We are the master window - if they close us, quit!
-  xe_run_loop_quit(run_loop_);
-}

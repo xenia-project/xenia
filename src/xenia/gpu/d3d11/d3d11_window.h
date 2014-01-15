@@ -12,6 +12,8 @@
 
 #include <xenia/core.h>
 
+#include <xenia/ui/win32/win32_window.h>
+
 #include <d3d11.h>
 
 
@@ -20,18 +22,19 @@ namespace gpu {
 namespace d3d11 {
 
 
-class D3D11Window : public xe::core::Win32Window {
+class D3D11Window : public xe::ui::win32::Win32Window {
 public:
   D3D11Window(
       xe_run_loop_ref run_loop,
       IDXGIFactory1* dxgi_factory, ID3D11Device* device);
   virtual ~D3D11Window();
 
+  virtual int Initialize(const char* title, uint32_t width, uint32_t height);
+
   void Swap();
 
 protected:
-  virtual void OnResize(uint32_t width, uint32_t height);
-  virtual void OnClose();
+  virtual bool OnResize(uint32_t width, uint32_t height);
 
 private:
   IDXGIFactory1*          dxgi_factory_;

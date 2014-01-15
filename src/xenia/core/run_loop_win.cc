@@ -59,7 +59,7 @@ int xe_run_loop_pump(xe_run_loop_ref run_loop) {
       }
       break;
     case WM_XE_RUN_LOOP_QUIT:
-      if (msg.lParam == (WPARAM)run_loop) {
+      if (msg.wParam == (WPARAM)run_loop) {
         // Done!
         return 1;
       }
@@ -70,7 +70,7 @@ int xe_run_loop_pump(xe_run_loop_ref run_loop) {
 }
 
 void xe_run_loop_quit(xe_run_loop_ref run_loop) {
-  PostMessage(NULL, WM_XE_RUN_LOOP_QUIT, 0, (WPARAM)run_loop);
+  PostMessage(NULL, WM_XE_RUN_LOOP_QUIT, (WPARAM)run_loop, 0);
 }
 
 void xe_run_loop_call(xe_run_loop_ref run_loop,

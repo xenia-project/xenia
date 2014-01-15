@@ -33,5 +33,6 @@
     'gpu/sources.gypi',
     'hid/sources.gypi',
     'kernel/sources.gypi',
+    'ui/sources.gypi',
   ],
 }

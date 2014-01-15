@@ -52,7 +52,7 @@ private:
 class DebugEvent {
 public:
   DebugEvent(Debugger* debugger) :
-    debugger_(debugger) {}
+      debugger_(debugger) {}
   virtual ~DebugEvent() {}
   Debugger* debugger() const { return debugger_; }
 protected:
