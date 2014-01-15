@@ -52,19 +52,19 @@ void Instr::Replace(const OpcodeInfo* opcode, uint16_t flags) {
   this->opcode = opcode;
   this->flags = flags;
 
-  if (dest) {
-    dest->def = NULL;
-  }
   if (src1_use) {
     src1.value->RemoveUse(src1_use);
+    src1.value = NULL;
     src1_use = NULL;
   }
   if (src2_use) {
     src2.value->RemoveUse(src2_use);
+    src2.value = NULL;
     src2_use = NULL;
   }
   if (src3_use) {
     src3.value->RemoveUse(src3_use);
+    src3.value = NULL;
     src3_use = NULL;
   }
 }

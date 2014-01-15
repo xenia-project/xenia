@@ -402,6 +402,7 @@ Instr* HIRBuilder::AppendInstr(
   instr->opcode = &opcode_info;
   instr->flags = flags;
   instr->dest = dest;
+  instr->src1.value = instr->src2.value = instr->src3.value = NULL;
   instr->src1_use = instr->src2_use = instr->src3_use = NULL;
   if (dest) {
     dest->def = instr;

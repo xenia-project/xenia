@@ -59,6 +59,7 @@ public:
   TypeName type;
 
   uint32_t flags;
+  uint32_t reserved;
   ConstantValue constant;
 
   Instr*    def;
