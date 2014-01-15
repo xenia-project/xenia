@@ -39,7 +39,7 @@ public:
   const xechar_t* command_line() const { return command_line_; }
 
   ui::Window* main_window() const { return main_window_; }
-  void set_main_window(ui::Window* window) { main_window_ = window; }
+  void set_main_window(ui::Window* window);
 
   Memory* memory() const { return memory_; }
 

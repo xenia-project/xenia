@@ -145,6 +145,16 @@ XECLEANUP:
   return result;
 }
 
+void Emulator::set_main_window(Window* window) {
+  XEASSERTNULL(main_window_);
+  main_window_ = window;
+
+  window->closed.AddListener([](UIEvent& e) {
+    // TODO(benvanik): call module API to kill? this is a bad shutdown.
+    exit(1);
+  });
+}
+
 X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.

@@ -30,7 +30,6 @@ D3D11Window::D3D11Window(
   swap_chain_ = 0;
   render_target_view_ = 0;
 
-  // TODO(benvanik): move to emulator main window setter.
   closing.AddListener([](UIEvent& e) {
     xe_run_loop_quit(e.window()->run_loop());
   });
