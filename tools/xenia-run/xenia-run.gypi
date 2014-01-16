@@ -5,6 +5,12 @@
       'target_name': 'xenia-run',
       'type': 'executable',
 
+      'msvs_settings': {
+        'VCLinkerTool': {
+          #'SubSystem': '2'
+        }
+      },
+
       'dependencies': [
         'xenia',
       ],

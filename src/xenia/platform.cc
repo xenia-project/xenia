@@ -18,10 +18,13 @@ namespace {
 
 typedef int (*user_main_t)(int argc, xechar_t** argv);
 
-}
+}  // namespace
 
 
 #if XE_LIKE_WIN32 && defined(UNICODE) && UNICODE
+
+#include <windows.h>
+#include <shellapi.h>
 
 int xe_main_thunk(
     int argc, wchar_t* argv[],
@@ -50,6 +53,23 @@ int xe_main_thunk(
 
   int result = ((user_main_t)user_main)(argcw, (xechar_t**)argvw);
   google::ShutDownCommandLineFlags();
+  return result;
+}
+
+int xe_main_window_thunk(
+    wchar_t* command_line,
+    void* user_main, const wchar_t* name, const char* usage) {
+  wchar_t buffer[2048];
+  xestrcpy(buffer, XECOUNT(buffer), name);
+  xestrcat(buffer, XECOUNT(buffer), XETEXT(" "));
+  xestrcat(buffer, XECOUNT(buffer), command_line);
+  int argc;
+  wchar_t** argv = CommandLineToArgvW(buffer, &argc);
+  if (!argv) {
+    return 1;
+  }
+  int result = xe_main_thunk(argc, argv, user_main, usage);
+  LocalFree(argv);
   return result;
 }
 

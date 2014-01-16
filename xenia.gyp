@@ -285,6 +285,7 @@
                   'd3dcompiler',
                   'xinput',
                   'xaudio2',
+                  'Shell32',
                 ],
               }],
               ['OS == "mac"', {

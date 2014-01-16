@@ -123,7 +123,7 @@ void D3D11GraphicsSystem::Initialize() {
   // will take place.
   XEASSERTNULL(window_);
   window_ = new D3D11Window(run_loop_, dxgi_factory_, device_);
-  if (window_->Initialize("Xenia D3D11", 1280, 768)) {
+  if (window_->Initialize("Xenia D3D11", 1280, 720)) {
     XELOGE("Failed to create D3D11Window");
     exit(1);
     return;
