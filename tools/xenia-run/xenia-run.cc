@@ -87,5 +87,4 @@ XECLEANUP:
   delete emulator;
   return result_code;
 }
-XE_MAIN_THUNK(xenia_run, "xenia-run some.xex");
-//XE_MAIN_WINDOW_THUNK(xenia_run, XETEXT("xenia-run"), "xenia-run some.xex");
+XE_MAIN_WINDOW_THUNK(xenia_run, XETEXT("xenia-run"), "xenia-run some.xex");

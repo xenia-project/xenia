@@ -24,6 +24,8 @@ typedef int (*user_main_t)(int argc, xechar_t** argv);
 #if XE_LIKE_WIN32 && defined(UNICODE) && UNICODE
 
 #include <windows.h>
+#include <fcntl.h>
+#include <io.h>
 #include <shellapi.h>
 
 int xe_main_thunk(
@@ -56,9 +58,32 @@ int xe_main_thunk(
   return result;
 }
 
+void xe_attach_console() {
+  bool has_console = AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
+  if (!has_console) {
+    // We weren't launched from a console, so just return.
+    // We could alloc our own console, but meh:
+    // has_console = AllocConsole() == TRUE;
+    return;
+  }
+
+  auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
+  auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
+  auto fp = _fdopen(con_handle, "w");
+  *stdout = *fp;
+  setvbuf(stdout, NULL, _IONBF, 0);
+
+  std_handle = (intptr_t)GetStdHandle(STD_ERROR_HANDLE);
+  con_handle = _open_osfhandle(std_handle, _O_TEXT);
+  fp = _fdopen(con_handle, "w");
+  *stderr = *fp;
+  setvbuf(stderr, NULL, _IONBF, 0);
+}
+
 int xe_main_window_thunk(
     wchar_t* command_line,
     void* user_main, const wchar_t* name, const char* usage) {
+  xe_attach_console();
   wchar_t buffer[2048];
   xestrcpy(buffer, XECOUNT(buffer), name);
   xestrcat(buffer, XECOUNT(buffer), XETEXT(" "));
