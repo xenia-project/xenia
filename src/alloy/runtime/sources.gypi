@@ -9,6 +9,8 @@
     'entry_table.h',
     'function.cc',
     'function.h',
+    'instrument.cc',
+    'instrument.h',
     'module.cc',
     'module.h',
     'raw_module.cc',
