@@ -18,6 +18,8 @@ namespace {
 
 typedef int (*user_main_t)(int argc, xechar_t** argv);
 
+bool _has_console = true;
+
 }  // namespace
 
 
@@ -58,14 +60,20 @@ int xe_main_thunk(
   return result;
 }
 
+bool xe_has_console() {
+  return _has_console;
+}
+
 void xe_attach_console() {
   bool has_console = AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
   if (!has_console) {
     // We weren't launched from a console, so just return.
     // We could alloc our own console, but meh:
     // has_console = AllocConsole() == TRUE;
+    _has_console = false;
     return;
   }
+  _has_console = true;
 
   auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
   auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
@@ -99,6 +107,10 @@ int xe_main_window_thunk(
 }
 
 #else
+
+bool xe_has_console() {
+  return _has_console;
+}
 
 int xe_main_thunk(
     int argc, char** argv,

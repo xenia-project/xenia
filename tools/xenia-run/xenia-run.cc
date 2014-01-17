@@ -27,6 +27,7 @@ int xenia_run(int argc, xechar_t** argv) {
   // Grab path from the flag or unnamed argument.
   if (!FLAGS_target.size() && argc < 2) {
     google::ShowUsageWithFlags("xenia-run");
+    XEFATAL("Pass a file to launch.");
     return 1;
   }
   const xechar_t* path = NULL;
@@ -55,6 +56,7 @@ int xenia_run(int argc, xechar_t** argv) {
   const xechar_t* dot = xestrrchr(abs_path, '.');
   if (!dot) {
     XELOGE("Invalid input path; no extension found");
+    XEFATAL("Pass a valid file path to launch.");
     return 1;
   }
 
@@ -85,6 +87,9 @@ int xenia_run(int argc, xechar_t** argv) {
   result_code = 0;
 XECLEANUP:
   delete emulator;
+  if (result_code) {
+    XEFATAL("Failed to launch emulator: %d", result_code);
+  }
   return result_code;
 }
 XE_MAIN_WINDOW_THUNK(xenia_run, XETEXT("xenia-run"), "xenia-run some.xex");

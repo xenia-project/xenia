@@ -25,6 +25,9 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
                  const char* function_name, const char level_char,
                  const char* fmt, ...) XE_LOG_LINE_ATTRIBUTE;
 #undef XE_LOG_LINE_ATTRIBUTE
+void xe_handle_fatal(
+    const char* file_path, const uint32_t line_number,
+    const char* function_name, const char* fmt, ...);
 
 #if XE_OPTION_ENABLE_LOGGING
 #define XELOGCORE(level, fmt, ...) xe_log_line( \
@@ -33,6 +36,11 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
 #else
 #define XELOGCORE(level, fmt, ...) XE_EMPTY_MACRO
 #endif  // ENABLE_LOGGING
+
+#define XEFATAL(fmt, ...) do { \
+    xe_handle_fatal(XE_CURRENT_FILE, XE_CURRENT_LINE, XE_CURRENT_FUNCTION, \
+                    fmt, ##__VA_ARGS__); \
+  } while (false);
 
 #if XE_OPTION_LOG_ERROR
 #define XELOGE(fmt, ...) XELOGCORE('!', fmt, ##__VA_ARGS__)

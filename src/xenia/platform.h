@@ -134,6 +134,7 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #define XE_ALIGNMENT            16
 #endif  // 32BIT
 
+bool xe_has_console();
 #if XE_LIKE_WIN32 && defined(UNICODE) && UNICODE
 int xe_main_thunk(
     int argc, wchar_t* argv[],
