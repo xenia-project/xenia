@@ -458,6 +458,71 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(
   SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
 }
 
+SHIM_CALL NtQueryDirectoryFile_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t event_handle = SHIM_GET_ARG_32(1);
+  uint32_t apc_routine = SHIM_GET_ARG_32(2);
+  uint32_t apc_context = SHIM_GET_ARG_32(3);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(4);
+  uint32_t file_info_ptr = SHIM_GET_ARG_32(5);
+  uint32_t length = SHIM_GET_ARG_32(6);
+  uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
+
+  XELOGD(
+    "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X)",
+      file_handle,
+      event_handle,
+      apc_routine,
+      apc_context,
+      io_status_block_ptr,
+      file_info_ptr,
+      length,
+      file_name_ptr);
+
+  if (length < 72) {
+    SHIM_SET_RETURN(X_STATUS_INFO_LENGTH_MISMATCH);
+    return;
+  }
+
+  if (file_name_ptr != 0) {
+    if (SHIM_MEM_16(file_name_ptr + 0) != 0 ||
+      SHIM_MEM_16(file_name_ptr + 2) != 0) {
+      const char* file_name = (const char *)SHIM_MEM_ADDR(SHIM_MEM_32(file_name_ptr + 4));
+      XEASSERT(strcmp(file_name, "*.*") == 0);
+  }
+  }
+
+  X_STATUS result = X_STATUS_UNSUCCESSFUL;
+  uint32_t info = 0;
+
+  XFile* file = NULL;
+  result = state->object_table()->GetObject(
+      file_handle, (XObject**)&file);
+  if (XSUCCEEDED(result)) {
+    XDirectoryInfo* dirInfo = (XDirectoryInfo*)xe_malloc(length);
+    result = file->QueryDirectory(dirInfo, length, false);
+    if (XSUCCEEDED(result)) {
+      dirInfo->Write(SHIM_MEM_BASE, file_info_ptr);
+      info = length;
+    }
+  }
+
+  if (XFAILED(result)) {
+    info = 0;
+  }
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+
+  if (file) {
+    file->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
+
 SHIM_CALL FscSetCacheElementCount_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);
@@ -486,6 +551,7 @@ void xe::kernel::xboxkrnl::RegisterIoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVolumeInformationFile, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryDirectoryFile, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", FscSetCacheElementCount, state);
 }

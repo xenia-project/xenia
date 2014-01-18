@@ -44,6 +44,44 @@ public:
   }
 };
 
+class XDirectoryInfo {
+public:
+  // FILE_DIRECTORY_INFORMATION
+  uint32_t          next_entry_offset;
+  uint32_t          file_index;
+  uint64_t          creation_time;
+  uint64_t          last_access_time;
+  uint64_t          last_write_time;
+  uint64_t          change_time;
+  uint64_t          end_of_file;
+  uint64_t          allocation_size;
+  X_FILE_ATTRIBUTES attributes;
+  uint32_t          file_name_length;
+  char              file_name[1];
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    uint8_t* src = (uint8_t*)this;
+    XDirectoryInfo* info;
+    do {
+      info = (XDirectoryInfo*)src;
+      XESETUINT32BE(dst, info->next_entry_offset);
+      XESETUINT32BE(dst + 4, info->file_index);
+      XESETUINT64BE(dst + 8, info->creation_time);
+      XESETUINT64BE(dst + 16, info->last_access_time);
+      XESETUINT64BE(dst + 24, info->last_write_time);
+      XESETUINT64BE(dst + 32, info->change_time);
+      XESETUINT64BE(dst + 40, info->end_of_file);
+      XESETUINT64BE(dst + 48, info->allocation_size);
+      XESETUINT32BE(dst + 56, info->attributes);
+      XESETUINT32BE(dst + 60, info->file_name_length);
+      xe_copy_memory(dst + 64, info->file_name_length, info->file_name, info->file_name_length);
+      dst += info->next_entry_offset;
+      src += info->next_entry_offset;
+    } while (info->next_entry_offset != 0);
+  }
+};
+XEASSERTSTRUCTSIZE(XDirectoryInfo, 72);
 
 class XFile : public XObject {
 public:
@@ -53,6 +91,7 @@ public:
   void set_position(size_t value) { position_ = value; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);

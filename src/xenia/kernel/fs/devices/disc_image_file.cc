@@ -32,6 +32,11 @@ X_STATUS DiscImageFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);
 }
 
+X_STATUS DiscImageFile::QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) {
+  XEASSERTALWAYS();
+  return X_STATUS_SUCCESS;
+}
+
 X_STATUS DiscImageFile::ReadSync(
     void* buffer, size_t buffer_length, size_t byte_offset,
     size_t* out_bytes_read) {

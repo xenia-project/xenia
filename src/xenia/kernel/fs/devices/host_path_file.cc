@@ -32,6 +32,10 @@ X_STATUS HostPathFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);
 }
 
+X_STATUS HostPathFile::QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) {
+  return entry_->QueryDirectory(out_info, length, restart);
+}
+
 X_STATUS HostPathFile::ReadSync(
     void* buffer, size_t buffer_length, size_t byte_offset,
     size_t* out_bytes_read) {

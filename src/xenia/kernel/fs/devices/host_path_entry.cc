@@ -39,13 +39,19 @@ private:
 
 HostPathEntry::HostPathEntry(Type type, Device* device, const char* path,
                      const xechar_t* local_path) :
-    Entry(type, device, path) {
+    Entry(type, device, path),
+    find_file_(INVALID_HANDLE_VALUE) {
   local_path_ = xestrdup(local_path);
 }
 
 HostPathEntry::~HostPathEntry() {
+  if (find_file_ != INVALID_HANDLE_VALUE) {
+    FindClose(find_file_);
+  }
   xe_free(local_path_);
 }
+
+#define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
 X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
   XEASSERTNOTNULL(out_info);
@@ -56,7 +62,6 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
     return X_STATUS_ACCESS_DENIED;
   }
 
-#define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
   out_info->creation_time     = COMBINE_TIME(data.ftCreationTime);
   out_info->last_access_time  = COMBINE_TIME(data.ftLastAccessTime);
   out_info->last_write_time   = COMBINE_TIME(data.ftLastWriteTime);
@@ -64,6 +69,86 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
   out_info->allocation_size   = 4096;
   out_info->file_length       = ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
   out_info->attributes        = (X_FILE_ATTRIBUTES)data.dwFileAttributes;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) {
+  XEASSERTNOTNULL(out_info);
+
+  if (length < sizeof(XDirectoryInfo)) {
+    return X_STATUS_INFO_LENGTH_MISMATCH;
+  }
+
+  memset(out_info, 0, length);
+
+  WIN32_FIND_DATA ffd;
+
+  HANDLE handle = find_file_;
+
+  if (restart == true && handle != INVALID_HANDLE_VALUE) {
+    FindClose(find_file_);
+    handle = find_file_ = INVALID_HANDLE_VALUE;
+  }
+
+  if (handle == INVALID_HANDLE_VALUE) {
+    handle = find_file_ = FindFirstFile(local_path_, &ffd);
+    if (handle == INVALID_HANDLE_VALUE) {
+      if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+        return X_STATUS_NO_SUCH_FILE;
+      }
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+  else {
+    if (FindNextFile(handle, &ffd) == FALSE) {
+      FindClose(handle);
+      find_file_ = INVALID_HANDLE_VALUE;
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+
+  XDirectoryInfo* current;
+
+  auto current_buf = (uint8_t*)out_info;
+  auto end = current_buf + length;
+
+  current = (XDirectoryInfo*)current_buf;
+  if (((uint8_t*)&current->file_name[0]) + wcslen(ffd.cFileName) > end) {
+    FindClose(handle);
+    find_file_ = INVALID_HANDLE_VALUE;
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  do
+  {
+    size_t file_name_length = wcslen(ffd.cFileName);
+    if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) + wcslen(ffd.cFileName) > end) {
+      break;
+    }
+
+    current = (XDirectoryInfo*)current_buf;
+    current->file_index = 0xCDCDCDCD;
+    current->creation_time = COMBINE_TIME(ffd.ftCreationTime);
+    current->last_access_time = COMBINE_TIME(ffd.ftLastAccessTime);
+    current->last_write_time = COMBINE_TIME(ffd.ftLastWriteTime);
+    current->change_time = COMBINE_TIME(ffd.ftLastWriteTime);
+    current->end_of_file = ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
+    current->allocation_size = 4096;
+    current->attributes = (X_FILE_ATTRIBUTES)ffd.dwFileAttributes;
+
+    // TODO: I am pretty sure you need to prefix the file paths with full path, not just the name.
+    current->file_name_length = (uint32_t)file_name_length;
+    for (size_t i = 0; i < file_name_length; ++i) {
+      current->file_name[i] = ffd.cFileName[i] < 256 ? (char)ffd.cFileName[i] : '?';
+    }
+
+    auto next_buf = (((uint8_t*)&current->file_name[0]) + file_name_length);
+    next_buf += 8 - ((uint8_t)next_buf % 8);
+
+    current->next_entry_offset = (uint32_t)(next_buf - current_buf);
+    current_buf = next_buf;
+  } while (current_buf < end && FindNextFile(handle, &ffd) == TRUE);
+  current->next_entry_offset = 0;
   return X_STATUS_SUCCESS;
 }
 

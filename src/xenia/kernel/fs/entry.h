@@ -19,6 +19,7 @@
 XEDECLARECLASS2(xe, kernel, KernelState);
 XEDECLARECLASS2(xe, kernel, XFile);
 XEDECLARECLASS2(xe, kernel, XFileInfo);
+XEDECLARECLASS2(xe, kernel, XDirectoryInfo);
 
 
 namespace xe {
