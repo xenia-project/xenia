@@ -203,7 +203,7 @@ SHIM_CALL DbgPrint_shim(
         uint32_t value = arg_index < 7
           ? SHIM_GET_ARG_32(1 + arg_index)
           : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
-        SHIM_SET_MEM_32(value,  (b - buffer) / sizeof(char));
+        SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(char)));
         arg_index++;
       }
       else {

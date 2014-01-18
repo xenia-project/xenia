@@ -29,6 +29,8 @@ public:
       IDXGIFactory1* dxgi_factory, ID3D11Device* device);
   virtual ~D3D11Window();
 
+  IDXGISwapChain* swap_chain() const { return swap_chain_; }
+
   virtual int Initialize(const char* title, uint32_t width, uint32_t height);
 
   void Swap();

@@ -137,7 +137,8 @@ void D3D11GraphicsSystem::Initialize() {
   // This runs in the worker thread and builds command lines to present
   // in the window.
   XEASSERTNULL(driver_);
-  driver_ = new D3D11GraphicsDriver(memory_, device_);
+  driver_ = new D3D11GraphicsDriver(
+      memory_, window_->swap_chain(), device_);
 
   // Initial vsync kick.
   DispatchInterruptCallback(0);
@@ -146,6 +147,9 @@ void D3D11GraphicsSystem::Initialize() {
 void D3D11GraphicsSystem::Pump() {
   if (swap_pending_) {
     swap_pending_ = false;
+
+    // TODO(benvanik): remove this when commands are understood.
+    driver_->Resolve();
 
     // Swap window.
     // If we are set to vsync this will block.

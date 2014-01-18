@@ -83,3 +83,7 @@ void NopGraphicsDriver::DrawIndexAuto(
   // shader constants / bools / integers
   // fetch constants
 }
+
+int NopGraphicsDriver::Resolve() {
+  return 0;
+}

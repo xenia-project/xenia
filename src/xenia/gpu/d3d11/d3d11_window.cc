@@ -57,11 +57,11 @@ int D3D11Window::Initialize(const char* title, uint32_t width, uint32_t height) 
   xe_zero_struct(&desc, sizeof(desc));
   desc.OutputWindow       = handle();
   desc.Windowed           = TRUE;
-  desc.SwapEffect         = DXGI_SWAP_EFFECT_DISCARD;
+  desc.SwapEffect         = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
   desc.Flags              = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
   // Setup buffers.
-  desc.BufferCount        = 1;
+  desc.BufferCount        = 2;
   desc.BufferUsage        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   desc.BufferDesc.Width   = width;
   desc.BufferDesc.Height  = height;

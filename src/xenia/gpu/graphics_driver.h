@@ -47,6 +47,8 @@ public:
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count) = 0;
 
+  virtual int Resolve() = 0;
+
 protected:
   GraphicsDriver(Memory* memory);
 

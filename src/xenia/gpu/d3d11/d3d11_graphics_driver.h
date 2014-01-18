@@ -31,7 +31,8 @@ class D3D11VertexShader;
 
 class D3D11GraphicsDriver : public GraphicsDriver {
 public:
-  D3D11GraphicsDriver(Memory* memory, ID3D11Device* device);
+  D3D11GraphicsDriver(
+      Memory* memory, IDXGISwapChain* swap_chain, ID3D11Device* device);
   virtual ~D3D11GraphicsDriver();
 
   virtual void Initialize();
@@ -51,8 +52,12 @@ public:
       xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
       uint32_t index_count);
 
+  // TODO(benvanik): figure this out.
+  virtual int Resolve();
+
 private:
   int SetupDraw(xenos::XE_GPU_PRIMITIVE_TYPE prim_type);
+  int RebuildRenderTargets(uint32_t width, uint32_t height);
   int UpdateState();
   int UpdateConstantBuffers();
   int BindShaders();
@@ -65,9 +70,22 @@ private:
       uint32_t index_base, uint32_t index_size, uint32_t endianness);
 
 private:
+  IDXGISwapChain*       swap_chain_;
   ID3D11Device*         device_;
   ID3D11DeviceContext*  context_;
   D3D11ShaderCache*     shader_cache_;
+
+  struct {
+    uint32_t width;
+    uint32_t height;
+    struct {
+      ID3D11Texture2D*        buffer;
+      ID3D11RenderTargetView* color_view_8888;
+    } color_buffers[4];
+    ID3D11Texture2D*        depth_buffer;
+    ID3D11DepthStencilView* depth_view_d28s8;
+    ID3D11DepthStencilView* depth_view_d28fs8;
+  } render_targets_;
 
   struct {
     D3D11VertexShader*  vertex_shader;
