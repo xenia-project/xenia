@@ -635,7 +635,9 @@ const char* D3D11PixelShader::Translate(
 namespace {
 
 static const char chan_names[] = {
-  'x', 'y', 'z', 'w'
+  'x', 'y', 'z', 'w',
+  // these only apply to FETCH dst's, and we shouldn't be using them:
+  '0', '1', '?', '_',
 };
 
 void AppendSrcReg(
@@ -1659,28 +1661,33 @@ int TranslateVertexFetch(
   // Translate.
   output->append("  ");
   output->append("r%u.xyzw", vtx->dst_reg);
-  output->append(" = ");
+  output->append(" = float4(");
   uint32_t fetch_slot = vtx->const_index * 3 + vtx->const_index_sel;
-  output->append("i.vf%u_%d.", fetch_slot, vtx->offset);
-  // Pass one over dest does xyzw and fakes the special values.
+  // TODO(benvanik): detect xyzw = xyzw, etc.
   // TODO(benvanik): detect and set as rN = float4(samp.xyz, 1.0); / etc
   uint32_t component_count = GetFormatComponentCount(vtx->format);
   uint32_t dst_swiz = vtx->dst_swiz;
   for (int i = 0; i < 4; i++) {
-    output->append("%c", chan_names[MIN(component_count - 1, dst_swiz & 0x3)]);
-    dst_swiz >>= 3;
-  }
-  output->append(";\n");
-  // Do another pass to set constant values.
-  dst_swiz = vtx->dst_swiz;
-  for (int i = 0; i < 4; i++) {
     if ((dst_swiz & 0x7) == 4) {
-      output->append("  r%u.%c = 0.0;\n", vtx->dst_reg, chan_names[i]);
+      output->append("0.0");
     } else if ((dst_swiz & 0x7) == 5) {
-      output->append("  r%u.%c = 1.0;\n", vtx->dst_reg, chan_names[i]);
+      output->append("1.0");
+    } else if ((dst_swiz & 0x7) == 6) {
+      // ?
+      output->append("?");
+    } else if ((dst_swiz & 0x7) == 7) {
+      output->append("r%u.%c", vtx->dst_reg, chan_names[i]);
+    } else {
+      output->append("i.vf%u_%d.%c",
+                     fetch_slot, vtx->offset,
+                     chan_names[dst_swiz & 0x3]);
+    }
+    if (i < 3) {
+      output->append(", ");
     }
     dst_swiz >>= 3;
   }
+  output->append(");\n");
   return 0;
 }
 
