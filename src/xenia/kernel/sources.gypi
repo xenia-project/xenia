@@ -58,6 +58,8 @@
     'xboxkrnl_private.h',
     'xboxkrnl_rtl.cc',
     'xboxkrnl_rtl.h',
+    'xboxkrnl_strings.cc',
+    'xboxkrnl_strings.h',
     'xboxkrnl_table.inc',
     'xboxkrnl_threading.cc',
     'xboxkrnl_threading.h',

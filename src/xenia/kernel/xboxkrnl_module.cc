@@ -50,6 +50,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   RegisterNtExports(export_resolver_, kernel_state);
   RegisterObExports(export_resolver_, kernel_state);
   RegisterRtlExports(export_resolver_, kernel_state_);
+  RegisterStringExports(export_resolver_, kernel_state_);
   RegisterThreadingExports(export_resolver_, kernel_state);
   RegisterVideoExports(export_resolver_, kernel_state);
 
