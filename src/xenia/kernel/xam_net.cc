@@ -27,27 +27,26 @@ namespace kernel {
 
 SHIM_CALL NetDll_XNetStartup_shim(
     PPCContext* ppc_state, KernelState* state) {
-  uint32_t one = SHIM_GET_ARG_32(0);
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
   uint32_t params_ptr = SHIM_GET_ARG_32(1);
 
   XELOGD(
       "NetDll_XNetStartup(%d, %.8X)",
-      one,
+      arg0,
       params_ptr);
 
   SHIM_SET_RETURN(0);
 }
 
-
 SHIM_CALL NetDll_WSAStartup_shim(
     PPCContext* ppc_state, KernelState* state) {
-  uint32_t one = SHIM_GET_ARG_32(0);
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
   uint32_t version = SHIM_GET_ARG_16(1);
   uint32_t data_ptr = SHIM_GET_ARG_32(2);
 
   XELOGD(
       "NetDll_WSAStartup(%d, %.4X, %.8X)",
-      one,
+      arg0,
       version,
       data_ptr);
 
@@ -64,108 +63,130 @@ SHIM_CALL NetDll_WSAStartup_shim(
   SHIM_SET_RETURN(0);
 }
 
+SHIM_CALL NetDll_WSAGetLastError_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  XELOGD("NetDll_WSAGetLastError()");
+  SHIM_SET_RETURN(WSAENETDOWN);
+}
 
 SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(
     PPCContext* ppc_state, KernelState* state) {
   // Games seem to call this before *Startup. If we return 0, they don't even
   // try.
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
   XELOGD(
-      "NetDll_XNetGetEthernetLinkStatus()");
+      "NetDll_XNetGetEthernetLinkStatus(%d)",
+      arg0);
   SHIM_SET_RETURN(0);
 }
 
 SHIM_CALL NetDll_inet_addr_shim(
-	PPCContext* ppc_state, KernelState* state) {
-
-	uint32_t cp_ptr = SHIM_GET_ARG_32(0);
-
-	XELOGD(
-		"NetDll_inet_addr(%.8X)",
-		cp_ptr);
-	SHIM_SET_RETURN(INADDR_NONE);
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t cp_ptr = SHIM_GET_ARG_32(0);
+  XELOGD(
+      "NetDll_inet_addr(%.8X)",
+      cp_ptr);
+  SHIM_SET_RETURN(INADDR_NONE);
 }
 
 SHIM_CALL NetDll_socket_shim(
-	PPCContext* ppc_state, KernelState* state) {
-
-	uint32_t af = SHIM_GET_ARG_32(0);
-	uint32_t type = SHIM_GET_ARG_32(1);
-	uint32_t protocol = SHIM_GET_ARG_32(2);
-
-	XELOGD(
-		"NetDll_socket(%d, %d, %d)",
-		af,
-		type,
-		protocol);
-	SHIM_SET_RETURN(WSAENETDOWN);
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t af = SHIM_GET_ARG_32(1);
+  uint32_t type = SHIM_GET_ARG_32(2);
+  uint32_t protocol = SHIM_GET_ARG_32(3);
+  XELOGD(
+      "NetDll_socket(%d, %d, %d, %d)",
+      arg0,
+      af,
+      type,
+      protocol);
+  SHIM_SET_RETURN(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_setsockopt_shim(
-	PPCContext* ppc_state, KernelState* state) {
-
-	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
-	uint32_t level = SHIM_GET_ARG_32(1);
-	uint32_t optname = SHIM_GET_ARG_32(2);
-	uint32_t optval_ptr = SHIM_GET_ARG_32(3);
-	uint32_t optlen = SHIM_GET_ARG_32(4);
-
-	XELOGD(
-		"NetDll_send(%.8X, %d, %d, %.8X, %d)",
-		socket_ptr,
-		level,
-		optname,
-		optval_ptr,
-		optlen);
-	SHIM_SET_RETURN(WSAENETDOWN);
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t socket_ptr = SHIM_GET_ARG_32(1);
+  uint32_t level = SHIM_GET_ARG_32(2);
+  uint32_t optname = SHIM_GET_ARG_32(3);
+  uint32_t optval_ptr = SHIM_GET_ARG_32(4);
+  uint32_t optlen = SHIM_GET_ARG_32(5);
+  XELOGD(
+      "NetDll_send(%d, %.8X, %d, %d, %.8X, %d)",
+      arg0,
+      socket_ptr,
+      level,
+      optname,
+      optval_ptr,
+      optlen);
+  SHIM_SET_RETURN(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_connect_shim(
-	PPCContext* ppc_state, KernelState* state) {
-
-	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
-	uint32_t sockaddr_ptr = SHIM_GET_ARG_32(1);
-	uint32_t namelen = SHIM_GET_ARG_32(2);
-
-	XELOGD(
-		"NetDll_connect(%.8X, %.8X, %d)",
-		socket_ptr,
-		sockaddr_ptr,
-		namelen);
-	SHIM_SET_RETURN(WSAENETDOWN);
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t socket_ptr = SHIM_GET_ARG_32(0);
+  uint32_t sockaddr_ptr = SHIM_GET_ARG_32(1);
+  uint32_t namelen = SHIM_GET_ARG_32(2);
+  XELOGD(
+      "NetDll_connect(%.8X, %.8X, %d)",
+      socket_ptr,
+      sockaddr_ptr,
+      namelen);
+  SHIM_SET_RETURN(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_recv_shim(
-	PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t socket_ptr = SHIM_GET_ARG_32(1);
+  uint32_t buf_ptr = SHIM_GET_ARG_32(2);
+  uint32_t len = SHIM_GET_ARG_32(3);
+  uint32_t flags = SHIM_GET_ARG_32(4);
+  XELOGD(
+      "NetDll_recv(%d, %.8X, %.8X, %d, %d)",
+      arg0,
+      socket_ptr,
+      buf_ptr,
+      len,
+      flags);
+  SHIM_SET_RETURN(SOCKET_ERROR);
+}
 
-	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
-	uint32_t buf_ptr = SHIM_GET_ARG_32(1);
-	uint32_t len = SHIM_GET_ARG_32(2);
-	uint32_t flags = SHIM_GET_ARG_32(3);
-
-	XELOGD(
-		"NetDll_recv(%.8X, %.8X, %d, %d)",
-		socket_ptr,
-		buf_ptr,
-		len,
-		flags);
-	SHIM_SET_RETURN(WSAENETDOWN);
+SHIM_CALL NetDll_recvfrom_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t socket_ptr = SHIM_GET_ARG_32(1);
+  uint32_t buf_ptr = SHIM_GET_ARG_32(2);
+  uint32_t len = SHIM_GET_ARG_32(3);
+  uint32_t flags = SHIM_GET_ARG_32(4);
+  uint32_t from_ptr = SHIM_GET_ARG_32(5);
+  uint32_t fromlen_ptr = SHIM_GET_ARG_32(6);
+  XELOGD(
+      "NetDll_recvfrom(%d, %.8X, %.8X, %d, %d, %.8X, %.8X)",
+      arg0,
+      socket_ptr,
+      buf_ptr,
+      len,
+      flags,
+      from_ptr,
+      fromlen_ptr);
+  SHIM_SET_RETURN(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_send_shim(
-	PPCContext* ppc_state, KernelState* state) {
-
-	uint32_t socket_ptr = SHIM_GET_ARG_32(0);
-	uint32_t buf_ptr = SHIM_GET_ARG_32(1);
-	uint32_t len = SHIM_GET_ARG_32(2);
-	uint32_t flags = SHIM_GET_ARG_32(3);
-
-	XELOGD(
-		"NetDll_send(%.8X, %.8X, %d, %d)",
-		socket_ptr,
-		buf_ptr,
-		len,
-		flags);
-	SHIM_SET_RETURN(WSAENETDOWN);
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t socket_ptr = SHIM_GET_ARG_32(0);
+  uint32_t buf_ptr = SHIM_GET_ARG_32(1);
+  uint32_t len = SHIM_GET_ARG_32(2);
+  uint32_t flags = SHIM_GET_ARG_32(3);
+  XELOGD(
+      "NetDll_send(%.8X, %.8X, %d, %d)",
+      socket_ptr,
+      buf_ptr,
+      len,
+      flags);
+  SHIM_SET_RETURN(SOCKET_ERROR);
 }
 
 
@@ -177,11 +198,13 @@ void xe::kernel::xam::RegisterNetExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAStartup, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_WSAGetLastError, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_inet_addr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_socket, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_setsockopt, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_connect, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_recv, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_recvfrom, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_send, state);
 }
