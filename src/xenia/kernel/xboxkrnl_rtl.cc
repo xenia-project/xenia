@@ -178,18 +178,16 @@ void xeRtlInitAnsiString(uint32_t destination_ptr, uint32_t source_ptr) {
   // _Out_     PANSI_STRING DestinationString,
   // _In_opt_  PCSZ SourceString
 
-  const char* source = source_ptr ? (char*)IMPL_MEM_ADDR(source_ptr) : NULL;
-
-  if (source) {
+  if (source_ptr != 0) {
+    const char* source = (char*)IMPL_MEM_ADDR(source_ptr);
     uint16_t length = (uint16_t)xestrlena(source);
     IMPL_SET_MEM_16(destination_ptr + 0, length);
     IMPL_SET_MEM_16(destination_ptr + 2, length + 1);
-    IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
   } else {
     IMPL_SET_MEM_16(destination_ptr + 0, 0);
     IMPL_SET_MEM_16(destination_ptr + 2, 0);
-    IMPL_SET_MEM_32(destination_ptr + 4, 0);
   }
+  IMPL_SET_MEM_32(destination_ptr + 4, source_ptr);
 }
 
 
@@ -389,7 +387,7 @@ SHIM_CALL RtlUnicodeToMultiByteN_shim(
   uint32_t copy_len = source_len >> 1;
   copy_len = copy_len < destination_len ? copy_len : destination_len;
 
-  // TODO: maybe use MultiByteToUnicode on Win32? would require swapping
+  // TODO: maybe use UnicodeToMultiByte on Win32?
 
   auto source = (uint16_t*)SHIM_MEM_ADDR(source_ptr);
   auto destination = (uint8_t*)SHIM_MEM_ADDR(destination_ptr);
