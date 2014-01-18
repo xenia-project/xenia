@@ -40,14 +40,14 @@ SHIM_CALL _vsnprintf_shim(
     return;
   }
 
-  char *buffer = (char *)SHIM_MEM_ADDR(buffer_ptr);  // TODO: ensure it never writes past the end of the buffer (count)...
-  const char *format = (const char *)SHIM_MEM_ADDR(format_ptr);
+  char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);  // TODO: ensure it never writes past the end of the buffer (count)...
+  const char* format = (const char*)SHIM_MEM_ADDR(format_ptr);
 
   int arg_index = 0;
 
-  char *b = buffer;
+  char* b = buffer;
   for (; *format != '\0'; ++format) {
-    const char *start = format;
+    const char* start = format;
 
     if (*format != '%') {
       *b++ = *format;
@@ -64,7 +64,7 @@ SHIM_CALL _vsnprintf_shim(
       continue;
     }
 
-    const char *end;
+    const char* end;
     end = format;
 
     // skip flags
@@ -208,7 +208,7 @@ SHIM_CALL _vsnprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        const char *pointer = (const char *)SHIM_MEM_ADDR(value);
+        const char* pointer = (const char*)SHIM_MEM_ADDR(value);
         int result = sprintf(b, local, pointer);
         b += result;
         arg_index++;
@@ -248,7 +248,7 @@ SHIM_CALL _vswprintf_shim(
   size_t format_length = wcslen(format);
 
   // swap the format buffer
-  wchar_t *swapped_format = (wchar_t*)xe_malloc((format_length + 1) * sizeof(wchar_t));
+  wchar_t* swapped_format = (wchar_t*)xe_malloc((format_length + 1) * sizeof(wchar_t));
   for (size_t i = 0; i < format_length; ++i)
   {
     swapped_format[i] = XESWAP16(format[i]);
@@ -260,7 +260,7 @@ SHIM_CALL _vswprintf_shim(
 
   int arg_index = 0;
 
-  wchar_t *b = buffer;
+  wchar_t* b = buffer;
   for (; *format != '\0'; ++format) {
     const wchar_t *start = format;
 
@@ -279,7 +279,7 @@ SHIM_CALL _vswprintf_shim(
       continue;
     }
 
-    const wchar_t *end;
+    const wchar_t* end;
     end = format;
 
     // skip flags
@@ -423,7 +423,7 @@ SHIM_CALL _vswprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        const char *pointer = (const char *)SHIM_MEM_ADDR(value);
+        const wchar_t* pointer = (const wchar_t*)SHIM_MEM_ADDR(value);
         int result = wsprintf(b, local, pointer);
         b += result;
         arg_index++;
