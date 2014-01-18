@@ -123,7 +123,6 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   // Some are unsupported on D3D11 and must be emulated.
   D3D11_PRIMITIVE_TOPOLOGY primitive_topology;
   switch (prim_type) {
-  default:
   case XE_GPU_PRIMITIVE_TYPE_POINT_LIST:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
     break;
@@ -143,11 +142,14 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
     XELOGW("D3D11: faking RECTANGLE_LIST as a tri list");
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     break;
+  default:
   case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_FAN:
   case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_07:
   case XE_GPU_PRIMITIVE_TYPE_LINE_LOOP:
+  case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_0D:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
     XELOGE("D3D11: unsupported primitive type %d", prim_type);
-    return 1;
+    break;
   }
   context_->IASetPrimitiveTopology(primitive_topology);
 

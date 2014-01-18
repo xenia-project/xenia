@@ -27,6 +27,75 @@ const uint32_t MAX_INTERPOLATORS = 16;
 
 const int OUTPUT_CAPACITY = 64 * 1024;
 
+int GetFormatComponentCount(uint32_t format) {
+  switch (format) {
+  case FMT_32:
+  case FMT_32_FLOAT:
+    return 1;
+  case FMT_16_16:
+  case FMT_16_16_FLOAT:
+  case FMT_32_32:
+  case FMT_32_32_FLOAT:
+    return 2;
+  case FMT_10_11_11:
+  case FMT_11_11_10:
+  case FMT_32_32_32_FLOAT:
+    return 3;
+  case FMT_8_8_8_8:
+  case FMT_2_10_10_10:
+  case FMT_16_16_16_16:
+  case FMT_16_16_16_16_FLOAT:
+  case FMT_32_32_32_32:
+  case FMT_32_32_32_32_FLOAT:
+    return 4;
+  default:
+    XELOGE("Unknown vertex format: %d", format);
+    XEASSERTALWAYS();
+    return 4;
+  }
+}
+
+const char* GetFormatTypeName(
+    uint32_t format, uint32_t format_comp_all, uint32_t num_format_all) {
+  switch (format) {
+  case FMT_32:
+    return format_comp_all ? "int" : "uint";
+  case FMT_32_FLOAT:
+    return "float";
+  case FMT_16_16:
+  case FMT_32_32:
+    if (!num_format_all) {
+      return format_comp_all ? "snorm float2" : "unorm float2";
+    } else {
+      return format_comp_all ? "int2" : "uint2";
+    }
+  case FMT_16_16_FLOAT:
+  case FMT_32_32_FLOAT:
+    return "float2";
+  case FMT_10_11_11:
+  case FMT_11_11_10:
+    return "int3"; // ?
+  case FMT_32_32_32_FLOAT:
+    return "float3";
+  case FMT_8_8_8_8:
+  case FMT_2_10_10_10:
+  case FMT_16_16_16_16:
+  case FMT_32_32_32_32:
+    if (!num_format_all) {
+      return format_comp_all ? "snorm float4" : "unorm float4";
+    } else {
+      return format_comp_all ? "int4" : "uint4";
+    }
+  case FMT_16_16_16_16_FLOAT:
+  case FMT_32_32_32_32_FLOAT:
+    return "float4";
+  default:
+    XELOGE("Unknown vertex format: %d", format);
+    XEASSERTALWAYS();
+    return "float4";
+  }
+}
+
 }  // anonymous namespace
 
 
@@ -188,6 +257,12 @@ int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
   for (uint32_t n = 0; n < vtx_buffer_inputs_.count; n++) {
     element_count += vtx_buffer_inputs_.descs[n].element_count;
   }
+  if (!element_count) {
+    XELOGW("D3D11: vertex shader with zero inputs -- retaining previous values?");
+    input_layout_ = NULL;
+    return 0;
+  }
+
   D3D11_INPUT_ELEMENT_DESC* element_descs =
       (D3D11_INPUT_ELEMENT_DESC*)xe_alloca(
           sizeof(D3D11_INPUT_ELEMENT_DESC) * element_count);
@@ -325,9 +400,12 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
     for (uint32_t m = 0; m < input.element_count; m++) {
       auto& el = input.elements[m];
       auto& vtx = el.vtx_fetch;
+      const char* type_name = GetFormatTypeName(
+          el.format, el.vtx_fetch.format_comp_all, el.vtx_fetch.num_format_all);
       uint32_t fetch_slot = vtx.const_index * 3 + vtx.const_index_sel;
       output->append(
-        "  float4 vf%u_%d : XE_VF%u;\n", fetch_slot, vtx.offset, el_index);
+        "  %s vf%u_%d : XE_VF%u;\n",
+        type_name, fetch_slot, vtx.offset, el_index);
       el_index++;
     }
   }
@@ -1586,9 +1664,10 @@ int TranslateVertexFetch(
   output->append("i.vf%u_%d.", fetch_slot, vtx->offset);
   // Pass one over dest does xyzw and fakes the special values.
   // TODO(benvanik): detect and set as rN = float4(samp.xyz, 1.0); / etc
+  uint32_t component_count = GetFormatComponentCount(vtx->format);
   uint32_t dst_swiz = vtx->dst_swiz;
   for (int i = 0; i < 4; i++) {
-    output->append("%c", chan_names[dst_swiz & 0x3]);
+    output->append("%c", chan_names[MIN(component_count - 1, dst_swiz & 0x3)]);
     dst_swiz >>= 3;
   }
   output->append(";\n");
