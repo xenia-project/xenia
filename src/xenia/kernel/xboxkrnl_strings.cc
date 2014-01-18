@@ -223,7 +223,7 @@ SHIM_CALL _vsnprintf_shim(
     }
     format = end;
   }
-  *b++ = '\0';
+  *b = '\0';
   SHIM_SET_RETURN((uint32_t)(b - buffer));
 }
 
@@ -438,7 +438,7 @@ SHIM_CALL _vswprintf_shim(
     }
     format = end;
   }
-  *b++ = '\0';
+  *b = '\0';
 
   // swap the result buffer
   for (wchar_t* swap = buffer; swap != b; ++swap)
