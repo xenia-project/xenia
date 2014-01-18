@@ -98,7 +98,62 @@ SHIM_CALL NtCreateFile_shim(
 
 SHIM_CALL NtOpenFile_shim(
     PPCContext* ppc_state, KernelState* state) {
-  SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t desired_access = SHIM_GET_ARG_32(1);
+  uint32_t object_attributes_ptr = SHIM_GET_ARG_32(2);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(3);
+  uint32_t open_options = SHIM_GET_ARG_32(4);
+
+  X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
+
+  XELOGD(
+    "NtOpenFile(%.8X, %.8X, %.8X(%s), %.8X, %d)",
+    handle_ptr,
+    desired_access,
+    object_attributes_ptr,
+    attrs.object_name.buffer,
+    io_status_block_ptr,
+    open_options);
+
+  X_STATUS result = X_STATUS_NO_SUCH_FILE;
+  uint32_t info = X_FILE_DOES_NOT_EXIST;
+  uint32_t handle;
+
+  // Resolve the file using the virtual file system.
+  FileSystem* fs = state->file_system();
+  Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
+  XFile* file = NULL;
+  if (entry && entry->type() == Entry::kTypeFile) {
+    // Open the file.
+    result = entry->Open(
+      state,
+      desired_access,
+      false, // TODO(benvanik): pick async mode, if needed.
+      &file);
+  }
+  else {
+    result = X_STATUS_NO_SUCH_FILE;
+    info = X_FILE_DOES_NOT_EXIST;
+  }
+
+  if (XSUCCEEDED(result)) {
+    // Handle ref is incremented, so return that.
+    handle = file->handle();
+    file->Release();
+    result = X_STATUS_SUCCESS;
+    info = X_FILE_OPENED;
+  }
+
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+  if (XSUCCEEDED(result)) {
+    if (handle_ptr) {
+      SHIM_SET_MEM_32(handle_ptr, handle);
+    }
+  }
+  SHIM_SET_RETURN(result);
 }
 
 class xeNtReadFileState {
