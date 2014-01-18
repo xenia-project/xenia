@@ -198,9 +198,20 @@ SHIM_CALL _vsnprintf_shim(
         }
       }
     }
+    else if (*end == 'n')
+    {
+      XEASSERT(arg_size == 4);
+      if (arg_extras == 0) {
+        uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
+        SHIM_SET_MEM_32(value,  (b - buffer) / sizeof(char));
+        arg_index++;
+      }
+      else {
+        XEASSERT(false);
+      }
+    }
     else if (*end == 's' ||
-             *end == 'p' ||
-             *end == 'n') {
+             *end == 'p') {
       char local[512];
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
@@ -413,9 +424,20 @@ SHIM_CALL _vswprintf_shim(
         }
       }
     }
+    else if (*end == 'n')
+    {
+      XEASSERT(arg_size == 4);
+      if (arg_extras == 0) {
+        uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
+        SHIM_SET_MEM_32(value,  (b - buffer) / sizeof(wchar_t));
+        arg_index++;
+      }
+      else {
+        XEASSERT(false);
+      }
+    }
     else if (*end == 's' ||
-             *end == 'p' ||
-             *end == 'n') {
+             *end == 'p') {
       wchar_t local[512];
       local[0] = '\0';
       wcsncat(local, start, end + 1 - start);

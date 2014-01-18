@@ -196,9 +196,22 @@ SHIM_CALL DbgPrint_shim(
         }
       }
     }
+    else if (*end == 'n')
+    {
+      XEASSERT(arg_size == 4);
+      if (arg_extras == 0) {
+        uint32_t value = arg_index < 7
+          ? SHIM_GET_ARG_32(1 + arg_index)
+          : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
+        SHIM_SET_MEM_32(value,  (b - buffer) / sizeof(char));
+        arg_index++;
+      }
+      else {
+        XEASSERT(false);
+      }
+    }
     else if (*end == 's' ||
-             *end == 'p' ||
-             *end == 'n') {
+             *end == 'p') {
       char local[512];
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
