@@ -28,7 +28,7 @@ public:
 
   virtual void Shutdown();
 
-  virtual void SubmitFrame(uint32_t samples_ptr);
+  virtual void SubmitFrame(uint32_t frame_ptr);
 
 protected:
   virtual void Initialize();

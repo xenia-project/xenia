@@ -80,7 +80,7 @@ void XAudio2AudioSystem::Initialize() {
   active_channels_ = 6;
 
   XAUDIO2_DEBUG_CONFIGURATION config;
-  config.TraceMask        = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS | XAUDIO2_LOG_INFO | XAUDIO2_LOG_DETAIL | XAUDIO2_LOG_STREAMING;
+  config.TraceMask        = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS;
   config.BreakMask        = 0;
   config.LogThreadID      = FALSE;
   config.LogTiming        = TRUE;
@@ -97,7 +97,8 @@ void XAudio2AudioSystem::Initialize() {
 
   WAVEFORMATIEEEFLOATEX waveformat;
 
-  waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+  //waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+  waveformat.Format.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
   waveformat.Format.nChannels = active_channels_;
   waveformat.Format.nSamplesPerSec = 48000;
   waveformat.Format.wBitsPerSample = 32;
@@ -110,7 +111,7 @@ void XAudio2AudioSystem::Initialize() {
   waveformat.dwChannelMask = ChannelMasks[waveformat.Format.nChannels];
 
   hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format,
-                                 XAUDIO2_VOICE_NOPITCH | XAUDIO2_VOICE_NOSRC,
+                                 0,
                                  XAUDIO2_DEFAULT_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
@@ -129,45 +130,43 @@ void XAudio2AudioSystem::Pump() {
     // Only allow one buffer to be queued at once. We only have one static
     // store of data, and if we called back the game audio driver it would
     // overwrite it.
-    ResetEvent(wait_handle_);
+    //ResetEvent(wait_handle_);
   }
 
   WaitForSingleObject(wait_handle_, INFINITE);
 }
 
-void XAudio2AudioSystem::SubmitFrame(uint32_t samples_ptr) {
+void XAudio2AudioSystem::SubmitFrame(uint32_t frame_ptr) {
+  ResetEvent(wait_handle_);
+
   // Process samples! They are big-endian floats.
   HRESULT hr;
 
-  auto samples = reinterpret_cast<float*>(
-      emulator_->memory()->membase() + samples_ptr);
+  auto input_frame = reinterpret_cast<float*>(emulator_->memory()->membase() + frame_ptr);
+  auto output_frame = reinterpret_cast<float*>(frame_);
   
   // interleave the data
-  for (int i = 0, o = 0; i < 256; ++i) {
-    for (int j = 0; j < 6 && j < active_channels_; ++j) {
-      samples_[o++] = XESWAPF32BE(*(samples + (j * 256) + i));
+  for (int index = 0, o = 0; index < 256; ++index) {
+    for (int channel = 0, table = 0;
+         channel < 6 && channel < active_channels_;
+         ++channel, table += 256) {
+      output_frame[o++] = XESWAPF32BE(input_frame[table + index]);
     }
   }
 
   XAUDIO2_BUFFER buffer;
-  buffer.Flags = XAUDIO2_END_OF_STREAM;
-  buffer.pAudioData = reinterpret_cast<BYTE*>(samples_);
-  buffer.AudioBytes = sizeof(samples_);
+  buffer.Flags = 0;
+  buffer.pAudioData = reinterpret_cast<BYTE*>(frame_);
+  buffer.AudioBytes = sizeof(frame_);
   buffer.PlayBegin = 0;
   buffer.PlayLength = 256;
-  buffer.LoopBegin = 0;
+  buffer.LoopBegin = XAUDIO2_NO_LOOP_REGION;
   buffer.LoopLength = 0;
   buffer.LoopCount = 0;
   buffer.pContext = 0;
   hr = pcm_voice_->SubmitSourceBuffer(&buffer);
   if (FAILED(hr)) {
     XELOGE("SubmitSourceBuffer failed with %.8X", hr);
-    XEASSERTALWAYS();
-    return;
-  }
-  hr = pcm_voice_->Start(0);
-  if (FAILED(hr)) {
-    XELOGE("Start failed with %.8X", hr);
     XEASSERTALWAYS();
     return;
   }

@@ -30,7 +30,7 @@ public:
 
   virtual void Shutdown();
 
-  virtual void SubmitFrame(uint32_t samples_ptr);
+  virtual void SubmitFrame(uint32_t frame_ptr);
 
 protected:
   virtual void Initialize();
@@ -41,7 +41,8 @@ private:
   IXAudio2MasteringVoice* mastering_voice_;
   IXAudio2SourceVoice* pcm_voice_;
   int active_channels_;
-  float samples_[1536];
+  static const int frame_channels_ = 6;
+  float frame_[frame_channels_ * 256];
   HANDLE wait_handle_;
 
   class VoiceCallback;
