@@ -1112,8 +1112,8 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t object_handle = SHIM_GET_ARG_32(0);
   uint8_t wait_mode = SHIM_GET_ARG_8(1);
-  uint32_t alertable = SHIM_GET_ARG_32(3);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(4);
+  uint32_t alertable = SHIM_GET_ARG_32(2);
+  uint32_t timeout_ptr = SHIM_GET_ARG_32(3);
 
   XELOGD(
       "NtWaitForSingleObjectEx(%.8X, %u, %.1X, %.8X)",
