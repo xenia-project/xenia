@@ -119,8 +119,7 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length, 
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  do
-  {
+  do {
     size_t file_name_length = wcslen(ffd.cFileName);
     if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) + wcslen(ffd.cFileName) > end) {
       break;
