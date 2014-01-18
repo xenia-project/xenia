@@ -440,6 +440,8 @@ SHIM_CALL _vswprintf_shim(
   }
   *b = '\0';
 
+  xe_free(swapped_format);
+
   // swap the result buffer
   for (wchar_t* swap = buffer; swap != b; ++swap)
   {
