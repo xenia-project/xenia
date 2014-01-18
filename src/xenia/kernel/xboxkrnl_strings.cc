@@ -436,8 +436,7 @@ SHIM_CALL _vswprintf_shim(
         XEASSERT(false);
       }
     }
-    else if (*end == 's' ||
-             *end == 'p') {
+    else if (*end == 'p') {
       wchar_t local[512];
       local[0] = '\0';
       wcsncat(local, start, end + 1 - start);
@@ -445,8 +444,33 @@ SHIM_CALL _vswprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        const wchar_t* pointer = (const wchar_t*)SHIM_MEM_ADDR(value);
+        const char* pointer = (const char*)SHIM_MEM_ADDR(value);
         int result = wsprintf(b, local, pointer);
+        b += result;
+        arg_index++;
+      }
+      else {
+        XEASSERT(false);
+      }
+    }
+    else if (*end == 's') {
+      wchar_t local[512];
+      local[0] = '\0';
+      wcsncat(local, start, end + 1 - start);
+
+      XEASSERT(arg_size == 4);
+      if (arg_extras == 0) {
+        uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
+        const wchar_t* data = (const wchar_t*)SHIM_MEM_ADDR(value);
+        size_t data_length = wcslen(data);
+        wchar_t* swapped_data = (wchar_t*)xe_malloc((data_length + 1) * sizeof(wchar_t));
+        for (size_t i = 0; i < data_length; ++i)
+        {
+          swapped_data[i] = XESWAP16(data[i]);
+        }
+        swapped_data[data_length] = '\0';
+        int result = wsprintf(b, local, swapped_data);
+        xe_free(swapped_data);
         b += result;
         arg_index++;
       }
