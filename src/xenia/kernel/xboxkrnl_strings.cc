@@ -219,7 +219,7 @@ SHIM_CALL _vsnprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        const char* pointer = (const char*)SHIM_MEM_ADDR(value);
+        const void* pointer = (const void*)SHIM_MEM_ADDR(value);
         int result = sprintf(b, local, pointer);
         b += result;
         arg_index++;
@@ -444,7 +444,7 @@ SHIM_CALL _vswprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        const char* pointer = (const char*)SHIM_MEM_ADDR(value);
+        const void* pointer = (void*)SHIM_MEM_ADDR(value);
         int result = wsprintf(b, local, pointer);
         b += result;
         arg_index++;

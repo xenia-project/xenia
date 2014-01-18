@@ -221,7 +221,7 @@ SHIM_CALL DbgPrint_shim(
         uint32_t value = arg_index < 7
           ? SHIM_GET_ARG_32(1 + arg_index)
           : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
-        const char *pointer = (const char *)SHIM_MEM_ADDR(value);
+        const void *pointer = (const void *)SHIM_MEM_ADDR(value);
         int result = sprintf(b, local, pointer);
         b += result;
         arg_index++;
