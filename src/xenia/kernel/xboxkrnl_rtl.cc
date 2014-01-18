@@ -351,7 +351,6 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(
 
 SHIM_CALL RtlMultiByteToUnicodeN_shim(
     PPCContext* ppc_state, KernelState* state) {
-
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t destination_len = SHIM_GET_ARG_32(1);
   uint32_t written_ptr = SHIM_GET_ARG_32(2);
@@ -373,6 +372,36 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(
   if (written_ptr != 0)
   {
     SHIM_SET_MEM_32(written_ptr, copy_len << 1);
+  }
+
+  SHIM_SET_RETURN(0);
+}
+
+
+SHIM_CALL RtlUnicodeToMultiByteN_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
+  uint32_t destination_len = SHIM_GET_ARG_32(1);
+  uint32_t written_ptr = SHIM_GET_ARG_32(2);
+  uint32_t source_ptr = SHIM_GET_ARG_32(3);
+  uint32_t source_len = SHIM_GET_ARG_32(4);
+
+  uint32_t copy_len = source_len >> 1;
+  copy_len = copy_len < destination_len ? copy_len : destination_len;
+
+  // TODO: maybe use MultiByteToUnicode on Win32? would require swapping
+
+  auto source = (uint16_t*)SHIM_MEM_ADDR(source_ptr);
+  auto destination = (uint8_t*)SHIM_MEM_ADDR(destination_ptr);
+  for (uint32_t i = 0; i < copy_len; i++)
+  {
+    uint16_t c = XESWAP16(*source++);
+    *destination++ = c < 256 ? (uint8_t)c : '?';
+  }
+
+  if (written_ptr != 0)
+  {
+    SHIM_SET_MEM_32(written_ptr, copy_len);
   }
 
   SHIM_SET_RETURN(0);
@@ -765,6 +794,7 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlFreeUnicodeString, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlMultiByteToUnicodeN, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeToMultiByteN, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeToTimeFields, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeFieldsToTime, state);
