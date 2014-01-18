@@ -34,21 +34,25 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 #define SHIM_MEM_BASE         ppc_state->membase
 #define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : NULL)
 
+#define SHIM_MEM_8(a)         (*(uint8_t*)SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a)        (uint16_t)XEGETUINT16BE(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_32(a)        (uint32_t)XEGETUINT32BE(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_64(a)        (uint64_t)XEGETUINT64BE(SHIM_MEM_ADDR(a))
+#define SHIM_SET_MEM_8(a, v)  (*(uint8_t*)SHIM_MEM_ADDR(a)) = v
 #define SHIM_SET_MEM_16(a, v) (*(uint16_t*)SHIM_MEM_ADDR(a)) = XESWAP16(v)
 #define SHIM_SET_MEM_32(a, v) (*(uint32_t*)SHIM_MEM_ADDR(a)) = XESWAP32(v)
 #define SHIM_SET_MEM_64(a, v) (*(uint64_t*)SHIM_MEM_ADDR(a)) = XESWAP64(v)
 #define SHIM_SET_MEM_F32(a, v) (*(float*)SHIM_MEM_ADDR(a)) = XESWAPF32BE(v)
 #define SHIM_SET_MEM_F64(a, v) (*(double*)SHIM_MEM_ADDR(a)) = XESWAPF64BE(v)
 
+#define SHIM_GPR_8(n)         (uint8_t)(ppc_state->r[n])
 #define SHIM_GPR_16(n)        (uint16_t)(ppc_state->r[n])
 #define SHIM_GPR_32(n)        (uint32_t)(ppc_state->r[n])
 #define SHIM_SET_GPR_32(n, v) ppc_state->r[n] = (uint64_t)((v) & UINT32_MAX)
 #define SHIM_GPR_64(n)        ppc_state->r[n]
 #define SHIM_SET_GPR_64(n, v) ppc_state->r[n] = (uint64_t)(v)
 
+#define SHIM_GET_ARG_8(n)     SHIM_GPR_8(3 + n)
 #define SHIM_GET_ARG_16(n)    SHIM_GPR_16(3 + n)
 #define SHIM_GET_ARG_32(n)    SHIM_GPR_32(3 + n)
 #define SHIM_GET_ARG_64(n)    SHIM_GPR_64(3 + n)
@@ -57,8 +61,10 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 
 #define IMPL_MEM_ADDR(a)      (a ? state->memory()->Translate(a) : NULL)
 
+#define IMPL_MEM_8(a)         (*(uint8_t*)(IMPL_MEM_ADDR(a)))
 #define IMPL_MEM_16(a)        (uint16_t)XEGETUINT16BE(IMPL_MEM_ADDR(a))
 #define IMPL_MEM_32(a)        (uint32_t)XEGETUINT32BE(IMPL_MEM_ADDR(a))
+#define IMPL_SET_MEM_8(a, v)  (*(uint8_t*)IMPL_MEM_ADDR(a)) = v
 #define IMPL_SET_MEM_16(a, v) (*(uint16_t*)IMPL_MEM_ADDR(a)) = XESWAP16(v)
 #define IMPL_SET_MEM_32(a, v) (*(uint32_t*)IMPL_MEM_ADDR(a)) = XESWAP32(v)
 
