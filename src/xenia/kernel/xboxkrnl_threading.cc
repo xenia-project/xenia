@@ -1111,12 +1111,13 @@ SHIM_CALL KeWaitForSingleObject_shim(
 SHIM_CALL NtWaitForSingleObjectEx_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t object_handle = SHIM_GET_ARG_32(0);
-  uint32_t timeout = SHIM_GET_ARG_32(1);
-  uint32_t alertable = SHIM_GET_ARG_32(2);
+  uint8_t wait_mode = SHIM_GET_ARG_8(1);
+  uint32_t alertable = SHIM_GET_ARG_32(3);
+  uint32_t timeout_ptr = SHIM_GET_ARG_32(4);
 
   XELOGD(
-      "NtWaitForSingleObjectEx(%.8X, %.8X, %.1X)",
-      object_handle, timeout, alertable);
+      "NtWaitForSingleObjectEx(%.8X, %u, %.1X, %.8X)",
+      object_handle, (uint32_t)wait_mode, alertable, timeout_ptr);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -1124,11 +1125,10 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
   result = state->object_table()->GetObject(
       object_handle, &object);
   if (XSUCCEEDED(result)) {
-    uint64_t timeout_ns = timeout * 1000000 / 100;
-    timeout_ns = ~timeout_ns; // Relative.
+    uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
     result = object->Wait(
         3, 1, alertable,
-        timeout == 0xFFFFFFFF ? 0 : &timeout_ns);
+    timeout_ptr ? &timeout : NULL);
     object->Release();
   }
 
