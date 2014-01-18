@@ -139,9 +139,12 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_STRIP:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
     break;
+  case XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST:
+    XELOGW("D3D11: faking RECTANGLE_LIST as a tri list");
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    break;
   case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_FAN:
   case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_07:
-  case XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST:
   case XE_GPU_PRIMITIVE_TYPE_LINE_LOOP:
     XELOGE("D3D11: unsupported primitive type %d", prim_type);
     return 1;
@@ -429,6 +432,17 @@ int D3D11GraphicsDriver::BindShaders() {
 }
 
 int D3D11GraphicsDriver::PrepareFetchers() {
+  XEASSERTNOTNULL(state_.vertex_shader);
+  auto inputs = state_.vertex_shader->GetVertexBufferInputs();
+  for (size_t n = 0; n < inputs->count; n++) {
+    auto input = inputs->descs[n];
+    if (PrepareVertexBuffer(input)) {
+      XELOGE("D3D11: unable to prepare vertex buffer");
+      return 1;
+    }
+  }
+
+  // TODO(benvanik): rewrite by sampler
   RegisterFile& rf = register_file_;
   for (int n = 0; n < 32; n++) {
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + n * 6;
@@ -437,38 +451,37 @@ int D3D11GraphicsDriver::PrepareFetchers() {
       if (PrepareTextureFetcher(n, &group->texture_fetch)) {
         return 1;
       }
-    } else {
-      // TODO(benvanik): verify register numbering.
-      if (group->type_0 == 0x3) {
-        if (PrepareVertexFetcher(n * 3 + 0, &group->vertex_fetch_0)) {
-          return 1;
-        }
-      }
-      if (group->type_1 == 0x3) {
-        if (PrepareVertexFetcher(n * 3 + 1, &group->vertex_fetch_1)) {
-          return 1;
-        }
-      }
-      if (group->type_2 == 0x3) {
-        if (PrepareVertexFetcher(n * 3 + 2, &group->vertex_fetch_2)) {
-          return 1;
-        }
-      }
     }
   }
 
   return 0;
 }
 
-int D3D11GraphicsDriver::PrepareVertexFetcher(
-    int fetch_slot, xe_gpu_vertex_fetch_t* fetch) {
-  uint32_t address = (fetch->address << 2) + address_translation_;
-  uint32_t size_dwords = fetch->size;
+int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
+  RegisterFile& rf = register_file_;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
+  xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
+  xe_gpu_vertex_fetch_t* fetch = NULL;
+  switch (desc.fetch_slot % 3) {
+  case 0:
+    fetch = &group->vertex_fetch_0;
+    break;
+  case 1:
+    fetch = &group->vertex_fetch_1;
+    break;
+  case 2:
+    fetch = &group->vertex_fetch_2;
+    break;
+  }
+  XEASSERTNOTNULL(fetch);
+  // If this assert doesn't hold, maybe we just abort?
+  XEASSERT(fetch->type == 0x3);
+  XEASSERTNOTZERO(fetch->size);
 
   ID3D11Buffer* buffer = 0;
   D3D11_BUFFER_DESC buffer_desc;
   xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
-  buffer_desc.ByteWidth       = size_dwords * 4;
+  buffer_desc.ByteWidth       = fetch->size * 4;
   buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
   buffer_desc.BindFlags       = D3D11_BIND_VERTEX_BUFFER;
   buffer_desc.CPUAccessFlags  = D3D11_CPU_ACCESS_WRITE;
@@ -484,15 +497,23 @@ int D3D11GraphicsDriver::PrepareVertexFetcher(
     XESAFERELEASE(buffer);
     return 1;
   }
-  uint32_t* src = (uint32_t*)memory_->Translate(address);
-  uint32_t* dest = (uint32_t*)res.pData;
-  for (uint32_t n = 0; n < size_dwords; n++) {
-    // union {
-    //   uint32_t i;
-    //   float f;
-    // } d = {XESWAP32(src[n])};
-    // XELOGGPU("v%.3d %0.8X %g", n, d.i, d.f);
-    dest[n] = XESWAP32(src[n]);
+  uint32_t address = (fetch->address << 2) + address_translation_;
+  uint8_t* src = (uint8_t*)memory_->Translate(address);
+  uint8_t* dest = (uint8_t*)res.pData;
+  // TODO(benvanik): rewrite to be faster/special case common/etc
+  for (size_t n = 0; n < desc.element_count; n++) {
+    auto& el = desc.elements[n];
+    uint32_t stride = desc.stride_words;
+    uint32_t count = fetch->size / stride;
+    uint32_t* src_ptr = (uint32_t*)(src + el.offset_words * 4);
+    uint32_t* dest_ptr = (uint32_t*)(dest + el.offset_words * 4);
+    uint32_t o = 0;
+    for (uint32_t i = 0; i < count; i++) {
+      for (uint32_t j = 0; j < el.size_words; j++) {
+        dest_ptr[o + j] = XESWAP32(src_ptr[o + j]);
+      }
+      o += stride;
+    }
   }
   context_->Unmap(buffer, 0);
 
@@ -500,14 +521,10 @@ int D3D11GraphicsDriver::PrepareVertexFetcher(
   if (!vs) {
     return 1;
   }
-  const instr_fetch_vtx_t* vtx = vs->GetFetchVtxBySlot(fetch_slot);
-  if (!vtx->must_be_one) {
-    return 1;
-  }
   // TODO(benvanik): always dword aligned?
-  uint32_t stride = vtx->stride * 4;
+  uint32_t stride = desc.stride_words * 4;
   uint32_t offset = 0;
-  int vb_slot = 95 - fetch_slot;
+  int vb_slot = desc.input_index;
   context_->IASetVertexBuffers(vb_slot, 1, &buffer, &stride, &offset);
 
   buffer->Release();

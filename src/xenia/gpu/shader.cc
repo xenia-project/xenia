@@ -23,7 +23,7 @@ Shader::Shader(
     uint64_t hash) :
     type_(type), hash_(hash), is_prepared_(false), disasm_src_(NULL) {
   xe_zero_struct(&alloc_counts_, sizeof(alloc_counts_));
-  xe_zero_struct(fetch_vtx_slots_, sizeof(fetch_vtx_slots_));
+  xe_zero_struct(&vtx_buffer_inputs_, sizeof(vtx_buffer_inputs_));
 
   // Verify.
   dword_count_ = length / 4;
@@ -146,14 +146,72 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
   // num_format_all ? integer : fraction
   // exp_adjust_all - [-32,31] - (2^exp_adjust_all)*fetch - 0 = default
 
-  fetch_vtxs_.push_back(*vtx);
-
   uint32_t fetch_slot = vtx->const_index * 3 + vtx->const_index_sel;
-  fetch_vtx_slots_[fetch_slot] = *vtx;
+  auto& inputs = vtx_buffer_inputs_;
+  vtx_buffer_element_t* el = NULL;
+  for (size_t n = 0; n < inputs.count; n++) {
+    auto& input = inputs.descs[n];
+    if (input.fetch_slot == fetch_slot) {
+      XEASSERT(input.element_count + 1 < XECOUNT(input.elements));
+      // It may not hold that all strides are equal, but I hope it does.
+      XEASSERT(!vtx->stride || input.stride_words == vtx->stride);
+      el = &input.elements[input.element_count++];
+      break;
+    }
+  }
+  if (!el) {
+    XEASSERTNOTZERO(vtx->stride);
+    XEASSERT(inputs.count + 1 < XECOUNT(inputs.descs));
+    auto& input = inputs.descs[inputs.count++];
+    input.input_index = inputs.count - 1;
+    input.fetch_slot = fetch_slot;
+    input.stride_words = vtx->stride;
+    el = &input.elements[input.element_count++];
+  }
+
+  el->vtx_fetch = *vtx;
+  el->format = vtx->format;
+  el->offset_words = vtx->offset;
+  el->size_words = 0;
+  switch (el->format) {
+  case FMT_8_8_8_8:
+  case FMT_2_10_10_10:
+  case FMT_10_11_11:
+  case FMT_11_11_10:
+    el->size_words = 1;
+    break;
+  case FMT_16_16:
+  case FMT_16_16_FLOAT:
+    el->size_words = 1;
+    break;
+  case FMT_16_16_16_16:
+  case FMT_16_16_16_16_FLOAT:
+    el->size_words = 2;
+    break;
+  case FMT_32:
+  case FMT_32_FLOAT:
+    el->size_words = 1;
+    break;
+  case FMT_32_32:
+  case FMT_32_32_FLOAT:
+    el->size_words = 2;
+    break;
+  case FMT_32_32_32_FLOAT:
+    el->size_words = 3;
+    break;
+  case FMT_32_32_32_32:
+  case FMT_32_32_32_32_FLOAT:
+    el->size_words = 4;
+    break;
+  default:
+    XELOGE("Unknown vertex format: %d", el->format);
+    XEASSERTALWAYS();
+    break;
+  }
 }
 
-const instr_fetch_vtx_t* Shader::GetFetchVtxBySlot(uint32_t fetch_slot) {
-  return &fetch_vtx_slots_[fetch_slot];
+const Shader::vtx_buffer_inputs_t* Shader::GetVertexBufferInputs() {
+  return &vtx_buffer_inputs_;
 }
 
 void Shader::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {

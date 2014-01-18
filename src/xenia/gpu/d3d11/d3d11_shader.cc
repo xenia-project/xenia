@@ -184,119 +184,101 @@ int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
   }
 
   // Create input layout.
-  size_t element_count = fetch_vtxs_.size();
+  size_t element_count = 0;
+  for (uint32_t n = 0; n < vtx_buffer_inputs_.count; n++) {
+    element_count += vtx_buffer_inputs_.descs[n].element_count;
+  }
   D3D11_INPUT_ELEMENT_DESC* element_descs =
       (D3D11_INPUT_ELEMENT_DESC*)xe_alloca(
           sizeof(D3D11_INPUT_ELEMENT_DESC) * element_count);
-  int n = 0;
-  for (std::vector<instr_fetch_vtx_t>::iterator it = fetch_vtxs_.begin();
-       it != fetch_vtxs_.end(); ++it, ++n) {
-    const instr_fetch_vtx_t& vtx = *it;
-    DXGI_FORMAT vtx_format;
-    switch (vtx.format) {
-    case FMT_1_REVERSE:
-      vtx_format = DXGI_FORMAT_R1_UNORM; // ?
-      break;
-    case FMT_8:
-      if (!vtx.num_format_all) {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R8_SNORM : DXGI_FORMAT_R8_UNORM;
-      } else {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R8_SINT : DXGI_FORMAT_R8_UINT;
+  uint32_t el_index = 0;
+  for (uint32_t n = 0; n < vtx_buffer_inputs_.count; n++) {
+    auto& input = vtx_buffer_inputs_.descs[n];
+    for (uint32_t m = 0; m < input.element_count; m++) {
+      auto& el = input.elements[m];
+      uint32_t vb_slot = input.input_index;
+      uint32_t num_format_all = el.vtx_fetch.num_format_all;
+      uint32_t format_comp_all = el.vtx_fetch.format_comp_all;
+      DXGI_FORMAT vtx_format;
+      switch (el.format) {
+      case FMT_8_8_8_8:
+        if (!num_format_all) {
+          vtx_format = format_comp_all ?
+              DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_UNORM;
+        } else {
+          vtx_format = format_comp_all ?
+              DXGI_FORMAT_R8G8B8A8_SINT : DXGI_FORMAT_R8G8B8A8_UINT;
+        }
+        break;
+      case FMT_2_10_10_10:
+        if (!num_format_all) {
+          vtx_format = DXGI_FORMAT_R10G10B10A2_UNORM;
+        } else {
+          vtx_format = DXGI_FORMAT_R10G10B10A2_UINT;
+        }
+        break;
+      // DXGI_FORMAT_R11G11B10_FLOAT?
+      case FMT_16_16:
+        if (!num_format_all) {
+          vtx_format = format_comp_all ?
+              DXGI_FORMAT_R16G16_SNORM : DXGI_FORMAT_R16G16_UNORM;
+        } else {
+          vtx_format = format_comp_all ?
+              DXGI_FORMAT_R16G16_SINT : DXGI_FORMAT_R16G16_UINT;
+        }
+        break;
+      case FMT_16_16_16_16:
+        if (!num_format_all) {
+          vtx_format = format_comp_all ?
+              DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_UNORM;
+        } else {
+          vtx_format = format_comp_all ?
+              DXGI_FORMAT_R16G16B16A16_SINT : DXGI_FORMAT_R16G16B16A16_UINT;
+        }
+        break;
+      case FMT_16_16_FLOAT:
+        vtx_format = DXGI_FORMAT_R16G16_FLOAT;
+        break;
+      case FMT_16_16_16_16_FLOAT:
+        vtx_format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        break;
+      case FMT_32:
+        vtx_format = format_comp_all ?
+            DXGI_FORMAT_R32_SINT : DXGI_FORMAT_R32_UINT;
+        break;
+      case FMT_32_32:
+        vtx_format = format_comp_all ?
+            DXGI_FORMAT_R32G32_SINT : DXGI_FORMAT_R32G32_UINT;
+        break;
+      case FMT_32_32_32_32:
+        vtx_format = format_comp_all ?
+            DXGI_FORMAT_R32G32B32A32_SINT : DXGI_FORMAT_R32G32B32A32_UINT;
+        break;
+      case FMT_32_FLOAT:
+        vtx_format = DXGI_FORMAT_R32_FLOAT;
+        break;
+      case FMT_32_32_FLOAT:
+        vtx_format = DXGI_FORMAT_R32G32_FLOAT;
+        break;
+      case FMT_32_32_32_FLOAT:
+        vtx_format = DXGI_FORMAT_R32G32B32_FLOAT;
+        break;
+      case FMT_32_32_32_32_FLOAT:
+        vtx_format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        break;
+      default:
+        XEASSERTALWAYS();
+        break;
       }
-      break;
-    case FMT_8_8_8_8:
-      if (!vtx.num_format_all) {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_UNORM;
-      } else {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R8G8B8A8_SINT : DXGI_FORMAT_R8G8B8A8_UINT;
-      }
-      break;
-    case FMT_2_10_10_10:
-      if (!vtx.num_format_all) {
-        vtx_format = DXGI_FORMAT_R10G10B10A2_UNORM;
-      } else {
-        vtx_format = DXGI_FORMAT_R10G10B10A2_UINT;
-      }
-      break;
-    case FMT_8_8:
-      if (!vtx.num_format_all) {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R8G8_SNORM : DXGI_FORMAT_R8G8_UNORM;
-      } else {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R8G8_SINT : DXGI_FORMAT_R8G8_UINT;
-      }
-      break;
-    case FMT_16:
-      if (!vtx.num_format_all) {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R16_SNORM : DXGI_FORMAT_R16_UNORM;
-      } else {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R16_SINT : DXGI_FORMAT_R16_UINT;
-      }
-      break;
-    case FMT_16_16:
-      if (!vtx.num_format_all) {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R16G16_SNORM : DXGI_FORMAT_R16G16_UNORM;
-      } else {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R16G16_SINT : DXGI_FORMAT_R16G16_UINT;
-      }
-      break;
-    case FMT_16_16_16_16:
-      if (!vtx.num_format_all) {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_UNORM;
-      } else {
-        vtx_format = vtx.format_comp_all ?
-            DXGI_FORMAT_R16G16B16A16_SINT : DXGI_FORMAT_R16G16B16A16_UINT;
-      }
-      break;
-    case FMT_32:
-      vtx_format = vtx.format_comp_all ?
-          DXGI_FORMAT_R32_SINT : DXGI_FORMAT_R32_UINT;
-      break;
-    case FMT_32_32:
-      vtx_format = vtx.format_comp_all ?
-          DXGI_FORMAT_R32G32_SINT : DXGI_FORMAT_R32G32_UINT;
-      break;
-    case FMT_32_32_32_32:
-      vtx_format = vtx.format_comp_all ?
-          DXGI_FORMAT_R32G32B32A32_SINT : DXGI_FORMAT_R32G32B32A32_UINT;
-      break;
-    case FMT_32_FLOAT:
-      vtx_format = DXGI_FORMAT_R32_FLOAT;
-      break;
-    case FMT_32_32_FLOAT:
-      vtx_format = DXGI_FORMAT_R32G32_FLOAT;
-      break;
-    case FMT_32_32_32_32_FLOAT:
-      vtx_format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-      break;
-    case FMT_32_32_32_FLOAT:
-      vtx_format = DXGI_FORMAT_R32G32B32_FLOAT;
-      break;
-    default:
-      XEASSERTALWAYS();
-      break;
+      element_descs[el_index].SemanticName         = "XE_VF";
+      element_descs[el_index].SemanticIndex        = el_index;
+      element_descs[el_index].Format               = vtx_format;
+      element_descs[el_index].InputSlot            = vb_slot;
+      element_descs[el_index].AlignedByteOffset    = el.offset_words * 4;
+      element_descs[el_index].InputSlotClass       = D3D11_INPUT_PER_VERTEX_DATA;
+      element_descs[el_index].InstanceDataStepRate = 0;
+      el_index++;
     }
-    element_descs[n].SemanticName         = "XE_VF";
-    element_descs[n].SemanticIndex        = n;
-    element_descs[n].Format               = vtx_format;
-    // Pick slot in same way that driver does.
-    // CONST(31, 2) = reg 31, index 2 = rf([31] * 6 + [2] * 2)
-    uint32_t fetch_slot = vtx.const_index * 3 + vtx.const_index_sel;
-    uint32_t vb_slot = 95 - fetch_slot;
-    element_descs[n].InputSlot            = vb_slot;
-    element_descs[n].AlignedByteOffset    = vtx.offset * 4;
-    element_descs[n].InputSlotClass       = D3D11_INPUT_PER_VERTEX_DATA;
-    element_descs[n].InstanceDataStepRate = 0;
   }
   hr = device_->CreateInputLayout(
       element_descs,
@@ -337,13 +319,17 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
   // Add vertex shader input.
   output->append(
     "struct VS_INPUT {\n");
-  int n = 0;
-  for (std::vector<instr_fetch_vtx_t>::iterator it = fetch_vtxs_.begin();
-       it != fetch_vtxs_.end(); ++it, ++n) {
-    const instr_fetch_vtx_t& vtx = *it;
-    uint32_t fetch_slot = vtx.const_index * 3 + vtx.const_index_sel;
-    output->append(
-      "  float4 vf%u_%d : XE_VF%u;\n", fetch_slot, vtx.offset, n);
+  uint32_t el_index = 0;
+  for (uint32_t n = 0; n < vtx_buffer_inputs_.count; n++) {
+    auto& input = vtx_buffer_inputs_.descs[n];
+    for (uint32_t m = 0; m < input.element_count; m++) {
+      auto& el = input.elements[m];
+      auto& vtx = el.vtx_fetch;
+      uint32_t fetch_slot = vtx.const_index * 3 + vtx.const_index_sel;
+      output->append(
+        "  float4 vf%u_%d : XE_VF%u;\n", fetch_slot, vtx.offset, el_index);
+      el_index++;
+    }
   }
   output->append(
     "};\n");

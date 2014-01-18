@@ -13,6 +13,7 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/graphics_driver.h>
+#include <xenia/gpu/shader.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/gpu/xenos/xenos.h>
 
@@ -56,8 +57,7 @@ private:
   int UpdateConstantBuffers();
   int BindShaders();
   int PrepareFetchers();
-  int PrepareVertexFetcher(
-      int fetch_slot, xenos::xe_gpu_vertex_fetch_t* fetch);
+  int PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc);
   int PrepareTextureFetcher(
       int fetch_slot, xenos::xe_gpu_texture_fetch_t* fetch);
   int PrepareIndexBuffer(
