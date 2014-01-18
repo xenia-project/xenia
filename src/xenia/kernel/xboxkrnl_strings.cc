@@ -203,7 +203,7 @@ SHIM_CALL _vsnprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        SHIM_SET_MEM_32(value,  (b - buffer) / sizeof(char));
+        SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(char)));
         arg_index++;
       }
       else {
@@ -429,7 +429,7 @@ SHIM_CALL _vswprintf_shim(
       XEASSERT(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
-        SHIM_SET_MEM_32(value,  (b - buffer) / sizeof(wchar_t));
+        SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(wchar_t)));
         arg_index++;
       }
       else {
