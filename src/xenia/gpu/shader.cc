@@ -146,6 +146,29 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
   // num_format_all ? integer : fraction
   // exp_adjust_all - [-32,31] - (2^exp_adjust_all)*fetch - 0 = default
 
+  // Sometimes games have fetches that just produce constants. We can
+  // ignore those.
+  uint32_t dst_swiz = vtx->dst_swiz;
+  bool fetches_any_data = false;
+  for (int i = 0; i < 4; i++) {
+    if ((dst_swiz & 0x7) == 4) {
+      // 0.0
+    } else if ((dst_swiz & 0x7) == 5) {
+      // 1.0
+    } else if ((dst_swiz & 0x7) == 6) {
+      // ?
+    } else if ((dst_swiz & 0x7) == 7) {
+      // Previous register value.
+    } else {
+      fetches_any_data = true;
+      break;
+    }
+    dst_swiz >>= 3;
+  }
+  if (!fetches_any_data) {
+    return;
+  }
+
   uint32_t fetch_slot = vtx->const_index * 3 + vtx->const_index_sel;
   auto& inputs = vtx_buffer_inputs_;
   vtx_buffer_element_t* el = NULL;
