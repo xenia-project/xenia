@@ -43,6 +43,7 @@ private:
 DiscImageEntry::DiscImageEntry(Type type, Device* device, const char* path,
                                xe_mmap_ref mmap, GDFXEntry* gdfx_entry) :
     gdfx_entry_(gdfx_entry),
+    gdfx_entry_iterator_(gdfx_entry->children.end()),
     Entry(type, device, path) {
   mmap_ = xe_mmap_retain(mmap);
 }
@@ -60,6 +61,75 @@ X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
   out_info->allocation_size   = 2048;
   out_info->file_length       = gdfx_entry_->size;
   out_info->attributes        = gdfx_entry_->attributes;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS DiscImageEntry::QueryDirectory(
+    XDirectoryInfo* out_info, size_t length, bool restart) {
+  XEASSERTNOTNULL(out_info);
+  if (length < sizeof(XDirectoryInfo)) {
+    return X_STATUS_INFO_LENGTH_MISMATCH;
+  }
+
+  memset(out_info, 0, length);
+
+  if (restart == true && gdfx_entry_iterator_ != gdfx_entry_->children.end()) {
+    gdfx_entry_iterator_ = gdfx_entry_->children.end();
+  }
+
+  if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
+    gdfx_entry_iterator_ = gdfx_entry_->children.begin();
+    if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+  else {
+    ++gdfx_entry_iterator_;
+    if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+
+  XDirectoryInfo* current;
+
+  auto current_buf = (uint8_t*)out_info;
+  auto end = current_buf + length;
+
+  current = (XDirectoryInfo*)current_buf;
+  if (((uint8_t*)&current->file_name[0]) + strlen((*gdfx_entry_iterator_)->name.c_str()) > end) {
+    gdfx_entry_iterator_ = gdfx_entry_->children.end();
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  do {
+    auto entry = *gdfx_entry_iterator_;
+
+    auto file_name = entry->name.c_str();
+    size_t file_name_length = strlen(file_name);
+    if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) + file_name_length > end) {
+      break;
+    }
+
+    current = (XDirectoryInfo*)current_buf;
+    current->file_index = 0xCDCDCDCD;
+    current->creation_time = 0;
+    current->last_access_time = 0;
+    current->last_write_time = 0;
+    current->change_time = 0;
+    current->end_of_file = entry->size;
+    current->allocation_size = 2048;
+    current->attributes = (X_FILE_ATTRIBUTES)entry->attributes;
+
+    current->file_name_length = (uint32_t)file_name_length;
+    memcpy(current->file_name, file_name, file_name_length);
+
+    auto next_buf = (((uint8_t*)&current->file_name[0]) + file_name_length);
+    next_buf += 8 - ((uint8_t)next_buf % 8);
+
+    current->next_entry_offset = (uint32_t)(next_buf - current_buf);
+    current_buf = next_buf;
+  } while (current_buf < end && (++gdfx_entry_iterator_) != gdfx_entry_->children.end());
+  current->next_entry_offset = 0;
   return X_STATUS_SUCCESS;
 }
 
