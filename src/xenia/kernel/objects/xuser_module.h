@@ -32,8 +32,10 @@ public:
   X_STATUS LoadFromFile(const char* path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
-  X_STATUS GetSection(const char* name, uint32_t* out_data, uint32_t* out_size);
   virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
+  virtual X_STATUS GetSection(
+      const char* name,
+      uint32_t* out_section_data, uint32_t* out_section_size);
 
   X_STATUS Launch(uint32_t flags);
 

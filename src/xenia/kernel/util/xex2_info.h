@@ -246,7 +246,7 @@ typedef struct {
 } xe_xex2_opt_header_t;
 
 typedef struct {
-  char                      title_id[8];
+  char                      name[9];
   uint32_t                  address;
   uint32_t                  size;
 } xe_xex2_resource_info_t;
@@ -431,7 +431,6 @@ typedef struct {
   uint32_t                    certificate_offset;
 
   xe_xex2_system_flags        system_flags;
-  xe_xex2_resource_info_t     resource_info;
   xe_xex2_execution_info_t    execution_info;
   xe_xex2_game_ratings_t      game_ratings;
   xe_xex2_tls_info_t          tls_info;
@@ -451,6 +450,8 @@ typedef struct {
   size_t                      header_count;
   xe_xex2_opt_header_t        headers[64];
 
+  size_t                      resource_info_count;
+  xe_xex2_resource_info_t*    resource_infos;
   size_t                      section_count;
   xe_xex2_section_t*          sections;
 } xe_xex2_header_t;

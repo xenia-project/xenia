@@ -204,9 +204,35 @@ SHIM_CALL XexGetModuleHandle_shim(
 }
 
 
-// SHIM_CALL XexGetModuleSection_shim(
-//     PPCContext* ppc_state, KernelState* state) {
-// }
+SHIM_CALL XexGetModuleSection_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t name_ptr = SHIM_GET_ARG_32(1);
+  const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
+  uint32_t data_ptr = SHIM_GET_ARG_32(2);
+  uint32_t size_ptr = SHIM_GET_ARG_32(3);
+
+  XELOGD(
+      "XexGetModuleSection(%.8X, %s, %.8X, %.8X)",
+      handle, name, data_ptr, size_ptr);
+
+  XModule* module = NULL;
+  X_STATUS result =
+      state->object_table()->GetObject(handle, (XObject**)&module);
+  if (XSUCCEEDED(result)) {
+    uint32_t section_data = 0;
+    uint32_t section_size = 0;
+    result = module->GetSection(name, &section_data, &section_size);
+    if (XSUCCEEDED(result)) {
+      SHIM_SET_MEM_32(data_ptr, section_data);
+      SHIM_SET_MEM_32(size_ptr, section_size);
+    }
+
+    module->Release();
+  }
+
+  SHIM_SET_RETURN(result);
+}
 
 
 SHIM_CALL XexLoadImage_shim(
@@ -323,7 +349,7 @@ void xe::kernel::xboxkrnl::RegisterModuleExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", XexCheckExecutablePrivilege, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleHandle, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleSection, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleSection, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XexLoadImage, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XexUnloadImage, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);

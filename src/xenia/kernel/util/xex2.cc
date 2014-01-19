@@ -73,6 +73,7 @@ void xe_xex2_dealloc(xe_xex2_ref xex) {
 
   xe_xex2_header_t *header = &xex->header;
   xe_free(header->sections);
+  xe_free(header->resource_infos);
   if (header->file_format_info.compression_type == XEX_COMPRESSION_BASIC) {
     xe_free(header->file_format_info.compression_info.basic.blocks);
   }
@@ -147,19 +148,31 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
 
     const uint8_t *pp = p + opt_header->offset;
     switch (opt_header->key) {
+    default:
+      XELOGW("Unknown XEX header key %.8X", opt_header->key);
+      break;
+    case XEX_HEADER_CHECKSUM_TIMESTAMP:
+    case XEX_HEADER_ORIGINAL_PE_NAME:
+    case XEX_HEADER_LAN_KEY:
+    case XEX_HEADER_XBOX360_LOGO:
+      // Ignored.
+      break;
     case XEX_HEADER_SYSTEM_FLAGS:
       header->system_flags = (xe_xex2_system_flags)data_offset;
       break;
     case XEX_HEADER_RESOURCE_INFO:
       {
-        xe_xex2_resource_info_t *res = &header->resource_info;
-        XEEXPECTZERO(xe_copy_memory(res->title_id,
-                                    sizeof(res->title_id), pp + 0x04, 8));
-        res->address            = XEGETUINT32BE(pp + 0x0C);
-        res->size               = XEGETUINT32BE(pp + 0x10);
-        if ((opt_header->length - 4) / 16 > 1) {
-          // Ignoring extra resources (not yet seen)
-          XELOGW("ignoring extra XEX_HEADER_RESOURCE_INFO resources");
+        header->resource_info_count = (opt_header->length - 4) / 16;
+        header->resource_infos = (xe_xex2_resource_info_t*)xe_calloc(
+            sizeof(xe_xex2_resource_info_t) * header->resource_info_count);
+        const uint8_t* ph = pp + 0x04;
+        for (size_t n = 0; n < header->resource_info_count; n++) {
+          auto& res = header->resource_infos[n];
+          XEEXPECTZERO(xe_copy_memory(res.name,
+                                      sizeof(res.name), ph + 0x00, 8));
+          res.address           = XEGETUINT32BE(ph + 0x08);
+          res.size              = XEGETUINT32BE(ph + 0x0C);
+          ph += 16;
         }
       }
       break;

@@ -526,13 +526,19 @@ json_t* Processor::DumpModule(XexModule* module, bool& succeeded) {
   }
   json_object_set_new(module_json, "headers", headers_json);
 
-  // TODO(benvanik): resources.
-  json_t* resource_info_json = json_object();
-  json_object_set_integer_new(
-        resource_info_json, "address", header->resource_info.address);
-  json_object_set_integer_new(
-        resource_info_json, "size", header->resource_info.size);
-  json_object_set_new(module_json, "resourceInfo", resource_info_json);
+  json_t* resource_infos_json = json_array();
+  for (size_t n = 0; n < header->resource_info_count; n++) {
+    auto& res = header->resource_infos[n];
+    json_t* resource_info_json = json_object();
+    json_object_set_string_new(
+        resource_info_json, "name", res.name);
+    json_object_set_integer_new(
+        resource_info_json, "address", res.address);
+    json_object_set_integer_new(
+        resource_info_json, "size", res.size);
+    json_array_append_new(resource_infos_json, resource_info_json);
+  }
+  json_object_set_new(module_json, "resourceInfos", resource_infos_json);
 
   json_t* sections_json = json_array();
   for (size_t n = 0, i = 0; n < header->section_count; n++) {

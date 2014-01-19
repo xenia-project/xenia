@@ -124,21 +124,26 @@ XECLEANUP:
   return X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS XUserModule::GetSection(const char* name,
-                             uint32_t* out_data, uint32_t* out_size) {
-  const PESection* section = xe_xex2_get_pe_section(xex_, name);
-  if (!section) {
-    return X_STATUS_UNSUCCESSFUL;
-  }
-  *out_data = section->address;
-  *out_size = section->size;
-  return X_STATUS_SUCCESS;
-}
-
 void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   // TODO(benvanik): check export tables.
   XELOGE("GetProcAddressByOrdinal not implemented");
   return NULL;
+}
+
+X_STATUS XUserModule::GetSection(
+    const char* name,
+    uint32_t* out_section_data, uint32_t* out_section_size) {
+  auto header = xe_xex2_get_header(xex_);
+  for (size_t n = 0; n < header->resource_info_count; n++) {
+    auto& res = header->resource_infos[n];
+    if (xestrcmpa(name, res.name) == 0) {
+      // Found!
+      *out_section_data = res.address;
+      *out_section_size = res.size;
+      return X_STATUS_SUCCESS;
+    }
+  }
+  return X_STATUS_UNSUCCESSFUL;
 }
 
 X_STATUS XUserModule::Launch(uint32_t flags) {
@@ -226,9 +231,11 @@ void XUserModule::Dump() {
 
   // Resources.
   printf("Resources:\n");
-  printf("  %.8X, %db\n", header->resource_info.address,
-                          header->resource_info.size);
-  printf("  TODO\n");
+  for (size_t n = 0; n < header->resource_info_count; n++) {
+    auto& res = header->resource_infos[n];
+    printf("  %-8s %.8X-%.8X, %db\n",
+           res.name, res.address, res.address + res.size, res.size);
+  }
   printf("\n");
 
   // Section info.
