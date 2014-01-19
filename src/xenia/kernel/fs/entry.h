@@ -59,6 +59,7 @@ public:
   const char* name() const { return name_; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) = 0;
 
   virtual bool can_map() { return false; }
   virtual MemoryMapping* CreateMemoryMapping(
