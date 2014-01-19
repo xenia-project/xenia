@@ -486,13 +486,15 @@ SHIM_CALL NtQueryDirectoryFile_shim(
     return;
   }
 
+  /*
   if (file_name_ptr != 0) {
     if (SHIM_MEM_16(file_name_ptr + 0) != 0 ||
       SHIM_MEM_16(file_name_ptr + 2) != 0) {
       const char* file_name = (const char *)SHIM_MEM_ADDR(SHIM_MEM_32(file_name_ptr + 4));
       XEASSERT(strcmp(file_name, "*.*") == 0);
+    }
   }
-  }
+  */
 
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   uint32_t info = 0;
