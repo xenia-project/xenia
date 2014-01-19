@@ -28,12 +28,16 @@ DiscImageFile::DiscImageFile(
 DiscImageFile::~DiscImageFile() {
 }
 
-const char* DiscImageFile::name(void) {
-  return entry_->name();
+const char* DiscImageFile::path(void) const {
+  return entry_->path();
 }
 
-const char* DiscImageFile::path(void) {
-  return entry_->path();
+const char* DiscImageFile::absolute_path(void) const {
+  return entry_->absolute_path();
+}
+
+const char* DiscImageFile::name(void) const {
+  return entry_->name();
 }
 
 X_STATUS DiscImageFile::QueryInfo(XFileInfo* out_info) {

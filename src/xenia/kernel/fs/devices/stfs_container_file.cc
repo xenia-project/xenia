@@ -28,12 +28,16 @@ STFSContainerFile::STFSContainerFile(
 STFSContainerFile::~STFSContainerFile() {
 }
 
-const char* STFSContainerFile::name(void) {
-  return entry_->name();
+const char* STFSContainerFile::path(void) const {
+  return entry_->path();
 }
 
-const char* STFSContainerFile::path(void) {
-  return entry_->path();
+const char* STFSContainerFile::absolute_path(void) const {
+  return entry_->absolute_path();
+}
+
+const char* STFSContainerFile::name(void) const {
+  return entry_->name();
 }
 
 X_STATUS STFSContainerFile::QueryInfo(XFileInfo* out_info) {

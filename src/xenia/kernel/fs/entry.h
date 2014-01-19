@@ -56,6 +56,7 @@ public:
   Type type() const { return type_; }
   Device* device() const { return device_; }
   const char* path() const { return path_; }
+  const char* absolute_path() const { return absolute_path_; }
   const char* name() const { return name_; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
@@ -76,6 +77,7 @@ private:
   Type      type_;
   Device*   device_;
   char*     path_;
+  char*     absolute_path_;
   char*     name_;
 };
 

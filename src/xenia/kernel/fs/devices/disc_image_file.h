@@ -29,8 +29,9 @@ public:
                 DiscImageEntry* entry);
   virtual ~DiscImageFile();
 
-  virtual const char* name(void);
-  virtual const char* path(void);
+  virtual const char* path(void) const;
+  virtual const char* absolute_path(void) const;
+  virtual const char* name(void) const;
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
