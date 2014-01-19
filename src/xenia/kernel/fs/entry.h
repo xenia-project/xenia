@@ -60,8 +60,11 @@ public:
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
 
+  virtual bool can_map() { return false; }
   virtual MemoryMapping* CreateMemoryMapping(
-      xe_file_mode file_mode, const size_t offset, const size_t length) = 0;
+      xe_file_mode file_mode, const size_t offset, const size_t length) {
+    return NULL;
+  }
 
   virtual X_STATUS Open(
       KernelState* kernel_state,

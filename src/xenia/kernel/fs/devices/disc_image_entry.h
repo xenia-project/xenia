@@ -34,6 +34,7 @@ public:
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
 
+  virtual bool can_map() { return true; }
   virtual MemoryMapping* CreateMemoryMapping(
       xe_file_mode file_mode, const size_t offset, const size_t length);
 

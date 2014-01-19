@@ -9,6 +9,8 @@
     'filesystem.h',
     'gdfx.cc',
     'gdfx.h',
+    'stfs.cc',
+    'stfs.h',
   ],
 
   'includes': [

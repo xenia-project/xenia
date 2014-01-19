@@ -231,3 +231,28 @@ X_STATUS Emulator::LaunchDiscImage(const xechar_t* path) {
   // Launch the game.
   return xboxkrnl_->LaunchModule("game:\\default.xex");
 }
+
+X_STATUS Emulator::LaunchSTFSTitle(const xechar_t* path) {
+  int result_code = 0;
+
+  // TODO(benvanik): figure out paths.
+
+  // Register the disc image in the virtual filesystem.
+  result_code = file_system_->RegisterSTFSContainerDevice(
+      "\\Device\\Cdrom0", path);
+  if (result_code) {
+    XELOGE("Unable to mount STFS container");
+    return result_code;
+  }
+
+  // Create symlinks to the device.
+  file_system_->CreateSymbolicLink(
+      "game:",
+      "\\Device\\Cdrom0");
+  file_system_->CreateSymbolicLink(
+      "d:",
+      "\\Device\\Cdrom0");
+
+  // Launch the game.
+  return xboxkrnl_->LaunchModule("game:\\default.xex");
+}

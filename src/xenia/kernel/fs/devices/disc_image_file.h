@@ -30,7 +30,8 @@ public:
   virtual ~DiscImageFile();
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart);
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
+                                  size_t length, bool restart);
 
 protected:
   virtual X_STATUS ReadSync(

@@ -2,13 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_FS_DEVICES_HOST_PATH_FILE_H_
-#define XENIA_KERNEL_FS_DEVICES_HOST_PATH_FILE_H_
+#ifndef XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_FILE_H_
+#define XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_FILE_H_
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -20,14 +20,14 @@ namespace xe {
 namespace kernel {
 namespace fs {
 
-class HostPathEntry;
+class STFSContainerEntry;
 
 
-class HostPathFile : public XFile {
+class STFSContainerFile : public XFile {
 public:
-  HostPathFile(KernelState* kernel_state, uint32_t desired_access,
-               HostPathEntry* entry, HANDLE file_handle);
-  virtual ~HostPathFile();
+  STFSContainerFile(KernelState* kernel_state, uint32_t desired_access,
+                    STFSContainerEntry* entry);
+  virtual ~STFSContainerFile();
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
@@ -39,8 +39,7 @@ protected:
       size_t* out_bytes_read);
 
 private:
-  HostPathEntry* entry_;
-  HANDLE         file_handle_;
+  STFSContainerEntry* entry_;
 };
 
 
@@ -49,4 +48,4 @@ private:
 }  // namespace xe
 
 
-#endif  // XENIA_KERNEL_FS_DEVICES_HOST_PATH_FILE_H_
+#endif  // XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_FILE_H_

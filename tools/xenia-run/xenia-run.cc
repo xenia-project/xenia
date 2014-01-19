@@ -53,12 +53,8 @@ int xenia_run(int argc, xechar_t** argv) {
   xe_path_get_absolute(path, abs_path, XECOUNT(abs_path));
 
   // Grab file extension.
+  // May be NULL if an STFS file.
   const xechar_t* dot = xestrrchr(abs_path, '.');
-  if (!dot) {
-    XELOGE("Invalid input path; no extension found");
-    XEFATAL("Pass a valid file path to launch.");
-    return 1;
-  }
 
   // Create the emulator.
   emulator = new Emulator(XT(""));
@@ -72,7 +68,10 @@ int xenia_run(int argc, xechar_t** argv) {
   // Launch based on file type.
   // This is a silly guess based on file extension.
   // NOTE: the runtime launch routine will wait until the module exits.
-  if (xestrcmp(dot, XT(".xex")) == 0) {
+  if (!dot) {
+    // Likely an STFS container.
+    result = emulator->LaunchSTFSTitle(abs_path);
+  } else if (xestrcmp(dot, XT(".xex")) == 0) {
     // Treat as a naked xex file.
     result = emulator->LaunchXexFile(abs_path);
   } else {

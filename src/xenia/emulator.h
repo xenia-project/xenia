@@ -61,6 +61,7 @@ public:
   // TODO(benvanik): raw binary.
   X_STATUS LaunchXexFile(const xechar_t* path);
   X_STATUS LaunchDiscImage(const xechar_t* path);
+  X_STATUS LaunchSTFSTitle(const xechar_t* path);
 
 private:
   xechar_t                command_line_[XE_MAX_PATH];

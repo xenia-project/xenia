@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/fs/devices/disc_image_device.h>
 #include <xenia/kernel/fs/devices/host_path_device.h>
+#include <xenia/kernel/fs/devices/stfs_container_device.h>
 
 
 using namespace xe;
@@ -46,6 +47,15 @@ int FileSystem::RegisterHostPathDevice(
 int FileSystem::RegisterDiscImageDevice(
     const char* path, const xechar_t* local_path) {
   DiscImageDevice* device = new DiscImageDevice(path, local_path);
+  if (device->Init()) {
+    return 1;
+  }
+  return RegisterDevice(path, device);
+}
+
+int FileSystem::RegisterSTFSContainerDevice(
+    const char* path, const xechar_t* local_path) {
+  STFSContainerDevice* device = new STFSContainerDevice(path, local_path);
   if (device->Init()) {
     return 1;
   }

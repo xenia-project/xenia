@@ -13,5 +13,11 @@
     'host_path_entry.h',
     'host_path_file.cc',
     'host_path_file.h',
+    'stfs_container_device.cc',
+    'stfs_container_device.h',
+    'stfs_container_entry.cc',
+    'stfs_container_entry.h',
+    'stfs_container_file.cc',
+    'stfs_container_file.h',
   ],
 }

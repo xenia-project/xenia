@@ -67,12 +67,14 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
   out_info->last_write_time   = COMBINE_TIME(data.ftLastWriteTime);
   out_info->change_time       = COMBINE_TIME(data.ftLastWriteTime);
   out_info->allocation_size   = 4096;
-  out_info->file_length       = ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+  out_info->file_length       =
+      ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
   out_info->attributes        = (X_FILE_ATTRIBUTES)data.dwFileAttributes;
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) {
+X_STATUS HostPathEntry::QueryDirectory(
+    XDirectoryInfo* out_info, size_t length, bool restart) {
   XEASSERTNOTNULL(out_info);
 
   if (length < sizeof(XDirectoryInfo)) {
@@ -121,7 +123,8 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length, 
 
   do {
     size_t file_name_length = wcslen(ffd.cFileName);
-    if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) + wcslen(ffd.cFileName) > end) {
+    if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) +
+        wcslen(ffd.cFileName) > end) {
       break;
     }
 
@@ -131,14 +134,17 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length, 
     current->last_access_time = COMBINE_TIME(ffd.ftLastAccessTime);
     current->last_write_time = COMBINE_TIME(ffd.ftLastWriteTime);
     current->change_time = COMBINE_TIME(ffd.ftLastWriteTime);
-    current->end_of_file = ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
+    current->end_of_file =
+        ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
     current->allocation_size = 4096;
     current->attributes = (X_FILE_ATTRIBUTES)ffd.dwFileAttributes;
 
-    // TODO: I am pretty sure you need to prefix the file paths with full path, not just the name.
+    // TODO: I am pretty sure you need to prefix the file paths with full path,
+    //     not just the name.
     current->file_name_length = (uint32_t)file_name_length;
     for (size_t i = 0; i < file_name_length; ++i) {
-      current->file_name[i] = ffd.cFileName[i] < 256 ? (char)ffd.cFileName[i] : '?';
+      current->file_name[i] =
+          ffd.cFileName[i] < 256 ? (char)ffd.cFileName[i] : '?';
     }
 
     auto next_buf = (((uint8_t*)&current->file_name[0]) + file_name_length);
