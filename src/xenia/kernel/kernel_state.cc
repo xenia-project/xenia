@@ -63,7 +63,11 @@ KernelState* KernelState::shared() {
 }
 
 XModule* KernelState::GetModule(const char* name) {
-  if (xestrcasecmpa(name, "xam.xex") == 0) {
+  if (!name) {
+    // NULL name = self.
+    // TODO(benvanik): lookup module from caller address.
+    return GetExecutableModule();
+  } else if (xestrcasecmpa(name, "xam.xex") == 0) {
     auto module = emulator_->xam();
     module->Retain();
     return module;
