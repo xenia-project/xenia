@@ -2350,7 +2350,7 @@ uint32_t Translate_VECTOR_ADD_I32(IntCodeState& ics, const IntCode* i) {
         if (v > 0x7FFFFFFF) {
           dest.i4[n] = 0x7FFFFFFF;
           ics.did_saturate = 1;
-        } else if (v < 0x80000000ull) {
+        } else if (v < -0x80000000ll) {
           dest.i4[n] = 0x80000000;
           ics.did_saturate = 1;
         } else {
