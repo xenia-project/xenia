@@ -54,13 +54,17 @@ X_STATUS STFSContainerFile::ReadSync(
       stfs_entry->block_list.size(),
       (size_t)ceil((byte_offset + real_length) / 4096.0));
   uint8_t* dest_ptr = (uint8_t*)buffer;
+  size_t remaining_length = real_length;
   for (size_t n = start_block; n < end_block; n++) {
     auto& record = stfs_entry->block_list[n];
     size_t offset = record.offset;
-    size_t read_length = record.length;
-    xe_copy_memory(dest_ptr, buffer_length - (dest_ptr - (uint8_t*)buffer),
-                   map_ptr + offset, read_length);
+    if (n == start_block) {
+      offset += byte_offset % 4096;
+    }
+    size_t read_length = MIN(remaining_length, record.length);
+    xe_copy_struct(dest_ptr, map_ptr + offset, read_length);
     dest_ptr += read_length;
+    remaining_length -= read_length;
   }
   *out_bytes_read = real_length;
   return X_STATUS_SUCCESS;
