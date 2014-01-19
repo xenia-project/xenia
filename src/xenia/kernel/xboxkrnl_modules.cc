@@ -116,7 +116,7 @@ SHIM_CALL ExGetXConfigSetting_shim(
     SHIM_SET_MEM_16(required_size_ptr, required_size);
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -157,7 +157,7 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(
 
   int result = xeXexCheckExecutablePriviledge(privilege);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -200,7 +200,7 @@ SHIM_CALL XexGetModuleHandle_shim(
     SHIM_SET_MEM_32(module_handle_ptr, module_handle);
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -231,7 +231,7 @@ SHIM_CALL XexGetModuleSection_shim(
     module->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -260,7 +260,7 @@ SHIM_CALL XexLoadImage_shim(
     result = X_STATUS_NO_SUCH_FILE;
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -276,7 +276,7 @@ SHIM_CALL XexUnloadImage_shim(
 
   result = state->object_table()->RemoveHandle(handle);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -310,7 +310,7 @@ SHIM_CALL XexGetProcedureAddress_shim(
     module->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 

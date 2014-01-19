@@ -36,7 +36,7 @@ SHIM_CALL _vsnprintf_shim(
   uint32_t arg_ptr = SHIM_GET_ARG_32(3);
 
   if (format_ptr == 0) {
-    SHIM_SET_RETURN(-1);
+    SHIM_SET_RETURN_32(-1);
     return;
   }
 
@@ -235,7 +235,7 @@ SHIM_CALL _vsnprintf_shim(
     format = end;
   }
   *b = '\0';
-  SHIM_SET_RETURN((uint32_t)(b - buffer));
+  SHIM_SET_RETURN_32((uint32_t)(b - buffer));
 }
 
 
@@ -248,7 +248,7 @@ SHIM_CALL _vswprintf_shim(
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
   if (format_ptr == 0) {
-    SHIM_SET_RETURN(-1);
+    SHIM_SET_RETURN_32(-1);
     return;
   }
 
@@ -494,7 +494,7 @@ SHIM_CALL _vswprintf_shim(
     *swap = XESWAP16(*swap);
   }
 
-  SHIM_SET_RETURN((uint32_t)((b - buffer) / sizeof(wchar_t)));
+  SHIM_SET_RETURN_32((uint32_t)((b - buffer) / sizeof(wchar_t)));
 }
 
 

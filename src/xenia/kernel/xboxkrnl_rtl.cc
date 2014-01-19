@@ -66,7 +66,7 @@ SHIM_CALL RtlCompareMemory_shim(
       source1, source2, length);
 
   uint32_t result = xeRtlCompareMemory(source1, source2, length);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -116,7 +116,7 @@ SHIM_CALL RtlCompareMemoryUlong_shim(
       source, length, pattern);
 
   uint32_t result = xeRtlCompareMemoryUlong(source, length, pattern);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -343,7 +343,7 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(
 
   X_STATUS result = xeRtlUnicodeStringToAnsiString(
       destination_ptr, source_ptr, alloc_dest);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -372,7 +372,7 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(
     SHIM_SET_MEM_32(written_ptr, copy_len << 1);
   }
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 
@@ -402,7 +402,7 @@ SHIM_CALL RtlUnicodeToMultiByteN_shim(
     SHIM_SET_MEM_32(written_ptr, copy_len);
   }
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 
@@ -431,7 +431,7 @@ SHIM_CALL RtlNtStatusToDosError_shim(
       status);
 
   uint32_t result = xeRtlNtStatusToDosError(status);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -488,7 +488,7 @@ SHIM_CALL RtlImageXexHeaderField_shim(
       xex_header_base, image_field);
 
   uint32_t result = xeRtlImageXexHeaderField(xex_header_base, image_field);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -590,7 +590,7 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
 
   X_STATUS result = xeRtlInitializeCriticalSectionAndSpinCount(
       cs_ptr, spin_count);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -682,7 +682,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(
   uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
 
   uint32_t result = xeRtlTryEnterCriticalSection(cs_ptr, thread_id);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -766,13 +766,13 @@ SHIM_CALL RtlTimeFieldsToTime_shim(
   FILETIME ft;
   if (!SystemTimeToFileTime(&st, &ft)) {
     // set last error = ERROR_INVALID_PARAMETER
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
   uint64_t time = (uint64_t(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
   SHIM_SET_MEM_64(time_ptr, time);
-  SHIM_SET_RETURN(1);
+  SHIM_SET_RETURN_64(1);
 }
 
 

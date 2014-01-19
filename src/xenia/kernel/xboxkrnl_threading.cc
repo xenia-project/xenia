@@ -136,7 +136,7 @@ SHIM_CALL ExCreateThread_shim(
       SHIM_SET_MEM_32(thread_id_ptr, thread_id);
     }
   }
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -152,7 +152,7 @@ SHIM_CALL ExTerminateThread_shim(
 
   // NOTE: this kills us right now. We won't return from it.
   X_STATUS result = thread->Exit(exit_code);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -192,7 +192,7 @@ SHIM_CALL NtResumeThread_shim(
     }
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -230,7 +230,7 @@ SHIM_CALL KeResumeThread_shim(
     }
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -270,7 +270,7 @@ SHIM_CALL NtSuspendThread_shim(
     }
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -300,7 +300,7 @@ SHIM_CALL KeSetAffinityThread_shim(
 
   void* thread_ptr = SHIM_MEM_ADDR(thread);
   uint32_t result = xeKeSetAffinityThread(thread_ptr, affinity);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -320,7 +320,7 @@ SHIM_CALL KeQueryBasePriorityThread_shim(
     priority = thread->QueryPriority();
   }
 
-  SHIM_SET_RETURN(priority);
+  SHIM_SET_RETURN_32(priority);
 }
 
 
@@ -352,7 +352,7 @@ SHIM_CALL KeSetBasePriorityThread_shim(
 
   void* thread_ptr = SHIM_MEM_ADDR(thread);
   uint32_t result = xeKeSetBasePriorityThread(thread_ptr, increment);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -372,7 +372,7 @@ SHIM_CALL KeGetCurrentProcessType_shim(
       "KeGetCurrentProcessType()");
 
   int result = xeKeGetCurrentProcessType();
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -392,7 +392,7 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(
       "KeQueryPerformanceFrequency()");
 
   uint64_t result = xeKeQueryPerformanceFrequency();
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -417,7 +417,7 @@ SHIM_CALL KeDelayExecutionThread_shim(
   X_STATUS result = xeKeDelayExecutionThread(
       processor_mode, alertable, interval);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -425,7 +425,7 @@ SHIM_CALL NtYieldExecution_shim(
     PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtYieldExecution()");
   xeKeDelayExecutionThread(0, 0, 0);
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 
@@ -486,7 +486,7 @@ SHIM_CALL KeTlsAlloc_shim(
       "KeTlsAlloc()");
 
   uint32_t result = xeKeTlsAlloc();
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -520,7 +520,7 @@ SHIM_CALL KeTlsFree_shim(
       tls_index);
 
   int result = xeKeTlsAlloc();
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -555,7 +555,7 @@ SHIM_CALL KeTlsGetValue_shim(
       tls_index);
 
   uint64_t result = xeKeTlsGetValue(tls_index);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -587,7 +587,7 @@ SHIM_CALL KeTlsSetValue_shim(
       tls_index, tls_value);
 
   int result = xeKeTlsSetValue(tls_index, tls_value);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -631,7 +631,7 @@ SHIM_CALL NtCreateEvent_shim(
       SHIM_SET_MEM_32(handle_ptr, handle);
     }
   }
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -662,7 +662,7 @@ SHIM_CALL KeSetEvent_shim(
   void* event_ptr = SHIM_MEM_ADDR(event_ref);
   int32_t result = xeKeSetEvent(event_ptr, increment, wait);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -689,7 +689,7 @@ SHIM_CALL NtSetEvent_shim(
     ev->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -712,7 +712,7 @@ SHIM_CALL KePulseEvent_shim(
     result = ev->Pulse(increment, !!wait);
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -739,7 +739,7 @@ SHIM_CALL NtPulseEvent_shim(
     ev->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -768,7 +768,7 @@ SHIM_CALL KeResetEvent_shim(
   void* event_ptr = SHIM_MEM_ADDR(event_ref);
   int32_t result = xeKeResetEvent(event_ptr);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -790,7 +790,7 @@ SHIM_CALL NtClearEvent_shim(
     ev->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -817,7 +817,7 @@ SHIM_CALL NtCreateSemaphore_shim(
     SHIM_SET_MEM_32(handle_ptr, sem->handle());
   }
 
-  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 
@@ -885,7 +885,7 @@ SHIM_CALL KeReleaseSemaphore_shim(
   int32_t result = xeKeReleaseSemaphore(
       semaphore_ptr, increment, adjustment, wait == 1);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_64(result);
 }
 
 
@@ -913,7 +913,7 @@ SHIM_CALL NtReleaseSemaphore_shim(
     }
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -939,7 +939,7 @@ SHIM_CALL NtCreateMutant_shim(
     SHIM_SET_MEM_32(handle_ptr, mutant->handle());
   }
 
-  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 
@@ -972,7 +972,7 @@ SHIM_CALL NtReleaseMutant_shim(
     mutant->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1000,7 +1000,7 @@ SHIM_CALL NtCreateTimer_shim(
     SHIM_SET_MEM_32(handle_ptr, timer->handle());
   }
 
-  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 
@@ -1036,7 +1036,7 @@ SHIM_CALL NtSetTimerEx_shim(
     timer->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1066,7 +1066,7 @@ SHIM_CALL NtCancelTimer_shim(
     }
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1104,7 +1104,7 @@ SHIM_CALL KeWaitForSingleObject_shim(
       object_ptr, wait_reason, processor_mode, alertable,
       timeout_ptr ? &timeout : NULL);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1132,7 +1132,7 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
     object->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1162,7 +1162,7 @@ SHIM_CALL KeWaitForMultipleObjects_shim(
     void* object_ptr = SHIM_MEM_ADDR(object_ptr_ptr);
     objects[n] = XObject::GetObject(state, object_ptr);
     if (!objects[n]) {
-      SHIM_SET_RETURN(X_STATUS_INVALID_PARAMETER);
+      SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
       return;
     }
   }
@@ -1173,7 +1173,7 @@ SHIM_CALL KeWaitForMultipleObjects_shim(
       wait_type, wait_reason, processor_mode, alertable,
       timeout_ptr ? &timeout : NULL);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1201,10 +1201,10 @@ SHIM_CALL NtWaitForMultipleObjectsEx_shim(
     XObject* object = NULL;
     result = state->object_table()->GetObject(object_handle, &object);
     if (XFAILED(result)) {
-      SHIM_SET_RETURN(X_STATUS_INVALID_PARAMETER);
+      SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
       return;
     }
-	  objects[n] = object;
+    objects[n] = object;
   }
 
   uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
@@ -1213,7 +1213,7 @@ SHIM_CALL NtWaitForMultipleObjectsEx_shim(
     wait_type, 6, wait_mode, alertable,
     timeout_ptr ? &timeout : NULL);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1253,7 +1253,7 @@ SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(
     wait_object->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -1280,7 +1280,7 @@ SHIM_CALL KfAcquireSpinLock_shim(
 
   uint32_t old_irql = xeKfAcquireSpinLock(SHIM_MEM_ADDR(lock_ptr));
 
-  SHIM_SET_RETURN(old_irql);
+  SHIM_SET_RETURN_64(old_irql);
 }
 
 
@@ -1434,7 +1434,7 @@ SHIM_CALL KeInsertQueueApc_shim(
   XThread* thread = (XThread*)XObject::GetObject(
       state, SHIM_MEM_ADDR(thread_ptr));
   if (!thread) {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
@@ -1444,7 +1444,7 @@ SHIM_CALL KeInsertQueueApc_shim(
   // Fail if already inserted.
   if (SHIM_MEM_32(apc_ptr + 40) & 0xFF00) {
     thread->UnlockApc();
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
@@ -1462,7 +1462,7 @@ SHIM_CALL KeInsertQueueApc_shim(
   // Unlock thread.
   thread->UnlockApc();
 
-  SHIM_SET_RETURN(1);
+  SHIM_SET_RETURN_64(1);
 }
 
 
@@ -1480,7 +1480,7 @@ SHIM_CALL KeRemoveQueueApc_shim(
   XThread* thread = (XThread*)XObject::GetObject(
       state, SHIM_MEM_ADDR(thread_ptr));
   if (!thread) {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
@@ -1488,7 +1488,7 @@ SHIM_CALL KeRemoveQueueApc_shim(
 
   if (!(SHIM_MEM_32(apc_ptr + 40) & 0xFF00)) {
     thread->UnlockApc();
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
@@ -1501,7 +1501,7 @@ SHIM_CALL KeRemoveQueueApc_shim(
 
   thread->UnlockApc();
 
-  SHIM_SET_RETURN(result ? 1 : 0);
+  SHIM_SET_RETURN_64(result ? 1 : 0);
 }
 
 
@@ -1514,7 +1514,7 @@ SHIM_CALL KiApcNormalRoutineNop_shim(
       "KiApcNormalRoutineNop(%.8X, %.8X)",
       unk0, unk1);
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 
@@ -1563,7 +1563,7 @@ SHIM_CALL KeInsertQueueDpc_shim(
 
   // If already in a queue, abort.
   if (dpc_list->IsQueued(list_entry_ptr)) {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     dispatcher->Unlock();
     return;
   }
@@ -1576,7 +1576,7 @@ SHIM_CALL KeInsertQueueDpc_shim(
 
   dispatcher->Unlock();
 
-  SHIM_SET_RETURN(1);
+  SHIM_SET_RETURN_64(1);
 }
 
 
@@ -1603,7 +1603,7 @@ SHIM_CALL KeRemoveQueueDpc_shim(
 
   dispatcher->Unlock();
 
-  SHIM_SET_RETURN(result ? 1 : 0);
+  SHIM_SET_RETURN_64(result ? 1 : 0);
 }
 
 

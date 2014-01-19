@@ -119,7 +119,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
     SHIM_SET_MEM_32(base_addr_ptr, base_addr_value);
     SHIM_SET_MEM_32(region_size_ptr, region_size_value);
   }
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -185,7 +185,7 @@ SHIM_CALL NtFreeVirtualMemory_shim(
     SHIM_SET_MEM_32(base_addr_ptr, base_addr_value);
     SHIM_SET_MEM_32(region_size_ptr, region_size_value);
   }
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -274,7 +274,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
       type, region_size, protect_bits,
       min_addr_range, max_addr_range, alignment);
 
-  SHIM_SET_RETURN(base_address);
+  SHIM_SET_RETURN_32(base_address);
 }
 
 
@@ -328,7 +328,7 @@ SHIM_CALL MmQueryAddressProtect_shim(
 
   uint32_t result = xeMmQueryAddressProtect(base_address);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -352,7 +352,7 @@ SHIM_CALL MmQueryAllocationSize_shim(
 
   uint32_t result = xeMmQueryAllocationSize(base_address);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -366,7 +366,7 @@ SHIM_CALL MmQueryStatistics_shim(
 
 uint32_t size = SHIM_MEM_32(stats_ptr + 0);
   if (size != 104) {
-    SHIM_SET_RETURN(X_STATUS_BUFFER_TOO_SMALL);
+    SHIM_SET_RETURN_32(X_STATUS_BUFFER_TOO_SMALL);
     return;
   }
 
@@ -407,7 +407,7 @@ uint32_t size = SHIM_MEM_32(stats_ptr + 0);
   SHIM_SET_MEM_32(stats_ptr + 4 * 24, 0x00000000); // SystemCachePages
   SHIM_SET_MEM_32(stats_ptr + 4 * 25, 0x0001FFFF); // HighestPhysicalPage
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -444,7 +444,7 @@ SHIM_CALL MmGetPhysicalAddress_shim(
 
   uint32_t result = xeMmGetPhysicalAddress(base_address);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -456,7 +456,7 @@ SHIM_CALL KeLockL2_shim(
   XELOGD(
       "KeLockL2(?)");
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 

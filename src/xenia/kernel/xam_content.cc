@@ -40,7 +40,7 @@ SHIM_CALL XamContentGetLicenseMask_shim(
   // To be clever, let's just try setting all the bits.
   SHIM_SET_MEM_32(mask_ptr, 0xFFFFFFFF);
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 
@@ -57,7 +57,7 @@ SHIM_CALL XamContentCreateEnumerator_shim(
   XELOGD(
       "XamContentCreateEnumerator(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
       arg0, arg1, arg2, arg3, arg4, arg5, arg6);
-  SHIM_SET_RETURN(X_ERROR_DEVICE_NOT_CONNECTED);
+  SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
 }
 
 }  // namespace kernel

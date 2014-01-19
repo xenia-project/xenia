@@ -39,9 +39,9 @@ SHIM_CALL XamUserGetXUID_shim(
     if (xuid_ptr) {
       SHIM_SET_MEM_32(xuid_ptr, 0xBABEBABE);
     }
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_32(0);
   } else {
-    SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+    SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
   }
 }
 
@@ -58,9 +58,9 @@ SHIM_CALL XamUserGetSigninState_shim(
   // This should keep games from asking us to sign in and also keep them
   // from initializing the network.
   if (user_index == 0) {
-    SHIM_SET_RETURN(1);
+    SHIM_SET_RETURN_64(1);
   } else {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
   }
 }
 
@@ -83,9 +83,9 @@ SHIM_CALL XamUserGetSigninInfo_shim(
     SHIM_SET_MEM_32(info_ptr + 16, 0); // ?
     char* buffer = (char*)SHIM_MEM_ADDR(info_ptr + 20);
     xestrncpya(buffer, 0x10, "User0", 5);
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_32(0);
   } else {
-    SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+    SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
   }
 }
 
@@ -103,9 +103,9 @@ SHIM_CALL XamUserGetName_shim(
   if (user_index == 0) {
     char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);
     xestrncpya(buffer, buffer_len, "User0", 5);
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_32(0);
   } else {
-    SHIM_SET_RETURN(X_ERROR_NO_SUCH_USER);
+    SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
   }
 }
 
@@ -164,13 +164,13 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   }
   SHIM_SET_MEM_32(buffer_size_ptr, size_needed);
   if (buffer_size < size_needed) {
-    SHIM_SET_RETURN(X_ERROR_INSUFFICIENT_BUFFER);
+    SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
     return;
   }
 
   // TODO(benvanik): read profile data.
   // For now, just return signed out.
-  SHIM_SET_RETURN(X_ERROR_NOT_FOUND);
+  SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
 }
 
 

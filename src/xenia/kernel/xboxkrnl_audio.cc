@@ -36,7 +36,7 @@ SHIM_CALL XMACreateContext_shim(
 
   // TODO(benvanik): allocate and return -- see if size required or just dummy?
 
-  SHIM_SET_RETURN(X_ERROR_ACCESS_DENIED);
+  SHIM_SET_RETURN_32(X_ERROR_ACCESS_DENIED);
 }
 
 
@@ -62,7 +62,7 @@ SHIM_CALL XAudioGetSpeakerConfig_shim(
 
   SHIM_SET_MEM_32(config_ptr, 0x00010001);
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 
@@ -81,7 +81,7 @@ SHIM_CALL XAudioGetVoiceCategoryVolumeChangeMask_shim(
   // I think.
   SHIM_SET_MEM_32(out_ptr, 0);
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 
@@ -97,7 +97,7 @@ SHIM_CALL XAudioGetVoiceCategoryVolume_shim(
   // Expects a floating point single. Volume %?
   SHIM_SET_MEM_F32(out_ptr, 1.0f);
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 
@@ -118,7 +118,7 @@ SHIM_CALL XAudioRegisterRenderDriverClient_shim(
 
   SHIM_SET_MEM_32(driver_ptr, 0xAADD1100);
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 
@@ -135,7 +135,7 @@ SHIM_CALL XAudioUnregisterRenderDriverClient_shim(
   auto audio_system = state->emulator()->audio_system();
   audio_system->UnregisterClient();
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 
@@ -153,7 +153,7 @@ SHIM_CALL XAudioSubmitRenderDriverFrame_shim(
   auto audio_system = state->emulator()->audio_system();
   audio_system->SubmitFrame(samples_ptr);
 
-  SHIM_SET_RETURN(X_ERROR_SUCCESS);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 

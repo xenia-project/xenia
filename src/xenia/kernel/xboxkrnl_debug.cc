@@ -30,7 +30,7 @@ SHIM_CALL DbgPrint_shim(
 
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   if (format_ptr == 0) {
-    SHIM_SET_RETURN(-1);
+    SHIM_SET_RETURN_64(-1);
     return;
   }
 

@@ -114,7 +114,7 @@ SHIM_CALL NtCreateFile_shim(
   }
 
   xe_free(object_name);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtOpenFile_shim(
@@ -187,7 +187,7 @@ SHIM_CALL NtOpenFile_shim(
   }
 
   xe_free(object_name);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 class xeNtReadFileState {
@@ -303,7 +303,7 @@ SHIM_CALL NtReadFile_shim(
     ev->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtSetInformationFile_shim(
@@ -361,7 +361,7 @@ SHIM_CALL NtSetInformationFile_shim(
     file->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtQueryInformationFile_shim(
@@ -449,7 +449,7 @@ SHIM_CALL NtQueryInformationFile_shim(
     file->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtQueryFullAttributesFile_shim(
@@ -491,7 +491,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
   }
 
   xe_free(object_name);
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtQueryVolumeInformationFile_shim(
@@ -501,7 +501,7 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(
       "NtQueryVolumeInformationFile(?)");
 
   XEASSERTALWAYS();
-  SHIM_SET_RETURN(X_STATUS_NO_SUCH_FILE);
+  SHIM_SET_RETURN_32(X_STATUS_NO_SUCH_FILE);
 }
 
 SHIM_CALL NtQueryDirectoryFile_shim(
@@ -530,7 +530,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(
       restart_scan);
 
   if (length < 72) {
-    SHIM_SET_RETURN(X_STATUS_INFO_LENGTH_MISMATCH);
+    SHIM_SET_RETURN_32(X_STATUS_INFO_LENGTH_MISMATCH);
     return;
   }
 
@@ -571,7 +571,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(
     file->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL FscSetCacheElementCount_shim(
@@ -585,7 +585,7 @@ SHIM_CALL FscSetCacheElementCount_shim(
       "FscSetCacheElementCount(%.8X, %.8X)",
       unk_0, unk_1);
 
-  SHIM_SET_RETURN(X_STATUS_SUCCESS);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 

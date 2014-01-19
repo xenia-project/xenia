@@ -95,7 +95,7 @@ SHIM_CALL VdQueryVideoFlags_shim(
   XELOGD(
       "VdQueryVideoFlags()");
 
-  SHIM_SET_RETURN(xeVdQueryVideoFlags());
+  SHIM_SET_RETURN_64(xeVdQueryVideoFlags());
 }
 
 
@@ -357,7 +357,7 @@ SHIM_CALL VdIsHSIOTrainingSucceeded_shim(
 
   // Not really sure what this should be - code does weird stuff here:
   // (cntlzw    r11, r3  / extrwi    r11, r11, 1, 26)
-  SHIM_SET_RETURN(1);
+  SHIM_SET_RETURN_64(1);
 }
 
 
@@ -367,7 +367,7 @@ SHIM_CALL VdPersistDisplay_shim(
       "VdPersistDisplay(?)");
 
   // ?
-  SHIM_SET_RETURN(1);
+  SHIM_SET_RETURN_64(1);
 }
 
 
@@ -379,7 +379,7 @@ SHIM_CALL VdRetrainEDRAMWorker_shim(
       "VdRetrainEDRAMWorker(%.8X)",
       unk0);
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 
@@ -396,7 +396,7 @@ SHIM_CALL VdRetrainEDRAM_shim(
       "VdRetrainEDRAM(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
       unk0, unk1, unk2, unk3, unk4, unk5);
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 
@@ -436,7 +436,7 @@ SHIM_CALL VdSwap_shim(
   // encode the parameters in the stream for the ringbuffer, if needed.
   xe_zero_struct(SHIM_MEM_ADDR(unk0), 64 * 4);
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 

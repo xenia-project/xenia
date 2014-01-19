@@ -67,7 +67,7 @@ SHIM_CALL XMsgInProcessCall_shim(
     XELOGE("Unimplemented XMsgInProcessCall message!");
   }
 
-  SHIM_SET_RETURN(handled ? X_ERROR_SUCCESS : X_ERROR_NOT_FOUND);
+  SHIM_SET_RETURN_32(handled ? X_ERROR_SUCCESS : X_ERROR_NOT_FOUND);
 }
 
 
@@ -83,7 +83,7 @@ SHIM_CALL XMsgCancelIORequest_shim(
   // ?
   XELOGW("XMsgCancelIORequest NOT IMPLEMENTED (wait?)");
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 

@@ -35,7 +35,7 @@ SHIM_CALL NetDll_XNetStartup_shim(
       arg0,
       params_ptr);
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 SHIM_CALL NetDll_WSAStartup_shim(
@@ -60,13 +60,13 @@ SHIM_CALL NetDll_WSAStartup_shim(
     SHIM_SET_MEM_32(data_ptr + 0x190, 0);
   }
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_64(0);
 }
 
 SHIM_CALL NetDll_WSAGetLastError_shim(
     PPCContext* ppc_state, KernelState* state) {
   XELOGD("NetDll_WSAGetLastError()");
-  SHIM_SET_RETURN(WSAENETDOWN);
+  SHIM_SET_RETURN_32(WSAENETDOWN);
 }
 
 SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(
@@ -77,7 +77,7 @@ SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(
   XELOGD(
       "NetDll_XNetGetEthernetLinkStatus(%d)",
       arg0);
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL NetDll_inet_addr_shim(
@@ -86,7 +86,7 @@ SHIM_CALL NetDll_inet_addr_shim(
   XELOGD(
       "NetDll_inet_addr(%.8X)",
       cp_ptr);
-  SHIM_SET_RETURN(INADDR_NONE);
+  SHIM_SET_RETURN_32(INADDR_NONE);
 }
 
 SHIM_CALL NetDll_socket_shim(
@@ -101,7 +101,7 @@ SHIM_CALL NetDll_socket_shim(
       af,
       type,
       protocol);
-  SHIM_SET_RETURN(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_setsockopt_shim(
@@ -120,7 +120,7 @@ SHIM_CALL NetDll_setsockopt_shim(
       optname,
       optval_ptr,
       optlen);
-  SHIM_SET_RETURN(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_connect_shim(
@@ -133,7 +133,7 @@ SHIM_CALL NetDll_connect_shim(
       socket_ptr,
       sockaddr_ptr,
       namelen);
-  SHIM_SET_RETURN(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_recv_shim(
@@ -150,7 +150,7 @@ SHIM_CALL NetDll_recv_shim(
       buf_ptr,
       len,
       flags);
-  SHIM_SET_RETURN(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_recvfrom_shim(
@@ -171,7 +171,7 @@ SHIM_CALL NetDll_recvfrom_shim(
       flags,
       from_ptr,
       fromlen_ptr);
-  SHIM_SET_RETURN(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_send_shim(
@@ -186,7 +186,7 @@ SHIM_CALL NetDll_send_shim(
       buf_ptr,
       len,
       flags);
-  SHIM_SET_RETURN(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(SOCKET_ERROR);
 }
 
 

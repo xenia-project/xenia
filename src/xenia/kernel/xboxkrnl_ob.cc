@@ -60,7 +60,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(
     }
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -74,7 +74,7 @@ SHIM_CALL ObDereferenceObject_shim(
 
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -84,7 +84,7 @@ SHIM_CALL ObDereferenceObject_shim(
     object->Release();
   }
 
-  SHIM_SET_RETURN(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 
@@ -124,7 +124,7 @@ SHIM_CALL NtDuplicateObject_shim(
     obj->Release();
   }
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -140,7 +140,7 @@ SHIM_CALL NtClose_shim(
 
   result = state->object_table()->RemoveHandle(handle);
 
-  SHIM_SET_RETURN(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 

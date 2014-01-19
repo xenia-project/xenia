@@ -56,7 +56,8 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 #define SHIM_GET_ARG_16(n)    SHIM_GPR_16(3 + n)
 #define SHIM_GET_ARG_32(n)    SHIM_GPR_32(3 + n)
 #define SHIM_GET_ARG_64(n)    SHIM_GPR_64(3 + n)
-#define SHIM_SET_RETURN(v)    SHIM_SET_GPR_64(3, v)
+#define SHIM_SET_RETURN_32(v) SHIM_SET_GPR_64(3, (uint64_t)(int32_t)v)
+#define SHIM_SET_RETURN_64(v) SHIM_SET_GPR_64(3, v)
 
 
 #define IMPL_MEM_ADDR(a)      (a ? state->memory()->Translate(a) : NULL)

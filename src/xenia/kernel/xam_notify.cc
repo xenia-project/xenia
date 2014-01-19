@@ -43,7 +43,7 @@ SHIM_CALL XamNotifyCreateListener_shim(
   uint32_t handle = listener->handle();
   listener->Release();
 
-  SHIM_SET_RETURN(handle);
+  SHIM_SET_RETURN_64(handle);
 }
 
 
@@ -63,7 +63,7 @@ SHIM_CALL XNotifyGetNext_shim(
       param_ptr);
 
   if (!handle) {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
@@ -71,7 +71,7 @@ SHIM_CALL XNotifyGetNext_shim(
   XNotifyListener* listener = NULL;
   if (XFAILED(state->object_table()->GetObject(
       handle, (XObject**)&listener))) {
-    SHIM_SET_RETURN(0);
+    SHIM_SET_RETURN_64(0);
     return;
   }
 
@@ -96,7 +96,7 @@ SHIM_CALL XNotifyGetNext_shim(
     SHIM_SET_MEM_32(param_ptr, param);
   }
 
-  SHIM_SET_RETURN(dequeued ? 1 : 0);
+  SHIM_SET_RETURN_64(dequeued ? 1 : 0);
 }
 
 
