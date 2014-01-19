@@ -42,8 +42,7 @@ X_STATUS DiscImageFile::QueryInfo(XFileInfo* out_info) {
 
 X_STATUS DiscImageFile::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, bool restart) {
-  XEASSERTALWAYS();
-  return X_STATUS_SUCCESS;
+  return entry_->QueryDirectory(out_info, length, restart);
 }
 
 X_STATUS DiscImageFile::ReadSync(
