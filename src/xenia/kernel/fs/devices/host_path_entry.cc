@@ -76,7 +76,6 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
 X_STATUS HostPathEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, bool restart) {
   XEASSERTNOTNULL(out_info);
-
   if (length < sizeof(XDirectoryInfo)) {
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
@@ -124,7 +123,7 @@ X_STATUS HostPathEntry::QueryDirectory(
   do {
     size_t file_name_length = wcslen(ffd.cFileName);
     if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) +
-        wcslen(ffd.cFileName) > end) {
+        file_name_length > end) {
       break;
     }
 
@@ -139,8 +138,6 @@ X_STATUS HostPathEntry::QueryDirectory(
     current->allocation_size = 4096;
     current->attributes = (X_FILE_ATTRIBUTES)ffd.dwFileAttributes;
 
-    // TODO: I am pretty sure you need to prefix the file paths with full path,
-    //     not just the name.
     current->file_name_length = (uint32_t)file_name_length;
     for (size_t i = 0; i < file_name_length; ++i) {
       current->file_name[i] =
