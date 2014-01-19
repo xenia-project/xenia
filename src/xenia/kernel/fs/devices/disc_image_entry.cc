@@ -67,7 +67,6 @@ X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
 X_STATUS DiscImageEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, bool restart) {
   XEASSERTNOTNULL(out_info);
-  xe_zero_struct(out_info, length);
 
   if (restart == true && gdfx_entry_iterator_ != gdfx_entry_->children.end()) {
     gdfx_entry_iterator_ = gdfx_entry_->children.end();

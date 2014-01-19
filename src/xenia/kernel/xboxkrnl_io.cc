@@ -530,12 +530,13 @@ SHIM_CALL NtQueryDirectoryFile_shim(
   result = state->object_table()->GetObject(
       file_handle, (XObject**)&file);
   if (XSUCCEEDED(result)) {
-    XDirectoryInfo* dirInfo = (XDirectoryInfo*)xe_malloc(length);
-    result = file->QueryDirectory(dirInfo, length, restart_scan != 0);
+    XDirectoryInfo* dir_info = (XDirectoryInfo*)xe_calloc(length);
+    result = file->QueryDirectory(dir_info, length, restart_scan != 0);
     if (XSUCCEEDED(result)) {
-      dirInfo->Write(SHIM_MEM_BASE, file_info_ptr);
+      dir_info->Write(SHIM_MEM_BASE, file_info_ptr);
       info = length;
     }
+    xe_free(dir_info);
   }
 
   if (XFAILED(result)) {

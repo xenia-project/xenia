@@ -46,7 +46,6 @@ X_STATUS STFSContainerEntry::QueryInfo(XFileInfo* out_info) {
 X_STATUS STFSContainerEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, bool restart) {
   XEASSERTNOTNULL(out_info);
-  xe_zero_struct(out_info, length);
 
   if (restart && stfs_entry_iterator_ != stfs_entry_->children.end()) {
     stfs_entry_iterator_ = stfs_entry_->children.end();
