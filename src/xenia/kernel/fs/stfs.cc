@@ -42,8 +42,9 @@ bool STFSHeader::Read(const uint8_t* p) {
   content_type      = (STFSContentType)XEGETUINT32BE(p + 0x344);
   metadata_version  = XEGETUINT32BE(p + 0x348);
   if (metadata_version > 1) {
-    XELOGE("STFSContainer doesn't support version %d yet", metadata_version);
-    return false;
+    // This is a variant of thumbnail data/etc.
+    // Can just ignore it for now (until we parse thumbnails).
+    XELOGW("STFSContainer doesn't support version %d yet", metadata_version);
   }
   content_size      = XEGETUINT32BE(p + 0x34C);
   media_id          = XEGETUINT32BE(p + 0x354);
