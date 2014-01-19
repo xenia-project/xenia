@@ -42,6 +42,11 @@ X_STATUS STFSContainerEntry::QueryInfo(XFileInfo* out_info) {
   return X_STATUS_SUCCESS;
 }
 
+X_STATUS STFSContainerEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) {
+  XEASSERTALWAYS();
+  return X_STATUS_UNSUCCESSFUL;
+}
+
 X_STATUS STFSContainerEntry::Open(
     KernelState* kernel_state,
     uint32_t desired_access, bool async,

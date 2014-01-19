@@ -33,6 +33,7 @@ public:
   STFSEntry* stfs_entry() const { return stfs_entry_; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart);
 
   virtual X_STATUS Open(
       KernelState* kernel_state,
