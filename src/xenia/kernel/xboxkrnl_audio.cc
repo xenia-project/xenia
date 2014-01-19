@@ -36,7 +36,7 @@ SHIM_CALL XMACreateContext_shim(
 
   // TODO(benvanik): allocate and return -- see if size required or just dummy?
 
-  SHIM_SET_RETURN_32(X_ERROR_ACCESS_DENIED);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 
