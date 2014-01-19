@@ -71,6 +71,22 @@ SHIM_CALL XMsgInProcessCall_shim(
 }
 
 
+SHIM_CALL XMsgCancelIORequest_shim(
+  PPCContext* ppc_state, KernelState* state) {
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(0);
+  uint32_t wait = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "XMsgCancelIORequest(%.8X, %d)",
+      overlapped_ptr, wait);
+
+  // ?
+  XELOGW("XMsgCancelIORequest NOT IMPLEMENTED (wait?)");
+
+  SHIM_SET_RETURN(0);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -78,4 +94,5 @@ SHIM_CALL XMsgInProcessCall_shim(
 void xe::kernel::xam::RegisterMsgExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XMsgInProcessCall, state);
+  SHIM_SET_MAPPING("xam.xex", XMsgCancelIORequest, state);
 }
