@@ -87,6 +87,9 @@ class XFile : public XObject {
 public:
   virtual ~XFile();
 
+  virtual const char* name(void) = 0;
+  virtual const char* path(void) = 0;
+
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
 

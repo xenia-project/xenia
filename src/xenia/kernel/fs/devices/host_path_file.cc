@@ -28,6 +28,14 @@ HostPathFile::~HostPathFile() {
   CloseHandle(file_handle_);
 }
 
+const char* HostPathFile::name(void) {
+  return entry_->name();
+}
+
+const char* HostPathFile::path(void) {
+  return entry_->path();
+}
+
 X_STATUS HostPathFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);
 }

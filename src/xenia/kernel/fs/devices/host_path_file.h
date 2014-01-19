@@ -29,6 +29,9 @@ public:
                HostPathEntry* entry, HANDLE file_handle);
   virtual ~HostPathFile();
 
+  virtual const char* name(void);
+  virtual const char* path(void);
+
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
                                   size_t length, bool restart);
