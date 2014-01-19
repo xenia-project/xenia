@@ -33,7 +33,8 @@ public:
   GDFXEntry* gdfx_entry() const { return gdfx_entry_; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart);
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
+                                  size_t length, const char* file_name, bool restart);
 
   virtual bool can_map() { return true; }
   virtual MemoryMapping* CreateMemoryMapping(

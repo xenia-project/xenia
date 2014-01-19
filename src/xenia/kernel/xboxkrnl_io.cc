@@ -60,6 +60,9 @@ SHIM_CALL NtCreateFile_shim(
   uint32_t info = X_FILE_DOES_NOT_EXIST;
   uint32_t handle;
 
+  FileSystem* fs = state->file_system();
+  Entry* entry;
+
   XFile* root_file = NULL;
   if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
     result = state->object_table()->GetObject(
@@ -70,8 +73,7 @@ SHIM_CALL NtCreateFile_shim(
   }
 
   // Resolve the file using the virtual file system.
-  FileSystem* fs = state->file_system();
-  Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
+  entry = fs->ResolvePath(attrs.object_name.buffer);
   XFile* file = NULL;
   if (entry && entry->type() == Entry::kTypeFile) {
     // Open the file.
@@ -513,15 +515,14 @@ SHIM_CALL NtQueryDirectoryFile_shim(
     return;
   }
 
-  /*
+  const char* file_name = NULL;
   if (file_name_ptr != 0) {
+    // it's a PANSI_STRING or whatever.
     if (SHIM_MEM_16(file_name_ptr + 0) != 0 ||
-      SHIM_MEM_16(file_name_ptr + 2) != 0) {
-      const char* file_name = (const char *)SHIM_MEM_ADDR(SHIM_MEM_32(file_name_ptr + 4));
-      XEASSERT(strcmp(file_name, "*.*") == 0);
+        SHIM_MEM_16(file_name_ptr + 2) != 0) {
+      file_name = (const char*)SHIM_MEM_ADDR(SHIM_MEM_32(file_name_ptr + 4));
     }
   }
-  */
 
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   uint32_t info = 0;
@@ -531,7 +532,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(
       file_handle, (XObject**)&file);
   if (XSUCCEEDED(result)) {
     XDirectoryInfo* dir_info = (XDirectoryInfo*)xe_calloc(length);
-    result = file->QueryDirectory(dir_info, length, restart_scan != 0);
+    result = file->QueryDirectory(dir_info, length, file_name, restart_scan != 0);
     if (XSUCCEEDED(result)) {
       dir_info->Write(SHIM_MEM_BASE, file_info_ptr);
       info = length;

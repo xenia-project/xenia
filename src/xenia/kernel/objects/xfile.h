@@ -95,7 +95,8 @@ public:
   void set_position(size_t value) { position_ = value; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length, bool restart) = 0;
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
+                                  size_t length, const char* file_name, bool restart) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);

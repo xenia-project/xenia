@@ -74,7 +74,7 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
 }
 
 X_STATUS HostPathEntry::QueryDirectory(
-    XDirectoryInfo* out_info, size_t length, bool restart) {
+    XDirectoryInfo* out_info, size_t length, const char* file_name, bool restart) {
   XEASSERTNOTNULL(out_info);
 
   WIN32_FIND_DATA ffd;

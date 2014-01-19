@@ -44,9 +44,9 @@ X_STATUS STFSContainerFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);
 }
 
-X_STATUS STFSContainerFile::QueryDirectory(
-    XDirectoryInfo* out_info, size_t length, bool restart) {
-  return entry_->QueryDirectory(out_info, length, restart);
+X_STATUS STFSContainerFile::QueryDirectory(XDirectoryInfo* out_info,
+    size_t length, const char* file_name, bool restart) {
+  return entry_->QueryDirectory(out_info, length, file_name, restart);
 }
 
 X_STATUS STFSContainerFile::ReadSync(
