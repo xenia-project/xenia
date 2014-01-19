@@ -239,8 +239,9 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           library->version.value      = XEGETUINT32BE(pp + 0x1C);
           library->min_version.value  = XEGETUINT32BE(pp + 0x20);
 
-          const uint16_t name_index = XEGETUINT16BE(pp + 0x24);
+          const uint16_t name_index = XEGETUINT16BE(pp + 0x24) & 0xFF;
           for (size_t i = 0, j = 0; i < string_table_size;) {
+            XEASSERT(j <= 0xFF);
             if (j == name_index) {
               XEIGNORE(xestrcpya(library->name, XECOUNT(library->name),
                                  string_table + i));
