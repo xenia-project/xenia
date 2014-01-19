@@ -1242,6 +1242,24 @@ int TranslateALU_SETNEs(
   return TranslateALU_SETXXs(ctx, alu, "!=");
 }
 
+int TranslateALU_RECIP_IEEE(
+    xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
+  AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  ctx.output->append(" = ");
+  if (alu.scalar_clamp) {
+    ctx.output->append("saturate(");
+  }
+  ctx.output->append("(1.0 / ");
+  AppendSrcReg(ctx, alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  ctx.output->append(")");
+  if (alu.scalar_clamp) {
+    ctx.output->append(")");
+  }
+  ctx.output->append(";\n");
+  AppendDestRegPost(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return 0;
+}
+
 int TranslateALU_MUL_CONST_0(
     xe_gpu_translate_ctx_t& ctx, const instr_alu_t& alu) {
   AppendDestReg(ctx, alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
@@ -1392,7 +1410,7 @@ static xe_gpu_translate_alu_info_t scalar_alu_instrs[0x40] = {
   ALU_INSTR(LOG_IEEE,           1),  // 16
   ALU_INSTR(RECIP_CLAMP,        1),  // 17
   ALU_INSTR(RECIP_FF,           1),  // 18
-  ALU_INSTR(RECIP_IEEE,         1),  // 19
+  ALU_INSTR_IMPL(RECIP_IEEE,         1),  // 19
   ALU_INSTR(RECIPSQ_CLAMP,      1),  // 20
   ALU_INSTR(RECIPSQ_FF,         1),  // 21
   ALU_INSTR(RECIPSQ_IEEE,       1),  // 22
