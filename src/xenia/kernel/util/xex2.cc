@@ -148,15 +148,6 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
 
     const uint8_t *pp = p + opt_header->offset;
     switch (opt_header->key) {
-    default:
-      XELOGW("Unknown XEX header key %.8X", opt_header->key);
-      break;
-    case XEX_HEADER_CHECKSUM_TIMESTAMP:
-    case XEX_HEADER_ORIGINAL_PE_NAME:
-    case XEX_HEADER_LAN_KEY:
-    case XEX_HEADER_XBOX360_LOGO:
-      // Ignored.
-      break;
     case XEX_HEADER_SYSTEM_FLAGS:
       header->system_flags = (xe_xex2_system_flags)data_offset;
       break;

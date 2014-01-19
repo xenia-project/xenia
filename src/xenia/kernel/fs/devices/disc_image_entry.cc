@@ -67,11 +67,7 @@ X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
 X_STATUS DiscImageEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, bool restart) {
   XEASSERTNOTNULL(out_info);
-  if (length < sizeof(XDirectoryInfo)) {
-    return X_STATUS_INFO_LENGTH_MISMATCH;
-  }
-
-  memset(out_info, 0, length);
+  xe_zero_struct(out_info, length);
 
   if (restart == true && gdfx_entry_iterator_ != gdfx_entry_->children.end()) {
     gdfx_entry_iterator_ = gdfx_entry_->children.end();
@@ -82,21 +78,18 @@ X_STATUS DiscImageEntry::QueryDirectory(
     if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
       return X_STATUS_UNSUCCESSFUL;
     }
-  }
-  else {
+  } else {
     ++gdfx_entry_iterator_;
     if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
       return X_STATUS_UNSUCCESSFUL;
     }
   }
 
-  XDirectoryInfo* current;
-
   auto current_buf = (uint8_t*)out_info;
   auto end = current_buf + length;
 
-  current = (XDirectoryInfo*)current_buf;
-  if (((uint8_t*)&current->file_name[0]) + strlen((*gdfx_entry_iterator_)->name.c_str()) > end) {
+  XDirectoryInfo* current = (XDirectoryInfo*)current_buf;
+  if (((uint8_t*)&current->file_name[0]) + xestrlena((*gdfx_entry_iterator_)->name.c_str()) > end) {
     gdfx_entry_iterator_ = gdfx_entry_->children.end();
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -105,7 +98,7 @@ X_STATUS DiscImageEntry::QueryDirectory(
     auto entry = *gdfx_entry_iterator_;
 
     auto file_name = entry->name.c_str();
-    size_t file_name_length = strlen(file_name);
+    size_t file_name_length = xestrlena(file_name);
     if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) + file_name_length > end) {
       break;
     }
@@ -128,7 +121,8 @@ X_STATUS DiscImageEntry::QueryDirectory(
 
     current->next_entry_offset = (uint32_t)(next_buf - current_buf);
     current_buf = next_buf;
-  } while (current_buf < end && (++gdfx_entry_iterator_) != gdfx_entry_->children.end());
+  } while (current_buf < end &&
+           (++gdfx_entry_iterator_) != gdfx_entry_->children.end());
   current->next_entry_offset = 0;
   return X_STATUS_SUCCESS;
 }
