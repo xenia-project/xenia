@@ -60,6 +60,15 @@ SHIM_CALL NtCreateFile_shim(
   uint32_t info = X_FILE_DOES_NOT_EXIST;
   uint32_t handle;
 
+  XFile* root_file = NULL;
+  if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
+    result = state->object_table()->GetObject(
+      attrs.root_directory, (XObject**)&root_file);
+    XEASSERT(XSUCCEEDED(result));
+    XEASSERT(root_file->type() == XObject::Type::kTypeFile);
+    XEASSERTALWAYS();
+  }
+
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
   Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
@@ -118,6 +127,15 @@ SHIM_CALL NtOpenFile_shim(
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
   uint32_t info = X_FILE_DOES_NOT_EXIST;
   uint32_t handle;
+
+  XFile* root_file = NULL;
+  if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
+    result = state->object_table()->GetObject(
+      attrs.root_directory, (XObject**)&root_file);
+    XEASSERT(XSUCCEEDED(result));
+    XEASSERT(root_file->type() == XObject::Type::kTypeFile);
+    XEASSERTALWAYS();
+  }
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
@@ -432,6 +450,15 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
       file_info_ptr);
 
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
+
+  XFile* root_file = NULL;
+  if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
+    result = state->object_table()->GetObject(
+      attrs.root_directory, (XObject**)&root_file);
+    XEASSERT(XSUCCEEDED(result));
+    XEASSERT(root_file->type() == XObject::Type::kTypeFile);
+    XEASSERTALWAYS();
+  }
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
