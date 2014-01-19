@@ -468,6 +468,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(
   uint32_t file_info_ptr = SHIM_GET_ARG_32(5);
   uint32_t length = SHIM_GET_ARG_32(6);
   uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
+  uint32_t restart_scan = SHIM_GET_ARG_32(8);
 
   XELOGD(
     "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X)",
@@ -501,7 +502,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(
       file_handle, (XObject**)&file);
   if (XSUCCEEDED(result)) {
     XDirectoryInfo* dirInfo = (XDirectoryInfo*)xe_malloc(length);
-    result = file->QueryDirectory(dirInfo, length, false);
+    result = file->QueryDirectory(dirInfo, length, restart_scan != 0);
     if (XSUCCEEDED(result)) {
       dirInfo->Write(SHIM_MEM_BASE, file_info_ptr);
       info = length;
