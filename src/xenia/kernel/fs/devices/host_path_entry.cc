@@ -87,10 +87,19 @@ X_STATUS HostPathEntry::QueryDirectory(
   }
 
   if (handle == INVALID_HANDLE_VALUE) {
-    handle = find_file_ = FindFirstFile(local_path_, &ffd);
+    xechar_t target_path[XE_MAX_PATH];
+    xestrcpy(target_path, XE_MAX_PATH, local_path_);
+    if (file_name == NULL) {
+      xestrcat(target_path, XE_MAX_PATH, XETEXT("*"));
+    }
+    else {
+      auto target_length = xestrlen(local_path_);
+      xestrwiden(target_path + target_length, XECOUNT(target_path) - target_length, file_name);
+    }
+    handle = find_file_ = FindFirstFile(target_path, &ffd);
     if (handle == INVALID_HANDLE_VALUE) {
       if (GetLastError() == ERROR_FILE_NOT_FOUND) {
-        return X_STATUS_NO_SUCH_FILE;
+        return X_STATUS_NO_MORE_FILES;
       }
       return X_STATUS_UNSUCCESSFUL;
     }
@@ -99,53 +108,35 @@ X_STATUS HostPathEntry::QueryDirectory(
     if (FindNextFile(handle, &ffd) == FALSE) {
       FindClose(handle);
       find_file_ = INVALID_HANDLE_VALUE;
-      return X_STATUS_UNSUCCESSFUL;
+      return X_STATUS_NO_MORE_FILES;
     }
   }
 
-  XDirectoryInfo* current;
-
-  auto current_buf = (uint8_t*)out_info;
-  auto end = current_buf + length;
-
-  current = (XDirectoryInfo*)current_buf;
-  if (((uint8_t*)&current->file_name[0]) + wcslen(ffd.cFileName) > end) {
+  auto end = (uint8_t*)out_info + length;
+  size_t entry_name_length = wcslen(ffd.cFileName);
+  if (((uint8_t*)&out_info->file_name[0]) + entry_name_length > end) {
     FindClose(handle);
     find_file_ = INVALID_HANDLE_VALUE;
-    return X_STATUS_UNSUCCESSFUL;
+    return X_STATUS_BUFFER_OVERFLOW;
   }
 
-  do {
-    size_t file_name_length = wcslen(ffd.cFileName);
-    if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) +
-        file_name_length > end) {
-      break;
-    }
+  out_info->next_entry_offset = 0;
+  out_info->file_index        = 0xCDCDCDCD;
+  out_info->creation_time     = COMBINE_TIME(ffd.ftCreationTime);
+  out_info->last_access_time  = COMBINE_TIME(ffd.ftLastAccessTime);
+  out_info->last_write_time   = COMBINE_TIME(ffd.ftLastWriteTime);
+  out_info->change_time       = COMBINE_TIME(ffd.ftLastWriteTime);
+  out_info->end_of_file       =
+      ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
+  out_info->allocation_size   = 4096;
+  out_info->attributes        = (X_FILE_ATTRIBUTES)ffd.dwFileAttributes;
 
-    current = (XDirectoryInfo*)current_buf;
-    current->file_index = 0xCDCDCDCD;
-    current->creation_time = COMBINE_TIME(ffd.ftCreationTime);
-    current->last_access_time = COMBINE_TIME(ffd.ftLastAccessTime);
-    current->last_write_time = COMBINE_TIME(ffd.ftLastWriteTime);
-    current->change_time = COMBINE_TIME(ffd.ftLastWriteTime);
-    current->end_of_file =
-        ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
-    current->allocation_size = 4096;
-    current->attributes = (X_FILE_ATTRIBUTES)ffd.dwFileAttributes;
+  out_info->file_name_length  = (uint32_t)entry_name_length;
+  for (size_t i = 0; i < entry_name_length; ++i) {
+    out_info->file_name[i]    =
+      ffd.cFileName[i] < 256 ? (char)ffd.cFileName[i] : '?';
+  }
 
-    current->file_name_length = (uint32_t)file_name_length;
-    for (size_t i = 0; i < file_name_length; ++i) {
-      current->file_name[i] =
-          ffd.cFileName[i] < 256 ? (char)ffd.cFileName[i] : '?';
-    }
-
-    auto next_buf = (((uint8_t*)&current->file_name[0]) + file_name_length);
-    next_buf += 8 - ((uint8_t)next_buf % 8);
-
-    current->next_entry_offset = (uint32_t)(next_buf - current_buf);
-    current_buf = next_buf;
-  } while (current_buf < end && FindNextFile(handle, &ffd) == TRUE);
-  current->next_entry_offset = 0;
   return X_STATUS_SUCCESS;
 }
 
@@ -177,9 +168,9 @@ X_STATUS HostPathEntry::Open(
       share_mode,
       NULL,
       creation_disposition,
-      flags_and_attributes,
+      flags_and_attributes | FILE_FLAG_BACKUP_SEMANTICS,
       NULL);
-  if (!file) {
+  if (file == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
     return X_STATUS_ACCESS_DENIED;
   }

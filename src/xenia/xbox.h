@@ -34,6 +34,8 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_TIMEOUT                                ((X_STATUS)0x00000102L)
 #define X_STATUS_PENDING                                ((X_STATUS)0x00000103L)
 #define X_STATUS_TIMER_RESUME_IGNORED                   ((X_STATUS)0x40000025L)
+#define X_STATUS_BUFFER_OVERFLOW                        ((X_STATUS)0x80000005L)
+#define X_STATUS_NO_MORE_FILES                          ((X_STATUS)0x80000006L)
 #define X_STATUS_UNSUCCESSFUL                           ((X_STATUS)0xC0000001L)
 #define X_STATUS_NOT_IMPLEMENTED                        ((X_STATUS)0xC0000002L)
 #define X_STATUS_INFO_LENGTH_MISMATCH                   ((X_STATUS)0xC0000004L)
@@ -202,11 +204,12 @@ typedef enum _X_FILE_INFORMATION_CLASS {
 
 
 class X_ANSI_STRING {
-public:
-  uint16_t  length;
-  uint16_t  maximum_length;
-  char*     buffer;
+private:
+  uint16_t    length;
+  uint16_t    maximum_length;
+  const char* buffer;
 
+public:
   X_ANSI_STRING() {
     Zero();
   }
@@ -217,7 +220,7 @@ public:
     length = XEGETUINT16BE(base + p);
     maximum_length = XEGETUINT16BE(base + p + 2);
     if (maximum_length) {
-      buffer = (char*)(base + XEGETUINT32BE(base + p + 4));
+      buffer = (const char*)(base + XEGETUINT32BE(base + p + 4));
     } else {
       buffer = 0;
     }
@@ -225,6 +228,14 @@ public:
   void Zero() {
     length = maximum_length = 0;
     buffer = 0;
+  }
+  char* Duplicate() {
+    if (buffer == NULL) {
+      return NULL;
+    }
+    auto copy = (char*)xe_calloc(length+1);
+    xestrncpya(copy, length+1, buffer, length);
+    return copy;
   }
 };
 
@@ -266,20 +277,20 @@ typedef enum _X_INPUT_FLAG {
 } X_INPUT_FLAG;
 
 typedef enum _X_INPUT_GAMEPAD_BUTTON {
-  X_INPUT_GAMEPAD_DPAD_UP	        = 0x0001,
-  X_INPUT_GAMEPAD_DPAD_DOWN	      = 0x0002,
-  X_INPUT_GAMEPAD_DPAD_LEFT	      = 0x0004,
-  X_INPUT_GAMEPAD_DPAD_RIGHT	    = 0x0008,
-  X_INPUT_GAMEPAD_START	          = 0x0010,
-  X_INPUT_GAMEPAD_BACK	          = 0x0020,
-  X_INPUT_GAMEPAD_LEFT_THUMB	    = 0x0040,
-  X_INPUT_GAMEPAD_RIGHT_THUMB	    = 0x0080,
-  X_INPUT_GAMEPAD_LEFT_SHOULDER	  = 0x0100,
+  X_INPUT_GAMEPAD_DPAD_UP         = 0x0001,
+  X_INPUT_GAMEPAD_DPAD_DOWN       = 0x0002,
+  X_INPUT_GAMEPAD_DPAD_LEFT       = 0x0004,
+  X_INPUT_GAMEPAD_DPAD_RIGHT      = 0x0008,
+  X_INPUT_GAMEPAD_START           = 0x0010,
+  X_INPUT_GAMEPAD_BACK            = 0x0020,
+  X_INPUT_GAMEPAD_LEFT_THUMB      = 0x0040,
+  X_INPUT_GAMEPAD_RIGHT_THUMB     = 0x0080,
+  X_INPUT_GAMEPAD_LEFT_SHOULDER   = 0x0100,
   X_INPUT_GAMEPAD_RIGHT_SHOULDER  = 0x0200,
-  X_INPUT_GAMEPAD_A	              = 0x1000,
-  X_INPUT_GAMEPAD_B	              = 0x2000,
-  X_INPUT_GAMEPAD_X	              = 0x4000,
-  X_INPUT_GAMEPAD_Y	              = 0x8000,
+  X_INPUT_GAMEPAD_A               = 0x1000,
+  X_INPUT_GAMEPAD_B               = 0x2000,
+  X_INPUT_GAMEPAD_X               = 0x4000,
+  X_INPUT_GAMEPAD_Y               = 0x8000,
 } X_INPUT_GAMEPAD_BUTTON;
 
 class X_INPUT_GAMEPAD {

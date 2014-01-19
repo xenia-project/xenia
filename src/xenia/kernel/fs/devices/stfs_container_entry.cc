@@ -63,45 +63,28 @@ X_STATUS STFSContainerEntry::QueryDirectory(
     }
   }
 
-  auto current_buf = (uint8_t*)out_info;
-  auto end = current_buf + length;
+  auto end = (uint8_t*)out_info + length;
 
-  XDirectoryInfo* current = (XDirectoryInfo*)current_buf;
-  if (((uint8_t*)&current->file_name[0]) + xestrlena((*stfs_entry_iterator_)->name.c_str()) > end) {
+  auto entry = *stfs_entry_iterator_;
+  auto entry_name = entry->name.c_str();
+  size_t entry_name_length = xestrlena(entry_name);
+
+  if (((uint8_t*)&out_info->file_name[0]) + entry_name_length > end) {
     stfs_entry_iterator_ = stfs_entry_->children.end();
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  do {
-    auto entry = *stfs_entry_iterator_;
+  out_info->file_index       = 0xCDCDCDCD;
+  out_info->creation_time    = entry->update_timestamp;
+  out_info->last_access_time = entry->access_timestamp;
+  out_info->last_write_time  = entry->update_timestamp;
+  out_info->change_time      = entry->update_timestamp;
+  out_info->end_of_file      = entry->size;
+  out_info->allocation_size  = 4096;
+  out_info->attributes       = entry->attributes;
+  out_info->file_name_length = (uint32_t)entry_name_length;
+  memcpy(out_info->file_name, entry_name, entry_name_length);
 
-    auto file_name = entry->name.c_str();
-    size_t file_name_length = xestrlena(file_name);
-    if (((uint8_t*)&((XDirectoryInfo*)current_buf)->file_name[0]) + file_name_length > end) {
-      break;
-    }
-
-    current = (XDirectoryInfo*)current_buf;
-    current->file_index       = 0xCDCDCDCD;
-    current->creation_time    = entry->update_timestamp;
-    current->last_access_time = entry->access_timestamp;
-    current->last_write_time  = entry->update_timestamp;
-    current->change_time      = entry->update_timestamp;
-    current->end_of_file      = entry->size;
-    current->allocation_size  = 4096;
-    current->attributes       = entry->attributes;
-
-    current->file_name_length = (uint32_t)file_name_length;
-    memcpy(current->file_name, file_name, file_name_length);
-
-    auto next_buf = (((uint8_t*)&current->file_name[0]) + file_name_length);
-    next_buf += 8 - ((uint8_t)next_buf % 8);
-
-    current->next_entry_offset = (uint32_t)(next_buf - current_buf);
-    current_buf = next_buf;
-  } while (current_buf < end &&
-           (++stfs_entry_iterator_) != stfs_entry_->children.end());
-  current->next_entry_offset = 0;
   return X_STATUS_SUCCESS;
 }
 

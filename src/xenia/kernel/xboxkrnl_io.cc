@@ -39,12 +39,14 @@ SHIM_CALL NtCreateFile_shim(
 
   X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
 
+  char* object_name = attrs.object_name.Duplicate();
+
   XELOGD(
       "NtCreateFile(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X, %d, %d)",
       handle_ptr,
       desired_access,
       object_attributes_ptr,
-      attrs.object_name.buffer,
+      !object_name ? "(null)" : object_name,
       io_status_block_ptr,
       allocation_size_ptr,
       file_attributes,
@@ -69,11 +71,17 @@ SHIM_CALL NtCreateFile_shim(
       attrs.root_directory, (XObject**)&root_file);
     XEASSERT(XSUCCEEDED(result));
     XEASSERT(root_file->type() == XObject::Type::kTypeFile);
-    XEASSERTALWAYS();
+
+    auto root_path = root_file->absolute_path();
+    auto target_path = xestrdupa((std::string(root_path) + std::string(object_name)).c_str());
+    entry = fs->ResolvePath(target_path);
+    xe_free(target_path);
+  }
+  else {
+    // Resolve the file using the virtual file system.
+    entry = fs->ResolvePath(object_name);
   }
 
-  // Resolve the file using the virtual file system.
-  entry = fs->ResolvePath(attrs.object_name.buffer);
   XFile* file = NULL;
   if (entry && entry->type() == Entry::kTypeFile) {
     // Open the file.
@@ -104,6 +112,8 @@ SHIM_CALL NtCreateFile_shim(
       SHIM_SET_MEM_32(handle_ptr, handle);
     }
   }
+
+  xe_free(object_name);
   SHIM_SET_RETURN(result);
 }
 
@@ -117,12 +127,14 @@ SHIM_CALL NtOpenFile_shim(
 
   X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
 
+  char* object_name = attrs.object_name.Duplicate();
+
   XELOGD(
-    "NtOpenFile(%.8X, %.8X, %.8X(%s), %.8X, %d)",
+    "watNtOpenFile(%.8X, %.8X, %.8X(%s), %.8X, %d)",
     handle_ptr,
     desired_access,
     object_attributes_ptr,
-    attrs.object_name.buffer,
+    !object_name ? "(null)" : object_name,
     io_status_block_ptr,
     open_options);
 
@@ -141,7 +153,7 @@ SHIM_CALL NtOpenFile_shim(
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
-  Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
+  Entry* entry = fs->ResolvePath(object_name);
   XFile* file = NULL;
   if (entry && entry->type() == Entry::kTypeFile) {
     // Open the file.
@@ -173,6 +185,8 @@ SHIM_CALL NtOpenFile_shim(
       SHIM_SET_MEM_32(handle_ptr, handle);
     }
   }
+
+  xe_free(object_name);
   SHIM_SET_RETURN(result);
 }
 
@@ -445,10 +459,12 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
 
   X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
 
+  char* object_name = attrs.object_name.Duplicate();
+
   XELOGD(
       "NtQueryFullAttributesFile(%.8X(%s), %.8X)",
       object_attributes_ptr,
-      attrs.object_name.buffer,
+      !object_name ? "(null)" : object_name,
       file_info_ptr);
 
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
@@ -464,7 +480,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
-  Entry* entry = fs->ResolvePath(attrs.object_name.buffer);
+  Entry* entry = fs->ResolvePath(object_name);
   if (entry && entry->type() == Entry::kTypeFile) {
     // Found.
     XFileInfo file_info;
@@ -474,6 +490,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
     }
   }
 
+  xe_free(object_name);
   SHIM_SET_RETURN(result);
 }
 
@@ -497,10 +514,11 @@ SHIM_CALL NtQueryDirectoryFile_shim(
   uint32_t file_info_ptr = SHIM_GET_ARG_32(5);
   uint32_t length = SHIM_GET_ARG_32(6);
   uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
-  uint32_t restart_scan = SHIM_GET_ARG_32(8);
+  uint64_t sp = ppc_state->r[1];
+  uint32_t restart_scan = SHIM_MEM_32(sp + 0x54);
 
   XELOGD(
-    "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X)",
+    "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X, %d)",
       file_handle,
       event_handle,
       apc_routine,
@@ -508,7 +526,8 @@ SHIM_CALL NtQueryDirectoryFile_shim(
       io_status_block_ptr,
       file_info_ptr,
       length,
-      file_name_ptr);
+      file_name_ptr,
+      restart_scan);
 
   if (length < 72) {
     SHIM_SET_RETURN(X_STATUS_INFO_LENGTH_MISMATCH);
