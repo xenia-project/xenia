@@ -211,7 +211,7 @@ public:
     buffer = 0;
   }
   char* Duplicate() {
-    if (buffer == NULL) {
+    if (buffer == NULL || length == 0) {
       return NULL;
     }
     auto copy = (char*)xe_calloc(length+1);

@@ -66,7 +66,8 @@ SHIM_CALL NtCreateFile_shim(
   Entry* entry;
 
   XFile* root_file = NULL;
-  if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
+  if (attrs.root_directory != 0xFFFFFFFD && // ObDosDevices
+      attrs.root_directory != 0) {
     result = state->object_table()->GetObject(
       attrs.root_directory, (XObject**)&root_file);
     XEASSERT(XSUCCEEDED(result));
@@ -130,7 +131,7 @@ SHIM_CALL NtOpenFile_shim(
   char* object_name = attrs.object_name.Duplicate();
 
   XELOGD(
-    "watNtOpenFile(%.8X, %.8X, %.8X(%s), %.8X, %d)",
+    "NtOpenFile(%.8X, %.8X, %.8X(%s), %.8X, %d)",
     handle_ptr,
     desired_access,
     object_attributes_ptr,
@@ -512,11 +513,17 @@ SHIM_CALL NtQueryDirectoryFile_shim(
   uint32_t file_info_ptr = SHIM_GET_ARG_32(5);
   uint32_t length = SHIM_GET_ARG_32(6);
   uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
-  uint64_t sp = ppc_state->r[1];
+  uint32_t sp = (uint32_t)ppc_state->r[1];
   uint32_t restart_scan = SHIM_MEM_32(sp + 0x54);
 
+  char* file_name = NULL;
+  if (file_name_ptr != 0) {
+    X_ANSI_STRING xas(SHIM_MEM_BASE, file_name_ptr);
+    file_name = xas.Duplicate();
+  }
+
   XELOGD(
-    "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X, %d)",
+    "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X(%s), %d)",
       file_handle,
       event_handle,
       apc_routine,
@@ -525,20 +532,13 @@ SHIM_CALL NtQueryDirectoryFile_shim(
       file_info_ptr,
       length,
       file_name_ptr,
+	  !file_name ? "(null)" : file_name,
       restart_scan);
 
   if (length < 72) {
     SHIM_SET_RETURN_32(X_STATUS_INFO_LENGTH_MISMATCH);
+	xe_free(file_name);
     return;
-  }
-
-  const char* file_name = NULL;
-  if (file_name_ptr != 0) {
-    // it's a PANSI_STRING or whatever.
-    if (SHIM_MEM_16(file_name_ptr + 0) != 0 ||
-        SHIM_MEM_16(file_name_ptr + 2) != 0) {
-      file_name = (const char*)SHIM_MEM_ADDR(SHIM_MEM_32(file_name_ptr + 4));
-    }
   }
 
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
@@ -569,6 +569,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(
     file->Release();
   }
 
+  xe_free(file_name);
   SHIM_SET_RETURN_32(result);
 }
 
