@@ -422,8 +422,18 @@ SHIM_CALL NtQueryInformationFile_shim(
     case XFileXctdCompressionInformation:
       // Read timeout.
       if (length == 4) {
-        info = 4;
-        SHIM_SET_MEM_32(file_info_ptr, 0); // TODO(gibbed): determine how we figure this out
+        uint32_t magic;
+        size_t bytes_read;
+        result = file->Read(&magic, sizeof(magic), 0, &bytes_read);
+        if (XSUCCEEDED(result)) {
+          if (bytes_read == sizeof(magic)) {
+            info = 4;
+            SHIM_SET_MEM_32(file_info_ptr, magic == XESWAP32BE(0x0FF512ED));
+          }
+          else {
+            result = X_STATUS_UNSUCCESSFUL;
+          }
+        }
       } else {
         result = X_STATUS_INFO_LENGTH_MISMATCH;
       }
@@ -532,12 +542,12 @@ SHIM_CALL NtQueryDirectoryFile_shim(
       file_info_ptr,
       length,
       file_name_ptr,
-	  !file_name ? "(null)" : file_name,
+      !file_name ? "(null)" : file_name,
       restart_scan);
 
   if (length < 72) {
     SHIM_SET_RETURN_32(X_STATUS_INFO_LENGTH_MISMATCH);
-	xe_free(file_name);
+    xe_free(file_name);
     return;
   }
 
