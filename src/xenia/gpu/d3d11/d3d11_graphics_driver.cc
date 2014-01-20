@@ -52,7 +52,10 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
       &buffer_desc, NULL, &state_.constant_buffers.loop_constants);
   buffer_desc.ByteWidth       = (32) * sizeof(int);
   hr = device_->CreateBuffer(
-      &buffer_desc, NULL, &state_.constant_buffers.geo_constants);
+      &buffer_desc, NULL, &state_.constant_buffers.vs_consts);
+  buffer_desc.ByteWidth       = (32) * sizeof(int);
+  hr = device_->CreateBuffer(
+      &buffer_desc, NULL, &state_.constant_buffers.gs_consts);
 }
 
 D3D11GraphicsDriver::~D3D11GraphicsDriver() {
@@ -60,7 +63,8 @@ D3D11GraphicsDriver::~D3D11GraphicsDriver() {
   XESAFERELEASE(state_.constant_buffers.float_constants);
   XESAFERELEASE(state_.constant_buffers.bool_constants);
   XESAFERELEASE(state_.constant_buffers.loop_constants);
-  XESAFERELEASE(state_.constant_buffers.geo_constants);
+  XESAFERELEASE(state_.constant_buffers.vs_consts);
+  XESAFERELEASE(state_.constant_buffers.gs_consts);
   delete shader_cache_;
   XESAFERELEASE(context_);
   XESAFERELEASE(device_);
@@ -193,7 +197,7 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   if (geometry_shader) {
     context_->GSSetShader(geometry_shader->handle(), NULL, NULL);
     context_->GSSetConstantBuffers(
-        0, 1, &state_.constant_buffers.geo_constants);
+        0, 1, &state_.constant_buffers.gs_consts);
   } else {
     context_->GSSetShader(NULL, NULL, NULL);
   }
@@ -491,29 +495,31 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   }
   context_->RSSetViewports(1, &viewport);
 
-  //"cbuffer geo_consts {\n"
+  // Viewport constants from D3D11VertexShader.
+  //"cbuffer vs_consts {\n"
   //"  float4 window;\n"              // x,y,w,h
   //"  float4 viewport_z_enable;\n"   // min,(max - min),?,enabled
   //"  float4 viewport_size;\n"       // x,y,w,h
   //"};"
+  // TODO(benvanik): only when viewport changes.
   D3D11_MAPPED_SUBRESOURCE res;
   context_->Map(
-      state_.constant_buffers.geo_constants, 0,
+      state_.constant_buffers.vs_consts, 0,
       D3D11_MAP_WRITE_DISCARD, 0, &res);
-  float* geo_buffer = (float*)res.pData;
-  geo_buffer[0] = (float)window_offset_x;
-  geo_buffer[1] = (float)window_offset_y;
-  geo_buffer[2] = (float)window_width;
-  geo_buffer[3] = (float)window_height;
-  geo_buffer[4] = viewport.MinDepth;
-  geo_buffer[5] = viewport.MaxDepth - viewport.MinDepth;
-  geo_buffer[6] = 0; // unused
-  geo_buffer[7] = vport_xscale_enable ? 1.0f : 0.0f;
-  geo_buffer[8] = viewport.TopLeftX;
-  geo_buffer[9] = viewport.TopLeftY;
-  geo_buffer[10] = viewport.Width;
-  geo_buffer[11] = viewport.Height;
-  context_->Unmap(state_.constant_buffers.geo_constants, 0);
+  float* vsc_buffer = (float*)res.pData;
+  vsc_buffer[0] = (float)window_offset_x;
+  vsc_buffer[1] = (float)window_offset_y;
+  vsc_buffer[2] = (float)window_width;
+  vsc_buffer[3] = (float)window_height;
+  vsc_buffer[4] = viewport.MinDepth;
+  vsc_buffer[5] = viewport.MaxDepth - viewport.MinDepth;
+  vsc_buffer[6] = 0; // unused
+  vsc_buffer[7] = vport_xscale_enable ? 1.0f : 0.0f;
+  vsc_buffer[8] = viewport.TopLeftX;
+  vsc_buffer[9] = viewport.TopLeftY;
+  vsc_buffer[10] = viewport.Width;
+  vsc_buffer[11] = viewport.Height;
+  context_->Unmap(state_.constant_buffers.vs_consts, 0);
 
   // Scissoring.
   // TODO(benvanik): pull from scissor registers.
@@ -733,10 +739,14 @@ int D3D11GraphicsDriver::BindShaders() {
     context_->VSSetShader(vs->handle(), NULL, 0);
 
     // Set constant buffers.
+    ID3D11Buffer* vs_constant_buffers[] = {
+      state_.constant_buffers.float_constants,
+      state_.constant_buffers.bool_constants,
+      state_.constant_buffers.loop_constants,
+      state_.constant_buffers.vs_consts,
+    };
     context_->VSSetConstantBuffers(
-        0,
-        sizeof(state_.constant_buffers) / sizeof(ID3D11Buffer*),
-        (ID3D11Buffer**)&state_.constant_buffers);
+        0, XECOUNT(vs_constant_buffers), vs_constant_buffers);
 
     // Setup input layout (as encoded in vertex shader).
     context_->IASetInputLayout(vs->input_layout());
@@ -765,10 +775,13 @@ int D3D11GraphicsDriver::BindShaders() {
     context_->PSSetShader(ps->handle(), NULL, 0);
 
     // Set constant buffers.
+    ID3D11Buffer* vs_constant_buffers[] = {
+      state_.constant_buffers.float_constants,
+      state_.constant_buffers.bool_constants,
+      state_.constant_buffers.loop_constants,
+    };
     context_->PSSetConstantBuffers(
-        0,
-        sizeof(state_.constant_buffers) / sizeof(ID3D11Buffer*),
-        (ID3D11Buffer**)&state_.constant_buffers);
+        0, XECOUNT(vs_constant_buffers), vs_constant_buffers);
 
     // TODO(benvanik): set samplers for all inputs.
     D3D11_SAMPLER_DESC sampler_desc;

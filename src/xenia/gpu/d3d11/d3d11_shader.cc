@@ -393,6 +393,28 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
     "};\n");
   // TODO(benvanik): add bool/loop constants.
 
+  // Transform utilities. We adjust the output position in various ways
+  // as we can't do this via D3D11 APIs.
+  output->append(
+    "cbuffer vs_consts : register(b3) {\n"
+    "  float4 window;\n"              // x,y,w,h
+    "  float4 viewport_z_enable;\n"   // min,(max - min),?,enabled
+    "  float4 viewport_size;\n"       // x,y,w,h
+    "};"
+    "float4 applyViewport(float4 pos) {\n"
+    "  if (viewport_z_enable.w) {\n"
+    //"    pos.x = (pos.x + 1) * viewport_size.z * 0.5 + viewport_size.x;\n"
+    //"    pos.y = (1 - pos.y) * viewport_size.w * 0.5 + viewport_size.y;\n"
+    //"    pos.z = viewport_z_enable.x + pos.z * viewport_z_enable.y;\n"
+    // w?
+    "  } else {\n"
+    "    pos.xy = pos.xy / float2(window.z / 2.0, -window.w / 2.0) + float2(-1.0, 1.0);\n"
+    "    pos.zw = float2(0.0, 1.0);\n"
+    "  }\n"
+    "  pos.xy += window.xy;\n"
+    "  return pos;\n"
+    "}\n");
+
   // Add vertex shader input.
   output->append(
     "struct VS_INPUT {\n");
@@ -472,6 +494,7 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
 
   // main footer.
   output->append(
+    "  o.oPos = applyViewport(o.oPos);\n"
     "  return o;\n"
     "};\n");
 

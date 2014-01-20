@@ -143,23 +143,7 @@ int D3D11GeometryShader::Generate(D3D11VertexShader* vertex_shader,
 
   output->Append(
     "cbuffer geo_consts {\n"
-    "  float4 window;\n"              // x,y,w,h
-    "  float4 viewport_z_enable;\n"   // min,(max - min),?,enabled
-    "  float4 viewport_size;\n"       // x,y,w,h
-    "};"
-    "float4 applyViewport(float4 pos) {\n"
-    "  if (viewport_z_enable.w) {\n"
-    //"    pos.x = (pos.x + 1) * viewport_size.z * 0.5 + viewport_size.x;\n"
-    //"    pos.y = (1 - pos.y) * viewport_size.w * 0.5 + viewport_size.y;\n"
-    //"    pos.z = viewport_z_enable.x + pos.z * viewport_z_enable.y;\n"
-    // w?
-    "  } else {\n"
-    "    pos.xy = pos.xy / float2(window.z / 2.0, -window.w / 2.0) + float2(-1.0, 1.0);\n"
-    "    pos.zw = float2(0.0, 1.0);\n"
-    "  }\n"
-    "  pos.xy += window.xy;\n"
-    "  return pos;\n"
-    "}\n");
+    "};\n");
 
   return 0;
 }
@@ -225,11 +209,10 @@ int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     "void main(triangle VERTEX input[3], inout TriangleStream<VERTEX> output) {\n"
     "  for (uint n = 0; n < 3; n++) {\n"
     "    VERTEX v = input[n];\n"
-    "    v.oPos = applyViewport(v.oPos);\n"
     "    output.Append(v);\n"
     "  }\n"
     "  VERTEX v = input[2];\n"
-    "  v.oPos = applyViewport(v.oPos + input[1].oPos - input[0].oPos);\n"
+    "  v.oPos += input[1].oPos - input[0].oPos;\n"
     // TODO(benvanik): only if needed?
     "  v.oPointSize += input[1].oPointSize - input[0].oPointSize;\n");
   auto alloc_counts = vertex_shader->alloc_counts();
@@ -268,7 +251,6 @@ int D3D11QuadListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     "  const uint order[4] = { 0, 1, 3, 2 };\n"
     "  for (uint n = 0; n < 4; n++) {\n"
     "    VERTEX v = input[order[n]];\n"
-    "    v.oPos = applyViewport(v.oPos);\n"
     "    output.Append(v);\n"
     "  }\n"
     "  output.RestartStrip();\n"
