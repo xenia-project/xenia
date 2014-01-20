@@ -122,7 +122,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   uint32_t buffer_size_ptr = SHIM_GET_ARG_32(6);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(7);
   // arg8 is in stack!
-  uint64_t sp = ppc_state->r[1];
+  uint32_t sp = (uint32_t)ppc_state->r[1];
   uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
 
   uint32_t buffer_size = SHIM_MEM_32(buffer_size_ptr);
