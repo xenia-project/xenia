@@ -142,6 +142,7 @@ typedef enum _X_FILE_ATTRIBUTES {
 } X_FILE_ATTRIBUTES;
 
 
+// http://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
 typedef enum _X_FILE_INFORMATION_CLASS {
   XFileDirectoryInformation = 1,
   XFileFullDirectoryInformation,
@@ -165,40 +166,20 @@ typedef enum _X_FILE_INFORMATION_CLASS {
   XFileEndOfFileInformation,
   XFileAlternateNameInformation,
   XFileStreamInformation,
-  XFilePipeInformation,
-  XFilePipeLocalInformation,
+  XFileMountPartitionInformation,
+  XFileMountPartitionsInformation,
   XFilePipeRemoteInformation,
-  XFileMailslotQueryInformation,
-  XFileMailslotSetInformation,
+  XFileSectorInformation,
+  XFileXctdCompressionInformation,
   XFileCompressionInformation,
   XFileObjectIdInformation,
   XFileCompletionInformation,
   XFileMoveClusterInformation,
-  XFileQuotaInformation,
+  XFileIoPriorityInformation,
   XFileReparsePointInformation,
   XFileNetworkOpenInformation,
   XFileAttributeTagInformation,
   XFileTrackingInformation,
-  XFileIdBothDirectoryInformation,
-  XFileIdFullDirectoryInformation,
-  XFileValidDataLengthInformation,
-  XFileShortNameInformation,
-  XFileIoCompletionNotificationInformation,
-  XFileIoStatusBlockRangeInformation,
-  XFileIoPriorityHintInformation,
-  XFileSfioReserveInformation,
-  XFileSfioVolumeInformation,
-  XFileHardLinkInformation,
-  XFileProcessIdsUsingFileInformation,
-  XFileNormalizedNameInformation,
-  XFileNetworkPhysicalNameInformation,
-  XFileIdGlobalTxDirectoryInformation,
-  XFileIsRemoteDeviceInformation,
-  XFileAttributeCacheInformation,
-  XFileNumaNodeInformation,
-  XFileStandardLinkInformation,
-  XFileRemoteProtocolInformation,
-  XFileReplaceCompletionInformation,
   XFileMaximumInformation
 } X_FILE_INFORMATION_CLASS;
 
