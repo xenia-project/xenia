@@ -135,6 +135,43 @@ D3D11PointSpriteGeometryShader::~D3D11PointSpriteGeometryShader() {
 
 int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                              alloy::StringBuffer* output) {
+  // TODO(benvanik): fetch default point size from register and use that if
+  // the VS doesn't write oPointSize.
+  // TODO(benvanik): clamp to min/max.
+  // TODO(benvanik): figure out how to see which interpolator gets adjusted.
+
+  output->Append(
+    "struct VERTEX {\n"
+    "  float4 oPos : SV_POSITION;\n");
+  auto alloc_counts = vertex_shader->alloc_counts();
+  if (alloc_counts.params) {
+    output->Append(
+      "  float4 o[%d] : XE_O;\n",
+      D3D11Shader::MAX_INTERPOLATORS);
+  }
+  output->Append(
+    "  float4 oPointSize : PSIZE;\n"
+    "};\n");
+
+  output->Append(
+    "[maxvertexcount(4)]\n"
+    "void main(point VERTEX input[1], inout TriangleStream<VERTEX> output) {\n"
+    "  const float2 offsets[4] = {\n"
+    "   float2(-1.0,  1.0),\n"
+    "   float2( 1.0,  1.0),\n"
+    "   float2(-1.0, -1.0),\n"
+    "   float2( 1.0, -1.0),\n"
+    "  };\n"
+    "  float psize = max(input[0].oPointSize.x, 1.0);\n"
+    "  VERTEX v;\n"
+    "  for (uint n = 0; n < 4; n++) {\n"
+    "    v = input[0];\n"
+    "    v.oPos.xy += offsets[n] * psize;\n"
+    "    output.Append(v);\n"
+    "  }\n"
+    "  output.RestartStrip();\n"
+    "}\n");
+
   return 0;
 }
 

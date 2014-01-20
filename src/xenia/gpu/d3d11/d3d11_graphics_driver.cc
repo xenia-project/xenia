@@ -139,12 +139,12 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   switch (prim_type) {
   case XE_GPU_PRIMITIVE_TYPE_POINT_LIST:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-    //if (state_.vertex_shader) {
-    //  if (state_.vertex_shader->DemandGeometryShader(
-    //      D3D11VertexShader::POINT_SPRITE_SHADER, &geometry_shader)) {
-    //    return 1;
-    //  }
-    //}
+    if (state_.vertex_shader) {
+      if (state_.vertex_shader->DemandGeometryShader(
+          D3D11VertexShader::POINT_SPRITE_SHADER, &geometry_shader)) {
+        return 1;
+      }
+    }
     break;
   case XE_GPU_PRIMITIVE_TYPE_LINE_LIST:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
