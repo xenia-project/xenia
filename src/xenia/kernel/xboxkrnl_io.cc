@@ -423,7 +423,7 @@ SHIM_CALL NtQueryInformationFile_shim(
       // Read timeout.
       if (length == 4) {
         info = 4;
-        SHIM_SET_MEM_64(file_info_ptr, 0); // TODO(gibbed): determine how we figure this out
+        SHIM_SET_MEM_32(file_info_ptr, 0); // TODO(gibbed): determine how we figure this out
       } else {
         result = X_STATUS_INFO_LENGTH_MISMATCH;
       }
