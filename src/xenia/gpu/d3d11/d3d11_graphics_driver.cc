@@ -50,6 +50,9 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   buffer_desc.ByteWidth       = (32) * sizeof(int);
   hr = device_->CreateBuffer(
       &buffer_desc, NULL, &state_.constant_buffers.loop_constants);
+  buffer_desc.ByteWidth       = (32) * sizeof(int);
+  hr = device_->CreateBuffer(
+      &buffer_desc, NULL, &state_.constant_buffers.geo_constants);
 }
 
 D3D11GraphicsDriver::~D3D11GraphicsDriver() {
@@ -57,6 +60,7 @@ D3D11GraphicsDriver::~D3D11GraphicsDriver() {
   XESAFERELEASE(state_.constant_buffers.float_constants);
   XESAFERELEASE(state_.constant_buffers.bool_constants);
   XESAFERELEASE(state_.constant_buffers.loop_constants);
+  XESAFERELEASE(state_.constant_buffers.geo_constants);
   delete shader_cache_;
   XESAFERELEASE(context_);
   XESAFERELEASE(device_);
@@ -186,8 +190,13 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   }
   context_->IASetPrimitiveTopology(primitive_topology);
 
-  context_->GSSetShader(
-      geometry_shader ? geometry_shader->handle() : NULL, NULL, NULL);
+  if (geometry_shader) {
+    context_->GSSetShader(geometry_shader->handle(), NULL, NULL);
+    context_->GSSetConstantBuffers(
+        0, 1, &state_.constant_buffers.geo_constants);
+  } else {
+    context_->GSSetShader(NULL, NULL, NULL);
+  }
 
   // Setup all fetchers (vertices/textures).
   if (PrepareFetchers()) {
@@ -344,9 +353,9 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   uint32_t window_scissor_tl = rf.values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   uint32_t window_scissor_br = rf.values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
   //uint32_t window_width =
-  //    (window_scissor_br & 0xFFFF) - (window_scissor_tl & 0xFFFF);
+  //    (window_scissor_br & 0x7FFF) - (window_scissor_tl & 0x7FFF);
   //uint32_t window_height =
-  //    (window_scissor_br >> 16) - (window_scissor_tl >> 16);
+  //    ((window_scissor_br >> 16) & 0x7FFF) - ((window_scissor_tl >> 16) & 0x7FFF);
   uint32_t window_width = 1280;
   uint32_t window_height = 720;
   if (RebuildRenderTargets(window_width, window_height)) {
@@ -440,25 +449,71 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   // Viewport.
   // If we have resized the window we will want to change this.
   uint32_t window_offset = rf.values[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  // ?
-  D3D11_VIEWPORT viewport;
-  viewport.MinDepth = 0.0f;
-  viewport.MaxDepth = 1.0f;
-  viewport.TopLeftX = 0;
-  viewport.TopLeftY = 0;
-  viewport.Width    = 1280;
-  viewport.Height   = 720;
-  context_->RSSetViewports(1, &viewport);
+  // signed?
+  uint32_t window_offset_x = window_offset & 0x7FFF;
+  uint32_t window_offset_y = (window_offset >> 16) & 0x7FFF;
 
   // ?
   // TODO(benvanik): figure out how to emulate viewports in D3D11. Could use
   //     viewport above to scale, though that doesn't support negatives/etc.
-  float vport_xoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32; // 640
+  uint32_t vte_control = rf.values[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
   float vport_xscale = rf.values[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32; // 640
-  float vport_yoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32; // 360
+  bool vport_xoffset_enable = (vte_control & (1 << 1)) > 0;
+  float vport_xoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32; // 640
+  bool vport_yscale_enable = (vte_control & (1 << 2)) > 0;
   float vport_yscale = rf.values[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32; // -360
-  float vport_zoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32; // 0
+  bool vport_yoffset_enable = (vte_control & (1 << 3)) > 0;
+  float vport_yoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32; // 360
+  bool vport_zscale_enable = (vte_control & (1 << 4)) > 0;
   float vport_zscale = rf.values[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32; // 1
+  bool vport_zoffset_enable = (vte_control & (1 << 5)) > 0;
+  float vport_zoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32; // 0
+
+  // TODO(benvanik): compute viewport values.
+  D3D11_VIEWPORT viewport;
+  if (vport_xscale_enable) {
+    // Viewport enabled.
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+    viewport.TopLeftX = 0;
+    viewport.TopLeftY = 0;
+    viewport.Width    = 1280;
+    viewport.Height   = 720;
+  } else {
+    // Viewport disabled. Geometry shaders will compensate for this.
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+    viewport.TopLeftX = 0;
+    viewport.TopLeftY = 0;
+    viewport.Width    = 1280;
+    viewport.Height   = 720;
+  }
+  context_->RSSetViewports(1, &viewport);
+
+  //"cbuffer geo_consts {\n"
+  //"  float4 window;\n"              // x,y,w,h
+  //"  float4 viewport_z_enable;\n"   // min,(max - min),?,enabled
+  //"  float4 viewport_size;\n"       // x,y,w,h
+  //"};"
+  D3D11_MAPPED_SUBRESOURCE res;
+  context_->Map(
+      state_.constant_buffers.geo_constants, 0,
+      D3D11_MAP_WRITE_DISCARD, 0, &res);
+  float* geo_buffer = (float*)res.pData;
+  geo_buffer[0] = (float)window_offset_x;
+  geo_buffer[1] = (float)window_offset_y;
+  geo_buffer[2] = (float)window_width;
+  geo_buffer[3] = (float)window_height;
+  geo_buffer[4] = viewport.MinDepth;
+  geo_buffer[5] = viewport.MaxDepth - viewport.MinDepth;
+  geo_buffer[6] = 0; // unused
+  geo_buffer[7] = vport_xscale_enable ? 1.0f : 0.0f;
+  geo_buffer[8] = viewport.TopLeftX;
+  geo_buffer[9] = viewport.TopLeftY;
+  geo_buffer[10] = viewport.Width;
+  geo_buffer[11] = viewport.Height;
+  context_->Unmap(state_.constant_buffers.geo_constants, 0);
 
   // Scissoring.
   // TODO(benvanik): pull from scissor registers.
@@ -467,10 +522,10 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   uint32_t screen_scissor_br = rf.values[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR].u32;
   if (screen_scissor_tl != 0 && screen_scissor_br != 0x20002000) {
     D3D11_RECT scissor_rect;
-    scissor_rect.top = screen_scissor_tl >> 16;
-    scissor_rect.left = screen_scissor_tl & 0xFFFF;
-    scissor_rect.bottom = screen_scissor_br >> 16;
-    scissor_rect.right = screen_scissor_br & 0xFFFF;
+    scissor_rect.top = (screen_scissor_tl >> 16) & 0x7FFF;
+    scissor_rect.left = screen_scissor_tl & 0x7FFF;
+    scissor_rect.bottom = (screen_scissor_br >> 16) & 0x7FFF;
+    scissor_rect.right = screen_scissor_br & 0x7FFF;
     context_->RSSetScissorRects(1, &scissor_rect);
   } else {
     context_->RSSetScissorRects(0, NULL);

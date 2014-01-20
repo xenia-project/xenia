@@ -124,6 +124,46 @@ ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
   return shader_blob;
 }
 
+int D3D11GeometryShader::Generate(D3D11VertexShader* vertex_shader,
+                                  alloy::StringBuffer* output) {
+  output->Append(
+    "struct VERTEX {\n"
+    "  float4 oPos : SV_POSITION;\n");
+  auto alloc_counts = vertex_shader->alloc_counts();
+  if (alloc_counts.params) {
+    // TODO(benvanik): only add used ones?
+    output->Append(
+      "  float4 o[%d] : XE_O;\n",
+      D3D11Shader::MAX_INTERPOLATORS);
+  }
+  output->Append(
+    // TODO(benvanik): only pull in point size if required.
+    "  float4 oPointSize : PSIZE;\n"
+    "};\n");
+
+  output->Append(
+    "cbuffer geo_consts {\n"
+    "  float4 window;\n"              // x,y,w,h
+    "  float4 viewport_z_enable;\n"   // min,(max - min),?,enabled
+    "  float4 viewport_size;\n"       // x,y,w,h
+    "};"
+    "float4 applyViewport(float4 pos) {\n"
+    "  if (viewport_z_enable.w) {\n"
+    //"    pos.x = (pos.x + 1) * viewport_size.z * 0.5 + viewport_size.x;\n"
+    //"    pos.y = (1 - pos.y) * viewport_size.w * 0.5 + viewport_size.y;\n"
+    //"    pos.z = viewport_z_enable.x + pos.z * viewport_z_enable.y;\n"
+    // w?
+    "  } else {\n"
+    "    pos.xy = pos.xy / float2(window.z / 2.0, -window.w / 2.0) + float2(-1.0, 1.0);\n"
+    "    pos.zw = float2(0.0, 1.0);\n"
+    "  }\n"
+    "  pos.xy += window.xy;\n"
+    "  return pos;\n"
+    "}\n");
+
+  return 0;
+}
+
 
 D3D11PointSpriteGeometryShader::D3D11PointSpriteGeometryShader(
     ID3D11Device* device, uint64_t hash) :
@@ -135,23 +175,14 @@ D3D11PointSpriteGeometryShader::~D3D11PointSpriteGeometryShader() {
 
 int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                              alloy::StringBuffer* output) {
+  if (D3D11GeometryShader::Generate(vertex_shader, output)) {
+    return 1;
+  }
+
   // TODO(benvanik): fetch default point size from register and use that if
-  // the VS doesn't write oPointSize.
+  //     the VS doesn't write oPointSize.
   // TODO(benvanik): clamp to min/max.
   // TODO(benvanik): figure out how to see which interpolator gets adjusted.
-
-  output->Append(
-    "struct VERTEX {\n"
-    "  float4 oPos : SV_POSITION;\n");
-  auto alloc_counts = vertex_shader->alloc_counts();
-  if (alloc_counts.params) {
-    output->Append(
-      "  float4 o[%d] : XE_O;\n",
-      D3D11Shader::MAX_INTERPOLATORS);
-  }
-  output->Append(
-    "  float4 oPointSize : PSIZE;\n"
-    "};\n");
 
   output->Append(
     "[maxvertexcount(4)]\n"
@@ -163,9 +194,8 @@ int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     "   float2( 1.0, -1.0),\n"
     "  };\n"
     "  float psize = max(input[0].oPointSize.x, 1.0);\n"
-    "  VERTEX v;\n"
     "  for (uint n = 0; n < 4; n++) {\n"
-    "    v = input[0];\n"
+    "    VERTEX v = input[0];\n"
     "    v.oPos.xy += offsets[n] * psize;\n"
     "    output.Append(v);\n"
     "  }\n"
@@ -186,29 +216,23 @@ D3D11RectListGeometryShader::~D3D11RectListGeometryShader() {
 
 int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                           alloy::StringBuffer* output) {
-  output->Append(
-    "struct VERTEX {\n"
-    "  float4 oPos : SV_POSITION;\n");
-  auto alloc_counts = vertex_shader->alloc_counts();
-  if (alloc_counts.params) {
-    output->Append(
-      "  float4 o[%d] : XE_O;\n",
-      D3D11Shader::MAX_INTERPOLATORS);
+  if (D3D11GeometryShader::Generate(vertex_shader, output)) {
+    return 1;
   }
-  output->Append(
-    "  float4 oPointSize : PSIZE;\n"
-    "};\n");
-  
+
   output->Append(
     "[maxvertexcount(4)]\n"
     "void main(triangle VERTEX input[3], inout TriangleStream<VERTEX> output) {\n"
-    "  output.Append(input[0]);\n"
-    "  output.Append(input[1]);\n"
-    "  output.Append(input[2]);\n"
+    "  for (uint n = 0; n < 3; n++) {\n"
+    "    VERTEX v = input[n];\n"
+    "    v.oPos = applyViewport(v.oPos);\n"
+    "    output.Append(v);\n"
+    "  }\n"
     "  VERTEX v = input[2];\n"
-    "  v.oPos += input[1].oPos - input[0].oPos;\n"
+    "  v.oPos = applyViewport(v.oPos + input[1].oPos - input[0].oPos);\n"
     // TODO(benvanik): only if needed?
     "  v.oPointSize += input[1].oPointSize - input[0].oPointSize;\n");
+  auto alloc_counts = vertex_shader->alloc_counts();
   for (uint32_t n = 0; n < alloc_counts.params; n++) {
     // TODO(benvanik): this may be wrong - the count is a bad metric.
     output->Append(
@@ -234,27 +258,19 @@ D3D11QuadListGeometryShader::~D3D11QuadListGeometryShader() {
 
 int D3D11QuadListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                           alloy::StringBuffer* output) {
-  output->Append(
-    "struct VERTEX {\n"
-    "  float4 oPos : SV_POSITION;\n");
-  auto alloc_counts = vertex_shader->alloc_counts();
-  if (alloc_counts.params) {
-    output->Append(
-      "  float4 o[%d] : XE_O;\n",
-      D3D11Shader::MAX_INTERPOLATORS);
+  if (D3D11GeometryShader::Generate(vertex_shader, output)) {
+    return 1;
   }
-  output->Append(
-    "  float4 oPointSize : PSIZE;\n"
-    "};\n");
 
   output->Append(
     "[maxvertexcount(4)]\n"
-    "void main(lineadj VERTEX input[4], inout TriangleStream<VERTEX> output,\n"
-    "    uint primitive_id : SV_PrimitiveID) {\n"
-    "  output.Append(input[0]);\n"
-    "  output.Append(input[1]);\n"
-    "  output.Append(input[3]);\n"
-    "  output.Append(input[2]);\n"
+    "void main(lineadj VERTEX input[4], inout TriangleStream<VERTEX> output) {\n"
+    "  const uint order[4] = { 0, 1, 3, 2 };\n"
+    "  for (uint n = 0; n < 4; n++) {\n"
+    "    VERTEX v = input[order[n]];\n"
+    "    v.oPos = applyViewport(v.oPos);\n"
+    "    output.Append(v);\n"
+    "  }\n"
     "  output.RestartStrip();\n"
     "}\n");
 

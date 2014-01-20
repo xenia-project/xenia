@@ -38,7 +38,7 @@ protected:
   ID3D10Blob* Compile(const char* shader_source);
 
   virtual int Generate(D3D11VertexShader* vertex_shader,
-                       alloy::StringBuffer* output) = 0;
+                       alloy::StringBuffer* output);
 
 protected:
   ID3D11Device* device_;

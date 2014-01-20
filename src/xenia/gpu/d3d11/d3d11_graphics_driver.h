@@ -95,6 +95,7 @@ private:
       ID3D11Buffer*     float_constants;
       ID3D11Buffer*     bool_constants;
       ID3D11Buffer*     loop_constants;
+      ID3D11Buffer*     geo_constants;
     } constant_buffers;
   } state_;
 
