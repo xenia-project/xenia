@@ -63,7 +63,8 @@ private:
   int BindShaders();
   int PrepareFetchers();
   int PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc);
-  int PrepareTextureFetcher(xenos::XE_GPU_SHADER_TYPE shader_type,
+  int PrepareTextureFetchers();
+  int PrepareTextureSampler(xenos::XE_GPU_SHADER_TYPE shader_type,
                             Shader::tex_buffer_desc_t& desc);
   typedef struct {
     DXGI_FORMAT format;
@@ -71,20 +72,16 @@ private:
     uint32_t block_height;
   } TextureInfo;
   TextureInfo GetTextureInfo(xenos::xe_gpu_texture_fetch_t& fetch);
-  int FetchTexture1D(Shader::tex_buffer_desc_t& desc,
-                     xenos::xe_gpu_texture_fetch_t& fetch,
+  int FetchTexture1D(xenos::xe_gpu_texture_fetch_t& fetch,
                      TextureInfo& info,
                      ID3D11Resource** out_texture);
-  int FetchTexture2D(Shader::tex_buffer_desc_t& desc,
-                     xenos::xe_gpu_texture_fetch_t& fetch,
+  int FetchTexture2D(xenos::xe_gpu_texture_fetch_t& fetch,
                      TextureInfo& info,
                      ID3D11Resource** out_texture);
-  int FetchTexture3D(Shader::tex_buffer_desc_t& desc,
-                     xenos::xe_gpu_texture_fetch_t& fetch,
+  int FetchTexture3D(xenos::xe_gpu_texture_fetch_t& fetch,
                      TextureInfo& info,
                      ID3D11Resource** out_texture);
-  int FetchTextureCube(Shader::tex_buffer_desc_t& desc,
-                       xenos::xe_gpu_texture_fetch_t& fetch,
+  int FetchTextureCube(xenos::xe_gpu_texture_fetch_t& fetch,
                        TextureInfo& info,
                        ID3D11Resource** out_texture);
   int PrepareIndexBuffer(
@@ -96,6 +93,9 @@ private:
   ID3D11Device*         device_;
   ID3D11DeviceContext*  context_;
   D3D11ShaderCache*     shader_cache_;
+
+  ID3D11ShaderResourceView* invalid_texture_view_;
+  ID3D11SamplerState*       invalid_texture_sampler_state_;
 
   struct {
     uint32_t width;
@@ -120,6 +120,12 @@ private:
       ID3D11Buffer*     vs_consts;
       ID3D11Buffer*     gs_consts;
     } constant_buffers;
+
+    struct {
+      bool        enabled;
+      TextureInfo info;
+      ID3D11ShaderResourceView* view;
+    } texture_fetchers[32];
   } state_;
 
   enum StateOverrides {

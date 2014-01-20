@@ -61,7 +61,7 @@ public:
   } tex_buffer_desc_t;
   typedef struct {
     uint32_t count;
-    tex_buffer_desc_t descs[16];
+    tex_buffer_desc_t descs[32];
   } tex_buffer_inputs_t;
   const tex_buffer_inputs_t* GetTextureBufferInputs();
 

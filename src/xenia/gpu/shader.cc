@@ -255,7 +255,7 @@ void Shader::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {
   XEASSERT(inputs.count + 1 < XECOUNT(inputs.descs));
   auto& input = inputs.descs[inputs.count++];
   input.input_index = inputs.count - 1;
-  input.fetch_slot = tex->const_idx - 16; // ?
+  input.fetch_slot = tex->const_idx & 0xF; // ?
   input.tex_fetch = *tex;
 
   // Format mangling, size estimation, etc.
