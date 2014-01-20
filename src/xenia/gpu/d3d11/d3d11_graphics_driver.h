@@ -58,7 +58,7 @@ public:
 private:
   int SetupDraw(xenos::XE_GPU_PRIMITIVE_TYPE prim_type);
   int RebuildRenderTargets(uint32_t width, uint32_t height);
-  int UpdateState();
+  int UpdateState(uint32_t state_overrides = 0);
   int UpdateConstantBuffers();
   int BindShaders();
   int PrepareFetchers();
@@ -97,6 +97,10 @@ private:
       ID3D11Buffer*     loop_constants;
     } constant_buffers;
   } state_;
+
+  enum StateOverrides {
+    STATE_OVERRIDE_DISABLE_CULLING  = (1 << 0),
+  };
 };
 
 

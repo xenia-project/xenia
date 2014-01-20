@@ -111,8 +111,14 @@ void D3D11GraphicsDriver::SetShader(
 int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   RegisterFile& rf = register_file_;
 
+  uint32_t state_overrides = 0;
+  if (prim_type == XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST) {
+    // Rect lists aren't culled. There may be other things they skip too.
+    state_overrides |= STATE_OVERRIDE_DISABLE_CULLING;
+  }
+
   // Misc state.
-  if (UpdateState()) {
+  if (UpdateState(state_overrides)) {
     return 1;
   }
 
@@ -326,7 +332,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(
   return 0;
 }
 
-int D3D11GraphicsDriver::UpdateState() {
+int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   // Most information comes from here:
   // https://chromium.googlesource.com/chromiumos/third_party/mesa/+/6173cc19c45d92ef0b7bc6aa008aa89bb29abbda/src/gallium/drivers/freedreno/freedreno_zsa.c
   // http://cgit.freedesktop.org/mesa/mesa/diff/?id=aac7f06ad843eaa696363e8e9c7781ca30cb4914
@@ -414,6 +420,9 @@ int D3D11GraphicsDriver::UpdateState() {
   case 2:
     rasterizer_desc.CullMode            = D3D11_CULL_BACK;
     break;
+  }
+  if (state_overrides & STATE_OVERRIDE_DISABLE_CULLING) {
+    rasterizer_desc.CullMode            = D3D11_CULL_NONE;
   }
   rasterizer_desc.FrontCounterClockwise = (mode_control & 0x4) == 0;
   rasterizer_desc.DepthBias             = 0;
