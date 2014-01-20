@@ -24,6 +24,7 @@ Shader::Shader(
     type_(type), hash_(hash), is_prepared_(false), disasm_src_(NULL) {
   xe_zero_struct(&alloc_counts_, sizeof(alloc_counts_));
   xe_zero_struct(&vtx_buffer_inputs_, sizeof(vtx_buffer_inputs_));
+  xe_zero_struct(&tex_buffer_inputs_, sizeof(tex_buffer_inputs_));
 
   // Verify.
   dword_count_ = length / 4;
@@ -248,7 +249,18 @@ const Shader::vtx_buffer_inputs_t* Shader::GetVertexBufferInputs() {
 }
 
 void Shader::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {
-  fetch_texs_.push_back(*tex);
+  // TODO(benvanik): check dest_swiz to see if we are writing anything.
 
-  // slots
+  auto& inputs = tex_buffer_inputs_;
+  XEASSERT(inputs.count + 1 < XECOUNT(inputs.descs));
+  auto& input = inputs.descs[inputs.count++];
+  input.input_index = inputs.count - 1;
+  input.fetch_slot = tex->const_idx - 16; // ?
+  input.tex_fetch = *tex;
+
+  // Format mangling, size estimation, etc.
+}
+
+const Shader::tex_buffer_inputs_t* Shader::GetTextureBufferInputs() {
+  return &tex_buffer_inputs_;
 }

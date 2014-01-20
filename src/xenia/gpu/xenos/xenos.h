@@ -127,10 +127,24 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t address            : 20;
     union {                           // dword_2
       struct {
+        uint32_t width          : 24;
+        uint32_t unused         : 8;
+      } size_1d;
+      struct {
         uint32_t width          : 13;
         uint32_t height         : 13;
-        uint32_t unksize2d      : 6;
+        uint32_t unused         : 6;
       } size_2d;
+      struct {
+        uint32_t width          : 13;
+        uint32_t height         : 13;
+        uint32_t depth          : 6;
+      } size_stack;
+      struct {
+        uint32_t width          : 11;
+        uint32_t height         : 11;
+        uint32_t depth          : 10;
+      } size_3d;
     };
     uint32_t unk3;                    // dword_3
     uint32_t unk4;                    // dword_4

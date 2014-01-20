@@ -441,6 +441,13 @@ typedef enum {
   SAMPLE_CENTER = 1,
 } instr_sample_loc_t;
 
+typedef enum {
+  DIMENSION_1D = 0,
+  DIMENSION_2D = 1,
+  DIMENSION_3D = 2,
+  DIMENSION_CUBE = 3,
+} instr_dimension_t;
+
 typedef enum a2xx_sq_surfaceformat instr_surf_fmt_t;
 
 XEPACKEDSTRUCT(instr_fetch_tex_t, {
@@ -467,7 +474,8 @@ XEPACKEDSTRUCT(instr_fetch_tex_t, {
     uint32_t            vol_mag_filter          : 2;    // instr_tex_filter_t
     uint32_t            vol_min_filter          : 2;    // instr_tex_filter_t
     uint32_t            use_comp_lod            : 1;
-    uint32_t            use_reg_lod             : 2;
+    uint32_t            use_reg_lod             : 1;
+    uint32_t            unk                     : 1;
     uint32_t            pred_select             : 1;
   });
   /* dword2: */
@@ -476,7 +484,7 @@ XEPACKEDSTRUCT(instr_fetch_tex_t, {
     uint32_t            sample_location         : 1;    // instr_sample_loc_t
     uint32_t            lod_bias                : 7;
     uint32_t            unused                  : 5;
-    uint32_t            dimension               : 2;
+    uint32_t            dimension               : 2;    // instr_dimension_t
     uint32_t            offset_x                : 5;
     uint32_t            offset_y                : 5;
     uint32_t            offset_z                : 5;

@@ -54,6 +54,18 @@ public:
   const vtx_buffer_inputs_t* GetVertexBufferInputs();
 
   typedef struct {
+    uint32_t input_index;
+    uint32_t fetch_slot;
+    xenos::instr_fetch_tex_t tex_fetch;
+    uint32_t format;
+  } tex_buffer_desc_t;
+  typedef struct {
+    uint32_t count;
+    tex_buffer_desc_t descs[16];
+  } tex_buffer_inputs_t;
+  const tex_buffer_inputs_t* GetTextureBufferInputs();
+
+  typedef struct {
     uint32_t  positions;
     uint32_t  params;
     uint32_t  memories;
@@ -78,10 +90,10 @@ protected:
   char*       disasm_src_;
 
   alloc_counts_t alloc_counts_;
-  std::vector<xenos::instr_cf_exec_t> execs_;
+  std::vector<xenos::instr_cf_exec_t>   execs_;
   std::vector<xenos::instr_cf_alloc_t>  allocs_;
   vtx_buffer_inputs_t vtx_buffer_inputs_;
-  std::vector<xenos::instr_fetch_tex_t> fetch_texs_;
+  tex_buffer_inputs_t tex_buffer_inputs_;
 };
 
 

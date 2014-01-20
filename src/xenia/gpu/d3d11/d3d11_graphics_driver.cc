@@ -812,25 +812,35 @@ int D3D11GraphicsDriver::BindShaders() {
 }
 
 int D3D11GraphicsDriver::PrepareFetchers() {
+  // Input assembly.
   XEASSERTNOTNULL(state_.vertex_shader);
-  auto inputs = state_.vertex_shader->GetVertexBufferInputs();
-  for (size_t n = 0; n < inputs->count; n++) {
-    auto input = inputs->descs[n];
+  auto vtx_inputs = state_.vertex_shader->GetVertexBufferInputs();
+  for (size_t n = 0; n < vtx_inputs->count; n++) {
+    auto input = vtx_inputs->descs[n];
     if (PrepareVertexBuffer(input)) {
       XELOGE("D3D11: unable to prepare vertex buffer");
       return 1;
     }
   }
 
-  // TODO(benvanik): rewrite by sampler
-  RegisterFile& rf = register_file_;
-  for (int n = 0; n < 32; n++) {
-    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + n * 6;
-    xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
-    if (group->type_0 == 0x2) {
-      if (PrepareTextureFetcher(n, &group->texture_fetch)) {
-        return 1;
-      }
+  // Vertex texture inputs.
+  auto tex_inputs = state_.vertex_shader->GetTextureBufferInputs();
+  for (size_t n = 0; n < tex_inputs->count; n++) {
+    auto input = tex_inputs->descs[n];
+    if (PrepareTextureFetcher(XE_GPU_SHADER_TYPE_VERTEX, input)) {
+      XELOGE("D3D11: unable to prepare texture buffer");
+      return 1;
+    }
+  }
+
+  // Pixel shader texture inputs.
+  XEASSERTNOTNULL(state_.pixel_shader);
+  tex_inputs = state_.pixel_shader->GetTextureBufferInputs();
+  for (size_t n = 0; n < tex_inputs->count; n++) {
+    auto input = tex_inputs->descs[n];
+    if (PrepareTextureFetcher(XE_GPU_SHADER_TYPE_PIXEL, input)) {
+      XELOGE("D3D11: unable to prepare texture buffer");
+      return 1;
     }
   }
 
@@ -912,12 +922,307 @@ int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
   return 0;
 }
 
-int D3D11GraphicsDriver::PrepareTextureFetcher(
-    int fetch_slot, xe_gpu_texture_fetch_t* fetch) {
-  RegisterFile& rf = register_file_;
+D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
+    xe_gpu_texture_fetch_t& fetch) {
+  // a2xx_sq_surfaceformat
+  TextureInfo info;
+  info.format = DXGI_FORMAT_UNKNOWN;
+  info.block_width = 0;
+  info.block_height = 0;
+  switch (fetch.format) {
+  case FMT_8_8_8_8:
+    info.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    break;
+  case FMT_1_REVERSE:
+  case FMT_1:
+  case FMT_8:
+  case FMT_1_5_5_5:
+  case FMT_5_6_5:
+  case FMT_6_5_5:
+  case FMT_2_10_10_10:
+  case FMT_8_A:
+  case FMT_8_B:
+  case FMT_8_8:
+  case FMT_Cr_Y1_Cb_Y0:
+  case FMT_Y1_Cr_Y0_Cb:
+  case FMT_5_5_5_1:
+  case FMT_8_8_8_8_A:
+  case FMT_4_4_4_4:
+  case FMT_10_11_11:
+  case FMT_11_11_10:
+  case FMT_DXT1:
+  case FMT_DXT2_3:
+  case FMT_DXT4_5:
+  case FMT_24_8:
+  case FMT_24_8_FLOAT:
+  case FMT_16:
+  case FMT_16_16:
+  case FMT_16_16_16_16:
+  case FMT_16_EXPAND:
+  case FMT_16_16_EXPAND:
+  case FMT_16_16_16_16_EXPAND:
+  case FMT_16_FLOAT:
+  case FMT_16_16_FLOAT:
+  case FMT_16_16_16_16_FLOAT:
+  case FMT_32:
+  case FMT_32_32:
+  case FMT_32_32_32_32:
+  case FMT_32_FLOAT:
+  case FMT_32_32_FLOAT:
+  case FMT_32_32_32_32_FLOAT:
+  case FMT_32_AS_8:
+  case FMT_32_AS_8_8:
+  case FMT_16_MPEG:
+  case FMT_16_16_MPEG:
+  case FMT_8_INTERLACED:
+  case FMT_32_AS_8_INTERLACED:
+  case FMT_32_AS_8_8_INTERLACED:
+  case FMT_16_INTERLACED:
+  case FMT_16_MPEG_INTERLACED:
+  case FMT_16_16_MPEG_INTERLACED:
+  case FMT_DXN:
+  case FMT_8_8_8_8_AS_16_16_16_16:
+  case FMT_DXT1_AS_16_16_16_16:
+  case FMT_DXT2_3_AS_16_16_16_16:
+  case FMT_DXT4_5_AS_16_16_16_16:
+  case FMT_2_10_10_10_AS_16_16_16_16:
+  case FMT_10_11_11_AS_16_16_16_16:
+  case FMT_11_11_10_AS_16_16_16_16:
+  case FMT_32_32_32_FLOAT:
+  case FMT_DXT3A:
+  case FMT_DXT5A:
+  case FMT_CTX1:
+  case FMT_DXT3A_AS_1_1_1_1:
+    info.format = DXGI_FORMAT_UNKNOWN;
+    break;
+  }
+  return info;
+}
 
-  // maybe << 2?
-  uint32_t address = (fetch->address << 4) + address_translation_;
+int D3D11GraphicsDriver::FetchTexture1D(
+    Shader::tex_buffer_desc_t& desc,
+    xe_gpu_texture_fetch_t& fetch,
+    TextureInfo& info,
+    ID3D11Resource** out_texture) {
+  uint32_t address = (fetch.address << 12) + address_translation_;
+
+  uint32_t width = fetch.size_1d.width;
+
+  D3D11_TEXTURE1D_DESC texture_desc;
+  xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  texture_desc.Width          = width;
+  texture_desc.MipLevels      = 1;
+  texture_desc.ArraySize      = 1;
+  texture_desc.Format         = info.format;
+  texture_desc.Usage          = D3D11_USAGE_DYNAMIC;
+  texture_desc.BindFlags      = D3D11_BIND_SHADER_RESOURCE;
+  texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+  texture_desc.MiscFlags      = 0; // D3D11_RESOURCE_MISC_GENERATE_MIPS?
+  HRESULT hr = device_->CreateTexture1D(
+      &texture_desc, NULL, (ID3D11Texture1D**)out_texture);
+  if (FAILED(hr)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+int D3D11GraphicsDriver::FetchTexture2D(
+    Shader::tex_buffer_desc_t& desc,
+    xe_gpu_texture_fetch_t& fetch,
+    TextureInfo& info,
+    ID3D11Resource** out_texture) {
+  uint32_t address = (fetch.address << 12) + address_translation_;
+
+  uint32_t width = fetch.size_2d.width;
+  uint32_t height = fetch.size_2d.height;
+  uint32_t data_pitch = XEROUNDUP(width, 256);
+  // TODO(benvanik): block height rounding?
+  uint32_t data_height = height;
+  size_t data_size = data_pitch * data_height;
+
+  D3D11_TEXTURE2D_DESC texture_desc;
+  xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  texture_desc.Width          = width;
+  texture_desc.Height         = height;
+  texture_desc.MipLevels      = 1;
+  texture_desc.ArraySize      = 1;
+  texture_desc.Format         = info.format;
+  texture_desc.SampleDesc.Count   = 1;
+  texture_desc.SampleDesc.Quality = 0;
+  texture_desc.Usage          = D3D11_USAGE_DYNAMIC;
+  texture_desc.BindFlags      = D3D11_BIND_SHADER_RESOURCE;
+  texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+  texture_desc.MiscFlags      = 0; // D3D11_RESOURCE_MISC_GENERATE_MIPS?
+  HRESULT hr = device_->CreateTexture2D(
+      &texture_desc, NULL, (ID3D11Texture2D**)out_texture);
+  if (FAILED(hr)) {
+    return 1;
+  }
+
+  // TODO(benvanik): all mip levels.
+  D3D11_MAPPED_SUBRESOURCE res;
+  hr = context_->Map(*out_texture, 0,
+                     D3D11_MAP_WRITE_DISCARD, 0, &res);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: failed to map texture");
+    return 1;
+  }
+  const uint8_t* src = memory_->Translate(address);
+  uint8_t* dest = (uint8_t*)res.pData;
+  for (size_t n = 0; n < data_size; n++) {
+    dest[n] = src[n];
+  }
+  context_->Unmap(*out_texture, 0);
+
+  return 0;
+}
+
+int D3D11GraphicsDriver::FetchTexture3D(
+    Shader::tex_buffer_desc_t& desc,
+    xe_gpu_texture_fetch_t& fetch,
+    TextureInfo& info,
+    ID3D11Resource** out_texture) {
+  XELOGE("D3D11: FetchTexture2D not yet implemented");
+  XEASSERTALWAYS();
+  return 1;
+  //D3D11_TEXTURE3D_DESC texture_desc;
+  //xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  //texture_desc.Width;
+  //texture_desc.Height;
+  //texture_desc.Depth;
+  //texture_desc.MipLevels;
+  //texture_desc.Format;
+  //texture_desc.Usage;
+  //texture_desc.BindFlags;
+  //texture_desc.CPUAccessFlags;
+  //texture_desc.MiscFlags;
+  //hr = device_->CreateTexture3D(
+  //    &texture_desc, &initial_data, (ID3D11Texture3D**)&texture);
+}
+
+int D3D11GraphicsDriver::FetchTextureCube(
+    Shader::tex_buffer_desc_t& desc,
+    xe_gpu_texture_fetch_t& fetch,
+    TextureInfo& info,
+    ID3D11Resource** out_texture) {
+  XELOGE("D3D11: FetchTextureCube not yet implemented");
+  XEASSERTALWAYS();
+  return 1;
+}
+
+int D3D11GraphicsDriver::PrepareTextureFetcher(
+    xenos::XE_GPU_SHADER_TYPE shader_type, Shader::tex_buffer_desc_t& desc) {
+  RegisterFile& rf = register_file_;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + desc.fetch_slot * 6;
+  xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
+  auto& fetch = group->texture_fetch;
+  // If this assert doesn't hold, maybe we just abort?
+  if (fetch.type != 0x2) {
+    XELOGW("D3D11: texture fetcher pointed at a vertex group?");
+    return 1;
+  }
+
+  TextureInfo info = GetTextureInfo(fetch);
+  if (info.format == DXGI_FORMAT_UNKNOWN) {
+    XELOGE("D3D11: unrecognized texture format %d", fetch.format);
+    return 1;
+  }
+
+  HRESULT hr;
+
+  D3D11_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
+  xe_zero_struct(&texture_view_desc, sizeof(texture_view_desc));
+  // TODO(benvanik): this may need to be typed on the fetch instruction (float/int/etc?)
+  texture_view_desc.Format = info.format;
+
+  ID3D11Resource* texture = NULL;
+  D3D_SRV_DIMENSION dimension = D3D11_SRV_DIMENSION_UNKNOWN;
+  switch (desc.tex_fetch.dimension) {
+  case DIMENSION_1D:
+    texture_view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE1D;
+    texture_view_desc.Texture1D.MipLevels       = 1;
+    texture_view_desc.Texture1D.MostDetailedMip = 0;
+    if (FetchTexture1D(desc, fetch, info, &texture)) {
+      XELOGE("D3D11: failed to fetch Texture1D");
+      return 1;
+    }
+    break;
+  case DIMENSION_2D:
+    texture_view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    texture_view_desc.Texture2D.MipLevels       = 1;
+    texture_view_desc.Texture2D.MostDetailedMip = 0;
+    if (FetchTexture2D(desc, fetch, info, &texture)) {
+      XELOGE("D3D11: failed to fetch Texture2D");
+      return 1;
+    }
+    break;
+  case DIMENSION_3D:
+    texture_view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
+    texture_view_desc.Texture3D.MipLevels       = 1;
+    texture_view_desc.Texture3D.MostDetailedMip = 0;
+    if (FetchTexture3D(desc, fetch, info, &texture)) {
+      XELOGE("D3D11: failed to fetch Texture3D");
+      return 1;
+    }
+    break;
+  case DIMENSION_CUBE:
+    texture_view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+    texture_view_desc.TextureCube.MipLevels       = 1;
+    texture_view_desc.TextureCube.MostDetailedMip = 0;
+    if (FetchTextureCube(desc, fetch, info, &texture)) {
+      XELOGE("D3D11: failed to fetch TextureCube");
+      return 1;
+    }
+    break;
+  }
+
+  XEASSERTNOTNULL(texture);
+
+  ID3D11ShaderResourceView* texture_view = NULL;
+  hr = device_->CreateShaderResourceView(
+      texture, &texture_view_desc, &texture_view);
+  if (FAILED(hr)) {
+    XELOGE("D3D11: unable to create texture resource view");
+    texture->Release();
+    return 1;
+  }
+  if (shader_type == XE_GPU_SHADER_TYPE_VERTEX) {
+    context_->VSSetShaderResources(desc.input_index, 1, &texture_view);
+  } else {
+    context_->PSSetShaderResources(desc.input_index, 1, &texture_view);
+  }
+  texture_view->Release();
+  texture->Release();
+
+  D3D11_SAMPLER_DESC sampler_desc;
+  xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
+  sampler_desc.Filter;
+  sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sampler_desc.MipLODBias;
+  sampler_desc.MaxAnisotropy  = 1;
+  sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+  sampler_desc.BorderColor[0];
+  sampler_desc.BorderColor[1];
+  sampler_desc.BorderColor[2];
+  sampler_desc.BorderColor[3];
+  sampler_desc.MinLOD;
+  sampler_desc.MaxLOD;
+  ID3D11SamplerState* sampler_state = NULL;
+  hr = device_->CreateSamplerState(&sampler_desc, &sampler_state);
+  if (FAILED(hr)) {
+    XELOGE("D3D11:: unable to create sampler state");
+    return 1;
+  }
+  if (shader_type == XE_GPU_SHADER_TYPE_VERTEX) {
+    context_->VSSetSamplers(desc.input_index, 1, &sampler_state);
+  } else {
+    context_->PSSetSamplers(desc.input_index, 1, &sampler_state);
+  }
+  sampler_state->Release();
+
   return 0;
 }
 

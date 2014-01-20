@@ -63,8 +63,30 @@ private:
   int BindShaders();
   int PrepareFetchers();
   int PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc);
-  int PrepareTextureFetcher(
-      int fetch_slot, xenos::xe_gpu_texture_fetch_t* fetch);
+  int PrepareTextureFetcher(xenos::XE_GPU_SHADER_TYPE shader_type,
+                            Shader::tex_buffer_desc_t& desc);
+  typedef struct {
+    DXGI_FORMAT format;
+    uint32_t block_width;
+    uint32_t block_height;
+  } TextureInfo;
+  TextureInfo GetTextureInfo(xenos::xe_gpu_texture_fetch_t& fetch);
+  int FetchTexture1D(Shader::tex_buffer_desc_t& desc,
+                     xenos::xe_gpu_texture_fetch_t& fetch,
+                     TextureInfo& info,
+                     ID3D11Resource** out_texture);
+  int FetchTexture2D(Shader::tex_buffer_desc_t& desc,
+                     xenos::xe_gpu_texture_fetch_t& fetch,
+                     TextureInfo& info,
+                     ID3D11Resource** out_texture);
+  int FetchTexture3D(Shader::tex_buffer_desc_t& desc,
+                     xenos::xe_gpu_texture_fetch_t& fetch,
+                     TextureInfo& info,
+                     ID3D11Resource** out_texture);
+  int FetchTextureCube(Shader::tex_buffer_desc_t& desc,
+                       xenos::xe_gpu_texture_fetch_t& fetch,
+                       TextureInfo& info,
+                       ID3D11Resource** out_texture);
   int PrepareIndexBuffer(
       bool index_32bit, uint32_t index_count,
       uint32_t index_base, uint32_t index_size, uint32_t endianness);
