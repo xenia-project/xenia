@@ -102,6 +102,8 @@ void IVMFunction::OnBreakpointHit(ThreadState* thread_state, IntCode* i) {
   debugger->OnBreakpointHit(thread_state, breakpoint);
 }
 
+#undef TRACE_SOURCE_OFFSET
+
 int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // Setup register file on stack.
   auto stack = (IVMStack*)thread_state->backend_data();
@@ -126,7 +128,7 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // TODO(benvanik): DID_CARRY -- need HIR to set a OPCODE_FLAG_SET_CARRY
   //                 or something so the fns can set an ics flag.
 
-#ifdef XE_DEBUG
+#ifdef TRACE_SOURCE_OFFSET
   size_t source_index = 0;
 #endif
 
@@ -138,7 +140,7 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
       thread_state->EnterSuspend();
     }
 
-#ifdef XE_DEBUG
+#ifdef TRACE_SOURCE_OFFSET
     uint64_t source_offset = -1;
     if (source_index < this->source_map_count_ &&
         this->source_map_[source_index].intcode_index <= ia) {
@@ -163,7 +165,7 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
       break;
     } else {
       ia = new_ia;
-#ifdef XE_DEBUG
+#ifdef TRACE_SOURCE_OFFSET
       source_index = 0;
 #endif
     }
