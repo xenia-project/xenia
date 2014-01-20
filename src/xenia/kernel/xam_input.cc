@@ -115,11 +115,13 @@ SHIM_CALL XamInputGetState_shim(
 SHIM_CALL XamInputSetState_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t vibration_ptr = SHIM_GET_ARG_32(1);
+  uint32_t unk = SHIM_GET_ARG_32(1);
+  uint32_t vibration_ptr = SHIM_GET_ARG_32(2);
 
   XELOGD(
-      "XamInputSetState(%d, %.8X)",
+      "XamInputSetState(%d, %.8X, %.8X)",
       user_index,
+      unk,
       vibration_ptr);
 
   if (!vibration_ptr) {
