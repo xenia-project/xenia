@@ -136,9 +136,11 @@ int D3D11GeometryShader::Generate(D3D11VertexShader* vertex_shader,
       "  float4 o[%d] : XE_O;\n",
       D3D11Shader::MAX_INTERPOLATORS);
   }
+  if (alloc_counts.point_size) {
+    output->Append(
+      "  float4 oPointSize : PSIZE;\n");
+  }
   output->Append(
-    // TODO(benvanik): only pull in point size if required.
-    "  float4 oPointSize : PSIZE;\n"
     "};\n");
 
   output->Append(
@@ -163,6 +165,8 @@ int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     return 1;
   }
 
+  auto alloc_counts = vertex_shader->alloc_counts();
+
   // TODO(benvanik): fetch default point size from register and use that if
   //     the VS doesn't write oPointSize.
   // TODO(benvanik): clamp to min/max.
@@ -176,8 +180,19 @@ int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     "   float2( 1.0,  1.0),\n"
     "   float2(-1.0, -1.0),\n"
     "   float2( 1.0, -1.0),\n"
-    "  };\n"
-    "  float psize = max(input[0].oPointSize.x, 1.0);\n"
+    "  };\n");
+  if (alloc_counts.point_size) {
+    // Point size specified in input.
+    // TODO(benvanik): pull in psize min/max.
+    output->Append(
+      "  float psize = max(input[0].oPointSize.x, 1.0);\n");
+  } else {
+    // Point size from register.
+    // TODO(benvanik): pull in psize.
+    output->Append(
+      "  float psize = 1.0;\n");
+  }
+  output->Append(
     "  for (uint n = 0; n < 4; n++) {\n"
     "    VERTEX v = input[0];\n"
     "    v.oPos.xy += offsets[n] * psize;\n"
@@ -204,6 +219,8 @@ int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     return 1;
   }
 
+  auto alloc_counts = vertex_shader->alloc_counts();
+
   output->Append(
     "[maxvertexcount(4)]\n"
     "void main(triangle VERTEX input[3], inout TriangleStream<VERTEX> output) {\n"
@@ -212,10 +229,11 @@ int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
     "    output.Append(v);\n"
     "  }\n"
     "  VERTEX v = input[2];\n"
-    "  v.oPos += input[1].oPos - input[0].oPos;\n"
-    // TODO(benvanik): only if needed?
-    "  v.oPointSize += input[1].oPointSize - input[0].oPointSize;\n");
-  auto alloc_counts = vertex_shader->alloc_counts();
+    "  v.oPos += input[1].oPos - input[0].oPos;\n");
+  if (alloc_counts.point_size) {
+    output->Append(
+      "  v.oPointSize += input[1].oPointSize - input[0].oPointSize;\n");
+  }
   for (uint32_t n = 0; n < alloc_counts.params; n++) {
     // TODO(benvanik): this may be wrong - the count is a bad metric.
     output->Append(

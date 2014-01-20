@@ -449,8 +449,10 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
       "  float4 o[%d] : XE_O;\n",
       MAX_INTERPOLATORS);
   }
-  output->append(
-    "  float4 oPointSize : PSIZE;\n");
+  if (alloc_counts_.point_size) {
+    output->append(
+      "  float4 oPointSize : PSIZE;\n");
+  }
   output->append(
     "};\n");
 
@@ -461,8 +463,11 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
 
   // Always write position, as some shaders seem to only write certain values.
   output->append(
-    "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n"
-    "  o.oPointSize = float4(1.0, 0.0, 0.0, 0.0);\n");
+    "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n");
+  if (alloc_counts_.point_size) {
+    output->append(
+      "  o.oPointSize = float4(1.0, 0.0, 0.0, 0.0);\n");
+  }
 
   // TODO(benvanik): remove this, if possible (though the compiler may be smart
   //     enough to do it for us).

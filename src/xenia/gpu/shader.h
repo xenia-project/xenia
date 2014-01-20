@@ -57,6 +57,7 @@ public:
     uint32_t  positions;
     uint32_t  params;
     uint32_t  memories;
+    bool      point_size;
   } alloc_counts_t;
   const alloc_counts_t& alloc_counts() const { return alloc_counts_; }
 

@@ -127,8 +127,18 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
       }
     } else {
       // TODO(benvanik): gather registers used, predicate bits used, etc.
-      /*const instr_alu_t* alu =
-          (const instr_alu_t*)(dwords_ + alu_off * 3);*/
+      const instr_alu_t* alu =
+          (const instr_alu_t*)(dwords_ + alu_off * 3);
+      if (alu->vector_write_mask) {
+        if (alu->export_data && alu->vector_dest == 63) {
+          alloc_counts_.point_size = true;
+        }
+      }
+      if (alu->scalar_write_mask || !alu->vector_write_mask) {
+        if (alu->export_data && alu->scalar_dest == 63) {
+          alloc_counts_.point_size = true;
+        }
+      }
     }
     sequence >>= 2;
   }
