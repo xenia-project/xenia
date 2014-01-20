@@ -10,6 +10,7 @@
 #include <xenia/gpu/d3d11/d3d11_shader.h>
 
 #include <xenia/gpu/gpu-private.h>
+#include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 #include <xenia/gpu/xenos/ucode.h>
 
 #include <d3dcompiler.h>
@@ -22,8 +23,6 @@ using namespace xe::gpu::xenos;
 
 
 namespace {
-
-const uint32_t MAX_INTERPOLATORS = 16;
 
 const int OUTPUT_CAPACITY = 64 * 1024;
 
@@ -210,9 +209,13 @@ D3D11VertexShader::D3D11VertexShader(
     handle_(0), input_layout_(0),
     D3D11Shader(device, XE_GPU_SHADER_TYPE_VERTEX,
                 src_ptr, length, hash) {
+  xe_zero_struct(geometry_shaders_, sizeof(geometry_shaders_));
 }
 
 D3D11VertexShader::~D3D11VertexShader() {
+  for (size_t n = 0; n < XECOUNT(geometry_shaders_); n++) {
+    delete geometry_shaders_[n];
+  }
   XESAFERELEASE(input_layout_);
   XESAFERELEASE(handle_);
 }
@@ -372,7 +375,6 @@ int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
   return 0;
 }
 
-
 const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
   Output* output = new Output();
   xe_gpu_translate_ctx_t ctx;
@@ -437,7 +439,8 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
 
   // Always write position, as some shaders seem to only write certain values.
   output->append(
-    "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n");
+    "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n"
+    "  o.oPointSize = float4(1.0, 0.0, 0.0, 0.0);\n");
 
   // TODO(benvanik): remove this, if possible (though the compiler may be smart
   //     enough to do it for us).
@@ -475,6 +478,43 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
   set_translated_src(output->buffer);
   delete output;
   return translated_src_;
+}
+
+int D3D11VertexShader::DemandGeometryShader(GeometryShaderType type,
+                                            D3D11GeometryShader** out_shader) {
+  if (geometry_shaders_[type]) {
+    *out_shader = geometry_shaders_[type];
+    return 0;
+  }
+
+  // Demand generate.
+  D3D11GeometryShader* shader = NULL;
+  switch (type) {
+  case POINT_SPRITE_SHADER:
+    shader = new D3D11PointSpriteGeometryShader(device_, hash_);
+    break;
+  case RECT_LIST_SHADER:
+    shader = new D3D11RectListGeometryShader(device_, hash_);
+    break;
+  case QUAD_LIST_SHADER:
+    shader = new D3D11QuadListGeometryShader(device_, hash_);
+    break;
+  default:
+    XEASSERTALWAYS();
+    return 1;
+  }
+  if (!shader) {
+    return 1;
+  }
+
+  if (shader->Prepare(this)) {
+    delete shader;
+    return 1;
+  }
+
+  geometry_shaders_[type] = shader;
+  *out_shader = geometry_shaders_[type];
+  return 0;
 }
 
 

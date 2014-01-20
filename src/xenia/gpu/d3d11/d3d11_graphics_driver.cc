@@ -10,6 +10,7 @@
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
+#include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 #include <xenia/gpu/d3d11/d3d11_shader.h>
 #include <xenia/gpu/d3d11/d3d11_shader_cache.h>
 
@@ -49,40 +50,6 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   buffer_desc.ByteWidth       = (32) * sizeof(int);
   hr = device_->CreateBuffer(
       &buffer_desc, NULL, &state_.constant_buffers.loop_constants);
-
-  //const char* shader_source =
-  //    ""
-  //    "[maxvertexcount(4)]\n"
-  //    "void main(triange RectVert input[3], inout TriangleStream<RectVert> output) {"
-  //    "  output.Append(input[0]);"
-  //    "  output.Append(input[1]);"
-  //    "  output.Append(input[2]);"
-  //    "  /* compute 3 */"
-  //    "  output.RestartStrip();"
-  //    "}";
-  //ID3D10Blob* shader_blob = 0;
-  //ID3D10Blob* error_blob = 0;
-  //HRESULT hr = D3DCompile(
-  //    shader_source, strlen(shader_source),
-  //    "d3d11_rect_shader.gs",
-  //    NULL, NULL,
-  //    "main",
-  //    "gs_5_0",
-  //    D3D10_SHADER_DEBUG | D3D10_SHADER_ENABLE_STRICTNESS, 0,
-  //    &shader_blob, &error_blob);
-  //if (error_blob) {
-  //  char* msg = (char*)error_blob->GetBufferPointer();
-  //  XELOGE("D3D11: rect shader compile failed with %s", msg);
-  //}
-  //XESAFERELEASE(error_blob);
-
-  //byte* rect_shader_bytes = 0;
-  //size_t rect_shader_length = 0;
-  //ID3D11GeometryShader* rect_shader;
-  //hr = device_->CreateGeometryShader(
-  //    shader_blob->GetBufferPointer(),
-  //    shader_blob->GetBufferSize(),
-  //    NULL, &rect_shader);
 }
 
 D3D11GraphicsDriver::~D3D11GraphicsDriver() {
@@ -162,9 +129,16 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
   // Switch primitive topology.
   // Some are unsupported on D3D11 and must be emulated.
   D3D11_PRIMITIVE_TOPOLOGY primitive_topology;
+  D3D11GeometryShader* geometry_shader = NULL;
   switch (prim_type) {
   case XE_GPU_PRIMITIVE_TYPE_POINT_LIST:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    //if (state_.vertex_shader) {
+    //  if (state_.vertex_shader->DemandGeometryShader(
+    //      D3D11VertexShader::POINT_SPRITE_SHADER, &geometry_shader)) {
+    //    return 1;
+    //  }
+    //}
     break;
   case XE_GPU_PRIMITIVE_TYPE_LINE_LIST:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
@@ -179,19 +153,35 @@ int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
     break;
   case XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST:
-    XELOGW("D3D11: faking RECTANGLE_LIST as a tri list");
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    if (state_.vertex_shader) {
+      if (state_.vertex_shader->DemandGeometryShader(
+          D3D11VertexShader::RECT_LIST_SHADER, &geometry_shader)) {
+        return 1;
+      }
+    }
+    break;
+  case XE_GPU_PRIMITIVE_TYPE_QUAD_LIST:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+    if (state_.vertex_shader) {
+      if (state_.vertex_shader->DemandGeometryShader(
+          D3D11VertexShader::QUAD_LIST_SHADER, &geometry_shader)) {
+        return 1;
+      }
+    }
     break;
   default:
   case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_FAN:
   case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_07:
   case XE_GPU_PRIMITIVE_TYPE_LINE_LOOP:
-  case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_0D:
     primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
     XELOGE("D3D11: unsupported primitive type %d", prim_type);
     break;
   }
   context_->IASetPrimitiveTopology(primitive_topology);
+
+  context_->GSSetShader(
+      geometry_shader ? geometry_shader->handle() : NULL, NULL, NULL);
 
   // Setup all fetchers (vertices/textures).
   if (PrepareFetchers()) {
@@ -429,7 +419,7 @@ int D3D11GraphicsDriver::UpdateState() {
   rasterizer_desc.DepthBias             = 0;
   rasterizer_desc.DepthBiasClamp        = 0;
   rasterizer_desc.SlopeScaledDepthBias  = 0;
-  rasterizer_desc.DepthClipEnable       = true;
+  rasterizer_desc.DepthClipEnable       = false; // ?
   rasterizer_desc.ScissorEnable         = false;
   rasterizer_desc.MultisampleEnable     = false;
   rasterizer_desc.AntialiasedLineEnable = false;
