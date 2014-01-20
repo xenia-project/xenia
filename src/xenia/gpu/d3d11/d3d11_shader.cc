@@ -426,6 +426,8 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
       MAX_INTERPOLATORS);
   }
   output->append(
+    "  float4 oPointSize : PSIZE;\n");
+  output->append(
     "};\n");
 
   // Vertex shader main() header.
@@ -684,7 +686,7 @@ void AppendDestRegName(
         ctx.output->append("o.oPos");
         break;
       case 63:
-        ctx.output->append("o.point_size");
+        ctx.output->append("o.oPointSize");
         break;
       default:
         // Varying.
