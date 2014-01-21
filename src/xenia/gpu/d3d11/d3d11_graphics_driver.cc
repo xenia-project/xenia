@@ -1022,6 +1022,9 @@ int D3D11GraphicsDriver::PrepareTextureFetchers() {
       continue;
     }
 
+    // Stash a copy of the fetch register.
+    fetcher.fetch = fetch;
+
     fetcher.info = GetTextureInfo(fetch);
     if (fetcher.info.format == DXGI_FORMAT_UNKNOWN) {
       XELOGW("D3D11: unknown texture format %d", fetch.format);
@@ -1345,7 +1348,46 @@ int D3D11GraphicsDriver::PrepareTextureSampler(
 
   D3D11_SAMPLER_DESC sampler_desc;
   xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
-  sampler_desc.Filter;
+  uint32_t min_filter = desc.tex_fetch.min_filter == 3 ?
+      fetcher.fetch.min_filter : desc.tex_fetch.min_filter;
+  uint32_t mag_filter = desc.tex_fetch.mag_filter == 3 ?
+      fetcher.fetch.mag_filter : desc.tex_fetch.mag_filter;
+  uint32_t mip_filter = desc.tex_fetch.mip_filter == 3 ?
+      fetcher.fetch.mip_filter : desc.tex_fetch.mip_filter;
+  // MIN, MAG, MIP
+  static const D3D11_FILTER filter_matrix[2][2][3] = {
+    {
+      // min = POINT
+      {
+        // mag = POINT
+        D3D11_FILTER_MIN_MAG_MIP_POINT,
+        D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR,
+        D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR, // basemap?
+      },
+      {
+        // mag = LINEAR
+        D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT,
+        D3D11_FILTER_MIN_POINT_MAG_MIP_LINEAR,
+        D3D11_FILTER_MIN_POINT_MAG_MIP_LINEAR, // basemap?
+      },
+    },
+    {
+      // min = LINEAR
+      {
+        // mag = POINT
+        D3D11_FILTER_MIN_LINEAR_MAG_MIP_POINT,
+        D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
+        D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR, // basemap?
+      },
+      {
+        // mag = LINEAR
+        D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT,
+        D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+        D3D11_FILTER_MIN_MAG_MIP_LINEAR, // basemap?
+      },
+    },
+  };
+  sampler_desc.Filter = filter_matrix[min_filter][mag_filter][mip_filter];
   sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
   sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
   sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_CLAMP;

@@ -124,6 +124,7 @@ private:
 
     struct {
       bool        enabled;
+      xenos::xe_gpu_texture_fetch_t fetch;
       TextureInfo info;
       ID3D11ShaderResourceView* view;
     } texture_fetchers[32];

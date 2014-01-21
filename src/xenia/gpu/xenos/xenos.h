@@ -146,7 +146,17 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
         uint32_t depth          : 10;
       } size_3d;
     };
-    uint32_t unk3;                    // dword_3
+    uint32_t unk3_0             :  1; // dword_3
+    uint32_t swiz_x             :  3;
+    uint32_t swiz_y             :  3;
+    uint32_t swiz_z             :  3;
+    uint32_t swiz_w             :  3;
+    uint32_t unk3_1             :  6;
+    uint32_t mag_filter         :  2;
+    uint32_t min_filter         :  2;
+    uint32_t mip_filter         :  2;
+    uint32_t unk3_2             :  6;
+    uint32_t border             :  1;
     uint32_t unk4;                    // dword_4
     uint32_t unk5               : 9;  // dword_5
     uint32_t dimension          : 2;
