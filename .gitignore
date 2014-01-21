@@ -9,6 +9,7 @@
 .com.apple.*
 Thumbs.db
 Desktop.ini
+.svn
 
 # ==============================================================================
 # Projects/IDE files
