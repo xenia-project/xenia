@@ -717,7 +717,7 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   }
   ID3D11BlendState* blend_state = 0;
   device_->CreateBlendState(&blend_desc, &blend_state);
-  //context_->OMSetBlendState(blend_state, blend_factor, sample_mask);
+  context_->OMSetBlendState(blend_state, blend_factor, sample_mask);
   XESAFERELEASE(blend_state);
 
   return 0;
