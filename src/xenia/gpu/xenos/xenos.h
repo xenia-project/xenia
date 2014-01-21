@@ -67,6 +67,7 @@ typedef enum {
   XE_GPU_SWIZZLE_BGRA                     = XE_GPU_MAKE_SWIZZLE(B, G, R, A),
   XE_GPU_SWIZZLE_RGB1                     = XE_GPU_MAKE_SWIZZLE(R, G, B, 1),
   XE_GPU_SWIZZLE_BGR1                     = XE_GPU_MAKE_SWIZZLE(B, G, R, 1),
+  XE_GPU_SWIZZLE_000R                     = XE_GPU_MAKE_SWIZZLE(0, 0, 0, R),
 } XE_GPU_SWIZZLE;
 
 XEFORCEINLINE uint32_t GpuSwap(uint32_t value, XE_GPU_ENDIAN endianness) {
