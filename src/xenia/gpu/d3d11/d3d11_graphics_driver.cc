@@ -58,7 +58,46 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
       &buffer_desc, NULL, &state_.constant_buffers.gs_consts);
 
   // TODO(benvanik): pattern?
-  invalid_texture_view_ = NULL;
+  D3D11_TEXTURE2D_DESC texture_desc;
+  xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  texture_desc.Width          = 4;
+  texture_desc.Height         = 4;
+  texture_desc.MipLevels      = 1;
+  texture_desc.ArraySize      = 1;
+  texture_desc.Format         = DXGI_FORMAT_R8G8B8A8_UNORM;
+  texture_desc.SampleDesc.Count   = 1;
+  texture_desc.SampleDesc.Quality = 0;
+  texture_desc.Usage          = D3D11_USAGE_IMMUTABLE;
+  texture_desc.BindFlags      = D3D11_BIND_SHADER_RESOURCE;
+  texture_desc.CPUAccessFlags = 0;
+  texture_desc.MiscFlags      = 0; // D3D11_RESOURCE_MISC_GENERATE_MIPS?
+  uint32_t texture_data[] = {
+    0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00,
+    0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00,
+    0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00,
+    0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00,
+  };
+  D3D11_SUBRESOURCE_DATA initial_data;
+  initial_data.SysMemPitch = 4 * texture_desc.Width;
+  initial_data.SysMemSlicePitch = 0;
+  initial_data.pSysMem = texture_data;
+  ID3D11Texture2D* texture = NULL;
+  hr = device_->CreateTexture2D(
+      &texture_desc, &initial_data, (ID3D11Texture2D**)&texture);
+  if (FAILED(hr)) {
+    XEFATAL("D3D11: unable to create invalid texture");
+    return;
+  }
+
+  D3D11_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
+  xe_zero_struct(&texture_view_desc, sizeof(texture_view_desc));
+  texture_view_desc.Format = texture_desc.Format;
+  texture_view_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+  texture_view_desc.Texture2D.MipLevels = 1;
+  texture_view_desc.Texture2D.MostDetailedMip = 0;
+  hr = device_->CreateShaderResourceView(
+        texture, &texture_view_desc, &invalid_texture_view_);
+  XESAFERELEASE(texture);
 
   D3D11_SAMPLER_DESC sampler_desc;
   xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
@@ -79,6 +118,7 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
       &sampler_desc, &invalid_texture_sampler_state_);
   if (FAILED(hr)) {
     XEFATAL("D3D11: unable to create invalid sampler state");
+    return;
   }
 }
 
