@@ -68,9 +68,8 @@ private:
                             Shader::tex_buffer_desc_t& desc);
   typedef struct {
     DXGI_FORMAT format;
-    uint32_t bpp;
-    uint32_t block_width;
-    uint32_t block_height;
+    uint32_t block_size;
+    uint32_t pitch;
   } TextureInfo;
   TextureInfo GetTextureInfo(xenos::xe_gpu_texture_fetch_t& fetch);
   int FetchTexture1D(xenos::xe_gpu_texture_fetch_t& fetch,

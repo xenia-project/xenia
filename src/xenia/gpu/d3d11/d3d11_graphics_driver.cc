@@ -1058,17 +1058,23 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   // a2xx_sq_surfaceformat
   TextureInfo info;
   info.format = DXGI_FORMAT_UNKNOWN;
-  info.bpp = 0;
-  info.block_width = 0;
-  info.block_height = 0;
+  info.block_size = 0;
+  info.pitch = 0;
   switch (fetch.format) {
   case FMT_8_8_8_8:
     info.format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    info.bpp = 4;
+    info.block_size = 1;
+    info.pitch = 4;
     break;
   case FMT_4_4_4_4:
     info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
-    info.bpp = 2;
+    info.block_size = 1;
+    info.pitch = 2;
+    break;
+  case FMT_DXT1:
+    info.format = DXGI_FORMAT_BC1_UNORM;
+    info.block_size = 4;
+    info.pitch = 8;
     break;
   case FMT_1_REVERSE:
   case FMT_1:
@@ -1086,7 +1092,6 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   case FMT_8_8_8_8_A:
   case FMT_10_11_11:
   case FMT_11_11_10:
-  case FMT_DXT1:
   case FMT_DXT2_3:
   case FMT_DXT4_5:
   case FMT_24_8:
@@ -1170,15 +1175,13 @@ int D3D11GraphicsDriver::FetchTexture2D(
 
   uint32_t width = fetch.size_2d.width;
   uint32_t height = fetch.size_2d.height;
-  uint32_t data_pitch = MAX(256, XENEXTPOW2(width));
-  // TODO(benvanik): block height rounding?
-  uint32_t data_height = height;
-  size_t data_size = data_pitch * data_height * info.bpp;
+  uint32_t padded_width = MAX(256, XENEXTPOW2(width));
+  uint32_t padded_height = MAX(256, XENEXTPOW2(height));
 
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
-  texture_desc.Width          = data_pitch;
-  texture_desc.Height         = data_height;
+  texture_desc.Width          = padded_width;
+  texture_desc.Height         = padded_height;
   texture_desc.MipLevels      = 1;
   texture_desc.ArraySize      = 1;
   texture_desc.Format         = info.format;
@@ -1204,11 +1207,14 @@ int D3D11GraphicsDriver::FetchTexture2D(
   }
   const uint8_t* src = memory_->Translate(address);
   uint8_t* dest = (uint8_t*)res.pData;
-  for (size_t y = 0; y < height; y++) {
-    for (size_t x = 0; x < width * info.bpp; x++) {
+
+  auto row_pitch = (width / info.block_size) * info.pitch;
+  auto padded_row_pitch = (padded_width / info.block_size) * info.pitch;
+  for (size_t y = 0; y < height / info.block_size; y++) {
+    for (size_t x = 0; x < row_pitch; x++) {
       dest[x] = src[x];
     }
-    src += data_pitch * info.bpp;
+    src += padded_row_pitch;
     dest += res.RowPitch;
   }
   context_->Unmap(*out_texture, 0);
