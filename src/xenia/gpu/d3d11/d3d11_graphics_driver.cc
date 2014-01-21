@@ -1264,8 +1264,16 @@ int D3D11GraphicsDriver::FetchTexture1D(
 XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch, XE_GPU_ENDIAN endianness) {
   switch (endianness) {
     case XE_GPU_ENDIAN_8IN16:
-      for (uint32_t i = 0; i < pitch; i += 2, dest += 2, src += 2) {
-      *(uint16_t*)dest = XESWAP16(*(uint16_t*)src);
+      if (pitch < 4) {
+        for (uint32_t i = 0; i < pitch; i += 2, dest += 2) {
+          *(uint16_t*)dest = XESWAP16(*(uint16_t*)dest);
+        }
+      }
+      else {
+        for (uint32_t i = 0; i < pitch; i += 4, dest += 4, src += 4) {
+          uint32_t value = *(uint32_t*)src;
+          *(uint32_t*)dest = ((value >> 16) & 0xFFFF) | (value << 16);
+        }
       }
       break;
     case XE_GPU_ENDIAN_8IN32: // Swap bytes.
@@ -1352,46 +1360,28 @@ int D3D11GraphicsDriver::FetchTexture2D(
   const uint8_t* src = memory_->Translate(address);
   uint8_t* dest = (uint8_t*)res.pData;
 
-  memset(dest, 0, res.RowPitch * (padded_height / info.block_size)); // TODO(gibbed): remove me later
+  //memset(dest, 0, res.RowPitch * (padded_height / info.block_size)); // TODO(gibbed): remove me later
 
   if (!fetch.tiled) {
-    for (uint32_t y = 0; y < height / info.block_size; y++) {
-      for (uint32_t x = 0; x < row_pitch; x += 4) {
-        *(uint32_t*)(dest + x) = XESWAP32BE(*(uint32_t*)(src + x));
-      }
-      src += padded_row_pitch;
-      dest += res.RowPitch;
-    }
-    src = NULL;
     dest = (uint8_t*)res.pData;
     for (uint32_t y = 0; y < height / info.block_size; y++) {
       for (uint32_t x = 0; x < row_pitch; x += info.pitch) {
-        TextureSwap(dest + x, dest + x, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
+        TextureSwap(dest + x, src + x, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
       dest += res.RowPitch;
+      src += row_pitch;
     }
   }
   else {
-    uint8_t* temp = (uint8_t*)xe_calloc(height * res.RowPitch);
-    dest = temp;
-    for (uint32_t y = 0; y < height / info.block_size; y++) {
-      for (uint32_t x = 0; x < row_pitch; x += 4) {
-        *(uint32_t*)(dest + x) = XESWAP32BE(*(uint32_t*)(src + x));
-      }
-      src += padded_row_pitch;
-      dest += res.RowPitch;
-    }
-    dest = (uint8_t*)res.pData;
     auto aligned_width = (width + 31) & ~31; // 32x32
     auto log_bpp = (info.pitch >> 2) + ((info.pitch >> 1) >> (info.pitch >> 2));
     for (uint32_t y = 0; y < height; y++) {
       auto base_offset = TiledOffset2DOuter(y, aligned_width, log_bpp);
       for (uint32_t x = 0; x < width; x++) {
         auto offset = TiledOffset2DInner(x, y, log_bpp, base_offset);
-        TextureSwap(dest + (y * res.RowPitch) + (x * info.pitch), temp + offset, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
+        TextureSwap(dest + (y * res.RowPitch) + (x * info.pitch), src + offset, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
     }
-    xe_free(temp);
   }
   context_->Unmap(*out_texture, 0);
   return 0;
