@@ -201,6 +201,41 @@ ID3D10Blob* D3D11Shader::Compile(const char* shader_source) {
   return shader_blob;
 }
 
+void D3D11Shader::AppendTextureHeader(Output* output) {
+  bool fetch_setup[32] = { false };
+
+  // 1 texture per constant slot, 1 sampler per fetch.
+  for (size_t n = 0; n < tex_buffer_inputs_.count; n++) {
+    auto& input = tex_buffer_inputs_.descs[n];
+    auto& fetch = input.tex_fetch;
+
+    // Add texture, if needed.
+    if (!fetch_setup[fetch.const_idx]) {
+      fetch_setup[fetch.const_idx] = true;
+      const char* texture_type = NULL;
+      switch (fetch.dimension) {
+      case DIMENSION_1D:
+        texture_type = "Texture1D";
+        break;
+      default:
+      case DIMENSION_2D:
+        texture_type = "Texture2D";
+        break;
+      case DIMENSION_3D:
+        texture_type = "Texture3D";
+        break;
+      case DIMENSION_CUBE:
+        texture_type = "TextureCube";
+        break;
+      }
+      output->append("%s x_texture_%d;\n", texture_type, fetch.const_idx);
+    }
+
+    // Add sampler.
+    output->append("SamplerState x_sampler_%d;\n", input.fetch_slot);
+  }
+}
+
 
 D3D11VertexShader::D3D11VertexShader(
     ID3D11Device* device,
@@ -380,6 +415,7 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
   xe_gpu_translate_ctx_t ctx;
   ctx.output  = output;
   ctx.type    = type_;
+  ctx.tex_fetch_index = 0;
 
   // Add constants buffers.
   // We could optimize this by only including used buffers, but the compiler
@@ -392,6 +428,8 @@ const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
     "  float4 c[512];\n"
     "};\n");
   // TODO(benvanik): add bool/loop constants.
+
+  AppendTextureHeader(output);
 
   // Transform utilities. We adjust the output position in various ways
   // as we can't do this via D3D11 APIs.
@@ -607,6 +645,7 @@ const char* D3D11PixelShader::Translate(
   xe_gpu_translate_ctx_t ctx;
   ctx.output  = output;
   ctx.type    = type_;
+  ctx.tex_fetch_index = 0;
 
   // We need an input VS to make decisions here.
   // TODO(benvanik): do we need to pair VS/PS up and store the combination?
@@ -627,6 +666,8 @@ const char* D3D11PixelShader::Translate(
     "  float4 c[512];\n"
     "};\n");
   // TODO(benvanik): add bool/loop constants.
+
+  AppendTextureHeader(output);
 
   // Add vertex shader output (pixel shader input).
   output->append(
@@ -1865,16 +1906,21 @@ int TranslateTextureFetch(
   output->append("\n");
 
   // Translate.
-  src_swiz = tex->src_swiz;
   output->append("  ");
   output->append("r%u.xyzw", tex->dst_reg);
   output->append(" = ");
-  uint32_t fetch_slot = tex->const_idx * 3;
-  //output->append("i.vf%u_%d.", fetch_slot, vtx->offset);
-  // Texture2D some_texture;
-  // SamplerState some_sampler;
-  // some_texture.Sample(some_sampler, coords)
-  output->append("float4(1.0, 0.0, 0.0, 1.0).");
+  output->append(
+      "x_texture_%d.Sample(x_sampler_%d, r%u.",
+      tex->const_idx,
+      ctx.tex_fetch_index++, // hacky way to line up to tex buffers
+      tex->src_reg);
+  src_swiz = tex->src_swiz;
+  for (int i = 0; i < 3; i++) {
+    output->append("%c", chan_names[src_swiz & 0x3]);
+    src_swiz >>= 2;
+  }
+  output->append(").");
+
   // Pass one over dest does xyzw and fakes the special values.
   // TODO(benvanik): detect and set as rN = float4(samp.xyz, 1.0); / etc
   uint32_t dst_swiz = tex->dst_swiz;

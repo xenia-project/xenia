@@ -27,6 +27,7 @@ struct Output;
 typedef struct {
   Output*       output;
   xenos::XE_GPU_SHADER_TYPE type;
+  uint32_t      tex_fetch_index;
 } xe_gpu_translate_ctx_t;
 
 class D3D11GeometryShader;
@@ -48,6 +49,7 @@ protected:
   const char* translated_src() const { return translated_src_; }
   void set_translated_src(char* value);
 
+  void AppendTextureHeader(Output* output);
   int TranslateExec(
       xe_gpu_translate_ctx_t& ctx, const xenos::instr_cf_exec_t& cf);
 
