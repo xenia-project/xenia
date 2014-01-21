@@ -1105,7 +1105,15 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   info.needs_power_of_two = false;
   switch (fetch.format) {
   case FMT_8:
-    info.format = DXGI_FORMAT_A8_UNORM;
+    switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_000R:
+      info.format = DXGI_FORMAT_A8_UNORM;
+      break;
+    default:
+      XELOGW("D3D11: unhandled swizzle for FMT_8");
+      info.format = DXGI_FORMAT_A8_UNORM;
+      break;
+    }
     info.block_size = 1;
     info.pitch = 1;
     break;
@@ -1132,7 +1140,15 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     info.pitch = 4;
     break;
   case FMT_4_4_4_4:
-    info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
+    switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_BGRA:
+      info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
+      break;
+    default:
+      XELOGW("D3D11: unhandled swizzle for FMT_4_4_4_4");
+      info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
+      break;
+    }
     info.block_size = 1;
     info.pitch = 2;
     break;
@@ -1329,44 +1345,54 @@ int D3D11GraphicsDriver::FetchTexture2D(
     XELOGE("D3D11: failed to map texture");
     return 1;
   }
+
+  auto row_pitch = (width / info.block_size) * info.pitch;
+  auto padded_row_pitch = (padded_width / info.block_size) * info.pitch;
+
   const uint8_t* src = memory_->Translate(address);
   uint8_t* dest = (uint8_t*)res.pData;
 
   memset(dest, 0, res.RowPitch * (padded_height / info.block_size)); // TODO(gibbed): remove me later
 
-  auto row_pitch = (width / info.block_size) * info.pitch;
-  auto padded_row_pitch = (padded_width / info.block_size) * info.pitch;
-
-  if (false) { // TODO(gibbed): if for some reason we ever want to not swap?
-    for (size_t y = 0; y < height / info.block_size; y++) {
-      memcpy(dest, src, row_pitch);
+  if (!fetch.tiled) {
+    for (uint32_t y = 0; y < height / info.block_size; y++) {
+      for (uint32_t x = 0; x < row_pitch; x += 4) {
+        *(uint32_t*)(dest + x) = XESWAP32BE(*(uint32_t*)(src + x));
+      }
       src += padded_row_pitch;
+      dest += res.RowPitch;
+    }
+    src = NULL;
+    dest = (uint8_t*)res.pData;
+    for (uint32_t y = 0; y < height / info.block_size; y++) {
+      for (uint32_t x = 0; x < row_pitch; x += info.pitch) {
+        TextureSwap(dest + x, dest + x, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
+      }
       dest += res.RowPitch;
     }
   }
   else {
-    if (!fetch.tiled) {
-      for (uint32_t y = 0; y < height / info.block_size; y++) {
-        for (uint32_t x = 0; x < row_pitch; x += info.pitch) {
-          TextureSwap(dest + x, src + x, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
-        }
-        src += padded_row_pitch;
-        dest += res.RowPitch;
+    uint8_t* temp = (uint8_t*)xe_calloc(height * res.RowPitch);
+    dest = temp;
+    for (uint32_t y = 0; y < height / info.block_size; y++) {
+      for (uint32_t x = 0; x < row_pitch; x += 4) {
+        *(uint32_t*)(dest + x) = XESWAP32BE(*(uint32_t*)(src + x));
+      }
+      src += padded_row_pitch;
+      dest += res.RowPitch;
+    }
+    dest = (uint8_t*)res.pData;
+    auto aligned_width = (width + 31) & ~31; // 32x32
+    auto log_bpp = (info.pitch >> 2) + ((info.pitch >> 1) >> (info.pitch >> 2));
+    for (uint32_t y = 0; y < height; y++) {
+      auto base_offset = TiledOffset2DOuter(y, aligned_width, log_bpp);
+      for (uint32_t x = 0; x < width; x++) {
+        auto offset = TiledOffset2DInner(x, y, log_bpp, base_offset);
+        TextureSwap(dest + (y * res.RowPitch) + (x * info.pitch), temp + offset, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
     }
-    else {
-      auto aligned_width = (width + 31) & ~31; // 32x32
-      auto log_bpp = (info.pitch >> 2) + ((info.pitch >> 1) >> (info.pitch >> 2));
-      for (uint32_t y = 0; y < height; y++) {
-        auto base_offset = TiledOffset2DOuter(y, aligned_width, log_bpp);
-        for (uint32_t x = 0; x < width; x++) {
-          auto offset = TiledOffset2DInner(x, y, log_bpp, base_offset);
-          TextureSwap(dest + (y * res.RowPitch) + (x * info.pitch), src + offset, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
-        }
-      }
-    }
+    xe_free(temp);
   }
-
   context_->Unmap(*out_texture, 0);
   return 0;
 }
