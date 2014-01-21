@@ -1095,7 +1095,7 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     break;
   case FMT_DXT2_3:
   case FMT_DXT4_5:
-    info.format = DXGI_FORMAT_BC3_UNORM;
+    info.format = (fetch.format == FMT_DXT4_5 ? DXGI_FORMAT_BC3_UNORM : DXGI_FORMAT_BC2_UNORM);
     info.block_size = 4;
     info.pitch = 16;
     info.needs_power_of_two = true;
