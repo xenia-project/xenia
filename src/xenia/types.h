@@ -142,6 +142,9 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XESELECTBITS(value, a, b) ((value & XEBITMASK(a, b)) >> a)
 
 #define XEROUNDUP(v, multiple)  ((v) + (multiple) - 1 - ((v) - 1) % (multiple))
+static inline uint32_t XENEXTPOW2(uint32_t v) {
+  v--; v |= v >> 1; v |= v >> 2; v |= v >> 4; v |= v >> 8; v |= v >> 16; v++; return v;
+}
 
 #define XESUCCEED()             goto XECLEANUP
 #define XEFAIL()                goto XECLEANUP

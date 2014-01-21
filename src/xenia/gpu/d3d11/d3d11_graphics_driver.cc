@@ -1170,9 +1170,9 @@ int D3D11GraphicsDriver::FetchTexture2D(
 
   uint32_t width = fetch.size_2d.width;
   uint32_t height = fetch.size_2d.height;
-  uint32_t data_pitch = XEROUNDUP(width, 256);
+  uint32_t data_pitch = MAX(256, XENEXTPOW2(width));
   // TODO(benvanik): block height rounding?
-  uint32_t data_height = XEROUNDUP(height, 256);
+  uint32_t data_height = height;
   size_t data_size = data_pitch * data_height * info.bpp;
 
   D3D11_TEXTURE2D_DESC texture_desc;
