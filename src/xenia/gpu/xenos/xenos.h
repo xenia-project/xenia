@@ -50,6 +50,25 @@ typedef enum {
   XE_GPU_ENDIAN_16IN32                    = 0x3,
 } XE_GPU_ENDIAN;
 
+#define XE_GPU_MAKE_SWIZZLE(x, y, z, w) \
+    (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | ((XE_GPU_SWIZZLE_##z) << 6) | ((XE_GPU_SWIZZLE_##w) << 9))
+typedef enum {
+  XE_GPU_SWIZZLE_X                        = 0,
+  XE_GPU_SWIZZLE_R                        = 0,
+  XE_GPU_SWIZZLE_Y                        = 1,
+  XE_GPU_SWIZZLE_G                        = 1,
+  XE_GPU_SWIZZLE_Z                        = 2,
+  XE_GPU_SWIZZLE_B                        = 2,
+  XE_GPU_SWIZZLE_W                        = 3,
+  XE_GPU_SWIZZLE_A                        = 3,
+  XE_GPU_SWIZZLE_0                        = 4,
+  XE_GPU_SWIZZLE_1                        = 5,
+  XE_GPU_SWIZZLE_RGBA                     = XE_GPU_MAKE_SWIZZLE(R, G, B, A),
+  XE_GPU_SWIZZLE_BGRA                     = XE_GPU_MAKE_SWIZZLE(B, G, R, A),
+  XE_GPU_SWIZZLE_RGB1                     = XE_GPU_MAKE_SWIZZLE(R, G, B, 1),
+  XE_GPU_SWIZZLE_BGR1                     = XE_GPU_MAKE_SWIZZLE(B, G, R, 1),
+} XE_GPU_SWIZZLE;
+
 XEFORCEINLINE uint32_t GpuSwap(uint32_t value, XE_GPU_ENDIAN endianness) {
   switch (endianness) {
   default:
@@ -147,10 +166,7 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
       } size_3d;
     };
     uint32_t unk3_0             :  1; // dword_3
-    uint32_t swiz_x             :  3;
-    uint32_t swiz_y             :  3;
-    uint32_t swiz_z             :  3;
-    uint32_t swiz_w             :  3;
+    uint32_t swizzle            :  12; // xyzw, 3b each (XE_GPU_SWIZZLE)
     uint32_t unk3_1             :  6;
     uint32_t mag_filter         :  2;
     uint32_t min_filter         :  2;

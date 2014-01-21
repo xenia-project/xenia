@@ -1111,7 +1111,24 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     info.pitch = 1;
     break;
   case FMT_8_8_8_8:
-    info.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_RGBA:
+      info.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      break;
+    case XE_GPU_SWIZZLE_BGRA:
+      info.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+      break;
+    case XE_GPU_SWIZZLE_RGB1:
+      info.format = DXGI_FORMAT_R8G8B8A8_UNORM; // ?
+      break;
+    case XE_GPU_SWIZZLE_BGR1:
+      info.format = DXGI_FORMAT_B8G8R8X8_UNORM;
+      break;
+    default:
+      XELOGW("D3D11: unhandled swizzle for FMT_8_8_8_8");
+      info.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      break;
+    }
     info.block_size = 1;
     info.pitch = 4;
     break;
