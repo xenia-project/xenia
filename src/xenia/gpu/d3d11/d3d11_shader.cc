@@ -205,7 +205,7 @@ void D3D11Shader::AppendTextureHeader(Output* output) {
   bool fetch_setup[32] = { false };
 
   // 1 texture per constant slot, 1 sampler per fetch.
-  for (size_t n = 0; n < tex_buffer_inputs_.count; n++) {
+  for (uint32_t  n = 0; n < tex_buffer_inputs_.count; n++) {
     auto& input = tex_buffer_inputs_.descs[n];
     auto& fetch = input.tex_fetch;
 
@@ -232,7 +232,7 @@ void D3D11Shader::AppendTextureHeader(Output* output) {
     }
 
     // Add sampler.
-    output->append("SamplerState x_sampler_%d;\n", input.fetch_slot);
+    output->append("SamplerState x_sampler_%d;\n", n);
   }
 }
 
@@ -1905,6 +1905,23 @@ int TranslateTextureFetch(
   }
   output->append("\n");
 
+  int src_component_count = 0;
+  switch (tex->dimension) {
+  case DIMENSION_1D:
+    src_component_count = 1;
+    break;
+  default:
+  case DIMENSION_2D:
+    src_component_count = 2;
+    break;
+  case DIMENSION_3D:
+    src_component_count = 3;
+    break;
+  case DIMENSION_CUBE:
+    src_component_count = 3;
+    break;
+  }
+
   // Translate.
   output->append("  ");
   output->append("r%u.xyzw", tex->dst_reg);
@@ -1915,7 +1932,7 @@ int TranslateTextureFetch(
       ctx.tex_fetch_index++, // hacky way to line up to tex buffers
       tex->src_reg);
   src_swiz = tex->src_swiz;
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < src_component_count; i++) {
     output->append("%c", chan_names[src_swiz & 0x3]);
     src_swiz >>= 2;
   }
