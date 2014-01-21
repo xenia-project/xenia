@@ -1316,7 +1316,7 @@ int D3D11GraphicsDriver::FetchTexture2D(
   uint32_t width = 1 + fetch.size_2d.width;
   uint32_t height = 1 + fetch.size_2d.height;
   uint32_t padded_width = info.needs_power_of_two == false ? width : MAX(256, XENEXTPOW2(width));
-  uint32_t padded_height = info.needs_power_of_two == false ? height : 256, XENEXTPOW2(height);
+  uint32_t padded_height = info.needs_power_of_two == false ? height : XENEXTPOW2(height);
 
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
