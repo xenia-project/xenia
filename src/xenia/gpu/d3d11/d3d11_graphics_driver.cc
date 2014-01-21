@@ -14,8 +14,6 @@
 #include <xenia/gpu/d3d11/d3d11_shader.h>
 #include <xenia/gpu/d3d11/d3d11_shader_cache.h>
 
-#include <third_party/crunch/inc/crn_decomp.h>
-
 using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::d3d11;
