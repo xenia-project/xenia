@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="crnlib" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="libcrnlibD" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="" />
+				<Option object_output="obj\Debug\" />
+				<Option type="2" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Compiler>
+					<Add option="-Wextra" />
+					<Add option="-Wall" />
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="libcrnlib" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="" />
+				<Option object_output="obj\Release\" />
+				<Option type="2" />
+				<Option compiler="gcc" />
+				<Option createDefFile="1" />
+				<Compiler>
+					<Add option="-march=core2" />
+					<Add option="-fomit-frame-pointer" />
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O3" />
+					<Add option="-Wextra" />
+					<Add option="-Wall" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wextra" />
+			<Add option="-Wall" />
+			<Add option="-Wno-unused-value" />
+			<Add option="-Wno-unused" />
+			<Add option="-fno-strict-aliasing" />
+		</Compiler>
+		<Unit filename="crn_arealist.cpp" />
+		<Unit filename="crn_arealist.h" />
+		<Unit filename="crn_assert.cpp" />
+		<Unit filename="crn_assert.h" />
+		<Unit filename="crn_buffer_stream.h" />
+		<Unit filename="crn_cfile_stream.h" />
+		<Unit filename="crn_checksum.cpp" />
+		<Unit filename="crn_checksum.h" />
+		<Unit filename="crn_clusterizer.h" />
+		<Unit filename="crn_color.h" />
+		<Unit filename="crn_colorized_console.cpp" />
+		<Unit filename="crn_colorized_console.h" />
+		<Unit filename="crn_command_line_params.cpp" />
+		<Unit filename="crn_command_line_params.h" />
+		<Unit filename="crn_comp.cpp" />
+		<Unit filename="crn_comp.h" />
+		<Unit filename="crn_condition_var.h" />
+		<Unit filename="crn_console.cpp" />
+		<Unit filename="crn_console.h" />
+		<Unit filename="crn_core.cpp" />
+		<Unit filename="crn_core.h" />
+		<Unit filename="crn_data_stream.cpp" />
+		<Unit filename="crn_data_stream.h" />
+		<Unit filename="crn_data_stream_serializer.h" />
+		<Unit filename="crn_dds_comp.cpp" />
+		<Unit filename="crn_dds_comp.h" />
+		<Unit filename="crn_decomp.cpp" />
+		<Unit filename="crn_dxt.cpp" />
+		<Unit filename="crn_dxt.h" />
+		<Unit filename="crn_dxt1.cpp" />
+		<Unit filename="crn_dxt1.h" />
+		<Unit filename="crn_dxt5a.cpp" />
+		<Unit filename="crn_dxt5a.h" />
+		<Unit filename="crn_dxt_endpoint_refiner.cpp" />
+		<Unit filename="crn_dxt_endpoint_refiner.h" />
+		<Unit filename="crn_dxt_fast.cpp" />
+		<Unit filename="crn_dxt_fast.h" />
+		<Unit filename="crn_dxt_hc.cpp" />
+		<Unit filename="crn_dxt_hc.h" />
+		<Unit filename="crn_dxt_hc_common.cpp" />
+		<Unit filename="crn_dxt_hc_common.h" />
+		<Unit filename="crn_dxt_image.cpp" />
+		<Unit filename="crn_dxt_image.h" />
+		<Unit filename="crn_dynamic_stream.h" />
+		<Unit filename="crn_dynamic_string.cpp" />
+		<Unit filename="crn_dynamic_string.h" />
+		<Unit filename="crn_etc.cpp" />
+		<Unit filename="crn_etc.h" />
+		<Unit filename="crn_file_utils.cpp" />
+		<Unit filename="crn_file_utils.h" />
+		<Unit filename="crn_find_files.cpp" />
+		<Unit filename="crn_find_files.h" />
+		<Unit filename="crn_fixed_array.h" />
+		<Unit filename="crn_hash.cpp" />
+		<Unit filename="crn_hash.h" />
+		<Unit filename="crn_hash_map.cpp" />
+		<Unit filename="crn_hash_map.h" />
+		<Unit filename="crn_helpers.h" />
+		<Unit filename="crn_huffman_codes.cpp" />
+		<Unit filename="crn_huffman_codes.h" />
+		<Unit filename="crn_image.h" />
+		<Unit filename="crn_image_utils.cpp" />
+		<Unit filename="crn_image_utils.h" />
+		<Unit filename="crn_intersect.h" />
+		<Unit filename="crn_jpgd.cpp" />
+		<Unit filename="crn_jpgd.h" />
+		<Unit filename="crn_jpge.cpp" />
+		<Unit filename="crn_jpge.h" />
+		<Unit filename="crn_ktx_texture.cpp" />
+		<Unit filename="crn_ktx_texture.h" />
+		<Unit filename="crn_lzma_codec.cpp" />
+		<Unit filename="crn_lzma_codec.h" />
+		<Unit filename="crn_math.cpp" />
+		<Unit filename="crn_math.h" />
+		<Unit filename="crn_matrix.h" />
+		<Unit filename="crn_mem.cpp" />
+		<Unit filename="crn_mem.h" />
+		<Unit filename="crn_miniz.cpp" />
+		<Unit filename="crn_miniz.h" />
+		<Unit filename="crn_mipmapped_texture.cpp" />
+		<Unit filename="crn_mipmapped_texture.h" />
+		<Unit filename="crn_mutex.h" />
+		<Unit filename="crn_packed_uint.h" />
+		<Unit filename="crn_pixel_format.cpp" />
+		<Unit filename="crn_pixel_format.h" />
+		<Unit filename="crn_platform.cpp" />
+		<Unit filename="crn_platform.h" />
+		<Unit filename="crn_prefix_coding.cpp" />
+		<Unit filename="crn_prefix_coding.h" />
+		<Unit filename="crn_qdxt1.cpp" />
+		<Unit filename="crn_qdxt1.h" />
+		<Unit filename="crn_qdxt5.cpp" />
+		<Unit filename="crn_qdxt5.h" />
+		<Unit filename="crn_rand.cpp" />
+		<Unit filename="crn_rand.h" />
+		<Unit filename="crn_ray.h" />
+		<Unit filename="crn_rect.h" />
+		<Unit filename="crn_resample_filters.cpp" />
+		<Unit filename="crn_resample_filters.h" />
+		<Unit filename="crn_resampler.cpp" />
+		<Unit filename="crn_resampler.h" />
+		<Unit filename="crn_rg_etc1.cpp" />
+		<Unit filename="crn_rg_etc1.h" />
+		<Unit filename="crn_ryg_dxt.cpp" />
+		<Unit filename="crn_ryg_dxt.hpp" />
+		<Unit filename="crn_ryg_types.hpp" />
+		<Unit filename="crn_sparse_array.h" />
+		<Unit filename="crn_sparse_bit_array.cpp" />
+		<Unit filename="crn_sparse_bit_array.h" />
+		<Unit filename="crn_stb_image.cpp" />
+		<Unit filename="crn_strutils.cpp" />
+		<Unit filename="crn_strutils.h" />
+		<Unit filename="crn_symbol_codec.cpp" />
+		<Unit filename="crn_symbol_codec.h" />
+		<Unit filename="crn_texture_comp.cpp" />
+		<Unit filename="crn_texture_comp.h" />
+		<Unit filename="crn_texture_conversion.cpp" />
+		<Unit filename="crn_texture_conversion.h" />
+		<Unit filename="crn_texture_file_types.cpp" />
+		<Unit filename="crn_texture_file_types.h" />
+		<Unit filename="crn_threaded_clusterizer.h" />
+		<Unit filename="crn_threaded_resampler.cpp" />
+		<Unit filename="crn_threaded_resampler.h" />
+		<Unit filename="crn_threading.h" />
+		<Unit filename="crn_threading_null.h" />
+		<Unit filename="crn_threading_pthreads.h" />
+		<Unit filename="crn_threading_win32.cpp" />
+		<Unit filename="crn_threading_win32.h" />
+		<Unit filename="crn_timer.cpp" />
+		<Unit filename="crn_timer.h" />
+		<Unit filename="crn_traits.h" />
+		<Unit filename="crn_tree_clusterizer.h" />
+		<Unit filename="crn_types.h" />
+		<Unit filename="crn_utils.cpp" />
+		<Unit filename="crn_utils.h" />
+		<Unit filename="crn_value.cpp" />
+		<Unit filename="crn_value.h" />
+		<Unit filename="crn_vec.h" />
+		<Unit filename="crn_vec_interval.h" />
+		<Unit filename="crn_vector.cpp" />
+		<Unit filename="crn_vector.h" />
+		<Unit filename="crn_vector2d.h" />
+		<Unit filename="crn_winhdr.h" />
+		<Unit filename="crn_zeng.cpp" />
+		<Unit filename="crn_zeng.h" />
+		<Unit filename="crnlib.cbp" />
+		<Unit filename="crnlib.cpp" />
+		<Unit filename="lzma_7zBuf.cpp" />
+		<Unit filename="lzma_7zBuf.h" />
+		<Unit filename="lzma_7zBuf2.cpp" />
+		<Unit filename="lzma_7zCrc.h" />
+		<Unit filename="lzma_7zFile.cpp" />
+		<Unit filename="lzma_7zFile.h" />
+		<Unit filename="lzma_7zStream.cpp" />
+		<Unit filename="lzma_7zVersion.h" />
+		<Unit filename="lzma_Alloc.cpp" />
+		<Unit filename="lzma_Alloc.h" />
+		<Unit filename="lzma_Bcj2.cpp" />
+		<Unit filename="lzma_Bcj2.h" />
+		<Unit filename="lzma_Bra.cpp" />
+		<Unit filename="lzma_Bra.h" />
+		<Unit filename="lzma_Bra86.cpp" />
+		<Unit filename="lzma_BraIA64.cpp" />
+		<Unit filename="lzma_CpuArch.h" />
+		<Unit filename="lzma_LzFind.cpp" />
+		<Unit filename="lzma_LzFind.h" />
+		<Unit filename="lzma_LzFindMt.cpp" />
+		<Unit filename="lzma_LzFindMt.h" />
+		<Unit filename="lzma_LzHash.h" />
+		<Unit filename="lzma_LzmaDec.cpp" />
+		<Unit filename="lzma_LzmaDec.h" />
+		<Unit filename="lzma_LzmaEnc.cpp" />
+		<Unit filename="lzma_LzmaEnc.h" />
+		<Unit filename="lzma_LzmaLib.cpp" />
+		<Unit filename="lzma_LzmaLib.h" />
+		<Unit filename="lzma_MyVersion.h" />
+		<Unit filename="lzma_Threads.cpp" />
+		<Unit filename="lzma_Threads.h" />
+		<Unit filename="lzma_Types.h" />
+		<Unit filename="..\inc\crn_decomp.h" />
+		<Unit filename="..\inc\crnlib.h" />
+		<Unit filename="..\inc\dds_defs.h" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+			<envvars />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

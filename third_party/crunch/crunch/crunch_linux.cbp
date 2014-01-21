@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="crunch" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="../bin_linux/crunchD" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="/home/richg/crunch_work/bin_linux" />
+				<Option object_output="obj/Debug/" />
+				<Option external_deps="../crnlib/libcrnlibD.a;" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="-file orig/*.png -fileformat crn -bitrate 1.33 " />
+				<Compiler>
+					<Add option="-Wextra" />
+					<Add option="-Wall" />
+					<Add option="-D_DEBUG" />
+				</Compiler>
+				<Linker>
+					<Add library="../crnlib/libcrnlibD.a" />
+					<Add library="pthread" />
+				</Linker>
+			</Target>
+			<Target title="Release">
+				<Option output="../bin_linux/crunch" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="/home/richg/crunch_work/bin_linux" />
+				<Option object_output="obj/Release/" />
+				<Option external_deps="../crnlib/libcrnlib.a;" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="-file orig/*.png -fileformat crn -bitrate 1.33 -imagestats -lzmastats -logfile log3.txt -fileformat crn -bitrate 1.33 -imagestats -lzmastats -logfile log3.txt  -bitrate 1.5" />
+				<Compiler>
+					<Add option="-march=core2" />
+					<Add option="-fomit-frame-pointer" />
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O3" />
+					<Add option="-Wextra" />
+					<Add option="-Wall" />
+					<Add option="-DNDEBUG" />
+				</Compiler>
+				<Linker>
+					<Add library="../crnlib/libcrnlib.a" />
+					<Add library="pthread" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wextra" />
+			<Add option="-Wall" />
+			<Add option="-g" />
+			<Add option="-fexceptions" />
+			<Add option="-Wno-unused-value" />
+			<Add option="-Wno-unused" />
+			<Add option="-fno-strict-aliasing" />
+			<Add option="-ffast-math" />
+			<Add option="-fno-math-errno" />
+			<Add directory="../inc" />
+			<Add directory="../crnlib" />
+		</Compiler>
+		<Unit filename="corpus_gen.cpp" />
+		<Unit filename="corpus_gen.h" />
+		<Unit filename="corpus_test.cpp" />
+		<Unit filename="corpus_test.h" />
+		<Unit filename="crunch.cpp" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+			<DoxyBlocks>
+				<comment_style block="0" line="0" />
+				<doxyfile_project />
+				<doxyfile_build />
+				<doxyfile_warnings />
+				<doxyfile_output />
+				<doxyfile_dot />
+				<general />
+			</DoxyBlocks>
+			<envvars />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
