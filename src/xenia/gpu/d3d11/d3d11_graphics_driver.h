@@ -70,6 +70,7 @@ private:
     DXGI_FORMAT format;
     uint32_t block_size;
     uint32_t pitch;
+    bool needs_power_of_two;
   } TextureInfo;
   TextureInfo GetTextureInfo(xenos::xe_gpu_texture_fetch_t& fetch);
   int FetchTexture1D(xenos::xe_gpu_texture_fetch_t& fetch,

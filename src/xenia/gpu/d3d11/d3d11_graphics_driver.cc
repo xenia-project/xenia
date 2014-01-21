@@ -1060,6 +1060,7 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   info.format = DXGI_FORMAT_UNKNOWN;
   info.block_size = 0;
   info.pitch = 0;
+  info.needs_power_of_two = false;
   switch (fetch.format) {
   case FMT_8:
     info.format = DXGI_FORMAT_R8_UNORM;
@@ -1076,10 +1077,28 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     info.block_size = 1;
     info.pitch = 2;
     break;
+  case FMT_16_16_16_16_FLOAT:
+    info.format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    info.block_size = 1;
+    info.pitch = 8;
+    break;
+  case FMT_32_FLOAT:
+    info.format = DXGI_FORMAT_R32_FLOAT;
+    info.block_size = 1;
+    info.pitch = 4;
+    break;
   case FMT_DXT1:
     info.format = DXGI_FORMAT_BC1_UNORM;
     info.block_size = 4;
     info.pitch = 8;
+    info.needs_power_of_two = true;
+    break;
+  case FMT_DXT2_3:
+  case FMT_DXT4_5:
+    info.format = (fetch.format == FMT_DXT4_5 ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC3_UNORM);
+    info.block_size = 4;
+    info.pitch = 16;
+    info.needs_power_of_two = true;
     break;
   case FMT_1_REVERSE:
   case FMT_1:
@@ -1096,8 +1115,6 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   case FMT_8_8_8_8_A:
   case FMT_10_11_11:
   case FMT_11_11_10:
-  case FMT_DXT2_3:
-  case FMT_DXT4_5:
   case FMT_24_8:
   case FMT_24_8_FLOAT:
   case FMT_16:
@@ -1108,11 +1125,9 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   case FMT_16_16_16_16_EXPAND:
   case FMT_16_FLOAT:
   case FMT_16_16_FLOAT:
-  case FMT_16_16_16_16_FLOAT:
   case FMT_32:
   case FMT_32_32:
   case FMT_32_32_32_32:
-  case FMT_32_FLOAT:
   case FMT_32_32_FLOAT:
   case FMT_32_32_32_32_FLOAT:
   case FMT_32_AS_8:
@@ -1150,7 +1165,7 @@ int D3D11GraphicsDriver::FetchTexture1D(
     ID3D11Resource** out_texture) {
   uint32_t address = (fetch.address << 12) + address_translation_;
 
-  uint32_t width = fetch.size_1d.width;
+  uint32_t width = 1 + fetch.size_1d.width;
 
   D3D11_TEXTURE1D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
@@ -1177,10 +1192,10 @@ int D3D11GraphicsDriver::FetchTexture2D(
     ID3D11Resource** out_texture) {
   uint32_t address = (fetch.address << 12) + address_translation_;
 
-  uint32_t width = fetch.size_2d.width;
-  uint32_t height = fetch.size_2d.height;
-  uint32_t padded_width = MAX(256, XENEXTPOW2(width));
-  uint32_t padded_height = MAX(256, XENEXTPOW2(height));
+  uint32_t width = 1 + fetch.size_2d.width;
+  uint32_t height = 1 + fetch.size_2d.height;
+  uint32_t padded_width = info.needs_power_of_two == false ? width : MAX(256, XENEXTPOW2(width));
+  uint32_t padded_height = info.needs_power_of_two == false ? height : MAX(256, XENEXTPOW2(height));
 
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
@@ -1212,17 +1227,18 @@ int D3D11GraphicsDriver::FetchTexture2D(
   const uint8_t* src = memory_->Translate(address);
   uint8_t* dest = (uint8_t*)res.pData;
 
+  memset(dest, 0, res.RowPitch * (padded_height / info.block_size)); // TODO(gibbed): remove me later
   auto row_pitch = (width / info.block_size) * info.pitch;
   auto padded_row_pitch = (padded_width / info.block_size) * info.pitch;
   for (size_t y = 0; y < height / info.block_size; y++) {
-    for (size_t x = 0; x < row_pitch; x++) {
-      dest[x] = src[x];
+    for (size_t x = 0; x < row_pitch; x += 4) {
+      *(uint32_t*)(dest + x) = GpuSwap(XESWAP32BE(*(uint32_t*)(src + x)), (XE_GPU_ENDIAN)fetch.endianness);
     }
     src += padded_row_pitch;
     dest += res.RowPitch;
   }
-  context_->Unmap(*out_texture, 0);
 
+  context_->Unmap(*out_texture, 0);
   return 0;
 }
 
