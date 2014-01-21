@@ -1061,6 +1061,11 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   info.block_size = 0;
   info.pitch = 0;
   switch (fetch.format) {
+  case FMT_8:
+    info.format = DXGI_FORMAT_R8_UNORM;
+    info.block_size = 1;
+    info.pitch = 1;
+    break;
   case FMT_8_8_8_8:
     info.format = DXGI_FORMAT_B8G8R8A8_UNORM;
     info.block_size = 1;
@@ -1078,7 +1083,6 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     break;
   case FMT_1_REVERSE:
   case FMT_1:
-  case FMT_8:
   case FMT_1_5_5_5:
   case FMT_5_6_5:
   case FMT_6_5_5:
