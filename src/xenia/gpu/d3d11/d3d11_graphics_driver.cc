@@ -1490,9 +1490,19 @@ int D3D11GraphicsDriver::PrepareTextureSampler(
     },
   };
   sampler_desc.Filter = filter_matrix[min_filter][mag_filter][mip_filter];
-  sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
-  sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
-  sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_CLAMP;
+  static const D3D11_TEXTURE_ADDRESS_MODE mode_map[] = {
+    D3D11_TEXTURE_ADDRESS_WRAP,
+    D3D11_TEXTURE_ADDRESS_MIRROR,
+    D3D11_TEXTURE_ADDRESS_CLAMP,        // ?
+    D3D11_TEXTURE_ADDRESS_MIRROR_ONCE,  // ?
+    D3D11_TEXTURE_ADDRESS_CLAMP,        // ?
+    D3D11_TEXTURE_ADDRESS_MIRROR_ONCE,  // ?
+    D3D11_TEXTURE_ADDRESS_BORDER,       // ?
+    D3D11_TEXTURE_ADDRESS_MIRROR,       // ?
+  };
+  sampler_desc.AddressU       = mode_map[fetcher.fetch.clamp_x];
+  sampler_desc.AddressV       = mode_map[fetcher.fetch.clamp_y];
+  sampler_desc.AddressW       = mode_map[fetcher.fetch.clamp_z];
   sampler_desc.MipLODBias;
   sampler_desc.MaxAnisotropy  = 1;
   sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;

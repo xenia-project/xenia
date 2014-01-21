@@ -138,7 +138,13 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t type               : 2;  // dword_0
-    uint32_t unk0               : 20;
+    uint32_t sign_x             : 2;
+    uint32_t sign_y             : 2;
+    uint32_t sign_z             : 2;
+    uint32_t clamp_x            : 2;
+    uint32_t clamp_y            : 2;
+    uint32_t clamp_z            : 2;
+    uint32_t unk0               : 3;
     uint32_t pitch              : 9;
     uint32_t tiled              : 1;
     uint32_t format             : 6;  // dword_1
