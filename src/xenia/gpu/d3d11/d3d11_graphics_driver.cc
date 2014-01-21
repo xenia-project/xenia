@@ -1063,7 +1063,7 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   info.block_height = 0;
   switch (fetch.format) {
   case FMT_8_8_8_8:
-    info.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    info.format = DXGI_FORMAT_B8G8R8A8_UNORM;
     info.bpp = 4;
     break;
   case FMT_4_4_4_4:
@@ -1204,8 +1204,12 @@ int D3D11GraphicsDriver::FetchTexture2D(
   }
   const uint8_t* src = memory_->Translate(address);
   uint8_t* dest = (uint8_t*)res.pData;
-  for (size_t n = 0; n < data_size; n++) {
-    dest[n] = src[n];
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width * info.bpp; x++) {
+      dest[x] = src[x];
+    }
+    src += data_pitch * info.bpp;
+    dest += res.RowPitch;
   }
   context_->Unmap(*out_texture, 0);
 
