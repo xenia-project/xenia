@@ -1058,14 +1058,17 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   // a2xx_sq_surfaceformat
   TextureInfo info;
   info.format = DXGI_FORMAT_UNKNOWN;
+  info.bpp = 0;
   info.block_width = 0;
   info.block_height = 0;
   switch (fetch.format) {
   case FMT_8_8_8_8:
     info.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    info.bpp = 4;
     break;
   case FMT_4_4_4_4:
     info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
+    info.bpp = 2;
     break;
   case FMT_1_REVERSE:
   case FMT_1:
@@ -1169,13 +1172,13 @@ int D3D11GraphicsDriver::FetchTexture2D(
   uint32_t height = fetch.size_2d.height;
   uint32_t data_pitch = XEROUNDUP(width, 256);
   // TODO(benvanik): block height rounding?
-  uint32_t data_height = height;
-  size_t data_size = data_pitch * data_height;
+  uint32_t data_height = XEROUNDUP(height, 256);
+  size_t data_size = data_pitch * data_height * info.bpp;
 
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
-  texture_desc.Width          = width;
-  texture_desc.Height         = height;
+  texture_desc.Width          = data_pitch;
+  texture_desc.Height         = data_height;
   texture_desc.MipLevels      = 1;
   texture_desc.ArraySize      = 1;
   texture_desc.Format         = info.format;

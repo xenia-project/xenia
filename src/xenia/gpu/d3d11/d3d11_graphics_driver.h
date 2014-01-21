@@ -68,6 +68,7 @@ private:
                             Shader::tex_buffer_desc_t& desc);
   typedef struct {
     DXGI_FORMAT format;
+    uint32_t bpp;
     uint32_t block_width;
     uint32_t block_height;
   } TextureInfo;
