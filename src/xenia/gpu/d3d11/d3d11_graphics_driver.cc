@@ -1346,15 +1346,15 @@ int D3D11GraphicsDriver::FetchTexture2D(
     // must be 32x32
     input_width = XEROUNDUP((logical_width + 31) & ~31, 256);
     input_height = (logical_height + 31) & ~31;
-    output_width = input_width;
-    output_height = input_height;
+    output_width = logical_width;
+    output_height = logical_height;
   }
   else {
     // must be 128x128
     input_width = (logical_width + 127) & ~127;
     input_height = (logical_height + 127) & ~127;
-    output_width = input_width;
-    output_height = input_height;
+    output_width = XENEXTPOW2(logical_width);
+    output_height = XENEXTPOW2(logical_height);
   }
 
   D3D11_TEXTURE2D_DESC texture_desc;
