@@ -1095,6 +1095,7 @@ int D3D11GraphicsDriver::PrepareTextureFetchers() {
   return 0;
 }
 
+// http://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
 D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     xe_gpu_texture_fetch_t& fetch) {
   // a2xx_sq_surfaceformat
@@ -1119,6 +1120,19 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     }
     info.block_size = 1;
     info.texel_pitch = 1;
+    break;
+  case FMT_1_5_5_5:
+    switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_BGRA:
+      info.format = DXGI_FORMAT_B5G5R5A1_UNORM;
+      break;
+    default:
+      XELOGW("D3D11: unhandled swizzle for FMT_8_8_8_8");
+      info.format = DXGI_FORMAT_B5G5R5A1_UNORM;
+      break;
+    }
+    info.block_size = 1;
+    info.texel_pitch = 2;
     break;
   case FMT_8_8_8_8:
     switch (fetch.swizzle) {
@@ -1196,7 +1210,6 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
     break;
   case FMT_1_REVERSE:
   case FMT_1:
-  case FMT_1_5_5_5:
   case FMT_5_6_5:
   case FMT_6_5_5:
   case FMT_2_10_10_10:
