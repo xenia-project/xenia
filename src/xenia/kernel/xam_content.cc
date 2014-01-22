@@ -60,6 +60,23 @@ SHIM_CALL XamContentCreateEnumerator_shim(
   SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
 }
 
+
+SHIM_CALL XamShowDeviceSelectorUI_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t arg1 = SHIM_GET_ARG_32(1);
+  uint32_t arg2 = SHIM_GET_ARG_32(2);
+  uint32_t arg3 = SHIM_GET_ARG_32(3);
+  uint32_t arg4 = SHIM_GET_ARG_32(4);
+  uint32_t arg5 = SHIM_GET_ARG_32(5);
+
+  XELOGD(
+      "XamShowDeviceSelectorUI(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
+      arg0, arg1, arg2, arg3, arg4, arg5);
+  SHIM_SET_RETURN_32(997);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -67,5 +84,6 @@ SHIM_CALL XamContentCreateEnumerator_shim(
 void xe::kernel::xam::RegisterContentExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamContentGetLicenseMask, state);
-  SHIM_SET_MAPPING("xam.xex", XamContentCreateEnumerator, state)
+  SHIM_SET_MAPPING("xam.xex", XamContentCreateEnumerator, state);
+  SHIM_SET_MAPPING("xam.xex", XamShowDeviceSelectorUI, state);
 }
