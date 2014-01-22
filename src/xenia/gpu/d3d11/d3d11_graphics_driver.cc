@@ -1127,7 +1127,7 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
       info.format = DXGI_FORMAT_B5G5R5A1_UNORM;
       break;
     default:
-      XELOGW("D3D11: unhandled swizzle for FMT_8_8_8_8");
+      XELOGW("D3D11: unhandled swizzle for FMT_1_5_5_5");
       info.format = DXGI_FORMAT_B5G5R5A1_UNORM;
       break;
     }
