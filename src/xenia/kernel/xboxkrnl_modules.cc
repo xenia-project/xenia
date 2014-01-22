@@ -35,6 +35,18 @@ X_STATUS xeExGetXConfigSetting(
   // http://free60.org/XConfig
   // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
+  case 0x0002:
+    // XCONFIG_SECURED_CATEGORY
+    switch (setting) {
+    case 0x0002: // XCONFIG_SECURED_AV_REGION
+      setting_size = 4;
+      value = 0x00001000; // USA/Canada
+      break;
+    default:
+      XEASSERTALWAYS();
+      return X_STATUS_INVALID_PARAMETER_2;
+    }
+    break;
   case 0x0003:
     // XCONFIG_USER_CATEGORY
     switch (setting) {
