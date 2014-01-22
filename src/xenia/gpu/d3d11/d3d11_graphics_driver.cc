@@ -1394,9 +1394,12 @@ int D3D11GraphicsDriver::FetchTexture2D(
 
   memset(dest, 0, output_pitch * (output_height / info.block_size)); // TODO(gibbed): remove me later
 
+  uint32_t block_width = logical_width / info.block_size;
+  uint32_t block_height = logical_height / info.block_size;
+
   if (!fetch.tiled) {
     dest = (uint8_t*)res.pData;
-    for (uint32_t y = 0; y < input_height / info.block_size; y++) {
+    for (uint32_t y = 0; y < block_height; y++) {
       for (uint32_t x = 0; x < logical_pitch; x += info.texel_pitch) {
         TextureSwap(dest + x, src + x, info.texel_pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
@@ -1405,8 +1408,6 @@ int D3D11GraphicsDriver::FetchTexture2D(
     }
   }
   else {
-    uint32_t block_width = logical_width / info.block_size;
-    uint32_t block_height = logical_height / info.block_size;
     auto bpp = (info.texel_pitch >> 2) + ((info.texel_pitch >> 1) >> (info.texel_pitch >> 2));
     for (uint32_t y = 0, output_base_offset = 0; y < block_height; y++, output_base_offset += output_pitch) {
       auto input_base_offset = TiledOffset2DOuter(y, (input_width / info.block_size), bpp);
