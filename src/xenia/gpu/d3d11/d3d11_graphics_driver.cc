@@ -1283,16 +1283,8 @@ int D3D11GraphicsDriver::FetchTexture1D(
 XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch, XE_GPU_ENDIAN endianness) {
   switch (endianness) {
     case XE_GPU_ENDIAN_8IN16:
-      if (pitch < 4) {
-        for (uint32_t i = 0; i < pitch; i += 2, src += 2, dest += 2) {
-          *(uint16_t*)dest = XESWAP16(*(uint16_t*)src);
-        }
-      }
-      else {
-        for (uint32_t i = 0; i < pitch; i += 4, src += 4, dest += 4) {
-          uint32_t value = *(uint32_t*)src;
-          *(uint32_t*)dest = ((value >> 16) & 0xFFFF) | (value << 16);
-        }
+      for (uint32_t i = 0; i < pitch; i += 2, src += 2, dest += 2) {
+        *(uint16_t*)dest = XESWAP16(*(uint16_t*)src);
       }
       break;
     case XE_GPU_ENDIAN_8IN32: // Swap bytes.
