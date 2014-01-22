@@ -1101,11 +1101,14 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   TextureInfo info;
   info.format = DXGI_FORMAT_UNKNOWN;
   info.block_size = 0;
-  info.pitch = 0;
-  info.needs_power_of_two = false;
+  info.texel_pitch = 0;
+  info.is_compressed = false;
   switch (fetch.format) {
   case FMT_8:
     switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_RRR1:
+      info.format = DXGI_FORMAT_R8_UNORM;
+      break;
     case XE_GPU_SWIZZLE_000R:
       info.format = DXGI_FORMAT_A8_UNORM;
       break;
@@ -1115,7 +1118,7 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
       break;
     }
     info.block_size = 1;
-    info.pitch = 1;
+    info.texel_pitch = 1;
     break;
   case FMT_8_8_8_8:
     switch (fetch.swizzle) {
@@ -1137,7 +1140,7 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
       break;
     }
     info.block_size = 1;
-    info.pitch = 4;
+    info.texel_pitch = 4;
     break;
   case FMT_4_4_4_4:
     switch (fetch.swizzle) {
@@ -1150,30 +1153,46 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
       break;
     }
     info.block_size = 1;
-    info.pitch = 2;
+    info.texel_pitch = 2;
     break;
   case FMT_16_16_16_16_FLOAT:
-    info.format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_RGBA:
+      info.format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+      break;
+    default:
+      XELOGW("D3D11: unhandled swizzle for FMT_16_16_16_16_FLOAT");
+      info.format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+      break;
+    }
     info.block_size = 1;
-    info.pitch = 8;
+    info.texel_pitch = 8;
     break;
   case FMT_32_FLOAT:
-    info.format = DXGI_FORMAT_R32_FLOAT;
+    switch (fetch.swizzle) {
+    case XE_GPU_SWIZZLE_R111:
+      info.format = DXGI_FORMAT_R32_FLOAT;
+      break;
+    default:
+      XELOGW("D3D11: unhandled swizzle for FMT_32_FLOAT");
+      info.format = DXGI_FORMAT_R32_FLOAT;
+      break;
+    }
     info.block_size = 1;
-    info.pitch = 4;
+    info.texel_pitch = 4;
     break;
   case FMT_DXT1:
     info.format = DXGI_FORMAT_BC1_UNORM;
     info.block_size = 4;
-    info.pitch = 8;
-    info.needs_power_of_two = true;
+    info.texel_pitch = 8;
+    info.is_compressed = true;
     break;
   case FMT_DXT2_3:
   case FMT_DXT4_5:
     info.format = (fetch.format == FMT_DXT4_5 ? DXGI_FORMAT_BC3_UNORM : DXGI_FORMAT_BC2_UNORM);
     info.block_size = 4;
-    info.pitch = 16;
-    info.needs_power_of_two = true;
+    info.texel_pitch = 16;
+    info.is_compressed = true;
     break;
   case FMT_1_REVERSE:
   case FMT_1:
@@ -1265,24 +1284,24 @@ XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch
   switch (endianness) {
     case XE_GPU_ENDIAN_8IN16:
       if (pitch < 4) {
-        for (uint32_t i = 0; i < pitch; i += 2, dest += 2) {
-          *(uint16_t*)dest = XESWAP16(*(uint16_t*)dest);
+        for (uint32_t i = 0; i < pitch; i += 2, src += 2, dest += 2) {
+          *(uint16_t*)dest = XESWAP16(*(uint16_t*)src);
         }
       }
       else {
-        for (uint32_t i = 0; i < pitch; i += 4, dest += 4, src += 4) {
+        for (uint32_t i = 0; i < pitch; i += 4, src += 4, dest += 4) {
           uint32_t value = *(uint32_t*)src;
           *(uint32_t*)dest = ((value >> 16) & 0xFFFF) | (value << 16);
         }
       }
       break;
     case XE_GPU_ENDIAN_8IN32: // Swap bytes.
-      for (uint32_t i = 0; i < pitch; i += 4, dest += 4, src += 4) {
-        *(uint32_t*)dest = XESWAP32(*(uint32_t*)src);
+      for (uint32_t i = 0; i < pitch; i += 4, src += 4, dest += 4) {
+        *(uint32_t*)dest = *(uint32_t*)src;
       }
       break;
     case XE_GPU_ENDIAN_16IN32: // Swap half words.
-      for (uint32_t i = 0; i < pitch; i += 4, dest += 4, src += 4) {
+      for (uint32_t i = 0; i < pitch; i += 4, src += 4, dest += 4) {
         uint32_t value = *(uint32_t*)src;
         *(uint32_t*)dest = ((value >> 16) & 0xFFFF) | (value << 16);
       }
@@ -1295,24 +1314,20 @@ XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch
 }
 
 // https://code.google.com/p/crunch/source/browse/trunk/inc/crn_decomp.h#4104
-XEFORCEINLINE uint32_t TiledOffset2DOuter(uint32_t y, uint32_t aligned_width, uint32_t log_bpp)
+XEFORCEINLINE uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width, uint32_t log_bpp)
 {
-  uint32_t macro = ((y >> 5) * (aligned_width >> 5)) << (log_bpp + 7);
+  uint32_t macro = ((y >> 5) * (width >> 5)) << (log_bpp + 7);
   uint32_t micro = ((y & 6) << 2) << log_bpp;
-  return macro +
-      ((micro & ~15) << 1) +
-      (micro & 15) +
-      ((y & 8) << (3 + log_bpp)) + ((y & 1) << 4);
+  return macro + ((micro & ~15) << 1) + (micro & 15) + ((y & 8) << (3 + log_bpp)) + ((y & 1) << 4);
 }
 
-XEFORCEINLINE uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log_bpp, uint32_t base_offset)
+XEFORCEINLINE uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp, uint32_t base_offset)
 {
-  uint32_t macro = (x >> 5) << (log_bpp + 7);
-  uint32_t micro = (x & 7) << log_bpp;
-  uint32_t offset = base_offset + macro + ((micro & ~15) << 1) + (micro & 15);
+  uint32_t macro = (x >> 5) << (bpp + 7);
+  uint32_t micro = (x & 7) << bpp;
+  uint32_t offset = base_offset + (macro + ((micro & ~15) << 1) + (micro & 15));
   return ((offset & ~511) << 3) + ((offset & 448) << 2) + (offset & 63) +
-      ((y & 16) << 7) +
-      (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
+      ((y & 16) << 7) + (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
 }
 
 int D3D11GraphicsDriver::FetchTexture2D(
@@ -1321,15 +1336,31 @@ int D3D11GraphicsDriver::FetchTexture2D(
     ID3D11Resource** out_texture) {
   uint32_t address = (fetch.address << 12) + address_translation_;
 
-  uint32_t width = 1 + fetch.size_2d.width;
-  uint32_t height = 1 + fetch.size_2d.height;
-  uint32_t padded_width = info.needs_power_of_two == false ? width : MAX(256, XENEXTPOW2(width));
-  uint32_t padded_height = info.needs_power_of_two == false ? height : XENEXTPOW2(height);
+  uint32_t logical_width = 1 + fetch.size_2d.width;
+  uint32_t logical_height = 1 + fetch.size_2d.height;
+
+  uint32_t input_width, input_height;
+  uint32_t output_width, output_height;
+
+  if (!info.is_compressed) {
+    // must be 32x32
+    input_width = XEROUNDUP((logical_width + 31) & ~31, 256);
+    input_height = (logical_height + 31) & ~31;
+    output_width = input_width;
+    output_height = input_height;
+  }
+  else {
+    // must be 128x128
+    input_width = (logical_width + 127) & ~127;
+    input_height = (logical_height + 127) & ~127;
+    output_width = input_width;
+    output_height = input_height;
+  }
 
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
-  texture_desc.Width          = padded_width;
-  texture_desc.Height         = padded_height;
+  texture_desc.Width          = output_width;
+  texture_desc.Height         = output_height;
   texture_desc.MipLevels      = 1;
   texture_desc.ArraySize      = 1;
   texture_desc.Format         = info.format;
@@ -1354,32 +1385,36 @@ int D3D11GraphicsDriver::FetchTexture2D(
     return 1;
   }
 
-  auto row_pitch = (width / info.block_size) * info.pitch;
-  auto padded_row_pitch = (padded_width / info.block_size) * info.pitch;
+  auto logical_pitch = (logical_width / info.block_size) * info.texel_pitch;
+  auto input_pitch = (input_width / info.block_size) * info.texel_pitch;
+  auto output_pitch = res.RowPitch; // (output_width / info.block_size) * info.texel_pitch;
 
   const uint8_t* src = memory_->Translate(address);
   uint8_t* dest = (uint8_t*)res.pData;
 
-  //memset(dest, 0, res.RowPitch * (padded_height / info.block_size)); // TODO(gibbed): remove me later
+  memset(dest, 0, output_pitch * (output_height / info.block_size)); // TODO(gibbed): remove me later
 
   if (!fetch.tiled) {
     dest = (uint8_t*)res.pData;
-    for (uint32_t y = 0; y < height / info.block_size; y++) {
-      for (uint32_t x = 0; x < row_pitch; x += info.pitch) {
-        TextureSwap(dest + x, src + x, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
+    for (uint32_t y = 0; y < input_height / info.block_size; y++) {
+      for (uint32_t x = 0; x < logical_pitch; x += info.texel_pitch) {
+        TextureSwap(dest + x, src + x, info.texel_pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
-      dest += res.RowPitch;
-      src += row_pitch;
+      src += input_pitch;
+      dest += output_pitch;
     }
   }
   else {
-    auto aligned_width = (width + 31) & ~31; // 32x32
-    auto log_bpp = (info.pitch >> 2) + ((info.pitch >> 1) >> (info.pitch >> 2));
-    for (uint32_t y = 0; y < height; y++) {
-      auto base_offset = TiledOffset2DOuter(y, aligned_width, log_bpp);
-      for (uint32_t x = 0; x < width; x++) {
-        auto offset = TiledOffset2DInner(x, y, log_bpp, base_offset);
-        TextureSwap(dest + (y * res.RowPitch) + (x * info.pitch), src + offset, info.pitch, (XE_GPU_ENDIAN)fetch.endianness);
+    uint32_t block_width = logical_width / info.block_size;
+    uint32_t block_height = logical_height / info.block_size;
+    auto bpp = (info.texel_pitch >> 2) + ((info.texel_pitch >> 1) >> (info.texel_pitch >> 2));
+    for (uint32_t y = 0, output_base_offset = 0; y < block_height; y++, output_base_offset += output_pitch) {
+      auto input_base_offset = TiledOffset2DOuter(y, (input_width / info.block_size), bpp);
+      for (uint32_t x = 0, output_offset = output_base_offset; x < block_width; x++, output_offset += info.texel_pitch) {
+        auto input_offset = TiledOffset2DInner(x, y, bpp, input_base_offset) >> bpp;
+        TextureSwap(dest + output_offset,
+                    src + input_offset * info.texel_pitch,
+                    info.texel_pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
     }
   }

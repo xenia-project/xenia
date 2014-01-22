@@ -69,8 +69,8 @@ private:
   typedef struct {
     DXGI_FORMAT format;
     uint32_t block_size;
-    uint32_t pitch;
-    bool needs_power_of_two;
+    uint32_t texel_pitch;
+    bool is_compressed;
   } TextureInfo;
   TextureInfo GetTextureInfo(xenos::xe_gpu_texture_fetch_t& fetch);
   int FetchTexture1D(xenos::xe_gpu_texture_fetch_t& fetch,
