@@ -208,9 +208,7 @@ SHIM_CALL XexGetModuleHandle_shim(
 
   X_HANDLE module_handle = 0;
   int result = xeXexGetModuleHandle(module_name, &module_handle);
-  if (result) {
-    SHIM_SET_MEM_32(module_handle_ptr, module_handle);
-  }
+  SHIM_SET_MEM_32(module_handle_ptr, module_handle);
 
   SHIM_SET_RETURN_32(result);
 }

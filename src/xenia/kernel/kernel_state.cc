@@ -75,6 +75,9 @@ XModule* KernelState::GetModule(const char* name) {
     auto module = emulator_->xboxkrnl();
     module->Retain();
     return module;
+  } else if (xestrcasecmpa(name, "kernel32.dll") == 0) {
+    // Some games request this, for some reason. wtf.
+    return NULL;
   } else {
     // TODO(benvanik): support user modules/loading/etc.
     XEASSERTALWAYS();
