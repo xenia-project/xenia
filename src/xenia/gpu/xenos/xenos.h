@@ -142,9 +142,9 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t sign_y             : 2;
     uint32_t sign_z             : 2;
     uint32_t sign_w             : 2;
-    uint32_t clamp_x            : 2;
-    uint32_t clamp_y            : 2;
-    uint32_t clamp_z            : 2;
+    uint32_t clamp_x            : 3;
+    uint32_t clamp_y            : 3;
+    uint32_t clamp_z            : 3;
     uint32_t unk0               : 3;
     uint32_t pitch              : 9;
     uint32_t tiled              : 1;
