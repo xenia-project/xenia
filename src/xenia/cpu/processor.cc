@@ -669,7 +669,7 @@ json_t* Processor::DumpFunction(uint64_t address, bool& succeeded) {
   // use the x64 from the function in the symbol table.
   Function* fn;
   if (runtime_->frontend()->DefineFunction(
-      info, DEBUG_INFO_ALL_DISASM | DEBUG_INFO_JSON, &fn)) {
+      info, DEBUG_INFO_ALL_DISASM, &fn)) {
     succeeded = false;
     return json_string("Unable to resolve function");
   }
@@ -698,7 +698,7 @@ json_t* Processor::DumpFunction(uint64_t address, bool& succeeded) {
 
   json_t* disasm_json = json_object();
   json_t* disasm_str_json;
-  disasm_str_json = json_loads(debug_info->source_json(), 0, NULL);
+  disasm_str_json = json_loads(debug_info->source_disasm(), 0, NULL);
   json_object_set_new(disasm_json, "source", disasm_str_json);
   disasm_str_json = json_string(debug_info->raw_hir_disasm());
   json_object_set_new(disasm_json, "rawHir", disasm_str_json);

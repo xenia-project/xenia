@@ -86,12 +86,6 @@ int PPCTranslator::Translate(
     DumpSource(symbol_info, &string_buffer_);
     debug_info->set_source_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
-
-    if (debug_info_flags & DEBUG_INFO_JSON) {
-      DumpSourceJson(symbol_info, &string_buffer_);
-      debug_info->set_source_json(string_buffer_.ToString());
-      string_buffer_.Reset();
-    }
   }
 
   // Emit function.
@@ -180,69 +174,4 @@ void PPCTranslator::DumpSource(
     }
     string_buffer->Append("\n");
   }
-}
-
-void PPCTranslator::DumpSourceJson(
-    runtime::FunctionInfo* symbol_info, StringBuffer* string_buffer) {
-  Memory* memory = frontend_->memory();
-  const uint8_t* p = memory->membase();
-
-  string_buffer->Append("{\n");
-
-  auto blocks = scanner_->FindBlocks(symbol_info);
-  string_buffer->Append("\"blocks\": [\n");
-  for (auto it = blocks.begin(); it != blocks.end(); ++it) {
-    string_buffer->Append("{ \"start\": %u, \"end\": %u }%c",
-                          it->start_address, it->end_address,
-                          (it + 1 != blocks.end()) ? ',' : ' ');
-  }
-  string_buffer->Append("],\n");
-
-  string_buffer->Append("\"lines\": [\n");
-  uint64_t start_address = symbol_info->address();
-  uint64_t end_address = symbol_info->end_address();
-  InstrData i;
-  auto block_it = blocks.begin();
-  for (uint64_t address = start_address, offset = 0; address <= end_address;
-       address += 4, offset++) {
-    i.address = address;
-    i.code = XEGETUINT32BE(p + address);
-    // TODO(benvanik): find a way to avoid using the opcode tables.
-    i.type = GetInstrType(i.code);
-
-    // Check labels.
-    if (block_it != blocks.end() &&
-        block_it->start_address == address) {
-      if (address != start_address) {
-        // Whitespace to pad blocks.
-        string_buffer->Append(
-            "[\"c\", %u, 0, \"\", \"\"],\n",
-            address);
-      }
-      string_buffer->Append(
-          "[\"l\", %u, 0, \"loc_%.8X:\", \"\"],\n",
-          address, address);
-      ++block_it;
-    }
-
-    const char* disasm_str = "";
-    const char* comment_str = "";
-    std::string disasm;
-    if (!i.type) {
-      disasm_str = "?";
-    } else if (i.type->disassemble) {
-      ppc::InstrDisasm d;
-      i.type->disassemble(i, d);
-      d.Dump(disasm);
-      disasm_str = disasm.c_str();
-    } else {
-      disasm_str = i.type->name;
-    }
-    string_buffer->Append("[\"i\", %u, %u, \"    %s\", \"%s\"]%c\n",
-                          address, i.code, disasm_str, comment_str,
-                          (address + 4 <= end_address) ? ',' : ' ');
-  }
-  string_buffer->Append("]\n");
-
-  string_buffer->Append("}\n");
 }

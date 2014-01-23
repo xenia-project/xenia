@@ -28,8 +28,6 @@ enum DebugInfoFlags {
   DEBUG_INFO_MACHINE_CODE_DISASM  = (1 << 6),
 
   DEBUG_INFO_ALL_DISASM           = 0xFFFF,
-
-  DEBUG_INFO_JSON                 = (1 << 16),
 };
 
 
@@ -40,8 +38,6 @@ public:
 
   const char* source_disasm() const { return source_disasm_; }
   void set_source_disasm(char* value) { source_disasm_ = value; }
-  const char* source_json() const { return source_json_; }
-  void set_source_json(char* value) { source_json_ = value; }
   const char* raw_hir_disasm() const { return raw_hir_disasm_; }
   void set_raw_hir_disasm(char* value) { raw_hir_disasm_ = value; }
   const char* hir_disasm() const { return hir_disasm_; }
@@ -60,7 +56,6 @@ public:
 
 private:
   char* source_disasm_;
-  char* source_json_;
   char* raw_hir_disasm_;
   char* hir_disasm_;
   char* raw_lir_disasm_;
