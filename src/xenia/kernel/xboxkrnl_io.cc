@@ -505,12 +505,73 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
 
 SHIM_CALL NtQueryVolumeInformationFile_shim(
     PPCContext* ppc_state, KernelState* state) {
-  // TODO(benvanik): see if this is used.
-  XELOGD(
-      "NtQueryVolumeInformationFile(?)");
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
+  uint32_t fs_info_ptr = SHIM_GET_ARG_32(2);
+  uint32_t length = SHIM_GET_ARG_32(3);
+  uint32_t fs_info_class = SHIM_GET_ARG_32(4);
 
-  XEASSERTALWAYS();
-  SHIM_SET_RETURN_32(X_STATUS_NO_SUCH_FILE);
+  XELOGD(
+      "NtQueryVolumeInformationFile(%.8X, %.8X, %.8X, %.8X, %.8X)",
+      file_handle,
+      io_status_block_ptr,
+      fs_info_ptr,
+      length,
+      fs_info_class);
+
+
+  X_STATUS result = X_STATUS_SUCCESS;
+  uint32_t info = 0;
+
+  // Grab file.
+  XFile* file = NULL;
+  result = state->object_table()->GetObject(
+      file_handle, (XObject**)&file);
+
+  if (XSUCCEEDED(result)) {
+    result = X_STATUS_SUCCESS;
+    switch (fs_info_class) {
+    case 1: { // FileFsVolumeInformation
+      auto volume_info = (XVolumeInfo*)xe_calloc(length);
+      result = file->QueryVolume(volume_info, length);
+      if (XSUCCEEDED(result)) {
+        volume_info->Write(SHIM_MEM_BASE, fs_info_ptr);
+        info = length;
+      }
+      xe_free(volume_info);
+      break;
+    }
+    case 5: { // FileFsAttributeInformation
+      auto fs_attribute_info = (XFileSystemAttributeInfo*)xe_calloc(length);
+      result = file->QueryFileSystemAttributes(fs_attribute_info, length);
+      if (XSUCCEEDED(result)) {
+        fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);
+        info = length;
+      }
+      xe_free(fs_attribute_info);
+      break;
+    }
+    default:
+      // Unsupported, for now.
+      XEASSERTALWAYS();
+      info = 0;
+      break;
+    }
+  }
+
+  if (XFAILED(result)) {
+    info = 0;
+  }
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);   // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info); // Information
+  }
+
+  if (file) {
+    file->Release();
+  }
+
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtQueryDirectoryFile_shim(
