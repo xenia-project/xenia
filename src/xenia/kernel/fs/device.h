@@ -30,6 +30,9 @@ public:
 
   virtual Entry* ResolvePath(const char* path) = 0;
 
+  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
+  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) = 0;
+
 protected:
   char*       path_;
 };

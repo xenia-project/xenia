@@ -28,6 +28,9 @@ public:
 
   virtual Entry* ResolvePath(const char* path);
 
+  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
+  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length);
+
 private:
   xechar_t*   local_path_;
 };

@@ -35,8 +35,6 @@ public:
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
                                   size_t length, const char* file_name, bool restart);
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length);
 
   virtual X_STATUS Open(
       KernelState* kernel_state,

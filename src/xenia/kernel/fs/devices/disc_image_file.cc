@@ -12,6 +12,7 @@
 #include <xenia/kernel/fs/gdfx.h>
 #include <xenia/kernel/fs/devices/disc_image_entry.h>
 
+#include <xenia/kernel/fs/device.h>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -50,11 +51,11 @@ X_STATUS DiscImageFile::QueryDirectory(XDirectoryInfo* out_info,
 }
 
 X_STATUS DiscImageFile::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  return entry_->QueryVolume(out_info, length);
+  return entry_->device()->QueryVolume(out_info, length);
 }
 
 X_STATUS DiscImageFile::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  return entry_->QueryFileSystemAttributes(out_info, length);
+  return entry_->device()->QueryFileSystemAttributes(out_info, length);
 }
 
 X_STATUS DiscImageFile::ReadSync(

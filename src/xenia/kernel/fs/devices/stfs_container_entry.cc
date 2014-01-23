@@ -88,16 +88,6 @@ X_STATUS STFSContainerEntry::QueryDirectory(
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS STFSContainerEntry::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
-X_STATUS STFSContainerEntry::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
 X_STATUS STFSContainerEntry::Open(
     KernelState* kernel_state,
     uint32_t desired_access, bool async,

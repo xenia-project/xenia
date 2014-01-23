@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/fs/devices/host_path_entry.h>
 
+#include <xenia/kernel/fs/device.h>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -50,11 +51,11 @@ X_STATUS HostPathFile::QueryDirectory(XDirectoryInfo* out_info,
 }
 
 X_STATUS HostPathFile::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  return entry_->QueryVolume(out_info, length);
+  return entry_->device()->QueryVolume(out_info, length);
 }
 
 X_STATUS HostPathFile::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  return entry_->QueryFileSystemAttributes(out_info, length);
+  return entry_->device()->QueryFileSystemAttributes(out_info, length);
 }
 
 X_STATUS HostPathFile::ReadSync(

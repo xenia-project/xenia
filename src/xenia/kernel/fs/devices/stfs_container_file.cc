@@ -12,6 +12,7 @@
 #include <xenia/kernel/fs/stfs.h>
 #include <xenia/kernel/fs/devices/stfs_container_entry.h>
 
+#include <xenia/kernel/fs/device.h>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -44,17 +45,17 @@ X_STATUS STFSContainerFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);
 }
 
-X_STATUS STFSContainerFile::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  return entry_->QueryVolume(out_info, length);
-}
-
 X_STATUS STFSContainerFile::QueryDirectory(XDirectoryInfo* out_info,
     size_t length, const char* file_name, bool restart) {
   return entry_->QueryDirectory(out_info, length, file_name, restart);
 }
 
+X_STATUS STFSContainerFile::QueryVolume(XVolumeInfo* out_info, size_t length) {
+  return entry_->device()->QueryVolume(out_info, length);
+}
+
 X_STATUS STFSContainerFile::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  return entry_->QueryFileSystemAttributes(out_info, length);
+  return entry_->device()->QueryFileSystemAttributes(out_info, length);
 }
 
 X_STATUS STFSContainerFile::ReadSync(

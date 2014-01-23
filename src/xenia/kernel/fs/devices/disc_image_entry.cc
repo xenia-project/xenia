@@ -110,16 +110,6 @@ X_STATUS DiscImageEntry::QueryDirectory(
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS DiscImageEntry::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
-X_STATUS DiscImageEntry::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
 MemoryMapping* DiscImageEntry::CreateMemoryMapping(
     xe_file_mode file_mode, const size_t offset, const size_t length) {
   if (file_mode & kXEFileModeWrite) {

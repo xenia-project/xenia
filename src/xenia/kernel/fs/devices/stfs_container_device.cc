@@ -97,3 +97,14 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
   return new STFSContainerEntry(
       type, this, path, mmap_, stfs_entry);
 }
+
+
+X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
+  XEASSERTALWAYS();
+  return X_STATUS_NOT_IMPLEMENTED;
+}
+
+X_STATUS STFSContainerDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+  XEASSERTALWAYS();
+  return X_STATUS_NOT_IMPLEMENTED;
+}

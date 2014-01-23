@@ -96,3 +96,13 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
   return new DiscImageEntry(
       type, this, path, mmap_, gdfx_entry);
 }
+
+X_STATUS DiscImageDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
+  XEASSERTALWAYS();
+  return X_STATUS_NOT_IMPLEMENTED;
+}
+
+X_STATUS DiscImageDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+  XEASSERTALWAYS();
+  return X_STATUS_NOT_IMPLEMENTED;
+}
