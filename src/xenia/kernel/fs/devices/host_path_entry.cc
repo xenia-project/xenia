@@ -140,6 +140,43 @@ X_STATUS HostPathEntry::QueryDirectory(
   return X_STATUS_SUCCESS;
 }
 
+// TODO(gibbed): call into HostPathDevice?
+X_STATUS HostPathEntry::QueryVolume(XVolumeInfo* out_info, size_t length) {
+  XEASSERTNOTNULL(out_info);
+  const char* name = "test"; // TODO(gibbed): actual value
+
+  auto end = (uint8_t*)out_info + length;
+  size_t name_length = strlen(name);
+  if (((uint8_t*)&out_info->label[0]) + name_length > end) {
+    return X_STATUS_BUFFER_OVERFLOW;
+  }
+
+  out_info->creation_time = 0;
+  out_info->serial_number = 12345678;
+  out_info->supports_objects = 0;
+  out_info->label_length = (uint32_t)name_length;
+  memcpy(out_info->label, name, name_length);
+  return X_STATUS_SUCCESS;
+}
+
+// TODO(gibbed): call into HostPathDevice?
+X_STATUS HostPathEntry::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+  XEASSERTNOTNULL(out_info);
+  const char* name = "test"; // TODO(gibbed): actual value
+
+  auto end = (uint8_t*)out_info + length;
+  size_t name_length = strlen(name);
+  if (((uint8_t*)&out_info->fs_name[0]) + name_length > end) {
+    return X_STATUS_BUFFER_OVERFLOW;
+  }
+
+  out_info->attributes = 0;
+  out_info->maximum_component_name_length = 255; // TODO(gibbed): actual value
+  out_info->fs_name_length = (uint32_t)name_length;
+  memcpy(out_info->fs_name, name, name_length);
+  return X_STATUS_SUCCESS;
+}
+
 MemoryMapping* HostPathEntry::CreateMemoryMapping(
     xe_file_mode file_mode, const size_t offset, const size_t length) {
   xe_mmap_ref mmap = xe_mmap_open(file_mode, local_path_, offset, length);

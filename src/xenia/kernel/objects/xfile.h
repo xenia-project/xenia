@@ -83,6 +83,46 @@ public:
 };
 XEASSERTSTRUCTSIZE(XDirectoryInfo, 72);
 
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287(v=vs.85).aspx
+class XVolumeInfo {
+public:
+  // FILE_FS_VOLUME_INFORMATION
+  uint64_t          creation_time;
+  uint32_t          serial_number;
+  uint32_t          label_length;
+  uint32_t          supports_objects;
+  char              label[1];
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    XESETUINT64BE(dst + 0, this->creation_time);
+    XESETUINT32BE(dst + 8, this->serial_number);
+    XESETUINT32BE(dst + 12, this->label_length);
+    XESETUINT32BE(dst + 16, this->supports_objects);
+    xe_copy_memory(dst + 20, this->label_length, this->label, this->label_length);
+  }
+};
+XEASSERTSTRUCTSIZE(XVolumeInfo, 24);
+
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
+class XFileSystemAttributeInfo {
+public:
+  // FILE_FS_ATTRIBUTE_INFORMATION
+  uint32_t          attributes;
+  int32_t           maximum_component_name_length;
+  uint32_t          fs_name_length;
+  char              fs_name[1];
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    XESETUINT32BE(dst + 0, this->attributes);
+    XESETUINT32BE(dst + 4, this->maximum_component_name_length);
+    XESETUINT32BE(dst + 8, this->fs_name_length);
+    xe_copy_memory(dst + 12, this->fs_name_length, this->fs_name, this->fs_name_length);
+  }
+};
+XEASSERTSTRUCTSIZE(XFileSystemAttributeInfo, 16);
+
 class XFile : public XObject {
 public:
   virtual ~XFile();
@@ -97,6 +137,8 @@ public:
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
                                   size_t length, const char* file_name, bool restart) = 0;
+  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
+  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);

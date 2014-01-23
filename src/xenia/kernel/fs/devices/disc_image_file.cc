@@ -49,6 +49,14 @@ X_STATUS DiscImageFile::QueryDirectory(XDirectoryInfo* out_info,
   return entry_->QueryDirectory(out_info, length, file_name, restart);
 }
 
+X_STATUS DiscImageFile::QueryVolume(XVolumeInfo* out_info, size_t length) {
+  return entry_->QueryVolume(out_info, length);
+}
+
+X_STATUS DiscImageFile::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+  return entry_->QueryFileSystemAttributes(out_info, length);
+}
+
 X_STATUS DiscImageFile::ReadSync(
     void* buffer, size_t buffer_length, size_t byte_offset,
     size_t* out_bytes_read) {
