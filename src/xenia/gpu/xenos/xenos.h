@@ -127,7 +127,7 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t type               : 2;
     uint32_t address            : 30;
-    uint32_t unk0               : 2;
+    uint32_t endian             : 2;
     uint32_t size               : 24;
     uint32_t unk1               : 6;
   });

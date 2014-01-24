@@ -949,6 +949,8 @@ int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
   XEASSERT(fetch->type == 0x3);
   XEASSERTNOTZERO(fetch->size);
 
+  XEASSERT(fetch->endian == 0x2);
+
   ID3D11Buffer* buffer = 0;
   D3D11_BUFFER_DESC buffer_desc;
   xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
