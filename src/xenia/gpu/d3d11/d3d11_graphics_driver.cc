@@ -1304,7 +1304,7 @@ XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch
       break;
     case XE_GPU_ENDIAN_8IN32: // Swap bytes.
       for (uint32_t i = 0; i < pitch; i += 4, src += 4, dest += 4) {
-        *(uint32_t*)dest = *(uint32_t*)src;
+        *(uint32_t*)dest = XESWAP32(*(uint32_t*)src);
       }
       break;
     case XE_GPU_ENDIAN_16IN32: // Swap half words.
@@ -1341,6 +1341,8 @@ int D3D11GraphicsDriver::FetchTexture2D(
     xe_gpu_texture_fetch_t& fetch,
     TextureInfo& info,
     ID3D11Resource** out_texture) {
+  XEASSERTTRUE(fetch.dimension == 1);
+
   uint32_t address = (fetch.address << 12) + address_translation_;
 
   uint32_t logical_width = 1 + fetch.size_2d.width;
