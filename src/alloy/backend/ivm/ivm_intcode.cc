@@ -52,21 +52,21 @@ namespace ivm {
 #define VECF4(v,n) (v.f4[n])
 #else
 static const uint8_t __vector_b16_table[16] = {
-  3, 2, 1, 0,
-  7, 6, 5, 4,
-  11, 10, 9, 8,
+  3,  2,  1,  0,
+  7,  6,  5,  4,
+  11, 10, 9,  8,
   15, 14, 13, 12,
 };
-#define VECB16(v,n) (v.b16[__vector_b16_table[n]])
 static const uint8_t __vector_s8_table[8] = {
   1, 0,
   3, 2,
   5, 4,
   7, 6,
 };
-#define VECS8(v,n) (v.s8[__vector_s8_table[n]])
-#define VECI4(v,n) (v.i4[n])
-#define VECF4(v,n) (v.f4[n])
+#define VECB16(v,n) (v.b16[__vector_b16_table[(n)]])
+#define VECS8(v,n) (v.s8[__vector_s8_table[(n)]])
+#define VECI4(v,n) (v.i4[(n)])
+#define VECF4(v,n) (v.f4[(n)])
 #endif
 
 uint32_t IntCode_INT_LOAD_CONSTANT(IntCodeState& ics, const IntCode* i) {
