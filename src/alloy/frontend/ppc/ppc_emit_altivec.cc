@@ -1351,7 +1351,9 @@ int InstrEmit_vsldoi_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb, u
   // vsldoi128 vr63,vr63,vr63,4
   // (ABCD ABCD) << 4b = (BCDA)
   // (VA << SH) OR (VB >> (16 - SH))
-  Value* control = f.LoadConstant(*((vec128_t*)(__vsldoi_table[sh])));
+  vec128_t shift = *((vec128_t*)(__vsldoi_table[sh]));
+  for (int i = 0; i < 4; ++i) shift.i4[i] = XESWAP32BE(shift.i4[i]);
+  Value* control = f.LoadConstant(shift);
   Value* v = f.Permute(
       control,
       f.LoadVR(va),
