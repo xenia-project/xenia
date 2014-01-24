@@ -26,13 +26,16 @@ GraphicsSystem::GraphicsSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
     thread_(0), running_(false), driver_(0), worker_(0),
     interrupt_callback_(0), interrupt_callback_data_(0),
-    last_interrupt_time_(0), swap_pending_(false) {
+    last_interrupt_time_(0), swap_pending_(false),
+	thread_wait_(NULL) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
+  thread_wait_ = CreateEvent(NULL, TRUE, FALSE, NULL);
 }
 
 GraphicsSystem::~GraphicsSystem() {
+  CloseHandle(thread_wait_);
 }
 
 X_STATUS GraphicsSystem::Setup() {
@@ -58,7 +61,7 @@ X_STATUS GraphicsSystem::Setup() {
       "GraphicsSystem",
       (xe_thread_callback)ThreadStartThunk, this);
   xe_thread_start(thread_);
-
+  WaitForSingleObject(thread_wait_, INFINITE);
   return X_STATUS_SUCCESS;
 }
 
@@ -68,6 +71,7 @@ void GraphicsSystem::ThreadStart() {
   // Initialize driver and ringbuffer.
   Initialize();
   XEASSERTNOTNULL(driver_);
+  SetEvent(thread_wait_);
 
   // Main run loop.
   while (running_) {
