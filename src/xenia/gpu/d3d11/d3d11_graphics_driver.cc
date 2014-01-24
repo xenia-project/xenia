@@ -949,8 +949,6 @@ int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
   XEASSERT(fetch->type == 0x3);
   XEASSERTNOTZERO(fetch->size);
 
-  XEASSERT(fetch->endian == 0x2);
-
   ID3D11Buffer* buffer = 0;
   D3D11_BUFFER_DESC buffer_desc;
   xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
@@ -1348,20 +1346,32 @@ int D3D11GraphicsDriver::FetchTexture2D(
   uint32_t logical_width = 1 + fetch.size_2d.width;
   uint32_t logical_height = 1 + fetch.size_2d.height;
 
+  uint32_t block_width = logical_width / info.block_size;
+  uint32_t block_height = logical_height / info.block_size;
+
   uint32_t input_width, input_height;
   uint32_t output_width, output_height;
 
   if (!info.is_compressed) {
-    // must be 32x32
-    input_width = XEROUNDUP((logical_width + 31) & ~31, 256);
-    input_height = (logical_height + 31) & ~31;
+    // must be 32x32, but also must have a pitch that is a multiple of 256 bytes
+    uint32_t bytes_per_block = info.block_size * info.block_size * info.texel_pitch;
+    uint32_t width_multiple = 32;
+    if (bytes_per_block) {
+      uint32_t minimum_multiple = 256 / bytes_per_block;
+      if (width_multiple < minimum_multiple) {
+        width_multiple = minimum_multiple;
+      }
+    }
+
+    input_width = XEROUNDUP(logical_width, width_multiple);
+    input_height = XEROUNDUP(logical_height, 32);
     output_width = logical_width;
     output_height = logical_height;
   }
   else {
     // must be 128x128
-    input_width = (logical_width + 127) & ~127;
-    input_height = (logical_height + 127) & ~127;
+    input_width = XEROUNDUP(logical_width, 128);
+    input_height = XEROUNDUP(logical_height, 128);
     output_width = XENEXTPOW2(logical_width);
     output_height = XENEXTPOW2(logical_height);
   }
@@ -1402,9 +1412,6 @@ int D3D11GraphicsDriver::FetchTexture2D(
   uint8_t* dest = (uint8_t*)res.pData;
 
   memset(dest, 0, output_pitch * (output_height / info.block_size)); // TODO(gibbed): remove me later
-
-  uint32_t block_width = logical_width / info.block_size;
-  uint32_t block_height = logical_height / info.block_size;
 
   if (!fetch.tiled) {
     dest = (uint8_t*)res.pData;
