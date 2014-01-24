@@ -46,15 +46,27 @@ namespace ivm {
 //#define DFLUSH() fflush(stdout)
 
 #if XE_CPU_BIGENDIAN
-#define VECTORBYTEOFFSET(n) (n)
+#define VECB16(v,n) (v.b16[n])
+#define VECS8(v,n) (v.s8[n])
+#define VECI4(v,n) (v.i4[n])
+#define VECF4(v,n) (v.f4[n])
 #else
-static const uint8_t __vector_byte_offset_table[16] = {
+static const uint8_t __vector_b16_table[16] = {
   3, 2, 1, 0,
   7, 6, 5, 4,
   11, 10, 9, 8,
   15, 14, 13, 12,
 };
-#define VECTORBYTEOFFSET(n) (__vector_byte_offset_table[n])
+#define VECB16(v,n) (v.b16[__vector_b16_table[n]])
+static const uint8_t __vector_s8_table[8] = {
+  1, 0,
+  3, 2,
+  5, 4,
+  7, 6,
+};
+#define VECS8(v,n) (v.s8[__vector_s8_table[n]])
+#define VECI4(v,n) (v.i4[n])
+#define VECF4(v,n) (v.f4[n])
 #endif
 
 uint32_t IntCode_INT_LOAD_CONSTANT(IntCodeState& ics, const IntCode* i) {
@@ -1134,19 +1146,19 @@ int Translate_ROUND(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_VECTOR_CONVERT_I2F_S(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.f4[0] = (float)(int32_t)src1.i4[0];
-  dest.f4[1] = (float)(int32_t)src1.i4[1];
-  dest.f4[2] = (float)(int32_t)src1.i4[2];
-  dest.f4[3] = (float)(int32_t)src1.i4[3];
+  VECF4(dest,0) = (float)(int32_t)VECI4(src1,0);
+  VECF4(dest,1) = (float)(int32_t)VECI4(src1,1);
+  VECF4(dest,2) = (float)(int32_t)VECI4(src1,2);
+  VECF4(dest,3) = (float)(int32_t)VECI4(src1,3);
   return IA_NEXT;
 }
 uint32_t IntCode_VECTOR_CONVERT_I2F_U(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.f4[0] = (float)(uint32_t)src1.i4[0];
-  dest.f4[1] = (float)(uint32_t)src1.i4[1];
-  dest.f4[2] = (float)(uint32_t)src1.i4[2];
-  dest.f4[3] = (float)(uint32_t)src1.i4[3];
+  VECF4(dest,0) = (float)(uint32_t)VECI4(src1,0);
+  VECF4(dest,1) = (float)(uint32_t)VECI4(src1,1);
+  VECF4(dest,2) = (float)(uint32_t)VECI4(src1,2);
+  VECF4(dest,3) = (float)(uint32_t)VECI4(src1,3);
   return IA_NEXT;
 }
 int Translate_VECTOR_CONVERT_I2F(TranslationContext& ctx, Instr* i) {
@@ -1161,15 +1173,15 @@ uint32_t IntCode_VECTOR_CONVERT_F2I(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   if (i->flags & ARITHMETIC_UNSIGNED) {
-    dest.i4[0] = (uint32_t)src1.f4[0];
-    dest.i4[1] = (uint32_t)src1.f4[1];
-    dest.i4[2] = (uint32_t)src1.f4[2];
-    dest.i4[3] = (uint32_t)src1.f4[3];
+    VECI4(dest,0) = (uint32_t)VECF4(src1,0);
+    VECI4(dest,1) = (uint32_t)VECF4(src1,1);
+    VECI4(dest,2) = (uint32_t)VECF4(src1,2);
+    VECI4(dest,3) = (uint32_t)VECF4(src1,3);
   } else {
-    dest.i4[0] = (int32_t)src1.f4[0];
-    dest.i4[1] = (int32_t)src1.f4[1];
-    dest.i4[2] = (int32_t)src1.f4[2];
-    dest.i4[3] = (int32_t)src1.f4[3];
+    VECI4(dest,0) = (int32_t)VECF4(src1,0);
+    VECI4(dest,1) = (int32_t)VECF4(src1,1);
+    VECI4(dest,2) = (int32_t)VECF4(src1,2);
+    VECI4(dest,3) = (int32_t)VECF4(src1,3);
   }
   return IA_NEXT;
 }
@@ -1180,26 +1192,26 @@ uint32_t IntCode_VECTOR_CONVERT_F2I_SAT(IntCodeState& ics, const IntCode* i) {
     for (int n = 0; n < 4; n++) {
       float src = src1.f4[n];
       if (src < 0) {
-        dest.i4[n] = 0;
+        VECI4(dest,n) = 0;
         ics.did_saturate = 1;
       } else if (src > UINT_MAX) {
-        dest.i4[n] = UINT_MAX;
+        VECI4(dest,n) = UINT_MAX;
         ics.did_saturate = 1;
       } else {
-        dest.i4[n] = (uint32_t)src;
+        VECI4(dest,n) = (uint32_t)src;
       }
     }
   } else {
     for (int n = 0; n < 4; n++) {
       float src = src1.f4[n];
       if (src < INT_MIN) {
-        dest.i4[n] = INT_MIN;
+        VECI4(dest,n) = INT_MIN;
         ics.did_saturate = 1;
       } else if (src > INT_MAX) {
-        dest.i4[n] = INT_MAX;
+        VECI4(dest,n) = INT_MAX;
         ics.did_saturate = 1;
       } else {
-        dest.i4[n] = (int32_t)src;
+        VECI4(dest,n) = (int32_t)src;
       }
     }
   }
@@ -1256,7 +1268,7 @@ uint32_t IntCode_LOAD_VECTOR_SHL(IntCodeState& ics, const IntCode* i) {
   int8_t sh = MIN(16, ics.rf[i->src1_reg].i8);
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
-    dest.b16[n] = __lvsl_table[sh][VECTORBYTEOFFSET(n)];
+    VECB16(dest,n) = __lvsl_table[sh][n];
   }
   return IA_NEXT;
 }
@@ -1268,7 +1280,7 @@ uint32_t IntCode_LOAD_VECTOR_SHR(IntCodeState& ics, const IntCode* i) {
   int8_t sh = MIN(16, ics.rf[i->src1_reg].i8);
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
-    dest.b16[n] = __lvsr_table[sh][VECTORBYTEOFFSET(n)];
+    VECB16(dest,n) = __lvsr_table[sh][n];
   }
   return IA_NEXT;
 }
@@ -1322,8 +1334,8 @@ uint32_t IntCode_LOAD_CONTEXT_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.context + ics.rf[i->src1_reg].u64));
   DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%d\n",
-         ics.rf[i->dest_reg].v128.f4[0], ics.rf[i->dest_reg].v128.f4[1], ics.rf[i->dest_reg].v128.f4[2], ics.rf[i->dest_reg].v128.f4[3],
-         ics.rf[i->dest_reg].v128.i4[0], ics.rf[i->dest_reg].v128.i4[1], ics.rf[i->dest_reg].v128.i4[2], ics.rf[i->dest_reg].v128.i4[3],
+         VECF4(ics.rf[i->dest_reg].v128,0), VECF4(ics.rf[i->dest_reg].v128,1), VECF4(ics.rf[i->dest_reg].v128,2), VECF4(ics.rf[i->dest_reg].v128,3),
+         VECI4(ics.rf[i->dest_reg].v128,0), VECI4(ics.rf[i->dest_reg].v128,1), VECI4(ics.rf[i->dest_reg].v128,2), VECI4(ics.rf[i->dest_reg].v128,3),
          ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
@@ -1373,8 +1385,8 @@ uint32_t IntCode_STORE_CONTEXT_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
   *((vec128_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].v128;
   DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", ics.rf[i->src1_reg].u64,
-         ics.rf[i->src2_reg].v128.f4[0], ics.rf[i->src2_reg].v128.f4[1], ics.rf[i->src2_reg].v128.f4[2], ics.rf[i->src2_reg].v128.f4[3],
-         ics.rf[i->src2_reg].v128.i4[0], ics.rf[i->src2_reg].v128.i4[1], ics.rf[i->src2_reg].v128.i4[2], ics.rf[i->src2_reg].v128.i4[3]);
+         VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
+         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3));
   return IA_NEXT;
 }
 int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
@@ -1467,11 +1479,11 @@ uint32_t IntCode_LOAD_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = *((uint32_t*)(ics.membase + address + n * 4));
+    VECI4(dest,n) = *((uint32_t*)(ics.membase + address + n * 4));
   }
   DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load v128 %.8X\n",
-         dest.f4[0], dest.f4[1], dest.f4[2], dest.f4[3],
-         dest.i4[0], dest.i4[1], dest.i4[2], dest.i4[3],
+         VECF4(dest,0), VECF4(dest,1), VECF4(dest,2), VECF4(dest,3),
+         VECI4(dest,0), VECI4(dest,1), VECI4(dest,2), VECI4(dest,3),
          address);
   DFLUSH();
   return IA_NEXT;
@@ -1566,8 +1578,8 @@ uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   DPRINT("store v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
          address,
-         ics.rf[i->src2_reg].v128.f4[0], ics.rf[i->src2_reg].v128.f4[1], ics.rf[i->src2_reg].v128.f4[2], ics.rf[i->src2_reg].v128.f4[3],
-         ics.rf[i->src2_reg].v128.i4[0], ics.rf[i->src2_reg].v128.i4[1], ics.rf[i->src2_reg].v128.i4[2], ics.rf[i->src2_reg].v128.i4[3]);
+         VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
+         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECI4(ics.rf[i->src2_reg].v128,3));
   DFLUSH();
   *((vec128_t*)(ics.membase + address)) = ics.rf[i->src2_reg].v128;
   return IA_NEXT;
@@ -2273,31 +2285,31 @@ uint32_t Translate_VECTOR_ADD_I8(IntCodeState& ics, const IntCode* i) {
   if (arithmetic_flags & ARITHMETIC_SATURATE) {
     if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
       for (int n = 0; n < 16; n++) {
-        uint16_t v = src1.b16[n] + src2.b16[n];
+        uint16_t v = VECB16(src1,n) + VECB16(src2,n);
         if (v > 0xFF) {
-          dest.b16[n] = 0xFF;
+          VECB16(dest,n) = 0xFF;
           ics.did_saturate = 1;
         } else {
-          dest.b16[n] = (uint8_t)v;
+          VECB16(dest,n) = (uint8_t)v;
         }
       }
     } else {
       for (int n = 0; n < 16; n++) {
-        int16_t v = (int8_t)src1.b16[n] + (int8_t)src2.b16[n];
+        int16_t v = (int8_t)VECB16(src1,n) + (int8_t)VECB16(src2,n);
         if (v > 0x7F) {
-          dest.b16[n] = 0x7F;
+          VECB16(dest,n) = 0x7F;
           ics.did_saturate = 1;
         } else if (v < -0x80) {
-          dest.b16[n] = -0x80;
+          VECB16(dest,n) = -0x80;
           ics.did_saturate = 1;
         } else {
-          dest.b16[n] = (uint8_t)v;
+          VECB16(dest,n) = (uint8_t)v;
         }
       }
     }
   } else {
     for (int n = 0; n < 16; n++) {
-      dest.b16[n] = src1.b16[n] + src2.b16[n];
+      VECB16(dest,n) = VECB16(src1,n) + VECB16(src2,n);
     }
   }
   return IA_NEXT;
@@ -2310,31 +2322,31 @@ uint32_t Translate_VECTOR_ADD_I16(IntCodeState& ics, const IntCode* i) {
   if (arithmetic_flags & ARITHMETIC_SATURATE) {
     if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
       for (int n = 0; n < 8; n++) {
-        uint32_t v = src1.s8[n] + src2.s8[n];
+        uint32_t v = VECS8(src1,n) + VECS8(src2,n);
         if (v > 0xFFFF) {
-          dest.s8[n] = 0xFFFF;
+          VECS8(dest,n) = 0xFFFF;
           ics.did_saturate = 1;
         } else {
-          dest.s8[n] = (uint16_t)v;
+          VECS8(dest,n) = (uint16_t)v;
         }
       }
     } else {
       for (int n = 0; n < 8; n++) {
-        int32_t v = (int16_t)src1.s8[n] + (int16_t)src2.s8[n];
+        int32_t v = (int16_t)VECS8(src1,n) + (int16_t)VECS8(src2,n);
         if (v > 0x7FFF) {
-          dest.s8[n] = 0x7FFF;
+          VECS8(dest,n) = 0x7FFF;
           ics.did_saturate = 1;
         } else if (v < -0x8000) {
-          dest.s8[n] = -0x8000;
+          VECS8(dest,n) = -0x8000;
           ics.did_saturate = 1;
         } else {
-          dest.s8[n] = (uint16_t)v;
+          VECS8(dest,n) = (uint16_t)v;
         }
       }
     }
   } else {
     for (int n = 0; n < 8; n++) {
-      dest.s8[n] = src1.s8[n] + src2.s8[n];
+      VECS8(dest,n) = VECS8(src1,n) + VECS8(src2,n);
     }
   }
   return IA_NEXT;
@@ -2347,31 +2359,31 @@ uint32_t Translate_VECTOR_ADD_I32(IntCodeState& ics, const IntCode* i) {
   if (arithmetic_flags & ARITHMETIC_SATURATE) {
     if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
       for (int n = 0; n < 4; n++) {
-        uint64_t v = src1.i4[n] + src2.i4[n];
+        uint64_t v = VECI4(src1,n) + VECI4(src2,n);
         if (v > 0xFFFFFFFF) {
-          dest.i4[n] = 0xFFFFFFFF;
+          VECI4(dest,n) = 0xFFFFFFFF;
           ics.did_saturate = 1;
         } else {
-          dest.i4[n] = (uint32_t)v;
+          VECI4(dest,n) = (uint32_t)v;
         }
       }
     } else {
       for (int n = 0; n < 4; n++) {
-        int64_t v = (int32_t)src1.i4[n] + (int32_t)src2.i4[n];
+        int64_t v = (int32_t)VECI4(src1,n) + (int32_t)VECI4(src2,n);
         if (v > 0x7FFFFFFF) {
-          dest.i4[n] = 0x7FFFFFFF;
+          VECI4(dest,n) = 0x7FFFFFFF;
           ics.did_saturate = 1;
         } else if (v < -0x80000000ll) {
-          dest.i4[n] = 0x80000000;
+          VECI4(dest,n) = 0x80000000;
           ics.did_saturate = 1;
         } else {
-          dest.i4[n] = (uint32_t)v;
+          VECI4(dest,n) = (uint32_t)v;
         }
       }
     }
   } else {
     for (int n = 0; n < 4; n++) {
-      dest.i4[n] = src1.i4[n] + src2.i4[n];
+      VECI4(dest,n) = VECI4(src1,n) + VECI4(src2,n);
     }
   }
   return IA_NEXT;
@@ -3107,7 +3119,7 @@ uint32_t IntCode_AND_V128_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = src1.i4[n] & src2.i4[n];
+    VECI4(dest,n) = VECI4(src1,n) & VECI4(src2,n);
   }
   return IA_NEXT;
 }
@@ -3145,7 +3157,7 @@ uint32_t IntCode_OR_V128_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = src1.i4[n] | src2.i4[n];
+    VECI4(dest,n) = VECI4(src1,n) | VECI4(src2,n);
   }
   return IA_NEXT;
 }
@@ -3183,7 +3195,7 @@ uint32_t IntCode_XOR_V128_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = src1.i4[n] ^ src2.i4[n];
+    VECI4(dest,n) = VECI4(src1,n) ^ VECI4(src2,n);
   }
   return IA_NEXT;
 }
@@ -3220,7 +3232,7 @@ uint32_t IntCode_NOT_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = ~src1.i4[n];
+    VECI4(dest,n) = ~VECI4(src1,n);
   }
   return IA_NEXT;
 }
@@ -3271,7 +3283,7 @@ uint32_t IntCode_VECTOR_SHL_I8(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
-    dest.b16[n] = src1.b16[n] << (src2.b16[n] & 0x7);
+    VECB16(dest,n) = VECB16(src1,n) << (VECB16(src2,n) & 0x7);
   }
   return IA_NEXT;
 }
@@ -3280,7 +3292,7 @@ uint32_t IntCode_VECTOR_SHL_I16(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 8; n++) {
-    dest.s8[n] = src1.s8[n] << (src2.s8[n] & 0xF);
+    VECS8(dest,n) = VECS8(src1,n) << (VECS8(src2,n) & 0xF);
   }
   return IA_NEXT;
 }
@@ -3289,7 +3301,7 @@ uint32_t IntCode_VECTOR_SHL_I32(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = src1.i4[n] << (src2.i4[n] & 0x1F);
+    VECI4(dest,n) = VECI4(src1,n) << (VECI4(src2,n) & 0x1F);
   }
   return IA_NEXT;
 }
@@ -3340,7 +3352,7 @@ uint32_t IntCode_VECTOR_SHR_I8(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
-    dest.b16[n] = src1.b16[n] >> (src2.b16[n] & 0x7);
+    VECB16(dest,n) = VECB16(src1,n) >> (VECB16(src2,n) & 0x7);
   }
   return IA_NEXT;
 }
@@ -3349,7 +3361,7 @@ uint32_t IntCode_VECTOR_SHR_I16(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 8; n++) {
-    dest.s8[n] = src1.s8[n] >> (src2.s8[n] & 0xF);
+    VECS8(dest,n) = VECS8(src1,n) >> (VECS8(src2,n) & 0xF);
   }
   return IA_NEXT;
 }
@@ -3358,7 +3370,7 @@ uint32_t IntCode_VECTOR_SHR_I32(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = src1.i4[n] >> (src2.i4[n] & 0x1F);
+    VECI4(dest,n) = VECI4(src1,n) >> (VECI4(src2,n) & 0x1F);
   }
   return IA_NEXT;
 }
@@ -3409,7 +3421,7 @@ uint32_t IntCode_VECTOR_SHA_I8(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 16; n++) {
-    dest.b16[n] = int8_t(src1.b16[n]) >> (src2.b16[n] & 0x7);
+    VECB16(dest,n) = int8_t(VECB16(src1,n)) >> (VECB16(src2,n) & 0x7);
   }
   return IA_NEXT;
 }
@@ -3418,7 +3430,7 @@ uint32_t IntCode_VECTOR_SHA_I16(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 8; n++) {
-    dest.s8[n] = int16_t(src1.s8[n]) >> (src2.s8[n] & 0xF);
+    VECS8(dest,n) = int16_t(VECS8(src1,n)) >> (VECS8(src2,n) & 0xF);
   }
   return IA_NEXT;
 }
@@ -3427,7 +3439,7 @@ uint32_t IntCode_VECTOR_SHA_I32(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = int32_t(src1.i4[n]) >> (src2.i4[n] & 0x1F);
+    VECI4(dest,n) = int32_t(VECI4(src1,n)) >> (VECI4(src2,n) & 0x1F);
   }
   return IA_NEXT;
 }
@@ -3495,7 +3507,7 @@ uint32_t IntCode_BYTE_SWAP_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    dest.i4[n] = XESWAP32(src1.i4[n]);
+    VECI4(dest,n) = XESWAP32(VECI4(src1,n));
   }
   return IA_NEXT;
 }
@@ -3559,17 +3571,17 @@ int Translate_CNTLZ(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_EXTRACT_INT8_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i8 = src1.b16[ics.rf[i->src2_reg].i64];
+  ics.rf[i->dest_reg].i8 = VECB16(src1,ics.rf[i->src2_reg].i64);
   return IA_NEXT;
 }
 uint32_t IntCode_EXTRACT_INT16_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i16 = src1.s8[ics.rf[i->src2_reg].i64];
+  ics.rf[i->dest_reg].i16 = VECS8(src1,ics.rf[i->src2_reg].i64);
   return IA_NEXT;
 }
 uint32_t IntCode_EXTRACT_INT32_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i32 = src1.i4[ics.rf[i->src2_reg].i64];
+  ics.rf[i->dest_reg].i32 = VECI4(src1,ics.rf[i->src2_reg].i64);
   return IA_NEXT;
 }
 int Translate_EXTRACT(TranslationContext& ctx, Instr* i) {
@@ -3593,7 +3605,7 @@ uint32_t IntCode_INSERT_INT8_V128(IntCodeState& ics, const IntCode* i) {
   const uint8_t part = ics.rf[i->src3_reg].i8;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t n = 0; n < 16; n++) {
-    dest.b16[n] = (n == offset) ? part : src1.b16[n];
+    VECB16(dest,n) = (n == offset) ? part : VECB16(src1,n);
   }
   return IA_NEXT;
 }
@@ -3603,7 +3615,7 @@ uint32_t IntCode_INSERT_INT16_V128(IntCodeState& ics, const IntCode* i) {
   const uint16_t part = ics.rf[i->src3_reg].i16;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t n = 0; n < 8; n++) {
-    dest.s8[n] = (n == offset) ? part : src1.s8[n];
+    VECS8(dest,n) = (n == offset) ? part : VECS8(src1,n);
   }
   return IA_NEXT;
 }
@@ -3613,7 +3625,7 @@ uint32_t IntCode_INSERT_INT32_V128(IntCodeState& ics, const IntCode* i) {
   const uint32_t part = ics.rf[i->src3_reg].i32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t n = 0; n < 4; n++) {
-    dest.i4[n] = (n == offset) ? part : src1.i4[n];
+    VECI4(dest,n) = (n == offset) ? part : VECI4(src1,n);
   }
   return IA_NEXT;
 }
@@ -3636,7 +3648,7 @@ uint32_t IntCode_SPLAT_V128_INT8(IntCodeState& ics, const IntCode* i) {
   int8_t src1 = ics.rf[i->src1_reg].i8;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t i = 0; i < 16; i++) {
-    dest.b16[i] = src1;
+    VECB16(dest,i) = src1;
   }
   return IA_NEXT;
 }
@@ -3644,7 +3656,7 @@ uint32_t IntCode_SPLAT_V128_INT16(IntCodeState& ics, const IntCode* i) {
   int16_t src1 = ics.rf[i->src1_reg].i16;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t i = 0; i < 8; i++) {
-    dest.s8[i] = src1;
+    VECS8(dest,i) = src1;
   }
   return IA_NEXT;
 }
@@ -3652,7 +3664,7 @@ uint32_t IntCode_SPLAT_V128_INT32(IntCodeState& ics, const IntCode* i) {
   int32_t src1 = ics.rf[i->src1_reg].i32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t i = 0; i < 4; i++) {
-    dest.i4[i] = src1;
+    VECI4(dest,i) = src1;
   }
   return IA_NEXT;
 }
@@ -3680,37 +3692,29 @@ int Translate_SPLAT(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_PERMUTE_V128_BY_INT32(IntCodeState& ics, const IntCode* i) {
-  uint32_t src1 = ics.rf[i->src1_reg].i32;
+  uint32_t table = ics.rf[i->src1_reg].i32;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (size_t i = 0; i < 4; i++) {
-    size_t b = (src1 >> ((3 - i) * 8)) & 0x7;
-    dest.i4[i] = b < 4 ?
-        src2.i4[b] :
-        src3.i4[b - 4];
+    size_t b = (table >> ((3 - i) * 8)) & 0x7;
+    VECI4(dest,i) = b < 4 ?
+        VECI4(src2,b) :
+        VECI4(src3,b-4);
   }
   return IA_NEXT;
-}
-uint8_t grab(const vec128_t& src, uint8_t index) {
-  return (index < 8
-      ? (src.low >> (VECTORBYTEOFFSET(index) << 3))
-      : (src.high >> ((VECTORBYTEOFFSET(index - 8)) << 3))) & 0xFF;
 }
 uint32_t IntCode_PERMUTE_V128_BY_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& table = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   const vec128_t& src3 = ics.rf[i->src3_reg].v128;
-  vec128_t& dests = ics.rf[i->dest_reg].v128;
-  dests.low = dests.high = 0;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  dest.low = dest.high = 0;
   for (size_t n = 0; n < 16; n++) {
-    uint8_t index = table.b16[VECTORBYTEOFFSET(n)] & 0x1F;
-    uint8_t value = index < 16
-        ? grab(src2, index)
-        : grab(src3, index - 16);
-    uint64_t& dest = n < 8 ? dests.low : dests.high;
-    uint8_t shift = VECTORBYTEOFFSET((n < 8 ? n : (n - 8))) << 3;
-    dest |= (((uint64_t)value) << shift);
+    uint8_t index = VECB16(table,n) & 0x1F;
+    VECB16(dest,n) = index < 16
+        ? VECB16(src2,index)
+        : VECB16(src3,index-16);
   }
   return IA_NEXT;
 }
@@ -3733,10 +3737,10 @@ uint32_t IntCode_SWIZZLE_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   uint32_t swizzle_mask = ics.rf[i->src2_reg].u32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.i4[0] = src1.i4[(swizzle_mask >> 6) & 0x3];
-  dest.i4[1] = src1.i4[(swizzle_mask >> 4) & 0x3];
-  dest.i4[2] = src1.i4[(swizzle_mask >> 2) & 0x3];
-  dest.i4[3] = src1.i4[(swizzle_mask) & 0x3];
+  VECI4(dest,0) = VECI4(src1,(swizzle_mask >> 6) & 0x3);
+  VECI4(dest,1) = VECI4(src1,(swizzle_mask >> 4) & 0x3);
+  VECI4(dest,2) = VECI4(src1,(swizzle_mask >> 2) & 0x3);
+  VECI4(dest,3) = VECI4(src1,(swizzle_mask) & 0x3);
   return IA_NEXT;
 }
 int Translate_SWIZZLE(TranslationContext& ctx, Instr* i) {
@@ -3871,45 +3875,45 @@ uint32_t IntCode_UNPACK_SHORT_2(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_UNPACK_S8_IN_16_LO(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.s8[0] = (int16_t)(int8_t)src1.b16[8 + 3];
-  dest.s8[1] = (int16_t)(int8_t)src1.b16[8 + 2];
-  dest.s8[2] = (int16_t)(int8_t)src1.b16[8 + 1];
-  dest.s8[3] = (int16_t)(int8_t)src1.b16[8 + 0];
-  dest.s8[4] = (int16_t)(int8_t)src1.b16[8 + 7];
-  dest.s8[5] = (int16_t)(int8_t)src1.b16[8 + 6];
-  dest.s8[6] = (int16_t)(int8_t)src1.b16[8 + 5];
-  dest.s8[7] = (int16_t)(int8_t)src1.b16[8 + 4];
+  VECS8(dest,0) = (int16_t)(int8_t)VECB16(src1,8+0);
+  VECS8(dest,1) = (int16_t)(int8_t)VECB16(src1,8+1);
+  VECS8(dest,2) = (int16_t)(int8_t)VECB16(src1,8+2);
+  VECS8(dest,3) = (int16_t)(int8_t)VECB16(src1,8+3);
+  VECS8(dest,4) = (int16_t)(int8_t)VECB16(src1,8+4);
+  VECS8(dest,5) = (int16_t)(int8_t)VECB16(src1,8+5);
+  VECS8(dest,6) = (int16_t)(int8_t)VECB16(src1,8+6);
+  VECS8(dest,7) = (int16_t)(int8_t)VECB16(src1,8+7);
   return IA_NEXT;
 }
 uint32_t IntCode_UNPACK_S8_IN_16_HI(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.s8[0] = (int16_t)(int8_t)src1.b16[3];
-  dest.s8[1] = (int16_t)(int8_t)src1.b16[2];
-  dest.s8[2] = (int16_t)(int8_t)src1.b16[1];
-  dest.s8[3] = (int16_t)(int8_t)src1.b16[0];
-  dest.s8[4] = (int16_t)(int8_t)src1.b16[7];
-  dest.s8[5] = (int16_t)(int8_t)src1.b16[6];
-  dest.s8[6] = (int16_t)(int8_t)src1.b16[5];
-  dest.s8[7] = (int16_t)(int8_t)src1.b16[4];
+  VECS8(dest,0) = (int16_t)(int8_t)VECB16(src1,0);
+  VECS8(dest,1) = (int16_t)(int8_t)VECB16(src1,1);
+  VECS8(dest,2) = (int16_t)(int8_t)VECB16(src1,2);
+  VECS8(dest,3) = (int16_t)(int8_t)VECB16(src1,3);
+  VECS8(dest,4) = (int16_t)(int8_t)VECB16(src1,4);
+  VECS8(dest,5) = (int16_t)(int8_t)VECB16(src1,5);
+  VECS8(dest,6) = (int16_t)(int8_t)VECB16(src1,6);
+  VECS8(dest,7) = (int16_t)(int8_t)VECB16(src1,7);
   return IA_NEXT;
 }
 uint32_t IntCode_UNPACK_S16_IN_32_LO(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.i4[0] = (int32_t)(int16_t)src1.s8[4 + 1];
-  dest.i4[1] = (int32_t)(int16_t)src1.s8[4 + 0];
-  dest.i4[2] = (int32_t)(int16_t)src1.s8[4 + 3];
-  dest.i4[3] = (int32_t)(int16_t)src1.s8[4 + 2];
+  VECI4(dest,0) = (int32_t)(int16_t)VECS8(src1,4+0);
+  VECI4(dest,1) = (int32_t)(int16_t)VECS8(src1,4+1);
+  VECI4(dest,2) = (int32_t)(int16_t)VECS8(src1,4+2);
+  VECI4(dest,3) = (int32_t)(int16_t)VECS8(src1,4+3);
   return IA_NEXT;
 }
 uint32_t IntCode_UNPACK_S16_IN_32_HI(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  dest.i4[0] = (int32_t)(int16_t)src1.s8[1];
-  dest.i4[1] = (int32_t)(int16_t)src1.s8[0];
-  dest.i4[2] = (int32_t)(int16_t)src1.s8[3];
-  dest.i4[3] = (int32_t)(int16_t)src1.s8[2];
+  VECI4(dest,0) = (int32_t)(int16_t)VECS8(src1,0);
+  VECI4(dest,1) = (int32_t)(int16_t)VECS8(src1,1);
+  VECI4(dest,2) = (int32_t)(int16_t)VECS8(src1,2);
+  VECI4(dest,3) = (int32_t)(int16_t)VECS8(src1,3);
   return IA_NEXT;
 }
 int Translate_UNPACK(TranslationContext& ctx, Instr* i) {
