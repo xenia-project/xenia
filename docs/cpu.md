@@ -25,6 +25,7 @@ which are only documented in a few places (like the gcc source code, etc).
 * [PowerPC Vector PEM](https://www-01.ibm.com/chips/techlib/techlib.nsf/techdocs/C40E4C6133B31EE8872570B500791108/$file/vector_simd_pem_v_2.07c_26Oct2006_cell.pdf)
 * [AltiVec PEM](http://cache.freescale.com/files/32bit/doc/ref_manual/ALTIVECPEM.pdf)
 * [VMX128 Opcodes](http://biallas.net/doc/vmx128/vmx128.txt)
+* [AltiVec Decoding](https://github.com/kakaroto/ps3ida/blob/master/plugins/PPCAltivec/src/main.cpp)
 
 ### x64
 

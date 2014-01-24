@@ -283,114 +283,37 @@ void InstrAccessBits::Dump(std::string& out_str) {
 
 
 void InstrDisasm::Init(const char* name, const char* info, uint32_t flags) {
-  operands.clear();
-  special_registers.clear();
-  access_bits.Clear();
-
   this->name = name;
   this->info = info;
   this->flags = flags;
-
-  if (flags & InstrDisasm::kOE) {
-    InstrRegister i = {
-      InstrRegister::kXER, 0, InstrRegister::kReadWrite
-    };
-    special_registers.push_back(i);
-  }
-  if (flags & InstrDisasm::kRc) {
-    InstrRegister i = {
-      InstrRegister::kCR, 0, InstrRegister::kWrite
-    };
-    special_registers.push_back(i);
-  }
-  if (flags & InstrDisasm::kCA) {
-    InstrRegister i = {
-      InstrRegister::kXER, 0, InstrRegister::kReadWrite
-    };
-    special_registers.push_back(i);
-  }
-  if (flags & InstrDisasm::kLR) {
-    InstrRegister i = {
-      InstrRegister::kLR, 0, InstrRegister::kWrite
-    };
-    special_registers.push_back(i);
-  }
 }
 
 void InstrDisasm::AddLR(InstrRegister::Access access) {
-  InstrRegister i = {
-    InstrRegister::kLR, 0, access
-  };
-  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddCTR(InstrRegister::Access access) {
-  InstrRegister i = {
-    InstrRegister::kCTR, 0, access
-  };
-  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
-  InstrRegister i = {
-    InstrRegister::kCR, bf, access
-  };
-  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddFPSCR(InstrRegister::Access access) {
-  InstrRegister i = {
-    InstrRegister::kFPSCR, 0, access
-  };
-  special_registers.push_back(i);
 }
 
 void InstrDisasm::AddRegOperand(
     InstrRegister::RegisterSet set, uint32_t ordinal,
     InstrRegister::Access access, const char* display) {
-  InstrRegister i = {
-    set, ordinal, access
-  };
-  InstrOperand o;
-  o.type    = InstrOperand::kRegister;
-  o.reg     = i;
-  o.display = display;
-  operands.push_back(o);
 }
 
 void InstrDisasm::AddSImmOperand(uint64_t value, size_t width,
                                  const char* display) {
-  InstrOperand o;
-  o.type = InstrOperand::kImmediate;
-  o.imm.is_signed = true;
-  o.imm.value     = value;
-  o.imm.width     = width;
-  o.display       = display;
-  operands.push_back(o);
 }
 
 void InstrDisasm::AddUImmOperand(uint64_t value, size_t width,
                                  const char* display) {
-  InstrOperand o;
-  o.type = InstrOperand::kImmediate;
-  o.imm.is_signed = false;
-  o.imm.value     = value;
-  o.imm.width     = width;
-  o.display       = display;
-  operands.push_back(o);
 }
 
 int InstrDisasm::Finish() {
-  for (std::vector<InstrOperand>::iterator it = operands.begin();
-       it != operands.end(); ++it) {
-    if (it->type == InstrOperand::kRegister) {
-      access_bits.MarkAccess(it->reg);
-    }
-  }
-  for (std::vector<InstrRegister>::iterator it = special_registers.begin();
-       it != special_registers.end(); ++it) {
-    access_bits.MarkAccess(*it);
-  }
   return 0;
 }
 
@@ -404,19 +327,6 @@ void InstrDisasm::Dump(std::string& out_str, size_t pad) {
   }
   if (flags & InstrDisasm::kLR) {
     out_str += "l";
-  }
-
-  if (operands.size()) {
-    if (pad && out_str.size() < pad) {
-      out_str += std::string(pad - out_str.size(), ' ');
-    }
-    for (std::vector<InstrOperand>::iterator it = operands.begin();
-         it != operands.end(); ++it) {
-      it->Dump(out_str);
-      if (it + 1 != operands.end()) {
-        out_str += ", ";
-      }
-    }
   }
 }
 
@@ -478,18 +388,6 @@ InstrType* alloy::frontend::ppc::GetInstrType(uint32_t code) {
   }
 
   return NULL;
-}
-
-int alloy::frontend::ppc::RegisterInstrDisassemble(
-    uint32_t code, InstrDisassembleFn disassemble) {
-  InstrType* instr_type = GetInstrType(code);
-  XEASSERTNOTNULL(instr_type);
-  if (!instr_type) {
-    return 1;
-  }
-  XEASSERTNULL(instr_type->disassemble);
-  instr_type->disassemble = disassemble;
-  return 0;
 }
 
 int alloy::frontend::ppc::RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {

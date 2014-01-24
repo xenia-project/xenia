@@ -12,6 +12,7 @@
 #include <alloy/alloy-private.h>
 #include <alloy/compiler/compiler_passes.h>
 #include <alloy/frontend/tracing.h>
+#include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_hir_builder.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
@@ -161,17 +162,8 @@ void PPCTranslator::DumpSource(
       ++block_it;
     }
 
-    if (!i.type) {
-      string_buffer->Append("%.8X %.8X ???", address, i.code);
-    } else if (i.type->disassemble) {
-      ppc::InstrDisasm d;
-      i.type->disassemble(i, d);
-      std::string disasm;
-      d.Dump(disasm);
-      string_buffer->Append("%.8X %.8X %s", address, i.code, disasm.c_str());
-    } else {
-      string_buffer->Append("%.8X %.8X %s ???", address, i.code, i.type->name);
-    }
+    string_buffer->Append("%.8X %.8X   ", address, i.code);
+    DisasmPPC(i, string_buffer);
     string_buffer->Append("\n");
   }
 }

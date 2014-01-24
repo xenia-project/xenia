@@ -11,6 +11,7 @@
 
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_context.h>
+#include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/hir/label.h>
@@ -26,9 +27,11 @@ using namespace alloy::runtime;
 PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend) :
     frontend_(frontend),
     HIRBuilder() {
+  comment_buffer_ = new StringBuffer(4096);
 }
 
 PPCHIRBuilder::~PPCHIRBuilder() {
+  delete comment_buffer_;
 }
 
 void PPCHIRBuilder::Reset() {
@@ -96,17 +99,9 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
       if (label) {
         AnnotateLabel(address, label);
       }
-      if (!i.type) {
-        Comment("%.8X %.8X ???", address, i.code);
-      } else if (i.type->disassemble) {
-        ppc::InstrDisasm d;
-        i.type->disassemble(i, d);
-        std::string disasm;
-        d.Dump(disasm);
-        Comment("%.8X %.8X %s", address, i.code, disasm.c_str());
-      } else {
-        Comment("%.8X %.8X %s ???", address, i.code, i.type->name);
-      }
+      comment_buffer_->Reset();
+      DisasmPPC(i, comment_buffer_);
+      Comment("%.8X %.8X %s", address, i.code, comment_buffer_->GetString());
       first_instr = last_instr();
     }
 

@@ -481,9 +481,6 @@ public:
   const char*   name;
   const char*   info;
   uint32_t      flags;
-  std::vector<InstrOperand> operands;
-  std::vector<InstrRegister> special_registers;
-  InstrAccessBits access_bits;
 
   void Init(const char* name, const char* info, uint32_t flags);
   void AddLR(InstrRegister::Access access);
@@ -500,7 +497,7 @@ public:
 };
 
 
-typedef int (*InstrDisassembleFn)(InstrData& i, InstrDisasm& d);
+typedef void (*InstrDisasmFn)(InstrData& i, StringBuffer* str);
 typedef void* InstrEmitFn;
 
 
@@ -511,14 +508,13 @@ public:
   uint32_t    format;         // xe_ppc_instr_format_e
   uint32_t    type;           // xe_ppc_instr_type_e
   uint32_t    flags;          // xe_ppc_instr_flag_e
+  InstrDisasmFn disasm;
   char        name[16];
 
-  InstrDisassembleFn disassemble;
   InstrEmitFn        emit;
 };
 
 InstrType* GetInstrType(uint32_t code);
-int RegisterInstrDisassemble(uint32_t code, InstrDisassembleFn disassemble);
 int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
 
 

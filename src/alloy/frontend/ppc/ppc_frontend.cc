@@ -32,12 +32,6 @@ namespace {
     }
     has_initialized = true;
 
-    RegisterDisasmCategoryAltivec();
-    RegisterDisasmCategoryALU();
-    RegisterDisasmCategoryControl();
-    RegisterDisasmCategoryFPU();
-    RegisterDisasmCategoryMemory();
-
     RegisterEmitCategoryAltivec();
     RegisterEmitCategoryALU();
     RegisterEmitCategoryControl();

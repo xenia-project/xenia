@@ -18,11 +18,7 @@ namespace frontend {
 namespace ppc {
 
 
-void RegisterDisasmCategoryAltivec();
-void RegisterDisasmCategoryALU();
-void RegisterDisasmCategoryControl();
-void RegisterDisasmCategoryFPU();
-void RegisterDisasmCategoryMemory();
+int DisasmPPC(InstrData& i, StringBuffer* str);
 
 
 }  // namespace ppc

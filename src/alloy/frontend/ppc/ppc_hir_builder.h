@@ -74,6 +74,9 @@ private:
 private:
   PPCFrontend*  frontend_;
 
+  // Reset whenever needed:
+  StringBuffer* comment_buffer_;
+
   // Reset each Emit:
   bool          with_debug_info_;
   runtime::FunctionInfo* symbol_info_;
