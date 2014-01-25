@@ -1,6 +1,6 @@
 [submodule "third_party/ninja"]
 	path = third_party/ninja
-	url = git://github.com/martine/ninja.git
+	url = https://github.com/martine/ninja.git
 [submodule "third_party/gyp"]
 	path = third_party/gyp
 	url = https://github.com/benvanik/gyp.git
