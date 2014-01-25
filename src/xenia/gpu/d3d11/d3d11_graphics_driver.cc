@@ -1159,11 +1159,11 @@ D3D11GraphicsDriver::TextureInfo D3D11GraphicsDriver::GetTextureInfo(
   case FMT_4_4_4_4:
     switch (fetch.swizzle) {
     case XE_GPU_SWIZZLE_BGRA:
-      info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
+      info.format = DXGI_FORMAT_B4G4R4A4_UNORM; // only supported on Windows 8+
       break;
     default:
       XELOGW("D3D11: unhandled swizzle for FMT_4_4_4_4");
-      info.format = DXGI_FORMAT_B4G4R4A4_UNORM;
+      info.format = DXGI_FORMAT_B4G4R4A4_UNORM; // only supported on Windows 8+
       break;
     }
     info.block_size = 1;
