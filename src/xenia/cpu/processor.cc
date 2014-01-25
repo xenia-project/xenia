@@ -704,10 +704,6 @@ json_t* Processor::DumpFunction(uint64_t address, bool& succeeded) {
   json_object_set_new(disasm_json, "rawHir", disasm_str_json);
   disasm_str_json = json_string(debug_info->hir_disasm());
   json_object_set_new(disasm_json, "hir", disasm_str_json);
-  disasm_str_json = json_string(debug_info->raw_lir_disasm());
-  json_object_set_new(disasm_json, "rawLir", disasm_str_json);
-  disasm_str_json = json_string(debug_info->lir_disasm());
-  json_object_set_new(disasm_json, "lir", disasm_str_json);
   disasm_str_json = json_string(debug_info->machine_code_disasm());
   json_object_set_new(disasm_json, "machineCode", disasm_str_json);
   json_object_set_new(fn_json, "disasm", disasm_json);

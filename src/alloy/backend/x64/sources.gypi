@@ -15,8 +15,6 @@
   ],
 
   'includes': [
-    'lir/sources.gypi',
     'lowering/sources.gypi',
-    'optimizer/sources.gypi',
   ],
 }

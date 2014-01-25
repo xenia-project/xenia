@@ -30,11 +30,16 @@ using namespace alloy::runtime;
 
 PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
     frontend_(frontend) {
+  Backend* backend = frontend->runtime()->backend();
+
   scanner_ = new PPCScanner(frontend);
   builder_ = new PPCHIRBuilder(frontend);
-
   compiler_ = new Compiler(frontend->runtime());
+  assembler_ = backend->CreateAssembler();
+  assembler_->Initialize();
 
+  // Passes are executed in the order they are added. Multiple of the same
+  // pass type may be used.
   compiler_->AddPass(new passes::ContextPromotionPass());
   compiler_->AddPass(new passes::SimplificationPass());
   // TODO(benvanik): run repeatedly?
@@ -45,9 +50,11 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   //compiler_->AddPass(new passes::DeadStoreEliminationPass());
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
 
-  Backend* backend = frontend->runtime()->backend();
-  assembler_ = backend->CreateAssembler();
-  assembler_->Initialize();
+  // After register allocation instructions should not be added/removed.
+  compiler_->AddPass(new passes::RegisterAllocationPass(backend));
+
+  // Must come last. The HIR is not really HIR after this.
+  compiler_->AddPass(new passes::FinalizationPass());
 }
 
 PPCTranslator::~PPCTranslator() {

@@ -45,59 +45,25 @@ void LoweringTable::AddSequence(hir::Opcode starting_opcode, sequence_fn_t fn) {
   lookup_[starting_opcode] = new_entry;
 }
 
-int LoweringTable::Process(
-    hir::HIRBuilder* hir_builder, lir::LIRBuilder* lir_builder) {
-  lir_builder->EndBlock();
-
-  // Translate all labels ahead of time.
-  // We stash them on tags to make things easier later on.
-  auto hir_block = hir_builder->first_block();
-  while (hir_block) {
-    auto hir_label = hir_block->label_head;
-    while (hir_label) {
-      auto lir_label = lir_builder->NewLabel(hir_label->name);
-      hir_label->tag = lir_label;
-      hir_label = hir_label->next;
-    }
-    hir_block = hir_block->next;
-  }
-
-  // Process each block.
-  hir_block = hir_builder->first_block();
-  while (hir_block) {
-    // Force a new block.
-    lir_builder->AppendBlock();
-
-    // Mark labels.
-    auto hir_label = hir_block->label_head;
-    while (hir_label) {
-      auto lir_label = (lir::LIRLabel*)hir_label->tag;
-      lir_builder->MarkLabel(lir_label);
-      hir_label = hir_label->next;
-    }
-
-    // Process instructions.
-    auto hir_instr = hir_block->instr_head;
-    while (hir_instr) {
-      bool processed = false;
-      auto entry = lookup_[hir_instr->opcode->num];
-      while (entry) {
-        if ((*entry->fn)(*lir_builder, hir_instr)) {
-          processed = true;
-          break;
-        }
-        entry = entry->next;
+int LoweringTable::ProcessBlock(X64Emitter& e, hir::Block* block) {
+  // Process instructions.
+  auto instr = block->instr_head;
+  while (instr) {
+    bool processed = false;
+    auto entry = lookup_[instr->opcode->num];
+    while (entry) {
+      if ((*entry->fn)(e, instr)) {
+        processed = true;
+        break;
       }
-      if (!processed) {
-        // No sequence found!
-        XELOGE("Unable to process HIR opcode %s", hir_instr->opcode->name);
-        return 1;
-        hir_instr = hir_instr->next;
-      }
+      entry = entry->next;
     }
-
-    lir_builder->EndBlock();
-    hir_block = hir_block->next;
+    if (!processed) {
+      // No sequence found!
+      XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
+      return 1;
+      instr = instr->next;
+    }
   }
 
   return 0;

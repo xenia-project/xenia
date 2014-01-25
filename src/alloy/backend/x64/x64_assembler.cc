@@ -13,10 +13,6 @@
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/backend/x64/x64_function.h>
-#include <alloy/backend/x64/lir/lir_builder.h>
-#include <alloy/backend/x64/lowering/lowering_table.h>
-#include <alloy/backend/x64/optimizer/optimizer.h>
-#include <alloy/backend/x64/optimizer/optimizer_passes.h>
 #include <alloy/hir/hir_builder.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
@@ -28,16 +24,12 @@ namespace BE {
 using namespace alloy;
 using namespace alloy::backend;
 using namespace alloy::backend::x64;
-using namespace alloy::backend::x64::lir;
-using namespace alloy::backend::x64::optimizer;
 using namespace alloy::hir;
 using namespace alloy::runtime;
 
 
 X64Assembler::X64Assembler(X64Backend* backend) :
     x64_backend_(backend),
-    builder_(0),
-    optimizer_(0),
     emitter_(0),
     Assembler(backend) {
 }
@@ -47,8 +39,6 @@ X64Assembler::~X64Assembler() {
   }));
 
   delete emitter_;
-  delete optimizer_;
-  delete builder_;
 }
 
 int X64Assembler::Initialize() {
@@ -57,14 +47,8 @@ int X64Assembler::Initialize() {
     return result;
   }
 
-  builder_ = new LIRBuilder(x64_backend_);
-
-  optimizer_ = new Optimizer(backend_->runtime());
-  optimizer_->AddPass(new passes::RegisterAllocationPass());
-  optimizer_->AddPass(new passes::RedundantMovPass());
-  optimizer_->AddPass(new passes::ReachabilityPass());
-
-  emitter_ = new X64Emitter(x64_backend_);
+  emitter_ = new X64Emitter(x64_backend_,
+                            new XbyakAllocator());
 
   alloy::tracing::WriteEvent(EventType::AssemblerInit({
   }));
@@ -73,45 +57,20 @@ int X64Assembler::Initialize() {
 }
 
 void X64Assembler::Reset() {
-  builder_->Reset();
-  optimizer_->Reset();
   string_buffer_.Reset();
   Assembler::Reset();
 }
 
 int X64Assembler::Assemble(
-    FunctionInfo* symbol_info, HIRBuilder* hir_builder,
+    FunctionInfo* symbol_info, HIRBuilder* builder,
     uint32_t debug_info_flags, DebugInfo* debug_info,
     Function** out_function) {
   int result = 0;
 
-  // Lower HIR -> LIR.
-  auto lowering_table = x64_backend_->lowering_table();
-  result = lowering_table->Process(hir_builder, builder_);
-  XEEXPECTZERO(result);
-
-  // Stash raw LIR.
-  if (debug_info_flags & DEBUG_INFO_RAW_LIR_DISASM) {
-    builder_->Dump(&string_buffer_);
-    debug_info->set_raw_lir_disasm(string_buffer_.ToString());
-    string_buffer_.Reset();
-  }
-
-  // Optimize LIR.
-  result = optimizer_->Optimize(builder_);
-  XEEXPECTZERO(result);
-
-  // Stash optimized LIR.
-  if (debug_info_flags & DEBUG_INFO_LIR_DISASM) {
-    builder_->Dump(&string_buffer_);
-    debug_info->set_lir_disasm(string_buffer_.ToString());
-    string_buffer_.Reset();
-  }
-
-  // Emit machine code.
+  // Lower HIR -> x64.
   void* machine_code = 0;
   size_t code_size = 0;
-  result = emitter_->Emit(builder_, machine_code, code_size);
+  result = emitter_->Emit(builder, machine_code, code_size);
   XEEXPECTZERO(result);
 
   // Stash generated machine code.

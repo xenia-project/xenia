@@ -12,6 +12,9 @@
 
 #include <alloy/core.h>
 
+#include <third_party/xbyak/xbyak/xbyak.h>
+
+XEDECLARECLASS2(alloy, hir, HIRBuilder);
 
 namespace alloy {
 namespace backend {
@@ -19,26 +22,31 @@ namespace x64 {
 
 class X64Backend;
 class X64CodeCache;
-namespace lir { class LIRBuilder; }
 
-class XbyakAllocator;
-class XbyakGenerator;
-
-class X64Emitter {
+// Unfortunately due to the design of xbyak we have to pass this to the ctor.
+class XbyakAllocator : public Xbyak::Allocator {
 public:
-  X64Emitter(X64Backend* backend);
-  ~X64Emitter();
+	virtual bool useProtect() const { return false; }
+};
+
+class X64Emitter : public Xbyak::CodeGenerator {
+public:
+  X64Emitter(X64Backend* backend, XbyakAllocator* allocator);
+  virtual ~X64Emitter();
 
   int Initialize();
 
-  int Emit(lir::LIRBuilder* builder,
+  int Emit(hir::HIRBuilder* builder,
            void*& out_code_address, size_t& out_code_size);
+
+private:
+  void* Emplace(X64CodeCache* code_cache);
+  int Emit(hir::HIRBuilder* builder);
 
 private:
   X64Backend*     backend_;
   X64CodeCache*   code_cache_;
   XbyakAllocator* allocator_;
-  XbyakGenerator* generator_;
 };
 
 

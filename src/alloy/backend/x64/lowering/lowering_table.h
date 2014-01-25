@@ -11,8 +11,6 @@
 #define ALLOY_BACKEND_X64_X64_LOWERING_LOWERING_TABLE_H_
 
 #include <alloy/core.h>
-#include <alloy/backend/x64/lir/lir_builder.h>
-#include <alloy/backend/x64/lir/lir_instr.h>
 #include <alloy/hir/hir_builder.h>
 
 
@@ -20,6 +18,7 @@ namespace alloy {
 namespace backend {
 namespace x64 {
 class X64Backend;
+class X64Emitter;
 namespace lowering {
 
 
@@ -30,10 +29,10 @@ public:
 
   int Initialize();
 
-  int Process(hir::HIRBuilder* hir_builder, lir::LIRBuilder* lir_builder);
+  int ProcessBlock(X64Emitter& e, hir::Block* block);
 
 public:
-  typedef bool(*sequence_fn_t)(lir::LIRBuilder& lb, hir::Instr*& instr);
+  typedef bool(*sequence_fn_t)(X64Emitter& e, hir::Instr*& instr);
   void AddSequence(hir::Opcode starting_opcode, sequence_fn_t fn);
 
 private:
@@ -43,6 +42,8 @@ private:
     sequence_fn_entry_t* next;
   };
 
+  // NOTE: this class is shared by multiple threads and is not thread safe.
+  // Do not modify anything after init.
   X64Backend* backend_;
   sequence_fn_entry_t* lookup_[hir::__OPCODE_MAX_VALUE];
 };
