@@ -7,33 +7,38 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_NOP_NOP_AUDIO_SYSTEM_H_
-#define XENIA_APU_NOP_NOP_AUDIO_SYSTEM_H_
+#ifndef XENIA_APU_AUDIO_DRIVER_H_
+#define XENIA_APU_AUDIO_DRIVER_H_
 
 #include <xenia/core.h>
+#include <xenia/xbox.h>
 
-#include <xenia/apu/audio_system.h>
-#include <xenia/apu/nop/nop_apu-private.h>
+
+XEDECLARECLASS1(xe, Emulator);
+XEDECLARECLASS2(xe, cpu, Processor);
+XEDECLARECLASS2(xe, cpu, XenonThreadState);
 
 
 namespace xe {
 namespace apu {
-namespace nop {
 
 
-class NopAudioSystem : public AudioSystem {
+class AudioDriver {
 public:
-  NopAudioSystem(Emulator* emulator);
-  virtual ~NopAudioSystem();
+  AudioDriver(Emulator* emulator);
+  virtual ~AudioDriver();
 
-  virtual X_STATUS CreateDriver(size_t index, HANDLE wait_handle, AudioDriver** out_driver);
-  virtual void DestroyDriver(AudioDriver* driver);
+  virtual void SubmitFrame(uint32_t samples_ptr) = 0;
+
+protected:
+  Emulator*         emulator_;
+  Memory*           memory_;
+  cpu::Processor*   processor_;
 };
 
 
-}  // namespace nop
 }  // namespace apu
 }  // namespace xe
 
 
-#endif  // XENIA_APU_NOP_NOP_AUDIO_SYSTEM_H_
+#endif  // XENIA_APU_AUDIO_DRIVER_H_

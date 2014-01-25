@@ -7,27 +7,21 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/nop/nop_audio_system.h>
+#include <xenia/apu/audio_driver.h>
 
-#include <xenia/apu/apu-private.h>
+#include <xenia/emulator.h>
+#include <xenia/cpu/processor.h>
+#include <xenia/cpu/xenon_thread_state.h>
 
 
 using namespace xe;
 using namespace xe::apu;
-using namespace xe::apu::nop;
+using namespace xe::cpu;
 
 
-NopAudioSystem::NopAudioSystem(Emulator* emulator) :
-    AudioSystem(emulator) {
+AudioDriver::AudioDriver(Emulator* emulator) :
+    emulator_(emulator), memory_(emulator->memory()) {
 }
 
-NopAudioSystem::~NopAudioSystem() {
-}
-
-X_STATUS NopAudioSystem::CreateDriver(size_t index, HANDLE wait_handle, AudioDriver** out_driver) {
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
-void NopAudioSystem::DestroyDriver(AudioDriver* driver) {
-  XEASSERTALWAYS();
+AudioDriver::~AudioDriver() {
 }

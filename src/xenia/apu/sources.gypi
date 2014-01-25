@@ -4,6 +4,8 @@
     'apu-private.h',
     'apu.cc',
     'apu.h',
+    'audio_driver.cc',
+    'audio_driver.h',
     'audio_system.cc',
     'audio_system.h',
   ],

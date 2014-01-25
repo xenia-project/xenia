@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_SYSTEM_H_
-#define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_SYSTEM_H_
+#ifndef XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
+#define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 
 #include <xenia/core.h>
 
-#include <xenia/apu/audio_system.h>
+#include <xenia/apu/audio_driver.h>
 #include <xenia/apu/xaudio2/xaudio2_apu-private.h>
 
 #include <xaudio2.h>
@@ -23,16 +23,26 @@ namespace apu {
 namespace xaudio2 {
 
 
-class XAudio2AudioSystem : public AudioSystem {
+class XAudio2AudioDriver : public AudioDriver {
 public:
-  XAudio2AudioSystem(Emulator* emulator);
-  virtual ~XAudio2AudioSystem();
+  XAudio2AudioDriver(Emulator* emulator, HANDLE wait);
+  virtual ~XAudio2AudioDriver();
 
-  virtual X_RESULT CreateDriver(size_t index, HANDLE wait, AudioDriver** out_driver);
-  virtual void DestroyDriver(AudioDriver* driver);
-
-protected:
   virtual void Initialize();
+  virtual void SubmitFrame(uint32_t frame_ptr);
+  virtual void Shutdown();
+
+private:
+  IXAudio2* audio_;
+  IXAudio2MasteringVoice* mastering_voice_;
+  IXAudio2SourceVoice* pcm_voice_;
+  static const int frame_channels_ = 6;
+  static const int channel_samples_ = 256;
+  float frame_[frame_channels_ * channel_samples_];
+  HANDLE wait_handle_;
+
+  class VoiceCallback;
+  VoiceCallback* voice_callback_;
 };
 
 
@@ -41,4 +51,4 @@ protected:
 }  // namespace xe
 
 
-#endif  // XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_SYSTEM_H_
+#endif  // XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_

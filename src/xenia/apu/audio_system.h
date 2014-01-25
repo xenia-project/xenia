@@ -13,11 +13,12 @@
 #include <xenia/core.h>
 #include <xenia/xbox.h>
 
+#include <queue>
 
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS2(xe, cpu, Processor);
 XEDECLARECLASS2(xe, cpu, XenonThreadState);
-
+XEDECLARECLASS2(xe, apu, AudioDriver);
 
 namespace xe {
 namespace apu {
@@ -34,9 +35,12 @@ public:
   virtual X_STATUS Setup();
   virtual void Shutdown();
 
-  void RegisterClient(uint32_t callback, uint32_t callback_arg);
-  void UnregisterClient();
-  virtual void SubmitFrame(uint32_t samples_ptr) = 0;
+  X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index);
+  void UnregisterClient(size_t index);
+  void SubmitFrame(size_t index, uint32_t samples_ptr);
+
+  virtual X_STATUS CreateDriver(size_t index, HANDLE wait_handle, AudioDriver** out_driver) = 0;
+  virtual void DestroyDriver(AudioDriver* driver) = 0;
 
   bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
@@ -44,7 +48,6 @@ public:
 
 protected:
   virtual void Initialize();
-  virtual void Pump() = 0;
 
 private:
   static void ThreadStartThunk(AudioSystem* this_ptr) {
@@ -76,11 +79,17 @@ protected:
   bool              running_;
 
   xe_mutex_t*       lock_;
+
+  static const size_t maximum_client_count_ = 8;
+
   struct {
+    AudioDriver* driver;
     uint32_t callback;
     uint32_t callback_arg;
     uint32_t wrapped_callback_arg;
-  } client_;
+  } clients_[maximum_client_count_];
+  HANDLE client_wait_handles_[maximum_client_count_];
+  std::queue<size_t> unused_clients_;
 };
 
 
