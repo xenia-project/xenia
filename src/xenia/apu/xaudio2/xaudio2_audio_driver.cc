@@ -48,8 +48,7 @@ XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait) :
 XAudio2AudioDriver::~XAudio2AudioDriver() {
 }
 
-const DWORD ChannelMasks[] =
-{
+const DWORD ChannelMasks[] = {
   0, // TODO: fixme
   0, // TODO: fixme
   SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY,
@@ -81,7 +80,7 @@ void XAudio2AudioDriver::Initialize() {
   config.LogFileline      = TRUE;
   audio_->SetDebugConfiguration(&config);
 
-  hr = audio_->CreateMasteringVoice(&mastering_voice_, frame_channels_, 48000);
+  hr = audio_->CreateMasteringVoice(&mastering_voice_);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
     XEASSERTALWAYS();
@@ -96,14 +95,14 @@ void XAudio2AudioDriver::Initialize() {
   waveformat.Format.wBitsPerSample = 32;
   waveformat.Format.nBlockAlign = (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8;
   waveformat.Format.nAvgBytesPerSec = waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign;
-  waveformat.Format.cbSize = sizeof(waveformat) - sizeof(WAVEFORMATEX);
+  waveformat.Format.cbSize = sizeof(WAVEFORMATIEEEFLOATEX) - sizeof(WAVEFORMATEX);
 
   waveformat.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
   waveformat.dwChannelMask = ChannelMasks[waveformat.Format.nChannels];
 
   hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format,
-                                 XAUDIO2_VOICE_NOSRC, 1.0f,
+                                 0, XAUDIO2_DEFAULT_FREQ_RATIO,
                                  voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
@@ -129,7 +128,6 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   auto output_frame = reinterpret_cast<float*>(frame_);
   auto interleave_channels = frame_channels_;
 
-  bool burp = false;
   // interleave the data
   for (int index = 0, o = 0; index < channel_samples_; ++index) {
     for (int channel = 0, table = 0; channel < interleave_channels; ++channel, table += channel_samples_) {
@@ -139,7 +137,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
-  buffer.pAudioData = reinterpret_cast<BYTE*>(&frame_[0]);
+  buffer.pAudioData = (BYTE*)frame_;
   buffer.AudioBytes = sizeof(frame_);
   buffer.PlayBegin = 0;
   buffer.PlayLength = channel_samples_;
