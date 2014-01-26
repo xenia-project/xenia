@@ -242,6 +242,8 @@ void X64Emitter::FindFreeRegs(
   if (!free_regs) {
     // Need to evict something.
     EvictStaleRegs();
+    free_regs = avail_regs & ~reg_state_.live_regs;
+    XEASSERT(free_regs);
   }
 
   // Find the first available.
