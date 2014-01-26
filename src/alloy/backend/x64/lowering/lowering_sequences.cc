@@ -223,6 +223,274 @@ void CompareXX(X64Emitter& e, Instr*& i, void(set_fn)(X64Emitter& e, Reg8& dest,
   }
 };
 
+typedef void(v_fn)(X64Emitter& e, Instr& i, const Reg& dest_src);
+template<typename T>
+void UnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
+              T& dest, T& src1) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0);
+  if (dest == src1) {
+    v_fn(e, *i, dest);
+  } else {
+    e.mov(dest, src1);
+    v_fn(e, *i, dest);
+  }
+  e.EndOp(dest, src1);
+}
+template<typename CT, typename T>
+void UnaryOpC(X64Emitter& e, Instr*& i, v_fn v_fn,
+              T& dest, Value* src1) {
+  e.BeginOp(i->dest, dest, REG_DEST);
+  e.mov(dest, (uint64_t)src1->get_constant(CT()));
+  v_fn(e, *i, dest);
+  e.EndOp(dest);
+}
+void UnaryOp(X64Emitter& e, Instr*& i, v_fn v_fn) {
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8)) {
+    Reg8 dest, src1;
+    UnaryOpV(e, i, v_fn, dest, src1);
+  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C)) {
+    Reg8 dest;
+    UnaryOpC<int8_t>(e, i, v_fn, dest, i->src1.value);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16)) {
+    Reg16 dest, src1;
+    UnaryOpV(e, i, v_fn, dest, src1);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C)) {
+    Reg16 dest;
+    UnaryOpC<int16_t>(e, i, v_fn, dest, i->src1.value);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32)) {
+    Reg32 dest, src1;
+    UnaryOpV(e, i, v_fn, dest, src1);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C)) {
+    Reg32 dest;
+    UnaryOpC<int32_t>(e, i, v_fn, dest, i->src1.value);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64)) {
+    Reg64 dest, src1;
+    UnaryOpV(e, i, v_fn, dest, src1);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C)) {
+    Reg64 dest;
+    UnaryOpC<int64_t>(e, i, v_fn, dest, i->src1.value);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (i->flags & ARITHMETIC_SET_CARRY) {
+    // EFLAGS should have CA set?
+    // (so long as we don't fuck with it)
+    // UNIMPLEMENTED_SEQ();
+  }
+};
+
+typedef void(vv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src);
+typedef void(vc_fn)(X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src);
+template<typename TD, typename TS1, typename TS2>
+void BinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
+                TD& dest, TS1& src1, TS2& src2) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src2.value, src2, 0);
+  if (dest == src1) {
+    vv_fn(e, *i, dest, src2);
+  } else if (dest == src2) {
+    if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+      vv_fn(e, *i, dest, src1);
+    } else {
+      // Eww.
+      e.mov(e.rax, src1);
+      vv_fn(e, *i, e.rax, src2);
+      e.mov(dest, e.rax);
+    }
+  } else {
+    e.mov(dest, src1);
+    vv_fn(e, *i, dest, src2);
+  }
+  e.EndOp(dest, src1, src2);
+}
+template<typename CT, typename TD, typename TS1>
+void BinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
+                TD& dest, TS1& src1, Value* src2) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0);
+  if (dest.getBit() <= 32) {
+    // 32-bit.
+    if (dest == src1) {
+      vc_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()));
+    } else {
+      e.mov(dest, src1);
+      vc_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()));
+    }
+  } else {
+    // 64-bit.
+    if (dest == src1) {
+      e.mov(e.rax, src2->constant.i64);
+      vv_fn(e, *i, dest, e.rax);
+    } else {
+      e.mov(e.rax, src2->constant.i64);
+      e.mov(dest, src1);
+      vv_fn(e, *i, dest, e.rax);
+    }
+  }
+  e.EndOp(dest, src1);
+}
+template<typename CT, typename TD, typename TS2>
+void BinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
+                TD& dest, Value* src1, TS2& src2) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src2, 0);
+  if (dest.getBit() <= 32) {
+    // 32-bit.
+    if (dest == src2) {
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
+      } else {
+        // Eww.
+        e.mov(e.rax, src2);
+        e.mov(dest, (uint32_t)src1->get_constant(CT()));
+        vv_fn(e, *i, dest, e.rax);
+      }
+    } else {
+      e.mov(dest, src2);
+      vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
+    }
+  } else {
+    // 64-bit.
+    if (dest == src2) {
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        e.mov(e.rax, src1->constant.i64);
+        vv_fn(e, *i, dest, e.rax);
+      } else {
+        // Eww.
+        e.mov(e.rax, src1->constant.i64);
+        vv_fn(e, *i, e.rax, src2);
+        e.mov(dest, e.rax);
+      }
+    } else {
+      e.mov(e.rax, src2);
+      e.mov(dest, src1->constant.i64);
+      vv_fn(e, *i, dest, e.rax);
+    }
+  }
+  e.EndOp(dest, src2);
+}
+void BinaryOp(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn) {
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
+    Reg8 dest, src1, src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8C)) {
+    Reg8 dest, src1;
+    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
+    Reg8 dest, src2;
+    BinaryOpCV<int8_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16)) {
+    Reg16 dest, src1, src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16C)) {
+    Reg16 dest, src1;
+    BinaryOpVC<int16_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I16)) {
+    Reg16 dest, src2;
+    BinaryOpCV<int16_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32)) {
+    Reg32 dest, src1, src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32C)) {
+    Reg32 dest, src1;
+    BinaryOpVC<int32_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I32)) {
+    Reg32 dest, src2;
+    BinaryOpCV<int32_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64)) {
+    Reg64 dest, src1, src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64C)) {
+    Reg64 dest, src1;
+    BinaryOpVC<int64_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I64)) {
+    Reg64 dest, src2;
+    BinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (i->flags & ARITHMETIC_SET_CARRY) {
+    // EFLAGS should have CA set?
+    // (so long as we don't fuck with it)
+    // UNIMPLEMENTED_SEQ();
+  }
+};
+
+typedef void(vvv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, const Operand& src2, const Operand& src3);
+typedef void(vvc_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, const Operand& src2, uint32_t src3);
+typedef void(vcv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, uint32_t src2, const Operand& src3);
+template<typename TD, typename TS1, typename TS2, typename TS3>
+void TernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
+                  TD& dest, TS1& src1, TS2& src2, TS3& src3) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src2.value, src2, 0,
+            i->src3.value, src3, 0);
+  if (dest == src1) {
+    vvv_fn(e, *i, dest, src2, src3);
+  } else if (dest == src2) {
+    if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+      vvv_fn(e, *i, dest, src1, src3);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+  } else {
+    e.mov(dest, src1);
+    vvv_fn(e, *i, dest, src2, src3);
+  }
+  e.EndOp(dest, src1, src2, src3);
+}
+template<typename CT, typename TD, typename TS1, typename TS2>
+void TernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
+                  TD& dest, TS1& src1, TS2& src2, Value* src3) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src2.value, src2, 0);
+  if (dest.getBit() <= 32) {
+    // 32-bit.
+    if (dest == src1) {
+      vvc_fn(e, *i, dest, src2, (uint32_t)src3->get_constant(CT()));
+    } else if (dest == src2) {
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        vvc_fn(e, *i, dest, src1, (uint32_t)src3->get_constant(CT()));
+      } else {
+        // Eww.
+        e.mov(e.rax, src2);
+        e.mov(dest, src1);
+        vvc_fn(e, *i, dest, e.rax, (uint32_t)src3->get_constant(CT()));
+      }
+    } else {
+      e.mov(dest, src1);
+      vvc_fn(e, *i, dest, src2, (uint32_t)src3->get_constant(CT()));
+    }
+  } else {
+    // 64-bit.
+    if (dest == src1) {
+      e.mov(e.rax, src3->constant.i64);
+      vvv_fn(e, *i, dest, src2, e.rax);
+    } else if (dest == src2) {
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        e.mov(e.rax, src3->constant.i64);
+        vvv_fn(e, *i, dest, src1, e.rax);
+      } else {
+        // Eww.
+        e.mov(e.rax, src1);
+        e.mov(src1, src2);
+        e.mov(dest, e.rax);
+        e.mov(e.rax, src3->constant.i64);
+        vvv_fn(e, *i, dest, src1, e.rax);
+      }
+    } else {
+      e.mov(e.rax, src3->constant.i64);
+      e.mov(dest, src1);
+      vvv_fn(e, *i, dest, src2, e.rax);
+    }
+  }
+  e.EndOp(dest, src1);
+}
+
 }  // namespace
 
 
@@ -388,39 +656,11 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_ASSIGN, [](X64Emitter& e, Instr*& i) {
-    if (i->dest->type == INT8_TYPE) {
-      Reg8 dest, src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->dest->type == INT16_TYPE) {
-      Reg16 dest, src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->dest->type == INT32_TYPE) {
-      Reg32 dest, src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->dest->type == INT64_TYPE) {
-      Reg64 dest, src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->dest->type == FLOAT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->dest->type == FLOAT64_TYPE) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->dest->type == VEC128_TYPE) {
-      UNIMPLEMENTED_SEQ();
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
+    UnaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+          // nop - the mov will have happened.
+        });
     i = e.Advance(i);
     return true;
   });
@@ -1044,13 +1284,19 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_DID_CARRY, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    Reg8 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.setc(dest);
+    e.EndOp(dest);
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DID_OVERFLOW, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    Reg8 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.seto(dest);
+    e.EndOp(dest);
     i = e.Advance(i);
     return true;
   });
@@ -1096,205 +1342,68 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
-      Reg8 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.add(dest, src2);
-      } else if (dest == src2) {
-        e.add(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, src2);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8C)) {
-      Reg8 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.add(dest, i->src2.value->constant.i8);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, i->src2.value->constant.i8);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
-      Reg8 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.add(dest, i->src1.value->constant.i8);
-      } else {
-        e.mov(dest, src2);
-        e.add(dest, i->src1.value->constant.i8);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src2);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16)) {
-      Reg16 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.add(dest, src2);
-      } else if (dest == src2) {
-        e.add(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, src2);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16C)) {
-      Reg16 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.add(dest, i->src2.value->constant.i16);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, i->src2.value->constant.i16);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I16)) {
-      Reg16 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.add(dest, i->src1.value->constant.i16);
-      } else {
-        e.mov(dest, src2);
-        e.add(dest, i->src1.value->constant.i16);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src2);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32)) {
-      Reg32 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.add(dest, src2);
-      } else if (dest == src2) {
-        e.add(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, src2);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32C)) {
-      Reg32 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.add(dest, i->src2.value->constant.i32);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, i->src2.value->constant.i32);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I32)) {
-      Reg32 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.add(dest, i->src1.value->constant.i32);
-      } else {
-        e.mov(dest, src2);
-        e.add(dest, i->src1.value->constant.i32);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src2);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64)) {
-      Reg64 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.add(dest, src2);
-      } else if (dest == src2) {
-        e.add(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.add(dest, src2);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64C)) {
-      Reg64 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.mov(e.rax, i->src2.value->constant.i64);
-        e.add(dest, e.rax);
-      } else {
-        e.mov(e.rax, i->src2.value->constant.i64);
-        e.mov(dest, src1);
-        e.add(dest, e.rax);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I64)) {
-      Reg64 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.mov(e.rax, i->src1.value->constant.i64);
-        e.add(dest, e.rax);
-      } else {
-        e.mov(e.rax, i->src1.value->constant.i64);
-        e.mov(dest, src2);
-        e.add(dest, e.rax);
-      }
-      if (i->flags & ARITHMETIC_SET_CARRY) {
-        UNIMPLEMENTED_SEQ();
-      }
-      e.EndOp(dest, src2);
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          e.add(dest_src, src);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.add(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    // dest = src1 + src2 + src3.i8
+    if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
+      Reg8 dest, src1, src2;
+      Reg8 ca;
+      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
+        e.mov(e.ah, src3);
+        e.sahf();
+        e.adc(dest_src, src2);
+      }, dest, src1, src2, ca);
+    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
+      Reg16 dest, src1, src2;
+      Reg8 ca;
+      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
+        e.mov(e.ah, src3);
+        e.sahf();
+        e.adc(dest_src, src2);
+      }, dest, src1, src2, ca);
+    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
+      Reg32 dest, src1, src2;
+      Reg8 ca;
+      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
+        e.mov(e.ah, src3);
+        e.sahf();
+        e.adc(dest_src, src2);
+      }, dest, src1, src2, ca);
+    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
+      Reg64 dest, src1, src2;
+      Reg8 ca;
+      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
+        e.mov(e.ah, src3);
+        e.sahf();
+        e.adc(dest_src, src2);
+      }, dest, src1, src2, ca);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          e.sub(dest_src, src);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.sub(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
@@ -1378,175 +1487,50 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
-      Reg8 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.and(dest, src2);
-      } else if (dest == src2) {
-        e.and(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, src2);
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8C)) {
-      Reg8 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.and(dest, i->src2.value->constant.i8);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, i->src2.value->constant.i8);
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
-      Reg8 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.and(dest, i->src1.value->constant.i8);
-      } else {
-        e.mov(dest, src2);
-        e.and(dest, i->src1.value->constant.i8);
-      }
-      e.EndOp(dest, src2);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16)) {
-      Reg16 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.and(dest, src2);
-      } else if (dest == src2) {
-        e.and(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, src2);
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16C)) {
-      Reg16 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.and(dest, i->src2.value->constant.i16);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, i->src2.value->constant.i16);
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I16)) {
-      Reg16 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.and(dest, i->src1.value->constant.i16);
-      } else {
-        e.mov(dest, src2);
-        e.and(dest, i->src1.value->constant.i16);
-      }
-      e.EndOp(dest, src2);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32)) {
-      Reg32 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.and(dest, src2);
-      } else if (dest == src2) {
-        e.and(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, src2);
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32C)) {
-      Reg32 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.and(dest, i->src2.value->constant.i32);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, i->src2.value->constant.i32);
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I32)) {
-      Reg32 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.and(dest, i->src1.value->constant.i32);
-      } else {
-        e.mov(dest, src2);
-        e.and(dest, i->src1.value->constant.i32);
-      }
-      e.EndOp(dest, src2);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64)) {
-      Reg64 dest, src1, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0);
-      if (dest == src1) {
-        e.and(dest, src2);
-      } else if (dest == src2) {
-        e.and(dest, src1);
-      } else {
-        e.mov(dest, src1);
-        e.and(dest, src2);
-      }
-      e.EndOp(dest, src1, src2);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64C)) {
-      Reg64 dest, src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest == src1) {
-        e.mov(e.rax, i->src2.value->constant.i64);
-        e.and(dest, e.rax);
-      } else {
-        e.mov(e.rax, i->src2.value->constant.i64);
-        e.mov(dest, src1);
-        e.and(dest, e.rax);
-      }
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I64)) {
-      Reg64 dest, src2;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src2.value, src2, 0);
-      if (dest == src2) {
-        e.mov(e.rax, i->src1.value->constant.i64);
-        e.and(dest, e.rax);
-      } else {
-        e.mov(e.rax, i->src1.value->constant.i64);
-        e.mov(dest, src2);
-        e.and(dest, e.rax);
-      }
-      e.EndOp(dest, src2);
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          e.and(dest_src, src);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.and(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          e.or(dest_src, src);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.or(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          e.xor(dest_src, src);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.xor(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    UnaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+          e.not(dest_src);
+        });
     i = e.Advance(i);
     return true;
   });
