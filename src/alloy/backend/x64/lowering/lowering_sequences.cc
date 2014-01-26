@@ -89,6 +89,7 @@ void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
 }
 
 // Sets EFLAGs with zf for the given value.
+// ZF = 1 if false, 0 = true (so jz = jump if false)
 void CheckBoolean(X64Emitter& e, Value* v) {
   if (v->IsConstant()) {
     e.mov(e.ah, (v->IsConstantZero() ? 1 : 0) << 6);
@@ -558,7 +559,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_DEBUG_BREAK_TRUE, [](X64Emitter& e, Instr*& i) {
     e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
-    e.jne(".x", e.T_SHORT);
+    e.jz(".x", e.T_SHORT);
     // TODO(benvanik): insert a call to the debug break function to let the
     //     debugger know.
     e.db(0xCC);
@@ -579,7 +580,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_TRAP_TRUE, [](X64Emitter& e, Instr*& i) {
     e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
-    e.jne(".x", e.T_SHORT);
+    e.jz(".x", e.T_SHORT);
     // TODO(benvanik): insert a call to the trap function to let the
     //     debugger know.
     e.db(0xCC);
@@ -602,7 +603,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_CALL_TRUE, [](X64Emitter& e, Instr*& i) {
     e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
-    e.jne(".x", e.T_SHORT);
+    e.jz(".x", e.T_SHORT);
     IssueCall(e, i->src2.symbol_info, i->flags);
     e.L(".x");
     e.outLocalLabel();
@@ -619,7 +620,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_CALL_INDIRECT_TRUE, [](X64Emitter& e, Instr*& i) {
     e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
-    e.jne(".x", e.T_SHORT);
+    e.jz(".x", e.T_SHORT);
     IssueCallIndirect(e, i->src2.value, i->flags);
     e.L(".x");
     e.outLocalLabel();
@@ -631,7 +632,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     // If this is the last instruction in the last block, just let us
     // fall through.
     if (i->next || i->block->next) {
-      e.jmp("epilog");
+      e.jmp("epilog", CodeGenerator::T_NEAR);
     }
     i = e.Advance(i);
     return true;
@@ -639,7 +640,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
 
   table->AddSequence(OPCODE_RETURN_TRUE, [](X64Emitter& e, Instr*& i) {
     CheckBoolean(e, i->src1.value);
-    e.je("epilog");
+    e.jnz("epilog", CodeGenerator::T_NEAR);
     i = e.Advance(i);
     return true;
   });
@@ -658,7 +659,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_BRANCH_TRUE, [](X64Emitter& e, Instr*& i) {
     CheckBoolean(e, i->src1.value);
     auto target = i->src2.label;
-    e.je(target->name, e.T_NEAR);
+    e.jnz(target->name, e.T_NEAR);
     i = e.Advance(i);
     return true;
   });
@@ -666,7 +667,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_BRANCH_FALSE, [](X64Emitter& e, Instr*& i) {
     CheckBoolean(e, i->src1.value);
     auto target = i->src2.label;
-    e.jne(target->name, e.T_NEAR);
+    e.jz(target->name, e.T_NEAR);
     i = e.Advance(i);
     return true;
   });
