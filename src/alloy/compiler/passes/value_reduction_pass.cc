@@ -32,6 +32,9 @@ ValueReductionPass::~ValueReductionPass() {
 }
 
 void ValueReductionPass::ComputeLastUse(Value* value) {
+  // TODO(benvanik): compute during construction?
+  // Note that this list isn't sorted (unfortunately), so we have to scan
+  // them all.
   uint32_t max_ordinal = 0;
   Value::Use* last_use = NULL;
   auto use = value->use_head;
@@ -42,7 +45,7 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
     }
     use = use->next;
   }
-  value->tag = last_use->instr;
+  value->last_use = last_use->instr;
 }
 
 int ValueReductionPass::Run(HIRBuilder* builder) {
@@ -73,30 +76,30 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
       OpcodeSignatureType src3_type = GET_OPCODE_SIG_TYPE_SRC3(info->signature);
       if (src1_type == OPCODE_SIG_TYPE_V && !instr->src1.value->IsConstant()) {
         auto v = instr->src1.value;
-        if (!v->tag) {
+        if (!v->last_use) {
           ComputeLastUse(v);
         }
-        if (v->tag == instr) {
+        if (v->last_use == instr) {
           // Available.
           ordinals.set(v->ordinal, false);
         }
       }
       if (src2_type == OPCODE_SIG_TYPE_V && !instr->src2.value->IsConstant()) {
         auto v = instr->src2.value;
-        if (!v->tag) {
+        if (!v->last_use) {
           ComputeLastUse(v);
         }
-        if (v->tag == instr) {
+        if (v->last_use == instr) {
           // Available.
           ordinals.set(v->ordinal, false);
         }
       }
       if (src3_type == OPCODE_SIG_TYPE_V && !instr->src3.value->IsConstant()) {
         auto v = instr->src3.value;
-        if (!v->tag) {
+        if (!v->last_use) {
           ComputeLastUse(v);
         }
-        if (v->tag == instr) {
+        if (v->last_use == instr) {
           // Available.
           ordinals.set(v->ordinal, false);
         }

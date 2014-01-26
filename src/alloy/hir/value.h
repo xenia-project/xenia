@@ -70,6 +70,8 @@ public:
 
   Instr*    def;
   Use*      use_head;
+  // NOTE: for performance reasons this is not maintained during construction.
+  Instr*    last_use;
 
   // TODO(benvanik): remove to shrink size.
   void*     tag;

@@ -39,6 +39,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator) :
     backend_(backend),
     code_cache_(backend->code_cache()),
     allocator_(allocator),
+    current_instr_(0),
     CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator) {
   xe_zero_struct(&reg_state_, sizeof(reg_state_));
 }
@@ -145,6 +146,7 @@ int X64Emitter::Emit(HIRBuilder* builder) {
     // Add instructions.
     // The table will process sequences of instructions to (try to)
     // generate optimal code.
+    current_instr_ = block->instr_head;
     if (lowering_table->ProcessBlock(*this, block)) {
       return 1;
     }
@@ -161,6 +163,41 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   ret();
 
   return 0;
+}
+
+void X64Emitter::EvictStaleRegs() {
+  // NOTE: if we are getting called it's because we *need* a register.
+  // We must get rid of something.
+
+  uint32_t current_ordinal = current_instr_->ordinal;
+
+  // Remove any register with no more uses.
+  uint32_t new_live_regs = 0;
+  for (size_t n = 0; n < 32; n++) {
+    uint32_t bit = 1 << n;
+    if (bit & reg_state_.active_regs) {
+      // Register is active and cannot be freed.
+      new_live_regs |= bit;
+      continue;
+    }
+    if (!(bit & reg_state_.live_regs)) {
+      // Register is not alive - nothing to do.
+      continue;
+    }
+
+    // Register is live, not active. Check and see if we get rid of it.
+    auto v = reg_state_.reg_values[n];
+    if (v->last_use->ordinal < current_ordinal) {
+      reg_state_.reg_values[n] = NULL;
+    }
+  }
+
+  // Hrm. We have spilled.
+  if (reg_state_.live_regs == new_live_regs) {
+    XEASSERTALWAYS();
+  }
+
+  reg_state_.live_regs = new_live_regs;
 }
 
 void X64Emitter::FindFreeRegs(
@@ -183,14 +220,16 @@ void X64Emitter::FindFreeRegs(
   } else {
     avail_regs = 0xFFFF0000;
   }
-  uint32_t free_regs = avail_regs & ~reg_state_.active_regs;
-  if (free_regs) {
-    // Just take one.
-    _BitScanReverse((DWORD*)&v0_idx, free_regs);
-  } else {
+  uint32_t free_regs = avail_regs & ~reg_state_.live_regs;
+  if (!free_regs) {
     // Need to evict something.
-    XEASSERTALWAYS();
+    EvictStaleRegs();
   }
+
+  // Find the first available.
+  // We start from the MSB so that we get the non-rNx regs that are often
+  // in short supply.
+  _BitScanReverse((DWORD*)&v0_idx, free_regs);
 
   reg_state_.active_regs |= 1 << v0_idx;
   reg_state_.live_regs |= 1 << v0_idx;
@@ -204,8 +243,8 @@ void X64Emitter::FindFreeRegs(
   // TODO(benvanik): support REG_DEST reuse/etc.
   // Grab all already-present registers first.
   // This way we won't spill them trying to get new registers.
-  bool need_v0 = v0->reg != -1;
-  bool need_v1 = v1->reg != -1;
+  bool need_v0 = v0->reg == -1;
+  bool need_v1 = v1->reg == -1;
   if (!need_v0) {
     FindFreeRegs(v0, v0_idx, v0_flags);
   }
@@ -228,9 +267,9 @@ void X64Emitter::FindFreeRegs(
   // TODO(benvanik): support REG_DEST reuse/etc.
   // Grab all already-present registers first.
   // This way we won't spill them trying to get new registers.
-  bool need_v0 = v0->reg != -1;
-  bool need_v1 = v1->reg != -1;
-  bool need_v2 = v2->reg != -1;
+  bool need_v0 = v0->reg == -1;
+  bool need_v1 = v1->reg == -1;
+  bool need_v2 = v2->reg == -1;
   if (!need_v0) {
     FindFreeRegs(v0, v0_idx, v0_flags);
   }
@@ -260,10 +299,10 @@ void X64Emitter::FindFreeRegs(
   // TODO(benvanik): support REG_DEST reuse/etc.
   // Grab all already-present registers first.
   // This way we won't spill them trying to get new registers.
-  bool need_v0 = v0->reg != -1;
-  bool need_v1 = v1->reg != -1;
-  bool need_v2 = v2->reg != -1;
-  bool need_v3 = v3->reg != -1;
+  bool need_v0 = v0->reg == -1;
+  bool need_v1 = v1->reg == -1;
+  bool need_v2 = v2->reg == -1;
+  bool need_v3 = v3->reg == -1;
   if (!need_v0) {
     FindFreeRegs(v0, v0_idx, v0_flags);
   }
@@ -289,6 +328,12 @@ void X64Emitter::FindFreeRegs(
   if (need_v3) {
     FindFreeRegs(v3, v3_idx, v3_flags);
   }
+}
+
+Instr* X64Emitter::Advance(Instr* i) {
+  auto next = i->next;
+  current_instr_ = next;
+  return next;
 }
 
 void X64Emitter::MarkSourceOffset(Instr* i) {

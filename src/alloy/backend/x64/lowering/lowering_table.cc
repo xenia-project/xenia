@@ -9,6 +9,7 @@
 
 #include <alloy/backend/x64/lowering/lowering_table.h>
 
+#include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/backend/x64/lowering/lowering_sequences.h>
 
 using namespace alloy;
@@ -62,7 +63,7 @@ int LoweringTable::ProcessBlock(X64Emitter& e, hir::Block* block) {
       // No sequence found!
       XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
       return 1;
-      instr = instr->next;
+      instr = e.Advance(instr);
     }
   }
 

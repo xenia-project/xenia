@@ -112,6 +112,8 @@ public:
         GetRegBit(r0) | GetRegBit(r1) | GetRegBit(r2) | GetRegBit(r3));
   }
 
+  void EvictStaleRegs();
+
   void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags);
   void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
                     hir::Value* v1, uint32_t& v1_idx, uint32_t v1_flags);
@@ -134,6 +136,8 @@ public:
   static uint32_t GetRegBit(const Xbyak::Reg64& r) { return 1 << r.getIdx(); }
   static uint32_t GetRegBit(const Xbyak::Xmm& r) { return 1 << (16 + r.getIdx()); }
 
+  hir::Instr* Advance(hir::Instr* i);
+
   void MarkSourceOffset(hir::Instr* i);
 
 private:
@@ -154,6 +158,7 @@ private:
     // Current register values.
     hir::Value* reg_values[32];
   } reg_state_;
+  hir::Instr* current_instr_;
 
   size_t    source_map_count_;
   Arena     source_map_arena_;

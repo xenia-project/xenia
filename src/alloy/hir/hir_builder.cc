@@ -419,6 +419,7 @@ Value* HIRBuilder::AllocValue(TypeName type) {
   value->flags = 0;
   value->def = NULL;
   value->use_head = NULL;
+  value->last_use = NULL;
   value->tag = NULL;
   value->reg = -1;
   return value;
@@ -432,6 +433,7 @@ Value* HIRBuilder::CloneValue(Value* source) {
   value->constant.v128 = source->constant.v128;
   value->def = NULL;
   value->use_head = NULL;
+  value->last_use = NULL;
   value->tag = NULL;
   value->reg = -1;
   return value;

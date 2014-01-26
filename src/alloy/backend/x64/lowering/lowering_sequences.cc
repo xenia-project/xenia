@@ -189,14 +189,14 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     auto str = (const char*)i->src1.offset;
     //lb.Comment(str);
     //UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_NOP, [](X64Emitter& e, Instr*& i) {
     // If we got this, chances are we want it.
     e.nop();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -208,7 +208,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     // TODO(benvanik): translate source offsets for mapping? We're just passing
     //     down the original offset - it may be nice to have two.
     e.MarkSourceOffset(i);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -216,7 +216,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     // TODO(benvanik): insert a call to the debug break function to let the
     //     debugger know.
     e.db(0xCC);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -229,7 +229,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.db(0xCC);
     e.L(".x");
     e.outLocalLabel();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -237,7 +237,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     // TODO(benvanik): insert a call to the trap function to let the
     //     debugger know.
     e.db(0xCC);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -250,7 +250,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.db(0xCC);
     e.L(".x");
     e.outLocalLabel();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -262,7 +262,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.mov(e.rax, (uint64_t)Dummy);
     e.call(e.rax);
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -276,7 +276,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     UNIMPLEMENTED_SEQ();
     e.L(".x");
     e.outLocalLabel();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -284,7 +284,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.mov(e.rax, (uint64_t)Dummy);
     e.call(e.rax);
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -298,19 +298,19 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     UNIMPLEMENTED_SEQ();
     e.L(".x");
     e.outLocalLabel();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_RETURN, [](X64Emitter& e, Instr*& i) {
     e.ret();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SET_RETURN_ADDRESS, [](X64Emitter& e, Instr*& i) {
     //UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -321,7 +321,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_BRANCH, [](X64Emitter& e, Instr*& i) {
     auto target = i->src1.label;
     e.jmp(target->name, e.T_NEAR);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -329,7 +329,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     CheckBoolean(e, i->src1.value);
     auto target = i->src2.label;
     e.je(target->name, e.T_NEAR);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -337,7 +337,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     CheckBoolean(e, i->src1.value);
     auto target = i->src2.label;
     e.jne(target->name, e.T_NEAR);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -379,14 +379,14 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       ASSERT_INVALID_TYPE();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
     // Need a matrix.
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -436,7 +436,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       UNIMPLEMENTED_SEQ();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -486,7 +486,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       UNIMPLEMENTED_SEQ();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -536,31 +536,31 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       UNIMPLEMENTED_SEQ();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ROUND, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_CONVERT_I2F, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -572,19 +572,19 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
 
   table->AddSequence(OPCODE_LOAD_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_LOAD_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_LOAD_CLOCK, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -632,7 +632,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       ASSERT_INVALID_TYPE();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -691,7 +691,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       ASSERT_INVALID_TYPE();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -755,7 +755,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     if (!i->src1.value->IsConstant()) {
       e.EndOp(addr_off);
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -829,13 +829,13 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     if (!i->src1.value->IsConstant()) {
       e.EndOp(addr_off);
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_PREFETCH, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -845,19 +845,19 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
 
   table->AddSequence(OPCODE_MAX, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_MIN, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SELECT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -867,7 +867,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.BeginOp(i->dest, dest, REG_DEST);
     e.setnz(dest);
     e.EndOp(dest);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -877,7 +877,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.BeginOp(i->dest, dest, REG_DEST);
     e.setz(dest);
     e.EndOp(dest);
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -889,7 +889,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setne(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -901,7 +901,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.sete(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -913,7 +913,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setge(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -925,7 +925,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setg(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -937,7 +937,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setle(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -949,7 +949,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setl(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -961,7 +961,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setae(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -973,7 +973,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.seta(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -985,7 +985,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setbe(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -997,55 +997,55 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         e.setb(dest);
       }
     });
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DID_CARRY, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DID_OVERFLOW, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DID_SATURATE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -1241,97 +1241,97 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       ASSERT_INVALID_TYPE();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_MUL_ADD, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_MUL_SUB, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SQRT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_RSQRT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_POW2, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_LOG2, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -1487,61 +1487,61 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       ASSERT_INVALID_TYPE();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -1589,7 +1589,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       UNIMPLEMENTED_SEQ();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -1630,7 +1630,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       ASSERT_INVALID_TYPE();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -1683,49 +1683,49 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     } else {
       UNIMPLEMENTED_SEQ();
     }
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_INSERT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_SWIZZLE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_PACK, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
@@ -1735,25 +1735,25 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
 
   table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ATOMIC_ADD, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_ATOMIC_SUB, [](X64Emitter& e, Instr*& i) {
     UNIMPLEMENTED_SEQ();
-    i = i->next;
+    i = e.Advance(i);
     return true;
   });
 }
