@@ -21,16 +21,21 @@ class Instr;
 
 
 enum TypeName {
-  INT8_TYPE,
-  INT16_TYPE,
-  INT32_TYPE,
-  INT64_TYPE,
-  FLOAT32_TYPE,
-  FLOAT64_TYPE,
-  VEC128_TYPE,
+  // Many tables rely on this ordering.
+  INT8_TYPE     = 0,
+  INT16_TYPE    = 1,
+  INT32_TYPE    = 2,
+  INT64_TYPE    = 3,
+  FLOAT32_TYPE  = 4,
+  FLOAT64_TYPE  = 5,
+  VEC128_TYPE   = 6,
 
   MAX_TYPENAME,
 };
+
+static bool IsIntType(TypeName type_name) {
+  return type_name < 4;
+}
 
 enum ValueFlags {
   VALUE_IS_CONSTANT = (1 << 1),
@@ -59,7 +64,7 @@ public:
   TypeName type;
 
   uint32_t flags;
-  uint32_t reserved;
+  uint32_t reg;
   ConstantValue constant;
 
   Instr*    def;
@@ -174,6 +179,7 @@ public:
            (other->flags & VALUE_IS_CONSTANT) &&
            constant.i64 != other->constant.i64;
   }
+  uint32_t AsUint32();
   uint64_t AsUint64();
 
   void Cast(TypeName target_type);

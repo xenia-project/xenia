@@ -9,8 +9,6 @@
     'dead_code_elimination_pass.h',
     'finalization_pass.cc',
     'finalization_pass.h',
-    'register_allocation_pass.cc',
-    'register_allocation_pass.h',
     #'dead_store_elimination_pass.cc',
     #'dead_store_elimination_pass.h',
     'simplification_pass.cc',

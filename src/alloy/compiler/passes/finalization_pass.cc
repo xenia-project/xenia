@@ -49,7 +49,15 @@ int FinalizationPass::Run(HIRBuilder* builder) {
       label = label->next;
     }
 
-    // ?
+    // ? remove useless jumps?
+
+    // Renumber all instructions to make liveness tracking easier.
+    uint32_t n = 0;
+    auto instr = block->instr_head;
+    while (instr) {
+      instr->ordinal = n++;
+      instr = instr->next;
+    }
 
     block = block->next;
   }

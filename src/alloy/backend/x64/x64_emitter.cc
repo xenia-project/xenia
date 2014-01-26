@@ -39,6 +39,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator) :
     code_cache_(backend->code_cache()),
     allocator_(allocator),
     CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator) {
+  xe_zero_struct(&reg_state_, sizeof(reg_state_));
 }
 
 X64Emitter::~X64Emitter() {
@@ -79,6 +80,17 @@ void* X64Emitter::Emplace(X64CodeCache* code_cache) {
 }
 
 int X64Emitter::Emit(HIRBuilder* builder) {
+  // These are the registers we will not be using. All others are fare game.
+  const uint32_t reserved_regs =
+      GetRegBit(rax) |
+      GetRegBit(rcx) |
+      GetRegBit(rdx) |
+      GetRegBit(rsp) |
+      GetRegBit(rbp) |
+      GetRegBit(rsi) |
+      GetRegBit(rdi) |
+      GetRegBit(xmm0);
+
   // Function prolog.
   // Must be 16b aligned.
   // Windows is very strict about the form of this and the epilog:
@@ -109,6 +121,11 @@ int X64Emitter::Emit(HIRBuilder* builder) {
       label = label->next;
     }
 
+    // Reset reg allocation state.
+    // If we start keeping regs across blocks this needs to change.
+    // We mark a few active so that the allocator doesn't use them.
+    reg_state_.active_regs = reg_state_.live_regs = reserved_regs;
+
     // Add instructions.
     // The table will process sequences of instructions to (try to)
     // generate optimal code.
@@ -128,4 +145,69 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   ret();
 
   return 0;
+}
+
+void X64Emitter::FindFreeRegs(
+    Value* v0, uint32_t& v0_idx, uint32_t v0_flags) {
+  // If the value is already in a register, use it.
+  if (v0->reg != -1) {
+    // Already in a register. Mark active and return.
+    v0_idx = v0->reg;
+    reg_state_.active_regs |= 1 << v0_idx;
+    return;
+  }
+
+  uint32_t avail_regs = 0;
+  if (IsIntType(v0->type)) {
+    if (v0_flags & REG_ABCD) {
+      avail_regs = B00001111;
+    } else {
+      avail_regs = 0xFFFF;
+    }
+  } else {
+    avail_regs = 0xFFFF0000;
+  }
+  uint32_t free_regs = avail_regs & ~reg_state_.active_regs;
+  if (free_regs) {
+    // Just take one.
+    _BitScanReverse((DWORD*)&v0_idx, free_regs);
+  } else {
+    // Need to evict something.
+    XEASSERTALWAYS();
+  }
+
+  reg_state_.active_regs |= 1 << v0_idx;
+  reg_state_.live_regs |= 1 << v0_idx;
+  v0->reg = v0_idx;
+  reg_state_.reg_values[v0_idx] = v0;
+}
+
+void X64Emitter::FindFreeRegs(
+    Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
+    Value* v1, uint32_t& v1_idx, uint32_t v1_flags) {
+  // TODO(benvanik): support REG_DEST reuse/etc.
+  FindFreeRegs(v0, v0_idx, v0_flags);
+  FindFreeRegs(v1, v1_idx, v1_flags);
+}
+
+void X64Emitter::FindFreeRegs(
+    Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
+    Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
+    Value* v2, uint32_t& v2_idx, uint32_t v2_flags) {
+  // TODO(benvanik): support REG_DEST reuse/etc.
+  FindFreeRegs(v0, v0_idx, v0_flags);
+  FindFreeRegs(v1, v1_idx, v1_flags);
+  FindFreeRegs(v2, v2_idx, v2_flags);
+}
+
+void X64Emitter::FindFreeRegs(
+    Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
+    Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
+    Value* v2, uint32_t& v2_idx, uint32_t v2_flags,
+    Value* v3, uint32_t& v3_idx, uint32_t v3_flags) {
+  // TODO(benvanik): support REG_DEST reuse/etc.
+  FindFreeRegs(v0, v0_idx, v0_flags);
+  FindFreeRegs(v1, v1_idx, v1_flags);
+  FindFreeRegs(v2, v2_idx, v2_flags);
+  FindFreeRegs(v3, v3_idx, v3_flags);
 }

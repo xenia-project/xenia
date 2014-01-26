@@ -41,7 +41,9 @@ int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) {
 }
 
 int X64Function::CallImpl(ThreadState* thread_state, uint64_t return_address) {
-  typedef void(*call_t)(ThreadState* thread_state, uint64_t return_address);
-  ((call_t)machine_code_)(thread_state, return_address);
+  //typedef void(*call_t)(ThreadState* thread_state, uint64_t return_address);
+  //((call_t)machine_code_)(thread_state, return_address);
+  typedef void(*call_t)(ThreadState* thread_state, uint8_t* membase);
+  ((call_t)machine_code_)(thread_state, thread_state->memory()->membase());
   return 0;
 }

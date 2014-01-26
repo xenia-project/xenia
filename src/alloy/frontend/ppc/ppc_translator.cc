@@ -50,9 +50,6 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   //compiler_->AddPass(new passes::DeadStoreEliminationPass());
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
 
-  // After register allocation instructions should not be added/removed.
-  compiler_->AddPass(new passes::RegisterAllocationPass(backend));
-
   // Must come last. The HIR is not really HIR after this.
   compiler_->AddPass(new passes::FinalizationPass());
 }

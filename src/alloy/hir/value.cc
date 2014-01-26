@@ -36,6 +36,23 @@ void Value::RemoveUse(Use* use) {
   }
 }
 
+uint32_t Value::AsUint32() {
+  XEASSERT(IsConstant());
+  switch (type) {
+  case INT8_TYPE:
+    return constant.i8;
+  case INT16_TYPE:
+    return constant.i16;
+  case INT32_TYPE:
+    return constant.i32;
+  case INT64_TYPE:
+    return (uint32_t)constant.i64;
+  default:
+    XEASSERTALWAYS();
+    return 0;
+  }
+}
+
 uint64_t Value::AsUint64() {
   XEASSERT(IsConstant());
   switch (type) {
