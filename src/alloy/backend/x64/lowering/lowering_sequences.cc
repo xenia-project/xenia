@@ -373,7 +373,7 @@ template<typename CT, typename TD, typename TS2>
 void BinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
                 TD& dest, Value* src1, TS2& src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
-            i->src1.value, src2, 0);
+            i->src2.value, src2, 0);
   if (dest.getBit() <= 32) {
     // 32-bit.
     if (dest == src2) {
@@ -563,7 +563,111 @@ void TernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
       vvv_fn(e, *i, dest, src2, e.rax);
     }
   }
-  e.EndOp(dest, src1);
+  e.EndOp(dest, src1, src2);
+}
+template<typename CT, typename TD, typename TS1, typename TS3>
+void TernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
+                  TD& dest, TS1& src1, Value* src2, TS3& src3) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src3.value, src3, 0);
+  if (dest.getBit() <= 32) {
+    // 32-bit.
+    if (dest == src1) {
+      vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src3);
+    } else if (dest == src3) {
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src1);
+      } else {
+        // Eww.
+        e.mov(e.rax, src3);
+        e.mov(dest, src1);
+        vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), e.rax);
+      }
+    } else {
+      e.mov(dest, src1);
+      vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src3);
+    }
+  } else {
+    // 64-bit.
+    if (dest == src1) {
+      e.mov(e.rax, src2->constant.i64);
+      vvv_fn(e, *i, dest, e.rax, src3);
+    } else if (dest == src3) {
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        e.mov(e.rax, src2->constant.i64);
+        vvv_fn(e, *i, dest, src1, e.rax);
+      } else {
+        // Eww.
+        e.mov(e.rax, src1);
+        e.mov(src1, src3);
+        e.mov(dest, e.rax);
+        e.mov(e.rax, src2->constant.i64);
+        vvv_fn(e, *i, dest, e.rax, src1);
+      }
+    } else {
+      e.mov(e.rax, src2->constant.i64);
+      e.mov(dest, src1);
+      vvv_fn(e, *i, dest, e.rax, src3);
+    }
+  }
+  e.EndOp(dest, src1, src3);
+}
+void TernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn vcv_fn) {
+  // TODO(benvanik): table lookup. This linear scan is slow.
+  // Note: we assume DEST.type = SRC1.type = SRC2.type, but that SRC3.type may vary.
+  XEASSERT(i->dest->type == i->src1.value->type &&
+           i->dest->type == i->src2.value->type);
+  // TODO(benvanik): table lookup.
+  if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
+    Reg8 dest, src1, src2;
+    Reg8 src3;
+    TernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8C)) {
+    Reg8 dest, src1, src2;
+    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
+    Reg16 dest, src1, src2;
+    Reg8 src3;
+    TernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8C)) {
+    Reg16 dest, src1, src2;
+    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
+    Reg32 dest, src1, src2;
+    Reg8 src3;
+    TernaryOpVVV(e, i,vvv_fn, dest, src1, src2, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8C)) {
+    Reg32 dest, src1, src2;
+    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
+    Reg64 dest, src1, src2;
+    Reg8 src3;
+    TernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8C)) {
+    Reg64 dest, src1, src2;
+    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+  //
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
+    Reg8 dest, src1, src3;
+    TernaryOpVCV<int8_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I8)) {
+    Reg16 dest, src1, src3;
+    TernaryOpVCV<int16_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I8)) {
+    Reg32 dest, src1, src3;
+    TernaryOpVCV<int32_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I8)) {
+    Reg64 dest, src1, src3;
+    TernaryOpVCV<int64_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (i->flags & ARITHMETIC_SET_CARRY) {
+    // EFLAGS should have CA set?
+    // (so long as we don't fuck with it)
+    // UNIMPLEMENTED_SEQ();
+  }
 }
 
 }  // namespace
@@ -1441,61 +1545,36 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
 
   table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
     // dest = src1 + src2 + src3.i8
-    if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
-      Reg8 dest, src1, src2;
-      Reg8 ca;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0,
-                i->src3.value, ca, 0);
-      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
-        e.mov(e.ah, src3);
-        e.sahf();
-        e.adc(dest_src, src2);
-      }, dest, src1, src2, ca);
-      e.EndOp(dest, src1, src2, ca);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
-      Reg16 dest, src1, src2;
-      Reg8 ca;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0,
-                i->src3.value, ca, 0);
-      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
-        e.mov(e.ah, src3);
-        e.sahf();
-        e.adc(dest_src, src2);
-      }, dest, src1, src2, ca);
-      e.EndOp(dest, src1, src2, ca);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
-      Reg32 dest, src1, src2;
-      Reg8 ca;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0,
-                i->src3.value, ca, 0);
-      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
-        e.mov(e.ah, src3);
-        e.sahf();
-        e.adc(dest_src, src2);
-      }, dest, src1, src2, ca);
-      e.EndOp(dest, src1, src2, ca);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
-      Reg64 dest, src1, src2;
-      Reg8 ca;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0,
-                i->src2.value, src2, 0,
-                i->src3.value, ca, 0);
-      TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
-        e.mov(e.ah, src3);
-        e.sahf();
-        e.adc(dest_src, src2);
-      }, dest, src1, src2, ca);
-      e.EndOp(dest, src1, src2, ca);
-    } else {
-      UNIMPLEMENTED_SEQ();
-    }
+    TernaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
+          Reg8 src3_8(src3.getIdx());
+          if (src3.getIdx() <= 4) {
+            e.mov(e.ah, src3_8);
+          } else {
+            e.mov(e.al, src3_8);
+            e.mov(e.ah, e.al);
+          }
+          e.sahf();
+          e.adc(dest_src, src2);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, uint32_t src3) {
+          e.mov(e.eax, src3);
+          e.mov(e.ah, e.al);
+          e.sahf();
+          e.adc(dest_src, src2);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src2, const Operand& src3) {
+          Reg8 src3_8(src3.getIdx());
+          if (src3.getIdx() <= 4) {
+            e.mov(e.ah, src3_8);
+          } else {
+            e.mov(e.al, src3_8);
+            e.mov(e.ah, e.al);
+          }
+          e.sahf();
+          e.adc(dest_src, src2);
+        });
     i = e.Advance(i);
     return true;
   });
@@ -1645,8 +1724,17 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // Can only shl by cl. Eww x86.
           Reg8 shamt(src.getIdx());
-          e.shl(dest_src, shamt);
+          e.mov(e.rax, e.rcx);
+          e.mov(e.cl, shamt);
+          e.shl(dest_src, e.cl);
+          e.mov(e.rcx, e.rax);
+          // BeaEngine can't disasm this, boo.
+          /*Reg32e dest_src_e(dest_src.getIdx(), MAX(dest_src.getBit(), 32));
+          Reg32e src_e(src.getIdx(), MAX(dest_src.getBit(), 32));
+          e.and(src_e, 0x3F);
+          e.shlx(dest_src_e, dest_src_e, src_e);*/
         },
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.shl(dest_src, src);
@@ -1720,14 +1808,20 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
     if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16)) {
       Reg16 d, s1;
-      e.BeginOp(i->dest, d, REG_DEST | REG_ABCD,
+      // TODO(benvanik): fix register allocator to put the value in ABCD
+      //e.BeginOp(i->dest, d, REG_DEST | REG_ABCD,
+      //          i->src1.value, s1, 0);
+      //if (d != s1) {
+      //  e.mov(d, s1);
+      //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
+      //} else {
+      //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
+      //}
+      e.BeginOp(i->dest, d, REG_DEST,
                 i->src1.value, s1, 0);
-      if (d != s1) {
-        e.mov(d, s1);
-        e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
-      } else {
-        e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
-      }
+      e.mov(e.ax, s1);
+      e.xchg(e.ah, e.al);
+      e.mov(d, e.ax);
       e.EndOp(d, s1);
     } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32)) {
       Reg32 d, s1;
