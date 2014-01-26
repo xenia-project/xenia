@@ -67,6 +67,8 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   // Must be stored at 0x0 for now.
   // TODO(benvanik): find a nice way to describe this to the JIT.
   runtime::ThreadState* thread_state;
+  // TODO(benvanik): this is getting nasty. Must be here.
+  uint8_t*              membase;
 
   // Most frequently used registers first.
   uint64_t    r[32];              // General purpose registers
@@ -196,7 +198,6 @@ typedef struct XECACHEALIGN64 PPCContext_s {
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
-  uint8_t*              membase;
   runtime::Runtime*     runtime;
   volatile int          suspend_flag;
 

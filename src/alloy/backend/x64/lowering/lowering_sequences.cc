@@ -10,6 +10,7 @@
 #include <alloy/backend/x64/lowering/lowering_sequences.h>
 
 #include <alloy/backend/x64/x64_emitter.h>
+#include <alloy/backend/x64/x64_function.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/runtime.h>
@@ -35,7 +36,7 @@ void Dummy() {
   //
 }
 
-void PrintString(void* raw_context, uint8_t* membase, const char* str) {
+void PrintString(void* raw_context, const char* str) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *((ThreadState**)raw_context);
   fprintf(stdout, "XE[t] :%d: %s\n", thread_state->GetThreadID(), str);
@@ -43,48 +44,74 @@ void PrintString(void* raw_context, uint8_t* membase, const char* str) {
 }
 
 // TODO(benvanik): fancy stuff.
-void CallThunk(void* raw_context, uint8_t* membase,
-               FunctionInfo* symbol_info) {
+void* ResolveFunctionSymbol(void* raw_context, FunctionInfo* symbol_info) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *((ThreadState**)raw_context);
 
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
   XEASSERTNOTNULL(fn);
-  fn->Call(thread_state);
+  XEASSERT(fn->type() == Function::USER_FUNCTION);
+  auto x64_fn = (X64Function*)fn;
+  return x64_fn->machine_code();
+}
+void* ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *((ThreadState**)raw_context);
+
+  Function* fn = NULL;
+  thread_state->runtime()->ResolveFunction(target_address, &fn);
+  XEASSERTNOTNULL(fn);
+  XEASSERTALWAYS();
+  //fn->Call(thread_state);
+  return 0;
 }
 void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
-  e.mov(e.r8, (uint64_t)symbol_info);
-  e.mov(e.rax, (uint64_t)CallThunk);
+  // If we are an extern function, we can directly insert a call.
+  auto fn = symbol_info->function();
+  if (fn && fn->type() == Function::EXTERN_FUNCTION) {
+    auto extern_fn = (ExternFunction*)fn;
+    e.mov(e.rdx, (uint64_t)extern_fn->arg0());
+    e.mov(e.r8, (uint64_t)extern_fn->arg1());
+    e.mov(e.rax, (uint64_t)extern_fn->handler());
+  } else {
+    // Generic call, resolve address.
+    // TODO(benvanik): caching/etc. For now this makes debugging easier.
+    e.mov(e.rdx, (uint64_t)symbol_info);
+    e.mov(e.rax, (uint64_t)ResolveFunctionSymbol);
+    e.call(e.rax);
+    e.mov(e.rcx, e.qword[e.rsp + 0]);
+    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+  }
   if (flags & CALL_TAIL) {
+    // TODO(benvanik): adjust stack?
+    e.add(e.rsp, 0x40);
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
-    e.mov(e.rdx, e.qword[e.rsp + 8]);
     e.mov(e.rcx, e.qword[e.rsp + 0]);
+    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
   }
-}
-
-void IndirectCallThunk(void* raw_context, uint8_t* membase,
-                       uint64_t target_address) {
-  // TODO(benvanik): generate this thunk at runtime? or a shim?
-  auto thread_state = *((ThreadState**)raw_context);
-  XEASSERTALWAYS();
 }
 void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
   Reg64 r;
   e.BeginOp(target, r, 0);
-  if (r != e.r8) {
-    e.mov(e.r8, r);
+  if (r != e.rdx) {
+    e.mov(e.rdx, r);
   }
   e.EndOp(r);
-  e.mov(e.rax, (uint64_t)IndirectCallThunk);
+  e.mov(e.rax, (uint64_t)ResolveFunctionAddress);
+  e.call(e.rax);
+  e.mov(e.rcx, e.qword[e.rsp + 0]);
+  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
   if (flags & CALL_TAIL) {
+    // TODO(benvanik): adjust stack?
+    e.add(e.rsp, 0x40);
     e.jmp(e.rax);
   } else {
-    e.sub(e.rsp, 0x20);
     e.call(e.rax);
-    e.add(e.rsp, 0x20);
+    e.mov(e.rcx, e.qword[e.rsp + 0]);
+    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
   }
 }
 
@@ -514,11 +541,11 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     // TODO(benvanik): pass through.
     auto str = (const char*)i->src1.offset;
     auto str_copy = xestrdupa(str);
-    e.mov(e.r8, (uint64_t)str_copy);
+    e.mov(e.rdx, (uint64_t)str_copy);
     e.mov(e.rax, (uint64_t)PrintString);
     e.call(e.rax);
-    e.mov(e.rdx, e.qword[e.rsp + 8]);
     e.mov(e.rcx, e.qword[e.rsp + 0]);
+    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
     i = e.Advance(i);
     return true;
   });

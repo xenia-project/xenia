@@ -128,7 +128,6 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   const bool emit_prolog = true;
   const size_t stack_size = 64;
   if (emit_prolog) {
-    mov(qword[rsp + 16], rdx);
     mov(qword[rsp + 8], rcx);
     sub(rsp, stack_size);
     mov(qword[rsp + 8 * 0], rbx);
@@ -137,6 +136,10 @@ int X64Emitter::Emit(HIRBuilder* builder) {
     mov(qword[rsp + 8 * 3], r14);
     mov(qword[rsp + 8 * 4], r15);
   }
+
+  // membase stays in rdx. If we evict it (like on function calls) we
+  // must put it back.
+  mov(rdx, qword[rcx + 8]);
 
   auto lowering_table = backend_->lowering_table();
 

@@ -25,6 +25,9 @@ public:
   X64Function(runtime::FunctionInfo* symbol_info);
   virtual ~X64Function();
 
+  void* machine_code() const { return machine_code_; }
+  size_t code_size() const { return code_size_; }
+
   void Setup(void* machine_code, size_t code_size);
 
 protected:
