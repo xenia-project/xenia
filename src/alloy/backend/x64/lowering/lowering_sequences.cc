@@ -410,6 +410,9 @@ void BinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
   e.EndOp(dest, src2);
 }
 void BinaryOp(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn) {
+  // TODO(benvanik): table lookup. This linear scan is slow.
+  // Note: we assume DEST.type = SRC1.type, but that SRC2.type may vary.
+  XEASSERT(i->dest->type == i->src1.value->type);
   if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
     Reg8 dest, src1, src2;
     BinaryOpVV(e, i, vv_fn, dest, src1, src2);
@@ -445,6 +448,40 @@ void BinaryOp(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn) {
     BinaryOpVC<int64_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I64)) {
     Reg64 dest, src2;
+    BinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  // Start forced src2=i8
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
+    Reg16 dest, src1;
+    Reg8 src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8C)) {
+    Reg16 dest, src1;
+    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I8)) {
+    Reg16 dest;
+    Reg8 src2;
+    BinaryOpCV<int16_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
+    Reg32 dest, src1;
+    Reg8 src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8C)) {
+    Reg32 dest, src1;
+    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I8)) {
+    Reg32 dest;
+    Reg8 src2;
+    BinaryOpCV<int32_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
+    Reg64 dest, src1;
+    Reg8 src2;
+    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8C)) {
+    Reg64 dest, src1;
+    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I8)) {
+    Reg64 dest;
+    Reg8 src2;
     BinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else {
     ASSERT_INVALID_TYPE();
@@ -811,7 +848,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
       Reg32 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsx(dest, src.cvt32());
+      e.movsxd(dest, src.cvt32());
       e.EndOp(dest, src);
     } else {
       UNIMPLEMENTED_SEQ();
@@ -1407,35 +1444,55 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
       Reg8 dest, src1, src2;
       Reg8 ca;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src1, 0,
+                i->src2.value, src2, 0,
+                i->src3.value, ca, 0);
       TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
         e.mov(e.ah, src3);
         e.sahf();
         e.adc(dest_src, src2);
       }, dest, src1, src2, ca);
+      e.EndOp(dest, src1, src2, ca);
     } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
       Reg16 dest, src1, src2;
       Reg8 ca;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src1, 0,
+                i->src2.value, src2, 0,
+                i->src3.value, ca, 0);
       TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
         e.mov(e.ah, src3);
         e.sahf();
         e.adc(dest_src, src2);
       }, dest, src1, src2, ca);
+      e.EndOp(dest, src1, src2, ca);
     } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
       Reg32 dest, src1, src2;
       Reg8 ca;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src1, 0,
+                i->src2.value, src2, 0,
+                i->src3.value, ca, 0);
       TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
         e.mov(e.ah, src3);
         e.sahf();
         e.adc(dest_src, src2);
       }, dest, src1, src2, ca);
+      e.EndOp(dest, src1, src2, ca);
     } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
       Reg64 dest, src1, src2;
       Reg8 ca;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src1, 0,
+                i->src2.value, src2, 0,
+                i->src3.value, ca, 0);
       TernaryOpVVV(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
         e.mov(e.ah, src3);
         e.sahf();
         e.adc(dest_src, src2);
       }, dest, src1, src2, ca);
+      e.EndOp(dest, src1, src2, ca);
     } else {
       UNIMPLEMENTED_SEQ();
     }
@@ -1584,7 +1641,16 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    // TODO(benvanik): use shlx if available.
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          Reg8 shamt(src.getIdx());
+          e.shl(dest_src, shamt);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.shl(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
@@ -1596,7 +1662,16 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    // TODO(benvanik): use shrx if available.
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          Reg8 shamt(src.getIdx());
+          e.shr(dest_src, shamt);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.shr(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
@@ -1608,7 +1683,16 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    // TODO(benvanik): use sarx if available.
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          Reg8 shamt(src.getIdx());
+          e.sar(dest_src, shamt);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.sar(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
@@ -1620,49 +1704,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_ROTATE_LEFT, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8C)) {
-      Reg8 dest;
-      Reg8 src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest != src1) {
-        e.mov(dest, src1);
-      }
-      e.rol(dest, i->src2.value->constant.i8);
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I8C)) {
-      Reg8 dest;
-      Reg16 src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest != src1) {
-        e.mov(dest, src1);
-      }
-      e.rol(dest, i->src2.value->constant.i8);
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I8C)) {
-      Reg8 dest;
-      Reg32 src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest != src1) {
-        e.mov(dest, src1);
-      }
-      e.rol(dest, i->src2.value->constant.i8);
-      e.EndOp(dest, src1);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I8C)) {
-      Reg8 dest;
-      Reg64 src1;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src1, 0);
-      if (dest != src1) {
-        e.mov(dest, src1);
-      }
-      e.rol(dest, i->src2.value->constant.i8);
-      e.EndOp(dest, src1);
-    } else {
-      UNIMPLEMENTED_SEQ();
-    }
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          Reg8 shamt(src.getIdx());
+          e.rol(dest_src, shamt);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          e.rol(dest_src, src);
+        });
     i = e.Advance(i);
     return true;
   });
