@@ -16,6 +16,7 @@
 #include <alloy/compiler/passes/finalization_pass.h>
 //#include <alloy/compiler/passes/dead_store_elimination_pass.h>
 #include <alloy/compiler/passes/simplification_pass.h>
+#include <alloy/compiler/passes/value_reduction_pass.h>
 
 // TODO:
 //   - mark_use/mark_set

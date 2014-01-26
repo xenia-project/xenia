@@ -63,14 +63,6 @@ int FinalizationPass::Run(HIRBuilder* builder) {
       }
     }
 
-    // Renumber all instructions to make liveness tracking easier.
-    uint32_t instr_ordinal = 0;
-    auto instr = block->instr_head;
-    while (instr) {
-      instr->ordinal = instr_ordinal++;
-      instr = instr->next;
-    }
-
     block = block->next;
   }
 

@@ -202,8 +202,23 @@ void X64Emitter::FindFreeRegs(
     Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
     Value* v1, uint32_t& v1_idx, uint32_t v1_flags) {
   // TODO(benvanik): support REG_DEST reuse/etc.
-  FindFreeRegs(v0, v0_idx, v0_flags);
-  FindFreeRegs(v1, v1_idx, v1_flags);
+  // Grab all already-present registers first.
+  // This way we won't spill them trying to get new registers.
+  bool need_v0 = v0->reg != -1;
+  bool need_v1 = v1->reg != -1;
+  if (!need_v0) {
+    FindFreeRegs(v0, v0_idx, v0_flags);
+  }
+  if (!need_v1) {
+    FindFreeRegs(v1, v1_idx, v1_flags);
+  }
+  // Grab any registers we still need. These calls may evict.
+  if (need_v0) {
+    FindFreeRegs(v0, v0_idx, v0_flags);
+  }
+  if (need_v1) {
+    FindFreeRegs(v1, v1_idx, v1_flags);
+  }
 }
 
 void X64Emitter::FindFreeRegs(
@@ -211,9 +226,30 @@ void X64Emitter::FindFreeRegs(
     Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
     Value* v2, uint32_t& v2_idx, uint32_t v2_flags) {
   // TODO(benvanik): support REG_DEST reuse/etc.
-  FindFreeRegs(v0, v0_idx, v0_flags);
-  FindFreeRegs(v1, v1_idx, v1_flags);
-  FindFreeRegs(v2, v2_idx, v2_flags);
+  // Grab all already-present registers first.
+  // This way we won't spill them trying to get new registers.
+  bool need_v0 = v0->reg != -1;
+  bool need_v1 = v1->reg != -1;
+  bool need_v2 = v2->reg != -1;
+  if (!need_v0) {
+    FindFreeRegs(v0, v0_idx, v0_flags);
+  }
+  if (!need_v1) {
+    FindFreeRegs(v1, v1_idx, v1_flags);
+  }
+  if (!need_v2) {
+    FindFreeRegs(v2, v2_idx, v2_flags);
+  }
+  // Grab any registers we still need. These calls may evict.
+  if (need_v0) {
+    FindFreeRegs(v0, v0_idx, v0_flags);
+  }
+  if (need_v1) {
+    FindFreeRegs(v1, v1_idx, v1_flags);
+  }
+  if (need_v2) {
+    FindFreeRegs(v2, v2_idx, v2_flags);
+  }
 }
 
 void X64Emitter::FindFreeRegs(
@@ -222,10 +258,37 @@ void X64Emitter::FindFreeRegs(
     Value* v2, uint32_t& v2_idx, uint32_t v2_flags,
     Value* v3, uint32_t& v3_idx, uint32_t v3_flags) {
   // TODO(benvanik): support REG_DEST reuse/etc.
-  FindFreeRegs(v0, v0_idx, v0_flags);
-  FindFreeRegs(v1, v1_idx, v1_flags);
-  FindFreeRegs(v2, v2_idx, v2_flags);
-  FindFreeRegs(v3, v3_idx, v3_flags);
+  // Grab all already-present registers first.
+  // This way we won't spill them trying to get new registers.
+  bool need_v0 = v0->reg != -1;
+  bool need_v1 = v1->reg != -1;
+  bool need_v2 = v2->reg != -1;
+  bool need_v3 = v3->reg != -1;
+  if (!need_v0) {
+    FindFreeRegs(v0, v0_idx, v0_flags);
+  }
+  if (!need_v1) {
+    FindFreeRegs(v1, v1_idx, v1_flags);
+  }
+  if (!need_v2) {
+    FindFreeRegs(v2, v2_idx, v2_flags);
+  }
+  if (!need_v3) {
+    FindFreeRegs(v3, v3_idx, v3_flags);
+  }
+  // Grab any registers we still need. These calls may evict.
+  if (need_v0) {
+    FindFreeRegs(v0, v0_idx, v0_flags);
+  }
+  if (need_v1) {
+    FindFreeRegs(v1, v1_idx, v1_flags);
+  }
+  if (need_v2) {
+    FindFreeRegs(v2, v2_idx, v2_flags);
+  }
+  if (need_v3) {
+    FindFreeRegs(v3, v3_idx, v3_flags);
+  }
 }
 
 void X64Emitter::MarkSourceOffset(Instr* i) {

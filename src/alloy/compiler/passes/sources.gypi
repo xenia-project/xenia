@@ -13,5 +13,7 @@
     #'dead_store_elimination_pass.h',
     'simplification_pass.cc',
     'simplification_pass.h',
+    'value_reduction_pass.cc',
+    'value_reduction_pass.h',
   ],
 }

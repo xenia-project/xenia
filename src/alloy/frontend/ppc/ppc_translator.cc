@@ -50,6 +50,9 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   //compiler_->AddPass(new passes::DeadStoreEliminationPass());
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
 
+  // Removes all unneeded variables. Try not to add new ones after this.
+  compiler_->AddPass(new passes::ValueReductionPass());
+
   // Must come last. The HIR is not really HIR after this.
   compiler_->AddPass(new passes::FinalizationPass());
 }

@@ -38,7 +38,8 @@ static bool IsIntType(TypeName type_name) {
 }
 
 enum ValueFlags {
-  VALUE_IS_CONSTANT = (1 << 1),
+  VALUE_IS_CONSTANT   = (1 << 1),
+  VALUE_IS_ALLOCATED  = (1 << 2), // Used by backends. Do not set.
 };
 
 

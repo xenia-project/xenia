@@ -126,12 +126,14 @@ uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
 }
 
 uint32_t AllocDynamicRegister(TranslationContext& ctx, Value* value) {
-  int32_t reg = (int32_t)value->tag - 1;
-  if (reg == -1) {
-    reg = ctx.register_count++;
-    value->tag = (void*)(reg + 1);
+  if (value->flags & VALUE_IS_ALLOCATED) {
+    return (uint32_t)value->tag;
+  } else {
+    value->flags |= VALUE_IS_ALLOCATED;
+    auto reg = ctx.register_count++;
+    value->tag = (void*)reg;
+    return (uint32_t)reg;
   }
-  return (uint32_t)reg;
 }
 
 uint32_t AllocOpRegister(
