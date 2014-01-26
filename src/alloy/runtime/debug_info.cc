@@ -62,11 +62,11 @@ SourceMapEntry* DebugInfo::LookupHIROffset(uint64_t offset) {
 
 SourceMapEntry* DebugInfo::LookupCodeOffset(uint64_t offset) {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
-  for (size_t n = 0; n < source_map_count_; n++) {
+  for (int n = source_map_count_ - 1; n >= 0; n--) {
     auto entry = &source_map_[n];
-    if (entry->code_offset >= offset) {
+    if (entry->code_offset <= offset) {
       return entry;
     }
   }
-  return 0;
+  return NULL;
 }
