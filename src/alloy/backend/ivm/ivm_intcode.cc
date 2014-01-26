@@ -728,6 +728,55 @@ int Translate_RETURN(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_RETURN);
 }
 
+uint32_t IntCode_RETURN_TRUE_I8(IntCodeState& ics, const IntCode* i) {
+  if (ics.rf[i->src1_reg].u8) {
+    return IA_RETURN;
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_RETURN_TRUE_I16(IntCodeState& ics, const IntCode* i) {
+  if (ics.rf[i->src1_reg].u16) {
+    return IA_RETURN;
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_RETURN_TRUE_I32(IntCodeState& ics, const IntCode* i) {
+  if (ics.rf[i->src1_reg].u32) {
+    return IA_RETURN;
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_RETURN_TRUE_I64(IntCodeState& ics, const IntCode* i) {
+  if (ics.rf[i->src1_reg].u64) {
+    return IA_RETURN;
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_RETURN_TRUE_F32(IntCodeState& ics, const IntCode* i) {
+  if (ics.rf[i->src1_reg].f32) {
+    return IA_RETURN;
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_RETURN_TRUE_F64(IntCodeState& ics, const IntCode* i) {
+  if (ics.rf[i->src1_reg].f64) {
+    return IA_RETURN;
+  }
+  return IA_NEXT;
+}
+int Translate_RETURN_TRUE(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_RETURN_TRUE_I8,
+    IntCode_RETURN_TRUE_I16,
+    IntCode_RETURN_TRUE_I32,
+    IntCode_RETURN_TRUE_I64,
+    IntCode_RETURN_TRUE_F32,
+    IntCode_RETURN_TRUE_F64,
+    IntCode_INVALID_TYPE,
+  };
+  return DispatchToC(ctx, i, fns[i->src1.value->type]);
+}
+
 uint32_t IntCode_SET_RETURN_ADDRESS(IntCodeState& ics, const IntCode* i) {
   ics.call_return_address = ics.rf[i->src1_reg].u32;
   return IA_NEXT;
@@ -3978,6 +4027,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_CALL_INDIRECT,
   Translate_CALL_INDIRECT_TRUE,
   Translate_RETURN,
+  Translate_RETURN_TRUE,
   Translate_SET_RETURN_ADDRESS,
 
   Translate_BRANCH,

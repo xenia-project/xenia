@@ -35,6 +35,7 @@ public:
 
   int Emit(runtime::FunctionInfo* symbol_info, bool with_debug_info);
 
+  runtime::FunctionInfo* symbol_info() const { return symbol_info_; }
   runtime::FunctionInfo* LookupFunction(uint64_t address);
   Label* LookupLabel(uint64_t address);
 

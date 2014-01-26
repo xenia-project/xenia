@@ -563,6 +563,21 @@ void HIRBuilder::Return() {
   EndBlock();
 }
 
+void HIRBuilder::ReturnTrue(Value* cond) {
+  if (cond->IsConstant()) {
+    if (cond->IsConstantTrue()) {
+      Return();
+    }
+    return;
+  }
+
+  ASSERT_ADDRESS_TYPE(value);
+  Instr* i = AppendInstr(OPCODE_RETURN_TRUE_info, 0);
+  i->set_src1(cond);
+  i->src2.value = i->src3.value = NULL;
+  EndBlock();
+}
+
 void HIRBuilder::SetReturnAddress(Value* value) {
   Instr* i = AppendInstr(OPCODE_SET_RETURN_ADDRESS_info, 0);
   i->set_src1(value);

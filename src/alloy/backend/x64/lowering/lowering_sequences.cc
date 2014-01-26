@@ -308,6 +308,17 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     return true;
   });
 
+  table->AddSequence(OPCODE_RETURN_TRUE, [](X64Emitter& e, Instr*& i) {
+    e.inLocalLabel();
+    CheckBoolean(e, i->src1.value);
+    e.jne(".x", e.T_SHORT);
+    e.ret();
+    e.L(".x");
+    e.outLocalLabel();
+    i = e.Advance(i);
+    return true;
+  });
+
   table->AddSequence(OPCODE_SET_RETURN_ADDRESS, [](X64Emitter& e, Instr*& i) {
     //UNIMPLEMENTED_SEQ();
     i = e.Advance(i);

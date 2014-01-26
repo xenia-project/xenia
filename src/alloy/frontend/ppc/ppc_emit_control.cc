@@ -25,7 +25,8 @@ namespace ppc {
 
 int InstrEmit_branch(
     PPCHIRBuilder& f, const char* src, uint64_t cia,
-    Value* nia, bool lk, Value* cond = NULL, bool expect_true = true) {
+    Value* nia, bool lk, Value* cond = NULL, bool expect_true = true,
+    bool nia_is_lr = false) {
   uint32_t call_flags = 0;
 
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
@@ -46,13 +47,18 @@ int InstrEmit_branch(
   // TODO(benvanik): set CALL_TAIL if !lk and the last block in the fn.
   //                 This is almost always a jump to restore gpr.
 
-  // TODO(benvanik): detect call-self.
-
   if (nia->IsConstant()) {
     // Direct branch to address.
     // If it's a block inside of ourself, setup a fast jump.
+    // Unless it's to ourselves directly, in which case it's
+    // recursion.
     uint64_t nia_value = nia->AsUint64() & 0xFFFFFFFF;
-    Label* label = f.LookupLabel(nia_value);
+    bool is_recursion = false;
+    if (nia_value == f.symbol_info()->address() &&
+        lk) {
+      is_recursion = true;
+    }
+    Label* label = is_recursion ? NULL : f.LookupLabel(nia_value);
     if (label) {
       // Branch to label.
       uint32_t branch_flags = 0;
@@ -79,13 +85,47 @@ int InstrEmit_branch(
     }
   } else {
     // Indirect branch to pointer.
-    if (cond) {
-      if (!expect_true) {
-        cond = f.IsFalse(cond);
+
+    // TODO(benvanik): runtime recursion detection?
+
+    // TODO(benvanik): run a DFA pass to see if we can detect whether this is
+    //     a normal function return that is pulling the LR from the stack that
+    //     it set in the prolog. If so, we can omit the dynamic check!
+
+    //// Dynamic test when branching to LR, which is usually used for the return.
+    //// We only do this if LK=0 as returns wouldn't set LR.
+    //// Ideally it's a return and we can just do a simple ret and be done.
+    //// If it's not, we fall through to the full indirection logic.
+    //if (!lk && reg == kXEPPCRegLR) {
+    //  // The return block will spill registers for us.
+    //  // TODO(benvanik): 'lr_mismatch' debug info.
+    //  // Note: we need to test on *only* the 32-bit target, as the target ptr may
+    //  //     have garbage in the upper 32 bits.
+    //  c.cmp(target.r32(), c.getGpArg(1).r32());
+    //  // TODO(benvanik): evaluate hint here.
+    //  c.je(e.GetReturnLabel(), kCondHintLikely);
+    //}
+    if (!lk && nia_is_lr) {
+      // Return (most likely).
+      // TODO(benvanik): test? ReturnCheck()?
+      if (cond) {
+        if (!expect_true) {
+          cond = f.IsFalse(cond);
+        }
+        f.ReturnTrue(cond);
+      } else {
+        f.Return();
       }
-      f.CallIndirectTrue(cond, nia, call_flags);
     } else {
-      f.CallIndirect(nia, call_flags);
+      // Jump to pointer.
+      if (cond) {
+        if (!expect_true) {
+          cond = f.IsFalse(cond);
+        }
+        f.CallIndirectTrue(cond, nia, call_flags);
+      } else {
+        f.CallIndirect(nia, call_flags);
+      }
     }
   }
 
@@ -285,32 +325,8 @@ XEEMITTER(bclrx,        0x4C000020, XL )(PPCHIRBuilder& f, InstrData& i) {
     expect_true = !not_cond_ok;
   }
 
-  // TODO(benvanik): run a DFA pass to see if we can detect whether this is
-  //     a normal function return that is pulling the LR from the stack that
-  //     it set in the prolog. If so, we can omit the dynamic check!
-
-  //// Dynamic test when branching to LR, which is usually used for the return.
-  //// We only do this if LK=0 as returns wouldn't set LR.
-  //// Ideally it's a return and we can just do a simple ret and be done.
-  //// If it's not, we fall through to the full indirection logic.
-  //if (!lk && reg == kXEPPCRegLR) {
-  //  // The return block will spill registers for us.
-  //  // TODO(benvanik): 'lr_mismatch' debug info.
-  //  // Note: we need to test on *only* the 32-bit target, as the target ptr may
-  //  //     have garbage in the upper 32 bits.
-  //  c.cmp(target.r32(), c.getGpArg(1).r32());
-  //  // TODO(benvanik): evaluate hint here.
-  //  c.je(e.GetReturnLabel(), kCondHintLikely);
-  //}
-  if (!i.XL.LK && !ok) {
-    // Return (most likely).
-    // TODO(benvanik): test? ReturnCheck()?
-    //f.Return();
-    //return 0;
-  }
-
   return InstrEmit_branch(
-      f, "bclrx", i.address, f.LoadLR(), i.XL.LK, ok, expect_true);
+      f, "bclrx", i.address, f.LoadLR(), i.XL.LK, ok, expect_true, true);
 }
 
 
