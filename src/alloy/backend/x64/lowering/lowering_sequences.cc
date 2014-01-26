@@ -867,35 +867,35 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movzx(dest, src.cvt8());
+      e.movzx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I8)) {
       Reg32 dest;
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movzx(dest, src.cvt8());
+      e.movzx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I16)) {
       Reg32 dest;
       Reg16 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movzx(dest, src.cvt8());
+      e.movzx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I8)) {
       Reg64 dest;
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movzx(dest, src.cvt16());
+      e.movzx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I16)) {
       Reg64 dest;
       Reg16 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movzx(dest, src.cvt16());
+      e.movzx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I32)) {
       Reg64 dest;
@@ -917,42 +917,42 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsx(dest, src.cvt8());
+      e.movsx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I8)) {
       Reg32 dest;
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsx(dest, src.cvt8());
+      e.movsx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I16)) {
       Reg32 dest;
       Reg16 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsx(dest, src.cvt8());
+      e.movsx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I8)) {
       Reg64 dest;
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsx(dest, src.cvt16());
+      e.movsx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I16)) {
       Reg64 dest;
       Reg16 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsx(dest, src.cvt16());
+      e.movsx(dest, src);
       e.EndOp(dest, src);
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I32)) {
       Reg64 dest;
       Reg32 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.movsxd(dest, src.cvt32());
+      e.movsxd(dest, src);
       e.EndOp(dest, src);
     } else {
       UNIMPLEMENTED_SEQ();
@@ -1754,8 +1754,12 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // Can only sar by cl. Eww x86.
           Reg8 shamt(src.getIdx());
-          e.shr(dest_src, shamt);
+          e.mov(e.rax, e.rcx);
+          e.mov(e.cl, shamt);
+          e.shr(dest_src, e.cl);
+          e.mov(e.rcx, e.rax);
         },
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.shr(dest_src, src);
@@ -1775,8 +1779,12 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // Can only sar by cl. Eww x86.
           Reg8 shamt(src.getIdx());
-          e.sar(dest_src, shamt);
+          e.mov(e.rax, e.rcx);
+          e.mov(e.cl, shamt);
+          e.sar(dest_src, e.cl);
+          e.mov(e.rcx, e.rax);
         },
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.sar(dest_src, src);
@@ -1795,8 +1803,12 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // Can only rol by cl. Eww x86.
           Reg8 shamt(src.getIdx());
-          e.rol(dest_src, shamt);
+          e.mov(e.rax, e.rcx);
+          e.mov(e.cl, shamt);
+          e.rol(dest_src, e.cl);
+          e.mov(e.rcx, e.rax);
         },
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.rol(dest_src, src);
