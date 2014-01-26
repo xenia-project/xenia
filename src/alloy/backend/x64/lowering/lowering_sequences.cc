@@ -35,6 +35,13 @@ void Dummy() {
   //
 }
 
+void PrintString(void* raw_context, uint8_t* membase, const char* str) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *((ThreadState**)raw_context);
+  fprintf(stdout, "XE[t] :%d: %s\n", thread_state->GetThreadID(), str);
+  fflush(stdout);
+}
+
 // TODO(benvanik): fancy stuff.
 void CallThunk(void* raw_context, uint8_t* membase,
                FunctionInfo* symbol_info) {
@@ -503,8 +510,10 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_COMMENT, [](X64Emitter& e, Instr*& i) {
     // TODO(benvanik): pass through.
     auto str = (const char*)i->src1.offset;
-    //lb.Comment(str);
-    //UNIMPLEMENTED_SEQ();
+    auto str_copy = xestrdupa(str);
+    e.mov(e.r8, (uint64_t)str_copy);
+    e.mov(e.rax, (uint64_t)PrintString);
+    e.call(e.rax);
     i = e.Advance(i);
     return true;
   });
