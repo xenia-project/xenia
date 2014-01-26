@@ -520,8 +520,14 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_SOURCE_OFFSET, [](X64Emitter& e, Instr*& i) {
-    // TODO(benvanik): translate source offsets for mapping? We're just passing
-    //     down the original offset - it may be nice to have two.
+#if XE_DEBUG
+    e.nop();
+    e.nop();
+    e.mov(e.eax, (uint32_t)i->src1.offset);
+    e.nop();
+    e.nop();
+#endif  // XE_DEBUG
+
     e.MarkSourceOffset(i);
     i = e.Advance(i);
     return true;

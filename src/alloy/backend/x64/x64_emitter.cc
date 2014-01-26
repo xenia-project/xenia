@@ -162,6 +162,14 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   }
   ret();
 
+#if XE_DEBUG
+  nop();
+  nop();
+  nop();
+  nop();
+  nop();
+#endif  // XE_DEBUG
+
   return 0;
 }
 
