@@ -20,11 +20,12 @@ using namespace alloy::runtime;
 
 
 X64Function::X64Function(FunctionInfo* symbol_info) :
-    machine_code_(0), code_size_(0),
+    machine_code_(NULL), code_size_(0),
     GuestFunction(symbol_info) {
 }
 
 X64Function::~X64Function() {
+  // machine_code_ is freed by code cache.
 }
 
 void X64Function::Setup(void* machine_code, size_t code_size) {

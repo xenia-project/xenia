@@ -13,6 +13,7 @@
 #include <alloy/backend/x64/x64_code_cache.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/hir/hir_builder.h>
+#include <alloy/runtime/debug_info.h>
 
 using namespace alloy;
 using namespace alloy::backend;
@@ -51,7 +52,15 @@ int X64Emitter::Initialize() {
 }
 
 int X64Emitter::Emit(
-    HIRBuilder* builder, void*& out_code_address, size_t& out_code_size) {
+    HIRBuilder* builder, 
+    uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
+    void*& out_code_address, size_t& out_code_size) {
+  // Reset.
+  if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
+    source_map_count_ = 0;
+    source_map_arena_.Reset();
+  }
+
   // Fill the generator with code.
   int result = Emit(builder);
   if (result) {
@@ -61,6 +70,13 @@ int X64Emitter::Emit(
   // Copy the final code to the cache and relocate it.
   out_code_size = getSize();
   out_code_address = Emplace(code_cache_);
+
+  // Stash source map.
+  if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
+    debug_info->InitializeSourceMap(
+        source_map_count_,
+        (SourceMapEntry*)source_map_arena_.CloneContents());
+  }
 
   return 0;
 }
@@ -210,4 +226,12 @@ void X64Emitter::FindFreeRegs(
   FindFreeRegs(v1, v1_idx, v1_flags);
   FindFreeRegs(v2, v2_idx, v2_flags);
   FindFreeRegs(v3, v3_idx, v3_flags);
+}
+
+void X64Emitter::MarkSourceOffset(Instr* i) {
+  auto entry = source_map_arena_.Alloc<SourceMapEntry>();
+  entry->source_offset  = i->src1.offset;
+  entry->hir_offset     = uint32_t(i->block->ordinal << 16) | i->ordinal;
+  entry->code_offset    = getSize();
+  source_map_count_++;
 }

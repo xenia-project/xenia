@@ -35,8 +35,11 @@ int FinalizationPass::Run(HIRBuilder* builder) {
 
   auto arena = builder->arena();
 
+  uint32_t block_ordinal = 0;
   auto block = builder->first_block();
   while (block) {
+    block->ordinal = block_ordinal++;
+
     // Ensure all labels have names.
     auto label = block->label_head;
     while (label) {
@@ -52,10 +55,10 @@ int FinalizationPass::Run(HIRBuilder* builder) {
     // ? remove useless jumps?
 
     // Renumber all instructions to make liveness tracking easier.
-    uint32_t n = 0;
+    uint32_t instr_ordinal = 0;
     auto instr = block->instr_head;
     while (instr) {
-      instr->ordinal = n++;
+      instr->ordinal = instr_ordinal++;
       instr = instr->next;
     }
 

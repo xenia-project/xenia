@@ -70,12 +70,14 @@ int X64Assembler::Assemble(
   // Lower HIR -> x64.
   void* machine_code = 0;
   size_t code_size = 0;
-  result = emitter_->Emit(builder, machine_code, code_size);
+  result = emitter_->Emit(builder,
+                          debug_info_flags, debug_info,
+                          machine_code, code_size);
   XEEXPECTZERO(result);
 
   // Stash generated machine code.
   if (debug_info_flags & DEBUG_INFO_MACHINE_CODE_DISASM) {
-    DumpMachineCode(machine_code, code_size, &string_buffer_);
+    DumpMachineCode(debug_info, machine_code, code_size, &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
@@ -94,14 +96,31 @@ XECLEANUP:
 }
 
 void X64Assembler::DumpMachineCode(
-    void* machine_code, size_t code_size, StringBuffer* str) {
+    DebugInfo* debug_info,
+    void* machine_code, size_t code_size,
+    StringBuffer* str) {
   BE::DISASM disasm;
   xe_zero_struct(&disasm, sizeof(disasm));
   disasm.Archi = 64;
   disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;
   disasm.EIP = (BE::UIntPtr)machine_code;
   BE::UIntPtr eip_end = disasm.EIP + code_size;
+  uint64_t prev_source_offset = 0;
   while (disasm.EIP < eip_end) {
+    // Look up source offset.
+    auto map_entry = debug_info->LookupCodeOffset(
+        disasm.EIP - (BE::UIntPtr)machine_code);
+    if (map_entry) {
+      if (map_entry->source_offset == prev_source_offset) {
+        str->Append("         ");
+      } else {
+        str->Append("%.8X ", map_entry->source_offset);
+        prev_source_offset = map_entry->source_offset;
+      }
+    } else {
+      str->Append("?        ");
+    }
+
     size_t len = BE::Disasm(&disasm);
     if (len == BE::UNKNOWN_OPCODE) {
       break;

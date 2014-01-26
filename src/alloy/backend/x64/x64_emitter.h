@@ -18,6 +18,7 @@
 
 XEDECLARECLASS2(alloy, hir, HIRBuilder);
 XEDECLARECLASS2(alloy, hir, Instr);
+XEDECLARECLASS2(alloy, runtime, DebugInfo);
 
 namespace alloy {
 namespace backend {
@@ -45,6 +46,7 @@ public:
   int Initialize();
 
   int Emit(hir::HIRBuilder* builder,
+           uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
            void*& out_code_address, size_t& out_code_size);
 
 public:
@@ -132,6 +134,8 @@ public:
   static uint32_t GetRegBit(const Xbyak::Reg64& r) { return 1 << r.getIdx(); }
   static uint32_t GetRegBit(const Xbyak::Xmm& r) { return 1 << (16 + r.getIdx()); }
 
+  void MarkSourceOffset(hir::Instr* i);
+
 private:
   void* Emplace(X64CodeCache* code_cache);
   int Emit(hir::HIRBuilder* builder);
@@ -150,6 +154,9 @@ private:
     // Current register values.
     hir::Value* reg_values[32];
   } reg_state_;
+
+  size_t    source_map_count_;
+  Arena     source_map_arena_;
 };
 
 

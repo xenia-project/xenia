@@ -25,8 +25,18 @@ enum DebugInfoFlags {
   DEBUG_INFO_HIR_DISASM           = (1 << 3),
   DEBUG_INFO_MACHINE_CODE_DISASM  = (1 << 4),
 
+  DEBUG_INFO_SOURCE_MAP           = (1 << 5),
+
+  DEBUG_INFO_DEFAULT              = DEBUG_INFO_SOURCE_MAP,
   DEBUG_INFO_ALL_DISASM           = 0xFFFF,
 };
+
+
+typedef struct SourceMapEntry_s {
+  uint64_t source_offset; // Original source address/offset.
+  uint64_t hir_offset;    // Block ordinal (16b) | Instr ordinal (16b)
+  uint64_t code_offset;   // Offset from emitted code start.
+} SourceMapEntry;
 
 
 class DebugInfo {
@@ -43,16 +53,20 @@ public:
   const char* machine_code_disasm() const { return machine_code_disasm_; }
   void set_machine_code_disasm(char* value) { machine_code_disasm_ = value; }
 
-  // map functions: source addr -> hir index (raw?)
-  //                hir index (raw?) to lir index (raw?)
-  //                lir index (raw?) to machine code offset
-  //                source -> machine code offset
+  void InitializeSourceMap(size_t source_map_count,
+                           SourceMapEntry* source_map);
+  SourceMapEntry* LookupSourceOffset(uint64_t offset);
+  SourceMapEntry* LookupHIROffset(uint64_t offset);
+  SourceMapEntry* LookupCodeOffset(uint64_t offset);
 
 private:
   char* source_disasm_;
   char* raw_hir_disasm_;
   char* hir_disasm_;
   char* machine_code_disasm_;
+
+  size_t source_map_count_;
+  SourceMapEntry* source_map_;
 };
 
 

@@ -34,8 +34,8 @@ protected:
                        uint64_t return_address);
 
 private:
-  void* machine_code_;
-  size_t code_size_;
+  void*   machine_code_;
+  size_t  code_size_;
 };
 
 

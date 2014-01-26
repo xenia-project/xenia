@@ -17,12 +17,56 @@ DebugInfo::DebugInfo() :
     source_disasm_(0),
     raw_hir_disasm_(0),
     hir_disasm_(0),
-    machine_code_disasm_(0) {
+    machine_code_disasm_(0),
+    source_map_count_(0),
+    source_map_(NULL) {
 }
 
 DebugInfo::~DebugInfo() {
+  xe_free(source_map_);
   xe_free(source_disasm_);
   xe_free(raw_hir_disasm_);
   xe_free(hir_disasm_);
   xe_free(machine_code_disasm_);
+}
+
+void DebugInfo::InitializeSourceMap(size_t source_map_count,
+                                    SourceMapEntry* source_map) {
+  source_map_count_ = source_map_count;
+  source_map_ = source_map;
+
+  // TODO(benvanik): ensure sorted in some way? MC offset?
+}
+
+SourceMapEntry* DebugInfo::LookupSourceOffset(uint64_t offset) {
+  // TODO(benvanik): binary search? We know the list is sorted by code order.
+  for (size_t n = 0; n < source_map_count_; n++) {
+    auto entry = &source_map_[n];
+    if (entry->source_offset == offset) {
+      return entry;
+    }
+  }
+  return NULL;
+}
+
+SourceMapEntry* DebugInfo::LookupHIROffset(uint64_t offset) {
+  // TODO(benvanik): binary search? We know the list is sorted by code order.
+  for (size_t n = 0; n < source_map_count_; n++) {
+    auto entry = &source_map_[n];
+    if (entry->hir_offset >= offset) {
+      return entry;
+    }
+  }
+  return NULL;
+}
+
+SourceMapEntry* DebugInfo::LookupCodeOffset(uint64_t offset) {
+  // TODO(benvanik): binary search? We know the list is sorted by code order.
+  for (size_t n = 0; n < source_map_count_; n++) {
+    auto entry = &source_map_[n];
+    if (entry->code_offset >= offset) {
+      return entry;
+    }
+  }
+  return 0;
 }

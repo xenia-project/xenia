@@ -33,6 +33,8 @@ public:
 
   Instr* instr_head;
   Instr* instr_tail;
+
+  uint16_t ordinal;
 };
 
 

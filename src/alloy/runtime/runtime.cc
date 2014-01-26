@@ -250,7 +250,7 @@ int Runtime::DemandFunction(
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undefined, so define now.
     Function* function = NULL;
-    int result = frontend_->DefineFunction(symbol_info, DEBUG_INFO_NONE, &function);
+    int result = frontend_->DefineFunction(symbol_info, DEBUG_INFO_DEFAULT, &function);
     if (result) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
       return result;

@@ -185,7 +185,8 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_COMMENT, [](X64Emitter& e, Instr*& i) {
-    //char* str = (char*)i->src1.offset;
+    // TODO(benvanik): pass through.
+    auto str = (const char*)i->src1.offset;
     //lb.Comment(str);
     //UNIMPLEMENTED_SEQ();
     i = i->next;
@@ -206,8 +207,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   table->AddSequence(OPCODE_SOURCE_OFFSET, [](X64Emitter& e, Instr*& i) {
     // TODO(benvanik): translate source offsets for mapping? We're just passing
     //     down the original offset - it may be nice to have two.
-    //lb.SourceOffset(i->src1.offset);
-    //UNIMPLEMENTED_SEQ();
+    e.MarkSourceOffset(i);
     i = i->next;
     return true;
   });
