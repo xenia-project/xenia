@@ -25,13 +25,6 @@ DEFINE_uint64(trace_thread_mask, -1,
     "Trace threads with IDs in the mask, or -1 for all.");
 
 
-// Breakpoints:
-DEFINE_uint64(break_on_instruction, 0,
-    "int3 before the given guest address is executed.");
-DEFINE_uint64(break_on_memory, 0,
-    "int3 on read/write to the given memory address.");
-
-
 // Debugging:
 DEFINE_string(load_module_map, "",
     "Loads a .map for symbol names and to diff with the generated symbol "

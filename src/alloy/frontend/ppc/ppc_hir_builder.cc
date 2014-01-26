@@ -9,6 +9,7 @@
 
 #include <alloy/frontend/ppc/ppc_hir_builder.h>
 
+#include <alloy/alloy-private.h>
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_disasm.h>
@@ -125,10 +126,10 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     typedef int (*InstrEmitter)(PPCHIRBuilder& f, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
 
-    /*if (i.address == FLAGS_break_on_instruction) {
+    if (i.address == FLAGS_break_on_instruction) {
       Comment("--break-on-instruction target");
       DebugBreak();
-    }*/
+    }
 
     if (!i.type->emit || emit(*this, i)) {
       XELOGCPU("Unimplemented instr %.8X %.8X %s",

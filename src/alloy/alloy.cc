@@ -24,3 +24,9 @@ DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
 
 DEFINE_bool(always_disasm, false,
     "Always add debug info to functions, even when no debugger is attached.");
+
+// Breakpoints:
+DEFINE_uint64(break_on_instruction, 0,
+    "int3 before the given guest address is executed.");
+DEFINE_uint64(break_on_memory, 0,
+    "int3 on read/write to the given memory address.");
