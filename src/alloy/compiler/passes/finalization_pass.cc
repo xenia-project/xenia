@@ -52,7 +52,16 @@ int FinalizationPass::Run(HIRBuilder* builder) {
       label = label->next;
     }
 
-    // ? remove useless jumps?
+    // Remove unneeded jumps.
+    auto tail = block->instr_tail;
+    if (tail && tail->opcode == &OPCODE_BRANCH_info) {
+      // Jump. Check target.
+      auto target = tail->src1.label;
+      if (target->block == block->next) {
+        // Jumping to subsequent block. Remove.
+        tail->Remove();
+      }
+    }
 
     // Renumber all instructions to make liveness tracking easier.
     uint32_t instr_ordinal = 0;
