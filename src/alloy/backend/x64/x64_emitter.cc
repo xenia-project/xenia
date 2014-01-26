@@ -120,7 +120,7 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
   const bool emit_prolog = false;
-  const size_t stack_size = 16;
+  const size_t stack_size = 64;
   if (emit_prolog) {
     sub(rsp, stack_size);
     // TODO(benvanik): save registers.

@@ -60,6 +60,7 @@ void IndirectCallThunk(void* raw_context, uint8_t* membase,
                        uint64_t target_address) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *((ThreadState**)raw_context);
+  XEASSERTALWAYS();
 }
 void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
   Reg64 r;
