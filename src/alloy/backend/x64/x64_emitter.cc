@@ -119,11 +119,17 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
-  const bool emit_prolog = false;
+  const bool emit_prolog = true;
   const size_t stack_size = 64;
   if (emit_prolog) {
+    mov(qword[rsp + 16], rdx);
+    mov(qword[rsp + 8], rcx);
     sub(rsp, stack_size);
-    // TODO(benvanik): save registers.
+    mov(qword[rsp + 8 * 0], rbx);
+    mov(qword[rsp + 8 * 1], r12);
+    mov(qword[rsp + 8 * 2], r13);
+    mov(qword[rsp + 8 * 3], r14);
+    mov(qword[rsp + 8 * 4], r15);
   }
 
   auto lowering_table = backend_->lowering_table();
@@ -157,8 +163,12 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   // Function epilog.
   L("epilog");
   if (emit_prolog) {
+    mov(rbx, qword[rsp + 8 * 0]);
+    mov(r12, qword[rsp + 8 * 1]);
+    mov(r13, qword[rsp + 8 * 2]);
+    mov(r14, qword[rsp + 8 * 3]);
+    mov(r15, qword[rsp + 8 * 4]);
     add(rsp, stack_size);
-    // TODO(benvanik): restore registers.
   }
   ret();
 

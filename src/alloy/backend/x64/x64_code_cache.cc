@@ -214,7 +214,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size) {
   offset += UNWIND_INFO_SIZE;
 
   // TODO(benvanik): take as parameters?
-  bool has_prolog = false;
+  bool has_prolog = true;
   uint8_t prolog_size = 4;
   uint8_t stack_bytes = 64;
 

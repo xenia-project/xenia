@@ -60,6 +60,8 @@ void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
+    e.mov(e.rdx, e.qword[e.rsp + 8]);
+    e.mov(e.rcx, e.qword[e.rsp + 0]);
   }
 }
 
@@ -514,6 +516,8 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.mov(e.r8, (uint64_t)str_copy);
     e.mov(e.rax, (uint64_t)PrintString);
     e.call(e.rax);
+    e.mov(e.rdx, e.qword[e.rsp + 8]);
+    e.mov(e.rcx, e.qword[e.rsp + 0]);
     i = e.Advance(i);
     return true;
   });
@@ -624,18 +628,18 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_RETURN, [](X64Emitter& e, Instr*& i) {
-    e.ret();
+    // If this is the last instruction in the last block, just let us
+    // fall through.
+    if (i->next || i->block->next) {
+      e.jmp("epilog");
+    }
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_RETURN_TRUE, [](X64Emitter& e, Instr*& i) {
-    e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
-    e.jne(".x", e.T_SHORT);
-    e.ret();
-    e.L(".x");
-    e.outLocalLabel();
+    e.je("epilog");
     i = e.Advance(i);
     return true;
   });
