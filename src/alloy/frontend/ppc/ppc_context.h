@@ -64,6 +64,10 @@ typedef union {
 
 #pragma pack(push, 4)
 typedef struct XECACHEALIGN64 PPCContext_s {
+  // Must be stored at 0x0 for now.
+  // TODO(benvanik): find a nice way to describe this to the JIT.
+  runtime::ThreadState* thread_state;
+
   // Most frequently used registers first.
   uint64_t    r[32];              // General purpose registers
   uint64_t    lr;                 // Link register
@@ -194,7 +198,6 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   // current runtime and its data.
   uint8_t*              membase;
   runtime::Runtime*     runtime;
-  runtime::ThreadState* thread_state;
   volatile int          suspend_flag;
 
   void SetRegFromString(const char* name, const char* value);

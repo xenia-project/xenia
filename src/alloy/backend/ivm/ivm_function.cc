@@ -104,7 +104,7 @@ void IVMFunction::OnBreakpointHit(ThreadState* thread_state, IntCode* i) {
 
 #undef TRACE_SOURCE_OFFSET
 
-int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
+int IVMFunction::CallImpl(ThreadState* thread_state) {
   // Setup register file on stack.
   auto stack = (IVMStack*)thread_state->backend_data();
   auto register_file = (Register*)stack->Alloc(register_count_);
@@ -120,8 +120,6 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   ics.did_saturate = 0;
   ics.access_callbacks = thread_state->runtime()->access_callbacks();
   ics.thread_state = thread_state;
-  ics.return_address = return_address;
-  ics.call_return_address = 0;
 
   volatile int* suspend_flag_address = thread_state->suspend_flag_address();
 

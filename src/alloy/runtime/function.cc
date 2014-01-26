@@ -72,12 +72,12 @@ Breakpoint* Function::FindBreakpoint(uint64_t address) {
   return result;
 }
 
-int Function::Call(ThreadState* thread_state, uint64_t return_address) {
+int Function::Call(ThreadState* thread_state) {
   ThreadState* original_thread_state = ThreadState::Get();
   if (original_thread_state != thread_state) {
     ThreadState::Bind(thread_state);
   }
-  int result = CallImpl(thread_state, return_address);
+  int result = CallImpl(thread_state);
   if (original_thread_state != thread_state) {
     ThreadState::Bind(original_thread_state);
   }
@@ -101,8 +101,7 @@ void ExternFunction::set_name(const char* name) {
   name_ = xestrdupa(name);
 }
 
-int ExternFunction::CallImpl(ThreadState* thread_state,
-                             uint64_t return_address) {
+int ExternFunction::CallImpl(ThreadState* thread_state) {
   if (!handler_) {
     XELOGW("undefined extern call to %.8X %s", address(), name());
     return 0;

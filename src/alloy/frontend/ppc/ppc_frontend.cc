@@ -50,7 +50,9 @@ PPCFrontend::PPCFrontend(Runtime* runtime) :
     Frontend(runtime) {
   InitializeIfNeeded();
 
-  ContextInfo* info = new ContextInfo(sizeof(PPCContext));
+  ContextInfo* info = new ContextInfo(
+      sizeof(PPCContext),
+      offsetof(PPCContext, thread_state));
   // Add fields/etc.
   context_info_ = info;
 }

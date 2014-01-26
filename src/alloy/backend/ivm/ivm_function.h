@@ -31,8 +31,7 @@ public:
 protected:
   virtual int AddBreakpointImpl(runtime::Breakpoint* breakpoint);
   virtual int RemoveBreakpointImpl(runtime::Breakpoint* breakpoint);
-  virtual int CallImpl(runtime::ThreadState* thread_state,
-                       uint64_t return_address);
+  virtual int CallImpl(runtime::ThreadState* thread_state);
 
 private:
   IntCode* GetIntCodeAtSourceOffset(uint64_t offset);

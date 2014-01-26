@@ -165,7 +165,7 @@ int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
   context->lr = lr;
 
   // Execute the function.
-  fn->Call(thread_state, lr);
+  fn->Call(thread_state);
   return 0;
 }
 

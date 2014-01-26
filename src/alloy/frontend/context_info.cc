@@ -13,8 +13,9 @@ using namespace alloy;
 using namespace alloy::frontend;
 
 
-ContextInfo::ContextInfo(size_t size) :
-    size_(size) {
+ContextInfo::ContextInfo(size_t size, uintptr_t thread_state_offset) :
+    size_(size),
+    thread_state_offset_(thread_state_offset) {
 }
 
 ContextInfo::~ContextInfo() {

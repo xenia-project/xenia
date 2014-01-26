@@ -11,11 +11,15 @@
 
 #include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
+#include <alloy/runtime/symbol_info.h>
+#include <alloy/runtime/runtime.h>
+#include <alloy/runtime/thread_state.h>
 
 using namespace alloy;
 using namespace alloy::backend::x64;
 using namespace alloy::backend::x64::lowering;
 using namespace alloy::hir;
+using namespace alloy::runtime;
 
 using namespace Xbyak;
 
@@ -29,6 +33,49 @@ namespace {
 
 void Dummy() {
   //
+}
+
+// TODO(benvanik): fancy stuff.
+void CallThunk(void* raw_context, uint8_t* membase,
+               FunctionInfo* symbol_info) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *((ThreadState**)raw_context);
+
+  Function* fn = NULL;
+  thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  XEASSERTNOTNULL(fn);
+  fn->Call(thread_state);
+}
+void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
+  e.mov(e.r8, (uint64_t)symbol_info);
+  e.mov(e.rax, (uint64_t)CallThunk);
+  if (flags & CALL_TAIL) {
+    e.jmp(e.rax);
+  } else {
+    e.call(e.rax);
+  }
+}
+
+void IndirectCallThunk(void* raw_context, uint8_t* membase,
+                       uint64_t target_address) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *((ThreadState**)raw_context);
+}
+void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
+  Reg64 r;
+  e.BeginOp(target, r, 0);
+  if (r != e.r8) {
+    e.mov(e.r8, r);
+  }
+  e.EndOp(r);
+  e.mov(e.rax, (uint64_t)IndirectCallThunk);
+  if (flags & CALL_TAIL) {
+    e.jmp(e.rax);
+  } else {
+    e.sub(e.rsp, 0x20);
+    e.call(e.rax);
+    e.add(e.rsp, 0x20);
+  }
 }
 
 // Sets EFLAGs with zf for the given value.
@@ -259,9 +306,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_CALL, [](X64Emitter& e, Instr*& i) {
-    e.mov(e.rax, (uint64_t)Dummy);
-    e.call(e.rax);
-    UNIMPLEMENTED_SEQ();
+    IssueCall(e, i->src1.symbol_info, i->flags);
     i = e.Advance(i);
     return true;
   });
@@ -270,10 +315,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
     e.jne(".x", e.T_SHORT);
-    // TODO(benvanik): call
-    e.mov(e.rax, (uint64_t)Dummy);
-    e.call(e.rax);
-    UNIMPLEMENTED_SEQ();
+    IssueCall(e, i->src2.symbol_info, i->flags);
     e.L(".x");
     e.outLocalLabel();
     i = e.Advance(i);
@@ -281,9 +323,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_CALL_INDIRECT, [](X64Emitter& e, Instr*& i) {
-    e.mov(e.rax, (uint64_t)Dummy);
-    e.call(e.rax);
-    UNIMPLEMENTED_SEQ();
+    IssueCallIndirect(e, i->src1.value, i->flags);
     i = e.Advance(i);
     return true;
   });
@@ -292,10 +332,7 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.inLocalLabel();
     CheckBoolean(e, i->src1.value);
     e.jne(".x", e.T_SHORT);
-    // TODO(benvanik): call
-    e.mov(e.rax, (uint64_t)Dummy);
-    e.call(e.rax);
-    UNIMPLEMENTED_SEQ();
+    IssueCallIndirect(e, i->src2.value, i->flags);
     e.L(".x");
     e.outLocalLabel();
     i = e.Advance(i);
@@ -315,12 +352,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     e.ret();
     e.L(".x");
     e.outLocalLabel();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_SET_RETURN_ADDRESS, [](X64Emitter& e, Instr*& i) {
-    //UNIMPLEMENTED_SEQ();
     i = e.Advance(i);
     return true;
   });

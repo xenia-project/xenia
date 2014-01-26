@@ -35,7 +35,6 @@ int InstrEmit_branch(
   // be correct for returns.
   if (lk) {
     Value* return_address = f.LoadConstant(cia + 4);
-    f.SetReturnAddress(return_address);
     f.StoreLR(return_address);
   }
 

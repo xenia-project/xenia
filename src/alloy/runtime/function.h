@@ -42,13 +42,13 @@ public:
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
 
-  int Call(ThreadState* thread_state, uint64_t return_address);
+  int Call(ThreadState* thread_state);
 
 protected:
   Breakpoint* FindBreakpoint(uint64_t address);
   virtual int AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
   virtual int RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
-  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address) = 0;
+  virtual int CallImpl(ThreadState* thread_state) = 0;
 
 protected:
   Type        type_;
@@ -76,7 +76,7 @@ public:
   void* arg1() const { return arg1_; }
 
 protected:
-  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address);
+  virtual int CallImpl(ThreadState* thread_state);
 
 protected:
   char* name_;

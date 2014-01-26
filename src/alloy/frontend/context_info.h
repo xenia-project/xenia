@@ -19,13 +19,16 @@ namespace frontend {
 
 class ContextInfo {
 public:
-  ContextInfo(size_t size);
+  ContextInfo(size_t size, uintptr_t thread_state_offset);
   ~ContextInfo();
 
   size_t size() const { return size_; }
 
+  uintptr_t thread_state_offset() const { return thread_state_offset_; }
+
 private:
   size_t size_;
+  uintptr_t thread_state_offset_;
 };
 
 
