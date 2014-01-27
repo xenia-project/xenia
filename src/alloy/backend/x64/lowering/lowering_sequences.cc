@@ -302,7 +302,7 @@ void CompareXX(X64Emitter& e, Instr*& i, void(set_fn)(X64Emitter& e, Reg8& dest,
 
 typedef void(v_fn)(X64Emitter& e, Instr& i, const Reg& dest_src);
 template<typename T>
-void UnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
+void IntUnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
               T& dest, T& src1) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
@@ -315,38 +315,38 @@ void UnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
   e.EndOp(dest, src1);
 }
 template<typename CT, typename T>
-void UnaryOpC(X64Emitter& e, Instr*& i, v_fn v_fn,
+void IntUnaryOpC(X64Emitter& e, Instr*& i, v_fn v_fn,
               T& dest, Value* src1) {
   e.BeginOp(i->dest, dest, REG_DEST);
   e.mov(dest, (uint64_t)src1->get_constant(CT()));
   v_fn(e, *i, dest);
   e.EndOp(dest);
 }
-void UnaryOp(X64Emitter& e, Instr*& i, v_fn v_fn) {
+void IntUnaryOp(X64Emitter& e, Instr*& i, v_fn v_fn) {
   if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8)) {
     Reg8 dest, src1;
-    UnaryOpV(e, i, v_fn, dest, src1);
+    IntUnaryOpV(e, i, v_fn, dest, src1);
   } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C)) {
     Reg8 dest;
-    UnaryOpC<int8_t>(e, i, v_fn, dest, i->src1.value);
+    IntUnaryOpC<int8_t>(e, i, v_fn, dest, i->src1.value);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16)) {
     Reg16 dest, src1;
-    UnaryOpV(e, i, v_fn, dest, src1);
+    IntUnaryOpV(e, i, v_fn, dest, src1);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C)) {
     Reg16 dest;
-    UnaryOpC<int16_t>(e, i, v_fn, dest, i->src1.value);
+    IntUnaryOpC<int16_t>(e, i, v_fn, dest, i->src1.value);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32)) {
     Reg32 dest, src1;
-    UnaryOpV(e, i, v_fn, dest, src1);
+    IntUnaryOpV(e, i, v_fn, dest, src1);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C)) {
     Reg32 dest;
-    UnaryOpC<int32_t>(e, i, v_fn, dest, i->src1.value);
+    IntUnaryOpC<int32_t>(e, i, v_fn, dest, i->src1.value);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64)) {
     Reg64 dest, src1;
-    UnaryOpV(e, i, v_fn, dest, src1);
+    IntUnaryOpV(e, i, v_fn, dest, src1);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C)) {
     Reg64 dest;
-    UnaryOpC<int64_t>(e, i, v_fn, dest, i->src1.value);
+    IntUnaryOpC<int64_t>(e, i, v_fn, dest, i->src1.value);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -360,7 +360,7 @@ void UnaryOp(X64Emitter& e, Instr*& i, v_fn v_fn) {
 typedef void(vv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src);
 typedef void(vc_fn)(X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src);
 template<typename TD, typename TS1, typename TS2>
-void BinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
+void IntBinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
                 TD& dest, TS1& src1, TS2& src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
@@ -383,7 +383,7 @@ void BinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
   e.EndOp(dest, src1, src2);
 }
 template<typename CT, typename TD, typename TS1>
-void BinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
+void IntBinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
                 TD& dest, TS1& src1, Value* src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
@@ -409,7 +409,7 @@ void BinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
   e.EndOp(dest, src1);
 }
 template<typename CT, typename TD, typename TS2>
-void BinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
+void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
                 TD& dest, Value* src1, TS2& src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src2.value, src2, 0);
@@ -448,80 +448,80 @@ void BinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
   }
   e.EndOp(dest, src2);
 }
-void BinaryOp(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn) {
+void IntBinaryOp(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn) {
   // TODO(benvanik): table lookup. This linear scan is slow.
   // Note: we assume DEST.type = SRC1.type, but that SRC2.type may vary.
   XEASSERT(i->dest->type == i->src1.value->type);
   if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
     Reg8 dest, src1, src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8C)) {
     Reg8 dest, src1;
-    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
     Reg8 dest, src2;
-    BinaryOpCV<int8_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int8_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16)) {
     Reg16 dest, src1, src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I16C)) {
     Reg16 dest, src1;
-    BinaryOpVC<int16_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int16_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I16)) {
     Reg16 dest, src2;
-    BinaryOpCV<int16_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int16_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32)) {
     Reg32 dest, src1, src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I32C)) {
     Reg32 dest, src1;
-    BinaryOpVC<int32_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int32_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I32)) {
     Reg32 dest, src2;
-    BinaryOpCV<int32_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int32_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64)) {
     Reg64 dest, src1, src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I64C)) {
     Reg64 dest, src1;
-    BinaryOpVC<int64_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int64_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I64)) {
     Reg64 dest, src2;
-    BinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   // Start forced src2=i8
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
     Reg16 dest, src1;
     Reg8 src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8C)) {
     Reg16 dest, src1;
-    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I8)) {
     Reg16 dest;
     Reg8 src2;
-    BinaryOpCV<int16_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int16_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
     Reg32 dest, src1;
     Reg8 src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8C)) {
     Reg32 dest, src1;
-    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I8)) {
     Reg32 dest;
     Reg8 src2;
-    BinaryOpCV<int32_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int32_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
     Reg64 dest, src1;
     Reg8 src2;
-    BinaryOpVV(e, i, vv_fn, dest, src1, src2);
+    IntBinaryOpVV(e, i, vv_fn, dest, src1, src2);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8C)) {
     Reg64 dest, src1;
-    BinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
+    IntBinaryOpVC<int8_t>(e, i, vv_fn, vc_fn, dest, src1, i->src2.value);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I8)) {
     Reg64 dest;
     Reg8 src2;
-    BinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
+    IntBinaryOpCV<int64_t>(e, i, vv_fn, vc_fn, dest, i->src1.value, src2);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -536,7 +536,7 @@ typedef void(vvv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, const Operan
 typedef void(vvc_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, const Operand& src2, uint32_t src3);
 typedef void(vcv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, uint32_t src2, const Operand& src3);
 template<typename TD, typename TS1, typename TS2, typename TS3>
-void TernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
+void IntTernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
                   TD& dest, TS1& src1, TS2& src2, TS3& src3) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
@@ -557,7 +557,7 @@ void TernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
   e.EndOp(dest, src1, src2, src3);
 }
 template<typename CT, typename TD, typename TS1, typename TS2>
-void TernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
+void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
                   TD& dest, TS1& src1, TS2& src2, Value* src3) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
@@ -605,7 +605,7 @@ void TernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
   e.EndOp(dest, src1, src2);
 }
 template<typename CT, typename TD, typename TS1, typename TS3>
-void TernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
+void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
                   TD& dest, TS1& src1, Value* src2, TS3& src3) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
@@ -652,7 +652,7 @@ void TernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
   }
   e.EndOp(dest, src1, src3);
 }
-void TernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn vcv_fn) {
+void IntTernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn vcv_fn) {
   // TODO(benvanik): table lookup. This linear scan is slow.
   // Note: we assume DEST.type = SRC1.type = SRC2.type, but that SRC3.type may vary.
   XEASSERT(i->dest->type == i->src1.value->type &&
@@ -661,44 +661,44 @@ void TernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn vc
   if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8)) {
     Reg8 dest, src1, src2;
     Reg8 src3;
-    TernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
+    IntTernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8, SIG_TYPE_I8C)) {
     Reg8 dest, src1, src2;
-    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+    IntTernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8)) {
     Reg16 dest, src1, src2;
     Reg8 src3;
-    TernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
+    IntTernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16, SIG_TYPE_I8C)) {
     Reg16 dest, src1, src2;
-    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+    IntTernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8)) {
     Reg32 dest, src1, src2;
     Reg8 src3;
-    TernaryOpVVV(e, i,vvv_fn, dest, src1, src2, src3);
+    IntTernaryOpVVV(e, i,vvv_fn, dest, src1, src2, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32, SIG_TYPE_I8C)) {
     Reg32 dest, src1, src2;
-    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+    IntTernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8)) {
     Reg64 dest, src1, src2;
     Reg8 src3;
-    TernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
+    IntTernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64, SIG_TYPE_I8C)) {
     Reg64 dest, src1, src2;
-    TernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
+    IntTernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
   //
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
     Reg8 dest, src1, src3;
-    TernaryOpVCV<int8_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+    IntTernaryOpVCV<int8_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I8)) {
     Reg16 dest, src1, src3;
-    TernaryOpVCV<int16_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+    IntTernaryOpVCV<int16_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I8)) {
     Reg32 dest, src1, src3;
-    TernaryOpVCV<int32_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+    IntTernaryOpVCV<int32_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I8)) {
     Reg64 dest, src1, src3;
-    TernaryOpVCV<int64_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
+    IntTernaryOpVCV<int64_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -885,7 +885,7 @@ table->AddSequence(OPCODE_BRANCH_FALSE, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_ASSIGN, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    UnaryOp(
+    IntUnaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src) {
           // nop - the mov will have happened.
@@ -1311,7 +1311,7 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
       if (cbs->handles(cbs->context, address)) {
         // Eh, hacking lambdas.
         i->src3.offset = (uint64_t)cbs;
-        UnaryOp(
+        IntUnaryOp(
             e, i,
             [](X64Emitter& e, Instr& i, const Reg& dest_src) {
               auto cbs = (RegisterAccessCallbacks*)i.src3.offset;
@@ -1774,7 +1774,7 @@ table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           e.add(dest_src, src);
@@ -1796,7 +1796,7 @@ table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // dest = src1 + src2 + src3.i8
-    TernaryOp(
+    IntTernaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
           Reg8 src3_8(src3.getIdx());
@@ -1855,7 +1855,7 @@ table->AddSequence(OPCODE_VECTOR_ADD, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           e.sub(dest_src, src);
@@ -1878,7 +1878,7 @@ table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // RAX = value, RDX = clobbered
@@ -1919,7 +1919,7 @@ table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // RAX = value, RDX = clobbered
@@ -1957,7 +1957,7 @@ table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // RAX = value, RDX = clobbered
@@ -2122,7 +2122,7 @@ table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           e.and(dest_src, src);
@@ -2141,7 +2141,7 @@ table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           e.or(dest_src, src);
@@ -2160,7 +2160,7 @@ table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           e.xor(dest_src, src);
@@ -2179,7 +2179,7 @@ table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    UnaryOp(
+    IntUnaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src) {
           e.not(dest_src);
@@ -2196,7 +2196,7 @@ table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shlx if available.
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // Can only shl by cl. Eww x86.
@@ -2224,7 +2224,7 @@ table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shrx if available.
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // Can only sar by cl. Eww x86.
@@ -2247,7 +2247,7 @@ table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use sarx if available.
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // Can only sar by cl. Eww x86.
@@ -2323,7 +2323,7 @@ table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_ROTATE_LEFT, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    BinaryOp(
+    IntBinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // Can only rol by cl. Eww x86.
@@ -2584,7 +2584,7 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     // Load source, move from tight pack of X16Y16.... to X16...Y16...
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
-    UnaryOp(
+    IntUnaryOp(
       e, i,
       [](X64Emitter& e, Instr& i, const Reg& dest_src) {
       // sx = src.iw >> 16;
