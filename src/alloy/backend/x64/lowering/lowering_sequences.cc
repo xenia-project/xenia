@@ -2125,13 +2125,78 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_PACK, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    if (i->flags == PACK_TYPE_D3DCOLOR) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_FLOAT16_2) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_FLOAT16_4) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_SHORT_2) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S16_IN_32_LO) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S16_IN_32_HI) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    if (i->flags == PACK_TYPE_D3DCOLOR) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_FLOAT16_2) {
+      // 1 bit sign, 5 bit exponent, 10 bit mantissa
+      // D3D10 half float format
+      // TODO(benvanik): http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+      // Use _mm_cvtph_ps -- requires very modern processors (SSE5+)
+      // Unpacking half floats: http://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+      // Packing half floats: https://gist.github.com/rygorous/2156668
+      // Load source, move from tight pack of X16Y16.... to X16...Y16...
+      // Also zero out the high end.
+      // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
+      UnaryOp(
+          e, i,
+          [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+            // sx = src.iw >> 16;
+            // sy = src.iw & 0xFFFF;
+            // dest = { 3.0 + (sx / float(1 << 22)),
+            //          3.0 + (sy / float(1 << 22)),
+            //          0.0,
+            //          1.0); --- or 3.0?
+            // So:
+            // xmm =                    {0,0,0,packed}
+            // xmm <<= 1w               {0,0,packed,0}
+            // xmm = VCVTPH2PS(xmm)     {sx,sy,0,0}
+            // xmm /=
+          });
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_FLOAT16_4) {
+      // Could be shared with FLOAT16_2.
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_SHORT_2) {
+      // (VD.x) = 3.0 + (VB.x)*2^-22
+      // (VD.y) = 3.0 + (VB.y)*2^-22
+      // (VD.z) = 0.0
+      // (VD.w) = 3.0
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S16_IN_32_LO) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == PACK_TYPE_S16_IN_32_HI) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
     i = e.Advance(i);
     return true;
   });
