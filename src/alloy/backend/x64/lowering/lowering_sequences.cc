@@ -1264,6 +1264,32 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
+    // If this is a constant address load, check to see if it's in a register
+    // range. We'll also probably want a dynamic check for unverified loads.
+    // So far, most games use constants.
+    if (i->src1.value->IsConstant()) {
+      uint64_t address = i->src1.value->AsUint64();
+      auto cbs = e.runtime()->access_callbacks();
+      while (cbs) {
+        if (cbs->handles(cbs->context, address)) {
+          // Eh, hacking lambdas.
+          i->src3.offset = (uint64_t)cbs;
+          UnaryOp(
+              e, i,
+              [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+                auto cbs = (RegisterAccessCallbacks*)i.src3.offset;
+                e.mov(e.rcx, (uint64_t)cbs->context);
+                e.mov(e.rdx, i.src1.value->AsUint64());
+                CallNative(e, cbs->read);
+                e.mov(dest_src, e.rax);
+              });
+          i = e.Advance(i);
+          return true;
+        }
+        cbs = cbs->next;
+      }
+    }
+
     // TODO(benvanik): dynamic register access check.
     // mov reg, [membase + address.32]
     Reg64 addr_off;
@@ -1324,6 +1350,46 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
+    // If this is a constant address store, check to see if it's in a
+    // register range. We'll also probably want a dynamic check for
+    // unverified stores. So far, most games use constants.
+    if (i->src1.value->IsConstant()) {
+      uint64_t address = i->src1.value->AsUint64();
+      auto cbs = e.runtime()->access_callbacks();
+      while (cbs) {
+        if (cbs->handles(cbs->context, address)) {
+          e.mov(e.rcx, (uint64_t)cbs->context);
+          e.mov(e.rdx, address);
+          if (i->src2.value->IsConstant()) {
+            e.mov(e.r8, i->src2.value->AsUint64());
+          } else {
+            Reg64 src2;
+            e.BeginOp(i->src2.value, src2, 0);
+            switch (i->src2.value->type) {
+            case INT8_TYPE:
+              e.movzx(e.r8d, src2.cvt8());
+              break;
+            case INT16_TYPE:
+              e.movzx(e.r8d, src2.cvt16());
+              break;
+            case INT32_TYPE:
+              e.movzx(e.r8, src2.cvt32());
+              break;
+            case INT64_TYPE:
+              e.mov(e.r8, src2);
+              break;
+            default: ASSERT_INVALID_TYPE(); break;
+            }
+            e.EndOp(src2);
+          }
+          // eh?
+          e.bswap(e.r8);
+          CallNative(e, cbs->write);
+        }
+        cbs = cbs->next;
+      }
+    }
+
     // TODO(benvanik): dynamic register access check
     // mov [membase + address.32], reg
     Reg64 addr_off;

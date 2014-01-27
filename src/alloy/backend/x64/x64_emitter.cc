@@ -36,6 +36,7 @@ static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
 
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator) :
+    runtime_(backend->runtime()),
     backend_(backend),
     code_cache_(backend->code_cache()),
     allocator_(allocator),

@@ -19,6 +19,7 @@
 XEDECLARECLASS2(alloy, hir, HIRBuilder);
 XEDECLARECLASS2(alloy, hir, Instr);
 XEDECLARECLASS2(alloy, runtime, DebugInfo);
+XEDECLARECLASS2(alloy, runtime, Runtime);
 
 namespace alloy {
 namespace backend {
@@ -42,6 +43,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 public:
   X64Emitter(X64Backend* backend, XbyakAllocator* allocator);
   virtual ~X64Emitter();
+
+  runtime::Runtime* runtime() const { return runtime_; }
 
   int Initialize();
 
@@ -146,6 +149,7 @@ private:
   int Emit(hir::HIRBuilder* builder);
 
 private:
+  runtime::Runtime* runtime_;
   X64Backend*     backend_;
   X64CodeCache*   code_cache_;
   XbyakAllocator* allocator_;
