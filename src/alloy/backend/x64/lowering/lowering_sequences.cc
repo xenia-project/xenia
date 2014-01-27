@@ -55,6 +55,15 @@ void TraceContextStore(void* raw_context, uint64_t offset, uint64_t value) {
   fflush(stdout);
 }
 
+uint64_t LoadClock(void* raw_context) {
+  LARGE_INTEGER counter;
+  uint64_t time = 0;
+  if (QueryPerformanceCounter(&counter)) {
+    time = counter.QuadPart;
+  }
+  return time;
+}
+
 void CallNative(X64Emitter& e, void* target) {
   e.mov(e.rax, (uint64_t)target);
   e.call(e.rax);
@@ -1073,7 +1082,12 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   });
 
   table->AddSequence(OPCODE_LOAD_CLOCK, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    // It'd be cool to call QueryPerformanceCounter directly, but w/e.
+    CallNative(e, LoadClock);
+    Reg64 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.rax);
+    e.EndOp(dest);
     i = e.Advance(i);
     return true;
   });
