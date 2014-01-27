@@ -30,6 +30,9 @@ namespace {
 #define UNIMPLEMENTED_SEQ() __debugbreak()
 #define ASSERT_INVALID_TYPE() XEASSERTALWAYS()
 
+#define ITRACE 1
+#define DTRACE 0
+
 // TODO(benvanik): emit traces/printfs/etc
 
 void Dummy() {
@@ -41,6 +44,22 @@ void PrintString(void* raw_context, const char* str) {
   auto thread_state = *((ThreadState**)raw_context);
   fprintf(stdout, "XE[t] :%d: %s\n", thread_state->GetThreadID(), str);
   fflush(stdout);
+}
+
+void TraceContextLoad(void* raw_context, uint64_t offset, uint64_t value) {
+  fprintf(stdout, "%lld (%.llX) = ctx i64 +%lld\n", (int64_t)value, value, offset);
+  fflush(stdout);
+}
+void TraceContextStore(void* raw_context, uint64_t offset, uint64_t value) {
+  fprintf(stdout, "ctx i64 +%lld = %lld (%.llX)\n", offset, (int64_t)value, value);
+  fflush(stdout);
+}
+
+void CallNative(X64Emitter& e, void* target) {
+  e.mov(e.rax, (uint64_t)target);
+  e.call(e.rax);
+  e.mov(e.rcx, e.qword[e.rsp + 0]);
+  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
 }
 
 // TODO(benvanik): fancy stuff.
@@ -679,14 +698,14 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
   // --------------------------------------------------------------------------
 
   table->AddSequence(OPCODE_COMMENT, [](X64Emitter& e, Instr*& i) {
+#if ITRACE
     // TODO(benvanik): pass through.
+    // TODO(benvanik): don't just leak this memory.
     auto str = (const char*)i->src1.offset;
     auto str_copy = xestrdupa(str);
     e.mov(e.rdx, (uint64_t)str_copy);
-    e.mov(e.rax, (uint64_t)PrintString);
-    e.call(e.rax);
-    e.mov(e.rcx, e.qword[e.rsp + 0]);
-    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+    CallNative(e, PrintString);
+#endif  // ITRACE
     i = e.Advance(i);
     return true;
   });
@@ -1069,21 +1088,41 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
       e.BeginOp(i->dest, dest, REG_DEST);
       e.mov(dest, e.byte[e.rcx + i->src1.offset]);
       e.EndOp(dest);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8b, dest);
+      CallNative(e, TraceContextLoad);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
       Reg16 dest;
       e.BeginOp(i->dest, dest, REG_DEST);
       e.mov(dest, e.word[e.rcx + i->src1.offset]);
       e.EndOp(dest);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8w, dest);
+      CallNative(e, TraceContextLoad);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
       Reg32 dest;
       e.BeginOp(i->dest, dest, REG_DEST);
       e.mov(dest, e.dword[e.rcx + i->src1.offset]);
       e.EndOp(dest);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8d, dest);
+      CallNative(e, TraceContextLoad);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
       Reg64 dest;
       e.BeginOp(i->dest, dest, REG_DEST);
       e.mov(dest, e.qword[e.rcx + i->src1.offset]);
       e.EndOp(dest);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8, dest);
+      CallNative(e, TraceContextLoad);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
       Xmm dest;
       e.BeginOp(i->dest, dest, REG_DEST);
@@ -1113,29 +1152,69 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
       e.BeginOp(i->src2.value, src, 0);
       e.mov(e.byte[e.rcx + i->src1.offset], src);
       e.EndOp(src);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8b, src);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
       e.mov(e.byte[e.rcx + i->src1.offset], i->src2.value->constant.i8);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8b, i->src2.value->constant.i8);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
       Reg16 src;
       e.BeginOp(i->src2.value, src, 0);
       e.mov(e.word[e.rcx + i->src1.offset], src);
       e.EndOp(src);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8w, src);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
       e.mov(e.word[e.rcx + i->src1.offset], i->src2.value->constant.i16);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8w, i->src2.value->constant.i16);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
       Reg32 src;
       e.BeginOp(i->src2.value, src, 0);
       e.mov(e.dword[e.rcx + i->src1.offset], src);
       e.EndOp(src);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8d, src);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
       e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8d, i->src2.value->constant.i32);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
       Reg64 src;
       e.BeginOp(i->src2.value, src, 0);
       e.mov(e.qword[e.rcx + i->src1.offset], src);
       e.EndOp(src);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8, src);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
       e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
+#if DTRACE
+      e.mov(e.rdx, i->src1.offset);
+      e.mov(e.r8, i->src2.value->constant.i64);
+      CallNative(e, TraceContextStore);
+#endif  // DTRACE
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
       Xmm src;
       e.BeginOp(i->src2.value, src, 0);
