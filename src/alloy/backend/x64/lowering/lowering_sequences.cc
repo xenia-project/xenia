@@ -1311,15 +1311,13 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
       if (cbs->handles(cbs->context, address)) {
         // Eh, hacking lambdas.
         i->src3.offset = (uint64_t)cbs;
-        IntUnaryOp(
-            e, i,
-            [](X64Emitter& e, Instr& i, const Reg& dest_src) {
-              auto cbs = (RegisterAccessCallbacks*)i.src3.offset;
-              e.mov(e.rcx, (uint64_t)cbs->context);
-              e.mov(e.rdx, i.src1.value->AsUint64());
-              CallNative(e, cbs->read);
-              e.mov(dest_src, e.rax);
-            });
+        IntUnaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+          auto cbs = (RegisterAccessCallbacks*)i.src3.offset;
+          e.mov(e.rcx, (uint64_t)cbs->context);
+          e.mov(e.rdx, i.src1.value->AsUint64());
+          CallNative(e, cbs->read);
+          e.mov(dest_src, e.rax);
+        });
         i = e.Advance(i);
         return true;
       }
@@ -1774,14 +1772,11 @@ table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          e.add(dest_src, src);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.add(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      e.add(dest_src, src);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.add(dest_src, src);
+    });
   } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsVecType(i->dest->type)) {
@@ -1796,36 +1791,32 @@ table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // dest = src1 + src2 + src3.i8
-    IntTernaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
-          Reg8 src3_8(src3.getIdx());
-          if (src3.getIdx() <= 4) {
-            e.mov(e.ah, src3_8);
-          } else {
-            e.mov(e.al, src3_8);
-            e.mov(e.ah, e.al);
-          }
-          e.sahf();
-          e.adc(dest_src, src2);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, uint32_t src3) {
-          e.mov(e.eax, src3);
-          e.mov(e.ah, e.al);
-          e.sahf();
-          e.adc(dest_src, src2);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src2, const Operand& src3) {
-          Reg8 src3_8(src3.getIdx());
-          if (src3.getIdx() <= 4) {
-            e.mov(e.ah, src3_8);
-          } else {
-            e.mov(e.al, src3_8);
-            e.mov(e.ah, e.al);
-          }
-          e.sahf();
-          e.adc(dest_src, src2);
-        });
+    IntTernaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, const Operand& src3) {
+      Reg8 src3_8(src3.getIdx());
+      if (src3.getIdx() <= 4) {
+        e.mov(e.ah, src3_8);
+      } else {
+        e.mov(e.al, src3_8);
+        e.mov(e.ah, e.al);
+      }
+      e.sahf();
+      e.adc(dest_src, src2);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src2, uint32_t src3) {
+      e.mov(e.eax, src3);
+      e.mov(e.ah, e.al);
+      e.sahf();
+      e.adc(dest_src, src2);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src2, const Operand& src3) {
+      Reg8 src3_8(src3.getIdx());
+      if (src3.getIdx() <= 4) {
+        e.mov(e.ah, src3_8);
+      } else {
+        e.mov(e.al, src3_8);
+        e.mov(e.ah, e.al);
+      }
+      e.sahf();
+      e.adc(dest_src, src2);
+    });
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -1855,14 +1846,11 @@ table->AddSequence(OPCODE_VECTOR_ADD, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          e.sub(dest_src, src);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.sub(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      e.sub(dest_src, src);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.sub(dest_src, src);
+    });
   } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsVecType(i->dest->type)) {
@@ -1878,34 +1866,31 @@ table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // RAX = value, RDX = clobbered
-          // TODO(benvanik): make the register allocator put dest_src in RAX?
-          auto Nax = LIKE_REG(e.rax, dest_src);
-          e.mov(Nax, dest_src);
-          if (i.flags & ARITHMETIC_UNSIGNED) {
-            e.mul(src);
-          } else {
-            e.imul(src);
-          }
-          e.mov(dest_src, Nax);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          // RAX = value, RDX = clobbered
-          // TODO(benvanik): make the register allocator put dest_src in RAX?
-          auto Nax = LIKE_REG(e.rax, dest_src);
-          auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.mov(Nax, dest_src);
-          e.mov(Ndx, src);
-          if (i.flags & ARITHMETIC_UNSIGNED) {
-            e.mul(Ndx);
-          } else {
-            e.imul(Ndx);
-          }
-          e.mov(dest_src, Nax);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // RAX = value, RDX = clobbered
+      // TODO(benvanik): make the register allocator put dest_src in RAX?
+      auto Nax = LIKE_REG(e.rax, dest_src);
+      e.mov(Nax, dest_src);
+      if (i.flags & ARITHMETIC_UNSIGNED) {
+        e.mul(src);
+      } else {
+        e.imul(src);
+      }
+      e.mov(dest_src, Nax);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      // RAX = value, RDX = clobbered
+      // TODO(benvanik): make the register allocator put dest_src in RAX?
+      auto Nax = LIKE_REG(e.rax, dest_src);
+      auto Ndx = LIKE_REG(e.rdx, dest_src);
+      e.mov(Nax, dest_src);
+      e.mov(Ndx, src);
+      if (i.flags & ARITHMETIC_UNSIGNED) {
+        e.mul(Ndx);
+      } else {
+        e.imul(Ndx);
+      }
+      e.mov(dest_src, Nax);
+    });
   } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsVecType(i->dest->type)) {
@@ -1919,35 +1904,32 @@ table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // RAX = value, RDX = clobbered
-          // TODO(benvanik): make the register allocator put dest_src in RAX?
-          auto Nax = LIKE_REG(e.rax, dest_src);
-          auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.mov(Nax, dest_src);
-          if (i.flags & ARITHMETIC_UNSIGNED) {
-            e.mul(src);
-          } else {
-            e.imul(src);
-          }
-          e.mov(dest_src, Ndx);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          // RAX = value, RDX = clobbered
-          // TODO(benvanik): make the register allocator put dest_src in RAX?
-          auto Nax = LIKE_REG(e.rax, dest_src);
-          auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.mov(Nax, dest_src);
-          e.mov(Ndx, src);
-          if (i.flags & ARITHMETIC_UNSIGNED) {
-            e.mul(Ndx);
-          } else {
-            e.imul(Ndx);
-          }
-          e.mov(dest_src, Ndx);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // RAX = value, RDX = clobbered
+      // TODO(benvanik): make the register allocator put dest_src in RAX?
+      auto Nax = LIKE_REG(e.rax, dest_src);
+      auto Ndx = LIKE_REG(e.rdx, dest_src);
+      e.mov(Nax, dest_src);
+      if (i.flags & ARITHMETIC_UNSIGNED) {
+        e.mul(src);
+      } else {
+        e.imul(src);
+      }
+      e.mov(dest_src, Ndx);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      // RAX = value, RDX = clobbered
+      // TODO(benvanik): make the register allocator put dest_src in RAX?
+      auto Nax = LIKE_REG(e.rax, dest_src);
+      auto Ndx = LIKE_REG(e.rdx, dest_src);
+      e.mov(Nax, dest_src);
+      e.mov(Ndx, src);
+      if (i.flags & ARITHMETIC_UNSIGNED) {
+        e.mul(Ndx);
+      } else {
+        e.imul(Ndx);
+      }
+      e.mov(dest_src, Ndx);
+    });
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -1957,34 +1939,31 @@ table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // RAX = value, RDX = clobbered
-          // TODO(benvanik): make the register allocator put dest_src in RAX?
-          auto Nax = LIKE_REG(e.rax, dest_src);
-          e.mov(Nax, dest_src);
-          if (i.flags & ARITHMETIC_UNSIGNED) {
-            e.div(src);
-          } else {
-            e.idiv(src);
-          }
-          e.mov(dest_src, Nax);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          // RAX = value, RDX = clobbered
-          // TODO(benvanik): make the register allocator put dest_src in RAX?
-          auto Nax = LIKE_REG(e.rax, dest_src);
-          auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.mov(Nax, dest_src);
-          e.mov(Ndx, src);
-          if (i.flags & ARITHMETIC_UNSIGNED) {
-            e.div(Ndx);
-          } else {
-            e.idiv(Ndx);
-          }
-          e.mov(dest_src, Nax);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // RAX = value, RDX = clobbered
+      // TODO(benvanik): make the register allocator put dest_src in RAX?
+      auto Nax = LIKE_REG(e.rax, dest_src);
+      e.mov(Nax, dest_src);
+      if (i.flags & ARITHMETIC_UNSIGNED) {
+        e.div(src);
+      } else {
+        e.idiv(src);
+      }
+      e.mov(dest_src, Nax);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      // RAX = value, RDX = clobbered
+      // TODO(benvanik): make the register allocator put dest_src in RAX?
+      auto Nax = LIKE_REG(e.rax, dest_src);
+      auto Ndx = LIKE_REG(e.rdx, dest_src);
+      e.mov(Nax, dest_src);
+      e.mov(Ndx, src);
+      if (i.flags & ARITHMETIC_UNSIGNED) {
+        e.div(Ndx);
+      } else {
+        e.idiv(Ndx);
+      }
+      e.mov(dest_src, Nax);
+    });
   } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsVecType(i->dest->type)) {
@@ -2122,14 +2101,11 @@ table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          e.and(dest_src, src);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.and(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      e.and(dest_src, src);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.and(dest_src, src);
+    });
   } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else {
@@ -2141,14 +2117,11 @@ table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          e.or(dest_src, src);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.or(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      e.or(dest_src, src);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.or(dest_src, src);
+    });
   } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else {
@@ -2160,14 +2133,11 @@ table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          e.xor(dest_src, src);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.xor(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      e.xor(dest_src, src);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.xor(dest_src, src);
+    });
   } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else {
@@ -2179,11 +2149,9 @@ table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntUnaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src) {
-          e.not(dest_src);
-        });
+    IntUnaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+      e.not(dest_src);
+    });
   } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else {
@@ -2196,24 +2164,21 @@ table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shlx if available.
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // Can only shl by cl. Eww x86.
-          Reg8 shamt(src.getIdx());
-          e.mov(e.rax, e.rcx);
-          e.mov(e.cl, shamt);
-          e.shl(dest_src, e.cl);
-          e.mov(e.rcx, e.rax);
-          // BeaEngine can't disasm this, boo.
-          /*Reg32e dest_src_e(dest_src.getIdx(), MAX(dest_src.getBit(), 32));
-          Reg32e src_e(src.getIdx(), MAX(dest_src.getBit(), 32));
-          e.and(src_e, 0x3F);
-          e.shlx(dest_src_e, dest_src_e, src_e);*/
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.shl(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // Can only shl by cl. Eww x86.
+      Reg8 shamt(src.getIdx());
+      e.mov(e.rax, e.rcx);
+      e.mov(e.cl, shamt);
+      e.shl(dest_src, e.cl);
+      e.mov(e.rcx, e.rax);
+      // BeaEngine can't disasm this, boo.
+      /*Reg32e dest_src_e(dest_src.getIdx(), MAX(dest_src.getBit(), 32));
+      Reg32e src_e(src.getIdx(), MAX(dest_src.getBit(), 32));
+      e.and(src_e, 0x3F);
+      e.shlx(dest_src_e, dest_src_e, src_e);*/
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.shl(dest_src, src);
+    });
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -2224,19 +2189,16 @@ table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shrx if available.
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // Can only sar by cl. Eww x86.
-          Reg8 shamt(src.getIdx());
-          e.mov(e.rax, e.rcx);
-          e.mov(e.cl, shamt);
-          e.shr(dest_src, e.cl);
-          e.mov(e.rcx, e.rax);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.shr(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // Can only sar by cl. Eww x86.
+      Reg8 shamt(src.getIdx());
+      e.mov(e.rax, e.rcx);
+      e.mov(e.cl, shamt);
+      e.shr(dest_src, e.cl);
+      e.mov(e.rcx, e.rax);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.shr(dest_src, src);
+    });
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -2247,19 +2209,16 @@ table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use sarx if available.
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // Can only sar by cl. Eww x86.
-          Reg8 shamt(src.getIdx());
-          e.mov(e.rax, e.rcx);
-          e.mov(e.cl, shamt);
-          e.sar(dest_src, e.cl);
-          e.mov(e.rcx, e.rax);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.sar(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // Can only sar by cl. Eww x86.
+      Reg8 shamt(src.getIdx());
+      e.mov(e.rax, e.rcx);
+      e.mov(e.cl, shamt);
+      e.sar(dest_src, e.cl);
+      e.mov(e.rcx, e.rax);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.sar(dest_src, src);
+    });
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -2323,19 +2282,16 @@ table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_ROTATE_LEFT, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
-    IntBinaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-          // Can only rol by cl. Eww x86.
-          Reg8 shamt(src.getIdx());
-          e.mov(e.rax, e.rcx);
-          e.mov(e.cl, shamt);
-          e.rol(dest_src, e.cl);
-          e.mov(e.rcx, e.rax);
-        },
-        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-          e.rol(dest_src, src);
-        });
+    IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+      // Can only rol by cl. Eww x86.
+      Reg8 shamt(src.getIdx());
+      e.mov(e.rax, e.rcx);
+      e.mov(e.cl, shamt);
+      e.rol(dest_src, e.cl);
+      e.mov(e.rcx, e.rax);
+    }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+      e.rol(dest_src, src);
+    });
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -2584,9 +2540,7 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     // Load source, move from tight pack of X16Y16.... to X16...Y16...
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
-    IntUnaryOp(
-      e, i,
-      [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+    IntUnaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src) {
       // sx = src.iw >> 16;
       // sy = src.iw & 0xFFFF;
       // dest = { 3.0 + (sx / float(1 << 22)),
