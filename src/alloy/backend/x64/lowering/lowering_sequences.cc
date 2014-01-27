@@ -1167,7 +1167,7 @@ table->AddSequence(OPCODE_DID_SATURATE, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    VectorCompareXX(e, i, VECTOR_CMP_EQ, true);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1177,7 +1177,7 @@ table->AddSequence(OPCODE_VECTOR_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    VectorCompareXX(e, i, VECTOR_CMP_GT, true);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1187,7 +1187,7 @@ table->AddSequence(OPCODE_VECTOR_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    VectorCompareXX(e, i, VECTOR_CMP_GE, true);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1197,7 +1197,7 @@ table->AddSequence(OPCODE_VECTOR_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    VectorCompareXX(e, i, VECTOR_CMP_GT, false);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1207,7 +1207,7 @@ table->AddSequence(OPCODE_VECTOR_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    VectorCompareXX(e, i, VECTOR_CMP_GE, false);
   } else {
     ASSERT_INVALID_TYPE();
   }

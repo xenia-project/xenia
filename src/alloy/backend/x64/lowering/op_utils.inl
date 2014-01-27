@@ -51,6 +51,7 @@ void CheckBoolean(X64Emitter& e, Value* v) {
   }
 }
 
+// Compares src1 and src2 and calls the given fn to set a byte based on EFLAGS.
 void CompareXX(X64Emitter& e, Instr*& i, void(set_fn)(X64Emitter& e, Reg8& dest, bool invert)) {
   if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8)) {
     Reg8 dest;
@@ -158,6 +159,133 @@ void CompareXX(X64Emitter& e, Instr*& i, void(set_fn)(X64Emitter& e, Reg8& dest,
   } else {
     UNIMPLEMENTED_SEQ();
   }
+};
+
+enum VectoreCompareOp {
+  VECTOR_CMP_EQ,
+  VECTOR_CMP_GT,
+  VECTOR_CMP_GE,
+};
+// Compares src1 to src2 with the given op and sets the dest.
+// Dest will have each part set to all ones if the compare passes.
+void VectorCompareXX(X64Emitter& e, Instr*& i, VectoreCompareOp op, bool as_signed) {
+  Xmm dest, src1, src2;
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src2.value, src2, 0);
+  if (op == VECTOR_CMP_EQ) {
+    // Commutative, so simple.
+    Xmm real_src;
+    if (dest == src1) {
+      real_src = src2;
+    } else if (dest == src2) {
+      real_src = src1;
+    } else {
+      e.movaps(dest, src1);
+      real_src = src2;
+    }
+    if (i->flags == INT8_TYPE) {
+      e.pcmpeqb(dest, real_src);
+    } else if (i->flags == INT16_TYPE) {
+      e.pcmpeqw(dest, real_src);
+    } else if (i->flags == INT32_TYPE) {
+      e.pcmpeqd(dest, real_src);
+    } else if (i->flags == FLOAT32_TYPE) {
+      e.cmpeqps(dest, real_src);
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else if (i->flags == FLOAT32_TYPE) {
+    // Float GT/GE must be emulated.
+    if (op == VECTOR_CMP_GT) {
+      // Have to swap: src2 < src1.
+      if (dest == src2) {
+        e.cmpltps(dest, src1);
+      } else if (dest == src1) {
+        e.movaps(e.xmm0, src1);
+        e.movaps(dest, src2);
+        e.cmpltps(dest, e.xmm0);
+      } else {
+        e.movaps(dest, src2);
+        e.cmpltps(dest, src1);
+      }
+    } else if (op == VECTOR_CMP_GE) {
+      // Have to swap: src2 <= src1.
+      if (dest == src2) {
+        e.cmpleps(dest, src1);
+      } else if (dest == src1) {
+        e.movaps(e.xmm0, src1);
+        e.movaps(dest, src2);
+        e.cmpleps(dest, e.xmm0);
+      } else {
+        e.movaps(dest, src2);
+        e.cmpleps(dest, src1);
+      }
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    // Integer types are easier.
+    Xmm real_src;
+    if (dest == src1) {
+      real_src = src2;
+    } else if (dest == src2) {
+      e.movaps(e.xmm0, src2);
+      e.movaps(dest, src1);
+      real_src = e.xmm0;
+    } else {
+      e.movaps(dest, src1);
+      real_src = src2;
+    }
+    if (op == VECTOR_CMP_GT) {
+      if (i->flags == INT8_TYPE) {
+        if (as_signed) {
+          e.pcmpgtb(dest, real_src);
+        } else {
+          UNIMPLEMENTED_SEQ();
+        }
+      } else if (i->flags == INT16_TYPE) {
+        if (as_signed) {
+          e.pcmpgtw(dest, real_src);
+        } else {
+          UNIMPLEMENTED_SEQ();
+        }
+      } else if (i->flags == INT32_TYPE) {
+        if (as_signed) {
+          e.pcmpgtd(dest, real_src);
+        } else {
+          UNIMPLEMENTED_SEQ();
+        }
+      } else {
+        ASSERT_INVALID_TYPE();
+      }
+    } else if (op == VECTOR_CMP_GE) {
+      if (i->flags == INT8_TYPE) {
+        if (as_signed) {
+          UNIMPLEMENTED_SEQ();
+        } else {
+          UNIMPLEMENTED_SEQ();
+        }
+      } else if (i->flags == INT16_TYPE) {
+        if (as_signed) {
+          UNIMPLEMENTED_SEQ();
+        } else {
+          UNIMPLEMENTED_SEQ();
+        }
+      } else if (i->flags == INT32_TYPE) {
+        if (as_signed) {
+          UNIMPLEMENTED_SEQ();
+        } else {
+          UNIMPLEMENTED_SEQ();
+        }
+      } else {
+        ASSERT_INVALID_TYPE();
+      }
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  }
+  e.EndOp(dest, src1, src2);
 };
 
 typedef void(v_fn)(X64Emitter& e, Instr& i, const Reg& dest_src);
