@@ -81,9 +81,9 @@ void* ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(target_address, &fn);
   XEASSERTNOTNULL(fn);
-  XEASSERTALWAYS();
-  //fn->Call(thread_state);
-  return 0;
+  XEASSERT(fn->type() == Function::USER_FUNCTION);
+  auto x64_fn = (X64Function*)fn;
+  return x64_fn->machine_code();
 }
 void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
   // If we are an extern function, we can directly insert a call.
@@ -1236,8 +1236,8 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
       e.movaps(e.ptr[e.rcx + i->src1.offset], src);
       e.EndOp(src);
     } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
-      e.mov(e.ptr[e.rcx + i->src1.offset], i->src2.value->constant.v128.low);
-      e.mov(e.ptr[e.rcx + i->src1.offset + 8], i->src2.value->constant.v128.high);
+      e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.v128.low);
+      e.mov(e.qword[e.rcx + i->src1.offset + 8], i->src2.value->constant.v128.high);
     } else {
       ASSERT_INVALID_TYPE();
     }
