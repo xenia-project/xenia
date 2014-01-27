@@ -112,7 +112,8 @@ public:
         GetRegBit(r0) | GetRegBit(r1) | GetRegBit(r2) | GetRegBit(r3));
   }
 
-  void EvictStaleRegs();
+  void ResetRegisters(uint32_t reserved_regs);
+  void EvictStaleRegisters();
 
   void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags);
   void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags,

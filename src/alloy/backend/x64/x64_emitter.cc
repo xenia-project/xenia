@@ -143,6 +143,8 @@ int X64Emitter::Emit(HIRBuilder* builder) {
 
   auto lowering_table = backend_->lowering_table();
 
+  reg_state_.active_regs = reg_state_.live_regs = reserved_regs;
+
   // Body.
   auto block = builder->first_block();
   while (block) {
@@ -156,7 +158,7 @@ int X64Emitter::Emit(HIRBuilder* builder) {
     // Reset reg allocation state.
     // If we start keeping regs across blocks this needs to change.
     // We mark a few active so that the allocator doesn't use them.
-    reg_state_.active_regs = reg_state_.live_regs = reserved_regs;
+    ResetRegisters(reserved_regs);
 
     // Add instructions.
     // The table will process sequences of instructions to (try to)
@@ -192,11 +194,27 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   return 0;
 }
 
-void X64Emitter::EvictStaleRegs() {
+void X64Emitter::ResetRegisters(uint32_t reserved_regs) {
+  // Just need to reset the register for each live value.
+  uint32_t live_regs = reg_state_.live_regs;
+  for (size_t n = 0; n < 32; n++, live_regs >>= 1) {
+    if (live_regs & 0x1) {
+      auto v = reg_state_.reg_values[n];
+      if (v) {
+        v->reg = -1;
+      }
+    }
+    reg_state_.reg_values[n] = 0;
+  }
+  reg_state_.active_regs = reg_state_.live_regs = reserved_regs;
+}
+
+void X64Emitter::EvictStaleRegisters() {
   // NOTE: if we are getting called it's because we *need* a register.
   // We must get rid of something.
 
-  uint32_t current_ordinal = current_instr_->ordinal;
+  uint32_t current_ordinal = current_instr_ ?
+      current_instr_->ordinal : 0xFFFFFFFF;
 
   // Remove any register with no more uses.
   uint32_t new_live_regs = 0;
@@ -216,7 +234,12 @@ void X64Emitter::EvictStaleRegs() {
     auto v = reg_state_.reg_values[n];
     if (v->last_use->ordinal < current_ordinal) {
       reg_state_.reg_values[n] = NULL;
+      v->reg = -1;
+      continue;
     }
+
+    // Register still in use.
+    new_live_regs |= bit;
   }
 
   // Hrm. We have spilled.
@@ -225,6 +248,9 @@ void X64Emitter::EvictStaleRegs() {
   }
 
   reg_state_.live_regs = new_live_regs;
+
+  // Assert that live is a superset of active.
+  XEASSERTZERO((reg_state_.live_regs ^ reg_state_.active_regs) & reg_state_.active_regs);
 }
 
 void X64Emitter::FindFreeRegs(
@@ -234,6 +260,9 @@ void X64Emitter::FindFreeRegs(
     // Already in a register. Mark active and return.
     v0_idx = v0->reg;
     reg_state_.active_regs |= 1 << v0_idx;
+
+    // Assert that live is a superset of active.
+    XEASSERTZERO((reg_state_.live_regs ^ reg_state_.active_regs) & reg_state_.active_regs);
     return;
   }
 
@@ -250,7 +279,7 @@ void X64Emitter::FindFreeRegs(
   uint32_t free_regs = avail_regs & ~reg_state_.live_regs;
   if (!free_regs) {
     // Need to evict something.
-    EvictStaleRegs();
+    EvictStaleRegisters();
     free_regs = avail_regs & ~reg_state_.live_regs;
     XEASSERT(free_regs);
   }

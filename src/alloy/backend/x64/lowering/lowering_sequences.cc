@@ -1600,7 +1600,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // RAX = value, RDX = clobbered
           // TODO(benvanik): make the register allocator put dest_src in RAX?
-          e.db(0xCC);
           auto Nax = LIKE_REG(e.rax, dest_src);
           e.mov(Nax, dest_src);
           if (i.flags & ARITHMETIC_UNSIGNED) {
@@ -1615,7 +1614,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           // TODO(benvanik): make the register allocator put dest_src in RAX?
           auto Nax = LIKE_REG(e.rax, dest_src);
           auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.db(0xCC);
           e.mov(Nax, dest_src);
           e.mov(Ndx, src);
           if (i.flags & ARITHMETIC_UNSIGNED) {
@@ -1635,7 +1633,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // RAX = value, RDX = clobbered
           // TODO(benvanik): make the register allocator put dest_src in RAX?
-          e.db(0xCC);
           auto Nax = LIKE_REG(e.rax, dest_src);
           auto Ndx = LIKE_REG(e.rdx, dest_src);
           e.mov(Nax, dest_src);
@@ -1651,7 +1648,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           // TODO(benvanik): make the register allocator put dest_src in RAX?
           auto Nax = LIKE_REG(e.rax, dest_src);
           auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.db(0xCC);
           e.mov(Nax, dest_src);
           e.mov(Ndx, src);
           if (i.flags & ARITHMETIC_UNSIGNED) {
@@ -1671,7 +1667,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
           // RAX = value, RDX = clobbered
           // TODO(benvanik): make the register allocator put dest_src in RAX?
-          e.db(0xCC);
           auto Nax = LIKE_REG(e.rax, dest_src);
           e.mov(Nax, dest_src);
           if (i.flags & ARITHMETIC_UNSIGNED) {
@@ -1686,7 +1681,6 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           // TODO(benvanik): make the register allocator put dest_src in RAX?
           auto Nax = LIKE_REG(e.rax, dest_src);
           auto Ndx = LIKE_REG(e.rdx, dest_src);
-          e.db(0xCC);
           e.mov(Nax, dest_src);
           e.mov(Ndx, src);
           if (i.flags & ARITHMETIC_UNSIGNED) {
