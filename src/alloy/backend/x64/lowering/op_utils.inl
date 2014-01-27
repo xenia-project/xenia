@@ -291,7 +291,7 @@ void VectorCompareXX(X64Emitter& e, Instr*& i, VectoreCompareOp op, bool as_sign
 typedef void(v_fn)(X64Emitter& e, Instr& i, const Reg& dest_src);
 template<typename T>
 void IntUnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
-              T& dest, T& src1) {
+                 T& dest, T& src1) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
   if (dest == src1) {
@@ -304,7 +304,7 @@ void IntUnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
 }
 template<typename CT, typename T>
 void IntUnaryOpC(X64Emitter& e, Instr*& i, v_fn v_fn,
-              T& dest, Value* src1) {
+                 T& dest, Value* src1) {
   e.BeginOp(i->dest, dest, REG_DEST);
   e.mov(dest, (uint64_t)src1->get_constant(CT()));
   v_fn(e, *i, dest);
@@ -349,7 +349,7 @@ typedef void(vv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src, const Operand&
 typedef void(vc_fn)(X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src);
 template<typename TD, typename TS1, typename TS2>
 void IntBinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
-                TD& dest, TS1& src1, TS2& src2) {
+                   TD& dest, TS1& src1, TS2& src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0);
@@ -372,7 +372,7 @@ void IntBinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
 }
 template<typename CT, typename TD, typename TS1>
 void IntBinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
-                TD& dest, TS1& src1, Value* src2) {
+                   TD& dest, TS1& src1, Value* src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
   if (dest.getBit() <= 32) {
@@ -398,7 +398,7 @@ void IntBinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
 }
 template<typename CT, typename TD, typename TS2>
 void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
-                TD& dest, Value* src1, TS2& src2) {
+                   TD& dest, Value* src1, TS2& src2) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src2.value, src2, 0);
   if (dest.getBit() <= 32) {
@@ -525,7 +525,7 @@ typedef void(vvc_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, const Operan
 typedef void(vcv_fn)(X64Emitter& e, Instr& i, const Reg& dest_src1, uint32_t src2, const Operand& src3);
 template<typename TD, typename TS1, typename TS2, typename TS3>
 void IntTernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
-                  TD& dest, TS1& src1, TS2& src2, TS3& src3) {
+                     TD& dest, TS1& src1, TS2& src2, TS3& src3) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0,
@@ -546,7 +546,7 @@ void IntTernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
 }
 template<typename CT, typename TD, typename TS1, typename TS2>
 void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
-                  TD& dest, TS1& src1, TS2& src2, Value* src3) {
+                     TD& dest, TS1& src1, TS2& src2, Value* src3) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0);
@@ -594,7 +594,7 @@ void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
 }
 template<typename CT, typename TD, typename TS1, typename TS3>
 void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
-                  TD& dest, TS1& src1, Value* src2, TS3& src3) {
+                     TD& dest, TS1& src1, Value* src2, TS3& src3) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
             i->src3.value, src3, 0);
@@ -696,6 +696,47 @@ void IntTernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn
     // UNIMPLEMENTED_SEQ();
   }
 }
+
+typedef void(xmm_v_fn)(X64Emitter& e, Instr& i, const Xmm& dest_src);
+template<typename T>
+void XmmUnaryOpV(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
+                 T& dest, T& src1) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0);
+  if (dest == src1) {
+    v_fn(e, *i, dest);
+  } else {
+    e.movaps(dest, src1);
+    v_fn(e, *i, dest);
+  }
+  e.EndOp(dest, src1);
+}
+template<typename CT, typename T>
+void XmmUnaryOpC(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
+                 T& dest, Value* src1) {
+  e.BeginOp(i->dest, dest, REG_DEST);
+  //e.mov(dest, (uint64_t)src1->get_constant(CT()));
+  v_fn(e, *i, dest);
+  e.EndOp(dest);
+}
+void XmmUnaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_v_fn v_fn) {
+  if (IsFloatType(i->src1.value->type)) {
+    //
+  } else if (IsVecType(i->src1.value->type)) {
+    //
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8)) {
+    Xmm dest, src1;
+    XmmUnaryOpV(e, i, v_fn, dest, src1);
+  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C)) {
+    Xmm dest, src1;
+    XmmUnaryOpC<int8_t>(e, i, v_fn, dest, i->src1.value);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+};
 
 }  // namespace
 
