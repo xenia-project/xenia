@@ -697,42 +697,60 @@ void IntTernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn
   }
 }
 
-typedef void(xmm_v_fn)(X64Emitter& e, Instr& i, const Xmm& dest_src);
+// Since alot of SSE ops can take dest + src, just do that.
+// Worst case the callee can dedupe.
+typedef void(xmm_v_fn)(X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src);
 template<typename T>
 void XmmUnaryOpV(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
                  T& dest, T& src1) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
-  if (dest == src1) {
-    v_fn(e, *i, dest);
-  } else {
-    e.movaps(dest, src1);
-    v_fn(e, *i, dest);
-  }
+  v_fn(e, *i, dest, src1);
   e.EndOp(dest, src1);
 }
-template<typename CT, typename T>
+template<typename T>
 void XmmUnaryOpC(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
                  T& dest, Value* src1) {
   e.BeginOp(i->dest, dest, REG_DEST);
-  //e.mov(dest, (uint64_t)src1->get_constant(CT()));
-  v_fn(e, *i, dest);
+  if (src1->type == FLOAT32_TYPE) {
+    e.mov(e.eax, (uint32_t)src1->constant.i32);
+    e.movd(dest, e.eax);
+  } else if (src1->type == FLOAT64_TYPE) {
+    e.mov(e.rax, (uint64_t)src1->constant.i64);
+    e.movq(dest, e.rax);
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  v_fn(e, *i, dest, dest);
   e.EndOp(dest);
 }
 void XmmUnaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_v_fn v_fn) {
   if (IsFloatType(i->src1.value->type)) {
-    //
+    if (i->Match(SIG_TYPE_F32, SIG_TYPE_F32)) {
+      Xmm dest, src1;
+      XmmUnaryOpV(e, i, v_fn, dest, src1);
+    } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_F32C)) {
+      Xmm dest;
+      XmmUnaryOpC(e, i, v_fn, dest, i->src1.value);
+    } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_F64)) {
+      Xmm dest, src1;
+      XmmUnaryOpV(e, i, v_fn, dest, src1);
+    } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_F64C)) {
+      Xmm dest;
+      XmmUnaryOpC(e, i, v_fn, dest, i->src1.value);
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
   } else if (IsVecType(i->src1.value->type)) {
-    //
-  } else {
-    ASSERT_INVALID_TYPE();
-  }
-  if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8)) {
-    Xmm dest, src1;
-    XmmUnaryOpV(e, i, v_fn, dest, src1);
-  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I8C)) {
-    Xmm dest, src1;
-    XmmUnaryOpC<int8_t>(e, i, v_fn, dest, i->src1.value);
+    if (i->Match(SIG_TYPE_V128, SIG_TYPE_V128)) {
+      Xmm dest, src1;
+      XmmUnaryOpV(e, i, v_fn, dest, src1);
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_V128C)) {
+      Xmm dest;
+      XmmUnaryOpC(e, i, v_fn, dest, i->src1.value);
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
   } else {
     ASSERT_INVALID_TYPE();
   }

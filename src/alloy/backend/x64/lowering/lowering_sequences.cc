@@ -1458,7 +1458,7 @@ table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
       e.neg(dest_src);
     });
   } else if (IsFloatType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       if (i.src1.value->type == FLOAT32_TYPE) {
         UNIMPLEMENTED_SEQ();
       } else {
@@ -1466,7 +1466,7 @@ table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
       }
     });
   } else if (IsVecType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       UNIMPLEMENTED_SEQ();
     });
   } else {
@@ -1480,7 +1480,7 @@ table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsFloatType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       if (i.src1.value->type == FLOAT32_TYPE) {
         UNIMPLEMENTED_SEQ();
       } else {
@@ -1488,7 +1488,7 @@ table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
       }
     });
   } else if (IsVecType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       UNIMPLEMENTED_SEQ();
     });
   } else {
@@ -1500,16 +1500,16 @@ table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_SQRT, [](X64Emitter& e, Instr*& i) {
   if (IsFloatType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       if (i.dest->type == FLOAT32_TYPE) {
-        e.sqrtss(dest_src, dest_src);
+        e.sqrtss(dest, src);
       } else {
-        e.sqrtsd(dest_src, dest_src);
+        e.sqrtsd(dest, src);
       }
     });
   } else if (IsVecType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
-      e.sqrtps(dest_src, dest_src);
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+      e.sqrtps(dest, src);
     });
   } else {
     ASSERT_INVALID_TYPE();
@@ -1520,18 +1520,18 @@ table->AddSequence(OPCODE_SQRT, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_RSQRT, [](X64Emitter& e, Instr*& i) {
   if (IsFloatType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       if (i.dest->type == FLOAT32_TYPE) {
-        e.rsqrtss(dest_src, dest_src);
+        e.rsqrtss(dest, src);
       } else {
-        e.cvtsd2ss(dest_src, dest_src);
-        e.rsqrtss(dest_src, dest_src);
-        e.cvtss2sd(dest_src, dest_src);
+        e.cvtsd2ss(dest, src);
+        e.rsqrtss(dest, dest);
+        e.cvtss2sd(dest, dest);
       }
     });
   } else if (IsVecType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
-      e.rsqrtps(dest_src, dest_src);
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+      e.rsqrtps(dest, src);
     });
   } else {
     ASSERT_INVALID_TYPE();
@@ -1638,10 +1638,13 @@ table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
       e.not(dest_src);
     });
   } else if (IsVecType(i->dest->type)) {
-    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src) {
+    XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       // dest_src ^= 0xFFFF...
       e.cmpeqps(e.xmm0, e.xmm0);
-      e.pxor(dest_src, e.xmm0);
+      if (dest != src) {
+        e.movaps(dest, src);
+      }
+      e.pxor(dest, e.xmm0);
     });
   } else {
     ASSERT_INVALID_TYPE();
