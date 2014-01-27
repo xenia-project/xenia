@@ -884,18 +884,33 @@ table->AddSequence(OPCODE_BRANCH_FALSE, [](X64Emitter& e, Instr*& i) {
 // --------------------------------------------------------------------------
 
 table->AddSequence(OPCODE_ASSIGN, [](X64Emitter& e, Instr*& i) {
-  UnaryOp(
-      e, i,
-      [](X64Emitter& e, Instr& i, const Reg& dest_src) {
-        // nop - the mov will have happened.
-      });
+  if (IsIntType(i->dest->type)) {
+    UnaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+          // nop - the mov will have happened.
+        });
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
-  // Need a matrix.
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -1057,18 +1072,27 @@ table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_ROUND, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  // flags = ROUND_TO_*
+  if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_CONVERT_I2F, [](X64Emitter& e, Instr*& i) {
+  // flags = ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED
   UNIMPLEMENTED_SEQ();
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
+  // flags = ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED
   UNIMPLEMENTED_SEQ();
   i = e.Advance(i);
   return true;
@@ -1081,12 +1105,14 @@ table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
 // specials for zeroing/etc (xor/etc)
 
 table->AddSequence(OPCODE_LOAD_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
+  XEASSERT(i->dest->type == VEC128_TYPE);
   UNIMPLEMENTED_SEQ();
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_LOAD_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
+  XEASSERT(i->dest->type == VEC128_TYPE);
   UNIMPLEMENTED_SEQ();
   i = e.Advance(i);
   return true;
@@ -1487,19 +1513,43 @@ table->AddSequence(OPCODE_PREFETCH, [](X64Emitter& e, Instr*& i) {
 // --------------------------------------------------------------------------
 
 table->AddSequence(OPCODE_MAX, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_MIN, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_SELECT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -1669,31 +1719,51 @@ table->AddSequence(OPCODE_DID_SATURATE, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -1712,8 +1782,12 @@ table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.add(dest_src, src);
         });
-  } else {
+  } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -1759,6 +1833,26 @@ table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
   return true;
 });
 
+table->AddSequence(OPCODE_VECTOR_ADD, [](X64Emitter& e, Instr*& i) {
+  if (IsVecType(i->dest->type)) {
+    if (i->flags == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == FLOAT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
 table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     BinaryOp(
@@ -1769,8 +1863,12 @@ table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.sub(dest_src, src);
         });
-  } else {
+  } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -1808,8 +1906,12 @@ table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
           }
           e.mov(dest_src, Nax);
         });
-  } else {
+  } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -1883,69 +1985,137 @@ table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
           }
           e.mov(dest_src, Nax);
         });
-  } else {
+  } else if (IsFloatType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_MUL_ADD, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_MUL_SUB, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_SQRT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_RSQRT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_POW2, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_LOG2, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsFloatType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -1960,8 +2130,10 @@ table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.and(dest_src, src);
         });
-  } else {
+  } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -1977,8 +2149,10 @@ table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.or(dest_src, src);
         });
-  } else {
+  } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -1994,8 +2168,10 @@ table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.xor(dest_src, src);
         });
-  } else {
+  } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -2008,8 +2184,10 @@ table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src) {
           e.not(dest_src);
         });
-  } else {
+  } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -2043,12 +2221,6 @@ table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
   return true;
 });
 
-table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
-  i = e.Advance(i);
-  return true;
-});
-
 table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shrx if available.
@@ -2068,12 +2240,6 @@ table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
   } else {
     UNIMPLEMENTED_SEQ();
   }
-  i = e.Advance(i);
-  return true;
-});
-
-table->AddSequence(OPCODE_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
   i = e.Advance(i);
   return true;
 });
@@ -2101,8 +2267,56 @@ table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
   return true;
 });
 
+table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
+  if (IsVecType(i->dest->type)) {
+    if (i->flags == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
+  if (IsVecType(i->dest->type)) {
+    if (i->flags == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
 table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    if (i->flags == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->flags == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -2241,25 +2455,73 @@ table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_INSERT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    if (i->src3.value->type == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->src3.value->type == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->src3.value->type == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->src1.value->type)) {
+    if (i->dest->type == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->dest->type == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->dest->type == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    if (i->src1.value->type == INT8_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->src1.value->type == INT16_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->src1.value->type == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->src1.value->type == FLOAT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsVecType(i->dest->type)) {
+    if (i->src1.value->type == INT32_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else if (i->src1.value->type == VEC128_TYPE) {
+      UNIMPLEMENTED_SEQ();
+    } else {
+      ASSERT_INVALID_TYPE();
+    }
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -2279,7 +2541,7 @@ table->AddSequence(OPCODE_SWIZZLE, [](X64Emitter& e, Instr*& i) {
       UNIMPLEMENTED_SEQ();
     }
   } else {
-    UNIMPLEMENTED_SEQ();
+    ASSERT_INVALID_TYPE();
   }
   i = e.Advance(i);
   return true;
@@ -2373,7 +2635,11 @@ table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (IsIntType(i->dest->type)) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
   i = e.Advance(i);
   return true;
 });
