@@ -5,5 +5,6 @@
     'lowering_sequences.h',
     'lowering_table.cc',
     'lowering_table.h',
+    'op_utils.inl',
   ],
 }
