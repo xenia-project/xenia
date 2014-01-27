@@ -1592,20 +1592,110 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
     return true;
   });
 
+#define LIKE_REG(dest, like) Operand(dest.getIdx(), dest.getKind(), like.getBit(), false)
+
   table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // RAX = value, RDX = clobbered
+          // TODO(benvanik): make the register allocator put dest_src in RAX?
+          e.db(0xCC);
+          auto Nax = LIKE_REG(e.rax, dest_src);
+          e.mov(Nax, dest_src);
+          if (i.flags & ARITHMETIC_UNSIGNED) {
+            e.mul(src);
+          } else {
+            e.imul(src);
+          }
+          e.mov(dest_src, Nax);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          // RAX = value, RDX = clobbered
+          // TODO(benvanik): make the register allocator put dest_src in RAX?
+          auto Nax = LIKE_REG(e.rax, dest_src);
+          auto Ndx = LIKE_REG(e.rdx, dest_src);
+          e.db(0xCC);
+          e.mov(Nax, dest_src);
+          e.mov(Ndx, src);
+          if (i.flags & ARITHMETIC_UNSIGNED) {
+            e.mul(Ndx);
+          } else {
+            e.imul(Ndx);
+          }
+          e.mov(dest_src, Nax);
+        });
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // RAX = value, RDX = clobbered
+          // TODO(benvanik): make the register allocator put dest_src in RAX?
+          e.db(0xCC);
+          auto Nax = LIKE_REG(e.rax, dest_src);
+          auto Ndx = LIKE_REG(e.rdx, dest_src);
+          e.mov(Nax, dest_src);
+          if (i.flags & ARITHMETIC_UNSIGNED) {
+            e.mul(src);
+          } else {
+            e.imul(src);
+          }
+          e.mov(dest_src, Ndx);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          // RAX = value, RDX = clobbered
+          // TODO(benvanik): make the register allocator put dest_src in RAX?
+          auto Nax = LIKE_REG(e.rax, dest_src);
+          auto Ndx = LIKE_REG(e.rdx, dest_src);
+          e.db(0xCC);
+          e.mov(Nax, dest_src);
+          e.mov(Ndx, src);
+          if (i.flags & ARITHMETIC_UNSIGNED) {
+            e.mul(Ndx);
+          } else {
+            e.imul(Ndx);
+          }
+          e.mov(dest_src, Ndx);
+        });
     i = e.Advance(i);
     return true;
   });
 
   table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
+    BinaryOp(
+        e, i,
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
+          // RAX = value, RDX = clobbered
+          // TODO(benvanik): make the register allocator put dest_src in RAX?
+          e.db(0xCC);
+          auto Nax = LIKE_REG(e.rax, dest_src);
+          e.mov(Nax, dest_src);
+          if (i.flags & ARITHMETIC_UNSIGNED) {
+            e.div(src);
+          } else {
+            e.idiv(src);
+          }
+          e.mov(dest_src, Nax);
+        },
+        [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
+          // RAX = value, RDX = clobbered
+          // TODO(benvanik): make the register allocator put dest_src in RAX?
+          auto Nax = LIKE_REG(e.rax, dest_src);
+          auto Ndx = LIKE_REG(e.rdx, dest_src);
+          e.db(0xCC);
+          e.mov(Nax, dest_src);
+          e.mov(Ndx, src);
+          if (i.flags & ARITHMETIC_UNSIGNED) {
+            e.div(Ndx);
+          } else {
+            e.idiv(Ndx);
+          }
+          e.mov(dest_src, Nax);
+        });
     i = e.Advance(i);
     return true;
   });
