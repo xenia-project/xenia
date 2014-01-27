@@ -24,7 +24,6 @@ using namespace alloy::runtime;
 
 using namespace Xbyak;
 
-
 namespace {
 
 #define UNIMPLEMENTED_SEQ() __debugbreak()
@@ -32,6 +31,18 @@ namespace {
 
 #define ITRACE 1
 #define DTRACE 0
+
+#define SHUFPS_SWAP_DWORDS 0x1B
+
+// A note about vectors:
+// Alloy represents vectors as xyzw pairs, with indices 0123.
+// XMM registers are xyzw pairs with indices 3210, making them more like wzyx.
+// This makes things somewhat confusing. It'd be nice to just shuffle the
+// registers around on load/store, however certain operations require that
+// data be in the right offset.
+// Basically, this identity must hold:
+//   shuffle(vec, b00011011) -> {x,y,z,w} => {x,y,z,w}
+// All indices and operations must respect that.
 
 // TODO(benvanik): emit traces/printfs/etc
 
@@ -702,994 +713,997 @@ void TernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn vc
 
 
 void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
-  // --------------------------------------------------------------------------
-  // General
-  // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// General
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_COMMENT, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_COMMENT, [](X64Emitter& e, Instr*& i) {
 #if ITRACE
-    // TODO(benvanik): pass through.
-    // TODO(benvanik): don't just leak this memory.
-    auto str = (const char*)i->src1.offset;
-    auto str_copy = xestrdupa(str);
-    e.mov(e.rdx, (uint64_t)str_copy);
-    CallNative(e, PrintString);
+  // TODO(benvanik): pass through.
+  // TODO(benvanik): don't just leak this memory.
+  auto str = (const char*)i->src1.offset;
+  auto str_copy = xestrdupa(str);
+  e.mov(e.rdx, (uint64_t)str_copy);
+  CallNative(e, PrintString);
 #endif  // ITRACE
-    i = e.Advance(i);
-    return true;
-  });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_NOP, [](X64Emitter& e, Instr*& i) {
-    // If we got this, chances are we want it.
-    e.nop();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_NOP, [](X64Emitter& e, Instr*& i) {
+  // If we got this, chances are we want it.
+  e.nop();
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Debugging
-  // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// Debugging
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_SOURCE_OFFSET, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_SOURCE_OFFSET, [](X64Emitter& e, Instr*& i) {
 #if XE_DEBUG
-    e.nop();
-    e.nop();
-    e.mov(e.eax, (uint32_t)i->src1.offset);
-    e.nop();
-    e.nop();
+  e.nop();
+  e.nop();
+  e.mov(e.eax, (uint32_t)i->src1.offset);
+  e.nop();
+  e.nop();
 #endif  // XE_DEBUG
 
-    e.MarkSourceOffset(i);
-    i = e.Advance(i);
-    return true;
-  });
+  e.MarkSourceOffset(i);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_DEBUG_BREAK, [](X64Emitter& e, Instr*& i) {
-    // TODO(benvanik): insert a call to the debug break function to let the
-    //     debugger know.
-    e.db(0xCC);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_DEBUG_BREAK, [](X64Emitter& e, Instr*& i) {
+  // TODO(benvanik): insert a call to the debug break function to let the
+  //     debugger know.
+  e.db(0xCC);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_DEBUG_BREAK_TRUE, [](X64Emitter& e, Instr*& i) {
-    e.inLocalLabel();
-    CheckBoolean(e, i->src1.value);
-    e.jz(".x", e.T_SHORT);
-    // TODO(benvanik): insert a call to the debug break function to let the
-    //     debugger know.
-    e.db(0xCC);
-    e.L(".x");
-    e.outLocalLabel();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_DEBUG_BREAK_TRUE, [](X64Emitter& e, Instr*& i) {
+  e.inLocalLabel();
+  CheckBoolean(e, i->src1.value);
+  e.jz(".x", e.T_SHORT);
+  // TODO(benvanik): insert a call to the debug break function to let the
+  //     debugger know.
+  e.db(0xCC);
+  e.L(".x");
+  e.outLocalLabel();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_TRAP, [](X64Emitter& e, Instr*& i) {
-    // TODO(benvanik): insert a call to the trap function to let the
-    //     debugger know.
-    e.db(0xCC);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_TRAP, [](X64Emitter& e, Instr*& i) {
+  // TODO(benvanik): insert a call to the trap function to let the
+  //     debugger know.
+  e.db(0xCC);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_TRAP_TRUE, [](X64Emitter& e, Instr*& i) {
-    e.inLocalLabel();
-    CheckBoolean(e, i->src1.value);
-    e.jz(".x", e.T_SHORT);
-    // TODO(benvanik): insert a call to the trap function to let the
-    //     debugger know.
-    e.db(0xCC);
-    e.L(".x");
-    e.outLocalLabel();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_TRAP_TRUE, [](X64Emitter& e, Instr*& i) {
+  e.inLocalLabel();
+  CheckBoolean(e, i->src1.value);
+  e.jz(".x", e.T_SHORT);
+  // TODO(benvanik): insert a call to the trap function to let the
+  //     debugger know.
+  e.db(0xCC);
+  e.L(".x");
+  e.outLocalLabel();
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Calls
-  // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// Calls
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_CALL, [](X64Emitter& e, Instr*& i) {
-    IssueCall(e, i->src1.symbol_info, i->flags);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_CALL, [](X64Emitter& e, Instr*& i) {
+  IssueCall(e, i->src1.symbol_info, i->flags);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_CALL_TRUE, [](X64Emitter& e, Instr*& i) {
-    e.inLocalLabel();
-    CheckBoolean(e, i->src1.value);
-    e.jz(".x", e.T_SHORT);
-    IssueCall(e, i->src2.symbol_info, i->flags);
-    e.L(".x");
-    e.outLocalLabel();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_CALL_TRUE, [](X64Emitter& e, Instr*& i) {
+  e.inLocalLabel();
+  CheckBoolean(e, i->src1.value);
+  e.jz(".x", e.T_SHORT);
+  IssueCall(e, i->src2.symbol_info, i->flags);
+  e.L(".x");
+  e.outLocalLabel();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_CALL_INDIRECT, [](X64Emitter& e, Instr*& i) {
-    IssueCallIndirect(e, i->src1.value, i->flags);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_CALL_INDIRECT, [](X64Emitter& e, Instr*& i) {
+  IssueCallIndirect(e, i->src1.value, i->flags);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_CALL_INDIRECT_TRUE, [](X64Emitter& e, Instr*& i) {
-    e.inLocalLabel();
-    CheckBoolean(e, i->src1.value);
-    e.jz(".x", e.T_SHORT);
-    IssueCallIndirect(e, i->src2.value, i->flags);
-    e.L(".x");
-    e.outLocalLabel();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_CALL_INDIRECT_TRUE, [](X64Emitter& e, Instr*& i) {
+  e.inLocalLabel();
+  CheckBoolean(e, i->src1.value);
+  e.jz(".x", e.T_SHORT);
+  IssueCallIndirect(e, i->src2.value, i->flags);
+  e.L(".x");
+  e.outLocalLabel();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_RETURN, [](X64Emitter& e, Instr*& i) {
-    // If this is the last instruction in the last block, just let us
-    // fall through.
-    if (i->next || i->block->next) {
-      e.jmp("epilog", CodeGenerator::T_NEAR);
-    }
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_RETURN, [](X64Emitter& e, Instr*& i) {
+  // If this is the last instruction in the last block, just let us
+  // fall through.
+  if (i->next || i->block->next) {
+    e.jmp("epilog", CodeGenerator::T_NEAR);
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_RETURN_TRUE, [](X64Emitter& e, Instr*& i) {
-    CheckBoolean(e, i->src1.value);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_RETURN_TRUE, [](X64Emitter& e, Instr*& i) {
+  CheckBoolean(e, i->src1.value);
+  e.jnz("epilog", CodeGenerator::T_NEAR);
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Branches
-  // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// Branches
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_BRANCH, [](X64Emitter& e, Instr*& i) {
-    auto target = i->src1.label;
-    e.jmp(target->name, e.T_NEAR);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_BRANCH, [](X64Emitter& e, Instr*& i) {
+  auto target = i->src1.label;
+  e.jmp(target->name, e.T_NEAR);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_BRANCH_TRUE, [](X64Emitter& e, Instr*& i) {
-    CheckBoolean(e, i->src1.value);
-    auto target = i->src2.label;
-    e.jnz(target->name, e.T_NEAR);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_BRANCH_TRUE, [](X64Emitter& e, Instr*& i) {
+  CheckBoolean(e, i->src1.value);
+  auto target = i->src2.label;
+  e.jnz(target->name, e.T_NEAR);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_BRANCH_FALSE, [](X64Emitter& e, Instr*& i) {
-    CheckBoolean(e, i->src1.value);
-    auto target = i->src2.label;
-    e.jz(target->name, e.T_NEAR);
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_BRANCH_FALSE, [](X64Emitter& e, Instr*& i) {
+  CheckBoolean(e, i->src1.value);
+  auto target = i->src2.label;
+  e.jz(target->name, e.T_NEAR);
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Types
-  // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// Types
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_ASSIGN, [](X64Emitter& e, Instr*& i) {
-    UnaryOp(
-        e, i,
-        [](X64Emitter& e, Instr& i, const Reg& dest_src) {
-          // nop - the mov will have happened.
-        });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_ASSIGN, [](X64Emitter& e, Instr*& i) {
+  UnaryOp(
+      e, i,
+      [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+        // nop - the mov will have happened.
+      });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
-    // Need a matrix.
+table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
+  // Need a matrix.
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_ZERO_EXTEND, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_I16, SIG_TYPE_I8)) {
+    Reg16 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movzx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I8)) {
+    Reg32 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movzx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I16)) {
+    Reg32 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movzx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I8)) {
+    Reg64 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movzx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I16)) {
+    Reg64 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movzx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I32)) {
+    Reg64 dest;
+    Reg32 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest.cvt32(), src.cvt32());
+    e.EndOp(dest, src);
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_ZERO_EXTEND, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I16, SIG_TYPE_I8)) {
-      Reg16 dest;
-      Reg8 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movzx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I8)) {
-      Reg32 dest;
-      Reg8 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movzx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I16)) {
-      Reg32 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movzx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I8)) {
-      Reg64 dest;
-      Reg8 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movzx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I16)) {
-      Reg64 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movzx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I32)) {
-      Reg64 dest;
-      Reg32 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest.cvt32(), src.cvt32());
-      e.EndOp(dest, src);
-    } else {
-      UNIMPLEMENTED_SEQ();
-    }
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_SIGN_EXTEND, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I16, SIG_TYPE_I8)) {
-      Reg16 dest;
-      Reg8 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movsx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I8)) {
-      Reg32 dest;
-      Reg8 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movsx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I16)) {
-      Reg32 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movsx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I8)) {
-      Reg64 dest;
-      Reg8 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movsx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I16)) {
-      Reg64 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movsx(dest, src);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I32)) {
-      Reg64 dest;
-      Reg32 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.movsxd(dest, src);
-      e.EndOp(dest, src);
-    } else {
-      UNIMPLEMENTED_SEQ();
-    }
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_TRUNCATE, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I8, SIG_TYPE_I16)) {
-      Reg8 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src.cvt8());
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I32)) {
-      Reg8 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src.cvt8());
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I64)) {
-      Reg8 dest;
-      Reg64 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src.cvt8());
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I32)) {
-      Reg16 dest;
-      Reg32 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src.cvt16());
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I64)) {
-      Reg16 dest;
-      Reg64 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src.cvt16());
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I64)) {
-      Reg32 dest;
-      Reg64 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.mov(dest, src.cvt32());
-      e.EndOp(dest, src);
-    } else {
-      UNIMPLEMENTED_SEQ();
-    }
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_SIGN_EXTEND, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_I16, SIG_TYPE_I8)) {
+    Reg16 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movsx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I8)) {
+    Reg32 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movsx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I16)) {
+    Reg32 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movsx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I8)) {
+    Reg64 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movsx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I16)) {
+    Reg64 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movsx(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I32)) {
+    Reg64 dest;
+    Reg32 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.movsxd(dest, src);
+    e.EndOp(dest, src);
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_ROUND, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_TRUNCATE, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_I16)) {
+    Reg8 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest, src.cvt8());
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I32)) {
+    Reg8 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest, src.cvt8());
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I8, SIG_TYPE_I64)) {
+    Reg8 dest;
+    Reg64 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest, src.cvt8());
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I32)) {
+    Reg16 dest;
+    Reg32 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest, src.cvt16());
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_I64)) {
+    Reg16 dest;
+    Reg64 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest, src.cvt16());
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I64)) {
+    Reg32 dest;
+    Reg64 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.mov(dest, src.cvt32());
+    e.EndOp(dest, src);
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_VECTOR_CONVERT_I2F, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_ROUND, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Constants
-  // --------------------------------------------------------------------------
+table->AddSequence(OPCODE_VECTOR_CONVERT_I2F, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  // specials for zeroing/etc (xor/etc)
+table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_LOAD_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+// --------------------------------------------------------------------------
+// Constants
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_LOAD_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+// specials for zeroing/etc (xor/etc)
 
-  table->AddSequence(OPCODE_LOAD_CLOCK, [](X64Emitter& e, Instr*& i) {
-    // It'd be cool to call QueryPerformanceCounter directly, but w/e.
-    CallNative(e, LoadClock);
+table->AddSequence(OPCODE_LOAD_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_LOAD_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_LOAD_CLOCK, [](X64Emitter& e, Instr*& i) {
+  // It'd be cool to call QueryPerformanceCounter directly, but w/e.
+  CallNative(e, LoadClock);
+  Reg64 dest;
+  e.BeginOp(i->dest, dest, REG_DEST);
+  e.mov(dest, e.rax);
+  e.EndOp(dest);
+  i = e.Advance(i);
+  return true;
+});
+
+// --------------------------------------------------------------------------
+// Context
+// --------------------------------------------------------------------------
+
+table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
+    Reg8 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.byte[e.rcx + i->src1.offset]);
+    e.EndOp(dest);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8b, dest);
+    CallNative(e, TraceContextLoad);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
+    Reg16 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.word[e.rcx + i->src1.offset]);
+    e.EndOp(dest);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8w, dest);
+    CallNative(e, TraceContextLoad);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
+    Reg32 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.dword[e.rcx + i->src1.offset]);
+    e.EndOp(dest);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8d, dest);
+    CallNative(e, TraceContextLoad);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
     Reg64 dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.mov(dest, e.rax);
+    e.mov(dest, e.qword[e.rcx + i->src1.offset]);
     e.EndOp(dest);
-    i = e.Advance(i);
-    return true;
-  });
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8, dest);
+    CallNative(e, TraceContextLoad);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.movss(dest, e.dword[e.rcx + i->src1.offset]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.movsd(dest, e.qword[e.rcx + i->src1.offset]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    // NOTE: we always know we are aligned.
+    e.movaps(dest, e.ptr[e.rcx + i->src1.offset]);
+    e.EndOp(dest);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Context
-  // --------------------------------------------------------------------------
+table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
+    Reg8 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.byte[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8b, src);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
+    e.mov(e.byte[e.rcx + i->src1.offset], i->src2.value->constant.i8);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8b, i->src2.value->constant.i8);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
+    Reg16 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.word[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8w, src);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
+    e.mov(e.word[e.rcx + i->src1.offset], i->src2.value->constant.i16);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8w, i->src2.value->constant.i16);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
+    Reg32 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.dword[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8d, src);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
+    e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8d, i->src2.value->constant.i32);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
+    Reg64 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.qword[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8, src);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
+    e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
+#if DTRACE
+    e.mov(e.rdx, i->src1.offset);
+    e.mov(e.r8, i->src2.value->constant.i64);
+    CallNative(e, TraceContextStore);
+#endif  // DTRACE
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.movss(e.dword[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
+    e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.movsd(e.qword[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
+    e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    // NOTE: we always know we are aligned.
+    e.movaps(e.ptr[e.rcx + i->src1.offset], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
+    e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.v128.low);
+    e.mov(e.qword[e.rcx + i->src1.offset + 8], i->src2.value->constant.v128.high);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
-      Reg8 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.byte[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8b, dest);
-      CallNative(e, TraceContextLoad);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
-      Reg16 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.word[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8w, dest);
-      CallNative(e, TraceContextLoad);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
-      Reg32 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.dword[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8d, dest);
-      CallNative(e, TraceContextLoad);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
-      Reg64 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.qword[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8, dest);
-      CallNative(e, TraceContextLoad);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
-      Xmm dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.movss(dest, e.dword[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
-      Xmm dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.movsd(dest, e.qword[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
-      Xmm dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      // TODO(benvanik): we should try to stick to movaps if possible.
-      e.movups(dest, e.ptr[e.rcx + i->src1.offset]);
-      e.EndOp(dest);
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
-    i = e.Advance(i);
-    return true;
-  });
+// --------------------------------------------------------------------------
+// Memory
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
-      Reg8 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.byte[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8b, src);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
-      e.mov(e.byte[e.rcx + i->src1.offset], i->src2.value->constant.i8);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8b, i->src2.value->constant.i8);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
-      Reg16 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.word[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8w, src);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
-      e.mov(e.word[e.rcx + i->src1.offset], i->src2.value->constant.i16);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8w, i->src2.value->constant.i16);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
-      Reg32 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.dword[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8d, src);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
-      e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8d, i->src2.value->constant.i32);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
-      Reg64 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.qword[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8, src);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
-      e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
-#if DTRACE
-      e.mov(e.rdx, i->src1.offset);
-      e.mov(e.r8, i->src2.value->constant.i64);
-      CallNative(e, TraceContextStore);
-#endif  // DTRACE
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
-      Xmm src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.movss(e.dword[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
-      e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
-      Xmm src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.movsd(e.qword[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
-      e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128)) {
-      Xmm src;
-      e.BeginOp(i->src2.value, src, 0);
-      // NOTE: we always know we are aligned.
-      e.movaps(e.ptr[e.rcx + i->src1.offset], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
-      e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.v128.low);
-      e.mov(e.qword[e.rcx + i->src1.offset + 8], i->src2.value->constant.v128.high);
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
-    i = e.Advance(i);
-    return true;
-  });
-
-  // --------------------------------------------------------------------------
-  // Memory
-  // --------------------------------------------------------------------------
-
-  table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
-    // If this is a constant address load, check to see if it's in a register
-    // range. We'll also probably want a dynamic check for unverified loads.
-    // So far, most games use constants.
-    if (i->src1.value->IsConstant()) {
-      uint64_t address = i->src1.value->AsUint64();
-      auto cbs = e.runtime()->access_callbacks();
-      while (cbs) {
-        if (cbs->handles(cbs->context, address)) {
-          // Eh, hacking lambdas.
-          i->src3.offset = (uint64_t)cbs;
-          UnaryOp(
-              e, i,
-              [](X64Emitter& e, Instr& i, const Reg& dest_src) {
-                auto cbs = (RegisterAccessCallbacks*)i.src3.offset;
-                e.mov(e.rcx, (uint64_t)cbs->context);
-                e.mov(e.rdx, i.src1.value->AsUint64());
-                CallNative(e, cbs->read);
-                e.mov(dest_src, e.rax);
-              });
-          i = e.Advance(i);
-          return true;
-        }
-        cbs = cbs->next;
+table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
+  // If this is a constant address load, check to see if it's in a register
+  // range. We'll also probably want a dynamic check for unverified loads.
+  // So far, most games use constants.
+  if (i->src1.value->IsConstant()) {
+    uint64_t address = i->src1.value->AsUint64();
+    auto cbs = e.runtime()->access_callbacks();
+    while (cbs) {
+      if (cbs->handles(cbs->context, address)) {
+        // Eh, hacking lambdas.
+        i->src3.offset = (uint64_t)cbs;
+        UnaryOp(
+            e, i,
+            [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+              auto cbs = (RegisterAccessCallbacks*)i.src3.offset;
+              e.mov(e.rcx, (uint64_t)cbs->context);
+              e.mov(e.rdx, i.src1.value->AsUint64());
+              CallNative(e, cbs->read);
+              e.mov(dest_src, e.rax);
+            });
+        i = e.Advance(i);
+        return true;
       }
+      cbs = cbs->next;
     }
+  }
 
-    // TODO(benvanik): dynamic register access check.
-    // mov reg, [membase + address.32]
-    Reg64 addr_off;
-    RegExp addr;
-    if (i->src1.value->IsConstant()) {
-      // TODO(benvanik): a way to do this without using a register.
-      e.mov(e.eax, i->src1.value->AsUint32());
-      addr = e.rdx + e.rax;
-    } else {
-      e.BeginOp(i->src1.value, addr_off, 0);
-      e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
-      addr = e.rdx + addr_off;
-    }
-    if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
-      Reg8 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.byte[addr]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
-      Reg16 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.word[addr]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
-      Reg32 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.dword[addr]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
-      Reg64 dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.mov(dest, e.qword[addr]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
-      Xmm dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.movss(dest, e.dword[addr]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
-      Xmm dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      e.movsd(dest, e.qword[addr]);
-      e.EndOp(dest);
-    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
-      Xmm dest;
-      e.BeginOp(i->dest, dest, REG_DEST);
-      // TODO(benvanik): we should try to stick to movaps if possible.
-      e.movups(dest, e.ptr[addr]);
-      e.EndOp(dest);
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
-    if (!i->src1.value->IsConstant()) {
-      e.EndOp(addr_off);
-    }
-    i = e.Advance(i);
-    return true;
-  });
+  // TODO(benvanik): dynamic register access check.
+  // mov reg, [membase + address.32]
+  Reg64 addr_off;
+  RegExp addr;
+  if (i->src1.value->IsConstant()) {
+    // TODO(benvanik): a way to do this without using a register.
+    e.mov(e.eax, i->src1.value->AsUint32());
+    addr = e.rdx + e.rax;
+  } else {
+    e.BeginOp(i->src1.value, addr_off, 0);
+    e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
+    addr = e.rdx + addr_off;
+  }
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
+    Reg8 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.byte[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
+    Reg16 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.word[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
+    Reg32 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.dword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
+    Reg64 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.qword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.movss(dest, e.dword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.movsd(dest, e.qword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    // TODO(benvanik): we should try to stick to movaps if possible.
+    e.movups(dest, e.ptr[addr]);
+    e.EndOp(dest);
+    e.db(0xCC);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (!i->src1.value->IsConstant()) {
+    e.EndOp(addr_off);
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
-    // If this is a constant address store, check to see if it's in a
-    // register range. We'll also probably want a dynamic check for
-    // unverified stores. So far, most games use constants.
-    if (i->src1.value->IsConstant()) {
-      uint64_t address = i->src1.value->AsUint64();
-      auto cbs = e.runtime()->access_callbacks();
-      while (cbs) {
-        if (cbs->handles(cbs->context, address)) {
-          e.mov(e.rcx, (uint64_t)cbs->context);
-          e.mov(e.rdx, address);
-          if (i->src2.value->IsConstant()) {
-            e.mov(e.r8, i->src2.value->AsUint64());
-          } else {
-            Reg64 src2;
-            e.BeginOp(i->src2.value, src2, 0);
-            switch (i->src2.value->type) {
-            case INT8_TYPE:
-              e.movzx(e.r8d, src2.cvt8());
-              break;
-            case INT16_TYPE:
-              e.movzx(e.r8d, src2.cvt16());
-              break;
-            case INT32_TYPE:
-              e.movzx(e.r8, src2.cvt32());
-              break;
-            case INT64_TYPE:
-              e.mov(e.r8, src2);
-              break;
-            default: ASSERT_INVALID_TYPE(); break;
-            }
-            e.EndOp(src2);
+table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
+  // If this is a constant address store, check to see if it's in a
+  // register range. We'll also probably want a dynamic check for
+  // unverified stores. So far, most games use constants.
+  if (i->src1.value->IsConstant()) {
+    uint64_t address = i->src1.value->AsUint64();
+    auto cbs = e.runtime()->access_callbacks();
+    while (cbs) {
+      if (cbs->handles(cbs->context, address)) {
+        e.mov(e.rcx, (uint64_t)cbs->context);
+        e.mov(e.rdx, address);
+        if (i->src2.value->IsConstant()) {
+          e.mov(e.r8, i->src2.value->AsUint64());
+        } else {
+          Reg64 src2;
+          e.BeginOp(i->src2.value, src2, 0);
+          switch (i->src2.value->type) {
+          case INT8_TYPE:
+            e.movzx(e.r8d, src2.cvt8());
+            break;
+          case INT16_TYPE:
+            e.movzx(e.r8d, src2.cvt16());
+            break;
+          case INT32_TYPE:
+            e.movzx(e.r8, src2.cvt32());
+            break;
+          case INT64_TYPE:
+            e.mov(e.r8, src2);
+            break;
+          default: ASSERT_INVALID_TYPE(); break;
           }
-          // eh?
-          e.bswap(e.r8);
-          CallNative(e, cbs->write);
+          e.EndOp(src2);
         }
-        cbs = cbs->next;
+        // eh?
+        e.bswap(e.r8);
+        CallNative(e, cbs->write);
       }
+      cbs = cbs->next;
     }
+  }
 
-    // TODO(benvanik): dynamic register access check
-    // mov [membase + address.32], reg
-    Reg64 addr_off;
-    RegExp addr;
-    if (i->src1.value->IsConstant()) {
-      e.mov(e.eax, i->src1.value->AsUint32());
-      addr = e.rdx + e.rax;
+  // TODO(benvanik): dynamic register access check
+  // mov [membase + address.32], reg
+  Reg64 addr_off;
+  RegExp addr;
+  if (i->src1.value->IsConstant()) {
+    e.mov(e.eax, i->src1.value->AsUint32());
+    addr = e.rdx + e.rax;
+  } else {
+    e.BeginOp(i->src1.value, addr_off, 0);
+    e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
+    addr = e.rdx + addr_off;
+  }
+  if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
+    Reg8 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.byte[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
+    e.mov(e.byte[addr], i->src2.value->constant.i8);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
+    Reg16 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.word[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
+    e.mov(e.word[addr], i->src2.value->constant.i16);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
+    Reg32 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.dword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
+    e.mov(e.dword[addr], i->src2.value->constant.i32);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
+    Reg64 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.qword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
+    e.mov(e.qword[addr], i->src2.value->constant.i64);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.movss(e.dword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
+    e.mov(e.dword[addr], i->src2.value->constant.i32);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.movsd(e.qword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
+    e.mov(e.qword[addr], i->src2.value->constant.i64);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    // TODO(benvanik): we should try to stick to movaps if possible.
+    e.movups(e.ptr[addr], src);
+    e.EndOp(src);
+    e.db(0xCC);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
+    e.mov(e.ptr[addr], i->src2.value->constant.v128.low);
+    e.mov(e.ptr[addr + 8], i->src2.value->constant.v128.high);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (!i->src1.value->IsConstant()) {
+    e.EndOp(addr_off);
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_PREFETCH, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+// --------------------------------------------------------------------------
+// Comparisons
+// --------------------------------------------------------------------------
+
+table->AddSequence(OPCODE_MAX, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_MIN, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_SELECT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_IS_TRUE, [](X64Emitter& e, Instr*& i) {
+  CheckBoolean(e, i->src1.value);
+  Reg8 dest;
+  e.BeginOp(i->dest, dest, REG_DEST);
+  e.setnz(dest);
+  e.EndOp(dest);
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_IS_FALSE, [](X64Emitter& e, Instr*& i) {
+  CheckBoolean(e, i->src1.value);
+  Reg8 dest;
+  e.BeginOp(i->dest, dest, REG_DEST);
+  e.setz(dest);
+  e.EndOp(dest);
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.sete(dest);
     } else {
-      e.BeginOp(i->src1.value, addr_off, 0);
-      e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
-      addr = e.rdx + addr_off;
+      e.setne(dest);
     }
-    if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
-      Reg8 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.byte[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
-      e.mov(e.byte[addr], i->src2.value->constant.i8);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
-      Reg16 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.word[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
-      e.mov(e.word[addr], i->src2.value->constant.i16);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
-      Reg32 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.dword[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
-      e.mov(e.dword[addr], i->src2.value->constant.i32);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
-      Reg64 src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.mov(e.qword[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
-      e.mov(e.qword[addr], i->src2.value->constant.i64);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
-      Xmm src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.movss(e.dword[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
-      e.mov(e.dword[addr], i->src2.value->constant.i32);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
-      Xmm src;
-      e.BeginOp(i->src2.value, src, 0);
-      e.movsd(e.qword[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
-      e.mov(e.qword[addr], i->src2.value->constant.i64);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128)) {
-      Xmm src;
-      e.BeginOp(i->src2.value, src, 0);
-      // TODO(benvanik): we should try to stick to movaps if possible.
-      e.movups(e.ptr[addr], src);
-      e.EndOp(src);
-    } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
-      e.mov(e.ptr[addr], i->src2.value->constant.v128.low);
-      e.mov(e.ptr[addr + 8], i->src2.value->constant.v128.high);
+  });
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_COMPARE_NE, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setne(dest);
     } else {
-      ASSERT_INVALID_TYPE();
+      e.sete(dest);
     }
-    if (!i->src1.value->IsConstant()) {
-      e.EndOp(addr_off);
+  });
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_COMPARE_SLT, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setl(dest);
+    } else {
+      e.setge(dest);
     }
-    i = e.Advance(i);
-    return true;
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_PREFETCH, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_SLE, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setle(dest);
+    } else {
+      e.setg(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  // --------------------------------------------------------------------------
-  // Comparisons
-  // --------------------------------------------------------------------------
-
-  table->AddSequence(OPCODE_MAX, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setg(dest);
+    } else {
+      e.setle(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_MIN, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setge(dest);
+    } else {
+      e.setl(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_SELECT, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_ULT, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setb(dest);
+    } else {
+      e.setae(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_IS_TRUE, [](X64Emitter& e, Instr*& i) {
-    CheckBoolean(e, i->src1.value);
-    Reg8 dest;
-    e.BeginOp(i->dest, dest, REG_DEST);
-    e.setnz(dest);
-    e.EndOp(dest);
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_ULE, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setbe(dest);
+    } else {
+      e.seta(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_IS_FALSE, [](X64Emitter& e, Instr*& i) {
-    CheckBoolean(e, i->src1.value);
-    Reg8 dest;
-    e.BeginOp(i->dest, dest, REG_DEST);
-    e.setz(dest);
-    e.EndOp(dest);
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.seta(dest);
+    } else {
+      e.setbe(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.sete(dest);
-      } else {
-        e.setne(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
+table->AddSequence(OPCODE_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
+  CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
+    if (!invert) {
+      e.setae(dest);
+    } else {
+      e.setb(dest);
+    }
   });
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_NE, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setne(dest);
-      } else {
-        e.sete(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_DID_CARRY, [](X64Emitter& e, Instr*& i) {
+  Reg8 dest;
+  e.BeginOp(i->dest, dest, REG_DEST);
+  e.setc(dest);
+  e.EndOp(dest);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_SLT, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setl(dest);
-      } else {
-        e.setge(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_DID_OVERFLOW, [](X64Emitter& e, Instr*& i) {
+  Reg8 dest;
+  e.BeginOp(i->dest, dest, REG_DEST);
+  e.seto(dest);
+  e.EndOp(dest);
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_SLE, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setle(dest);
-      } else {
-        e.setg(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_DID_SATURATE, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setg(dest);
-      } else {
-        e.setle(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_VECTOR_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setge(dest);
-      } else {
-        e.setl(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_VECTOR_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_ULT, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setb(dest);
-      } else {
-        e.setae(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_VECTOR_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_ULE, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setbe(dest);
-      } else {
-        e.seta(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_VECTOR_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.seta(dest);
-      } else {
-        e.setbe(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
-    CompareXX(e, i, [](X64Emitter& e, Reg8& dest, bool invert) {
-      if (!invert) {
-        e.setae(dest);
-      } else {
-        e.setb(dest);
-      }
-    });
-    i = e.Advance(i);
-    return true;
-  });
+// --------------------------------------------------------------------------
+// Math
+// --------------------------------------------------------------------------
 
-  table->AddSequence(OPCODE_DID_CARRY, [](X64Emitter& e, Instr*& i) {
-    Reg8 dest;
-    e.BeginOp(i->dest, dest, REG_DEST);
-    e.setc(dest);
-    e.EndOp(dest);
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_DID_OVERFLOW, [](X64Emitter& e, Instr*& i) {
-    Reg8 dest;
-    e.BeginOp(i->dest, dest, REG_DEST);
-    e.seto(dest);
-    e.EndOp(dest);
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_DID_SATURATE, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_COMPARE_EQ, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_COMPARE_SGT, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_COMPARE_SGE, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_COMPARE_UGT, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  // --------------------------------------------------------------------------
-  // Math
-  // --------------------------------------------------------------------------
-
-  table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1698,11 +1712,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.add(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_ADD_CARRY, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     // dest = src1 + src2 + src3.i8
     TernaryOp(
         e, i,
@@ -1734,11 +1752,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           e.sahf();
           e.adc(dest_src, src2);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1747,13 +1769,17 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.sub(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
 #define LIKE_REG(dest, like) Operand(dest.getIdx(), dest.getKind(), like.getBit(), false)
 
-  table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1782,11 +1808,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           }
           e.mov(dest_src, Nax);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1816,11 +1846,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           }
           e.mov(dest_src, Ndx);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1849,71 +1883,75 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
           }
           e.mov(dest_src, Nax);
         });
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_MUL_ADD, [](X64Emitter& e, Instr*& i) {
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_MUL_SUB, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_MUL_ADD, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_MUL_SUB, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_SQRT, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_RSQRT, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_SQRT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_POW2, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_RSQRT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_LOG2, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_POW2, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_LOG2, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
-    UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1922,11 +1960,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.and(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1935,11 +1977,15 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.or(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -1948,21 +1994,29 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.xor(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     UnaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src) {
           e.not(dest_src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_SHL, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shlx if available.
     BinaryOp(
         e, i,
@@ -1982,17 +2036,21 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.shl(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_SHR, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use shrx if available.
     BinaryOp(
         e, i,
@@ -2007,17 +2065,21 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.shr(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_SHA, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     // TODO(benvanik): use sarx if available.
     BinaryOp(
         e, i,
@@ -2032,17 +2094,21 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.sar(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_ROTATE_LEFT, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_ROTATE_LEFT, [](X64Emitter& e, Instr*& i) {
+  if (IsIntType(i->dest->type)) {
     BinaryOp(
         e, i,
         [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
@@ -2056,242 +2122,271 @@ void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
         [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
           e.rol(dest_src, src);
         });
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16)) {
-      Reg16 d, s1;
-      // TODO(benvanik): fix register allocator to put the value in ABCD
-      //e.BeginOp(i->dest, d, REG_DEST | REG_ABCD,
-      //          i->src1.value, s1, 0);
-      //if (d != s1) {
-      //  e.mov(d, s1);
-      //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
-      //} else {
-      //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
-      //}
-      e.BeginOp(i->dest, d, REG_DEST,
-                i->src1.value, s1, 0);
-      e.mov(e.ax, s1);
-      e.xchg(e.ah, e.al);
-      e.mov(d, e.ax);
-      e.EndOp(d, s1);
-    } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32)) {
-      Reg32 d, s1;
-      e.BeginOp(i->dest, d, REG_DEST,
-                i->src1.value, s1, 0);
-      if (d != s1) {
-        e.mov(d, s1);
-        e.bswap(d);
-      } else {
-        e.bswap(d);
-      }
-      e.EndOp(d, s1);
-    } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64)) {
-      Reg64 d, s1;
-      e.BeginOp(i->dest, d, REG_DEST,
-                i->src1.value, s1, 0);
-      if (d != s1) {
-        e.mov(d, s1);
-        e.bswap(d);
-      } else {
-        e.bswap(d);
-      }
-      e.EndOp(d, s1);
+table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16)) {
+    Reg16 d, s1;
+    // TODO(benvanik): fix register allocator to put the value in ABCD
+    //e.BeginOp(i->dest, d, REG_DEST | REG_ABCD,
+    //          i->src1.value, s1, 0);
+    //if (d != s1) {
+    //  e.mov(d, s1);
+    //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
+    //} else {
+    //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
+    //}
+    e.BeginOp(i->dest, d, REG_DEST,
+              i->src1.value, s1, 0);
+    e.mov(e.ax, s1);
+    e.xchg(e.ah, e.al);
+    e.mov(d, e.ax);
+    e.EndOp(d, s1);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32)) {
+    Reg32 d, s1;
+    e.BeginOp(i->dest, d, REG_DEST,
+              i->src1.value, s1, 0);
+    if (d != s1) {
+      e.mov(d, s1);
+      e.bswap(d);
     } else {
-      ASSERT_INVALID_TYPE();
+      e.bswap(d);
     }
-    i = e.Advance(i);
-    return true;
-  });
+    e.EndOp(d, s1);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64)) {
+    Reg64 d, s1;
+    e.BeginOp(i->dest, d, REG_DEST,
+              i->src1.value, s1, 0);
+    if (d != s1) {
+      e.mov(d, s1);
+      e.bswap(d);
+    } else {
+      e.bswap(d);
+    }
+    e.EndOp(d, s1);
+  } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_V128)) {
+    Xmm d, s1;
+    e.db(0xCC);
+    e.BeginOp(i->dest, d, REG_DEST,
+              i->src1.value, s1, 0);
+    if (d != s1) {
+      e.shufps(d, s1, SHUFPS_SWAP_DWORDS);
+    } else {
+      e.shufps(d, d, SHUFPS_SWAP_DWORDS);
+    }
+    e.EndOp(d, s1);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
-    if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
-      Reg8 dest;
-      Reg8 src;
+table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
+  if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
+    Reg8 dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.bsr(dest.cvt16(), src.cvt16());
+    // ZF = 1 if zero
+    e.mov(e.eax, 16);
+    e.cmovz(dest.cvt32(), e.eax);
+    e.sub(dest, 8);
+    e.xor(dest, 0x7);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
+    Reg8 dest;
+    Reg16 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.bsr(dest.cvt16(), src);
+    // ZF = 1 if zero
+    e.mov(e.eax, 16);
+    e.cmovz(dest.cvt32(), e.eax);
+    e.xor(dest, 0xF);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
+    Reg8 dest;
+    Reg32 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.bsr(dest.cvt32(), src);
+    // ZF = 1 if zero
+    e.mov(e.eax, 32);
+    e.cmovz(dest.cvt32(), e.eax);
+    e.xor(dest, 0x1F);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
+    Reg8 dest;
+    Reg64 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.bsr(dest, src);
+    // ZF = 1 if zero
+    e.mov(e.eax, 64);
+    e.cmovz(dest.cvt32(), e.eax);
+    e.xor(dest, 0x3F);
+    e.EndOp(dest, src);
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_INSERT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_SWIZZLE, [](X64Emitter& e, Instr*& i) {
+  if (IsVecType(i->dest->type)) {
+    // Defined by SWIZZLE_MASK()
+    if (i->flags == INT32_TYPE || i->flags == FLOAT32_TYPE) {
+      uint8_t swizzle_mask = (uint8_t)i->src2.offset;
+      e.db(0xCC);
+      Xmm dest, src1;
       e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.bsr(dest.cvt16(), src.cvt16());
-      // ZF = 1 if zero
-      e.mov(e.eax, 16);
-      e.cmovz(dest.cvt32(), e.eax);
-      e.sub(dest, 8);
-      e.xor(dest, 0x7);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
-      Reg8 dest;
-      Reg16 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.bsr(dest.cvt16(), src);
-      // ZF = 1 if zero
-      e.mov(e.eax, 16);
-      e.cmovz(dest.cvt32(), e.eax);
-      e.xor(dest, 0xF);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
-      Reg8 dest;
-      Reg32 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.bsr(dest.cvt32(), src);
-      // ZF = 1 if zero
-      e.mov(e.eax, 32);
-      e.cmovz(dest.cvt32(), e.eax);
-      e.xor(dest, 0x1F);
-      e.EndOp(dest, src);
-    } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
-      Reg8 dest;
-      Reg64 src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
-      e.bsr(dest, src);
-      // ZF = 1 if zero
-      e.mov(e.eax, 64);
-      e.cmovz(dest.cvt32(), e.eax);
-      e.xor(dest, 0x3F);
-      e.EndOp(dest, src);
+                i->src1.value, src1, 0);
+      e.pshufd(dest, src1, swizzle_mask);
+      e.EndOp(dest, src1);
     } else {
       UNIMPLEMENTED_SEQ();
     }
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_INSERT, [](X64Emitter& e, Instr*& i) {
+  } else {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  }
+  i = e.Advance(i);
+  return true;
+});
 
-  table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
+table->AddSequence(OPCODE_PACK, [](X64Emitter& e, Instr*& i) {
+  if (i->flags == PACK_TYPE_D3DCOLOR) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_FLOAT16_2) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_FLOAT16_4) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_SWIZZLE, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_SHORT_2) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_PACK, [](X64Emitter& e, Instr*& i) {
-    if (i->flags == PACK_TYPE_D3DCOLOR) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_FLOAT16_2) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_FLOAT16_4) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_SHORT_2) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S16_IN_32_LO) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S16_IN_32_HI) {
-      UNIMPLEMENTED_SEQ();
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
-    if (i->flags == PACK_TYPE_D3DCOLOR) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_FLOAT16_2) {
-      // 1 bit sign, 5 bit exponent, 10 bit mantissa
-      // D3D10 half float format
-      // TODO(benvanik): http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
-      // Use _mm_cvtph_ps -- requires very modern processors (SSE5+)
-      // Unpacking half floats: http://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
-      // Packing half floats: https://gist.github.com/rygorous/2156668
-      // Load source, move from tight pack of X16Y16.... to X16...Y16...
-      // Also zero out the high end.
-      // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
-      UnaryOp(
-          e, i,
-          [](X64Emitter& e, Instr& i, const Reg& dest_src) {
-            // sx = src.iw >> 16;
-            // sy = src.iw & 0xFFFF;
-            // dest = { 3.0 + (sx / float(1 << 22)),
-            //          3.0 + (sy / float(1 << 22)),
-            //          0.0,
-            //          1.0); --- or 3.0?
-            // So:
-            // xmm =                    {0,0,0,packed}
-            // xmm <<= 1w               {0,0,packed,0}
-            // xmm = VCVTPH2PS(xmm)     {sx,sy,0,0}
-            // xmm /=
-          });
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_FLOAT16_4) {
-      // Could be shared with FLOAT16_2.
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_SHORT_2) {
-      // (VD.x) = 3.0 + (VB.x)*2^-22
-      // (VD.y) = 3.0 + (VB.y)*2^-22
-      // (VD.z) = 0.0
-      // (VD.w) = 3.0
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S16_IN_32_LO) {
-      UNIMPLEMENTED_SEQ();
-    } else if (i->flags == PACK_TYPE_S16_IN_32_HI) {
-      UNIMPLEMENTED_SEQ();
-    } else {
-      ASSERT_INVALID_TYPE();
-    }
-    i = e.Advance(i);
-    return true;
-  });
-
-  // --------------------------------------------------------------------------
-  // Atomic
-  // --------------------------------------------------------------------------
-
-  table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_ATOMIC_ADD, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_S16_IN_32_LO) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
-
-  table->AddSequence(OPCODE_ATOMIC_SUB, [](X64Emitter& e, Instr*& i) {
+  } else if (i->flags == PACK_TYPE_S16_IN_32_HI) {
     UNIMPLEMENTED_SEQ();
-    i = e.Advance(i);
-    return true;
-  });
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
+  if (i->flags == PACK_TYPE_D3DCOLOR) {
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_FLOAT16_2) {
+    // 1 bit sign, 5 bit exponent, 10 bit mantissa
+    // D3D10 half float format
+    // TODO(benvanik): http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+    // Use _mm_cvtph_ps -- requires very modern processors (SSE5+)
+    // Unpacking half floats: http://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+    // Packing half floats: https://gist.github.com/rygorous/2156668
+    // Load source, move from tight pack of X16Y16.... to X16...Y16...
+    // Also zero out the high end.
+    // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
+    UnaryOp(
+      e, i,
+      [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+      // sx = src.iw >> 16;
+      // sy = src.iw & 0xFFFF;
+      // dest = { 3.0 + (sx / float(1 << 22)),
+      //          3.0 + (sy / float(1 << 22)),
+      //          0.0,
+      //          1.0); --- or 3.0?
+      // So:
+      // xmm =                    {0,0,0,packed}
+      // xmm <<= 1w               {0,0,packed,0}
+      // xmm = VCVTPH2PS(xmm)     {sx,sy,0,0}
+      // xmm /=
+    });
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_FLOAT16_4) {
+    // Could be shared with FLOAT16_2.
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_SHORT_2) {
+    // (VD.x) = 3.0 + (VB.x)*2^-22
+    // (VD.y) = 3.0 + (VB.y)*2^-22
+    // (VD.z) = 0.0
+    // (VD.w) = 3.0
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_S16_IN_32_LO) {
+    UNIMPLEMENTED_SEQ();
+  } else if (i->flags == PACK_TYPE_S16_IN_32_HI) {
+    UNIMPLEMENTED_SEQ();
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+// --------------------------------------------------------------------------
+// Atomic
+// --------------------------------------------------------------------------
+
+table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_ATOMIC_ADD, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_ATOMIC_SUB, [](X64Emitter& e, Instr*& i) {
+  UNIMPLEMENTED_SEQ();
+  i = e.Advance(i);
+  return true;
+});
 }

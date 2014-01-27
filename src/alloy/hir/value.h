@@ -34,7 +34,13 @@ enum TypeName {
 };
 
 static bool IsIntType(TypeName type_name) {
-  return type_name < 4;
+  return type_name <= INT64_TYPE;
+}
+static bool IsFloatType(TypeName type_name) {
+  return type_name == FLOAT32_TYPE || type_name == FLOAT64_TYPE;
+}
+static bool IsVecType(TypeName type_name) {
+  return type_name == VEC128_TYPE;
 }
 
 enum ValueFlags {
