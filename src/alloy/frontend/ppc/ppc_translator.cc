@@ -40,7 +40,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
 
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.
-  compiler_->AddPass(new passes::ContextPromotionPass());
+  //compiler_->AddPass(new passes::ContextPromotionPass());
   compiler_->AddPass(new passes::SimplificationPass());
   // TODO(benvanik): run repeatedly?
   compiler_->AddPass(new passes::ConstantPropagationPass());
