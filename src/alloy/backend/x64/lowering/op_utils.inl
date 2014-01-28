@@ -14,6 +14,9 @@
 
 namespace {
 
+#define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
+#define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
+
 // Moves a 64bit immediate into memory.
 void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
   if ((v & ~0x7FFFFFFF) == 0) {
@@ -375,9 +378,10 @@ void IntBinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
       vv_fn(e, *i, dest, src1);
     } else {
       // Eww.
-      e.mov(e.rax, src1);
-      vv_fn(e, *i, e.rax, src2);
-      e.mov(dest, e.rax);
+      auto Nax = NAX_LIKE(src1);
+      e.mov(Nax, src1);
+      vv_fn(e, *i, Nax, src2);
+      e.mov(dest, Nax);
     }
   } else {
     e.mov(dest, src1);
@@ -423,9 +427,10 @@ void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
         vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
       } else {
         // Eww.
-        e.mov(e.rax, src2);
+        auto Nax = NAX_LIKE(src2);
+        e.mov(Nax, src2);
         e.mov(dest, (uint32_t)src1->get_constant(CT()));
-        vv_fn(e, *i, dest, e.rax);
+        vv_fn(e, *i, dest, Nax);
       }
     } else {
       e.mov(dest, src2);
@@ -574,9 +579,10 @@ void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
         vvc_fn(e, *i, dest, src1, (uint32_t)src3->get_constant(CT()));
       } else {
         // Eww.
-        e.mov(e.rax, src2);
+        auto Nax = NAX_LIKE(src2);
+        e.mov(Nax, src2);
         e.mov(dest, src1);
-        vvc_fn(e, *i, dest, e.rax, (uint32_t)src3->get_constant(CT()));
+        vvc_fn(e, *i, dest, Nax, (uint32_t)src3->get_constant(CT()));
       }
     } else {
       e.mov(dest, src1);
@@ -622,9 +628,10 @@ void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
         vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src1);
       } else {
         // Eww.
-        e.mov(e.rax, src3);
+        auto Nax = NAX_LIKE(src3);
+        e.mov(Nax, src3);
         e.mov(dest, src1);
-        vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), e.rax);
+        vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), Nax);
       }
     } else {
       e.mov(dest, src1);

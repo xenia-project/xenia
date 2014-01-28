@@ -1464,8 +1464,6 @@ table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
   return true;
 });
 
-#define LIKE_REG(dest, like) Operand(dest.getIdx(), dest.getKind(), like.getBit(), false)
-
 table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
