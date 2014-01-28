@@ -14,6 +14,21 @@
 
 namespace {
 
+// Moves a 64bit immediate into memory.
+void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
+  if ((v & ~0x7FFFFFFF) == 0) {
+    // Fits under 31 bits, so just load using normal mov.
+    e.mov(e.qword[addr], v);
+  } else if ((v & ~0x7FFFFFFF) == ~0x7FFFFFFF) {
+    // Negative number that fits in 32bits.
+    e.mov(e.qword[addr], v);
+  } else {
+    // 64bit number that needs double movs.
+    e.mov(e.rax, v);
+    e.mov(e.qword[addr], e.rax);
+  }
+}
+
 // Sets EFLAGs with zf for the given value.
 // ZF = 1 if false, 0 = true (so jz = jump if false)
 void CheckBoolean(X64Emitter& e, Value* v) {

@@ -707,7 +707,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreI64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
-    e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
+    MovMem64(e, e.rcx + i->src1.offset, i->src2.value->constant.i64);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.mov(e.r8, i->src2.value->constant.i64);
@@ -741,7 +741,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
-    e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.i64);
+    MovMem64(e, e.rcx + i->src1.offset, i->src2.value->constant.i64);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.movsd(e.xmm0, e.qword[e.rcx + i->src1.offset]);
@@ -759,8 +759,10 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
-    e.mov(e.qword[e.rcx + i->src1.offset], i->src2.value->constant.v128.low);
-    e.mov(e.qword[e.rcx + i->src1.offset + 8], i->src2.value->constant.v128.high);
+    // TODO(benvanik): check zero
+    // TODO(benvanik): correct order?
+    MovMem64(e, e.rcx + i->src1.offset, i->src2.value->constant.v128.low);
+    MovMem64(e, e.rcx + i->src1.offset + 8, i->src2.value->constant.v128.high);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.movups(e.xmm0, e.ptr[e.rcx + i->src1.offset]);
@@ -1012,7 +1014,7 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceMemoryStoreI64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
-    e.mov(e.qword[addr], i->src2.value->constant.i64);
+    MovMem64(e, addr, i->src2.value->constant.i64);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
     e.mov(e.r8, i->src2.value->constant.i64);
@@ -1046,7 +1048,7 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceMemoryStoreF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
-    e.mov(e.qword[addr], i->src2.value->constant.i64);
+    MovMem64(e, addr, i->src2.value->constant.i64);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
     e.movsd(e.xmm0, e.ptr[addr]);
@@ -1065,8 +1067,10 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceMemoryStoreV128);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
-    e.mov(e.ptr[addr], i->src2.value->constant.v128.low);
-    e.mov(e.ptr[addr + 8], i->src2.value->constant.v128.high);
+    // TODO(benvanik): check zero
+    // TODO(benvanik): correct order?
+    MovMem64(e, addr, i->src2.value->constant.v128.low);
+    MovMem64(e, addr + 8, i->src2.value->constant.v128.high);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
     e.movups(e.xmm0, e.ptr[addr]);
