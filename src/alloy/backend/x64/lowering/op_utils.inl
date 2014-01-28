@@ -17,6 +17,12 @@ namespace {
 #define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
 #define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
 
+Address Stash(X64Emitter& e, const Xmm& r) {
+  auto addr = e.ptr[e.rsp + 40];
+  e.movaps(addr, r);
+  return addr;
+}
+
 // Moves a 64bit immediate into memory.
 void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
   if ((v & ~0x7FFFFFFF) == 0) {
@@ -869,19 +875,13 @@ void XmmBinaryOpCV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
 }
 void XmmBinaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vv_fn vv_fn) {
   // TODO(benvanik): table lookup. This linear scan is slow.
-  if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32) ||
-      i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64) ||
-      i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128, SIG_TYPE_V128)) {
+  if (!i->src1.value->IsConstant() && !i->src2.value->IsConstant()) {
     Xmm dest, src1, src2;
     XmmBinaryOpVV(e, i, vv_fn, dest, src1, src2);
-  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32C) ||
-             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64C) ||
-             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128, SIG_TYPE_V128C)) {
+  } else if (!i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
     Xmm dest, src1;
     XmmBinaryOpVC(e, i, vv_fn, dest, src1, i->src2.value);
-  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32C, SIG_TYPE_F32) ||
-             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64C, SIG_TYPE_F64) ||
-             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128C, SIG_TYPE_V128)) {
+  } else if (i->src1.value->IsConstant() && !i->src2.value->IsConstant()) {
     Xmm dest, src2;
     XmmBinaryOpCV(e, i, vv_fn, dest, i->src1.value, src2);
   } else {

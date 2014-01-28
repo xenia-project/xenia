@@ -44,6 +44,11 @@ namespace {
 // Basically, this identity must hold:
 //   shuffle(vec, b00011011) -> {x,y,z,w} => {x,y,z,w}
 // All indices and operations must respect that.
+//
+// Memory (big endian):
+// [00 01 02 03] [04 05 06 07] [08 09 0A 0B] [0C 0D 0E 0F] (x, y, z, w)
+// load into xmm register:
+// [0F 0E 0D 0C] [0B 0A 09 08] [07 06 05 04] [03 02 01 00] (w, z, y, x)
 
 void Dummy() {
   //
@@ -498,7 +503,63 @@ table->AddSequence(OPCODE_TRUNCATE, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
-  UNIMPLEMENTED_SEQ();
+  if (i->Match(SIG_TYPE_I32, SIG_TYPE_F32)) {
+    Reg32 dest;
+    Xmm src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): additional checks for saturation/etc? cvtt* (trunc?)
+    e.cvtss2si(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_F64)) {
+    Reg32 dest;
+    Xmm src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): additional checks for saturation/etc? cvtt* (trunc?)
+    e.cvtsd2ss(e.xmm0, src);
+    e.cvtss2si(dest, e.xmm0);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_F64)) {
+    Reg64 dest;
+    Xmm src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): additional checks for saturation/etc? cvtt* (trunc?)
+    e.cvtsd2si(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_I32)) {
+    Xmm dest;
+    Reg32 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): additional checks for saturation/etc?
+    e.cvtsi2ss(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_F64)) {
+    Xmm dest, src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): additional checks for saturation/etc?
+    e.cvtsd2ss(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_I64)) {
+    Xmm dest;
+    Reg64 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): additional checks for saturation/etc?
+    e.cvtsi2sd(dest, src);
+    e.EndOp(dest, src);
+  } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_F32)) {
+    Xmm dest, src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    e.cvtss2sd(dest, src);
+    e.EndOp(dest, src);
+  } else {
+    UNIMPLEMENTED_SEQ();
+  }
   i = e.Advance(i);
   return true;
 });
@@ -506,9 +567,56 @@ table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_ROUND, [](X64Emitter& e, Instr*& i) {
   // flags = ROUND_TO_*
   if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        switch (i.flags) {
+        case ROUND_TO_ZERO:
+          e.roundss(dest, src, B00000011);
+          break;
+        case ROUND_TO_NEAREST:
+          e.roundss(dest, src, B00000000);
+          break;
+        case ROUND_TO_MINUS_INFINITY:
+          e.roundss(dest, src, B00000001);
+          break;
+        case ROUND_TO_POSITIVE_INFINITY:
+          e.roundss(dest, src, B00000010);
+          break;
+        }
+      } else {
+        switch (i.flags) {
+        case ROUND_TO_ZERO:
+          e.roundsd(dest, src, B00000011);
+          break;
+        case ROUND_TO_NEAREST:
+          e.roundsd(dest, src, B00000000);
+          break;
+        case ROUND_TO_MINUS_INFINITY:
+          e.roundsd(dest, src, B00000001);
+          break;
+        case ROUND_TO_POSITIVE_INFINITY:
+          e.roundsd(dest, src, B00000010);
+          break;
+        }
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+      switch (i.flags) {
+      case ROUND_TO_ZERO:
+        e.roundps(dest, src, B00000011);
+        break;
+      case ROUND_TO_NEAREST:
+        e.roundps(dest, src, B00000000);
+        break;
+      case ROUND_TO_MINUS_INFINITY:
+        e.roundps(dest, src, B00000001);
+        break;
+      case ROUND_TO_POSITIVE_INFINITY:
+        e.roundps(dest, src, B00000010);
+        break;
+      }
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -634,7 +742,7 @@ table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movaps(e.xmm0, dest);
+    e.lea(e.r8, Stash(e, dest));
     CallNative(e, TraceContextLoadV128);
 #endif  // DTRACE
   } else {
@@ -755,7 +863,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movaps(e.xmm0, src);
+    e.lea(e.r8, Stash(e, src));
     CallNative(e, TraceContextStoreV128);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
@@ -765,7 +873,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     MovMem64(e, e.rcx + i->src1.offset + 8, i->src2.value->constant.v128.high);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movups(e.xmm0, e.ptr[e.rcx + i->src1.offset]);
+    e.lea(e.r8, e.ptr[e.rcx + i->src1.offset]);
     CallNative(e, TraceContextStoreV128);
 #endif  // DTRACE
   } else {
@@ -886,7 +994,7 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
     e.db(0xCC);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movaps(e.xmm0, dest);
+    e.lea(e.r8, Stash(e, dest));
     CallNative(e, TraceMemoryLoadV128);
 #endif  // DTRACE
   } else {
@@ -1063,7 +1171,7 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     e.db(0xCC);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movaps(e.xmm0, src);
+    e.lea(e.r8, Stash(e, src));
     CallNative(e, TraceMemoryStoreV128);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
@@ -1073,7 +1181,7 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     MovMem64(e, addr + 8, i->src2.value->constant.v128.high);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movups(e.xmm0, e.ptr[addr]);
+    e.lea(e.r8, e.ptr[addr]);
     CallNative(e, TraceMemoryStoreV128);
 #endif  // DTRACE
   } else {
@@ -2107,14 +2215,57 @@ table->AddSequence(OPCODE_INSERT, [](X64Emitter& e, Instr*& i) {
   return true;
 });
 
+// TODO(benvanik): sequence extract/splat:
+//  v0.i32 = extract v0.v128, 0
+//  v0.v128 = splat v0.i32
+// This can be a single broadcast.
+
 table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->src1.value->type)) {
     if (i->dest->type == INT8_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Reg8 dest;
+      Xmm src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      if (i->src2.value->IsConstant()) {
+        e.pextrb(dest, src, i->src2.value->constant.i8);
+      } else {
+        UNIMPLEMENTED_SEQ();
+      }
+      e.EndOp(dest, src);
     } else if (i->dest->type == INT16_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Reg16 dest;
+      Xmm src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      if (i->src2.value->IsConstant()) {
+        e.pextrw(dest, src, i->src2.value->constant.i8);
+      } else {
+        UNIMPLEMENTED_SEQ();
+      }
+      e.EndOp(dest, src);
     } else if (i->dest->type == INT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Reg32 dest;
+      Xmm src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      if (i->src2.value->IsConstant()) {
+        e.pextrd(dest, src, i->src2.value->constant.i8);
+      } else {
+        UNIMPLEMENTED_SEQ();
+      }
+      e.EndOp(dest, src);
+    } else if (i->dest->type == FLOAT32_TYPE) {
+      Reg32 dest;
+      Xmm src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      if (i->src2.value->IsConstant()) {
+        e.extractps(dest, src, i->src2.value->constant.i8);
+      } else {
+        UNIMPLEMENTED_SEQ();
+      }
+      e.EndOp(dest, src);
     } else {
       ASSERT_INVALID_TYPE();
     }
@@ -2128,13 +2279,35 @@ table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
     if (i->src1.value->type == INT8_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Xmm dest;
+      Reg8 src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pinsrb(e.xmm0, src, 0);
+      e.vpbroadcastb(dest, e.xmm0);
+      e.EndOp(dest, src);
     } else if (i->src1.value->type == INT16_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Xmm dest;
+      Reg16 src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pinsrw(e.xmm0, src, 0);
+      e.vpbroadcastw(dest, e.xmm0);
+      e.EndOp(dest, src);
     } else if (i->src1.value->type == INT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Xmm dest;
+      Reg32 src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pinsrd(e.xmm0, src, 0);
+      e.vpbroadcastd(dest, e.xmm0);
+      e.EndOp(dest, src);
     } else if (i->src1.value->type == FLOAT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      Xmm dest, src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.vbroadcastss(dest, src);
+      e.EndOp(dest, src);
     } else {
       ASSERT_INVALID_TYPE();
     }

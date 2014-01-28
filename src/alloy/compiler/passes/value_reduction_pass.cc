@@ -74,34 +74,40 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
       OpcodeSignatureType src1_type = GET_OPCODE_SIG_TYPE_SRC1(info->signature);
       OpcodeSignatureType src2_type = GET_OPCODE_SIG_TYPE_SRC2(info->signature);
       OpcodeSignatureType src3_type = GET_OPCODE_SIG_TYPE_SRC3(info->signature);
-      if (src1_type == OPCODE_SIG_TYPE_V && !instr->src1.value->IsConstant()) {
+      if (src1_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src1.value;
         if (!v->last_use) {
           ComputeLastUse(v);
         }
         if (v->last_use == instr) {
           // Available.
-          ordinals.set(v->ordinal, false);
+          if (!instr->src1.value->IsConstant()) {
+            ordinals.set(v->ordinal, false);
+          }
         }
       }
-      if (src2_type == OPCODE_SIG_TYPE_V && !instr->src2.value->IsConstant()) {
+      if (src2_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src2.value;
         if (!v->last_use) {
           ComputeLastUse(v);
         }
         if (v->last_use == instr) {
           // Available.
-          ordinals.set(v->ordinal, false);
+          if (!instr->src2.value->IsConstant()) {
+            ordinals.set(v->ordinal, false);
+          }
         }
       }
-      if (src3_type == OPCODE_SIG_TYPE_V && !instr->src3.value->IsConstant()) {
+      if (src3_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src3.value;
         if (!v->last_use) {
           ComputeLastUse(v);
         }
         if (v->last_use == instr) {
           // Available.
-          ordinals.set(v->ordinal, false);
+          if (!instr->src3.value->IsConstant()) {
+            ordinals.set(v->ordinal, false);
+          }
         }
       }
       if (dest_type == OPCODE_SIG_TYPE_V) {

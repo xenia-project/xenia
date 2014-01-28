@@ -77,9 +77,10 @@ void TraceContextLoadF64(void* raw_context, uint64_t offset, double value) {
 }
 void TraceContextLoadV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%d\n", offset,
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%d\n",
          value.m128_f32[0], value.m128_f32[1], value.m128_f32[2], value.m128_f32[3],
-         value.m128_i32[0], value.m128_i32[1], value.m128_i32[2], value.m128_i32[3]);
+         value.m128_i32[0], value.m128_i32[1], value.m128_i32[2], value.m128_i32[3],
+         offset);
 }
 
 void TraceContextStoreI8(void* raw_context, uint64_t offset, uint8_t value) {
