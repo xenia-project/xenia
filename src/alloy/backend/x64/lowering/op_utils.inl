@@ -869,7 +869,6 @@ void XmmBinaryOpCV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
 }
 void XmmBinaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vv_fn vv_fn) {
   // TODO(benvanik): table lookup. This linear scan is slow.
-  XEASSERT(i->dest->type == i->src1.value->type);
   if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32) ||
       i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64) ||
       i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128, SIG_TYPE_V128)) {

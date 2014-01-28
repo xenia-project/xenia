@@ -1736,7 +1736,7 @@ table->AddSequence(OPCODE_LOG2, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
-  if (IsVecType(i->dest->type)) {
+  if (IsVecType(i->src1.value->type)) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
       // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
       // TODO(benvanik): verify ordering
@@ -1751,7 +1751,7 @@ table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
-  if (IsVecType(i->dest->type)) {
+  if (IsVecType(i->src1.value->type)) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
       // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
       // TODO(benvanik): verify ordering
