@@ -2165,7 +2165,7 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     // Load source, move from tight pack of X16Y16.... to X16...Y16...
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
-    IntUnaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src) {
+    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm&, const Xmm& src) {
       // sx = src.iw >> 16;
       // sy = src.iw & 0xFFFF;
       // dest = { 3.0 + (sx / float(1 << 22)),
@@ -2177,8 +2177,8 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
       // xmm <<= 1w               {0,0,packed,0}
       // xmm = VCVTPH2PS(xmm)     {sx,sy,0,0}
       // xmm /=
+      UNIMPLEMENTED_SEQ();
     });
-    UNIMPLEMENTED_SEQ();
   } else if (i->flags == PACK_TYPE_FLOAT16_4) {
     // Could be shared with FLOAT16_2.
     UNIMPLEMENTED_SEQ();
