@@ -1420,7 +1420,7 @@ uint32_t IntCode_STORE_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
   *((vec128_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].v128;
   DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", ics.rf[i->src1_reg].u64,
          VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
-         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3));
+         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECI4(ics.rf[i->src2_reg].v128,3));
   return IA_NEXT;
 }
 int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
