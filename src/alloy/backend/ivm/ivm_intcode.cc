@@ -1554,7 +1554,7 @@ uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
     return IntCode_STORE_REGISTER_I8_DYNAMIC(ics, i);
   }
   DPRINT("store.i8 %.8X = %d (%X)\n",
-         address, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].i8);
+         address, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].u8);
   DFLUSH();
   *((int8_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i8;
   return IA_NEXT;
@@ -1565,7 +1565,7 @@ uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
     return IntCode_STORE_REGISTER_I16_DYNAMIC(ics, i);
   }
   DPRINT("store.i16 %.8X = %d (%X)\n",
-         address, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].i16);
+         address, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].u16);
   DFLUSH();
   *((int16_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i16;
   return IA_NEXT;
@@ -1576,7 +1576,7 @@ uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
     return IntCode_STORE_REGISTER_I32_DYNAMIC(ics, i);
   }
   DPRINT("store.i32 %.8X = %d (%X)\n",
-         address, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].i32);
+         address, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].u32);
   DFLUSH();
   *((int32_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i32;
   return IA_NEXT;
@@ -1587,7 +1587,7 @@ uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
     return IntCode_STORE_REGISTER_I64_DYNAMIC(ics, i);
   }
   DPRINT("store.i64 %.8X = %lld (%llX)\n",
-         address, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].i64);
+         address, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
   DFLUSH();
   *((int64_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i64;
   return IA_NEXT;
@@ -1595,7 +1595,7 @@ uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_F32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   DPRINT("store.f32 %.8X = %e (%X)\n",
-         address, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].i32);
+         address, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].u32);
   DFLUSH();
   *((float*)(ics.membase + address)) = ics.rf[i->src2_reg].f32;
   return IA_NEXT;
@@ -1603,7 +1603,7 @@ uint32_t IntCode_STORE_F32(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_F64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   DPRINT("store.f64 %.8X = %lle (%llX)\n",
-         address, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].i64);
+         address, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].u64);
   DFLUSH();
   *((double*)(ics.membase + address)) = ics.rf[i->src2_reg].f64;
   return IA_NEXT;
