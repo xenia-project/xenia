@@ -77,7 +77,9 @@ void TraceContextLoadF64(void* raw_context, uint64_t offset, double value) {
 }
 void TraceContextLoadV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  //DPRINT("%d (%.X) = ctx i8 +%d\n", (int8_t)value, value, offset);
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%d\n", offset,
+         value.m128_f32[0], value.m128_f32[1], value.m128_f32[2], value.m128_f32[3],
+         value.m128_i32[0], value.m128_i32[1], value.m128_i32[2], value.m128_i32[3]);
 }
 
 void TraceContextStoreI8(void* raw_context, uint64_t offset, uint8_t value) {
@@ -116,9 +118,9 @@ void TraceContextStoreF64(void* raw_context, uint64_t offset, double value) {
 }
 void TraceContextStoreV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  /*DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", ics.rf[i->src1_reg].u64,
-         VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
-         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3));*/
+  DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", offset,
+         value.m128_f32[0], value.m128_f32[1], value.m128_f32[2], value.m128_f32[3],
+         value.m128_i32[0], value.m128_i32[1], value.m128_i32[2], value.m128_i32[3]);
 }
 
 void TraceMemoryLoadI8(void* raw_context, uint64_t address, uint8_t value) {
@@ -157,7 +159,10 @@ void TraceMemoryLoadF64(void* raw_context, uint64_t address, double value) {
 }
 void TraceMemoryLoadV128(void* raw_context, uint64_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  //DPRINT("%d (%.X) = load.v128 +%d\n", (int8_t)value, value, offset);
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load.v128 %.8X\n",
+         value.m128_f32[0], value.m128_f32[1], value.m128_f32[2], value.m128_f32[3],
+         value.m128_i32[0], value.m128_i32[1], value.m128_i32[2], value.m128_i32[3],
+         address);
 }
 
 void TraceMemoryStoreI8(void* raw_context, uint64_t address, uint8_t value) {
@@ -196,9 +201,9 @@ void TraceMemoryStoreF64(void* raw_context, uint64_t address, double value) {
 }
 void TraceMemoryStoreV128(void* raw_context, uint64_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  /*DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", ics.rf[i->src1_reg].u64,
-         VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
-         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3));*/
+  DPRINT("store.v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", address,
+         value.m128_f32[0], value.m128_f32[1], value.m128_f32[2], value.m128_f32[3],
+         value.m128_i32[0], value.m128_i32[1], value.m128_i32[2], value.m128_i32[3]);
 }
 
 

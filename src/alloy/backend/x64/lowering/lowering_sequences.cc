@@ -756,7 +756,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.movaps(e.xmm0, src);
-    CallNative(e, TraceContextStoreF64);
+    CallNative(e, TraceContextStoreV128);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
     // TODO(benvanik): check zero

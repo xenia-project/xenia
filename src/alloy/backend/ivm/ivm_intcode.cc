@@ -40,10 +40,10 @@ namespace ivm {
 #define DPRINT
 #define DFLUSH()
 
-//#define IPRINT if (ics.thread_state->thread_id() == 1) printf
-//#define IFLUSH() fflush(stdout)
-//#define DPRINT if (ics.thread_state->thread_id() == 1) printf
-//#define DFLUSH() fflush(stdout)
+#define IPRINT if (ics.thread_state->thread_id() == 1) printf
+#define IFLUSH() fflush(stdout)
+#define DPRINT if (ics.thread_state->thread_id() == 1) printf
+#define DFLUSH() fflush(stdout)
 
 #if XE_CPU_BIGENDIAN
 #define VECB16(v,n) (v.b16[n])
@@ -1515,7 +1515,7 @@ uint32_t IntCode_LOAD_V128(IntCodeState& ics, const IntCode* i) {
   for (int n = 0; n < 4; n++) {
     VECI4(dest,n) = *((uint32_t*)(ics.membase + address + n * 4));
   }
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load v128 %.8X\n",
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load.v128 %.8X\n",
          VECF4(dest,0), VECF4(dest,1), VECF4(dest,2), VECF4(dest,3),
          VECI4(dest,0), VECI4(dest,1), VECI4(dest,2), VECI4(dest,3),
          address);
@@ -1610,7 +1610,7 @@ uint32_t IntCode_STORE_F64(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  DPRINT("store v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
+  DPRINT("store.v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
          address,
          VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
          VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECI4(ics.rf[i->src2_reg].v128,3));
