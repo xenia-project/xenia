@@ -1364,9 +1364,17 @@ table->AddSequence(OPCODE_ADD, [](X64Emitter& e, Instr*& i) {
       e.add(dest_src, src);
     });
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        e.addss(dest_src, src);
+      } else {
+        e.addsd(dest_src, src);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.addps(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1438,9 +1446,17 @@ table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
       e.sub(dest_src, src);
     });
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        e.subss(dest_src, src);
+      } else {
+        e.subsd(dest_src, src);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.subps(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1478,9 +1494,19 @@ table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
       e.mov(dest_src, Nax);
     });
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.flags & ARITHMETIC_UNSIGNED) { UNIMPLEMENTED_SEQ(); }
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        e.mulss(dest_src, src);
+      } else {
+        e.mulsd(dest_src, src);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.flags & ARITHMETIC_UNSIGNED) { UNIMPLEMENTED_SEQ(); }
+      e.mulps(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1551,9 +1577,19 @@ table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
       e.mov(dest_src, Nax);
     });
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.flags & ARITHMETIC_UNSIGNED) { UNIMPLEMENTED_SEQ(); }
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        e.divss(dest_src, src);
+      } else {
+        e.divsd(dest_src, src);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.flags & ARITHMETIC_UNSIGNED) { UNIMPLEMENTED_SEQ(); }
+      e.divps(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1703,7 +1739,12 @@ table->AddSequence(OPCODE_LOG2, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
+      // TODO(benvanik): verify ordering
+      e.db(0xCC);
+      e.dpps(dest_src, src, B01110001);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1713,7 +1754,12 @@ table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
+      // TODO(benvanik): verify ordering
+      e.db(0xCC);
+      e.dpps(dest_src, src, B11110001);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1729,7 +1775,9 @@ table->AddSequence(OPCODE_AND, [](X64Emitter& e, Instr*& i) {
       e.and(dest_src, src);
     });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.pand(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1745,7 +1793,9 @@ table->AddSequence(OPCODE_OR, [](X64Emitter& e, Instr*& i) {
       e.or(dest_src, src);
     });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.por(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1761,7 +1811,9 @@ table->AddSequence(OPCODE_XOR, [](X64Emitter& e, Instr*& i) {
       e.xor(dest_src, src);
     });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.pxor(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }

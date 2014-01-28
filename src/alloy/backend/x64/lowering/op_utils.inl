@@ -715,17 +715,15 @@ void IntTernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn
 // Since alot of SSE ops can take dest + src, just do that.
 // Worst case the callee can dedupe.
 typedef void(xmm_v_fn)(X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src);
-template<typename T>
 void XmmUnaryOpV(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
-                 T& dest, T& src1) {
+                 Xmm& dest, Xmm& src1) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
   v_fn(e, *i, dest, src1);
   e.EndOp(dest, src1);
 }
-template<typename T>
 void XmmUnaryOpC(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
-                 T& dest, Value* src1) {
+                 Xmm& dest, Value* src1) {
   e.BeginOp(i->dest, dest, REG_DEST);
   if (src1->type == FLOAT32_TYPE) {
     e.mov(e.eax, (uint32_t)src1->constant.i32);
@@ -768,6 +766,125 @@ void XmmUnaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_v_fn v_fn) {
     }
   } else {
     ASSERT_INVALID_TYPE();
+  }
+};
+
+// TODO(benvanik): allow a vvv form for dest = src1 + src2 that new SSE
+//     ops support.
+typedef void(xmm_vv_fn)(X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src);
+void XmmBinaryOpVV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
+                   Xmm& dest, Xmm& src1, Xmm& src2) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src2.value, src2, 0);
+  if (dest == src1) {
+    vv_fn(e, *i, dest, src2);
+  } else if (dest == src2) {
+    if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+      vv_fn(e, *i, dest, src1);
+    } else {
+      // Eww.
+      e.movaps(e.xmm0, src1);
+      vv_fn(e, *i, e.xmm0, src2);
+      e.movaps(dest, e.xmm0);
+    }
+  } else {
+    e.movaps(dest, src1);
+    vv_fn(e, *i, dest, src2);
+  }
+  e.EndOp(dest, src1, src2);
+}
+void XmmBinaryOpVC(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
+                   Xmm& dest, Xmm& src1, Value* src2) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0);
+  if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+    if (src2->type == FLOAT32_TYPE) {
+      e.mov(e.eax, (uint32_t)src2->constant.i32);
+      e.movss(dest, e.eax);
+    } else if (src2->type == FLOAT64_TYPE) {
+      e.mov(e.rax, (uint64_t)src2->constant.i64);
+      e.movsd(dest, e.rax);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+    vv_fn(e, *i, dest, src1);
+  } else {
+    if (dest != src1) {
+      e.movaps(dest, src1);
+    }
+    if (src2->type == FLOAT32_TYPE) {
+      e.mov(e.eax, (uint32_t)src2->constant.i32);
+      e.movss(e.xmm0, e.eax);
+    } else if (src2->type == FLOAT64_TYPE) {
+      e.mov(e.rax, (uint64_t)src2->constant.i64);
+      e.movsd(e.xmm0, e.rax);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+    vv_fn(e, *i, dest, e.xmm0);
+  }
+  e.EndOp(dest, src1);
+}
+void XmmBinaryOpCV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
+                   Xmm& dest, Value* src1, Xmm& src2) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src2.value, src2, 0);
+  if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+    if (src1->type == FLOAT32_TYPE) {
+      e.mov(e.eax, (uint32_t)src1->constant.i32);
+      e.movss(dest, e.eax);
+    } else if (src1->type == FLOAT64_TYPE) {
+      e.mov(e.rax, (uint64_t)src1->constant.i64);
+      e.movsd(dest, e.rax);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+    vv_fn(e, *i, dest, src2);
+  } else {
+    auto real_src2 = src2;
+    if (dest == src2) {
+      e.movaps(e.xmm0, src2);
+      real_src2 = e.xmm0;
+    }
+    if (src1->type == FLOAT32_TYPE) {
+      e.mov(e.eax, (uint32_t)src1->constant.i32);
+      e.movss(dest, e.eax);
+    } else if (src1->type == FLOAT64_TYPE) {
+      e.mov(e.rax, (uint64_t)src1->constant.i64);
+      e.movsd(dest, e.rax);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+    vv_fn(e, *i, dest, real_src2);
+  }
+  e.EndOp(dest, src2);
+}
+void XmmBinaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vv_fn vv_fn) {
+  // TODO(benvanik): table lookup. This linear scan is slow.
+  XEASSERT(i->dest->type == i->src1.value->type);
+  if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32) ||
+      i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64) ||
+      i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128, SIG_TYPE_V128)) {
+    Xmm dest, src1, src2;
+    XmmBinaryOpVV(e, i, vv_fn, dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32C) ||
+             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64C) ||
+             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128, SIG_TYPE_V128C)) {
+    Xmm dest, src1;
+    XmmBinaryOpVC(e, i, vv_fn, dest, src1, i->src2.value);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32C, SIG_TYPE_F32) ||
+             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64C, SIG_TYPE_F64) ||
+             i->Match(SIG_TYPE_IGNORE, SIG_TYPE_V128C, SIG_TYPE_V128)) {
+    Xmm dest, src2;
+    XmmBinaryOpCV(e, i, vv_fn, dest, i->src1.value, src2);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (flags & ARITHMETIC_SET_CARRY) {
+    // EFLAGS should have CA set?
+    // (so long as we don't fuck with it)
+    // UNIMPLEMENTED_SEQ();
   }
 };
 
