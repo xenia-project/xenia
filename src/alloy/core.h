@@ -45,6 +45,16 @@ typedef struct XECACHEALIGN vec128_s {
     };
   };
 } vec128_t;
+XEFORCEINLINE vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
+  vec128_t v;
+  v.i4[0] = x; v.i4[1] = y; v.i4[2] = z; v.i4[3] = w;
+  return v;
+}
+XEFORCEINLINE vec128_t vec128f(float x, float y, float z, float w) {
+  vec128_t v;
+  v.f4[0] = x; v.f4[1] = y; v.f4[2] = z; v.f4[3] = w;
+  return v;
+}
 
 }  // namespace alloy
 

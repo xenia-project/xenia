@@ -24,15 +24,15 @@ namespace x64 {
 namespace lowering {
 
 
-#define IPRINT
 #define IFLUSH()
-#define DPRINT
+#define IPRINT
 #define DFLUSH()
+#define DPRINT
 
-#define IPRINT if (thread_state->thread_id() == 1) printf
 #define IFLUSH() fflush(stdout)
-#define DPRINT if (thread_state->thread_id() == 1) printf
+#define IPRINT if (thread_state->thread_id() == 1) printf
 #define DFLUSH() fflush(stdout)
+#define DPRINT DFLUSH(); if (thread_state->thread_id() == 1) printf
 
 
 void TraceString(void* raw_context, const char* str) {

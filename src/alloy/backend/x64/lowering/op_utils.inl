@@ -18,8 +18,9 @@ namespace {
 #define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
 
 Address Stash(X64Emitter& e, const Xmm& r) {
-  auto addr = e.ptr[e.rsp + 40];
-  e.movaps(addr, r);
+  // TODO(benvanik): ensure aligned.
+  auto addr = e.ptr[e.rsp + 48];
+  e.movups(addr, r);
   return addr;
 }
 
@@ -65,11 +66,22 @@ void CheckBoolean(X64Emitter& e, Value* v) {
     e.test(src, src);
     e.EndOp(src);
   } else if (v->type == FLOAT32_TYPE) {
-    UNIMPLEMENTED_SEQ();
+    // TODO(benvanik): mask?
+    Xmm src;
+    e.BeginOp(v, src, 0);
+    e.ptest(src, src);
+    e.EndOp(src);
   } else if (v->type == FLOAT64_TYPE) {
-    UNIMPLEMENTED_SEQ();
+    // TODO(benvanik): mask?
+    Xmm src;
+    e.BeginOp(v, src, 0);
+    e.ptest(src, src);
+    e.EndOp(src);
   } else if (v->type == VEC128_TYPE) {
-    UNIMPLEMENTED_SEQ();
+    Xmm src;
+    e.BeginOp(v, src, 0);
+    e.ptest(src, src);
+    e.EndOp(src);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -180,6 +192,52 @@ void CompareXX(X64Emitter& e, Instr*& i, void(set_fn)(X64Emitter& e, Reg8& dest,
     e.cmp(src2, e.rax);
     set_fn(e, dest, true);
     e.EndOp(dest, src2);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32)) {
+    Reg8 dest;
+    Xmm src1, src2;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0,
+              i->src2.value, src2, 0);
+    e.comiss(src1, src2);
+    set_fn(e, dest, false);
+    e.EndOp(dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F32, SIG_TYPE_F32C)) {
+    Reg8 dest;
+    Xmm src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    if (i->src2.value->IsConstantZero()) {
+      e.pxor(e.xmm0, e.xmm0);
+    } else {
+      e.mov(e.eax, (uint32_t)i->src2.value->constant.i32);
+      e.pinsrd(e.xmm0, e.eax, 0);
+    }
+    e.comiss(src1, e.xmm0);
+    set_fn(e, dest, false);
+    e.EndOp(dest, src1);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64)) {
+    Reg8 dest;
+    Xmm src1, src2;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0,
+              i->src2.value, src2, 0);
+    e.comisd(src1, src2);
+    set_fn(e, dest, false);
+    e.EndOp(dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_F64, SIG_TYPE_F64C)) {
+    Reg8 dest;
+    Xmm src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    if (i->src2.value->IsConstantZero()) {
+      e.pxor(e.xmm0, e.xmm0);
+    } else {
+      e.mov(e.rax, (uint64_t)i->src2.value->constant.i64);
+      e.pinsrq(e.xmm0, e.rax, 0);
+    }
+    e.comisd(src1, e.xmm0);
+    set_fn(e, dest, false);
+    e.EndOp(dest, src1);
   } else {
     UNIMPLEMENTED_SEQ();
   }
@@ -884,6 +942,52 @@ void XmmBinaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vv_fn vv_fn) {
   } else if (i->src1.value->IsConstant() && !i->src2.value->IsConstant()) {
     Xmm dest, src2;
     XmmBinaryOpCV(e, i, vv_fn, dest, i->src1.value, src2);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  if (flags & ARITHMETIC_SET_CARRY) {
+    // EFLAGS should have CA set?
+    // (so long as we don't fuck with it)
+    // UNIMPLEMENTED_SEQ();
+  }
+};
+
+typedef void(xmm_vvv_fn)(X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src2, const Xmm& src3);
+void XmmTernaryOpVVV(X64Emitter& e, Instr*& i, xmm_vvv_fn vvv_fn,
+                     Xmm& dest, Xmm& src1, Xmm& src2, Xmm& src3) {
+  e.BeginOp(i->dest, dest, REG_DEST,
+            i->src1.value, src1, 0,
+            i->src2.value, src2, 0,
+            i->src3.value, src3, 0);
+  if (dest == src1) {
+    vvv_fn(e, *i, dest, src2, src3);
+  } else if (dest == src2) {
+    if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+      vvv_fn(e, *i, dest, src1, src3);
+    } else {
+      // Eww.
+      e.movaps(e.xmm0, src1);
+      vvv_fn(e, *i, e.xmm0, src2, src3);
+      e.movaps(dest, e.xmm0);
+    }
+  } else if (dest == src3) {
+    if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+      vvv_fn(e, *i, dest, src1, src2);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+  } else {
+    e.movaps(dest, src1);
+    vvv_fn(e, *i, dest, src2, src3);
+  }
+  e.EndOp(dest, src1, src2, src3);
+}
+void XmmTernaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vvv_fn vvv_fn) {
+  // TODO(benvanik): table lookup. This linear scan is slow.
+  if (!i->src1.value->IsConstant() && !i->src2.value->IsConstant() &&
+      !i->src3.value->IsConstant()) {
+    Xmm dest, src1, src2, src3;
+    XmmTernaryOpVVV(e, i, vvv_fn, dest, src1, src2, src3);
   } else {
     ASSERT_INVALID_TYPE();
   }

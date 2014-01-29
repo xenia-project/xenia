@@ -35,6 +35,39 @@ namespace {
 
 #define SHUFPS_SWAP_DWORDS 0x1B
 
+enum XmmConst {
+  XMMZero               = 0,
+  XMMOne                = 1,
+  XMMNegativeOne        = 2,
+  XMMMaskX16Y16         = 3,
+  XMMFlipX16Y16         = 4,
+  XMMFixX16Y16          = 5,
+  XMMNormalizeX16Y16    = 6,
+  XMM3301               = 7,
+  XMMSignMaskPS         = 8,
+  XMMSignMaskPD         = 9,
+  XMMByteSwapMask       = 10,
+};
+static const vec128_t xmm_consts[] = {
+  /* XMMZero                */ vec128f(0.0f, 0.0f, 0.0f, 0.0f),
+  /* XMMOne                 */ vec128f(1.0f, 1.0f, 1.0f, 1.0f),
+  /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
+  /* XMMMaskX16Y16          */ vec128i(0x0000FFFF, 0xFFFF0000, 0x00000000, 0x00000000),
+  /* XMMFlipX16Y16          */ vec128i(0x00008000, 0x00000000, 0x00000000, 0x00000000),
+  /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
+  /* XMMNormalizeX16Y16     */ vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
+  /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
+  /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
+  /* XMMSignMaskPD          */ vec128i(0x80000000u, 0x00000000u, 0x80000000u, 0x00000000u),
+  /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
+};
+// Use consts by first loading the base register then accessing memory:
+// e.mov(e.rax, XMMCONSTBASE)
+// e.andps(reg, XMMCONST(XMM3303))
+// TODO(benvanik): find a way to do this without the base register.
+#define XMMCONSTBASE (uint64_t)&xmm_consts[0]
+#define XMMCONST(base_reg, name) e.ptr[base_reg + name * 16]
+
 // A note about vectors:
 // Alloy represents vectors as xyzw pairs, with indices 0123.
 // XMM registers are xyzw pairs with indices 3210, making them more like wzyx.
@@ -339,10 +372,50 @@ table->AddSequence(OPCODE_ASSIGN, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
-  if (IsIntType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
-  } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+  if (i->dest->type == INT32_TYPE) {
+    if (i->src1.value->type == FLOAT32_TYPE) {
+      Reg32 dest;
+      Xmm src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pextrd(dest, src, 0);
+      e.EndOp(dest, src);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+  } else if (i->dest->type == INT64_TYPE) {
+    if (i->src1.value->type == FLOAT64_TYPE) {
+      Reg64 dest;
+      Xmm src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pextrq(dest, src, 0);
+      e.EndOp(dest, src);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+  } else if (i->dest->type == FLOAT32_TYPE) {
+    if (i->src1.value->type == INT32_TYPE) {
+      Xmm dest;
+      Reg32 src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pinsrd(dest, src, 0);
+      e.EndOp(dest, src);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
+  } else if (i->dest->type == FLOAT64_TYPE) {
+    if (i->src1.value->type == INT64_TYPE) {
+      Xmm dest;
+      Reg64 src;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, src, 0);
+      e.pinsrq(dest, src, 0);
+      e.EndOp(dest, src);
+    } else {
+      UNIMPLEMENTED_SEQ();
+    }
   } else if (IsVecType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else {
@@ -625,15 +698,32 @@ table->AddSequence(OPCODE_ROUND, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_VECTOR_CONVERT_I2F, [](X64Emitter& e, Instr*& i) {
-  // flags = ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED
-  UNIMPLEMENTED_SEQ();
+  // flags = ARITHMETIC_UNSIGNED
+  XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+    // TODO(benvanik): are these really the same? VC++ thinks so.
+    if (i.flags & ARITHMETIC_UNSIGNED) {
+      e.cvtdq2ps(dest, src);
+    } else {
+      e.cvtdq2ps(dest, src);
+    }
+  });
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
   // flags = ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED
-  UNIMPLEMENTED_SEQ();
+  XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+    // TODO(benvanik): are these really the same? VC++ thinks so.
+    if (i.flags & ARITHMETIC_UNSIGNED) {
+      e.cvttps2dq(dest, src);
+    } else {
+      e.cvttps2dq(dest, src);
+    }
+    if (i.flags & ARITHMETIC_SATURATE) {
+      UNIMPLEMENTED_SEQ();
+    }
+  });
   i = e.Advance(i);
   return true;
 });
@@ -991,7 +1081,6 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
     // TODO(benvanik): we should try to stick to movaps if possible.
     e.movups(dest, e.ptr[addr]);
     e.EndOp(dest);
-    e.db(0xCC);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
     e.lea(e.r8, Stash(e, dest));
@@ -1168,7 +1257,6 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     // TODO(benvanik): we should try to stick to movaps if possible.
     e.movups(e.ptr[addr], src);
     e.EndOp(src);
-    e.db(0xCC);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
     e.lea(e.r8, Stash(e, src));
@@ -1208,9 +1296,17 @@ table->AddSequence(OPCODE_MAX, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        e.maxss(dest_src, src);
+      } else {
+        e.maxsd(dest_src, src);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.maxps(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1222,9 +1318,17 @@ table->AddSequence(OPCODE_MIN, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      if (i.src1.value->type == FLOAT32_TYPE) {
+        e.minss(dest_src, src);
+      } else {
+        e.minsd(dest_src, src);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+      e.minps(dest_src, src);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1233,12 +1337,22 @@ table->AddSequence(OPCODE_MIN, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_SELECT, [](X64Emitter& e, Instr*& i) {
+  CheckBoolean(e, i->src1.value);
   if (IsIntType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
-  } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
-  } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+  } else if (IsFloatType(i->dest->type) || IsVecType(i->dest->type)) {
+    Xmm dest, src2, src3;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src2.value, src2, 0,
+              i->src3.value, src3, 0);
+    // TODO(benvanik): find a way to do this without branches.
+    e.inLocalLabel();
+    e.movaps(dest, src3);
+    e.jz(".skip");
+    e.movaps(dest, src2);
+    e.L(".skip");
+    e.outLocalLabel();
+    e.EndOp(dest, src2, src3);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1707,9 +1821,17 @@ table->AddSequence(OPCODE_MUL_ADD, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmTernaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src2, const Xmm& src3) {
+      if (i.dest->type == FLOAT32_TYPE) {
+        e.vfmadd132ss(dest_src, src3, src2);
+      } else {
+        e.vfmadd132sd(dest_src, src3, src2);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmTernaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src2, const Xmm& src3) {
+      e.vfmadd132ps(dest_src, src3, src2);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1721,9 +1843,17 @@ table->AddSequence(OPCODE_MUL_SUB, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     UNIMPLEMENTED_SEQ();
   } else if (IsFloatType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmTernaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src2, const Xmm& src3) {
+      if (i.dest->type == FLOAT32_TYPE) {
+        e.vfmsub132ss(dest_src, src3, src2);
+      } else {
+        e.vfmsub132sd(dest_src, src3, src2);
+      }
+    });
   } else if (IsVecType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+    XmmTernaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src2, const Xmm& src3) {
+      e.vfmsub132ps(dest_src, src3, src2);
+    });
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -1739,14 +1869,17 @@ table->AddSequence(OPCODE_NEG, [](X64Emitter& e, Instr*& i) {
   } else if (IsFloatType(i->dest->type)) {
     XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       if (i.src1.value->type == FLOAT32_TYPE) {
-        UNIMPLEMENTED_SEQ();
+        e.mov(e.rax, XMMCONSTBASE);
+        e.vpxor(dest, src, XMMCONST(e.rax, XMMSignMaskPS));
       } else {
-        UNIMPLEMENTED_SEQ();
+        e.mov(e.rax, XMMCONSTBASE);
+        e.vpxor(dest, src, XMMCONST(e.rax, XMMSignMaskPD));
       }
     });
   } else if (IsVecType(i->dest->type)) {
     XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
-      UNIMPLEMENTED_SEQ();
+      e.mov(e.rax, XMMCONSTBASE);
+      e.vpxor(dest, src, XMMCONST(e.rax, XMMSignMaskPS));
     });
   } else {
     ASSERT_INVALID_TYPE();
@@ -1761,14 +1894,20 @@ table->AddSequence(OPCODE_ABS, [](X64Emitter& e, Instr*& i) {
   } else if (IsFloatType(i->dest->type)) {
     XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       if (i.src1.value->type == FLOAT32_TYPE) {
-        UNIMPLEMENTED_SEQ();
+        e.mov(e.rax, XMMCONSTBASE);
+        e.movaps(e.xmm0, XMMCONST(e.rax, XMMSignMaskPS));
+        e.vpandn(dest, e.xmm0, src);
       } else {
-        UNIMPLEMENTED_SEQ();
+        e.mov(e.rax, XMMCONSTBASE);
+        e.movaps(e.xmm0, XMMCONST(e.rax, XMMSignMaskPD));;
+        e.vpandn(dest, e.xmm0, src);
       }
     });
   } else if (IsVecType(i->dest->type)) {
     XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
-      UNIMPLEMENTED_SEQ();
+      e.mov(e.rax, XMMCONSTBASE);
+      e.movaps(e.xmm0, XMMCONST(e.rax, XMMSignMaskPS));;
+      e.vpandn(dest, e.xmm0, src);
     });
   } else {
     ASSERT_INVALID_TYPE();
@@ -1848,7 +1987,6 @@ table->AddSequence(OPCODE_DOT_PRODUCT_3, [](X64Emitter& e, Instr*& i) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
       // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
       // TODO(benvanik): verify ordering
-      e.db(0xCC);
       e.dpps(dest_src, src, B01110001);
     });
   } else {
@@ -1863,7 +2001,6 @@ table->AddSequence(OPCODE_DOT_PRODUCT_4, [](X64Emitter& e, Instr*& i) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
       // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
       // TODO(benvanik): verify ordering
-      e.db(0xCC);
       e.dpps(dest_src, src, B11110001);
     });
   } else {
@@ -2020,7 +2157,16 @@ table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
     } else if (i->flags == INT16_TYPE) {
       UNIMPLEMENTED_SEQ();
     } else if (i->flags == INT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        e.db(0xCC);
+        e.mov(e.eax, 0x1F);
+        e.vmovd(e.xmm0, e.eax);
+        e.vpbroadcastd(e.xmm0, e.xmm0);
+        e.vandps(e.xmm0, src, e.xmm0);
+        e.vpsllvd(dest_src, dest_src, e.xmm0);
+      });
     } else {
       ASSERT_INVALID_TYPE();
     }
@@ -2038,7 +2184,15 @@ table->AddSequence(OPCODE_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
     } else if (i->flags == INT16_TYPE) {
       UNIMPLEMENTED_SEQ();
     } else if (i->flags == INT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        e.mov(e.eax, 0x1F);
+        e.vmovd(e.xmm0, e.eax);
+        e.vpbroadcastd(e.xmm0, e.xmm0);
+        e.vandps(e.xmm0, src, e.xmm0);
+        e.vpsrlvd(dest_src, dest_src, src);
+      });
     } else {
       ASSERT_INVALID_TYPE();
     }
@@ -2056,7 +2210,15 @@ table->AddSequence(OPCODE_VECTOR_SHA, [](X64Emitter& e, Instr*& i) {
     } else if (i->flags == INT16_TYPE) {
       UNIMPLEMENTED_SEQ();
     } else if (i->flags == INT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        e.mov(e.eax, 0x1F);
+        e.vmovd(e.xmm0, e.eax);
+        e.vpbroadcastd(e.xmm0, e.xmm0);
+        e.vandps(e.xmm0, src, e.xmm0);
+        e.vpsravd(dest_src, dest_src, src);
+      });
     } else {
       ASSERT_INVALID_TYPE();
     }
@@ -2088,7 +2250,7 @@ table->AddSequence(OPCODE_ROTATE_LEFT, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
   if (i->Match(SIG_TYPE_I16, SIG_TYPE_I16)) {
-    Reg16 d, s1;
+    Reg16 dest, src1;
     // TODO(benvanik): fix register allocator to put the value in ABCD
     //e.BeginOp(i->dest, d, REG_DEST | REG_ABCD,
     //          i->src1.value, s1, 0);
@@ -2098,45 +2260,42 @@ table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
     //} else {
     //  e.xchg(d.cvt8(), Reg8(d.getIdx() + 4));
     //}
-    e.BeginOp(i->dest, d, REG_DEST,
-              i->src1.value, s1, 0);
-    e.mov(e.ax, s1);
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    e.mov(e.ax, src1);
     e.xchg(e.ah, e.al);
-    e.mov(d, e.ax);
-    e.EndOp(d, s1);
+    e.mov(dest, e.ax);
+    e.EndOp(dest, src1);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I32)) {
-    Reg32 d, s1;
-    e.BeginOp(i->dest, d, REG_DEST,
-              i->src1.value, s1, 0);
-    if (d != s1) {
-      e.mov(d, s1);
-      e.bswap(d);
+    Reg32 dest, src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    if (dest != src1) {
+      e.mov(dest, src1);
+      e.bswap(dest);
     } else {
-      e.bswap(d);
+      e.bswap(dest);
     }
-    e.EndOp(d, s1);
+    e.EndOp(dest, src1);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_I64)) {
-    Reg64 d, s1;
-    e.BeginOp(i->dest, d, REG_DEST,
-              i->src1.value, s1, 0);
-    if (d != s1) {
-      e.mov(d, s1);
-      e.bswap(d);
+    Reg64 dest, src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    if (dest != src1) {
+      e.mov(dest, src1);
+      e.bswap(dest);
     } else {
-      e.bswap(d);
+      e.bswap(dest);
     }
-    e.EndOp(d, s1);
+    e.EndOp(dest, src1);
   } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_V128)) {
-    Xmm d, s1;
-    e.db(0xCC);
-    e.BeginOp(i->dest, d, REG_DEST,
-              i->src1.value, s1, 0);
-    if (d != s1) {
-      e.shufps(d, s1, SHUFPS_SWAP_DWORDS);
-    } else {
-      e.shufps(d, d, SHUFPS_SWAP_DWORDS);
-    }
-    e.EndOp(d, s1);
+    Xmm dest, src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    // TODO(benvanik): find a way to do this without the memory load.
+    e.mov(e.rax, XMMCONSTBASE);
+    e.vpshufb(dest, src1, XMMCONST(e.rax, XMMByteSwapMask));
+    e.EndOp(dest, src1);
   } else {
     ASSERT_INVALID_TYPE();
   }
@@ -2278,36 +2437,67 @@ table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
-    if (i->src1.value->type == INT8_TYPE) {
+    if (i->Match(SIG_TYPE_V128, SIG_TYPE_I8)) {
       Xmm dest;
       Reg8 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pinsrb(e.xmm0, src, 0);
+      e.vmovd(e.xmm0, src.cvt32());
       e.vpbroadcastb(dest, e.xmm0);
       e.EndOp(dest, src);
-    } else if (i->src1.value->type == INT16_TYPE) {
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_I8C)) {
+      Xmm dest;
+      e.BeginOp(i->dest, dest, REG_DEST);
+      // TODO(benvanik): faster constant splats.
+      e.mov(e.eax, i->src1.value->constant.i8);
+      e.vmovd(e.xmm0, e.eax);
+      e.vpbroadcastb(dest, e.xmm0);
+      e.EndOp(dest);
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_I16)) {
       Xmm dest;
       Reg16 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pinsrw(e.xmm0, src, 0);
+      e.vmovd(e.xmm0, src.cvt32());
       e.vpbroadcastw(dest, e.xmm0);
       e.EndOp(dest, src);
-    } else if (i->src1.value->type == INT32_TYPE) {
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_I16C)) {
+      Xmm dest;
+      e.BeginOp(i->dest, dest, REG_DEST);
+      // TODO(benvanik): faster constant splats.
+      e.mov(e.eax, i->src1.value->constant.i16);
+      e.vmovd(e.xmm0, e.eax);
+      e.vpbroadcastw(dest, e.xmm0);
+      e.EndOp(dest);
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_I32)) {
       Xmm dest;
       Reg32 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pinsrd(e.xmm0, src, 0);
+      e.vmovd(e.xmm0, src);
       e.vpbroadcastd(dest, e.xmm0);
       e.EndOp(dest, src);
-    } else if (i->src1.value->type == FLOAT32_TYPE) {
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_I32C)) {
+      Xmm dest;
+      e.BeginOp(i->dest, dest, REG_DEST);
+      // TODO(benvanik): faster constant splats.
+      e.mov(e.eax, i->src1.value->constant.i32);
+      e.vmovd(e.xmm0, e.eax);
+      e.vpbroadcastd(dest, e.xmm0);
+      e.EndOp(dest);
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_F32)) {
       Xmm dest, src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
       e.vbroadcastss(dest, src);
       e.EndOp(dest, src);
+    } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_F32C)) {
+      Xmm dest;
+      e.BeginOp(i->dest, dest, REG_DEST);
+      e.mov(e.eax, i->src1.value->constant.i32);
+      e.vmovd(e.xmm0, e.eax);
+      e.vbroadcastss(dest, e.xmm0);
+      e.EndOp(dest);
     } else {
       ASSERT_INVALID_TYPE();
     }
@@ -2321,9 +2511,57 @@ table->AddSequence(OPCODE_SPLAT, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
   if (IsVecType(i->dest->type)) {
     if (i->src1.value->type == INT32_TYPE) {
-      UNIMPLEMENTED_SEQ();
+      // Permute words between src2 and src3.
+      // TODO(benvanik): check src3 for zero. if 0, we can use pshufb.
+      if (i->src1.value->IsConstant()) {
+        uint32_t control = i->src1.value->AsUint32();
+        Xmm dest, src2, src3;
+        e.BeginOp(i->dest, dest, REG_DEST,
+                  i->src2.value, src2, 0,
+                  i->src3.value, src3, 0);
+        // Shuffle things into the right places in dest & xmm0,
+        // then we blend them together.
+        uint32_t src_control =
+            (((control >> 24) & 0x3) << 0) |
+            (((control >> 16) & 0x3) << 2) |
+            (((control >> 8) & 0x3) << 4) |
+            (((control >> 0) & 0x3) << 6);
+        uint32_t blend_control =
+            (((control >> 26) & 0x1) << 0) |
+            (((control >> 18) & 0x1) << 1) |
+            (((control >> 10) & 0x1) << 2) |
+            (((control >> 2) & 0x1) << 3);
+        if (dest != src3) {
+          e.pshufd(dest, src2, src_control);
+          e.pshufd(e.xmm0, src3, src_control);
+          e.blendps(dest, e.xmm0, blend_control);
+        } else {
+          e.movaps(e.xmm0, src3);
+          e.pshufd(dest, src2, src_control);
+          e.pshufd(e.xmm0, e.xmm0, src_control);
+          e.blendps(dest, e.xmm0, blend_control);
+        }
+        e.EndOp(dest, src2, src3);
+      } else {
+        Reg32 control;
+        Xmm dest, src2, src3;
+        e.BeginOp(i->dest, dest, REG_DEST,
+                  i->src1.value, control, 0,
+                  i->src2.value, src2, 0,
+                  i->src3.value, src3, 0);
+        UNIMPLEMENTED_SEQ();
+        e.EndOp(dest, control, src2, src3);
+      }
     } else if (i->src1.value->type == VEC128_TYPE) {
+      // Permute bytes between src2 and src3.
+      // TODO(benvanik): check src3 for zero. if 0, we can use pshufb.
+      Xmm dest, control, src2, src3;
+      e.BeginOp(i->dest, dest, REG_DEST,
+                i->src1.value, control, 0,
+                i->src2.value, src2, 0,
+                i->src3.value, src3, 0);
       UNIMPLEMENTED_SEQ();
+      e.EndOp(dest, control, src2, src3);
     } else {
       ASSERT_INVALID_TYPE();
     }
@@ -2339,7 +2577,11 @@ table->AddSequence(OPCODE_SWIZZLE, [](X64Emitter& e, Instr*& i) {
     // Defined by SWIZZLE_MASK()
     if (i->flags == INT32_TYPE || i->flags == FLOAT32_TYPE) {
       uint8_t swizzle_mask = (uint8_t)i->src2.offset;
-      e.db(0xCC);
+      swizzle_mask =
+          (((swizzle_mask >> 6) & 0x3) << 0) |
+          (((swizzle_mask >> 4) & 0x3) << 2) |
+          (((swizzle_mask >> 2) & 0x3) << 4) |
+          (((swizzle_mask >> 0) & 0x3) << 6);
       Xmm dest, src1;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src1, 0);
@@ -2392,7 +2634,7 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     // Load source, move from tight pack of X16Y16.... to X16...Y16...
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
-    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm&, const Xmm& src) {
+    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       // sx = src.iw >> 16;
       // sy = src.iw & 0xFFFF;
       // dest = { 3.0 + (sx / float(1 << 22)),
@@ -2410,11 +2652,31 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     // Could be shared with FLOAT16_2.
     UNIMPLEMENTED_SEQ();
   } else if (i->flags == PACK_TYPE_SHORT_2) {
-    // (VD.x) = 3.0 + (VB.x)*2^-22
-    // (VD.y) = 3.0 + (VB.y)*2^-22
+    // (VD.x) = 3.0 + (VB.x>>16)*2^-22
+    // (VD.y) = 3.0 + (VB.x)*2^-22
     // (VD.z) = 0.0
-    // (VD.w) = 3.0
-    UNIMPLEMENTED_SEQ();
+    // (VD.w) = 1.0
+    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+      // XMLoadShortN2 plus 3,3,0,3 (for some reason)
+      // src is (xx,xx,xx,VALUE)
+      e.mov(e.rax, XMMCONSTBASE);
+      // (VALUE,VALUE,VALUE,VALUE)
+      e.vbroadcastss(dest, src);
+      // (VALUE&0xFFFF,VALUE&0xFFFF0000,0,0)
+      e.andps(dest, XMMCONST(e.rax, XMMMaskX16Y16));
+      // Sign extend.
+      e.xorps(dest, XMMCONST(e.rax, XMMFlipX16Y16));
+      // Convert int->float.
+      e.cvtpi2ps(dest, Stash(e, dest));
+      // 0x8000 to undo sign.
+      e.addps(dest, XMMCONST(e.rax, XMMFixX16Y16));
+      // Normalize.
+      e.mulps(dest, XMMCONST(e.rax, XMMNormalizeX16Y16));
+      // Clamp.
+      e.maxps(dest, XMMCONST(e.rax, XMMNegativeOne));
+      // Add 3,3,0,1.
+      e.addps(dest, XMMCONST(e.rax, XMM3301));
+    });
   } else if (i->flags == PACK_TYPE_S8_IN_16_LO) {
     UNIMPLEMENTED_SEQ();
   } else if (i->flags == PACK_TYPE_S8_IN_16_HI) {
