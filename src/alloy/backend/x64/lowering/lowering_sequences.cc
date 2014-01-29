@@ -30,6 +30,12 @@ using namespace Xbyak;
 
 namespace {
 
+// Make loads/stores to ints check to see if they are doing a register value.
+// This is slow, and with proper constant propagation we may be able to always
+// avoid it.
+// TODO(benvanik): make a compile time flag?
+#define DYNAMIC_REGISTER_ACCESS_CHECK 1
+
 #define UNIMPLEMENTED_SEQ() __debugbreak()
 #define ASSERT_INVALID_TYPE() XEASSERTALWAYS()
 
@@ -94,6 +100,28 @@ void UnimplementedExtern(void* raw_context, ExternFunction* extern_fn) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *((ThreadState**)raw_context);
   extern_fn->Call(thread_state);
+}
+
+uint64_t DynamicRegisterLoad(void* raw_context, uint32_t address) {
+  auto thread_state = *((ThreadState**)raw_context);
+  auto cbs = thread_state->runtime()->access_callbacks();
+  while (cbs) {
+    if (cbs->handles(cbs->context, address)) {
+      return cbs->read(cbs->context, address);
+    }
+  }
+  return 0;
+}
+
+void DynamicRegisterStore(void* raw_context, uint32_t address, uint64_t value) {
+  auto thread_state = *((ThreadState**)raw_context);
+  auto cbs = thread_state->runtime()->access_callbacks();
+  while (cbs) {
+    if (cbs->handles(cbs->context, address)) {
+      cbs->write(cbs->context, address, value);
+      return;
+    }
+  }
 }
 
 void Unpack_FLOAT16_2(void* raw_context, __m128& v) {
@@ -1037,6 +1065,44 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
     e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
     addr = e.rdx + addr_off;
   }
+
+#if DYNAMIC_REGISTER_ACCESS_CHECK
+  e.inLocalLabel();
+  // if ((address & 0xFF000000) == 0x7F000000) do check;
+  e.lea(e.r8d, e.ptr[addr]);
+  e.and(e.r8d, 0xFF000000);
+  e.cmp(e.r8d, 0x7F000000);
+  e.jne(".normal_addr");
+  if (IsIntType(i->dest->type)) {
+    e.mov(e.rdx, addr_off);
+    CallNative(e, DynamicRegisterLoad);
+    Reg64 dyn_dest;
+    e.BeginOp(i->dest, dyn_dest, REG_DEST);
+    switch (i->dest->type) {
+    case INT8_TYPE:
+      e.movzx(dyn_dest, e.al);
+      break;
+    case INT16_TYPE:
+      e.movzx(dyn_dest, e.ax);
+      break;
+    case INT32_TYPE:
+      e.mov(dyn_dest.cvt32(), e.eax);
+      break;
+    case INT64_TYPE:
+      e.mov(dyn_dest, e.rax);
+      break;
+    default:
+      e.db(0xCC);
+      break;
+    }
+    e.EndOp(dyn_dest);
+  } else {
+    e.db(0xCC);
+  }
+  e.jmp(".skip_access");
+  e.L(".normal_addr");
+#endif  // DYNAMIC_REGISTER_ACCESS_CHECK
+
   if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
     Reg8 dest;
     e.BeginOp(i->dest, dest, REG_DEST);
@@ -1114,6 +1180,12 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
   if (!i->src1.value->IsConstant()) {
     e.EndOp(addr_off);
   }
+
+#if DYNAMIC_REGISTER_ACCESS_CHECK
+  e.L(".skip_access");
+  e.outLocalLabel();
+#endif  // DYNAMIC_REGISTER_ACCESS_CHECK
+
   i = e.Advance(i);
   return true;
 });
@@ -1173,6 +1245,44 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
     addr = e.rdx + addr_off;
   }
+
+#if DYNAMIC_REGISTER_ACCESS_CHECK
+  // if ((address & 0xFF000000) == 0x7F000000) do check;
+  e.lea(e.r8d, e.ptr[addr]);
+  e.and(e.r8d, 0xFF000000);
+  e.cmp(e.r8d, 0x7F000000);
+  e.inLocalLabel();
+  e.jne(".normal_addr");
+  if (IsIntType(i->src2.value->type)) {
+    Reg64 dyn_src;
+    e.BeginOp(i->src2.value, dyn_src, 0);
+    switch (i->src2.value->type) {
+    case INT8_TYPE:
+      e.movzx(e.r8, dyn_src.cvt8());
+      break;
+    case INT16_TYPE:
+      e.movzx(e.r8, dyn_src.cvt16());
+      break;
+    case INT32_TYPE:
+      e.mov(e.r8d, dyn_src.cvt32());
+      break;
+    case INT64_TYPE:
+      e.mov(e.r8, dyn_src);
+      break;
+    default:
+      e.db(0xCC);
+      break;
+    }
+    e.EndOp(dyn_src);
+    e.mov(e.rdx, addr_off);
+    CallNative(e, DynamicRegisterStore);
+  } else {
+    e.db(0xCC);
+  }
+  e.jmp(".skip_access");
+  e.L(".normal_addr");
+#endif  // DYNAMIC_REGISTER_ACCESS_CHECK
+
   if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
     Reg8 src;
     e.BeginOp(i->src2.value, src, 0);
@@ -1304,6 +1414,12 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
   if (!i->src1.value->IsConstant()) {
     e.EndOp(addr_off);
   }
+
+#if DYNAMIC_REGISTER_ACCESS_CHECK
+  e.L(".skip_access");
+  e.outLocalLabel();
+#endif  // DYNAMIC_REGISTER_ACCESS_CHECK
+
   i = e.Advance(i);
   return true;
 });
