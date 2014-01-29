@@ -90,6 +90,12 @@ void Dummy() {
   //
 }
 
+void UnimplementedExtern(void* raw_context, ExternFunction* extern_fn) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *((ThreadState**)raw_context);
+  extern_fn->Call(thread_state);
+}
+
 void Unpack_FLOAT16_2(void* raw_context, __m128& v) {
   uint32_t src = v.m128_i32[3];
   v.m128_f32[0] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
@@ -142,9 +148,15 @@ void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
   auto fn = symbol_info->function();
   if (fn && fn->type() == Function::EXTERN_FUNCTION) {
     auto extern_fn = (ExternFunction*)fn;
-    e.mov(e.rdx, (uint64_t)extern_fn->arg0());
-    e.mov(e.r8, (uint64_t)extern_fn->arg1());
-    e.mov(e.rax, (uint64_t)extern_fn->handler());
+    if (extern_fn->handler()) {
+      e.mov(e.rdx, (uint64_t)extern_fn->arg0());
+      e.mov(e.r8, (uint64_t)extern_fn->arg1());
+      e.mov(e.rax, (uint64_t)extern_fn->handler());
+    } else {
+      // Unimplemented - call dummy.
+      e.mov(e.rdx, (uint64_t)extern_fn);
+      e.mov(e.rax, (uint64_t)UnimplementedExtern);
+    }
   } else {
     // Generic call, resolve address.
     // TODO(benvanik): caching/etc. For now this makes debugging easier.
