@@ -132,7 +132,7 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
   const bool emit_prolog = true;
-  const size_t stack_size = 64;
+  const size_t stack_size = 72;
   if (emit_prolog) {
     mov(qword[rsp + 8], rcx);
     sub(rsp, stack_size);
@@ -238,7 +238,8 @@ void X64Emitter::EvictStaleRegisters() {
 
     // Register is live, not active. Check and see if we get rid of it.
     auto v = reg_state_.reg_values[n];
-    if (v->last_use->ordinal < current_ordinal) {
+    if (!v->last_use ||
+        v->last_use->ordinal < current_ordinal) {
       reg_state_.reg_values[n] = NULL;
       v->reg = -1;
       continue;

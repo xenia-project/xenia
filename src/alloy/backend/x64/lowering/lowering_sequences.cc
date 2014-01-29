@@ -189,7 +189,7 @@ void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
   }
   if (flags & CALL_TAIL) {
     // TODO(benvanik): adjust stack?
-    e.add(e.rsp, 0x40);
+    e.add(e.rsp, 72);
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
@@ -210,7 +210,7 @@ void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
   e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
   if (flags & CALL_TAIL) {
     // TODO(benvanik): adjust stack?
-    e.add(e.rsp, 0x40);
+    e.add(e.rsp, 72);
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
@@ -2844,8 +2844,16 @@ table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
-  if (IsIntType(i->dest->type)) {
-    UNIMPLEMENTED_SEQ();
+  if (i->dest->type == INT32_TYPE) {
+    // dest = old_value = InterlockedExchange(src1 = address, src2 = new_value);
+    Reg32 dest, src2;
+    Reg64 src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0,
+              i->src2.value, src2, 0);
+    e.mov(dest, src2);
+    e.xchg(e.dword[src1], dest);
+    e.EndOp(dest, src1, src2);
   } else {
     ASSERT_INVALID_TYPE();
   }

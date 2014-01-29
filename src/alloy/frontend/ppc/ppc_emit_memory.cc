@@ -891,7 +891,8 @@ XEEMITTER(stfiwx,       0x7C0007AE, X  )(PPCHIRBuilder& f, InstrData& i) {
   // EA <- b + (RB)
   // MEM(EA, 4) <- (FRS)[32:63]
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  f.Store(ea, f.ByteSwap(f.Cast(f.LoadFPR(i.X.RT), INT32_TYPE)));
+  f.Store(ea, f.ByteSwap(
+      f.Truncate(f.Cast(f.LoadFPR(i.X.RT), INT64_TYPE), INT32_TYPE)));
   return 0;
 }
 

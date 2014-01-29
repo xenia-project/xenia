@@ -17,6 +17,8 @@ namespace {
 #define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
 #define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
 
+#define STASH_OFFSET 48
+
 // If we are running with tracing on we have to store the EFLAGS in the stack,
 // otherwise our calls out to C to print will clear it before DID_CARRY/etc
 // can get the value.
@@ -24,7 +26,7 @@ namespace {
 
 void LoadEflags(X64Emitter& e) {
 #if STORE_EFLAGS
-  e.mov(e.eax, e.dword[e.rsp + 40]);
+  e.mov(e.eax, e.dword[e.rsp + STASH_OFFSET]);
   e.push(e.ax);
   e.popf();
 #else
@@ -34,7 +36,7 @@ void LoadEflags(X64Emitter& e) {
 void StoreEflags(X64Emitter& e) {
 #if STORE_EFLAGS
   e.pushf();
-  e.pop(e.word[e.rsp + 40]);
+  e.pop(e.word[e.rsp + STASH_OFFSET]);
 #else
   // EFLAGS should have CA set?
   // (so long as we don't fuck with it)
@@ -43,7 +45,7 @@ void StoreEflags(X64Emitter& e) {
 
 Address Stash(X64Emitter& e, const Xmm& r) {
   // TODO(benvanik): ensure aligned.
-  auto addr = e.ptr[e.rsp + 48];
+  auto addr = e.ptr[e.rsp + STASH_OFFSET];
   e.movups(addr, r);
   return addr;
 }
