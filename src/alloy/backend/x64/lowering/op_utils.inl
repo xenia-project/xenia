@@ -64,12 +64,10 @@ void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
 }
 
 void CallNative(X64Emitter& e, void* target) {
-  e.sub(e.rsp, 0x18);
   e.mov(e.rax, (uint64_t)target);
   e.call(e.rax);
   e.mov(e.rcx, e.qword[e.rsp + 0]);
   e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
-  e.add(e.rsp, 0x18);
 }
 
 // Sets EFLAGs with zf for the given value.
