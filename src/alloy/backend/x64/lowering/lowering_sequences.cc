@@ -17,6 +17,9 @@
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
 
+// TODO(benvanik): reimplement packing functions
+#include <DirectXPackedVector.h>
+
 using namespace alloy;
 using namespace alloy::backend::x64;
 using namespace alloy::backend::x64::lowering;
@@ -85,6 +88,14 @@ static const vec128_t xmm_consts[] = {
 
 void Dummy() {
   //
+}
+
+void Unpack_FLOAT16_2(void* raw_context, __m128& v) {
+  uint32_t src = v.m128_i32[3];
+  v.m128_f32[0] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
+  v.m128_f32[1] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)(src >> 16));
+  v.m128_f32[2] = 0.0f;
+  v.m128_f32[3] = 1.0f;
 }
 
 uint64_t LoadClock(void* raw_context) {
@@ -378,7 +389,7 @@ table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
       Xmm src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pextrd(dest, src, 0);
+      e.vmovd(dest, src);
       e.EndOp(dest, src);
     } else {
       UNIMPLEMENTED_SEQ();
@@ -389,7 +400,7 @@ table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
       Xmm src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pextrq(dest, src, 0);
+      e.vmovq(dest, src);
       e.EndOp(dest, src);
     } else {
       UNIMPLEMENTED_SEQ();
@@ -400,7 +411,7 @@ table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
       Reg32 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pinsrd(dest, src, 0);
+      e.vmovd(dest, src);
       e.EndOp(dest, src);
     } else {
       UNIMPLEMENTED_SEQ();
@@ -411,7 +422,7 @@ table->AddSequence(OPCODE_CAST, [](X64Emitter& e, Instr*& i) {
       Reg64 src;
       e.BeginOp(i->dest, dest, REG_DEST,
                 i->src1.value, src, 0);
-      e.pinsrq(dest, src, 0);
+      e.vmovq(dest, src);
       e.EndOp(dest, src);
     } else {
       UNIMPLEMENTED_SEQ();
@@ -582,7 +593,7 @@ table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
     e.BeginOp(i->dest, dest, REG_DEST,
               i->src1.value, src, 0);
     // TODO(benvanik): additional checks for saturation/etc? cvtt* (trunc?)
-    e.cvtss2si(dest, src);
+    e.cvttss2si(dest, src);
     e.EndOp(dest, src);
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_F64)) {
     Reg32 dest;
@@ -591,7 +602,7 @@ table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
               i->src1.value, src, 0);
     // TODO(benvanik): additional checks for saturation/etc? cvtt* (trunc?)
     e.cvtsd2ss(e.xmm0, src);
-    e.cvtss2si(dest, e.xmm0);
+    e.cvttss2si(dest, e.xmm0);
     e.EndOp(dest, src);
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_F64)) {
     Reg64 dest;
@@ -599,7 +610,7 @@ table->AddSequence(OPCODE_CONVERT, [](X64Emitter& e, Instr*& i) {
     e.BeginOp(i->dest, dest, REG_DEST,
               i->src1.value, src, 0);
     // TODO(benvanik): additional checks for saturation/etc? cvtt* (trunc?)
-    e.cvtsd2si(dest, src);
+    e.cvttsd2si(dest, src);
     e.EndOp(dest, src);
   } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_I32)) {
     Xmm dest;
@@ -764,10 +775,11 @@ table->AddSequence(OPCODE_LOAD_CLOCK, [](X64Emitter& e, Instr*& i) {
 // --------------------------------------------------------------------------
 
 table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
+  auto addr = e.rcx + i->src1.offset;
   if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
     Reg8 dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.mov(dest, e.byte[e.rcx + i->src1.offset]);
+    e.mov(dest, e.byte[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -777,7 +789,7 @@ table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
     Reg16 dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.mov(dest, e.word[e.rcx + i->src1.offset]);
+    e.mov(dest, e.word[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -787,7 +799,7 @@ table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
     Reg32 dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.mov(dest, e.dword[e.rcx + i->src1.offset]);
+    e.mov(dest, e.dword[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -797,7 +809,7 @@ table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
     Reg64 dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.mov(dest, e.qword[e.rcx + i->src1.offset]);
+    e.mov(dest, e.qword[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -807,28 +819,28 @@ table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
     Xmm dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.movss(dest, e.dword[e.rcx + i->src1.offset]);
+    e.movss(dest, e.dword[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movaps(e.xmm0, dest);
+    e.lea(e.r8, Stash(e, dest));
     CallNative(e, TraceContextLoadF32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
     Xmm dest;
     e.BeginOp(i->dest, dest, REG_DEST);
-    e.movsd(dest, e.qword[e.rcx + i->src1.offset]);
+    e.movsd(dest, e.qword[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movaps(e.xmm0, dest);
+    e.lea(e.r8, Stash(e, dest));
     CallNative(e, TraceContextLoadF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
     Xmm dest;
     e.BeginOp(i->dest, dest, REG_DEST);
     // NOTE: we always know we are aligned.
-    e.movaps(dest, e.ptr[e.rcx + i->src1.offset]);
+    e.movaps(dest, e.ptr[addr]);
     e.EndOp(dest);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -843,10 +855,11 @@ table->AddSequence(OPCODE_LOAD_CONTEXT, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
+  auto addr = e.rcx + i->src1.offset;
   if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
     Reg8 src;
     e.BeginOp(i->src2.value, src, 0);
-    e.mov(e.byte[e.rcx + i->src1.offset], src);
+    e.mov(e.byte[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -854,7 +867,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreI8);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
-    e.mov(e.byte[e.rcx + i->src1.offset], i->src2.value->constant.i8);
+    e.mov(e.byte[addr], i->src2.value->constant.i8);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.mov(e.r8b, i->src2.value->constant.i8);
@@ -863,7 +876,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
     Reg16 src;
     e.BeginOp(i->src2.value, src, 0);
-    e.mov(e.word[e.rcx + i->src1.offset], src);
+    e.mov(e.word[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -871,7 +884,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreI16);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
-    e.mov(e.word[e.rcx + i->src1.offset], i->src2.value->constant.i16);
+    e.mov(e.word[addr], i->src2.value->constant.i16);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.mov(e.r8w, i->src2.value->constant.i16);
@@ -880,7 +893,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
     Reg32 src;
     e.BeginOp(i->src2.value, src, 0);
-    e.mov(e.dword[e.rcx + i->src1.offset], src);
+    e.mov(e.dword[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -888,7 +901,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreI32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
-    e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
+    e.mov(e.dword[addr], i->src2.value->constant.i32);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.mov(e.r8d, i->src2.value->constant.i32);
@@ -897,7 +910,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
     Reg64 src;
     e.BeginOp(i->src2.value, src, 0);
-    e.mov(e.qword[e.rcx + i->src1.offset], src);
+    e.mov(e.qword[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -905,7 +918,7 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
     CallNative(e, TraceContextStoreI64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
-    MovMem64(e, e.rcx + i->src1.offset, i->src2.value->constant.i64);
+    MovMem64(e, addr, i->src2.value->constant.i64);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
     e.mov(e.r8, i->src2.value->constant.i64);
@@ -914,42 +927,46 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
     Xmm src;
     e.BeginOp(i->src2.value, src, 0);
-    e.movss(e.dword[e.rcx + i->src1.offset], src);
+    e.movss(e.dword[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movss(e.xmm0, src);
+    e.lea(e.r8, Stash(e, src));
     CallNative(e, TraceContextStoreF32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
-    e.mov(e.dword[e.rcx + i->src1.offset], i->src2.value->constant.i32);
+    e.mov(e.dword[addr], i->src2.value->constant.i32);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movss(e.xmm0, e.dword[e.rcx + i->src1.offset]);
+    e.mov(e.eax, i->src2.value->constant.i32);
+    e.vmovd(e.xmm0, e.eax);
+    e.lea(e.r8, Stash(e, e.xmm0));
     CallNative(e, TraceContextStoreF32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
     Xmm src;
     e.BeginOp(i->src2.value, src, 0);
-    e.movsd(e.qword[e.rcx + i->src1.offset], src);
+    e.movsd(e.qword[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movsd(e.xmm0, src);
+    e.lea(e.r8, Stash(e, src));
     CallNative(e, TraceContextStoreF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
-    MovMem64(e, e.rcx + i->src1.offset, i->src2.value->constant.i64);
+    MovMem64(e, addr, i->src2.value->constant.i64);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.movsd(e.xmm0, e.qword[e.rcx + i->src1.offset]);
+    e.mov(e.rax, i->src2.value->constant.i64);
+    e.vmovq(e.xmm0, e.rax);
+    e.lea(e.r8, Stash(e, e.xmm0));
     CallNative(e, TraceContextStoreF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128)) {
     Xmm src;
     e.BeginOp(i->src2.value, src, 0);
     // NOTE: we always know we are aligned.
-    e.movaps(e.ptr[e.rcx + i->src1.offset], src);
+    e.movaps(e.ptr[addr], src);
     e.EndOp(src);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
@@ -959,11 +976,11 @@ table->AddSequence(OPCODE_STORE_CONTEXT, [](X64Emitter& e, Instr*& i) {
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
     // TODO(benvanik): check zero
     // TODO(benvanik): correct order?
-    MovMem64(e, e.rcx + i->src1.offset, i->src2.value->constant.v128.low);
-    MovMem64(e, e.rcx + i->src1.offset + 8, i->src2.value->constant.v128.high);
+    MovMem64(e, addr, i->src2.value->constant.v128.low);
+    MovMem64(e, addr + 8, i->src2.value->constant.v128.high);
 #if DTRACE
     e.mov(e.rdx, i->src1.offset);
-    e.lea(e.r8, e.ptr[e.rcx + i->src1.offset]);
+    e.lea(e.r8, e.ptr[addr]);
     CallNative(e, TraceContextStoreV128);
 #endif  // DTRACE
   } else {
@@ -1062,7 +1079,7 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
     e.EndOp(dest);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movss(e.xmm0, dest);
+    e.lea(e.r8, Stash(e, dest));
     CallNative(e, TraceMemoryLoadF32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
@@ -1072,7 +1089,7 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
     e.EndOp(dest);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movsd(e.xmm0, dest);
+    e.lea(e.r8, Stash(e, dest));
     CallNative(e, TraceMemoryLoadF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
@@ -1224,14 +1241,16 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     e.EndOp(src);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movss(e.xmm0, src);
+    e.lea(e.r8, Stash(e, src));
     CallNative(e, TraceMemoryStoreF32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
     e.mov(e.dword[addr], i->src2.value->constant.i32);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movss(e.xmm0, e.ptr[addr]);
+    e.mov(e.eax, i->src2.value->constant.i32);
+    e.vmovd(e.xmm0, e.eax);
+    e.lea(e.r8, Stash(e, e.xmm0));
     CallNative(e, TraceMemoryStoreF32);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
@@ -1241,7 +1260,7 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     e.EndOp(src);
 #if DTRACE
     e.lea(e.rdx, e.ptr[addr]);
-    e.movsd(e.xmm0, src);
+    e.lea(e.r8, Stash(e, src));
     CallNative(e, TraceMemoryStoreF64);
 #endif  // DTRACE
   } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
@@ -2160,7 +2179,6 @@ table->AddSequence(OPCODE_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
       XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
         // src shift mask may have values >31, and x86 sets to zero when
         // that happens so we mask.
-        e.db(0xCC);
         e.mov(e.eax, 0x1F);
         e.vmovd(e.xmm0, e.eax);
         e.vpbroadcastd(e.xmm0, e.xmm0);
@@ -2637,16 +2655,14 @@ table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
     XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       // sx = src.iw >> 16;
       // sy = src.iw & 0xFFFF;
-      // dest = { 3.0 + (sx / float(1 << 22)),
-      //          3.0 + (sy / float(1 << 22)),
+      // dest = { XMConvertHalfToFloat(sx),
+      //          XMConvertHalfToFloat(sy),
       //          0.0,
-      //          1.0); --- or 3.0?
-      // So:
-      // xmm =                    {0,0,0,packed}
-      // xmm <<= 1w               {0,0,packed,0}
-      // xmm = VCVTPH2PS(xmm)     {sx,sy,0,0}
-      // xmm /=
-      UNIMPLEMENTED_SEQ();
+      //          1.0 };
+      auto addr = Stash(e, src);
+      e.lea(e.rdx, addr);
+      CallNative(e, Unpack_FLOAT16_2);
+      e.movaps(dest, addr);
     });
   } else if (i->flags == PACK_TYPE_FLOAT16_4) {
     // Could be shared with FLOAT16_2.

@@ -116,7 +116,9 @@ int X64Emitter::Emit(HIRBuilder* builder) {
       GetRegBit(r11) |
       GetRegBit(xmm1) |
       GetRegBit(xmm2) |
-      GetRegBit(xmm3);
+      GetRegBit(xmm3) |
+      GetRegBit(xmm4) |
+      GetRegBit(xmm5);
 
   // Function prolog.
   // Must be 16b aligned.
