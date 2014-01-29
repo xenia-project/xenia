@@ -113,13 +113,6 @@ uint64_t LoadClock(void* raw_context) {
   return time;
 }
 
-void CallNative(X64Emitter& e, void* target) {
-  e.mov(e.rax, (uint64_t)target);
-  e.call(e.rax);
-  e.mov(e.rcx, e.qword[e.rsp + 0]);
-  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
-}
-
 // TODO(benvanik): fancy stuff.
 void* ResolveFunctionSymbol(void* raw_context, FunctionInfo* symbol_info) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
@@ -1161,6 +1154,8 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
         // eh?
         e.bswap(e.r8);
         CallNative(e, cbs->write);
+        i = e.Advance(i);
+        return true;
       }
       cbs = cbs->next;
     }
@@ -1534,6 +1529,7 @@ table->AddSequence(OPCODE_COMPARE_UGE, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_DID_CARRY, [](X64Emitter& e, Instr*& i) {
   Reg8 dest;
   e.BeginOp(i->dest, dest, REG_DEST);
+  LoadEflags(e);
   e.setc(dest);
   e.EndOp(dest);
   i = e.Advance(i);
@@ -1543,6 +1539,7 @@ table->AddSequence(OPCODE_DID_CARRY, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_DID_OVERFLOW, [](X64Emitter& e, Instr*& i) {
   Reg8 dest;
   e.BeginOp(i->dest, dest, REG_DEST);
+  LoadEflags(e);
   e.seto(dest);
   e.EndOp(dest);
   i = e.Advance(i);

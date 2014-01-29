@@ -17,6 +17,30 @@ namespace {
 #define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
 #define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
 
+// If we are running with tracing on we have to store the EFLAGS in the stack,
+// otherwise our calls out to C to print will clear it before DID_CARRY/etc
+// can get the value.
+#define STORE_EFLAGS 1
+
+void LoadEflags(X64Emitter& e) {
+#if STORE_EFLAGS
+  e.mov(e.eax, e.dword[e.rsp + 40]);
+  e.push(e.ax);
+  e.popf();
+#else
+  // EFLAGS already present.
+#endif  // STORE_EFLAGS
+}
+void StoreEflags(X64Emitter& e) {
+#if STORE_EFLAGS
+  e.pushf();
+  e.pop(e.word[e.rsp + 40]);
+#else
+  // EFLAGS should have CA set?
+  // (so long as we don't fuck with it)
+#endif  // STORE_EFLAGS
+}
+
 Address Stash(X64Emitter& e, const Xmm& r) {
   // TODO(benvanik): ensure aligned.
   auto addr = e.ptr[e.rsp + 48];
@@ -37,6 +61,15 @@ void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
     e.mov(e.rax, v);
     e.mov(e.qword[addr], e.rax);
   }
+}
+
+void CallNative(X64Emitter& e, void* target) {
+  e.sub(e.rsp, 0x18);
+  e.mov(e.rax, (uint64_t)target);
+  e.call(e.rax);
+  e.mov(e.rcx, e.qword[e.rsp + 0]);
+  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+  e.add(e.rsp, 0x18);
 }
 
 // Sets EFLAGs with zf for the given value.
@@ -421,9 +454,7 @@ void IntUnaryOp(X64Emitter& e, Instr*& i, v_fn v_fn) {
     ASSERT_INVALID_TYPE();
   }
   if (i->flags & ARITHMETIC_SET_CARRY) {
-    // EFLAGS should have CA set?
-    // (so long as we don't fuck with it)
-    // UNIMPLEMENTED_SEQ();
+    StoreEflags(e);
   }
 };
 
@@ -598,9 +629,7 @@ void IntBinaryOp(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn) {
     ASSERT_INVALID_TYPE();
   }
   if (i->flags & ARITHMETIC_SET_CARRY) {
-    // EFLAGS should have CA set?
-    // (so long as we don't fuck with it)
-    // UNIMPLEMENTED_SEQ();
+    StoreEflags(e);
   }
 };
 
@@ -777,9 +806,7 @@ void IntTernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn
     ASSERT_INVALID_TYPE();
   }
   if (i->flags & ARITHMETIC_SET_CARRY) {
-    // EFLAGS should have CA set?
-    // (so long as we don't fuck with it)
-    // UNIMPLEMENTED_SEQ();
+    StoreEflags(e);
   }
 }
 
@@ -946,9 +973,7 @@ void XmmBinaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vv_fn vv_fn) {
     ASSERT_INVALID_TYPE();
   }
   if (flags & ARITHMETIC_SET_CARRY) {
-    // EFLAGS should have CA set?
-    // (so long as we don't fuck with it)
-    // UNIMPLEMENTED_SEQ();
+    StoreEflags(e);
   }
 };
 
@@ -992,9 +1017,7 @@ void XmmTernaryOp(X64Emitter& e, Instr*& i, uint32_t flags, xmm_vvv_fn vvv_fn) {
     ASSERT_INVALID_TYPE();
   }
   if (flags & ARITHMETIC_SET_CARRY) {
-    // EFLAGS should have CA set?
-    // (so long as we don't fuck with it)
-    // UNIMPLEMENTED_SEQ();
+    StoreEflags(e);
   }
 };
 
