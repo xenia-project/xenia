@@ -34,9 +34,17 @@ void SymbolInfo::set_name(const char* name) {
 FunctionInfo::FunctionInfo(Module* module, uint64_t address) :
     end_address_(0), behavior_(BEHAVIOR_DEFAULT), function_(0),
     SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address) {
+  xe_zero_struct(&extern_info_, sizeof(extern_info_));
 }
 
 FunctionInfo::~FunctionInfo() {
+}
+
+void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
+  behavior_ = BEHAVIOR_EXTERN;
+  extern_info_.handler = handler;
+  extern_info_.arg0 = arg0;
+  extern_info_.arg1 = arg1;
 }
 
 VariableInfo::VariableInfo(Module* module, uint64_t address) :

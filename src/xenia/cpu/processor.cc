@@ -648,7 +648,6 @@ json_t* Processor::DumpModule(XexModule* module, bool& succeeded) {
     json_object_set_new(import_library_json, "imports", imports_json);
 
     json_array_append_new(library_imports_json, import_library_json);
-    xe_free(import_infos);
   }
   json_object_set_new(module_json, "libraryImports", library_imports_json);
 

@@ -74,6 +74,7 @@ public:
                 uint32_t call_flags = 0);
   void CallIndirect(Value* value, uint32_t call_flags = 0);
   void CallIndirectTrue(Value* cond, Value* value, uint32_t call_flags = 0);
+  void CallExtern(runtime::FunctionInfo* symbol_info);
   void Return();
   void ReturnTrue(Value* cond);
 

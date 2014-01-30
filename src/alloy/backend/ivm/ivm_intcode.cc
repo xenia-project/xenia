@@ -712,6 +712,13 @@ int Translate_CALL_INDIRECT_TRUE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
 }
 
+uint32_t IntCode_CALL_EXTERN(IntCodeState& ics, const IntCode* i) {
+  return IntCode_CALL_XX(ics, i, i->src1_reg);
+}
+int Translate_CALL_EXTERN(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_CALL_EXTERN);
+}
+
 uint32_t IntCode_RETURN(IntCodeState& ics, const IntCode* i) {
   return IA_RETURN;
 }
@@ -4009,6 +4016,7 @@ static const TranslateFn dispatch_table[] = {
   Translate_CALL_TRUE,
   Translate_CALL_INDIRECT,
   Translate_CALL_INDIRECT_TRUE,
+  Translate_CALL_EXTERN,
   Translate_RETURN,
   Translate_RETURN_TRUE,
 

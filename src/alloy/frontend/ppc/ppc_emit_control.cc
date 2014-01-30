@@ -380,8 +380,8 @@ XEEMITTER(mcrf,         0x4C000000, XL )(PPCHIRBuilder& f, InstrData& i) {
 // System linkage (A-24)
 
 XEEMITTER(sc,           0x44000002, SC )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  f.CallExtern(f.symbol_info());
+  return 0;
 }
 
 

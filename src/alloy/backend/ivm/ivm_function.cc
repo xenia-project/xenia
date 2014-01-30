@@ -23,7 +23,7 @@ using namespace alloy::runtime;
 IVMFunction::IVMFunction(FunctionInfo* symbol_info) :
     register_count_(0), intcode_count_(0), intcodes_(0),
     source_map_count_(0), source_map_(0),
-    GuestFunction(symbol_info) {
+    Function(symbol_info) {
 }
 
 IVMFunction::~IVMFunction() {

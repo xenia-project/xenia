@@ -345,8 +345,6 @@ void XUserModule::Dump() {
 
         }
       }
-
-      xe_free(import_infos);
     }
 
     printf("\n");

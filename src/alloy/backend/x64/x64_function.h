@@ -20,7 +20,7 @@ namespace backend {
 namespace x64 {
 
 
-class X64Function : public runtime::GuestFunction {
+class X64Function : public runtime::Function {
 public:
   X64Function(runtime::FunctionInfo* symbol_info);
   virtual ~X64Function();

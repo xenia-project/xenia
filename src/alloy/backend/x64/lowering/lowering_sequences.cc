@@ -96,12 +96,6 @@ void Dummy() {
   //
 }
 
-void UnimplementedExtern(void* raw_context, ExternFunction* extern_fn) {
-  // TODO(benvanik): generate this thunk at runtime? or a shim?
-  auto thread_state = *((ThreadState**)raw_context);
-  extern_fn->Call(thread_state);
-}
-
 uint64_t DynamicRegisterLoad(void* raw_context, uint32_t address) {
   auto thread_state = *((ThreadState**)raw_context);
   auto cbs = thread_state->runtime()->access_callbacks();
@@ -149,44 +143,30 @@ void* ResolveFunctionSymbol(void* raw_context, FunctionInfo* symbol_info) {
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
   XEASSERTNOTNULL(fn);
-  XEASSERT(fn->type() == Function::USER_FUNCTION);
   auto x64_fn = (X64Function*)fn;
   return x64_fn->machine_code();
 }
-void* ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
+void* ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *((ThreadState**)raw_context);
 
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(target_address, &fn);
   XEASSERTNOTNULL(fn);
-  XEASSERT(fn->type() == Function::USER_FUNCTION);
   auto x64_fn = (X64Function*)fn;
   return x64_fn->machine_code();
 }
 void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
-  // If we are an extern function, we can directly insert a call.
   auto fn = symbol_info->function();
-  if (fn && fn->type() == Function::EXTERN_FUNCTION) {
-    auto extern_fn = (ExternFunction*)fn;
-    if (extern_fn->handler()) {
-      e.mov(e.rdx, (uint64_t)extern_fn->arg0());
-      e.mov(e.r8, (uint64_t)extern_fn->arg1());
-      e.mov(e.rax, (uint64_t)extern_fn->handler());
-    } else {
-      // Unimplemented - call dummy.
-      e.mov(e.rdx, (uint64_t)extern_fn);
-      e.mov(e.rax, (uint64_t)UnimplementedExtern);
-    }
-  } else {
-    // Generic call, resolve address.
-    // TODO(benvanik): caching/etc. For now this makes debugging easier.
-    e.mov(e.rdx, (uint64_t)symbol_info);
-    e.mov(e.rax, (uint64_t)ResolveFunctionSymbol);
-    e.call(e.rax);
-    e.mov(e.rcx, e.qword[e.rsp + 0]);
-    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
-  }
+  // Resolve address to the function to call and store in rax.
+  // TODO(benvanik): caching/etc. For now this makes debugging easier.
+  e.mov(e.rdx, (uint64_t)symbol_info);
+  e.mov(e.rax, (uint64_t)ResolveFunctionSymbol);
+  e.call(e.rax);
+  e.mov(e.rcx, e.qword[e.rsp + 0]);
+  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+
+  // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
     // TODO(benvanik): adjust stack?
     e.add(e.rsp, 72);
@@ -198,6 +178,8 @@ void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
   }
 }
 void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
+  // Resolve address to the function to call and store in rax.
+  // TODO(benvanik): caching/etc. For now this makes debugging easier.
   Reg64 r;
   e.BeginOp(target, r, 0);
   if (r != e.rdx) {
@@ -208,6 +190,8 @@ void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
   e.call(e.rax);
   e.mov(e.rcx, e.qword[e.rsp + 0]);
   e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+
+  // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
     // TODO(benvanik): adjust stack?
     e.add(e.rsp, 72);
@@ -345,6 +329,17 @@ table->AddSequence(OPCODE_CALL_INDIRECT_TRUE, [](X64Emitter& e, Instr*& i) {
   IssueCallIndirect(e, i->src2.value, i->flags);
   e.L(".x");
   e.outLocalLabel();
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_CALL_EXTERN, [](X64Emitter& e, Instr*& i) {
+  auto symbol_info = i->src1.symbol_info;
+  XEASSERT(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
+  XEASSERTNOTNULL(symbol_info->extern_handler());
+  e.mov(e.rdx, (uint64_t)symbol_info->extern_arg0());
+  e.mov(e.r8, (uint64_t)symbol_info->extern_arg1());
+  CallNative(e, symbol_info->extern_handler());
   i = e.Advance(i);
   return true;
 });

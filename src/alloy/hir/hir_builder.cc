@@ -557,6 +557,13 @@ void HIRBuilder::CallIndirectTrue(
   EndBlock();
 }
 
+void HIRBuilder::CallExtern(FunctionInfo* symbol_info) {
+  Instr* i = AppendInstr(OPCODE_CALL_EXTERN_info, 0);
+  i->src1.symbol_info = symbol_info;
+  i->src2.value = i->src3.value = NULL;
+  EndBlock();
+}
+
 void HIRBuilder::Return() {
   Instr* i = AppendInstr(OPCODE_RETURN_info, 0);
   i->src1.value = i->src2.value = i->src3.value = NULL;

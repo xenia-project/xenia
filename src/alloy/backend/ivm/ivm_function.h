@@ -21,7 +21,7 @@ namespace backend {
 namespace ivm {
 
 
-class IVMFunction : public runtime::GuestFunction {
+class IVMFunction : public runtime::Function {
 public:
   IVMFunction(runtime::FunctionInfo* symbol_info);
   virtual ~IVMFunction();
