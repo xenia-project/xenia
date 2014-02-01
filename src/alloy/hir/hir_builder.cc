@@ -71,7 +71,7 @@ int HIRBuilder::Finalize() {
         // No following block.
         // Sometimes VC++ generates functions with bl at the end even if they
         // will never return. Just add a return to satisfy things.
-        XELOGW("Fall-through out of the function.");
+        //XELOGW("Fall-through out of the function.");
         Trap();
         Return();
         current_block_ = NULL;
