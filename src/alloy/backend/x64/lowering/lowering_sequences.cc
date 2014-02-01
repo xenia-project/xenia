@@ -1054,19 +1054,16 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
     }
   }
 
-  // TODO(benvanik): dynamic register access check.
   // mov reg, [membase + address.32]
-  Reg64 addr_off;
-  RegExp addr;
   if (i->src1.value->IsConstant()) {
-    // TODO(benvanik): a way to do this without using a register.
     e.mov(e.eax, i->src1.value->AsUint32());
-    addr = e.rdx + e.rax;
   } else {
+    Reg64 addr_off;
     e.BeginOp(i->src1.value, addr_off, 0);
-    e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
-    addr = e.rdx + addr_off;
+    e.mov(e.eax, addr_off.cvt32()); // trunc to 32bits
+    e.EndOp(addr_off);
   }
+  auto addr = e.rdx + e.rax;
 
 #if DYNAMIC_REGISTER_ACCESS_CHECK
   e.inLocalLabel();
@@ -1076,7 +1073,7 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
   e.cmp(e.r8d, 0x7F000000);
   e.jne(".normal_addr");
   if (IsIntType(i->dest->type)) {
-    e.mov(e.rdx, addr_off);
+    e.mov(e.rdx, e.rax);
     CallNative(e, DynamicRegisterLoad);
     Reg64 dyn_dest;
     e.BeginOp(i->dest, dyn_dest, REG_DEST);
@@ -1179,9 +1176,6 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
   } else {
     ASSERT_INVALID_TYPE();
   }
-  if (!i->src1.value->IsConstant()) {
-    e.EndOp(addr_off);
-  }
 
 #if DYNAMIC_REGISTER_ACCESS_CHECK
   e.L(".skip_access");
@@ -1235,18 +1229,16 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
     }
   }
 
-  // TODO(benvanik): dynamic register access check
   // mov [membase + address.32], reg
-  Reg64 addr_off;
-  RegExp addr;
   if (i->src1.value->IsConstant()) {
     e.mov(e.eax, i->src1.value->AsUint32());
-    addr = e.rdx + e.rax;
   } else {
+    Reg64 addr_off;
     e.BeginOp(i->src1.value, addr_off, 0);
-    e.mov(addr_off.cvt32(), addr_off.cvt32()); // trunc to 32bits
-    addr = e.rdx + addr_off;
+    e.mov(e.eax, addr_off.cvt32()); // trunc to 32bits
+    e.EndOp(addr_off);
   }
+  auto addr = e.rdx + e.rax;
 
 #if DYNAMIC_REGISTER_ACCESS_CHECK
   // if ((address & 0xFF000000) == 0x7F000000) do check;
@@ -1276,7 +1268,7 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
       break;
     }
     e.EndOp(dyn_src);
-    e.mov(e.rdx, addr_off);
+    e.mov(e.rdx, e.rax);
     CallNative(e, DynamicRegisterStore);
   } else {
     e.db(0xCC);
@@ -1412,9 +1404,6 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
 #endif  // DTRACE
   } else {
     ASSERT_INVALID_TYPE();
-  }
-  if (!i->src1.value->IsConstant()) {
-    e.EndOp(addr_off);
   }
 
 #if DYNAMIC_REGISTER_ACCESS_CHECK
