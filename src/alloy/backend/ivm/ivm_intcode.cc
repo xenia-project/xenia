@@ -207,21 +207,21 @@ uint32_t IntCode_LOAD_REGISTER_I16(IntCodeState& ics, const IntCode* i) {
   uint64_t address = ics.rf[i->src1_reg].u32;
   RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
       (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i16 = XESWAP16((int16_t)cbs->read(cbs->context, address));
+  ics.rf[i->dest_reg].i16 = (int16_t)cbs->read(cbs->context, address);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_REGISTER_I32(IntCodeState& ics, const IntCode* i) {
   uint64_t address = ics.rf[i->src1_reg].u32;
   RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
       (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i32 = XESWAP32((int32_t)cbs->read(cbs->context, address));
+  ics.rf[i->dest_reg].i32 = (int32_t)cbs->read(cbs->context, address);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_REGISTER_I64(IntCodeState& ics, const IntCode* i) {
   uint64_t address = ics.rf[i->src1_reg].u32;
   RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
       (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i64 = XESWAP64((int64_t)cbs->read(cbs->context, address));
+  ics.rf[i->dest_reg].i64 = (int64_t)cbs->read(cbs->context, address);
   return IA_NEXT;
 }
 int DispatchRegisterRead(
@@ -267,7 +267,7 @@ uint32_t IntCode_LOAD_REGISTER_I16_DYNAMIC(IntCodeState& ics, const IntCode* i) 
   RegisterAccessCallbacks* cbs = ics.access_callbacks;
   while (cbs) {
     if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i16 = XESWAP16((int16_t)cbs->read(cbs->context, address));
+      ics.rf[i->dest_reg].i16 = (int16_t)cbs->read(cbs->context, address);
       return IA_NEXT;
     }
     cbs = cbs->next;
@@ -279,7 +279,7 @@ uint32_t IntCode_LOAD_REGISTER_I32_DYNAMIC(IntCodeState& ics, const IntCode* i) 
   RegisterAccessCallbacks* cbs = ics.access_callbacks;
   while (cbs) {
     if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i32 = XESWAP32((int32_t)cbs->read(cbs->context, address));
+      ics.rf[i->dest_reg].i32 = (int32_t)cbs->read(cbs->context, address);
       return IA_NEXT;
     }
     cbs = cbs->next;
@@ -291,7 +291,7 @@ uint32_t IntCode_LOAD_REGISTER_I64_DYNAMIC(IntCodeState& ics, const IntCode* i) 
   RegisterAccessCallbacks* cbs = ics.access_callbacks;
   while (cbs) {
     if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i64 = XESWAP64((int64_t)cbs->read(cbs->context, address));
+      ics.rf[i->dest_reg].i64 = (int64_t)cbs->read(cbs->context, address);
       return IA_NEXT;
     }
     cbs = cbs->next;
@@ -310,21 +310,21 @@ uint32_t IntCode_STORE_REGISTER_I16(IntCodeState& ics, const IntCode* i) {
   uint64_t address = ics.rf[i->src1_reg].u32;
   RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
       (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP16(ics.rf[i->src2_reg].i16));
+  cbs->write(cbs->context, address, ics.rf[i->src2_reg].i16);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_REGISTER_I32(IntCodeState& ics, const IntCode* i) {
   uint64_t address = ics.rf[i->src1_reg].u32;
   RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
       (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP32(ics.rf[i->src2_reg].i32));
+  cbs->write(cbs->context, address, ics.rf[i->src2_reg].i32);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_REGISTER_I64(IntCodeState& ics, const IntCode* i) {
   uint64_t address = ics.rf[i->src1_reg].u32;
   RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
       (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP64(ics.rf[i->src2_reg].i64));
+  cbs->write(cbs->context, address, ics.rf[i->src2_reg].i64);
   return IA_NEXT;
 }
 int DispatchRegisterWrite(
@@ -370,7 +370,7 @@ uint32_t IntCode_STORE_REGISTER_I16_DYNAMIC(IntCodeState& ics, const IntCode* i)
   RegisterAccessCallbacks* cbs = ics.access_callbacks;
   while (cbs) {
     if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP16(ics.rf[i->src2_reg].i16));
+      cbs->write(cbs->context, address, ics.rf[i->src2_reg].i16);
       return IA_NEXT;
     }
     cbs = cbs->next;
@@ -382,7 +382,7 @@ uint32_t IntCode_STORE_REGISTER_I32_DYNAMIC(IntCodeState& ics, const IntCode* i)
   RegisterAccessCallbacks* cbs = ics.access_callbacks;
   while (cbs) {
     if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP32(ics.rf[i->src2_reg].i32));
+      cbs->write(cbs->context, address, ics.rf[i->src2_reg].i32);
       return IA_NEXT;
     }
     cbs = cbs->next;
@@ -394,7 +394,7 @@ uint32_t IntCode_STORE_REGISTER_I64_DYNAMIC(IntCodeState& ics, const IntCode* i)
   RegisterAccessCallbacks* cbs = ics.access_callbacks;
   while (cbs) {
     if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP64(ics.rf[i->src2_reg].i64));
+      cbs->write(cbs->context, address, ics.rf[i->src2_reg].i64);
       return IA_NEXT;
     }
     cbs = cbs->next;
