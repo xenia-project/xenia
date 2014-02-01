@@ -2459,7 +2459,7 @@ table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
               i->src1.value, src, 0);
     e.bsr(dest.cvt16(), src.cvt16());
     // ZF = 1 if zero
-    e.mov(e.eax, 16);
+    e.mov(e.eax, 16 ^ 0x7);
     e.cmovz(dest.cvt32(), e.eax);
     e.sub(dest, 8);
     e.xor(dest, 0x7);
@@ -2471,7 +2471,7 @@ table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
               i->src1.value, src, 0);
     e.bsr(dest.cvt16(), src);
     // ZF = 1 if zero
-    e.mov(e.eax, 16);
+    e.mov(e.eax, 16 ^ 0xF);
     e.cmovz(dest.cvt32(), e.eax);
     e.xor(dest, 0xF);
     e.EndOp(dest, src);
@@ -2482,7 +2482,7 @@ table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
               i->src1.value, src, 0);
     e.bsr(dest.cvt32(), src);
     // ZF = 1 if zero
-    e.mov(e.eax, 32);
+    e.mov(e.eax, 32 ^ 0x1F);
     e.cmovz(dest.cvt32(), e.eax);
     e.xor(dest, 0x1F);
     e.EndOp(dest, src);
@@ -2493,7 +2493,7 @@ table->AddSequence(OPCODE_CNTLZ, [](X64Emitter& e, Instr*& i) {
               i->src1.value, src, 0);
     e.bsr(dest, src);
     // ZF = 1 if zero
-    e.mov(e.eax, 64);
+    e.mov(e.eax, 64 ^ 0x3F);
     e.cmovz(dest.cvt32(), e.eax);
     e.xor(dest, 0x3F);
     e.EndOp(dest, src);
