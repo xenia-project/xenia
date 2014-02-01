@@ -103,6 +103,12 @@ void Dummy() {
   //
 }
 
+void UndefinedCallExtern(void* raw_context, FunctionInfo* symbol_info) {
+  XELOGW("undefined extern call to %.8X %s",
+             symbol_info->address(),
+             symbol_info->name());
+}
+
 uint64_t DynamicRegisterLoad(void* raw_context, uint32_t address) {
   auto thread_state = *((ThreadState**)raw_context);
   auto cbs = thread_state->runtime()->access_callbacks();
@@ -339,14 +345,18 @@ table->AddSequence(OPCODE_CALL_INDIRECT_TRUE, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_CALL_EXTERN, [](X64Emitter& e, Instr*& i) {
   auto symbol_info = i->src1.symbol_info;
   XEASSERT(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
-  XEASSERTNOTNULL(symbol_info->extern_handler());
-  // rdx = target host function
-  // r8  = arg0
-  // r9  = arg1
-  e.mov(e.rdx, (uint64_t)symbol_info->extern_handler());
-  e.mov(e.r8, (uint64_t)symbol_info->extern_arg0());
-  e.mov(e.r9, (uint64_t)symbol_info->extern_arg1());
-  TransitionToHost(e);
+  if (!symbol_info->extern_handler()) {
+    e.mov(e.rdx, (uint64_t)symbol_info);
+    CallNative(e, UndefinedCallExtern);
+  } else {
+    // rdx = target host function
+    // r8  = arg0
+    // r9  = arg1
+    e.mov(e.rdx, (uint64_t)symbol_info->extern_handler());
+    e.mov(e.r8, (uint64_t)symbol_info->extern_arg0());
+    e.mov(e.r9, (uint64_t)symbol_info->extern_arg1());
+    TransitionToHost(e);
+  }
   i = e.Advance(i);
   return true;
 });
