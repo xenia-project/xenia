@@ -26,10 +26,11 @@ namespace x64 {
  * NOTE: stack must always be 16b aligned.
  *
  *  +------------------+
- *  | scratch, 56b     | rsp + 0
+ *  | arg temp, 3 * 8  | rsp + 0
  *  |                  |
- *  |       ....       |
  *  |                  |
+ *  +------------------+
+ *  | scratch, 24b     | rsp + 32
  *  |                  |
  *  +------------------+
  *  | rbx              | rsp + 56

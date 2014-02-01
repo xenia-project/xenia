@@ -17,7 +17,7 @@ namespace {
 #define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
 #define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
 
-#define STASH_OFFSET 0
+#define STASH_OFFSET 32
 
 // If we are running with tracing on we have to store the EFLAGS in the stack,
 // otherwise our calls out to C to print will clear it before DID_CARRY/etc
