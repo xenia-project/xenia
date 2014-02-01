@@ -1809,9 +1809,25 @@ table->AddSequence(OPCODE_VECTOR_ADD, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_SUB, [](X64Emitter& e, Instr*& i) {
   if (IsIntType(i->dest->type)) {
     IntBinaryOp(e, i, [](X64Emitter& e, Instr& i, const Reg& dest_src, const Operand& src) {
-      e.sub(dest_src, src);
+      if (i.flags & ARITHMETIC_SET_CARRY) {
+        auto Nax = LIKE_REG(e.rax, src);
+        e.mov(Nax, src);
+        e.not(Nax);
+        e.stc();
+        e.adc(dest_src, Nax);
+      } else {
+        e.sub(dest_src, src);
+      }
     }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
-      e.sub(dest_src, src);
+      if (i.flags & ARITHMETIC_SET_CARRY) {
+        auto Nax = LIKE_REG(e.rax, dest_src);
+        e.mov(Nax, src);
+        e.not(Nax);
+        e.stc();
+        e.adc(dest_src, Nax);
+      } else {
+        e.sub(dest_src, src);
+      }
     });
   } else if (IsFloatType(i->dest->type)) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
