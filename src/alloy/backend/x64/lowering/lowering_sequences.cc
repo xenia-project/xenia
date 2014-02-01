@@ -74,7 +74,7 @@ static const vec128_t xmm_consts[] = {
   /* XMMNormalizeX16Y16     */ vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
   /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
   /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
-  /* XMMSignMaskPD          */ vec128i(0x80000000u, 0x00000000u, 0x80000000u, 0x00000000u),
+  /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),
   /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
 };
 // Use consts by first loading the base register then accessing memory:
