@@ -744,12 +744,12 @@ void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
         // Eww.
         e.mov(TEMP_REG, src1);
         e.mov(src1, src3);
-        e.mov(dest, e.rax);
+        e.mov(dest, TEMP_REG);
         e.mov(TEMP_REG, src2->constant.i64);
         vvv_fn(e, *i, dest, TEMP_REG, src1);
       }
     } else {
-      e.mov(e.rax, src2->constant.i64);
+      e.mov(TEMP_REG, src2->constant.i64);
       e.mov(dest, src1);
       vvv_fn(e, *i, dest, TEMP_REG, src3);
     }
