@@ -1219,8 +1219,6 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
           }
           e.EndOp(src2);
         }
-        // eh?
-        e.bswap(e.r8);
         CallNative(e, cbs->write);
         i = e.Advance(i);
         return true;

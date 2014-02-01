@@ -187,10 +187,11 @@ uint64_t AudioSystem::ReadRegister(uint64_t addr) {
   XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
   // 1818h is read during a lock?
-  return 0;
+  return XESWAP32BE(0);
 }
 
 void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
+  value = XESWAP32BE((uint32_t)value);
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
   // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
