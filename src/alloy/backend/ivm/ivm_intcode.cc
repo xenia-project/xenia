@@ -2473,9 +2473,9 @@ uint32_t IntCode_SUB_I16_I16(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_SUB_I32_I32(IntCodeState& ics, const IntCode* i) {
   int32_t a = ics.rf[i->src1_reg].i32; int32_t b = ics.rf[i->src2_reg].i32;
   if (i->flags == ARITHMETIC_SET_CARRY) {
-    ics.did_carry = a < ~b;
+    ics.did_carry = SUB_DID_CARRY(a, b);
   }
-  ics.did_carry = SUB_DID_CARRY(a, b);
+  ics.rf[i->dest_reg].i32 = a - b;
   return IA_NEXT;
 }
 uint32_t IntCode_SUB_I64_I64(IntCodeState& ics, const IntCode* i) {
