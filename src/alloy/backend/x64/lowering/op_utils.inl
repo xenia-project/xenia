@@ -15,7 +15,8 @@
 namespace {
 
 #define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
-#define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
+#define TEMP_REG e.r8
+#define TEMP_LIKE(like) Reg(TEMP_REG.getIdx(), TEMP_REG.getKind(), like.getBit(), false)
 
 #define STASH_OFFSET 32
 
@@ -473,10 +474,10 @@ void IntBinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
       vv_fn(e, *i, dest, src1);
     } else {
       // Eww.
-      auto Nax = NAX_LIKE(src1);
-      e.mov(Nax, src1);
-      vv_fn(e, *i, Nax, src2);
-      e.mov(dest, Nax);
+      auto Ntx = TEMP_LIKE(src1);
+      e.mov(Ntx, src1);
+      vv_fn(e, *i, Ntx, src2);
+      e.mov(dest, Ntx);
     }
   } else {
     e.mov(dest, src1);
@@ -500,12 +501,12 @@ void IntBinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
   } else {
     // 64-bit.
     if (dest == src1) {
-      e.mov(e.rax, src2->constant.i64);
-      vv_fn(e, *i, dest, e.rax);
+      e.mov(TEMP_REG, src2->constant.i64);
+      vv_fn(e, *i, dest, TEMP_REG);
     } else {
-      e.mov(e.rax, src2->constant.i64);
+      e.mov(TEMP_REG, src2->constant.i64);
       e.mov(dest, src1);
-      vv_fn(e, *i, dest, e.rax);
+      vv_fn(e, *i, dest, TEMP_REG);
     }
   }
   e.EndOp(dest, src1);
@@ -522,10 +523,10 @@ void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
         vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
       } else {
         // Eww.
-        auto Nax = NAX_LIKE(src2);
-        e.mov(Nax, src2);
+        auto Ntx = TEMP_LIKE(src2);
+        e.mov(Ntx, src2);
         e.mov(dest, (uint32_t)src1->get_constant(CT()));
-        vv_fn(e, *i, dest, Nax);
+        vv_fn(e, *i, dest, Ntx);
       }
     } else {
       e.mov(dest, src2);
@@ -535,18 +536,18 @@ void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
     // 64-bit.
     if (dest == src2) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
-        e.mov(e.rax, src1->constant.i64);
-        vv_fn(e, *i, dest, e.rax);
+        e.mov(TEMP_REG, src1->constant.i64);
+        vv_fn(e, *i, dest, TEMP_REG);
       } else {
         // Eww.
-        e.mov(e.rax, src1->constant.i64);
-        vv_fn(e, *i, e.rax, src2);
-        e.mov(dest, e.rax);
+        e.mov(TEMP_REG, src1->constant.i64);
+        vv_fn(e, *i, TEMP_REG, src2);
+        e.mov(dest, TEMP_REG);
       }
     } else {
-      e.mov(e.rax, src2);
+      e.mov(TEMP_REG, src2);
       e.mov(dest, src1->constant.i64);
-      vv_fn(e, *i, dest, e.rax);
+      vv_fn(e, *i, dest, TEMP_REG);
     }
   }
   e.EndOp(dest, src2);
@@ -672,10 +673,10 @@ void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
         vvc_fn(e, *i, dest, src1, (uint32_t)src3->get_constant(CT()));
       } else {
         // Eww.
-        auto Nax = NAX_LIKE(src2);
-        e.mov(Nax, src2);
+        auto Ntx = TEMP_LIKE(src2);
+        e.mov(Ntx, src2);
         e.mov(dest, src1);
-        vvc_fn(e, *i, dest, Nax, (uint32_t)src3->get_constant(CT()));
+        vvc_fn(e, *i, dest, Ntx, (uint32_t)src3->get_constant(CT()));
       }
     } else {
       e.mov(dest, src1);
@@ -684,24 +685,24 @@ void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
   } else {
     // 64-bit.
     if (dest == src1) {
-      e.mov(e.rax, src3->constant.i64);
-      vvv_fn(e, *i, dest, src2, e.rax);
+      e.mov(TEMP_REG, src3->constant.i64);
+      vvv_fn(e, *i, dest, src2, TEMP_REG);
     } else if (dest == src2) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
-        e.mov(e.rax, src3->constant.i64);
-        vvv_fn(e, *i, dest, src1, e.rax);
+        e.mov(TEMP_REG, src3->constant.i64);
+        vvv_fn(e, *i, dest, src1, TEMP_REG);
       } else {
         // Eww.
-        e.mov(e.rax, src1);
+        e.mov(TEMP_REG, src1);
         e.mov(src1, src2);
-        e.mov(dest, e.rax);
-        e.mov(e.rax, src3->constant.i64);
-        vvv_fn(e, *i, dest, src1, e.rax);
+        e.mov(dest, TEMP_REG);
+        e.mov(TEMP_REG, src3->constant.i64);
+        vvv_fn(e, *i, dest, src1, TEMP_REG);
       }
     } else {
-      e.mov(e.rax, src3->constant.i64);
+      e.mov(TEMP_REG, src3->constant.i64);
       e.mov(dest, src1);
-      vvv_fn(e, *i, dest, src2, e.rax);
+      vvv_fn(e, *i, dest, src2, TEMP_REG);
     }
   }
   e.EndOp(dest, src1, src2);
@@ -721,10 +722,10 @@ void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
         vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src1);
       } else {
         // Eww.
-        auto Nax = NAX_LIKE(src3);
-        e.mov(Nax, src3);
+        auto Ntx = TEMP_LIKE(src3);
+        e.mov(Ntx, src3);
         e.mov(dest, src1);
-        vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), Nax);
+        vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), Ntx);
       }
     } else {
       e.mov(dest, src1);
@@ -733,24 +734,24 @@ void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
   } else {
     // 64-bit.
     if (dest == src1) {
-      e.mov(e.rax, src2->constant.i64);
-      vvv_fn(e, *i, dest, e.rax, src3);
+      e.mov(TEMP_REG, src2->constant.i64);
+      vvv_fn(e, *i, dest, TEMP_REG, src3);
     } else if (dest == src3) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
-        e.mov(e.rax, src2->constant.i64);
-        vvv_fn(e, *i, dest, src1, e.rax);
+        e.mov(TEMP_REG, src2->constant.i64);
+        vvv_fn(e, *i, dest, src1, TEMP_REG);
       } else {
         // Eww.
-        e.mov(e.rax, src1);
+        e.mov(TEMP_REG, src1);
         e.mov(src1, src3);
         e.mov(dest, e.rax);
-        e.mov(e.rax, src2->constant.i64);
-        vvv_fn(e, *i, dest, e.rax, src1);
+        e.mov(TEMP_REG, src2->constant.i64);
+        vvv_fn(e, *i, dest, TEMP_REG, src1);
       }
     } else {
       e.mov(e.rax, src2->constant.i64);
       e.mov(dest, src1);
-      vvv_fn(e, *i, dest, e.rax, src3);
+      vvv_fn(e, *i, dest, TEMP_REG, src3);
     }
   }
   e.EndOp(dest, src1, src3);
