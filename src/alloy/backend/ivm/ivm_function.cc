@@ -115,7 +115,6 @@ int IVMFunction::CallImpl(ThreadState* thread_state) {
   ics.rf = register_file;
   ics.context = (uint8_t*)thread_state->raw_context();
   ics.membase = memory->membase();
-  ics.reserve_address = memory->reserve_address();
   ics.did_carry = 0;
   ics.did_saturate = 0;
   ics.access_callbacks = thread_state->runtime()->access_callbacks();

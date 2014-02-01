@@ -13,7 +13,7 @@ using namespace alloy;
 
 
 Memory::Memory() :
-    membase_(0) {
+    membase_(0), reserve_address_(0) {
   SYSTEM_INFO si;
   GetSystemInfo(&si);
   system_page_size_ = si.dwPageSize;
