@@ -21,6 +21,7 @@ namespace x64 {
 
 class X64Backend;
 class X64Emitter;
+class XbyakAllocator;
 
 
 class X64Assembler : public Assembler {
@@ -45,6 +46,7 @@ private:
 private:
   X64Backend*           x64_backend_;
   X64Emitter*           emitter_;
+  XbyakAllocator*       allocator_;
 
   StringBuffer          string_buffer_;
 };

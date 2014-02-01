@@ -11,6 +11,7 @@
 
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/backend/x64/x64_code_cache.h>
+#include <alloy/backend/x64/x64_thunk_emitter.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/hir/hir_builder.h>
 #include <alloy/runtime/debug_info.h>
@@ -46,7 +47,6 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator) :
 }
 
 X64Emitter::~X64Emitter() {
-  delete allocator_;
 }
 
 int X64Emitter::Initialize() {
@@ -71,7 +71,7 @@ int X64Emitter::Emit(
 
   // Copy the final code to the cache and relocate it.
   out_code_size = getSize();
-  out_code_address = Emplace(code_cache_);
+  out_code_address = Emplace(StackLayout::GUEST_STACK_SIZE);
 
   // Stash source map.
   if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
@@ -83,13 +83,13 @@ int X64Emitter::Emit(
   return 0;
 }
 
-void* X64Emitter::Emplace(X64CodeCache* code_cache) {
+void* X64Emitter::Emplace(size_t stack_size) {
   // To avoid changing xbyak, we do a switcharoo here.
   // top_ points to the Xbyak buffer, and since we are in AutoGrow mode
   // it has pending relocations. We copy the top_ to our buffer, swap the
   // pointer, relocate, then return the original scratch pointer for use.
   uint8_t* old_address = top_;
-  void* new_address = code_cache->PlaceCode(top_, size_);
+  void* new_address = code_cache_->PlaceCode(top_, size_, stack_size);
   top_ = (uint8_t*)new_address;
   ready();
   top_ = old_address;
@@ -132,20 +132,12 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
   const bool emit_prolog = true;
-  const size_t stack_size = 72;
+  const size_t stack_size = StackLayout::GUEST_STACK_SIZE;
   if (emit_prolog) {
-    mov(qword[rsp + 8], rcx);
+    mov(qword[rsp + 8 * 2], rdx);
+    mov(qword[rsp + 8 * 1], rcx);
     sub(rsp, stack_size);
-    mov(qword[rsp + 8 * 0], rbx);
-    mov(qword[rsp + 8 * 1], r12);
-    mov(qword[rsp + 8 * 2], r13);
-    mov(qword[rsp + 8 * 3], r14);
-    mov(qword[rsp + 8 * 4], r15);
   }
-
-  // membase stays in rdx. If we evict it (like on function calls) we
-  // must put it back.
-  mov(rdx, qword[rcx + 8]);
 
   auto lowering_table = backend_->lowering_table();
 
@@ -180,12 +172,9 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   // Function epilog.
   L("epilog");
   if (emit_prolog) {
-    mov(rbx, qword[rsp + 8 * 0]);
-    mov(r12, qword[rsp + 8 * 1]);
-    mov(r13, qword[rsp + 8 * 2]);
-    mov(r14, qword[rsp + 8 * 3]);
-    mov(r15, qword[rsp + 8 * 4]);
     add(rsp, stack_size);
+    mov(rcx, qword[rsp + 8 * 1]);
+    mov(rdx, qword[rsp + 8 * 2]);
   }
   ret();
 

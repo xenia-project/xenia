@@ -30,7 +30,7 @@ using namespace alloy::runtime;
 
 X64Assembler::X64Assembler(X64Backend* backend) :
     x64_backend_(backend),
-    emitter_(0),
+    emitter_(0), allocator_(0),
     Assembler(backend) {
 }
 
@@ -39,6 +39,7 @@ X64Assembler::~X64Assembler() {
   }));
 
   delete emitter_;
+  delete allocator_;
 }
 
 int X64Assembler::Initialize() {
@@ -47,8 +48,8 @@ int X64Assembler::Initialize() {
     return result;
   }
 
-  emitter_ = new X64Emitter(x64_backend_,
-                            new XbyakAllocator());
+  allocator_ = new XbyakAllocator();
+  emitter_ = new X64Emitter(x64_backend_, allocator_);
 
   alloy::tracing::WriteEvent(EventType::AssemblerInit({
   }));

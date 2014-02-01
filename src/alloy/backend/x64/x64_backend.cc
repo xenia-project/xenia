@@ -12,6 +12,7 @@
 #include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_assembler.h>
 #include <alloy/backend/x64/x64_code_cache.h>
+#include <alloy/backend/x64/x64_thunk_emitter.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/backend/x64/lowering/lowering_sequences.h>
 
@@ -45,6 +46,13 @@ int X64Backend::Initialize() {
   if (result) {
     return result;
   }
+
+  auto allocator = new XbyakAllocator();
+  auto thunk_emitter = new X64ThunkEmitter(this, allocator);
+  host_to_guest_thunk_ = thunk_emitter->EmitHostToGuestThunk();
+  guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
+  delete thunk_emitter;
+  delete allocator;
 
   lowering_table_ = new LoweringTable(this);
   RegisterSequences(lowering_table_);

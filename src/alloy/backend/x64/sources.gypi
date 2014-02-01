@@ -12,6 +12,8 @@
     'x64_emitter.h',
     'x64_function.cc',
     'x64_function.h',
+    'x64_thunk_emitter.cc',
+    'x64_thunk_emitter.h',
   ],
 
   'includes': [

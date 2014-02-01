@@ -9,8 +9,10 @@
 
 #include <alloy/backend/x64/lowering/lowering_sequences.h>
 
+#include <alloy/backend/x64/x64_backend.h>
 #include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/backend/x64/x64_function.h>
+#include <alloy/backend/x64/x64_thunk_emitter.h>
 #include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/backend/x64/lowering/tracers.h>
 #include <alloy/runtime/symbol_info.h>
@@ -43,6 +45,11 @@ namespace {
 #define DTRACE 1
 
 #define SHUFPS_SWAP_DWORDS 0x1B
+
+
+// Major templating foo lives in here.
+#include <alloy/backend/x64/lowering/op_utils.inl>
+
 
 enum XmmConst {
   XMMZero               = 0,
@@ -156,25 +163,31 @@ void* ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   auto x64_fn = (X64Function*)fn;
   return x64_fn->machine_code();
 }
+void TransitionToHost(X64Emitter& e) {
+  // Expects:
+  //   rcx = context
+  //   rdx = target host function
+  //   r8  = arg0
+  //   r9  = arg1
+  // Returns:
+  //   rax = host return
+  auto thunk = e.backend()->guest_to_host_thunk();
+  e.mov(e.rax, (uint64_t)thunk);
+  e.call(e.rax);
+}
 void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
   auto fn = symbol_info->function();
   // Resolve address to the function to call and store in rax.
   // TODO(benvanik): caching/etc. For now this makes debugging easier.
   e.mov(e.rdx, (uint64_t)symbol_info);
-  e.mov(e.rax, (uint64_t)ResolveFunctionSymbol);
-  e.call(e.rax);
-  e.mov(e.rcx, e.qword[e.rsp + 0]);
-  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+  CallNative(e, ResolveFunctionSymbol);
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
-    // TODO(benvanik): adjust stack?
-    e.add(e.rsp, 72);
+    e.add(e.rsp, StackLayout::GUEST_STACK_SIZE);
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
-    e.mov(e.rcx, e.qword[e.rsp + 0]);
-    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
   }
 }
 void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
@@ -186,28 +199,18 @@ void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
     e.mov(e.rdx, r);
   }
   e.EndOp(r);
-  e.mov(e.rax, (uint64_t)ResolveFunctionAddress);
-  e.call(e.rax);
-  e.mov(e.rcx, e.qword[e.rsp + 0]);
-  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+  CallNative(e, ResolveFunctionAddress);
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
-    // TODO(benvanik): adjust stack?
-    e.add(e.rsp, 72);
+    e.add(e.rsp, StackLayout::GUEST_STACK_SIZE);
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
-    e.mov(e.rcx, e.qword[e.rsp + 0]);
-    e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
   }
 }
 
 }  // namespace
-
-
-// Major templating foo lives in here.
-#include <alloy/backend/x64/lowering/op_utils.inl>
 
 
 void alloy::backend::x64::lowering::RegisterSequences(LoweringTable* table) {
@@ -337,9 +340,13 @@ table->AddSequence(OPCODE_CALL_EXTERN, [](X64Emitter& e, Instr*& i) {
   auto symbol_info = i->src1.symbol_info;
   XEASSERT(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
   XEASSERTNOTNULL(symbol_info->extern_handler());
-  e.mov(e.rdx, (uint64_t)symbol_info->extern_arg0());
-  e.mov(e.r8, (uint64_t)symbol_info->extern_arg1());
-  CallNative(e, symbol_info->extern_handler());
+  // rdx = target host function
+  // r8  = arg0
+  // r9  = arg1
+  e.mov(e.rdx, (uint64_t)symbol_info->extern_handler());
+  e.mov(e.r8, (uint64_t)symbol_info->extern_arg0());
+  e.mov(e.r9, (uint64_t)symbol_info->extern_arg1());
+  TransitionToHost(e);
   i = e.Advance(i);
   return true;
 });

@@ -30,7 +30,7 @@ public:
   // TODO(benvanik): keep track of code blocks
   // TODO(benvanik): padding/guards/etc
 
-  void* PlaceCode(void* machine_code, size_t code_size);
+  void* PlaceCode(void* machine_code, size_t code_size, size_t stack_size);
 
 private:
   const static size_t DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;

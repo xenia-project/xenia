@@ -17,7 +17,7 @@ namespace {
 #define LIKE_REG(dest, like) Reg(dest.getIdx(), dest.getKind(), like.getBit(), false)
 #define NAX_LIKE(like) Reg(e.rax.getIdx(), e.rax.getKind(), like.getBit(), false)
 
-#define STASH_OFFSET 48
+#define STASH_OFFSET 0
 
 // If we are running with tracing on we have to store the EFLAGS in the stack,
 // otherwise our calls out to C to print will clear it before DID_CARRY/etc
@@ -68,7 +68,7 @@ void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
 void CallNative(X64Emitter& e, void* target) {
   e.mov(e.rax, (uint64_t)target);
   e.call(e.rax);
-  e.mov(e.rcx, e.qword[e.rsp + 0]);
+  e.mov(e.rcx, e.qword[e.rsp + StackLayout::RCX_HOME]);
   e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
 }
 

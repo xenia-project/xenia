@@ -34,14 +34,14 @@ public:
   const static uint32_t ESTIMATED_FN_SIZE = 512;
   // Size of unwind info per function.
   // TODO(benvanik): move this to emitter.
-  const static uint32_t UNWIND_INFO_SIZE = 4 + (2 * 1);
+  const static uint32_t UNWIND_INFO_SIZE = 4 + (2 * 1 + 2 + 2);
 
   void*             fn_table_handle;
   RUNTIME_FUNCTION* fn_table;
   uint32_t          fn_table_count;
   uint32_t          fn_table_capacity;
 
-  void AddTableEntry(uint8_t* code, size_t code_size);
+  void AddTableEntry(uint8_t* code, size_t code_size, size_t stack_size);
 };
 
 
@@ -73,7 +73,8 @@ int X64CodeCache::Initialize() {
   return 0;
 }
 
-void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size) {
+void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
+                              size_t stack_size) {
   // Add unwind info into the allocation size. Keep things 16b aligned.
   code_size += XEROUNDUP(X64CodeChunk::UNWIND_INFO_SIZE, 16);
 
@@ -101,7 +102,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size) {
   active_chunk_->offset += code_size;
 
   // Add entry to fn table.
-  active_chunk_->AddTableEntry(final_address, code_size);
+  active_chunk_->AddTableEntry(final_address, code_size, stack_size);
 
   UnlockMutex(lock_);
 
@@ -156,6 +157,27 @@ typedef enum _UNWIND_OP_CODES {
   UWOP_SAVE_XMM128_FAR, /* info == XMM reg number, offset in next 2 slots */
   UWOP_PUSH_MACHFRAME   /* info == 0: no error-code, 1: error-code */
 } UNWIND_CODE_OPS;
+class UNWIND_REGISTER {
+public:
+  enum _ {
+    RAX = 0,
+    RCX = 1,
+    RDX = 2,
+    RBX = 3,
+    RSP = 4,
+    RBP = 5,
+    RSI = 6,
+    RDI = 7,
+    R8 = 8,
+    R9 = 9,
+    R10 = 10,
+    R11 = 11,
+    R12 = 12,
+    R13 = 13,
+    R14 = 14,
+    R15 = 15,
+  };
+};
 
 typedef union _UNWIND_CODE {
   struct {
@@ -183,7 +205,8 @@ typedef struct _UNWIND_INFO {
 } UNWIND_INFO, *PUNWIND_INFO;
 }  // namespace
 
-void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size) {
+void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
+                                 size_t stack_size) {
   // NOTE: we assume a chunk lock.
 
   if (fn_table_count + 1 > fn_table_capacity) {
@@ -213,26 +236,60 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size) {
   size_t unwind_info_offset = offset;
   offset += UNWIND_INFO_SIZE;
 
-  // TODO(benvanik): take as parameters?
-  bool has_prolog = true;
-  uint8_t prolog_size = 4;
-  uint8_t stack_bytes = 72;
+  if (!stack_size) {
+    uint8_t prolog_size = 0;
 
-  // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
-  UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
-  unwind_info->Version = 1;
-  unwind_info->Flags = 0;
-  unwind_info->SizeOfProlog = has_prolog ? prolog_size : 0;
-  unwind_info->CountOfCodes = has_prolog ? 1 : 0;
-  unwind_info->FrameRegister = 0;
-  unwind_info->FrameOffset = 0;
+    // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
+    unwind_info->Version = 1;
+    unwind_info->Flags = 0;
+    unwind_info->SizeOfProlog = 0;
+    unwind_info->CountOfCodes = 0;
+    unwind_info->FrameRegister = 0;
+    unwind_info->FrameOffset = 0;
+  } else if (stack_size <= 128) {
+    uint8_t prolog_size = 4;
 
-  // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
-  auto& code_0 = unwind_info->UnwindCode[0];
-  code_0.CodeOffset = 4; // end of instruction + 1 == offset of next instruction
-  code_0.UnwindOp = UWOP_ALLOC_SMALL;
-  code_0.OpInfo = stack_bytes / 8 - 1;
-  XEASSERT(stack_bytes < 128);
+    // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
+    unwind_info->Version = 1;
+    unwind_info->Flags = 0;
+    unwind_info->SizeOfProlog = prolog_size;
+    unwind_info->CountOfCodes = 1;
+    unwind_info->FrameRegister = 0;
+    unwind_info->FrameOffset = 0;
+
+    // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
+    size_t co = 0;
+    auto& unwind_code = unwind_info->UnwindCode[co++];
+    unwind_code.CodeOffset = 14; // end of instruction + 1 == offset of next instruction
+    unwind_code.UnwindOp = UWOP_ALLOC_SMALL;
+    unwind_code.OpInfo = stack_size / 8 - 1;
+  } else {
+    // TODO(benvanik): take as parameters?
+    uint8_t prolog_size = 17;
+
+    // This doesn't work, for some reason.
+    XEASSERTALWAYS();
+
+    // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
+    unwind_info->Version = 1;
+    unwind_info->Flags = 0;
+    unwind_info->SizeOfProlog = prolog_size;
+    unwind_info->CountOfCodes = 3;
+    unwind_info->FrameRegister = 0;
+    unwind_info->FrameOffset = 0;
+
+    // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
+    size_t co = 0;
+    auto& unwind_code = unwind_info->UnwindCode[co++];
+    unwind_code.CodeOffset = 17; // end of instruction + 1 == offset of next instruction
+    unwind_code.UnwindOp = UWOP_ALLOC_LARGE;
+    unwind_code.OpInfo = 0;
+    unwind_code = unwind_info->UnwindCode[co++];
+    unwind_code.FrameOffset = (USHORT)(stack_size) / 8;
+  }
 
   // Add entry.
   auto& fn_entry = fn_table[fn_table_count++];

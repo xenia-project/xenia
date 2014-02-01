@@ -45,6 +45,7 @@ public:
   virtual ~X64Emitter();
 
   runtime::Runtime* runtime() const { return runtime_; }
+  X64Backend* backend() const { return backend_; }
 
   int Initialize();
 
@@ -144,15 +145,15 @@ public:
 
   void MarkSourceOffset(hir::Instr* i);
 
-private:
-  void* Emplace(X64CodeCache* code_cache);
+protected:
+  void* Emplace(size_t stack_size);
   int Emit(hir::HIRBuilder* builder);
 
-private:
+protected:
   runtime::Runtime* runtime_;
-  X64Backend*     backend_;
-  X64CodeCache*   code_cache_;
-  XbyakAllocator* allocator_;
+  X64Backend*       backend_;
+  X64CodeCache*     code_cache_;
+  XbyakAllocator*   allocator_;
 
   struct {
     // Registers currently active within a begin/end op block. These

@@ -10,6 +10,7 @@
 #include <alloy/backend/x64/x64_function.h>
 
 #include <alloy/backend/x64/tracing.h>
+#include <alloy/backend/x64/x64_backend.h>
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
 
@@ -42,7 +43,11 @@ int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) {
 }
 
 int X64Function::CallImpl(ThreadState* thread_state) {
-  typedef void(*call_t)(void* raw_context, uint8_t* membase);
-  ((call_t)machine_code_)(thread_state->raw_context(), thread_state->memory()->membase());
+  auto backend = (X64Backend*)thread_state->runtime()->backend();
+  auto thunk = backend->host_to_guest_thunk();
+  thunk(
+      machine_code_,
+      thread_state->raw_context(),
+      thread_state->memory()->membase());
   return 0;
 }
