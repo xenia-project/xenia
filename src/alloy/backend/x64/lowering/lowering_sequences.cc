@@ -1055,6 +1055,20 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
           e.mov(e.rcx, (uint64_t)cbs->context);
           e.mov(e.rdx, i.src1.value->AsUint64());
           CallNative(e, cbs->read);
+          switch (i.dest->type) {
+          case INT8_TYPE:
+            break;
+          case INT16_TYPE:
+            e.xchg(e.al, e.ah);
+            break;
+          case INT32_TYPE:
+            e.bswap(e.eax);
+            break;
+          case INT64_TYPE:
+            e.bswap(e.rax);
+            break;
+          default: ASSERT_INVALID_TYPE(); break;
+          }
           e.mov(dest_src, e.rax);
         });
         i = e.Advance(i);
@@ -1092,12 +1106,15 @@ table->AddSequence(OPCODE_LOAD, [](X64Emitter& e, Instr*& i) {
       e.movzx(dyn_dest, e.al);
       break;
     case INT16_TYPE:
+      e.xchg(e.al, e.ah);
       e.movzx(dyn_dest, e.ax);
       break;
     case INT32_TYPE:
+      e.bswap(e.eax);
       e.mov(dyn_dest.cvt32(), e.eax);
       break;
     case INT64_TYPE:
+      e.bswap(e.rax);
       e.mov(dyn_dest, e.rax);
       break;
     default:
@@ -1217,13 +1234,17 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
             e.movzx(e.r8d, src2.cvt8());
             break;
           case INT16_TYPE:
-            e.movzx(e.r8d, src2.cvt16());
+            e.movzx(e.rax, src2.cvt16());
+            e.xchg(e.al, e.ah);
+            e.mov(e.r8, e.rax);
             break;
           case INT32_TYPE:
             e.movzx(e.r8, src2.cvt32());
+            e.bswap(e.r8d);
             break;
           case INT64_TYPE:
             e.mov(e.r8, src2);
+            e.bswap(e.r8);
             break;
           default: ASSERT_INVALID_TYPE(); break;
           }
@@ -1263,13 +1284,17 @@ table->AddSequence(OPCODE_STORE, [](X64Emitter& e, Instr*& i) {
       e.movzx(e.r8, dyn_src.cvt8());
       break;
     case INT16_TYPE:
-      e.movzx(e.r8, dyn_src.cvt16());
+      e.movzx(e.rax, dyn_src.cvt16());
+      e.xchg(e.al, e.ah);
+      e.mov(e.r8, e.rax);
       break;
     case INT32_TYPE:
       e.mov(e.r8d, dyn_src.cvt32());
+      e.bswap(e.r8d);
       break;
     case INT64_TYPE:
       e.mov(e.r8, dyn_src);
+      e.bswap(e.r8);
       break;
     default:
       e.db(0xCC);

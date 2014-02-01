@@ -152,11 +152,10 @@ uint64_t GraphicsSystem::ReadRegister(uint64_t addr) {
   }
 
   XEASSERT(r >= 0 && r < kXEGpuRegisterCount);
-  return XESWAP32BE(regs->values[r].u32);
+  return regs->values[r].u32;
 }
 
 void GraphicsSystem::WriteRegister(uint64_t addr, uint64_t value) {
-  value = XESWAP32BE((uint32_t)value);
   uint32_t r = addr & 0xFFFF;
   XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
 
