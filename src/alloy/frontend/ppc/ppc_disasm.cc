@@ -115,7 +115,7 @@ void Disasm_X_RA_RB(InstrData& i, StringBuffer* str) {
               i.X.RA, i.X.RB);
 }
 void Disasm_XO_RT_RA_RB(InstrData& i, StringBuffer* str) {
-  str->Append("%*s%s%s r%d, r%d", i.XO.Rc ? -7 : -8, i.type->name,
+  str->Append("%*s%s%s r%d, r%d, r%d", i.XO.Rc ? -7 : -8, i.type->name,
               i.XO.OE ? "o" : "", i.XO.Rc ? "." : "",
               i.XO.RT, i.XO.RA, i.XO.RB);
 }
