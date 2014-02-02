@@ -1994,6 +1994,7 @@ table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
         e.imul(src);
       }
       e.mov(dest_src, Nax);
+      ReloadRDX(e);
     }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
       // RAX = value, RDX = clobbered
       // TODO(benvanik): make the register allocator put dest_src in RAX?
@@ -2007,6 +2008,7 @@ table->AddSequence(OPCODE_MUL, [](X64Emitter& e, Instr*& i) {
         e.imul(Ndx);
       }
       e.mov(dest_src, Nax);
+      ReloadRDX(e);
     });
   } else if (IsFloatType(i->dest->type)) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {
@@ -2043,6 +2045,7 @@ table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
         e.imul(src);
       }
       e.mov(dest_src, Ndx);
+      ReloadRDX(e);
     }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
       // RAX = value, RDX = clobbered
       // TODO(benvanik): make the register allocator put dest_src in RAX?
@@ -2056,6 +2059,7 @@ table->AddSequence(OPCODE_MUL_HI, [](X64Emitter& e, Instr*& i) {
         e.imul(Ndx);
       }
       e.mov(dest_src, Ndx);
+      ReloadRDX(e);
     });
   } else {
     UNIMPLEMENTED_SEQ();
@@ -2077,6 +2081,7 @@ table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
         e.idiv(src);
       }
       e.mov(dest_src, Nax);
+      ReloadRDX(e);
     }, [](X64Emitter& e, Instr& i, const Reg& dest_src, uint32_t src) {
       // RAX = value, RDX = clobbered
       // TODO(benvanik): make the register allocator put dest_src in RAX?
@@ -2090,6 +2095,7 @@ table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
         e.idiv(Ndx);
       }
       e.mov(dest_src, Nax);
+      ReloadRDX(e);
     });
   } else if (IsFloatType(i->dest->type)) {
     XmmBinaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest_src, const Xmm& src) {

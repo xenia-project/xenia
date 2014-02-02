@@ -73,6 +73,10 @@ void CallNative(X64Emitter& e, void* target) {
   e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
 }
 
+void ReloadRDX(X64Emitter& e) {
+  e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
+}
+
 // Sets EFLAGs with zf for the given value.
 // ZF = 1 if false, 0 = true (so jz = jump if false)
 void CheckBoolean(X64Emitter& e, Value* v) {
