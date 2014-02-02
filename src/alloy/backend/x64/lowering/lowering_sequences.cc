@@ -2456,11 +2456,11 @@ table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
   } else if (IsVecType(i->dest->type)) {
     XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       // dest_src ^= 0xFFFF...
-      e.cmpeqps(e.xmm0, e.xmm0);
       if (dest != src) {
         e.movaps(dest, src);
       }
-      e.pxor(dest, e.xmm0);
+      e.mov(e.rax, XMMCONSTBASE);
+      e.pxor(dest, XMMCONST(e.rax, XMMOne));
     });
   } else {
     ASSERT_INVALID_TYPE();
@@ -2937,14 +2937,64 @@ table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
       }
     } else if (i->src1.value->type == VEC128_TYPE) {
       // Permute bytes between src2 and src3.
-      // TODO(benvanik): check src3 for zero. if 0, we can use pshufb.
-      Xmm dest, control, src2, src3;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, control, 0,
-                i->src2.value, src2, 0,
-                i->src3.value, src3, 0);
-      UNIMPLEMENTED_SEQ();
-      e.EndOp(dest, control, src2, src3);
+      if (i->src3.value->IsConstantZero()) {
+        // Permuting with src2/zero, so just shuffle/mask.
+        Xmm dest, control, src2;
+        e.BeginOp(i->dest, dest, REG_DEST,
+                  i->src1.value, control, 0,
+                  i->src2.value, src2, 0);
+        if (i->src2.value->IsConstantZero()) {
+          e.vpxor(dest, src2, src2);
+        } else {
+          if (i->src2.value->IsConstant()) {
+            LoadXmmConstant(e, src2, i->src2.value->constant.v128);
+          }
+          // Control mask needs to be shuffled.
+          e.mov(e.rax, XMMCONSTBASE);
+          e.vpshufb(e.xmm0, control, XMMCONST(e.rax, XMMByteSwapMask));
+          e.vpshufb(dest, src2, e.xmm0);
+          // Build a mask with values in src2 having 0 and values in src3 having 1.
+          e.vpcmpgtb(e.xmm0, e.xmm0, XMMCONST(e.rax, XMMPermuteControl15));
+          e.vpandn(dest, e.xmm0, dest);
+        }
+        e.EndOp(dest, control, src2);
+      } else {
+        // General permute.
+        Xmm dest, control, src2, src3;
+        e.BeginOp(i->dest, dest, REG_DEST,
+                  i->src1.value, control, 0,
+                  i->src2.value, src2, 0,
+                  i->src3.value, src3, 0);
+        e.mov(e.rax, XMMCONSTBASE);
+        // Control mask needs to be shuffled.
+        e.vpshufb(e.xmm1, control, XMMCONST(e.rax, XMMByteSwapMask));
+        // Build a mask with values in src2 having 0 and values in src3 having 1.
+        e.vpcmpgtb(dest, e.xmm1, XMMCONST(e.rax, XMMPermuteControl15));
+        Xmm src2_shuf, src3_shuf;
+        if (i->src2.value->IsConstantZero()) {
+          e.vpxor(src2, src2);
+          src2_shuf = src2;
+        } else {
+          if (i->src2.value->IsConstant()) {
+            LoadXmmConstant(e, src2, i->src2.value->constant.v128);
+          }
+          src2_shuf = e.xmm0;
+          e.vpshufb(src2_shuf, src2, e.xmm1);
+        }
+        if (i->src3.value->IsConstantZero()) {
+          e.vpxor(src3, src3);
+          src3_shuf = src3;
+        } else {
+          if (i->src3.value->IsConstant()) {
+            LoadXmmConstant(e, src3, i->src3.value->constant.v128);
+          }
+          // NOTE: reusing xmm1 here.
+          src3_shuf = e.xmm1;
+          e.vpshufb(src3_shuf, src3, e.xmm1);
+        }
+        e.vpblendvb(dest, src2_shuf, src3_shuf, dest);
+        e.EndOp(dest, control, src2, src3);
+      }
     } else {
       ASSERT_INVALID_TYPE();
     }

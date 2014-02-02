@@ -102,21 +102,21 @@ void* X64Emitter::Emplace(size_t stack_size) {
 int X64Emitter::Emit(HIRBuilder* builder) {
   // These are the registers we will not be using. All others are fare game.
   const uint32_t reserved_regs =
-      GetRegBit(rax) |
-      GetRegBit(rcx) |
-      GetRegBit(rdx) |
-      GetRegBit(rsp) |
-      GetRegBit(rbp) |
-      GetRegBit(rsi) |
-      GetRegBit(rdi) |
-      GetRegBit(xmm0) |
+      GetRegBit(rax)  | // scratch
+      GetRegBit(rcx)  | // arg
+      GetRegBit(rdx)  | // arg/clobbered
+      GetRegBit(rsp)  |
+      GetRegBit(rbp)  |
+      GetRegBit(rsi)  |
+      GetRegBit(rdi)  |
+      GetRegBit(r8)   | // arg/clobbered
+      GetRegBit(xmm0) | // scratch
+      GetRegBit(xmm1) | // sometimes used for scratch, could be fixed
 
       // TODO(benvanik): save so that we can use these.
-      GetRegBit(r8) |
-      GetRegBit(r9) |
-      GetRegBit(r10) |
-      GetRegBit(r11) |
-      GetRegBit(xmm1) |
+      GetRegBit(r9)   |
+      GetRegBit(r10)  |
+      GetRegBit(r11)  |
       GetRegBit(xmm2) |
       GetRegBit(xmm3) |
       GetRegBit(xmm4) |

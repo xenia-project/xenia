@@ -52,9 +52,18 @@ Address Stash(X64Emitter& e, const Xmm& r) {
 }
 
 void LoadXmmConstant(X64Emitter& e, Xmm& dest, const vec128_t& v) {
-  e.mov(e.qword[e.rsp + STASH_OFFSET], v.low);
-  e.mov(e.qword[e.rsp + STASH_OFFSET + 8], v.high);
-  e.movaps(dest, e.ptr[e.rsp + STASH_OFFSET]);
+  if (!v.low && !v.high) {
+    // zero
+    e.vpxor(dest, dest);
+  //} else if (v.low == ~0ull && v.high == ~0ull) {
+    // one
+    // TODO(benvanik): XMMCONST?
+  } else {
+    // TODO(benvanik): more efficient loading of partial values?
+    e.mov(e.qword[e.rsp + STASH_OFFSET], v.low);
+    e.mov(e.qword[e.rsp + STASH_OFFSET + 8], v.high);
+    e.vmovaps(dest, e.ptr[e.rsp + STASH_OFFSET]);
+  }
 }
 
 // Moves a 64bit immediate into memory.
@@ -539,8 +548,14 @@ void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
         vv_fn(e, *i, dest, Ntx);
       }
     } else {
-      e.mov(dest, src2);
-      vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
+      if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
+        e.mov(dest, src2);
+        vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
+      } else {
+        // Need a cv_fn. Or a better way to do all of this.
+        e.mov(dest, (uint32_t)src1->get_constant(CT()));
+        vv_fn(e, *i, dest, src2);
+      }
     }
   } else {
     // 64-bit.
