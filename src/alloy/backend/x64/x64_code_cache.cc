@@ -267,10 +267,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     unwind_code.OpInfo = stack_size / 8 - 1;
   } else {
     // TODO(benvanik): take as parameters?
-    uint8_t prolog_size = 17;
-
-    // This doesn't work, for some reason.
-    XEASSERTALWAYS();
+    uint8_t prolog_size = 7;
 
     // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
     UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
@@ -284,7 +281,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
     size_t co = 0;
     auto& unwind_code = unwind_info->UnwindCode[co++];
-    unwind_code.CodeOffset = 17; // end of instruction + 1 == offset of next instruction
+    unwind_code.CodeOffset = 7; // end of instruction + 1 == offset of next instruction
     unwind_code.UnwindOp = UWOP_ALLOC_LARGE;
     unwind_code.OpInfo = 0;
     unwind_code = unwind_info->UnwindCode[co++];

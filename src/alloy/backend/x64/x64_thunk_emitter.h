@@ -25,15 +25,18 @@ namespace x64 {
  * ----------------------------
  * NOTE: stack must always be 16b aligned.
  *
+ * Thunk stack:
  *  +------------------+
  *  | arg temp, 3 * 8  | rsp + 0
  *  |                  |
  *  |                  |
  *  +------------------+
- *  | scratch, 24b     | rsp + 32
+ *  | scratch, 16b     | rsp + 32
  *  |                  |
  *  +------------------+
- *  | rbx              | rsp + 56
+ *  | rbx              | rsp + 48
+ *  +------------------+
+ *  | rcx / context    | rsp + 56
  *  +------------------+
  *  | rbp              | rsp + 64
  *  +------------------+
@@ -90,17 +93,30 @@ namespace x64 {
  *  |                  |
  *  +------------------+
  *
+ * Guest stack:
+ *  +------------------+
+ *  | arg temp, 3 * 8  | rsp + 0
+ *  |                  |
+ *  |                  |
+ *  +------------------+
+ *  | scratch, 32b     | rsp + 32
+ *  |                  |
+ *  +------------------+
+ *  | rcx / context    | rsp + 64
+ *  +------------------+
+ *    ... locals ...
+ *  +------------------+
+ *  | (return address) |
+ *  +------------------+ 
+ *
  */
 
 class StackLayout {
 public:
-  const static size_t GUEST_STACK_SIZE = 120;
-
   const static size_t THUNK_STACK_SIZE = 120;
 
-  const static size_t RETURN_ADDRESS = 120;
-  const static size_t RCX_HOME = 128;
-  const static size_t RDX_HOME = 136;
+  const static size_t GUEST_STACK_SIZE = 72;
+  const static size_t GUEST_RCX_HOME = 64;
 };
 
 

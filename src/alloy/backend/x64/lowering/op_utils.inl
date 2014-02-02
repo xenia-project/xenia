@@ -28,7 +28,7 @@ namespace {
 void LoadEflags(X64Emitter& e) {
 #if STORE_EFLAGS
   e.mov(e.eax, e.dword[e.rsp + STASH_OFFSET]);
-  e.push(e.ax);
+  e.push(e.rax);
   e.popf();
 #else
   // EFLAGS already present.
@@ -37,7 +37,7 @@ void LoadEflags(X64Emitter& e) {
 void StoreEflags(X64Emitter& e) {
 #if STORE_EFLAGS
   e.pushf();
-  e.pop(e.word[e.rsp + STASH_OFFSET]);
+  e.pop(e.qword[e.rsp + STASH_OFFSET]);
 #else
   // EFLAGS should have CA set?
   // (so long as we don't fuck with it)
@@ -84,7 +84,7 @@ void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
 void CallNative(X64Emitter& e, void* target) {
   e.mov(e.rax, (uint64_t)target);
   e.call(e.rax);
-  e.mov(e.rcx, e.qword[e.rsp + StackLayout::RCX_HOME]);
+  e.mov(e.rcx, e.qword[e.rsp + StackLayout::GUEST_RCX_HOME]);
   e.mov(e.rdx, e.qword[e.rcx + 8]); // membase
 }
 

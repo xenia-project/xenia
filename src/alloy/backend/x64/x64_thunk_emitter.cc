@@ -38,7 +38,8 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
 
-  mov(qword[rsp + 56], rbx);
+  mov(qword[rsp + 48], rbx);
+  mov(qword[rsp + 56], rcx);
   mov(qword[rsp + 64], rbp);
   mov(qword[rsp + 72], rsi);
   mov(qword[rsp + 80], rdi);
@@ -74,7 +75,8 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   movaps(xmm14, ptr[rsp + 256]);
   movaps(xmm15, ptr[rsp + 272]);*/
 
-  mov(rbx, qword[rsp + 56]);
+  mov(rbx, qword[rsp + 48]);
+  mov(rcx, qword[rsp + 56]);
   mov(rbp, qword[rsp + 64]);
   mov(rsi, qword[rsp + 72]);
   mov(rdi, qword[rsp + 80]);
@@ -104,7 +106,8 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
 
-  mov(qword[rsp + 56], rbx);
+  mov(qword[rsp + 48], rbx);
+  mov(qword[rsp + 56], rcx);
   mov(qword[rsp + 64], rbp);
   mov(qword[rsp + 72], rsi);
   mov(qword[rsp + 80], rdi);
@@ -120,7 +123,8 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(r8, r9);
   call(rax);
 
-  mov(rbx, qword[rsp + 56]);
+  mov(rbx, qword[rsp + 48]);
+  mov(rcx, qword[rsp + 56]);
   mov(rbp, qword[rsp + 64]);
   mov(rsi, qword[rsp + 72]);
   mov(rdi, qword[rsp + 80]);
@@ -128,7 +132,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(r13, qword[rsp + 96]);
   mov(r14, qword[rsp + 104]);
   mov(r15, qword[rsp + 112]);
-  
+
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);

@@ -231,7 +231,7 @@ void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
-    e.add(e.rsp, StackLayout::GUEST_STACK_SIZE);
+    e.add(e.rsp, (uint32_t)e.stack_size());
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
@@ -250,7 +250,7 @@ void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
-    e.add(e.rsp, StackLayout::GUEST_STACK_SIZE);
+    e.add(e.rsp, (uint32_t)e.stack_size());
     e.jmp(e.rax);
   } else {
     e.call(e.rax);
@@ -397,6 +397,7 @@ table->AddSequence(OPCODE_CALL_EXTERN, [](X64Emitter& e, Instr*& i) {
     e.mov(e.r8, (uint64_t)symbol_info->extern_arg0());
     e.mov(e.r9, (uint64_t)symbol_info->extern_arg1());
     TransitionToHost(e);
+    ReloadRDX(e);
   }
   i = e.Advance(i);
   return true;

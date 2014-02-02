@@ -64,14 +64,15 @@ int X64Emitter::Emit(
   }
 
   // Fill the generator with code.
-  int result = Emit(builder);
+  size_t stack_size = 0;
+  int result = Emit(builder, stack_size);
   if (result) {
     return result;
   }
 
   // Copy the final code to the cache and relocate it.
   out_code_size = getSize();
-  out_code_address = Emplace(StackLayout::GUEST_STACK_SIZE);
+  out_code_address = Emplace(stack_size);
 
   // Stash source map.
   if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
@@ -99,7 +100,7 @@ void* X64Emitter::Emplace(size_t stack_size) {
 
 #define XEALIGN(value, align) ((value + align - 1) & ~(align - 1))
 
-int X64Emitter::Emit(HIRBuilder* builder) {
+int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   // These are the registers we will not be using. All others are fare game.
   const uint32_t reserved_regs =
       GetRegBit(rax)  | // scratch
@@ -125,7 +126,7 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   // Calculate stack size. We need to align things to their natural sizes.
   // This could be much better (sort by type/etc).
   auto locals = builder->locals();
-  size_t stack_offset = 0;
+  size_t stack_offset = StackLayout::GUEST_STACK_SIZE;
   for (auto it = locals.begin(); it != locals.end(); ++it) {
     auto slot = *it;
     size_t type_size = GetTypeSize(slot->type);
@@ -134,6 +135,9 @@ int X64Emitter::Emit(HIRBuilder* builder) {
     slot->set_constant(stack_offset);
     stack_offset += type_size;
   }
+  // Ensure 16b alignment.
+  stack_offset -= StackLayout::GUEST_STACK_SIZE;
+  stack_offset = XEALIGN(stack_offset, 16);
 
   // Function prolog.
   // Must be 16b aligned.
@@ -147,11 +151,13 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
   const bool emit_prolog = true;
-  const size_t stack_size = StackLayout::GUEST_STACK_SIZE;
+  const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
+  XEASSERT((stack_size + 8) % 16 == 0);
+  out_stack_size = stack_size;
+  stack_size_ = stack_size;
   if (emit_prolog) {
-    mov(qword[rsp + 8 * 2], rdx);
-    mov(qword[rsp + 8 * 1], rcx);
-    sub(rsp, stack_size);
+    sub(rsp, (uint32_t)stack_size);
+    mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
   }
 
   auto lowering_table = backend_->lowering_table();
@@ -187,9 +193,8 @@ int X64Emitter::Emit(HIRBuilder* builder) {
   // Function epilog.
   L("epilog");
   if (emit_prolog) {
-    add(rsp, stack_size);
-    mov(rcx, qword[rsp + 8 * 1]);
-    mov(rdx, qword[rsp + 8 * 2]);
+    mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
+    add(rsp, (uint32_t)stack_size);
   }
   ret();
 

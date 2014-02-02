@@ -145,9 +145,11 @@ public:
 
   void MarkSourceOffset(hir::Instr* i);
 
+  size_t stack_size() const { return stack_size_; }
+
 protected:
   void* Emplace(size_t stack_size);
-  int Emit(hir::HIRBuilder* builder);
+  int Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
 
 protected:
   runtime::Runtime* runtime_;
@@ -168,6 +170,8 @@ protected:
 
   size_t    source_map_count_;
   Arena     source_map_arena_;
+
+  size_t    stack_size_;
 };
 
 
