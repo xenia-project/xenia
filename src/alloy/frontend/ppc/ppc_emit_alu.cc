@@ -1027,7 +1027,8 @@ XEEMITTER(rlwnmx,       0x5C000000, M  )(PPCHIRBuilder& f, InstrData& i) {
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
   Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
-  Value* sh = f.And(f.LoadGPR(i.M.SH), f.LoadConstant(0x1F));
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.M.SH), INT32_TYPE),
+                    f.LoadConstant(0x1F));
   v = f.RotateLeft(v, sh);
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
@@ -1197,7 +1198,7 @@ XEEMITTER(srawx,        0x7C000630, X  )(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
   Value* sh = f.And(
       f.Truncate(f.LoadGPR(i.X.RB), INT32_TYPE),
-      f.LoadConstant((int8_t)0x7F));
+      f.LoadConstant(0x7F));
   // CA is set if any bits are shifted out of the right and if the result
   // is negative.
   Value* mask = f.Not(f.Shl(f.LoadConstant(-1), sh));
