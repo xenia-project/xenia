@@ -64,6 +64,8 @@ enum XmmConst {
   XMMSignMaskPD         = 9,
   XMMByteSwapMask       = 10,
   XMMPermuteControl15   = 11,
+  XMMUnpackD3DCOLOR     = 12,
+  XMMOneOver255         = 13,
 };
 static const vec128_t xmm_consts[] = {
   /* XMMZero                */ vec128f(0.0f, 0.0f, 0.0f, 0.0f),
@@ -78,6 +80,8 @@ static const vec128_t xmm_consts[] = {
   /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),
   /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
   /* XMMPermuteControl15    */ vec128b(15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15),
+  /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF02, 0xFFFFFF01, 0xFFFFFF00, 0xFFFFFF02),
+  /* XMMOneOver255          */ vec128f(1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f),
 };
 // Use consts by first loading the base register then accessing memory:
 // e.mov(e.rax, XMMCONSTBASE)
@@ -123,6 +127,12 @@ static vec128_t lvsr_table[17] = {
   vec128b( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
   vec128b( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
   vec128b( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+};
+static vec128_t extract_table_32[4] = {
+  vec128b( 3,  2,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
+  vec128b( 7,  6,  5,  4,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
+  vec128b(11, 10,  9,  8,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
+  vec128b(15, 14, 13, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
 };
 
 // A note about vectors:
@@ -2788,16 +2798,30 @@ table->AddSequence(OPCODE_EXTRACT, [](X64Emitter& e, Instr*& i) {
       }
       e.EndOp(dest, src);
     } else if (i->dest->type == INT32_TYPE) {
-      Reg32 dest;
-      Xmm src;
-      e.BeginOp(i->dest, dest, REG_DEST,
-                i->src1.value, src, 0);
       if (i->src2.value->IsConstant()) {
+        Reg32 dest;
+        Xmm src;
+        e.BeginOp(i->dest, dest, REG_DEST,
+                  i->src1.value, src, 0);
         e.pextrd(dest, src, i->src2.value->constant.i8);
+        e.EndOp(dest, src);
       } else {
-        UNIMPLEMENTED_SEQ();
+        Reg32 dest;
+        Xmm src;
+        Reg8 sel;
+        e.BeginOp(i->dest, dest, REG_DEST,
+                  i->src1.value, src, 0,
+                  i->src2.value, sel, 0);
+        // Get the desired word in xmm0, then extract that.
+        e.mov(TEMP_REG, sel);
+        e.and(TEMP_REG, 0x03);
+        e.shl(TEMP_REG, 4);
+        e.mov(e.rax, (uintptr_t)extract_table_32);
+        e.movaps(e.xmm0, e.ptr[e.rax + TEMP_REG]);
+        e.vpshufb(e.xmm0, src, e.xmm0);
+        e.pextrd(dest, e.xmm0, 0);
+        e.EndOp(dest, src, sel);
       }
-      e.EndOp(dest, src);
     } else if (i->dest->type == FLOAT32_TYPE) {
       Reg32 dest;
       Xmm src;
@@ -3057,7 +3081,21 @@ table->AddSequence(OPCODE_PACK, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_UNPACK, [](X64Emitter& e, Instr*& i) {
   if (i->flags == PACK_TYPE_D3DCOLOR) {
-    UNIMPLEMENTED_SEQ();
+    // ARGB (WXYZ) -> RGBA (XYZW)
+    // XMLoadColor
+    // int32_t src = (int32_t)src1.iw;
+    // dest.f4[0] = (float)((src >> 16) & 0xFF) * (1.0f / 255.0f);
+    // dest.f4[1] = (float)((src >> 8) & 0xFF) * (1.0f / 255.0f);
+    // dest.f4[2] = (float)(src & 0xFF) * (1.0f / 255.0f);
+    // dest.f4[3] = (float)((src >> 24) & 0xFF) * (1.0f / 255.0f);
+    XmmUnaryOp(e, i, 0, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
+      // src = ZZYYXXWW
+      // unpack to 000000ZZ,000000YY,000000XX,000000WW
+      e.mov(e.rax, XMMCONSTBASE);
+      e.vpshufb(dest, src, XMMCONST(e.rax, XMMUnpackD3DCOLOR));
+      // mult by 1/255
+      e.vmulps(dest, XMMCONST(e.rax, XMMOneOver255));
+    });
   } else if (i->flags == PACK_TYPE_FLOAT16_2) {
     // 1 bit sign, 5 bit exponent, 10 bit mantissa
     // D3D10 half float format
