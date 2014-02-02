@@ -74,6 +74,15 @@ int IVMAssembler::Assemble(
   builder->ResetLabelTags();
 
   // Function prologue.
+  size_t stack_size = 0;
+  auto locals = builder->locals();
+  for (auto it = locals.begin(); it != locals.end(); ++it) {
+    auto slot = *it;
+    size_t stack_offset = stack_size;
+    slot->set_constant(stack_offset);
+    stack_size += GetTypeSize(slot->type);
+  }
+  ctx.stack_size = stack_size;
 
   auto block = builder->first_block();
   while (block) {

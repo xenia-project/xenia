@@ -183,6 +183,18 @@ DEFINE_OPCODE(
     0);
 
 DEFINE_OPCODE(
+    OPCODE_LOAD_LOCAL,
+    "load_local",
+    OPCODE_SIG_V_V,
+    0);
+
+DEFINE_OPCODE(
+    OPCODE_STORE_LOCAL,
+    "store_local",
+    OPCODE_SIG_X_V_V,
+    0);
+
+DEFINE_OPCODE(
     OPCODE_LOAD_CONTEXT,
     "load_context",
     OPCODE_SIG_V_O,
@@ -297,17 +309,17 @@ DEFINE_OPCODE(
     OPCODE_DID_CARRY,
     "did_carry",
     OPCODE_SIG_V_V,
-    0);
+    OPCODE_FLAG_PAIRED_PREV);
 DEFINE_OPCODE(
     OPCODE_DID_OVERFLOW,
     "did_overflow",
     OPCODE_SIG_V_V,
-    0);
+    OPCODE_FLAG_PAIRED_PREV);
 DEFINE_OPCODE(
     OPCODE_DID_SATURATE,
     "did_saturate",
     OPCODE_SIG_V_V,
-    0);
+    OPCODE_FLAG_PAIRED_PREV);
 
 DEFINE_OPCODE(
     OPCODE_VECTOR_COMPARE_EQ,

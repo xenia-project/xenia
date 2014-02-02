@@ -59,20 +59,21 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
   // all removed ops with NOP and then do a single pass that removes them
   // all.
 
-  bool any_removed = false;
+  bool any_instr_removed = false;
+  bool any_locals_removed = false;
   Block* block = builder->first_block();
   while (block) {
+    // Walk instructions in reverse.
     Instr* i = block->instr_tail;
     while (i) {
-      Instr* prev = i->prev;
+      auto prev = i->prev;
 
-      const OpcodeInfo* opcode = i->opcode;
-      uint32_t signature = opcode->signature;
+      auto opcode = i->opcode;
       if (!(opcode->flags & OPCODE_FLAG_VOLATILE) &&
           i->dest && !i->dest->use_head) {
         // Has no uses and is not volatile. This instruction can die!
         MakeNopRecursive(i);
-        any_removed = true;
+        any_instr_removed = true;
       } else if (opcode == &OPCODE_ASSIGN_info) {
         // Assignment. These are useless, so just try to remove by completely
         // replacing the value.
@@ -82,11 +83,31 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
       i = prev;
     }
 
+    // Walk instructions forward.
+    i = block->instr_head;
+    while (i) {
+      auto next = i->next;
+
+      auto opcode = i->opcode;
+      if (opcode == &OPCODE_STORE_LOCAL_info) {
+        // Check to see if the store has any interceeding uses after the load.
+        // If not, it can be removed (as the local is just passing through the
+        // function).
+        // We do this after the previous pass so that removed code doesn't keep
+        // the local alive.
+        if (!CheckLocalUse(i)) {
+          any_locals_removed = true;
+        }
+      }
+
+      i = next;
+    }
+
     block = block->next;
   }
 
   // Remove all nops.
-  if (any_removed) {
+  if (any_instr_removed) {
     Block* block = builder->first_block();
     while (block) {
       Instr* i = block->instr_head;
@@ -99,6 +120,21 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
         i = next;
       }
       block = block->next;
+    }
+  }
+
+  // Remove any locals that no longer have uses.
+  if (any_locals_removed) {
+    // TODO(benvanik): local removal/dealloc.
+    auto locals = builder->locals();
+    for (auto it = locals.begin(); it != locals.end();) {
+      auto next = ++it;
+      auto value = *it;
+      if (!value->use_head) {
+        // Unused, can be removed.
+        locals.erase(it);
+      }
+      it = next;
     }
   }
 
@@ -149,4 +185,25 @@ void DeadCodeEliminationPass::ReplaceAssignment(Instr* i) {
   }
 
   i->Remove();
+}
+
+bool DeadCodeEliminationPass::CheckLocalUse(Instr* i) {
+  auto slot = i->src1.value;
+  auto src = i->src2.value;
+
+  auto use = src->use_head;
+  if (use) {
+    auto use_instr = use->instr;
+    if (use_instr->opcode != &OPCODE_LOAD_LOCAL_info) {
+      // A valid use (probably). Keep it.
+      return true;
+    }
+
+    // Load/store are paired. They can both be removed.
+    use_instr->Remove();
+  }
+
+  i->Remove();
+
+  return false;
 }

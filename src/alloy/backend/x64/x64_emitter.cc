@@ -97,6 +97,8 @@ void* X64Emitter::Emplace(size_t stack_size) {
   return new_address;
 }
 
+#define XEALIGN(value, align) ((value + align - 1) & ~(align - 1))
+
 int X64Emitter::Emit(HIRBuilder* builder) {
   // These are the registers we will not be using. All others are fare game.
   const uint32_t reserved_regs =
@@ -119,6 +121,19 @@ int X64Emitter::Emit(HIRBuilder* builder) {
       GetRegBit(xmm3) |
       GetRegBit(xmm4) |
       GetRegBit(xmm5);
+
+  // Calculate stack size. We need to align things to their natural sizes.
+  // This could be much better (sort by type/etc).
+  auto locals = builder->locals();
+  size_t stack_offset = 0;
+  for (auto it = locals.begin(); it != locals.end(); ++it) {
+    auto slot = *it;
+    size_t type_size = GetTypeSize(slot->type);
+    // Align to natural size.
+    stack_offset = XEALIGN(stack_offset, type_size);
+    slot->set_constant(stack_offset);
+    stack_offset += type_size;
+  }
 
   // Function prolog.
   // Must be 16b aligned.

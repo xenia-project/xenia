@@ -38,20 +38,40 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   assembler_ = backend->CreateAssembler();
   assembler_->Initialize();
 
+  bool validate = FLAGS_validate_hir;
+
+  // Build the CFG first.
+  compiler_->AddPass(new passes::ControlFlowAnalysisPass());
+
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   //compiler_->AddPass(new passes::ContextPromotionPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::SimplificationPass());
-  // TODO(benvanik): run repeatedly?
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::ConstantPropagationPass());
-  //compiler_->AddPass(new passes::TypePropagationPass());
-  //compiler_->AddPass(new passes::ByteSwapEliminationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::SimplificationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   //compiler_->AddPass(new passes::DeadStoreEliminationPass());
+  //if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
+
+  // Adds local load/stores.
+  compiler_->AddPass(new passes::DataFlowAnalysisPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
+  compiler_->AddPass(new passes::SimplificationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
+
+  // Run DCE one more time to cleanup any local manipulation.
+  compiler_->AddPass(new passes::DeadCodeEliminationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Removes all unneeded variables. Try not to add new ones after this.
   compiler_->AddPass(new passes::ValueReductionPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Must come last. The HIR is not really HIR after this.
   compiler_->AddPass(new passes::FinalizationPass());

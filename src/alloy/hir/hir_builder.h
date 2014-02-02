@@ -41,7 +41,12 @@ public:
   uint32_t attributes() const { return attributes_; }
   void set_attributes(uint32_t value) { attributes_ = value; }
 
+  std::vector<Value*>& locals() { return locals_; }
+
+  uint32_t max_value_ordinal() const { return next_value_ordinal_; }
+
   Block* first_block() const { return block_head_; }
+  Block* last_block() const { return block_tail_; }
   Block* current_block() const;
   Instr* last_instr() const;
 
@@ -50,11 +55,10 @@ public:
   void InsertLabel(Label* label, Instr* prev_instr);
   void ResetLabelTags();
 
+  void AddEdge(Block* src, Block* dest, uint32_t flags);
+
   // static allocations:
   // Value* AllocStatic(size_t length);
-
-  // stack allocations:
-  // Value* AllocLocal(TypeName type);
 
   void Comment(const char* format, ...);
 
@@ -115,6 +119,10 @@ public:
   Value* LoadVectorShr(Value* sh);
 
   Value* LoadClock();
+
+  Value* AllocLocal(TypeName type);
+  Value* LoadLocal(Value* slot);
+  void StoreLocal(Value* slot, Value* value);
 
   Value* LoadContext(size_t offset, TypeName type);
   void StoreContext(size_t offset, Value* value);
@@ -229,6 +237,8 @@ protected:
 
   uint32_t  next_label_id_;
   uint32_t  next_value_ordinal_;
+
+  std::vector<Value*> locals_;
 
   Block*    block_head_;
   Block*    block_tail_;

@@ -61,6 +61,36 @@ bool Instr::Match(SignatureType dest_req,
       ((src3_req == SIG_TYPE_IGNORE) || (src3_req == TO_SIG_TYPE(src3.value)));
 }
 
+void Instr::MoveBefore(Instr* other) {
+  if (next == other) {
+    return;
+  }
+
+  // Remove from current location.
+  if (prev) {
+    prev->next = next;
+  } else {
+    block->instr_head = next;
+  }
+  if (next) {
+    next->prev = prev;
+  } else {
+    block->instr_tail = prev;
+  }
+
+  // Insert into new location.
+  block = other->block;
+  next = other;
+  prev = other->prev;
+  other->prev = this;
+  if (prev) {
+    prev->next = this;
+  }
+  if (other == block->instr_head) {
+    block->instr_head = this;
+  }
+}
+
 void Instr::Replace(const OpcodeInfo* opcode, uint16_t flags) {
   this->opcode = opcode;
   this->flags = flags;

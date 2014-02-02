@@ -38,9 +38,10 @@ private:
   void OnBreakpointHit(runtime::ThreadState* thread_state, IntCode* i);
 
 private:
-  size_t    register_count_;
-  size_t    intcode_count_;
-  IntCode*  intcodes_;
+  size_t          register_count_;
+  size_t          stack_size_;
+  size_t          intcode_count_;
+  IntCode*        intcodes_;
   size_t          source_map_count_;
   SourceMapEntry* source_map_;
 };

@@ -41,6 +41,7 @@ void HIRBuilder::Reset() {
   attributes_ = 0;
   next_label_id_ = 0;
   next_value_ordinal_ = 0;
+  locals_.clear();
   block_head_ = block_tail_ = NULL;
   current_block_ = NULL;
 #if XE_DEBUG
@@ -141,6 +142,13 @@ void HIRBuilder::Dump(StringBuffer* str) {
     str->Append("; attributes = %.8X\n", attributes_);
   }
 
+  for (auto it = locals_.begin(); it != locals_.end(); ++it) {
+    auto local = *it;
+    str->Append("  ; local ");
+    DumpValue(str, local);
+    str->Append("\n");
+  }
+
   uint32_t block_ordinal = 0;
   Block* block = block_head_;
   while (block) {
@@ -159,6 +167,39 @@ void HIRBuilder::Dump(StringBuffer* str) {
         str->Append("label%d:\n", label->id);
       }
       label = label->next;
+    }
+
+    Edge* incoming_edge = block->incoming_edge_head;
+    while (incoming_edge) {
+      auto src_label = incoming_edge->src->label_head;
+      if (src_label && src_label->name) {
+        str->Append("  ; in: %s", src_label->name);
+      } else if (src_label) {
+        str->Append("  ; in: label%d", src_label->id);
+      } else {
+        str->Append("  ; in: <block%d>",
+                    incoming_edge->src->ordinal);
+      }
+      str->Append(", dom:%d, uncond:%d\n",
+                  (incoming_edge->flags & Edge::DOMINATES) ? 1 : 0,
+                  (incoming_edge->flags & Edge::UNCONDITIONAL) ? 1 : 0);
+      incoming_edge = incoming_edge->incoming_next;
+    }
+    Edge* outgoing_edge = block->outgoing_edge_head;
+    while (outgoing_edge) {
+      auto dest_label = outgoing_edge->dest->label_head;
+      if (dest_label && dest_label->name) {
+        str->Append("  ; out: %s", dest_label->name);
+      } else if (dest_label) {
+        str->Append("  ; out: label%d", dest_label->id);
+      } else {
+        str->Append("  ; out: <block%d>",
+                    outgoing_edge->dest->ordinal);
+      }
+      str->Append(", dom:%d, uncond:%d\n",
+                  (outgoing_edge->flags & Edge::DOMINATES) ? 1 : 0,
+                  (outgoing_edge->flags & Edge::UNCONDITIONAL) ? 1 : 0);
+      outgoing_edge = outgoing_edge->outgoing_next;
     }
 
     Instr* i = block->instr_head;
@@ -303,6 +344,7 @@ void HIRBuilder::InsertLabel(Label* label, Instr* prev_instr) {
     block_tail_ = new_block;
   }
   new_block->label_head = new_block->label_tail = label;
+  new_block->incoming_edge_head = new_block->outgoing_edge_head = NULL;
   label->block = new_block;
   label->prev = label->next = NULL;
 
@@ -319,8 +361,7 @@ void HIRBuilder::InsertLabel(Label* label, Instr* prev_instr) {
     new_block->instr_tail = old_prev_tail;
   }
 
-  for (auto instr = new_block->instr_head; instr != new_block->instr_tail;
-       instr = instr->next) {
+  for (auto instr = new_block->instr_head; instr; instr = instr->next) {
     instr->block = new_block;
   }
 
@@ -342,6 +383,19 @@ void HIRBuilder::ResetLabelTags() {
   }
 }
 
+void HIRBuilder::AddEdge(Block* src, Block* dest, uint32_t flags) {
+  Edge* edge = arena_->Alloc<Edge>();
+  edge->src = src;
+  edge->dest = dest;
+  edge->flags = flags;
+  edge->outgoing_prev = NULL;
+  edge->outgoing_next = src->outgoing_edge_head;
+  src->outgoing_edge_head = edge;
+  edge->incoming_prev = NULL;
+  edge->incoming_next = dest->incoming_edge_head;
+  dest->incoming_edge_head = edge;
+}
+
 Block* HIRBuilder::AppendBlock() {
   Block* block = arena_->Alloc<Block>();
   block->arena = arena_;
@@ -356,6 +410,7 @@ Block* HIRBuilder::AppendBlock() {
   }
   current_block_ = block;
   block->label_head = block->label_tail = NULL;
+  block->incoming_edge_head = block->outgoing_edge_head = NULL;
   block->instr_head = block->instr_tail = NULL;
   return block;
 }
@@ -420,6 +475,7 @@ Value* HIRBuilder::AllocValue(TypeName type) {
   value->def = NULL;
   value->use_head = NULL;
   value->last_use = NULL;
+  value->local_slot = NULL;
   value->tag = NULL;
   value->reg = -1;
   return value;
@@ -434,6 +490,7 @@ Value* HIRBuilder::CloneValue(Value* source) {
   value->def = NULL;
   value->use_head = NULL;
   value->last_use = NULL;
+  value->local_slot = NULL;
   value->tag = NULL;
   value->reg = -1;
   return value;
@@ -875,6 +932,28 @@ Value* HIRBuilder::LoadClock() {
       AllocValue(INT64_TYPE));
   i->src1.value = i->src2.value = i->src3.value = NULL;
   return i->dest;
+}
+
+Value* HIRBuilder::AllocLocal(TypeName type) {
+  Value* slot = AllocValue(type);
+  locals_.push_back(slot);
+  return slot;
+}
+
+Value* HIRBuilder::LoadLocal(Value* slot) {
+  Instr* i = AppendInstr(
+      OPCODE_LOAD_LOCAL_info, 0,
+      AllocValue(slot->type));
+  i->set_src1(slot);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
+void HIRBuilder::StoreLocal(Value* slot, Value* value) {
+  Instr* i = AppendInstr(OPCODE_STORE_LOCAL_info, 0);
+  i->set_src1(slot);
+  i->set_src2(value);
+  i->src3.value = NULL;
 }
 
 Value* HIRBuilder::LoadContext(size_t offset, TypeName type) {

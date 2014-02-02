@@ -33,6 +33,7 @@ IVMFunction::~IVMFunction() {
 
 void IVMFunction::Setup(TranslationContext& ctx) {
   register_count_ = ctx.register_count;
+  stack_size_ = ctx.stack_size;
   intcode_count_ = ctx.intcode_count;
   intcodes_ = (IntCode*)ctx.intcode_arena->CloneContents();
   source_map_count_ = ctx.source_map_count;
@@ -108,11 +109,13 @@ int IVMFunction::CallImpl(ThreadState* thread_state) {
   // Setup register file on stack.
   auto stack = (IVMStack*)thread_state->backend_data();
   auto register_file = (Register*)stack->Alloc(register_count_);
+  auto local_stack = (uint8_t*)alloca(stack_size_);
 
   Memory* memory = thread_state->memory();
 
   IntCodeState ics;
   ics.rf = register_file;
+  ics.locals = local_stack;
   ics.context = (uint8_t*)thread_state->raw_context();
   ics.membase = memory->membase();
   ics.did_carry = 0;

@@ -816,6 +816,117 @@ table->AddSequence(OPCODE_LOAD_CLOCK, [](X64Emitter& e, Instr*& i) {
 });
 
 // --------------------------------------------------------------------------
+// Stack Locals
+// --------------------------------------------------------------------------
+
+table->AddSequence(OPCODE_LOAD_LOCAL, [](X64Emitter& e, Instr*& i) {
+  auto addr = e.rsp + i->src1.value->AsUint32();
+  if (i->Match(SIG_TYPE_I8, SIG_TYPE_IGNORE)) {
+    Reg8 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.byte[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_I16, SIG_TYPE_IGNORE)) {
+    Reg16 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.word[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_IGNORE)) {
+    Reg32 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.dword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_I64, SIG_TYPE_IGNORE)) {
+    Reg64 dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.mov(dest, e.qword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_F32, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.movss(dest, e.dword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_F64, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    e.movsd(dest, e.qword[addr]);
+    e.EndOp(dest);
+  } else if (i->Match(SIG_TYPE_V128, SIG_TYPE_IGNORE)) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    // NOTE: we always know we are aligned.
+    e.movaps(dest, e.ptr[addr]);
+    e.EndOp(dest);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_STORE_LOCAL, [](X64Emitter& e, Instr*& i) {
+  auto addr = e.rsp + i->src1.value->AsUint32();
+  if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8)) {
+    Reg8 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.byte[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I8C)) {
+    e.mov(e.byte[addr], i->src2.value->constant.i8);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16)) {
+    Reg16 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.word[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I16C)) {
+    e.mov(e.word[addr], i->src2.value->constant.i16);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32)) {
+    Reg32 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.dword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I32C)) {
+    e.mov(e.dword[addr], i->src2.value->constant.i32);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64)) {
+    Reg64 src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.mov(e.qword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_I64C)) {
+    MovMem64(e, addr, i->src2.value->constant.i64);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.movss(e.dword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F32C)) {
+    e.mov(e.dword[addr], i->src2.value->constant.i32);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    e.movsd(e.qword[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_F64C)) {
+    MovMem64(e, addr, i->src2.value->constant.i64);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128)) {
+    Xmm src;
+    e.BeginOp(i->src2.value, src, 0);
+    // NOTE: we always know we are aligned.
+    e.movaps(e.ptr[addr], src);
+    e.EndOp(src);
+  } else if (i->Match(SIG_TYPE_X, SIG_TYPE_IGNORE, SIG_TYPE_V128C)) {
+    // TODO(benvanik): check zero
+    // TODO(benvanik): correct order?
+    MovMem64(e, addr, i->src2.value->constant.v128.low);
+    MovMem64(e, addr + 8, i->src2.value->constant.v128.high);
+  } else {
+    ASSERT_INVALID_TYPE();
+  }
+  i = e.Advance(i);
+  return true;
+});
+
+// --------------------------------------------------------------------------
 // Context
 // --------------------------------------------------------------------------
 
@@ -2892,6 +3003,7 @@ table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
               i->src1.value, src1, 0,
               i->src2.value, src2, 0);
     e.mov(dest, src2);
+    e.lock();
     e.xchg(e.dword[src1], dest);
     e.EndOp(dest, src1, src2);
   } else {

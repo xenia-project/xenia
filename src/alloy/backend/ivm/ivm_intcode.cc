@@ -1342,6 +1342,88 @@ int Translate_LOAD_CLOCK(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_LOAD_CLOCK);
 }
 
+uint32_t IntCode_LOAD_LOCAL_I8(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_I16(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i16 = *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_I32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i32 = *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_I64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 = *((float*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 = *((double*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_V128(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  return IA_NEXT;
+}
+int Translate_LOAD_LOCAL(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_LOAD_LOCAL_I8,
+    IntCode_LOAD_LOCAL_I16,
+    IntCode_LOAD_LOCAL_I32,
+    IntCode_LOAD_LOCAL_I64,
+    IntCode_LOAD_LOCAL_F32,
+    IntCode_LOAD_LOCAL_F64,
+    IntCode_LOAD_LOCAL_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t IntCode_STORE_LOCAL_I8(IntCodeState& ics, const IntCode* i) {
+  *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i8;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_I16(IntCodeState& ics, const IntCode* i) {
+  *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i16;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_I32(IntCodeState& ics, const IntCode* i) {
+  *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i32;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_I64(IntCodeState& ics, const IntCode* i) {
+  *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i64;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_F32(IntCodeState& ics, const IntCode* i) {
+  *((float*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f32;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_F64(IntCodeState& ics, const IntCode* i) {
+  *((double*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f64;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_V128(IntCodeState& ics, const IntCode* i) {
+  *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].v128;
+  return IA_NEXT;
+}
+int Translate_STORE_LOCAL(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_STORE_LOCAL_I8,
+    IntCode_STORE_LOCAL_I16,
+    IntCode_STORE_LOCAL_I32,
+    IntCode_STORE_LOCAL_I64,
+    IntCode_STORE_LOCAL_F32,
+    IntCode_STORE_LOCAL_F64,
+    IntCode_STORE_LOCAL_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->src2.value->type]);
+}
+
 uint32_t IntCode_LOAD_CONTEXT_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.context + ics.rf[i->src1_reg].u64));
   DPRINT("%d (%X) = ctx i8 +%d\n", ics.rf[i->dest_reg].i8, ics.rf[i->dest_reg].u8, ics.rf[i->src1_reg].u64);
@@ -4038,6 +4120,9 @@ static const TranslateFn dispatch_table[] = {
   Translate_LOAD_VECTOR_SHR,
 
   Translate_LOAD_CLOCK,
+
+  Translate_LOAD_LOCAL,
+  Translate_STORE_LOCAL,
 
   Translate_LOAD_CONTEXT,
   Translate_STORE_CONTEXT,

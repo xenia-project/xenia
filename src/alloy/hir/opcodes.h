@@ -117,6 +117,9 @@ enum Opcode {
 
   OPCODE_LOAD_CLOCK,
 
+  OPCODE_LOAD_LOCAL,
+  OPCODE_STORE_LOCAL,
+
   OPCODE_LOAD_CONTEXT,
   OPCODE_STORE_CONTEXT,
 
@@ -202,6 +205,7 @@ enum OpcodeFlags {
   OPCODE_FLAG_VOLATILE    = (1 << 4),
   OPCODE_FLAG_IGNORE      = (1 << 5),
   OPCODE_FLAG_HIDE        = (1 << 6),
+  OPCODE_FLAG_PAIRED_PREV = (1 << 7),
 };
 
 enum OpcodeSignatureType {

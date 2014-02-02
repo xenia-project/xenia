@@ -2,13 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
-#define ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
+#ifndef ALLOY_COMPILER_PASSES_CONTROL_FLOW_ANALYSIS_PASS_H_
+#define ALLOY_COMPILER_PASSES_CONTROL_FLOW_ANALYSIS_PASS_H_
 
 #include <alloy/compiler/compiler_pass.h>
 
@@ -18,17 +18,14 @@ namespace compiler {
 namespace passes {
 
 
-class DeadCodeEliminationPass : public CompilerPass {
+class ControlFlowAnalysisPass : public CompilerPass {
 public:
-  DeadCodeEliminationPass();
-  virtual ~DeadCodeEliminationPass();
+  ControlFlowAnalysisPass();
+  virtual ~ControlFlowAnalysisPass();
 
   virtual int Run(hir::HIRBuilder* builder);
 
 private:
-  void MakeNopRecursive(hir::Instr* i);
-  void ReplaceAssignment(hir::Instr* i);
-  bool CheckLocalUse(hir::Instr* i);
 };
 
 
@@ -37,4 +34,4 @@ private:
 }  // namespace alloy
 
 
-#endif  // ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
+#endif  // ALLOY_COMPILER_PASSES_CONTROL_FLOW_ANALYSIS_PASS_H_

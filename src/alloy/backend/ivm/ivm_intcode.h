@@ -41,6 +41,7 @@ typedef union {
 
 typedef struct {
   Register*     rf;
+  uint8_t*      locals;
   uint8_t*      context;
   uint8_t*      membase;
   int8_t        did_carry;
@@ -103,6 +104,7 @@ typedef struct {
   Arena*    source_map_arena;
   Arena*    scratch_arena;
   LabelRef* label_ref_head;
+  size_t    stack_size;
 } TranslationContext;
 
 

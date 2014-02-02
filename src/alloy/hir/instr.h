@@ -79,6 +79,7 @@ public:
              SignatureType src2 = SIG_TYPE_X,
              SignatureType src3 = SIG_TYPE_X) const;
 
+  void MoveBefore(Instr* other);
   void Replace(const OpcodeInfo* opcode, uint16_t flags);
   void Remove();
 };

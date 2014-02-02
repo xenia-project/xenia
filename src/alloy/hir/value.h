@@ -42,6 +42,25 @@ static bool IsFloatType(TypeName type_name) {
 static bool IsVecType(TypeName type_name) {
   return type_name == VEC128_TYPE;
 }
+static size_t GetTypeSize(TypeName type_name) {
+  switch (type_name) {
+  case INT8_TYPE:
+    return 1;
+  case INT16_TYPE:
+    return 2;
+  case INT32_TYPE:
+    return 4;
+  case INT64_TYPE:
+    return 8;
+  case FLOAT32_TYPE:
+    return 4;
+  case FLOAT64_TYPE:
+    return 8;
+  default:
+  case VEC128_TYPE:
+    return 16;
+  }
+}
 
 enum ValueFlags {
   VALUE_IS_CONSTANT   = (1 << 1),
@@ -78,6 +97,7 @@ public:
   Use*      use_head;
   // NOTE: for performance reasons this is not maintained during construction.
   Instr*    last_use;
+  Value*    local_slot;
 
   // TODO(benvanik): remove to shrink size.
   void*     tag;
