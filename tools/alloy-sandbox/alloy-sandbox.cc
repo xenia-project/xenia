@@ -49,7 +49,7 @@ int alloy_sandbox(int argc, xechar_t** argv) {
   ctx->lr = 0xBEBEBEBE;
   ctx->r[5] = 10;
   ctx->r[25] = 25;
-  fn->Call(thread_state);
+  fn->Call(thread_state, ctx->lr);
   auto result = ctx->r[11];
 
   delete thread_state;

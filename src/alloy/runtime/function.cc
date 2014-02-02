@@ -73,7 +73,7 @@ Breakpoint* Function::FindBreakpoint(uint64_t address) {
   return result;
 }
 
-int Function::Call(ThreadState* thread_state) {
+int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   ThreadState* original_thread_state = ThreadState::Get();
   if (original_thread_state != thread_state) {
     ThreadState::Bind(thread_state);
@@ -94,7 +94,7 @@ int Function::Call(ThreadState* thread_state) {
       result = 1;
     }
   } else {
-    CallImpl(thread_state);
+    CallImpl(thread_state, return_address);
   }
 
   if (original_thread_state != thread_state) {

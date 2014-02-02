@@ -33,7 +33,8 @@ public:
 protected:
   virtual int AddBreakpointImpl(runtime::Breakpoint* breakpoint);
   virtual int RemoveBreakpointImpl(runtime::Breakpoint* breakpoint);
-  virtual int CallImpl(runtime::ThreadState* thread_state);
+  virtual int CallImpl(runtime::ThreadState* thread_state,
+                       uint64_t return_address);
 
 private:
   void*   machine_code_;

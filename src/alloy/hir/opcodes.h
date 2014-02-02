@@ -18,7 +18,8 @@ namespace hir {
 
 
 enum CallFlags {
-  CALL_TAIL       = (1 << 1),
+  CALL_TAIL             = (1 << 1),
+  CALL_POSSIBLE_RETURN  = (1 << 2),
 };
 enum BranchFlags {
   BRANCH_LIKELY   = (1 << 1),
@@ -97,6 +98,7 @@ enum Opcode {
   OPCODE_CALL_EXTERN,
   OPCODE_RETURN,
   OPCODE_RETURN_TRUE,
+  OPCODE_SET_RETURN_ADDRESS,
 
   OPCODE_BRANCH,
   OPCODE_BRANCH_TRUE,
