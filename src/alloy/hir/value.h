@@ -184,25 +184,26 @@ public:
   }
   bool IsConstantTrue() const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) && !!constant.i64;
   }
   bool IsConstantFalse() const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) && !constant.i64;
   }
   bool IsConstantZero() const {
     if (type == VEC128_TYPE) {
-      return false;
+      return (flags & VALUE_IS_CONSTANT) &&
+             !constant.v128.low && !constant.v128.high;
     }
     return (flags & VALUE_IS_CONSTANT) && !constant.i64;
   }
   bool IsConstantEQ(Value* other) const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) &&
            (other->flags & VALUE_IS_CONSTANT) &&
@@ -210,7 +211,7 @@ public:
   }
   bool IsConstantNE(Value* other) const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) &&
            (other->flags & VALUE_IS_CONSTANT) &&

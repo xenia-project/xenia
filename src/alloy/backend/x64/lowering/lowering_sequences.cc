@@ -63,6 +63,7 @@ enum XmmConst {
   XMMSignMaskPS         = 8,
   XMMSignMaskPD         = 9,
   XMMByteSwapMask       = 10,
+  XMMPermuteControl15   = 11,
 };
 static const vec128_t xmm_consts[] = {
   /* XMMZero                */ vec128f(0.0f, 0.0f, 0.0f, 0.0f),
@@ -76,6 +77,7 @@ static const vec128_t xmm_consts[] = {
   /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
   /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),
   /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
+  /* XMMPermuteControl15    */ vec128b(15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15),
 };
 // Use consts by first loading the base register then accessing memory:
 // e.mov(e.rax, XMMCONSTBASE)
@@ -83,6 +85,45 @@ static const vec128_t xmm_consts[] = {
 // TODO(benvanik): find a way to do this without the base register.
 #define XMMCONSTBASE (uint64_t)&xmm_consts[0]
 #define XMMCONST(base_reg, name) e.ptr[base_reg + name * 16]
+
+static vec128_t lvsl_table[17] = {
+  vec128b( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+  vec128b( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
+  vec128b( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
+  vec128b( 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
+  vec128b( 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+  vec128b( 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
+  vec128b( 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
+  vec128b( 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
+  vec128b( 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
+  vec128b( 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
+  vec128b(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
+  vec128b(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
+  vec128b(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
+  vec128b(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
+  vec128b(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
+  vec128b(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
+  vec128b(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31),
+};
+static vec128_t lvsr_table[17] = {
+  vec128b(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31),
+  vec128b(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
+  vec128b(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
+  vec128b(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
+  vec128b(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
+  vec128b(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
+  vec128b(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
+  vec128b( 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
+  vec128b( 8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
+  vec128b( 7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
+  vec128b( 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
+  vec128b( 5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
+  vec128b( 4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+  vec128b( 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
+  vec128b( 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17),
+  vec128b( 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
+  vec128b( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+};
 
 // A note about vectors:
 // Alloy represents vectors as xyzw pairs, with indices 0123.
@@ -792,14 +833,56 @@ table->AddSequence(OPCODE_VECTOR_CONVERT_F2I, [](X64Emitter& e, Instr*& i) {
 
 table->AddSequence(OPCODE_LOAD_VECTOR_SHL, [](X64Emitter& e, Instr*& i) {
   XEASSERT(i->dest->type == VEC128_TYPE);
-  UNIMPLEMENTED_SEQ();
+  if (i->src1.value->IsConstant()) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    auto sh = MIN(16, i->src1.value->AsUint32());
+    e.mov(e.rax, (uintptr_t)&lvsl_table[sh]);
+    e.movaps(dest, e.ptr[e.rax]);
+    e.EndOp(dest);
+  } else {
+    Xmm dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): probably a way to do this with addressing.
+    e.mov(TEMP_REG, 16);
+    e.movzx(e.rax, src);
+    e.cmp(src, 16);
+    e.cmovb(TEMP_REG, e.rax);
+    e.shl(TEMP_REG, 4);
+    e.mov(e.rax, (uintptr_t)lvsl_table);
+    e.movaps(dest, e.ptr[e.rax + TEMP_REG]);
+    e.EndOp(dest, src);
+  }
   i = e.Advance(i);
   return true;
 });
 
 table->AddSequence(OPCODE_LOAD_VECTOR_SHR, [](X64Emitter& e, Instr*& i) {
   XEASSERT(i->dest->type == VEC128_TYPE);
-  UNIMPLEMENTED_SEQ();
+  if (i->src1.value->IsConstant()) {
+    Xmm dest;
+    e.BeginOp(i->dest, dest, REG_DEST);
+    auto sh = MIN(16, i->src1.value->AsUint32());
+    e.mov(e.rax, (uintptr_t)&lvsr_table[sh]);
+    e.movaps(dest, e.ptr[e.rax]);
+    e.EndOp(dest);
+  } else {
+    Xmm dest;
+    Reg8 src;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src, 0);
+    // TODO(benvanik): probably a way to do this with addressing.
+    e.mov(TEMP_REG, 16);
+    e.movzx(e.rax, src);
+    e.cmp(src, 16);
+    e.cmovb(TEMP_REG, e.rax);
+    e.shl(TEMP_REG, 4);
+    e.mov(e.rax, (uintptr_t)lvsr_table);
+    e.movaps(dest, e.ptr[e.rax + TEMP_REG]);
+    e.EndOp(dest, src);
+  }
   i = e.Advance(i);
   return true;
 });

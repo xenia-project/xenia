@@ -51,6 +51,12 @@ Address Stash(X64Emitter& e, const Xmm& r) {
   return addr;
 }
 
+void LoadXmmConstant(X64Emitter& e, Xmm& dest, const vec128_t& v) {
+  e.mov(e.qword[e.rsp + STASH_OFFSET], v.low);
+  e.mov(e.qword[e.rsp + STASH_OFFSET + 8], v.high);
+  e.movaps(dest, e.ptr[e.rsp + STASH_OFFSET]);
+}
+
 // Moves a 64bit immediate into memory.
 void MovMem64(X64Emitter& e, RegExp& addr, uint64_t v) {
   if ((v & ~0x7FFFFFFF) == 0) {
