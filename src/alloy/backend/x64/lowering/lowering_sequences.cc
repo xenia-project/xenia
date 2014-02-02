@@ -233,11 +233,15 @@ void TransitionToHost(X64Emitter& e) {
   e.call(e.rax);
 }
 void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
-  auto fn = symbol_info->function();
+  auto fn = (X64Function*)symbol_info->function();
   // Resolve address to the function to call and store in rax.
   // TODO(benvanik): caching/etc. For now this makes debugging easier.
-  e.mov(e.rdx, (uint64_t)symbol_info);
-  CallNative(e, ResolveFunctionSymbol);
+  if (fn) {
+    e.mov(e.rax, (uint64_t)fn->machine_code());
+  } else {
+    e.mov(e.rdx, (uint64_t)symbol_info);
+    CallNative(e, ResolveFunctionSymbol);
+  }
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {

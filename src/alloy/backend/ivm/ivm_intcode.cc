@@ -576,8 +576,10 @@ int Translate_TRAP_TRUE(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_CALL_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
   FunctionInfo* symbol_info = (FunctionInfo*)ics.rf[reg].u64;
-  Function* fn = NULL;
-  ics.thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  Function* fn = symbol_info->function();
+  if (!fn) {
+    ics.thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  }
   XEASSERTNOTNULL(fn);
   // TODO(benvanik): proper tail call support, somehow.
   uint64_t return_address =
