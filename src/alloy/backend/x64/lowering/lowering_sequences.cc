@@ -245,17 +245,30 @@ void IssueCall(X64Emitter& e, FunctionInfo* symbol_info, uint32_t flags) {
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
+    // Pass the callers return address over.
+    e.mov(e.rdx, e.qword[e.rsp + StackLayout::GUEST_RET_ADDR]);
+
     e.add(e.rsp, (uint32_t)e.stack_size());
     e.jmp(e.rax);
   } else {
+    // Return address is from the previous SET_RETURN_ADDRESS.
+    e.mov(e.rdx, e.qword[e.rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+
     e.call(e.rax);
   }
 }
 void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
-  // Resolve address to the function to call and store in rax.
-  // TODO(benvanik): caching/etc. For now this makes debugging easier.
   Reg64 r;
   e.BeginOp(target, r, 0);
+
+  // Check if return.
+  if (flags & CALL_POSSIBLE_RETURN) {
+    e.cmp(r.cvt32(), e.dword[e.rsp + StackLayout::GUEST_RET_ADDR]);
+    e.je("epilog", CodeGenerator::T_NEAR);
+  }
+
+  // Resolve address to the function to call and store in rax.
+  // TODO(benvanik): caching/etc. For now this makes debugging easier.
   if (r != e.rdx) {
     e.mov(e.rdx, r);
   }
@@ -264,9 +277,15 @@ void IssueCallIndirect(X64Emitter& e, Value* target, uint32_t flags) {
 
   // Actually jump/call to rax.
   if (flags & CALL_TAIL) {
+    // Pass the callers return address over.
+    e.mov(e.rdx, e.qword[e.rsp + StackLayout::GUEST_RET_ADDR]);
+
     e.add(e.rsp, (uint32_t)e.stack_size());
     e.jmp(e.rax);
   } else {
+    // Return address is from the previous SET_RETURN_ADDRESS.
+    e.mov(e.rdx, e.qword[e.rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+
     e.call(e.rax);
   }
 }
@@ -430,6 +449,14 @@ table->AddSequence(OPCODE_RETURN, [](X64Emitter& e, Instr*& i) {
 table->AddSequence(OPCODE_RETURN_TRUE, [](X64Emitter& e, Instr*& i) {
   CheckBoolean(e, i->src1.value);
   e.jnz("epilog", CodeGenerator::T_NEAR);
+  i = e.Advance(i);
+  return true;
+});
+
+table->AddSequence(OPCODE_SET_RETURN_ADDRESS, [](X64Emitter& e, Instr*& i) {
+  XEASSERT(i->src1.value->IsConstant());
+  e.mov(e.qword[e.rsp + StackLayout::GUEST_CALL_RET_ADDR],
+        i->src1.value->AsUint64());
   i = e.Advance(i);
   return true;
 });

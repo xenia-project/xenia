@@ -104,6 +104,10 @@ namespace x64 {
  *  +------------------+
  *  | rcx / context    | rsp + 64
  *  +------------------+
+ *  | guest ret addr   | rsp + 72
+ *  +------------------+
+ *  | call ret addr    | rsp + 80
+ *  +------------------+
  *    ... locals ...
  *  +------------------+
  *  | (return address) |
@@ -115,8 +119,10 @@ class StackLayout {
 public:
   const static size_t THUNK_STACK_SIZE = 120;
 
-  const static size_t GUEST_STACK_SIZE = 72;
+  const static size_t GUEST_STACK_SIZE = 88;
   const static size_t GUEST_RCX_HOME = 64;
+  const static size_t GUEST_RET_ADDR = 72;
+  const static size_t GUEST_CALL_RET_ADDR = 80;
 };
 
 

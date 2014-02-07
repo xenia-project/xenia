@@ -34,6 +34,7 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
 
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
   // rsp + 0 = return address
+  mov(qword[rsp + 8 * 3], r8);
   mov(qword[rsp + 8 * 2], rdx);
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
@@ -88,6 +89,7 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);
+  mov(r8, qword[rsp + 8 * 3]);
   ret();
 
   void* fn = Emplace(stack_size);

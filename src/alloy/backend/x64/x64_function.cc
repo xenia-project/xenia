@@ -48,6 +48,6 @@ int X64Function::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   thunk(
       machine_code_,
       thread_state->raw_context(),
-      thread_state->memory()->membase());
+      (void*)return_address);
   return 0;
 }

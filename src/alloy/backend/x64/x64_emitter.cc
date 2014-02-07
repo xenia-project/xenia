@@ -158,6 +158,10 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   if (emit_prolog) {
     sub(rsp, (uint32_t)stack_size);
     mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
+    mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
+    mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
+    // ReloadRDX:
+    mov(rdx, qword[rcx + 8]); // membase
   }
 
   auto lowering_table = backend_->lowering_table();
