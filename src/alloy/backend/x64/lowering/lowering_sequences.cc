@@ -2199,7 +2199,9 @@ table->AddSequence(OPCODE_DIV, [](X64Emitter& e, Instr*& i) {
       // RAX = value, RDX = clobbered
       // TODO(benvanik): make the register allocator put dest_src in RAX?
       auto Nax = LIKE_REG(e.rax, dest_src);
+      auto Ndx = LIKE_REG(e.rdx, dest_src);
       e.mov(Nax, dest_src);
+      e.xor(Ndx, Ndx);
       if (i.flags & ARITHMETIC_UNSIGNED) {
         e.div(src);
       } else {
