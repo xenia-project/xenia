@@ -51,7 +51,7 @@ Address Stash(X64Emitter& e, const Xmm& r) {
   return addr;
 }
 
-void LoadXmmConstant(X64Emitter& e, Xmm& dest, const vec128_t& v) {
+void LoadXmmConstant(X64Emitter& e, const Xmm& dest, const vec128_t& v) {
   if (!v.low && !v.high) {
     // zero
     e.vpxor(dest, dest);
@@ -930,7 +930,7 @@ void XmmBinaryOpVC(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
       e.mov(e.rax, (uint64_t)src2->constant.i64);
       e.movsd(dest, e.rax);
     } else {
-      UNIMPLEMENTED_SEQ();
+      LoadXmmConstant(e, dest, src2->constant.v128);
     }
     vv_fn(e, *i, dest, src1);
   } else {
@@ -944,7 +944,7 @@ void XmmBinaryOpVC(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
       e.mov(e.rax, (uint64_t)src2->constant.i64);
       e.movsd(e.xmm0, e.rax);
     } else {
-      UNIMPLEMENTED_SEQ();
+      LoadXmmConstant(e, e.xmm0, src2->constant.v128);
     }
     vv_fn(e, *i, dest, e.xmm0);
   }
@@ -962,7 +962,7 @@ void XmmBinaryOpCV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
       e.mov(e.rax, (uint64_t)src1->constant.i64);
       e.movsd(dest, e.rax);
     } else {
-      UNIMPLEMENTED_SEQ();
+      LoadXmmConstant(e, dest, src1->constant.v128);
     }
     vv_fn(e, *i, dest, src2);
   } else {
@@ -978,7 +978,7 @@ void XmmBinaryOpCV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
       e.mov(e.rax, (uint64_t)src1->constant.i64);
       e.movsd(dest, e.rax);
     } else {
-      UNIMPLEMENTED_SEQ();
+      LoadXmmConstant(e, dest, src1->constant.v128);
     }
     vv_fn(e, *i, dest, real_src2);
   }
