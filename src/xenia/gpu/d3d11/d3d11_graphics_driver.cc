@@ -20,6 +20,9 @@ using namespace xe::gpu::d3d11;
 using namespace xe::gpu::xenos;
 
 
+#define XETRACED3D(fmt, ...) if (FLAGS_trace_ring_buffer) XELOGGPU(fmt, ##__VA_ARGS__)
+
+
 D3D11GraphicsDriver::D3D11GraphicsDriver(
     Memory* memory, IDXGISwapChain* swap_chain, ID3D11Device* device) :
     GraphicsDriver(memory) {
@@ -145,13 +148,13 @@ void D3D11GraphicsDriver::Initialize() {
 void D3D11GraphicsDriver::InvalidateState(
     uint32_t mask) {
   if (mask == XE_GPU_INVALIDATE_MASK_ALL) {
-    XELOGGPU("D3D11: (invalidate all)");
+    XETRACED3D("D3D11: (invalidate all)");
   }
   if (mask & XE_GPU_INVALIDATE_MASK_VERTEX_SHADER) {
-    XELOGGPU("D3D11: invalidate vertex shader");
+    XETRACED3D("D3D11: invalidate vertex shader");
   }
   if (mask & XE_GPU_INVALIDATE_MASK_PIXEL_SHADER) {
-    XELOGGPU("D3D11: invalidate pixel shader");
+    XETRACED3D("D3D11: invalidate pixel shader");
   }
 }
 
@@ -165,13 +168,15 @@ void D3D11GraphicsDriver::SetShader(
   Shader* shader = shader_cache_->FindOrCreate(
       type, p, length);
 
-  // Disassemble.
-  const char* source = shader->disasm_src();
-  if (!source) {
-    source = "<failed to disassemble>";
+  if (!shader->is_prepared()) {
+    // Disassemble.
+    const char* source = shader->disasm_src();
+    if (!source) {
+      source = "<failed to disassemble>";
+    }
+    XETRACED3D("D3D11: set shader %d at %0.8X (%db):\n%s",
+               type, address, length, source);
   }
-  XELOGGPU("D3D11: set shader %d at %0.8X (%db):\n%s",
-           type, address, length, source);
 
   // Stash for later.
   switch (type) {
@@ -293,8 +298,8 @@ void D3D11GraphicsDriver::DrawIndexBuffer(
     uint32_t index_base, uint32_t index_size, uint32_t endianness) {
   RegisterFile& rf = register_file_;
 
-  XELOGGPU("D3D11: draw indexed %d (%d indicies) from %.8X",
-           prim_type, index_count, index_base);
+  XETRACED3D("D3D11: draw indexed %d (%d indicies) from %.8X",
+             prim_type, index_count, index_base);
 
   // Setup shaders/etc.
   if (SetupDraw(prim_type)) {
@@ -318,8 +323,8 @@ void D3D11GraphicsDriver::DrawIndexAuto(
     uint32_t index_count) {
   RegisterFile& rf = register_file_;
 
-  XELOGGPU("D3D11: draw indexed %d (%d indicies)",
-           prim_type, index_count);
+  XETRACED3D("D3D11: draw indexed %d (%d indicies)",
+             prim_type, index_count);
 
   // Setup shaders/etc.
   if (SetupDraw(prim_type)) {
