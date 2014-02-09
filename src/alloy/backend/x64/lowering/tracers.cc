@@ -39,7 +39,7 @@ namespace lowering {
 
 void TraceString(void* raw_context, const char* str) {
   auto thread_state = *((ThreadState**)raw_context);
-  IPRINT("XE[t] :%d: %s\n", thread_state->GetThreadID(), str);
+  IPRINT("XE[t] :%d: %s\n", thread_state->thread_id(), str);
   IFLUSH();
 }
 
