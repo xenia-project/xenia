@@ -20,6 +20,8 @@ using namespace alloy::runtime;
 
 Compiler::Compiler(Runtime* runtime) :
     runtime_(runtime) {
+  scratch_arena_ = new Arena();
+
   alloy::tracing::WriteEvent(EventType::Init({
   }));
 }
@@ -31,6 +33,8 @@ Compiler::~Compiler() {
     CompilerPass* pass = *it;
     delete pass;
   }
+
+  delete scratch_arena_;
 
   alloy::tracing::WriteEvent(EventType::Deinit({
   }));
@@ -49,6 +53,7 @@ int Compiler::Compile(HIRBuilder* builder) {
   //                 stop changing things, etc.
   for (auto it = passes_.begin(); it != passes_.end(); ++it) {
     CompilerPass* pass = *it;
+    scratch_arena_->Reset();
     if (pass->Run(builder)) {
       return 1;
     }

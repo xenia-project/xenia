@@ -28,6 +28,7 @@ public:
   ~Compiler();
 
   runtime::Runtime* runtime() const { return runtime_; }
+  Arena* scratch_arena() const { return scratch_arena_; }
 
   void AddPass(CompilerPass* pass);
 
@@ -37,6 +38,7 @@ public:
 
 private:
   runtime::Runtime* runtime_;
+  Arena* scratch_arena_;
 
   typedef std::vector<CompilerPass*> PassList;
   PassList passes_;
