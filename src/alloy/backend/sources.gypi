@@ -11,6 +11,6 @@
 
   'includes': [
     'ivm/sources.gypi',
-    'x64/sources.gypi',
+    #'x64/sources.gypi',
   ],
 }
