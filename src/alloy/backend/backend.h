@@ -11,6 +11,7 @@
 #define ALLOY_BACKEND_BACKEND_H_
 
 #include <alloy/core.h>
+#include <alloy/backend/machine_info.h>
 
 
 namespace alloy { namespace runtime { class Runtime; } }
@@ -27,6 +28,7 @@ public:
   virtual ~Backend();
 
   runtime::Runtime* runtime() const { return runtime_; }
+  const MachineInfo* machine_info() const { return &machine_info_; }
 
   virtual int Initialize();
 
@@ -37,6 +39,7 @@ public:
 
 protected:
   runtime::Runtime* runtime_;
+  MachineInfo machine_info_;
 };
 
 

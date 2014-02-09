@@ -41,6 +41,20 @@ int X64Backend::Initialize() {
     return result;
   }
 
+  machine_info_.register_sets[0] = {
+    0,
+    "gpr",
+    MachineInfo::RegisterSet::INT_TYPES,
+    10,
+  };
+  machine_info_.register_sets[1] = {
+    1,
+    "xmm",
+    MachineInfo::RegisterSet::FLOAT_TYPES |
+    MachineInfo::RegisterSet::VEC_TYPES,
+    10,
+  };
+
   code_cache_ = new X64CodeCache();
   result = code_cache_->Initialize();
   if (result) {

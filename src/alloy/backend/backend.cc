@@ -18,6 +18,7 @@ using namespace alloy::runtime;
 
 Backend::Backend(Runtime* runtime) :
     runtime_(runtime) {
+  xe_zero_struct(&machine_info_, sizeof(machine_info_));
 }
 
 Backend::~Backend() {
