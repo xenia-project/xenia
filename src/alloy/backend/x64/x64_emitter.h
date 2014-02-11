@@ -56,90 +56,73 @@ public:
 public:
   template<typename V0>
   void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags) {
-    uint32_t v0_idx;
-    FindFreeRegs(v0, v0_idx, r0_flags);
-    SetupReg(v0_idx, r0);
+    SetupReg(v0, r0);
   }
   template<typename V0, typename V1>
   void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags,
                hir::Value* v1, V1& r1, uint32_t r1_flags) {
-    uint32_t v0_idx, v1_idx;
-    FindFreeRegs(v0, v0_idx, r0_flags,
-                 v1, v1_idx, r1_flags);
-    SetupReg(v0_idx, r0);
-    SetupReg(v1_idx, r1);
+    SetupReg(v0, r0);
+    SetupReg(v1, r1);
   }
   template<typename V0, typename V1, typename V2>
   void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags,
                hir::Value* v1, V1& r1, uint32_t r1_flags,
                hir::Value* v2, V2& r2, uint32_t r2_flags) {
-    uint32_t v0_idx, v1_idx, v2_idx;
-    FindFreeRegs(v0, v0_idx, r0_flags,
-                 v1, v1_idx, r1_flags,
-                 v2, v2_idx, r2_flags);
-    SetupReg(v0_idx, r0);
-    SetupReg(v1_idx, r1);
-    SetupReg(v2_idx, r2);
+    SetupReg(v0, r0);
+    SetupReg(v1, r1);
+    SetupReg(v2, r2);
   }
   template<typename V0, typename V1, typename V2, typename V3>
   void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags,
                hir::Value* v1, V1& r1, uint32_t r1_flags,
                hir::Value* v2, V2& r2, uint32_t r2_flags,
                hir::Value* v3, V3& r3, uint32_t r3_flags) {
-    uint32_t v0_idx, v1_idx, v2_idx, v3_idx;
-    FindFreeRegs(v0, v0_idx, r0_flags,
-                 v1, v1_idx, r1_flags,
-                 v2, v2_idx, r2_flags,
-                 v3, v3_idx, r3_flags);
-    SetupReg(v0_idx, r0);
-    SetupReg(v1_idx, r1);
-    SetupReg(v2_idx, r2);
-    SetupReg(v3_idx, r3);
+    SetupReg(v0, r0);
+    SetupReg(v1, r1);
+    SetupReg(v2, r2);
+    SetupReg(v3, r3);
   }
   template<typename V0>
   void EndOp(V0& r0) {
-    reg_state_.active_regs = reg_state_.active_regs ^ GetRegBit(r0);
   }
   template<typename V0, typename V1>
   void EndOp(V0& r0, V1& r1) {
-    reg_state_.active_regs = reg_state_.active_regs ^ (
-        GetRegBit(r0) | GetRegBit(r1));
   }
   template<typename V0, typename V1, typename V2>
   void EndOp(V0& r0, V1& r1, V2& r2) {
-    reg_state_.active_regs = reg_state_.active_regs ^ (
-        GetRegBit(r0) | GetRegBit(r1) | GetRegBit(r2));
   }
   template<typename V0, typename V1, typename V2, typename V3>
   void EndOp(V0& r0, V1& r1, V2& r2, V3& r3) {
-    reg_state_.active_regs = reg_state_.active_regs ^ (
-        GetRegBit(r0) | GetRegBit(r1) | GetRegBit(r2) | GetRegBit(r3));
   }
 
-  void ResetRegisters(uint32_t reserved_regs);
-  void EvictStaleRegisters();
+  // Reserved:  rsp
+  // Scratch:   rax/rcx/rdx
+  //            xmm0-1
+  // Available: rbx, r12-r15 (maybe r8-r11, rbp, rsi, rdi?)
+  //            xmm2-xmm15
+  static const int GPR_COUNT = 5;
+  static const int XMM_COUNT = 14;
 
-  void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags);
-  void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
-                    hir::Value* v1, uint32_t& v1_idx, uint32_t v1_flags);
-  void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
-                    hir::Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
-                    hir::Value* v2, uint32_t& v2_idx, uint32_t v2_flags);
-  void FindFreeRegs(hir::Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
-                    hir::Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
-                    hir::Value* v2, uint32_t& v2_idx, uint32_t v2_flags,
-                    hir::Value* v3, uint32_t& v3_idx, uint32_t v3_flags);
-
-  static void SetupReg(uint32_t idx, Xbyak::Reg8& r) { r = Xbyak::Reg8(idx); }
-  static void SetupReg(uint32_t idx, Xbyak::Reg16& r) { r = Xbyak::Reg16(idx); }
-  static void SetupReg(uint32_t idx, Xbyak::Reg32& r) { r = Xbyak::Reg32(idx); }
-  static void SetupReg(uint32_t idx, Xbyak::Reg64& r) { r = Xbyak::Reg64(idx); }
-  static void SetupReg(uint32_t idx, Xbyak::Xmm& r) { r = Xbyak::Xmm(idx - 16); }
-  static uint32_t GetRegBit(const Xbyak::Reg8& r) { return 1 << r.getIdx(); }
-  static uint32_t GetRegBit(const Xbyak::Reg16& r) { return 1 << r.getIdx(); }
-  static uint32_t GetRegBit(const Xbyak::Reg32& r) { return 1 << r.getIdx(); }
-  static uint32_t GetRegBit(const Xbyak::Reg64& r) { return 1 << r.getIdx(); }
-  static uint32_t GetRegBit(const Xbyak::Xmm& r) { return 1 << (16 + r.getIdx()); }
+  static void SetupReg(hir::Value* v, Xbyak::Reg8& r) {
+    auto idx = gpr_reg_map_[v->reg.index];
+    r = Xbyak::Reg8(idx);
+  }
+  static void SetupReg(hir::Value* v, Xbyak::Reg16& r) {
+    auto idx = gpr_reg_map_[v->reg.index];
+    r = Xbyak::Reg16(idx);
+  }
+  static void SetupReg(hir::Value* v, Xbyak::Reg32& r) {
+    auto idx = gpr_reg_map_[v->reg.index];
+    r = Xbyak::Reg32(idx);
+  }
+  static void SetupReg(hir::Value* v, Xbyak::Reg64& r) {
+    auto idx = gpr_reg_map_[v->reg.index];
+    r = Xbyak::Reg64(idx);
+  }
+  static void SetupReg(hir::Value* v, Xbyak::Xmm& r) {
+    auto idx = xmm_reg_map_[v->reg.index];
+    r = Xbyak::Xmm(idx);
+  }
 
   hir::Instr* Advance(hir::Instr* i);
 
@@ -157,21 +140,15 @@ protected:
   X64CodeCache*     code_cache_;
   XbyakAllocator*   allocator_;
 
-  struct {
-    // Registers currently active within a begin/end op block. These
-    // cannot be reused.
-    uint32_t    active_regs;
-    // Registers with values in them.
-    uint32_t    live_regs;
-    // Current register values.
-    hir::Value* reg_values[32];
-  } reg_state_;
   hir::Instr* current_instr_;
 
   size_t    source_map_count_;
   Arena     source_map_arena_;
 
   size_t    stack_size_;
+
+  static const uint32_t gpr_reg_map_[GPR_COUNT];
+  static const uint32_t xmm_reg_map_[XMM_COUNT];
 };
 
 

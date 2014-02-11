@@ -311,9 +311,9 @@ void VectorCompareXX(X64Emitter& e, Instr*& i, VectoreCompareOp op, bool as_sign
   if (op == VECTOR_CMP_EQ) {
     // Commutative, so simple.
     Xmm real_src;
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       real_src = src2;
-    } else if (dest == src2) {
+    } else if (dest.getIdx() == src2.getIdx()) {
       real_src = src1;
     } else {
       e.movaps(dest, src1);
@@ -334,9 +334,9 @@ void VectorCompareXX(X64Emitter& e, Instr*& i, VectoreCompareOp op, bool as_sign
     // Float GT/GE must be emulated.
     if (op == VECTOR_CMP_GT) {
       // Have to swap: src2 < src1.
-      if (dest == src2) {
+      if (dest.getIdx() == src2.getIdx()) {
         e.cmpltps(dest, src1);
-      } else if (dest == src1) {
+      } else if (dest.getIdx() == src1.getIdx()) {
         e.movaps(e.xmm0, src1);
         e.movaps(dest, src2);
         e.cmpltps(dest, e.xmm0);
@@ -346,9 +346,9 @@ void VectorCompareXX(X64Emitter& e, Instr*& i, VectoreCompareOp op, bool as_sign
       }
     } else if (op == VECTOR_CMP_GE) {
       // Have to swap: src2 <= src1.
-      if (dest == src2) {
+      if (dest.getIdx() == src2.getIdx()) {
         e.cmpleps(dest, src1);
-      } else if (dest == src1) {
+      } else if (dest.getIdx() == src1.getIdx()) {
         e.movaps(e.xmm0, src1);
         e.movaps(dest, src2);
         e.cmpleps(dest, e.xmm0);
@@ -362,9 +362,9 @@ void VectorCompareXX(X64Emitter& e, Instr*& i, VectoreCompareOp op, bool as_sign
   } else {
     // Integer types are easier.
     Xmm real_src;
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       real_src = src2;
-    } else if (dest == src2) {
+    } else if (dest.getIdx() == src2.getIdx()) {
       e.movaps(e.xmm0, src2);
       e.movaps(dest, src1);
       real_src = e.xmm0;
@@ -429,7 +429,7 @@ void IntUnaryOpV(X64Emitter& e, Instr*& i, v_fn v_fn,
                  T& dest, T& src1) {
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0);
-  if (dest == src1) {
+  if (dest.getIdx() == src1.getIdx()) {
     v_fn(e, *i, dest);
   } else {
     e.mov(dest, src1);
@@ -486,9 +486,9 @@ void IntBinaryOpVV(X64Emitter& e, Instr*& i, vv_fn vv_fn,
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0);
-  if (dest == src1) {
+  if (dest.getIdx() == src1.getIdx()) {
     vv_fn(e, *i, dest, src2);
-  } else if (dest == src2) {
+  } else if (dest.getIdx() == src2.getIdx()) {
     if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
       vv_fn(e, *i, dest, src1);
     } else {
@@ -511,7 +511,7 @@ void IntBinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
             i->src1.value, src1, 0);
   if (dest.getBit() <= 32) {
     // 32-bit.
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       vc_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()));
     } else {
       e.mov(dest, src1);
@@ -519,7 +519,7 @@ void IntBinaryOpVC(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
     }
   } else {
     // 64-bit.
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       e.mov(TEMP_REG, src2->constant.i64);
       vv_fn(e, *i, dest, TEMP_REG);
     } else {
@@ -537,7 +537,7 @@ void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
             i->src2.value, src2, 0);
   if (dest.getBit() <= 32) {
     // 32-bit.
-    if (dest == src2) {
+    if (dest.getIdx() == src2.getIdx()) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
         vc_fn(e, *i, dest, (uint32_t)src1->get_constant(CT()));
       } else {
@@ -559,7 +559,7 @@ void IntBinaryOpCV(X64Emitter& e, Instr*& i, vv_fn vv_fn, vc_fn vc_fn,
     }
   } else {
     // 64-bit.
-    if (dest == src2) {
+    if (dest.getIdx() == src2.getIdx()) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
         e.mov(TEMP_REG, src1->constant.i64);
         vv_fn(e, *i, dest, TEMP_REG);
@@ -669,14 +669,19 @@ void IntTernaryOpVVV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0,
             i->src3.value, src3, 0);
-  if (dest == src1) {
+  if (dest.getIdx() == src1.getIdx()) {
     vvv_fn(e, *i, dest, src2, src3);
-  } else if (dest == src2) {
+  } else if (dest.getIdx() == src2.getIdx()) {
     if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
       vvv_fn(e, *i, dest, src1, src3);
     } else {
       UNIMPLEMENTED_SEQ();
     }
+  } else if (dest.getIdx() == src3.getIdx()) {
+    auto Ntx = TEMP_LIKE(src3);
+    e.mov(Ntx, src3);
+    e.mov(dest, src1);
+    vvv_fn(e, *i, dest, src2, Ntx);
   } else {
     e.mov(dest, src1);
     vvv_fn(e, *i, dest, src2, src3);
@@ -691,7 +696,7 @@ void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
             i->src2.value, src2, 0);
   if (dest.getBit() <= 32) {
     // 32-bit.
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       vvc_fn(e, *i, dest, src2, (uint32_t)src3->get_constant(CT()));
     } else if (dest == src2) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
@@ -709,10 +714,10 @@ void IntTernaryOpVVC(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn,
     }
   } else {
     // 64-bit.
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       e.mov(TEMP_REG, src3->constant.i64);
       vvv_fn(e, *i, dest, src2, TEMP_REG);
-    } else if (dest == src2) {
+    } else if (dest.getIdx() == src2.getIdx()) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
         e.mov(TEMP_REG, src3->constant.i64);
         vvv_fn(e, *i, dest, src1, TEMP_REG);
@@ -740,9 +745,9 @@ void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
             i->src3.value, src3, 0);
   if (dest.getBit() <= 32) {
     // 32-bit.
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src3);
-    } else if (dest == src3) {
+    } else if (dest.getIdx() == src3.getIdx()) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
         vcv_fn(e, *i, dest, (uint32_t)src2->get_constant(CT()), src1);
       } else {
@@ -758,10 +763,10 @@ void IntTernaryOpVCV(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vcv_fn vcv_fn,
     }
   } else {
     // 64-bit.
-    if (dest == src1) {
+    if (dest.getIdx() == src1.getIdx()) {
       e.mov(TEMP_REG, src2->constant.i64);
       vvv_fn(e, *i, dest, TEMP_REG, src3);
-    } else if (dest == src3) {
+    } else if (dest.getIdx() == src3.getIdx()) {
       if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
         e.mov(TEMP_REG, src2->constant.i64);
         vvv_fn(e, *i, dest, src1, TEMP_REG);
@@ -817,16 +822,20 @@ void IntTernaryOp(X64Emitter& e, Instr*& i, vvv_fn vvv_fn, vvc_fn vvc_fn, vcv_fn
     IntTernaryOpVVC<int8_t>(e, i, vvv_fn, vvc_fn, dest, src1, src2, i->src3.value);
   //
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I8, SIG_TYPE_I8C, SIG_TYPE_I8)) {
-    Reg8 dest, src1, src3;
+    Reg8 dest, src1;
+    Reg8 src3;
     IntTernaryOpVCV<int8_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I16, SIG_TYPE_I16C, SIG_TYPE_I8)) {
-    Reg16 dest, src1, src3;
+    Reg16 dest, src1;
+    Reg8 src3;
     IntTernaryOpVCV<int16_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I32, SIG_TYPE_I32C, SIG_TYPE_I8)) {
-    Reg32 dest, src1, src3;
+    Reg32 dest, src1;
+    Reg8 src3;
     IntTernaryOpVCV<int32_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else if (i->Match(SIG_TYPE_IGNORE, SIG_TYPE_I64, SIG_TYPE_I64C, SIG_TYPE_I8)) {
-    Reg64 dest, src1, src3;
+    Reg64 dest, src1;
+    Reg8 src3;
     IntTernaryOpVCV<int64_t>(e, i, vvv_fn, vcv_fn, dest, src1, i->src2.value, src3);
   } else {
     ASSERT_INVALID_TYPE();
@@ -856,7 +865,7 @@ void XmmUnaryOpC(X64Emitter& e, Instr*& i, xmm_v_fn v_fn,
     e.mov(e.rax, (uint64_t)src1->constant.i64);
     e.movq(dest, e.rax);
   } else {
-    UNIMPLEMENTED_SEQ();
+    LoadXmmConstant(e, dest, src1->constant.v128);
   }
   v_fn(e, *i, dest, dest);
   e.EndOp(dest);
@@ -901,9 +910,9 @@ void XmmBinaryOpVV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
   e.BeginOp(i->dest, dest, REG_DEST,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0);
-  if (dest == src1) {
+  if (dest.getIdx() == src1.getIdx()) {
     vv_fn(e, *i, dest, src2);
-  } else if (dest == src2) {
+  } else if (dest.getIdx() == src2.getIdx()) {
     if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
       vv_fn(e, *i, dest, src1);
     } else {
@@ -934,7 +943,7 @@ void XmmBinaryOpVC(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
     }
     vv_fn(e, *i, dest, src1);
   } else {
-    if (dest != src1) {
+    if (dest.getIdx() != src1.getIdx()) {
       e.movaps(dest, src1);
     }
     if (src2->type == FLOAT32_TYPE) {
@@ -967,7 +976,7 @@ void XmmBinaryOpCV(X64Emitter& e, Instr*& i, xmm_vv_fn vv_fn,
     vv_fn(e, *i, dest, src2);
   } else {
     auto real_src2 = src2;
-    if (dest == src2) {
+    if (dest.getIdx() == src2.getIdx()) {
       e.movaps(e.xmm0, src2);
       real_src2 = e.xmm0;
     }
@@ -1010,9 +1019,9 @@ void XmmTernaryOpVVV(X64Emitter& e, Instr*& i, xmm_vvv_fn vvv_fn,
             i->src1.value, src1, 0,
             i->src2.value, src2, 0,
             i->src3.value, src3, 0);
-  if (dest == src1) {
+  if (dest.getIdx() == src1.getIdx()) {
     vvv_fn(e, *i, dest, src2, src3);
-  } else if (dest == src2) {
+  } else if (dest.getIdx() == src2.getIdx()) {
     if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
       vvv_fn(e, *i, dest, src1, src3);
     } else {
@@ -1021,7 +1030,7 @@ void XmmTernaryOpVVV(X64Emitter& e, Instr*& i, xmm_vvv_fn vvv_fn,
       vvv_fn(e, *i, e.xmm0, src2, src3);
       e.movaps(dest, e.xmm0);
     }
-  } else if (dest == src3) {
+  } else if (dest.getIdx() == src3.getIdx()) {
     if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
       vvv_fn(e, *i, dest, src1, src2);
     } else {

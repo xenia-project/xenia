@@ -2500,7 +2500,7 @@ table->AddSequence(OPCODE_NOT, [](X64Emitter& e, Instr*& i) {
   } else if (IsVecType(i->dest->type)) {
     XmmUnaryOp(e, i, i->flags, [](X64Emitter& e, Instr& i, const Xmm& dest, const Xmm& src) {
       // dest_src ^= 0xFFFF...
-      if (dest != src) {
+      if (dest.getIdx() != src.getIdx()) {
         e.movaps(dest, src);
       }
       e.mov(e.rax, XMMCONSTBASE);
@@ -2697,7 +2697,7 @@ table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
     Reg32 dest, src1;
     e.BeginOp(i->dest, dest, REG_DEST,
               i->src1.value, src1, 0);
-    if (dest != src1) {
+    if (dest.getIdx() != src1.getIdx()) {
       e.mov(dest, src1);
       e.bswap(dest);
     } else {
@@ -2708,7 +2708,7 @@ table->AddSequence(OPCODE_BYTE_SWAP, [](X64Emitter& e, Instr*& i) {
     Reg64 dest, src1;
     e.BeginOp(i->dest, dest, REG_DEST,
               i->src1.value, src1, 0);
-    if (dest != src1) {
+    if (dest.getIdx() != src1.getIdx()) {
       e.mov(dest, src1);
       e.bswap(dest);
     } else {
@@ -2972,7 +2972,7 @@ table->AddSequence(OPCODE_PERMUTE, [](X64Emitter& e, Instr*& i) {
             (((control >> 18) & 0x1) << 1) |
             (((control >> 10) & 0x1) << 2) |
             (((control >> 2) & 0x1) << 3);
-        if (dest != src3) {
+        if (dest.getIdx() != src3.getIdx()) {
           e.pshufd(dest, src2, src_control);
           e.pshufd(e.xmm0, src3, src_control);
           e.blendps(dest, e.xmm0, blend_control);

@@ -221,6 +221,150 @@ public:
            (other->flags & VALUE_IS_CONSTANT) &&
            constant.i64 != other->constant.i64;
   }
+  bool IsConstantSLT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 < other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 < other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 < other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 < other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 < other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 < other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantSLE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 <= other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 <= other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 <= other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 <= other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 <= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 <= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantSGT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 > other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 > other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 > other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 > other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 > other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 > other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantSGE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 >= other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 >= other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 >= other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 >= other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 >= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 >= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantULT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 < (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 < (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 < (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 < (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 < other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 < other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantULE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 <= (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 <= (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 <= (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 <= (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 <= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 <= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantUGT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 > (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 > (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 > (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 > (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 > other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 > other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantUGE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 >= (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 >= (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 >= (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 >= (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 >= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 >= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
   uint32_t AsUint32();
   uint64_t AsUint64();
 

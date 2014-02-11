@@ -179,6 +179,76 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
         break;
 
       // TODO(benvanik): compares
+      case OPCODE_COMPARE_EQ:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantEQ(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_NE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantNE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SLT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSLT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SLE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSLE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SGT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSGT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SGE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSGE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_ULT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantULT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_ULE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantULE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_UGT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantUGT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_UGE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantUGE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
 
       case OPCODE_ADD:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {

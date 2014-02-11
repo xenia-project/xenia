@@ -36,6 +36,16 @@ static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
 }  // namespace alloy
 
 
+const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
+  Operand::RBX,
+  Operand::R12, Operand::R13, Operand::R14, Operand::R15,
+};
+
+const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
+  2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+};
+
+
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator) :
     runtime_(backend->runtime()),
     backend_(backend),
@@ -43,7 +53,6 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator) :
     allocator_(allocator),
     current_instr_(0),
     CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator) {
-  xe_zero_struct(&reg_state_, sizeof(reg_state_));
 }
 
 X64Emitter::~X64Emitter() {
@@ -99,28 +108,6 @@ void* X64Emitter::Emplace(size_t stack_size) {
 }
 
 int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
-  // These are the registers we will not be using. All others are fare game.
-  const uint32_t reserved_regs =
-      GetRegBit(rax)  | // scratch
-      GetRegBit(rcx)  | // arg
-      GetRegBit(rdx)  | // arg/clobbered
-      GetRegBit(rsp)  |
-      GetRegBit(rbp)  |
-      GetRegBit(rsi)  |
-      GetRegBit(rdi)  |
-      GetRegBit(r8)   | // arg/clobbered
-      GetRegBit(xmm0) | // scratch
-      GetRegBit(xmm1) | // sometimes used for scratch, could be fixed
-
-      // TODO(benvanik): save so that we can use these.
-      GetRegBit(r9)   |
-      GetRegBit(r10)  |
-      GetRegBit(r11)  |
-      GetRegBit(xmm2) |
-      GetRegBit(xmm3) |
-      GetRegBit(xmm4) |
-      GetRegBit(xmm5);
-
   // Calculate stack size. We need to align things to their natural sizes.
   // This could be much better (sort by type/etc).
   auto locals = builder->locals();
@@ -164,8 +151,6 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
 
   auto lowering_table = backend_->lowering_table();
 
-  reg_state_.active_regs = reg_state_.live_regs = reserved_regs;
-
   // Body.
   auto block = builder->first_block();
   while (block) {
@@ -175,11 +160,6 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
       L(label->name);
       label = label->next;
     }
-
-    // Reset reg allocation state.
-    // If we start keeping regs across blocks this needs to change.
-    // We mark a few active so that the allocator doesn't use them.
-    ResetRegisters(reserved_regs);
 
     // Add instructions.
     // The table will process sequences of instructions to (try to)
@@ -209,201 +189,6 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
 #endif  // XE_DEBUG
 
   return 0;
-}
-
-void X64Emitter::ResetRegisters(uint32_t reserved_regs) {
-  // Just need to reset the register for each live value.
-  uint32_t live_regs = reg_state_.live_regs;
-  for (size_t n = 0; n < 32; n++, live_regs >>= 1) {
-    if (live_regs & 0x1) {
-      auto v = reg_state_.reg_values[n];
-      if (v) {
-        v->reg.index = -1;
-      }
-    }
-    reg_state_.reg_values[n] = 0;
-  }
-  reg_state_.active_regs = reg_state_.live_regs = reserved_regs;
-}
-
-void X64Emitter::EvictStaleRegisters() {
-  // NOTE: if we are getting called it's because we *need* a register.
-  // We must get rid of something.
-
-  uint32_t current_ordinal = current_instr_ ?
-      current_instr_->ordinal : 0xFFFFFFFF;
-
-  // Remove any register with no more uses.
-  uint32_t new_live_regs = 0;
-  for (size_t n = 0; n < 32; n++) {
-    uint32_t bit = 1 << n;
-    if (bit & reg_state_.active_regs) {
-      // Register is active and cannot be freed.
-      new_live_regs |= bit;
-      continue;
-    }
-    if (!(bit & reg_state_.live_regs)) {
-      // Register is not alive - nothing to do.
-      continue;
-    }
-
-    // Register is live, not active. Check and see if we get rid of it.
-    auto v = reg_state_.reg_values[n];
-    if (!v->last_use ||
-        v->last_use->ordinal < current_ordinal) {
-      reg_state_.reg_values[n] = NULL;
-      v->reg = -1;
-      continue;
-    }
-
-    // Register still in use.
-    new_live_regs |= bit;
-  }
-
-  // Hrm. We have spilled.
-  if (reg_state_.live_regs == new_live_regs) {
-    XEASSERTALWAYS();
-  }
-
-  reg_state_.live_regs = new_live_regs;
-
-  // Assert that live is a superset of active.
-  XEASSERTZERO((reg_state_.live_regs ^ reg_state_.active_regs) & reg_state_.active_regs);
-}
-
-void X64Emitter::FindFreeRegs(
-    Value* v0, uint32_t& v0_idx, uint32_t v0_flags) {
-  // If the value is already in a register, use it.
-  if (v0->reg != -1) {
-    // Already in a register. Mark active and return.
-    v0_idx = v0->reg;
-    reg_state_.active_regs |= 1 << v0_idx;
-
-    // Assert that live is a superset of active.
-    XEASSERTZERO((reg_state_.live_regs ^ reg_state_.active_regs) & reg_state_.active_regs);
-    return;
-  }
-
-  uint32_t avail_regs = 0;
-  if (IsIntType(v0->type)) {
-    if (v0_flags & REG_ABCD) {
-      avail_regs = B00001111;
-    } else {
-      avail_regs = 0xFFFF;
-    }
-  } else {
-    avail_regs = 0xFFFF0000;
-  }
-  uint32_t free_regs = avail_regs & ~reg_state_.live_regs;
-  if (!free_regs) {
-    // Need to evict something.
-    EvictStaleRegisters();
-    free_regs = avail_regs & ~reg_state_.live_regs;
-    XEASSERT(free_regs);
-  }
-
-  // Find the first available.
-  // We start from the MSB so that we get the non-rNx regs that are often
-  // in short supply.
-  _BitScanReverse((DWORD*)&v0_idx, free_regs);
-
-  reg_state_.active_regs |= 1 << v0_idx;
-  reg_state_.live_regs |= 1 << v0_idx;
-  v0->reg = v0_idx;
-  reg_state_.reg_values[v0_idx] = v0;
-}
-
-void X64Emitter::FindFreeRegs(
-    Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
-    Value* v1, uint32_t& v1_idx, uint32_t v1_flags) {
-  // TODO(benvanik): support REG_DEST reuse/etc.
-  // Grab all already-present registers first.
-  // This way we won't spill them trying to get new registers.
-  bool need_v0 = v0->reg == -1;
-  bool need_v1 = v1->reg == -1;
-  if (!need_v0) {
-    FindFreeRegs(v0, v0_idx, v0_flags);
-  }
-  if (!need_v1) {
-    FindFreeRegs(v1, v1_idx, v1_flags);
-  }
-  // Grab any registers we still need. These calls may evict.
-  if (need_v0) {
-    FindFreeRegs(v0, v0_idx, v0_flags);
-  }
-  if (need_v1) {
-    FindFreeRegs(v1, v1_idx, v1_flags);
-  }
-}
-
-void X64Emitter::FindFreeRegs(
-    Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
-    Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
-    Value* v2, uint32_t& v2_idx, uint32_t v2_flags) {
-  // TODO(benvanik): support REG_DEST reuse/etc.
-  // Grab all already-present registers first.
-  // This way we won't spill them trying to get new registers.
-  bool need_v0 = v0->reg == -1;
-  bool need_v1 = v1->reg == -1;
-  bool need_v2 = v2->reg == -1;
-  if (!need_v0) {
-    FindFreeRegs(v0, v0_idx, v0_flags);
-  }
-  if (!need_v1) {
-    FindFreeRegs(v1, v1_idx, v1_flags);
-  }
-  if (!need_v2) {
-    FindFreeRegs(v2, v2_idx, v2_flags);
-  }
-  // Grab any registers we still need. These calls may evict.
-  if (need_v0) {
-    FindFreeRegs(v0, v0_idx, v0_flags);
-  }
-  if (need_v1) {
-    FindFreeRegs(v1, v1_idx, v1_flags);
-  }
-  if (need_v2) {
-    FindFreeRegs(v2, v2_idx, v2_flags);
-  }
-}
-
-void X64Emitter::FindFreeRegs(
-    Value* v0, uint32_t& v0_idx, uint32_t v0_flags,
-    Value* v1, uint32_t& v1_idx, uint32_t v1_flags,
-    Value* v2, uint32_t& v2_idx, uint32_t v2_flags,
-    Value* v3, uint32_t& v3_idx, uint32_t v3_flags) {
-  // TODO(benvanik): support REG_DEST reuse/etc.
-  // Grab all already-present registers first.
-  // This way we won't spill them trying to get new registers.
-  bool need_v0 = v0->reg == -1;
-  bool need_v1 = v1->reg == -1;
-  bool need_v2 = v2->reg == -1;
-  bool need_v3 = v3->reg == -1;
-  if (!need_v0) {
-    FindFreeRegs(v0, v0_idx, v0_flags);
-  }
-  if (!need_v1) {
-    FindFreeRegs(v1, v1_idx, v1_flags);
-  }
-  if (!need_v2) {
-    FindFreeRegs(v2, v2_idx, v2_flags);
-  }
-  if (!need_v3) {
-    FindFreeRegs(v3, v3_idx, v3_flags);
-  }
-  // Grab any registers we still need. These calls may evict.
-  if (need_v0) {
-    FindFreeRegs(v0, v0_idx, v0_flags);
-  }
-  if (need_v1) {
-    FindFreeRegs(v1, v1_idx, v1_flags);
-  }
-  if (need_v2) {
-    FindFreeRegs(v2, v2_idx, v2_flags);
-  }
-  if (need_v3) {
-    FindFreeRegs(v3, v3_idx, v3_flags);
-  }
 }
 
 Instr* X64Emitter::Advance(Instr* i) {

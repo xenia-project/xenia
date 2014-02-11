@@ -58,7 +58,7 @@ Runtime::~Runtime() {
 
 // TODO(benvanik): based on compiler support
 #include <alloy/backend/ivm/ivm_backend.h>
-//#include <alloy/backend/x64/x64_backend.h>
+#include <alloy/backend/x64/x64_backend.h>
 
 int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   // Must be initialized by subclass before calling into this.

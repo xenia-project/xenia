@@ -280,6 +280,7 @@ Value* PPCHIRBuilder::LoadCA() {
 }
 
 void PPCHIRBuilder::StoreCA(Value* value) {
+  value = Truncate(value, INT8_TYPE);
   StoreContext(offsetof(PPCContext, xer_ca), value);
 }
 
@@ -288,6 +289,7 @@ Value* PPCHIRBuilder::LoadSAT() {
 }
 
 void PPCHIRBuilder::StoreSAT(Value* value) {
+  value = Truncate(value, INT8_TYPE);
   StoreContext(offsetof(PPCContext, vscr_sat), value);
 }
 

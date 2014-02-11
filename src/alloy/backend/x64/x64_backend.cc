@@ -45,14 +45,14 @@ int X64Backend::Initialize() {
     0,
     "gpr",
     MachineInfo::RegisterSet::INT_TYPES,
-    10,
+    X64Emitter::GPR_COUNT,
   };
   machine_info_.register_sets[1] = {
     1,
     "xmm",
     MachineInfo::RegisterSet::FLOAT_TYPES |
     MachineInfo::RegisterSet::VEC_TYPES,
-    10,
+    X64Emitter::XMM_COUNT,
   };
 
   code_cache_ = new X64CodeCache();
