@@ -98,10 +98,10 @@ public:
   // Reserved:  rsp
   // Scratch:   rax/rcx/rdx
   //            xmm0-1
-  // Available: rbx, r12-r15 (maybe r8-r11, rbp, rsi, rdi?)
-  //            xmm2-xmm15
+  // Available: rbx, r12-r15 (save to get r8-r11, rbp, rsi, rdi?)
+  //            xmm6-xmm15 (save to get xmm2-xmm5)
   static const int GPR_COUNT = 5;
-  static const int XMM_COUNT = 14;
+  static const int XMM_COUNT = 10;
 
   static void SetupReg(hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];

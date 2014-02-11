@@ -1034,7 +1034,9 @@ void XmmTernaryOpVVV(X64Emitter& e, Instr*& i, xmm_vvv_fn vvv_fn,
     if (i->opcode->flags & OPCODE_FLAG_COMMUNATIVE) {
       vvv_fn(e, *i, dest, src1, src2);
     } else {
-      UNIMPLEMENTED_SEQ();
+      e.movaps(e.xmm0, src3);
+      e.movaps(dest, src1);
+      vvv_fn(e, *i, dest, src2, e.xmm0);
     }
   } else {
     e.movaps(dest, src1);

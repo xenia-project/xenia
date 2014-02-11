@@ -3206,17 +3206,36 @@ table->AddSequence(OPCODE_COMPARE_EXCHANGE, [](X64Emitter& e, Instr*& i) {
 });
 
 table->AddSequence(OPCODE_ATOMIC_EXCHANGE, [](X64Emitter& e, Instr*& i) {
-  if (i->dest->type == INT32_TYPE) {
-    // dest = old_value = InterlockedExchange(src1 = address, src2 = new_value);
+  // dest = old_value = InterlockedExchange(src1 = address, src2 = new_value);
+  if (i->Match(SIG_TYPE_I32, SIG_TYPE_I64, SIG_TYPE_I32)) {
     Reg32 dest, src2;
     Reg64 src1;
     e.BeginOp(i->dest, dest, REG_DEST,
               i->src1.value, src1, 0,
               i->src2.value, src2, 0);
+    Reg64 real_src1 = src1;
+    if (dest.getIdx() == src1.getIdx()) {
+      e.mov(TEMP_REG, src1);
+      real_src1 = TEMP_REG;
+    }
     e.mov(dest, src2);
     e.lock();
-    e.xchg(e.dword[src1], dest);
+    e.xchg(e.dword[real_src1], dest);
     e.EndOp(dest, src1, src2);
+  } else if (i->Match(SIG_TYPE_I32, SIG_TYPE_I64, SIG_TYPE_I32C)) {
+    Reg32 dest;
+    Reg64 src1;
+    e.BeginOp(i->dest, dest, REG_DEST,
+              i->src1.value, src1, 0);
+    Reg64 real_src1 = src1;
+    if (dest.getIdx() == src1.getIdx()) {
+      e.mov(TEMP_REG, src1);
+      real_src1 = TEMP_REG;
+    }
+    e.mov(dest, i->src2.value->constant.i32);
+    e.lock();
+    e.xchg(e.dword[real_src1], dest);
+    e.EndOp(dest, src1);
   } else {
     ASSERT_INVALID_TYPE();
   }
