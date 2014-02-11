@@ -15,6 +15,8 @@
     'finalization_pass.h',
     #'dead_store_elimination_pass.cc',
     #'dead_store_elimination_pass.h',
+    'register_allocation_pass.cc',
+    'register_allocation_pass.h',
     'simplification_pass.cc',
     'simplification_pass.h',
     'validation_pass.cc',

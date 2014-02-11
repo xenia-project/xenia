@@ -108,6 +108,9 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
     };
     str->Append("v%d.%s", value->ordinal, type_names[value->type]);
   }
+  if (value->reg.index != -1) {
+    str->Append("<%s%d>", value->reg.set->name, value->reg.index);
+  }
 }
 
 void HIRBuilder::DumpOp(
@@ -453,6 +456,7 @@ Instr* HIRBuilder::AppendInstr(
   if (!block->instr_head) {
     block->instr_head = instr;
   }
+  instr->ordinal = -1;
   instr->block = block;
   instr->opcode = &opcode_info;
   instr->flags = flags;
@@ -477,7 +481,8 @@ Value* HIRBuilder::AllocValue(TypeName type) {
   value->last_use = NULL;
   value->local_slot = NULL;
   value->tag = NULL;
-  value->reg = -1;
+  value->reg.set = NULL;
+  value->reg.index = -1;
   return value;
 }
 
@@ -492,7 +497,8 @@ Value* HIRBuilder::CloneValue(Value* source) {
   value->last_use = NULL;
   value->local_slot = NULL;
   value->tag = NULL;
-  value->reg = -1;
+  value->reg.set = NULL;
+  value->reg.index = -1;
   return value;
 }
 

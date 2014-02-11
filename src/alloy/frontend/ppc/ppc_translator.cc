@@ -46,7 +46,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.
   if (validate) compiler_->AddPass(new passes::ValidationPass());
-  //compiler_->AddPass(new passes::ContextPromotionPass());
+  compiler_->AddPass(new passes::ContextPromotionPass());
   if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::SimplificationPass());
   if (validate) compiler_->AddPass(new passes::ValidationPass());
@@ -59,18 +59,16 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
   if (validate) compiler_->AddPass(new passes::ValidationPass());
 
-  // Adds local load/stores.
-  compiler_->AddPass(new passes::DataFlowAnalysisPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::SimplificationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
+  //// Removes all unneeded variables. Try not to add new ones after this.
+  //compiler_->AddPass(new passes::ValueReductionPass());
+  //if (validate) compiler_->AddPass(new passes::ValidationPass());
 
-  // Run DCE one more time to cleanup any local manipulation.
-  compiler_->AddPass(new passes::DeadCodeEliminationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-
-  // Removes all unneeded variables. Try not to add new ones after this.
-  compiler_->AddPass(new passes::ValueReductionPass());
+  // Register allocation for the target backend.
+  // Will modify the HIR to add loads/stores.
+  // This should be the last pass before finalization, as after this all
+  // registers are assigned and ready to be emitted.
+  compiler_->AddPass(new passes::RegisterAllocationPass(
+      backend->machine_info()));
   if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Must come last. The HIR is not really HIR after this.

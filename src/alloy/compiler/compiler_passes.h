@@ -15,8 +15,9 @@
 #include <alloy/compiler/passes/context_promotion_pass.h>
 #include <alloy/compiler/passes/data_flow_analysis_pass.h>
 #include <alloy/compiler/passes/dead_code_elimination_pass.h>
+ //#include <alloy/compiler/passes/dead_store_elimination_pass.h>
 #include <alloy/compiler/passes/finalization_pass.h>
-//#include <alloy/compiler/passes/dead_store_elimination_pass.h>
+#include <alloy/compiler/passes/register_allocation_pass.h>
 #include <alloy/compiler/passes/simplification_pass.h>
 #include <alloy/compiler/passes/validation_pass.h>
 #include <alloy/compiler/passes/value_reduction_pass.h>
@@ -137,5 +138,42 @@
 //     store_context +302, v5
 //     branch_true v5, ...
 //
+// - X86Canonicalization
+//   For various opcodes add copies/commute the arguments to match x86
+//   operand semantics. This makes code generation easier and if done
+//   before register allocation can prevent a lot of extra shuffling in
+//   the emitted code.
+//
+//   Example:
+//   <block0>:
+//     v0 = ...
+//     v1 = ...
+//     v2 = add v0, v1          <-- v1 now unused
+//   Becomes:
+//     v0 = ...
+//     v1 = ...
+//     v1 = add v1, v0          <-- src1 = dest/src, so reuse for both
+//                                  by commuting and setting dest = src1
+//
+// - RegisterAllocation
+//   Given a machine description (register classes, counts) run over values
+//   and assign them to registers, adding spills as needed. It should be
+//   possible to directly emit code from this form.
+//
+//   Example:
+//   <block0>:
+//     v0 = load_context +0
+//     v1 = load_context +1
+//     v0 = add v0, v1
+//     ...
+//     v2 = mul v0, v1
+//   Becomes:
+//     reg0 = load_context +0
+//     reg1 = load_context +1
+//     reg2 = add reg0, reg1
+//     store_local +123, reg2  <-- spill inserted
+//     ...
+//     reg0 = load_local +123  <-- load inserted
+//     reg0 = mul reg0, reg1
 
 #endif  // ALLOY_COMPILER_COMPILER_PASSES_H_

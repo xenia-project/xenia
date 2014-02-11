@@ -74,15 +74,19 @@ int IVMAssembler::Assemble(
   builder->ResetLabelTags();
 
   // Function prologue.
-  size_t stack_size = 0;
+  size_t stack_offset = 0;
   auto locals = builder->locals();
   for (auto it = locals.begin(); it != locals.end(); ++it) {
     auto slot = *it;
-    size_t stack_offset = stack_size;
+    size_t type_size = GetTypeSize(slot->type);
+    // Align to natural size.
+    stack_offset = XEALIGN(stack_offset, type_size);
     slot->set_constant(stack_offset);
-    stack_size += GetTypeSize(slot->type);
+    stack_offset += type_size;
   }
-  ctx.stack_size = stack_size;
+  // Ensure 16b alignment.
+  stack_offset = XEALIGN(stack_offset, 16);
+  ctx.stack_size = stack_offset;
 
   auto block = builder->first_block();
   while (block) {

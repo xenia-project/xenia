@@ -41,19 +41,21 @@ int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
   // Add edges.
   auto block = builder->first_block();
   while (block) {
-    auto instr = block->instr_head;
+    auto instr = block->instr_tail;
     while (instr) {
       if (instr->opcode->flags & OPCODE_FLAG_BRANCH) {
         if (instr->opcode == &OPCODE_BRANCH_info) {
           auto label = instr->src1.label;
           builder->AddEdge(block, label->block, Edge::UNCONDITIONAL);
+          break;
         } else if (instr->opcode == &OPCODE_BRANCH_TRUE_info ||
                    instr->opcode == &OPCODE_BRANCH_FALSE_info) {
           auto label = instr->src2.label;
           builder->AddEdge(block, label->block, 0);
+          break;
         }
       }
-      instr = instr->next;
+      instr = instr->prev;
     }
     block = block->next;
   }

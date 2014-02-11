@@ -11,6 +11,7 @@
 #define ALLOY_HIR_VALUE_H_
 
 #include <alloy/core.h>
+#include <alloy/backend/machine_info.h>
 #include <alloy/hir/opcodes.h>
 
 
@@ -90,7 +91,10 @@ public:
   TypeName type;
 
   uint32_t flags;
-  uint32_t reg;
+  struct {
+    const backend::MachineInfo::RegisterSet* set;
+    int32_t index;
+  } reg;
   ConstantValue constant;
 
   Instr*    def;

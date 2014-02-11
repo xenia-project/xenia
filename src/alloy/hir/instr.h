@@ -52,7 +52,7 @@ public:
 
   const OpcodeInfo* opcode;
   uint16_t  flags;
-  uint16_t  ordinal;
+  uint32_t  ordinal;
 
   typedef union {
     runtime::FunctionInfo* symbol_info;

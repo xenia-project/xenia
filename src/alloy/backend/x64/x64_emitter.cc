@@ -54,7 +54,7 @@ int X64Emitter::Initialize() {
 }
 
 int X64Emitter::Emit(
-    HIRBuilder* builder, 
+    HIRBuilder* builder,
     uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
     void*& out_code_address, size_t& out_code_size) {
   // Reset.
@@ -97,8 +97,6 @@ void* X64Emitter::Emplace(size_t stack_size) {
   reset();
   return new_address;
 }
-
-#define XEALIGN(value, align) ((value + align - 1) & ~(align - 1))
 
 int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   // These are the registers we will not be using. All others are fare game.
@@ -220,7 +218,7 @@ void X64Emitter::ResetRegisters(uint32_t reserved_regs) {
     if (live_regs & 0x1) {
       auto v = reg_state_.reg_values[n];
       if (v) {
-        v->reg = -1;
+        v->reg.index = -1;
       }
     }
     reg_state_.reg_values[n] = 0;
