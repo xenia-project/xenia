@@ -1,0 +1,9 @@
+# Set by github - do not change.
+safe: true
+lsi: false
+pygments: true
+
+gems:
+- jemoji
+- jeykll-mentions
+- jeykll-redirect-from
