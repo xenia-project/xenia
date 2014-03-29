@@ -82,7 +82,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
   // Walk blocks in reverse and calculate incoming/outgoing values.
   auto block = builder->last_block();
   while (block) {
-    // allocate bitsets based on max value number
+    // Allocate bitsets based on max value number.
     block->incoming_values = incoming_bitvectors[block->ordinal];
     auto& incoming_values = *block->incoming_values;
 
