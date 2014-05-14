@@ -16,7 +16,7 @@
 namespace xe {
 // TODO(benvanik): support other compilers/etc
 using std::auto_ptr;
-using std::tr1::shared_ptr;
+using std::shared_ptr;
 }  // namespace xe
 
 

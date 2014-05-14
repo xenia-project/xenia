@@ -47,7 +47,7 @@ public:
 private:
   // TODO(benvanik): replace with a better data structure.
   Mutex* lock_;
-  typedef std::tr1::unordered_map<uint64_t, Entry*> EntryMap;
+  typedef std::unordered_map<uint64_t, Entry*> EntryMap;
   EntryMap map_;
 };
 

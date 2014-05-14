@@ -109,7 +109,7 @@ int IVMAssembler::Assemble(
   // Fixup label references.
   LabelRef* label_ref = ctx.label_ref_head;
   while (label_ref) {
-    label_ref->instr->src1_reg = (uint32_t)label_ref->label->tag & ~0x80000000;
+    label_ref->instr->src1_reg = (uint32_t)(intptr_t)label_ref->label->tag & ~0x80000000;
     label_ref = label_ref->next;
   }
 

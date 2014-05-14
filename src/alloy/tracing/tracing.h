@@ -30,7 +30,7 @@ Tracer* GetThreadTracer();
 
 void WriteEvent(uint32_t event_type, size_t size = 0, const void* data = 0);
 
-template<typename T> void WriteEvent(T& ev) {
+template<typename T> void WriteEvent(const T& ev) {
   if (sizeof(T) > 1) {
     alloy::tracing::WriteEvent(T::event_type, sizeof(T), &ev);
   } else {

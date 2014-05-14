@@ -62,7 +62,7 @@ protected:
 private:
   // TODO(benvanik): replace with a better data structure.
   Mutex* lock_;
-  typedef std::tr1::unordered_map<uint64_t, SymbolInfo*> SymbolMap;
+  typedef std::unordered_map<uint64_t, SymbolInfo*> SymbolMap;
   SymbolMap map_;
   typedef std::vector<SymbolInfo*> SymbolList;
   SymbolList list_;

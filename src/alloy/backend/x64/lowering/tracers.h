@@ -11,6 +11,7 @@
 #define ALLOY_BACKEND_X64_X64_LOWERING_TRACERS_H_
 
 #include <alloy/core.h>
+#include <xmmintrin.h>
 
 
 namespace alloy {

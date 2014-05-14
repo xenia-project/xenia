@@ -27,10 +27,10 @@ public:
     ALLOY_FRONTEND_DEINIT               = ALLOY_FRONTEND | (2),
   };
 
-  typedef struct {
+  typedef struct Init_s {
     static const uint32_t event_type = ALLOY_FRONTEND_INIT;
   } Init;
-  typedef struct {
+  typedef struct Deinit_s {
     static const uint32_t event_type = ALLOY_FRONTEND_DEINIT;
   } Deinit;
 };
