@@ -81,7 +81,7 @@ int IVMAssembler::Assemble(
     size_t type_size = GetTypeSize(slot->type);
     // Align to natural size.
     stack_offset = XEALIGN(stack_offset, type_size);
-    slot->set_constant(stack_offset);
+    slot->set_constant((uint32_t)stack_offset);
     stack_offset += type_size;
   }
   // Ensure 16b alignment.
