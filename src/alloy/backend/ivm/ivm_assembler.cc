@@ -81,7 +81,7 @@ int IVMAssembler::Assemble(
     size_t type_size = GetTypeSize(slot->type);
     // Align to natural size.
     stack_offset = XEALIGN(stack_offset, type_size);
-    slot->set_constant(stack_offset);
+    slot->set_constant((uint32_t)stack_offset);
     stack_offset += type_size;
   }
   // Ensure 16b alignment.
@@ -109,7 +109,7 @@ int IVMAssembler::Assemble(
   // Fixup label references.
   LabelRef* label_ref = ctx.label_ref_head;
   while (label_ref) {
-    label_ref->instr->src1_reg = (uint32_t)label_ref->label->tag & ~0x80000000;
+    label_ref->instr->src1_reg = (uint32_t)(intptr_t)label_ref->label->tag & ~0x80000000;
     label_ref = label_ref->next;
   }
 

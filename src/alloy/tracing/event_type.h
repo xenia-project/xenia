@@ -33,10 +33,10 @@ public:
     USER                                = (1 << 31),
   };
 
-  typedef struct {
+  typedef struct TraceInit_s {
     static const uint32_t event_type = ALLOY_TRACE_INIT;
   } TraceInit;
-  typedef struct {
+  typedef struct TraceEOF_s {
     static const uint32_t event_type = ALLOY_TRACE_EOF;
   } TraceEOF;
 };

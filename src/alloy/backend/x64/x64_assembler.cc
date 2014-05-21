@@ -83,13 +83,15 @@ int X64Assembler::Assemble(
     string_buffer_.Reset();
   }
 
-  X64Function* fn = new X64Function(symbol_info);
-  fn->set_debug_info(debug_info);
-  fn->Setup(machine_code, code_size);
+  {
+    X64Function* fn = new X64Function(symbol_info);
+    fn->set_debug_info(debug_info);
+    fn->Setup(machine_code, code_size);
 
-  *out_function = fn;
+    *out_function = fn;
 
-  result = 0;
+    result = 0;
+  }
 
 XECLEANUP:
   Reset();

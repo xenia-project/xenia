@@ -11,6 +11,7 @@
 #define ALLOY_DELEGATE_H_
 
 #include <functional>
+#include <vector>
 
 #include <alloy/core.h>
 #include <alloy/mutex.h>

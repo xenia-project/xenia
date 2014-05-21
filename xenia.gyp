@@ -96,7 +96,7 @@
           'SYMROOT': '<(DEPTH)/build/xenia/',
           'ALWAYS_SEARCH_USER_PATHS': 'NO',
           'ARCHS': ['x86_64'],
-          #'CLANG_CXX_LANGUAGE_STANDARD': 'c++0x',
+          'CLANG_CXX_LANGUAGE_STANDARD': 'c++11',
           'COMBINE_HIDPI_IMAGES': 'YES',
           'GCC_C_LANGUAGE_STANDARD': 'gnu99',
           'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
@@ -190,6 +190,22 @@
         'gflags',
         'llvm',
       ],
+
+      'conditions': [
+        ['OS == "mac"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-fno-operator-names',
+            ],
+          },
+        }],
+        ['OS == "linux"', {
+          'cflags': [
+            '-fno-operator-names',
+          ],
+        }],
+      ],
+
       'export_dependent_settings': [
         'beaengine',
         'gflags',

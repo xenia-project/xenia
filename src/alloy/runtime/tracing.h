@@ -40,46 +40,46 @@ public:
     ALLOY_RUNTIME_MEMORY_HEAP_FREE      = ALLOY_RUNTIME_MEMORY | (4),
   };
 
-  typedef struct {
+  typedef struct Init_s {
     static const uint32_t event_type = ALLOY_RUNTIME_INIT;
   } Init;
-  typedef struct {
+  typedef struct Deinit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_DEINIT;
   } Deinit;
 
-  typedef struct {
+  typedef struct ThreadInit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_THREAD_INIT;
   } ThreadInit;
-  typedef struct {
+  typedef struct ThreadDeinit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_THREAD_DEINIT;
   } ThreadDeinit;
 
-  typedef struct {
+  typedef struct MemoryInit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_MEMORY_INIT;
     // map of memory, etc?
   } MemoryInit;
-  typedef struct {
+  typedef struct MemoryDeinit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_MEMORY_DEINIT;
   } MemoryDeinit;
-  typedef struct {
+  typedef struct MemoryHeapInit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_MEMORY_HEAP_INIT;
     uint32_t  heap_id;
     uint64_t  low_address;
     uint64_t  high_address;
     uint32_t  is_physical;
   } MemoryHeapInit;
-  typedef struct {
+  typedef struct MemoryHeapDeinit_s {
     static const uint32_t event_type = ALLOY_RUNTIME_MEMORY_HEAP_DEINIT;
     uint32_t  heap_id;
   } MemoryHeapDeinit;
-  typedef struct {
+  typedef struct MemoryHeapAlloc_s {
     static const uint32_t event_type = ALLOY_RUNTIME_MEMORY_HEAP_ALLOC;
     uint32_t  heap_id;
     uint32_t  flags;
     uint64_t  address;
     size_t    size;
   } MemoryHeapAlloc;
-  typedef struct {
+  typedef struct MemoryHeapFree_s {
     static const uint32_t event_type = ALLOY_RUNTIME_MEMORY_HEAP_FREE;
     uint32_t  heap_id;
     uint64_t  address;

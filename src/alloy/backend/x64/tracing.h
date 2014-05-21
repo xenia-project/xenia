@@ -32,17 +32,17 @@ public:
     ALLOY_BACKEND_X64_ASSEMBLER_DEINIT  = ALLOY_BACKEND_X64_ASSEMBLER | (2),
   };
 
-  typedef struct {
+  typedef struct Init_s {
     static const uint32_t event_type = ALLOY_BACKEND_X64_INIT;
   } Init;
-  typedef struct {
+  typedef struct Deinit_s {
     static const uint32_t event_type = ALLOY_BACKEND_X64_DEINIT;
   } Deinit;
 
-  typedef struct {
+  typedef struct AssemblerInit_s {
     static const uint32_t event_type = ALLOY_BACKEND_X64_ASSEMBLER_INIT;
   } AssemblerInit;
-  typedef struct {
+  typedef struct AssemblerDeinit_s {
     static const uint32_t event_type = ALLOY_BACKEND_X64_ASSEMBLER_DEINIT;
   } AssemblerDeinit;
 };
