@@ -46,7 +46,7 @@ int FinalizationPass::Run(HIRBuilder* builder) {
       if (!label->name) {
         const size_t label_len = 6 + 4 + 1;
         char* name = (char*)arena->Alloc(label_len);
-        xesnprintf(name, label_len, "_label%d", label->id);
+        xesnprintfa(name, label_len, "_label%d", label->id);
         label->name = name;
       }
       label = label->next;
