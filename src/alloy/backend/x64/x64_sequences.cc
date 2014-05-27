@@ -2259,12 +2259,14 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_DID_SATURATE
 // ============================================================================
-//EMITTER(DID_SATURATE, MATCH(I<OPCODE_DID_SATURATE, I8<>>)) {
-//  static void Emit(X64Emitter& e, const EmitArgType& i) {
-//  }
-//};
-//EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE,
-//                     DID_SATURATE);
+EMITTER(DID_SATURATE, MATCH(I<OPCODE_DID_SATURATE, I8<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // TODO(benvanik): implement saturation check (VECTOR_ADD, etc).
+    e.xor(i.dest, i.dest);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE,
+                     DID_SATURATE);
 
 
 // ============================================================================
@@ -2530,6 +2532,53 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_VECTOR_ADD
 // ============================================================================
+EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1, const Xmm& src2) {
+          const TypeName part_type = static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
+          switch (part_type) {
+          case INT8_TYPE:
+            if (saturate) {
+              // TODO(benvanik): trace DID_SATURATE
+              if (is_unsigned) {
+                e.vpaddsb(dest, src1, src2);
+              } else {
+                e.vpaddusb(dest, src1, src2);
+              }
+            } else {
+              e.vpaddb(dest, src1, src2);
+            }
+            break;
+          case INT16_TYPE:
+            if (saturate) {
+              // TODO(benvanik): trace DID_SATURATE
+              if (is_unsigned) {
+                e.vpaddsw(dest, src1, src2);
+              } else {
+                e.vpaddusw(dest, src1, src2);
+              }
+            } else {
+              e.vpaddw(dest, src1, src2);
+            }
+            break;
+          case INT32_TYPE:
+            XEASSERTALWAYS();
+            break;
+          case FLOAT32_TYPE:
+            e.vaddps(dest, src1, src2);
+            break;
+          default: XEASSERTALWAYS(); break;
+          }
+        });
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_ADD,
+    VECTOR_ADD);
 
 
 // ============================================================================
@@ -4713,7 +4762,7 @@ void alloy::backend::x64::RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_CARRY);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_OVERFLOW);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_EQ);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_SGT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_SGE);
@@ -4721,7 +4770,7 @@ void alloy::backend::x64::RegisterSequences() {
   //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ADD);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ADD_CARRY);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_SUB);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MUL);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MUL_HI);
