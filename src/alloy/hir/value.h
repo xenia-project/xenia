@@ -393,7 +393,7 @@ public:
   void Shr(Value* other);
   void Sha(Value* other);
   void ByteSwap();
-  void CountLeadingZeros(const ConstantValue& src);
+  void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
 };
 

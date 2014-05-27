@@ -560,19 +560,19 @@ void Value::ByteSwap() {
   }
 }
 
-void Value::CountLeadingZeros(const ConstantValue& src) {
-  switch (type) {
+void Value::CountLeadingZeros(const Value* other) {
+  switch (other->type) {
   case INT8_TYPE:
-    constant.i8 = __lzcnt16(src.i8) - 8;
+    constant.i8 = static_cast<uint8_t>(__lzcnt16(other->constant.i8) - 8);
     break;
   case INT16_TYPE:
-    constant.i8 = __lzcnt16(src.i16);
+    constant.i8 = static_cast<uint8_t>(__lzcnt16(other->constant.i16));
     break;
   case INT32_TYPE:
-    constant.i8 = __lzcnt(src.i32);
+    constant.i8 = static_cast<uint8_t>(__lzcnt(other->constant.i32));
     break;
   case INT64_TYPE:
-    constant.i8 = __lzcnt64(src.i64);
+    constant.i8 = static_cast<uint8_t>(__lzcnt64(other->constant.i64));
     break;
   default:
     XEASSERTALWAYS();

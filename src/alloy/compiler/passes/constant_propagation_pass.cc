@@ -371,7 +371,7 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
       case OPCODE_CNTLZ:
         if (i->src1.value->IsConstant()) {
           v->set_zero(v->type);
-          v->CountLeadingZeros(i->src1.value->constant);
+          v->CountLeadingZeros(i->src1.value);
           i->Remove();
         }
         break;
