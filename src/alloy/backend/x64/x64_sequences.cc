@@ -3734,7 +3734,41 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
       }
     } else {
       // Fully variable shift.
-      XEASSERTALWAYS();
+      // TODO(benvanik): find a better sequence.
+      Xmm temp = i.dest;
+      if (i.dest == i.src1 || i.dest == i.src2) {
+        temp = e.xmm2;
+      }
+      auto byte_mask = e.GetXmmConstPtr(XMMShiftByteMask);
+      // AABBCCDD|EEFFGGHH|IIJJKKLL|MMNNOOPP
+      //       DD|      HH|      LL|      PP
+      e.vpand(e.xmm0, i.src1, byte_mask);
+      e.vpand(e.xmm1, i.src2, byte_mask);
+      e.vpsllvd(temp, e.xmm0, e.xmm1);
+      //     CC  |    GG  |    KK  |    OO
+      e.vpsrld(e.xmm0, i.src1, 8);
+      e.vpand(e.xmm0, byte_mask);
+      e.vpsrld(e.xmm1, i.src2, 8);
+      e.vpand(e.xmm1, byte_mask);
+      e.vpsllvd(e.xmm0, e.xmm0, e.xmm1);
+      e.vpslld(e.xmm0, 8);
+      e.vpor(temp, e.xmm0);
+      //   BB    |  FF    |  JJ    |  NN
+      e.vpsrld(e.xmm0, i.src1, 16);
+      e.vpand(e.xmm0, byte_mask);
+      e.vpsrld(e.xmm1, i.src2, 16);
+      e.vpand(e.xmm1, byte_mask);
+      e.vpsllvd(e.xmm0, e.xmm0, e.xmm1);
+      e.vpslld(e.xmm0, 16);
+      e.vpor(temp, e.xmm0);
+      // AA      |EE      |II      |MM
+      e.vpsrld(e.xmm0, i.src1, 24);
+      e.vpand(e.xmm0, byte_mask);
+      e.vpsrld(e.xmm1, i.src2, 24);
+      e.vpand(e.xmm1, byte_mask);
+      e.vpsllvd(e.xmm0, e.xmm0, e.xmm1);
+      e.vpslld(e.xmm0, 24);
+      e.vpor(i.dest, temp, e.xmm0);
     }
   }
   static void EmitInt16(X64Emitter& e, const EmitArgType& i) {
