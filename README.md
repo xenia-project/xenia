@@ -84,11 +84,9 @@ Come on people. Jeez.
 
 ### What kind of machine do I need to run this?
 
-You'll need 64-bit Windows 7 with a processor supporting at least AVX1.
-It's only tested on Windows 8 and that may become a requirement as several of
-the APIs exposed there are beneficial to emulation. In general if you have to
-ask if your machine is good enough to run games at a decent speed the answer is
-no.
+You'll need 64-bit Windows 8 with a processor supporting at least AVX2 - in
+other words, a Haswell. In general if you have to ask if your machine is good
+enough to run games at a decent speed the answer is no.
 
 ### What about Linux/OSX?
 
