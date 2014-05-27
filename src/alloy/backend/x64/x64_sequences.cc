@@ -4028,8 +4028,6 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
       } else {
         e.vpshufb(e.xmm2, i.src1, e.GetXmmConstPtr(XMMByteSwapMask));
       }
-      // Build a mask with values in src2 having 0 and values in src3 having 1.
-      e.vpcmpgtb(i.dest, e.xmm2, e.GetXmmConstPtr(XMMPermuteControl15));
       Xmm src2_shuf = e.xmm0;
       if (i.src2.value->IsConstantZero()) {
         e.vpxor(src2_shuf, src2_shuf);
@@ -4048,6 +4046,8 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
       } else {
         e.vpshufb(src3_shuf, i.src3, e.xmm2);
       }
+      // Build a mask with values in src2 having 0 and values in src3 having 1.
+      e.vpcmpgtb(i.dest, e.xmm2, e.GetXmmConstPtr(XMMPermuteControl15));
       e.vpblendvb(i.dest, src2_shuf, src3_shuf, i.dest);
     }
   }
