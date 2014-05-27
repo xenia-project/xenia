@@ -628,6 +628,36 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
     }
   }
 
+  template <typename FN>
+  static void EmitCommutativeBinaryXmmOp(
+      X64Emitter& e, const EmitArgType& i, const FN& fn) {
+    if (i.src1.is_constant) {
+      XEASSERT(!i.src2.is_constant);
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      fn(e, i.dest, e.xmm0, i.src2);
+    } else if (i.src2.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      fn(e, i.dest, i.src1, e.xmm0);
+    } else {
+      fn(e, i.dest, i.src1, i.src2);
+    }
+  }
+
+  template <typename FN>
+  static void EmitAssociativeBinaryXmmOp(
+      X64Emitter& e, const EmitArgType& i, const FN& fn) {
+    if (i.src1.is_constant) {
+      XEASSERT(!i.src2.is_constant);
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      fn(e, i.dest, e.xmm0, i.src2);
+    } else if (i.src2.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      fn(e, i.dest, i.src1, e.xmm0);
+    } else {
+      fn(e, i.dest, i.src1, i.src2);
+    }
+  }
+
   template <typename REG_REG_FN, typename REG_CONST_FN>
   static void EmitCommutativeCompareOp(
       X64Emitter& e, const EmitArgType& i,

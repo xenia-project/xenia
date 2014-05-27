@@ -2272,20 +2272,23 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(VECTOR_COMPARE_EQ_V128, MATCH(I<OPCODE_VECTOR_COMPARE_EQ, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-    case INT8_TYPE:
-      e.vpcmpeqb(i.dest, i.src1, i.src2);
-      break;
-    case INT16_TYPE:
-      e.vpcmpeqw(i.dest, i.src1, i.src2);
-      break;
-    case INT32_TYPE:
-      e.vpcmpeqd(i.dest, i.src1, i.src2);
-      break;
-    case FLOAT32_TYPE:
-      e.vcmpeqps(i.dest, i.src1, i.src2);
-      break;
-    }
+    EmitCommutativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+      switch (i.instr->flags) {
+      case INT8_TYPE:
+        e.vpcmpeqb(dest, src1, src2);
+        break;
+      case INT16_TYPE:
+        e.vpcmpeqw(dest, src1, src2);
+        break;
+      case INT32_TYPE:
+        e.vpcmpeqd(dest, src1, src2);
+        break;
+      case FLOAT32_TYPE:
+        e.vcmpeqps(dest, src1, src2);
+        break;
+      }
+    });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -2298,20 +2301,23 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(VECTOR_COMPARE_SGT_V128, MATCH(I<OPCODE_VECTOR_COMPARE_SGT, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-    case INT8_TYPE:
-      e.vpcmpgtb(i.dest, i.src1, i.src2);
-      break;
-    case INT16_TYPE:
-      e.vpcmpgtw(i.dest, i.src1, i.src2);
-      break;
-    case INT32_TYPE:
-      e.vpcmpgtd(i.dest, i.src1, i.src2);
-      break;
-    case FLOAT32_TYPE:
-      e.vcmpgtps(i.dest, i.src1, i.src2);
-      break;
-    }
+    EmitAssociativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+      switch (i.instr->flags) {
+      case INT8_TYPE:
+        e.vpcmpgtb(dest, src1, src2);
+        break;
+      case INT16_TYPE:
+        e.vpcmpgtw(dest, src1, src2);
+        break;
+      case INT32_TYPE:
+        e.vpcmpgtd(dest, src1, src2);
+        break;
+      case FLOAT32_TYPE:
+        e.vcmpgtps(dest, src1, src2);
+        break;
+      }
+    });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -2324,26 +2330,29 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(VECTOR_COMPARE_SGE_V128, MATCH(I<OPCODE_VECTOR_COMPARE_SGE, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-    case INT8_TYPE:
-      e.vpcmpgtb(i.dest, i.src1, i.src2);
-      e.vpcmpeqb(e.xmm0, i.src1, i.src2);
-      e.vpor(i.dest, e.xmm0);
-      break;
-    case INT16_TYPE:
-      e.vpcmpgtw(i.dest, i.src1, i.src2);
-      e.vpcmpeqw(e.xmm0, i.src1, i.src2);
-      e.vpor(i.dest, e.xmm0);
-      break;
-    case INT32_TYPE:
-      e.vpcmpgtd(i.dest, i.src1, i.src2);
-      e.vpcmpeqd(e.xmm0, i.src1, i.src2);
-      e.vpor(i.dest, e.xmm0);
-      break;
-    case FLOAT32_TYPE:
-      e.vcmpgeps(i.dest, i.src1, i.src2);
-      break;
-    }
+    EmitAssociativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+      switch (i.instr->flags) {
+      case INT8_TYPE:
+        e.vpcmpgtb(dest, src1, src2);
+        e.vpcmpeqb(e.xmm0, src1, src2);
+        e.vpor(dest, e.xmm0);
+        break;
+      case INT16_TYPE:
+        e.vpcmpgtw(dest, src1, src2);
+        e.vpcmpeqw(e.xmm0, src1, src2);
+        e.vpor(dest, e.xmm0);
+        break;
+      case INT32_TYPE:
+        e.vpcmpgtd(dest, src1, src2);
+        e.vpcmpeqd(e.xmm0, src1, src2);
+        e.vpor(dest, e.xmm0);
+        break;
+      case FLOAT32_TYPE:
+        e.vcmpgeps(i.dest, i.src1, i.src2);
+        break;
+      }
+    });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -2412,17 +2421,26 @@ EMITTER(ADD_I64, MATCH(I<OPCODE_ADD, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(ADD_F32, MATCH(I<OPCODE_ADD, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vaddss(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vaddss(dest, src1, src2);
+        });
   }
 };
 EMITTER(ADD_F64, MATCH(I<OPCODE_ADD, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vaddsd(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vaddsd(dest, src1, src2);
+        });
   }
 };
 EMITTER(ADD_V128, MATCH(I<OPCODE_ADD, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vaddps(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vaddps(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -2569,19 +2587,28 @@ EMITTER(SUB_I64, MATCH(I<OPCODE_SUB, I64<>, I64<>, I64<>>)) {
 EMITTER(SUB_F32, MATCH(I<OPCODE_SUB, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vsubss(i.dest, i.src1, i.src2);
+    EmitAssociativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vsubss(dest, src1, src2);
+        });
   }
 };
 EMITTER(SUB_F64, MATCH(I<OPCODE_SUB, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vsubsd(i.dest, i.src1, i.src2);
+    EmitAssociativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vsubsd(dest, src1, src2);
+        });
   }
 };
 EMITTER(SUB_V128, MATCH(I<OPCODE_SUB, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vsubps(i.dest, i.src1, i.src2);
+    EmitAssociativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vsubps(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -2682,19 +2709,28 @@ EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
 EMITTER(MUL_F32, MATCH(I<OPCODE_MUL, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vmulss(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vmulss(dest, src1, src2);
+        });
   }
 };
 EMITTER(MUL_F64, MATCH(I<OPCODE_MUL, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vmulsd(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vmulsd(dest, src1, src2);
+        });
   }
 };
 EMITTER(MUL_V128, MATCH(I<OPCODE_MUL, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vmulps(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vmulps(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -2969,19 +3005,28 @@ EMITTER(DIV_I64, MATCH(I<OPCODE_DIV, I64<>, I64<>, I64<>>)) {
 EMITTER(DIV_F32, MATCH(I<OPCODE_DIV, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vdivss(i.dest, i.src1, i.src2);
+    EmitAssociativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vdivss(dest, src1, src2);
+        });
   }
 };
 EMITTER(DIV_F64, MATCH(I<OPCODE_DIV, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vdivsd(i.dest, i.src1, i.src2);
+    EmitAssociativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vdivsd(dest, src1, src2);
+        });
   }
 };
 EMITTER(DIV_V128, MATCH(I<OPCODE_DIV, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vdivps(i.dest, i.src1, i.src2);
+    EmitAssociativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vdivps(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -3274,9 +3319,11 @@ EMITTER_OPCODE_TABLE(
 EMITTER(DOT_PRODUCT_3_V128, MATCH(I<OPCODE_DOT_PRODUCT_3, F32<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
-    // TODO(benvanik): verify ordering
-    // TODO(benvanik): apparently this is very slow - find alternative?
-    e.vdpps(i.dest, i.src1, i.src2, B01110001);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          // TODO(benvanik): apparently this is very slow - find alternative?
+          e.vdpps(dest, src1, src2, B01110001);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -3290,9 +3337,11 @@ EMITTER_OPCODE_TABLE(
 EMITTER(DOT_PRODUCT_4_V128, MATCH(I<OPCODE_DOT_PRODUCT_4, F32<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
-    // TODO(benvanik): verify ordering
-    // TODO(benvanik): apparently this is very slow - find alternative?
-    e.vdpps(i.dest, i.src1, i.src2, B11110001);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          // TODO(benvanik): apparently this is very slow - find alternative?
+          e.vdpps(dest, src1, src2, B11110001);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -3333,7 +3382,10 @@ EMITTER(AND_I64, MATCH(I<OPCODE_AND, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(AND_V128, MATCH(I<OPCODE_AND, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vpand(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vpand(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -3378,7 +3430,10 @@ EMITTER(OR_I64, MATCH(I<OPCODE_OR, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(OR_V128, MATCH(I<OPCODE_OR, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vpor(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vpor(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -3423,7 +3478,10 @@ EMITTER(XOR_I64, MATCH(I<OPCODE_XOR, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(XOR_V128, MATCH(I<OPCODE_XOR, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vpxor(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vpxor(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
