@@ -431,8 +431,8 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
     /* XMMZero                */ vec128f(0.0f, 0.0f, 0.0f, 0.0f),
     /* XMMOne                 */ vec128f(1.0f, 1.0f, 1.0f, 1.0f),
     /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
-    /* XMMMaskX16Y16          */ vec128i(0x0000FFFF, 0xFFFF0000, 0x00000000, 0x00000000),
-    /* XMMFlipX16Y16          */ vec128i(0x00008000, 0x00000000, 0x00000000, 0x00000000),
+    /* XMMMaskX16Y16          */ vec128i(0x0000FFFFu, 0xFFFF0000u, 0x00000000u, 0x00000000u),
+    /* XMMFlipX16Y16          */ vec128i(0x00008000u, 0x00000000u, 0x00000000u, 0x00000000u),
     /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
     /* XMMNormalizeX16Y16     */ vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
     /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
@@ -440,11 +440,13 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
     /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),
     /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
     /* XMMPermuteControl15    */ vec128b(15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15),
-    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF02, 0xFFFFFF01, 0xFFFFFF00, 0xFFFFFF02),
+    /* XMMPackD3DCOLOR        */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x0C000408u),
+    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF02u, 0xFFFFFF01u, 0xFFFFFF00u, 0xFFFFFF03u),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f),
     /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu, 0x0000001Fu),
     /* XMMShiftByteMask       */ vec128i(0x000000FFu, 0x000000FFu, 0x000000FFu, 0x000000FFu),
     /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u, 0xFFFFFFFFu, 0x00000000u),
+    /* XMM255                 */ vec128f(255.0f, 255.0f, 255.0f, 255.0f),
   };
   // TODO(benvanik): cache base pointer somewhere? stack? It'd be nice to
   // prevent this move.

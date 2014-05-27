@@ -48,11 +48,13 @@ enum XmmConst {
   XMMSignMaskPD         = 9,
   XMMByteSwapMask       = 10,
   XMMPermuteControl15   = 11,
-  XMMUnpackD3DCOLOR     = 12,
-  XMMOneOver255         = 13,
-  XMMShiftMaskPS        = 14,
-  XMMShiftByteMask      = 15,
-  XMMUnsignedDwordMax   = 16,
+  XMMPackD3DCOLOR       = 12,
+  XMMUnpackD3DCOLOR     = 13,
+  XMMOneOver255         = 14,
+  XMMShiftMaskPS        = 15,
+  XMMShiftByteMask      = 16,
+  XMMUnsignedDwordMax   = 17,
+  XMM255                = 18,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.

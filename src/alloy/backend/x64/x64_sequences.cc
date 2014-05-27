@@ -4582,7 +4582,27 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     }
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    // RGBA (XYZW) -> ARGB (WXYZ)
+    // float r = roundf(((src1.x < 0) ? 0 : ((1 < src1.x) ? 1 : src1.x)) * 255);
+    // float g = roundf(((src1.y < 0) ? 0 : ((1 < src1.y) ? 1 : src1.y)) * 255);
+    // float b = roundf(((src1.z < 0) ? 0 : ((1 < src1.z) ? 1 : src1.z)) * 255);
+    // float a = roundf(((src1.w < 0) ? 0 : ((1 < src1.w) ? 1 : src1.w)) * 255);
+    // dest.iw = ((uint32_t)a << 24) |
+    //           ((uint32_t)r << 16) |
+    //           ((uint32_t)g << 8) |
+    //           ((uint32_t)b);
+    // f2i(clamp(src, 0, 1) * 255)
+    e.vpxor(e.xmm0, e.xmm0);
+    if (i.src1.is_constant) {
+      e.LoadConstantXmm(e.xmm1, i.src1.constant());
+      e.vmaxps(e.xmm0, e.xmm1);
+    } else {
+      e.vmaxps(e.xmm0, i.src1);
+    }
+    e.vminps(e.xmm0, e.GetXmmConstPtr(XMMOne));
+    e.vmulps(e.xmm0, e.GetXmmConstPtr(XMM255));
+    e.vcvttps2dq(e.xmm0, e.xmm0);
+    e.vpshufb(i.dest, e.xmm0, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();
