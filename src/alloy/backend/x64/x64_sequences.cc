@@ -2566,7 +2566,41 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
             }
             break;
           case INT32_TYPE:
-            XEASSERTALWAYS();
+            if (saturate) {
+              if (is_unsigned) {
+                // We reuse all these temps...
+                XEASSERT(src1 != e.xmm0 && src1 != e.xmm1 && src1 != e.xmm2);
+                XEASSERT(src2 != e.xmm0 && src2 != e.xmm1 && src2 != e.xmm2);
+                // Clamp to 0xFFFFFFFF.
+                // Wish there was a vpaddusd...
+                // | A | B | C | D |
+                // |     B |     D |
+                e.db(0xCC);
+                e.vpsllq(e.xmm0, src1, 32);
+                e.vpsllq(e.xmm1, src2, 32);
+                e.vpsrlq(e.xmm0, 32);
+                e.vpsrlq(e.xmm1, 32);
+                e.vpaddq(e.xmm0, e.xmm1);
+                e.vpcmpgtq(e.xmm0, e.GetXmmConstPtr(XMMUnsignedDwordMax));
+                e.vpsllq(e.xmm0, 32);
+                e.vpsrlq(e.xmm0, 32);
+                // |     A |     C |
+                e.vpsrlq(e.xmm1, src1, 32);
+                e.vpsrlq(e.xmm2, src2, 32);
+                e.vpaddq(e.xmm1, e.xmm2);
+                e.vpcmpgtq(e.xmm1, e.GetXmmConstPtr(XMMUnsignedDwordMax));
+                e.vpsllq(e.xmm1, 32);
+                // xmm0 = mask for with saturated dwords == 111...
+                e.vpor(e.xmm0, e.xmm1);
+                e.vpaddd(dest, src1, src2);
+                // dest.f[n] = xmm1.f[n] ? xmm1.f[n] : dest.f[n];
+                e.vblendvps(dest, dest, e.xmm1, e.xmm1);
+              } else {
+                XEASSERTALWAYS();
+              }
+            } else {
+              e.vpaddd(dest, src1, src2);
+            }
             break;
           case FLOAT32_TYPE:
             e.vaddps(dest, src1, src2);

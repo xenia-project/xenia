@@ -52,6 +52,7 @@ enum XmmConst {
   XMMOneOver255         = 13,
   XMMShiftMaskPS        = 14,
   XMMShiftByteMask      = 15,
+  XMMUnsignedDwordMax   = 16,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
