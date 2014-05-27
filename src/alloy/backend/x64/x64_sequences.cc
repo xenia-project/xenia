@@ -3688,15 +3688,105 @@ EMITTER_OPCODE_TABLE(
 EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
+    case INT8_TYPE:
+      EmitInt8(e, i);
+      break;
+    case INT16_TYPE:
+      EmitInt16(e, i);
+      break;
     case INT32_TYPE:
-      // src shift mask may have values >31, and x86 sets to zero when
-      // that happens so we mask.
-      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-      e.vpsllvd(i.dest, i.src1, e.xmm0);
+      EmitInt32(e, i);
       break;
     default:
       XEASSERTALWAYS();
       break;
+    }
+  }
+  static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 16 - n; ++n) {
+        if (shamt.b16[n] != shamt.b16[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same.
+        uint8_t sh = shamt.b16[0] & 0x7;
+        if (!sh) {
+          // No shift?
+          e.vmovaps(i.dest, i.src1);
+        } else {
+          // Even bytes.
+          e.vpsrlw(e.xmm0, i.src1, 8);
+          e.vpsllw(e.xmm0, sh + 8);
+          // Odd bytes.
+          e.vpsllw(i.dest, i.src1, 8);
+          e.vpsrlw(i.dest, 8 - sh);
+          // Mix.
+          e.vpor(i.dest, e.xmm0);
+        }
+      } else {
+        // Counts differ, so pre-mask and load constant.
+        XEASSERTALWAYS();
+      }
+    } else {
+      // Fully variable shift.
+      XEASSERTALWAYS();
+    }
+  }
+  static void EmitInt16(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 8 - n; ++n) {
+        if (shamt.s8[n] != shamt.s8[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use vpsllw.
+        e.vpsllw(i.dest, i.src1, shamt.s8[0] & 0xF);
+      } else {
+        // Counts differ, so pre-mask and load constant.
+        XEASSERTALWAYS();
+      }
+    } else {
+      // Fully variable shift.
+      XEASSERTALWAYS();
+    }
+  }
+  static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 4 - n; ++n) {
+        if (shamt.i4[n] != shamt.i4[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use vpslld.
+        e.vpslld(i.dest, i.src1, shamt.b16[0] & 0x1F);
+      } else {
+        // Counts differ, so pre-mask and load constant.
+        vec128_t masked = i.src2.constant();
+        for (size_t n = 0; n < 4; ++n) {
+          masked.i4[n] &= 0x1F;
+        }
+        e.LoadConstantXmm(e.xmm0, masked);
+        e.vpsllvd(i.dest, i.src1, e.xmm0);
+      }
+    } else {
+      // Fully variable shift.
+      // src shift mask may have values >31, and x86 sets to zero when
+      // that happens so we mask.
+      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+      e.vpsllvd(i.dest, i.src1, e.xmm0);
     }
   }
 };
@@ -3711,15 +3801,105 @@ EMITTER_OPCODE_TABLE(
 EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
+    case INT8_TYPE:
+      EmitInt8(e, i);
+      break;
+    case INT16_TYPE:
+      EmitInt16(e, i);
+      break;
     case INT32_TYPE:
-      // src shift mask may have values >31, and x86 sets to zero when
-      // that happens so we mask.
-      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-      e.vpsrlvd(i.dest, i.src1, e.xmm0);
+      EmitInt32(e, i);
       break;
     default:
       XEASSERTALWAYS();
       break;
+    }
+  }
+  static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 16 - n; ++n) {
+        if (shamt.b16[n] != shamt.b16[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same.
+        uint8_t sh = shamt.b16[0] & 0x7;
+        if (!sh) {
+          // No shift?
+          e.vmovaps(i.dest, i.src1);
+        } else {
+          // Even bytes.
+          e.vpsllw(e.xmm0, i.src1, 8);
+          e.vpsrlw(e.xmm0, sh + 8);
+          // Odd bytes.
+          e.vpsrlw(i.dest, i.src1, 8);
+          e.vpsllw(i.dest, 8 - sh);
+          // Mix.
+          e.vpor(i.dest, e.xmm0);
+        }
+      } else {
+        // Counts differ, so pre-mask and load constant.
+        XEASSERTALWAYS();
+      }
+    } else {
+      // Fully variable shift.
+      XEASSERTALWAYS();
+    }
+  }
+  static void EmitInt16(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 8 - n; ++n) {
+        if (shamt.s8[n] != shamt.s8[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use vpsllw.
+        e.vpsrlw(i.dest, i.src1, shamt.s8[0] & 0xF);
+      } else {
+        // Counts differ, so pre-mask and load constant.
+        XEASSERTALWAYS();
+      }
+    } else {
+      // Fully variable shift.
+      XEASSERTALWAYS();
+    }
+  }
+  static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 4 - n; ++n) {
+        if (shamt.i4[n] != shamt.i4[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use vpslld.
+        e.vpsrld(i.dest, i.src1, shamt.b16[0] & 0x1F);
+      } else {
+        // Counts differ, so pre-mask and load constant.
+        vec128_t masked = i.src2.constant();
+        for (size_t n = 0; n < 4; ++n) {
+          masked.i4[n] &= 0x1F;
+        }
+        e.LoadConstantXmm(e.xmm0, masked);
+        e.vpsrlvd(i.dest, i.src1, e.xmm0);
+      }
+    } else {
+      // Fully variable shift.
+      // src shift mask may have values >31, and x86 sets to zero when
+      // that happens so we mask.
+      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+      e.vpsrlvd(i.dest, i.src1, e.xmm0);
     }
   }
 };
