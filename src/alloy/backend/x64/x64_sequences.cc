@@ -4219,13 +4219,28 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
           (((control >> 18) & 0x1) << 1) |
           (((control >> 10) & 0x1) << 2) |
           (((control >> 2) & 0x1) << 3);
-      if (i.dest != i.src3) {
-        e.vpshufd(i.dest, i.src2, src_control);
-        e.vpshufd(e.xmm0, i.src3, src_control);
+      // TODO(benvanik): if src2/src3 are constants, shuffle now!
+      Xmm src2;
+      if (i.src2.is_constant) {
+        src2 = e.xmm1;
+        e.LoadConstantXmm(src2, i.src2.constant());
+      } else {
+        src2 = i.src2;
+      }
+      Xmm src3;
+      if (i.src3.is_constant) {
+        src3 = e.xmm2;
+        e.LoadConstantXmm(src3, i.src3.constant());
+      } else {
+        src3 = i.src3;
+      }
+      if (i.dest != src3) {
+        e.vpshufd(i.dest, src2, src_control);
+        e.vpshufd(e.xmm0, src3, src_control);
         e.vpblendd(i.dest, e.xmm0, blend_control);
       } else {
-        e.vmovaps(e.xmm0, i.src3);
-        e.vpshufd(i.dest, i.src2, src_control);
+        e.vmovaps(e.xmm0, src3);
+        e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, e.xmm0, src_control);
         e.vpblendd(i.dest, e.xmm0, blend_control);
       }
