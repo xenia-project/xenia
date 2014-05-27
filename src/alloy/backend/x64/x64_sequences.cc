@@ -4162,7 +4162,7 @@ EMITTER_OPCODE_TABLE(
 EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      e.vpextrb(i.dest, i.src1, i.src2.constant());
+      e.vpextrb(i.dest.reg().cvt64(), i.src1, i.src2.constant());
     } else {
       XEASSERTALWAYS();
     }
@@ -4171,7 +4171,7 @@ EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
 EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      e.vpextrw(i.dest, i.src1, i.src2.constant());
+      e.vpextrw(i.dest.reg().cvt64(), i.src1, i.src2.constant());
     } else {
       XEASSERTALWAYS();
     }
@@ -4186,9 +4186,9 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       vec128b(15, 14, 13, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
     };
     if (i.src2.is_constant) {
-      e.vpextrd(i.dest, i.src1, i.src2.constant());
+      e.vpextrd(i.dest.reg().cvt64(), i.src1, i.src2.constant());
     } else {
-      // Get teh desired word in xmm0, then extract that.
+      // Get the desired word in xmm0, then extract that.
       // TODO(benvanik): find a better way, this sequence is terrible.
       e.xor(e.rax, e.rax);
       e.mov(e.al, i.src2);
@@ -4197,7 +4197,7 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       e.mov(e.rdx, reinterpret_cast<uint64_t>(extract_table_32));
       e.vmovaps(e.xmm0, e.ptr[e.rdx + e.rax]);
       e.vpshufb(e.xmm0, i.src1, e.xmm0);
-      e.vpextrd(i.dest, e.xmm0, 0);
+      e.vpextrd(i.dest.reg().cvt32(), e.xmm0, 0);
       e.ReloadEDX();
     }
   }
