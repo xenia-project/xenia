@@ -11,10 +11,14 @@
 
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/backend/x64/x64_code_cache.h>
+#include <alloy/backend/x64/x64_function.h>
+#include <alloy/backend/x64/x64_sequences.h>
 #include <alloy/backend/x64/x64_thunk_emitter.h>
-#include <alloy/backend/x64/lowering/lowering_table.h>
 #include <alloy/hir/hir_builder.h>
 #include <alloy/runtime/debug_info.h>
+#include <alloy/runtime/runtime.h>
+#include <alloy/runtime/symbol_info.h>
+#include <alloy/runtime/thread_state.h>
 
 using namespace alloy;
 using namespace alloy::backend;
@@ -30,6 +34,13 @@ namespace backend {
 namespace x64 {
 
 static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
+
+static const size_t STASH_OFFSET = 32;
+
+// If we are running with tracing on we have to store the EFLAGS in the stack,
+// otherwise our calls out to C to print will clear it before DID_CARRY/etc
+// can get the value.
+#define STORE_EFLAGS 1
 
 }  // namespace x64
 }  // namespace backend
@@ -145,11 +156,8 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
     mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
     mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
-    // ReloadRDX:
     mov(rdx, qword[rcx + 8]); // membase
   }
-
-  auto lowering_table = backend_->lowering_table();
 
   // Body.
   auto block = builder->first_block();
@@ -161,12 +169,17 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
       label = label->next;
     }
 
-    // Add instructions.
-    // The table will process sequences of instructions to (try to)
-    // generate optimal code.
-    current_instr_ = block->instr_head;
-    if (lowering_table->ProcessBlock(*this, block)) {
-      return 1;
+    // Process instructions.
+    const Instr* instr = block->instr_head;
+    while (instr) {
+      const Instr* new_tail = instr;
+      if (!SelectSequence(*this, instr, &new_tail)) {
+        // No sequence found!
+        XEASSERTALWAYS();
+        XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
+        break;
+      }
+      instr = new_tail;
     }
 
     block = block->next;
@@ -191,16 +204,320 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   return 0;
 }
 
-Instr* X64Emitter::Advance(Instr* i) {
-  auto next = i->next;
-  current_instr_ = next;
-  return next;
-}
-
-void X64Emitter::MarkSourceOffset(Instr* i) {
+void X64Emitter::MarkSourceOffset(const Instr* i) {
   auto entry = source_map_arena_.Alloc<SourceMapEntry>();
   entry->source_offset  = i->src1.offset;
   entry->hir_offset     = uint32_t(i->block->ordinal << 16) | i->ordinal;
   entry->code_offset    = getSize();
   source_map_count_++;
+}
+
+void X64Emitter::DebugBreak() {
+  // TODO(benvanik): notify debugger.
+  db(0xCC);
+}
+
+void X64Emitter::Trap() {
+  // TODO(benvanik): notify debugger.
+  db(0xCC);
+}
+
+void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
+  // TODO(benvanik): notify debugger.
+  db(0xCC);
+  XEASSERTALWAYS();
+}
+
+uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+  auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
+
+  Function* fn = NULL;
+  thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  XEASSERTNOTNULL(fn);
+  auto x64_fn = static_cast<X64Function*>(fn);
+  return reinterpret_cast<uint64_t>(x64_fn->machine_code());
+}
+
+void X64Emitter::Call(const hir::Instr* instr, runtime::FunctionInfo* symbol_info) {
+  auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
+  // Resolve address to the function to call and store in rax.
+  // TODO(benvanik): caching/etc. For now this makes debugging easier.
+  if (fn) {
+    mov(rax, reinterpret_cast<uint64_t>(fn->machine_code()));
+  } else {
+    CallNative(ResolveFunctionSymbol, reinterpret_cast<uint64_t>(symbol_info));
+  }
+
+  // Actually jump/call to rax.
+  if (instr->flags & CALL_TAIL) {
+    // Pass the callers return address over.
+    mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+
+    add(rsp, static_cast<uint32_t>(stack_size()));
+    jmp(rax);
+  } else {
+    // Return address is from the previous SET_RETURN_ADDRESS.
+    mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+    call(rax);
+  }
+}
+
+uint64_t ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
+  // TODO(benvanik): generate this thunk at runtime? or a shim?
+  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+
+  // TODO(benvanik): required?
+  target_address &= 0xFFFFFFFF;
+
+  Function* fn = NULL;
+  thread_state->runtime()->ResolveFunction(target_address, &fn);
+  XEASSERTNOTNULL(fn);
+  auto x64_fn = static_cast<X64Function*>(fn);
+  return reinterpret_cast<uint64_t>(x64_fn->machine_code());
+}
+
+void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
+  // Check if return.
+  if (instr->flags & CALL_POSSIBLE_RETURN) {
+    cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
+    je("epilog", CodeGenerator::T_NEAR);
+  }
+
+  // Resolve address to the function to call and store in rax.
+  // TODO(benvanik): caching/etc. For now this makes debugging easier.
+  if (reg.getIdx() != rdx.getIdx()) {
+    mov(rdx, reg);
+  }
+  CallNative(ResolveFunctionAddress);
+
+  // Actually jump/call to rax.
+  if (instr->flags & CALL_TAIL) {
+    // Pass the callers return address over.
+    mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+
+    add(rsp, static_cast<uint32_t>(stack_size()));
+    jmp(rax);
+  } else {
+    // Return address is from the previous SET_RETURN_ADDRESS.
+    mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+    call(rax);
+  }
+}
+
+uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
+  auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
+  XELOGW("undefined extern call to %.8X %s",
+         symbol_info->address(),
+         symbol_info->name());
+  return 0;
+}
+void X64Emitter::CallExtern(const hir::Instr* instr, const FunctionInfo* symbol_info) {
+  XEASSERT(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
+  if (!symbol_info->extern_handler()) {
+    CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
+  } else {
+    // rcx = context
+    // rdx = target host function
+    // r8  = arg0
+    // r9  = arg1
+    mov(rdx, reinterpret_cast<uint64_t>(symbol_info->extern_handler()));
+    mov(r8, reinterpret_cast<uint64_t>(symbol_info->extern_arg0()));
+    mov(r9, reinterpret_cast<uint64_t>(symbol_info->extern_arg1()));
+    auto thunk = backend()->guest_to_host_thunk();
+    mov(rax, reinterpret_cast<uint64_t>(thunk));
+    call(rax);
+    ReloadECX();
+    ReloadEDX();
+    // rax = host return
+  }
+}
+
+void X64Emitter::CallNative(void* fn) {
+  mov(rax, reinterpret_cast<uint64_t>(fn));
+  call(rax);
+  ReloadECX();
+  ReloadEDX();
+}
+
+void X64Emitter::CallNative(uint64_t(*fn)(void* raw_context)) {
+  mov(rax, reinterpret_cast<uint64_t>(fn));
+  call(rax);
+  ReloadECX();
+  ReloadEDX();
+}
+
+void X64Emitter::CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0)) {
+  mov(rax, reinterpret_cast<uint64_t>(fn));
+  call(rax);
+  ReloadECX();
+  ReloadEDX();
+}
+
+void X64Emitter::CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0), uint64_t arg0) {
+  mov(rdx, arg0);
+  mov(rax, reinterpret_cast<uint64_t>(fn));
+  call(rax);
+  ReloadECX();
+  ReloadEDX();
+}
+
+void X64Emitter::SetReturnAddress(uint64_t value) {
+  mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], value);
+}
+
+void X64Emitter::ReloadECX() {
+  mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
+}
+
+void X64Emitter::ReloadEDX() {
+  mov(rdx, qword[rcx + 8]); // membase
+}
+
+void X64Emitter::LoadEflags() {
+#if STORE_EFLAGS
+  mov(eax, dword[rsp + STASH_OFFSET]);
+  push(rax);
+  popf();
+#else
+  // EFLAGS already present.
+#endif  // STORE_EFLAGS
+}
+
+void X64Emitter::StoreEflags() {
+#if STORE_EFLAGS
+  pushf();
+  pop(qword[rsp + STASH_OFFSET]);
+#else
+  // EFLAGS should have CA set?
+  // (so long as we don't fuck with it)
+#endif  // STORE_EFLAGS
+}
+
+bool X64Emitter::ConstantFitsIn32Reg(uint64_t v) {
+  if ((v & ~0x7FFFFFFF) == 0) {
+    // Fits under 31 bits, so just load using normal mov.
+    return true;
+  } else if ((v & ~0x7FFFFFFF) == ~0x7FFFFFFF) {
+    // Negative number that fits in 32bits.
+    return true;
+  }
+  return false;
+}
+
+void X64Emitter::MovMem64(const RegExp& addr, uint64_t v) {
+  if ((v & ~0x7FFFFFFF) == 0) {
+    // Fits under 31 bits, so just load using normal mov.
+    mov(qword[addr], v);
+  } else if ((v & ~0x7FFFFFFF) == ~0x7FFFFFFF) {
+    // Negative number that fits in 32bits.
+    mov(qword[addr], v);
+  } else if (!(v >> 32)) {
+    // All high bits are zero. It'd be nice if we had a way to load a 32bit
+    // immediate without sign extending!
+    // TODO(benvanik): this is super common, find a better way.
+    mov(dword[addr], static_cast<uint32_t>(v));
+    mov(dword[addr + 4], 0);
+  } else {
+    // 64bit number that needs double movs.
+    mov(dword[addr], static_cast<uint32_t>(v));
+    mov(dword[addr + 4], static_cast<uint32_t>(v >> 32));
+  }
+}
+
+Address X64Emitter::GetXmmConstPtr(XmmConst id) {
+  static const vec128_t xmm_consts[] = {
+    /* XMMZero                */ vec128f(0.0f, 0.0f, 0.0f, 0.0f),
+    /* XMMOne                 */ vec128f(1.0f, 1.0f, 1.0f, 1.0f),
+    /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
+    /* XMMMaskX16Y16          */ vec128i(0x0000FFFF, 0xFFFF0000, 0x00000000, 0x00000000),
+    /* XMMFlipX16Y16          */ vec128i(0x00008000, 0x00000000, 0x00000000, 0x00000000),
+    /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
+    /* XMMNormalizeX16Y16     */ vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
+    /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
+    /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
+    /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),
+    /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
+    /* XMMPermuteControl15    */ vec128b(15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15),
+    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF02, 0xFFFFFF01, 0xFFFFFF00, 0xFFFFFF02),
+    /* XMMOneOver255          */ vec128f(1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f),
+    /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu, 0x0000001Fu),
+    /* XMMOneMask             */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
+  };
+  // TODO(benvanik): cache base pointer somewhere? stack? It'd be nice to
+  // prevent this move.
+  // TODO(benvanik): move to predictable location in PPCContext? could then
+  // just do rcx relative addression with no rax overwriting.
+  mov(rax, (uint64_t)&xmm_consts[id]);
+  return ptr[rax];
+}
+
+void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
+  // http://www.agner.org/optimize/optimizing_assembly.pdf
+  // 13.4 Generating constants
+  if (!v.low && !v.high) {
+    // 0000...
+    vpxor(dest, dest);
+  } else if (v.low == ~0ull && v.high == ~0ull) {
+    // 1111...
+    vmovaps(dest, GetXmmConstPtr(XMMOneMask));
+  } else {
+    // TODO(benvanik): see what other common values are.
+    // TODO(benvanik): build constant table - 99% are reused.
+    MovMem64(rsp + STASH_OFFSET, v.low);
+    MovMem64(rsp + STASH_OFFSET + 8, v.high);
+    vmovdqa(dest, ptr[rsp + STASH_OFFSET]);
+  }
+}
+
+void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, float v) {
+  union {
+    float f;
+    uint32_t i;
+  } x = { v };
+  if (!v) {
+    // 0
+    vpxor(dest, dest);
+  } else if (x.i == ~0UL) {
+    // 1111...
+    vmovaps(dest, GetXmmConstPtr(XMMOneMask));
+  } else {
+    // TODO(benvanik): see what other common values are.
+    // TODO(benvanik): build constant table - 99% are reused.
+    mov(eax, x.i);
+    vmovd(dest, eax);
+  }
+}
+
+void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
+  union {
+    double d;
+    uint64_t i;
+  } x = { v };
+  if (!v) {
+    // 0
+    vpxor(dest, dest);
+  } else if (x.i == ~0ULL) {
+    // 1111...
+    vmovaps(dest, GetXmmConstPtr(XMMOneMask));
+  } else {
+    // TODO(benvanik): see what other common values are.
+    // TODO(benvanik): build constant table - 99% are reused.
+    mov(rax, x.i);
+    vmovq(dest, rax);
+  }
+}
+
+Address X64Emitter::StashXmm(const Xmm& r) {
+  auto addr = ptr[rsp + STASH_OFFSET];
+  vmovups(addr, r);
+  return addr;
+}
+
+Address X64Emitter::StashXmm(const vec128_t& v) {
+  auto addr = ptr[rsp + STASH_OFFSET];
+  LoadConstantXmm(xmm0, v);
+  vmovups(addr, xmm0);
+  return addr;
 }

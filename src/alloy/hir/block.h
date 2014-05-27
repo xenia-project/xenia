@@ -61,6 +61,8 @@ public:
   Instr* instr_tail;
 
   uint16_t ordinal;
+
+  void AssertNoCycles();
 };
 
 

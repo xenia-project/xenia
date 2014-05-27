@@ -19,7 +19,9 @@
 XEDECLARECLASS2(alloy, hir, HIRBuilder);
 XEDECLARECLASS2(alloy, hir, Instr);
 XEDECLARECLASS2(alloy, runtime, DebugInfo);
+XEDECLARECLASS2(alloy, runtime, FunctionInfo);
 XEDECLARECLASS2(alloy, runtime, Runtime);
+XEDECLARECLASS2(alloy, runtime, SymbolInfo);
 
 namespace alloy {
 namespace backend {
@@ -31,6 +33,25 @@ class X64CodeCache;
 enum RegisterFlags {
   REG_DEST  = (1 << 0),
   REG_ABCD  = (1 << 1),
+};
+
+enum XmmConst {
+  XMMZero               = 0,
+  XMMOne                = 1,
+  XMMNegativeOne        = 2,
+  XMMMaskX16Y16         = 3,
+  XMMFlipX16Y16         = 4,
+  XMMFixX16Y16          = 5,
+  XMMNormalizeX16Y16    = 6,
+  XMM3301               = 7,
+  XMMSignMaskPS         = 8,
+  XMMSignMaskPD         = 9,
+  XMMByteSwapMask       = 10,
+  XMMPermuteControl15   = 11,
+  XMMUnpackD3DCOLOR     = 12,
+  XMMOneOver255         = 13,
+  XMMShiftMaskPS        = 14,
+  XMMOneMask            = 15,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
@@ -54,79 +75,68 @@ public:
            void*& out_code_address, size_t& out_code_size);
 
 public:
-  template<typename V0>
-  void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags) {
-    SetupReg(v0, r0);
-  }
-  template<typename V0, typename V1>
-  void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags,
-               hir::Value* v1, V1& r1, uint32_t r1_flags) {
-    SetupReg(v0, r0);
-    SetupReg(v1, r1);
-  }
-  template<typename V0, typename V1, typename V2>
-  void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags,
-               hir::Value* v1, V1& r1, uint32_t r1_flags,
-               hir::Value* v2, V2& r2, uint32_t r2_flags) {
-    SetupReg(v0, r0);
-    SetupReg(v1, r1);
-    SetupReg(v2, r2);
-  }
-  template<typename V0, typename V1, typename V2, typename V3>
-  void BeginOp(hir::Value* v0, V0& r0, uint32_t r0_flags,
-               hir::Value* v1, V1& r1, uint32_t r1_flags,
-               hir::Value* v2, V2& r2, uint32_t r2_flags,
-               hir::Value* v3, V3& r3, uint32_t r3_flags) {
-    SetupReg(v0, r0);
-    SetupReg(v1, r1);
-    SetupReg(v2, r2);
-    SetupReg(v3, r3);
-  }
-  template<typename V0>
-  void EndOp(V0& r0) {
-  }
-  template<typename V0, typename V1>
-  void EndOp(V0& r0, V1& r1) {
-  }
-  template<typename V0, typename V1, typename V2>
-  void EndOp(V0& r0, V1& r1, V2& r2) {
-  }
-  template<typename V0, typename V1, typename V2, typename V3>
-  void EndOp(V0& r0, V1& r1, V2& r2, V3& r3) {
-  }
-
   // Reserved:  rsp
   // Scratch:   rax/rcx/rdx
-  //            xmm0-1
+  //            xmm0-2 (could be only xmm0 with some trickery)
   // Available: rbx, r12-r15 (save to get r8-r11, rbp, rsi, rdi?)
-  //            xmm6-xmm15 (save to get xmm2-xmm5)
+  //            xmm6-xmm15 (save to get xmm3-xmm5)
   static const int GPR_COUNT = 5;
   static const int XMM_COUNT = 10;
 
-  static void SetupReg(hir::Value* v, Xbyak::Reg8& r) {
+  static void SetupReg(const hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];
     r = Xbyak::Reg8(idx);
   }
-  static void SetupReg(hir::Value* v, Xbyak::Reg16& r) {
+  static void SetupReg(const hir::Value* v, Xbyak::Reg16& r) {
     auto idx = gpr_reg_map_[v->reg.index];
     r = Xbyak::Reg16(idx);
   }
-  static void SetupReg(hir::Value* v, Xbyak::Reg32& r) {
+  static void SetupReg(const hir::Value* v, Xbyak::Reg32& r) {
     auto idx = gpr_reg_map_[v->reg.index];
     r = Xbyak::Reg32(idx);
   }
-  static void SetupReg(hir::Value* v, Xbyak::Reg64& r) {
+  static void SetupReg(const hir::Value* v, Xbyak::Reg64& r) {
     auto idx = gpr_reg_map_[v->reg.index];
     r = Xbyak::Reg64(idx);
   }
-  static void SetupReg(hir::Value* v, Xbyak::Xmm& r) {
+  static void SetupReg(const hir::Value* v, Xbyak::Xmm& r) {
     auto idx = xmm_reg_map_[v->reg.index];
     r = Xbyak::Xmm(idx);
   }
 
-  hir::Instr* Advance(hir::Instr* i);
+  void MarkSourceOffset(const hir::Instr* i);
 
-  void MarkSourceOffset(hir::Instr* i);
+  void DebugBreak();
+  void Trap();
+  void UnimplementedInstr(const hir::Instr* i);
+  void UnimplementedExtern(const hir::Instr* i);
+
+  void Call(const hir::Instr* instr, runtime::FunctionInfo* symbol_info);
+  void CallIndirect(const hir::Instr* instr, const Xbyak::Reg64& reg);
+  void CallExtern(const hir::Instr* instr, const runtime::FunctionInfo* symbol_info);
+  void CallNative(void* fn);
+  void CallNative(uint64_t(*fn)(void* raw_context));
+  void CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0));
+  void CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0), uint64_t arg0);
+  void SetReturnAddress(uint64_t value);
+  void ReloadECX();
+  void ReloadEDX();
+
+  // TODO(benvanik): Label for epilog (don't use strings).
+
+  void LoadEflags();
+  void StoreEflags();
+
+  // Moves a 64bit immediate into memory.
+  bool ConstantFitsIn32Reg(uint64_t v);
+  void MovMem64(const Xbyak::RegExp& addr, uint64_t v);
+
+  Xbyak::Address GetXmmConstPtr(XmmConst id);
+  void LoadConstantXmm(Xbyak::Xmm dest, float v);
+  void LoadConstantXmm(Xbyak::Xmm dest, double v);
+  void LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v);
+  Xbyak::Address StashXmm(const Xbyak::Xmm& r);
+  Xbyak::Address StashXmm(const vec128_t& v);
 
   size_t stack_size() const { return stack_size_; }
 

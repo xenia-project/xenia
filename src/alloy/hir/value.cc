@@ -560,6 +560,26 @@ void Value::ByteSwap() {
   }
 }
 
+void Value::CountLeadingZeros(const ConstantValue& src) {
+  switch (type) {
+  case INT8_TYPE:
+    constant.i8 = __lzcnt16(src.i8) - 8;
+    break;
+  case INT16_TYPE:
+    constant.i8 = __lzcnt16(src.i16);
+    break;
+  case INT32_TYPE:
+    constant.i8 = __lzcnt(src.i32);
+    break;
+  case INT64_TYPE:
+    constant.i8 = __lzcnt64(src.i64);
+    break;
+  default:
+    XEASSERTALWAYS();
+    break;
+  }
+}
+
 bool Value::Compare(Opcode opcode, Value* other) {
   // TODO(benvanik): big matrix.
   XEASSERTALWAYS();

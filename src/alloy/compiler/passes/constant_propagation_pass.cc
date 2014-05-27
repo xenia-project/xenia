@@ -368,6 +368,13 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           i->Remove();
         }
         break;
+      case OPCODE_CNTLZ:
+        if (i->src1.value->IsConstant()) {
+          v->set_zero(v->type);
+          v->CountLeadingZeros(i->src1.value->constant);
+          i->Remove();
+        }
+        break;
       // TODO(benvanik): INSERT/EXTRACT
       // TODO(benvanik): SPLAT/PERMUTE/SWIZZLE
       case OPCODE_SPLAT:

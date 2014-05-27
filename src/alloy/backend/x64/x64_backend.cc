@@ -12,26 +12,23 @@
 #include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_assembler.h>
 #include <alloy/backend/x64/x64_code_cache.h>
+#include <alloy/backend/x64/x64_sequences.h>
 #include <alloy/backend/x64/x64_thunk_emitter.h>
-#include <alloy/backend/x64/lowering/lowering_table.h>
-#include <alloy/backend/x64/lowering/lowering_sequences.h>
 
 using namespace alloy;
 using namespace alloy::backend;
 using namespace alloy::backend::x64;
-using namespace alloy::backend::x64::lowering;
 using namespace alloy::runtime;
 
 
 X64Backend::X64Backend(Runtime* runtime) :
-    code_cache_(0), lowering_table_(0),
+    code_cache_(0),
     Backend(runtime) {
 }
 
 X64Backend::~X64Backend() {
   alloy::tracing::WriteEvent(EventType::Deinit({
   }));
-  delete lowering_table_;
   delete code_cache_;
 }
 
@@ -40,6 +37,8 @@ int X64Backend::Initialize() {
   if (result) {
     return result;
   }
+
+  RegisterSequences();
 
   machine_info_.register_sets[0] = {
     0,
@@ -67,9 +66,6 @@ int X64Backend::Initialize() {
   guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
   delete thunk_emitter;
   delete allocator;
-
-  lowering_table_ = new LoweringTable(this);
-  RegisterSequences(lowering_table_);
 
   alloy::tracing::WriteEvent(EventType::Init({
   }));

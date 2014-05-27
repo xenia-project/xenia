@@ -240,18 +240,18 @@ void PPCHIRBuilder::UpdateCR(
 
 void PPCHIRBuilder::UpdateCR(
     uint32_t n, Value* lhs, Value* rhs, bool is_signed) {
-  Value* lt;
-  Value* gt;
   if (is_signed) {
-    lt = CompareSLT(lhs, rhs);
-    gt = CompareSGT(lhs, rhs);
+    Value* lt = CompareSLT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
+    Value* gt = CompareSGT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1, gt);
   } else {
-    lt = CompareULT(lhs, rhs);
-    gt = CompareUGT(lhs, rhs);
+    Value* lt = CompareULT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
+    Value* gt = CompareUGT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1, gt);
   }
   Value* eq = CompareEQ(lhs, rhs);
-  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
-  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1, gt);
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 2, eq);
 
   // Value* so = AllocValue(UINT8_TYPE);
@@ -280,7 +280,7 @@ Value* PPCHIRBuilder::LoadCA() {
 }
 
 void PPCHIRBuilder::StoreCA(Value* value) {
-  value = Truncate(value, INT8_TYPE);
+  XEASSERT(value->type == INT8_TYPE);
   StoreContext(offsetof(PPCContext, xer_ca), value);
 }
 

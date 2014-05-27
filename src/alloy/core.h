@@ -44,6 +44,10 @@ typedef struct XECACHEALIGN vec128_s {
       uint64_t  high;
     };
   };
+
+  bool operator== (const vec128_s& b) const {
+    return low == b.low && high == b.high;
+  }
 } vec128_t;
 XEFORCEINLINE vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
   vec128_t v;

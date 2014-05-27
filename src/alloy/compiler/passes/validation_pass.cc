@@ -88,12 +88,12 @@ int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
 }
 
 int ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
-  if (value->def) {
-    /*auto def = value->def;
-    XEASSERT(def->block == block);
-    if (def->block != block) {
-      return 1;
-    }*/
-  }
+  //if (value->def) {
+  //  auto def = value->def;
+  //  XEASSERT(def->block == block);
+  //  if (def->block != block) {
+  //    return 1;
+  //  }
+  //}
   return 0;
 }

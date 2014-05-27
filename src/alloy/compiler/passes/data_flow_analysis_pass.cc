@@ -36,8 +36,6 @@ DataFlowAnalysisPass::~DataFlowAnalysisPass() {
 }
 
 int DataFlowAnalysisPass::Run(HIRBuilder* builder) {
-  auto arena = builder->arena();
-
   // Linearize blocks so that we can detect cycles and propagate dependencies.
   uint32_t block_count = LinearizeBlocks(builder);
 

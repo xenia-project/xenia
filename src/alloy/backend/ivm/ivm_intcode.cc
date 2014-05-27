@@ -40,10 +40,10 @@ namespace ivm {
 #define DPRINT
 #define DFLUSH()
 
-//#define IPRINT if (ics.thread_state->thread_id() == 1) printf
-//#define IFLUSH() fflush(stdout)
-//#define DPRINT if (ics.thread_state->thread_id() == 1) printf
-//#define DFLUSH() fflush(stdout)
+#define IPRINT if (ics.thread_state->thread_id() == 1) printf
+#define IFLUSH() fflush(stdout)
+#define DPRINT if (ics.thread_state->thread_id() == 1) printf
+#define DFLUSH() fflush(stdout)
 
 #if XE_CPU_BIGENDIAN
 #define VECB16(v,n) (v.b16[n])
@@ -1364,31 +1364,31 @@ int Translate_LOAD_CLOCK(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_LOAD_LOCAL_I8(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_LOCAL_I16(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i16 = *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].i16 = *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_LOCAL_I32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i32 = *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].i32 = *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_LOCAL_I64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_LOCAL_F32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].f32 = *((float*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].f32 = *((float*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_LOCAL_F64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].f64 = *((double*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].f64 = *((double*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_LOCAL_V128(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u64));
+  ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u32));
   return IA_NEXT;
 }
 int Translate_LOAD_LOCAL(TranslationContext& ctx, Instr* i) {
@@ -1405,31 +1405,31 @@ int Translate_LOAD_LOCAL(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_STORE_LOCAL_I8(IntCodeState& ics, const IntCode* i) {
-  *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i8;
+  *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i8;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_LOCAL_I16(IntCodeState& ics, const IntCode* i) {
-  *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i16;
+  *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i16;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_LOCAL_I32(IntCodeState& ics, const IntCode* i) {
-  *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i32;
+  *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i32;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_LOCAL_I64(IntCodeState& ics, const IntCode* i) {
-  *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i64;
+  *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i64;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_LOCAL_F32(IntCodeState& ics, const IntCode* i) {
-  *((float*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f32;
+  *((float*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].f32;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_LOCAL_F64(IntCodeState& ics, const IntCode* i) {
-  *((double*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f64;
+  *((double*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_LOCAL_V128(IntCodeState& ics, const IntCode* i) {
-  *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].v128;
+  *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].v128;
   return IA_NEXT;
 }
 int Translate_STORE_LOCAL(TranslationContext& ctx, Instr* i) {
@@ -3715,17 +3715,17 @@ int Translate_CNTLZ(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_EXTRACT_INT8_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i8 = VECB16(src1,ics.rf[i->src2_reg].i64);
+  ics.rf[i->dest_reg].i8 = VECB16(src1,ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_EXTRACT_INT16_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i16 = VECS8(src1,ics.rf[i->src2_reg].i64);
+  ics.rf[i->dest_reg].i16 = VECS8(src1,ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_EXTRACT_INT32_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i32 = VECI4(src1,ics.rf[i->src2_reg].i64);
+  ics.rf[i->dest_reg].i32 = VECI4(src1,ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 int Translate_EXTRACT(TranslationContext& ctx, Instr* i) {

@@ -13,12 +13,6 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
-#pragma warning(push)
-#pragma warning(disable : 4244)
-#pragma warning(disable : 4267)
-#include <llvm/ADT/BitVector.h>
-#pragma warning(pop)
-
 using namespace alloy;
 using namespace alloy::backend;
 using namespace alloy::compiler;

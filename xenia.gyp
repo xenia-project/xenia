@@ -24,6 +24,18 @@
     'target_arch%': 'x64',
   },
 
+  'conditions': [
+    ['OS=="win"', {
+      'variables': {
+        'move_command%': 'move'
+      },
+    }, {
+      'variables': {
+        'move_command%': 'mv'
+      },
+    }]
+  ],
+
   'target_defaults': {
     'include_dirs': [
       'include/',
@@ -255,6 +267,7 @@
       'include_dirs': [
         '.',
         'src/',
+        '<(INTERMEDIATE_DIR)',
       ],
 
       'includes': [

@@ -9,6 +9,8 @@
 
 #include <alloy/compiler/passes/register_allocation_pass.h>
 
+#include <algorithm>
+
 using namespace alloy;
 using namespace alloy::backend;
 using namespace alloy::compiler;
@@ -16,180 +18,135 @@ using namespace alloy::compiler::passes;
 using namespace alloy::hir;
 
 
-struct RegisterAllocationPass::Interval {
-  uint32_t start_ordinal;
-  uint32_t end_ordinal;
-  Value* value;
-  RegisterFreeUntilSet* free_until_set;
-  // TODO(benvanik): reduce to offsets in arena?
-  struct Interval* next;
-  struct Interval* prev;
+#define ASSERT_NO_CYCLES 0
 
-  void AddToList(Interval** list_head) {
-    auto list_next = *list_head;
-    this->next = list_next;
-    if (list_next) {
-      list_next->prev = this;
-    }
-    *list_head = this;
-  }
-
-  void InsertIntoList(Interval** list_head) {
-    auto it = *list_head;
-    while (it) {
-      if (it->start_ordinal > this->start_ordinal) {
-        // Went too far. Insert before this interval.
-        this->prev = it->prev;
-        this->next = it;
-        if (it->prev) {
-          it->prev->next = this;
-        } else {
-          *list_head = this;
-        }
-        it->prev = this;
-        return;
-      }
-      if (!it->next) {
-        // None found, add at tail.
-        it->next = this;
-        this->prev = it;
-        return;
-      }
-      it = it->next;
-    }
-  }
-
-  void RemoveFromList(Interval** list_head) {
-    if (this->next) {
-      this->next->prev = this->prev;
-    }
-    if (this->prev) {
-      this->prev->next = this->next;
-    } else {
-      *list_head = this->next;
-    }
-    this->next = this->prev = NULL;
-  }
-};
-
-struct RegisterAllocationPass::Intervals {
-  Interval* unhandled;
-  Interval* active;
-  Interval* handled;
-};
 
 RegisterAllocationPass::RegisterAllocationPass(
     const MachineInfo* machine_info) :
     machine_info_(machine_info),
     CompilerPass() {
-  // Initialize register sets. The values of these will be
-  // cleared before use, so just the structure is required.
+  // Initialize register sets.
+  // TODO(benvanik): rewrite in a way that makes sense - this is terrible.
   auto mi_sets = machine_info->register_sets;
-  xe_zero_struct(&free_until_sets_, sizeof(free_until_sets_));
+  xe_zero_struct(&usage_sets_, sizeof(usage_sets_));
   uint32_t n = 0;
   while (mi_sets[n].count) {
     auto& mi_set = mi_sets[n];
-    auto free_until_set = new RegisterFreeUntilSet();
-    free_until_sets_.all_sets[n] = free_until_set;
-    free_until_set->count = mi_set.count;
-    free_until_set->set = &mi_set;
+    auto usage_set = new RegisterSetUsage();
+    usage_sets_.all_sets[n] = usage_set;
+    usage_set->count = mi_set.count;
+    usage_set->set = &mi_set;
     if (mi_set.types & MachineInfo::RegisterSet::INT_TYPES) {
-      free_until_sets_.int_set = free_until_set;
+      usage_sets_.int_set = usage_set;
     }
     if (mi_set.types & MachineInfo::RegisterSet::FLOAT_TYPES) {
-      free_until_sets_.float_set = free_until_set;
+      usage_sets_.float_set = usage_set;
     }
     if (mi_set.types & MachineInfo::RegisterSet::VEC_TYPES) {
-      free_until_sets_.vec_set = free_until_set;
+      usage_sets_.vec_set = usage_set;
     }
     n++;
   }
 }
 
 RegisterAllocationPass::~RegisterAllocationPass() {
-  for (size_t n = 0; n < XECOUNT(free_until_sets_.all_sets); n++) {
-    if (!free_until_sets_.all_sets[n]) {
+  for (size_t n = 0; n < XECOUNT(usage_sets_.all_sets); n++) {
+    if (!usage_sets_.all_sets[n]) {
       break;
     }
-    delete free_until_sets_.all_sets[n];
+    delete usage_sets_.all_sets[n];
   }
 }
 
 int RegisterAllocationPass::Run(HIRBuilder* builder) {
-  // A (probably broken) implementation of a linear scan register allocator
-  // that operates directly on SSA form:
-  // http://www.christianwimmer.at/Publications/Wimmer10a/Wimmer10a.pdf
-  //
-  // Requirements:
-  // - SSA form (single definition for variables)
-  // - block should be in linear order:
-  //   - dominators *should* come before (a->b->c)
-  //   - loop block sequences *should not* have intervening non-loop blocks
+  // Simple per-block allocator that operates on SSA form.
+  // Registers do not move across blocks, though this could be
+  // optimized with some intra-block analysis (dominators/etc).
+  // Really, it'd just be nice to have someone who knew what they
+  // were doing lower SSA and do this right.
 
-  auto arena = scratch_arena();
-
-  // Renumber everything.
   uint32_t block_ordinal = 0;
   uint32_t instr_ordinal = 0;
   auto block = builder->first_block();
   while (block) {
     // Sequential block ordinals.
     block->ordinal = block_ordinal++;
+
+    // Reset all state.
+    PrepareBlockState();
+
+    // Renumber all instructions in the block. This is required so that
+    // we can sort the usage pointers below.
     auto instr = block->instr_head;
     while (instr) {
       // Sequential global instruction ordinals.
       instr->ordinal = instr_ordinal++;
       instr = instr->next;
     }
-    block = block->next;
-  }
 
-  // Compute all liveness ranges by walking forward through all
-  // blocks/instructions and checking the last use of each value. This lets
-  // us know the exact order in (block#,instr#) form, which is then used to
-  // setup the range.
-  // TODO(benvanik): ideally we would have a list of all values and not have
-  //     to keep walking instructions over and over.
-  Interval* prev_interval = NULL;
-  Interval* head_interval = NULL;
-  block = builder->first_block();
-  while (block) {
-    auto instr = block->instr_head;
+    instr = block->instr_head;
     while (instr) {
-      // Compute last-use for the dest value.
-      // Since we know all values of importance must be defined, we can avoid
-      // having to check every value and just look at dest.
       const OpcodeInfo* info = instr->opcode;
-      if (GET_OPCODE_SIG_TYPE_DEST(info->signature) == OPCODE_SIG_TYPE_V) {
-        auto v = instr->dest;
-        if (!v->last_use) {
-          ComputeLastUse(v);
-        }
+      uint32_t signature = info->signature;
 
-        // Add interval.
-        auto interval = arena->Alloc<Interval>();
-        interval->start_ordinal = instr->ordinal;
-        interval->end_ordinal = v->last_use ?
-            v->last_use->ordinal : v->def->ordinal;
-        interval->value = v;
-        interval->next = NULL;
-        interval->prev = prev_interval;
-        if (prev_interval) {
-          prev_interval->next = interval;
-        } else {
-          head_interval = interval;
-        }
-        prev_interval = interval;
+      // Update the register use heaps.
+      AdvanceUses(instr);
 
-        // Grab register set to use.
-        // We do this now so it's only once per interval, and it makes it easy
-        // to only compare intervals that overlap their sets.
-        if (v->type <= INT64_TYPE) {
-          interval->free_until_set = free_until_sets_.int_set;
-        } else if (v->type <= FLOAT64_TYPE) {
-          interval->free_until_set = free_until_sets_.float_set;
+      // Check sources for retirement. If any are unused after this instruction
+      // we can eagerly evict them to speed up register allocation.
+      // Since X64 (and other platforms) can often take advantage of dest==src1
+      // register mappings we track retired src1 so that we can attempt to
+      // reuse it.
+      // NOTE: these checks require that the usage list be sorted!
+      bool has_preferred_reg = false;
+      RegAssignment preferred_reg = { 0 };
+      if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V &&
+          !instr->src1.value->IsConstant()) {
+        if (!instr->src1_use->next) {
+          // Pull off preferred register. We will try to reuse this for the
+          // dest.
+          has_preferred_reg = true;
+          preferred_reg = instr->src1.value->reg;
+          XEASSERTNOTNULL(preferred_reg.set);
+        }
+      }
+
+      if (GET_OPCODE_SIG_TYPE_DEST(signature) == OPCODE_SIG_TYPE_V) {
+        // Must not have been set already.
+        XEASSERTNULL(instr->dest->reg.set);
+
+        // Sort the usage list. We depend on this in future uses of this variable.
+        SortUsageList(instr->dest);
+
+        // If we have a preferred register, use that.
+        // This way we can help along the stupid X86 two opcode instructions.
+        bool allocated;
+        if (has_preferred_reg) {
+          // Allocate with the given preferred register. If the register is in
+          // the wrong set it will not be reused.
+          allocated = TryAllocateRegister(instr->dest, preferred_reg);
         } else {
-          interval->free_until_set = free_until_sets_.vec_set;
+          // Allocate a register. This will either reserve a free one or
+          // spill and reuse an active one.
+          allocated = TryAllocateRegister(instr->dest);
+        }
+        if (!allocated) {
+          // Failed to allocate register -- need to spill and try again.
+          // We spill only those registers we aren't using.
+          if (!SpillOneRegister(builder, instr->dest->type)) {
+            // Unable to spill anything - this shouldn't happen.
+            XELOGE("Unable to spill any registers");
+            XEASSERTALWAYS();
+            return 1;
+          }
+
+          // Demand allocation.
+          if (!TryAllocateRegister(instr->dest)) {
+            // Boned.
+            XELOGE("Register allocation failed");
+            XEASSERTALWAYS();
+            return 1;
+          }
         }
       }
 
@@ -198,228 +155,266 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
     block = block->next;
   }
 
-  // Now have a sorted list of intervals, minus their ending ordinals.
-  Intervals intervals;
-  intervals.unhandled = head_interval;
-  intervals.active = intervals.handled = NULL;
-  while (intervals.unhandled) {
-    // Get next unhandled interval.
-    auto current = intervals.unhandled;
-    intervals.unhandled = intervals.unhandled->next;
-    current->RemoveFromList(&intervals.unhandled);
-
-    // Check for intervals in active that are handled or inactive.
-    auto it = intervals.active;
-    while (it) {
-      auto next = it->next;
-      if (it->end_ordinal <= current->start_ordinal) {
-        // Move from active to handled.
-        it->RemoveFromList(&intervals.active);
-        it->AddToList(&intervals.handled);
-      }
-      it = next;
-    }
-
-    // Find a register for current.
-    if (!TryAllocateFreeReg(current, intervals)) {
-      // Failed, spill.
-      AllocateBlockedReg(builder, current, intervals);
-    }
-
-    if (current->value->reg.index!= -1) {
-      // Add current to active.
-      current->AddToList(&intervals.active);
-    }
-  }
-
   return 0;
 }
 
-void RegisterAllocationPass::ComputeLastUse(Value* value) {
-  // TODO(benvanik): compute during construction?
-  // Note that this list isn't sorted (unfortunately), so we have to scan
-  // them all.
-  uint32_t max_ordinal = 0;
-  Value::Use* last_use = NULL;
-  auto use = value->use_head;
-  while (use) {
-    if (!last_use || use->instr->ordinal >= max_ordinal) {
-      last_use = use;
-      max_ordinal = use->instr->ordinal;
-    }
-    use = use->next;
-  }
-  value->last_use = last_use ? last_use->instr : NULL;
-}
-
-bool RegisterAllocationPass::TryAllocateFreeReg(
-    Interval* current, Intervals& intervals) {
-  // Reset all registers in the set to unused.
-  auto free_until_set = current->free_until_set;
-  for (uint32_t n = 0; n < free_until_set->count; n++) {
-    free_until_set->pos[n] = -1;
-  }
-
-  // Mark all active registers as used.
-  // TODO(benvanik): keep some kind of bitvector so that this is instant?
-  auto it = intervals.active;
-  while (it) {
-    if (it->free_until_set == free_until_set) {
-      free_until_set->pos[it->value->reg.index] = 0;
-    }
-    it = it->next;
-  }
-
-  uint32_t max_pos = 0;
-  for (uint32_t n = 0; n < free_until_set->count; n++) {
-    if (max_pos == -1) {
-      max_pos = n;
-    } else {
-      if (free_until_set->pos[n] > free_until_set->pos[max_pos]) {
-        max_pos = n;
+void RegisterAllocationPass::DumpUsage(const char* name) {
+#if 0
+  fprintf(stdout, "\n%s:\n", name);
+  for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
+    auto usage_set = usage_sets_.all_sets[i];
+    if (usage_set) {
+      fprintf(stdout, "set %s:\n", usage_set->set->name);
+      fprintf(stdout, "  avail: %s\n", usage_set->availability.to_string().c_str());
+      fprintf(stdout, "  upcoming uses:\n");
+      for (auto it = usage_set->upcoming_uses.begin();
+           it != usage_set->upcoming_uses.end(); ++it) {
+        fprintf(stdout, "    v%d, used at %d\n",
+                it->value->ordinal,
+                it->use->instr->ordinal);
       }
     }
   }
-  if (!free_until_set->pos[max_pos]) {
-    // No register available without spilling.
-    return false;
-  }
-  if (current->end_ordinal < free_until_set->pos[max_pos]) {
-    // Register available for the whole interval.
-    current->value->reg.set = free_until_set->set;
-    current->value->reg.index = max_pos;
-  } else {
-    // Register available for the first part of the interval.
-    // Split the interval at where it hits the next one.
-    //current->value->reg = max_pos;
-    //SplitRange(current, free_until_set->pos[max_pos]);
-    // TODO(benvanik): actually split -- for now we just spill.
-    return false;
-  }
-
-  return true;
+  fflush(stdout);
+#endif
 }
 
-void RegisterAllocationPass::AllocateBlockedReg(
-    HIRBuilder* builder, Interval* current, Intervals& intervals) {
-  auto free_until_set = current->free_until_set;
 
-  // TODO(benvanik): smart heuristics.
-  //     wimmer AllocateBlockedReg has some stuff for deciding whether to
-  //     spill current or some other active interval - which we ignore.
-
-  // Pick a random interval. Maybe the first. Sure.
-  auto spill_interval = intervals.active;
-  Value* spill_value = NULL;
-  Instr* prev_use = NULL;
-  Instr* next_use = NULL;
-  while (spill_interval) {
-    if (spill_interval->free_until_set != free_until_set ||
-        spill_interval->start_ordinal == current->start_ordinal) {
-      // Only interested in ones of the same register set.
-      // We also ensure that ones at the same ordinal as us are ignored,
-      // which can happen with multiple local inserts/etc.
-      spill_interval = spill_interval->next;
-      continue;
+void RegisterAllocationPass::PrepareBlockState() {
+  for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
+    auto usage_set = usage_sets_.all_sets[i];
+    if (usage_set) {
+      usage_set->availability.set();
+      usage_set->upcoming_uses.clear();
     }
-    spill_value = spill_interval->value;
+  }
+  DumpUsage("PrepareBlockState");
+}
 
-    // Find the uses right before/after current.
-    auto use = spill_value->use_head;
-    while (use) {
-      if (use->instr->ordinal != -1) {
-        if (use->instr->ordinal < current->start_ordinal) {
-          if (!prev_use || prev_use->ordinal < use->instr->ordinal) {
-            prev_use = use->instr;
-          }
-        } else if (use->instr->ordinal > current->start_ordinal) {
-          if (!next_use || next_use->ordinal > use->instr->ordinal) {
-            next_use = use->instr;
-          }
+void RegisterAllocationPass::AdvanceUses(Instr* instr) {
+  for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
+    auto usage_set = usage_sets_.all_sets[i];
+    if (!usage_set) {
+      break;
+    }
+    auto& upcoming_uses = usage_set->upcoming_uses;
+    for (auto it = upcoming_uses.begin(); it != upcoming_uses.end();) {
+      if (!it->use) {
+        // No uses at all - we can remove right away.
+        // This comes up from instructions where the dest is never used,
+        // like the ATOMIC ops.
+        MarkRegAvailable(it->value->reg);
+        it = upcoming_uses.erase(it);
+        continue;
+      }
+      if (it->use->instr != instr) {
+        // Not yet at this instruction.
+        ++it;
+        continue;
+      }
+      // The use is from this instruction.
+      if (!it->use->next) {
+        // Last use of the value. We can retire it now.
+        MarkRegAvailable(it->value->reg);
+        it = upcoming_uses.erase(it);
+      } else {
+        // Used again. Push back the next use.
+        // Note that we may be used multiple times this instruction, so
+        // eat those.
+        auto next_use = it->use->next;
+        while (next_use->next && next_use->instr == instr) {
+          next_use = next_use->next;
         }
+        // Remove the iterator.
+        auto value = it->value;
+        it = upcoming_uses.erase(it);
+        upcoming_uses.emplace_back(value, next_use);
       }
-      use = use->next;
     }
-    if (!prev_use) {
-      prev_use = spill_value->def;
-    }
-    if (prev_use->next == next_use) {
-      // Uh, this interval is way too short.
-      spill_interval = spill_interval->next;
-      continue;
-    }
-    XEASSERT(prev_use->ordinal != -1);
-    XEASSERTNOTNULL(next_use);
-    break;
   }
-  XEASSERT(spill_interval->free_until_set == free_until_set);
+  DumpUsage("AdvanceUses");
+}
 
-  // Find the real last use -- paired ops may require sequences to stay
-  // intact. This is a bad design.
-  auto prev_def_tail = prev_use;
-  while (prev_def_tail &&
-          prev_def_tail->opcode->flags & OPCODE_FLAG_PAIRED_PREV) {
-    prev_def_tail = prev_def_tail->prev;
+bool RegisterAllocationPass::IsRegInUse(const RegAssignment& reg) {
+  RegisterSetUsage* usage_set;
+  if (reg.set == usage_sets_.int_set->set) {
+    usage_set = usage_sets_.int_set;
+  } else if (reg.set == usage_sets_.float_set->set) {
+    usage_set = usage_sets_.float_set;
+  } else {
+    usage_set = usage_sets_.vec_set;
+  }
+  return !usage_set->availability.test(reg.index);
+}
+
+RegisterAllocationPass::RegisterSetUsage*
+RegisterAllocationPass::MarkRegUsed(const RegAssignment& reg,
+                                    Value* value, Value::Use* use) {
+  auto usage_set = RegisterSetForValue(value);
+  usage_set->availability.set(reg.index, false);
+  usage_set->upcoming_uses.emplace_back(value, use);
+  DumpUsage("MarkRegUsed");
+  return usage_set;
+}
+
+RegisterAllocationPass::RegisterSetUsage*
+RegisterAllocationPass::MarkRegAvailable(const hir::RegAssignment& reg) {
+  RegisterSetUsage* usage_set;
+  if (reg.set == usage_sets_.int_set->set) {
+    usage_set = usage_sets_.int_set;
+  } else if (reg.set == usage_sets_.float_set->set) {
+    usage_set = usage_sets_.float_set;
+  } else {
+    usage_set = usage_sets_.vec_set;
+  }
+  usage_set->availability.set(reg.index, true);
+  return usage_set;
+}
+
+bool RegisterAllocationPass::TryAllocateRegister(
+    Value* value, const RegAssignment& preferred_reg) {
+  // If the preferred register matches type and is available, use it.
+  auto usage_set = RegisterSetForValue(value);
+  if (usage_set->set == preferred_reg.set) {
+    // Check if available.
+    if (!IsRegInUse(preferred_reg)) {
+      // Mark as in-use and return. Best case.
+      MarkRegUsed(preferred_reg, value, value->use_head);
+      value->reg = preferred_reg;
+      return true;
+    }
   }
 
-  Value* new_value;
-  uint32_t end_ordinal;
+  // Otherwise, fallback to allocating like normal.
+  return TryAllocateRegister(value);
+}
+
+bool RegisterAllocationPass::TryAllocateRegister(Value* value) {
+  // Get the set this register is in.
+  RegisterSetUsage* usage_set = RegisterSetForValue(value);
+
+  // Find the first free register, if any.
+  // We have to ensure it's a valid one (in our count).
+  unsigned long first_unused = 0;
+  bool all_used = _BitScanForward(&first_unused, usage_set->availability.to_ulong()) == 0;
+  if (!all_used && first_unused < usage_set->count) {
+    // Available! Use it!.
+    value->reg.set = usage_set->set;
+    value->reg.index = first_unused;
+    MarkRegUsed(value->reg, value, value->use_head);
+    return true;
+  }
+
+  // None available! Spill required.
+  return false;
+}
+
+bool RegisterAllocationPass::SpillOneRegister(
+    HIRBuilder* builder, TypeName required_type) {
+  // Get the set that we will be picking from.
+  RegisterSetUsage* usage_set;
+  if (required_type <= INT64_TYPE) {
+    usage_set = usage_sets_.int_set;
+  } else if (required_type <= FLOAT64_TYPE) {
+    usage_set = usage_sets_.float_set;
+  } else {
+    usage_set = usage_sets_.vec_set;
+  }
+
+  DumpUsage("SpillOneRegister (pre)");
+  // Pick the one with the furthest next use.
+  XEASSERT(!usage_set->upcoming_uses.empty());
+  auto furthest_usage = std::max_element(
+      usage_set->upcoming_uses.begin(), usage_set->upcoming_uses.end(),
+      RegisterUsage::Comparer());
+  Value* spill_value = furthest_usage->value;
+  Value::Use* prev_use = furthest_usage->use->prev;
+  Value::Use* next_use = furthest_usage->use;
+  XEASSERTNOTNULL(next_use);
+  usage_set->upcoming_uses.erase(furthest_usage);
+  DumpUsage("SpillOneRegister (post)");
+  const auto reg = spill_value->reg;
+  
+  // We know the spill_value use list is sorted, so we can cut it right now.
+  // This makes it easier down below.
+  auto new_head_use = next_use;
+
+  // Allocate local.
   if (spill_value->local_slot) {
-    // Value is already assigned a slot, so load from that.
-    // We can then split the interval right after the previous use to
-    // before the next use.
-
-    // Update the last use of the spilled interval/value.
-    end_ordinal = spill_interval->end_ordinal;
-    spill_interval->end_ordinal = current->start_ordinal;//prev_def_tail->ordinal;
-    XEASSERT(end_ordinal != -1);
-    XEASSERT(spill_interval->end_ordinal != -1);
-
-    // Insert a load right before the next use.
-    new_value = builder->LoadLocal(spill_value->local_slot);
-    builder->last_instr()->MoveBefore(next_use);
-
-    // Update last use info.
-    new_value->last_use = spill_value->last_use;
-    spill_value->last_use = prev_use;
+    // Value is already assigned a slot. Since we allocate in order and this is
+    // all SSA we know the stored value will be exactly what we want. Yay,
+    // we can prevent the redundant store!
+    // In fact, we may even want to pin this spilled value so that we always
+    // use the spilled value and prevent the need for more locals.
   } else {
     // Allocate a local slot.
     spill_value->local_slot = builder->AllocLocal(spill_value->type);
 
-    // Insert a spill right after the def.
+    // Add store.
     builder->StoreLocal(spill_value->local_slot, spill_value);
     auto spill_store = builder->last_instr();
-    spill_store->MoveBefore(prev_def_tail->next);
+    auto spill_store_use = spill_store->src2_use;
+    XEASSERTNULL(spill_store_use->prev);
+    if (prev_use && prev_use->instr->opcode->flags & OPCODE_FLAG_PAIRED_PREV) {
+      // Instruction is paired. This is bad. We will insert the spill after the
+      // paired instruction.
+      XEASSERTNOTNULL(prev_use->instr->next);
+      spill_store->MoveBefore(prev_use->instr->next);
 
-    // Update last use of spilled interval/value.
-    end_ordinal = spill_interval->end_ordinal;
-    spill_interval->end_ordinal = current->start_ordinal;//prev_def_tail->ordinal;
-    XEASSERT(end_ordinal != -1);
-    XEASSERT(spill_interval->end_ordinal != -1);
+      // Update last use.
+      spill_value->last_use = spill_store;
+    } else if (prev_use) {
+      // We insert the store immediately before the previous use.
+      // If we were smarter we could then re-run allocation and reuse the register
+      // once dropped.
+      spill_store->MoveBefore(prev_use->instr);
 
-    // Insert a load right before the next use.
-    new_value = builder->LoadLocal(spill_value->local_slot);
-    builder->last_instr()->MoveBefore(next_use);
+      // Update last use.
+      spill_value->last_use = prev_use->instr;
+    } else {
+      // This is the first use, so the only thing we have is the define.
+      // Move the store to right after that.
+      spill_store->MoveBefore(spill_value->def->next);
 
-    // Update last use info.
-    new_value->last_use = spill_value->last_use;
-    spill_value->last_use = spill_store;
+      // Update last use.
+      spill_value->last_use = spill_store;
+    }
   }
 
-  // Reuse the same local slot. Hooray SSA.
+#if ASSERT_NO_CYCLES
+  builder->AssertNoCycles();
+  spill_value->def->block->AssertNoCycles();
+#endif  // ASSERT_NO_CYCLES
+
+  // Add load.
+  // Inserted immediately before the next use. Since by definition the next
+  // use is after the instruction requesting the spill we know we haven't
+  // done allocation for that code yet and can let that be handled
+  // automatically when we get to it.
+  auto new_value = builder->LoadLocal(spill_value->local_slot);
+  auto spill_load = builder->last_instr();
+  spill_load->MoveBefore(next_use->instr);
+  // Note: implicit first use added.
+
+#if ASSERT_NO_CYCLES
+  builder->AssertNoCycles();
+  spill_value->def->block->AssertNoCycles();
+#endif  // ASSERT_NO_CYCLES
+
+  // Set the local slot of the new value to our existing one. This way we will
+  // reuse that same memory if needed.
   new_value->local_slot = spill_value->local_slot;
 
-  // Rename all future uses to that loaded value.
-  auto use = spill_value->use_head;
-  while (use) {
-    // TODO(benvanik): keep use list sorted so we don't have to do this.
-    if (use->instr->ordinal <= spill_interval->end_ordinal ||
-        use->instr->ordinal == -1) {
-      use = use->next;
-      continue;
-    }
-    auto next = use->next;
-    auto instr = use->instr;
+  // Rename all future uses of the SSA value to the new value as loaded
+  // from the local.
+  // We can quickly do this by walking the use list. Because the list is
+  // already sorted we know we are going to end up with a sorted list.
+  auto walk_use = new_head_use;
+  auto new_use_tail = walk_use;
+  while (walk_use) {
+    auto next_walk_use = walk_use->next;
+    auto instr = walk_use->instr;
+
     uint32_t signature = instr->opcode->signature;
     if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
       if (instr->src1.value == spill_value) {
@@ -436,36 +431,107 @@ void RegisterAllocationPass::AllocateBlockedReg(
         instr->set_src3(new_value);
       }
     }
-    use = next;
-  }
 
-  // Create new interval.
-  auto arena = scratch_arena();
-  auto new_interval = arena->Alloc<Interval>();
-  new_interval->start_ordinal = new_value->def->ordinal;
-  new_interval->end_ordinal = end_ordinal;
-  new_interval->value = new_value;
-  new_interval->next = NULL;
-  new_interval->prev = NULL;
-  if (new_value->type <= INT64_TYPE) {
-    new_interval->free_until_set = free_until_sets_.int_set;
-  } else if (new_value->type <= FLOAT64_TYPE) {
-    new_interval->free_until_set = free_until_sets_.float_set;
+    walk_use = next_walk_use;
+    if (walk_use) {
+      new_use_tail = walk_use;
+    }
+  }
+  new_value->last_use = new_use_tail->instr;
+
+  // Update tracking.
+  MarkRegAvailable(reg);
+
+  return true;
+}
+
+RegisterAllocationPass::RegisterSetUsage*
+RegisterAllocationPass::RegisterSetForValue(
+    const Value* value) {
+  if (value->type <= INT64_TYPE) {
+    return usage_sets_.int_set;
+  } else if (value->type <= FLOAT64_TYPE) {
+    return usage_sets_.float_set;
   } else {
-    new_interval->free_until_set = free_until_sets_.vec_set;
+    return usage_sets_.vec_set;
+  }
+}
+
+namespace {
+int CompareValueUse(const Value::Use* a, const Value::Use* b) {
+  return a->instr->ordinal - b->instr->ordinal;
+}
+}  // namespace
+void RegisterAllocationPass::SortUsageList(Value* value) {
+  // Modified in-place linked list sort from:
+  // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.c
+  if (!value->use_head) {
+    return;
+  }
+  Value::Use* head = value->use_head;
+  Value::Use* tail = nullptr;
+  int insize = 1;
+  while (true) {
+    auto p = head;
+    head = nullptr;
+    tail = nullptr;
+    // count number of merges we do in this pass
+    int nmerges = 0;
+    while (p) {
+      // there exists a merge to be done
+      nmerges++;
+      // step 'insize' places along from p
+      auto q = p;
+      int psize = 0;
+      for (int i = 0; i < insize; i++) {
+        psize++;
+        q = q->next;
+        if (!q) break;
+      }
+      // if q hasn't fallen off end, we have two lists to merge
+      int qsize = insize;
+      // now we have two lists; merge them
+      while (psize > 0 || (qsize > 0 && q)) {
+        // decide whether next element of merge comes from p or q
+        Value::Use* e = nullptr;
+        if (psize == 0) {
+          // p is empty; e must come from q
+          e = q; q = q->next; qsize--;
+        } else if (qsize == 0 || !q) {
+          // q is empty; e must come from p
+          e = p; p = p->next; psize--;
+        } else if (CompareValueUse(p, q) <= 0) {
+          // First element of p is lower (or same); e must come from p
+          e = p; p = p->next; psize--;
+        } else {
+          // First element of q is lower; e must come from q
+          e = q; q = q->next; qsize--;
+        }
+        // add the next element to the merged list
+        if (tail) {
+          tail->next = e;
+        } else {
+          head = e;
+        }
+        // Maintain reverse pointers in a doubly linked list.
+        e->prev = tail;
+        tail = e;
+      }
+      // now p has stepped 'insize' places along, and q has too
+      p = q;
+    }
+    if (tail) {
+      tail->next = nullptr;
+    }
+    // If we have done only one merge, we're finished
+    if (nmerges <= 1) {
+      // allow for nmerges==0, the empty list case
+      break;
+    }
+    // Otherwise repeat, merging lists twice the size
+    insize *= 2;
   }
 
-  // Remove the old interval from the active list, as it's been spilled.
-  spill_interval->RemoveFromList(&intervals.active);
-  spill_interval->AddToList(&intervals.handled);
-
-  // Insert interval into the right place in the list.
-  // We know it's ahead of us.
-  new_interval->InsertIntoList(&intervals.unhandled);
-
-  // TODO(benvanik): use the register we just freed?
-  //current->value->reg.set = free_until_set->set;
-  //current->value->reg.index = spill_interval->value->reg.index;
-  bool allocated = TryAllocateFreeReg(current, intervals);
-  XEASSERTTRUE(allocated);
+  value->use_head = head;
+  value->last_use = tail->instr;
 }

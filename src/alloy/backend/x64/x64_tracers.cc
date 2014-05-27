@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/lowering/tracers.h>
+#include <alloy/backend/x64/x64_tracers.h>
 
 #include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/runtime/runtime.h>
@@ -15,19 +15,14 @@
 
 using namespace alloy;
 using namespace alloy::backend::x64;
-using namespace alloy::backend::x64::lowering;
 using namespace alloy::runtime;
 
 namespace alloy {
 namespace backend {
 namespace x64 {
-namespace lowering {
 
-
-#define IFLUSH()
-#define IPRINT
-#define DFLUSH()
-#define DPRINT
+#define ITRACE 0
+#define DTRACE 0
 
 #define TARGET_THREAD 1
 
@@ -36,6 +31,16 @@ namespace lowering {
 #define DFLUSH() fflush(stdout)
 #define DPRINT DFLUSH(); if (thread_state->thread_id() == TARGET_THREAD) printf
 
+uint32_t GetTracingMode() {
+  uint32_t mode = 0;
+#if ITRACE
+  mode |= TRACING_INSTR;
+#endif  // ITRACE
+#if DTRACE
+  mode |= TRACING_DATA;
+#endif  // DTRACE
+  return mode;
+}
 
 void TraceString(void* raw_context, const char* str) {
   auto thread_state = *((ThreadState**)raw_context);
@@ -190,7 +195,6 @@ void TraceMemoryStoreV128(void* raw_context, uint64_t address, __m128 value) {
 }
 
 
-}  // namespace lowering
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy

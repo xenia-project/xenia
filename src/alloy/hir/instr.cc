@@ -48,19 +48,6 @@ void Instr::set_src3(Value* value) {
   src3_use = value ? value->AddUse(block->arena, this) : NULL;
 }
 
-bool Instr::Match(SignatureType dest_req,
-                  SignatureType src1_req,
-                  SignatureType src2_req,
-                  SignatureType src3_req) const {
-  #define TO_SIG_TYPE(v) \
-      (v ? (v->IsConstant() ? SignatureType((v->type + 1) | SIG_TYPE_C) : SignatureType(v->type + 1)) : SIG_TYPE_X)
-  return
-      ((dest_req == SIG_TYPE_IGNORE) || (dest_req == TO_SIG_TYPE(dest))) &&
-      ((src1_req == SIG_TYPE_IGNORE) || (src1_req == TO_SIG_TYPE(src1.value))) &&
-      ((src2_req == SIG_TYPE_IGNORE) || (src2_req == TO_SIG_TYPE(src2.value))) &&
-      ((src3_req == SIG_TYPE_IGNORE) || (src3_req == TO_SIG_TYPE(src3.value)));
-}
-
 void Instr::MoveBefore(Instr* other) {
   if (next == other) {
     return;

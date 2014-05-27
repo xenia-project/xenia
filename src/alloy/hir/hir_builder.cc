@@ -92,7 +92,7 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
     case INT8_TYPE:     str->Append("%X", value->constant.i8);  break;
     case INT16_TYPE:    str->Append("%X", value->constant.i16); break;
     case INT32_TYPE:    str->Append("%X", value->constant.i32); break;
-    case INT64_TYPE:    str->Append("%X", value->constant.i64); break;
+    case INT64_TYPE:    str->Append("%llX", value->constant.i64); break;
     case FLOAT32_TYPE:  str->Append("%F", value->constant.f32); break;
     case FLOAT64_TYPE:  str->Append("%F", value->constant.f64); break;
     case VEC128_TYPE:   str->Append("(%F,%F,%F,%F)",
@@ -249,6 +249,29 @@ void HIRBuilder::Dump(StringBuffer* str) {
     }
 
     block = block->next;
+  }
+}
+
+void HIRBuilder::AssertNoCycles() {
+  Block* hare = block_head_;
+  Block* tortoise = block_head_;
+  if (!hare) {
+    return;
+  }
+  while (hare = hare->next) {
+    if (hare == tortoise) {
+      // Cycle!
+      XEASSERTALWAYS();
+    }
+    hare = hare->next;
+    if (hare == tortoise) {
+      // Cycle!
+      XEASSERTALWAYS();
+    }
+    tortoise = tortoise->next;
+    if (!hare || !tortoise) {
+      return;
+    }
   }
 }
 
@@ -1729,16 +1752,19 @@ Value* HIRBuilder::Extract(Value* value, Value* index,
                                 TypeName target_type) {
   // TODO(benvanik): could do some of this as constants.
 
+  Value* trunc_index = index->type != INT8_TYPE ?
+      Truncate(index, INT8_TYPE) : index;
+
   Instr* i = AppendInstr(
       OPCODE_EXTRACT_info, 0,
       AllocValue(target_type));
   i->set_src1(value);
-  i->set_src2(ZeroExtend(index, INT64_TYPE));
+  i->set_src2(trunc_index);
   i->src3.value = NULL;
   return i->dest;
 }
 
-Value* HIRBuilder::Extract(Value* value, uint64_t index,
+Value* HIRBuilder::Extract(Value* value, uint8_t index,
                                 TypeName target_type) {
   return Extract(value, LoadConstant(index), target_type);
 }

@@ -9,6 +9,8 @@
 
 #include <alloy/compiler/passes/context_promotion_pass.h>
 
+#include <gflags/gflags.h>
+
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
@@ -18,6 +20,10 @@ using namespace alloy::compiler::passes;
 using namespace alloy::frontend;
 using namespace alloy::hir;
 using namespace alloy::runtime;
+
+
+DEFINE_bool(store_all_context_values, false,
+            "Don't strip dead context stores to aid in debugging.");
 
 
 ContextPromotionPass::ContextPromotionPass() :
@@ -69,10 +75,12 @@ int ContextPromotionPass::Run(HIRBuilder* builder) {
   }
 
   // Remove all dead stores.
-  block = builder->first_block();
-  while (block) {
-    RemoveDeadStoresBlock(block);
-    block = block->next;
+  if (!FLAGS_store_all_context_values) {
+    block = builder->first_block();
+    while (block) {
+      RemoveDeadStoresBlock(block);
+      block = block->next;
+    }
   }
 
   return 0;

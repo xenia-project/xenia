@@ -35,6 +35,7 @@ public:
   virtual int Finalize();
 
   void Dump(StringBuffer* str);
+  void AssertNoCycles();
 
   Arena* arena() const { return arena_; }
 
@@ -196,7 +197,7 @@ public:
   Value* Insert(Value* value, Value* index, Value* part);
   Value* Insert(Value* value, uint64_t index, Value* part);
   Value* Extract(Value* value, Value* index, TypeName target_type);
-  Value* Extract(Value* value, uint64_t index, TypeName target_type);
+  Value* Extract(Value* value, uint8_t index, TypeName target_type);
   // i8->i16/i32/... (i8|i8 / i8|i8|i8|i8 / ...)
   // i8/i16/i32 -> vec128
   Value* Splat(Value* value, TypeName target_type);

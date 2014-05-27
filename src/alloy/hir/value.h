@@ -68,6 +68,10 @@ enum ValueFlags {
   VALUE_IS_ALLOCATED  = (1 << 2), // Used by backends. Do not set.
 };
 
+struct RegAssignment {
+  const backend::MachineInfo::RegisterSet* set;
+  int32_t index;
+};
 
 class Value {
 public:
@@ -91,10 +95,7 @@ public:
   TypeName type;
 
   uint32_t flags;
-  struct {
-    const backend::MachineInfo::RegisterSet* set;
-    int32_t index;
-  } reg;
+  RegAssignment reg;
   ConstantValue constant;
 
   Instr*    def;
@@ -392,6 +393,7 @@ public:
   void Shr(Value* other);
   void Sha(Value* other);
   void ByteSwap();
+  void CountLeadingZeros(const ConstantValue& src);
   bool Compare(Opcode opcode, Value* other);
 };
 

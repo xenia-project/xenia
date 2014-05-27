@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_BACKEND_X64_X64_LOWERING_TRACERS_H_
-#define ALLOY_BACKEND_X64_X64_LOWERING_TRACERS_H_
+#ifndef ALLOY_BACKEND_X64_X64_TRACERS_H_
+#define ALLOY_BACKEND_X64_X64_TRACERS_H_
 
 #include <alloy/core.h>
 
@@ -33,7 +33,15 @@ namespace alloy {
 namespace backend {
 namespace x64 {
 class X64Emitter;
-namespace lowering {
+
+enum TracingMode {
+  TRACING_INSTR = (1 << 1),
+  TRACING_DATA = (1 << 2),
+};
+
+uint32_t GetTracingMode();
+inline bool IsTracingInstr() { return (GetTracingMode() & TRACING_INSTR) != 0; }
+inline bool IsTracingData() { return (GetTracingMode() & TRACING_DATA) != 0; }
 
 void TraceString(void* raw_context, const char* str);
 
@@ -69,10 +77,9 @@ void TraceMemoryStoreF32(void* raw_context, uint64_t address, __m128 value);
 void TraceMemoryStoreF64(void* raw_context, uint64_t address, __m128 value);
 void TraceMemoryStoreV128(void* raw_context, uint64_t address, __m128 value);
 
-}  // namespace lowering
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
 
 
-#endif  // ALLOY_BACKEND_X64_X64_LOWERING_TRACERS_H_
+#endif  // ALLOY_BACKEND_X64_X64_TRACERS_H_
