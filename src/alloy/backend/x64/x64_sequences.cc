@@ -977,7 +977,7 @@ EMITTER(VECTOR_CONVERT_F2I, MATCH(I<OPCODE_VECTOR_CONVERT_F2I, V128<>, V128<>>))
     e.vcvttps2dq(i.dest, i.src1);
     if (i.instr->flags & ARITHMETIC_SATURATE) {
       // TODO(benvanik): check saturation.
-      e.UnimplementedInstr(i.instr);
+      // In theory cvt throws if it saturates.
     }
   }
 };
@@ -3355,11 +3355,102 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_POW2
 // ============================================================================
+// TODO(benvanik): use approx here:
+//     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
+EMITTER(POW2_F32, MATCH(I<OPCODE_POW2, F32<>, F32<>>)) {
+  static __m128 EmulatePow2(__m128 src) {
+    float result = static_cast<float>(pow(2, src.m128_f32[0]));
+    return _mm_load_ss(&result);
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERTALWAYS();
+    e.lea(e.r8, e.StashXmm(i.src1));
+    e.CallNative(EmulatePow2);
+    e.vmovaps(i.dest, e.xmm0);
+  }
+};
+EMITTER(POW2_F64, MATCH(I<OPCODE_POW2, F64<>, F64<>>)) {
+  static __m128d EmulatePow2(__m128 src) {
+    double result = pow(2, src.m128_f32[0]);
+    return _mm_load_sd(&result);
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERTALWAYS();
+    e.lea(e.r8, e.StashXmm(i.src1));
+    e.CallNative(EmulatePow2);
+    e.vmovaps(i.dest, e.xmm0);
+  }
+};
+EMITTER(POW2_V128, MATCH(I<OPCODE_POW2, V128<>, V128<>>)) {
+  static __m128 EmulatePow2(__m128 src) {
+    __m128 result;
+    for (size_t i = 0; i < 4; ++i) {
+      result.m128_f32[i] = static_cast<float>(pow(2, src.m128_f32[i]));
+    }
+    return result;
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.lea(e.r8, e.StashXmm(i.src1));
+    e.CallNative(EmulatePow2);
+    e.vmovaps(i.dest, e.xmm0);
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_POW2,
+    POW2_F32,
+    POW2_F64,
+    POW2_V128);
 
 
 // ============================================================================
 // OPCODE_LOG2
 // ============================================================================
+// TODO(benvanik): use approx here:
+//     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
+EMITTER(LOG2_F32, MATCH(I<OPCODE_LOG2, F32<>, F32<>>)) {
+  static __m128 EmulateLog2(__m128 src) {
+    float result = log2(src.m128_f32[0]);
+    return _mm_load_ss(&result);
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERTALWAYS();
+    e.lea(e.r8, e.StashXmm(i.src1));
+    e.CallNative(EmulateLog2);
+    e.vmovaps(i.dest, e.xmm0);
+  }
+};
+EMITTER(LOG2_F64, MATCH(I<OPCODE_LOG2, F64<>, F64<>>)) {
+  static __m128d EmulateLog2(__m128d src) {
+    double result = log2(src.m128d_f64[0]);
+    return _mm_load_sd(&result);
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERTALWAYS();
+    e.lea(e.r8, e.StashXmm(i.src1));
+    e.CallNative(EmulateLog2);
+    e.vmovaps(i.dest, e.xmm0);
+  }
+};
+EMITTER(LOG2_V128, MATCH(I<OPCODE_LOG2, V128<>, V128<>>)) {
+  static __m128 EmulateLog2(__m128 src) {
+    __m128 result;
+    for (size_t i = 0; i < 4; ++i) {
+      result.m128_f32[i] = log2(src.m128_f32[i]);
+    }
+    return result;
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERTALWAYS();
+    e.lea(e.r8, e.StashXmm(i.src1));
+    e.CallNative(EmulateLog2);
+    e.vmovaps(i.dest, e.xmm0);
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_LOG2,
+    LOG2_F32,
+    LOG2_F64,
+    LOG2_V128);
 
 
 // ============================================================================
@@ -4781,8 +4872,8 @@ void alloy::backend::x64::RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ABS);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_SQRT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_RSQRT);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_POW2);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_LOG2);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_POW2);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_LOG2);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_3);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_4);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_AND);
