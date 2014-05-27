@@ -443,7 +443,6 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
     /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF02, 0xFFFFFF01, 0xFFFFFF00, 0xFFFFFF02),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f),
     /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu, 0x0000001Fu),
-    /* XMMOneMask             */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
   };
   // TODO(benvanik): cache base pointer somewhere? stack? It'd be nice to
   // prevent this move.
@@ -461,7 +460,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
     vpxor(dest, dest);
   } else if (v.low == ~0ull && v.high == ~0ull) {
     // 1111...
-    vmovaps(dest, GetXmmConstPtr(XMMOneMask));
+    vpcmpeqb(dest, dest);
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
@@ -481,7 +480,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, float v) {
     vpxor(dest, dest);
   } else if (x.i == ~0UL) {
     // 1111...
-    vmovaps(dest, GetXmmConstPtr(XMMOneMask));
+    vpcmpeqb(dest, dest);
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
@@ -500,7 +499,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
     vpxor(dest, dest);
   } else if (x.i == ~0ULL) {
     // 1111...
-    vmovaps(dest, GetXmmConstPtr(XMMOneMask));
+    vpcmpeqb(dest, dest);
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.

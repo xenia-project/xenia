@@ -51,7 +51,6 @@ enum XmmConst {
   XMMUnpackD3DCOLOR     = 12,
   XMMOneOver255         = 13,
   XMMShiftMaskPS        = 14,
-  XMMOneMask            = 15,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
