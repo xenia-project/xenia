@@ -1498,6 +1498,86 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     return e.rdx + e.rax;
   }
 }
+uint64_t DynamicRegisterLoad(void* raw_context, uint32_t address) {
+  auto thread_state = *((ThreadState**)raw_context);
+  auto cbs = thread_state->runtime()->access_callbacks();
+  while (cbs) {
+    if (cbs->handles(cbs->context, address)) {
+      return cbs->read(cbs->context, address);
+    }
+    cbs = cbs->next;
+  }
+  return 0;
+}
+void DynamicRegisterStore(void* raw_context, uint32_t address, uint64_t value) {
+  auto thread_state = *((ThreadState**)raw_context);
+  auto cbs = thread_state->runtime()->access_callbacks();
+  while (cbs) {
+    if (cbs->handles(cbs->context, address)) {
+      cbs->write(cbs->context, address, value);
+      return;
+    }
+    cbs = cbs->next;
+  }
+}
+template <typename DEST_REG>
+void EmitLoadCheck(X64Emitter& e, const RegExp& addr, DEST_REG& dest) {
+  // rax = reserved
+  // if (address >> 24 == 0x7F) call register load handler;
+  e.lea(e.r8d, e.ptr[addr]);
+  e.shr(e.r8d, 24);
+  e.cmp(e.r8b, 0x7F);
+  e.inLocalLabel();
+  Xbyak::Label normal_addr;
+  Xbyak::Label skip_load;
+  e.jne(normal_addr);
+  e.lea(e.rdx, e.ptr[addr]);
+  e.CallNative(DynamicRegisterLoad);
+  if (DEST_REG::key_type == KEY_TYPE_V_I32) {
+    e.bswap(e.eax);
+    e.mov(dest, e.eax);
+  }
+  e.jmp(skip_load);
+  e.L(normal_addr);
+  if (DEST_REG::key_type == KEY_TYPE_V_I32) {
+    e.mov(dest, e.dword[addr]);
+  }
+  e.L(skip_load);
+  e.outLocalLabel();
+}
+template <typename SRC_REG>
+void EmitStoreCheck(X64Emitter& e, const RegExp& addr, SRC_REG& src) {
+  // rax = reserved
+  // if (address >> 24 == 0x7F) call register store handler;
+  e.lea(e.r8d, e.ptr[addr]);
+  e.shr(e.r8d, 24);
+  e.cmp(e.r8b, 0x7F);
+  e.inLocalLabel();
+  Xbyak::Label normal_addr;
+  Xbyak::Label skip_load;
+  e.jne(normal_addr);
+  e.lea(e.rdx, e.ptr[addr]);
+  if (SRC_REG::key_type == KEY_TYPE_V_I32) {
+    if (src.is_constant) {
+      e.mov(e.r8d, XESWAP32(src.constant()));
+    } else {
+      e.mov(e.r8d, src);
+      e.bswap(e.r8d);
+    }
+  }
+  e.CallNative(DynamicRegisterStore);
+  e.jmp(skip_load);
+  e.L(normal_addr);
+  if (SRC_REG::key_type == KEY_TYPE_V_I32) {
+    if (src.is_constant) {
+      e.mov(e.dword[addr], src.constant());
+    } else {
+      e.mov(e.dword[addr], src);
+    }
+  }
+  e.L(skip_load);
+  e.outLocalLabel();
+}
 EMITTER(LOAD_I8, MATCH(I<OPCODE_LOAD, I8<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (CheckLoadAccessCallback(e, i)) {
@@ -1532,7 +1612,7 @@ EMITTER(LOAD_I32, MATCH(I<OPCODE_LOAD, I32<>, I64<>>)) {
       return;
     }
     auto addr = ComputeMemoryAddress(e, i.src1);
-    e.mov(i.dest, e.dword[addr]);
+    EmitLoadCheck(e, addr, i.dest);
     if (IsTracingData()) {
       e.mov(e.r8, i.dest);
       e.lea(e.rdx, e.ptr[addr]);
@@ -1685,11 +1765,7 @@ EMITTER(STORE_I32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I32<>>)) {
       return;
     }
     auto addr = ComputeMemoryAddress(e, i.src1);
-    if (i.src2.is_constant) {
-      e.mov(e.dword[addr], i.src2.constant());
-    } else {
-      e.mov(e.dword[addr], i.src2);
-    }
+    EmitStoreCheck(e, addr, i.src2);
     if (IsTracingData()) {
       e.mov(e.r8, e.dword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
