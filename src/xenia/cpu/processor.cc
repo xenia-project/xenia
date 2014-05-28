@@ -193,6 +193,8 @@ uint64_t Processor::Execute(
 
 uint64_t Processor::ExecuteInterrupt(
     uint32_t cpu, uint64_t address, uint64_t arg0, uint64_t arg1) {
+  SCOPE_profile_cpu_f("cpu");
+
   // Acquire lock on interrupt thread (we can only dispatch one at a time).
   xe_mutex_lock(interrupt_thread_lock_);
 

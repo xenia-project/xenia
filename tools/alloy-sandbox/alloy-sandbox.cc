@@ -24,6 +24,7 @@ using namespace xe::cpu;
 
 
 int alloy_sandbox(int argc, xechar_t** argv) {
+  Profiler::Initialize();
   xe::Profiler::ThreadEnter("main");
 
   XenonMemory* memory = new XenonMemory();

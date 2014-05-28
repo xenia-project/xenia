@@ -231,6 +231,10 @@ X_STATUS XThread::Create() {
     return return_code;
   }
 
+  char thread_name[32];
+  xesnprintfa(thread_name, XECOUNT(thread_name), "XThread%04X", handle());
+  set_name(thread_name);
+
   module->Release();
   return X_STATUS_SUCCESS;
 }

@@ -58,6 +58,8 @@ void xe_format_log_line(
 void xe_log_line(const char* file_path, const uint32_t line_number,
                  const char* function_name, const char level_char,
                  const char* fmt, ...) {
+  SCOPE_profile_cpu_i("emu", "log_line");
+
   char buffer[2048];
   va_list args;
   va_start(args, fmt);

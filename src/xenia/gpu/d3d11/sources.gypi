@@ -10,6 +10,8 @@
     'd3d11_graphics_driver.h',
     'd3d11_graphics_system.cc',
     'd3d11_graphics_system.h',
+    'd3d11_profiler_display.cc',
+    'd3d11_profiler_display.h',
     'd3d11_shader.cc',
     'd3d11_shader.h',
     'd3d11_shader_cache.cc',

@@ -8,11 +8,17 @@
  */
 
 #define MICRO_PROFILE_IMPL
+#define MICROPROFILE_USE_THREAD_NAME_CALLBACK 1
 #include <xenia/profiling.h>
 
 namespace xe {
 
 std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
+
+void Profiler::Initialize() {
+  MicroProfileInit();
+  MicroProfileSetDisplayMode(2);
+}
 
 void Profiler::Dump() {
   MicroProfileDumpTimers();
@@ -23,12 +29,59 @@ void Profiler::Shutdown() {
   MicroProfileShutdown();
 }
 
+uint32_t Profiler::GetColor(const char* str) {
+  std::hash<std::string> fn;
+  size_t value = fn(str);
+  return value & 0xFFFFFF;
+}
+
 void Profiler::ThreadEnter(const char* name) {
   MicroProfileOnThreadCreate(name);
 }
 
 void Profiler::ThreadExit() {
   MicroProfileOnThreadExit();
+}
+
+bool Profiler::OnKeyDown(int key_code) {
+  // http://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
+  switch (key_code) {
+  case VK_TAB:
+    MicroProfileToggleDisplayMode();
+    return true;
+  case VK_OEM_3: // `
+    MicroProfileTogglePause();
+    return true;
+  case 0x31: // 1
+    MicroProfileModKey(1);
+    return true;
+  }
+  return false;
+}
+
+bool Profiler::OnKeyUp(int key_code) {
+  switch (key_code) {
+  case 0x31: // 1
+    MicroProfileModKey(0);
+    return true;
+  }
+  return false;
+}
+
+void Profiler::OnMouseDown(bool left_button, bool right_button) {
+  MicroProfileMouseButton(left_button, right_button);
+}
+
+void Profiler::OnMouseUp() {
+  MicroProfileMouseButton(0, 0);
+}
+
+void Profiler::OnMouseMove(int x, int y) {
+  MicroProfileMousePosition(x, y, 0);
+}
+
+void Profiler::OnMouseWheel(int x, int y, int dy) {
+  MicroProfileMousePosition(x, y, dy);
 }
 
 void Profiler::set_display(std::unique_ptr<ProfilerDisplay> display) {
@@ -58,6 +111,10 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey) {
 
 uint64_t MicroProfileTicksPerSecondGpu() {
   return 0;
+}
+
+const char* MicroProfileGetThreadName() {
+  return "TODO: get thread name!";
 }
 
 void MicroProfileDrawBox(int nX, int nY, int nX1, int nY1, uint32_t nColor, MicroProfileBoxType type) {

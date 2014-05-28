@@ -24,6 +24,12 @@ namespace {
 
 void __stdcall D3D11GraphicsSystemVsyncCallback(
     D3D11GraphicsSystem* gs, BOOLEAN) {
+  static bool thread_name_set = false;
+  if (!thread_name_set) {
+    thread_name_set = true;
+    Profiler::ThreadEnter("VsyncTimer");
+  }
+
   gs->MarkVblank();
   gs->DispatchInterruptCallback(0);
 }
@@ -53,7 +59,7 @@ void D3D11GraphicsSystem::Initialize() {
       (WAITORTIMERCALLBACK)D3D11GraphicsSystemVsyncCallback,
       this,
       16,
-      100,
+      16,
       WT_EXECUTEINTIMERTHREAD);
 
   // Create DXGI factory so we can get a swap chain/etc.

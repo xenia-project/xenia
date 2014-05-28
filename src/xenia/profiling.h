@@ -29,16 +29,16 @@ namespace xe {
 
 // Defines a profiling scope for CPU tasks.
 // Use `SCOPE_profile_cpu(name)` to activate the scope.
-#define DEFINE_profile_cpu(name, group_name, scope_name, color) \
-    MICROPROFILE_DEFINE(name, group_name, scope_name, color)
+#define DEFINE_profile_cpu(name, group_name, scope_name) \
+    MICROPROFILE_DEFINE(name, group_name, scope_name, xe::Profiler::GetColor(scope_name))
 
 // Declares a previously defined profile scope. Use in a translation unit.
 #define DECLARE_profile_cpu(name) MICROPROFILE_DECLARE(name)
 
 // Defines a profiling scope for GPU tasks.
 // Use `COUNT_profile_gpu(name)` to activate the scope.
-#define DEFINE_profile_gpu(name, group_name, scope_name, color) \
-    MICROPROFILE_DEFINE_GPU(name, group_name, scope_name, color)
+#define DEFINE_profile_gpu(name, group_name, scope_name) \
+    MICROPROFILE_DEFINE_GPU(name, group_name, scope_name, xe::Profiler::GetColor(scope_name))
 
 // Declares a previously defined profile scope. Use in a translation unit.
 #define DECLARE_profile_gpu(name) MICROPROFILE_DECLARE_GPU(name)
@@ -50,8 +50,13 @@ namespace xe {
 
 // Enters a CPU profiling scope, active for the duration of the containing
 // block. No previous definition required.
-#define SCOPE_profile_cpu_i(group_name, scope_name, color) \
-    MICROPROFILE_SCOPEI(group_name, scope_name, color)
+#define SCOPE_profile_cpu_i(group_name, scope_name) \
+    MICROPROFILE_SCOPEI(group_name, scope_name, xe::Profiler::GetColor(scope_name))
+
+// Enters a CPU profiling scope by function name, active for the duration of
+// the containing block. No previous definition required.
+#define SCOPE_profile_cpu_f(group_name) \
+    MICROPROFILE_SCOPEI(group_name, XE_CURRENT_FUNCTION, xe::Profiler::GetColor(XE_CURRENT_FUNCTION))
 
 // Enters a previously defined GPU profiling scope, active for the duration
 // of the containing block.
@@ -60,8 +65,13 @@ namespace xe {
 
 // Enters a GPU profiling scope, active for the duration of the containing
 // block. No previous definition required.
-#define SCOPE_profile_gpu_i(group_name, scope_name, color) \
-    MICROPROFILE_SCOPEGPUI(group_name, scope_name, color)
+#define SCOPE_profile_gpu_i(group_name, scope_name) \
+    MICROPROFILE_SCOPEGPUI(group_name, scope_name, xe::Profiler::GetColor(scope_name))
+
+// Enters a GPU profiling scope by function name, active for the duration of
+// the containing block. No previous definition required.
+#define SCOPE_profile_gpu_f(group_name) \
+    MICROPROFILE_SCOPEGPUI(group_name, XE_CURRENT_FUNCTION, xe::Profiler::GetColor(XE_CURRENT_FUNCTION))
 
 // Tracks a CPU value counter.
 #define COUNT_profile_cpu(name, count) MICROPROFILE_META_CPU(name, count)
@@ -105,16 +115,34 @@ public:
 
 class Profiler {
 public:
+#if XE_OPTION_PROFILING
+  static bool is_enabled() { return true; }
+#else
+  static bool is_enabled() { return false; }
+#endif  // XE_OPTION_PROFILING
+
+  // Initializes the profiler. Call at startup.
+  static void Initialize();
   // Dumps data to stdout.
   static void Dump();
   // Cleans up profiling, releasing all memory.
   static void Shutdown();
+
+  // Computes a color from the given string.
+  static uint32_t GetColor(const char* str);
 
   // Activates the calling thread for profiling.
   // This must be called immediately after launching a thread.
   static void ThreadEnter(const char* name = nullptr);
   // Deactivates the calling thread for profiling.
   static void ThreadExit();
+
+  static bool OnKeyDown(int key_code);
+  static bool OnKeyUp(int key_code);
+  static void OnMouseDown(bool left_button, bool right_button);
+  static void OnMouseUp();
+  static void OnMouseMove(int x, int y);
+  static void OnMouseWheel(int x, int y, int dy);
 
   // Gets the current display, if any.
   static ProfilerDisplay* display() { return display_.get(); }
@@ -124,7 +152,6 @@ public:
   static void Present();
 
   // TODO(benvanik): display mode/pause/etc?
-  // TODO(benvanik): mouse, keys
 
 private:
   static std::unique_ptr<ProfilerDisplay> display_;

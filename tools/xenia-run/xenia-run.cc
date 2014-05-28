@@ -22,6 +22,7 @@ DEFINE_string(target, "",
 int xenia_run(int argc, xechar_t** argv) {
   int result_code = 1;
 
+  Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
   Emulator* emulator = NULL;
