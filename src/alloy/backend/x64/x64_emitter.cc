@@ -218,7 +218,8 @@ void X64Emitter::DebugBreak() {
 }
 
 void X64Emitter::Trap() {
-  // TODO(benvanik): notify debugger.
+  // 0x0FE00014 is a 'debug print' where r3 = buffer r4 = length
+  // TODO(benvanik): post software interrupt to debugger.
   db(0xCC);
 }
 
