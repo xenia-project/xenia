@@ -79,7 +79,9 @@ static uint32_t __stdcall xe_thread_callback_win32(void* param) {
     }
   }
 
+  xe::Profiler::ThreadEnter(thread->name);
   thread->callback(thread->callback_param);
+  xe::Profiler::ThreadExit();
   return 0;
 }
 #pragma warning(default : 6320; default : 6322)
@@ -118,7 +120,9 @@ static void* xe_thread_callback_pthreads(void* param) {
 #else
   pthread_setname_np(pthread_self(), thread->name);
 #endif  // OSX
+  xe::Profiler::ThreadEnter(thread->name);
   thread->callback(thread->callback_param);
+  xe::Profiler::ThreadExit();
   return 0;
 }
 

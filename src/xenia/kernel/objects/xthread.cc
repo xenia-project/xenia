@@ -253,10 +253,12 @@ X_STATUS XThread::Exit(int exit_code) {
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  xe::Profiler::ThreadEnter(thread->name());
   xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
   thread->Execute();
   xeKeTlsSetValue(current_thread_tls, NULL);
   thread->Release();
+  xe::Profiler::ThreadExit();
   return 0;
 }
 
@@ -293,10 +295,12 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 
 static void* XThreadStartCallbackPthreads(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  xe::Profiler::ThreadEnter(thread->name());
   xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
   thread->Execute();
   xeKeTlsSetValue(current_thread_tls, NULL);
   thread->Release();
+  xe::Profiler::ThreadExit();
   return 0;
 }
 

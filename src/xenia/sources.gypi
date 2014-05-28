@@ -18,6 +18,8 @@
     'platform.cc',
     'platform.h',
     'platform_includes.h',
+    'profiling.cc',
+    'profiling.h',
     'string.cc',
     'string.h',
     'types.h',

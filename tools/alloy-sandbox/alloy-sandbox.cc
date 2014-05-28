@@ -24,6 +24,8 @@ using namespace xe::cpu;
 
 
 int alloy_sandbox(int argc, xechar_t** argv) {
+  xe::Profiler::ThreadEnter("main");
+
   XenonMemory* memory = new XenonMemory();
 
   ExportResolver* export_resolver = new ExportResolver();
@@ -56,6 +58,9 @@ int alloy_sandbox(int argc, xechar_t** argv) {
 
   delete runtime;
   delete memory;
+
+  xe::Profiler::Dump();
+  xe::Profiler::ThreadExit();
 
   return 0;
 }

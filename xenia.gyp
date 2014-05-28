@@ -39,6 +39,8 @@
   'target_defaults': {
     'include_dirs': [
       'include/',
+      'third_party/',
+      '.',
     ],
 
     'defines': [
@@ -242,6 +244,7 @@
                   'user32',
                   'ole32',
                   'ntdll',
+                  'advapi32',
                 ],
               }],
               ['OS == "mac"', {
@@ -318,6 +321,7 @@
                   'xinput',
                   'xaudio2',
                   'Shell32',
+                  'advapi32',
                 ],
               }],
               ['OS == "mac"', {
