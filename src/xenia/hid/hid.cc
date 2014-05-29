@@ -46,14 +46,14 @@ InputSystem* xe::hid::Create(Emulator* emulator) {
     // NOTE: in any mode we create as many as we can, falling back to nop.
 
 #if XE_PLATFORM_WIN32
-    InputDriver* winkey_driver = xe::hid::winkey::Create(input_system);
-    if (winkey_driver) {
-      input_system->AddDriver(winkey_driver);
-      any_created = true;
-    }
     InputDriver* xinput_driver = xe::hid::xinput::Create(input_system);
     if (xinput_driver) {
       input_system->AddDriver(xinput_driver);
+      any_created = true;
+    }
+    InputDriver* winkey_driver = xe::hid::winkey::Create(input_system);
+    if (winkey_driver) {
+      input_system->AddDriver(winkey_driver);
       any_created = true;
     }
 #endif  // WIN32
