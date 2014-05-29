@@ -231,16 +231,53 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
   XEASSERTALWAYS();
 }
 
+// Total size of ResolveFunctionSymbol call site in bytes.
+// Used to overwrite it with nops as needed.
+const size_t TOTAL_RESOLVE_SIZE = 27;
+const size_t ASM_OFFSET = 2 + 2 + 8 + 2 + 8;
+
+// Length    Assembly                                   Byte Sequence
+// =================================================================================
+// 2 bytes   66 NOP                                     66 90H
+// 3 bytes   NOP DWORD ptr [EAX]                        0F 1F 00H
+// 4 bytes   NOP DWORD ptr [EAX + 00H]                  0F 1F 40 00H
+// 5 bytes   NOP DWORD ptr [EAX + EAX*1 + 00H]          0F 1F 44 00 00H
+// 6 bytes   66 NOP DWORD ptr [EAX + EAX*1 + 00H]       66 0F 1F 44 00 00H
+// 7 bytes   NOP DWORD ptr [EAX + 00000000H]            0F 1F 80 00 00 00 00H
+// 8 bytes   NOP DWORD ptr [EAX + EAX*1 + 00000000H]    0F 1F 84 00 00 00 00 00H
+// 9 bytes   66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] 66 0F 1F 84 00 00 00 00 00H
+
 uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
 
+  // Resolve function. This will demand compile as required.
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
   XEASSERTNOTNULL(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
-  return reinterpret_cast<uint64_t>(x64_fn->machine_code());
+  uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
+
+  // Overwrite the call site.
+  // The return address points to ReloadRCX work after the call.
+  uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
+  #pragma pack(push, 1)
+  struct Asm {
+    uint16_t mov_rax;
+    uint64_t rax_constant;
+    uint16_t mov_rdx;
+    uint64_t rdx_constant;
+    uint16_t call_rax;
+    uint8_t mov_rcx[5];
+  };
+  #pragma pack(pop)
+  Asm* code = reinterpret_cast<Asm*>(return_address - ASM_OFFSET);
+  code->rax_constant = addr;
+  code->call_rax = 0x9066;
+
+  // We need to return the target in rax so that it gets called.
+  return addr;
 }
 
 void X64Emitter::Call(const hir::Instr* instr, runtime::FunctionInfo* symbol_info) {
@@ -250,7 +287,18 @@ void X64Emitter::Call(const hir::Instr* instr, runtime::FunctionInfo* symbol_inf
   if (fn) {
     mov(rax, reinterpret_cast<uint64_t>(fn->machine_code()));
   } else {
-    CallNative(ResolveFunctionSymbol, reinterpret_cast<uint64_t>(symbol_info));
+    size_t start = getSize();
+    // 2b + 8b constant
+    mov(rax, reinterpret_cast<uint64_t>(ResolveFunctionSymbol));
+    // 2b + 8b constant
+    mov(rdx, reinterpret_cast<uint64_t>(symbol_info));
+    // 2b
+    call(rax);
+    // 5b
+    ReloadECX();
+    size_t total_size = getSize() - start;
+    XEASSERT(total_size == TOTAL_RESOLVE_SIZE);
+    // EDX overwritten, don't bother reloading.
   }
 
   // Actually jump/call to rax.

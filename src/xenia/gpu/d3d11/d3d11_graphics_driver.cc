@@ -1321,8 +1321,6 @@ int D3D11GraphicsDriver::FetchTexture1D(
 }
 
 XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch, XE_GPU_ENDIAN endianness) {
-  SCOPE_profile_cpu_f("gpu");
-
   switch (endianness) {
     case XE_GPU_ENDIAN_8IN16:
       for (uint32_t i = 0; i < pitch; i += 2, src += 2, dest += 2) {
