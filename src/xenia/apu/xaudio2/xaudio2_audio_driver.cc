@@ -121,8 +121,6 @@ void XAudio2AudioDriver::Initialize() {
 }
 
 void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
-  SCOPE_profile_cpu_f("apu");
-
   // Process samples! They are big-endian floats.
   HRESULT hr;
 

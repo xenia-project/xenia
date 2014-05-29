@@ -31,7 +31,6 @@ Shader* D3D11ShaderCache::CreateCore(
     xenos::XE_GPU_SHADER_TYPE type,
     const uint8_t* src_ptr, size_t length,
     uint64_t hash) {
-  SCOPE_profile_cpu_f("gpu");
   switch (type) {
   case XE_GPU_SHADER_TYPE_VERTEX:
     return new D3D11VertexShader(

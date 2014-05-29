@@ -129,8 +129,6 @@ void AudioSystem::Shutdown() {
 
 X_STATUS AudioSystem::RegisterClient(
     uint32_t callback, uint32_t callback_arg, size_t* out_index) {
-  SCOPE_profile_cpu_f("apu");
-
   XEASSERTTRUE(unused_clients_.size());
   xe_mutex_lock(lock_);
 
