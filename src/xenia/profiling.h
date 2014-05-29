@@ -81,24 +81,34 @@ namespace xe {
 
 #else
 
-#define DEFINE_profile_cpu(name, group_name, scope_name, color)
-#define DEFINE_profile_gpu(name, group_name, scope_name, color)
+#define DEFINE_profile_cpu(name, group_name, scope_name)
+#define DEFINE_profile_gpu(name, group_name, scope_name)
 #define DECLARE_profile_cpu(name)
 #define DECLARE_profile_gpu(name)
 #define SCOPE_profile_cpu(name) do {} while (false)
-#define SCOPE_profile_cpu_i(group_name, scope_name, color) do {} while (false)
+#define SCOPE_profile_cpu_f(name) do {} while (false)
+#define SCOPE_profile_cpu_i(group_name, scope_name) do {} while (false)
 #define SCOPE_profile_gpu(name) do {} while (false)
-#define SCOPE_profile_gpu_i(group_name, scope_name, color) do {} while (false)
+#define SCOPE_profile_gpu_f(name) do {} while (false)
+#define SCOPE_profile_gpu_i(group_name, scope_name) do {} while (false)
 #define COUNT_profile_cpu(name, count) do {} while (false)
 #define COUNT_profile_gpu(name, count) do {} while (false)
+
+#define MICROPROFILE_TEXT_WIDTH 1
+#define MICROPROFILE_TEXT_HEIGHT 1
 
 #endif  // XE_OPTION_PROFILING
 
 class ProfilerDisplay {
 public:
   enum BoxType {
+#if XE_OPTION_PROFILING
     BOX_TYPE_BAR = MicroProfileBoxTypeBar,
     BOX_TYPE_FLAT = MicroProfileBoxTypeFlat,
+#else
+    BOX_TYPE_BAR,
+    BOX_TYPE_FLAT,
+#endif  // XE_OPTION_PROFILING
   };
 
   virtual uint32_t width() const = 0;

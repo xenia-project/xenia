@@ -15,9 +15,11 @@ namespace xe {
 
 std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
 
+#if XE_OPTION_PROFILING
+
 void Profiler::Initialize() {
   MicroProfileInit();
-  MicroProfileSetDisplayMode(2);
+  MicroProfileSetDisplayMode(1);
 }
 
 void Profiler::Dump() {
@@ -99,7 +101,28 @@ void Profiler::Present() {
   display_->End();
 }
 
+#else
+
+void Profiler::Initialize() {}
+void Profiler::Dump() {}
+void Profiler::Shutdown() {}
+uint32_t Profiler::GetColor(const char* str) { return 0; }
+void Profiler::ThreadEnter(const char* name) {}
+void Profiler::ThreadExit() {}
+bool Profiler::OnKeyDown(int key_code) { return false; }
+bool Profiler::OnKeyUp(int key_code) { return false; }
+void Profiler::OnMouseDown(bool left_button, bool right_button) {}
+void Profiler::OnMouseUp() {}
+void Profiler::OnMouseMove(int x, int y) {}
+void Profiler::OnMouseWheel(int x, int y, int dy) {}
+void Profiler::set_display(std::unique_ptr<ProfilerDisplay> display) {}
+void Profiler::Present() {}
+
+#endif  // XE_OPTION_PROFILING
+
 }  // namespace xe
+
+#if XE_OPTION_PROFILING
 
 uint32_t MicroProfileGpuInsertTimeStamp() {
   return 0;
@@ -143,3 +166,5 @@ void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText, ui
   }
   display->DrawText(nX, nY, nColor, pText, nLen);
 }
+
+#endif  // XE_OPTION_PROFILING
