@@ -77,6 +77,8 @@ int X64Emitter::Emit(
     HIRBuilder* builder,
     uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
     void*& out_code_address, size_t& out_code_size) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Reset.
   if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
     source_map_count_ = 0;

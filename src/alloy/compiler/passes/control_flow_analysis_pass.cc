@@ -30,6 +30,8 @@ ControlFlowAnalysisPass::~ControlFlowAnalysisPass() {
 }
 
 int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // TODO(benvanik): reset edges for all blocks? Needed to be re-runnable.
 
   // Add edges.

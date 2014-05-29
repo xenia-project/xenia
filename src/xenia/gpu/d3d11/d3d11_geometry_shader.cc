@@ -34,6 +34,8 @@ D3D11GeometryShader::~D3D11GeometryShader() {
 }
 
 int D3D11GeometryShader::Prepare(D3D11VertexShader* vertex_shader) {
+  SCOPE_profile_cpu_f("gpu");
+
   if (handle_) {
     return 0;
   }
@@ -74,6 +76,8 @@ int D3D11GeometryShader::Prepare(D3D11VertexShader* vertex_shader) {
 }
 
 ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
+  SCOPE_profile_cpu_f("gpu");
+
   // TODO(benvanik): pick shared runtime mode defines.
   D3D10_SHADER_MACRO defines[] = {
     "TEST_DEFINE", "1",
@@ -161,6 +165,7 @@ D3D11PointSpriteGeometryShader::~D3D11PointSpriteGeometryShader() {
 
 int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                              alloy::StringBuffer* output) {
+  SCOPE_profile_cpu_f("gpu");
   if (D3D11GeometryShader::Generate(vertex_shader, output)) {
     return 1;
   }
@@ -215,6 +220,7 @@ D3D11RectListGeometryShader::~D3D11RectListGeometryShader() {
 
 int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                           alloy::StringBuffer* output) {
+  SCOPE_profile_cpu_f("gpu");
   if (D3D11GeometryShader::Generate(vertex_shader, output)) {
     return 1;
   }
@@ -259,6 +265,7 @@ D3D11QuadListGeometryShader::~D3D11QuadListGeometryShader() {
 
 int D3D11QuadListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
                                           alloy::StringBuffer* output) {
+  SCOPE_profile_cpu_f("gpu");
   if (D3D11GeometryShader::Generate(vertex_shader, output)) {
     return 1;
   }

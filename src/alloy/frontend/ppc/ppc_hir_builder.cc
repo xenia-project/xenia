@@ -44,6 +44,8 @@ void PPCHIRBuilder::Reset() {
 }
 
 int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 

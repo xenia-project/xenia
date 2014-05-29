@@ -159,6 +159,8 @@ std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {
 }
 
 int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   *out_function = NULL;
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
@@ -192,6 +194,8 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
 
 int Runtime::LookupFunctionInfo(
     uint64_t address, FunctionInfo** out_symbol_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   *out_symbol_info = NULL;
 
   // TODO(benvanik): fast reject invalid addresses/log errors.
@@ -220,6 +224,8 @@ int Runtime::LookupFunctionInfo(
 
 int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
                                 FunctionInfo** out_symbol_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
   FunctionInfo* symbol_info = NULL;
@@ -241,6 +247,8 @@ int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
 
 int Runtime::DemandFunction(
     FunctionInfo* symbol_info, Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   *out_function = NULL;
 
   // Lock function for generation. If it's already being generated

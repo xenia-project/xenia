@@ -23,6 +23,8 @@ SimplificationPass::~SimplificationPass() {
 }
 
 int SimplificationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   EliminateConversions(builder);
   SimplifyAssignments(builder);
   return 0;

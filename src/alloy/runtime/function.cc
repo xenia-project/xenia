@@ -74,6 +74,8 @@ Breakpoint* Function::FindBreakpoint(uint64_t address) {
 }
 
 int Function::Call(ThreadState* thread_state, uint64_t return_address) {
+  SCOPE_profile_cpu_f("alloy");
+
   ThreadState* original_thread_state = ThreadState::Get();
   if (original_thread_state != thread_state) {
     ThreadState::Bind(thread_state);

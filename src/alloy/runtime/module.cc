@@ -161,6 +161,8 @@ SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
 }
 
 void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
+  SCOPE_profile_cpu_f("alloy");
+
   LockMutex(lock_);
   for (auto it = list_.begin(); it != list_.end(); ++it) {
     SymbolInfo* symbol_info = *it;
@@ -174,6 +176,8 @@ void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
 
 void Module::ForEachFunction(size_t since, size_t& version,
                              std::function<void (FunctionInfo*)> callback) {
+  SCOPE_profile_cpu_f("alloy");
+
   LockMutex(lock_);
   size_t count = list_.size();
   version = count;

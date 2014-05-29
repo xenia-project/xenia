@@ -30,6 +30,8 @@ FinalizationPass::~FinalizationPass() {
 }
 
 int FinalizationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Process the HIR and prepare it for lowering.
   // After this is done the HIR should be ready for emitting.
 

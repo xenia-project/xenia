@@ -49,6 +49,8 @@ void Compiler::Reset() {
 }
 
 int Compiler::Compile(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
   for (auto it = passes_.begin(); it != passes_.end(); ++it) {

@@ -51,6 +51,8 @@ void HIRBuilder::Reset() {
 }
 
 int HIRBuilder::Finalize() {
+  SCOPE_profile_cpu_f("alloy");
+
   // Scan blocks in order and add fallthrough branches. These are needed for
   // analysis passes to work. We may have also added blocks out of order and
   // need to ensure they fall through in the right order.
@@ -141,6 +143,8 @@ void HIRBuilder::DumpOp(
 }
 
 void HIRBuilder::Dump(StringBuffer* str) {
+  SCOPE_profile_cpu_f("alloy");
+
   if (attributes_) {
     str->Append("; attributes = %.8X\n", attributes_);
   }

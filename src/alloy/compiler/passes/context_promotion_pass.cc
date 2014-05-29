@@ -51,6 +51,8 @@ int ContextPromotionPass::Initialize(Compiler* compiler) {
 }
 
 int ContextPromotionPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Like mem2reg, but because context memory is unaliasable it's easier to
   // check and convert LoadContext/StoreContext into value operations.
   // Example of load->value promotion:

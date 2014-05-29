@@ -55,6 +55,8 @@ Shader* ShaderCache::Find(
 Shader* ShaderCache::FindOrCreate(
     XE_GPU_SHADER_TYPE type,
     const uint8_t* src_ptr, size_t length) {
+  SCOPE_profile_cpu_f("gpu");
+
   uint64_t hash = Hash(src_ptr, length);
   unordered_map<uint64_t, Shader*>::iterator it = map_.find(hash);
   if (it != map_.end()) {

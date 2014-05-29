@@ -23,6 +23,8 @@ ConstantPropagationPass::~ConstantPropagationPass() {
 }
 
 int ConstantPropagationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Once ContextPromotion has run there will likely be a whole slew of
   // constants that can be pushed through the function.
   // Example:

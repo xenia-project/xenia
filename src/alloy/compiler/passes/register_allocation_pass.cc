@@ -59,6 +59,8 @@ RegisterAllocationPass::~RegisterAllocationPass() {
 }
 
 int RegisterAllocationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Simple per-block allocator that operates on SSA form.
   // Registers do not move across blocks, though this could be
   // optimized with some intra-block analysis (dominators/etc).

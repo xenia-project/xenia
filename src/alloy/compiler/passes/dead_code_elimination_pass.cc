@@ -23,6 +23,8 @@ DeadCodeEliminationPass::~DeadCodeEliminationPass() {
 }
 
 int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // ContextPromotion/DSE will likely leave around a lot of dead statements.
   // Code generated for comparison/testing produces many unused statements and
   // with proper use analysis it should be possible to remove most of them:

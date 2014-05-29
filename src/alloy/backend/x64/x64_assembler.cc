@@ -66,6 +66,8 @@ int X64Assembler::Assemble(
     FunctionInfo* symbol_info, HIRBuilder* builder,
     uint32_t debug_info_flags, DebugInfo* debug_info,
     Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   int result = 0;
 
   // Lower HIR -> x64.

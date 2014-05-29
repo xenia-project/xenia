@@ -75,6 +75,8 @@ int X64CodeCache::Initialize() {
 
 void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
                               size_t stack_size) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Add unwind info into the allocation size. Keep things 16b aligned.
   code_size += XEROUNDUP(X64CodeChunk::UNWIND_INFO_SIZE, 16);
 

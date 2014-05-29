@@ -86,6 +86,8 @@ int PPCTranslator::Translate(
     FunctionInfo* symbol_info,
     uint32_t debug_info_flags,
     Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
   if (!symbol_info->has_end_address()) {

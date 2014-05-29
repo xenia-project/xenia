@@ -29,6 +29,7 @@ void __stdcall D3D11GraphicsSystemVsyncCallback(
     thread_name_set = true;
     Profiler::ThreadEnter("VsyncTimer");
   }
+  SCOPE_profile_cpu_f("gpu");
 
   gs->MarkVblank();
   gs->DispatchInterruptCallback(0);
@@ -151,6 +152,8 @@ void D3D11GraphicsSystem::Initialize() {
 }
 
 void D3D11GraphicsSystem::Pump() {
+  SCOPE_profile_cpu_f("gpu");
+
   if (swap_pending_) {
     swap_pending_ = false;
 

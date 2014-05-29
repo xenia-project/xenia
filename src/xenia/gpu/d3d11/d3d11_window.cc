@@ -114,6 +114,8 @@ int D3D11Window::Initialize(const char* title, uint32_t width, uint32_t height) 
 }
 
 void D3D11Window::Swap() {
+  SCOPE_profile_cpu_f("gpu");
+
   // Present profiler.
   context_->OMSetRenderTargets(1, &render_target_view_, NULL);
   Profiler::Present();

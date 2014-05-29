@@ -75,6 +75,8 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
 }
 
 std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
+  SCOPE_profile_cpu_f("alloy");
+
   std::vector<Function*> fns;
   LockMutex(lock_);
   for (auto it = map_.begin(); it != map_.end(); ++it) {

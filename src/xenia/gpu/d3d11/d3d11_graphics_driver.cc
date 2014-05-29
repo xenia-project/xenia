@@ -190,6 +190,8 @@ void D3D11GraphicsDriver::SetShader(
 }
 
 int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
 
   // Ignore copies.
@@ -296,6 +298,8 @@ void D3D11GraphicsDriver::DrawIndexBuffer(
     XE_GPU_PRIMITIVE_TYPE prim_type,
     bool index_32bit, uint32_t index_count,
     uint32_t index_base, uint32_t index_size, uint32_t endianness) {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
 
   XETRACED3D("D3D11: draw indexed %d (%d indicies) from %.8X",
@@ -321,6 +325,8 @@ void D3D11GraphicsDriver::DrawIndexBuffer(
 void D3D11GraphicsDriver::DrawIndexAuto(
     XE_GPU_PRIMITIVE_TYPE prim_type,
     uint32_t index_count) {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
 
   XETRACED3D("D3D11: draw indexed %d (%d indicies)",
@@ -345,6 +351,8 @@ int D3D11GraphicsDriver::RebuildRenderTargets(
     // Cached copies are good.
     return 0;
   }
+
+  SCOPE_profile_cpu_f("gpu");
 
   // Remove old versions.
   for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
@@ -426,6 +434,8 @@ int D3D11GraphicsDriver::RebuildRenderTargets(
 }
 
 int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
+  SCOPE_profile_cpu_f("gpu");
+
   // Most information comes from here:
   // https://chromium.googlesource.com/chromiumos/third_party/mesa/+/6173cc19c45d92ef0b7bc6aa008aa89bb29abbda/src/gallium/drivers/freedreno/freedreno_zsa.c
   // http://cgit.freedesktop.org/mesa/mesa/diff/?id=aac7f06ad843eaa696363e8e9c7781ca30cb4914
@@ -768,6 +778,8 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
 }
 
 int D3D11GraphicsDriver::UpdateConstantBuffers() {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
 
   D3D11_MAPPED_SUBRESOURCE res;
@@ -799,6 +811,8 @@ int D3D11GraphicsDriver::UpdateConstantBuffers() {
 }
 
 int D3D11GraphicsDriver::BindShaders() {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = rf.values[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
@@ -892,6 +906,8 @@ int D3D11GraphicsDriver::BindShaders() {
 }
 
 int D3D11GraphicsDriver::PrepareFetchers() {
+  SCOPE_profile_cpu_f("gpu");
+
   // Input assembly.
   XEASSERTNOTNULL(state_.vertex_shader);
   auto vtx_inputs = state_.vertex_shader->GetVertexBufferInputs();
@@ -934,6 +950,8 @@ int D3D11GraphicsDriver::PrepareFetchers() {
 }
 
 int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
   xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
@@ -1009,6 +1027,8 @@ int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
 }
 
 int D3D11GraphicsDriver::PrepareTextureFetchers() {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
 
   for (int n = 0; n < XECOUNT(state_.texture_fetchers); n++) {
@@ -1275,6 +1295,8 @@ int D3D11GraphicsDriver::FetchTexture1D(
     xe_gpu_texture_fetch_t& fetch,
     TextureInfo& info,
     ID3D11Resource** out_texture) {
+  SCOPE_profile_cpu_f("gpu");
+
   uint32_t address = (fetch.address << 12) + address_translation_;
 
   uint32_t width = 1 + fetch.size_1d.width;
@@ -1299,6 +1321,8 @@ int D3D11GraphicsDriver::FetchTexture1D(
 }
 
 XEFORCEINLINE void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch, XE_GPU_ENDIAN endianness) {
+  SCOPE_profile_cpu_f("gpu");
+
   switch (endianness) {
     case XE_GPU_ENDIAN_8IN16:
       for (uint32_t i = 0; i < pitch; i += 2, src += 2, dest += 2) {
@@ -1344,6 +1368,8 @@ int D3D11GraphicsDriver::FetchTexture2D(
     xe_gpu_texture_fetch_t& fetch,
     TextureInfo& info,
     ID3D11Resource** out_texture) {
+  SCOPE_profile_cpu_f("gpu");
+
   XEASSERTTRUE(fetch.dimension == 1);
 
   uint32_t address = (fetch.address << 12) + address_translation_;
@@ -1448,6 +1474,8 @@ int D3D11GraphicsDriver::FetchTexture3D(
     xe_gpu_texture_fetch_t& fetch,
     TextureInfo& info,
     ID3D11Resource** out_texture) {
+  SCOPE_profile_cpu_f("gpu");
+
   XELOGE("D3D11: FetchTexture2D not yet implemented");
   XEASSERTALWAYS();
   return 1;
@@ -1470,6 +1498,8 @@ int D3D11GraphicsDriver::FetchTextureCube(
     xe_gpu_texture_fetch_t& fetch,
     TextureInfo& info,
     ID3D11Resource** out_texture) {
+  SCOPE_profile_cpu_f("gpu");
+
   XELOGE("D3D11: FetchTextureCube not yet implemented");
   XEASSERTALWAYS();
   return 1;
@@ -1477,6 +1507,7 @@ int D3D11GraphicsDriver::FetchTextureCube(
 
 int D3D11GraphicsDriver::PrepareTextureSampler(
     xenos::XE_GPU_SHADER_TYPE shader_type, Shader::tex_buffer_desc_t& desc) {
+  SCOPE_profile_cpu_f("gpu");
 
   auto& fetcher = state_.texture_fetchers[desc.fetch_slot];
   auto& info = fetcher.info;
@@ -1588,6 +1619,8 @@ int D3D11GraphicsDriver::PrepareTextureSampler(
 int D3D11GraphicsDriver::PrepareIndexBuffer(
     bool index_32bit, uint32_t index_count,
     uint32_t index_base, uint32_t index_size, uint32_t endianness) {
+  SCOPE_profile_cpu_f("gpu");
+
   RegisterFile& rf = register_file_;
 
   uint32_t address = index_base + address_translation_;
@@ -1634,6 +1667,8 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
 }
 
 int D3D11GraphicsDriver::Resolve() {
+  SCOPE_profile_cpu_f("gpu");
+
   // No clue how this is supposed to work yet.
   ID3D11Texture2D* back_buffer = 0;
   swap_chain_->GetBuffer(0, __uuidof(ID3D11Texture2D),

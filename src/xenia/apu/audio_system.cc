@@ -82,21 +82,26 @@ void AudioSystem::ThreadStart() {
     if (result == WAIT_FAILED) {
       DWORD err = GetLastError();
       XEASSERTALWAYS();
+      break;
     }
+
     size_t pumped = 0;
-    if (result >= WAIT_OBJECT_0 && result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
-      size_t index = result - WAIT_OBJECT_0;
-      do {
-        xe_mutex_lock(lock_);
-        uint32_t client_callback = clients_[index].callback;
-        uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
-        xe_mutex_unlock(lock_);
-        if (client_callback) {
-          processor->Execute(thread_state_, client_callback, client_callback_arg, 0);
-        }
-        pumped++;
-        index++;
-      } while (index < maximum_client_count_ && WaitForSingleObject(client_wait_handles_[index], 0) == WAIT_OBJECT_0);
+    {
+      SCOPE_profile_cpu_i("apu", "Pump");
+      if (result >= WAIT_OBJECT_0 && result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
+        size_t index = result - WAIT_OBJECT_0;
+        do {
+          xe_mutex_lock(lock_);
+          uint32_t client_callback = clients_[index].callback;
+          uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
+          xe_mutex_unlock(lock_);
+          if (client_callback) {
+            processor->Execute(thread_state_, client_callback, client_callback_arg, 0);
+          }
+          pumped++;
+          index++;
+        } while (index < maximum_client_count_ && WaitForSingleObject(client_wait_handles_[index], 0) == WAIT_OBJECT_0);
+      }
     }
 
     if (!running_) {
@@ -104,6 +109,7 @@ void AudioSystem::ThreadStart() {
     }
 
     if (!pumped) {
+      SCOPE_profile_cpu_i("apu", "Sleep");
       Sleep(500);
     }
   }
@@ -126,6 +132,8 @@ void AudioSystem::Shutdown() {
 
 X_STATUS AudioSystem::RegisterClient(
     uint32_t callback, uint32_t callback_arg, size_t* out_index) {
+  SCOPE_profile_cpu_f("apu");
+
   XEASSERTTRUE(unused_clients_.size());
   xe_mutex_lock(lock_);
 
@@ -157,6 +165,8 @@ X_STATUS AudioSystem::RegisterClient(
 }
 
 void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
+  SCOPE_profile_cpu_f("apu");
+
   xe_mutex_lock(lock_);
   XEASSERTTRUE(index < maximum_client_count_);
   XEASSERTTRUE(clients_[index].driver != NULL);
@@ -166,6 +176,8 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 }
 
 void AudioSystem::UnregisterClient(size_t index) {
+  SCOPE_profile_cpu_f("apu");
+
   xe_mutex_lock(lock_);
   XEASSERTTRUE(index < maximum_client_count_);
   DestroyDriver(clients_[index].driver);

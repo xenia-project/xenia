@@ -125,6 +125,8 @@ void RingBufferWorker::Pump() {
 
 void RingBufferWorker::ExecutePrimaryBuffer(
     uint32_t start_index, uint32_t end_index) {
+  SCOPE_profile_cpu_f("gpu");
+
   // Adjust pointer base.
   uint32_t ptr = primary_buffer_ptr_ + start_index * 4;
   ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (ptr & 0x1FFFFFFF);

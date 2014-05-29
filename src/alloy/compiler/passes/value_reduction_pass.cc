@@ -53,6 +53,8 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
 }
 
 int ValueReductionPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Walk each block and reuse variable ordinals as much as possible.
 
   llvm::BitVector ordinals(builder->max_value_ordinal());

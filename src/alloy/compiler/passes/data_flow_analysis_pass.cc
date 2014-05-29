@@ -36,6 +36,8 @@ DataFlowAnalysisPass::~DataFlowAnalysisPass() {
 }
 
 int DataFlowAnalysisPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Linearize blocks so that we can detect cycles and propagate dependencies.
   uint32_t block_count = LinearizeBlocks(builder);
 

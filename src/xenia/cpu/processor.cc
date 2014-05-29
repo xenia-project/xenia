@@ -147,6 +147,8 @@ void Processor::AddRegisterAccessCallbacks(
 }
 
 int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
+  SCOPE_profile_cpu_f("cpu");
+
   // Attempt to get the function.
   Function* fn;
   if (runtime_->ResolveFunction(address, &fn)) {
@@ -171,6 +173,8 @@ int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
 
 uint64_t Processor::Execute(
     XenonThreadState* thread_state, uint64_t address, uint64_t arg0) {
+  SCOPE_profile_cpu_f("cpu");
+
   PPCContext* context = thread_state->context();
   context->r[3] = arg0;
   if (Execute(thread_state, address)) {
@@ -182,6 +186,8 @@ uint64_t Processor::Execute(
 uint64_t Processor::Execute(
     XenonThreadState* thread_state, uint64_t address, uint64_t arg0,
     uint64_t arg1) {
+  SCOPE_profile_cpu_f("cpu");
+
   PPCContext* context = thread_state->context();
   context->r[3] = arg0;
   context->r[4] = arg1;

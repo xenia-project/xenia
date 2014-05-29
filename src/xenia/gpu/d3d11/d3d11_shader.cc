@@ -145,6 +145,8 @@ void D3D11Shader::set_translated_src(char* value) {
 }
 
 ID3D10Blob* D3D11Shader::Compile(const char* shader_source) {
+  SCOPE_profile_cpu_f("gpu");
+
   // TODO(benvanik): pick shared runtime mode defines.
   D3D10_SHADER_MACRO defines[] = {
     "TEST_DEFINE", "1",
@@ -256,6 +258,7 @@ D3D11VertexShader::~D3D11VertexShader() {
 }
 
 int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
+  SCOPE_profile_cpu_f("gpu");
   if (handle_) {
     return 0;
   }
@@ -411,6 +414,8 @@ int D3D11VertexShader::Prepare(xe_gpu_program_cntl_t* program_cntl) {
 }
 
 const char* D3D11VertexShader::Translate(xe_gpu_program_cntl_t* program_cntl) {
+  SCOPE_profile_cpu_f("gpu");
+
   Output* output = new Output();
   xe_gpu_translate_ctx_t ctx;
   ctx.output  = output;
@@ -599,6 +604,7 @@ D3D11PixelShader::~D3D11PixelShader() {
 
 int D3D11PixelShader::Prepare(xe_gpu_program_cntl_t* program_cntl,
                               D3D11VertexShader* input_shader) {
+  SCOPE_profile_cpu_f("gpu");
   if (handle_) {
     return 0;
   }
@@ -641,6 +647,7 @@ int D3D11PixelShader::Prepare(xe_gpu_program_cntl_t* program_cntl,
 
 const char* D3D11PixelShader::Translate(
     xe_gpu_program_cntl_t* program_cntl, D3D11VertexShader* input_shader) {
+  SCOPE_profile_cpu_f("gpu");
   Output* output = new Output();
   xe_gpu_translate_ctx_t ctx;
   ctx.output  = output;
