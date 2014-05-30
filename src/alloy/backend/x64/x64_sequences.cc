@@ -1946,6 +1946,8 @@ EMITTER(SELECT_F32, MATCH(I<OPCODE_SELECT, F32<>, I8<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
     // TODO(benvanik): find a way to do this without branches.
+    // We may be able to load src1 into an xmm, cmp with zero, and use that
+    // as a selection mask to choose between src2 & src3.
     Xbyak::Label skip;
     e.vmovaps(i.dest, i.src3);
     e.jz(skip);
@@ -2243,6 +2245,23 @@ EMITTER_OPCODE_TABLE(
     EMITTER_ASSOCIATIVE_COMPARE_INT(op, instr, inverse_instr, I16, Reg16); \
     EMITTER_ASSOCIATIVE_COMPARE_INT(op, instr, inverse_instr, I32, Reg32); \
     EMITTER_ASSOCIATIVE_COMPARE_INT(op, instr, inverse_instr, I64, Reg64); \
+    EMITTER_OPCODE_TABLE( \
+        OPCODE_COMPARE_##op##, \
+        COMPARE_##op##_I8, \
+        COMPARE_##op##_I16, \
+        COMPARE_##op##_I32, \
+        COMPARE_##op##_I64);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SLT, setl, setge);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SLE, setle, setg);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SGT, setg, setle);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SGE, setge, setl);
+EMITTER_ASSOCIATIVE_COMPARE_XX(ULT, setb, setae);
+EMITTER_ASSOCIATIVE_COMPARE_XX(ULE, setbe, seta);
+EMITTER_ASSOCIATIVE_COMPARE_XX(UGT, seta, setbe);
+EMITTER_ASSOCIATIVE_COMPARE_XX(UGE, setae, setb);
+
+// http://x86.renejeschke.de/html/file_module_x86_id_288.html
+#define EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(op, instr) \
     EMITTER(COMPARE_##op##_F32, MATCH(I<OPCODE_COMPARE_##op##, I8<>, F32<>, F32<>>)) { \
       static void Emit(X64Emitter& e, const EmitArgType& i) { \
         e.vcomiss(i.src1, i.src2); \
@@ -2264,21 +2283,17 @@ EMITTER_OPCODE_TABLE(
       } \
     }; \
     EMITTER_OPCODE_TABLE( \
-        OPCODE_COMPARE_##op##, \
-        COMPARE_##op##_I8, \
-        COMPARE_##op##_I16, \
-        COMPARE_##op##_I32, \
-        COMPARE_##op##_I64, \
+        OPCODE_COMPARE_##op##_FLT, \
         COMPARE_##op##_F32, \
         COMPARE_##op##_F64);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SLT, setl, setge);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SLE, setle, setg);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SGT, setg, setle);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SGE, setge, setl);
-EMITTER_ASSOCIATIVE_COMPARE_XX(ULT, setb, setae);
-EMITTER_ASSOCIATIVE_COMPARE_XX(ULE, setbe, seta);
-EMITTER_ASSOCIATIVE_COMPARE_XX(UGT, seta, setbe);
-EMITTER_ASSOCIATIVE_COMPARE_XX(UGE, setae, setb);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(SLT, setb);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(SLE, setbe);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(SGT, seta);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(SGE, setae);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(ULT, setb);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(ULE, setbe);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGT, seta);
+EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGE, setae);
 
 
 // ============================================================================
@@ -3356,18 +3371,18 @@ EMITTER(NEG_I64, MATCH(I<OPCODE_NEG, I64<>, I64<>>)) {
 };
 EMITTER(NEG_F32, MATCH(I<OPCODE_NEG, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vpxor(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPS));
+    e.vxorps(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPS));
   }
 };
 EMITTER(NEG_F64, MATCH(I<OPCODE_NEG, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vpxor(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPD));
+    e.vxorpd(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPD));
   }
 };
 EMITTER(NEG_V128, MATCH(I<OPCODE_NEG, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERT(!i.instr->flags);
-    e.vpxor(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPS));
+    e.vxorps(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPS));
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -3386,20 +3401,17 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(ABS_F32, MATCH(I<OPCODE_ABS, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMSignMaskPS));
-    e.vpandn(i.dest, e.xmm0, i.src1);
+    e.vpand(i.dest, i.src1, e.GetXmmConstPtr(XMMAbsMaskPS));
   }
 };
 EMITTER(ABS_F64, MATCH(I<OPCODE_ABS, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMSignMaskPD));
-    e.vpandn(i.dest, e.xmm0, i.src1);
+    e.vpand(i.dest, i.src1, e.GetXmmConstPtr(XMMAbsMaskPD));
   }
 };
 EMITTER(ABS_V128, MATCH(I<OPCODE_ABS, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMSignMaskPS));
-    e.vpandn(i.dest, e.xmm0, i.src1);
+    e.vpand(i.dest, i.src1, e.GetXmmConstPtr(XMMAbsMaskPS));
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -4980,6 +4992,14 @@ void alloy::backend::x64::RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_ULE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGE);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_SLT_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_SLE_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_SGT_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_SGE_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_ULT_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_ULE_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGT_FLT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGE_FLT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_CARRY);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_OVERFLOW);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE);

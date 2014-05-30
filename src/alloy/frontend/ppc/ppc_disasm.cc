@@ -266,7 +266,7 @@ void Disasm_dcbz(InstrData& i, StringBuffer* str) {
 }
 
 void Disasm_fcmp(InstrData& i, StringBuffer* str) {
-  str->Append("%-8s cr%d, r%d, r%d", i.type->name,
+  str->Append("%-8s cr%d, f%d, f%d", i.type->name,
               i.X.RT >> 2, i.X.RA, i.X.RB);
 }
 
