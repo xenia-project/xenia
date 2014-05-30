@@ -2924,7 +2924,7 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.movzx(e.eax, i.src1);
+      e.movzx(e.edx, i.src1);
       e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
     } else {
       e.mov(e.al, i.src1);
@@ -2938,7 +2938,7 @@ EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.movzx(e.eax, i.src1);
+      e.movzx(e.edx, i.src1);
       e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
     } else {
       e.mov(e.ax, i.src1);
@@ -2952,8 +2952,13 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.mov(e.eax, i.src1);
-      e.mulx(i.dest, e.eax, i.src2);
+      e.mov(e.edx, i.src1);
+      if (i.src2.is_constant) {
+        e.mov(e.eax, i.src2.constant());
+        e.mulx(i.dest, e.edx, e.eax);
+      } else {
+        e.mulx(i.dest, e.edx, i.src2);
+      }
     } else {
       e.mov(e.eax, i.src1);
       e.imul(i.src2);
@@ -2966,8 +2971,13 @@ EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.mov(e.rax, i.src1);
-      e.mulx(i.dest, e.rax, i.src2);
+      e.mov(e.rdx, i.src1);
+      if (i.src2.is_constant) {
+        e.mov(e.rax, i.src2.constant());
+        e.mulx(i.dest, e.rdx, e.rax);
+      } else {
+        e.mulx(i.dest, e.rax, i.src2);
+      }
     } else {
       e.mov(e.rax, i.src1);
       e.imul(i.src2);
