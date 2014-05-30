@@ -1866,17 +1866,26 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(MAX_F32, MATCH(I<OPCODE_MAX, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vmaxss(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vmaxss(dest, src1, src2);
+        });
   }
 };
 EMITTER(MAX_F64, MATCH(I<OPCODE_MAX, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vmaxsd(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vmaxsd(dest, src1, src2);
+        });
   }
 };
 EMITTER(MAX_V128, MATCH(I<OPCODE_MAX, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vmaxps(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vmaxps(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -1891,17 +1900,26 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(MIN_F32, MATCH(I<OPCODE_MIN, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vminss(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vminss(dest, src1, src2);
+        });
   }
 };
 EMITTER(MIN_F64, MATCH(I<OPCODE_MIN, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vminsd(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vminsd(dest, src1, src2);
+        });
   }
 };
 EMITTER(MIN_V128, MATCH(I<OPCODE_MIN, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vminps(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryXmmOp(e, i,
+        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          e.vminps(dest, src1, src2);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(
