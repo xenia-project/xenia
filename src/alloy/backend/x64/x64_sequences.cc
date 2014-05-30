@@ -48,6 +48,14 @@ static std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
 }  // namespace
 
 
+// Selects the right byte/word/etc from a vector. We need to flip logical
+// indices (0,1,2,3,4,5,6,7,...) = (3,2,1,0,7,6,5,4,...)
+#define VEC128_B(n) ((n) & 0xC) | ((~(n)) & 0x3)
+#define VEC128_W(n) ((n) & 0x6) | ((~(n)) & 0x1)
+#define VEC128_D(n) (n)
+#define VEC128_F(n) (n)
+
+
 // ============================================================================
 // OPCODE_COMMENT
 // ============================================================================
@@ -4402,7 +4410,7 @@ EMITTER_OPCODE_TABLE(
 EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      e.vpextrb(i.dest.reg().cvt32(), i.src1, i.src2.constant());
+      e.vpextrb(i.dest.reg().cvt32(), i.src1, VEC128_B(i.src2.constant()));
     } else {
       XEASSERTALWAYS();
     }
@@ -4411,7 +4419,7 @@ EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
 EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      e.vpextrw(i.dest.reg().cvt32(), i.src1, i.src2.constant());
+      e.vpextrw(i.dest.reg().cvt32(), i.src1, VEC128_W(i.src2.constant()));
     } else {
       XEASSERTALWAYS();
     }
@@ -4426,7 +4434,7 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       vec128b(15, 14, 13, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
     };
     if (i.src2.is_constant) {
-      e.vpextrd(i.dest, i.src1, i.src2.constant());
+      e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
     } else {
       // Get the desired word in xmm0, then extract that.
       // TODO(benvanik): find a better way, this sequence is terrible.
@@ -4445,7 +4453,7 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
 EMITTER(EXTRACT_F32, MATCH(I<OPCODE_EXTRACT, F32<>, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      e.vextractps(i.dest, i.src1, i.src2.constant());
+      e.vextractps(i.dest, i.src1, VEC128_F(i.src2.constant()));
     } else {
       XEASSERTALWAYS();
     }
