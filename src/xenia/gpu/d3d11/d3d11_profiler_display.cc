@@ -423,13 +423,22 @@ uint32_t D3D11ProfilerDisplay::height() const {
 void D3D11ProfilerDisplay::Begin() {
   auto context = window_->context();
 
+  D3D11_VIEWPORT viewport;
+  viewport.TopLeftX = 0.0f;
+  viewport.TopLeftY = 0.0f;
+  viewport.Width = static_cast<float>(width());
+  viewport.Height = static_cast<float>(height());
+  viewport.MinDepth = 0.0f;
+  viewport.MaxDepth = 1.0f;
+  context->RSSetViewports(1, &viewport);
+
   // Setup projection matrix.
-  float left = 0.0f;
-  float right = (float)width();
-  float bottom = (float)height();
-  float top = 0.0f;
-  float z_near = -1.0f;
-  float z_far = 1.0f;
+  float left = viewport.TopLeftX;
+  float right = viewport.TopLeftX + viewport.Width;
+  float bottom = viewport.TopLeftY + viewport.Height;
+  float top = viewport.TopLeftY;
+  float z_near = viewport.MinDepth;
+  float z_far = viewport.MaxDepth;
   float projection[16] = { 0 };
   projection[0] = 2.0f / (right - left);
   projection[5] = 2.0f / (top - bottom);
@@ -452,9 +461,17 @@ void D3D11ProfilerDisplay::Begin() {
   context->VSSetShader(vertex_shader_, nullptr, 0);
   context->VSSetConstantBuffers(0, 1, &shader_constants_);
   context->PSSetShader(pixel_shader_, nullptr, 0);
-  context->PSSetSamplers(0, 1, &font_sampler_state_);
   context->PSSetConstantBuffers(0, 1, &shader_constants_);
-  context->PSSetShaderResources(0, 1, &font_texture_view_);
+  ID3D11SamplerState* ps_samplers[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT] = {
+    font_sampler_state_,
+    nullptr,
+  };
+  context->PSSetSamplers(0, XECOUNT(ps_samplers), ps_samplers);
+  ID3D11ShaderResourceView* ps_resources[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {
+    font_texture_view_,
+    nullptr,
+  };
+  context->PSSetShaderResources(0, XECOUNT(ps_resources), ps_resources);
   context->IASetInputLayout(shader_layout_);
 }
 

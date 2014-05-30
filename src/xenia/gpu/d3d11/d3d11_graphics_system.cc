@@ -170,6 +170,11 @@ void D3D11GraphicsSystem::Pump() {
     if (xe_pal_now() - last_interrupt_time_ > 500 / 1000.0) {
       DispatchInterruptCallback(0);
     }
+
+    // Force a swap when profiling.
+    if (Profiler::is_enabled()) {
+      window_->Swap();
+    }
   }
 }
 
