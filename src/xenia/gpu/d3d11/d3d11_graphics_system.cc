@@ -152,8 +152,6 @@ void D3D11GraphicsSystem::Initialize() {
 }
 
 void D3D11GraphicsSystem::Pump() {
-  SCOPE_profile_cpu_f("gpu");
-
   if (swap_pending_) {
     swap_pending_ = false;
 
