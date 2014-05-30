@@ -4413,6 +4413,12 @@ EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
       e.vpextrb(i.dest.reg().cvt32(), i.src1, VEC128_B(i.src2.constant()));
     } else {
       XEASSERTALWAYS();
+      // TODO(benvanik): try out hlide's version:
+      // mov     eax, 0x80808080
+      // mov     al, i.src2
+      // vmovd   xmm0, eax
+      // vpshufb xmm0, i.src1, xmm0
+      // vmovd   i.dest.reg().cvt32(), xmm0
     }
   }
 };
@@ -4421,6 +4427,14 @@ EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
     if (i.src2.is_constant) {
       e.vpextrw(i.dest.reg().cvt32(), i.src1, VEC128_W(i.src2.constant()));
     } else {
+      // TODO(benvanik): try out hlide's version:
+      // xor     eax, eax
+      // mov     al, i.src2           // eax = [i, 0, 0, 0]
+      // imul    eax, eax, 0x00000202 // [i*2, i*2, 0, 0] supposedly that 0<= i < 8
+      // add     eax,0x80800100       // [i*2+0b00, i*2+0b01, 0x80, 0x80]
+      // vmovd   xmm0, eax
+      // vpshufb xmm0, i.src1, xmm0
+      // vmovd   i.dest.reg().cvt32(), xmm0
       XEASSERTALWAYS();
     }
   }
@@ -4436,8 +4450,15 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
     if (i.src2.is_constant) {
       e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
     } else {
+      // TODO(benvanik): try out hlide's version:
+      // xor     eax, eax
+      // mov     al, i.src2           // eax = [i, 0, 0, 0]
+      // imul    eax, eax, 0x04040404 // [i*4, i*4, i*4, i*4] supposedly that 0<= i < 4
+      // add     eax,0x03020100       // [i*4+0b00, i*4+0b01, i*4+0b10, i*4+0b11]
+      // vmovd   xmm0, eax
+      // vpshufb xmm0, i.src1, xmm0
+      // vmovd   i.dest.reg().cvt32(), xmm0
       // Get the desired word in xmm0, then extract that.
-      // TODO(benvanik): find a better way, this sequence is terrible.
       e.xor(e.rax, e.rax);
       e.mov(e.al, i.src2);
       e.and(e.al, 0x03);
