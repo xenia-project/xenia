@@ -1529,9 +1529,10 @@ void DynamicRegisterStore(void* raw_context, uint32_t address, uint64_t value) {
   }
 }
 template <typename DEST_REG>
-void EmitLoadCheck(X64Emitter& e, const RegExp& addr, DEST_REG& dest) {
+void EmitLoadCheck(X64Emitter& e, const I64<>& addr_value, DEST_REG& dest) {
   // rax = reserved
   // if (address >> 24 == 0x7F) call register load handler;
+  auto addr = ComputeMemoryAddress(e, addr_value);
   e.lea(e.r8d, e.ptr[addr]);
   e.shr(e.r8d, 24);
   e.cmp(e.r8b, 0x7F);
@@ -1550,13 +1551,23 @@ void EmitLoadCheck(X64Emitter& e, const RegExp& addr, DEST_REG& dest) {
   if (DEST_REG::key_type == KEY_TYPE_V_I32) {
     e.mov(dest, e.dword[addr]);
   }
+  if (IsTracingData()) {
+    e.mov(e.r8, dest);
+    e.lea(e.rdx, e.ptr[addr]);
+    if (DEST_REG::key_type == KEY_TYPE_V_I32) {
+      e.CallNative(TraceMemoryLoadI32);
+    } else if (DEST_REG::key_type == KEY_TYPE_V_I64) {
+      e.CallNative(TraceMemoryLoadI64);
+    }
+  }
   e.L(skip_load);
   e.outLocalLabel();
 }
 template <typename SRC_REG>
-void EmitStoreCheck(X64Emitter& e, const RegExp& addr, SRC_REG& src) {
+void EmitStoreCheck(X64Emitter& e, const I64<>& addr_value, SRC_REG& src) {
   // rax = reserved
   // if (address >> 24 == 0x7F) call register store handler;
+  auto addr = ComputeMemoryAddress(e, addr_value);
   e.lea(e.r8d, e.ptr[addr]);
   e.shr(e.r8d, 24);
   e.cmp(e.r8b, 0x7F);
@@ -1567,10 +1578,17 @@ void EmitStoreCheck(X64Emitter& e, const RegExp& addr, SRC_REG& src) {
   e.lea(e.rdx, e.ptr[addr]);
   if (SRC_REG::key_type == KEY_TYPE_V_I32) {
     if (src.is_constant) {
-      e.mov(e.r8d, XESWAP32(src.constant()));
+      e.mov(e.r8d, XESWAP32(static_cast<uint32_t>(src.constant())));
     } else {
       e.mov(e.r8d, src);
       e.bswap(e.r8d);
+    }
+  } else if (SRC_REG::key_type == KEY_TYPE_V_I64) {
+    if (src.is_constant) {
+      e.mov(e.r8, XESWAP64(static_cast<uint64_t>(src.constant())));
+    } else {
+      e.mov(e.r8, src);
+      e.bswap(e.r8);
     }
   }
   e.CallNative(DynamicRegisterStore);
@@ -1581,6 +1599,21 @@ void EmitStoreCheck(X64Emitter& e, const RegExp& addr, SRC_REG& src) {
       e.mov(e.dword[addr], src.constant());
     } else {
       e.mov(e.dword[addr], src);
+    }
+  } else if (SRC_REG::key_type == KEY_TYPE_V_I64) {
+    if (src.is_constant) {
+      e.MovMem64(addr, src.constant());
+    } else {
+      e.mov(e.qword[addr], src);
+    }
+  }
+  if (IsTracingData()) {
+    e.mov(e.r8, e.qword[addr]);
+    e.lea(e.rdx, e.ptr[addr]);
+    if (SRC_REG::key_type == KEY_TYPE_V_I32) {
+      e.CallNative(TraceMemoryStoreI32);
+    } else if (SRC_REG::key_type == KEY_TYPE_V_I64) {
+      e.CallNative(TraceMemoryStoreI64);
     }
   }
   e.L(skip_load);
@@ -1619,13 +1652,7 @@ EMITTER(LOAD_I32, MATCH(I<OPCODE_LOAD, I32<>, I64<>>)) {
     if (CheckLoadAccessCallback(e, i)) {
       return;
     }
-    auto addr = ComputeMemoryAddress(e, i.src1);
-    EmitLoadCheck(e, addr, i.dest);
-    if (IsTracingData()) {
-      e.mov(e.r8, i.dest);
-      e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadI32);
-    }
+    EmitLoadCheck(e, i.src1, i.dest);
   }
 };
 EMITTER(LOAD_I64, MATCH(I<OPCODE_LOAD, I64<>, I64<>>)) {
@@ -1772,13 +1799,7 @@ EMITTER(STORE_I32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I32<>>)) {
     if (CheckStoreAccessCallback(e, i)) {
       return;
     }
-    auto addr = ComputeMemoryAddress(e, i.src1);
-    EmitStoreCheck(e, addr, i.src2);
-    if (IsTracingData()) {
-      e.mov(e.r8, e.dword[addr]);
-      e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreI32);
-    }
+    EmitStoreCheck(e, i.src1, i.src2);
   }
 };
 EMITTER(STORE_I64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I64<>>)) {
@@ -1786,17 +1807,7 @@ EMITTER(STORE_I64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I64<>>)) {
     if (CheckStoreAccessCallback(e, i)) {
       return;
     }
-    auto addr = ComputeMemoryAddress(e, i.src1);
-    if (i.src2.is_constant) {
-      e.MovMem64(addr, i.src2.constant());
-    } else {
-      e.mov(e.qword[addr], i.src2);
-    }
-    if (IsTracingData()) {
-      e.mov(e.r8, e.qword[addr]);
-      e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreI64);
-    }
+    EmitStoreCheck(e, i.src1, i.src2);
   }
 };
 EMITTER(STORE_F32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F32<>>)) {
@@ -1940,6 +1951,7 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_SELECT
 // ============================================================================
+// dest = src1 ? src2 : src3
 EMITTER(SELECT_I8, MATCH(I<OPCODE_SELECT, I8<>, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
