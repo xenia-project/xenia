@@ -1952,6 +1952,8 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_SELECT
 // ============================================================================
 // dest = src1 ? src2 : src3
+// TODO(benvanik): match compare + select sequences, as often it's something
+//     like SELECT(VECTOR_COMPARE_SGE(a, b), a, b)
 EMITTER(SELECT_I8, MATCH(I<OPCODE_SELECT, I8<>, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
@@ -1982,37 +1984,41 @@ EMITTER(SELECT_I64, MATCH(I<OPCODE_SELECT, I64<>, I8<>, I64<>, I64<>>)) {
 };
 EMITTER(SELECT_F32, MATCH(I<OPCODE_SELECT, F32<>, I8<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    // TODO(benvanik): find a way to do this without branches.
-    // We may be able to load src1 into an xmm, cmp with zero, and use that
-    // as a selection mask to choose between src2 & src3.
-    Xbyak::Label skip;
-    e.vmovaps(i.dest, i.src3);
-    e.jz(skip);
-    e.vmovaps(i.dest, i.src2);
-    e.L(skip);
+    // TODO(benvanik): find a shorter sequence.
+    // xmm0 = src1 != 0 ? 1111... : 0000....
+    e.movzx(e.eax, i.src1);
+    e.vmovd(e.xmm1, e.eax);
+    e.vxorps(e.xmm0, e.xmm0);
+    e.vcmpneqss(e.xmm0, e.xmm1);
+    e.vpand(e.xmm1, e.xmm0, i.src2);
+    e.vpandn(i.dest, e.xmm0, i.src3);
+    e.vpor(i.dest, e.xmm1);
   }
 };
 EMITTER(SELECT_F64, MATCH(I<OPCODE_SELECT, F64<>, I8<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    // TODO(benvanik): find a way to do this without branches.
-    Xbyak::Label skip;
-    e.vmovaps(i.dest, i.src3);
-    e.jz(skip);
-    e.vmovaps(i.dest, i.src2);
-    e.L(skip);
+    // xmm0 = src1 != 0 ? 1111... : 0000....
+    e.movzx(e.eax, i.src1);
+    e.vmovd(e.xmm1, e.eax);
+    e.vxorpd(e.xmm0, e.xmm0);
+    e.vcmpneqsd(e.xmm0, e.xmm1);
+    e.vpand(e.xmm1, e.xmm0, i.src2);
+    e.vpandn(i.dest, e.xmm0, i.src3);
+    e.vpor(i.dest, e.xmm1);
   }
 };
 EMITTER(SELECT_V128, MATCH(I<OPCODE_SELECT, V128<>, I8<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    // TODO(benvanik): find a way to do this without branches.
-    Xbyak::Label skip;
-    e.vmovaps(i.dest, i.src3);
-    e.jz(skip);
-    e.vmovaps(i.dest, i.src2);
-    e.L(skip);
+    // TODO(benvanik): find a shorter sequence.
+    // xmm0 = src1 != 0 ? 1111... : 0000....
+    e.movzx(e.eax, i.src1);
+    e.vmovd(e.xmm1, e.eax);
+    e.vpbroadcastd(e.xmm1, e.xmm1);
+    e.vxorps(e.xmm0, e.xmm0);
+    e.vcmpneqps(e.xmm0, e.xmm1);
+    e.vpand(e.xmm1, e.xmm0, i.src2);
+    e.vpandn(i.dest, e.xmm0, i.src3);
+    e.vpor(i.dest, e.xmm1);
   }
 };
 EMITTER_OPCODE_TABLE(
