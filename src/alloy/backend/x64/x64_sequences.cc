@@ -3275,7 +3275,7 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_MUL_ADD
 // ============================================================================
 // d = 1 * 2 + 3
-// $0 = $1×$0 + $2
+// $0 = $1x$0 + $2
 // TODO(benvanik): use other forms (132/213/etc) to avoid register shuffling.
 // dest could be src2 or src3 - need to ensure it's not before overwriting dest
 // perhaps use other 132/213/etc
@@ -3338,7 +3338,7 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_MUL_SUB
 // ============================================================================
 // d = 1 * 2 - 3
-// $0 = $2×$0 - $3
+// $0 = $2x$0 - $3
 // TODO(benvanik): use other forms (132/213/etc) to avoid register shuffling.
 // dest could be src2 or src3 - need to ensure it's not before overwriting dest
 // perhaps use other 132/213/etc
@@ -4436,11 +4436,12 @@ EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
     } else {
       XEASSERTALWAYS();
       // TODO(benvanik): try out hlide's version:
-      // mov eax, 0x80808003
-      // xor al,  i.src2.cvt8()
-      // vmovd   xmm0, eax
-      // vpshufb xmm0, i.src1, xmm0
-      // vmovd   i.dest.reg().cvt32(), xmm0
+      // e.mov(e.eax, 0x80808003);
+      // e.xor(e.al, i.src2);
+      // e.and(e.al, 15);
+      // e.vmovd(e.xmm0, e.eax);
+      // e.vpshufb(e.xmm0, i.src1, e.xmm0);
+      // e.vmovd(i.dest.reg().cvt32(), e.xmm0); 
     }
   }
 };
@@ -4450,14 +4451,13 @@ EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
       e.vpextrw(i.dest.reg().cvt32(), i.src1, VEC128_W(i.src2.constant()));
     } else {
       // TODO(benvanik): try out hlide's version:
-      // xor     eax, eax
-      // mov     al, i.src2           // eax = [i, 0, 0, 0]
-      // xor eax, 0x80800203
-      // imul    eax, eax, 0x00000202 // [i*2, i*2, 0, 0] supposedly that 0<= i < 8
-      // add     eax,0x80800100       // [i*2+0b00, i*2+0b01, 0x80, 0x80]
-      // vmovd   xmm0, eax
-      // vpshufb xmm0, i.src1, xmm0
-      // vmovd   i.dest.reg().cvt32(), xmm0
+      // e.mov(e.eax, 7);
+      // e.and(e.al, i.src2);        // eax = [i&7, 0, 0, 0]
+      // e.imul(e.eax, 0x00000202);   // [(i&7)*2, (i&7)*2, 0, 0]
+      // e.xor(e.eax, 0x80800203);    // [((i&7)*2)^3, ((i&7)*2)^2, 0x80, 0x80]
+      // e.vmovd(e.xmm0, e.eax);
+      // e.vpshufb(e.xmm0, i.src1, e.xmm0);
+      // e.vmovd(i.dest.reg().cvt32(), e.xmm0);
       XEASSERTALWAYS();
     }
   }
@@ -4474,13 +4474,13 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
     } else {
       // TODO(benvanik): try out hlide's version:
-      // xor     eax, eax
-      // mov     al, i.src2           // eax = [i, 0, 0, 0]
-      // imul    eax, eax, 0x04040404 // [i*4, i*4, i*4, i*4] supposedly that 0<= i < 4
-      // xor/add eax, 0x00010203      // [i*4+0b00, i*4+0b01, i*4+0b10, i*4+0b11]
-      // vmovd   xmm0, eax
-      // vpshufb xmm0, i.src1, xmm0
-      // vmovd   i.dest.reg().cvt32(), xmm0
+      // e.mov(e.eax, 3);
+      // e.and(e.al, i.src2);       // eax = [(i&3), 0, 0, 0]
+      // e.imul(e.eax, 0x04040404); // [(i&3)*4, (i&3)*4, (i&3)*4, (i&3)*4]
+      // e.add(e.eax, 0x00010203);  // [((i&3)*4)+3, ((i&3)*4)+2, ((i&3)*4)+1, ((i&3)*4)+0]
+      // e.vmovd(e.xmm0, e.eax);
+      // e.vpshufb(e.xmm0, i.src1, e.xmm0);
+      // e.vmovd(i.dest.reg().cvt32(), e.xmm0);
       // Get the desired word in xmm0, then extract that.
       e.xor(e.rax, e.rax);
       e.mov(e.al, i.src2);
@@ -4500,6 +4500,14 @@ EMITTER(EXTRACT_F32, MATCH(I<OPCODE_EXTRACT, F32<>, V128<>, I8<>>)) {
       e.vextractps(i.dest, i.src1, VEC128_F(i.src2.constant()));
     } else {
       XEASSERTALWAYS();
+      // TODO(benvanik): try out hlide's version:
+      // e.mov(e.eax, 3);
+      // e.and(e.al, i.src2);       // eax = [(i&3), 0, 0, 0]
+      // e.imul(e.eax, 0x04040404); // [(i&3)*4, (i&3)*4, (i&3)*4, (i&3)*4]
+      // e.add(e.eax, 0x00010203);  // [((i&3)*4)+3, ((i&3)*4)+2, ((i&3)*4)+1, ((i&3)*4)+0]
+      // e.vmovd(e.xmm0, e.eax);
+      // e.vpshufb(e.xmm0, i.src1, e.xmm0);
+      // e.vmovd(i.dest, e.xmm0);
     }
   }
 };
