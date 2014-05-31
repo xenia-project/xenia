@@ -2976,7 +2976,12 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
       e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
     } else {
       e.mov(e.al, i.src1);
-      e.imul(i.src2);
+      if (i.src2.is_constant) {
+        e.mov(e.al, i.src2.constant());
+        e.imul(e.al);
+      } else {
+        e.imul(i.src2);
+      }
       e.mov(i.dest, e.ah);
     }
     e.ReloadEDX();
@@ -2990,7 +2995,12 @@ EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
       e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
     } else {
       e.mov(e.ax, i.src1);
-      e.imul(i.src2);
+      if (i.src2.is_constant) {
+        e.mov(e.dx, i.src2.constant());
+        e.imul(e.dx);
+      } else {
+        e.imul(i.src2);
+      }
       e.mov(i.dest, e.dx);
     }
     e.ReloadEDX();
@@ -3009,7 +3019,12 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
       }
     } else {
       e.mov(e.eax, i.src1);
-      e.imul(i.src2);
+      if (i.src2.is_constant) {
+        e.mov(e.edx, i.src2.constant());
+        e.imul(e.edx);
+      } else {
+        e.imul(i.src2);
+      }
       e.mov(i.dest, e.edx);
     }
     e.ReloadEDX();
@@ -3028,7 +3043,12 @@ EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
       }
     } else {
       e.mov(e.rax, i.src1);
-      e.imul(i.src2);
+      if (i.src2.is_constant) {
+        e.mov(e.rdx, i.src2.constant());
+        e.imul(e.rdx);
+      } else {
+        e.imul(i.src2);
+      }
       e.mov(i.dest, e.rdx);
     }
     e.ReloadEDX();
@@ -4781,10 +4801,19 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     e.vpshufb(i.dest, e.xmm0, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+    // dest = [(src1.x | src1.y), 0, 0, 0]
+    e.db(0xCC);
+    e.vcvtps2ph(e.xmm0, i.src1, B00000011);
+    e.vxorps(i.dest, i.dest);
+    e.vpblendw(i.dest, e.xmm0, B00000011);
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
+    e.db(0xCC);
+    e.vcvtps2ph(e.xmm0, i.src1, B00000011);
+    e.vxorps(i.dest, i.dest);
+    e.vpblendw(i.dest, e.xmm0, B00001111);
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();

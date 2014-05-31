@@ -3927,6 +3927,7 @@ uint32_t IntCode_PACK_FLOAT16_2(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_PACK_FLOAT16_4(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
+  dest.ix = dest.iy = 0;
   dest.iz =
       ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.x) << 16) |
       DirectX::PackedVector::XMConvertFloatToHalf(src1.y);
