@@ -187,19 +187,26 @@ void Value::Round(RoundMode round_mode) {
   XEASSERTALWAYS();
 }
 
-void Value::Add(Value* other) {
+bool Value::Add(Value* other) {
+  #define CHECK_DID_CARRY(v1, v2) (((uint64_t)v2) > ~((uint64_t)v1))
+  #define ADD_DID_CARRY(a, b) CHECK_DID_CARRY(a, b)
   XEASSERT(type == other->type);
+  bool did_carry = false;
   switch (type) {
   case INT8_TYPE:
+    did_carry = ADD_DID_CARRY(constant.i8, other->constant.i8);
     constant.i8 += other->constant.i8;
     break;
   case INT16_TYPE:
+    did_carry = ADD_DID_CARRY(constant.i16, other->constant.i16);
     constant.i16 += other->constant.i16;
     break;
   case INT32_TYPE:
+    did_carry = ADD_DID_CARRY(constant.i32, other->constant.i32);
     constant.i32 += other->constant.i32;
     break;
   case INT64_TYPE:
+    did_carry = ADD_DID_CARRY(constant.i64, other->constant.i64);
     constant.i64 += other->constant.i64;
     break;
   case FLOAT32_TYPE:
@@ -212,21 +219,28 @@ void Value::Add(Value* other) {
     XEASSERTALWAYS();
     break;
   }
+  return did_carry;
 }
 
-void Value::Sub(Value* other) {
+bool Value::Sub(Value* other) {
+  #define SUB_DID_CARRY(a, b) (b > a)
   XEASSERT(type == other->type);
+  bool did_carry = false;
   switch (type) {
   case INT8_TYPE:
+    did_carry = SUB_DID_CARRY(constant.i8, other->constant.i8);
     constant.i8 -= other->constant.i8;
     break;
   case INT16_TYPE:
+    did_carry = SUB_DID_CARRY(constant.i16, other->constant.i16);
     constant.i16 -= other->constant.i16;
     break;
   case INT32_TYPE:
+    did_carry = SUB_DID_CARRY(constant.i32, other->constant.i32);
     constant.i32 -= other->constant.i32;
     break;
   case INT64_TYPE:
+    did_carry = SUB_DID_CARRY(constant.i64, other->constant.i64);
     constant.i64 -= other->constant.i64;
     break;
   case FLOAT32_TYPE:
@@ -239,6 +253,7 @@ void Value::Sub(Value* other) {
     XEASSERTALWAYS();
     break;
   }
+  return did_carry;
 }
 
 void Value::Mul(Value* other) {

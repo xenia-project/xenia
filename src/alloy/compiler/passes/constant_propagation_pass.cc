@@ -43,6 +43,14 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
   //   v1 = add 1000, 1000
   //   store_context +200, 2000
   // A DCE run after this should clean up any of the values no longer needed.
+  //
+  // Special care needs to be taken with paired instructions. For example,
+  // DID_CARRY needs to be set as a constant:
+  //   v1 = sub.2 20, 1
+  //   v2 = did_carry v1
+  // should become:
+  //   v1 = 19
+  //   v2 = 0
 
   Block* block = builder->first_block();
   while (block) {
@@ -252,19 +260,41 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
         }
         break;
 
+      case OPCODE_DID_CARRY:
+        XEASSERT(!i->src1.value->IsConstant());
+        break;
+      case OPCODE_DID_OVERFLOW:
+        XEASSERT(!i->src1.value->IsConstant());
+        break;
+      case OPCODE_DID_SATURATE:
+        XEASSERT(!i->src1.value->IsConstant());
+        break;
+
       case OPCODE_ADD:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
           v->set_from(i->src1.value);
-          v->Add(i->src2.value);
+          bool did_carry = v->Add(i->src2.value);
+          bool propagate_carry = !!(i->flags & ARITHMETIC_SET_CARRY);
           i->Remove();
+
+          // If carry is set find the DID_CARRY and fix it.
+          if (propagate_carry) {
+            PropagateCarry(v, did_carry);
+          }
         }
         break;
-      // TODO(benvanik): ADD_CARRY
+      // TODO(benvanik): ADD_CARRY (w/ ARITHMETIC_SET_CARRY)
       case OPCODE_SUB:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
           v->set_from(i->src1.value);
-          v->Sub(i->src2.value);
+          bool did_carry = v->Sub(i->src2.value);
+          bool propagate_carry = !!(i->flags & ARITHMETIC_SET_CARRY);
           i->Remove();
+
+          // If carry is set find the DID_CARRY and fix it.
+          if (propagate_carry) {
+            PropagateCarry(v, did_carry);
+          }
         }
         break;
       case OPCODE_MUL:
@@ -392,4 +422,17 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
   }
 
   return 0;
+}
+
+void ConstantPropagationPass::PropagateCarry(hir::Value* v, bool did_carry) {
+  auto next = v->use_head;
+  while (next) {
+    auto use = next;
+    next = use->next;
+    if (use->instr->opcode == &OPCODE_DID_CARRY_info) {
+      // Replace carry value.
+      use->instr->dest->set_constant(did_carry ? 1 : 0);
+      use->instr->Remove();
+    }
+  }
 }

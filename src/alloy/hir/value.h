@@ -375,8 +375,8 @@ public:
   void Truncate(TypeName target_type);
   void Convert(TypeName target_type, RoundMode round_mode);
   void Round(RoundMode round_mode);
-  void Add(Value* other);
-  void Sub(Value* other);
+  bool Add(Value* other);
+  bool Sub(Value* other);
   void Mul(Value* other);
   void Div(Value* other);
   static void MulAdd(Value* dest, Value* value1, Value* value2, Value* value3);

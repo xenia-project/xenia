@@ -2329,24 +2329,28 @@ EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGE, setae);
 // https://code.google.com/p/corkami/wiki/x86oddities
 EMITTER(DID_CARRY_I8, MATCH(I<OPCODE_DID_CARRY, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERT(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
 };
 EMITTER(DID_CARRY_I16, MATCH(I<OPCODE_DID_CARRY, I8<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERT(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
 };
 EMITTER(DID_CARRY_I32, MATCH(I<OPCODE_DID_CARRY, I8<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERT(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
 };
 EMITTER(DID_CARRY_I64, MATCH(I<OPCODE_DID_CARRY, I8<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    XEASSERT(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
@@ -4414,8 +4418,8 @@ EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
     } else {
       XEASSERTALWAYS();
       // TODO(benvanik): try out hlide's version:
-      // mov     eax, 0x80808080
-      // mov     al, i.src2
+      // mov eax, 0x80808003
+      // xor al,  i.src2.cvt8()
       // vmovd   xmm0, eax
       // vpshufb xmm0, i.src1, xmm0
       // vmovd   i.dest.reg().cvt32(), xmm0
@@ -4430,6 +4434,7 @@ EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
       // TODO(benvanik): try out hlide's version:
       // xor     eax, eax
       // mov     al, i.src2           // eax = [i, 0, 0, 0]
+      // xor eax, 0x80800203
       // imul    eax, eax, 0x00000202 // [i*2, i*2, 0, 0] supposedly that 0<= i < 8
       // add     eax,0x80800100       // [i*2+0b00, i*2+0b01, 0x80, 0x80]
       // vmovd   xmm0, eax
@@ -4454,7 +4459,7 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       // xor     eax, eax
       // mov     al, i.src2           // eax = [i, 0, 0, 0]
       // imul    eax, eax, 0x04040404 // [i*4, i*4, i*4, i*4] supposedly that 0<= i < 4
-      // add     eax,0x03020100       // [i*4+0b00, i*4+0b01, i*4+0b10, i*4+0b11]
+      // xor/add eax, 0x00010203      // [i*4+0b00, i*4+0b01, i*4+0b10, i*4+0b11]
       // vmovd   xmm0, eax
       // vpshufb xmm0, i.src1, xmm0
       // vmovd   i.dest.reg().cvt32(), xmm0
