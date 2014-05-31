@@ -44,6 +44,12 @@ protected:
 private:
   ID3D11DeviceContext* context_;
   ID3D11Device* device_;
+
+  struct CachedSamplerState {
+    D3D11_SAMPLER_DESC desc;
+    ID3D11SamplerState* state;
+  };
+  std::unordered_multimap<size_t, CachedSamplerState> samplers_;
 };
 
 

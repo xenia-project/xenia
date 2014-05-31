@@ -27,6 +27,12 @@ D3D11TextureCache::D3D11TextureCache(
 }
 
 D3D11TextureCache::~D3D11TextureCache() {
+  for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
+    auto& cached_state = it->second;
+    XESAFERELEASE(cached_state.state);
+  }
+  samplers_.clear();
+
   XESAFERELEASE(device_);
   XESAFERELEASE(context_);
 }
@@ -103,11 +109,30 @@ ID3D11SamplerState* D3D11TextureCache::GetSamplerState(
   sampler_desc.BorderColor[3];
   sampler_desc.MinLOD;
   sampler_desc.MaxLOD;
+
+  // TODO(benvanik): do this earlier without having to setup the whole struct?
+  size_t hash = hash_combine(
+      sampler_desc.Filter,
+      sampler_desc.AddressU,
+      sampler_desc.AddressV,
+      sampler_desc.AddressW);
+  auto range = samplers_.equal_range(hash);
+  for (auto it = range.first; it != range.second; ++it) {
+    const auto& cached_state = it->second;
+    // TODO(benvanik): faster compare?
+    if (memcmp(&sampler_desc, &cached_state.desc, sizeof(sampler_desc)) == 0) {
+      return cached_state.state;
+    }
+  }
+
   ID3D11SamplerState* sampler_state = NULL;
   HRESULT hr = device_->CreateSamplerState(&sampler_desc, &sampler_state);
   if (FAILED(hr)) {
     XELOGE("D3D11: unable to create sampler state");
     return nullptr;
   }
+
+  samplers_.insert({ hash, { sampler_desc, sampler_state } });
+
   return sampler_state;
 }

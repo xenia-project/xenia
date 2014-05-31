@@ -845,9 +845,6 @@ int D3D11GraphicsDriver::BindShaders() {
 
     // Setup input layout (as encoded in vertex shader).
     context_->IASetInputLayout(vs->input_layout());
-
-    //context_->VSSetSamplers
-    //context_->VSSetShaderResources
   } else {
     context_->VSSetShader(NULL, NULL, 0);
     context_->IASetInputLayout(NULL);
@@ -877,27 +874,6 @@ int D3D11GraphicsDriver::BindShaders() {
     };
     context_->PSSetConstantBuffers(
         0, XECOUNT(vs_constant_buffers), vs_constant_buffers);
-
-    // TODO(benvanik): set samplers for all inputs.
-    D3D11_SAMPLER_DESC sampler_desc;
-    xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
-    //sampler_desc.Filter = ?
-    sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler_desc.MipLODBias = 0;
-    sampler_desc.MaxAnisotropy = 1;
-    sampler_desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-    //sampler_desc.BorderColor = ...;
-    sampler_desc.MinLOD = 0;
-    sampler_desc.MaxLOD = 0;
-    ID3D11SamplerState* sampler_state = NULL;
-    device_->CreateSamplerState(&sampler_desc, &sampler_state);
-    ID3D11SamplerState* sampler_states[] = { sampler_state };
-    context_->PSSetSamplers(0, XECOUNT(sampler_states), sampler_states);
-    sampler_state->Release();
-
-    //context_->PSSetShaderResources
   } else {
     context_->PSSetShader(NULL, NULL, 0);
     return 1;
@@ -1109,7 +1085,6 @@ int D3D11GraphicsDriver::PrepareTextureSampler(
   } else {
     context_->PSSetSamplers(desc.input_index, 1, &sampler_state);
   }
-  XESAFERELEASE(sampler_state);
 
   return 0;
 }
