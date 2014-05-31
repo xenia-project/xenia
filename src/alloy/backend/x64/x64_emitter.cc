@@ -494,7 +494,7 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
     /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
     /* XMMPermuteControl15    */ vec128b(15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15),
     /* XMMPackD3DCOLOR        */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x0C000408u),
-    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF02u, 0xFFFFFF01u, 0xFFFFFF00u, 0xFFFFFF03u),
+    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF0Eu, 0xFFFFFF0Du, 0xFFFFFF0Cu, 0xFFFFFF0Fu),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f),
     /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu, 0x0000001Fu),
     /* XMMShiftByteMask       */ vec128i(0x000000FFu, 0x000000FFu, 0x000000FFu, 0x000000FFu),

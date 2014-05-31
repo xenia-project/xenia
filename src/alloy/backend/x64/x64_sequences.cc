@@ -4826,6 +4826,8 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // src = ZZYYXXWW
     // unpack to 000000ZZ,000000YY,000000XX,000000WW
     e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackD3DCOLOR));
+    // int -> float
+    e.vcvtdq2ps(i.dest, i.dest);
     // mult by 1/255
     e.vmulps(i.dest, e.GetXmmConstPtr(XMMOneOver255));
   }
