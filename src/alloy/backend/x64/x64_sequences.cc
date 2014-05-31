@@ -3269,7 +3269,7 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_MUL_ADD
 // ============================================================================
 // d = 1 * 2 + 3
-// $0 = $1×$0 + $2
+// $0 = $1ï¿½$0 + $2
 // TODO(benvanik): use other forms (132/213/etc) to avoid register shuffling.
 // dest could be src2 or src3 - need to ensure it's not before overwriting dest
 // perhaps use other 132/213/etc
@@ -3332,7 +3332,7 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_MUL_SUB
 // ============================================================================
 // d = 1 * 2 - 3
-// $0 = $2×$0 - $3
+// $0 = $2ï¿½$0 - $3
 // TODO(benvanik): use other forms (132/213/etc) to avoid register shuffling.
 // dest could be src2 or src3 - need to ensure it's not before overwriting dest
 // perhaps use other 132/213/etc
@@ -4445,7 +4445,7 @@ EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
       e.vpextrw(i.dest.reg().cvt32(), i.src1, VEC128_W(i.src2.constant()));
     } else {
       // TODO(benvanik): try out hlide's version:
-	  // e.mov(e.eax, 7);
+      // e.mov(e.eax, 7);
       // e.and(e.al, i.src2);        // eax = [i&7, 0, 0, 0]
       // e.imul(e.eax, 0x00000202);   // [(i&7)*2, (i&7)*2, 0, 0]
       // e.xor(e.eax, 0x80800203);    // [((i&7)*2)^3, ((i&7)*2)^2, 0x80, 0x80]
@@ -4468,7 +4468,7 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
     } else {
       // TODO(benvanik): try out hlide's version:
-	  // e.mov(e.eax, 3);
+      // e.mov(e.eax, 3);
       // e.and(e.al, i.src2);       // eax = [(i&3), 0, 0, 0]
       // e.imul(e.eax, 0x04040404); // [(i&3)*4, (i&3)*4, (i&3)*4, (i&3)*4]
       // e.add(e.eax, 0x00010203);  // [((i&3)*4)+3, ((i&3)*4)+2, ((i&3)*4)+1, ((i&3)*4)+0]
@@ -4495,7 +4495,7 @@ EMITTER(EXTRACT_F32, MATCH(I<OPCODE_EXTRACT, F32<>, V128<>, I8<>>)) {
     } else {
       XEASSERTALWAYS();
       // TODO(benvanik): try out hlide's version:
-	  // e.mov(e.eax, 3);
+       // e.mov(e.eax, 3);
       // e.and(e.al, i.src2);       // eax = [(i&3), 0, 0, 0]
       // e.imul(e.eax, 0x04040404); // [(i&3)*4, (i&3)*4, (i&3)*4, (i&3)*4]
       // e.add(e.eax, 0x00010203);  // [((i&3)*4)+3, ((i&3)*4)+2, ((i&3)*4)+1, ((i&3)*4)+0]
