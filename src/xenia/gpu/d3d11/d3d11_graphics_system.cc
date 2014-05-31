@@ -164,14 +164,16 @@ void D3D11GraphicsSystem::Pump() {
 
     DispatchInterruptCallback(0);
   } else {
-    // If we have gone too long without an interrupt, fire one.
-    if (xe_pal_now() - last_interrupt_time_ > 500 / 1000.0) {
+    double time_since_last_interrupt = xe_pal_now() - last_interrupt_time_;
+    if (time_since_last_interrupt > 0.5) {
+      // If we have gone too long without an interrupt, fire one.
       DispatchInterruptCallback(0);
     }
-
-    // Force a swap when profiling.
-    if (Profiler::is_enabled()) {
-      window_->Swap();
+    if (time_since_last_interrupt > 0.3) {
+      // Force a swap when profiling.
+      if (Profiler::is_enabled()) {
+        window_->Swap();
+      }
     }
   }
 }
