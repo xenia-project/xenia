@@ -2469,18 +2469,18 @@ EMITTER(VECTOR_COMPARE_SGE_V128, MATCH(I<OPCODE_VECTOR_COMPARE_SGE, V128<>, V128
         [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
       switch (i.instr->flags) {
       case INT8_TYPE:
-        e.vpcmpgtb(dest, src1, src2);
         e.vpcmpeqb(e.xmm0, src1, src2);
+        e.vpcmpgtb(dest, src1, src2);
         e.vpor(dest, e.xmm0);
         break;
       case INT16_TYPE:
-        e.vpcmpgtw(dest, src1, src2);
         e.vpcmpeqw(e.xmm0, src1, src2);
+        e.vpcmpgtw(dest, src1, src2);
         e.vpor(dest, e.xmm0);
         break;
       case INT32_TYPE:
-        e.vpcmpgtd(dest, src1, src2);
         e.vpcmpeqd(e.xmm0, src1, src2);
+        e.vpcmpgtd(dest, src1, src2);
         e.vpor(dest, e.xmm0);
         break;
       case FLOAT32_TYPE:
