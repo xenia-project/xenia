@@ -15,6 +15,10 @@
     'shader.h',
     'shader_cache.cc',
     'shader_cache.h',
+    'texture.cc',
+    'texture.h',
+    'texture_cache.cc',
+    'texture_cache.h',
   ],
 
   'includes': [

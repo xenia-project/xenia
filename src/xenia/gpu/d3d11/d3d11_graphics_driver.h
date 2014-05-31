@@ -26,6 +26,8 @@ namespace d3d11 {
 
 class D3D11PixelShader;
 class D3D11ShaderCache;
+class D3D11TextureCache;
+struct D3D11TextureView;
 class D3D11VertexShader;
 
 
@@ -66,25 +68,6 @@ private:
   int PrepareTextureFetchers();
   int PrepareTextureSampler(xenos::XE_GPU_SHADER_TYPE shader_type,
                             Shader::tex_buffer_desc_t& desc);
-  typedef struct {
-    DXGI_FORMAT format;
-    uint32_t block_size;
-    uint32_t texel_pitch;
-    bool is_compressed;
-  } TextureInfo;
-  TextureInfo GetTextureInfo(xenos::xe_gpu_texture_fetch_t& fetch);
-  int FetchTexture1D(xenos::xe_gpu_texture_fetch_t& fetch,
-                     TextureInfo& info,
-                     ID3D11Resource** out_texture);
-  int FetchTexture2D(xenos::xe_gpu_texture_fetch_t& fetch,
-                     TextureInfo& info,
-                     ID3D11Resource** out_texture);
-  int FetchTexture3D(xenos::xe_gpu_texture_fetch_t& fetch,
-                     TextureInfo& info,
-                     ID3D11Resource** out_texture);
-  int FetchTextureCube(xenos::xe_gpu_texture_fetch_t& fetch,
-                       TextureInfo& info,
-                       ID3D11Resource** out_texture);
   int PrepareIndexBuffer(
       bool index_32bit, uint32_t index_count,
       uint32_t index_base, uint32_t index_size, uint32_t endianness);
@@ -94,6 +77,7 @@ private:
   ID3D11Device*         device_;
   ID3D11DeviceContext*  context_;
   D3D11ShaderCache*     shader_cache_;
+  D3D11TextureCache*    texture_cache_;
 
   ID3D11ShaderResourceView* invalid_texture_view_;
   ID3D11SamplerState*       invalid_texture_sampler_state_;
@@ -125,8 +109,7 @@ private:
     struct {
       bool        enabled;
       xenos::xe_gpu_texture_fetch_t fetch;
-      TextureInfo info;
-      ID3D11ShaderResourceView* view;
+      D3D11TextureView* view;
     } texture_fetchers[32];
   } state_;
 
