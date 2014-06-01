@@ -35,6 +35,9 @@ protected:
   IndexBuffer* CreateIndexBuffer(
       const IndexBufferInfo& info,
       const uint8_t* src_ptr, size_t length) override;
+  VertexBuffer* CreateVertexBuffer(
+      const VertexBufferInfo& info,
+      const uint8_t* src_ptr, size_t length) override;
 
 protected:
   ID3D11DeviceContext* context_;

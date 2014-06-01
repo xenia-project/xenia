@@ -57,10 +57,29 @@ protected:
 };
 
 
+struct VertexBufferLayout {
+  uint32_t stride_words;
+  uint32_t element_count;
+  struct {
+    uint32_t format;
+    uint32_t offset_words;
+    uint32_t size_words;
+  } elements[16];
+};
+
+struct VertexBufferInfo {
+  VertexBufferLayout layout;
+};
+
+
 class VertexBuffer : public Buffer {
 public:
-  VertexBuffer(const uint8_t* src_ptr, size_t length);
+  VertexBuffer(const VertexBufferInfo& info,
+               const uint8_t* src_ptr, size_t length);
   virtual ~VertexBuffer();
+
+protected:
+  VertexBufferInfo info_;
 };
 
 

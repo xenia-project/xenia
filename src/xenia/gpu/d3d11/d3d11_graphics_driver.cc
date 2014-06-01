@@ -933,6 +933,11 @@ int D3D11GraphicsDriver::PrepareFetchers() {
 int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
   SCOPE_profile_cpu_f("gpu");
 
+  D3D11VertexShader* vs = state_.vertex_shader;
+  if (!vs) {
+    return 1;
+  }
+
   RegisterFile& rf = register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
   xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
@@ -953,56 +958,37 @@ int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
   XEASSERT(fetch->type == 0x3);
   XEASSERTNOTZERO(fetch->size);
 
-  ID3D11Buffer* buffer = 0;
-  D3D11_BUFFER_DESC buffer_desc;
-  xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
-  buffer_desc.ByteWidth       = fetch->size * 4;
-  buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
-  buffer_desc.BindFlags       = D3D11_BIND_VERTEX_BUFFER;
-  buffer_desc.CPUAccessFlags  = D3D11_CPU_ACCESS_WRITE;
-  HRESULT hr = device_->CreateBuffer(&buffer_desc, NULL, &buffer);
-  if (FAILED(hr)) {
+  VertexBufferInfo info;
+  // TODO(benvanik): make these structs the same so we can share.
+  info.layout.stride_words = desc.stride_words;
+  info.layout.element_count = desc.element_count;
+  for (uint32_t i = 0; i < desc.element_count; ++i) {
+    const auto& src_el = desc.elements[i];
+    auto& dest_el = info.layout.elements[i];
+    dest_el.format = src_el.format;
+    dest_el.offset_words = src_el.offset_words;
+    dest_el.size_words = src_el.size_words;
+  }
+
+  uint32_t address = (fetch->address << 2) + address_translation_;
+  const uint8_t* src = reinterpret_cast<const uint8_t*>(
+      memory_->Translate(address));
+
+  VertexBuffer* vertex_buffer = buffer_cache_->FetchVertexBuffer(
+      info, src, fetch->size * 4);
+  if (!vertex_buffer) {
     XELOGE("D3D11: unable to create vertex fetch buffer");
     return 1;
   }
-  D3D11_MAPPED_SUBRESOURCE res;
-  hr = context_->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
-  if (FAILED(hr)) {
-    XELOGE("D3D11: unable to map vertex fetch buffer");
-    XESAFERELEASE(buffer);
-    return 1;
-  }
-  uint32_t address = (fetch->address << 2) + address_translation_;
-  uint8_t* src = (uint8_t*)memory_->Translate(address);
-  uint8_t* dest = (uint8_t*)res.pData;
-  // TODO(benvanik): rewrite to be faster/special case common/etc
-  for (size_t n = 0; n < desc.element_count; n++) {
-    auto& el = desc.elements[n];
-    uint32_t stride = desc.stride_words;
-    uint32_t count = fetch->size / stride;
-    uint32_t* src_ptr = (uint32_t*)(src + el.offset_words * 4);
-    uint32_t* dest_ptr = (uint32_t*)(dest + el.offset_words * 4);
-    uint32_t o = 0;
-    for (uint32_t i = 0; i < count; i++) {
-      for (uint32_t j = 0; j < el.size_words; j++) {
-        dest_ptr[o + j] = XESWAP32(src_ptr[o + j]);
-      }
-      o += stride;
-    }
-  }
-  context_->Unmap(buffer, 0);
+  auto d3d_vb = static_cast<D3D11VertexBuffer*>(vertex_buffer);
 
-  D3D11VertexShader* vs = state_.vertex_shader;
-  if (!vs) {
-    return 1;
-  }
   // TODO(benvanik): always dword aligned?
   uint32_t stride = desc.stride_words * 4;
   uint32_t offset = 0;
   int vb_slot = desc.input_index;
-  context_->IASetVertexBuffers(vb_slot, 1, &buffer, &stride, &offset);
-
-  buffer->Release();
+  ID3D11Buffer* buffers[] = { d3d_vb->handle() };
+  context_->IASetVertexBuffers(vb_slot, XECOUNT(buffers), buffers,
+                               &stride, &offset);
 
   return 0;
 }

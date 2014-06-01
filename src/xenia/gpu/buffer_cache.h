@@ -28,15 +28,23 @@ public:
       const IndexBufferInfo& info,
       const uint8_t* src_ptr, size_t length);
 
+  VertexBuffer* FetchVertexBuffer(
+      const VertexBufferInfo& info,
+      const uint8_t* src_ptr, size_t length);
+
   void Clear();
 
 protected:
   virtual IndexBuffer* CreateIndexBuffer(
       const IndexBufferInfo& info,
       const uint8_t* src_ptr, size_t length) = 0;
+  virtual VertexBuffer* CreateVertexBuffer(
+      const VertexBufferInfo& info,
+      const uint8_t* src_ptr, size_t length) = 0;
 
 private:
   std::unordered_map<uint64_t, IndexBuffer*> index_buffer_map_;
+  std::unordered_map<uint64_t, VertexBuffer*> vertex_buffer_map_;
 };
 
 

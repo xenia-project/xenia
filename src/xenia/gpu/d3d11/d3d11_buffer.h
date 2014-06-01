@@ -45,7 +45,19 @@ private:
 
 class D3D11VertexBuffer : public VertexBuffer {
 public:
+  D3D11VertexBuffer(D3D11BufferCache* buffer_cache,
+                    const VertexBufferInfo& info,
+                    const uint8_t* src_ptr, size_t length);
+  virtual ~D3D11VertexBuffer();
+
+  ID3D11Buffer* handle() const { return handle_; }
+
+  bool FetchNew(uint64_t hash) override;
+  bool FetchDirty(uint64_t hash) override;
+
 private:
+  D3D11BufferCache* buffer_cache_;
+  ID3D11Buffer* handle_;
 };
 
 

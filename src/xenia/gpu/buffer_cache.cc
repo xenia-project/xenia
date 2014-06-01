@@ -47,6 +47,28 @@ IndexBuffer* BufferCache::FetchIndexBuffer(
   }
 }
 
+VertexBuffer* BufferCache::FetchVertexBuffer(
+    const VertexBufferInfo& info,
+    const uint8_t* src_ptr, size_t length) {
+  size_t key = reinterpret_cast<size_t>(src_ptr);
+  size_t hash = xe_hash64(src_ptr, length);
+  auto it = vertex_buffer_map_.find(key);
+  if (it != vertex_buffer_map_.end()) {
+    if (hash == it->second->hash()) {
+      return it->second;
+    } else {
+      return it->second->FetchDirty(hash) ? it->second : nullptr;
+    }
+  } else {
+    auto buffer = CreateVertexBuffer(info, src_ptr, length);
+    vertex_buffer_map_.insert({ key, buffer });
+    if (!buffer->FetchNew(hash)) {
+      return nullptr;
+    }
+    return buffer;
+  }
+}
+
 void BufferCache::Clear() {
   for (auto it = index_buffer_map_.begin();
        it != index_buffer_map_.end(); ++it) {

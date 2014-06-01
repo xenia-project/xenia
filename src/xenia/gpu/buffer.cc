@@ -33,8 +33,10 @@ IndexBuffer::IndexBuffer(const IndexBufferInfo& info,
 
 IndexBuffer::~IndexBuffer() {}
 
-VertexBuffer::VertexBuffer(const uint8_t* src_ptr, size_t length)
-    : Buffer(src_ptr, length) {
+VertexBuffer::VertexBuffer(const VertexBufferInfo& info,
+                           const uint8_t* src_ptr, size_t length)
+    : Buffer(src_ptr, length),
+      info_(info) {
 }
 
 VertexBuffer::~VertexBuffer() {}

@@ -36,3 +36,9 @@ IndexBuffer* D3D11BufferCache::CreateIndexBuffer(
     const uint8_t* src_ptr, size_t length) {
   return new D3D11IndexBuffer(this, info, src_ptr, length);
 }
+
+VertexBuffer* D3D11BufferCache::CreateVertexBuffer(
+    const VertexBufferInfo& info,
+    const uint8_t* src_ptr, size_t length) {
+  return new D3D11VertexBuffer(this, info, src_ptr, length);
+}
