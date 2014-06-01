@@ -21,19 +21,18 @@ using namespace xe::gpu::d3d11;
 using namespace xe::gpu::xenos;
 
 
-D3D11Texture::D3D11Texture(D3D11TextureCache* cache, uint32_t address)
-    : Texture(address),
+D3D11Texture::D3D11Texture(D3D11TextureCache* cache, uint32_t address,
+                           const uint8_t* host_address)
+    : Texture(address, host_address),
       cache_(cache) {
 }
 
 D3D11Texture::~D3D11Texture() {
-  // views
 }
 
-TextureView* D3D11Texture::Fetch(
+TextureView* D3D11Texture::FetchNew(
     const xenos::xe_gpu_texture_fetch_t& fetch) {
   D3D11TextureView* view = new D3D11TextureView();
-  view->texture = this;
   if (!FillViewInfo(view, fetch)) {
     return nullptr;
   }
@@ -49,7 +48,7 @@ TextureView* D3D11Texture::Fetch(
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE1D;
     srv_desc.Texture1D.MipLevels = 1;
     srv_desc.Texture1D.MostDetailedMip = 0;
-    if (!FetchTexture1D(view, fetch)) {
+    if (!CreateTexture1D(view, fetch)) {
       XELOGE("D3D11: failed to fetch Texture1D");
       return nullptr;
     }
@@ -58,7 +57,7 @@ TextureView* D3D11Texture::Fetch(
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srv_desc.Texture2D.MipLevels = 1;
     srv_desc.Texture2D.MostDetailedMip = 0;
-    if (!FetchTexture2D(view, fetch)) {
+    if (!CreateTexture2D(view, fetch)) {
       XELOGE("D3D11: failed to fetch Texture2D");
       return nullptr;
     }
@@ -67,7 +66,7 @@ TextureView* D3D11Texture::Fetch(
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
     srv_desc.Texture3D.MipLevels = 1;
     srv_desc.Texture3D.MostDetailedMip = 0;
-    if (!FetchTexture3D(view, fetch)) {
+    if (!CreateTexture3D(view, fetch)) {
       XELOGE("D3D11: failed to fetch Texture3D");
       return nullptr;
     }
@@ -76,7 +75,7 @@ TextureView* D3D11Texture::Fetch(
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
     srv_desc.TextureCube.MipLevels = 1;
     srv_desc.TextureCube.MostDetailedMip = 0;
-    if (!FetchTextureCube(view, fetch)) {
+    if (!CreateTextureCube(view, fetch)) {
       XELOGE("D3D11: failed to fetch TextureCube");
       return nullptr;
     }
@@ -93,10 +92,24 @@ TextureView* D3D11Texture::Fetch(
   return view;
 }
 
-bool D3D11Texture::FetchTexture1D(
-    D3D11TextureView* view, const xe_gpu_texture_fetch_t& fetch) {
-  SCOPE_profile_cpu_f("gpu");
+bool D3D11Texture::FetchDirty(
+    TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) {
+  auto d3d_view = static_cast<D3D11TextureView*>(view);
+  switch (view->dimensions) {
+  case DIMENSION_1D:
+    return FetchTexture1D(d3d_view, fetch);
+  case DIMENSION_2D:
+    return FetchTexture2D(d3d_view, fetch);
+  case DIMENSION_3D:
+    return FetchTexture3D(d3d_view, fetch);
+  case DIMENSION_CUBE:
+    return FetchTextureCube(d3d_view, fetch);
+  }
+  return false;
+}
 
+bool D3D11Texture::CreateTexture1D(
+    D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) {
   uint32_t width = 1 + fetch.size_1d.width;
 
   D3D11_TEXTURE1D_DESC texture_desc;
@@ -115,55 +128,26 @@ bool D3D11Texture::FetchTexture1D(
     return false;
   }
 
+  return FetchTexture1D(view, fetch);
+}
+
+bool D3D11Texture::FetchTexture1D(
+    D3D11TextureView* view, const xe_gpu_texture_fetch_t& fetch) {
+  SCOPE_profile_cpu_f("gpu");
+
   // TODO(benvanik): upload!
   XELOGE("D3D11: FetchTexture1D not yet implemented");
   return false;
 }
 
-bool D3D11Texture::FetchTexture2D(
-    D3D11TextureView* view, const xe_gpu_texture_fetch_t& fetch) {
-  SCOPE_profile_cpu_f("gpu");
-
+bool D3D11Texture::CreateTexture2D(
+    D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) {
   XEASSERTTRUE(fetch.dimension == 1);
-
-  uint32_t logical_width = 1 + fetch.size_2d.width;
-  uint32_t logical_height = 1 + fetch.size_2d.height;
-
-  uint32_t block_width = logical_width / view->block_size;
-  uint32_t block_height = logical_height / view->block_size;
-
-  uint32_t input_width, input_height;
-  uint32_t output_width, output_height;
-
-  if (!view->is_compressed) {
-    // must be 32x32, but also must have a pitch that is a multiple of 256 bytes
-    uint32_t bytes_per_block = view->block_size * view->block_size *
-                               view->texel_pitch;
-    uint32_t width_multiple = 32;
-    if (bytes_per_block) {
-      uint32_t minimum_multiple = 256 / bytes_per_block;
-      if (width_multiple < minimum_multiple) {
-        width_multiple = minimum_multiple;
-      }
-    }
-
-    input_width = XEROUNDUP(logical_width, width_multiple);
-    input_height = XEROUNDUP(logical_height, 32);
-    output_width = logical_width;
-    output_height = logical_height;
-  }
-  else {
-    // must be 128x128
-    input_width = XEROUNDUP(logical_width, 128);
-    input_height = XEROUNDUP(logical_height, 128);
-    output_width = XENEXTPOW2(logical_width);
-    output_height = XENEXTPOW2(logical_height);
-  }
 
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
-  texture_desc.Width              = output_width;
-  texture_desc.Height             = output_height;
+  texture_desc.Width              = view->sizes_2d.output_width;
+  texture_desc.Height             = view->sizes_2d.output_height;
   texture_desc.MipLevels          = 1;
   texture_desc.ArraySize          = 1;
   texture_desc.Format             = view->format;
@@ -179,39 +163,50 @@ bool D3D11Texture::FetchTexture2D(
     return false;
   }
 
+  return FetchTexture2D(view, fetch);
+}
+
+bool D3D11Texture::FetchTexture2D(
+    D3D11TextureView* view, const xe_gpu_texture_fetch_t& fetch) {
+  SCOPE_profile_cpu_f("gpu");
+
+  XEASSERTTRUE(fetch.dimension == 1);
+
+  auto sizes = GetTextureSizes2D(view);
+
   // TODO(benvanik): all mip levels.
   D3D11_MAPPED_SUBRESOURCE res;
-  hr = cache_->context()->Map(view->resource, 0,
-                              D3D11_MAP_WRITE_DISCARD, 0, &res);
+  HRESULT hr = cache_->context()->Map(view->resource, 0,
+                                      D3D11_MAP_WRITE_DISCARD, 0, &res);
   if (FAILED(hr)) {
     XELOGE("D3D11: failed to map texture");
     return false;
   }
-
-  auto logical_pitch = (logical_width / view->block_size) * view->texel_pitch;
-  auto input_pitch = (input_width / view->block_size) * view->texel_pitch;
-  auto output_pitch = res.RowPitch; // (output_width / info.block_size) * info.texel_pitch;
 
   const uint8_t* src = cache_->memory()->Translate(address_);
   uint8_t* dest = (uint8_t*)res.pData;
 
   //memset(dest, 0, output_pitch * (output_height / view->block_size)); // TODO(gibbed): remove me later
 
+  uint32_t output_pitch = res.RowPitch; // (output_width / info.block_size) * info.texel_pitch;
   if (!fetch.tiled) {
     dest = (uint8_t*)res.pData;
-    for (uint32_t y = 0; y < block_height; y++) {
-      for (uint32_t x = 0; x < logical_pitch; x += view->texel_pitch) {
+    for (uint32_t y = 0; y < sizes.block_height; y++) {
+      for (uint32_t x = 0; x < sizes.logical_pitch; x += view->texel_pitch) {
         TextureSwap(dest + x, src + x, view->texel_pitch, (XE_GPU_ENDIAN)fetch.endianness);
       }
-      src += input_pitch;
+      src += sizes.input_pitch;
       dest += output_pitch;
     }
-  }
-  else {
+  } else {
     auto bpp = (view->texel_pitch >> 2) + ((view->texel_pitch >> 1) >> (view->texel_pitch >> 2));
-    for (uint32_t y = 0, output_base_offset = 0; y < block_height; y++, output_base_offset += output_pitch) {
-      auto input_base_offset = TiledOffset2DOuter(y, (input_width / view->block_size), bpp);
-      for (uint32_t x = 0, output_offset = output_base_offset; x < block_width; x++, output_offset += view->texel_pitch) {
+    for (uint32_t y = 0, output_base_offset = 0;
+         y < sizes.block_height;
+         y++, output_base_offset += output_pitch) {
+      auto input_base_offset = TiledOffset2DOuter(y, (sizes.input_width / view->block_size), bpp);
+      for (uint32_t x = 0, output_offset = output_base_offset;
+           x < sizes.block_width;
+           x++, output_offset += view->texel_pitch) {
         auto input_offset = TiledOffset2DInner(x, y, bpp, input_base_offset) >> bpp;
         TextureSwap(dest + output_offset,
                     src + input_offset * view->texel_pitch,
@@ -221,6 +216,13 @@ bool D3D11Texture::FetchTexture2D(
   }
   cache_->context()->Unmap(view->resource, 0);
   return true;
+}
+
+bool D3D11Texture::CreateTexture3D(
+    D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) {
+  XELOGE("D3D11: CreateTexture3D not yet implemented");
+  XEASSERTALWAYS();
+  return false;
 }
 
 bool D3D11Texture::FetchTexture3D(
@@ -243,6 +245,13 @@ bool D3D11Texture::FetchTexture3D(
   //texture_desc.MiscFlags;
   //hr = device_->CreateTexture3D(
   //    &texture_desc, &initial_data, (ID3D11Texture3D**)&view->resource);
+}
+
+bool D3D11Texture::CreateTextureCube(
+    D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) {
+  XELOGE("D3D11: CreateTextureCube not yet implemented");
+  XEASSERTALWAYS();
+  return false;
 }
 
 bool D3D11Texture::FetchTextureCube(

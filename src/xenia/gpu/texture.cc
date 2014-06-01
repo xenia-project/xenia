@@ -21,14 +21,63 @@ using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
 
-Texture::Texture(uint32_t address)
-    : address_(address) {
+Texture::Texture(uint32_t address, const uint8_t* host_address)
+    : address_(address), host_address_(host_address) {
+}
+
+Texture::~Texture() {
+  for (auto it = views_.begin(); it != views_.end(); ++it) {
+    auto view = *it;
+    delete view;
+  }
+  views_.clear();
+}
+
+TextureView* Texture::Fetch(
+    const xenos::xe_gpu_texture_fetch_t& fetch) {
+  // TODO(benvanik): compute length for hash check.
+  size_t length = 0;
+  switch (fetch.dimension) {
+  case DIMENSION_1D:
+    break;
+  case DIMENSION_2D:
+    break;
+  case DIMENSION_3D:
+    break;
+  case DIMENSION_CUBE:
+    break;
+  }
+  uint64_t hash = xe_hash64(host_address_, length);
+
+  for (auto it = views_.begin(); it != views_.end(); ++it) {
+    auto view = *it;
+    if (memcmp(&view->fetch, &fetch, sizeof(fetch))) {
+      continue;
+    }
+    bool dirty = hash != view->hash;
+    if (dirty) {
+      return FetchDirty(view, fetch) ? view : nullptr;
+    } else {
+      return view;
+    }
+  }
+
+  auto new_view = FetchNew(fetch);
+  if (!new_view) {
+    return nullptr;
+  }
+  new_view->hash = hash;
+  views_.push_back(new_view);
+  return new_view;
 }
 
 bool Texture::FillViewInfo(TextureView* view,
                            const xenos::xe_gpu_texture_fetch_t& fetch) {
   // http://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
   // a2xx_sq_surfaceformat
+
+  view->texture = this;
+  view->fetch = fetch;
 
   view->dimensions = fetch.dimension;
   switch (fetch.dimension) {
@@ -213,7 +262,63 @@ bool Texture::FillViewInfo(TextureView* view,
     view->format = DXGI_FORMAT_UNKNOWN;
     break;
   }
+
+  if (view->format == DXGI_FORMAT_UNKNOWN) {
+    return false;
+  }
+
+  switch (fetch.dimension) {
+  case DIMENSION_1D:
+    break;
+  case DIMENSION_2D:
+    view->sizes_2d = GetTextureSizes2D(view);
+    break;
+  case DIMENSION_3D:
+    break;
+  case DIMENSION_CUBE:
+    break;
+  }
   return true;
+}
+
+const TextureSizes2D Texture::GetTextureSizes2D(TextureView* view) {
+  TextureSizes2D sizes;
+
+  sizes.logical_width = 1 + view->fetch.size_2d.width;
+  sizes.logical_height = 1 + view->fetch.size_2d.height;
+
+  sizes.block_width = sizes.logical_width / view->block_size;
+  sizes.block_height = sizes.logical_height / view->block_size;
+
+  if (!view->is_compressed) {
+    // must be 32x32, but also must have a pitch that is a multiple of 256 bytes
+    uint32_t bytes_per_block = view->block_size * view->block_size *
+                               view->texel_pitch;
+    uint32_t width_multiple = 32;
+    if (bytes_per_block) {
+      uint32_t minimum_multiple = 256 / bytes_per_block;
+      if (width_multiple < minimum_multiple) {
+        width_multiple = minimum_multiple;
+      }
+    }
+    sizes.input_width = XEROUNDUP(sizes.logical_width, width_multiple);
+    sizes.input_height = XEROUNDUP(sizes.logical_height, 32);
+    sizes.output_width = sizes.logical_width;
+    sizes.output_height = sizes.logical_height;
+  } else {
+    // must be 128x128
+    sizes.input_width = XEROUNDUP(sizes.logical_width, 128);
+    sizes.input_height = XEROUNDUP(sizes.logical_height, 128);
+    sizes.output_width = XENEXTPOW2(sizes.logical_width);
+    sizes.output_height = XENEXTPOW2(sizes.logical_height);
+  }
+
+  sizes.logical_pitch =
+      (sizes.logical_width / view->block_size) * view->texel_pitch;
+  sizes.input_pitch =
+      (sizes.input_width / view->block_size) * view->texel_pitch;
+
+  return sizes;
 }
 
 void Texture::TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch,

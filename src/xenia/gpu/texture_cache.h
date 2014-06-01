@@ -33,7 +33,8 @@ public:
 
 protected:
   virtual Texture* CreateTexture(
-      uint32_t address, const xenos::xe_gpu_texture_fetch_t& fetch) = 0;
+      uint32_t address, const uint8_t* host_address,
+      const xenos::xe_gpu_texture_fetch_t& fetch) = 0;
 
   Memory* memory_;
 

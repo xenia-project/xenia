@@ -38,7 +38,7 @@ public:
       const Shader::tex_buffer_desc_t& desc);
 
 protected:
-  Texture* CreateTexture(uint32_t address,
+  Texture* CreateTexture(uint32_t address, const uint8_t* host_address,
                          const xenos::xe_gpu_texture_fetch_t& fetch) override;
 
 private:

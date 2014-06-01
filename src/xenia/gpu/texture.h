@@ -23,9 +23,34 @@ namespace gpu {
 
 class Texture;
 
+struct TextureSizes1D {};
+struct TextureSizes2D {
+  uint32_t logical_width;
+  uint32_t logical_height;
+  uint32_t block_width;
+  uint32_t block_height;
+  uint32_t input_width;
+  uint32_t input_height;
+  uint32_t output_width;
+  uint32_t output_height;
+  uint32_t logical_pitch;
+  uint32_t input_pitch;
+};
+struct TextureSizes3D {};
+struct TextureSizesCube {};
 
 struct TextureView {
   Texture* texture;
+  xenos::xe_gpu_texture_fetch_t fetch;
+  uint64_t hash;
+
+  union {
+    TextureSizes1D sizes_1d;
+    TextureSizes2D sizes_2d;
+    TextureSizes3D sizes_3d;
+    TextureSizesCube sizes_cube;
+  };
+
   int dimensions;
   uint32_t width;
   uint32_t height;
@@ -46,15 +71,22 @@ struct TextureView {
 
 class Texture {
 public:
-  Texture(uint32_t address);
-  virtual ~Texture() = default;
+  Texture(uint32_t address, const uint8_t* host_address);
+  virtual ~Texture();
 
-  virtual TextureView* Fetch(
-      const xenos::xe_gpu_texture_fetch_t& fetch) = 0;
+  TextureView* Fetch(
+      const xenos::xe_gpu_texture_fetch_t& fetch);
 
 protected:
   bool FillViewInfo(TextureView* view,
                     const xenos::xe_gpu_texture_fetch_t& fetch);
+
+  virtual TextureView* FetchNew(
+      const xenos::xe_gpu_texture_fetch_t& fetch) = 0;
+  virtual bool FetchDirty(
+      TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) = 0;
+
+  const TextureSizes2D GetTextureSizes2D(TextureView* view);
 
   static void TextureSwap(uint8_t* dest, const uint8_t* src, uint32_t pitch,
                           xenos::XE_GPU_ENDIAN endianness);
@@ -64,6 +96,10 @@ protected:
                                      uint32_t base_offset);
 
   uint32_t address_;
+  const uint8_t* host_address_;
+
+  // TODO(benvanik): replace with LRU keyed list.
+  std::vector<TextureView*> views_;
 };
 
 

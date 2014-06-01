@@ -39,25 +39,34 @@ struct D3D11TextureView : TextureView {
 
 class D3D11Texture : public Texture {
 public:
-  D3D11Texture(D3D11TextureCache* cache, uint32_t address);
+  D3D11Texture(D3D11TextureCache* cache, uint32_t address,
+               const uint8_t* host_address);
   virtual ~D3D11Texture();
 
-  TextureView* Fetch(
-      const xenos::xe_gpu_texture_fetch_t& fetch) override;
-
 protected:
+  TextureView* FetchNew(
+      const xenos::xe_gpu_texture_fetch_t& fetch) override;
+  bool FetchDirty(
+      TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch) override;
+
+  bool CreateTexture1D(
+      D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
   bool FetchTexture1D(
+      D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
+  bool CreateTexture2D(
       D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
   bool FetchTexture2D(
       D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
+  bool CreateTexture3D(
+      D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
   bool FetchTexture3D(
+      D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
+  bool CreateTextureCube(
       D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
   bool FetchTextureCube(
       D3D11TextureView* view, const xenos::xe_gpu_texture_fetch_t& fetch);
 
   D3D11TextureCache* cache_;
-
-  // views
 };
 
 

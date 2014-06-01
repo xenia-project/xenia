@@ -38,8 +38,9 @@ D3D11TextureCache::~D3D11TextureCache() {
 }
 
 Texture* D3D11TextureCache::CreateTexture(
-    uint32_t address, const xenos::xe_gpu_texture_fetch_t& fetch) {
-  return new D3D11Texture(this, address);
+    uint32_t address, const uint8_t* host_address,
+    const xenos::xe_gpu_texture_fetch_t& fetch) {
+  return new D3D11Texture(this, address, host_address);
 }
 
 ID3D11SamplerState* D3D11TextureCache::GetSamplerState(

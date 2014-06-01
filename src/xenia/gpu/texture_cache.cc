@@ -24,7 +24,11 @@ TextureCache::TextureCache(Memory* memory)
 }
 
 TextureCache::~TextureCache() {
-  // textures
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    auto texture = it->second;
+    delete texture;
+  }
+  textures_.clear();
 }
 
 TextureView* TextureCache::FetchTexture(
@@ -32,7 +36,8 @@ TextureView* TextureCache::FetchTexture(
   auto it = textures_.find(address);
   if (it == textures_.end()) {
     // Texture not found.
-    auto texture = CreateTexture(address, fetch);
+    const uint8_t* host_address = memory_->Translate(address);
+    auto texture = CreateTexture(address, host_address, fetch);
     if (!texture) {
       return nullptr;
     }
