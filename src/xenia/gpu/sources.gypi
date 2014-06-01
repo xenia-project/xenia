@@ -1,6 +1,10 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'buffer.cc',
+    'buffer.h',
+    'buffer_cache.cc',
+    'buffer_cache.h',
     'command_buffer.h',
     'gpu-private.h',
     'gpu.cc',

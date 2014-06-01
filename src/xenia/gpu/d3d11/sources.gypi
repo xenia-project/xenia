@@ -1,6 +1,10 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'd3d11_buffer.cc',
+    'd3d11_buffer.h',
+    'd3d11_buffer_cache.cc',
+    'd3d11_buffer_cache.h',
     'd3d11_geometry_shader.cc',
     'd3d11_geometry_shader.h',
     'd3d11_gpu-private.h',

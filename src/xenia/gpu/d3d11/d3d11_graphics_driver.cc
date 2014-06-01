@@ -10,6 +10,8 @@
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
+#include <xenia/gpu/d3d11/d3d11_buffer.h>
+#include <xenia/gpu/d3d11/d3d11_buffer_cache.h>
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 #include <xenia/gpu/d3d11/d3d11_shader.h>
 #include <xenia/gpu/d3d11/d3d11_shader_cache.h>
@@ -33,6 +35,7 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   device_ = device;
   device_->AddRef();
   device_->GetImmediateContext(&context_);
+  buffer_cache_ = new D3D11BufferCache(context_, device_);
   shader_cache_ = new D3D11ShaderCache(device_);
   texture_cache_ = new D3D11TextureCache(memory_, context_, device_);
 
@@ -136,6 +139,7 @@ D3D11GraphicsDriver::~D3D11GraphicsDriver() {
   XESAFERELEASE(state_.constant_buffers.gs_consts);
   XESAFERELEASE(invalid_texture_view_);
   XESAFERELEASE(invalid_texture_sampler_state_);
+  delete buffer_cache_;
   delete texture_cache_;
   delete shader_cache_;
   XESAFERELEASE(context_);
@@ -1098,43 +1102,20 @@ int D3D11GraphicsDriver::PrepareIndexBuffer(
 
   uint32_t address = index_base + address_translation_;
 
-  // All that's done so far:
-  XEASSERT(endianness == 0x2);
-
-  ID3D11Buffer* buffer = 0;
-  D3D11_BUFFER_DESC buffer_desc;
-  xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
-  buffer_desc.ByteWidth       = index_size;
-  buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
-  buffer_desc.BindFlags       = D3D11_BIND_INDEX_BUFFER;
-  buffer_desc.CPUAccessFlags  = D3D11_CPU_ACCESS_WRITE;
-  device_->CreateBuffer(&buffer_desc, NULL, &buffer);
-  D3D11_MAPPED_SUBRESOURCE res;
-  context_->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
-  if (index_32bit) {
-    uint32_t* src = (uint32_t*)memory_->Translate(address);
-    uint32_t* dest = (uint32_t*)res.pData;
-    for (uint32_t n = 0; n < index_count; n++) {
-      uint32_t d = { XESWAP32(src[n]) };
-      //XELOGGPU("i%.4d %0.8X", n, d);
-      dest[n] = d;
-    }
-  } else {
-    uint16_t* src = (uint16_t*)memory_->Translate(address);
-    uint16_t* dest = (uint16_t*)res.pData;
-    for (uint32_t n = 0; n < index_count; n++) {
-      uint16_t d = XESWAP16(src[n]);
-      //XELOGGPU("i%.4d, %.4X", n, d);
-      dest[n] = d;
-    }
+  IndexBufferInfo info;
+  info.endianness = endianness;
+  info.index_32bit = index_32bit;
+  info.index_count = index_count;
+  info.index_size = index_size;
+  auto ib = static_cast<D3D11IndexBuffer*>(buffer_cache_->FetchIndexBuffer(
+      info, memory_->Translate(address), index_size));
+  if (!ib) {
+    return 1;
   }
-  context_->Unmap(buffer, 0);
 
   DXGI_FORMAT format;
   format = index_32bit ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
-  context_->IASetIndexBuffer(buffer, format, 0);
-
-  buffer->Release();
+  context_->IASetIndexBuffer(ib->handle(), format, 0);
 
   return 0;
 }

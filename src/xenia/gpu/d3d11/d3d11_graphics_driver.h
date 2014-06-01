@@ -24,6 +24,7 @@ namespace xe {
 namespace gpu {
 namespace d3d11 {
 
+class D3D11BufferCache;
 class D3D11PixelShader;
 class D3D11ShaderCache;
 class D3D11TextureCache;
@@ -76,6 +77,7 @@ private:
   IDXGISwapChain*       swap_chain_;
   ID3D11Device*         device_;
   ID3D11DeviceContext*  context_;
+  D3D11BufferCache*     buffer_cache_;
   D3D11ShaderCache*     shader_cache_;
   D3D11TextureCache*    texture_cache_;
 

@@ -30,7 +30,7 @@ Shader* ShaderCache::Create(
     const uint8_t* src_ptr, size_t length) {
   uint64_t hash = Hash(src_ptr, length);
   Shader* shader = CreateCore(type, src_ptr, length, hash);
-  map_.insert(pair<uint64_t, Shader*>(hash, shader));
+  map_.insert({ hash, shader });
   return shader;
 }
 
@@ -45,7 +45,7 @@ Shader* ShaderCache::Find(
     XE_GPU_SHADER_TYPE type,
     const uint8_t* src_ptr, size_t length) {
   uint64_t hash = Hash(src_ptr, length);
-  unordered_map<uint64_t, Shader*>::iterator it = map_.find(hash);
+  auto it = map_.find(hash);
   if (it != map_.end()) {
     return it->second;
   }
@@ -58,19 +58,17 @@ Shader* ShaderCache::FindOrCreate(
   SCOPE_profile_cpu_f("gpu");
 
   uint64_t hash = Hash(src_ptr, length);
-  unordered_map<uint64_t, Shader*>::iterator it = map_.find(hash);
+  auto it = map_.find(hash);
   if (it != map_.end()) {
     return it->second;
   }
   Shader* shader = CreateCore(type, src_ptr, length, hash);
-  map_.insert(pair<uint64_t, Shader*>(hash, shader));
+  map_.insert({ hash, shader });
   return shader;
 }
 
 void ShaderCache::Clear() {
-  // TODO(benvanik): clear.
-  for (unordered_map<uint64_t, Shader*>::iterator it = map_.begin();
-      it != map_.end(); ++it) {
+  for (auto it = map_.begin(); it != map_.end(); ++it) {
     Shader* shader = it->second;
     delete shader;
   }

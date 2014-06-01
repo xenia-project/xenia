@@ -28,10 +28,10 @@ public:
   virtual ~D3D11ShaderCache();
 
 protected:
-  virtual Shader* CreateCore(
+  Shader* CreateCore(
       xenos::XE_GPU_SHADER_TYPE type,
       const uint8_t* src_ptr, size_t length,
-      uint64_t hash);
+      uint64_t hash) override;
 
 protected:
   ID3D11Device* device_;
