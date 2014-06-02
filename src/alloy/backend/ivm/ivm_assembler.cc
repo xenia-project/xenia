@@ -61,7 +61,6 @@ int IVMAssembler::Assemble(
   fn->set_debug_info(debug_info);
 
   TranslationContext ctx;
-  ctx.access_callbacks = backend_->runtime()->access_callbacks();
   ctx.register_count = 0;
   ctx.intcode_count = 0;
   ctx.intcode_arena = &intcode_arena_;

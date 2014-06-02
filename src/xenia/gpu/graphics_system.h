@@ -40,7 +40,6 @@ public:
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
-  bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
   virtual void WriteRegister(uint64_t addr, uint64_t value);
 
@@ -59,14 +58,11 @@ private:
   }
   void ThreadStart();
 
-  static bool HandlesRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
-    return gs->HandlesRegister(addr);
-  }
-  static uint64_t ReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
+  static uint64_t MMIOReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
     return gs->ReadRegister(addr);
   }
-  static void WriteRegisterThunk(GraphicsSystem* gs, uint64_t addr,
-                                 uint64_t value) {
+  static void MMIOWriteRegisterThunk(GraphicsSystem* gs, uint64_t addr,
+                                     uint64_t value) {
     gs->WriteRegister(addr, value);
   }
 

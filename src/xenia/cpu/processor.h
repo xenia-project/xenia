@@ -10,7 +10,6 @@
 #ifndef XENIA_CPU_PROCESSOR_H_
 #define XENIA_CPU_PROCESSOR_H_
 
-#include <alloy/runtime/register_access.h>
 #include <xenia/core.h>
 #include <xenia/debug/debug_target.h>
 
@@ -28,11 +27,6 @@ XEDECLARECLASS2(xe, cpu, XexModule);
 namespace xe {
 namespace cpu {
 
-using RegisterAccessCallbacks = alloy::runtime::RegisterAccessCallbacks;
-using RegisterHandlesCallback = alloy::runtime::RegisterHandlesCallback;
-using RegisterReadCallback = alloy::runtime::RegisterReadCallback;
-using RegisterWriteCallback = alloy::runtime::RegisterWriteCallback;
-
 
 class Processor : public debug::DebugTarget {
 public:
@@ -44,8 +38,6 @@ public:
   Memory* memory() const { return memory_; }
 
   int Setup();
-
-  void AddRegisterAccessCallbacks(RegisterAccessCallbacks callbacks);
 
   int Execute(
       XenonThreadState* thread_state, uint64_t address);

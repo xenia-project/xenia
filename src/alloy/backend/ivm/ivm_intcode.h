@@ -14,7 +14,6 @@
 
 #include <alloy/hir/instr.h>
 #include <alloy/hir/opcodes.h>
-#include <alloy/runtime/register_access.h>
 
 namespace alloy { namespace runtime { class ThreadState; } }
 
@@ -46,7 +45,6 @@ typedef struct {
   uint8_t*      membase;
   int8_t        did_carry;
   int8_t        did_saturate;
-  runtime::RegisterAccessCallbacks* access_callbacks;
   runtime::ThreadState* thread_state;
   uint64_t      return_address;
   uint64_t      call_return_address;
@@ -97,8 +95,6 @@ typedef struct SourceMapEntry_s {
 
 
 typedef struct {
-  runtime::RegisterAccessCallbacks* access_callbacks;
-
   uint32_t  register_count;
   size_t    intcode_count;
   Arena*    intcode_arena;

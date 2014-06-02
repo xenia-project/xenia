@@ -141,11 +141,6 @@ int Processor::Setup() {
   return 0;
 }
 
-void Processor::AddRegisterAccessCallbacks(
-    xe::cpu::RegisterAccessCallbacks callbacks) {
-  runtime_->AddRegisterAccessCallbacks(callbacks);
-}
-
 int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
   SCOPE_profile_cpu_f("cpu");
 

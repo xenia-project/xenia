@@ -42,7 +42,6 @@ public:
   virtual X_STATUS CreateDriver(size_t index, HANDLE wait_handle, AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
-  bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
   virtual void WriteRegister(uint64_t addr, uint64_t value);
 
@@ -55,14 +54,11 @@ private:
   }
   void ThreadStart();
 
-  static bool HandlesRegisterThunk(AudioSystem* as, uint64_t addr) {
-    return as->HandlesRegister(addr);
-  }
-  static uint64_t ReadRegisterThunk(AudioSystem* as, uint64_t addr) {
+  static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint64_t addr) {
     return as->ReadRegister(addr);
   }
-  static void WriteRegisterThunk(AudioSystem* as, uint64_t addr,
-                                 uint64_t value) {
+  static void MMIOWriteRegisterThunk(AudioSystem* as, uint64_t addr,
+                                     uint64_t value) {
     as->WriteRegister(addr, value);
   }
 

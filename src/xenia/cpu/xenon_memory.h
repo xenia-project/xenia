@@ -15,32 +15,55 @@
 #include <xenia/core.h>
 
 
+typedef struct xe_ppc_state xe_ppc_state_t;
+
 namespace xe {
 namespace cpu {
 
 class XenonMemoryHeap;
 
+typedef uint64_t (*MMIOReadCallback)(void* context, uint64_t addr);
+typedef void (*MMIOWriteCallback)(void* context, uint64_t addr,
+                                  uint64_t value);
 
 class XenonMemory : public alloy::Memory {
 public:
   XenonMemory();
   virtual ~XenonMemory();
 
-  virtual int Initialize();
+  int Initialize() override;
 
-  virtual uint64_t HeapAlloc(
+  bool AddMappedRange(uint64_t address, uint64_t mask,
+                      uint64_t size,
+                      void* context,
+                      MMIOReadCallback read_callback = nullptr,
+                      MMIOWriteCallback write_callback = nullptr);
+
+  uint8_t LoadI8(uint64_t address) override;
+  uint16_t LoadI16(uint64_t address) override;
+  uint32_t LoadI32(uint64_t address) override;
+  uint64_t LoadI64(uint64_t address) override;
+  void StoreI8(uint64_t address, uint8_t value) override;
+  void StoreI16(uint64_t address, uint16_t value) override;
+  void StoreI32(uint64_t address, uint32_t value) override;
+  void StoreI64(uint64_t address, uint64_t value) override;
+
+  uint64_t HeapAlloc(
       uint64_t base_address, size_t size, uint32_t flags,
-      uint32_t alignment = 0x20);
-  virtual int HeapFree(uint64_t address, size_t size);
+      uint32_t alignment = 0x20) override;
+  int HeapFree(uint64_t address, size_t size) override;
 
-  virtual size_t QuerySize(uint64_t base_address);
+  size_t QuerySize(uint64_t base_address) override;
 
-  virtual int Protect(uint64_t address, size_t size, uint32_t access);
-  virtual uint32_t QueryProtect(uint64_t address);
+  int Protect(uint64_t address, size_t size, uint32_t access) override;
+  uint32_t QueryProtect(uint64_t address) override;
 
 private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
+
+  bool CheckMMIOLoad(uint64_t address, uint64_t* out_value);
+  bool CheckMMIOStore(uint64_t address, uint64_t value);
 
 private:
   HANDLE    mapping_;

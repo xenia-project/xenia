@@ -42,12 +42,13 @@ X_STATUS AudioSystem::Setup() {
   processor_ = emulator_->processor();
 
   // Let the processor know we want register access callbacks.
-  RegisterAccessCallbacks callbacks;
-  callbacks.context = this;
-  callbacks.handles = (RegisterHandlesCallback)HandlesRegisterThunk;
-  callbacks.read    = (RegisterReadCallback)ReadRegisterThunk;
-  callbacks.write   = (RegisterWriteCallback)WriteRegisterThunk;
-  emulator_->processor()->AddRegisterAccessCallbacks(callbacks);
+  emulator_->memory()->AddMappedRange(
+      0x7FEA0000,
+      0xFFFF0000,
+      0x0000FFFF,
+      this,
+      reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
+      reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup worker thread state. This lets us make calls into guest code.
   thread_state_ = new XenonThreadState(
@@ -179,10 +180,6 @@ void AudioSystem::UnregisterClient(size_t index) {
   clients_[index] = { 0 };
   unused_clients_.push(index);
   xe_mutex_unlock(lock_);
-}
-
-bool AudioSystem::HandlesRegister(uint64_t addr) {
-  return (addr & 0xFFFF0000) == 0x7FEA0000;
 }
 
 // free60 may be useful here, however it looks like it's using a different

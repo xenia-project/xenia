@@ -45,12 +45,13 @@ X_STATUS GraphicsSystem::Setup() {
   worker_ = new RingBufferWorker(this, memory_);
 
   // Let the processor know we want register access callbacks.
-  RegisterAccessCallbacks callbacks;
-  callbacks.context = this;
-  callbacks.handles = (RegisterHandlesCallback)HandlesRegisterThunk;
-  callbacks.read    = (RegisterReadCallback)ReadRegisterThunk;
-  callbacks.write   = (RegisterWriteCallback)WriteRegisterThunk;
-  emulator_->processor()->AddRegisterAccessCallbacks(callbacks);
+  emulator_->memory()->AddMappedRange(
+      0x7FC80000,
+      0xFFFF0000,
+      0x0000FFFF,
+      this,
+      reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
+      reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Create worker thread.
   // This will initialize the graphics system.
@@ -130,10 +131,6 @@ void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
                                                 uint32_t block_size) {
   worker_->EnableReadPointerWriteBack(ptr, block_size);
-}
-
-bool GraphicsSystem::HandlesRegister(uint64_t addr) {
-  return (addr & 0xFFFF0000) == 0x7FC80000;
 }
 
 uint64_t GraphicsSystem::ReadRegister(uint64_t addr) {

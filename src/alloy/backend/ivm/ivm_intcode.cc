@@ -196,213 +196,6 @@ int DispatchToC(TranslationContext& ctx, Instr* i, IntCodeFn fn) {
   return 0;
 }
 
-uint32_t IntCode_LOAD_REGISTER_I8(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i8 = (int8_t)cbs->read(cbs->context, address);
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I16(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i16 = XESWAP16((int16_t)cbs->read(cbs->context, address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I32(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i32 = XESWAP32((int32_t)cbs->read(cbs->context, address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I64(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i64 = XESWAP64((int64_t)cbs->read(cbs->context, address));
-  return IA_NEXT;
-}
-int DispatchRegisterRead(
-    TranslationContext& ctx, Instr* i, RegisterAccessCallbacks* cbs) {
-  static IntCodeFn fns[] = {
-    IntCode_LOAD_REGISTER_I8,
-    IntCode_LOAD_REGISTER_I16,
-    IntCode_LOAD_REGISTER_I32,
-    IntCode_LOAD_REGISTER_I64,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-  };
-  IntCodeFn fn = fns[i->dest->type];
-  XEASSERT(fn != IntCode_INVALID_TYPE);
-  uint32_t dest_reg = AllocDynamicRegister(ctx, i->dest);
-  uint32_t src1_reg = AllocOpRegister(ctx, OPCODE_SIG_TYPE_V, &i->src1);
-  ctx.intcode_count++;
-  IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
-  ic->intcode_fn = fn;
-  ic->flags = i->flags;
-  ic->debug_flags = 0;
-  ic->dest_reg = dest_reg;
-  ic->src1_reg = src1_reg;
-  ic->src2_reg = (uint32_t)((uint64_t)cbs);
-  ic->src3_reg = (uint32_t)(((uint64_t)cbs) >> 32);
-  return 0;
-}
-uint32_t IntCode_LOAD_REGISTER_I8_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i8 = (int8_t)cbs->read(cbs->context, address);
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I16_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i16 = XESWAP16((int16_t)cbs->read(cbs->context, address));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I32_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i32 = XESWAP32((int32_t)cbs->read(cbs->context, address));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I64_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i64 = XESWAP64((int64_t)cbs->read(cbs->context, address));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-
-uint32_t IntCode_STORE_REGISTER_I8(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, ics.rf[i->src2_reg].i8);
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I16(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP16(ics.rf[i->src2_reg].i16));
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I32(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP32(ics.rf[i->src2_reg].i32));
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I64(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP64(ics.rf[i->src2_reg].i64));
-  return IA_NEXT;
-}
-int DispatchRegisterWrite(
-    TranslationContext& ctx, Instr* i, RegisterAccessCallbacks* cbs) {
-  static IntCodeFn fns[] = {
-    IntCode_STORE_REGISTER_I8,
-    IntCode_STORE_REGISTER_I16,
-    IntCode_STORE_REGISTER_I32,
-    IntCode_STORE_REGISTER_I64,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-  };
-  IntCodeFn fn = fns[i->src2.value->type];
-  XEASSERT(fn != IntCode_INVALID_TYPE);
-  uint32_t src1_reg = AllocOpRegister(ctx, OPCODE_SIG_TYPE_V, &i->src1);
-  uint32_t src2_reg = AllocOpRegister(ctx, OPCODE_SIG_TYPE_V, &i->src2);
-  ctx.intcode_count++;
-  IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
-  ic->intcode_fn = fn;
-  ic->flags = i->flags;
-  ic->debug_flags = 0;
-  ic->dest_reg = (uint32_t)(((uint64_t)cbs) >> 32);
-  ic->src1_reg = src1_reg;
-  ic->src2_reg = src2_reg;
-  ic->src3_reg = (uint32_t)((uint64_t)cbs);
-  return 0;
-}
-uint32_t IntCode_STORE_REGISTER_I8_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, ics.rf[i->src2_reg].i8);
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I16_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP16(ics.rf[i->src2_reg].i16));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I32_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP32(ics.rf[i->src2_reg].i32));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I64_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP64(ics.rf[i->src2_reg].i64));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-
-
 uint32_t IntCode_INVALID(IntCodeState& ics, const IntCode* i) {
   XEASSERTALWAYS();
   return IA_NEXT;
@@ -1549,7 +1342,8 @@ int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_LOAD_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I8_DYNAMIC(ics, i);
+    ics.rf[i->dest_reg].i8 = ics.thread_state->memory()->LoadI8(address);
+    return IA_NEXT;
   }
   DPRINT("%d (%X) = load.i8 %.8X\n",
          *((int8_t*)(ics.membase + address)),
@@ -1562,7 +1356,9 @@ uint32_t IntCode_LOAD_I8(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I16_DYNAMIC(ics, i);
+    ics.rf[i->dest_reg].i16 =
+        XESWAP16(ics.thread_state->memory()->LoadI16(address));
+    return IA_NEXT;
   }
   DPRINT("%d (%X) = load.i16 %.8X\n",
          *((int16_t*)(ics.membase + address)),
@@ -1575,7 +1371,9 @@ uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I32_DYNAMIC(ics, i);
+    ics.rf[i->dest_reg].i32 =
+        XESWAP32(ics.thread_state->memory()->LoadI32(address));
+    return IA_NEXT;
   }
   DFLUSH();
   DPRINT("%d (%X) = load.i32 %.8X\n",
@@ -1589,7 +1387,9 @@ uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I64(ics, i);
+    ics.rf[i->dest_reg].i64 =
+        XESWAP64(ics.thread_state->memory()->LoadI64(address));
+    return IA_NEXT;
   }
   DPRINT("%lld (%llX) = load.i64 %.8X\n",
          *((int64_t*)(ics.membase + address)),
@@ -1642,26 +1442,14 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
     IntCode_LOAD_F64,
     IntCode_LOAD_V128,
   };
-  if (i->src1.value->IsConstant()) {
-    // Constant address - check register access callbacks.
-    // NOTE: we still will likely want to check on access in debug mode, as
-    //       constant propagation may not have happened.
-    uint64_t address = i->src1.value->AsUint64();
-    RegisterAccessCallbacks* cbs = ctx.access_callbacks;
-    while (cbs) {
-      if (cbs->handles(cbs->context, address)) {
-        return DispatchRegisterRead(ctx, i, cbs);
-      }
-      cbs = cbs->next;
-    }
-  }
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
 uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I8_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI8(address, ics.rf[i->src2_reg].i8);
+    return IA_NEXT;
   }
   DPRINT("store.i8 %.8X = %d (%X)\n",
          address, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].u8);
@@ -1672,7 +1460,9 @@ uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I16_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI16(address,
+                                         XESWAP16(ics.rf[i->src2_reg].i16));
+    return IA_NEXT;
   }
   DPRINT("store.i16 %.8X = %d (%X)\n",
          address, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].u16);
@@ -1683,7 +1473,9 @@ uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I32_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI32(address,
+                                         XESWAP32(ics.rf[i->src2_reg].i32));
+    return IA_NEXT;
   }
   DPRINT("store.i32 %.8X = %d (%X)\n",
          address, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].u32);
@@ -1694,7 +1486,9 @@ uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I64_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI64(address,
+                                         XESWAP64(ics.rf[i->src2_reg].i64));
+    return IA_NEXT;
   }
   DPRINT("store.i64 %.8X = %lld (%llX)\n",
          address, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
@@ -1738,19 +1532,6 @@ int Translate_STORE(TranslationContext& ctx, Instr* i) {
     IntCode_STORE_F64,
     IntCode_STORE_V128,
   };
-  if (i->src1.value->IsConstant()) {
-    // Constant address - check register access callbacks.
-    // NOTE: we still will likely want to check on access in debug mode, as
-    //       constant propagation may not have happened.
-    uint64_t address = i->src1.value->AsUint64();
-    RegisterAccessCallbacks* cbs = ctx.access_callbacks;
-    while (cbs) {
-      if (cbs->handles(cbs->context, address)) {
-        return DispatchRegisterWrite(ctx, i, cbs);
-      }
-      cbs = cbs->next;
-    }
-  }
   return DispatchToC(ctx, i, fns[i->src2.value->type]);
 }
 

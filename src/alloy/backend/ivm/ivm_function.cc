@@ -120,7 +120,6 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   ics.membase = memory->membase();
   ics.did_carry = 0;
   ics.did_saturate = 0;
-  ics.access_callbacks = thread_state->runtime()->access_callbacks();
   ics.thread_state = thread_state;
   ics.return_address = return_address;
   ics.call_return_address = 0;
