@@ -34,6 +34,8 @@ public:
   };
   inline uint32_t* reserve_address() { return &reserve_address_; }
 
+  virtual uint64_t page_table() const = 0;
+
   virtual int Initialize();
 
   void Zero(uint64_t address, size_t size);

@@ -43,6 +43,7 @@ typedef struct {
   uint8_t*      locals;
   uint8_t*      context;
   uint8_t*      membase;
+  uint8_t*      page_table;
   int8_t        did_carry;
   int8_t        did_saturate;
   runtime::ThreadState* thread_state;

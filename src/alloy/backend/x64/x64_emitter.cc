@@ -446,6 +446,11 @@ void X64Emitter::StoreEflags() {
 #endif  // STORE_EFLAGS
 }
 
+uint32_t X64Emitter::page_table_address() const {
+  uint64_t addr = runtime_->memory()->page_table();
+  return static_cast<uint32_t>(addr);
+}
+
 bool X64Emitter::ConstantFitsIn32Reg(uint64_t v) {
   if ((v & ~0x7FFFFFFF) == 0) {
     // Fits under 31 bits, so just load using normal mov.

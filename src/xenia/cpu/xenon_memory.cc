@@ -225,9 +225,9 @@ LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
 }  // namespace
 
 
-XenonMemory::XenonMemory() :
-    mapping_(0), mapping_base_(0),
-    Memory() {
+XenonMemory::XenonMemory()
+    : Memory(),
+      mapping_(0), mapping_base_(0), page_table_(0) {
   virtual_heap_ = new XenonMemoryHeap(this, false);
   physical_heap_ = new XenonMemoryHeap(this, true);
 }
@@ -328,6 +328,13 @@ int XenonMemory::Initialize() {
     // TODO(benvanik): is this really required?
     //AddVectoredContinueHandler(1, CheckMMIOHandler);
   }
+
+  // Allocate dirty page table.
+  // This must live within our low heap. Ideally we'd hardcode the address but
+  // this is more flexible.
+  page_table_ = physical_heap_->Alloc(
+      0, (512 * 1024 * 1024) / (16 * 1024),
+      X_MEM_COMMIT, 16 * 1024);
 
   return 0;
 

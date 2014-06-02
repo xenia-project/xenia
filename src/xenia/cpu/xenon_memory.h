@@ -33,6 +33,8 @@ public:
 
   int Initialize() override;
 
+  uint64_t page_table() const override { return page_table_; }
+
   bool AddMappedRange(uint64_t address, uint64_t mask,
                       uint64_t size,
                       void* context,
@@ -82,6 +84,8 @@ private:
 
   XenonMemoryHeap* virtual_heap_;
   XenonMemoryHeap* physical_heap_;
+
+  uint64_t page_table_;
 
   friend class XenonMemoryHeap;
 };
