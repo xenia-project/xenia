@@ -233,6 +233,17 @@ XenonMemory::XenonMemory() :
 }
 
 XenonMemory::~XenonMemory() {
+  // Remove exception handlers.
+  RemoveVectoredExceptionHandler(CheckMMIOHandler);
+  RemoveVectoredContinueHandler(CheckMMIOHandler);
+
+  // Unallocate mapped ranges.
+  for (int i = 0; i < g_mapped_range_count_; ++i) {
+    const auto& range = g_mapped_ranges_[i];
+    VirtualFree(reinterpret_cast<LPVOID>(range.address), range.size,
+                MEM_DECOMMIT);
+  }
+
   if (mapping_base_) {
     // GPU writeback.
     VirtualFree(
