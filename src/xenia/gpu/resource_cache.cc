@@ -118,6 +118,9 @@ void ResourceCache::SyncRange(uint32_t address, int length) {
   // will not be changing, which allows us to do a foreach(res) and reload
   // and then clear the table.
 
+  // DISABLED
+  return;
+
   // total bytes = (512 * 1024 * 1024) / (16 * 1024) = 32768
   // each byte = 1 page
   // Walk as qwords so we can clear things up faster.

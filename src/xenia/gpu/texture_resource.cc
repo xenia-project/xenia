@@ -292,9 +292,10 @@ int TextureResource::Prepare() {
     }
   }
   
-  if (!dirtied_) {
-    return 0;
-  }
+  // DISABLED
+  //if (!dirtied_) {
+  //  return 0;
+  //}
   dirtied_ = false;
 
   // pass dirty regions?
