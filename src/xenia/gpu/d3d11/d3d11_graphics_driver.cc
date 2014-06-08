@@ -10,13 +10,12 @@
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
 #include <xenia/gpu/gpu-private.h>
-#include <xenia/gpu/d3d11/d3d11_buffer.h>
-#include <xenia/gpu/d3d11/d3d11_buffer_cache.h>
+#include <xenia/gpu/buffer_resource.h>
+#include <xenia/gpu/shader_resource.h>
+#include <xenia/gpu/texture_resource.h>
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
-#include <xenia/gpu/d3d11/d3d11_shader.h>
-#include <xenia/gpu/d3d11/d3d11_shader_cache.h>
-#include <xenia/gpu/d3d11/d3d11_texture.h>
-#include <xenia/gpu/d3d11/d3d11_texture_cache.h>
+#include <xenia/gpu/d3d11/d3d11_shader_resource.h>
+
 
 using namespace xe;
 using namespace xe::gpu;
@@ -35,9 +34,8 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   device_ = device;
   device_->AddRef();
   device_->GetImmediateContext(&context_);
-  buffer_cache_ = new D3D11BufferCache(context_, device_);
-  shader_cache_ = new D3D11ShaderCache(device_);
-  texture_cache_ = new D3D11TextureCache(memory_, context_, device_);
+
+  resource_cache_ = new D3D11ResourceCache(memory, device_, context_);
 
   xe_zero_struct(&state_, sizeof(state_));
 
@@ -64,7 +62,29 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   buffer_desc.ByteWidth       = (32) * sizeof(int);
   hr = device_->CreateBuffer(
       &buffer_desc, NULL, &state_.constant_buffers.gs_consts);
+}
 
+D3D11GraphicsDriver::~D3D11GraphicsDriver() {
+  RebuildRenderTargets(0, 0);
+  XESAFERELEASE(state_.constant_buffers.float_constants);
+  XESAFERELEASE(state_.constant_buffers.bool_constants);
+  XESAFERELEASE(state_.constant_buffers.loop_constants);
+  XESAFERELEASE(state_.constant_buffers.vs_consts);
+  XESAFERELEASE(state_.constant_buffers.gs_consts);
+  XESAFERELEASE(invalid_texture_view_);
+  XESAFERELEASE(invalid_texture_sampler_state_);
+  delete resource_cache_;
+  XESAFERELEASE(context_);
+  XESAFERELEASE(device_);
+  XESAFERELEASE(swap_chain_);
+}
+
+int D3D11GraphicsDriver::Initialize() {
+  InitializeInvalidTexture();
+  return 0;
+}
+
+void D3D11GraphicsDriver::InitializeInvalidTexture() {
   // TODO(benvanik): pattern?
   D3D11_TEXTURE2D_DESC texture_desc;
   xe_zero_struct(&texture_desc, sizeof(texture_desc));
@@ -90,7 +110,7 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   initial_data.SysMemSlicePitch = 0;
   initial_data.pSysMem = texture_data;
   ID3D11Texture2D* texture = NULL;
-  hr = device_->CreateTexture2D(
+  HRESULT hr = device_->CreateTexture2D(
       &texture_desc, &initial_data, (ID3D11Texture2D**)&texture);
   if (FAILED(hr)) {
     XEFATAL("D3D11: unable to create invalid texture");
@@ -130,315 +150,53 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
   }
 }
 
-D3D11GraphicsDriver::~D3D11GraphicsDriver() {
-  RebuildRenderTargets(0, 0);
-  XESAFERELEASE(state_.constant_buffers.float_constants);
-  XESAFERELEASE(state_.constant_buffers.bool_constants);
-  XESAFERELEASE(state_.constant_buffers.loop_constants);
-  XESAFERELEASE(state_.constant_buffers.vs_consts);
-  XESAFERELEASE(state_.constant_buffers.gs_consts);
-  XESAFERELEASE(invalid_texture_view_);
-  XESAFERELEASE(invalid_texture_sampler_state_);
-  delete buffer_cache_;
-  delete texture_cache_;
-  delete shader_cache_;
-  XESAFERELEASE(context_);
-  XESAFERELEASE(device_);
-  XESAFERELEASE(swap_chain_);
-}
-
-void D3D11GraphicsDriver::Initialize() {
-}
-
-void D3D11GraphicsDriver::InvalidateState(
-    uint32_t mask) {
-  if (mask == XE_GPU_INVALIDATE_MASK_ALL) {
-    XETRACED3D("D3D11: (invalidate all)");
-  }
-  if (mask & XE_GPU_INVALIDATE_MASK_VERTEX_SHADER) {
-    XETRACED3D("D3D11: invalidate vertex shader");
-  }
-  if (mask & XE_GPU_INVALIDATE_MASK_PIXEL_SHADER) {
-    XETRACED3D("D3D11: invalidate pixel shader");
-  }
-}
-
-void D3D11GraphicsDriver::SetShader(
-    XE_GPU_SHADER_TYPE type,
-    uint32_t address,
-    uint32_t start,
-    uint32_t length) {
-  // Find or create shader in the cache.
-  uint8_t* p = memory_->Translate(address);
-  Shader* shader = shader_cache_->FindOrCreate(
-      type, p, length);
-
-  if (!shader->is_prepared()) {
-    // Disassemble.
-    const char* source = shader->disasm_src();
-    if (!source) {
-      source = "<failed to disassemble>";
-    }
-    XETRACED3D("D3D11: set shader %d at %0.8X (%db):\n%s",
-               type, address, length, source);
-  }
-
-  // Stash for later.
-  switch (type) {
-  case XE_GPU_SHADER_TYPE_VERTEX:
-    state_.vertex_shader = (D3D11VertexShader*)shader;
-    break;
-  case XE_GPU_SHADER_TYPE_PIXEL:
-    state_.pixel_shader = (D3D11PixelShader*)shader;
-    break;
-  }
-}
-
-int D3D11GraphicsDriver::SetupDraw(XE_GPU_PRIMITIVE_TYPE prim_type) {
+int D3D11GraphicsDriver::Draw(const DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
 
-  RegisterFile& rf = register_file_;
-
-  // Ignore copies.
-  uint32_t enable_mode = rf.values[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7;
-  if (enable_mode != 4) {
-    XELOGW("D3D11: ignoring draw with enable mode %d", enable_mode);
-    return 1;
-  }
-
-  uint32_t state_overrides = 0;
-  if (prim_type == XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST) {
-    // Rect lists aren't culled. There may be other things they skip too.
-    state_overrides |= STATE_OVERRIDE_DISABLE_CULLING;
-  }
-
   // Misc state.
-  if (UpdateState(state_overrides)) {
+  if (UpdateState(command)) {
     return 1;
   }
 
   // Build constant buffers.
-  if (UpdateConstantBuffers()) {
+  if (SetupConstantBuffers(command)) {
     return 1;
   }
 
   // Bind shaders.
-  if (BindShaders()) {
+  if (SetupShaders(command)) {
     return 1;
   }
 
-  // Switch primitive topology.
-  // Some are unsupported on D3D11 and must be emulated.
-  D3D11_PRIMITIVE_TOPOLOGY primitive_topology;
-  D3D11GeometryShader* geometry_shader = NULL;
-  switch (prim_type) {
-  case XE_GPU_PRIMITIVE_TYPE_POINT_LIST:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-    if (state_.vertex_shader) {
-      if (state_.vertex_shader->DemandGeometryShader(
-          D3D11VertexShader::POINT_SPRITE_SHADER, &geometry_shader)) {
-        return 1;
-      }
-    }
-    break;
-  case XE_GPU_PRIMITIVE_TYPE_LINE_LIST:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
-    break;
-  case XE_GPU_PRIMITIVE_TYPE_LINE_STRIP:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
-    break;
-  case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_LIST:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    break;
-  case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_STRIP:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-    break;
-  case XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-    if (state_.vertex_shader) {
-      if (state_.vertex_shader->DemandGeometryShader(
-          D3D11VertexShader::RECT_LIST_SHADER, &geometry_shader)) {
-        return 1;
-      }
-    }
-    break;
-  case XE_GPU_PRIMITIVE_TYPE_QUAD_LIST:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
-    if (state_.vertex_shader) {
-      if (state_.vertex_shader->DemandGeometryShader(
-          D3D11VertexShader::QUAD_LIST_SHADER, &geometry_shader)) {
-        return 1;
-      }
-    }
-    break;
-  default:
-  case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_FAN:
-  case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_07:
-  case XE_GPU_PRIMITIVE_TYPE_LINE_LOOP:
-    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-    XELOGE("D3D11: unsupported primitive type %d", prim_type);
-    break;
+  // Bind vertex buffers/index buffer.
+  if (SetupInputAssembly(command)) {
+    return 1;
   }
-  context_->IASetPrimitiveTopology(primitive_topology);
 
-  if (geometry_shader) {
-    context_->GSSetShader(geometry_shader->handle(), NULL, NULL);
-    context_->GSSetConstantBuffers(
-        0, 1, &state_.constant_buffers.gs_consts);
+  // Bind texture fetchers.
+  if (SetupSamplers(command)) {
+    return 1;
+  }
+
+  if (command.index_buffer) {
+    // Have an actual index buffer.
+    XETRACED3D("D3D11: draw indexed %d (indicies [%d,%d] (%d))",
+               command.prim_type, command.start_index,
+               command.start_index + command.index_count, command.index_count);
+    context_->DrawIndexed(command.index_count, command.start_index,
+                          command.base_vertex);
   } else {
-    context_->GSSetShader(NULL, NULL, NULL);
+    // Auto draw.
+    XETRACED3D("D3D11: draw indexed auto %d (indicies [%d,%d] (%d))",
+               command.prim_type, command.start_index,
+               command.start_index + command.index_count, command.index_count);
+    context_->Draw(command.index_count, 0);
   }
-
-  // Setup all fetchers (vertices/textures).
-  if (PrepareFetchers()) {
-    return 1;
-  }
-
-  // All ready to draw (except index buffer)!
 
   return 0;
 }
 
-void D3D11GraphicsDriver::DrawIndexBuffer(
-    XE_GPU_PRIMITIVE_TYPE prim_type,
-    bool index_32bit, uint32_t index_count,
-    uint32_t index_base, uint32_t index_size, uint32_t endianness) {
-  SCOPE_profile_cpu_f("gpu");
-
-  RegisterFile& rf = register_file_;
-
-  XETRACED3D("D3D11: draw indexed %d (%d indicies) from %.8X",
-             prim_type, index_count, index_base);
-
-  // Setup shaders/etc.
-  if (SetupDraw(prim_type)) {
-    return;
-  }
-
-  // Setup index buffer.
-  if (PrepareIndexBuffer(
-      index_32bit, index_count, index_base, index_size, endianness)) {
-    return;
-  }
-
-  // Issue draw.
-  uint32_t start_index = rf.values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
-  uint32_t base_vertex = 0;
-  context_->DrawIndexed(index_count, start_index, base_vertex);
-}
-
-void D3D11GraphicsDriver::DrawIndexAuto(
-    XE_GPU_PRIMITIVE_TYPE prim_type,
-    uint32_t index_count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  RegisterFile& rf = register_file_;
-
-  XETRACED3D("D3D11: draw indexed %d (%d indicies)",
-             prim_type, index_count);
-
-  // Setup shaders/etc.
-  if (SetupDraw(prim_type)) {
-    return;
-  }
-
-  // Issue draw.
-  uint32_t start_index = rf.values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
-  uint32_t base_vertex = 0;
-  //context_->DrawIndexed(index_count, start_index, base_vertex);
-  context_->Draw(index_count, 0);
-}
-
-int D3D11GraphicsDriver::RebuildRenderTargets(
-    uint32_t width, uint32_t height) {
-  if (width == render_targets_.width &&
-      height == render_targets_.height) {
-    // Cached copies are good.
-    return 0;
-  }
-
-  SCOPE_profile_cpu_f("gpu");
-
-  // Remove old versions.
-  for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
-    auto& cb = render_targets_.color_buffers[n];
-    XESAFERELEASE(cb.buffer);
-    XESAFERELEASE(cb.color_view_8888);
-  }
-  XESAFERELEASE(render_targets_.depth_buffer);
-  XESAFERELEASE(render_targets_.depth_view_d28s8);
-  XESAFERELEASE(render_targets_.depth_view_d28fs8);
-
-  render_targets_.width   = width;
-  render_targets_.height  = height;
-
-  if (!width || !height) {
-    // This should only happen when cleaning up.
-    return 0;
-  }
-
-  for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
-    auto& cb = render_targets_.color_buffers[n];
-    D3D11_TEXTURE2D_DESC color_buffer_desc;
-    xe_zero_struct(&color_buffer_desc, sizeof(color_buffer_desc));
-    color_buffer_desc.Width           = width;
-    color_buffer_desc.Height          = height;
-    color_buffer_desc.MipLevels       = 1;
-    color_buffer_desc.ArraySize       = 1;
-    color_buffer_desc.Format          = DXGI_FORMAT_R8G8B8A8_UNORM;
-    color_buffer_desc.SampleDesc.Count    = 1;
-    color_buffer_desc.SampleDesc.Quality  = 0;
-    color_buffer_desc.Usage           = D3D11_USAGE_DEFAULT;
-    color_buffer_desc.BindFlags       =
-        D3D11_BIND_SHADER_RESOURCE |
-        D3D11_BIND_RENDER_TARGET;
-    color_buffer_desc.CPUAccessFlags  = 0;
-    color_buffer_desc.MiscFlags       = 0;
-    device_->CreateTexture2D(
-        &color_buffer_desc, NULL, &cb.buffer);
-
-    D3D11_RENDER_TARGET_VIEW_DESC render_target_view_desc;
-    xe_zero_struct(&render_target_view_desc, sizeof(render_target_view_desc));
-    render_target_view_desc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
-    render_target_view_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-    // render_target_view_desc.Buffer ?
-    device_->CreateRenderTargetView(
-        cb.buffer,
-        &render_target_view_desc,
-        &cb.color_view_8888);
-  }
-
-  D3D11_TEXTURE2D_DESC depth_stencil_desc;
-  xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
-  depth_stencil_desc.Width          = width;
-  depth_stencil_desc.Height         = height;
-  depth_stencil_desc.MipLevels      = 1;
-  depth_stencil_desc.ArraySize      = 1;
-  depth_stencil_desc.Format         = DXGI_FORMAT_D24_UNORM_S8_UINT;
-  depth_stencil_desc.SampleDesc.Count   = 1;
-  depth_stencil_desc.SampleDesc.Quality = 0;
-  depth_stencil_desc.Usage          = D3D11_USAGE_DEFAULT;
-  depth_stencil_desc.BindFlags      =
-      D3D11_BIND_DEPTH_STENCIL;
-  depth_stencil_desc.CPUAccessFlags = 0;
-  depth_stencil_desc.MiscFlags      = 0;
-  device_->CreateTexture2D(
-      &depth_stencil_desc, NULL, &render_targets_.depth_buffer);
-
-  D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc;
-  xe_zero_struct(&depth_stencil_view_desc, sizeof(depth_stencil_view_desc));
-  depth_stencil_view_desc.Format        = DXGI_FORMAT_D24_UNORM_S8_UINT;
-  depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-  depth_stencil_view_desc.Flags         = 0;
-  device_->CreateDepthStencilView(
-      render_targets_.depth_buffer,
-      &depth_stencil_view_desc,
-      &render_targets_.depth_view_d28s8);
-
-  return 0;
-}
-
-int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
+int D3D11GraphicsDriver::UpdateState(const DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
 
   // Most information comes from here:
@@ -449,8 +207,8 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
 
   RegisterFile& rf = register_file_;
 
-  uint32_t window_scissor_tl = rf.values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  uint32_t window_scissor_br = rf.values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  uint32_t window_scissor_tl = register_file_[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t window_scissor_br = register_file_[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
   //uint32_t window_width =
   //    (window_scissor_br & 0x7FFF) - (window_scissor_tl & 0x7FFF);
   //uint32_t window_height =
@@ -466,16 +224,16 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   // RB_SURFACE_INFO ?
 
   // Enable buffers.
-  uint32_t enable_mode = rf.values[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7;
+  uint32_t enable_mode = register_file_[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7;
   // 4 = color + depth
   // 6 = copy ?
 
   // color_info[0-3] has format 8888
   uint32_t color_info[4] = {
-    rf.values[XE_GPU_REG_RB_COLOR_INFO].u32,
-    rf.values[XE_GPU_REG_RB_COLOR1_INFO].u32,
-    rf.values[XE_GPU_REG_RB_COLOR2_INFO].u32,
-    rf.values[XE_GPU_REG_RB_COLOR3_INFO].u32,
+    register_file_[XE_GPU_REG_RB_COLOR_INFO].u32,
+    register_file_[XE_GPU_REG_RB_COLOR1_INFO].u32,
+    register_file_[XE_GPU_REG_RB_COLOR2_INFO].u32,
+    register_file_[XE_GPU_REG_RB_COLOR3_INFO].u32,
   };
   ID3D11RenderTargetView* render_target_views[4] = { 0 };
   for (int n = 0; n < XECOUNT(color_info); n++) {
@@ -494,7 +252,7 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   }
 
   // depth_info has format 24_8
-  uint32_t depth_info = rf.values[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  uint32_t depth_info = register_file_[XE_GPU_REG_RB_DEPTH_INFO].u32;
   uint32_t depth_format = (depth_info >> 16) & 0x1;
   ID3D11DepthStencilView* depth_stencil_view = 0;
   switch (depth_format) {
@@ -514,7 +272,7 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   context_->OMSetRenderTargets(4, render_target_views, depth_stencil_view);
 
   // General rasterizer state.
-  uint32_t mode_control = rf.values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  uint32_t mode_control = register_file_[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
   D3D11_RASTERIZER_DESC rasterizer_desc;
   xe_zero_struct(&rasterizer_desc, sizeof(rasterizer_desc));
   rasterizer_desc.FillMode              = D3D11_FILL_SOLID; // D3D11_FILL_WIREFRAME;
@@ -529,7 +287,8 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
     rasterizer_desc.CullMode            = D3D11_CULL_BACK;
     break;
   }
-  if (state_overrides & STATE_OVERRIDE_DISABLE_CULLING) {
+  if (command.prim_type == XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST) {
+    // Rect lists aren't culled. There may be other things they skip too.
     rasterizer_desc.CullMode            = D3D11_CULL_NONE;
   }
   rasterizer_desc.FrontCounterClockwise = (mode_control & 0x4) == 0;
@@ -547,7 +306,7 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
 
   // Viewport.
   // If we have resized the window we will want to change this.
-  uint32_t window_offset = rf.values[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+  uint32_t window_offset = register_file_[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   // signed?
   uint32_t window_offset_x = window_offset & 0x7FFF;
   uint32_t window_offset_y = (window_offset >> 16) & 0x7FFF;
@@ -555,19 +314,19 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   // ?
   // TODO(benvanik): figure out how to emulate viewports in D3D11. Could use
   //     viewport above to scale, though that doesn't support negatives/etc.
-  uint32_t vte_control = rf.values[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  uint32_t vte_control = register_file_[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
-  float vport_xscale = rf.values[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32; // 640
+  float vport_xscale = register_file_[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32; // 640
   bool vport_xoffset_enable = (vte_control & (1 << 1)) > 0;
-  float vport_xoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32; // 640
+  float vport_xoffset = register_file_[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32; // 640
   bool vport_yscale_enable = (vte_control & (1 << 2)) > 0;
-  float vport_yscale = rf.values[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32; // -360
+  float vport_yscale = register_file_[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32; // -360
   bool vport_yoffset_enable = (vte_control & (1 << 3)) > 0;
-  float vport_yoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32; // 360
+  float vport_yoffset = register_file_[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32; // 360
   bool vport_zscale_enable = (vte_control & (1 << 4)) > 0;
-  float vport_zscale = rf.values[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32; // 1
+  float vport_zscale = register_file_[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32; // 1
   bool vport_zoffset_enable = (vte_control & (1 << 5)) > 0;
-  float vport_zoffset = rf.values[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32; // 0
+  float vport_zoffset = register_file_[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32; // 0
 
   // TODO(benvanik): compute viewport values.
   D3D11_VIEWPORT viewport;
@@ -619,8 +378,8 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   // Scissoring.
   // TODO(benvanik): pull from scissor registers.
   // ScissorEnable must be set in raster state above.
-  uint32_t screen_scissor_tl = rf.values[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
-  uint32_t screen_scissor_br = rf.values[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR].u32;
+  uint32_t screen_scissor_tl = register_file_[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
+  uint32_t screen_scissor_br = register_file_[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR].u32;
   if (screen_scissor_tl != 0 && screen_scissor_br != 0x20002000) {
     D3D11_RECT scissor_rect;
     scissor_rect.top = (screen_scissor_tl >> 16) & 0x7FFF;
@@ -654,8 +413,8 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   };
 
   // Depth-stencil state.
-  uint32_t depth_control = rf.values[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  uint32_t stencil_ref_mask = rf.values[XE_GPU_REG_RB_STENCILREFMASK].u32;
+  uint32_t depth_control = register_file_[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  uint32_t stencil_ref_mask = register_file_[XE_GPU_REG_RB_STENCILREFMASK].u32;
   D3D11_DEPTH_STENCIL_DESC depth_stencil_desc;
   xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
   // A2XX_RB_DEPTHCONTROL_BACKFACE_ENABLE
@@ -727,22 +486,22 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   // alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
   // Not in D3D11!
   // http://msdn.microsoft.com/en-us/library/windows/desktop/bb205120(v=vs.85).aspx
-  uint32_t color_control = rf.values[XE_GPU_REG_RB_COLORCONTROL].u32;
+  uint32_t color_control = register_file_[XE_GPU_REG_RB_COLORCONTROL].u32;
 
   // Blend state.
-  uint32_t color_mask = rf.values[XE_GPU_REG_RB_COLOR_MASK].u32;
+  uint32_t color_mask = register_file_[XE_GPU_REG_RB_COLOR_MASK].u32;
   uint32_t sample_mask = 0xFFFFFFFF; // ?
   float blend_factor[4] = {
-    rf.values[XE_GPU_REG_RB_BLEND_RED].f32,
-    rf.values[XE_GPU_REG_RB_BLEND_GREEN].f32,
-    rf.values[XE_GPU_REG_RB_BLEND_BLUE].f32,
-    rf.values[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+    register_file_[XE_GPU_REG_RB_BLEND_RED].f32,
+    register_file_[XE_GPU_REG_RB_BLEND_GREEN].f32,
+    register_file_[XE_GPU_REG_RB_BLEND_BLUE].f32,
+    register_file_[XE_GPU_REG_RB_BLEND_ALPHA].f32,
   };
   uint32_t blend_control[4] = {
-    rf.values[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
-    rf.values[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
-    rf.values[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
-    rf.values[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
+    register_file_[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
+    register_file_[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
+    register_file_[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
+    register_file_[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
   };
   D3D11_BLEND_DESC blend_desc;
   xe_zero_struct(&blend_desc, sizeof(blend_desc));
@@ -782,60 +541,43 @@ int D3D11GraphicsDriver::UpdateState(uint32_t state_overrides) {
   return 0;
 }
 
-int D3D11GraphicsDriver::UpdateConstantBuffers() {
+int D3D11GraphicsDriver::SetupConstantBuffers(const DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
-
-  RegisterFile& rf = register_file_;
 
   D3D11_MAPPED_SUBRESOURCE res;
   context_->Map(
       state_.constant_buffers.float_constants, 0,
       D3D11_MAP_WRITE_DISCARD, 0, &res);
   memcpy(res.pData,
-         &rf.values[XE_GPU_REG_SHADER_CONSTANT_000_X],
-         (512 * 4) * sizeof(float));
+         command.float4_constants.values,
+         command.float4_constants.count * 4 * sizeof(float));
   context_->Unmap(state_.constant_buffers.float_constants, 0);
 
   context_->Map(
       state_.constant_buffers.loop_constants, 0,
       D3D11_MAP_WRITE_DISCARD, 0, &res);
   memcpy(res.pData,
-      &rf.values[XE_GPU_REG_SHADER_CONSTANT_LOOP_00],
-      (32) * sizeof(int));
+         command.loop_constants.values,
+         command.loop_constants.count * sizeof(int));
   context_->Unmap(state_.constant_buffers.loop_constants, 0);
 
   context_->Map(
       state_.constant_buffers.bool_constants, 0,
       D3D11_MAP_WRITE_DISCARD, 0, &res);
   memcpy(res.pData,
-      &rf.values[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031],
-      (8) * sizeof(int));
+         command.bool_constants.values,
+         command.bool_constants.count * sizeof(int));
   context_->Unmap(state_.constant_buffers.bool_constants, 0);
 
   return 0;
 }
 
-int D3D11GraphicsDriver::BindShaders() {
+int D3D11GraphicsDriver::SetupShaders(const DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
 
-  RegisterFile& rf = register_file_;
-  xe_gpu_program_cntl_t program_cntl;
-  program_cntl.dword_0 = rf.values[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
-
-  // Vertex shader setup.
-  D3D11VertexShader* vs = state_.vertex_shader;
-  if (vs) {
-    if (!vs->is_prepared()) {
-      // Prepare for use.
-      if (vs->Prepare(&program_cntl)) {
-        XELOGGPU("D3D11: failed to prepare vertex shader");
-        state_.vertex_shader = NULL;
-        return 1;
-      }
-    }
-
-    // Bind.
-    context_->VSSetShader(vs->handle(), NULL, 0);
+  if (command.vertex_shader) {
+    context_->VSSetShader(
+        command.vertex_shader->handle_as<ID3D11VertexShader>(), nullptr, 0);
 
     // Set constant buffers.
     ID3D11Buffer* vs_constant_buffers[] = {
@@ -844,31 +586,22 @@ int D3D11GraphicsDriver::BindShaders() {
       state_.constant_buffers.loop_constants,
       state_.constant_buffers.vs_consts,
     };
-    context_->VSSetConstantBuffers(
-        0, XECOUNT(vs_constant_buffers), vs_constant_buffers);
+    context_->VSSetConstantBuffers(0, XECOUNT(vs_constant_buffers),
+                                   vs_constant_buffers);
 
     // Setup input layout (as encoded in vertex shader).
+    auto vs = static_cast<D3D11VertexShaderResource*>(command.vertex_shader);
     context_->IASetInputLayout(vs->input_layout());
   } else {
-    context_->VSSetShader(NULL, NULL, 0);
-    context_->IASetInputLayout(NULL);
+    context_->VSSetShader(nullptr, nullptr, 0);
+    context_->IASetInputLayout(nullptr);
     return 1;
   }
 
   // Pixel shader setup.
-  D3D11PixelShader* ps = state_.pixel_shader;
-  if (ps) {
-    if (!ps->is_prepared()) {
-      // Prepare for use.
-      if (ps->Prepare(&program_cntl, vs)) {
-        XELOGGPU("D3D11: failed to prepare pixel shader");
-        state_.pixel_shader = NULL;
-        return 1;
-      }
-    }
-
-    // Bind.
-    context_->PSSetShader(ps->handle(), NULL, 0);
+  if (command.pixel_shader) {
+    context_->PSSetShader(
+        command.pixel_shader->handle_as<ID3D11PixelShader>(), nullptr, 0);
 
     // Set constant buffers.
     ID3D11Buffer* vs_constant_buffers[] = {
@@ -876,232 +609,233 @@ int D3D11GraphicsDriver::BindShaders() {
       state_.constant_buffers.bool_constants,
       state_.constant_buffers.loop_constants,
     };
-    context_->PSSetConstantBuffers(
-        0, XECOUNT(vs_constant_buffers), vs_constant_buffers);
+    context_->PSSetConstantBuffers(0, XECOUNT(vs_constant_buffers),
+                                   vs_constant_buffers);
   } else {
-    context_->PSSetShader(NULL, NULL, 0);
+    context_->PSSetShader(nullptr, nullptr, 0);
     return 1;
   }
 
   return 0;
 }
 
-int D3D11GraphicsDriver::PrepareFetchers() {
+int D3D11GraphicsDriver::SetupInputAssembly(const DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
 
-  // Input assembly.
-  XEASSERTNOTNULL(state_.vertex_shader);
-  auto vtx_inputs = state_.vertex_shader->GetVertexBufferInputs();
-  for (size_t n = 0; n < vtx_inputs->count; n++) {
-    auto input = vtx_inputs->descs[n];
-    if (PrepareVertexBuffer(input)) {
-      XELOGE("D3D11: unable to prepare vertex buffer");
-      return 1;
-    }
-  }
-
-  // All texture inputs.
-  if (PrepareTextureFetchers()) {
-    XELOGE("D3D11: unable to prepare texture fetchers");
-    return 1;
-  }
-
-  // Vertex texture samplers.
-  auto tex_inputs = state_.vertex_shader->GetTextureBufferInputs();
-  for (size_t n = 0; n < tex_inputs->count; n++) {
-    auto input = tex_inputs->descs[n];
-    if (PrepareTextureSampler(XE_GPU_SHADER_TYPE_VERTEX, input)) {
-      XELOGE("D3D11: unable to prepare texture buffer");
-      return 1;
-    }
-  }
-
-  // Pixel shader texture sampler.
-  XEASSERTNOTNULL(state_.pixel_shader);
-  tex_inputs = state_.pixel_shader->GetTextureBufferInputs();
-  for (size_t n = 0; n < tex_inputs->count; n++) {
-    auto input = tex_inputs->descs[n];
-    if (PrepareTextureSampler(XE_GPU_SHADER_TYPE_PIXEL, input)) {
-      XELOGE("D3D11: unable to prepare texture buffer");
-      return 1;
-    }
-  }
-
-  return 0;
-}
-
-int D3D11GraphicsDriver::PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc) {
-  SCOPE_profile_cpu_f("gpu");
-
-  D3D11VertexShader* vs = state_.vertex_shader;
+  auto vs = static_cast<D3D11VertexShaderResource*>(command.vertex_shader);
   if (!vs) {
     return 1;
   }
 
-  RegisterFile& rf = register_file_;
-  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
-  xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
-  xe_gpu_vertex_fetch_t* fetch = NULL;
-  switch (desc.fetch_slot % 3) {
-  case 0:
-    fetch = &group->vertex_fetch_0;
+  // Switch primitive topology.
+  // Some are unsupported on D3D11 and must be emulated.
+  D3D11_PRIMITIVE_TOPOLOGY primitive_topology;
+  D3D11GeometryShader* geometry_shader = NULL;
+  switch (command.prim_type) {
+  case XE_GPU_PRIMITIVE_TYPE_POINT_LIST:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    if (vs->DemandGeometryShader(
+        D3D11VertexShaderResource::POINT_SPRITE_SHADER, &geometry_shader)) {
+      return 1;
+    }
     break;
-  case 1:
-    fetch = &group->vertex_fetch_1;
+  case XE_GPU_PRIMITIVE_TYPE_LINE_LIST:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
     break;
-  case 2:
-    fetch = &group->vertex_fetch_2;
+  case XE_GPU_PRIMITIVE_TYPE_LINE_STRIP:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+    break;
+  case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_LIST:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    break;
+  case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_STRIP:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    break;
+  case XE_GPU_PRIMITIVE_TYPE_RECTANGLE_LIST:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    if (vs->DemandGeometryShader(
+        D3D11VertexShaderResource::RECT_LIST_SHADER, &geometry_shader)) {
+      return 1;
+    }
+    break;
+  case XE_GPU_PRIMITIVE_TYPE_QUAD_LIST:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+    if (vs->DemandGeometryShader(
+        D3D11VertexShaderResource::QUAD_LIST_SHADER, &geometry_shader)) {
+      return 1;
+    }
+    break;
+  default:
+  case XE_GPU_PRIMITIVE_TYPE_TRIANGLE_FAN:
+  case XE_GPU_PRIMITIVE_TYPE_UNKNOWN_07:
+  case XE_GPU_PRIMITIVE_TYPE_LINE_LOOP:
+    primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    XELOGE("D3D11: unsupported primitive type %d", command.prim_type);
     break;
   }
-  XEASSERTNOTNULL(fetch);
-  // If this assert doesn't hold, maybe we just abort?
-  XEASSERT(fetch->type == 0x3);
-  XEASSERTNOTZERO(fetch->size);
+  context_->IASetPrimitiveTopology(primitive_topology);
 
-  VertexBufferInfo info;
-  // TODO(benvanik): make these structs the same so we can share.
-  info.layout.stride_words = desc.stride_words;
-  info.layout.element_count = desc.element_count;
-  for (uint32_t i = 0; i < desc.element_count; ++i) {
-    const auto& src_el = desc.elements[i];
-    auto& dest_el = info.layout.elements[i];
-    dest_el.format = src_el.format;
-    dest_el.offset_words = src_el.offset_words;
-    dest_el.size_words = src_el.size_words;
+  // Set the geometry shader, if we are emulating a primitive type.
+  if (geometry_shader) {
+    context_->GSSetShader(geometry_shader->handle(), NULL, NULL);
+    context_->GSSetConstantBuffers(0, 1, &state_.constant_buffers.gs_consts);
+  } else {
+    context_->GSSetShader(NULL, NULL, NULL);
   }
 
-  uint32_t address = (fetch->address << 2) + address_translation_;
-  const uint8_t* src = reinterpret_cast<const uint8_t*>(
-      memory_->Translate(address));
-
-  VertexBuffer* vertex_buffer = buffer_cache_->FetchVertexBuffer(
-      info, src, fetch->size * 4);
-  if (!vertex_buffer) {
-    XELOGE("D3D11: unable to create vertex fetch buffer");
-    return 1;
+  // Index buffer, if any. May be auto draw.
+  if (command.index_buffer) {
+    DXGI_FORMAT format;
+    switch (command.index_buffer->info().format) {
+    case INDEX_FORMAT_16BIT:
+      format = DXGI_FORMAT_R16_UINT;
+      break;
+    case INDEX_FORMAT_32BIT:
+      format = DXGI_FORMAT_R32_UINT;
+      break;
+    }
+    context_->IASetIndexBuffer(
+        command.index_buffer->handle_as<ID3D11Buffer>(),
+        format, 0);
+  } else {
+    context_->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
   }
-  auto d3d_vb = static_cast<D3D11VertexBuffer*>(vertex_buffer);
 
-  // TODO(benvanik): always dword aligned?
-  uint32_t stride = desc.stride_words * 4;
-  uint32_t offset = 0;
-  int vb_slot = desc.input_index;
-  ID3D11Buffer* buffers[] = { d3d_vb->handle() };
-  context_->IASetVertexBuffers(vb_slot, XECOUNT(buffers), buffers,
-                               &stride, &offset);
-
-  return 0;
-}
-
-int D3D11GraphicsDriver::PrepareTextureFetchers() {
-  SCOPE_profile_cpu_f("gpu");
-
-  RegisterFile& rf = register_file_;
-
-  for (int n = 0; n < XECOUNT(state_.texture_fetchers); n++) {
-    auto& fetcher = state_.texture_fetchers[n];
-
-    // TODO(benvanik): quick validate without refetching.
-    fetcher.enabled = false;
-    fetcher.view = NULL;
-
-    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + n * 6;
-    xe_gpu_fetch_group_t* group = (xe_gpu_fetch_group_t*)&rf.values[r];
-    auto& fetch = group->texture_fetch;
-    if (fetch.type != 0x2) {
-      continue;
-    }
-
-    // Stash a copy of the fetch register.
-    fetcher.fetch = fetch;
-
-    // Fetch texture from the cache.
-    uint32_t address = (fetch.address << 12) + address_translation_;
-    auto texture_view = texture_cache_->FetchTexture(address, fetch);
-    if (!texture_view) {
-      XELOGW("D3D11: unable to fetch texture at %.8X", address);
-      continue;
-    }
-    if (texture_view->format == DXGI_FORMAT_UNKNOWN) {
-      XELOGW("D3D11: unknown texture format %d", fetch.format);
-      continue;
-    }
-    fetcher.view = static_cast<D3D11TextureView*>(texture_view);
-
-    // Only enable if we get all the way down here successfully.
-    fetcher.enabled = true;
+  // All vertex buffers.
+  for (auto i = 0; i < command.vertex_buffer_count; ++i) {
+    const auto& vb = command.vertex_buffers[i];
+    auto buffer = vb.buffer->handle_as<ID3D11Buffer>();
+    auto stride = vb.stride;
+    auto offset = vb.offset;
+    context_->IASetVertexBuffers(vb.input_index, 1, &buffer,
+                                 &stride, &offset);
   }
 
   return 0;
 }
 
-int D3D11GraphicsDriver::PrepareTextureSampler(
-    xenos::XE_GPU_SHADER_TYPE shader_type, Shader::tex_buffer_desc_t& desc) {
+int D3D11GraphicsDriver::SetupSamplers(const DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
 
-  // If the fetcher is disabled or invalid, set some default textures.
-  auto& fetcher = state_.texture_fetchers[desc.fetch_slot];
-  if (!fetcher.enabled ||
-      fetcher.view->format == DXGI_FORMAT_UNKNOWN) {
-    XELOGW("D3D11: ignoring texture fetch: disabled or an unknown format");
-    if (shader_type == XE_GPU_SHADER_TYPE_VERTEX) {
-      context_->VSSetShaderResources(desc.input_index,
-                                     1, &invalid_texture_view_);
-      context_->VSSetSamplers(desc.input_index,
-                              1, &invalid_texture_sampler_state_);
+  for (auto i = 0; i < command.vertex_shader_sampler_count; ++i) {
+    const auto& input = command.vertex_shader_samplers[i];
+    if (input.texture) {
+      auto texture = input.texture->handle_as<ID3D11ShaderResourceView>();
+      context_->VSSetShaderResources(input.input_index, 1, &texture);
     } else {
-      context_->PSSetShaderResources(desc.input_index,
-                                     1, &invalid_texture_view_);
-      context_->PSSetSamplers(desc.input_index,
-                              1, &invalid_texture_sampler_state_);
+      context_->VSSetShaderResources(input.input_index, 1, &invalid_texture_view_);
     }
+    if (input.sampler_state) {
+      auto sampler_state = input.sampler_state->handle_as<ID3D11SamplerState>();
+      context_->VSSetSamplers(input.input_index, 1, &sampler_state);
+    } else {
+      context_->VSSetSamplers(input.input_index, 1, &invalid_texture_sampler_state_);
+    }
+  }
+
+  for (auto i = 0; i < command.pixel_shader_sampler_count; ++i) {
+    const auto& input = command.pixel_shader_samplers[i];
+    if (input.texture) {
+      auto texture = input.texture->handle_as<ID3D11ShaderResourceView>();
+      context_->PSSetShaderResources(input.input_index, 1, &texture);
+    } else {
+      context_->PSSetShaderResources(input.input_index, 1, &invalid_texture_view_);
+    }
+    if (input.sampler_state) {
+      auto sampler_state = input.sampler_state->handle_as<ID3D11SamplerState>();
+      context_->PSSetSamplers(input.input_index, 1, &sampler_state);
+    } else {
+      context_->PSSetSamplers(input.input_index, 1, &invalid_texture_sampler_state_);
+    }
+  }
+
+  return 0;
+}
+
+int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
+                                              uint32_t height) {
+  if (width == render_targets_.width &&
+      height == render_targets_.height) {
+    // Cached copies are good.
     return 0;
   }
 
-  // Get and set the real shader resource views/samplers.
-  if (shader_type == XE_GPU_SHADER_TYPE_VERTEX) {
-    context_->VSSetShaderResources(desc.input_index, 1, &fetcher.view->srv);
-  } else {
-    context_->PSSetShaderResources(desc.input_index, 1, &fetcher.view->srv);
-  }
-  ID3D11SamplerState* sampler_state = texture_cache_->GetSamplerState(
-      fetcher.fetch, desc);
-  if (!sampler_state) {
-    XELOGW("D3D11: failed to set sampler state; ignoring texture");
-    return 1;
-  }
-  if (shader_type == XE_GPU_SHADER_TYPE_VERTEX) {
-    context_->VSSetSamplers(desc.input_index, 1, &sampler_state);
-  } else {
-    context_->PSSetSamplers(desc.input_index, 1, &sampler_state);
-  }
-
-  return 0;
-}
-
-int D3D11GraphicsDriver::PrepareIndexBuffer(
-    bool index_32bit, uint32_t index_count,
-    uint32_t index_base, uint32_t index_size, uint32_t endianness) {
   SCOPE_profile_cpu_f("gpu");
 
-  RegisterFile& rf = register_file_;
+  // Remove old versions.
+  for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
+    auto& cb = render_targets_.color_buffers[n];
+    XESAFERELEASE(cb.buffer);
+    XESAFERELEASE(cb.color_view_8888);
+  }
+  XESAFERELEASE(render_targets_.depth_buffer);
+  XESAFERELEASE(render_targets_.depth_view_d28s8);
+  XESAFERELEASE(render_targets_.depth_view_d28fs8);
 
-  uint32_t address = index_base + address_translation_;
+  render_targets_.width   = width;
+  render_targets_.height  = height;
 
-  IndexBufferInfo info;
-  info.endianness = endianness;
-  info.index_32bit = index_32bit;
-  info.index_count = index_count;
-  info.index_size = index_size;
-  auto ib = static_cast<D3D11IndexBuffer*>(buffer_cache_->FetchIndexBuffer(
-      info, memory_->Translate(address), index_size));
-  if (!ib) {
-    return 1;
+  if (!width || !height) {
+    // This should only happen when cleaning up.
+    return 0;
   }
 
-  DXGI_FORMAT format;
-  format = index_32bit ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
-  context_->IASetIndexBuffer(ib->handle(), format, 0);
+  for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
+    auto& cb = render_targets_.color_buffers[n];
+    D3D11_TEXTURE2D_DESC color_buffer_desc;
+    xe_zero_struct(&color_buffer_desc, sizeof(color_buffer_desc));
+    color_buffer_desc.Width           = width;
+    color_buffer_desc.Height          = height;
+    color_buffer_desc.MipLevels       = 1;
+    color_buffer_desc.ArraySize       = 1;
+    color_buffer_desc.Format          = DXGI_FORMAT_R8G8B8A8_UNORM;
+    color_buffer_desc.SampleDesc.Count    = 1;
+    color_buffer_desc.SampleDesc.Quality  = 0;
+    color_buffer_desc.Usage           = D3D11_USAGE_DEFAULT;
+    color_buffer_desc.BindFlags       =
+        D3D11_BIND_SHADER_RESOURCE |
+        D3D11_BIND_RENDER_TARGET;
+    color_buffer_desc.CPUAccessFlags  = 0;
+    color_buffer_desc.MiscFlags       = 0;
+    device_->CreateTexture2D(
+        &color_buffer_desc, NULL, &cb.buffer);
+
+    D3D11_RENDER_TARGET_VIEW_DESC render_target_view_desc;
+    xe_zero_struct(&render_target_view_desc, sizeof(render_target_view_desc));
+    render_target_view_desc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
+    render_target_view_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    // render_target_view_desc.Buffer ?
+    device_->CreateRenderTargetView(
+        cb.buffer,
+        &render_target_view_desc,
+        &cb.color_view_8888);
+  }
+
+  D3D11_TEXTURE2D_DESC depth_stencil_desc;
+  xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
+  depth_stencil_desc.Width          = width;
+  depth_stencil_desc.Height         = height;
+  depth_stencil_desc.MipLevels      = 1;
+  depth_stencil_desc.ArraySize      = 1;
+  depth_stencil_desc.Format         = DXGI_FORMAT_D24_UNORM_S8_UINT;
+  depth_stencil_desc.SampleDesc.Count   = 1;
+  depth_stencil_desc.SampleDesc.Quality = 0;
+  depth_stencil_desc.Usage          = D3D11_USAGE_DEFAULT;
+  depth_stencil_desc.BindFlags      = D3D11_BIND_DEPTH_STENCIL;
+  depth_stencil_desc.CPUAccessFlags = 0;
+  depth_stencil_desc.MiscFlags      = 0;
+  device_->CreateTexture2D(
+      &depth_stencil_desc, NULL, &render_targets_.depth_buffer);
+
+  D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc;
+  xe_zero_struct(&depth_stencil_view_desc, sizeof(depth_stencil_view_desc));
+  depth_stencil_view_desc.Format        = DXGI_FORMAT_D24_UNORM_S8_UINT;
+  depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+  depth_stencil_view_desc.Flags         = 0;
+  device_->CreateDepthStencilView(
+      render_targets_.depth_buffer,
+      &depth_stencil_view_desc,
+      &render_targets_.depth_view_d28s8);
 
   return 0;
 }

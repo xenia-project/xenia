@@ -3,8 +3,6 @@
   'sources': [
     'packets.h',
     'register_table.inc',
-    'registers.cc',
-    'registers.h',
     'ucode.h',
     'ucode_disassembler.cc',
     'ucode_disassembler.h',

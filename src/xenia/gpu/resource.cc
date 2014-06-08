@@ -15,3 +15,23 @@ using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
+
+HashedResource::HashedResource(const MemoryRange& memory_range)
+    : memory_range_(memory_range) {
+}
+
+HashedResource::~HashedResource() = default;
+
+PagedResource::PagedResource(const MemoryRange& memory_range)
+    : memory_range_(memory_range), dirtied_(true) {
+}
+
+PagedResource::~PagedResource() = default;
+
+void PagedResource::MarkDirty(uint32_t lo_address, uint32_t hi_address) {
+  dirtied_ = true;
+}
+
+StaticResource::StaticResource() = default;
+
+StaticResource::~StaticResource() = default;

@@ -21,8 +21,8 @@ XEDECLARECLASS2(xe, cpu, Processor);
 namespace xe {
 namespace gpu {
 
+class CommandProcessor;
 class GraphicsDriver;
-class RingBufferWorker;
 
 
 class GraphicsSystem {
@@ -78,7 +78,7 @@ protected:
   bool              running_;
 
   GraphicsDriver*   driver_;
-  RingBufferWorker* worker_;
+  CommandProcessor* command_processor_;
 
   uint32_t          interrupt_callback_;
   uint32_t          interrupt_callback_data_;

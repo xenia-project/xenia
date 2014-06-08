@@ -11,15 +11,36 @@
 #define XENIA_GPU_REGISTER_FILE_H_
 
 #include <xenia/core.h>
-#include <xenia/gpu/xenos/xenos.h>
 
 
 namespace xe {
 namespace gpu {
 
 
+enum Register {
+#define XE_GPU_REGISTER(index, type, name) \
+    XE_GPU_REG_##name = index,
+#include <xenia/gpu/xenos/register_table.inc>
+#undef XE_GPU_REGISTER
+};
+
+
 class RegisterFile {
 public:
+  RegisterFile();
+
+  const char* GetRegisterName(uint32_t index);
+
+  static const size_t kRegisterCount = 0x5003;
+  union RegisterValue {
+    uint32_t  u32;
+    float     f32;
+  };
+  RegisterValue values[kRegisterCount];
+
+  RegisterValue& operator[](Register reg) {
+    return values[reg];
+  }
 };
 
 

@@ -146,12 +146,18 @@ void D3D11GraphicsSystem::Initialize() {
   XEASSERTNULL(driver_);
   driver_ = new D3D11GraphicsDriver(
       memory_, window_->swap_chain(), device_);
+  if (driver_->Initialize()) {
+    XELOGE("Unable to initialize D3D11 driver");
+    return;
+  }
 
   // Initial vsync kick.
   DispatchInterruptCallback(0);
 }
 
 void D3D11GraphicsSystem::Pump() {
+  SCOPE_profile_cpu_f("gpu");
+
   if (swap_pending_) {
     swap_pending_ = false;
 

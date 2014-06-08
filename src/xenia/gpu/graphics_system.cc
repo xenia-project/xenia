@@ -11,9 +11,10 @@
 
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
+#include <xenia/gpu/command_processor.h>
+#include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/graphics_driver.h>
-#include <xenia/gpu/ring_buffer_worker.h>
-#include <xenia/gpu/xenos/registers.h>
+#include <xenia/gpu/register_file.h>
 
 
 using namespace xe;
@@ -24,10 +25,10 @@ using namespace xe::gpu::xenos;
 
 GraphicsSystem::GraphicsSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
-    thread_(0), running_(false), driver_(0), worker_(0),
+    thread_(nullptr), running_(false), driver_(nullptr),
+    command_processor_(nullptr),
     interrupt_callback_(0), interrupt_callback_data_(0),
-    last_interrupt_time_(0), swap_pending_(false),
-	thread_wait_(NULL) {
+    last_interrupt_time_(0), swap_pending_(false), thread_wait_(nullptr) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
@@ -42,7 +43,7 @@ X_STATUS GraphicsSystem::Setup() {
   processor_ = emulator_->processor();
 
   // Create worker.
-  worker_ = new RingBufferWorker(this, memory_);
+  command_processor_ = new CommandProcessor(this, memory_);
 
   // Let the processor know we want register access callbacks.
   emulator_->memory()->AddMappedRange(
@@ -77,15 +78,18 @@ void GraphicsSystem::ThreadStart() {
   // Main run loop.
   while (running_) {
     // Peek main run loop.
-    if (xe_run_loop_pump(run_loop)) {
-      break;
+    {
+      SCOPE_profile_cpu_i("gpu", "GraphicsSystemRunLoopPump");
+      if (xe_run_loop_pump(run_loop)) {
+        break;
+      }
     }
     if (!running_) {
       break;
     }
 
     // Pump worker.
-    worker_->Pump();
+    command_processor_->Pump();
 
     if (!running_) {
       break;
@@ -107,7 +111,7 @@ void GraphicsSystem::Shutdown() {
   xe_thread_join(thread_);
   xe_thread_release(thread_);
 
-  delete worker_;
+  delete command_processor_;
 
   xe_run_loop_release(run_loop_);
 }
@@ -125,17 +129,19 @@ void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
     Sleep(0);
   }
   XEASSERTNOTNULL(driver_);
-  worker_->Initialize(driver_, ptr, page_count);
+  command_processor_->Initialize(driver_, ptr, page_count);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
                                                 uint32_t block_size) {
-  worker_->EnableReadPointerWriteBack(ptr, block_size);
+  command_processor_->EnableReadPointerWriteBack(ptr, block_size);
 }
 
 uint64_t GraphicsSystem::ReadRegister(uint64_t addr) {
   uint32_t r = addr & 0xFFFF;
-  XELOGGPU("ReadRegister(%.4X)", r);
+  if (FLAGS_trace_ring_buffer) {
+    XELOGGPU("ReadRegister(%.4X)", r);
+  }
 
   RegisterFile* regs = driver_->register_file();
 
@@ -148,31 +154,33 @@ uint64_t GraphicsSystem::ReadRegister(uint64_t addr) {
     return 1;
   }
 
-  XEASSERT(r >= 0 && r < kXEGpuRegisterCount);
+  XEASSERT(r >= 0 && r < RegisterFile::kRegisterCount);
   return regs->values[r].u32;
 }
 
 void GraphicsSystem::WriteRegister(uint64_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
-  XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
+  if (FLAGS_trace_ring_buffer) {
+    XELOGGPU("WriteRegister(%.4X, %.8X)", r, value);
+  }
 
   RegisterFile* regs = driver_->register_file();
 
   switch (r) {
     case 0x0714: // CP_RB_WPTR
-      worker_->UpdateWritePointer((uint32_t)value);
+      command_processor_->UpdateWritePointer((uint32_t)value);
       break;
     default:
       XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
       break;
   }
 
-  XEASSERT(r >= 0 && r < kXEGpuRegisterCount);
+  XEASSERT(r >= 0 && r < RegisterFile::kRegisterCount);
   regs->values[r].u32 = (uint32_t)value;
 }
 
 void GraphicsSystem::MarkVblank() {
-  worker_->increment_counter();
+  command_processor_->increment_counter();
 }
 
 void GraphicsSystem::DispatchInterruptCallback(

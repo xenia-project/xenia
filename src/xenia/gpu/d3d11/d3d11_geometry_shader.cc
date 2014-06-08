@@ -10,7 +10,8 @@
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 
 #include <xenia/gpu/gpu-private.h>
-#include <xenia/gpu/d3d11/d3d11_shader.h>
+#include <xenia/gpu/d3d11/d3d11_shader_resource.h>
+#include <xenia/gpu/d3d11/d3d11_shader_translator.h>
 #include <xenia/gpu/xenos/ucode.h>
 
 #include <d3dcompiler.h>
@@ -22,8 +23,8 @@ using namespace xe::gpu::d3d11;
 using namespace xe::gpu::xenos;
 
 
-D3D11GeometryShader::D3D11GeometryShader(ID3D11Device* device, uint64_t hash) :
-    hash_(hash), handle_(NULL) {
+D3D11GeometryShader::D3D11GeometryShader(ID3D11Device* device)
+    : handle_(nullptr) {
   device_ = device;
   device_->AddRef();
 }
@@ -33,7 +34,7 @@ D3D11GeometryShader::~D3D11GeometryShader() {
   XESAFERELEASE(device_);
 }
 
-int D3D11GeometryShader::Prepare(D3D11VertexShader* vertex_shader) {
+int D3D11GeometryShader::Prepare(D3D11VertexShaderResource* vertex_shader) {
   SCOPE_profile_cpu_f("gpu");
 
   if (handle_) {
@@ -94,11 +95,12 @@ ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
   if (FLAGS_dump_shaders.size()) {
     base_path = FLAGS_dump_shaders.c_str();
   }
+  uint64_t hash = xe_hash64(shader_source, xestrlena(shader_source)); // ?
   char file_name[XE_MAX_PATH];
   xesnprintfa(file_name, XECOUNT(file_name),
       "%s/gen_%.16llX.gs",
       base_path,
-      hash_);
+      hash);
 
   if (FLAGS_dump_shaders.size()) {
     FILE* f = fopen(file_name, "w");
@@ -128,7 +130,7 @@ ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
   return shader_blob;
 }
 
-int D3D11GeometryShader::Generate(D3D11VertexShader* vertex_shader,
+int D3D11GeometryShader::Generate(D3D11VertexShaderResource* vertex_shader,
                                   alloy::StringBuffer* output) {
   output->Append(
     "struct VERTEX {\n"
@@ -138,7 +140,7 @@ int D3D11GeometryShader::Generate(D3D11VertexShader* vertex_shader,
     // TODO(benvanik): only add used ones?
     output->Append(
       "  float4 o[%d] : XE_O;\n",
-      D3D11Shader::MAX_INTERPOLATORS);
+      D3D11ShaderTranslator::kMaxInterpolators);
   }
   if (alloc_counts.point_size) {
     output->Append(
@@ -156,15 +158,15 @@ int D3D11GeometryShader::Generate(D3D11VertexShader* vertex_shader,
 
 
 D3D11PointSpriteGeometryShader::D3D11PointSpriteGeometryShader(
-    ID3D11Device* device, uint64_t hash) :
-    D3D11GeometryShader(device, hash) {
+    ID3D11Device* device) : D3D11GeometryShader(device) {
 }
 
 D3D11PointSpriteGeometryShader::~D3D11PointSpriteGeometryShader() {
 }
 
-int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
-                                             alloy::StringBuffer* output) {
+int D3D11PointSpriteGeometryShader::Generate(
+    D3D11VertexShaderResource* vertex_shader,
+    alloy::StringBuffer* output) {
   SCOPE_profile_cpu_f("gpu");
   if (D3D11GeometryShader::Generate(vertex_shader, output)) {
     return 1;
@@ -211,15 +213,15 @@ int D3D11PointSpriteGeometryShader::Generate(D3D11VertexShader* vertex_shader,
 
 
 D3D11RectListGeometryShader::D3D11RectListGeometryShader(
-    ID3D11Device* device, uint64_t hash) :
-    D3D11GeometryShader(device, hash) {
+    ID3D11Device* device) : D3D11GeometryShader(device) {
 }
 
 D3D11RectListGeometryShader::~D3D11RectListGeometryShader() {
 }
 
-int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
-                                          alloy::StringBuffer* output) {
+int D3D11RectListGeometryShader::Generate(
+    D3D11VertexShaderResource* vertex_shader,
+    alloy::StringBuffer* output) {
   SCOPE_profile_cpu_f("gpu");
   if (D3D11GeometryShader::Generate(vertex_shader, output)) {
     return 1;
@@ -256,15 +258,15 @@ int D3D11RectListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
 
 
 D3D11QuadListGeometryShader::D3D11QuadListGeometryShader(
-    ID3D11Device* device, uint64_t hash) :
-    D3D11GeometryShader(device, hash) {
+    ID3D11Device* device) : D3D11GeometryShader(device) {
 }
 
 D3D11QuadListGeometryShader::~D3D11QuadListGeometryShader() {
 }
 
-int D3D11QuadListGeometryShader::Generate(D3D11VertexShader* vertex_shader,
-                                          alloy::StringBuffer* output) {
+int D3D11QuadListGeometryShader::Generate(
+    D3D11VertexShaderResource* vertex_shader,
+    alloy::StringBuffer* output) {
   SCOPE_profile_cpu_f("gpu");
   if (D3D11GeometryShader::Generate(vertex_shader, output)) {
     return 1;

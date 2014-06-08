@@ -13,8 +13,8 @@
 #include <xenia/core.h>
 
 #include <xenia/gpu/graphics_driver.h>
-#include <xenia/gpu/shader.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
+#include <xenia/gpu/d3d11/d3d11_resource_cache.h>
 #include <xenia/gpu/xenos/xenos.h>
 
 #include <d3d11.h>
@@ -24,13 +24,6 @@ namespace xe {
 namespace gpu {
 namespace d3d11 {
 
-class D3D11BufferCache;
-class D3D11PixelShader;
-class D3D11ShaderCache;
-class D3D11TextureCache;
-struct D3D11TextureView;
-class D3D11VertexShader;
-
 
 class D3D11GraphicsDriver : public GraphicsDriver {
 public:
@@ -38,48 +31,32 @@ public:
       Memory* memory, IDXGISwapChain* swap_chain, ID3D11Device* device);
   virtual ~D3D11GraphicsDriver();
 
-  virtual void Initialize();
+  ResourceCache* resource_cache() const override { return resource_cache_; }
 
-  virtual void InvalidateState(
-      uint32_t mask);
-  virtual void SetShader(
-      xenos::XE_GPU_SHADER_TYPE type,
-      uint32_t address,
-      uint32_t start,
-      uint32_t length);
-  virtual void DrawIndexBuffer(
-      xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
-      bool index_32bit, uint32_t index_count,
-      uint32_t index_base, uint32_t index_size, uint32_t endianness);
-  virtual void DrawIndexAuto(
-      xenos::XE_GPU_PRIMITIVE_TYPE prim_type,
-      uint32_t index_count);
+  int Initialize() override;
+
+  int Draw(const DrawCommand& command) override;
 
   // TODO(benvanik): figure this out.
-  virtual int Resolve();
+  int Resolve() override;
 
 private:
-  int SetupDraw(xenos::XE_GPU_PRIMITIVE_TYPE prim_type);
+  void InitializeInvalidTexture();
+
+  int UpdateState(const DrawCommand& command);
+  int SetupConstantBuffers(const DrawCommand& command);
+  int SetupShaders(const DrawCommand& command);
+  int SetupInputAssembly(const DrawCommand& command);
+  int SetupSamplers(const DrawCommand& command);
+
   int RebuildRenderTargets(uint32_t width, uint32_t height);
-  int UpdateState(uint32_t state_overrides = 0);
-  int UpdateConstantBuffers();
-  int BindShaders();
-  int PrepareFetchers();
-  int PrepareVertexBuffer(Shader::vtx_buffer_desc_t& desc);
-  int PrepareTextureFetchers();
-  int PrepareTextureSampler(xenos::XE_GPU_SHADER_TYPE shader_type,
-                            Shader::tex_buffer_desc_t& desc);
-  int PrepareIndexBuffer(
-      bool index_32bit, uint32_t index_count,
-      uint32_t index_base, uint32_t index_size, uint32_t endianness);
 
 private:
   IDXGISwapChain*       swap_chain_;
   ID3D11Device*         device_;
   ID3D11DeviceContext*  context_;
-  D3D11BufferCache*     buffer_cache_;
-  D3D11ShaderCache*     shader_cache_;
-  D3D11TextureCache*    texture_cache_;
+
+  D3D11ResourceCache*   resource_cache_;
 
   ID3D11ShaderResourceView* invalid_texture_view_;
   ID3D11SamplerState*       invalid_texture_sampler_state_;
@@ -97,9 +74,6 @@ private:
   } render_targets_;
 
   struct {
-    D3D11VertexShader*  vertex_shader;
-    D3D11PixelShader*   pixel_shader;
-
     struct {
       ID3D11Buffer*     float_constants;
       ID3D11Buffer*     bool_constants;
@@ -107,17 +81,7 @@ private:
       ID3D11Buffer*     vs_consts;
       ID3D11Buffer*     gs_consts;
     } constant_buffers;
-
-    struct {
-      bool        enabled;
-      xenos::xe_gpu_texture_fetch_t fetch;
-      D3D11TextureView* view;
-    } texture_fetchers[32];
   } state_;
-
-  enum StateOverrides {
-    STATE_OVERRIDE_DISABLE_CULLING  = (1 << 0),
-  };
 };
 
 
