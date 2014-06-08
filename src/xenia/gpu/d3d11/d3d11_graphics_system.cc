@@ -20,28 +20,11 @@ using namespace xe::gpu;
 using namespace xe::gpu::d3d11;
 
 
-namespace {
-
-void __stdcall D3D11GraphicsSystemVsyncCallback(
-    D3D11GraphicsSystem* gs, BOOLEAN) {
-  static bool thread_name_set = false;
-  if (!thread_name_set) {
-    thread_name_set = true;
-    Profiler::ThreadEnter("VsyncTimer");
-  }
-  SCOPE_profile_cpu_f("gpu");
-
-  gs->MarkVblank();
-  gs->DispatchInterruptCallback(0);
-}
-
-}
-
-
-D3D11GraphicsSystem::D3D11GraphicsSystem(Emulator* emulator) :
-    window_(0), dxgi_factory_(0), device_(0),
-    timer_queue_(NULL), vsync_timer_(NULL),
-    GraphicsSystem(emulator) {
+D3D11GraphicsSystem::D3D11GraphicsSystem(Emulator* emulator)
+    : GraphicsSystem(emulator),
+      window_(nullptr), dxgi_factory_(nullptr), device_(nullptr),
+      timer_queue_(nullptr), vsync_timer_(nullptr),
+      interrupt_pending_(true) {
 }
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
@@ -57,7 +40,7 @@ void D3D11GraphicsSystem::Initialize() {
   CreateTimerQueueTimer(
       &vsync_timer_,
       timer_queue_,
-      (WAITORTIMERCALLBACK)D3D11GraphicsSystemVsyncCallback,
+      (WAITORTIMERCALLBACK)VsyncCallback,
       this,
       16,
       16,
@@ -169,6 +152,10 @@ void D3D11GraphicsSystem::Pump() {
     window_->Swap();
 
     DispatchInterruptCallback(0);
+    interrupt_pending_ = false;
+  } else if (interrupt_pending_) {
+    DispatchInterruptCallback(0);
+    interrupt_pending_ = false;
   } else {
     double time_since_last_interrupt = xe_pal_now() - last_interrupt_time_;
     if (time_since_last_interrupt > 0.5) {
@@ -182,6 +169,24 @@ void D3D11GraphicsSystem::Pump() {
       }
     }
   }
+}
+
+void __stdcall D3D11GraphicsSystem::VsyncCallback(D3D11GraphicsSystem* gs,
+                                                  BOOLEAN) {
+  static bool thread_name_set = false;
+  if (!thread_name_set) {
+    thread_name_set = true;
+    Profiler::ThreadEnter("VsyncTimer");
+  }
+  SCOPE_profile_cpu_f("gpu");
+
+  gs->MarkVblank();
+
+  // TODO(benvanik): we shouldn't need to do the dispatch here, but there's
+  //     something wrong and the CP will block waiting for code that
+  //     needs to be run in the interrupt.
+  // gs->interrupt_pending_ = true;
+  gs->DispatchInterruptCallback(0);
 }
 
 void D3D11GraphicsSystem::Shutdown() {

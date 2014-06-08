@@ -40,12 +40,16 @@ protected:
   virtual void Pump();
 
 private:
+  static void __stdcall VsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN);
+
   IDXGIFactory1*  dxgi_factory_;
   ID3D11Device*   device_;
   D3D11Window*    window_;
 
   HANDLE          timer_queue_;
   HANDLE          vsync_timer_;
+
+  bool            interrupt_pending_;
 };
 
 
