@@ -44,6 +44,9 @@ private:
   void InitializeInvalidTexture();
 
   int UpdateState(const DrawCommand& command);
+  int SetupRasterizerState(const DrawCommand& command);
+  int SetupBlendState(const DrawCommand& command);
+  int SetupDepthStencilState(const DrawCommand& command);
   int SetupConstantBuffers(const DrawCommand& command);
   int SetupShaders(const DrawCommand& command);
   int SetupInputAssembly(const DrawCommand& command);
@@ -60,6 +63,10 @@ private:
 
   ID3D11ShaderResourceView* invalid_texture_view_;
   ID3D11SamplerState*       invalid_texture_sampler_state_;
+
+  std::unordered_map<uint64_t, ID3D11RasterizerState*> rasterizer_state_cache_;
+  std::unordered_map<uint64_t, ID3D11BlendState*> blend_state_cache_;
+  std::unordered_map<uint64_t, ID3D11DepthStencilState*> depth_stencil_state_cache_;
 
   struct {
     uint32_t width;
