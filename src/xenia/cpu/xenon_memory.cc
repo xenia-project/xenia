@@ -193,11 +193,16 @@ LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
           ex_info->ContextRecord->Rip += len;
           return EXCEPTION_CONTINUE_EXECUTION;
         } else if (action == 1) {
-          XEASSERT((disasm.Argument2.ArgType & BE::REGISTER_TYPE) ==
-                   BE::REGISTER_TYPE);
-          uint64_t* reg_ptr = GetContextRegPtr(disasm.Argument2.ArgType,
-                                               ex_info->ContextRecord);
-          uint64_t value = *reg_ptr;
+          uint64_t value;
+          if ((disasm.Argument2.ArgType & BE::REGISTER_TYPE) == BE::REGISTER_TYPE) {
+            uint64_t* reg_ptr = GetContextRegPtr(disasm.Argument2.ArgType,
+                                                 ex_info->ContextRecord);
+            value = *reg_ptr;
+          } else if ((disasm.Argument2.ArgType & BE::CONSTANT_TYPE) == BE::CONSTANT_TYPE) {
+            value = disasm.Instruction.Immediat;
+          } else {
+            XEASSERTALWAYS();
+          }
           switch (disasm.Argument2.ArgSize) {
           case 8:
             value = static_cast<uint8_t>(value);
