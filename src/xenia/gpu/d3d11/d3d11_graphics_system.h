@@ -35,6 +35,8 @@ public:
 
   virtual void Shutdown();
 
+  void Swap() override;
+
 protected:
   virtual void Initialize();
   virtual void Pump();
@@ -49,7 +51,7 @@ private:
   HANDLE          timer_queue_;
   HANDLE          vsync_timer_;
 
-  bool            interrupt_pending_;
+  double          last_swap_time_;
 };
 
 

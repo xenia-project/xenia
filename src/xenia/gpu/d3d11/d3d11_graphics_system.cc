@@ -24,7 +24,7 @@ D3D11GraphicsSystem::D3D11GraphicsSystem(Emulator* emulator)
     : GraphicsSystem(emulator),
       window_(nullptr), dxgi_factory_(nullptr), device_(nullptr),
       timer_queue_(nullptr), vsync_timer_(nullptr),
-      interrupt_pending_(true) {
+      last_swap_time_(0.0) {
 }
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
@@ -141,34 +141,24 @@ void D3D11GraphicsSystem::Initialize() {
 void D3D11GraphicsSystem::Pump() {
   SCOPE_profile_cpu_f("gpu");
 
-  if (swap_pending_) {
-    swap_pending_ = false;
-
-    // TODO(benvanik): remove this when commands are understood.
-    driver_->Resolve();
-
-    // Swap window.
-    // If we are set to vsync this will block.
-    window_->Swap();
-
-    DispatchInterruptCallback(0);
-    interrupt_pending_ = false;
-  } else if (interrupt_pending_) {
-    DispatchInterruptCallback(0);
-    interrupt_pending_ = false;
-  } else {
-    double time_since_last_interrupt = xe_pal_now() - last_interrupt_time_;
-    if (time_since_last_interrupt > 0.5) {
-      // If we have gone too long without an interrupt, fire one.
-      DispatchInterruptCallback(0);
-    }
-    if (time_since_last_interrupt > 0.3) {
-      // Force a swap when profiling.
-      if (Profiler::is_enabled()) {
-        window_->Swap();
-      }
+  double time_since_last_swap = xe_pal_now() - last_swap_time_;
+  if (time_since_last_swap > 1.0) {
+    // Force a swap when profiling.
+    if (Profiler::is_enabled()) {
+      window_->Swap();
     }
   }
+}
+
+void D3D11GraphicsSystem::Swap() {
+  // TODO(benvanik): remove this when commands are understood.
+  driver_->Resolve();
+
+  // Swap window.
+  // If we are set to vsync this will block.
+  window_->Swap();
+
+  last_swap_time_ = xe_pal_now();
 }
 
 void __stdcall D3D11GraphicsSystem::VsyncCallback(D3D11GraphicsSystem* gs,
@@ -185,7 +175,6 @@ void __stdcall D3D11GraphicsSystem::VsyncCallback(D3D11GraphicsSystem* gs,
   // TODO(benvanik): we shouldn't need to do the dispatch here, but there's
   //     something wrong and the CP will block waiting for code that
   //     needs to be run in the interrupt.
-  // gs->interrupt_pending_ = true;
   gs->DispatchInterruptCallback(0);
 }
 

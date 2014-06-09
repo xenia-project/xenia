@@ -30,10 +30,9 @@ int BufferResource::Prepare() {
     }
   }
 
-  // DISABLED
-  //if (!dirtied_) {
-  //  return 0;
-  //}
+  if (!dirtied_) {
+    return 0;
+  }
   dirtied_ = false;
 
   // pass dirty regions?

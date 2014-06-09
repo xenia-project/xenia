@@ -28,7 +28,7 @@ GraphicsSystem::GraphicsSystem(Emulator* emulator) :
     thread_(nullptr), running_(false), driver_(nullptr),
     command_processor_(nullptr),
     interrupt_callback_(0), interrupt_callback_data_(0),
-    last_interrupt_time_(0), swap_pending_(false), thread_wait_(nullptr) {
+    last_interrupt_time_(0), thread_wait_(nullptr) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();

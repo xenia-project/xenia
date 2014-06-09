@@ -45,8 +45,7 @@ public:
 
   void MarkVblank();
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu = 0xFFFFFFFF);
-  bool swap_pending() const { return swap_pending_; }
-  void set_swap_pending(bool value) { swap_pending_ = value; }
+  virtual void Swap() = 0;
 
 protected:
   virtual void Initialize();
@@ -83,7 +82,6 @@ protected:
   uint32_t          interrupt_callback_;
   uint32_t          interrupt_callback_data_;
   double            last_interrupt_time_;
-  bool              swap_pending_;
   HANDLE            thread_wait_;
 };
 

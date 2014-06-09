@@ -12,6 +12,7 @@
 #include <xenia/emulator.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/gpu/gpu.h>
+#include <xenia/gpu/xenos/packets.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/xboxkrnl_rtl.h>
@@ -422,19 +423,16 @@ SHIM_CALL VdSwap_shim(
       unk6,
       unk7);
 
-  KernelState* kernel_state = shared_kernel_state_;
-  XEASSERTNOTNULL(kernel_state);
-  GraphicsSystem* gs = kernel_state->emulator()->graphics_system();
-  if (!gs) {
-    return;
-  }
-
-  gs->set_swap_pending(true);
-
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
-  // for this method to do what it needs. We just zero them out. We could
-  // encode the parameters in the stream for the ringbuffer, if needed.
+  // for this method to do what it needs. We just zero them out and send a
+  // token value. It'd be nice to figure out what this is really doing so
+  // that we could simulate it, though due to TCR I bet all games need to
+  // use this method.
   xe_zero_struct(SHIM_MEM_ADDR(unk0), 64 * 4);
+  auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
+  dwords[0] = XESWAP32((0x03 << 30) |
+                       ((1 - 1) << 16) |
+                       (xenos::PM4_XE_SWAP << 8));
 
   SHIM_SET_RETURN_64(0);
 }

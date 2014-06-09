@@ -300,6 +300,16 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
         }
         break;
 
+      case PM4_XE_SWAP:
+        // Xenia-specific VdSwap hook.
+        // VdSwap will post this to tell us we need to swap the screen/fire an interrupt.
+        XETRACECP("[%.8X] Packet(%.8X): PM4_XE_SWAP",
+                  packet_ptr, packet);
+        LOG_DATA(count);
+        ADVANCE_PTR(count);
+        graphics_system_->Swap();
+        break;
+
       case PM4_INDIRECT_BUFFER:
         // indirect buffer dispatch
         {
@@ -334,14 +344,11 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
             } else {
               // Register.
               XEASSERT(poll_reg_addr < RegisterFile::kRegisterCount);
-
-              if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
-                // Waiting for coherency. We should have all the info we need
-                // now (base+size+mode), so kick it off.
-                MakeCoherent();
-              }
-
               value = regs->values[poll_reg_addr].u32;
+              if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
+                MakeCoherent();
+                value = regs->values[poll_reg_addr].u32;
+              }
             }
             switch (wait_info & 0x7) {
             case 0x0: // Never.
@@ -768,16 +775,23 @@ void CommandProcessor::WriteRegister(
 }
 
 void CommandProcessor::MakeCoherent() {
-  RegisterFile* regs = driver_->register_file();
-  auto status_host = regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32;
-  auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
-  auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
-
   // Status host often has 0x01000000 or 0x03000000.
   // This is likely toggling VC (vertex cache) or TC (texture cache).
   // Or, it also has a direction in here maybe - there is probably
   // some way to check for dest coherency (what all the COHER_DEST_BASE_*
   // registers are for).
+  // Best docs I've found on this are here:
+  // http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/10/R6xx_R7xx_3D.pdf
+  // http://cgit.freedesktop.org/xorg/driver/xf86-video-radeonhd/tree/src/r6xx_accel.c?id=3f8b6eccd9dba116cc4801e7f80ce21a879c67d2#n454
+
+  RegisterFile* regs = driver_->register_file();
+  auto status_host = regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32;
+  auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
+  auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
+
+  if (!(status_host & 0x80000000ul)) {
+    return;
+  }
 
   // TODO(benvanik): notify resource cache of base->size and type.
   XETRACECP("Make %.8X -> %.8X (%db) coherent",
