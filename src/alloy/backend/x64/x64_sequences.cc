@@ -4497,7 +4497,12 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
         e.vpxor(i.dest, i.dest);
       } else {
         // Control mask needs to be shuffled.
-        e.vpshufb(e.xmm0, i.src1, e.GetXmmConstPtr(XMMByteSwapMask));
+        if (i.src1.is_constant) {
+          e.LoadConstantXmm(e.xmm0, i.src1.constant());
+          e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMByteSwapMask));
+        } else {
+          e.vpshufb(e.xmm0, i.src1, e.GetXmmConstPtr(XMMByteSwapMask));
+        }
         if (i.src2.is_constant) {
           e.LoadConstantXmm(i.dest, i.src2.constant());
           e.vpshufb(i.dest, i.dest, e.xmm0);
