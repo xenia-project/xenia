@@ -3439,6 +3439,7 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // TODO(benvanik): use approx here:
 //     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
+// TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 EMITTER(LOG2_F32, MATCH(I<OPCODE_LOG2, F32<>, F32<>>)) {
   static __m128 EmulateLog2(__m128 src) {
     float result = log2(src.m128_f32[0]);

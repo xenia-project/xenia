@@ -288,9 +288,13 @@ SHIM_CALL RtlRaiseException_shim(
     }
 
     if (thread) {
+      XELOGD("SetThreadName(%d, %s)", thread->thread_id(), name);
       thread->set_name(name);
       thread->Release();
     }
+
+    // TODO(benvanik): unwinding required here?
+    return;
   }
 
   // TODO(benvanik): unwinding.
