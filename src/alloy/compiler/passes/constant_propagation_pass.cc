@@ -9,6 +9,9 @@
 
 #include <alloy/compiler/passes/constant_propagation_pass.h>
 
+#include <alloy/runtime/function.h>
+#include <alloy/runtime/runtime.h>
+
 using namespace alloy;
 using namespace alloy::compiler;
 using namespace alloy::compiler::passes;
@@ -87,6 +90,17 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           } else {
             i->Remove();
           }
+        }
+        break;
+      case OPCODE_CALL_INDIRECT:
+        if (i->src1.value->IsConstant()) {
+          runtime::FunctionInfo* symbol_info;
+          if (runtime_->LookupFunctionInfo(
+              (uint32_t)i->src1.value->constant.i32, &symbol_info)) {
+            break;
+          }
+          i->Replace(&OPCODE_CALL_info, i->flags);
+          i->src1.symbol_info = symbol_info;
         }
         break;
       case OPCODE_CALL_INDIRECT_TRUE:
