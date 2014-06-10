@@ -57,6 +57,10 @@ enum XmmConst {
   XMMShiftByteMask,
   XMMUnsignedDwordMax,
   XMM255,
+  XMMSignMaskI8,
+  XMMSignMaskI16,
+  XMMSignMaskI32,
+  XMMSignMaskF32,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.

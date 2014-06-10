@@ -2337,25 +2337,117 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_VECTOR_COMPARE_UGT
 // ============================================================================
-//EMITTER(VECTOR_COMPARE_UGT_V128, MATCH(I<OPCODE_VECTOR_COMPARE_UGT, V128<>, V128<>, V128<>>)) {
-//  static void Emit(X64Emitter& e, const EmitArgType& i) {
-//  }
-//};
-//EMITTER_OPCODE_TABLE(
-//    OPCODE_VECTOR_COMPARE_UGT,
-//    VECTOR_COMPARE_UGT_V128);
+EMITTER(VECTOR_COMPARE_UGT_V128, MATCH(I<OPCODE_VECTOR_COMPARE_UGT, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Address sign_addr = e.ptr[e.rax]; // dummy
+    switch (i.instr->flags) {
+    case INT8_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskI8);
+      break;
+    case INT16_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskI16);
+      break;
+    case INT32_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
+      break;
+    case FLOAT32_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
+      break;
+    }
+    if (i.src1.is_constant) {
+      // TODO(benvanik): make this constant.
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      e.vpxor(e.xmm0, sign_addr);
+    } else {
+      e.vpxor(e.xmm0, i.src1, sign_addr);
+    }
+    if (i.src2.is_constant) {
+      // TODO(benvanik): make this constant.
+      e.LoadConstantXmm(e.xmm1, i.src1.constant());
+      e.vpxor(e.xmm1, sign_addr);
+    } else {
+      e.vpxor(e.xmm1, i.src2, sign_addr);
+    }
+    switch (i.instr->flags) {
+    case INT8_TYPE:
+      e.vpcmpgtb(i.dest, e.xmm0, e.xmm1);
+      break;
+    case INT16_TYPE:
+      e.vpcmpgtw(i.dest, e.xmm0, e.xmm1);
+      break;
+    case INT32_TYPE:
+      e.vpcmpgtd(i.dest, e.xmm0, e.xmm1);
+      break;
+    case FLOAT32_TYPE:
+      e.vcmpgtps(i.dest, e.xmm0, e.xmm1);
+      break;
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_COMPARE_UGT,
+    VECTOR_COMPARE_UGT_V128);
 
 
 // ============================================================================
 // OPCODE_VECTOR_COMPARE_UGE
 // ============================================================================
-//EMITTER(VECTOR_COMPARE_UGE_V128, MATCH(I<OPCODE_VECTOR_COMPARE_UGE, V128<>, V128<>, V128<>>)) {
-//  static void Emit(X64Emitter& e, const EmitArgType& i) {
-//  }
-//};
-//EMITTER_OPCODE_TABLE(
-//    OPCODE_VECTOR_COMPARE_UGE,
-//    VECTOR_COMPARE_UGE_V128);
+EMITTER(VECTOR_COMPARE_UGE_V128, MATCH(I<OPCODE_VECTOR_COMPARE_UGE, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Address sign_addr = e.ptr[e.rax]; // dummy
+    switch (i.instr->flags) {
+    case INT8_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskI8);
+      break;
+    case INT16_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskI16);
+      break;
+    case INT32_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
+      break;
+    case FLOAT32_TYPE:
+      sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
+      break;
+    }
+    if (i.src1.is_constant) {
+      // TODO(benvanik): make this constant.
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      e.vpxor(e.xmm0, sign_addr);
+    } else {
+      e.vpxor(e.xmm0, i.src1, sign_addr);
+    }
+    if (i.src2.is_constant) {
+      // TODO(benvanik): make this constant.
+      e.LoadConstantXmm(e.xmm1, i.src1.constant());
+      e.vpxor(e.xmm1, sign_addr);
+    } else {
+      e.vpxor(e.xmm1, i.src2, sign_addr);
+    }
+    switch (i.instr->flags) {
+    case INT8_TYPE:
+      e.vpcmpeqb(e.xmm2, e.xmm0, e.xmm1);
+      e.vpcmpgtb(i.dest, e.xmm0, e.xmm1);
+      e.vpor(i.dest, e.xmm2);
+      break;
+    case INT16_TYPE:
+      e.vpcmpeqw(e.xmm2, e.xmm0, e.xmm1);
+      e.vpcmpgtw(i.dest, e.xmm0, e.xmm1);
+      e.vpor(i.dest, e.xmm2);
+      break;
+    case INT32_TYPE:
+      e.vpcmpeqd(e.xmm2, e.xmm0, e.xmm1);
+      e.vpcmpgtd(i.dest, e.xmm0, e.xmm1);
+      e.vpor(i.dest, e.xmm2);
+      break;
+    case FLOAT32_TYPE:
+      e.vcmpgeps(i.dest, e.xmm0, e.xmm1);
+      break;
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_COMPARE_UGE,
+    VECTOR_COMPARE_UGE_V128);
 
 
 // ============================================================================
@@ -4968,8 +5060,8 @@ void alloy::backend::x64::RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_EQ);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_SGT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_SGE);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGT);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGE);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ADD);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ADD_CARRY);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD);

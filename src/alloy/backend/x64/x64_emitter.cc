@@ -505,6 +505,10 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
     /* XMMShiftByteMask       */ vec128i(0x000000FFu, 0x000000FFu, 0x000000FFu, 0x000000FFu),
     /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u, 0xFFFFFFFFu, 0x00000000u),
     /* XMM255                 */ vec128f(255.0f, 255.0f, 255.0f, 255.0f),
+    /* XMMSignMaskI8          */ vec128i(0x80808080u, 0x80808080u, 0x80808080u, 0x80808080u),
+    /* XMMSignMaskI16         */ vec128i(0x80008000u, 0x80008000u, 0x80008000u, 0x80008000u),
+    /* XMMSignMaskI32         */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
+    /* XMMSignMaskF32         */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
   };
   // TODO(benvanik): cache base pointer somewhere? stack? It'd be nice to
   // prevent this move.
