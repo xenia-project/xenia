@@ -4716,6 +4716,10 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // dest.f4[1] = (float)((src >> 8) & 0xFF) * (1.0f / 255.0f);
     // dest.f4[2] = (float)(src & 0xFF) * (1.0f / 255.0f);
     // dest.f4[3] = (float)((src >> 24) & 0xFF) * (1.0f / 255.0f);
+    if (i.src1.is_constant) {
+      e.vpxor(i.dest, i.dest);
+      return;
+    }
 
     // src = ZZYYXXWW
     // unpack to 000000ZZ,000000YY,000000XX,000000WW
