@@ -188,7 +188,7 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
     auto& desc = inputs.descs[n];
     auto& info = desc.info;
     if (desc.fetch_slot == fetch_slot) {
-      XEASSERT(info.element_count + 1 < XECOUNT(info.elements));
+      XEASSERT(info.element_count <= XECOUNT(info.elements));
       // It may not hold that all strides are equal, but I hope it does.
       XEASSERT(!vtx->stride || info.stride_words == vtx->stride);
       el = &info.elements[info.element_count++];
