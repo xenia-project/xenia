@@ -414,6 +414,20 @@ void X64Emitter::CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0), uin
   ReloadEDX();
 }
 
+void X64Emitter::CallNativeSafe(void* fn) {
+    // rcx = context
+    // rdx = target host function
+    // r8  = arg0
+    // r9  = arg1
+    mov(rdx, reinterpret_cast<uint64_t>(fn));
+    auto thunk = backend()->guest_to_host_thunk();
+    mov(rax, reinterpret_cast<uint64_t>(thunk));
+    call(rax);
+    ReloadECX();
+    ReloadEDX();
+    // rax = host return
+}
+
 void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], value);
 }

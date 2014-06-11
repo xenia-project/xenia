@@ -127,6 +127,7 @@ public:
   void CallNative(uint64_t(*fn)(void* raw_context));
   void CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0));
   void CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0), uint64_t arg0);
+  void CallNativeSafe(void* fn);
   void SetReturnAddress(uint64_t value);
   void ReloadECX();
   void ReloadEDX();

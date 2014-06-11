@@ -3489,7 +3489,7 @@ EMITTER(POW2_F32, MATCH(I<OPCODE_POW2, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNative(EmulatePow2);
+    e.CallNativeSafe(EmulatePow2);
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -3501,7 +3501,7 @@ EMITTER(POW2_F64, MATCH(I<OPCODE_POW2, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNative(EmulatePow2);
+    e.CallNativeSafe(EmulatePow2);
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -3515,7 +3515,7 @@ EMITTER(POW2_V128, MATCH(I<OPCODE_POW2, V128<>, V128<>>)) {
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNative(EmulatePow2);
+    e.CallNativeSafe(EmulatePow2);
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -3540,7 +3540,7 @@ EMITTER(LOG2_F32, MATCH(I<OPCODE_LOG2, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNative(EmulateLog2);
+    e.CallNativeSafe(EmulateLog2);
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -3552,7 +3552,7 @@ EMITTER(LOG2_F64, MATCH(I<OPCODE_LOG2, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNative(EmulateLog2);
+    e.CallNativeSafe(EmulateLog2);
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -3565,9 +3565,8 @@ EMITTER(LOG2_V128, MATCH(I<OPCODE_LOG2, V128<>, V128<>>)) {
     return result;
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNative(EmulateLog2);
+    e.CallNativeSafe(EmulateLog2);
     e.vmovaps(i.dest, e.xmm0);
   }
 };
