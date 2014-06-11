@@ -29,9 +29,6 @@
 #include <alloy/hir/hir_builder.h>
 #include <alloy/runtime/runtime.h>
 
-// TODO(benvanik): reimplement packing functions
-#include <DirectXPackedVector.h>
-
 using namespace alloy;
 using namespace alloy::backend;
 using namespace alloy::backend::x64;
@@ -4820,13 +4817,6 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // mult by 1/255
     e.vmulps(i.dest, e.GetXmmConstPtr(XMMOneOver255));
   }
-  static void Unpack_FLOAT16_2(void* raw_context, __m128& v) {
-    uint32_t src = v.m128_i32[3];
-    v.m128_f32[0] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
-    v.m128_f32[1] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)(src >> 16));
-    v.m128_f32[2] = 0.0f;
-    v.m128_f32[3] = 1.0f;
-  }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     // 1 bit sign, 5 bit exponent, 10 bit mantissa
     // D3D10 half float format
@@ -4844,14 +4834,13 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     //          XMConvertHalfToFloat(sy),
     //          0.0,
     //          1.0 };
-    auto addr = e.StashXmm(i.src1);
-    e.lea(e.rdx, addr);
-    e.CallNative(Unpack_FLOAT16_2);
-    e.vmovaps(i.dest, addr);
+    e.vcvtph2ps(i.dest, i.src1);
+    e.vpshufd(i.dest, i.dest, B10100100);
+    e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
-    // Could be shared with FLOAT16_2.
-    XEASSERTALWAYS();
+    // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
+    e.vcvtph2ps(i.dest, i.src1);
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     // (VD.x) = 3.0 + (VB.x>>16)*2^-22

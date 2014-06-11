@@ -505,6 +505,7 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
     /* XMMFlipX16Y16          */ vec128i(0x00008000u, 0x00000000u, 0x00000000u, 0x00000000u),
     /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
     /* XMMNormalizeX16Y16     */ vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
+    /* XMM0001                */ vec128f(0.0f, 0.0f, 0.0f, 1.0f),
     /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
     /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
     /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),

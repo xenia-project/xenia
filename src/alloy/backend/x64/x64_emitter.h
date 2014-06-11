@@ -43,6 +43,7 @@ enum XmmConst {
   XMMFlipX16Y16,
   XMMFixX16Y16,
   XMMNormalizeX16Y16,
+  XMM0001,
   XMM3301,
   XMMSignMaskPS,
   XMMSignMaskPD,
