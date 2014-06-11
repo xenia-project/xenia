@@ -4730,14 +4730,12 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
-    e.db(0xCC);
     e.vcvtps2ph(e.xmm0, i.src1, B00000011);
     e.vxorps(i.dest, i.dest);
     e.vpblendw(i.dest, e.xmm0, B00000011);
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
-    e.db(0xCC);
     e.vcvtps2ph(e.xmm0, i.src1, B00000011);
     e.vxorps(i.dest, i.dest);
     e.vpblendw(i.dest, e.xmm0, B00001111);
