@@ -64,6 +64,9 @@ X_STATUS STFSContainerFile::ReadSync(
   STFSEntry* stfs_entry = entry_->stfs_entry();
   xe_mmap_ref mmap = entry_->mmap();
   uint8_t* map_ptr = xe_mmap_get_addr(mmap);
+  if (byte_offset >= stfs_entry->size) {
+    return X_STATUS_END_OF_FILE;
+  }
 
   // Each block is 4096.
   // Blocks may not be sequential, so we need to read by blocks and handle the
