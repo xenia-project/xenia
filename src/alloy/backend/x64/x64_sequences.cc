@@ -4393,14 +4393,13 @@ EMITTER(EXTRACT_I16, MATCH(I<OPCODE_EXTRACT, I16<>, V128<>, I8<>>)) {
       e.vpextrw(i.dest.reg().cvt32(), i.src1, VEC128_W(i.src2.constant()));
     } else {
       // TODO(benvanik): try out hlide's version:
-      // e.mov(e.eax, 7);
-      // e.and(e.al, i.src2);        // eax = [i&7, 0, 0, 0]
-      // e.imul(e.eax, 0x00000202);   // [(i&7)*2, (i&7)*2, 0, 0]
-      // e.xor(e.eax, 0x80800203);    // [((i&7)*2)^3, ((i&7)*2)^2, 0x80, 0x80]
-      // e.vmovd(e.xmm0, e.eax);
-      // e.vpshufb(e.xmm0, i.src1, e.xmm0);
-      // e.vmovd(i.dest.reg().cvt32(), e.xmm0);
-      XEASSERTALWAYS();
+      e.mov(e.al, i.src2);
+      e.xor(e.al, 0x1);
+      e.mov(e.ah, e.al);
+      e.add(e.ah, 1);
+      e.vmovd(e.xmm0, e.eax);
+      e.vpshufb(e.xmm0, i.src1, e.xmm0);
+      e.vmovd(i.dest.reg().cvt32(), e.xmm0);
     }
   }
 };
