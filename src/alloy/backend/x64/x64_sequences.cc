@@ -47,8 +47,8 @@ static std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
 
 // Selects the right byte/word/etc from a vector. We need to flip logical
 // indices (0,1,2,3,4,5,6,7,...) = (3,2,1,0,7,6,5,4,...)
-#define VEC128_B(n) ((n) & 0xC) | ((~(n)) & 0x3)
-#define VEC128_W(n) ((n) & 0x6) | ((~(n)) & 0x1)
+#define VEC128_B(n) ((n) ^ 0x3)
+#define VEC128_W(n) ((n) ^ 0x1)
 #define VEC128_D(n) (n)
 #define VEC128_F(n) (n)
 
@@ -4413,7 +4413,11 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       vec128b(15, 14, 13, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
     };
     if (i.src2.is_constant) {
-      e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
+      if (i.src2.constant() == 0) {
+        e.vmovd(i.dest, i.src1);
+      } else {
+        e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
+      }
     } else {
       // TODO(benvanik): try out hlide's version:
       // e.mov(e.eax, 3);
