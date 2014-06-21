@@ -4733,15 +4733,27 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
+    // 0|0|0|0|W|Z|Y|X
     e.vcvtps2ph(e.xmm0, i.src1, B00000011);
+    // Y|X|W|Z|0|0|0|0
+    e.vpshufd(e.xmm0, e.xmm0, B00011011);
+    // Shuffle to X|Y|Z|W|0|0|0|0
+    e.vpshufhw(e.xmm0, e.xmm0, B10110001);
+    // Select just X|Y
     e.vxorps(i.dest, i.dest);
-    e.vpblendw(i.dest, e.xmm0, B00000011);
+    e.vpblendw(i.dest, e.xmm0, B11000000);
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
+    // 0|0|0|0|W|Z|Y|X
     e.vcvtps2ph(e.xmm0, i.src1, B00000011);
+    // Y|X|W|Z|0|0|0|0
+    e.vpshufd(e.xmm0, e.xmm0, B00011011);
+    // Shuffle to X|Y|Z|W|0|0|0|0
+    e.vpshufhw(e.xmm0, e.xmm0, B10110001);
+    // Select just X|Y|Z|W
     e.vxorps(i.dest, i.dest);
-    e.vpblendw(i.dest, e.xmm0, B00001111);
+    e.vpblendw(i.dest, e.xmm0, B11110000);
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     XEASSERTALWAYS();
