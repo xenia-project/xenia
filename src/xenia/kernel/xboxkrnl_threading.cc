@@ -550,9 +550,10 @@ SHIM_CALL KeTlsGetValue_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t tls_index = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "KeTlsGetValue(%.8X)",
-      tls_index);
+  // Logging disabled, as some games spam this.
+  //XELOGD(
+  //    "KeTlsGetValue(%.8X)",
+  //    tls_index);
 
   uint64_t result = xeKeTlsGetValue(tls_index);
   SHIM_SET_RETURN_64(result);
