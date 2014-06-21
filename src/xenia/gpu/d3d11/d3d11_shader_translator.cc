@@ -275,7 +275,7 @@ int D3D11ShaderTranslator::TranslatePixelShader(
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
   for (uint32_t n = 0; n <= MAX(15, temp_regs); n++) {
     append(
-      "  float4 r%d = c[%d];\n", n, n);
+      "  float4 r%d = c[%d];\n", n, n + 256);
   }
   append("  float4 t;\n");
 
@@ -365,7 +365,7 @@ void D3D11ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
     append("r%u", num);
   } else {
     // Constant.
-    append("c[%u]", num);
+    append("c[%u]", type_ == XE_GPU_SHADER_TYPE_PIXEL ? num + 256 : num);
   }
   if (swiz) {
     append(".");
