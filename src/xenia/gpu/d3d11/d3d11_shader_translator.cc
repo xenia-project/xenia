@@ -163,8 +163,10 @@ int D3D11ShaderTranslator::TranslateVertexShader(
     "  VS_OUTPUT o;\n");
 
   // Always write position, as some shaders seem to only write certain values.
-  append(
-    "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n");
+  if (alloc_counts.positions) {
+    append(
+      "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n");
+  }
   if (alloc_counts.point_size) {
     append(
       "  o.oPointSize = float4(1.0, 0.0, 0.0, 0.0);\n");
@@ -198,8 +200,11 @@ int D3D11ShaderTranslator::TranslateVertexShader(
   }
 
   // main footer.
+  if (alloc_counts.positions) {
+    append(
+      "  o.oPos = applyViewport(o.oPos);\n");
+  }
   append(
-    "  o.oPos = applyViewport(o.oPos);\n"
     "  return o;\n"
     "};\n");
 

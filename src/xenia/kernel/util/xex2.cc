@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include <gflags/gflags.h>
 #include <third_party/crypto/rijndael-alg-fst.h>
 #include <third_party/crypto/rijndael-alg-fst.c>
 #include <third_party/mspack/lzx.h>
@@ -19,6 +20,8 @@
 #include <third_party/pe/pe_image.h>
 
 using namespace alloy;
+
+DEFINE_bool(xex_dev_key, false, "Use the devkit key.");
 
 
 typedef struct xe_xex2 {
@@ -434,7 +437,7 @@ int xe_xex2_decrypt_key(xe_xex2_header_t *header) {
   // Guess key based on file info.
   // TODO: better way to finding out which key to use?
   const uint8_t *xexkey;
-  if (header->execution_info.title_id) {
+  if (header->execution_info.title_id && !FLAGS_xex_dev_key) {
     xexkey = xe_xex2_retail_key;
   } else {
     xexkey = xe_xex2_devkit_key;

@@ -21,9 +21,6 @@
 namespace xe {
 namespace kernel {
 
-// Values seem to be all over the place - GUIDs?
-typedef uint32_t XNotificationID;
-
 
 class XNotifyListener : public XObject {
 public:

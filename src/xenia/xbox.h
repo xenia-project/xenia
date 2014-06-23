@@ -254,6 +254,10 @@ public:
 };
 
 
+// Values seem to be all over the place - GUIDs?
+typedef uint32_t XNotificationID;
+
+
 typedef enum _X_INPUT_FLAG {
   X_INPUT_FLAG_GAMEPAD      = 0x00000001,
 } X_INPUT_FLAG;

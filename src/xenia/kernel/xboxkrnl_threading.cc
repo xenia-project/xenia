@@ -1129,7 +1129,7 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
     uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
     result = object->Wait(
         3, wait_mode, alertable,
-    timeout_ptr ? &timeout : NULL);
+        timeout_ptr ? &timeout : NULL);
     object->Release();
   }
 
