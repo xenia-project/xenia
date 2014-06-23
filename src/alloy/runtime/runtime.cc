@@ -55,11 +55,6 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   // Must be initialized by subclass before calling into this.
   XEASSERTNOTNULL(memory_);
 
-  int result = memory_->Initialize();
-  if (result) {
-    return result;
-  }
-
   // Create debugger first. Other types hook up to it.
   debugger_ = new Debugger(this);
 
@@ -102,7 +97,7 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   backend_ = backend;
   frontend_ = frontend;
 
-  result = backend_->Initialize();
+  int result = backend_->Initialize();
   if (result) {
     return result;
   }

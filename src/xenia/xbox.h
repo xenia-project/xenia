@@ -63,6 +63,7 @@ typedef uint32_t X_RESULT;
 #define X_HRESULT_FROM_WIN32(x) ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
 #define X_ERROR_SUCCESS                                 X_HRESULT_FROM_WIN32(0x00000000L)
 #define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
+#define X_ERROR_NO_MORE_FILES                           X_HRESULT_FROM_WIN32(0x00000018L)
 #define X_ERROR_INSUFFICIENT_BUFFER                     X_HRESULT_FROM_WIN32(0x0000007AL)
 #define X_ERROR_BAD_ARGUMENTS                           X_HRESULT_FROM_WIN32(0x000000A0L)
 #define X_ERROR_BUSY                                    X_HRESULT_FROM_WIN32(0x000000AAL)
