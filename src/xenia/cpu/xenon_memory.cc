@@ -316,7 +316,7 @@ int XenonMemory::Initialize() {
   virtual_heap_->Initialize(
       XENON_MEMORY_VIRTUAL_HEAP_LOW, XENON_MEMORY_VIRTUAL_HEAP_HIGH);
   physical_heap_->Initialize(
-      XENON_MEMORY_PHYSICAL_HEAP_LOW, XENON_MEMORY_PHYSICAL_HEAP_HIGH);
+      XENON_MEMORY_PHYSICAL_HEAP_LOW, XENON_MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
