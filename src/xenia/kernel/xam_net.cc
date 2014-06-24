@@ -113,7 +113,7 @@ SHIM_CALL NetDll_setsockopt_shim(
   uint32_t optval_ptr = SHIM_GET_ARG_32(4);
   uint32_t optlen = SHIM_GET_ARG_32(5);
   XELOGD(
-      "NetDll_send(%d, %.8X, %d, %d, %.8X, %d)",
+      "NetDll_setsockopt(%d, %.8X, %d, %d, %.8X, %d)",
       arg0,
       socket_ptr,
       level,
