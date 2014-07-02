@@ -176,12 +176,14 @@ SHIM_CALL NetDll_recvfrom_shim(
 
 SHIM_CALL NetDll_send_shim(
     PPCContext* ppc_state, KernelState* state) {
-  uint32_t socket_ptr = SHIM_GET_ARG_32(0);
-  uint32_t buf_ptr = SHIM_GET_ARG_32(1);
-  uint32_t len = SHIM_GET_ARG_32(2);
-  uint32_t flags = SHIM_GET_ARG_32(3);
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t socket_ptr = SHIM_GET_ARG_32(1);
+  uint32_t buf_ptr = SHIM_GET_ARG_32(2);
+  uint32_t len = SHIM_GET_ARG_32(3);
+  uint32_t flags = SHIM_GET_ARG_32(4);
   XELOGD(
-      "NetDll_send(%.8X, %.8X, %d, %d)",
+      "NetDll_send(%d,%.8X, %.8X, %d, %d)",
+      arg0,
       socket_ptr,
       buf_ptr,
       len,
