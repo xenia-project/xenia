@@ -95,7 +95,8 @@ void AudioSystem::ThreadStart() {
         uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
         xe_mutex_unlock(lock_);
         if (client_callback) {
-          processor->Execute(thread_state_, client_callback, client_callback_arg, 0);
+          uint64_t args[] = { client_callback_arg };
+          processor->Execute(thread_state_, client_callback, args, XECOUNT(args));
         }
         pumped++;
         index++;

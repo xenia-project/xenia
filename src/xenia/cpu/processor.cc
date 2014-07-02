@@ -167,25 +167,15 @@ int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
 }
 
 uint64_t Processor::Execute(
-    XenonThreadState* thread_state, uint64_t address, uint64_t arg0) {
+    XenonThreadState* thread_state, uint64_t address, uint64_t args[],
+    size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
   PPCContext* context = thread_state->context();
-  context->r[3] = arg0;
-  if (Execute(thread_state, address)) {
-    return 0xDEADBABE;
+  XEASSERT(arg_count <= 5);
+  for (size_t i = 0; i < arg_count; ++i) {
+    context->r[3 + i] = args[i];
   }
-  return context->r[3];
-}
-
-uint64_t Processor::Execute(
-    XenonThreadState* thread_state, uint64_t address, uint64_t arg0,
-    uint64_t arg1) {
-  SCOPE_profile_cpu_f("cpu");
-
-  PPCContext* context = thread_state->context();
-  context->r[3] = arg0;
-  context->r[4] = arg1;
   if (Execute(thread_state, address)) {
     return 0xDEADBABE;
   }
@@ -193,7 +183,7 @@ uint64_t Processor::Execute(
 }
 
 uint64_t Processor::ExecuteInterrupt(
-    uint32_t cpu, uint64_t address, uint64_t arg0, uint64_t arg1) {
+    uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
   // Acquire lock on interrupt thread (we can only dispatch one at a time).
@@ -204,7 +194,7 @@ uint64_t Processor::ExecuteInterrupt(
   XESETUINT8BE(p + interrupt_thread_block_ + 0x10C, cpu);
 
   // Execute interrupt.
-  uint64_t result = Execute(interrupt_thread_state_, address, arg0, arg1);
+  uint64_t result = Execute(interrupt_thread_state_, address, args, arg_count);
 
   xe_mutex_unlock(interrupt_thread_lock_);
   return result;

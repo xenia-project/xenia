@@ -195,6 +195,7 @@ void GraphicsSystem::DispatchInterruptCallback(
   if (!interrupt_callback_) {
     return;
   }
+  uint64_t args[] = { source, interrupt_callback_data_ };
   processor_->ExecuteInterrupt(
-      cpu, interrupt_callback_, source, interrupt_callback_data_);
+      cpu, interrupt_callback_, args, XECOUNT(args));
 }

@@ -42,13 +42,11 @@ public:
   int Execute(
       XenonThreadState* thread_state, uint64_t address);
   uint64_t Execute(
-      XenonThreadState* thread_state, uint64_t address, uint64_t arg0);
-  uint64_t Execute(
-      XenonThreadState* thread_state, uint64_t address, uint64_t arg0,
-      uint64_t arg1);
+      XenonThreadState* thread_state, uint64_t address, uint64_t args[],
+      size_t arg_count);
 
   uint64_t ExecuteInterrupt(
-      uint32_t cpu, uint64_t address, uint64_t arg0, uint64_t arg1);
+      uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count);
 
   virtual void OnDebugClientConnected(uint32_t client_id);
   virtual void OnDebugClientDisconnected(uint32_t client_id);
