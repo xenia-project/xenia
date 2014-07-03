@@ -116,6 +116,11 @@ typedef uint32_t X_RESULT;
 #define X_PROCTYPE_SYSTEM 2
 
 
+// Sockets/networking.
+#define X_INVALID_SOCKET          (uint32_t)(~0)
+#define X_SOCKET_ERROR            (uint32_t)(-1)
+
+
 // Thread enums.
 #define X_CREATE_SUSPENDED        0x00000004
 
