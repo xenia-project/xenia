@@ -35,8 +35,7 @@ SHIM_CALL NetDll_XNetStartup_shim(
       arg0,
       params_ptr);
 
-  // Fail for now.
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_64(0);
 }
 
 SHIM_CALL NetDll_WSAStartup_shim(
@@ -53,16 +52,18 @@ SHIM_CALL NetDll_WSAStartup_shim(
 
   if (data_ptr) {
     SHIM_SET_MEM_16(data_ptr + 0x000, version);
-    SHIM_SET_MEM_16(data_ptr + 0x002, 0);
+    SHIM_SET_MEM_16(data_ptr + 0x002, version);
     SHIM_SET_MEM_32(data_ptr + 0x004, 0);
     SHIM_SET_MEM_32(data_ptr + 0x105, 0);
     SHIM_SET_MEM_16(data_ptr + 0x186, 0);
     SHIM_SET_MEM_16(data_ptr + 0x188, 0);
-    SHIM_SET_MEM_32(data_ptr + 0x190, 0);
+    // Some games (PoG) want this value round-tripped - they'll compare if it
+    // changes and bugcheck if it does.
+    uint32_t vendor_ptr = SHIM_MEM_32(data_ptr + 0x190);
+    SHIM_SET_MEM_32(data_ptr + 0x190, vendor_ptr);
   }
 
-  // Fail for now. This prevents games from actually trying to use this stuff.
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_64(0);
 }
 
 SHIM_CALL NetDll_WSAGetLastError_shim(
