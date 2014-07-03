@@ -368,8 +368,8 @@ uint32_t xeKeGetCurrentProcessType() {
 
 SHIM_CALL KeGetCurrentProcessType_shim(
     PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "KeGetCurrentProcessType()");
+  // XELOGD(
+  //     "KeGetCurrentProcessType()");
 
   int result = xeKeGetCurrentProcessType();
   SHIM_SET_RETURN_64(result);
