@@ -63,6 +63,7 @@ doing.
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
+* Help work through missing functionality/bugs in game [compat](https://github.com/benvanik/xenia/issues?labels=compat)
 * Write an [OpenGL driver](https://github.com/benvanik/xenia/issues/59)
 * Add input drivers for [OSX](https://github.com/benvanik/xenia/issues/61) and [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
 * Start [hacking on audio](https://github.com/benvanik/xenia/issues/62)
