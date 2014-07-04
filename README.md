@@ -66,7 +66,6 @@ that there are some major work areas still untouched:
 * Write an [OpenGL driver](https://github.com/benvanik/xenia/issues/59)
 * Add input drivers for [OSX](https://github.com/benvanik/xenia/issues/61) and [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
 * Start [hacking on audio](https://github.com/benvanik/xenia/issues/62)
-* Support [loading of PIRS files](https://github.com/benvanik/xenia/issues/63)
 * Build a [virtual LIVE service](https://github.com/benvanik/xenia/issues/64)
 
 See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open). It's a good idea to ask on IRC/the bugs before beginning work
