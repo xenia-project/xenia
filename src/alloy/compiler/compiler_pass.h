@@ -33,6 +33,9 @@ public:
   virtual int Run(hir::HIRBuilder* builder) = 0;
 
 protected:
+  Arena* scratch_arena() const;
+
+protected:
   runtime::Runtime* runtime_;
   Compiler* compiler_;
 };

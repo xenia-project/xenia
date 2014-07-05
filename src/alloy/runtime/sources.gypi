@@ -15,7 +15,6 @@
     'module.h',
     'raw_module.cc',
     'raw_module.h',
-    'register_access.h',
     'runtime.cc',
     'runtime.h',
     'symbol_info.cc',

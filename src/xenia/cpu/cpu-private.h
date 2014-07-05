@@ -20,9 +20,6 @@ DECLARE_bool(trace_user_calls);
 DECLARE_bool(trace_kernel_calls);
 DECLARE_uint64(trace_thread_mask);
 
-DECLARE_uint64(break_on_instruction);
-DECLARE_uint64(break_on_memory);
-
 DECLARE_string(load_module_map);
 
 DECLARE_string(dump_path);

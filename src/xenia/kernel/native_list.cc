@@ -66,3 +66,7 @@ uint32_t NativeList::Shift() {
   Remove(ptr);
   return ptr;
 }
+
+bool NativeList::HasPending() {
+  return head_ != kInvalidPointer;
+}

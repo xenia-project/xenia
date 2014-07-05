@@ -52,12 +52,15 @@ SHIM_CALL NetDll_WSAStartup_shim(
 
   if (data_ptr) {
     SHIM_SET_MEM_16(data_ptr + 0x000, version);
-    SHIM_SET_MEM_16(data_ptr + 0x002, 0);
+    SHIM_SET_MEM_16(data_ptr + 0x002, version);
     SHIM_SET_MEM_32(data_ptr + 0x004, 0);
     SHIM_SET_MEM_32(data_ptr + 0x105, 0);
     SHIM_SET_MEM_16(data_ptr + 0x186, 0);
     SHIM_SET_MEM_16(data_ptr + 0x188, 0);
-    SHIM_SET_MEM_32(data_ptr + 0x190, 0);
+    // Some games (PoG) want this value round-tripped - they'll compare if it
+    // changes and bugcheck if it does.
+    uint32_t vendor_ptr = SHIM_MEM_32(data_ptr + 0x190);
+    SHIM_SET_MEM_32(data_ptr + 0x190, vendor_ptr);
   }
 
   SHIM_SET_RETURN_64(0);
@@ -66,7 +69,18 @@ SHIM_CALL NetDll_WSAStartup_shim(
 SHIM_CALL NetDll_WSAGetLastError_shim(
     PPCContext* ppc_state, KernelState* state) {
   XELOGD("NetDll_WSAGetLastError()");
-  SHIM_SET_RETURN_32(WSAENETDOWN);
+  SHIM_SET_RETURN_32(10093L);  // WSANOTINITIALISED
+}
+
+SHIM_CALL NetDll_XNetGetTitleXnAddr_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t arg1 = SHIM_GET_ARG_32(1);
+  XELOGD(
+      "NetDll_XNetGetTitleXnAddr(%d, %.8X)",
+      arg0,
+      arg1);
+  SHIM_SET_RETURN_32(0x00000001);
 }
 
 SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(
@@ -86,7 +100,7 @@ SHIM_CALL NetDll_inet_addr_shim(
   XELOGD(
       "NetDll_inet_addr(%.8X)",
       cp_ptr);
-  SHIM_SET_RETURN_32(INADDR_NONE);
+  SHIM_SET_RETURN_32(0xFFFFFFFF); // X_INADDR_NONE
 }
 
 SHIM_CALL NetDll_socket_shim(
@@ -101,7 +115,7 @@ SHIM_CALL NetDll_socket_shim(
       af,
       type,
       protocol);
-  SHIM_SET_RETURN_32(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(X_SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_setsockopt_shim(
@@ -113,14 +127,14 @@ SHIM_CALL NetDll_setsockopt_shim(
   uint32_t optval_ptr = SHIM_GET_ARG_32(4);
   uint32_t optlen = SHIM_GET_ARG_32(5);
   XELOGD(
-      "NetDll_send(%d, %.8X, %d, %d, %.8X, %d)",
+      "NetDll_setsockopt(%d, %.8X, %d, %d, %.8X, %d)",
       arg0,
       socket_ptr,
       level,
       optname,
       optval_ptr,
       optlen);
-  SHIM_SET_RETURN_32(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(X_SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_connect_shim(
@@ -133,7 +147,7 @@ SHIM_CALL NetDll_connect_shim(
       socket_ptr,
       sockaddr_ptr,
       namelen);
-  SHIM_SET_RETURN_32(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(X_SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_recv_shim(
@@ -150,7 +164,7 @@ SHIM_CALL NetDll_recv_shim(
       buf_ptr,
       len,
       flags);
-  SHIM_SET_RETURN_32(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(X_SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_recvfrom_shim(
@@ -171,22 +185,24 @@ SHIM_CALL NetDll_recvfrom_shim(
       flags,
       from_ptr,
       fromlen_ptr);
-  SHIM_SET_RETURN_32(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(X_SOCKET_ERROR);
 }
 
 SHIM_CALL NetDll_send_shim(
     PPCContext* ppc_state, KernelState* state) {
-  uint32_t socket_ptr = SHIM_GET_ARG_32(0);
-  uint32_t buf_ptr = SHIM_GET_ARG_32(1);
-  uint32_t len = SHIM_GET_ARG_32(2);
-  uint32_t flags = SHIM_GET_ARG_32(3);
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t socket_ptr = SHIM_GET_ARG_32(1);
+  uint32_t buf_ptr = SHIM_GET_ARG_32(2);
+  uint32_t len = SHIM_GET_ARG_32(3);
+  uint32_t flags = SHIM_GET_ARG_32(4);
   XELOGD(
-      "NetDll_send(%.8X, %.8X, %d, %d)",
+      "NetDll_send(%d,%.8X, %.8X, %d, %d)",
+      arg0,
       socket_ptr,
       buf_ptr,
       len,
       flags);
-  SHIM_SET_RETURN_32(SOCKET_ERROR);
+  SHIM_SET_RETURN_32(X_SOCKET_ERROR);
 }
 
 
@@ -199,6 +215,7 @@ void xe::kernel::xam::RegisterNetExports(
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAGetLastError, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetTitleXnAddr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_inet_addr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_socket, state);

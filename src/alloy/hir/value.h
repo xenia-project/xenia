@@ -11,6 +11,7 @@
 #define ALLOY_HIR_VALUE_H_
 
 #include <alloy/core.h>
+#include <alloy/backend/machine_info.h>
 #include <alloy/hir/opcodes.h>
 
 
@@ -34,7 +35,32 @@ enum TypeName {
 };
 
 static bool IsIntType(TypeName type_name) {
-  return type_name < 4;
+  return type_name <= INT64_TYPE;
+}
+static bool IsFloatType(TypeName type_name) {
+  return type_name == FLOAT32_TYPE || type_name == FLOAT64_TYPE;
+}
+static bool IsVecType(TypeName type_name) {
+  return type_name == VEC128_TYPE;
+}
+static size_t GetTypeSize(TypeName type_name) {
+  switch (type_name) {
+  case INT8_TYPE:
+    return 1;
+  case INT16_TYPE:
+    return 2;
+  case INT32_TYPE:
+    return 4;
+  case INT64_TYPE:
+    return 8;
+  case FLOAT32_TYPE:
+    return 4;
+  case FLOAT64_TYPE:
+    return 8;
+  default:
+  case VEC128_TYPE:
+    return 16;
+  }
 }
 
 enum ValueFlags {
@@ -42,6 +68,10 @@ enum ValueFlags {
   VALUE_IS_ALLOCATED  = (1 << 2), // Used by backends. Do not set.
 };
 
+struct RegAssignment {
+  const backend::MachineInfo::RegisterSet* set;
+  int32_t index;
+};
 
 class Value {
 public:
@@ -65,13 +95,14 @@ public:
   TypeName type;
 
   uint32_t flags;
-  uint32_t reg;
+  RegAssignment reg;
   ConstantValue constant;
 
   Instr*    def;
   Use*      use_head;
   // NOTE: for performance reasons this is not maintained during construction.
   Instr*    last_use;
+  Value*    local_slot;
 
   // TODO(benvanik): remove to shrink size.
   void*     tag;
@@ -158,25 +189,26 @@ public:
   }
   bool IsConstantTrue() const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) && !!constant.i64;
   }
   bool IsConstantFalse() const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) && !constant.i64;
   }
   bool IsConstantZero() const {
     if (type == VEC128_TYPE) {
-      return false;
+      return (flags & VALUE_IS_CONSTANT) &&
+             !constant.v128.low && !constant.v128.high;
     }
     return (flags & VALUE_IS_CONSTANT) && !constant.i64;
   }
   bool IsConstantEQ(Value* other) const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) &&
            (other->flags & VALUE_IS_CONSTANT) &&
@@ -184,11 +216,155 @@ public:
   }
   bool IsConstantNE(Value* other) const {
     if (type == VEC128_TYPE) {
-      return false;
+      XEASSERTALWAYS();
     }
     return (flags & VALUE_IS_CONSTANT) &&
            (other->flags & VALUE_IS_CONSTANT) &&
            constant.i64 != other->constant.i64;
+  }
+  bool IsConstantSLT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 < other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 < other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 < other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 < other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 < other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 < other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantSLE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 <= other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 <= other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 <= other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 <= other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 <= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 <= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantSGT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 > other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 > other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 > other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 > other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 > other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 > other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantSGE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return constant.i8 >= other->constant.i8;
+    case INT16_TYPE:
+      return constant.i16 >= other->constant.i16;
+    case INT32_TYPE:
+      return constant.i32 >= other->constant.i32;
+    case INT64_TYPE:
+      return constant.i64 >= other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 >= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 >= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantULT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 < (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 < (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 < (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 < (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 < other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 < other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantULE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 <= (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 <= (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 <= (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 <= (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 <= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 <= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantUGT(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 > (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 > (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 > (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 > (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 > other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 > other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
+  }
+  bool IsConstantUGE(Value* other) const {
+    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    switch (type) {
+    case INT8_TYPE:
+      return (uint8_t)constant.i8 >= (uint8_t)other->constant.i8;
+    case INT16_TYPE:
+      return (uint16_t)constant.i16 >= (uint16_t)other->constant.i16;
+    case INT32_TYPE:
+      return (uint32_t)constant.i32 >= (uint32_t)other->constant.i32;
+    case INT64_TYPE:
+      return (uint64_t)constant.i64 >= (uint64_t)other->constant.i64;
+    case FLOAT32_TYPE:
+      return constant.f32 >= other->constant.f32;
+    case FLOAT64_TYPE:
+      return constant.f64 >= other->constant.f64;
+    default: XEASSERTALWAYS(); return false;
+    }
   }
   uint32_t AsUint32();
   uint64_t AsUint64();
@@ -199,8 +375,8 @@ public:
   void Truncate(TypeName target_type);
   void Convert(TypeName target_type, RoundMode round_mode);
   void Round(RoundMode round_mode);
-  void Add(Value* other);
-  void Sub(Value* other);
+  bool Add(Value* other);
+  bool Sub(Value* other);
   void Mul(Value* other);
   void Div(Value* other);
   static void MulAdd(Value* dest, Value* value1, Value* value2, Value* value3);
@@ -217,6 +393,7 @@ public:
   void Shr(Value* other);
   void Sha(Value* other);
   void ByteSwap();
+  void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
 };
 

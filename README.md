@@ -1,8 +1,7 @@
 Xenia - Xbox 360 Emulator Research Project
 ==========================================
 
-Xenia is an experimental emulator for the Xbox 360. It does not run games (yet),
-and if you are unable to understand that please leave now.
+Xenia is an experimental emulator for the Xbox 360. It does not run games (yet).
 
 Pull requests are welcome but the code is in a very high churn state and may not
 be accepted, so ask in IRC before taking on anything big. Contributions are
@@ -54,7 +53,7 @@ See [building](docs/building.md) for setup and information about the
 
 Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
-is wide open greenfield fun. 
+is wide open greenfield fun.
 
 That said, the project is currently undergoing a lot of major foundational
 development and core pieces are changing rapidly and poorly documented.
@@ -64,12 +63,12 @@ doing.
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
+* Help work through missing functionality/bugs in game [compat](https://github.com/benvanik/xenia/issues?labels=compat)
 * Write an [OpenGL driver](https://github.com/benvanik/xenia/issues/59)
 * Add input drivers for [OSX](https://github.com/benvanik/xenia/issues/61) and [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
 * Start [hacking on audio](https://github.com/benvanik/xenia/issues/62)
-* Support [loading of PIRS files](https://github.com/benvanik/xenia/issues/63)
 * Build a [virtual LIVE service](https://github.com/benvanik/xenia/issues/64)
- 
+
 See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open). It's a good idea to ask on IRC/the bugs before beginning work
 on something.
 
@@ -85,11 +84,9 @@ Come on people. Jeez.
 
 ### What kind of machine do I need to run this?
 
-You'll need 64-bit Windows 7 with a processor supporting at least SSE4.
-It's only tested on Windows 8 and that may become a requirement as several of
-the APIs exposed there are beneficial to emulation. In general if you have to
-ask if your machine is good enough to run games at a decent speed the answer is
-no.
+You'll need 64-bit Windows 8 with a processor supporting at least AVX2 - in
+other words, a Haswell. In general if you have to ask if your machine is good
+enough to run games at a decent speed the answer is no.
 
 ### What about Linux/OSX?
 
@@ -108,7 +105,7 @@ be required in the future.
 
 I get asked this about once a day. Yes, I have heard of them. In fact, I spent
 a long time trying them out:
-[LLVM](https://github.com/benvanik/xenia/tree/85bdbd24d1b5923cfb104f45194a96e7ac57026e/src/xenia/cpu/codegen), 
+[LLVM](https://github.com/benvanik/xenia/tree/85bdbd24d1b5923cfb104f45194a96e7ac57026e/src/xenia/cpu/codegen),
 [libjit](https://github.com/benvanik/xenia/tree/eee856be0499a4bc721b6097f5f2b9446929f2cc/src/xenia/cpu/libjit),
 [asmjit](https://github.com/benvanik/xenia/tree/ca208fa60a0285d396409743064784cc2320c094/src/xenia/cpu/x64).
 They don't work for this purpose. I understand if you disagree, but please

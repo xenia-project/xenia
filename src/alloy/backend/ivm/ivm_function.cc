@@ -23,7 +23,7 @@ using namespace alloy::runtime;
 IVMFunction::IVMFunction(FunctionInfo* symbol_info) :
     register_count_(0), intcode_count_(0), intcodes_(0),
     source_map_count_(0), source_map_(0),
-    GuestFunction(symbol_info) {
+    Function(symbol_info) {
 }
 
 IVMFunction::~IVMFunction() {
@@ -33,6 +33,7 @@ IVMFunction::~IVMFunction() {
 
 void IVMFunction::Setup(TranslationContext& ctx) {
   register_count_ = ctx.register_count;
+  stack_size_ = ctx.stack_size;
   intcode_count_ = ctx.intcode_count;
   intcodes_ = (IntCode*)ctx.intcode_arena->CloneContents();
   source_map_count_ = ctx.source_map_count;
@@ -104,22 +105,25 @@ void IVMFunction::OnBreakpointHit(ThreadState* thread_state, IntCode* i) {
 
 #undef TRACE_SOURCE_OFFSET
 
-int IVMFunction::CallImpl(ThreadState* thread_state) {
+int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   // Setup register file on stack.
   auto stack = (IVMStack*)thread_state->backend_data();
   auto register_file = (Register*)stack->Alloc(register_count_);
+  auto local_stack = (uint8_t*)alloca(stack_size_);
 
   Memory* memory = thread_state->memory();
 
   IntCodeState ics;
   ics.rf = register_file;
+  ics.locals = local_stack;
   ics.context = (uint8_t*)thread_state->raw_context();
   ics.membase = memory->membase();
-  ics.reserve_address = memory->reserve_address();
+  ics.page_table = ics.membase + memory->page_table();
   ics.did_carry = 0;
   ics.did_saturate = 0;
-  ics.access_callbacks = thread_state->runtime()->access_callbacks();
   ics.thread_state = thread_state;
+  ics.return_address = return_address;
+  ics.call_return_address = 0;
 
   volatile int* suspend_flag_address = thread_state->suspend_flag_address();
 

@@ -28,6 +28,8 @@ public:
 
   virtual void Shutdown();
 
+  void Swap() override {}
+
 protected:
   virtual void Initialize();
   virtual void Pump();

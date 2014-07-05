@@ -43,6 +43,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_INVALID_HANDLE                         ((X_STATUS)0xC0000008L)
 #define X_STATUS_INVALID_PARAMETER                      ((X_STATUS)0xC000000DL)
 #define X_STATUS_NO_SUCH_FILE                           ((X_STATUS)0xC000000FL)
+#define X_STATUS_END_OF_FILE                            ((X_STATUS)0xC0000011L)
 #define X_STATUS_NO_MEMORY                              ((X_STATUS)0xC0000017L)
 #define X_STATUS_ALREADY_COMMITTED                      ((X_STATUS)0xC0000021L)
 #define X_STATUS_ACCESS_DENIED                          ((X_STATUS)0xC0000022L)
@@ -62,6 +63,7 @@ typedef uint32_t X_RESULT;
 #define X_HRESULT_FROM_WIN32(x) ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
 #define X_ERROR_SUCCESS                                 X_HRESULT_FROM_WIN32(0x00000000L)
 #define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
+#define X_ERROR_NO_MORE_FILES                           X_HRESULT_FROM_WIN32(0x00000018L)
 #define X_ERROR_INSUFFICIENT_BUFFER                     X_HRESULT_FROM_WIN32(0x0000007AL)
 #define X_ERROR_BAD_ARGUMENTS                           X_HRESULT_FROM_WIN32(0x000000A0L)
 #define X_ERROR_BUSY                                    X_HRESULT_FROM_WIN32(0x000000AAL)
@@ -112,6 +114,11 @@ typedef uint32_t X_RESULT;
 #define X_PROCTYPE_IDLE   0
 #define X_PROCTYPE_USER   1
 #define X_PROCTYPE_SYSTEM 2
+
+
+// Sockets/networking.
+#define X_INVALID_SOCKET          (uint32_t)(~0)
+#define X_SOCKET_ERROR            (uint32_t)(-1)
 
 
 // Thread enums.
@@ -251,6 +258,10 @@ public:
     attributes = 0;
   }
 };
+
+
+// Values seem to be all over the place - GUIDs?
+typedef uint32_t XNotificationID;
 
 
 typedef enum _X_INPUT_FLAG {

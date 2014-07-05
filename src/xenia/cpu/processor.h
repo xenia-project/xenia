@@ -10,7 +10,6 @@
 #ifndef XENIA_CPU_PROCESSOR_H_
 #define XENIA_CPU_PROCESSOR_H_
 
-#include <alloy/runtime/register_access.h>
 #include <xenia/core.h>
 #include <xenia/debug/debug_target.h>
 
@@ -28,11 +27,6 @@ XEDECLARECLASS2(xe, cpu, XexModule);
 namespace xe {
 namespace cpu {
 
-using RegisterAccessCallbacks = alloy::runtime::RegisterAccessCallbacks;
-using RegisterHandlesCallback = alloy::runtime::RegisterHandlesCallback;
-using RegisterReadCallback = alloy::runtime::RegisterReadCallback;
-using RegisterWriteCallback = alloy::runtime::RegisterWriteCallback;
-
 
 class Processor : public debug::DebugTarget {
 public:
@@ -45,18 +39,14 @@ public:
 
   int Setup();
 
-  void AddRegisterAccessCallbacks(RegisterAccessCallbacks callbacks);
-
   int Execute(
       XenonThreadState* thread_state, uint64_t address);
   uint64_t Execute(
-      XenonThreadState* thread_state, uint64_t address, uint64_t arg0);
-  uint64_t Execute(
-      XenonThreadState* thread_state, uint64_t address, uint64_t arg0,
-      uint64_t arg1);
+      XenonThreadState* thread_state, uint64_t address, uint64_t args[],
+      size_t arg_count);
 
   uint64_t ExecuteInterrupt(
-      uint32_t cpu, uint64_t address, uint64_t arg0, uint64_t arg1);
+      uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count);
 
   virtual void OnDebugClientConnected(uint32_t client_id);
   virtual void OnDebugClientDisconnected(uint32_t client_id);

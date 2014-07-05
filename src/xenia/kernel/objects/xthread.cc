@@ -78,6 +78,9 @@ XThread::~XThread() {
   if (thread_state_) {
     delete thread_state_;
   }
+  if (scratch_address_) {
+    kernel_state()->memory()->HeapFree(scratch_address_, 0);
+  }
   if (tls_address_) {
     kernel_state()->memory()->HeapFree(tls_address_, 0);
   }
@@ -194,6 +197,12 @@ X_STATUS XThread::Create() {
 
   XUserModule* module = kernel_state()->GetExecutableModule();
 
+  // Allocate thread scratch.
+  // This is used by interrupts/APCs/etc so we can round-trip pointers through.
+  scratch_size_ = 4 * 16;
+  scratch_address_ = (uint32_t)memory()->HeapAlloc(
+      0, scratch_size_, MEMORY_FLAG_ZERO);
+
   // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();
   uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
@@ -231,6 +240,10 @@ X_STATUS XThread::Create() {
     return return_code;
   }
 
+  char thread_name[32];
+  xesnprintfa(thread_name, XECOUNT(thread_name), "XThread%04X", handle());
+  set_name(thread_name);
+
   module->Release();
   return X_STATUS_SUCCESS;
 }
@@ -240,6 +253,7 @@ X_STATUS XThread::Exit(int exit_code) {
 
   // TODO(benvanik); dispatch events? waiters? etc?
   event_->Set(0, false);
+  RundownAPCs();
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   X_STATUS return_code = PlatformExit(exit_code);
@@ -253,10 +267,12 @@ X_STATUS XThread::Exit(int exit_code) {
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  xe::Profiler::ThreadEnter(thread->name());
   xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
   thread->Execute();
   xeKeTlsSetValue(current_thread_tls, NULL);
   thread->Release();
+  xe::Profiler::ThreadExit();
   return 0;
 }
 
@@ -293,10 +309,12 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 
 static void* XThreadStartCallbackPthreads(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  xe::Profiler::ThreadEnter(thread->name());
   xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
   thread->Execute();
   xeKeTlsSetValue(current_thread_tls, NULL);
   thread->Release();
+  xe::Profiler::ThreadExit();
   return 0;
 }
 
@@ -357,15 +375,21 @@ void XThread::Execute() {
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {
+    uint64_t args[] = {
+      creation_params_.start_address,
+      creation_params_.start_context
+    };
     kernel_state()->processor()->Execute(
         thread_state_,
-        creation_params_.xapi_thread_startup,
-        creation_params_.start_address, creation_params_.start_context);
+        creation_params_.xapi_thread_startup, args, XECOUNT(args));
   } else {
     // Run user code.
+    uint64_t args[] = {
+      creation_params_.start_context
+    };
     int exit_code = (int)kernel_state()->processor()->Execute(
         thread_state_,
-        creation_params_.start_address, creation_params_.start_context);
+        creation_params_.start_address, args, XECOUNT(args));
     // If we got here it means the execute completed without an exit being called.
     // Treat the return code as an implicit exit code.
     Exit(exit_code);
@@ -394,7 +418,99 @@ void XThread::LockApc() {
 }
 
 void XThread::UnlockApc() {
+  bool needs_apc = apc_list_->HasPending();
   xe_mutex_unlock(apc_lock_);
+  if (needs_apc) {
+    QueueUserAPC(reinterpret_cast<PAPCFUNC>(DeliverAPCs),
+                 thread_handle_,
+                 reinterpret_cast<ULONG_PTR>(this));
+  }
+}
+
+void XThread::DeliverAPCs(void* data) {
+  // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
+  // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
+  XThread* thread = reinterpret_cast<XThread*>(data);
+  auto membase = thread->memory()->membase();
+  auto processor = thread->kernel_state()->processor();
+  auto apc_list = thread->apc_list();
+  thread->LockApc();
+  while (apc_list->HasPending()) {
+    // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
+    // Calling the routine may delete the memory/overwrite it.
+    uint32_t apc_address = apc_list->Shift() - 8;
+    uint8_t* apc_ptr = membase + apc_address;
+    uint32_t kernel_routine = XEGETUINT32BE(apc_ptr + 16);
+    uint32_t normal_routine = XEGETUINT32BE(apc_ptr + 24);
+    uint32_t normal_context = XEGETUINT32BE(apc_ptr + 28);
+    uint32_t system_arg1 = XEGETUINT32BE(apc_ptr + 32);
+    uint32_t system_arg2 = XEGETUINT32BE(apc_ptr + 36);
+
+    // Mark as uninserted so that it can be reinserted again by the routine.
+    uint32_t old_flags = XEGETUINT32BE(apc_ptr + 40);
+    XESETUINT32BE(apc_ptr + 40, old_flags & ~0xFF00);
+
+    // Call kernel routine.
+    // The routine can modify all of its arguments before passing it on.
+    // Since we need to give guest accessible pointers over, we copy things
+    // into and out of scratch.
+    uint8_t* scratch_ptr = membase + thread->scratch_address_;
+    XESETUINT32BE(scratch_ptr + 0, normal_routine);
+    XESETUINT32BE(scratch_ptr + 4, normal_context);
+    XESETUINT32BE(scratch_ptr + 8, system_arg1);
+    XESETUINT32BE(scratch_ptr + 12, system_arg2);
+    // kernel_routine(apc_address, &normal_routine, &normal_context, &system_arg1, &system_arg2)
+    uint64_t kernel_args[] = {
+      apc_address,
+      thread->scratch_address_ + 0,
+      thread->scratch_address_ + 4,
+      thread->scratch_address_ + 8,
+      thread->scratch_address_ + 12,
+    };
+    processor->ExecuteInterrupt(
+        0, kernel_routine, kernel_args, XECOUNT(kernel_args));
+    normal_routine = XEGETUINT32BE(scratch_ptr + 0);
+    normal_context = XEGETUINT32BE(scratch_ptr + 4);
+    system_arg1 = XEGETUINT32BE(scratch_ptr + 8);
+    system_arg2 = XEGETUINT32BE(scratch_ptr + 12);
+
+    // Call the normal routine. Note that it may have been killed by the kernel
+    // routine.
+    if (normal_routine) {
+      thread->UnlockApc();
+      // normal_routine(normal_context, system_arg1, system_arg2)
+      uint64_t normal_args[] = { normal_context, system_arg1, system_arg2 };
+      processor->ExecuteInterrupt(
+          0, normal_routine, normal_args, XECOUNT(normal_args));
+      thread->LockApc();
+    }
+  }
+  thread->UnlockApc();
+}
+
+void XThread::RundownAPCs() {
+  auto membase = memory()->membase();
+  LockApc();
+  while (apc_list_->HasPending()) {
+    // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
+    // Calling the routine may delete the memory/overwrite it.
+    uint32_t apc_address = apc_list_->Shift() - 8;
+    uint8_t* apc_ptr = membase + apc_address;
+    uint32_t rundown_routine = XEGETUINT32BE(apc_ptr + 20);
+
+    // Mark as uninserted so that it can be reinserted again by the routine.
+    uint32_t old_flags = XEGETUINT32BE(apc_ptr + 40);
+    XESETUINT32BE(apc_ptr + 40, old_flags & ~0xFF00);
+
+    // Call the rundown routine.
+    if (rundown_routine) {
+      // rundown_routine(apc)
+      uint64_t args[] = { apc_address };
+      kernel_state()->processor()->ExecuteInterrupt(
+          0, rundown_routine, args, XECOUNT(args));
+    }
+  }
+  UnlockApc();
 }
 
 int32_t XThread::QueryPriority() {

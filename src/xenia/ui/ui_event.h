@@ -32,6 +32,18 @@ private:
   Window*   window_;
 };
 
+class KeyEvent : public UIEvent {
+public:
+  KeyEvent(Window* window, int key_code) :
+      key_code_(key_code),
+      UIEvent(window) {}
+  virtual ~KeyEvent() {}
+
+  int key_code() const { return key_code_; }
+
+private:
+  int key_code_;
+};
 
 class MouseEvent : public UIEvent {
 public:

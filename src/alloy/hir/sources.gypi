@@ -1,6 +1,7 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'block.cc',
     'block.h',
     'hir_builder.cc',
     'hir_builder.h',

@@ -27,6 +27,8 @@
 #define XE_OPTION_LOG_KERNEL            1
 #define XE_OPTION_LOG_FS                1
 
+// Enable profiling.
+#define XE_OPTION_PROFILING             1
 
 // TODO(benvanik): make this a runtime option
 #define XE_OPTION_OPTIMIZED             0

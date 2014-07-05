@@ -27,10 +27,10 @@ public:
     ALLOY_COMPILER_DEINIT               = ALLOY_COMPILER | (2),
   };
 
-  typedef struct {
+  typedef struct Init_s {
     static const uint32_t event_type = ALLOY_COMPILER_INIT;
   } Init;
-  typedef struct {
+  typedef struct Deinit_s {
     static const uint32_t event_type = ALLOY_COMPILER_DEINIT;
   } Deinit;
 };

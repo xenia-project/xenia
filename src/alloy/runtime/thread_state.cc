@@ -64,6 +64,5 @@ ThreadState* ThreadState::Get() {
 }
 
 uint32_t ThreadState::GetThreadID() {
-  XEASSERT(thread_state_);
   return thread_state_->thread_id_;
 }

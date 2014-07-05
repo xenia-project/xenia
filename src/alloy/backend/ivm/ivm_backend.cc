@@ -34,6 +34,20 @@ int IVMBackend::Initialize() {
     return result;
   }
 
+  machine_info_.register_sets[0] = {
+    0,
+    "gpr",
+    MachineInfo::RegisterSet::INT_TYPES,
+    16,
+  };
+  machine_info_.register_sets[1] = {
+    1,
+    "vec",
+    MachineInfo::RegisterSet::FLOAT_TYPES |
+    MachineInfo::RegisterSet::VEC_TYPES,
+    16,
+  };
+
   alloy::tracing::WriteEvent(EventType::Init({
   }));
 

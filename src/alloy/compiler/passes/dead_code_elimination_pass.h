@@ -28,6 +28,7 @@ public:
 private:
   void MakeNopRecursive(hir::Instr* i);
   void ReplaceAssignment(hir::Instr* i);
+  bool CheckLocalUse(hir::Instr* i);
 };
 
 

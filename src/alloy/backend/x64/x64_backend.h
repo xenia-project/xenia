@@ -20,11 +20,13 @@ namespace backend {
 namespace x64 {
 
 class X64CodeCache;
-namespace lowering { class LoweringTable; }
 
 
 #define ALLOY_HAS_X64_BACKEND 1
 
+
+typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
+typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 
 class X64Backend : public Backend {
 public:
@@ -32,7 +34,8 @@ public:
   virtual ~X64Backend();
 
   X64CodeCache* code_cache() const { return code_cache_; }
-  lowering::LoweringTable* lowering_table() const { return lowering_table_; }
+  HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
+  GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
 
   virtual int Initialize();
 
@@ -40,7 +43,8 @@ public:
 
 private:
   X64CodeCache* code_cache_;
-  lowering::LoweringTable* lowering_table_;
+  HostToGuestThunk host_to_guest_thunk_;
+  GuestToHostThunk guest_to_host_thunk_;
 };
 
 

@@ -135,14 +135,12 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       if (kernel_export->type == KernelExport::Function) {
         // Not exactly sure what this should be...
         if (info->thunk_address) {
-          // slot = XESWAP32BE(info->thunk_address);
-          // Setting this breaks other emu code that relies on it not being
-          // modified. Not sure what to do.
+          *slot = XESWAP32BE(info->thunk_address);
         } else {
           // TODO(benvanik): find out what import variables are.
           XELOGW("kernel import variable not defined %.8X %s",
                  info->value_address, kernel_export->name);
-          //*slot = XESWAP32BE(0xF00DF00D);
+          *slot = XESWAP32BE(0xF00DF00D);
         }
       } else {
         if (kernel_export->is_implemented) {
@@ -165,39 +163,45 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
                     info->ordinal);
       }
 
-      FunctionInfo* fn_info;
-      DeclareFunction(info->thunk_address, &fn_info);
-      fn_info->set_end_address(info->thunk_address + 16 - 4);
-      //fn->type = FunctionSymbol::Kernel;
-      //fn->kernel_export = kernel_export;
-      fn_info->set_name(name);
-      fn_info->set_status(SymbolInfo::STATUS_DECLARED);
+      // On load we have something like this in memory:
+      //     li r3, 0
+      //     li r4, 0x1F5
+      //     mtspr CTR, r11
+      //     bctr
+      // Real consoles rewrite this with some code that sets r11.
+      // If we did that we'd still have to put a thunk somewhere and do the
+      // dynamic lookup. Instead, we rewrite it to use syscalls, as they
+      // aren't used on the 360. Alloy backends can either take the syscall
+      // or do something smarter.
+      //     sc
+      //     blr
+      //     nop
+      //     nop
+      uint8_t* p = memory()->Translate(info->thunk_address);
+      XESETUINT32BE(p + 0x0, 0x44000002);
+      XESETUINT32BE(p + 0x4, 0x4E800020);
+      XESETUINT32BE(p + 0x8, 0x60000000);
+      XESETUINT32BE(p + 0xC, 0x60000000);
 
-      ExternFunction::Handler handler = 0;
+      FunctionInfo::ExternHandler handler = 0;
       void* handler_data = 0;
       if (kernel_export) {
-        handler = (ExternFunction::Handler)kernel_export->function_data.shim;
+        handler = (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
         handler_data = kernel_export->function_data.shim_data;
       } else {
-        handler = (ExternFunction::Handler)UndefinedImport;
+        handler = (FunctionInfo::ExternHandler)UndefinedImport;
         handler_data = this;
       }
 
-      DefineFunction(fn_info);
-      auto fn = new ExternFunction(
-          info->thunk_address,
-          handler,
-          handler_data,
-          NULL);
-      if (kernel_export) {
-        fn->set_name(kernel_export->name);
-      }
-      fn_info->set_function(fn);
-      fn_info->set_status(SymbolInfo::STATUS_DEFINED);
+      FunctionInfo* fn_info;
+      DeclareFunction(info->thunk_address, &fn_info);
+      fn_info->set_end_address(info->thunk_address + 16 - 4);
+      fn_info->set_name(name);
+      fn_info->SetupExtern(handler, handler_data, NULL);
+      fn_info->set_status(SymbolInfo::STATUS_DECLARED);
     }
   }
 
-  xe_free(import_infos);
   return 0;
 }
 

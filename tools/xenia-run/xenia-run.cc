@@ -22,6 +22,9 @@ DEFINE_string(target, "",
 int xenia_run(int argc, xechar_t** argv) {
   int result_code = 1;
 
+  Profiler::Initialize();
+  Profiler::ThreadEnter("main");
+
   Emulator* emulator = NULL;
 
   // Grab path from the flag or unnamed argument.
@@ -89,6 +92,8 @@ XECLEANUP:
   if (result_code) {
     XEFATAL("Failed to launch emulator: %d", result_code);
   }
+  Profiler::Dump();
+  Profiler::Shutdown();
   return result_code;
 }
 XE_MAIN_WINDOW_THUNK(xenia_run, XETEXT("xenia-run"), "xenia-run some.xex");

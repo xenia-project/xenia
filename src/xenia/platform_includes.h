@@ -56,13 +56,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-#if XE_COMPILER_MSVC
 #include <memory>
 #include <unordered_map>
-#else
-#include <tr1/memory>
-#include <tr1/unordered_map>
-#endif  // MSVC
 
 
 #endif  // XENIA_PLATFORM_INCLUDES_H_

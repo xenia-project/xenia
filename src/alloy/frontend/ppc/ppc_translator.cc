@@ -38,20 +38,38 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   assembler_ = backend->CreateAssembler();
   assembler_->Initialize();
 
+  bool validate = FLAGS_validate_hir;
+
+  // Build the CFG first.
+  compiler_->AddPass(new passes::ControlFlowAnalysisPass());
+
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::ContextPromotionPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::SimplificationPass());
-  // TODO(benvanik): run repeatedly?
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::ConstantPropagationPass());
-  //compiler_->AddPass(new passes::TypePropagationPass());
-  //compiler_->AddPass(new passes::ByteSwapEliminationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::SimplificationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
   //compiler_->AddPass(new passes::DeadStoreEliminationPass());
+  //if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
 
-  // Removes all unneeded variables. Try not to add new ones after this.
-  compiler_->AddPass(new passes::ValueReductionPass());
+  //// Removes all unneeded variables. Try not to add new ones after this.
+  //compiler_->AddPass(new passes::ValueReductionPass());
+  //if (validate) compiler_->AddPass(new passes::ValidationPass());
+
+  // Register allocation for the target backend.
+  // Will modify the HIR to add loads/stores.
+  // This should be the last pass before finalization, as after this all
+  // registers are assigned and ready to be emitted.
+  compiler_->AddPass(new passes::RegisterAllocationPass(
+      backend->machine_info()));
+  if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Must come last. The HIR is not really HIR after this.
   compiler_->AddPass(new passes::FinalizationPass());
@@ -68,6 +86,8 @@ int PPCTranslator::Translate(
     FunctionInfo* symbol_info,
     uint32_t debug_info_flags,
     Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
   if (!symbol_info->has_end_address()) {

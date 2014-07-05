@@ -5,6 +5,7 @@
     'assembler.h',
     'backend.cc',
     'backend.h',
+    'machine_info.h',
     'tracing.h',
   ],
 

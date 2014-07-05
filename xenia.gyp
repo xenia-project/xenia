@@ -5,6 +5,7 @@
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
     'third_party/jansson.gypi',
+    'third_party/llvm.gypi',
     'third_party/sparsehash.gypi',
     'third_party/wslay.gypi',
   ],
@@ -23,9 +24,23 @@
     'target_arch%': 'x64',
   },
 
+  'conditions': [
+    ['OS=="win"', {
+      'variables': {
+        'move_command%': 'move'
+      },
+    }, {
+      'variables': {
+        'move_command%': 'mv'
+      },
+    }]
+  ],
+
   'target_defaults': {
     'include_dirs': [
       'include/',
+      'third_party/',
+      '.',
     ],
 
     'defines': [
@@ -95,7 +110,7 @@
           'SYMROOT': '<(DEPTH)/build/xenia/',
           'ALWAYS_SEARCH_USER_PATHS': 'NO',
           'ARCHS': ['x86_64'],
-          #'CLANG_CXX_LANGUAGE_STANDARD': 'c++0x',
+          'CLANG_CXX_LANGUAGE_STANDARD': 'c++11',
           'COMBINE_HIDPI_IMAGES': 'YES',
           'GCC_C_LANGUAGE_STANDARD': 'gnu99',
           'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
@@ -187,10 +202,28 @@
       'dependencies': [
         'beaengine',
         'gflags',
+        'llvm',
       ],
+
+      'conditions': [
+        ['OS == "mac"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-fno-operator-names',
+            ],
+          },
+        }],
+        ['OS == "linux"', {
+          'cflags': [
+            '-fno-operator-names',
+          ],
+        }],
+      ],
+
       'export_dependent_settings': [
         'beaengine',
         'gflags',
+        'llvm',
       ],
 
       'direct_dependent_settings': {
@@ -211,6 +244,7 @@
                   'user32',
                   'ole32',
                   'ntdll',
+                  'advapi32',
                 ],
               }],
               ['OS == "mac"', {
@@ -236,6 +270,7 @@
       'include_dirs': [
         '.',
         'src/',
+        '<(INTERMEDIATE_DIR)',
       ],
 
       'includes': [
@@ -286,6 +321,7 @@
                   'xinput',
                   'xaudio2',
                   'Shell32',
+                  'advapi32',
                 ],
               }],
               ['OS == "mac"', {

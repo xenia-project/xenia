@@ -35,6 +35,7 @@ int InstrEmit_branch(
   // be correct for returns.
   if (lk) {
     Value* return_address = f.LoadConstant(cia + 4);
+    f.SetReturnAddress(return_address);
     f.StoreLR(return_address);
   }
 
@@ -104,6 +105,10 @@ int InstrEmit_branch(
     //  // TODO(benvanik): evaluate hint here.
     //  c.je(e.GetReturnLabel(), kCondHintLikely);
     //}
+#if 0
+    // This breaks longjump, as that uses blr with a non-return lr.
+    // It'd be nice to move SET_RETURN_ADDRESS semantics up into context
+    // so that we can just use this.
     if (!lk && nia_is_lr) {
       // Return (most likely).
       // TODO(benvanik): test? ReturnCheck()?
@@ -116,7 +121,14 @@ int InstrEmit_branch(
         f.Return();
       }
     } else {
+#else
+    {
+#endif
       // Jump to pointer.
+      bool likely_return = !lk && nia_is_lr;
+      if (likely_return) {
+        call_flags |= CALL_POSSIBLE_RETURN;
+      }
       if (cond) {
         if (!expect_true) {
           cond = f.IsFalse(cond);
@@ -380,8 +392,8 @@ XEEMITTER(mcrf,         0x4C000000, XL )(PPCHIRBuilder& f, InstrData& i) {
 // System linkage (A-24)
 
 XEEMITTER(sc,           0x44000002, SC )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  f.CallExtern(f.symbol_info());
+  return 0;
 }
 
 

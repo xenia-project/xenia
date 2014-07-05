@@ -63,6 +63,7 @@ public:
     BEHAVIOR_PROLOG,
     BEHAVIOR_EPILOG,
     BEHAVIOR_EPILOG_RETURN,
+    BEHAVIOR_EXTERN,
   };
 
 public:
@@ -79,10 +80,21 @@ public:
   Function* function() const { return function_; }
   void set_function(Function* value) { function_ = value; }
 
+  typedef void(*ExternHandler)(void* context, void* arg0, void* arg1);
+  void SetupExtern(ExternHandler handler, void* arg0, void* arg1);
+  ExternHandler extern_handler() const { return extern_info_.handler; }
+  void* extern_arg0() const { return extern_info_.arg0; }
+  void* extern_arg1() const { return extern_info_.arg1; }
+
 private:
   uint64_t  end_address_;
   Behavior  behavior_;
   Function* function_;
+  struct {
+    ExternHandler handler;
+    void* arg0;
+    void* arg1;
+  } extern_info_;
 };
 
 class VariableInfo : public SymbolInfo {

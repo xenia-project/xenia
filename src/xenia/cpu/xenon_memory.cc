@@ -119,15 +119,136 @@ private:
 };
 uint32_t XenonMemoryHeap::next_heap_id_ = 1;
 
+namespace {
 
-XenonMemory::XenonMemory() :
-    mapping_(0), mapping_base_(0),
-    Memory() {
+namespace BE {
+#include <beaengine/BeaEngine.h>
+}
+
+struct MMIORange {
+  uint64_t address;
+  uint64_t mask;
+  uint64_t size;
+  void* context;
+  MMIOReadCallback read;
+  MMIOWriteCallback write;
+};
+MMIORange g_mapped_ranges_[16] = { 0 };
+int g_mapped_range_count_ = 0;
+
+uint64_t* GetContextRegPtr(BE::Int32 arg_type, PCONTEXT context) {
+  DWORD index = 0;
+  _BitScanForward(&index, arg_type);
+  return &context->Rax + index;
+}
+
+// Handles potential accesses to mmio. We look for access violations to
+// addresses in our range and call into the registered handlers, if any.
+// If there are none, we continue.
+LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
+  // http://msdn.microsoft.com/en-us/library/ms679331(v=vs.85).aspx
+  // http://msdn.microsoft.com/en-us/library/aa363082(v=vs.85).aspx
+  auto code = ex_info->ExceptionRecord->ExceptionCode;
+  if (code == STATUS_ACCESS_VIOLATION) {
+    // Access violations are pretty rare, so we can do a linear search here.
+    auto address = ex_info->ExceptionRecord->ExceptionInformation[1];
+    for (int i = 0; i < g_mapped_range_count_; ++i) {
+      const auto& range = g_mapped_ranges_[i];
+      if ((address & range.mask) == range.address) {
+        // Within our range.
+
+        // TODO(benvanik): replace with simple check of mov (that's all
+        //     we care about).
+        BE::DISASM disasm = { 0 };
+        disasm.Archi = 64;
+        disasm.Options = BE::MasmSyntax + BE::PrefixedNumeral;
+        disasm.EIP = (BE::UIntPtr)ex_info->ExceptionRecord->ExceptionAddress;
+        BE::UIntPtr eip_end = disasm.EIP + 20;
+        size_t len = BE::Disasm(&disasm);
+        if (len == BE::UNKNOWN_OPCODE) {
+          break;
+        }
+
+        auto action = ex_info->ExceptionRecord->ExceptionInformation[0];
+        if (action == 0) {
+          uint64_t value = range.read(range.context, address & 0xFFFFFFFF);
+          XEASSERT((disasm.Argument1.ArgType & BE::REGISTER_TYPE) ==
+                   BE::REGISTER_TYPE);
+          uint64_t* reg_ptr = GetContextRegPtr(disasm.Argument1.ArgType,
+                                               ex_info->ContextRecord);
+          switch (disasm.Argument1.ArgSize) {
+          case 8:
+            *reg_ptr = static_cast<uint8_t>(value);
+            break;
+          case 16:
+            *reg_ptr = XESWAP16(static_cast<uint16_t>(value));
+            break;
+          case 32:
+            *reg_ptr = XESWAP32(static_cast<uint32_t>(value));
+            break;
+          case 64:
+            *reg_ptr = XESWAP64(static_cast<uint64_t>(value));
+            break;
+          }
+          ex_info->ContextRecord->Rip += len;
+          return EXCEPTION_CONTINUE_EXECUTION;
+        } else if (action == 1) {
+          uint64_t value;
+          if ((disasm.Argument2.ArgType & BE::REGISTER_TYPE) == BE::REGISTER_TYPE) {
+            uint64_t* reg_ptr = GetContextRegPtr(disasm.Argument2.ArgType,
+                                                 ex_info->ContextRecord);
+            value = *reg_ptr;
+          } else if ((disasm.Argument2.ArgType & BE::CONSTANT_TYPE) == BE::CONSTANT_TYPE) {
+            value = disasm.Instruction.Immediat;
+          } else {
+            XEASSERTALWAYS();
+          }
+          switch (disasm.Argument2.ArgSize) {
+          case 8:
+            value = static_cast<uint8_t>(value);
+            break;
+          case 16:
+            value = XESWAP16(static_cast<uint16_t>(value));
+            break;
+          case 32:
+            value = XESWAP32(static_cast<uint32_t>(value));
+            break;
+          case 64:
+            value = XESWAP64(static_cast<uint64_t>(value));
+            break;
+          }
+          range.write(range.context, address & 0xFFFFFFFF, value);
+          ex_info->ContextRecord->Rip += len;
+          return EXCEPTION_CONTINUE_EXECUTION;
+        }
+      }
+    }
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+}  // namespace
+
+
+XenonMemory::XenonMemory()
+    : Memory(),
+      mapping_(0), mapping_base_(0), page_table_(0) {
   virtual_heap_ = new XenonMemoryHeap(this, false);
   physical_heap_ = new XenonMemoryHeap(this, true);
 }
 
 XenonMemory::~XenonMemory() {
+  // Remove exception handlers.
+  RemoveVectoredExceptionHandler(CheckMMIOHandler);
+  RemoveVectoredContinueHandler(CheckMMIOHandler);
+
+  // Unallocate mapped ranges.
+  for (int i = 0; i < g_mapped_range_count_; ++i) {
+    const auto& range = g_mapped_ranges_[i];
+    VirtualFree(reinterpret_cast<LPVOID>(range.address), range.size,
+                MEM_DECOMMIT);
+  }
+
   if (mapping_base_) {
     // GPU writeback.
     VirtualFree(
@@ -195,7 +316,7 @@ int XenonMemory::Initialize() {
   virtual_heap_->Initialize(
       XENON_MEMORY_VIRTUAL_HEAP_LOW, XENON_MEMORY_VIRTUAL_HEAP_HIGH);
   physical_heap_->Initialize(
-      XENON_MEMORY_PHYSICAL_HEAP_LOW, XENON_MEMORY_PHYSICAL_HEAP_HIGH);
+      XENON_MEMORY_PHYSICAL_HEAP_LOW, XENON_MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
@@ -203,6 +324,22 @@ int XenonMemory::Initialize() {
       Translate(0xC0000000),
       0x00100000,
       MEM_COMMIT, PAGE_READWRITE);
+
+  // Add handlers for MMIO.
+  // If there is a debugger attached the normal exception handler will not
+  // fire and we must instead add the continue handler.
+  AddVectoredExceptionHandler(1, CheckMMIOHandler);
+  if (IsDebuggerPresent()) {
+    // TODO(benvanik): is this really required?
+    //AddVectoredContinueHandler(1, CheckMMIOHandler);
+  }
+
+  // Allocate dirty page table.
+  // This must live within our low heap. Ideally we'd hardcode the address but
+  // this is more flexible.
+  page_table_ = physical_heap_->Alloc(
+      0, (512 * 1024 * 1024) / (16 * 1024),
+      X_MEM_COMMIT, 16 * 1024);
 
   return 0;
 
@@ -245,6 +382,112 @@ void XenonMemory::UnmapViews() {
     if (views_.all_views[n]) {
       UnmapViewOfFile(views_.all_views[n]);
     }
+  }
+}
+
+bool XenonMemory::AddMappedRange(uint64_t address, uint64_t mask,
+                                 uint64_t size, void* context,
+                                 MMIOReadCallback read_callback,
+                                 MMIOWriteCallback write_callback) {
+  DWORD protect = 0;
+  if (read_callback && write_callback) {
+    protect = PAGE_NOACCESS;
+  } else if (write_callback) {
+    protect = PAGE_READONLY;
+  } else {
+    // Write-only memory is not supported.
+    XEASSERTALWAYS();
+  }
+  if (!VirtualAlloc(Translate(address),
+                    size,
+                    MEM_COMMIT, protect)) {
+    return false;
+  }
+  XEASSERT(g_mapped_range_count_ + 1 < XECOUNT(g_mapped_ranges_));
+  g_mapped_ranges_[g_mapped_range_count_++] = {
+    reinterpret_cast<uint64_t>(mapping_base_) | address,
+    0xFFFFFFFF00000000 | mask,
+    size, context,
+    read_callback, write_callback,
+  };
+  return true;
+}
+
+bool XenonMemory::CheckMMIOLoad(uint64_t address, uint64_t* out_value) {
+  for (int i = 0; i < g_mapped_range_count_; ++i) {
+    const auto& range = g_mapped_ranges_[i];
+    if (((address | (uint64_t)mapping_base_) & range.mask) == range.address) {
+      *out_value = static_cast<uint32_t>(range.read(range.context, address));
+      return true;
+    }
+  }
+  return false;
+}
+
+uint8_t XenonMemory::LoadI8(uint64_t address) {
+  uint64_t value;
+  if (!CheckMMIOLoad(address, &value)) {
+    value = *reinterpret_cast<uint8_t*>(Translate(address));
+  }
+  return static_cast<uint8_t>(value);
+}
+
+uint16_t XenonMemory::LoadI16(uint64_t address) {
+  uint64_t value;
+  if (!CheckMMIOLoad(address, &value)) {
+    value = *reinterpret_cast<uint16_t*>(Translate(address));
+  }
+  return static_cast<uint16_t>(value);
+}
+
+uint32_t XenonMemory::LoadI32(uint64_t address) {
+  uint64_t value;
+  if (!CheckMMIOLoad(address, &value)) {
+    value = *reinterpret_cast<uint32_t*>(Translate(address));
+  }
+  return static_cast<uint32_t>(value);
+}
+
+uint64_t XenonMemory::LoadI64(uint64_t address) {
+  uint64_t value;
+  if (!CheckMMIOLoad(address, &value)) {
+    value = *reinterpret_cast<uint64_t*>(Translate(address));
+  }
+  return static_cast<uint64_t>(value);
+}
+
+bool XenonMemory::CheckMMIOStore(uint64_t address, uint64_t value) {
+  for (int i = 0; i < g_mapped_range_count_; ++i) {
+    const auto& range = g_mapped_ranges_[i];
+    if (((address | (uint64_t)mapping_base_) & range.mask) == range.address) {
+      range.write(range.context, address, value);
+      return true;
+    }
+  }
+  return false;
+}
+
+void XenonMemory::StoreI8(uint64_t address, uint8_t value) {
+  if (!CheckMMIOStore(address, value)) {
+    *reinterpret_cast<uint8_t*>(Translate(address)) = value;
+  }
+}
+
+void XenonMemory::StoreI16(uint64_t address, uint16_t value) {
+  if (!CheckMMIOStore(address, value)) {
+    *reinterpret_cast<uint16_t*>(Translate(address)) = value;
+  }
+}
+
+void XenonMemory::StoreI32(uint64_t address, uint32_t value) {
+  if (!CheckMMIOStore(address, value)) {
+    *reinterpret_cast<uint32_t*>(Translate(address)) = value;
+  }
+}
+
+void XenonMemory::StoreI64(uint64_t address, uint64_t value) {
+  if (!CheckMMIOStore(address, value)) {
+    *reinterpret_cast<uint64_t*>(Translate(address)) = value;
   }
 }
 

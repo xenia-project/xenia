@@ -63,6 +63,9 @@ X_STATUS DiscImageFile::ReadSync(
     size_t* out_bytes_read) {
   GDFXEntry* gdfx_entry = entry_->gdfx_entry();
   xe_mmap_ref mmap = entry_->mmap();
+  if (byte_offset >= gdfx_entry->size) {
+    return X_STATUS_END_OF_FILE;
+  }
   size_t real_offset = gdfx_entry->offset + byte_offset;
   size_t real_length = MIN(buffer_length, gdfx_entry->size - byte_offset);
   xe_copy_memory(

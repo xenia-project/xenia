@@ -38,6 +38,8 @@ bool PPCScanner::IsRestGprLr(uint64_t address) {
 }
 
 int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   // This is a simple basic block analyizer. It walks the start address to the
   // end address looking for branches. Each span of instructions between
   // branches is considered a basic block. When the last blr (that has no
@@ -286,6 +288,8 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
 }
 
 std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 

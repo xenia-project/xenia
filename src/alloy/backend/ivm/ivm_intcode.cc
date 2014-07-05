@@ -196,213 +196,6 @@ int DispatchToC(TranslationContext& ctx, Instr* i, IntCodeFn fn) {
   return 0;
 }
 
-uint32_t IntCode_LOAD_REGISTER_I8(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i8 = (int8_t)cbs->read(cbs->context, address);
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I16(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i16 = XESWAP16((int16_t)cbs->read(cbs->context, address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I32(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i32 = XESWAP32((int32_t)cbs->read(cbs->context, address));
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I64(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src2_reg | ((uint64_t)i->src3_reg << 32));
-  ics.rf[i->dest_reg].i64 = XESWAP64((int64_t)cbs->read(cbs->context, address));
-  return IA_NEXT;
-}
-int DispatchRegisterRead(
-    TranslationContext& ctx, Instr* i, RegisterAccessCallbacks* cbs) {
-  static IntCodeFn fns[] = {
-    IntCode_LOAD_REGISTER_I8,
-    IntCode_LOAD_REGISTER_I16,
-    IntCode_LOAD_REGISTER_I32,
-    IntCode_LOAD_REGISTER_I64,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-  };
-  IntCodeFn fn = fns[i->dest->type];
-  XEASSERT(fn != IntCode_INVALID_TYPE);
-  uint32_t dest_reg = AllocDynamicRegister(ctx, i->dest);
-  uint32_t src1_reg = AllocOpRegister(ctx, OPCODE_SIG_TYPE_V, &i->src1);
-  ctx.intcode_count++;
-  IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
-  ic->intcode_fn = fn;
-  ic->flags = i->flags;
-  ic->debug_flags = 0;
-  ic->dest_reg = dest_reg;
-  ic->src1_reg = src1_reg;
-  ic->src2_reg = (uint32_t)((uint64_t)cbs);
-  ic->src3_reg = (uint32_t)(((uint64_t)cbs) >> 32);
-  return 0;
-}
-uint32_t IntCode_LOAD_REGISTER_I8_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i8 = (int8_t)cbs->read(cbs->context, address);
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I16_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i16 = XESWAP16((int16_t)cbs->read(cbs->context, address));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I32_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i32 = XESWAP32((int32_t)cbs->read(cbs->context, address));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_LOAD_REGISTER_I64_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      ics.rf[i->dest_reg].i64 = XESWAP64((int64_t)cbs->read(cbs->context, address));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-
-uint32_t IntCode_STORE_REGISTER_I8(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, ics.rf[i->src2_reg].i8);
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I16(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP16(ics.rf[i->src2_reg].i16));
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I32(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP32(ics.rf[i->src2_reg].i32));
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I64(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = (RegisterAccessCallbacks*)
-      (i->src3_reg | ((uint64_t)i->dest_reg << 32));
-  cbs->write(cbs->context, address, XESWAP64(ics.rf[i->src2_reg].i64));
-  return IA_NEXT;
-}
-int DispatchRegisterWrite(
-    TranslationContext& ctx, Instr* i, RegisterAccessCallbacks* cbs) {
-  static IntCodeFn fns[] = {
-    IntCode_STORE_REGISTER_I8,
-    IntCode_STORE_REGISTER_I16,
-    IntCode_STORE_REGISTER_I32,
-    IntCode_STORE_REGISTER_I64,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-    IntCode_INVALID_TYPE,
-  };
-  IntCodeFn fn = fns[i->src2.value->type];
-  XEASSERT(fn != IntCode_INVALID_TYPE);
-  uint32_t src1_reg = AllocOpRegister(ctx, OPCODE_SIG_TYPE_V, &i->src1);
-  uint32_t src2_reg = AllocOpRegister(ctx, OPCODE_SIG_TYPE_V, &i->src2);
-  ctx.intcode_count++;
-  IntCode* ic = ctx.intcode_arena->Alloc<IntCode>();
-  ic->intcode_fn = fn;
-  ic->flags = i->flags;
-  ic->debug_flags = 0;
-  ic->dest_reg = (uint32_t)(((uint64_t)cbs) >> 32);
-  ic->src1_reg = src1_reg;
-  ic->src2_reg = src2_reg;
-  ic->src3_reg = (uint32_t)((uint64_t)cbs);
-  return 0;
-}
-uint32_t IntCode_STORE_REGISTER_I8_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, ics.rf[i->src2_reg].i8);
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I16_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP16(ics.rf[i->src2_reg].i16));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I32_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP32(ics.rf[i->src2_reg].i32));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-uint32_t IntCode_STORE_REGISTER_I64_DYNAMIC(IntCodeState& ics, const IntCode* i) {
-  uint64_t address = ics.rf[i->src1_reg].u32;
-  RegisterAccessCallbacks* cbs = ics.access_callbacks;
-  while (cbs) {
-    if (cbs->handles(cbs->context, address)) {
-      cbs->write(cbs->context, address, XESWAP64(ics.rf[i->src2_reg].i64));
-      return IA_NEXT;
-    }
-    cbs = cbs->next;
-  }
-  return IA_NEXT;
-}
-
-
 uint32_t IntCode_INVALID(IntCodeState& ics, const IntCode* i) {
   XEASSERTALWAYS();
   return IA_NEXT;
@@ -417,7 +210,7 @@ int TranslateInvalid(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_COMMENT(IntCodeState& ics, const IntCode* i) {
   char* value = (char*)(i->src1_reg | ((uint64_t)i->src2_reg << 32));
-  IPRINT("XE[t] :%d: %s\n", ics.thread_state->GetThreadID(), value);
+  IPRINT("XE[t] :%d: %s\n", ics.thread_state->thread_id(), value);
   IFLUSH();
   return IA_NEXT;
 }
@@ -576,11 +369,15 @@ int Translate_TRAP_TRUE(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_CALL_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
   FunctionInfo* symbol_info = (FunctionInfo*)ics.rf[reg].u64;
-  Function* fn = NULL;
-  ics.thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  Function* fn = symbol_info->function();
+  if (!fn) {
+    ics.thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  }
   XEASSERTNOTNULL(fn);
   // TODO(benvanik): proper tail call support, somehow.
-  fn->Call(ics.thread_state);
+  uint64_t return_address =
+      (i->flags & CALL_TAIL) ? ics.return_address : ics.call_return_address;
+  fn->Call(ics.thread_state, return_address);
   if (i->flags & CALL_TAIL) {
     return IA_RETURN;
   }
@@ -645,12 +442,21 @@ int Translate_CALL_TRUE(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_CALL_INDIRECT_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
   uint64_t target = ics.rf[reg].u32;
 
+  // Check if return address - if so, return.
+  if (i->flags & CALL_POSSIBLE_RETURN) {
+    if (target == ics.return_address) {
+      return IA_RETURN;
+    }
+  }
+
   // Real call.
   Function* fn = NULL;
   ics.thread_state->runtime()->ResolveFunction(target, &fn);
   XEASSERTNOTNULL(fn);
   // TODO(benvanik): proper tail call support, somehow.
-  fn->Call(ics.thread_state);
+  uint64_t return_address =
+      (i->flags & CALL_TAIL) ? ics.return_address : ics.call_return_address;
+  fn->Call(ics.thread_state, return_address);
   if (i->flags & CALL_TAIL) {
     return IA_RETURN;
   }
@@ -712,6 +518,13 @@ int Translate_CALL_INDIRECT_TRUE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
 }
 
+uint32_t IntCode_CALL_EXTERN(IntCodeState& ics, const IntCode* i) {
+  return IntCode_CALL_XX(ics, i, i->src1_reg);
+}
+int Translate_CALL_EXTERN(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_CALL_EXTERN);
+}
+
 uint32_t IntCode_RETURN(IntCodeState& ics, const IntCode* i) {
   return IA_RETURN;
 }
@@ -766,6 +579,14 @@ int Translate_RETURN_TRUE(TranslationContext& ctx, Instr* i) {
     IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->src1.value->type]);
+}
+
+uint32_t IntCode_SET_RETURN_ADDRESS(IntCodeState& ics, const IntCode* i) {
+  ics.call_return_address = ics.rf[i->src1_reg].u32;
+  return IA_NEXT;
+}
+int Translate_SET_RETURN_ADDRESS(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_SET_RETURN_ADDRESS);
 }
 
 uint32_t IntCode_BRANCH_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
@@ -1335,34 +1156,116 @@ int Translate_LOAD_CLOCK(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_LOAD_CLOCK);
 }
 
+uint32_t IntCode_LOAD_LOCAL_I8(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_I16(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i16 = *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_I32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i32 = *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_I64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_F32(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f32 = *((float*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_F64(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].f64 = *((double*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+uint32_t IntCode_LOAD_LOCAL_V128(IntCodeState& ics, const IntCode* i) {
+  ics.rf[i->dest_reg].v128 = *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u32));
+  return IA_NEXT;
+}
+int Translate_LOAD_LOCAL(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_LOAD_LOCAL_I8,
+    IntCode_LOAD_LOCAL_I16,
+    IntCode_LOAD_LOCAL_I32,
+    IntCode_LOAD_LOCAL_I64,
+    IntCode_LOAD_LOCAL_F32,
+    IntCode_LOAD_LOCAL_F64,
+    IntCode_LOAD_LOCAL_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t IntCode_STORE_LOCAL_I8(IntCodeState& ics, const IntCode* i) {
+  *((int8_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i8;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_I16(IntCodeState& ics, const IntCode* i) {
+  *((int16_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i16;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_I32(IntCodeState& ics, const IntCode* i) {
+  *((int32_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i32;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_I64(IntCodeState& ics, const IntCode* i) {
+  *((int64_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].i64;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_F32(IntCodeState& ics, const IntCode* i) {
+  *((float*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].f32;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_F64(IntCodeState& ics, const IntCode* i) {
+  *((double*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].f64;
+  return IA_NEXT;
+}
+uint32_t IntCode_STORE_LOCAL_V128(IntCodeState& ics, const IntCode* i) {
+  *((vec128_t*)(ics.locals + ics.rf[i->src1_reg].u32)) = ics.rf[i->src2_reg].v128;
+  return IA_NEXT;
+}
+int Translate_STORE_LOCAL(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn fns[] = {
+    IntCode_STORE_LOCAL_I8,
+    IntCode_STORE_LOCAL_I16,
+    IntCode_STORE_LOCAL_I32,
+    IntCode_STORE_LOCAL_I64,
+    IntCode_STORE_LOCAL_F32,
+    IntCode_STORE_LOCAL_F64,
+    IntCode_STORE_LOCAL_V128,
+  };
+  return DispatchToC(ctx, i, fns[i->src2.value->type]);
+}
+
 uint32_t IntCode_LOAD_CONTEXT_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = *((int8_t*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%d (%.X) = ctx i8 +%d\n", ics.rf[i->dest_reg].i8, ics.rf[i->dest_reg].u8, ics.rf[i->src1_reg].u64);
+  DPRINT("%d (%X) = ctx i8 +%d\n", ics.rf[i->dest_reg].i8, ics.rf[i->dest_reg].u8, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_I16(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i16 = *((int16_t*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%d (%.X) = ctx i16 +%d\n", ics.rf[i->dest_reg].i16, ics.rf[i->dest_reg].u16, ics.rf[i->src1_reg].u64);
+  DPRINT("%d (%X) = ctx i16 +%d\n", ics.rf[i->dest_reg].i16, ics.rf[i->dest_reg].u16, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_I32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i32 = *((int32_t*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%d (%.X) = ctx i32 +%d\n", ics.rf[i->dest_reg].i32, ics.rf[i->dest_reg].u32, ics.rf[i->src1_reg].u64);
+  DPRINT("%d (%X) = ctx i32 +%d\n", ics.rf[i->dest_reg].i32, ics.rf[i->dest_reg].u32, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_I64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i64 = *((int64_t*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%lld (%.llX) = ctx i64 +%d\n", ics.rf[i->dest_reg].i64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
+  DPRINT("%lld (%llX) = ctx i64 +%d\n", ics.rf[i->dest_reg].i64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_F32(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f32 = *((float*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%e (%.X) = ctx f32 +%d\n", ics.rf[i->dest_reg].f32, ics.rf[i->dest_reg].u32, ics.rf[i->src1_reg].u64);
+  DPRINT("%e (%X) = ctx f32 +%d\n", ics.rf[i->dest_reg].f32, ics.rf[i->dest_reg].u32, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = *((double*)(ics.context + ics.rf[i->src1_reg].u64));
-  DPRINT("%lle (%.llX) = ctx f64 +%d\n", ics.rf[i->dest_reg].f64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
+  DPRINT("%lle (%llX) = ctx f64 +%d\n", ics.rf[i->dest_reg].f64, ics.rf[i->dest_reg].u64, ics.rf[i->src1_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_LOAD_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
@@ -1388,39 +1291,39 @@ int Translate_LOAD_CONTEXT(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_STORE_CONTEXT_I8(IntCodeState& ics, const IntCode* i) {
   *((int8_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i8;
-  DPRINT("ctx i8 +%d = %d (%.X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].u8);
+  DPRINT("ctx i8 +%d = %d (%X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].u8);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_I16(IntCodeState& ics, const IntCode* i) {
   *((int16_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i16;
-  DPRINT("ctx i16 +%d = %d (%.X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].u16);
+  DPRINT("ctx i16 +%d = %d (%X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].u16);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_I32(IntCodeState& ics, const IntCode* i) {
   *((int32_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i32;
-  DPRINT("ctx i32 +%d = %d (%.X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].u32);
+  DPRINT("ctx i32 +%d = %d (%X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].u32);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_I64(IntCodeState& ics, const IntCode* i) {
   *((int64_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].i64;
-  DPRINT("ctx i64 +%d = %lld (%.llX)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
+  DPRINT("ctx i64 +%d = %lld (%llX)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_F32(IntCodeState& ics, const IntCode* i) {
   *((float*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f32;
-  DPRINT("ctx f32 +%d = %e (%.X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].u32);
+  DPRINT("ctx f32 +%d = %e (%X)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].u32);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_F64(IntCodeState& ics, const IntCode* i) {
   *((double*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].f64;
-  DPRINT("ctx f64 +%d = %lle (%.llX)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].u64);
+  DPRINT("ctx f64 +%d = %lle (%llX)\n", ics.rf[i->src1_reg].u64, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].u64);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_CONTEXT_V128(IntCodeState& ics, const IntCode* i) {
   *((vec128_t*)(ics.context + ics.rf[i->src1_reg].u64)) = ics.rf[i->src2_reg].v128;
   DPRINT("ctx v128 +%d = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", ics.rf[i->src1_reg].u64,
          VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
-         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3));
+         VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECI4(ics.rf[i->src2_reg].v128,3));
   return IA_NEXT;
 }
 int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
@@ -1439,7 +1342,8 @@ int Translate_STORE_CONTEXT(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_LOAD_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I8_DYNAMIC(ics, i);
+    ics.rf[i->dest_reg].i8 = ics.thread_state->memory()->LoadI8(address);
+    return IA_NEXT;
   }
   DPRINT("%d (%X) = load.i8 %.8X\n",
          *((int8_t*)(ics.membase + address)),
@@ -1452,7 +1356,9 @@ uint32_t IntCode_LOAD_I8(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I16_DYNAMIC(ics, i);
+    ics.rf[i->dest_reg].i16 =
+        XESWAP16(ics.thread_state->memory()->LoadI16(address));
+    return IA_NEXT;
   }
   DPRINT("%d (%X) = load.i16 %.8X\n",
          *((int16_t*)(ics.membase + address)),
@@ -1465,7 +1371,9 @@ uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I32_DYNAMIC(ics, i);
+    ics.rf[i->dest_reg].i32 =
+        XESWAP32(ics.thread_state->memory()->LoadI32(address));
+    return IA_NEXT;
   }
   DFLUSH();
   DPRINT("%d (%X) = load.i32 %.8X\n",
@@ -1479,7 +1387,9 @@ uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOAD_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_LOAD_REGISTER_I64(ics, i);
+    ics.rf[i->dest_reg].i64 =
+        XESWAP64(ics.thread_state->memory()->LoadI64(address));
+    return IA_NEXT;
   }
   DPRINT("%lld (%llX) = load.i64 %.8X\n",
          *((int64_t*)(ics.membase + address)),
@@ -1515,7 +1425,7 @@ uint32_t IntCode_LOAD_V128(IntCodeState& ics, const IntCode* i) {
   for (int n = 0; n < 4; n++) {
     VECI4(dest,n) = *((uint32_t*)(ics.membase + address + n * 4));
   }
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load v128 %.8X\n",
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load.v128 %.8X\n",
          VECF4(dest,0), VECF4(dest,1), VECF4(dest,2), VECF4(dest,3),
          VECI4(dest,0), VECI4(dest,1), VECI4(dest,2), VECI4(dest,3),
          address);
@@ -1532,90 +1442,95 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
     IntCode_LOAD_F64,
     IntCode_LOAD_V128,
   };
-  if (i->src1.value->IsConstant()) {
-    // Constant address - check register access callbacks.
-    // NOTE: we still will likely want to check on access in debug mode, as
-    //       constant propagation may not have happened.
-    uint64_t address = i->src1.value->AsUint64();
-    RegisterAccessCallbacks* cbs = ctx.access_callbacks;
-    while (cbs) {
-      if (cbs->handles(cbs->context, address)) {
-        return DispatchRegisterRead(ctx, i, cbs);
-      }
-      cbs = cbs->next;
-    }
-  }
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
+void MarkPageDirty(IntCodeState& ics, uint32_t address) {
+  // 16KB pages.
+  ics.page_table[(address >> 14) & 0x7FFF] = 1;
+}
 uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I8_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI8(address, ics.rf[i->src2_reg].i8);
+    return IA_NEXT;
   }
   DPRINT("store.i8 %.8X = %d (%X)\n",
-         address, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].i8);
+         address, ics.rf[i->src2_reg].i8, ics.rf[i->src2_reg].u8);
   DFLUSH();
   *((int8_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i8;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I16_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI16(address,
+                                         XESWAP16(ics.rf[i->src2_reg].i16));
+    return IA_NEXT;
   }
   DPRINT("store.i16 %.8X = %d (%X)\n",
-         address, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].i16);
+         address, ics.rf[i->src2_reg].i16, ics.rf[i->src2_reg].u16);
   DFLUSH();
   *((int16_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i16;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I32_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI32(address,
+                                         XESWAP32(ics.rf[i->src2_reg].i32));
+    return IA_NEXT;
   }
   DPRINT("store.i32 %.8X = %d (%X)\n",
-         address, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].i32);
+         address, ics.rf[i->src2_reg].i32, ics.rf[i->src2_reg].u32);
   DFLUSH();
   *((int32_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i32;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    return IntCode_STORE_REGISTER_I64_DYNAMIC(ics, i);
+    ics.thread_state->memory()->StoreI64(address,
+                                         XESWAP64(ics.rf[i->src2_reg].i64));
+    return IA_NEXT;
   }
   DPRINT("store.i64 %.8X = %lld (%llX)\n",
-         address, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].i64);
+         address, ics.rf[i->src2_reg].i64, ics.rf[i->src2_reg].u64);
   DFLUSH();
   *((int64_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i64;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_F32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   DPRINT("store.f32 %.8X = %e (%X)\n",
-         address, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].i32);
+         address, ics.rf[i->src2_reg].f32, ics.rf[i->src2_reg].u32);
   DFLUSH();
   *((float*)(ics.membase + address)) = ics.rf[i->src2_reg].f32;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_F64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   DPRINT("store.f64 %.8X = %lle (%llX)\n",
-         address, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].i64);
+         address, ics.rf[i->src2_reg].f64, ics.rf[i->src2_reg].u64);
   DFLUSH();
   *((double*)(ics.membase + address)) = ics.rf[i->src2_reg].f64;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
-  DPRINT("store v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
+  DPRINT("store.v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
          address,
          VECF4(ics.rf[i->src2_reg].v128,0), VECF4(ics.rf[i->src2_reg].v128,1), VECF4(ics.rf[i->src2_reg].v128,2), VECF4(ics.rf[i->src2_reg].v128,3),
          VECI4(ics.rf[i->src2_reg].v128,0), VECI4(ics.rf[i->src2_reg].v128,1), VECI4(ics.rf[i->src2_reg].v128,2), VECI4(ics.rf[i->src2_reg].v128,3));
   DFLUSH();
   *((vec128_t*)(ics.membase + address)) = ics.rf[i->src2_reg].v128;
+  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 int Translate_STORE(TranslationContext& ctx, Instr* i) {
@@ -1628,19 +1543,6 @@ int Translate_STORE(TranslationContext& ctx, Instr* i) {
     IntCode_STORE_F64,
     IntCode_STORE_V128,
   };
-  if (i->src1.value->IsConstant()) {
-    // Constant address - check register access callbacks.
-    // NOTE: we still will likely want to check on access in debug mode, as
-    //       constant propagation may not have happened.
-    uint64_t address = i->src1.value->AsUint64();
-    RegisterAccessCallbacks* cbs = ctx.access_callbacks;
-    while (cbs) {
-      if (cbs->handles(cbs->context, address)) {
-        return DispatchRegisterWrite(ctx, i, cbs);
-      }
-      cbs = cbs->next;
-    }
-  }
   return DispatchToC(ctx, i, fns[i->src2.value->type]);
 }
 
@@ -2093,19 +1995,19 @@ int Translate_DID_SATURATE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_DID_SATURATE);
 }
 
-#define VECTOR_COMPARER(type, value, count, op) \
+#define VECTOR_COMPARER(type, value, dest_value, count, op) \
   const vec128_t& src1 = ics.rf[i->src1_reg].v128; \
   const vec128_t& src2 = ics.rf[i->src2_reg].v128; \
   vec128_t& dest = ics.rf[i->dest_reg].v128; \
   for (int n = 0; n < count; n++) { \
-    dest.value[n] = (type)src1.value[n] op (type)src2.value[n]; \
+    dest.dest_value[n] = ((type)src1.value[n] op (type)src2.value[n]) ? 0xFFFFFFFF : 0; \
   } \
   return IA_NEXT;
 
-uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint8_t, b16, 16, ==) };
-uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint16_t, s8, 8, ==) };
-uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint32_t, i4, 4, ==) };
-uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, 4, ==) };
+uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint8_t, b16, b16, 16, ==) };
+uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint16_t, s8, s8, 8, ==) };
+uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint32_t, i4, i4, 4, ==) };
+uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, i4, 4, ==) };
 int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_VECTOR_COMPARE_EQ_I8,
@@ -2119,10 +2021,10 @@ int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int8_t, b16, 16, >) };
-uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int16_t, s8, 8, >) };
-uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int32_t, i4, 4, >) };
-uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, 4, >) };
+uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int8_t, b16, b16, 16, >) };
+uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int16_t, s8, s8, 8, >) };
+uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int32_t, i4, i4, 4, >) };
+uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, i4, 4, >) };
 int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_VECTOR_COMPARE_SGT_I8,
@@ -2136,10 +2038,10 @@ int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_SGE_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int8_t, b16, 16, >=) };
-uint32_t IntCode_VECTOR_COMPARE_SGE_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int16_t, s8, 8, >=) };
-uint32_t IntCode_VECTOR_COMPARE_SGE_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int32_t, i4, 4, >=) };
-uint32_t IntCode_VECTOR_COMPARE_SGE_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, 4, >=) };
+uint32_t IntCode_VECTOR_COMPARE_SGE_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int8_t, b16, b16, 16, >=) };
+uint32_t IntCode_VECTOR_COMPARE_SGE_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int16_t, s8, s8, 8, >=) };
+uint32_t IntCode_VECTOR_COMPARE_SGE_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(int32_t, i4, i4, 4, >=) };
+uint32_t IntCode_VECTOR_COMPARE_SGE_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, i4, 4, >=) };
 int Translate_VECTOR_COMPARE_SGE(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_VECTOR_COMPARE_SGE_I8,
@@ -2153,10 +2055,10 @@ int Translate_VECTOR_COMPARE_SGE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_UGT_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint8_t, b16, 16, >) };
-uint32_t IntCode_VECTOR_COMPARE_UGT_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint16_t, s8, 8, >) };
-uint32_t IntCode_VECTOR_COMPARE_UGT_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint32_t, i4, 4, >) };
-uint32_t IntCode_VECTOR_COMPARE_UGT_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, 4, >) };
+uint32_t IntCode_VECTOR_COMPARE_UGT_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint8_t, b16, b16, 16, >) };
+uint32_t IntCode_VECTOR_COMPARE_UGT_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint16_t, s8, s8, 8, >) };
+uint32_t IntCode_VECTOR_COMPARE_UGT_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint32_t, i4, i4, 4, >) };
+uint32_t IntCode_VECTOR_COMPARE_UGT_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, i4, 4, >) };
 int Translate_VECTOR_COMPARE_UGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_VECTOR_COMPARE_UGT_I8,
@@ -2170,10 +2072,10 @@ int Translate_VECTOR_COMPARE_UGT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_UGE_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint8_t, b16, 16, >=) };
-uint32_t IntCode_VECTOR_COMPARE_UGE_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint16_t, s8, 8, >=) };
-uint32_t IntCode_VECTOR_COMPARE_UGE_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint32_t, i4, 4, >=) };
-uint32_t IntCode_VECTOR_COMPARE_UGE_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, 4, >=) };
+uint32_t IntCode_VECTOR_COMPARE_UGE_I8(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint8_t, b16, b16, 16, >=) };
+uint32_t IntCode_VECTOR_COMPARE_UGE_I16(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint16_t, s8, s8, 8, >=) };
+uint32_t IntCode_VECTOR_COMPARE_UGE_I32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(uint32_t, i4, i4, 4, >=) };
+uint32_t IntCode_VECTOR_COMPARE_UGE_F32(IntCodeState& ics, const IntCode* i) { VECTOR_COMPARER(float, f4, i4, 4, >=) };
 int Translate_VECTOR_COMPARE_UGE(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
     IntCode_VECTOR_COMPARE_UGE_I8,
@@ -2466,9 +2368,9 @@ uint32_t IntCode_SUB_I16_I16(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_SUB_I32_I32(IntCodeState& ics, const IntCode* i) {
   int32_t a = ics.rf[i->src1_reg].i32; int32_t b = ics.rf[i->src2_reg].i32;
   if (i->flags == ARITHMETIC_SET_CARRY) {
-    ics.did_carry = a < ~b;
+    ics.did_carry = SUB_DID_CARRY(a, b);
   }
-  ics.did_carry = SUB_DID_CARRY(a, b);
+  ics.rf[i->dest_reg].i32 = a - b;
   return IA_NEXT;
 }
 uint32_t IntCode_SUB_I64_I64(IntCodeState& ics, const IntCode* i) {
@@ -3605,17 +3507,17 @@ int Translate_CNTLZ(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_EXTRACT_INT8_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i8 = VECB16(src1,ics.rf[i->src2_reg].i64);
+  ics.rf[i->dest_reg].i8 = VECB16(src1,ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_EXTRACT_INT16_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i16 = VECS8(src1,ics.rf[i->src2_reg].i64);
+  ics.rf[i->dest_reg].i16 = VECS8(src1,ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_EXTRACT_INT32_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  ics.rf[i->dest_reg].i32 = VECI4(src1,ics.rf[i->src2_reg].i64);
+  ics.rf[i->dest_reg].i32 = VECI4(src1,ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 int Translate_EXTRACT(TranslationContext& ctx, Instr* i) {
@@ -3817,6 +3719,7 @@ uint32_t IntCode_PACK_FLOAT16_2(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_PACK_FLOAT16_4(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
+  dest.ix = dest.iy = 0;
   dest.iz =
       ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.x) << 16) |
       DirectX::PackedVector::XMConvertFloatToHalf(src1.y);
@@ -4009,8 +3912,10 @@ static const TranslateFn dispatch_table[] = {
   Translate_CALL_TRUE,
   Translate_CALL_INDIRECT,
   Translate_CALL_INDIRECT_TRUE,
+  Translate_CALL_EXTERN,
   Translate_RETURN,
   Translate_RETURN_TRUE,
+  Translate_SET_RETURN_ADDRESS,
 
   Translate_BRANCH,
   Translate_BRANCH_TRUE,
@@ -4030,6 +3935,9 @@ static const TranslateFn dispatch_table[] = {
   Translate_LOAD_VECTOR_SHR,
 
   Translate_LOAD_CLOCK,
+
+  Translate_LOAD_LOCAL,
+  Translate_STORE_LOCAL,
 
   Translate_LOAD_CONTEXT,
   Translate_STORE_CONTEXT,

@@ -20,17 +20,21 @@ namespace backend {
 namespace x64 {
 
 
-class X64Function : public runtime::GuestFunction {
+class X64Function : public runtime::Function {
 public:
   X64Function(runtime::FunctionInfo* symbol_info);
   virtual ~X64Function();
+
+  void* machine_code() const { return machine_code_; }
+  size_t code_size() const { return code_size_; }
 
   void Setup(void* machine_code, size_t code_size);
 
 protected:
   virtual int AddBreakpointImpl(runtime::Breakpoint* breakpoint);
   virtual int RemoveBreakpointImpl(runtime::Breakpoint* breakpoint);
-  virtual int CallImpl(runtime::ThreadState* thread_state);
+  virtual int CallImpl(runtime::ThreadState* thread_state,
+                       uint64_t return_address);
 
 private:
   void*   machine_code_;

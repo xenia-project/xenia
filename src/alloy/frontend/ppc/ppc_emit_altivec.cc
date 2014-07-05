@@ -105,6 +105,10 @@ Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
 
 // }
 
+unsigned int xerotl(unsigned int value, unsigned int shift) {
+  XEASSERT(shift < 32);
+  return shift == 0 ? value : ((value << shift) | (value >> (32 - shift)));
+}
 
 XEEMITTER(dst,            0x7C0002AC, XDSS)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
@@ -1797,7 +1801,7 @@ XEEMITTER(vpkd3d128,      VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f, InstrData
   // http://hlssmod.net/he_code/public/pixelwriter.h
   // control = prev:0123 | new:4567
   uint32_t control = 0x00010203; // original
-  uint32_t src = _rotl(0x04050607, shift * 8);
+  uint32_t src = xerotl(0x04050607, shift * 8);
   uint32_t mask = 0;
   switch (pack) {
   case 1: // VPACK_32

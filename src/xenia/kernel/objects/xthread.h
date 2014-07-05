@@ -73,6 +73,9 @@ private:
   void PlatformDestroy();
   X_STATUS PlatformExit(int exit_code);
 
+  static void DeliverAPCs(void* data);
+  void RundownAPCs();
+
   struct {
     uint32_t    stack_size;
     uint32_t    xapi_thread_startup;
@@ -83,6 +86,8 @@ private:
 
   uint32_t      thread_id_;
   void*         thread_handle_;
+  uint32_t      scratch_address_;
+  uint32_t      scratch_size_;
   uint32_t      tls_address_;
   uint32_t      thread_state_address_;
   cpu::XenonThreadState* thread_state_;

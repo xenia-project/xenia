@@ -16,6 +16,7 @@
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/xobject.h>
 #include <xenia/kernel/objects/xmodule.h>
+#include <xenia/kernel/objects/xnotify_listener.h>
 #include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/objects/xuser_module.h>
 
@@ -134,4 +135,31 @@ XThread* KernelState::GetThreadByID(uint32_t thread_id) {
   }
   xe_mutex_unlock(object_mutex_);
   return thread;
+}
+
+void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
+  xe_mutex_lock(object_mutex_);
+  notify_listeners_.push_back(listener);
+  xe_mutex_unlock(object_mutex_);
+}
+
+void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
+  xe_mutex_lock(object_mutex_);
+  for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
+       ++it) {
+    if (*it == listener) {
+      notify_listeners_.erase(it);
+      break;
+    }
+  }
+  xe_mutex_unlock(object_mutex_);
+}
+
+void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
+  xe_mutex_lock(object_mutex_);
+  for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
+       ++it) {
+    (*it)->EnqueueNotification(id, data);
+  }
+  xe_mutex_unlock(object_mutex_);
 }

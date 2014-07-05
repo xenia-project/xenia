@@ -21,7 +21,7 @@ namespace xe {
 namespace gpu {
 namespace d3d11 {
 
-class D3D11VertexShader;
+class D3D11VertexShaderResource;
 
 
 class D3D11GeometryShader {
@@ -30,53 +30,52 @@ public:
 
   ID3D11GeometryShader* handle() const { return handle_; }
 
-  int Prepare(D3D11VertexShader* vertex_shader);
+  int Prepare(D3D11VertexShaderResource* vertex_shader);
 
 protected:
-  D3D11GeometryShader(ID3D11Device* device, uint64_t hash);
+  D3D11GeometryShader(ID3D11Device* device);
 
   ID3D10Blob* Compile(const char* shader_source);
 
-  virtual int Generate(D3D11VertexShader* vertex_shader,
+  virtual int Generate(D3D11VertexShaderResource* vertex_shader,
                        alloy::StringBuffer* output);
 
 protected:
   ID3D11Device* device_;
-  uint64_t      hash_;
   ID3D11GeometryShader* handle_;
 };
 
 
 class D3D11PointSpriteGeometryShader : public D3D11GeometryShader {
 public:
-  D3D11PointSpriteGeometryShader(ID3D11Device* device, uint64_t hash);
-  virtual ~D3D11PointSpriteGeometryShader();
+  D3D11PointSpriteGeometryShader(ID3D11Device* device);
+  ~D3D11PointSpriteGeometryShader() override;
 
 protected:
-  virtual int Generate(D3D11VertexShader* vertex_shader,
-                       alloy::StringBuffer* output);
+  int Generate(D3D11VertexShaderResource* vertex_shader,
+               alloy::StringBuffer* output) override;
 };
 
 
 class D3D11RectListGeometryShader : public D3D11GeometryShader {
 public:
-  D3D11RectListGeometryShader(ID3D11Device* device, uint64_t hash);
-  virtual ~D3D11RectListGeometryShader();
+  D3D11RectListGeometryShader(ID3D11Device* device);
+  ~D3D11RectListGeometryShader() override;
 
 protected:
-  virtual int Generate(D3D11VertexShader* vertex_shader,
-                       alloy::StringBuffer* output);
+  int Generate(D3D11VertexShaderResource* vertex_shader,
+               alloy::StringBuffer* output) override;
 };
 
 
 class D3D11QuadListGeometryShader : public D3D11GeometryShader {
 public:
-  D3D11QuadListGeometryShader(ID3D11Device* device, uint64_t hash);
-  virtual ~D3D11QuadListGeometryShader();
+  D3D11QuadListGeometryShader(ID3D11Device* device);
+  ~D3D11QuadListGeometryShader() override;
 
 protected:
-  virtual int Generate(D3D11VertexShader* vertex_shader,
-                       alloy::StringBuffer* output);
+  int Generate(D3D11VertexShaderResource* vertex_shader,
+               alloy::StringBuffer* output) override;
 };
 
 

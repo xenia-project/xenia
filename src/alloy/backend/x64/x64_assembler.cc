@@ -30,7 +30,7 @@ using namespace alloy::runtime;
 
 X64Assembler::X64Assembler(X64Backend* backend) :
     x64_backend_(backend),
-    emitter_(0),
+    emitter_(0), allocator_(0),
     Assembler(backend) {
 }
 
@@ -39,6 +39,7 @@ X64Assembler::~X64Assembler() {
   }));
 
   delete emitter_;
+  delete allocator_;
 }
 
 int X64Assembler::Initialize() {
@@ -47,8 +48,8 @@ int X64Assembler::Initialize() {
     return result;
   }
 
-  emitter_ = new X64Emitter(x64_backend_,
-                            new XbyakAllocator());
+  allocator_ = new XbyakAllocator();
+  emitter_ = new X64Emitter(x64_backend_, allocator_);
 
   alloy::tracing::WriteEvent(EventType::AssemblerInit({
   }));
@@ -65,6 +66,8 @@ int X64Assembler::Assemble(
     FunctionInfo* symbol_info, HIRBuilder* builder,
     uint32_t debug_info_flags, DebugInfo* debug_info,
     Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   int result = 0;
 
   // Lower HIR -> x64.
@@ -82,13 +85,15 @@ int X64Assembler::Assemble(
     string_buffer_.Reset();
   }
 
-  X64Function* fn = new X64Function(symbol_info);
-  fn->set_debug_info(debug_info);
-  fn->Setup(machine_code, code_size);
+  {
+    X64Function* fn = new X64Function(symbol_info);
+    fn->set_debug_info(debug_info);
+    fn->Setup(machine_code, code_size);
 
-  *out_function = fn;
+    *out_function = fn;
 
-  result = 0;
+    result = 0;
+  }
 
 XECLEANUP:
   Reset();

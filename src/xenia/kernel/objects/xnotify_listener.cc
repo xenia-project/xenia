@@ -20,6 +20,7 @@ XNotifyListener::XNotifyListener(KernelState* kernel_state) :
 }
 
 XNotifyListener::~XNotifyListener() {
+  kernel_state_->UnregisterNotifyListener(this);
   xe_mutex_free(lock_);
   if (wait_handle_) {
     CloseHandle(wait_handle_);
@@ -32,9 +33,16 @@ void XNotifyListener::Initialize(uint64_t mask) {
   lock_ = xe_mutex_alloc();
   wait_handle_ = CreateEvent(NULL, TRUE, FALSE, NULL);
   mask_ = mask;
+
+  kernel_state_->RegisterNotifyListener(this);
 }
 
 void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
+  // Ignore if the notification doesn't match our mask.
+  if ((mask_ & uint64_t(1 << ((id >> 25) + 1))) == 0) {
+    return;
+  }
+
   xe_mutex_lock(lock_);
   auto existing = notifications_.find(id);
   if (existing != notifications_.end()) {

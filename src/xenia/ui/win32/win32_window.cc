@@ -281,12 +281,13 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
 }
 
 bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
+  auto e = KeyEvent(this, (int)wParam);
   switch (message) {
   case WM_KEYDOWN:
-    (byte)wParam;
+    key_down(e);
     return true;
   case WM_KEYUP:
-    (byte)wParam;
+    key_up(e);
     return true;
   default:
     return false;

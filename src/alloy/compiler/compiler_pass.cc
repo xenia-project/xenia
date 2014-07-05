@@ -27,3 +27,7 @@ int CompilerPass::Initialize(Compiler* compiler) {
   compiler_ = compiler;
   return 0;
 }
+
+Arena* CompilerPass::scratch_arena() const {
+  return compiler_->scratch_arena();
+}

@@ -17,11 +17,12 @@ using namespace xe::hid;
 
 
 DEFINE_string(hid, "any",
-    "Input system. Use: [any, nop, xinput]");
+    "Input system. Use: [any, nop, winkey, xinput]");
 
 
 #include <xenia/hid/nop/nop_hid.h>
 #if XE_PLATFORM_WIN32
+#include <xenia/hid/winkey/winkey_hid.h>
 #include <xenia/hid/xinput/xinput_hid.h>
 #endif  // WIN32
 
@@ -33,6 +34,8 @@ InputSystem* xe::hid::Create(Emulator* emulator) {
   if (FLAGS_hid.compare("nop") == 0) {
     input_system->AddDriver(xe::hid::nop::Create(input_system));
 #if XE_PLATFORM_WIN32
+  } else if (FLAGS_hid.compare("winkey") == 0) {
+    input_system->AddDriver(xe::hid::winkey::Create(input_system));
   } else if (FLAGS_hid.compare("xinput") == 0) {
     input_system->AddDriver(xe::hid::xinput::Create(input_system));
 #endif  // WIN32
@@ -46,6 +49,11 @@ InputSystem* xe::hid::Create(Emulator* emulator) {
     InputDriver* xinput_driver = xe::hid::xinput::Create(input_system);
     if (xinput_driver) {
       input_system->AddDriver(xinput_driver);
+      any_created = true;
+    }
+    InputDriver* winkey_driver = xe::hid::winkey::Create(input_system);
+    if (winkey_driver) {
+      input_system->AddDriver(winkey_driver);
       any_created = true;
     }
 #endif  // WIN32

@@ -71,6 +71,6 @@ X_STATUS HostPathFile::ReadSync(
     *out_bytes_read = bytes_read;
     return X_STATUS_SUCCESS;
   } else {
-    return X_STATUS_UNSUCCESSFUL;
+    return X_STATUS_END_OF_FILE;
   }
 }

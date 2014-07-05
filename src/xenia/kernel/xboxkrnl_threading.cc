@@ -368,8 +368,8 @@ uint32_t xeKeGetCurrentProcessType() {
 
 SHIM_CALL KeGetCurrentProcessType_shim(
     PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "KeGetCurrentProcessType()");
+  // XELOGD(
+  //     "KeGetCurrentProcessType()");
 
   int result = xeKeGetCurrentProcessType();
   SHIM_SET_RETURN_64(result);
@@ -550,9 +550,10 @@ SHIM_CALL KeTlsGetValue_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t tls_index = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "KeTlsGetValue(%.8X)",
-      tls_index);
+  // Logging disabled, as some games spam this.
+  //XELOGD(
+  //    "KeTlsGetValue(%.8X)",
+  //    tls_index);
 
   uint64_t result = xeKeTlsGetValue(tls_index);
   SHIM_SET_RETURN_64(result);
@@ -1128,7 +1129,7 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(
     uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
     result = object->Wait(
         3, wait_mode, alertable,
-    timeout_ptr ? &timeout : NULL);
+        timeout_ptr ? &timeout : NULL);
     object->Release();
   }
 

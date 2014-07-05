@@ -26,6 +26,7 @@ public:
   virtual int Run(hir::HIRBuilder* builder);
 
 private:
+  void PropagateCarry(hir::Value* v, bool did_carry);
 };
 
 

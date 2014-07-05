@@ -77,7 +77,7 @@ int xe_pal_get_system_info(xe_system_info* out_info) {
 
   kernel32 = GetModuleHandle(TEXT("kernel32"));
   XEEXPECTNOTNULL(kernel32);
-  glpi = (LPFN_GLPI)GetProcAddress(kernel32, "GetLogicalProcessorInfomration");
+  glpi = (LPFN_GLPI)GetProcAddress(kernel32, "GetLogicalProcessorInformation");
   XEEXPECTNOTNULL(glpi);
 
   // Call GLPI once to get the buffer size, allocate it, then call again.

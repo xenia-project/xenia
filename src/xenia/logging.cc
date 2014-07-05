@@ -10,6 +10,18 @@
 #include <xenia/logging.h>
 
 #include <xenia/common.h>
+#include <xenia/core/mutex.h>
+
+#include <gflags/gflags.h>
+
+
+DEFINE_bool(fast_stdout, false,
+    "Don't lock around stdout/stderr. May introduce weirdness.");
+
+
+namespace {
+xe_mutex_t* log_lock = xe_mutex_alloc();
+}  // namespace
 
 
 void xe_format_log_line(
@@ -46,6 +58,8 @@ void xe_format_log_line(
 void xe_log_line(const char* file_path, const uint32_t line_number,
                  const char* function_name, const char level_char,
                  const char* fmt, ...) {
+  SCOPE_profile_cpu_i("emu", "log_line");
+
   char buffer[2048];
   va_list args;
   va_start(args, fmt);
@@ -54,15 +68,18 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
                      fmt, args);
   va_end(args);
 
-  fprintf(stderr, buffer);
-  fflush(stderr);
-
+  if (!FLAGS_fast_stdout) {
+    xe_mutex_lock(log_lock);
+  }
 #if 0// defined(OutputDebugString)
   OutputDebugStringA(buffer);
 #else
   XEIGNORE(fprintf(stdout, buffer));
   fflush(stdout);
 #endif  // OutputDebugString
+  if (!FLAGS_fast_stdout) {
+    xe_mutex_unlock(log_lock);
+  }
 }
 
 void xe_handle_fatal(
@@ -76,12 +93,18 @@ void xe_handle_fatal(
                      fmt, args);
   va_end(args);
 
+  if (!FLAGS_fast_stdout) {
+    xe_mutex_lock(log_lock);
+  }
 #if defined(OutputDebugString)
   OutputDebugStringA(buffer);
-#endif  // OutputDebugString
-
-  fprintf(stderr, buffer);
+#else
+  XEIGNORE(fprintf(stderr, buffer));
   fflush(stderr);
+#endif  // OutputDebugString
+  if (!FLAGS_fast_stdout) {
+    xe_mutex_unlock(log_lock);
+  }
 
 #if XE_LIKE_WIN32
   if (!xe_has_console()) {

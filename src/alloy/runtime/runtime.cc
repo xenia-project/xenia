@@ -25,8 +25,7 @@ DEFINE_string(runtime_backend, "any",
 
 
 Runtime::Runtime(Memory* memory) :
-    memory_(memory), debugger_(0), backend_(0), frontend_(0),
-    access_callbacks_(0) {
+    memory_(memory), debugger_(0), backend_(0), frontend_(0) {
   tracing::Initialize();
   modules_lock_ = AllocMutex(10000);
 }
@@ -40,14 +39,6 @@ Runtime::~Runtime() {
   }
   UnlockMutex(modules_lock_);
   FreeMutex(modules_lock_);
-
-  RegisterAccessCallbacks* cbs = access_callbacks_;
-  while (cbs) {
-    RegisterAccessCallbacks* next = cbs->next;
-    delete cbs;
-    cbs = next;
-  }
-  access_callbacks_ = NULL;
 
   delete frontend_;
   delete backend_;
@@ -63,11 +54,6 @@ Runtime::~Runtime() {
 int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   // Must be initialized by subclass before calling into this.
   XEASSERTNOTNULL(memory_);
-
-  int result = memory_->Initialize();
-  if (result) {
-    return result;
-  }
 
   // Create debugger first. Other types hook up to it.
   debugger_ = new Debugger(this);
@@ -91,10 +77,10 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
 #endif  // ALLOY_HAS_IVM_BACKEND
     if (FLAGS_runtime_backend == "any") {
 #if defined(ALLOY_HAS_X64_BACKEND) && ALLOY_HAS_X64_BACKEND
-      /*if (!backend) {
+      if (!backend) {
         backend = new alloy::backend::x64::X64Backend(
             this);
-      }*/
+      }
 #endif  // ALLOY_HAS_X64_BACKEND
 #if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
       if (!backend) {
@@ -111,7 +97,7 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   backend_ = backend;
   frontend_ = frontend;
 
-  result = backend_->Initialize();
+  int result = backend_->Initialize();
   if (result) {
     return result;
   }
@@ -159,6 +145,8 @@ std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {
 }
 
 int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   *out_function = NULL;
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
@@ -192,6 +180,8 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
 
 int Runtime::LookupFunctionInfo(
     uint64_t address, FunctionInfo** out_symbol_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   *out_symbol_info = NULL;
 
   // TODO(benvanik): fast reject invalid addresses/log errors.
@@ -220,6 +210,8 @@ int Runtime::LookupFunctionInfo(
 
 int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
                                 FunctionInfo** out_symbol_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
   FunctionInfo* symbol_info = NULL;
@@ -241,6 +233,8 @@ int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
 
 int Runtime::DemandFunction(
     FunctionInfo* symbol_info, Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
   *out_function = NULL;
 
   // Lock function for generation. If it's already being generated
@@ -272,12 +266,4 @@ int Runtime::DemandFunction(
   *out_function = symbol_info->function();
 
   return 0;
-}
-
-void Runtime::AddRegisterAccessCallbacks(
-    const RegisterAccessCallbacks& callbacks) {
-  RegisterAccessCallbacks* cbs = new RegisterAccessCallbacks();
-  xe_copy_struct(cbs, &callbacks, sizeof(callbacks));
-  cbs->next = access_callbacks_;
-  access_callbacks_ = cbs;
 }

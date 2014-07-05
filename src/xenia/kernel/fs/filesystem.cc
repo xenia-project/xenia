@@ -70,7 +70,7 @@ int FileSystem::CreateSymbolicLink(const char* path, const char* target) {
 }
 
 int FileSystem::DeleteSymbolicLink(const char* path) {
-  std::tr1::unordered_map<std::string, std::string>::iterator it =
+  std::unordered_map<std::string, std::string>::iterator it =
       symlinks_.find(std::string(path));
   if (it != symlinks_.end()) {
     symlinks_.erase(it);
@@ -93,7 +93,7 @@ Entry* FileSystem::ResolvePath(const char* path) {
   //     drive path -> device mappings with nothing nested.
   char full_path[XE_MAX_PATH];
   XEIGNORE(xestrcpya(full_path, XECOUNT(full_path), path));
-  for (std::tr1::unordered_map<std::string, std::string>::iterator it =
+  for (std::unordered_map<std::string, std::string>::iterator it =
        symlinks_.begin(); it != symlinks_.end(); ++it) {
     if (xestrcasestra(path, it->first.c_str()) == path) {
       // Found symlink, fixup.

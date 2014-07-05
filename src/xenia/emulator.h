@@ -13,6 +13,7 @@
 #include <xenia/common.h>
 #include <xenia/core.h>
 #include <xenia/xbox.h>
+#include <xenia/cpu/xenon_memory.h>
 
 
 XEDECLARECLASS1(xe, ExportResolver);
@@ -41,7 +42,7 @@ public:
   ui::Window* main_window() const { return main_window_; }
   void set_main_window(ui::Window* window);
 
-  Memory* memory() const { return memory_; }
+  cpu::XenonMemory* memory() const { return memory_; }
 
   debug::DebugServer* debug_server() const { return debug_server_; }
 
@@ -68,7 +69,7 @@ private:
 
   ui::Window*             main_window_;
 
-  Memory*                 memory_;
+  cpu::XenonMemory*       memory_;
 
   debug::DebugServer*     debug_server_;
 

@@ -68,6 +68,10 @@ public:
   void RegisterTable(const char* library_name, KernelExport* exports,
                      const size_t count);
 
+  uint16_t GetLibraryOrdinal(const char* library_name);
+
+  KernelExport* GetExportByOrdinal(const uint16_t library_ordinal,
+                                   const uint32_t ordinal);
   KernelExport* GetExportByOrdinal(const char* library_name,
                                    const uint32_t ordinal);
   KernelExport* GetExportByName(const char* library_name, const char* name);

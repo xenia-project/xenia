@@ -643,20 +643,20 @@ XEEMITTER(cmpli,        0x28000000, D  )(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(andx,         0x7C000038, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (RB)
   Value* ra = f.And(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
 XEEMITTER(andcx,        0x7C000078, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & ¬(RB)
   Value* ra = f.And(f.LoadGPR(i.X.RT), f.Not(f.LoadGPR(i.X.RB)));
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -665,8 +665,8 @@ XEEMITTER(andix,        0x70000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   Value* ra = f.And(
       f.LoadGPR(i.D.RT),
       f.LoadConstant((uint64_t)i.D.DS));
-  f.UpdateCR(0, ra);
   f.StoreGPR(i.D.RA, ra);
+  f.UpdateCR(0, ra);
   return 0;
 }
 
@@ -675,8 +675,8 @@ XEEMITTER(andisx,       0x74000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   Value* ra = f.And(
       f.LoadGPR(i.D.RT),
       f.LoadConstant((uint64_t(i.D.DS) << 16)));
-  f.UpdateCR(0, ra);
   f.StoreGPR(i.D.RA, ra);
+  f.UpdateCR(0, ra);
   return 0;
 }
 
@@ -688,10 +688,10 @@ XEEMITTER(cntlzdx,      0x7C000074, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- n
   Value* v = f.CountLeadingZeros(f.LoadGPR(i.X.RT));
   v = f.ZeroExtend(v, INT64_TYPE);
+  f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
     f.UpdateCR(0, v);
   }
-  f.StoreGPR(i.X.RA, v);
   return 0;
 }
 
@@ -704,10 +704,10 @@ XEEMITTER(cntlzwx,      0x7C000034, X  )(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.CountLeadingZeros(
       f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE));
   v = f.ZeroExtend(v, INT64_TYPE);
+  f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
     f.UpdateCR(0, v);
   }
-  f.StoreGPR(i.X.RA, v);
   return 0;
 }
 
@@ -715,10 +715,10 @@ XEEMITTER(eqvx,         0x7C000238, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) == (RB)
   Value* ra = f.Xor(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   ra = f.Not(ra);
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -728,10 +728,10 @@ XEEMITTER(extsbx,       0x7C000774, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA[0:55] <- i56.s
   Value* rt = f.LoadGPR(i.X.RT);
   rt = f.SignExtend(f.Truncate(rt, INT8_TYPE), INT64_TYPE);
+  f.StoreGPR(i.X.RA, rt);
   if (i.X.Rc) {
     f.UpdateCR(0, rt);
   }
-  f.StoreGPR(i.X.RA, rt);
   return 0;
 }
 
@@ -741,10 +741,10 @@ XEEMITTER(extshx,       0x7C000734, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA[0:47] <- 48.s
   Value* rt = f.LoadGPR(i.X.RT);
   rt = f.SignExtend(f.Truncate(rt, INT16_TYPE), INT64_TYPE);
+  f.StoreGPR(i.X.RA, rt);
   if (i.X.Rc) {
     f.UpdateCR(0, rt);
   }
-  f.StoreGPR(i.X.RA, rt);
   return 0;
 }
 
@@ -754,10 +754,10 @@ XEEMITTER(extswx,       0x7C0007B4, X  )(PPCHIRBuilder& f, InstrData& i) {
   // RA[0:31] <- i32.s
   Value* rt = f.LoadGPR(i.X.RT);
   rt = f.SignExtend(f.Truncate(rt, INT32_TYPE), INT64_TYPE);
+  f.StoreGPR(i.X.RA, rt);
   if (i.X.Rc) {
     f.UpdateCR(0, rt);
   }
-  f.StoreGPR(i.X.RA, rt);
   return 0;
 }
 
@@ -767,10 +767,10 @@ XEEMITTER(nandx,        0x7C0003B8, X  )(PPCHIRBuilder& f, InstrData& i) {
       f.LoadGPR(i.X.RT),
       f.LoadGPR(i.X.RB));
   ra = f.Not(ra);
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -780,10 +780,10 @@ XEEMITTER(norx,         0x7C0000F8, X  )(PPCHIRBuilder& f, InstrData& i) {
       f.LoadGPR(i.X.RT),
       f.LoadGPR(i.X.RB));
   ra = f.Not(ra);
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -803,10 +803,10 @@ XEEMITTER(orx,          0x7C000378, X  )(PPCHIRBuilder& f, InstrData& i) {
         f.LoadGPR(i.X.RT),
         f.LoadGPR(i.X.RB));
   }
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -815,10 +815,10 @@ XEEMITTER(orcx,         0x7C000338, X  )(PPCHIRBuilder& f, InstrData& i) {
   Value* ra = f.Or(
       f.LoadGPR(i.X.RT),
       f.Not(f.LoadGPR(i.X.RB)));
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -849,10 +849,10 @@ XEEMITTER(xorx,         0x7C000278, X  )(PPCHIRBuilder& f, InstrData& i) {
   Value* ra = f.Xor(
       f.LoadGPR(i.X.RT),
       f.LoadGPR(i.X.RB));
+  f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
   }
-  f.StoreGPR(i.X.RA, ra);
   return 0;
 }
 
@@ -895,10 +895,10 @@ XEEMITTER(rld,          0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
     if (m != 0xFFFFFFFFFFFFFFFF) {
       v = f.And(v, f.LoadConstant(m));
     }
+    f.StoreGPR(i.MD.RA, v);
     if (i.MD.Rc) {
       f.UpdateCR(0, v);
     }
-    f.StoreGPR(i.MD.RA, v);
     return 0;
   } else if (i.MD.idx == 1) {
     // XEEMITTER(rldicrx,      0x78000004, MD )
@@ -922,10 +922,10 @@ XEEMITTER(rld,          0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
         v = f.And(v, f.LoadConstant(m));
       }
     }
+    f.StoreGPR(i.MD.RA, v);
     if (i.MD.Rc) {
       f.UpdateCR(0, v);
     }
-    f.StoreGPR(i.MD.RA, v);
     return 0;
   } else if (i.MD.idx == 2) {
     // XEEMITTER(rldicx,       0x78000008, MD )
@@ -959,10 +959,10 @@ XEEMITTER(rld,          0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
           f.And(v, f.LoadConstant(m)),
           f.And(ra, f.LoadConstant(~m)));
     }
+    f.StoreGPR(i.MD.RA, v);
     if (i.MD.Rc) {
       f.UpdateCR(0, v);
     }
-    f.StoreGPR(i.MD.RA, v);
     return 0;
   } else {
     XEINSTRNOTIMPLEMENTED();
@@ -987,10 +987,10 @@ XEEMITTER(rlwimix,      0x50000000, M  )(PPCHIRBuilder& f, InstrData& i) {
   }
   v = f.ZeroExtend(v, INT64_TYPE);
   v = f.Or(v, f.And(f.LoadGPR(i.M.RA), f.LoadConstant((~(uint64_t)m))));
+  f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
   }
-  f.StoreGPR(i.M.RA, v);
   return 0;
 }
 
@@ -1014,10 +1014,10 @@ XEEMITTER(rlwinmx,      0x54000000, M  )(PPCHIRBuilder& f, InstrData& i) {
     v = f.And(v, f.LoadConstant((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
   }
   v = f.ZeroExtend(v, INT64_TYPE);
+  f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
   }
-  f.StoreGPR(i.M.RA, v);
   return 0;
 }
 
@@ -1027,7 +1027,8 @@ XEEMITTER(rlwnmx,       0x5C000000, M  )(PPCHIRBuilder& f, InstrData& i) {
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
   Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
-  Value* sh = f.And(f.LoadGPR(i.M.SH), f.LoadConstant(0x1F));
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.M.SH), INT32_TYPE),
+                    f.LoadConstant(0x1F));
   v = f.RotateLeft(v, sh);
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
@@ -1035,10 +1036,10 @@ XEEMITTER(rlwnmx,       0x5C000000, M  )(PPCHIRBuilder& f, InstrData& i) {
     v = f.And(v, f.LoadConstant((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
   }
   v = f.ZeroExtend(v, INT64_TYPE);
+  f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
   }
-  f.StoreGPR(i.M.RA, v);
   return 0;
 }
 
@@ -1145,7 +1146,7 @@ XEEMITTER(sradx,        0x7C000634, X  )(PPCHIRBuilder& f, InstrData& i) {
   // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
   // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
   // We already have ca set to indicate the pos 63 bit, now just and in sign.
-  ca = f.And(ca, f.Shr(v, 63));
+  ca = f.And(ca, f.Truncate(f.Shr(v, 63), INT8_TYPE));
 
   f.StoreCA(ca);
   f.StoreGPR(i.X.RA, v);
@@ -1173,15 +1174,15 @@ XEEMITTER(sradix,       0x7C000674, XS )(PPCHIRBuilder& f, InstrData& i) {
   XEASSERT(sh);
   uint64_t mask = XEMASK(64 - sh, 63);
   Value* ca = f.And(
-      f.Shr(v, 63),
+      f.Truncate(f.Shr(v, 63), INT8_TYPE),
       f.IsTrue(f.And(v, f.LoadConstant(mask))));
   f.StoreCA(ca);
 
   v = f.Sha(v, sh);
+  f.StoreGPR(i.XS.RA, v);
   if (i.XS.Rc) {
     f.UpdateCR(0, v);
   }
-  f.StoreGPR(i.XS.RA, v);
   return 0;
 }
 
@@ -1197,12 +1198,12 @@ XEEMITTER(srawx,        0x7C000630, X  )(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
   Value* sh = f.And(
       f.Truncate(f.LoadGPR(i.X.RB), INT32_TYPE),
-      f.LoadConstant((int8_t)0x7F));
+      f.LoadConstant(0x7F));
   // CA is set if any bits are shifted out of the right and if the result
   // is negative.
   Value* mask = f.Not(f.Shl(f.LoadConstant(-1), sh));
   Value* ca = f.And(
-      f.Shr(v, 31),
+      f.Truncate(f.Shr(v, 31), INT8_TYPE),
       f.IsTrue(f.And(v, mask)));
   f.StoreCA(ca);
   v = f.Sha(v, sh),
@@ -1234,8 +1235,8 @@ XEEMITTER(srawix,       0x7C000670, X  )(PPCHIRBuilder& f, InstrData& i) {
     // is negative.
     uint32_t mask = (uint32_t)XEMASK(64 - i.X.RB, 63);
     ca = f.And(
-        f.Shr(v, 31),
-        f.ZeroExtend(f.IsTrue(f.And(v, f.LoadConstant(mask))), INT32_TYPE));
+        f.Truncate(f.Shr(v, 31), INT8_TYPE),
+        f.IsTrue(f.And(v, f.LoadConstant(mask))));
 
     v = f.Sha(v, (int8_t)i.X.RB),
     v = f.SignExtend(v, INT64_TYPE);

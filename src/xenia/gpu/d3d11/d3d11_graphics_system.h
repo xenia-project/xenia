@@ -35,17 +35,23 @@ public:
 
   virtual void Shutdown();
 
+  void Swap() override;
+
 protected:
   virtual void Initialize();
   virtual void Pump();
 
 private:
+  static void __stdcall VsyncCallback(D3D11GraphicsSystem* gs, BOOLEAN);
+
   IDXGIFactory1*  dxgi_factory_;
   ID3D11Device*   device_;
   D3D11Window*    window_;
 
   HANDLE          timer_queue_;
   HANDLE          vsync_timer_;
+
+  double          last_swap_time_;
 };
 
 

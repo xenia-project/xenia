@@ -18,7 +18,8 @@ namespace hir {
 
 
 enum CallFlags {
-  CALL_TAIL       = (1 << 1),
+  CALL_TAIL             = (1 << 1),
+  CALL_POSSIBLE_RETURN  = (1 << 2),
 };
 enum BranchFlags {
   BRANCH_LIKELY   = (1 << 1),
@@ -94,8 +95,10 @@ enum Opcode {
   OPCODE_CALL_TRUE,
   OPCODE_CALL_INDIRECT,
   OPCODE_CALL_INDIRECT_TRUE,
+  OPCODE_CALL_EXTERN,
   OPCODE_RETURN,
   OPCODE_RETURN_TRUE,
+  OPCODE_SET_RETURN_ADDRESS,
 
   OPCODE_BRANCH,
   OPCODE_BRANCH_TRUE,
@@ -115,6 +118,9 @@ enum Opcode {
   OPCODE_LOAD_VECTOR_SHR,
 
   OPCODE_LOAD_CLOCK,
+
+  OPCODE_LOAD_LOCAL,
+  OPCODE_STORE_LOCAL,
 
   OPCODE_LOAD_CONTEXT,
   OPCODE_STORE_CONTEXT,
@@ -201,6 +207,7 @@ enum OpcodeFlags {
   OPCODE_FLAG_VOLATILE    = (1 << 4),
   OPCODE_FLAG_IGNORE      = (1 << 5),
   OPCODE_FLAG_HIDE        = (1 << 6),
+  OPCODE_FLAG_PAIRED_PREV = (1 << 7),
 };
 
 enum OpcodeSignatureType {

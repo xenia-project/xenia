@@ -48,6 +48,9 @@ public:
   alloy::Delegate<UIEvent> closing;
   alloy::Delegate<UIEvent> closed;
 
+  alloy::Delegate<KeyEvent> key_down;
+  alloy::Delegate<KeyEvent> key_up;
+
   alloy::Delegate<MouseEvent> mouse_down;
   alloy::Delegate<MouseEvent> mouse_move;
   alloy::Delegate<MouseEvent> mouse_up;

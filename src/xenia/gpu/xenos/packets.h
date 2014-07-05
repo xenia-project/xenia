@@ -70,6 +70,8 @@ enum Type3Opcode {
   PM4_CONTEXT_UPDATE        = 0x5e,   // updates the current context, if needed
   PM4_INTERRUPT             = 0x54,   // generate interrupt from the command stream
 
+  PM4_XE_SWAP               = 0x55,   // Xenia only: VdSwap uses this to trigger a swap.
+
   PM4_IM_STORE              = 0x2c,   // copy sequencer instruction memory to system memory
 
   // Tiled rendering:

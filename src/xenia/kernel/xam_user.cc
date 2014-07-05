@@ -174,6 +174,23 @@ SHIM_CALL XamUserReadProfileSettings_shim(
 }
 
 
+SHIM_CALL XamShowSigninUI_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk_0 = SHIM_GET_ARG_32(0);
+  uint32_t unk_mask = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "XamShowSigninUI(%d, %.8X)",
+      unk_0, unk_mask);
+
+  // Mask values vary. Probably matching user types? Local/remote?
+  // Games seem to sit and loop until we trigger this notification.
+  state->BroadcastNotification(0x00000009, 0);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -185,4 +202,5 @@ void xe::kernel::xam::RegisterUserExports(
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetName, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
+  SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
 }

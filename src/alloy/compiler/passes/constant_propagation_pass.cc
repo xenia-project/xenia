@@ -9,6 +9,9 @@
 
 #include <alloy/compiler/passes/constant_propagation_pass.h>
 
+#include <alloy/runtime/function.h>
+#include <alloy/runtime/runtime.h>
+
 using namespace alloy;
 using namespace alloy::compiler;
 using namespace alloy::compiler::passes;
@@ -23,6 +26,8 @@ ConstantPropagationPass::~ConstantPropagationPass() {
 }
 
 int ConstantPropagationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Once ContextPromotion has run there will likely be a whole slew of
   // constants that can be pushed through the function.
   // Example:
@@ -41,6 +46,14 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
   //   v1 = add 1000, 1000
   //   store_context +200, 2000
   // A DCE run after this should clean up any of the values no longer needed.
+  //
+  // Special care needs to be taken with paired instructions. For example,
+  // DID_CARRY needs to be set as a constant:
+  //   v1 = sub.2 20, 1
+  //   v2 = did_carry v1
+  // should become:
+  //   v1 = 19
+  //   v2 = 0
 
   Block* block = builder->first_block();
   while (block) {
@@ -77,6 +90,17 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           } else {
             i->Remove();
           }
+        }
+        break;
+      case OPCODE_CALL_INDIRECT:
+        if (i->src1.value->IsConstant()) {
+          runtime::FunctionInfo* symbol_info;
+          if (runtime_->LookupFunctionInfo(
+              (uint32_t)i->src1.value->constant.i32, &symbol_info)) {
+            break;
+          }
+          i->Replace(&OPCODE_CALL_info, i->flags);
+          i->src1.symbol_info = symbol_info;
         }
         break;
       case OPCODE_CALL_INDIRECT_TRUE:
@@ -179,20 +203,112 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
         break;
 
       // TODO(benvanik): compares
+      case OPCODE_COMPARE_EQ:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantEQ(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_NE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantNE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SLT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSLT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SLE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSLE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SGT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSGT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_SGE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantSGE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_ULT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantULT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_ULE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantULE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_UGT:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantUGT(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+      case OPCODE_COMPARE_UGE:
+        if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          bool value = i->src1.value->IsConstantUGE(i->src2.value);
+          i->dest->set_constant(value);
+          i->Remove();
+        }
+        break;
+
+      case OPCODE_DID_CARRY:
+        XEASSERT(!i->src1.value->IsConstant());
+        break;
+      case OPCODE_DID_OVERFLOW:
+        XEASSERT(!i->src1.value->IsConstant());
+        break;
+      case OPCODE_DID_SATURATE:
+        XEASSERT(!i->src1.value->IsConstant());
+        break;
 
       case OPCODE_ADD:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
           v->set_from(i->src1.value);
-          v->Add(i->src2.value);
+          bool did_carry = v->Add(i->src2.value);
+          bool propagate_carry = !!(i->flags & ARITHMETIC_SET_CARRY);
           i->Remove();
+
+          // If carry is set find the DID_CARRY and fix it.
+          if (propagate_carry) {
+            PropagateCarry(v, did_carry);
+          }
         }
         break;
-      // TODO(benvanik): ADD_CARRY
+      // TODO(benvanik): ADD_CARRY (w/ ARITHMETIC_SET_CARRY)
       case OPCODE_SUB:
         if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
           v->set_from(i->src1.value);
-          v->Sub(i->src2.value);
+          bool did_carry = v->Sub(i->src2.value);
+          bool propagate_carry = !!(i->flags & ARITHMETIC_SET_CARRY);
           i->Remove();
+
+          // If carry is set find the DID_CARRY and fix it.
+          if (propagate_carry) {
+            PropagateCarry(v, did_carry);
+          }
         }
         break;
       case OPCODE_MUL:
@@ -298,6 +414,13 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           i->Remove();
         }
         break;
+      case OPCODE_CNTLZ:
+        if (i->src1.value->IsConstant()) {
+          v->set_zero(v->type);
+          v->CountLeadingZeros(i->src1.value);
+          i->Remove();
+        }
+        break;
       // TODO(benvanik): INSERT/EXTRACT
       // TODO(benvanik): SPLAT/PERMUTE/SWIZZLE
       case OPCODE_SPLAT:
@@ -313,4 +436,17 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
   }
 
   return 0;
+}
+
+void ConstantPropagationPass::PropagateCarry(hir::Value* v, bool did_carry) {
+  auto next = v->use_head;
+  while (next) {
+    auto use = next;
+    next = use->next;
+    if (use->instr->opcode == &OPCODE_DID_CARRY_info) {
+      // Replace carry value.
+      use->instr->dest->set_constant(did_carry ? 1 : 0);
+      use->instr->Remove();
+    }
+  }
 }

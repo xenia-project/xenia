@@ -43,7 +43,7 @@ public:
 
 private:
   std::vector<Device*>  devices_;
-  std::tr1::unordered_map<std::string, std::string> symlinks_;
+  std::unordered_map<std::string, std::string> symlinks_;
 };
 
 

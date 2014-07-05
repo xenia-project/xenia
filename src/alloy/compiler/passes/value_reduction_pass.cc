@@ -13,7 +13,11 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
-#include <bitset>
+#pragma warning(push)
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
+#include <llvm/ADT/BitVector.h>
+#pragma warning(pop)
 
 using namespace alloy;
 using namespace alloy::backend;
@@ -49,10 +53,11 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
 }
 
 int ValueReductionPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Walk each block and reuse variable ordinals as much as possible.
 
-  // Let's hope this is enough.
-  std::bitset<1024> ordinals;
+  llvm::BitVector ordinals(builder->max_value_ordinal());
 
   auto block = builder->first_block();
   while (block) {
@@ -74,34 +79,40 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
       OpcodeSignatureType src1_type = GET_OPCODE_SIG_TYPE_SRC1(info->signature);
       OpcodeSignatureType src2_type = GET_OPCODE_SIG_TYPE_SRC2(info->signature);
       OpcodeSignatureType src3_type = GET_OPCODE_SIG_TYPE_SRC3(info->signature);
-      if (src1_type == OPCODE_SIG_TYPE_V && !instr->src1.value->IsConstant()) {
+      if (src1_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src1.value;
         if (!v->last_use) {
           ComputeLastUse(v);
         }
         if (v->last_use == instr) {
           // Available.
-          ordinals.set(v->ordinal, false);
+          if (!instr->src1.value->IsConstant()) {
+            ordinals.reset(v->ordinal);
+          }
         }
       }
-      if (src2_type == OPCODE_SIG_TYPE_V && !instr->src2.value->IsConstant()) {
+      if (src2_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src2.value;
         if (!v->last_use) {
           ComputeLastUse(v);
         }
         if (v->last_use == instr) {
           // Available.
-          ordinals.set(v->ordinal, false);
+          if (!instr->src2.value->IsConstant()) {
+            ordinals.reset(v->ordinal);
+          }
         }
       }
-      if (src3_type == OPCODE_SIG_TYPE_V && !instr->src3.value->IsConstant()) {
+      if (src3_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src3.value;
         if (!v->last_use) {
           ComputeLastUse(v);
         }
         if (v->last_use == instr) {
           // Available.
-          ordinals.set(v->ordinal, false);
+          if (!instr->src3.value->IsConstant()) {
+            ordinals.reset(v->ordinal);
+          }
         }
       }
       if (dest_type == OPCODE_SIG_TYPE_V) {
@@ -109,7 +120,7 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
         // source value ordinal.
         auto v = instr->dest;
         // Find a lower ordinal.
-        for (auto n = 0; n < ordinals.size(); n++) {
+        for (auto n = 0u; n < ordinals.size(); n++) {
           if (!ordinals.test(n)) {
             ordinals.set(n);
             v->ordinal = n;

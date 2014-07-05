@@ -9,14 +9,22 @@
 
 #include <alloy/memory.h>
 
+#if !XE_LIKE_WIN32
+#include <unistd.h>
+#endif
+
 using namespace alloy;
 
 
 Memory::Memory() :
-    membase_(0) {
+    membase_(0), reserve_address_(0) {
+#if XE_LIKE_WIN32
   SYSTEM_INFO si;
   GetSystemInfo(&si);
   system_page_size_ = si.dwPageSize;
+#else
+  system_page_size_ = getpagesize();
+#endif
 }
 
 Memory::~Memory() {

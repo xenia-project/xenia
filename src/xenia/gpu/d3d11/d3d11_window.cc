@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/d3d11/d3d11_window.h>
 
+#include <xenia/gpu/d3d11/d3d11_profiler_display.h>
+
 
 using namespace xe;
 using namespace xe::gpu;
@@ -36,6 +38,7 @@ D3D11Window::D3D11Window(
 }
 
 D3D11Window::~D3D11Window() {
+  Profiler::set_display(nullptr);
   if (context_) {
     context_->ClearState();
   }
@@ -100,10 +103,23 @@ int D3D11Window::Initialize(const char* title, uint32_t width, uint32_t height) 
   }
   context_->OMSetRenderTargets(1, &render_target_view_, NULL);
 
+  // Setup profiler display.
+  if (Profiler::is_enabled()) {
+    std::unique_ptr<D3D11ProfilerDisplay> profiler_display(
+        new D3D11ProfilerDisplay(this));
+    Profiler::set_display(std::move(profiler_display));
+  }
+
   return 0;
 }
 
 void D3D11Window::Swap() {
+  SCOPE_profile_cpu_f("gpu");
+
+  // Present profiler.
+  context_->OMSetRenderTargets(1, &render_target_view_, NULL);
+  Profiler::Present();
+
   // Swap buffers.
   // TODO(benvanik): control vsync with flag.
   bool vsync = true;

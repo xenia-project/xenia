@@ -38,6 +38,7 @@ public:
   bool IsQueued(uint32_t list_entry_ptr);
   void Remove(uint32_t list_entry_ptr);
   uint32_t Shift();
+  bool HasPending();
 
 private:
   const uint32_t kInvalidPointer = 0xE0FE0FFF;

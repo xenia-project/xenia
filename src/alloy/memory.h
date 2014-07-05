@@ -34,6 +34,8 @@ public:
   };
   inline uint32_t* reserve_address() { return &reserve_address_; }
 
+  virtual uint64_t page_table() const = 0;
+
   virtual int Initialize();
 
   void Zero(uint64_t address, size_t size);
@@ -42,6 +44,15 @@ public:
 
   uint64_t SearchAligned(uint64_t start, uint64_t end,
                          const uint32_t* values, size_t value_count);
+
+  virtual uint8_t LoadI8(uint64_t address) = 0;
+  virtual uint16_t LoadI16(uint64_t address) = 0;
+  virtual uint32_t LoadI32(uint64_t address) = 0;
+  virtual uint64_t LoadI64(uint64_t address) = 0;
+  virtual void StoreI8(uint64_t address, uint8_t value) = 0;
+  virtual void StoreI16(uint64_t address, uint16_t value) = 0;
+  virtual void StoreI32(uint64_t address, uint32_t value) = 0;
+  virtual void StoreI64(uint64_t address, uint64_t value) = 0;
 
   virtual uint64_t HeapAlloc(
       uint64_t base_address, size_t size, uint32_t flags,

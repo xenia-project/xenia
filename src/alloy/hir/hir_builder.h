@@ -35,13 +35,19 @@ public:
   virtual int Finalize();
 
   void Dump(StringBuffer* str);
+  void AssertNoCycles();
 
   Arena* arena() const { return arena_; }
 
   uint32_t attributes() const { return attributes_; }
   void set_attributes(uint32_t value) { attributes_ = value; }
 
+  std::vector<Value*>& locals() { return locals_; }
+
+  uint32_t max_value_ordinal() const { return next_value_ordinal_; }
+
   Block* first_block() const { return block_head_; }
+  Block* last_block() const { return block_tail_; }
   Block* current_block() const;
   Instr* last_instr() const;
 
@@ -50,11 +56,10 @@ public:
   void InsertLabel(Label* label, Instr* prev_instr);
   void ResetLabelTags();
 
+  void AddEdge(Block* src, Block* dest, uint32_t flags);
+
   // static allocations:
   // Value* AllocStatic(size_t length);
-
-  // stack allocations:
-  // Value* AllocLocal(TypeName type);
 
   void Comment(const char* format, ...);
 
@@ -74,8 +79,10 @@ public:
                 uint32_t call_flags = 0);
   void CallIndirect(Value* value, uint32_t call_flags = 0);
   void CallIndirectTrue(Value* cond, Value* value, uint32_t call_flags = 0);
+  void CallExtern(runtime::FunctionInfo* symbol_info);
   void Return();
   void ReturnTrue(Value* cond);
+  void SetReturnAddress(Value* value);
 
   void Branch(Label* label, uint32_t branch_flags = 0);
   void Branch(Block* block, uint32_t branch_flags = 0);
@@ -114,6 +121,10 @@ public:
   Value* LoadVectorShr(Value* sh);
 
   Value* LoadClock();
+
+  Value* AllocLocal(TypeName type);
+  Value* LoadLocal(Value* slot);
+  void StoreLocal(Value* slot, Value* value);
 
   Value* LoadContext(size_t offset, TypeName type);
   void StoreContext(size_t offset, Value* value);
@@ -186,7 +197,7 @@ public:
   Value* Insert(Value* value, Value* index, Value* part);
   Value* Insert(Value* value, uint64_t index, Value* part);
   Value* Extract(Value* value, Value* index, TypeName target_type);
-  Value* Extract(Value* value, uint64_t index, TypeName target_type);
+  Value* Extract(Value* value, uint8_t index, TypeName target_type);
   // i8->i16/i32/... (i8|i8 / i8|i8|i8|i8 / ...)
   // i8/i16/i32 -> vec128
   Value* Splat(Value* value, TypeName target_type);
@@ -228,6 +239,8 @@ protected:
 
   uint32_t  next_label_id_;
   uint32_t  next_value_ordinal_;
+
+  std::vector<Value*> locals_;
 
   Block*    block_head_;
   Block*    block_tail_;

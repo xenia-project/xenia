@@ -12,13 +12,35 @@
 
 #include <alloy/core.h>
 
+XEDECLARECLASS1(llvm, BitVector);
+
 
 namespace alloy {
 namespace hir {
 
+class Block;
 class HIRBuilder;
 class Instr;
 class Label;
+
+
+class Edge {
+public:
+  enum EdgeFlags {
+    UNCONDITIONAL = (1 << 0),
+    DOMINATES = (1 << 1),
+  };
+public:
+  Edge* outgoing_next;
+  Edge* outgoing_prev;
+  Edge* incoming_next;
+  Edge* incoming_prev;
+
+  Block* src;
+  Block* dest;
+
+  uint32_t flags;
+};
 
 
 class Block {
@@ -28,6 +50,10 @@ public:
   Block* next;
   Block* prev;
 
+  Edge* incoming_edge_head;
+  Edge* outgoing_edge_head;
+  llvm::BitVector* incoming_values;
+
   Label* label_head;
   Label* label_tail;
 
@@ -35,6 +61,8 @@ public:
   Instr* instr_tail;
 
   uint16_t ordinal;
+
+  void AssertNoCycles();
 };
 
 

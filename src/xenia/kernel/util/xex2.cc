@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include <gflags/gflags.h>
 #include <third_party/crypto/rijndael-alg-fst.h>
 #include <third_party/crypto/rijndael-alg-fst.c>
 #include <third_party/mspack/lzx.h>
@@ -20,15 +21,22 @@
 
 using namespace alloy;
 
+DEFINE_bool(xex_dev_key, false, "Use the devkit key.");
+
 
 typedef struct xe_xex2 {
   xe_ref_t ref;
 
-  Memory*           memory;
+  Memory* memory;
 
-  xe_xex2_header_t  header;
+  xe_xex2_header_t header;
 
   std::vector<PESection*>* sections;
+
+  struct {
+    size_t count;
+    xe_xex2_import_info_t* infos;
+  } library_imports[16];
 } xe_xex2_t;
 
 
@@ -39,6 +47,8 @@ int xe_xex2_read_image(xe_xex2_ref xex,
                        const uint8_t *xex_addr, const size_t xex_length,
                        Memory* memory);
 int xe_xex2_load_pe(xe_xex2_ref xex);
+int xe_xex2_find_import_infos(xe_xex2_ref xex,
+                              const xe_xex2_import_library_t* library);
 
 
 xe_xex2_ref xe_xex2_load(Memory* memory,
@@ -57,6 +67,11 @@ xe_xex2_ref xe_xex2_load(Memory* memory,
   XEEXPECTZERO(xe_xex2_read_image(xex, (const uint8_t*)addr, length, memory));
 
   XEEXPECTZERO(xe_xex2_load_pe(xex));
+
+  for (size_t n = 0; n < xex->header.import_library_count; n++) {
+    auto library = &xex->header.import_libraries[n];
+    XEEXPECTZERO(xe_xex2_find_import_infos(xex, library));
+  }
 
   return xex;
 
@@ -422,7 +437,7 @@ int xe_xex2_decrypt_key(xe_xex2_header_t *header) {
   // Guess key based on file info.
   // TODO: better way to finding out which key to use?
   const uint8_t *xexkey;
-  if (header->execution_info.title_id) {
+  if (header->execution_info.title_id && !FLAGS_xex_dev_key) {
     xexkey = xe_xex2_retail_key;
   } else {
     xexkey = xe_xex2_devkit_key;
@@ -894,12 +909,10 @@ const PESection* xe_xex2_get_pe_section(xe_xex2_ref xex, const char* name) {
   return NULL;
 }
 
-int xe_xex2_get_import_infos(xe_xex2_ref xex,
-                             const xe_xex2_import_library_t *library,
-                             xe_xex2_import_info_t **out_import_infos,
-                             size_t *out_import_info_count) {
-  uint8_t *mem = xex->memory->membase();
-  const xe_xex2_header_t *header = xe_xex2_get_header(xex);
+int xe_xex2_find_import_infos(xe_xex2_ref xex,
+                              const xe_xex2_import_library_t *library) {
+  uint8_t* mem = xex->memory->membase();
+  auto header = xe_xex2_get_header(xex);
 
   // Find library index for verification.
   size_t library_index = -1;
@@ -970,13 +983,34 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
     }
   }
 
-  *out_import_info_count  = info_count;
-  *out_import_infos       = infos;
+  xex->library_imports[library_index].count = info_count;
+  xex->library_imports[library_index].infos = infos;
   return 0;
 
 XECLEANUP:
   xe_free(infos);
-  *out_import_info_count  = 0;
-  *out_import_infos       = NULL;
   return 1;
+}
+
+int xe_xex2_get_import_infos(xe_xex2_ref xex,
+                             const xe_xex2_import_library_t *library,
+                             xe_xex2_import_info_t **out_import_infos,
+                             size_t *out_import_info_count) {
+  auto header = xe_xex2_get_header(xex);
+
+  // Find library index for verification.
+  size_t library_index = -1;
+  for (size_t n = 0; n < header->import_library_count; n++) {
+    if (&header->import_libraries[n] == library) {
+      library_index = n;
+      break;
+    }
+  }
+  if (library_index == (size_t)-1) {
+    return 1;
+  }
+
+  *out_import_info_count = xex->library_imports[library_index].count;
+  *out_import_infos = xex->library_imports[library_index].infos;
+  return 0;
 }

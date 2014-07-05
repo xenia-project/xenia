@@ -42,12 +42,13 @@ X_STATUS AudioSystem::Setup() {
   processor_ = emulator_->processor();
 
   // Let the processor know we want register access callbacks.
-  RegisterAccessCallbacks callbacks;
-  callbacks.context = this;
-  callbacks.handles = (RegisterHandlesCallback)HandlesRegisterThunk;
-  callbacks.read    = (RegisterReadCallback)ReadRegisterThunk;
-  callbacks.write   = (RegisterWriteCallback)WriteRegisterThunk;
-  emulator_->processor()->AddRegisterAccessCallbacks(callbacks);
+  emulator_->memory()->AddMappedRange(
+      0x7FEA0000,
+      0xFFFF0000,
+      0x0000FFFF,
+      this,
+      reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
+      reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup worker thread state. This lets us make calls into guest code.
   thread_state_ = new XenonThreadState(
@@ -82,7 +83,9 @@ void AudioSystem::ThreadStart() {
     if (result == WAIT_FAILED) {
       DWORD err = GetLastError();
       XEASSERTALWAYS();
+      break;
     }
+
     size_t pumped = 0;
     if (result >= WAIT_OBJECT_0 && result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
       size_t index = result - WAIT_OBJECT_0;
@@ -92,7 +95,8 @@ void AudioSystem::ThreadStart() {
         uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
         xe_mutex_unlock(lock_);
         if (client_callback) {
-          processor->Execute(thread_state_, client_callback, client_callback_arg, 0);
+          uint64_t args[] = { client_callback_arg };
+          processor->Execute(thread_state_, client_callback, args, XECOUNT(args));
         }
         pumped++;
         index++;
@@ -104,6 +108,7 @@ void AudioSystem::ThreadStart() {
     }
 
     if (!pumped) {
+      SCOPE_profile_cpu_i("apu", "Sleep");
       Sleep(500);
     }
   }
@@ -157,6 +162,8 @@ X_STATUS AudioSystem::RegisterClient(
 }
 
 void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
+  SCOPE_profile_cpu_f("apu");
+
   xe_mutex_lock(lock_);
   XEASSERTTRUE(index < maximum_client_count_);
   XEASSERTTRUE(clients_[index].driver != NULL);
@@ -166,16 +173,14 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 }
 
 void AudioSystem::UnregisterClient(size_t index) {
+  SCOPE_profile_cpu_f("apu");
+
   xe_mutex_lock(lock_);
   XEASSERTTRUE(index < maximum_client_count_);
   DestroyDriver(clients_[index].driver);
   clients_[index] = { 0 };
   unused_clients_.push(index);
   xe_mutex_unlock(lock_);
-}
-
-bool AudioSystem::HandlesRegister(uint64_t addr) {
-  return (addr & 0xFFFF0000) == 0x7FEA0000;
 }
 
 // free60 may be useful here, however it looks like it's using a different

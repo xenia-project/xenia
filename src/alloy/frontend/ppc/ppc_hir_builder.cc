@@ -9,6 +9,7 @@
 
 #include <alloy/frontend/ppc/ppc_hir_builder.h>
 
+#include <alloy/alloy-private.h>
 #include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_disasm.h>
@@ -43,6 +44,8 @@ void PPCHIRBuilder::Reset() {
 }
 
 int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
+  SCOPE_profile_cpu_f("alloy");
+
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
@@ -125,10 +128,10 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     typedef int (*InstrEmitter)(PPCHIRBuilder& f, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
 
-    /*if (i.address == FLAGS_break_on_instruction) {
+    if (i.address == FLAGS_break_on_instruction) {
       Comment("--break-on-instruction target");
       DebugBreak();
-    }*/
+    }
 
     if (!i.type->emit || emit(*this, i)) {
       XELOGCPU("Unimplemented instr %.8X %.8X %s",
@@ -239,18 +242,18 @@ void PPCHIRBuilder::UpdateCR(
 
 void PPCHIRBuilder::UpdateCR(
     uint32_t n, Value* lhs, Value* rhs, bool is_signed) {
-  Value* lt;
-  Value* gt;
   if (is_signed) {
-    lt = CompareSLT(lhs, rhs);
-    gt = CompareSGT(lhs, rhs);
+    Value* lt = CompareSLT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
+    Value* gt = CompareSGT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1, gt);
   } else {
-    lt = CompareULT(lhs, rhs);
-    gt = CompareUGT(lhs, rhs);
+    Value* lt = CompareULT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
+    Value* gt = CompareUGT(lhs, rhs);
+    StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1, gt);
   }
   Value* eq = CompareEQ(lhs, rhs);
-  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
-  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1, gt);
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 2, eq);
 
   // Value* so = AllocValue(UINT8_TYPE);
@@ -279,6 +282,7 @@ Value* PPCHIRBuilder::LoadCA() {
 }
 
 void PPCHIRBuilder::StoreCA(Value* value) {
+  XEASSERT(value->type == INT8_TYPE);
   StoreContext(offsetof(PPCContext, xer_ca), value);
 }
 
@@ -287,6 +291,7 @@ Value* PPCHIRBuilder::LoadSAT() {
 }
 
 void PPCHIRBuilder::StoreSAT(Value* value) {
+  value = Truncate(value, INT8_TYPE);
   StoreContext(offsetof(PPCContext, vscr_sat), value);
 }
 

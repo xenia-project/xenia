@@ -17,6 +17,7 @@
   'conditions': [
     ['OS == "win"', {
       'includes': [
+        'winkey/sources.gypi',
         'xinput/sources.gypi',
       ],
     }],

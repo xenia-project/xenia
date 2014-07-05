@@ -30,6 +30,8 @@ FinalizationPass::~FinalizationPass() {
 }
 
 int FinalizationPass::Run(HIRBuilder* builder) {
+  SCOPE_profile_cpu_f("alloy");
+
   // Process the HIR and prepare it for lowering.
   // After this is done the HIR should be ready for emitting.
 
@@ -44,9 +46,9 @@ int FinalizationPass::Run(HIRBuilder* builder) {
     auto label = block->label_head;
     while (label) {
       if (!label->name) {
-        char* name = (char*)arena->Alloc(6 + 4 + 1);
-        xestrcpya(name, 6 + 1, "_label");
-        char* part = _itoa(label->id, name + 6, 10);
+        const size_t label_len = 6 + 4 + 1;
+        char* name = (char*)arena->Alloc(label_len);
+        xesnprintfa(name, label_len, "_label%d", label->id);
         label->name = name;
       }
       label = label->next;

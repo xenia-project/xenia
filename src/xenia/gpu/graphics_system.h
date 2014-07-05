@@ -21,8 +21,8 @@ XEDECLARECLASS2(xe, cpu, Processor);
 namespace xe {
 namespace gpu {
 
+class CommandProcessor;
 class GraphicsDriver;
-class RingBufferWorker;
 
 
 class GraphicsSystem {
@@ -40,14 +40,12 @@ public:
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
-  bool HandlesRegister(uint64_t addr);
   virtual uint64_t ReadRegister(uint64_t addr);
   virtual void WriteRegister(uint64_t addr, uint64_t value);
 
   void MarkVblank();
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu = 0xFFFFFFFF);
-  bool swap_pending() const { return swap_pending_; }
-  void set_swap_pending(bool value) { swap_pending_ = value; }
+  virtual void Swap() = 0;
 
 protected:
   virtual void Initialize();
@@ -59,14 +57,11 @@ private:
   }
   void ThreadStart();
 
-  static bool HandlesRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
-    return gs->HandlesRegister(addr);
-  }
-  static uint64_t ReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
+  static uint64_t MMIOReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
     return gs->ReadRegister(addr);
   }
-  static void WriteRegisterThunk(GraphicsSystem* gs, uint64_t addr,
-                                 uint64_t value) {
+  static void MMIOWriteRegisterThunk(GraphicsSystem* gs, uint64_t addr,
+                                     uint64_t value) {
     gs->WriteRegister(addr, value);
   }
 
@@ -82,12 +77,11 @@ protected:
   bool              running_;
 
   GraphicsDriver*   driver_;
-  RingBufferWorker* worker_;
+  CommandProcessor* command_processor_;
 
   uint32_t          interrupt_callback_;
   uint32_t          interrupt_callback_data_;
   double            last_interrupt_time_;
-  bool              swap_pending_;
   HANDLE            thread_wait_;
 };
 
