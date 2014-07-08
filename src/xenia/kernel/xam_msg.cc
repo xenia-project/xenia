@@ -53,6 +53,9 @@ SHIM_CALL XMsgInProcessCall_shim(
       // arg1 = ?
       // arg2 = 0
     } else if (message == 0x0007001B) {
+      // Some stupid games will hammer this on a thread - induce a delay
+      // here to keep from starving real threads.
+      Sleep(1);
       uint32_t a = SHIM_MEM_32(arg1 + 0); // 0x00000002
       uint32_t b = SHIM_MEM_32(arg1 + 4); // out ptr to 4b - expect 0
       XELOGD("XMPGetStatus(%.8X, %.8X)", a, b);
