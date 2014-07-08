@@ -191,7 +191,7 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(TRAP, MATCH(I<OPCODE_TRAP, VoidOp>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.Trap();
+    e.Trap(i.instr->flags);
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -207,7 +207,7 @@ EMITTER(TRAP_TRUE_I8, MATCH(I<OPCODE_TRAP_TRUE, VoidOp, I8<>>)) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Trap();
+    e.Trap(i.instr->flags);
     e.L(skip);
   }
 };
@@ -216,7 +216,7 @@ EMITTER(TRAP_TRUE_I16, MATCH(I<OPCODE_TRAP_TRUE, VoidOp, I16<>>)) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Trap();
+    e.Trap(i.instr->flags);
     e.L(skip);
   }
 };
@@ -225,7 +225,7 @@ EMITTER(TRAP_TRUE_I32, MATCH(I<OPCODE_TRAP_TRUE, VoidOp, I32<>>)) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Trap();
+    e.Trap(i.instr->flags);
     e.L(skip);
   }
 };
@@ -234,7 +234,7 @@ EMITTER(TRAP_TRUE_I64, MATCH(I<OPCODE_TRAP_TRUE, VoidOp, I64<>>)) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Trap();
+    e.Trap(i.instr->flags);
     e.L(skip);
   }
 };
@@ -243,7 +243,7 @@ EMITTER(TRAP_TRUE_F32, MATCH(I<OPCODE_TRAP_TRUE, VoidOp, F32<>>)) {
     e.vptest(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Trap();
+    e.Trap(i.instr->flags);
     e.L(skip);
   }
 };
@@ -252,7 +252,7 @@ EMITTER(TRAP_TRUE_F64, MATCH(I<OPCODE_TRAP_TRUE, VoidOp, F64<>>)) {
     e.vptest(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Trap();
+    e.Trap(i.instr->flags);
     e.L(skip);
   }
 };

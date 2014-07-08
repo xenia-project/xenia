@@ -219,10 +219,23 @@ void X64Emitter::DebugBreak() {
   db(0xCC);
 }
 
-void X64Emitter::Trap() {
-  // 0x0FE00014 is a 'debug print' where r3 = buffer r4 = length
-  // TODO(benvanik): post software interrupt to debugger.
-  db(0xCC);
+void X64Emitter::Trap(uint16_t trap_type) {
+  switch (trap_type) {
+  case 20:
+    // 0x0FE00014 is a 'debug print' where r3 = buffer r4 = length
+    // TODO(benvanik): debug print at runtime.
+    break;
+  case 0:
+  case 22:
+    // Always trap?
+    // TODO(benvanik): post software interrupt to debugger.
+    db(0xCC);
+    break;
+  default:
+    XELOGW("Unknown trap type %d", trap_type);
+    db(0xCC);
+    break;
+  }
 }
 
 void X64Emitter::UnimplementedInstr(const hir::Instr* i) {

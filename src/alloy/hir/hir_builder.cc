@@ -577,21 +577,21 @@ void HIRBuilder::DebugBreakTrue(Value* cond) {
   EndBlock();
 }
 
-void HIRBuilder::Trap() {
-  Instr* i = AppendInstr(OPCODE_TRAP_info, 0);
+void HIRBuilder::Trap(uint16_t trap_code) {
+  Instr* i = AppendInstr(OPCODE_TRAP_info, trap_code);
   i->src1.value = i->src2.value = i->src3.value = NULL;
   EndBlock();
 }
 
-void HIRBuilder::TrapTrue(Value* cond) {
+void HIRBuilder::TrapTrue(Value* cond, uint16_t trap_code) {
   if (cond->IsConstant()) {
     if (cond->IsConstantTrue()) {
-      Trap();
+      Trap(trap_code);
     }
     return;
   }
 
-  Instr* i = AppendInstr(OPCODE_TRAP_TRUE_info, 0);
+  Instr* i = AppendInstr(OPCODE_TRAP_TRUE_info, trap_code);
   i->set_src1(cond);
   i->src2.value = i->src3.value = NULL;
   EndBlock();

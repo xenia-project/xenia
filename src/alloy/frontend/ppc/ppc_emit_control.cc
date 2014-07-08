@@ -400,7 +400,7 @@ XEEMITTER(sc,           0x44000002, SC )(PPCHIRBuilder& f, InstrData& i) {
 // Trap (A-25)
 
 int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i,
-               Value* va, Value* vb, uint32_t TO) {
+                   Value* va, Value* vb, uint32_t TO) {
   // if (a < b) & TO[0] then TRAP
   // if (a > b) & TO[1] then TRAP
   // if (a = b) & TO[2] then TRAP
@@ -482,6 +482,12 @@ XEEMITTER(twi,          0x0C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   // if (a = EXTS(SI)) & TO[2] then TRAP
   // if (a <u EXTS(SI)) & TO[3] then TRAP
   // if (a >u EXTS(SI)) & TO[4] then TRAP
+  if (i.D.RA == 0 && i.D.RT == 0x1F) {
+    // This is a special trap. Probably.
+    uint16_t type = (uint16_t)XEEXTS16(i.D.DS);
+    f.Trap(type);
+    return 0;
+  }
   Value* ra = f.SignExtend(f.Truncate(
       f.LoadGPR(i.D.RA), INT32_TYPE), INT64_TYPE);
   Value* rb = f.LoadConstant(XEEXTS16(i.D.DS));

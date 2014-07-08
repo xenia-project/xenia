@@ -71,8 +71,8 @@ public:
   void DebugBreak();
   void DebugBreakTrue(Value* cond);
 
-  void Trap();
-  void TrapTrue(Value* cond);
+  void Trap(uint16_t trap_code = 0);
+  void TrapTrue(Value* cond, uint16_t trap_code = 0);
 
   void Call(runtime::FunctionInfo* symbol_info, uint32_t call_flags = 0);
   void CallTrue(Value* cond, runtime::FunctionInfo* symbol_info,

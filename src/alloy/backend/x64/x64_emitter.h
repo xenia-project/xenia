@@ -117,7 +117,7 @@ public:
   void MarkSourceOffset(const hir::Instr* i);
 
   void DebugBreak();
-  void Trap();
+  void Trap(uint16_t trap_type = 0);
   void UnimplementedInstr(const hir::Instr* i);
   void UnimplementedExtern(const hir::Instr* i);
 
