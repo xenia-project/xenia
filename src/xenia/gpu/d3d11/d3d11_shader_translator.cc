@@ -274,8 +274,11 @@ int D3D11ShaderTranslator::TranslatePixelShader(
   // Pixel shader main() header.
   append(
     "PS_OUTPUT main(VS_OUTPUT i) {\n"
-    "  PS_OUTPUT o;\n"
-    "  o.oC0 = float4(1.0, 0.0, 0.0, 1.0);\n");
+    "  PS_OUTPUT o;\n");
+  for (uint32_t n = 0; n < alloc_counts.params; n++) {
+    append(
+      "  o.oC%d = float4(1.0, 0.0, 0.0, 1.0);\n", n);
+  }
 
   // Add temporary registers.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
