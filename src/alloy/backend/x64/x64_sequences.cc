@@ -4891,16 +4891,20 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     e.vaddps(i.dest, e.GetXmmConstPtr(XMM3301));
   }
   static void EmitS8_IN_16_LO(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    e.vpunpckhbw(i.dest, i.src1, i.src1);
+    e.vpsrad(i.dest, 8);
   }
   static void EmitS8_IN_16_HI(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    e.vpunpcklbw(i.dest, i.src1, i.src1);
+    e.vpsrad(i.dest, 8);
   }
   static void EmitS16_IN_32_LO(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    e.vpunpckhwd(i.dest, i.src1, i.src1);
+    e.vpsrad(i.dest, 16);
   }
   static void EmitS16_IN_32_HI(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    e.vpunpcklwd(i.dest, i.src1, i.src1);
+    e.vpsrad(i.dest, 16);
   }
 };
 EMITTER_OPCODE_TABLE(
