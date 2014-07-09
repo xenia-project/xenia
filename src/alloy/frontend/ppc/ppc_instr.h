@@ -177,9 +177,9 @@ typedef struct {
       uint32_t        Rc      : 1;
       uint32_t                : 10;
       uint32_t        RB      : 5;
-      uint32_t                : 1;
+      uint32_t        W       : 1;
       uint32_t        FM      : 8;
-      uint32_t                : 1;
+      uint32_t        L       : 1;
       uint32_t                : 6;
     } XFL;
     // kXEPPCInstrFormatXS

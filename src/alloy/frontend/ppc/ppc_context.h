@@ -144,40 +144,40 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   union {
     uint32_t  value;
     struct {
-      uint8_t fx          :1;     // FP exception summary                             -- sticky
-      uint8_t fex         :1;     // FP enabled exception summary
-      uint8_t vx          :1;     // FP invalid operation exception summary
-      uint8_t ox          :1;     // FP overflow exception                            -- sticky
-      uint8_t ux          :1;     // FP underflow exception                           -- sticky
-      uint8_t zx          :1;     // FP zero divide exception                         -- sticky
-      uint8_t xx          :1;     // FP inexact exception                             -- sticky
-      uint8_t vxsnan      :1;     // FP invalid op exception: SNaN                    -- sticky
-      uint8_t vxisi       :1;     // FP invalid op exception: infinity - infinity     -- sticky
-      uint8_t vxidi       :1;     // FP invalid op exception: infinity / infinity     -- sticky
-      uint8_t vxzdz       :1;     // FP invalid op exception: 0 / 0                   -- sticky
-      uint8_t vximz       :1;     // FP invalid op exception: infinity * 0            -- sticky
-      uint8_t vxvc        :1;     // FP invalid op exception: invalid compare         -- sticky
-      uint8_t fr          :1;     // FP fraction rounded
-      uint8_t fi          :1;     // FP fraction inexact
-      uint8_t fprf_c      :1;     // FP result class
-      uint8_t fprf_lt     :1;     // FP result less than or negative (FL or <)
-      uint8_t fprf_gt     :1;     // FP result greater than or positive (FG or >)
-      uint8_t fprf_eq     :1;     // FP result equal or zero (FE or =)
-      uint8_t fprf_un     :1;     // FP result unordered or NaN (FU or ?)
-      uint8_t reserved    :1;
-      uint8_t vxsoft      :1;     // FP invalid op exception: software request        -- sticky
-      uint8_t vxsqrt      :1;     // FP invalid op exception: invalid sqrt            -- sticky
-      uint8_t vxcvi       :1;     // FP invalid op exception: invalid integer convert -- sticky
-      uint8_t ve          :1;     // FP invalid op exception enable
-      uint8_t oe          :1;     // IEEE floating-point overflow exception enable
-      uint8_t ue          :1;     // IEEE floating-point underflow exception enable
-      uint8_t ze          :1;     // IEEE floating-point zero divide exception enable
-      uint8_t xe          :1;     // IEEE floating-point inexact exception enable
-      uint8_t ni          :1;     // Floating-point non-IEEE mode
-      uint8_t rn          :2;     // FP rounding control: 00 = nearest
+      uint32_t rn         :2;     // FP rounding control: 00 = nearest
                                   //                      01 = toward zero
                                   //                      10 = toward +infinity
                                   //                      11 = toward -infinity
+      uint32_t ni         :1;     // Floating-point non-IEEE mode
+      uint32_t xe         :1;     // IEEE floating-point inexact exception enable
+      uint32_t ze         :1;     // IEEE floating-point zero divide exception enable
+      uint32_t ue         :1;     // IEEE floating-point underflow exception enable
+      uint32_t oe         :1;     // IEEE floating-point overflow exception enable
+      uint32_t ve         :1;     // FP invalid op exception enable
+      uint32_t vxcvi      :1;     // FP invalid op exception: invalid integer convert -- sticky
+      uint32_t vxsqrt     :1;     // FP invalid op exception: invalid sqrt            -- sticky
+      uint32_t vxsoft     :1;     // FP invalid op exception: software request        -- sticky
+      uint32_t reserved   :1;
+      uint32_t fprf_un    :1;     // FP result unordered or NaN (FU or ?)
+      uint32_t fprf_eq    :1;     // FP result equal or zero (FE or =)
+      uint32_t fprf_gt    :1;     // FP result greater than or positive (FG or >)
+      uint32_t fprf_lt    :1;     // FP result less than or negative (FL or <)
+      uint32_t fprf_c     :1;     // FP result class
+      uint32_t fi         :1;     // FP fraction inexact
+      uint32_t fr         :1;     // FP fraction rounded
+      uint32_t vxvc       :1;     // FP invalid op exception: invalid compare         -- sticky
+      uint32_t vximz      :1;     // FP invalid op exception: infinity * 0            -- sticky
+      uint32_t vxzdz      :1;     // FP invalid op exception: 0 / 0                   -- sticky
+      uint32_t vxidi      :1;     // FP invalid op exception: infinity / infinity     -- sticky
+      uint32_t vxisi      :1;     // FP invalid op exception: infinity - infinity     -- sticky
+      uint32_t vxsnan     :1;     // FP invalid op exception: SNaN                    -- sticky
+      uint32_t xx         :1;     // FP inexact exception                             -- sticky
+      uint32_t zx         :1;     // FP zero divide exception                         -- sticky
+      uint32_t ux         :1;     // FP underflow exception                           -- sticky
+      uint32_t ox         :1;     // FP overflow exception                            -- sticky
+      uint32_t vx         :1;     // FP invalid operation exception summary
+      uint32_t fex        :1;     // FP enabled exception summary
+      uint32_t fx         :1;     // FP exception summary                             -- sticky
     } bits;
   } fpscr;                        // Floating-point status and control register
 

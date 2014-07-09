@@ -426,8 +426,12 @@ XEEMITTER(mcrfs,        0xFC000080, X  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mffsx,        0xFC00048E, X  )(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  if (i.X.Rc) {
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  f.StoreFPR(i.X.RT, f.Cast(f.LoadFPSCR(), FLOAT64_TYPE));
+  return 0;
 }
 
 XEEMITTER(mtfsb0x,      0xFC00008C, X  )(PPCHIRBuilder& f, InstrData& i) {
@@ -441,8 +445,19 @@ XEEMITTER(mtfsb1x,      0xFC00004C, X  )(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mtfsfx,       0xFC00058E, XFL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  if (i.XFL.Rc) {
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  if (i.XFL.L) {
+    // Move/shift.
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  } else {
+    // Directly store.
+    f.StoreFPSCR(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE));
+  }
+  return 0;
 }
 
 XEEMITTER(mtfsfix,      0xFC00010C, X  )(PPCHIRBuilder& f, InstrData& i) {
