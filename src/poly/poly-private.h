@@ -2,26 +2,18 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef ALLOY_ALLOY_H_
-#define ALLOY_ALLOY_H_
+#ifndef POLY_POLY_PRIVATE_H_
+#define POLY_POLY_PRIVATE_H_
 
-#include <alloy/core.h>
+#include <gflags/gflags.h>
 
-#include <alloy/runtime/function.h>
-#include <alloy/runtime/module.h>
-#include <alloy/runtime/runtime.h>
-#include <alloy/runtime/thread_state.h>
-#include <alloy/tracing/tracing.h>
+namespace poly {
 
+}  // namespace poly
 
-namespace alloy {
-
-}  // namespace alloy
-
-
-#endif  // ALLOY_ALLOY_H_
+#endif  // POLY_POLY_PRIVATE_H_

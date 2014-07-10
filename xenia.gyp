@@ -193,6 +193,86 @@
 
   'targets': [
     {
+      'target_name': 'poly',
+      'product_name': 'poly',
+      'type': 'static_library',
+
+      'dependencies': [
+        'gflags',
+      ],
+
+      'conditions': [
+        ['OS == "mac"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-fno-operator-names',
+            ],
+          },
+        }],
+        ['OS == "linux"', {
+          'cflags': [
+            '-fno-operator-names',
+          ],
+        }],
+      ],
+
+      'export_dependent_settings': [
+        'gflags',
+      ],
+
+      'direct_dependent_settings': {
+        'include_dirs': [
+          'src/',
+        ],
+
+        'target_conditions': [
+          ['_type=="shared_library"', {
+            'cflags': [
+            ],
+          }],
+          ['_type=="executable"', {
+            'conditions': [
+              ['OS == "win"', {
+                'libraries': [
+                  'kernel32',
+                  'user32',
+                  'ole32',
+                  'ntdll',
+                  'advapi32',
+                ],
+              }],
+              ['OS == "mac"', {
+                'xcode_settings': {
+                  'OTHER_LDFLAGS': [
+                  ],
+                },
+              }],
+              ['OS == "linux"', {
+                'libraries': [
+                  '-lpthread',
+                  '-ldl',
+                ],
+              }],
+            ],
+          }],
+        ],
+      },
+
+      'cflags': [
+      ],
+
+      'include_dirs': [
+        '.',
+        'src/',
+        '<(INTERMEDIATE_DIR)',
+      ],
+
+      'includes': [
+        'src/poly/sources.gypi',
+      ],
+    },
+
+    {
       'target_name': 'alloy',
       'product_name': 'alloy',
       'type': 'static_library',
@@ -201,6 +281,7 @@
         'beaengine',
         'gflags',
         'llvm',
+        'poly',
       ],
 
       'conditions': [
@@ -222,6 +303,7 @@
         'beaengine',
         'gflags',
         'llvm',
+        'poly',
       ],
 
       'direct_dependent_settings': {
@@ -284,10 +366,12 @@
       'dependencies': [
         'gflags',
         'alloy',
+        'poly',
       ],
       'export_dependent_settings': [
         'gflags',
         'alloy',
+        'poly',
       ],
 
       'direct_dependent_settings': {
