@@ -4,10 +4,8 @@
     'tools/tools.gypi',
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
-    'third_party/jansson.gypi',
     'third_party/llvm.gypi',
     'third_party/sparsehash.gypi',
-    'third_party/wslay.gypi',
   ],
 
   'default_configuration': 'release',
@@ -285,14 +283,10 @@
 
       'dependencies': [
         'gflags',
-        'jansson',
-        'wslay',
         'alloy',
       ],
       'export_dependent_settings': [
         'gflags',
-        'jansson',
-        'wslay',
         'alloy',
       ],
 

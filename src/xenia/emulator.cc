@@ -12,7 +12,6 @@
 #include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/cpu/xenon_memory.h>
-#include <xenia/debug/debug_server.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/hid/hid.h>
 #include <xenia/kernel/kernel.h>
@@ -25,7 +24,6 @@
 using namespace xe;
 using namespace xe::apu;
 using namespace xe::cpu;
-using namespace xe::debug;
 using namespace xe::gpu;
 using namespace xe::hid;
 using namespace xe::kernel;
@@ -36,7 +34,6 @@ using namespace xe::ui;
 Emulator::Emulator(const xechar_t* command_line) :
     main_window_(0),
     memory_(0),
-    debug_server_(0),
     processor_(0),
     audio_system_(0), graphics_system_(0), input_system_(0),
     export_resolver_(0), file_system_(0),
@@ -49,11 +46,6 @@ Emulator::~Emulator() {
 
   if (main_window_) {
     main_window_->Close();
-  }
-
-  // Disconnect all debug clients first.
-  if (debug_server_) {
-    debug_server_->Shutdown();
   }
 
   delete xam_;
@@ -72,8 +64,6 @@ Emulator::~Emulator() {
 
   delete processor_;
 
-  delete debug_server_;
-
   delete export_resolver_;
 }
 
@@ -89,10 +79,6 @@ X_STATUS Emulator::Setup() {
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = new ExportResolver();
   XEEXPECTNOTNULL(export_resolver_);
-
-  // Create the debugger.
-  debug_server_ = new DebugServer(this);
-  XEEXPECTNOTNULL(debug_server_);
 
   // Initialize the CPU.
   processor_ = new Processor(this);
@@ -133,11 +119,6 @@ X_STATUS Emulator::Setup() {
   XEEXPECTNOTNULL(xboxkrnl_);
   xam_ = new XamModule(this, kernel_state_);
   XEEXPECTNOTNULL(xam_);
-
-  // Prepare the debugger.
-  // This may pause waiting for connections.
-  result = debug_server_->Startup();
-  XEEXPECTZERO(result);
 
   return result;
 

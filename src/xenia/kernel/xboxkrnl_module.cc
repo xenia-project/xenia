@@ -13,7 +13,6 @@
 
 #include <xenia/emulator.h>
 #include <xenia/export_resolver.h>
-#include <xenia/debug/debug_server.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xuser_module.h>
@@ -162,12 +161,6 @@ int XboxkrnlModule::LaunchModule(const char* path) {
     XELOGI("--abort_before_entry causing an early exit");
     module->Release();
     return 0;
-  }
-
-  // Spin up the debugger and let it know we are starting.
-  if (emulator_->debug_server()->BeforeEntry()) {
-    XELOGE("Debugger failed to startup.");
-    return 2;
   }
 
   // Launch the module.
