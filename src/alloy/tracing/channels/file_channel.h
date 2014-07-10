@@ -10,6 +10,8 @@
 #ifndef ALLOY_TRACING_CHANNELS_FILE_CHANNEL_H_
 #define ALLOY_TRACING_CHANNELS_FILE_CHANNEL_H_
 
+#include <mutex>
+
 #include <alloy/core.h>
 
 #include <alloy/tracing/channel.h>
@@ -34,7 +36,7 @@ public:
 private:
   char* path_;
   FILE* file_;
-  Mutex* lock_;
+  std::mutex lock_;
 };
 
 

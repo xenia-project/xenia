@@ -20,16 +20,12 @@ using namespace alloy::runtime;
 Function::Function(FunctionInfo* symbol_info) :
     address_(symbol_info->address()),
     symbol_info_(symbol_info), debug_info_(0) {
-  // TODO(benvanik): create on demand?
-  lock_ = AllocMutex();
 }
 
-Function::~Function() {
-  FreeMutex(lock_);
-}
+Function::~Function() = default;
 
 int Function::AddBreakpoint(Breakpoint* breakpoint) {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   bool found = false;
   for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
     if (*it == breakpoint) {
@@ -40,12 +36,11 @@ int Function::AddBreakpoint(Breakpoint* breakpoint) {
     breakpoints_.push_back(breakpoint);
     AddBreakpointImpl(breakpoint);
   }
-  UnlockMutex(lock_);
   return found ? 1 : 0;
 }
 
 int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   bool found = false;
   for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
     if (*it == breakpoint) {
@@ -55,12 +50,11 @@ int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
       break;
     }
   }
-  UnlockMutex(lock_);
   return found ? 0 : 1;
 }
 
 Breakpoint* Function::FindBreakpoint(uint64_t address) {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   Breakpoint* result = NULL;
   for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
     Breakpoint* breakpoint = *it;
@@ -69,7 +63,6 @@ Breakpoint* Function::FindBreakpoint(uint64_t address) {
       break;
     }
   }
-  UnlockMutex(lock_);
   return result;
 }
 

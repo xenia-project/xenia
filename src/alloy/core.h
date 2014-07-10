@@ -15,7 +15,6 @@
 
 #include <alloy/arena.h>
 #include <alloy/delegate.h>
-#include <alloy/mutex.h>
 #include <alloy/string_buffer.h>
 
 

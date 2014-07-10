@@ -10,6 +10,9 @@
 #ifndef ALLOY_RUNTIME_FUNCTION_H_
 #define ALLOY_RUNTIME_FUNCTION_H_
 
+#include <mutex>
+#include <vector>
+
 #include <alloy/core.h>
 #include <alloy/runtime/debug_info.h>
 
@@ -46,12 +49,12 @@ protected:
                        uint64_t return_address) = 0;
 
 protected:
-  uint64_t    address_;
+  uint64_t address_;
   FunctionInfo* symbol_info_;
-  DebugInfo*  debug_info_;
+  DebugInfo* debug_info_;
 
   // TODO(benvanik): move elsewhere? DebugData?
-  Mutex*      lock_;
+  std::mutex lock_;
   std::vector<Breakpoint*> breakpoints_;
 };
 

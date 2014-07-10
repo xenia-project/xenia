@@ -27,18 +27,17 @@ DEFINE_string(runtime_backend, "any",
 Runtime::Runtime(Memory* memory) :
     memory_(memory), debugger_(0), backend_(0), frontend_(0) {
   tracing::Initialize();
-  modules_lock_ = AllocMutex(10000);
 }
 
 Runtime::~Runtime() {
-  LockMutex(modules_lock_);
-  for (ModuleList::iterator it = modules_.begin();
-       it != modules_.end(); ++it) {
-    Module* module = *it;
-    delete module;
+  {
+    std::lock_guard<std::mutex> guard(modules_lock_);
+    for (ModuleList::iterator it = modules_.begin();
+         it != modules_.end(); ++it) {
+      Module* module = *it;
+      delete module;
+    }
   }
-  UnlockMutex(modules_lock_);
-  FreeMutex(modules_lock_);
 
   delete frontend_;
   delete backend_;
@@ -111,15 +110,14 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
 }
 
 int Runtime::AddModule(Module* module) {
-  LockMutex(modules_lock_);
+  std::lock_guard<std::mutex> guard(modules_lock_);
   modules_.push_back(module);
-  UnlockMutex(modules_lock_);
   return 0;
 }
 
 Module* Runtime::GetModule(const char* name) {
+  std::lock_guard<std::mutex> guard(modules_lock_);
   Module* result = NULL;
-  LockMutex(modules_lock_);
   for (ModuleList::iterator it = modules_.begin();
        it != modules_.end(); ++it) {
     Module* module = *it;
@@ -128,15 +126,12 @@ Module* Runtime::GetModule(const char* name) {
       break;
     }
   }
-  UnlockMutex(modules_lock_);
   return result;
 }
 
 Runtime::ModuleList Runtime::GetModules() {
-  ModuleList clone;
-  LockMutex(modules_lock_);
-  clone = modules_;
-  UnlockMutex(modules_lock_);
+  std::lock_guard<std::mutex> guard(modules_lock_);
+  ModuleList clone = modules_;
   return clone;
 }
 
@@ -188,18 +183,19 @@ int Runtime::LookupFunctionInfo(
 
   // Find the module that contains the address.
   Module* code_module = NULL;
-  LockMutex(modules_lock_);
-  // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
-  // TODO(benvanik): cache last module low/high, as likely to be in there.
-  for (ModuleList::const_iterator it = modules_.begin();
-       it != modules_.end(); ++it) {
-    Module* module = *it;
-    if (module->ContainsAddress(address)) {
-      code_module = module;
-      break;
+  {
+    std::lock_guard<std::mutex> guard(modules_lock_);
+    // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
+    // TODO(benvanik): cache last module low/high, as likely to be in there.
+    for (ModuleList::const_iterator it = modules_.begin();
+         it != modules_.end(); ++it) {
+      Module* module = *it;
+      if (module->ContainsAddress(address)) {
+        code_module = module;
+        break;
+      }
     }
   }
-  UnlockMutex(modules_lock_);
   if (!code_module) {
     // No module found that could contain the address.
     return 1;

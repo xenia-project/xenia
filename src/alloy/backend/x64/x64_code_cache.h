@@ -10,6 +10,8 @@
 #ifndef ALLOY_BACKEND_X64_X64_CODE_CACHE_H_
 #define ALLOY_BACKEND_X64_X64_CODE_CACHE_H_
 
+#include <mutex>
+
 #include <alloy/core.h>
 
 
@@ -34,7 +36,7 @@ public:
 
 private:
   const static size_t DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
-  Mutex*        lock_;
+  std::mutex    lock_;
   size_t        chunk_size_;
   X64CodeChunk* head_chunk_;
   X64CodeChunk* active_chunk_;

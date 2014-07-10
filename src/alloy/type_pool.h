@@ -10,6 +10,8 @@
 #ifndef ALLOY_TYPE_POOL_H_
 #define ALLOY_TYPE_POOL_H_
 
+#include <mutex>
+
 #include <alloy/core.h>
 
 
@@ -19,33 +21,28 @@ namespace alloy {
 template<class T, typename A>
 class TypePool {
 public:
-  TypePool() {
-    lock_ = AllocMutex(10000);
-  }
-
   ~TypePool() {
     Reset();
-    FreeMutex(lock_);
   }
 
   void Reset() {
-    LockMutex(lock_);
+    std::lock_guard<std::mutex> guard(lock_);
     for (TList::iterator it = list_.begin(); it != list_.end(); ++it) {
       T* value = *it;
       delete value;
     }
     list_.clear();
-    UnlockMutex(lock_);
   }
 
   T* Allocate(A arg0) {
     T* result = 0;
-    LockMutex(lock_);
-    if (list_.size()) {
-      result = list_.back();
-      list_.pop_back();
+    {
+      std::lock_guard<std::mutex> guard(lock_);
+      if (list_.size()) {
+        result = list_.back();
+        list_.pop_back();
+      }
     }
-    UnlockMutex(lock_);
     if (!result) {
       result = new T(arg0);
     }
@@ -53,15 +50,14 @@ public:
   }
 
   void Release(T* value) {
-    LockMutex(lock_);
+    std::lock_guard<std::mutex> guard(lock_);
     list_.push_back(value);
-    UnlockMutex(lock_);
   }
 
 private:
-  Mutex*  lock_;
+  std::mutex  lock_;
   typedef std::vector<T*> TList;
-  TList   list_;
+  TList       list_;
 };
 
 

@@ -10,6 +10,8 @@
 #ifndef ALLOY_RUNTIME_ENTRY_TABLE_H_
 #define ALLOY_RUNTIME_ENTRY_TABLE_H_
 
+#include <mutex>
+
 #include <alloy/core.h>
 
 
@@ -46,7 +48,7 @@ public:
 
 private:
   // TODO(benvanik): replace with a better data structure.
-  Mutex* lock_;
+  std::mutex lock_;
   typedef std::unordered_map<uint64_t, Entry*> EntryMap;
   EntryMap map_;
 };

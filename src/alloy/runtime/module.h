@@ -11,6 +11,9 @@
 #define ALLOY_RUNTIME_MODULE_H_
 
 #include <functional>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
 
 #include <alloy/core.h>
 #include <alloy/memory.h>
@@ -61,7 +64,7 @@ protected:
 
 private:
   // TODO(benvanik): replace with a better data structure.
-  Mutex* lock_;
+  std::mutex lock_;
   typedef std::unordered_map<uint64_t, SymbolInfo*> SymbolMap;
   SymbolMap map_;
   typedef std::vector<SymbolInfo*> SymbolList;

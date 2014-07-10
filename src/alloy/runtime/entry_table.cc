@@ -13,23 +13,19 @@ using namespace alloy;
 using namespace alloy::runtime;
 
 
-EntryTable::EntryTable() {
-  lock_ = AllocMutex(10000);
-}
+EntryTable::EntryTable() = default;
 
 EntryTable::~EntryTable() {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   EntryMap::iterator it = map_.begin();
   for (; it != map_.end(); ++it) {
     Entry* entry = it->second;
     delete entry;
   }
-  UnlockMutex(lock_);
-  FreeMutex(lock_);
 }
 
 Entry* EntryTable::Get(uint64_t address) {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   EntryMap::const_iterator it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : NULL;
   if (entry) {
@@ -38,12 +34,11 @@ Entry* EntryTable::Get(uint64_t address) {
       entry = NULL;
     }
   }
-  UnlockMutex(lock_);
   return entry;
 }
 
 Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
-  LockMutex(lock_);
+  lock_.lock();
   EntryMap::const_iterator it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : NULL;
   Entry::Status status;
@@ -52,10 +47,10 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
     if (entry->status == Entry::STATUS_COMPILING) {
       // Still compiling, so spin.
       do {
-        UnlockMutex(lock_);
+        lock_.unlock();
         // TODO(benvanik): sleep for less time?
         Sleep(0);
-        LockMutex(lock_);
+        lock_.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }
     status = entry->status;
@@ -69,16 +64,15 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
     map_[address] = entry;
     status = Entry::STATUS_NEW;
   }
-  UnlockMutex(lock_);
+  lock_.unlock();
   *out_entry = entry;
   return status;
 }
 
 std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
   SCOPE_profile_cpu_f("alloy");
-
+  std::lock_guard<std::mutex> guard(lock_);
   std::vector<Function*> fns;
-  LockMutex(lock_);
   for (auto it = map_.begin(); it != map_.end(); ++it) {
     Entry* entry = it->second;
     if (address >= entry->address &&
@@ -88,6 +82,5 @@ std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
       }
     }
   }
-  UnlockMutex(lock_);
   return fns;
 }

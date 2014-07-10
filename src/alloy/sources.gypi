@@ -10,7 +10,6 @@
     'delegate.h',
     'memory.cc',
     'memory.h',
-    'mutex.h',
     'string_buffer.cc',
     'string_buffer.h',
     'type_pool.h',
@@ -19,7 +18,6 @@
   'conditions': [
     ['OS == "mac" or OS == "linux"', {
       'sources': [
-        'mutex_posix.cc',
       ],
     }],
     ['OS == "linux"', {
@@ -32,7 +30,6 @@
     }],
     ['OS == "win"', {
       'sources': [
-        'mutex_win.cc',
       ],
     }],
   ],

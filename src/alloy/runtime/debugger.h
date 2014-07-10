@@ -10,9 +10,10 @@
 #ifndef ALLOY_RUNTIME_DEBUGGER_H_
 #define ALLOY_RUNTIME_DEBUGGER_H_
 
-#include <alloy/core.h>
-
 #include <map>
+#include <mutex>
+
+#include <alloy/core.h>
 
 
 namespace alloy {
@@ -105,11 +106,11 @@ public:
 private:
   Runtime* runtime_;
 
-  Mutex* threads_lock_;
+  std::mutex threads_lock_;
   typedef std::unordered_map<uint32_t, ThreadState*> ThreadMap;
   ThreadMap threads_;
 
-  Mutex* breakpoints_lock_;
+  std::mutex breakpoints_lock_;
   typedef std::multimap<uint64_t, Breakpoint*> BreakpointMultimap;
   BreakpointMultimap breakpoints_;
 };

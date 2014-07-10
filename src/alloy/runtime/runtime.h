@@ -10,6 +10,9 @@
 #ifndef ALLOY_RUNTIME_RUNTIME_H_
 #define ALLOY_RUNTIME_RUNTIME_H_
 
+#include <mutex>
+#include <vector>
+
 #include <alloy/core.h>
 #include <alloy/memory.h>
 #include <alloy/backend/backend.h>
@@ -65,7 +68,7 @@ protected:
   backend::Backend*   backend_;
 
   EntryTable          entry_table_;
-  Mutex*              modules_lock_;
+  std::mutex          modules_lock_;
   ModuleList          modules_;
 };
 

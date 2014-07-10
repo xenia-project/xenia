@@ -9,8 +9,9 @@
 
 #include <xenia/logging.h>
 
+#include <mutex>
+
 #include <xenia/common.h>
-#include <xenia/core/mutex.h>
 
 #include <gflags/gflags.h>
 
@@ -20,7 +21,7 @@ DEFINE_bool(fast_stdout, false,
 
 
 namespace {
-xe_mutex_t* log_lock = xe_mutex_alloc();
+std::mutex log_lock;
 }  // namespace
 
 
@@ -69,7 +70,7 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
   va_end(args);
 
   if (!FLAGS_fast_stdout) {
-    xe_mutex_lock(log_lock);
+    log_lock.lock();
   }
 #if 0// defined(OutputDebugString)
   OutputDebugStringA(buffer);
@@ -78,7 +79,7 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
   fflush(stdout);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
-    xe_mutex_unlock(log_lock);
+    log_lock.unlock();
   }
 }
 
@@ -94,7 +95,7 @@ void xe_handle_fatal(
   va_end(args);
 
   if (!FLAGS_fast_stdout) {
-    xe_mutex_lock(log_lock);
+    log_lock.lock();
   }
 #if defined(OutputDebugString)
   OutputDebugStringA(buffer);
@@ -103,7 +104,7 @@ void xe_handle_fatal(
   fflush(stderr);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
-    xe_mutex_unlock(log_lock);
+    log_lock.unlock();
   }
 
 #if XE_LIKE_WIN32

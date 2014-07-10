@@ -53,11 +53,10 @@ public:
 X64CodeCache::X64CodeCache(size_t chunk_size) :
     chunk_size_(chunk_size),
     head_chunk_(NULL), active_chunk_(NULL) {
-  lock_ = AllocMutex();
 }
 
 X64CodeCache::~X64CodeCache() {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   auto chunk = head_chunk_;
   while (chunk) {
     auto next = chunk->next;
@@ -65,8 +64,6 @@ X64CodeCache::~X64CodeCache() {
     chunk = next;
   }
   head_chunk_ = NULL;
-  UnlockMutex(lock_);
-  FreeMutex(lock_);
 }
 
 int X64CodeCache::Initialize() {
@@ -84,7 +81,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   // to 16b so that all offsets are aligned.
   code_size = XEROUNDUP(code_size, 16);
 
-  LockMutex(lock_);
+  lock_.lock();
 
   if (active_chunk_) {
     if (active_chunk_->capacity - active_chunk_->offset < code_size) {
@@ -106,7 +103,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   // Add entry to fn table.
   active_chunk_->AddTableEntry(final_address, code_size, stack_size);
 
-  UnlockMutex(lock_);
+  lock_.unlock();
 
   // Copy code.
   xe_copy_struct(final_address, machine_code, code_size);

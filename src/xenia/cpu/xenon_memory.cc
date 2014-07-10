@@ -9,6 +9,8 @@
 
 #include <xenia/cpu/xenon_memory.h>
 
+#include <mutex>
+
 #include <alloy/runtime/tracing.h>
 
 #include <gflags/gflags.h>
@@ -112,7 +114,7 @@ private:
   XenonMemory*  memory_;
   uint32_t      heap_id_;
   bool          is_physical_;
-  Mutex*        lock_;
+  std::mutex    lock_;
   size_t        size_;
   uint8_t*      ptr_;
   mspace        space_;
@@ -615,19 +617,13 @@ uint32_t XenonMemory::QueryProtect(uint64_t address) {
 XenonMemoryHeap::XenonMemoryHeap(XenonMemory* memory, bool is_physical) :
     memory_(memory), is_physical_(is_physical) {
   heap_id_ = next_heap_id_++;
-  lock_ = AllocMutex(10000);
 }
 
 XenonMemoryHeap::~XenonMemoryHeap() {
-  if (lock_ && space_) {
-    LockMutex(lock_);
+  if (space_) {
+    std::lock_guard<std::mutex> guard(lock_);
     destroy_mspace(space_);
     space_ = NULL;
-    UnlockMutex(lock_);
-  }
-  if (lock_) {
-    FreeMutex(lock_);
-    lock_ = NULL;
   }
 
   if (ptr_) {
@@ -661,7 +657,7 @@ int XenonMemoryHeap::Initialize(uint64_t low, uint64_t high) {
 
 uint64_t XenonMemoryHeap::Alloc(
     uint64_t base_address, size_t size, uint32_t flags, uint32_t alignment) {
-  XEIGNORE(LockMutex(lock_));
+  lock_.lock();
   size_t alloc_size = size;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   if (heap_guard_size) {
@@ -686,7 +682,7 @@ uint64_t XenonMemoryHeap::Alloc(
   if (FLAGS_log_heap) {
     Dump();
   }
-  XEIGNORE(UnlockMutex(lock_));
+  lock_.unlock();
   if (!p) {
     return 0;
   }
@@ -747,7 +743,7 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
     memset(p + heap_guard_size, 0xDC, size);
   }
 
-  XEIGNORE(LockMutex(lock_));
+  lock_.lock();
   if (FLAGS_heap_guard_pages) {
     DWORD old_protect;
     VirtualProtect(
@@ -761,7 +757,7 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
   if (FLAGS_log_heap) {
     Dump();
   }
-  XEIGNORE(UnlockMutex(lock_));
+  lock_.unlock();
 
   if (is_physical_) {
     // If physical, decommit from physical ranges too.
