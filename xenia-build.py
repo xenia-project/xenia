@@ -285,7 +285,9 @@ class SetupCommand(Command):
     # Binutils.
     # TODO(benvanik): disable on Windows
     print('- binutils...')
-    if sys.platform == 'win32':
+    if True:
+      print('binutils disabled')
+    elif sys.platform == 'win32':
       print('WARNING: ignoring binutils on Windows... don\'t change tests!')
     else:
       if not os.path.exists('build/binutils'):
@@ -364,7 +366,7 @@ def run_gyp(format):
       '--toplevel-dir=.',
       '--generator-output=build/xenia/',
       # Set the VS version.
-      '-G msvs_version=%s' % (os.environ['VSVERSION'] or 2013),
+      '-G msvs_version=%s' % (os.environ.get('VSVERSION', 2013)),
       #'-D windows_sdk_dir=%s' % (os.environ['WINDOWSSDKDIR']),
       '-D windows_sdk_dir="C:\\Program Files (x86)\\Windows Kits\\8.1"',
       'xenia.gyp',
