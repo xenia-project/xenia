@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_X64_X64_THUNK_EMITTER_H_
-#define XENIA_CPU_X64_X64_THUNK_EMITTER_H_
+#ifndef ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
+#define ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
 
 #include <alloy/core.h>
 #include <alloy/backend/x64/x64_backend.h>
@@ -111,7 +111,7 @@ namespace x64 {
  *    ... locals ...
  *  +------------------+
  *  | (return address) |
- *  +------------------+ 
+ *  +------------------+
  *
  */
 
@@ -144,4 +144,4 @@ public:
 }  // namespace alloy
 
 
-#endif  // XENIA_CPU_X64_X64_THUNK_EMITTER_H_
+#endif  // ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
