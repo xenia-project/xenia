@@ -52,6 +52,7 @@
 #define XEASSERTNOTZERO(expr)           XEASSERTCORE( (expr) != 0    )
 #define XEASSERTNULL(expr)              XEASSERTCORE( (expr) == NULL )
 #define XEASSERTNOTNULL(expr)           XEASSERTCORE( (expr) != NULL )
+#define XEASSERTUNHANDLEDCASE(var)      XEASSERTALWAYS()
 
 
 #if XE_COMPILER_MSVC

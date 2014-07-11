@@ -20,7 +20,7 @@ void Block::AssertNoCycles() {
   if (!hare) {
     return;
   }
-  while (hare = hare->next) {
+  while ((hare = hare->next)) {
     if (hare == tortoise) {
       // Cycle!
       XEASSERTALWAYS();

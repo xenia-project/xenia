@@ -21,7 +21,7 @@ namespace x64 {
 
 using alloy::runtime::Runtime;
 
-X64Backend::X64Backend(Runtime* runtime) : code_cache_(0), Backend(runtime) {}
+X64Backend::X64Backend(Runtime* runtime) : Backend(runtime), code_cache_(0) {}
 
 X64Backend::~X64Backend() {
   alloy::tracing::WriteEvent(EventType::Deinit({}));

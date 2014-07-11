@@ -33,11 +33,13 @@ ValidationPass::~ValidationPass() {}
 int ValidationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
 
+#if 0
   StringBuffer str;
   builder->Dump(&str);
   printf(str.GetString());
   fflush(stdout);
   str.Reset();
+#endif  // 0
 
   auto block = builder->first_block();
   while (block) {

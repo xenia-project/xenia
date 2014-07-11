@@ -13,11 +13,11 @@ namespace alloy {
 namespace runtime {
 
 RawModule::RawModule(Runtime* runtime)
-    : name_(0),
+    : Module(runtime),
+      name_(0),
       base_address_(0),
       low_address_(0),
-      high_address_(0),
-      Module(runtime) {}
+      high_address_(0) {}
 
 RawModule::~RawModule() {
   if (base_address_) {

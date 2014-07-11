@@ -62,9 +62,9 @@ class BreakpointHitEvent : public DebugEvent {
  public:
   BreakpointHitEvent(Debugger* debugger, ThreadState* thread_state,
                      Breakpoint* breakpoint)
-      : thread_state_(thread_state),
-        breakpoint_(breakpoint),
-        DebugEvent(debugger) {}
+      : DebugEvent(debugger),
+        thread_state_(thread_state),
+        breakpoint_(breakpoint) {}
   virtual ~BreakpointHitEvent() {}
   ThreadState* thread_state() const { return thread_state_; }
   Breakpoint* breakpoint() const { return breakpoint_; }

@@ -1,6 +1,8 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'cxx_compat.h',
+    'math.h',
     'poly-private.h',
     'poly.cc',
     'poly.h',

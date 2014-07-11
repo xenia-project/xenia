@@ -25,7 +25,7 @@ namespace alloy {
 namespace tracing {
 
 Channel* shared_channel = NULL;
-__declspec(thread) Tracer* thread_tracer = NULL;
+thread_local Tracer* thread_tracer = NULL;
 
 void CleanupTracing() {
   if (shared_channel) {

@@ -24,7 +24,7 @@ using alloy::runtime::FunctionInfo;
 using alloy::runtime::ThreadState;
 
 X64Function::X64Function(FunctionInfo* symbol_info)
-    : machine_code_(NULL), code_size_(0), Function(symbol_info) {}
+    : Function(symbol_info), machine_code_(NULL), code_size_(0) {}
 
 X64Function::~X64Function() {
   // machine_code_ is freed by code cache.

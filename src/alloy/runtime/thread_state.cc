@@ -14,7 +14,7 @@
 namespace alloy {
 namespace runtime {
 
-__declspec(thread) ThreadState* thread_state_ = NULL;
+thread_local ThreadState* thread_state_ = NULL;
 
 ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id)
     : runtime_(runtime),

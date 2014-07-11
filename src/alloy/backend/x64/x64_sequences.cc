@@ -2665,7 +2665,7 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
           case FLOAT32_TYPE:
             e.vaddps(dest, src1, src2);
             break;
-          default: XEASSERTALWAYS(); break;
+          default: XEASSERTUNHANDLEDCASE(part_type); break;
           }
         });
   }
@@ -4704,7 +4704,7 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     case PACK_TYPE_S16_IN_32_HI:
       EmitS16_IN_32_HI(e, i);
       break;
-    default: XEASSERTALWAYS(); break;
+    default: XEASSERTUNHANDLEDCASE(i.instr->flags); break;
     }
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {
@@ -4806,7 +4806,7 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     case PACK_TYPE_S16_IN_32_HI:
       EmitS16_IN_32_HI(e, i);
       break;
-    default: XEASSERTALWAYS(); break;
+    default: XEASSERTUNHANDLEDCASE(i.instr->flags); break;
     }
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {

@@ -44,7 +44,7 @@ bool Instrument::Detach() {
 }
 
 FunctionInstrument::FunctionInstrument(Runtime* runtime, Function* function)
-    : target_(function), Instrument(runtime) {}
+    : Instrument(runtime), target_(function) {}
 
 bool FunctionInstrument::Attach() {
   if (!Instrument::Attach()) {
@@ -81,7 +81,7 @@ void FunctionInstrument::Exit(ThreadState* thread_state) {
 
 MemoryInstrument::MemoryInstrument(Runtime* runtime, uint64_t address,
                                    uint64_t end_address)
-    : address_(address), end_address_(end_address), Instrument(runtime) {}
+    : Instrument(runtime), address_(address), end_address_(end_address) {}
 
 bool MemoryInstrument::Attach() {
   if (!Instrument::Attach()) {

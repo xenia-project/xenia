@@ -13,6 +13,8 @@
 // TODO(benvanik): move the common stuff into here?
 #include <xenia/common.h>
 
+#include <poly/poly.h>
+
 #include <alloy/arena.h>
 #include <alloy/delegate.h>
 #include <alloy/string_buffer.h>

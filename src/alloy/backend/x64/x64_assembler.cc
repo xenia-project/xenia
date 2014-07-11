@@ -34,7 +34,7 @@ using alloy::runtime::Function;
 using alloy::runtime::FunctionInfo;
 
 X64Assembler::X64Assembler(X64Backend* backend)
-    : x64_backend_(backend), emitter_(0), allocator_(0), Assembler(backend) {}
+    : Assembler(backend), x64_backend_(backend), emitter_(0), allocator_(0) {}
 
 X64Assembler::~X64Assembler() {
   alloy::tracing::WriteEvent(EventType::AssemblerDeinit({}));

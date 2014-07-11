@@ -26,7 +26,7 @@ using alloy::runtime::Function;
 using alloy::runtime::FunctionInfo;
 
 IVMAssembler::IVMAssembler(Backend* backend)
-    : source_map_arena_(128 * 1024), Assembler(backend) {}
+    : Assembler(backend), source_map_arena_(128 * 1024) {}
 
 IVMAssembler::~IVMAssembler() {
   alloy::tracing::WriteEvent(EventType::AssemblerDeinit({}));
@@ -94,7 +94,7 @@ int IVMAssembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
 
     auto i = block->instr_head;
     while (i) {
-      int result = TranslateIntCodes(ctx, i);
+      TranslateIntCodes(ctx, i);
       i = i->next;
     }
     block = block->next;

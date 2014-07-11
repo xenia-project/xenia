@@ -31,11 +31,6 @@ enum TypeName {
   MAX_TYPENAME,
 };
 
-static bool IsIntType(TypeName type_name) { return type_name <= INT64_TYPE; }
-static bool IsFloatType(TypeName type_name) {
-  return type_name == FLOAT32_TYPE || type_name == FLOAT64_TYPE;
-}
-static bool IsVecType(TypeName type_name) { return type_name == VEC128_TYPE; }
 static size_t GetTypeSize(TypeName type_name) {
   switch (type_name) {
     case INT8_TYPE:
@@ -50,9 +45,11 @@ static size_t GetTypeSize(TypeName type_name) {
       return 4;
     case FLOAT64_TYPE:
       return 8;
-    default:
     case VEC128_TYPE:
       return 16;
+    default:
+      XEASSERTUNHANDLEDCASE(type_name);
+      break;
   }
 }
 

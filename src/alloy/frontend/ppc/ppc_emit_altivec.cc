@@ -588,7 +588,7 @@ int InstrEmit_vcmpxxfp_(PPCHIRBuilder& f, InstrData& i, vcmpxxfp_op cmpop,
       v = f.VectorCompareSGE(f.LoadVR(va), f.LoadVR(vb), FLOAT32_TYPE);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(cmpop);
       return 1;
   }
   if (rc) {
@@ -648,7 +648,7 @@ int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop,
           v = f.VectorCompareEQ(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
           break;
         default:
-          XEASSERTALWAYS();
+          XEASSERTUNHANDLEDCASE(width);
           return 1;
       }
       break;
@@ -664,7 +664,7 @@ int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop,
           v = f.VectorCompareSGT(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
           break;
         default:
-          XEASSERTALWAYS();
+          XEASSERTUNHANDLEDCASE(width);
           return 1;
       }
       break;
@@ -680,12 +680,12 @@ int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop,
           v = f.VectorCompareUGT(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
           break;
         default:
-          XEASSERTALWAYS();
+          XEASSERTUNHANDLEDCASE(width);
           return 1;
       }
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(cmpop);
       return 1;
   }
   if (rc) {
@@ -1117,7 +1117,7 @@ XEEMITTER(vpermwi128, VX128_P(6, 528), VX128_P)(PPCHIRBuilder& f,
 
 int InstrEmit_vrefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- 1/(VB)
-  vec128_t one = {1, 1, 1, 1};
+  vec128_t one = {{{1, 1, 1, 1}}};
   Value* v = f.Div(f.LoadConstant(one), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
@@ -1784,7 +1784,7 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
       v = f.Pack(v, PACK_TYPE_FLOAT16_4);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       return 1;
   }
   // http://hlssmod.net/he_code/public/pixelwriter.h
@@ -1819,7 +1819,7 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
       control = (control & ~mask) | (src & mask);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(pack);
       return 1;
   }
   v = f.Permute(f.LoadConstant(control), f.LoadVR(vd), v, INT32_TYPE);
@@ -1851,7 +1851,7 @@ XEEMITTER(vupkd3d128, VX128_3(6, 2032), VX128_3)(PPCHIRBuilder& f,
       v = f.Unpack(v, PACK_TYPE_FLOAT16_4);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       return 1;
   }
   f.StoreVR(vd, v);

@@ -214,8 +214,6 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
   offset += UNWIND_INFO_SIZE;
 
   if (!stack_size) {
-    uint8_t prolog_size = 0;
-
     // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
     UNWIND_INFO* unwind_info = (UNWIND_INFO*)(buffer + unwind_info_offset);
     unwind_info->Version = 1;

@@ -47,7 +47,7 @@ uint32_t Value::AsUint32() {
     case INT64_TYPE:
       return (uint32_t)constant.i64;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       return 0;
   }
 }
@@ -64,7 +64,7 @@ uint64_t Value::AsUint64() {
     case INT64_TYPE:
       return constant.i64;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       return 0;
   }
 }
@@ -88,9 +88,10 @@ void Value::ZeroExtend(TypeName target_type) {
       type = target_type;
       constant.i64 = constant.i64 & 0xFFFFFFFF;
       return;
+    default:
+      XEASSERTUNHANDLEDCASE(type);
+      break;
   }
-  // Unsupported types.
-  XEASSERTALWAYS();
 }
 
 void Value::SignExtend(TypeName target_type) {
@@ -100,37 +101,44 @@ void Value::SignExtend(TypeName target_type) {
       switch (target_type) {
         case INT16_TYPE:
           constant.i16 = constant.i8;
-          break;
+          return;
         case INT32_TYPE:
           constant.i32 = constant.i8;
-          break;
+          return;
         case INT64_TYPE:
           constant.i64 = constant.i8;
-          break;
+          return;
+        default:
+          XEASSERTUNHANDLEDCASE(target_type);
+          return;
       }
-      return;
     case INT16_TYPE:
       type = target_type;
       switch (target_type) {
         case INT32_TYPE:
           constant.i32 = constant.i16;
-          break;
+          return;
         case INT64_TYPE:
           constant.i64 = constant.i16;
-          break;
+          return;
+        default:
+          XEASSERTUNHANDLEDCASE(target_type);
+          return;
       }
-      return;
     case INT32_TYPE:
       type = target_type;
       switch (target_type) {
         case INT64_TYPE:
           constant.i64 = constant.i32;
-          break;
+          return;
+        default:
+          XEASSERTUNHANDLEDCASE(target_type);
+          return;
       }
+    default:
+      XEASSERTUNHANDLEDCASE();
       return;
   }
-  // Unsupported types.
-  XEASSERTALWAYS();
 }
 
 void Value::Truncate(TypeName target_type) {
@@ -141,8 +149,10 @@ void Value::Truncate(TypeName target_type) {
           type = target_type;
           constant.i64 = constant.i64 & 0xFF;
           return;
+        default:
+          XEASSERTUNHANDLEDCASE(target_type);
+          return;
       }
-      break;
     case INT32_TYPE:
       switch (target_type) {
         case INT8_TYPE:
@@ -153,8 +163,10 @@ void Value::Truncate(TypeName target_type) {
           type = target_type;
           constant.i64 = constant.i64 & 0xFFFF;
           return;
+        default:
+          XEASSERTUNHANDLEDCASE(target_type);
+          return;
       }
-      break;
     case INT64_TYPE:
       switch (target_type) {
         case INT8_TYPE:
@@ -169,11 +181,14 @@ void Value::Truncate(TypeName target_type) {
           type = target_type;
           constant.i64 = constant.i64 & 0xFFFFFFFF;
           return;
+        default:
+          XEASSERTUNHANDLEDCASE(target_type);
+          return;
       }
-      break;
+    default:
+      XEASSERTUNHANDLEDCASE(type);
+      return;
   }
-  // Unsupported types.
-  XEASSERTALWAYS();
 }
 
 void Value::Convert(TypeName target_type, RoundMode round_mode) {
@@ -215,7 +230,7 @@ bool Value::Add(Value* other) {
       constant.f64 += other->constant.f64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
   return did_carry;
@@ -249,7 +264,7 @@ bool Value::Sub(Value* other) {
       constant.f64 -= other->constant.f64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
   return did_carry;
@@ -277,7 +292,7 @@ void Value::Mul(Value* other) {
       constant.f64 *= other->constant.f64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -304,7 +319,7 @@ void Value::Div(Value* other) {
       constant.f64 /= other->constant.f64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -340,7 +355,7 @@ void Value::Neg() {
       constant.f64 = -constant.f64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -366,7 +381,7 @@ void Value::Abs() {
       constant.f64 = abs(constant.f64);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -380,7 +395,7 @@ void Value::Sqrt() {
       constant.f64 = 1.0 / sqrt(constant.f64);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -394,7 +409,7 @@ void Value::RSqrt() {
       constant.f64 = sqrt(constant.f64);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -415,7 +430,7 @@ void Value::And(Value* other) {
       constant.i64 &= other->constant.i64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -436,7 +451,7 @@ void Value::Or(Value* other) {
       constant.i64 |= other->constant.i64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -457,7 +472,7 @@ void Value::Xor(Value* other) {
       constant.i64 ^= other->constant.i64;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -481,7 +496,7 @@ void Value::Not() {
       constant.v128.high = ~constant.v128.high;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -502,7 +517,7 @@ void Value::Shl(Value* other) {
       constant.i64 <<= other->constant.i8;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -523,7 +538,7 @@ void Value::Shr(Value* other) {
       constant.i64 = (uint16_t)constant.i64 >> other->constant.i8;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -544,7 +559,7 @@ void Value::Sha(Value* other) {
       constant.i64 = constant.i64 >> other->constant.i8;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -569,7 +584,7 @@ void Value::ByteSwap() {
       }
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }
@@ -577,19 +592,19 @@ void Value::ByteSwap() {
 void Value::CountLeadingZeros(const Value* other) {
   switch (other->type) {
     case INT8_TYPE:
-      constant.i8 = static_cast<uint8_t>(__lzcnt16(other->constant.i8) - 8);
+      constant.i8 = poly::lzcnt(constant.i8);
       break;
     case INT16_TYPE:
-      constant.i8 = static_cast<uint8_t>(__lzcnt16(other->constant.i16));
+      constant.i8 = poly::lzcnt(constant.i16);
       break;
     case INT32_TYPE:
-      constant.i8 = static_cast<uint8_t>(__lzcnt(other->constant.i32));
+      constant.i8 = poly::lzcnt(constant.i32);
       break;
     case INT64_TYPE:
-      constant.i8 = static_cast<uint8_t>(__lzcnt64(other->constant.i64));
+      constant.i8 = poly::lzcnt(constant.i64);
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(type);
       break;
   }
 }

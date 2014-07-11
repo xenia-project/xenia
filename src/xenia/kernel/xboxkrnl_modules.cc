@@ -43,7 +43,7 @@ X_STATUS xeExGetXConfigSetting(
       value = 0x00001000; // USA/Canada
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(setting);
       return X_STATUS_INVALID_PARAMETER_2;
     }
     break;
@@ -80,12 +80,12 @@ X_STATUS xeExGetXConfigSetting(
       value = 0;
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(setting);
       return X_STATUS_INVALID_PARAMETER_2;
     }
     break;
   default:
-    XEASSERTALWAYS();
+    XEASSERTUNHANDLEDCASE(category);
     return X_STATUS_INVALID_PARAMETER_1;
   }
 

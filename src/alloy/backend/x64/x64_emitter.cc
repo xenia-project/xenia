@@ -54,12 +54,12 @@ const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
 };
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
-    : runtime_(backend->runtime()),
+    : CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator),
+      runtime_(backend->runtime()),
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator),
-      current_instr_(0),
-      CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator) {}
+      current_instr_(0) {}
 
 X64Emitter::~X64Emitter() {}
 
@@ -263,9 +263,14 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
 
-  // Overwrite the call site.
-  // The return address points to ReloadRCX work after the call.
+// Overwrite the call site.
+// The return address points to ReloadRCX work after the call.
+#if XE_WIN32_LIKE
   uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
+#else
+  uint64_t return_address =
+      reinterpret_cast<uint64_t>(__builtin_return_address(0));
+#endif  // XE_WIN32_LIKE
 #pragma pack(push, 1)
   struct Asm {
     uint16_t mov_rax;
@@ -364,7 +369,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
   auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
-  XELOGW("undefined extern call to %.8X %s", symbol_info->address(),
+  XELOGW("undefined extern call to %.8llX %s", symbol_info->address(),
          symbol_info->name());
   return 0;
 }
@@ -584,7 +589,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, float v) {
   if (!v) {
     // 0
     vpxor(dest, dest);
-  } else if (x.i == ~0UL) {
+  } else if (x.i == ~0U) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {

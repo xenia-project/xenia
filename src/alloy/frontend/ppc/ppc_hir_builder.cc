@@ -32,7 +32,7 @@ using alloy::runtime::Runtime;
 using alloy::runtime::FunctionInfo;
 
 PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
-    : frontend_(frontend), HIRBuilder() {
+    : HIRBuilder(), frontend_(frontend) {
   comment_buffer_ = new StringBuffer(4096);
 }
 
@@ -88,8 +88,6 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
 
-    Instr* prev_instr = last_instr();
-
     // Mark label, if we were assigned one earlier on in the walk.
     // We may still get a label, but it'll be inserted by LookupLabel
     // as needed.
@@ -120,7 +118,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     instr_offset_list_[offset] = first_instr;
 
     if (!i.type) {
-      XELOGCPU("Invalid instruction %.8X %.8X", i.address, i.code);
+      XELOGCPU("Invalid instruction %.8llX %.8X", i.address, i.code);
       Comment("INVALID!");
       // TraceInvalidInstruction(i);
       continue;
@@ -135,7 +133,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     }
 
     if (!i.type->emit || emit(*this, i)) {
-      XELOGCPU("Unimplemented instr %.8X %.8X %s", i.address, i.code,
+      XELOGCPU("Unimplemented instr %.8llX %.8X %s", i.address, i.code,
                i.type->name);
       Comment("UNIMPLEMENTED!");
       // DebugBreak();

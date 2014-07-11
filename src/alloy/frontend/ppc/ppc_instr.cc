@@ -146,7 +146,7 @@ void InstrAccessBits::MarkAccess(InstrRegister& reg) {
       }
       break;
     default:
-      XEASSERTALWAYS();
+      XEASSERTUNHANDLEDCASE(reg.set);
       break;
   }
 }

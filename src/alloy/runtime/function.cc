@@ -81,7 +81,7 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
       handler(thread_state->raw_context(), symbol_info_->extern_arg0(),
               symbol_info_->extern_arg1());
     } else {
-      XELOGW("undefined extern call to %.8X %s", symbol_info_->address(),
+      XELOGW("undefined extern call to %.8llX %s", symbol_info_->address(),
              symbol_info_->name());
       result = 1;
     }

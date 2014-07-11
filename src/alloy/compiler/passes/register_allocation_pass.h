@@ -69,7 +69,6 @@ class RegisterAllocationPass : public CompilerPass {
   void SortUsageList(hir::Value* value);
 
  private:
-  const backend::MachineInfo* machine_info_;
   struct {
     RegisterSetUsage* int_set = nullptr;
     RegisterSetUsage* float_set = nullptr;

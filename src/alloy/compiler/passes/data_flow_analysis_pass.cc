@@ -13,11 +13,15 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
+#if XE_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable : 4244)
 #pragma warning(disable : 4267)
 #include <llvm/ADT/BitVector.h>
 #pragma warning(pop)
+#else
+#include <llvm/ADT/BitVector.h>
+#endif  // XE_COMPILER_MSVC
 
 namespace alloy {
 namespace compiler {

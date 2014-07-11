@@ -153,9 +153,9 @@ void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {
 #define MAKE_NOP_SRC(n)                                  \
   if (i->src##n##_use) {                                 \
     Value::Use* use = i->src##n##_use;                   \
-    Value* value = i->src##n##.value;                    \
+    Value* value = i->src##n.value;                      \
     i->src##n##_use = NULL;                              \
-    i->src##n##.value = NULL;                            \
+    i->src##n.value = NULL;                              \
     value->RemoveUse(use);                               \
     if (!value->use_head) {                              \
       /* Value is now unused, so recursively kill it. */ \
@@ -192,7 +192,6 @@ void DeadCodeEliminationPass::ReplaceAssignment(Instr* i) {
 }
 
 bool DeadCodeEliminationPass::CheckLocalUse(Instr* i) {
-  auto slot = i->src1.value;
   auto src = i->src2.value;
 
   auto use = src->use_head;

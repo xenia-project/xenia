@@ -31,7 +31,7 @@ using alloy::hir::Instr;
 using alloy::hir::Value;
 
 ContextPromotionPass::ContextPromotionPass()
-    : context_values_size_(0), context_values_(0), CompilerPass() {}
+    : CompilerPass(), context_values_size_(0), context_values_(0) {}
 
 ContextPromotionPass::~ContextPromotionPass() {
   if (context_values_) {

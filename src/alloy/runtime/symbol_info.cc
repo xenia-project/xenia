@@ -14,8 +14,8 @@ namespace runtime {
 
 SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address)
     : type_(type),
-      status_(STATUS_DEFINING),
       module_(module),
+      status_(STATUS_DEFINING),
       address_(address),
       name_(0) {}
 
@@ -33,10 +33,10 @@ void SymbolInfo::set_name(const char* name) {
 }
 
 FunctionInfo::FunctionInfo(Module* module, uint64_t address)
-    : end_address_(0),
+    : SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address),
+      end_address_(0),
       behavior_(BEHAVIOR_DEFAULT),
-      function_(0),
-      SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address) {
+      function_(0) {
   xe_zero_struct(&extern_info_, sizeof(extern_info_));
 }
 

@@ -29,7 +29,7 @@ using alloy::hir::Value;
 #define ASSERT_NO_CYCLES 0
 
 RegisterAllocationPass::RegisterAllocationPass(const MachineInfo* machine_info)
-    : machine_info_(machine_info), CompilerPass() {
+    : CompilerPass() {
   // Initialize register sets.
   // TODO(benvanik): rewrite in a way that makes sense - this is terrible.
   auto mi_sets = machine_info->register_sets;
@@ -301,11 +301,11 @@ bool RegisterAllocationPass::TryAllocateRegister(Value* value) {
 
   // Find the first free register, if any.
   // We have to ensure it's a valid one (in our count).
-  unsigned long first_unused = 0;
-  bool all_used =
-      _BitScanForward(&first_unused, usage_set->availability.to_ulong()) == 0;
-  if (!all_used && first_unused < usage_set->count) {
-    // Available! Use it!.
+  uint32_t first_unused = 0;
+  bool none_used = poly::bit_scan_forward(
+      static_cast<uint32_t>(usage_set->availability.to_ulong()), &first_unused);
+  if (none_used && first_unused < usage_set->count) {
+    // Available! Use it!
     value->reg.set = usage_set->set;
     value->reg.index = first_unused;
     MarkRegUsed(value->reg, value, value->use_head);

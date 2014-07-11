@@ -286,16 +286,9 @@ void Disasm_bcx(InstrData& i, StringBuffer* str) {
   } else {
     s1 = "";
   }
-  char s2[8] = {
-      'c', 'r', 0,
-  };
+  char s2[8] = {0};
   if (!XESELECTBITS(i.B.BO, 4, 4)) {
-    char* s2a = _itoa(i.B.BI >> 2, s2 + 2, 10);
-    s2a += xestrlena(s2a);
-    s2a[0] = ',';
-    s2a[1] = ' ';
-  } else {
-    s2[0] = 0;
+    xesnprintfa(s2, XECOUNT(s2), "cr%d, ", i.B.BI >> 2);
   }
   uint32_t nia;
   if (i.B.AA) {
@@ -309,16 +302,9 @@ void Disasm_bcx(InstrData& i, StringBuffer* str) {
 void Disasm_bcctrx(InstrData& i, StringBuffer* str) {
   // TODO(benvanik): mnemonics
   const char* s0 = i.XL.LK ? "lr, " : "";
-  char s2[8] = {
-      'c', 'r', 0,
-  };
+  char s2[8] = {0};
   if (!XESELECTBITS(i.XL.BO, 4, 4)) {
-    char* s2a = _itoa(i.XL.BI >> 2, s2 + 2, 10);
-    s2a += xestrlena(s2a);
-    s2a[0] = ',';
-    s2a[1] = ' ';
-  } else {
-    s2[0] = 0;
+    xesnprintfa(s2, XECOUNT(s2), "cr%d, ", i.XL.BI >> 2);
   }
   str->Append("%-8s %s%sctr", i.type->name, s0, s2);
   // TODO(benvanik): resolve target name?
@@ -334,16 +320,9 @@ void Disasm_bclrx(InstrData& i, StringBuffer* str) {
   } else {
     s1 = "";
   }
-  char s2[8] = {
-      'c', 'r', 0,
-  };
+  char s2[8] = {0};
   if (!XESELECTBITS(i.XL.BO, 4, 4)) {
-    char* s2a = _itoa(i.XL.BI >> 2, s2 + 2, 10);
-    s2a += xestrlena(s2a);
-    s2a[0] = ',';
-    s2a[1] = ' ';
-  } else {
-    s2[0] = 0;
+    xesnprintfa(s2, XECOUNT(s2), "cr%d, ", i.XL.BI >> 2);
   }
   str->Append("%-8s %s%s", name, s1, s2);
 }

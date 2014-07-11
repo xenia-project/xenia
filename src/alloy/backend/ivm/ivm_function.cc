@@ -23,12 +23,12 @@ using alloy::runtime::FunctionInfo;
 using alloy::runtime::ThreadState;
 
 IVMFunction::IVMFunction(FunctionInfo* symbol_info)
-    : register_count_(0),
+    : Function(symbol_info),
+      register_count_(0),
       intcode_count_(0),
       intcodes_(0),
       source_map_count_(0),
-      source_map_(0),
-      Function(symbol_info) {}
+      source_map_(0) {}
 
 IVMFunction::~IVMFunction() {
   xe_free(intcodes_);

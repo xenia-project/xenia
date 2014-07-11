@@ -27,7 +27,7 @@ using alloy::backend::Backend;
 using alloy::frontend::Frontend;
 
 Runtime::Runtime(Memory* memory)
-    : memory_(memory), debugger_(0), backend_(0), frontend_(0) {
+    : memory_(memory), debugger_(0), frontend_(0), backend_(0) {
   tracing::Initialize();
 }
 

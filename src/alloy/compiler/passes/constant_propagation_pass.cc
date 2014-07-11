@@ -430,6 +430,10 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
             // Quite a few of these, from building vec128s.
           }
           break;
+
+        default:
+          // Ignored.
+          break;
       }
       i = i->next;
     }
