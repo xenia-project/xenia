@@ -29,21 +29,20 @@
 #include <alloy/hir/hir_builder.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
-using namespace alloy::hir;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
+namespace x64 {
 
 using namespace Xbyak;
+
+// TODO(benvanik): direct usings.
+using namespace alloy::hir;
+using namespace alloy::runtime;
 
 // Utilities/types used only in this file:
 #include <alloy/backend/x64/x64_sequence.inl>
 
-namespace {
-static std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
-}  // namespace
-
+std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
 
 // Selects the right byte/word/etc from a vector. We need to flip logical
 // indices (0,1,2,3,4,5,6,7,...) = (3,2,1,0,7,6,5,4,...)
@@ -5121,3 +5120,7 @@ bool alloy::backend::x64::SelectSequence(X64Emitter& e, const Instr* i, const In
   XELOGE("No sequence match for variant %s", i->opcode->name);
   return false;
 }
+
+}  // namespace x64
+}  // namespace backend
+}  // namespace alloy

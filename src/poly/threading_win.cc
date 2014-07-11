@@ -7,13 +7,24 @@
  ******************************************************************************
  */
 
-#ifndef POLY_POLY_H_
-#define POLY_POLY_H_
-
-#include <poly/cxx_compat.h>
-#include <poly/math.h>
 #include <poly/threading.h>
 
-namespace poly {}  // namespace poly
+namespace poly {
+namespace threading {
 
-#endif  // POLY_POLY_H_
+uint32_t current_thread_id() {
+  return static_cast<uint32_t>(GetCurrentThreadId());
+}
+
+void Yield() { SwitchToThread(); }
+
+void Sleep(std::chrono::microseconds duration) {
+  if (duration.count() < 100) {
+    SwitchToThread();
+  } else {
+    Sleep(duration.count() / 1000);
+  }
+}
+
+}  // namespace threading
+}  // namespace poly

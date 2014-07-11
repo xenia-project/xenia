@@ -6,6 +6,7 @@
     'poly-private.h',
     'poly.cc',
     'poly.h',
+    'threading.h',
   ],
 
   'conditions': [
@@ -19,10 +20,12 @@
     }],
     ['OS == "mac"', {
       'sources': [
+        'threading_mac.cc',
       ],
     }],
     ['OS == "win"', {
       'sources': [
+        'threading_win.cc',
       ],
     }],
   ],

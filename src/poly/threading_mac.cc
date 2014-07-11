@@ -7,13 +7,26 @@
  ******************************************************************************
  */
 
-#ifndef POLY_POLY_H_
-#define POLY_POLY_H_
-
-#include <poly/cxx_compat.h>
-#include <poly/math.h>
 #include <poly/threading.h>
 
-namespace poly {}  // namespace poly
+#include <pthread.h>
+#include <time.h>
 
-#endif  // POLY_POLY_H_
+namespace poly {
+namespace threading {
+
+uint32_t current_thread_id() {
+  mach_port_t tid = pthread_mach_thread_np(pthread_self());
+  return static_cast<uint32_t>(tid);
+}
+
+void Yield() { pthread_yield_np(); }
+
+void Sleep(std::chrono::microseconds duration) {
+  timespec rqtp = {duration.count() / 1000000, duration.count() % 1000};
+  nanosleep(&rqtp, nullptr);
+  // TODO(benvanik): spin while rmtp >0?
+}
+
+}  // namespace threading
+}  // namespace poly

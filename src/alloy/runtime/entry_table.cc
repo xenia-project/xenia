@@ -48,7 +48,7 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
       do {
         lock_.unlock();
         // TODO(benvanik): sleep for less time?
-        Sleep(0);
+        poly::threading::Sleep(std::chrono::microseconds(100));
         lock_.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }
