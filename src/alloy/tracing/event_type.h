@@ -12,25 +12,21 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace tracing {
 
-
 class EventType {
-public:
+ public:
   enum {
-    ALLOY                               = (0 << 31),
-    ALLOY_TRACE_INIT                    = ALLOY | (1),
-    ALLOY_TRACE_EOF                     = ALLOY | (2),
-
-    ALLOY_BACKEND                       = ALLOY | (1 << 26),
-    ALLOY_COMPILER                      = ALLOY | (2 << 26),
-    ALLOY_HIR                           = ALLOY | (3 << 26),
-    ALLOY_FRONTEND                      = ALLOY | (4 << 26),
-    ALLOY_RUNTIME                       = ALLOY | (5 << 26),
-
-    USER                                = (1 << 31),
+    ALLOY = (0 << 31),
+    ALLOY_TRACE_INIT = ALLOY | (1),
+    ALLOY_TRACE_EOF = ALLOY | (2),
+    ALLOY_BACKEND = ALLOY | (1 << 26),
+    ALLOY_COMPILER = ALLOY | (2 << 26),
+    ALLOY_HIR = ALLOY | (3 << 26),
+    ALLOY_FRONTEND = ALLOY | (4 << 26),
+    ALLOY_RUNTIME = ALLOY | (5 << 26),
+    USER = (1 << 31),
   };
 
   typedef struct TraceInit_s {
@@ -41,9 +37,7 @@ public:
   } TraceEOF;
 };
 
-
 }  // namespace tracing
 }  // namespace alloy
-
 
 #endif  // ALLOY_TRACING_EVENT_TYPES_H_

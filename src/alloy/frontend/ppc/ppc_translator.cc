@@ -19,17 +19,20 @@
 #include <alloy/frontend/ppc/ppc_scanner.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
-using namespace alloy::hir;
+namespace alloy {
+namespace frontend {
+namespace ppc {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::runtime;
 
+using alloy::backend::Backend;
+using alloy::compiler::Compiler;
+using alloy::runtime::Function;
+using alloy::runtime::FunctionInfo;
+namespace passes = alloy::compiler::passes;
 
-PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
-    frontend_(frontend) {
+PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   Backend* backend = frontend->runtime()->backend();
 
   scanner_ = new PPCScanner(frontend);
@@ -54,21 +57,21 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
   if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::SimplificationPass());
   if (validate) compiler_->AddPass(new passes::ValidationPass());
-  //compiler_->AddPass(new passes::DeadStoreEliminationPass());
-  //if (validate) compiler_->AddPass(new passes::ValidationPass());
+  // compiler_->AddPass(new passes::DeadStoreEliminationPass());
+  // if (validate) compiler_->AddPass(new passes::ValidationPass());
   compiler_->AddPass(new passes::DeadCodeEliminationPass());
   if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   //// Removes all unneeded variables. Try not to add new ones after this.
-  //compiler_->AddPass(new passes::ValueReductionPass());
-  //if (validate) compiler_->AddPass(new passes::ValidationPass());
+  // compiler_->AddPass(new passes::ValueReductionPass());
+  // if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Register allocation for the target backend.
   // Will modify the HIR to add loads/stores.
   // This should be the last pass before finalization, as after this all
   // registers are assigned and ready to be emitted.
-  compiler_->AddPass(new passes::RegisterAllocationPass(
-      backend->machine_info()));
+  compiler_->AddPass(
+      new passes::RegisterAllocationPass(backend->machine_info()));
   if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Must come last. The HIR is not really HIR after this.
@@ -82,10 +85,9 @@ PPCTranslator::~PPCTranslator() {
   delete scanner_;
 }
 
-int PPCTranslator::Translate(
-    FunctionInfo* symbol_info,
-    uint32_t debug_info_flags,
-    Function** out_function) {
+int PPCTranslator::Translate(FunctionInfo* symbol_info,
+                             uint32_t debug_info_flags,
+                             Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
   // Scan the function to find its extents. We only need to do this if we
@@ -139,10 +141,8 @@ int PPCTranslator::Translate(
   }
 
   // Assemble to backend machine code.
-  result = assembler_->Assemble(
-      symbol_info, builder_,
-      debug_info_flags, debug_info,
-      out_function);
+  result = assembler_->Assemble(symbol_info, builder_, debug_info_flags,
+                                debug_info, out_function);
   XEEXPECTZERO(result);
 
   result = 0;
@@ -158,15 +158,14 @@ XECLEANUP:
   return result;
 };
 
-void PPCTranslator::DumpSource(
-    runtime::FunctionInfo* symbol_info, StringBuffer* string_buffer) {
+void PPCTranslator::DumpSource(runtime::FunctionInfo* symbol_info,
+                               StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
-  string_buffer->Append("%s fn %.8X-%.8X %s\n",
-      symbol_info->module()->name(),
-      symbol_info->address(), symbol_info->end_address(),
-      symbol_info->name());
+  string_buffer->Append("%s fn %.8X-%.8X %s\n", symbol_info->module()->name(),
+                        symbol_info->address(), symbol_info->end_address(),
+                        symbol_info->name());
 
   auto blocks = scanner_->FindBlocks(symbol_info);
 
@@ -182,10 +181,8 @@ void PPCTranslator::DumpSource(
     i.type = GetInstrType(i.code);
 
     // Check labels.
-    if (block_it != blocks.end() &&
-        block_it->start_address == address) {
-      string_buffer->Append(
-          "%.8X          loc_%.8X:\n", address, address);
+    if (block_it != blocks.end() && block_it->start_address == address) {
+      string_buffer->Append("%.8X          loc_%.8X:\n", address, address);
       ++block_it;
     }
 
@@ -194,3 +191,7 @@ void PPCTranslator::DumpSource(
     string_buffer->Append("\n");
   }
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

@@ -12,18 +12,14 @@
 
 #include <alloy/frontend/ppc/ppc_instr.h>
 
-
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
-
 int DisasmPPC(InstrData& i, StringBuffer* str);
-
 
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_DISASM_H_

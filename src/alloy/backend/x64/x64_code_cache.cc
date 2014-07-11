@@ -11,24 +11,20 @@
 
 #include <alloy/backend/x64/tracing.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
-
-
 namespace alloy {
 namespace backend {
 namespace x64 {
 
 class X64CodeChunk {
-public:
+ public:
   X64CodeChunk(size_t chunk_size);
   ~X64CodeChunk();
-public:
+
+ public:
   X64CodeChunk* next;
-  size_t    capacity;
-  uint8_t*  buffer;
-  size_t    offset;
+  size_t capacity;
+  uint8_t* buffer;
+  size_t offset;
 
   // Estimate of function sized use to determine initial table capacity.
   const static uint32_t ESTIMATED_FN_SIZE = 512;
@@ -36,24 +32,16 @@ public:
   // TODO(benvanik): move this to emitter.
   const static uint32_t UNWIND_INFO_SIZE = 4 + (2 * 1 + 2 + 2);
 
-  void*             fn_table_handle;
+  void* fn_table_handle;
   RUNTIME_FUNCTION* fn_table;
-  uint32_t          fn_table_count;
-  uint32_t          fn_table_capacity;
+  uint32_t fn_table_count;
+  uint32_t fn_table_capacity;
 
   void AddTableEntry(uint8_t* code, size_t code_size, size_t stack_size);
 };
 
-
-}  // namespace x64
-}  // namespace backend
-}  // namespace alloy
-
-
-X64CodeCache::X64CodeCache(size_t chunk_size) :
-    chunk_size_(chunk_size),
-    head_chunk_(NULL), active_chunk_(NULL) {
-}
+X64CodeCache::X64CodeCache(size_t chunk_size)
+    : chunk_size_(chunk_size), head_chunk_(NULL), active_chunk_(NULL) {}
 
 X64CodeCache::~X64CodeCache() {
   std::lock_guard<std::mutex> guard(lock_);
@@ -66,9 +54,7 @@ X64CodeCache::~X64CodeCache() {
   head_chunk_ = NULL;
 }
 
-int X64CodeCache::Initialize() {
-  return 0;
-}
+int X64CodeCache::Initialize() { return 0; }
 
 void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
                               size_t stack_size) {
@@ -87,7 +73,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
     if (active_chunk_->capacity - active_chunk_->offset < code_size) {
       auto next = active_chunk_->next;
       if (!next) {
-        XEASSERT(code_size < chunk_size_); // need to support larger chunks
+        XEASSERT(code_size < chunk_size_);  // need to support larger chunks
         next = new X64CodeChunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -113,25 +99,19 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   return final_address;
 }
 
-X64CodeChunk::X64CodeChunk(size_t chunk_size) :
-    next(NULL),
-    capacity(chunk_size), buffer(0), offset(0) {
-  buffer = (uint8_t*)VirtualAlloc(
-      NULL, capacity,
-      MEM_RESERVE | MEM_COMMIT,
-      PAGE_EXECUTE_READWRITE);
+X64CodeChunk::X64CodeChunk(size_t chunk_size)
+    : next(NULL), capacity(chunk_size), buffer(0), offset(0) {
+  buffer = (uint8_t*)VirtualAlloc(NULL, capacity, MEM_RESERVE | MEM_COMMIT,
+                                  PAGE_EXECUTE_READWRITE);
 
   fn_table_capacity = (uint32_t)XEROUNDUP(capacity / ESTIMATED_FN_SIZE, 16);
   size_t table_size = fn_table_capacity * sizeof(RUNTIME_FUNCTION);
   fn_table = (RUNTIME_FUNCTION*)xe_malloc(table_size);
   fn_table_count = 0;
   fn_table_handle = 0;
-  RtlAddGrowableFunctionTable(
-      &fn_table_handle,
-      fn_table,
-      fn_table_count,
-      fn_table_capacity,
-      (ULONG_PTR)buffer, (ULONG_PTR)buffer + capacity);
+  RtlAddGrowableFunctionTable(&fn_table_handle, fn_table, fn_table_count,
+                              fn_table_capacity, (ULONG_PTR)buffer,
+                              (ULONG_PTR)buffer + capacity);
 }
 
 X64CodeChunk::~X64CodeChunk() {
@@ -157,7 +137,7 @@ typedef enum _UNWIND_OP_CODES {
   UWOP_PUSH_MACHFRAME   /* info == 0: no error-code, 1: error-code */
 } UNWIND_CODE_OPS;
 class UNWIND_REGISTER {
-public:
+ public:
   enum _ {
     RAX = 0,
     RCX = 1,
@@ -182,25 +162,25 @@ typedef union _UNWIND_CODE {
   struct {
     uint8_t CodeOffset;
     uint8_t UnwindOp : 4;
-    uint8_t OpInfo   : 4;
+    uint8_t OpInfo : 4;
   };
   USHORT FrameOffset;
 } UNWIND_CODE, *PUNWIND_CODE;
 
 typedef struct _UNWIND_INFO {
-  uint8_t Version       : 3;
-  uint8_t Flags         : 5;
+  uint8_t Version : 3;
+  uint8_t Flags : 5;
   uint8_t SizeOfProlog;
   uint8_t CountOfCodes;
   uint8_t FrameRegister : 4;
-  uint8_t FrameOffset   : 4;
+  uint8_t FrameOffset : 4;
   UNWIND_CODE UnwindCode[1];
-/*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
-*   union {
-*       OPTIONAL ULONG ExceptionHandler;
-*       OPTIONAL ULONG FunctionEntry;
-*   };
-*   OPTIONAL ULONG ExceptionData[]; */
+  /*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
+  *   union {
+  *       OPTIONAL ULONG ExceptionHandler;
+  *       OPTIONAL ULONG FunctionEntry;
+  *   };
+  *   OPTIONAL ULONG ExceptionData[]; */
 } UNWIND_INFO, *PUNWIND_INFO;
 }  // namespace
 
@@ -215,19 +195,17 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     RtlDeleteGrowableFunctionTable(fn_table_handle);
     size_t old_size = fn_table_capacity * sizeof(RUNTIME_FUNCTION);
     size_t new_size = old_size * 2;
-    auto new_table = (RUNTIME_FUNCTION*)xe_realloc(fn_table, old_size, new_size);
+    auto new_table =
+        (RUNTIME_FUNCTION*)xe_realloc(fn_table, old_size, new_size);
     XEASSERTNOTNULL(new_table);
     if (!new_table) {
       return;
     }
     fn_table = new_table;
     fn_table_capacity *= 2;
-    RtlAddGrowableFunctionTable(
-        &fn_table_handle,
-        fn_table,
-        fn_table_count,
-        fn_table_capacity,
-        (ULONG_PTR)buffer, (ULONG_PTR)buffer + capacity);
+    RtlAddGrowableFunctionTable(&fn_table_handle, fn_table, fn_table_count,
+                                fn_table_capacity, (ULONG_PTR)buffer,
+                                (ULONG_PTR)buffer + capacity);
   }
 
   // Allocate unwind data. We know we have space because we overallocated.
@@ -261,7 +239,8 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
     size_t co = 0;
     auto& unwind_code = unwind_info->UnwindCode[co++];
-    unwind_code.CodeOffset = 14; // end of instruction + 1 == offset of next instruction
+    unwind_code.CodeOffset =
+        14;  // end of instruction + 1 == offset of next instruction
     unwind_code.UnwindOp = UWOP_ALLOC_SMALL;
     unwind_code.OpInfo = stack_size / 8 - 1;
   } else {
@@ -280,7 +259,8 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
     size_t co = 0;
     auto& unwind_code = unwind_info->UnwindCode[co++];
-    unwind_code.CodeOffset = 7; // end of instruction + 1 == offset of next instruction
+    unwind_code.CodeOffset =
+        7;  // end of instruction + 1 == offset of next instruction
     unwind_code.UnwindOp = UWOP_ALLOC_LARGE;
     unwind_code.OpInfo = 0;
     unwind_code = unwind_info->UnwindCode[co++];
@@ -296,3 +276,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
   // Notify the function table that it has new entries.
   RtlGrowFunctionTable(fn_table_handle, fn_table_count);
 }
+
+}  // namespace x64
+}  // namespace backend
+}  // namespace alloy

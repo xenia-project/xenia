@@ -17,17 +17,15 @@
 #include <alloy/hir/opcodes.h>
 #include <alloy/hir/value.h>
 
-
 namespace alloy {
 namespace hir {
 
 enum FunctionAttributes {
-  FUNCTION_ATTRIB_INLINE    = (1 << 1),
+  FUNCTION_ATTRIB_INLINE = (1 << 1),
 };
 
-
 class HIRBuilder {
-public:
+ public:
   HIRBuilder();
   virtual ~HIRBuilder();
 
@@ -86,10 +84,8 @@ public:
 
   void Branch(Label* label, uint32_t branch_flags = 0);
   void Branch(Block* block, uint32_t branch_flags = 0);
-  void BranchTrue(Value* cond, Label* label,
-                  uint32_t branch_flags = 0);
-  void BranchFalse(Value* cond, Label* label,
-                   uint32_t branch_flags = 0);
+  void BranchTrue(Value* cond, Label* label, uint32_t branch_flags = 0);
+  void BranchFalse(Value* cond, Label* label, uint32_t branch_flags = 0);
 
   // phi type_name, Block* b1, Value* v1, Block* b2, Value* v2, etc
 
@@ -162,13 +158,12 @@ public:
                       uint32_t arithmetic_flags = 0);
   Value* VectorAdd(Value* value1, Value* value2, TypeName part_type,
                    uint32_t arithmetic_flags = 0);
-  Value* Sub(Value* value1, Value* value2,
-             uint32_t arithmetic_flags = 0);
+  Value* Sub(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* Mul(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* MulHi(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* Div(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
-  Value* MulAdd(Value* value1, Value* value2, Value* value3); // (1 * 2) + 3
-  Value* MulSub(Value* value1, Value* value2, Value* value3); // (1 * 2) - 3
+  Value* MulAdd(Value* value1, Value* value2, Value* value3);  // (1 * 2) + 3
+  Value* MulSub(Value* value1, Value* value2, Value* value3);  // (1 * 2) - 3
   Value* Neg(Value* value);
   Value* Abs(Value* value);
   Value* Sqrt(Value* value);
@@ -208,48 +203,44 @@ public:
   Value* Pack(Value* value, uint32_t pack_flags = 0);
   Value* Unpack(Value* value, uint32_t pack_flags = 0);
 
-  Value* CompareExchange(Value* address,
-                         Value* compare_value, Value* exchange_value);
+  Value* CompareExchange(Value* address, Value* compare_value,
+                         Value* exchange_value);
   Value* AtomicExchange(Value* address, Value* new_value);
   Value* AtomicAdd(Value* address, Value* value);
   Value* AtomicSub(Value* address, Value* value);
 
-protected:
+ protected:
   void DumpValue(StringBuffer* str, Value* value);
-  void DumpOp(
-      StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);
+  void DumpOp(StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);
 
   Value* AllocValue(TypeName type = INT64_TYPE);
   Value* CloneValue(Value* source);
 
-private:
+ private:
   Block* AppendBlock();
   void EndBlock();
   bool IsUnconditionalJump(Instr* instr);
-  Instr* AppendInstr(const OpcodeInfo& opcode, uint16_t flags,
-                     Value* dest = 0);
+  Instr* AppendInstr(const OpcodeInfo& opcode, uint16_t flags, Value* dest = 0);
   Value* CompareXX(const OpcodeInfo& opcode, Value* value1, Value* value2);
-  Value* VectorCompareXX(
-      const OpcodeInfo& opcode, Value* value1, Value* value2, TypeName part_type);
+  Value* VectorCompareXX(const OpcodeInfo& opcode, Value* value1, Value* value2,
+                         TypeName part_type);
 
-protected:
-  Arena*    arena_;
+ protected:
+  Arena* arena_;
 
-  uint32_t  attributes_;
+  uint32_t attributes_;
 
-  uint32_t  next_label_id_;
-  uint32_t  next_value_ordinal_;
+  uint32_t next_label_id_;
+  uint32_t next_value_ordinal_;
 
   std::vector<Value*> locals_;
 
-  Block*    block_head_;
-  Block*    block_tail_;
-  Block*    current_block_;
+  Block* block_head_;
+  Block* block_tail_;
+  Block* current_block_;
 };
-
 
 }  // namespace hir
 }  // namespace alloy
-
 
 #endif  // ALLOY_HIR_HIR_BUILDER_H_

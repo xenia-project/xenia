@@ -17,20 +17,18 @@
 #include <alloy/backend/machine_info.h>
 #include <alloy/compiler/compiler_pass.h>
 
-
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class RegisterAllocationPass : public CompilerPass {
-public:
+ public:
   RegisterAllocationPass(const backend::MachineInfo* machine_info);
   virtual ~RegisterAllocationPass();
 
   virtual int Run(hir::HIRBuilder* builder);
 
-private:
+ private:
   // TODO(benvanik): rewrite all this set shit -- too much indirection, the
   // complexity is not needed.
   struct RegisterUsage {
@@ -70,7 +68,7 @@ private:
 
   void SortUsageList(hir::Value* value);
 
-private:
+ private:
   const backend::MachineInfo* machine_info_;
   struct {
     RegisterSetUsage* int_set = nullptr;
@@ -80,10 +78,8 @@ private:
   } usage_sets_;
 };
 
-
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_REGISTER_ALLOCATION_PASS_H_

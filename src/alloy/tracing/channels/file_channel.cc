@@ -9,10 +9,9 @@
 
 #include <alloy/tracing/channels/file_channel.h>
 
-using namespace alloy;
-using namespace alloy::tracing;
-using namespace alloy::tracing::channels;
-
+namespace alloy {
+namespace tracing {
+namespace channels {
 
 FileChannel::FileChannel(const char* path) {
   path_ = xestrdupa(path);
@@ -27,9 +26,8 @@ FileChannel::~FileChannel() {
   path_ = 0;
 }
 
-void FileChannel::Write(
-    size_t buffer_count,
-    size_t buffer_lengths[], const uint8_t* buffers[]) {
+void FileChannel::Write(size_t buffer_count, size_t buffer_lengths[],
+                        const uint8_t* buffers[]) {
   std::lock_guard<std::mutex> guard(lock_);
   if (file_) {
     for (size_t n = 0; n < buffer_count; n++) {
@@ -44,3 +42,7 @@ void FileChannel::Flush() {
     fflush(file_);
   }
 }
+
+}  // namespace channels
+}  // namespace tracing
+}  // namespace alloy

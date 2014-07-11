@@ -12,12 +12,10 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 
-
 class Arena {
-public:
+ public:
   Arena(size_t chunk_size = 4 * 1024 * 1024);
   ~Arena();
 
@@ -25,33 +23,32 @@ public:
   void DebugFill();
 
   void* Alloc(size_t size);
-  template<typename T> T* Alloc() {
+  template <typename T>
+  T* Alloc() {
     return (T*)Alloc(sizeof(T));
   }
 
   void* CloneContents();
 
-private:
+ private:
   class Chunk {
-  public:
+   public:
     Chunk(size_t chunk_size);
     ~Chunk();
 
-    Chunk*    next;
+    Chunk* next;
 
-    size_t    capacity;
-    uint8_t*  buffer;
-    size_t    offset;
+    size_t capacity;
+    uint8_t* buffer;
+    size_t offset;
   };
 
-private:
-  size_t    chunk_size_;
-  Chunk*    head_chunk_;
-  Chunk*    active_chunk_;
+ private:
+  size_t chunk_size_;
+  Chunk* head_chunk_;
+  Chunk* active_chunk_;
 };
 
-
 }  // namespace alloy
-
 
 #endif  // ALLOY_ARENA_H_

@@ -18,22 +18,25 @@
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
+namespace alloy {
+namespace frontend {
+namespace ppc {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::Label;
+using alloy::hir::TypeName;
+using alloy::hir::Value;
+using alloy::runtime::Runtime;
+using alloy::runtime::FunctionInfo;
 
-PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend) :
-    frontend_(frontend),
-    HIRBuilder() {
+PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
+    : frontend_(frontend), HIRBuilder() {
   comment_buffer_ = new StringBuffer(4096);
 }
 
-PPCHIRBuilder::~PPCHIRBuilder() {
-  delete comment_buffer_;
-}
+PPCHIRBuilder::~PPCHIRBuilder() { delete comment_buffer_; }
 
 void PPCHIRBuilder::Reset() {
   start_address_ = 0;
@@ -51,13 +54,11 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
 
   symbol_info_ = symbol_info;
   start_address_ = symbol_info->address();
-  instr_count_ =
-      (symbol_info->end_address() - symbol_info->address()) / 4 + 1;
+  instr_count_ = (symbol_info->end_address() - symbol_info->address()) / 4 + 1;
 
   with_debug_info_ = with_debug_info;
   if (with_debug_info_) {
-    Comment("%s fn %.8X-%.8X %s",
-            symbol_info->module()->name(),
+    Comment("%s fn %.8X-%.8X %s", symbol_info->module()->name(),
             symbol_info->address(), symbol_info->end_address(),
             symbol_info->name());
   }
@@ -121,7 +122,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     if (!i.type) {
       XELOGCPU("Invalid instruction %.8X %.8X", i.address, i.code);
       Comment("INVALID!");
-      //TraceInvalidInstruction(i);
+      // TraceInvalidInstruction(i);
       continue;
     }
 
@@ -134,11 +135,11 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     }
 
     if (!i.type->emit || emit(*this, i)) {
-      XELOGCPU("Unimplemented instr %.8X %.8X %s",
-               i.address, i.code, i.type->name);
+      XELOGCPU("Unimplemented instr %.8X %.8X %s", i.address, i.code,
+               i.type->name);
       Comment("UNIMPLEMENTED!");
-      //DebugBreak();
-      //TraceInvalidInstruction(i);
+      // DebugBreak();
+      // TraceInvalidInstruction(i);
     }
   }
 
@@ -147,8 +148,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
 
 void PPCHIRBuilder::AnnotateLabel(uint64_t address, Label* label) {
   char name_buffer[13];
-  xesnprintfa(name_buffer, XECOUNT(name_buffer),
-              "loc_%.8X", (uint32_t)address);
+  xesnprintfa(name_buffer, XECOUNT(name_buffer), "loc_%.8X", (uint32_t)address);
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
   xe_copy_struct(label->name, name_buffer, sizeof(name_buffer));
 }
@@ -197,10 +197,10 @@ Label* PPCHIRBuilder::LookupLabel(uint64_t address) {
   return label;
 }
 
-//Value* PPCHIRBuilder::LoadXER() {
+// Value* PPCHIRBuilder::LoadXER() {
 //}
 //
-//void PPCHIRBuilder::StoreXER(Value* value) {
+// void PPCHIRBuilder::StoreXER(Value* value) {
 //}
 
 Value* PPCHIRBuilder::LoadLR() {
@@ -235,13 +235,12 @@ void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
   XEASSERTALWAYS();
 }
 
-void PPCHIRBuilder::UpdateCR(
-    uint32_t n, Value* lhs, bool is_signed) {
+void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, bool is_signed) {
   UpdateCR(n, lhs, LoadZero(lhs->type), is_signed);
 }
 
-void PPCHIRBuilder::UpdateCR(
-    uint32_t n, Value* lhs, Value* rhs, bool is_signed) {
+void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, Value* rhs,
+                             bool is_signed) {
   if (is_signed) {
     Value* lt = CompareSLT(lhs, rhs);
     StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0, lt);
@@ -264,7 +263,8 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   // Testing for all 1's and all 0's.
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
   // TODO(benvanik): efficient instruction?
-  StoreContext(offsetof(PPCContext, cr6.cr6_all_equal), IsFalse(Not(src_value)));
+  StoreContext(offsetof(PPCContext, cr6.cr6_all_equal),
+               IsFalse(Not(src_value)));
   StoreContext(offsetof(PPCContext, cr6.cr6_none_equal), IsFalse(src_value));
 }
 
@@ -282,9 +282,7 @@ Value* PPCHIRBuilder::LoadXER() {
   return NULL;
 }
 
-void PPCHIRBuilder::StoreXER(Value* value) {
-  XEASSERTALWAYS();
-}
+void PPCHIRBuilder::StoreXER(Value* value) { XEASSERTALWAYS(); }
 
 Value* PPCHIRBuilder::LoadCA() {
   return LoadContext(offsetof(PPCContext, xer_ca), INT8_TYPE);
@@ -305,48 +303,41 @@ void PPCHIRBuilder::StoreSAT(Value* value) {
 }
 
 Value* PPCHIRBuilder::LoadGPR(uint32_t reg) {
-  return LoadContext(
-      offsetof(PPCContext, r) + reg * 8, INT64_TYPE);
+  return LoadContext(offsetof(PPCContext, r) + reg * 8, INT64_TYPE);
 }
 
 void PPCHIRBuilder::StoreGPR(uint32_t reg, Value* value) {
   XEASSERT(value->type == INT64_TYPE);
-  StoreContext(
-      offsetof(PPCContext, r) + reg * 8, value);
+  StoreContext(offsetof(PPCContext, r) + reg * 8, value);
 }
 
 Value* PPCHIRBuilder::LoadFPR(uint32_t reg) {
-  return LoadContext(
-      offsetof(PPCContext, f) + reg * 8, FLOAT64_TYPE);
+  return LoadContext(offsetof(PPCContext, f) + reg * 8, FLOAT64_TYPE);
 }
 
 void PPCHIRBuilder::StoreFPR(uint32_t reg, Value* value) {
   XEASSERT(value->type == FLOAT64_TYPE);
-  StoreContext(
-      offsetof(PPCContext, f) + reg * 8, value);
+  StoreContext(offsetof(PPCContext, f) + reg * 8, value);
 }
 
 Value* PPCHIRBuilder::LoadVR(uint32_t reg) {
-  return LoadContext(
-      offsetof(PPCContext, v) + reg * 16, VEC128_TYPE);
+  return LoadContext(offsetof(PPCContext, v) + reg * 16, VEC128_TYPE);
 }
 
 void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
   XEASSERT(value->type == VEC128_TYPE);
-  StoreContext(
-      offsetof(PPCContext, v) + reg * 16, value);
+  StoreContext(offsetof(PPCContext, v) + reg * 16, value);
 }
 
-Value* PPCHIRBuilder::LoadAcquire(
-    Value* address, TypeName type, uint32_t load_flags) {
-  AtomicExchange(
-      LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
-      Truncate(address, INT32_TYPE));
+Value* PPCHIRBuilder::LoadAcquire(Value* address, TypeName type,
+                                  uint32_t load_flags) {
+  AtomicExchange(LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
+                 Truncate(address, INT32_TYPE));
   return Load(address, type, load_flags);
 }
 
-Value* PPCHIRBuilder::StoreRelease(
-    Value* address, Value* value, uint32_t store_flags) {
+Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
+                                   uint32_t store_flags) {
   Value* old_address = AtomicExchange(
       LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
       LoadZero(INT32_TYPE));
@@ -357,3 +348,7 @@ Value* PPCHIRBuilder::StoreRelease(
   MarkLabel(skip_label);
   return eq;
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

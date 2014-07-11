@@ -12,11 +12,9 @@
 
 #include <alloy/frontend/ppc/ppc_instr.h>
 
-
 namespace alloy {
 namespace frontend {
 namespace ppc {
-
 
 void RegisterEmitCategoryAltivec();
 void RegisterEmitCategoryALU();
@@ -24,10 +22,8 @@ void RegisterEmitCategoryControl();
 void RegisterEmitCategoryFPU();
 void RegisterEmitCategoryMemory();
 
-
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_EMIT_H_

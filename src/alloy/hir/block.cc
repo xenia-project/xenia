@@ -11,9 +11,8 @@
 
 #include <alloy/hir/instr.h>
 
-using namespace alloy;
-using namespace alloy::hir;
-
+namespace alloy {
+namespace hir {
 
 void Block::AssertNoCycles() {
   Instr* hare = instr_head;
@@ -37,3 +36,6 @@ void Block::AssertNoCycles() {
     }
   }
 }
+
+}  // namespace hir
+}  // namespace alloy

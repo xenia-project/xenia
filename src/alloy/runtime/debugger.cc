@@ -13,19 +13,15 @@
 
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
+Breakpoint::Breakpoint(Type type, uint64_t address)
+    : type_(type), address_(address) {}
 
-Breakpoint::Breakpoint(Type type, uint64_t address) :
-    type_(type), address_(address) {
-}
+Breakpoint::~Breakpoint() {}
 
-Breakpoint::~Breakpoint() {
-}
-
-Debugger::Debugger(Runtime* runtime) :
-    runtime_(runtime) {}
+Debugger::Debugger(Runtime* runtime) : runtime_(runtime) {}
 
 Debugger::~Debugger() {}
 
@@ -134,8 +130,8 @@ int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
   return 0;
 }
 
-void Debugger::FindBreakpoints(
-    uint64_t address, std::vector<Breakpoint*>& out_breakpoints) {
+void Debugger::FindBreakpoints(uint64_t address,
+                               std::vector<Breakpoint*>& out_breakpoints) {
   std::lock_guard<std::mutex> guard(breakpoints_lock_);
 
   out_breakpoints.clear();
@@ -191,8 +187,8 @@ void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
   }
 }
 
-void Debugger::OnBreakpointHit(
-    ThreadState* thread_state, Breakpoint* breakpoint) {
+void Debugger::OnBreakpointHit(ThreadState* thread_state,
+                               Breakpoint* breakpoint) {
   // Suspend all threads immediately.
   SuspendAllThreads();
 
@@ -202,3 +198,6 @@ void Debugger::OnBreakpointHit(
 
   // Note that we stay suspended.
 }
+
+}  // namespace runtime
+}  // namespace alloy

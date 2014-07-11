@@ -9,15 +9,12 @@
 
 #include <alloy/backend/ivm/ivm_stack.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::ivm;
+namespace alloy {
+namespace backend {
+namespace ivm {
 
-
-IVMStack::IVMStack() :
-    chunk_size_(2 * 1024 * 1024),
-    head_chunk_(NULL), active_chunk_(NULL) {
-}
+IVMStack::IVMStack()
+    : chunk_size_(2 * 1024 * 1024), head_chunk_(NULL), active_chunk_(NULL) {}
 
 IVMStack::~IVMStack() {
   Chunk* chunk = head_chunk_;
@@ -35,7 +32,7 @@ Register* IVMStack::Alloc(size_t register_count) {
     if (active_chunk_->capacity - active_chunk_->offset < size) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        XEASSERT(size < chunk_size_); // need to support larger chunks
+        XEASSERT(size < chunk_size_);  // need to support larger chunks
         next = new Chunk(chunk_size_);
         next->prev = active_chunk_;
         active_chunk_->next = next;
@@ -66,9 +63,8 @@ void IVMStack::Free(size_t register_count) {
   }
 }
 
-IVMStack::Chunk::Chunk(size_t chunk_size) :
-    prev(NULL), next(NULL),
-    capacity(chunk_size), buffer(0), offset(0) {
+IVMStack::Chunk::Chunk(size_t chunk_size)
+    : prev(NULL), next(NULL), capacity(chunk_size), buffer(0), offset(0) {
   buffer = (uint8_t*)xe_malloc(capacity);
 }
 
@@ -77,3 +73,7 @@ IVMStack::Chunk::~Chunk() {
     xe_free(buffer);
   }
 }
+
+}  // namespace ivm
+}  // namespace backend
+}  // namespace alloy

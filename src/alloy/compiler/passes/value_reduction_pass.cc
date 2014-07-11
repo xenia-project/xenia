@@ -19,21 +19,20 @@
 #include <llvm/ADT/BitVector.h>
 #pragma warning(pop)
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::HIRBuilder;
+using alloy::hir::OpcodeInfo;
+using alloy::hir::Value;
 
-ValueReductionPass::ValueReductionPass() :
-    CompilerPass() {
-}
+ValueReductionPass::ValueReductionPass() : CompilerPass() {}
 
-ValueReductionPass::~ValueReductionPass() {
-}
+ValueReductionPass::~ValueReductionPass() {}
 
 void ValueReductionPass::ComputeLastUse(Value* value) {
   // TODO(benvanik): compute during construction?
@@ -137,3 +136,7 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

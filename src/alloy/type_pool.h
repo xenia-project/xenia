@@ -14,20 +14,16 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 
-
-template<class T, typename A>
+template <class T, typename A>
 class TypePool {
-public:
-  ~TypePool() {
-    Reset();
-  }
+ public:
+  ~TypePool() { Reset(); }
 
   void Reset() {
     std::lock_guard<std::mutex> guard(lock_);
-    for (TList::iterator it = list_.begin(); it != list_.end(); ++it) {
+    for (auto it = list_.begin(); it != list_.end(); ++it) {
       T* value = *it;
       delete value;
     }
@@ -54,14 +50,12 @@ public:
     list_.push_back(value);
   }
 
-private:
-  std::mutex  lock_;
+ private:
+  std::mutex lock_;
   typedef std::vector<T*> TList;
-  TList       list_;
+  TList list_;
 };
 
-
 }  // namespace alloy
-
 
 #endif  // ALLOY_TYPE_POOL_H_

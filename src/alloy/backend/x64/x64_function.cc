@@ -14,16 +14,17 @@
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
+namespace x64 {
 
+using alloy::runtime::Breakpoint;
+using alloy::runtime::Function;
+using alloy::runtime::FunctionInfo;
+using alloy::runtime::ThreadState;
 
-X64Function::X64Function(FunctionInfo* symbol_info) :
-    machine_code_(NULL), code_size_(0),
-    Function(symbol_info) {
-}
+X64Function::X64Function(FunctionInfo* symbol_info)
+    : machine_code_(NULL), code_size_(0), Function(symbol_info) {}
 
 X64Function::~X64Function() {
   // machine_code_ is freed by code cache.
@@ -34,20 +35,17 @@ void X64Function::Setup(void* machine_code, size_t code_size) {
   code_size_ = code_size;
 }
 
-int X64Function::AddBreakpointImpl(Breakpoint* breakpoint) {
-  return 0;
-}
+int X64Function::AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
 
-int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) {
-  return 0;
-}
+int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
 
 int X64Function::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   auto backend = (X64Backend*)thread_state->runtime()->backend();
   auto thunk = backend->host_to_guest_thunk();
-  thunk(
-      machine_code_,
-      thread_state->raw_context(),
-      (void*)return_address);
+  thunk(machine_code_, thread_state->raw_context(), (void*)return_address);
   return 0;
 }
+
+}  // namespace x64
+}  // namespace backend
+}  // namespace alloy

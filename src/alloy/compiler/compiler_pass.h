@@ -14,17 +14,19 @@
 
 #include <alloy/hir/hir_builder.h>
 
-namespace alloy { namespace runtime { class Runtime; } }
-
+namespace alloy {
+namespace runtime {
+class Runtime;
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace compiler {
 
 class Compiler;
 
-
 class CompilerPass {
-public:
+ public:
   CompilerPass();
   virtual ~CompilerPass();
 
@@ -32,17 +34,15 @@ public:
 
   virtual int Run(hir::HIRBuilder* builder) = 0;
 
-protected:
+ protected:
   Arena* scratch_arena() const;
 
-protected:
+ protected:
   runtime::Runtime* runtime_;
   Compiler* compiler_;
 };
 
-
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_COMPILER_PASS_H_

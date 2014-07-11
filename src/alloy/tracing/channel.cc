@@ -9,12 +9,12 @@
 
 #include <alloy/tracing/channel.h>
 
-using namespace alloy;
-using namespace alloy::tracing;
+namespace alloy {
+namespace tracing {
 
+Channel::Channel() {}
 
-Channel::Channel() {
-}
+Channel::~Channel() {}
 
-Channel::~Channel() {
-}
+}  // namespace tracing
+}  // namespace alloy

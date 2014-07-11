@@ -23,16 +23,14 @@
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
 
-
 namespace alloy {
 namespace runtime {
 
-
 class Runtime {
-public:
+ public:
   typedef std::vector<Module*> ModuleList;
 
-public:
+ public:
   Runtime(Memory* memory);
   virtual ~Runtime();
 
@@ -54,27 +52,25 @@ public:
                          FunctionInfo** out_symbol_info);
   int ResolveFunction(uint64_t address, Function** out_function);
 
-  //uint32_t CreateCallback(void (*callback)(void* data), void* data);
+  // uint32_t CreateCallback(void (*callback)(void* data), void* data);
 
-private:
+ private:
   int DemandFunction(FunctionInfo* symbol_info, Function** out_function);
 
-protected:
-  Memory*             memory_;
+ protected:
+  Memory* memory_;
 
-  Debugger*           debugger_;
+  Debugger* debugger_;
 
   frontend::Frontend* frontend_;
-  backend::Backend*   backend_;
+  backend::Backend* backend_;
 
-  EntryTable          entry_table_;
-  std::mutex          modules_lock_;
-  ModuleList          modules_;
+  EntryTable entry_table_;
+  std::mutex modules_lock_;
+  ModuleList modules_;
 };
-
 
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_RUNTIME_H_

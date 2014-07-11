@@ -14,12 +14,11 @@
 
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
-
-Module::Module(Runtime* runtime) :
-    runtime_(runtime), memory_(runtime->memory()) {}
+Module::Module(Runtime* runtime)
+    : runtime_(runtime), memory_(runtime->memory()) {}
 
 Module::~Module() {
   std::lock_guard<std::mutex> guard(lock_);
@@ -30,9 +29,7 @@ Module::~Module() {
   }
 }
 
-bool Module::ContainsAddress(uint64_t address) {
-  return true;
-}
+bool Module::ContainsAddress(uint64_t address) { return true; }
 
 SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
   lock_.lock();
@@ -58,8 +55,9 @@ SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
   return symbol_info;
 }
 
-SymbolInfo::Status Module::DeclareSymbol(
-    SymbolInfo::Type type, uint64_t address, SymbolInfo** out_symbol_info) {
+SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
+                                         uint64_t address,
+                                         SymbolInfo** out_symbol_info) {
   *out_symbol_info = NULL;
   lock_.lock();
   SymbolMap::const_iterator it = map_.find(address);
@@ -85,12 +83,12 @@ SymbolInfo::Status Module::DeclareSymbol(
   } else {
     // Create and return for initialization.
     switch (type) {
-    case SymbolInfo::TYPE_FUNCTION:
-      symbol_info = new FunctionInfo(this, address);
-      break;
-    case SymbolInfo::TYPE_VARIABLE:
-      symbol_info = new VariableInfo(this, address);
-      break;
+      case SymbolInfo::TYPE_FUNCTION:
+        symbol_info = new FunctionInfo(this, address);
+        break;
+      case SymbolInfo::TYPE_VARIABLE:
+        symbol_info = new VariableInfo(this, address);
+        break;
     }
     map_[address] = symbol_info;
     list_.push_back(symbol_info);
@@ -107,20 +105,20 @@ SymbolInfo::Status Module::DeclareSymbol(
   return status;
 }
 
-SymbolInfo::Status Module::DeclareFunction(
-    uint64_t address, FunctionInfo** out_symbol_info) {
+SymbolInfo::Status Module::DeclareFunction(uint64_t address,
+                                           FunctionInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
-  SymbolInfo::Status status = DeclareSymbol(
-      SymbolInfo::TYPE_FUNCTION, address, &symbol_info);
+  SymbolInfo::Status status =
+      DeclareSymbol(SymbolInfo::TYPE_FUNCTION, address, &symbol_info);
   *out_symbol_info = (FunctionInfo*)symbol_info;
   return status;
 }
 
-SymbolInfo::Status Module::DeclareVariable(
-    uint64_t address, VariableInfo** out_symbol_info) {
+SymbolInfo::Status Module::DeclareVariable(uint64_t address,
+                                           VariableInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
-  SymbolInfo::Status status = DeclareSymbol(
-      SymbolInfo::TYPE_VARIABLE, address, &symbol_info);
+  SymbolInfo::Status status =
+      DeclareSymbol(SymbolInfo::TYPE_VARIABLE, address, &symbol_info);
   *out_symbol_info = (VariableInfo*)symbol_info;
   return status;
 }
@@ -156,7 +154,7 @@ SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
   return DefineSymbol((SymbolInfo*)symbol_info);
 }
 
-void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
+void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("alloy");
   std::lock_guard<std::mutex> guard(lock_);
   for (auto it = list_.begin(); it != list_.end(); ++it) {
@@ -169,7 +167,7 @@ void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
 }
 
 void Module::ForEachFunction(size_t since, size_t& version,
-                             std::function<void (FunctionInfo*)> callback) {
+                             std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("alloy");
   std::lock_guard<std::mutex> guard(lock_);
   size_t count = list_.size();
@@ -204,8 +202,7 @@ int Module::ReadMap(const char* file_name) {
   while (std::getline(infile, line)) {
     // Remove newline.
     while (line.size() &&
-           (line[line.size() - 1] == '\r' ||
-            line[line.size() - 1] == '\n')) {
+           (line[line.size() - 1] == '\r' || line[line.size() - 1] == '\n')) {
       line.erase(line.end() - 1);
     }
 
@@ -254,3 +251,6 @@ int Module::ReadMap(const char* file_name) {
 
   return 0;
 }
+
+}  // namespace runtime
+}  // namespace alloy

@@ -14,14 +14,12 @@
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 
-
 namespace alloy {
 namespace backend {
 namespace x64 {
 
-
 class X64Function : public runtime::Function {
-public:
+ public:
   X64Function(runtime::FunctionInfo* symbol_info);
   virtual ~X64Function();
 
@@ -30,21 +28,19 @@ public:
 
   void Setup(void* machine_code, size_t code_size);
 
-protected:
+ protected:
   virtual int AddBreakpointImpl(runtime::Breakpoint* breakpoint);
   virtual int RemoveBreakpointImpl(runtime::Breakpoint* breakpoint);
   virtual int CallImpl(runtime::ThreadState* thread_state,
                        uint64_t return_address);
 
-private:
-  void*   machine_code_;
-  size_t  code_size_;
+ private:
+  void* machine_code_;
+  size_t code_size_;
 };
-
 
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_X64_X64_FUNCTION_H_

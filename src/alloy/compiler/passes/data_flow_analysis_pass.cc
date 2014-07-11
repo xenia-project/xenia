@@ -19,21 +19,20 @@
 #include <llvm/ADT/BitVector.h>
 #pragma warning(pop)
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::HIRBuilder;
+using alloy::hir::OpcodeSignatureType;
+using alloy::hir::Value;
 
-DataFlowAnalysisPass::DataFlowAnalysisPass() :
-    CompilerPass() {
-}
+DataFlowAnalysisPass::DataFlowAnalysisPass() : CompilerPass() {}
 
-DataFlowAnalysisPass::~DataFlowAnalysisPass() {
-}
+DataFlowAnalysisPass::~DataFlowAnalysisPass() {}
 
 int DataFlowAnalysisPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -66,15 +65,15 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
 
   // Stash for value map. We may want to maintain this during building.
   auto arena = builder->arena();
-  Value** value_map = (Value**)arena->Alloc(
-      sizeof(Value*) * max_value_estimate);
+  Value** value_map =
+      (Value**)arena->Alloc(sizeof(Value*) * max_value_estimate);
 
   // Allocate incoming bitvectors for use by blocks. We don't need outgoing
   // because they are only used during the block iteration.
   // Mapped by block ordinal.
   // TODO(benvanik): cache this list, grow as needed, etc.
-  auto incoming_bitvectors = (llvm::BitVector**)arena->Alloc(
-      sizeof(llvm::BitVector*) * block_count);
+  auto incoming_bitvectors =
+      (llvm::BitVector**)arena->Alloc(sizeof(llvm::BitVector*) * block_count);
   for (auto n = 0u; n < block_count; n++) {
     incoming_bitvectors[n] = new llvm::BitVector(max_value_estimate);
   }
@@ -90,10 +89,10 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     auto instr = block->instr_head;
     while (instr) {
       uint32_t signature = instr->opcode->signature;
-#define SET_INCOMING_VALUE(v) \
-  if (v->def && v->def->block != block) { \
-    incoming_values.set(v->ordinal); \
-  } \
+#define SET_INCOMING_VALUE(v)                \
+  if (v->def && v->def->block != block) {    \
+    incoming_values.set(v->ordinal);         \
+  }                                          \
   XEASSERT(v->ordinal < max_value_estimate); \
   value_map[v->ordinal] = v;
       if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
@@ -201,3 +200,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     delete incoming_bitvectors[n];
   }
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

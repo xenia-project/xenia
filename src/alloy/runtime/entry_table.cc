@@ -9,9 +9,8 @@
 
 #include <alloy/runtime/entry_table.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
-
+namespace alloy {
+namespace runtime {
 
 EntryTable::EntryTable() = default;
 
@@ -75,8 +74,7 @@ std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
   std::vector<Function*> fns;
   for (auto it = map_.begin(); it != map_.end(); ++it) {
     Entry* entry = it->second;
-    if (address >= entry->address &&
-        address <= entry->end_address) {
+    if (address >= entry->address && address <= entry->end_address) {
       if (entry->status == Entry::STATUS_READY) {
         fns.push_back(entry->function);
       }
@@ -84,3 +82,6 @@ std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
   }
   return fns;
 }
+
+}  // namespace runtime
+}  // namespace alloy

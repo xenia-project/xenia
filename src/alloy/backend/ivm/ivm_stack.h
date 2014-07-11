@@ -14,44 +14,40 @@
 
 #include <alloy/backend/ivm/ivm_intcode.h>
 
-
 namespace alloy {
 namespace backend {
 namespace ivm {
 
-
 class IVMStack {
-public:
+ public:
   IVMStack();
   ~IVMStack();
 
   Register* Alloc(size_t register_count);
   void Free(size_t register_count);
 
-private:
+ private:
   class Chunk {
-  public:
+   public:
     Chunk(size_t chunk_size);
     ~Chunk();
 
-    Chunk*    prev;
-    Chunk*    next;
+    Chunk* prev;
+    Chunk* next;
 
-    size_t    capacity;
-    uint8_t*  buffer;
-    size_t    offset;
+    size_t capacity;
+    uint8_t* buffer;
+    size_t offset;
   };
 
-private:
-  size_t    chunk_size_;
-  Chunk*    head_chunk_;
-  Chunk*    active_chunk_;
+ private:
+  size_t chunk_size_;
+  Chunk* head_chunk_;
+  Chunk* active_chunk_;
 };
-
 
 }  // namespace ivm
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_IVM_IVM_STACK_H_

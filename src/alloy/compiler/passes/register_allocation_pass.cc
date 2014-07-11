@@ -11,20 +11,25 @@
 
 #include <algorithm>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
 
+using alloy::backend::MachineInfo;
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::OpcodeSignatureType;
+using alloy::hir::RegAssignment;
+using alloy::hir::TypeName;
+using alloy::hir::Value;
 
 #define ASSERT_NO_CYCLES 0
 
-
-RegisterAllocationPass::RegisterAllocationPass(
-    const MachineInfo* machine_info) :
-    machine_info_(machine_info),
-    CompilerPass() {
+RegisterAllocationPass::RegisterAllocationPass(const MachineInfo* machine_info)
+    : machine_info_(machine_info), CompilerPass() {
   // Initialize register sets.
   // TODO(benvanik): rewrite in a way that makes sense - this is terrible.
   auto mi_sets = machine_info->register_sets;
@@ -88,7 +93,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
 
     instr = block->instr_head;
     while (instr) {
-      const OpcodeInfo* info = instr->opcode;
+      const auto info = instr->opcode;
       uint32_t signature = info->signature;
 
       // Update the register use heaps.
@@ -101,7 +106,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
       // reuse it.
       // NOTE: these checks require that the usage list be sorted!
       bool has_preferred_reg = false;
-      RegAssignment preferred_reg = { 0 };
+      RegAssignment preferred_reg = {0};
       if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V &&
           !instr->src1.value->IsConstant()) {
         if (!instr->src1_use->next) {
@@ -117,7 +122,8 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
         // Must not have been set already.
         XEASSERTNULL(instr->dest->reg.set);
 
-        // Sort the usage list. We depend on this in future uses of this variable.
+        // Sort the usage list. We depend on this in future uses of this
+        // variable.
         SortUsageList(instr->dest);
 
         // If we have a preferred register, use that.
@@ -180,7 +186,6 @@ void RegisterAllocationPass::DumpUsage(const char* name) {
   fflush(stdout);
 #endif
 }
-
 
 void RegisterAllocationPass::PrepareBlockState() {
   for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
@@ -249,9 +254,8 @@ bool RegisterAllocationPass::IsRegInUse(const RegAssignment& reg) {
   return !usage_set->availability.test(reg.index);
 }
 
-RegisterAllocationPass::RegisterSetUsage*
-RegisterAllocationPass::MarkRegUsed(const RegAssignment& reg,
-                                    Value* value, Value::Use* use) {
+RegisterAllocationPass::RegisterSetUsage* RegisterAllocationPass::MarkRegUsed(
+    const RegAssignment& reg, Value* value, Value::Use* use) {
   auto usage_set = RegisterSetForValue(value);
   usage_set->availability.set(reg.index, false);
   usage_set->upcoming_uses.emplace_back(value, use);
@@ -298,7 +302,8 @@ bool RegisterAllocationPass::TryAllocateRegister(Value* value) {
   // Find the first free register, if any.
   // We have to ensure it's a valid one (in our count).
   unsigned long first_unused = 0;
-  bool all_used = _BitScanForward(&first_unused, usage_set->availability.to_ulong()) == 0;
+  bool all_used =
+      _BitScanForward(&first_unused, usage_set->availability.to_ulong()) == 0;
   if (!all_used && first_unused < usage_set->count) {
     // Available! Use it!.
     value->reg.set = usage_set->set;
@@ -311,8 +316,8 @@ bool RegisterAllocationPass::TryAllocateRegister(Value* value) {
   return false;
 }
 
-bool RegisterAllocationPass::SpillOneRegister(
-    HIRBuilder* builder, TypeName required_type) {
+bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder,
+                                              TypeName required_type) {
   // Get the set that we will be picking from.
   RegisterSetUsage* usage_set;
   if (required_type <= INT64_TYPE) {
@@ -326,17 +331,17 @@ bool RegisterAllocationPass::SpillOneRegister(
   DumpUsage("SpillOneRegister (pre)");
   // Pick the one with the furthest next use.
   XEASSERT(!usage_set->upcoming_uses.empty());
-  auto furthest_usage = std::max_element(
-      usage_set->upcoming_uses.begin(), usage_set->upcoming_uses.end(),
-      RegisterUsage::Comparer());
-  Value* spill_value = furthest_usage->value;
+  auto furthest_usage = std::max_element(usage_set->upcoming_uses.begin(),
+                                         usage_set->upcoming_uses.end(),
+                                         RegisterUsage::Comparer());
+  auto spill_value = furthest_usage->value;
   Value::Use* prev_use = furthest_usage->use->prev;
   Value::Use* next_use = furthest_usage->use;
   XEASSERTNOTNULL(next_use);
   usage_set->upcoming_uses.erase(furthest_usage);
   DumpUsage("SpillOneRegister (post)");
   const auto reg = spill_value->reg;
-  
+
   // We know the spill_value use list is sorted, so we can cut it right now.
   // This makes it easier down below.
   auto new_head_use = next_use;
@@ -367,7 +372,8 @@ bool RegisterAllocationPass::SpillOneRegister(
       spill_value->last_use = spill_store;
     } else if (prev_use) {
       // We insert the store immediately before the previous use.
-      // If we were smarter we could then re-run allocation and reuse the register
+      // If we were smarter we could then re-run allocation and reuse the
+      // register
       // once dropped.
       spill_store->MoveBefore(prev_use->instr);
 
@@ -396,7 +402,7 @@ bool RegisterAllocationPass::SpillOneRegister(
   auto new_value = builder->LoadLocal(spill_value->local_slot);
   auto spill_load = builder->last_instr();
   spill_load->MoveBefore(next_use->instr);
-  // Note: implicit first use added.
+// Note: implicit first use added.
 
 #if ASSERT_NO_CYCLES
   builder->AssertNoCycles();
@@ -448,8 +454,7 @@ bool RegisterAllocationPass::SpillOneRegister(
 }
 
 RegisterAllocationPass::RegisterSetUsage*
-RegisterAllocationPass::RegisterSetForValue(
-    const Value* value) {
+RegisterAllocationPass::RegisterSetForValue(const Value* value) {
   if (value->type <= INT64_TYPE) {
     return usage_sets_.int_set;
   } else if (value->type <= FLOAT64_TYPE) {
@@ -498,16 +503,24 @@ void RegisterAllocationPass::SortUsageList(Value* value) {
         Value::Use* e = nullptr;
         if (psize == 0) {
           // p is empty; e must come from q
-          e = q; q = q->next; qsize--;
+          e = q;
+          q = q->next;
+          qsize--;
         } else if (qsize == 0 || !q) {
           // q is empty; e must come from p
-          e = p; p = p->next; psize--;
+          e = p;
+          p = p->next;
+          psize--;
         } else if (CompareValueUse(p, q) <= 0) {
           // First element of p is lower (or same); e must come from p
-          e = p; p = p->next; psize--;
+          e = p;
+          p = p->next;
+          psize--;
         } else {
           // First element of q is lower; e must come from q
-          e = q; q = q->next; qsize--;
+          e = q;
+          q = q->next;
+          qsize--;
         }
         // add the next element to the merged list
         if (tail) {
@@ -537,3 +550,7 @@ void RegisterAllocationPass::SortUsageList(Value* value) {
   value->use_head = head;
   value->last_use = tail->instr;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

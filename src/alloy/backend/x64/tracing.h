@@ -12,24 +12,20 @@
 
 #include <alloy/backend/tracing.h>
 
-
 namespace alloy {
 namespace backend {
 namespace x64 {
 
-const uint32_t ALLOY_BACKEND_X64 =
-    alloy::backend::EventType::ALLOY_BACKEND_X64;
-
+const uint32_t ALLOY_BACKEND_X64 = alloy::backend::EventType::ALLOY_BACKEND_X64;
 
 class EventType {
-public:
+ public:
   enum {
-    ALLOY_BACKEND_X64_INIT              = ALLOY_BACKEND_X64 | (1),
-    ALLOY_BACKEND_X64_DEINIT            = ALLOY_BACKEND_X64 | (2),
-
-    ALLOY_BACKEND_X64_ASSEMBLER         = ALLOY_BACKEND_X64 | (1 << 20),
-    ALLOY_BACKEND_X64_ASSEMBLER_INIT    = ALLOY_BACKEND_X64_ASSEMBLER | (1),
-    ALLOY_BACKEND_X64_ASSEMBLER_DEINIT  = ALLOY_BACKEND_X64_ASSEMBLER | (2),
+    ALLOY_BACKEND_X64_INIT = ALLOY_BACKEND_X64 | (1),
+    ALLOY_BACKEND_X64_DEINIT = ALLOY_BACKEND_X64 | (2),
+    ALLOY_BACKEND_X64_ASSEMBLER = ALLOY_BACKEND_X64 | (1 << 20),
+    ALLOY_BACKEND_X64_ASSEMBLER_INIT = ALLOY_BACKEND_X64_ASSEMBLER | (1),
+    ALLOY_BACKEND_X64_ASSEMBLER_DEINIT = ALLOY_BACKEND_X64_ASSEMBLER | (2),
   };
 
   typedef struct Init_s {
@@ -47,10 +43,8 @@ public:
   } AssemblerDeinit;
 };
 
-
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_X64_TRACING_H_

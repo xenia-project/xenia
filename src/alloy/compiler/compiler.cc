@@ -12,18 +12,16 @@
 #include <alloy/compiler/compiler_pass.h>
 #include <alloy/compiler/tracing.h>
 
-using namespace alloy;
-using namespace alloy::compiler;
-using namespace alloy::hir;
-using namespace alloy::runtime;
+namespace alloy {
+namespace compiler {
 
+using alloy::hir::HIRBuilder;
+using alloy::runtime::Runtime;
 
-Compiler::Compiler(Runtime* runtime) :
-    runtime_(runtime) {
+Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {
   scratch_arena_ = new Arena();
 
-  alloy::tracing::WriteEvent(EventType::Init({
-  }));
+  alloy::tracing::WriteEvent(EventType::Init({}));
 }
 
 Compiler::~Compiler() {
@@ -36,8 +34,7 @@ Compiler::~Compiler() {
 
   delete scratch_arena_;
 
-  alloy::tracing::WriteEvent(EventType::Deinit({
-  }));
+  alloy::tracing::WriteEvent(EventType::Deinit({}));
 }
 
 void Compiler::AddPass(CompilerPass* pass) {
@@ -45,8 +42,7 @@ void Compiler::AddPass(CompilerPass* pass) {
   passes_.push_back(pass);
 }
 
-void Compiler::Reset() {
-}
+void Compiler::Reset() {}
 
 int Compiler::Compile(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -63,3 +59,6 @@ int Compiler::Compile(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace compiler
+}  // namespace alloy

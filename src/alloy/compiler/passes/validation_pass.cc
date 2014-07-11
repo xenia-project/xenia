@@ -13,21 +13,22 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::Block;
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::OpcodeSignatureType;
+using alloy::hir::Value;
 
-ValidationPass::ValidationPass() :
-    CompilerPass() {
-}
+ValidationPass::ValidationPass() : CompilerPass() {}
 
-ValidationPass::~ValidationPass() {
-}
+ValidationPass::~ValidationPass() {}
 
 int ValidationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -90,7 +91,7 @@ int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
 }
 
 int ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
-  //if (value->def) {
+  // if (value->def) {
   //  auto def = value->def;
   //  XEASSERT(def->block == block);
   //  if (def->block != block) {
@@ -99,3 +100,7 @@ int ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
   //}
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

@@ -12,32 +12,28 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace tracing {
 
 class Channel;
 
-
 class Tracer {
-public:
+ public:
   Tracer(Channel* channel);
   ~Tracer();
 
   int thread_id() const { return thread_id_; }
   void set_thread_id(int value) { thread_id_ = value; }
 
-  void WriteEvent(
-      uint32_t event_type, size_t size = 0, const uint8_t* data = 0);
+  void WriteEvent(uint32_t event_type, size_t size = 0,
+                  const uint8_t* data = 0);
 
-private:
+ private:
   Channel* channel_;
   int thread_id_;
 };
 
-
 }  // namespace tracing
 }  // namespace alloy
-
 
 #endif  // ALLOY_TRACING_TRACER_H_

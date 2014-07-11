@@ -15,7 +15,6 @@
 
 #include <alloy/frontend/frontend.h>
 
-
 namespace alloy {
 namespace frontend {
 namespace ppc {
@@ -23,26 +22,23 @@ namespace ppc {
 class PPCTranslator;
 
 class PPCFrontend : public Frontend {
-public:
+ public:
   PPCFrontend(runtime::Runtime* runtime);
   virtual ~PPCFrontend();
 
   virtual int Initialize();
 
-  virtual int DeclareFunction(
-      runtime::FunctionInfo* symbol_info);
-  virtual int DefineFunction(
-      runtime::FunctionInfo* symbol_info, uint32_t debug_info_flags,
-      runtime::Function** out_function);
+  virtual int DeclareFunction(runtime::FunctionInfo* symbol_info);
+  virtual int DefineFunction(runtime::FunctionInfo* symbol_info,
+                             uint32_t debug_info_flags,
+                             runtime::Function** out_function);
 
-private:
+ private:
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
 };
-
 
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_FRONTEND_H_

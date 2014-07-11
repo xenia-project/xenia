@@ -12,13 +12,11 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace frontend {
 
-
 class ContextInfo {
-public:
+ public:
   ContextInfo(size_t size, uintptr_t thread_state_offset);
   ~ContextInfo();
 
@@ -26,14 +24,12 @@ public:
 
   uintptr_t thread_state_offset() const { return thread_state_offset_; }
 
-private:
+ private:
   size_t size_;
   uintptr_t thread_state_offset_;
 };
 
-
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_CONTEXT_INFO_H_

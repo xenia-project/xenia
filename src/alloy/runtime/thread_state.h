@@ -14,15 +14,13 @@
 
 #include <alloy/memory.h>
 
-
 namespace alloy {
 namespace runtime {
 
 class Runtime;
 
-
 class ThreadState {
-public:
+ public:
   ThreadState(Runtime* runtime, uint32_t thread_id);
   virtual ~ThreadState();
 
@@ -43,18 +41,16 @@ public:
   static ThreadState* Get();
   static uint32_t GetThreadID();
 
-protected:
-  Runtime*  runtime_;
-  Memory*   memory_;
-  uint32_t  thread_id_;
-  char*     name_;
-  void*     backend_data_;
-  void*     raw_context_;
+ protected:
+  Runtime* runtime_;
+  Memory* memory_;
+  uint32_t thread_id_;
+  char* name_;
+  void* backend_data_;
+  void* raw_context_;
 };
-
 
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_THREAD_STATE_H_

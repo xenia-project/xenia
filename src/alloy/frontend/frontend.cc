@@ -12,23 +12,17 @@
 #include <alloy/frontend/tracing.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::runtime;
+namespace alloy {
+namespace frontend {
 
+Frontend::Frontend(runtime::Runtime* runtime)
+    : runtime_(runtime), context_info_(0) {}
 
-Frontend::Frontend(Runtime* runtime) :
-    runtime_(runtime), context_info_(0) {
-}
+Frontend::~Frontend() { delete context_info_; }
 
-Frontend::~Frontend() {
-  delete context_info_;
-}
+Memory* Frontend::memory() const { return runtime_->memory(); }
 
-Memory* Frontend::memory() const {
-  return runtime_->memory();
-}
+int Frontend::Initialize() { return 0; }
 
-int Frontend::Initialize() {
-  return 0;
-}
+}  // namespace frontend
+}  // namespace alloy

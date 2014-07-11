@@ -11,26 +11,22 @@
 
 #include <alloy/backend/tracing.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
 
+using alloy::runtime::Runtime;
 
-Backend::Backend(Runtime* runtime) :
-    runtime_(runtime) {
+Backend::Backend(Runtime* runtime) : runtime_(runtime) {
   xe_zero_struct(&machine_info_, sizeof(machine_info_));
 }
 
-Backend::~Backend() {
-}
+Backend::~Backend() {}
 
-int Backend::Initialize() {
-  return 0;
-}
+int Backend::Initialize() { return 0; }
 
-void* Backend::AllocThreadData() {
-  return NULL;
-}
+void* Backend::AllocThreadData() { return NULL; }
 
-void Backend::FreeThreadData(void* thread_data) {
-}
+void Backend::FreeThreadData(void* thread_data) {}
+
+}  // namespace backend
+}  // namespace alloy

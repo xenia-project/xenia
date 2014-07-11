@@ -13,18 +13,16 @@
 #include <alloy/tracing/tracing.h>
 #include <alloy/tracing/event_type.h>
 
-
 namespace alloy {
 namespace compiler {
 
 const uint32_t ALLOY_COMPILER = alloy::tracing::EventType::ALLOY_COMPILER;
 
-
 class EventType {
-public:
+ public:
   enum {
-    ALLOY_COMPILER_INIT                 = ALLOY_COMPILER | (1),
-    ALLOY_COMPILER_DEINIT               = ALLOY_COMPILER | (2),
+    ALLOY_COMPILER_INIT = ALLOY_COMPILER | (1),
+    ALLOY_COMPILER_DEINIT = ALLOY_COMPILER | (2),
   };
 
   typedef struct Init_s {
@@ -35,9 +33,7 @@ public:
   } Deinit;
 };
 
-
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_TRACING_H_

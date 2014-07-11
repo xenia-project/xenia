@@ -13,14 +13,13 @@
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
-
-Function::Function(FunctionInfo* symbol_info) :
-    address_(symbol_info->address()),
-    symbol_info_(symbol_info), debug_info_(0) {
-}
+Function::Function(FunctionInfo* symbol_info)
+    : address_(symbol_info->address()),
+      symbol_info_(symbol_info),
+      debug_info_(0) {}
 
 Function::~Function() = default;
 
@@ -75,16 +74,14 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   }
 
   int result = 0;
-  
+
   if (symbol_info_->behavior() == FunctionInfo::BEHAVIOR_EXTERN) {
     auto handler = symbol_info_->extern_handler();
     if (handler) {
-      handler(thread_state->raw_context(),
-              symbol_info_->extern_arg0(),
+      handler(thread_state->raw_context(), symbol_info_->extern_arg0(),
               symbol_info_->extern_arg1());
     } else {
-      XELOGW("undefined extern call to %.8X %s",
-             symbol_info_->address(),
+      XELOGW("undefined extern call to %.8X %s", symbol_info_->address(),
              symbol_info_->name());
       result = 1;
     }
@@ -97,3 +94,6 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   }
   return result;
 }
+
+}  // namespace runtime
+}  // namespace alloy

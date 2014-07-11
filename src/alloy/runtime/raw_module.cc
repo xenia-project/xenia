@@ -9,15 +9,15 @@
 
 #include <alloy/runtime/raw_module.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
-
-RawModule::RawModule(Runtime* runtime) :
-    name_(0),
-    base_address_(0), low_address_(0), high_address_(0),
-    Module(runtime) {
-}
+RawModule::RawModule(Runtime* runtime)
+    : name_(0),
+      base_address_(0),
+      low_address_(0),
+      high_address_(0),
+      Module(runtime) {}
 
 RawModule::~RawModule() {
   if (base_address_) {
@@ -33,8 +33,8 @@ int RawModule::LoadFile(uint64_t base_address, const char* path) {
   fseek(file, 0, SEEK_SET);
 
   // Allocate memory.
-  base_address_ = memory_->HeapAlloc(
-      base_address, file_length, MEMORY_FLAG_ZERO);
+  base_address_ =
+      memory_->HeapAlloc(base_address, file_length, MEMORY_FLAG_ZERO);
   if (!base_address_) {
     fclose(file);
     return 1;
@@ -59,3 +59,6 @@ int RawModule::LoadFile(uint64_t base_address, const char* path) {
 bool RawModule::ContainsAddress(uint64_t address) {
   return address >= low_address_ && address < high_address_;
 }
+
+}  // namespace runtime
+}  // namespace alloy

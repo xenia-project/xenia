@@ -12,21 +12,19 @@
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_hir_builder.h>
 
-
-using namespace alloy::frontend::ppc;
-using namespace alloy::hir;
-using namespace alloy::runtime;
-
-
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
+// TODO(benvanik): remove when enums redefined.
+using namespace alloy::hir;
 
-int InstrEmit_branch(
-    PPCHIRBuilder& f, const char* src, uint64_t cia,
-    Value* nia, bool lk, Value* cond = NULL, bool expect_true = true,
-    bool nia_is_lr = false) {
+using alloy::hir::Label;
+using alloy::hir::Value;
+
+int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
+                     Value* nia, bool lk, Value* cond = NULL,
+                     bool expect_true = true, bool nia_is_lr = false) {
   uint32_t call_flags = 0;
 
   // TODO(benvanik): this may be wrong and overwrite LRs when not desired!
@@ -54,8 +52,7 @@ int InstrEmit_branch(
     // recursion.
     uint64_t nia_value = nia->AsUint64() & 0xFFFFFFFF;
     bool is_recursion = false;
-    if (nia_value == f.symbol_info()->address() &&
-        lk) {
+    if (nia_value == f.symbol_info()->address() && lk) {
       is_recursion = true;
     }
     Label* label = is_recursion ? NULL : f.LookupLabel(nia_value);
@@ -73,7 +70,7 @@ int InstrEmit_branch(
       }
     } else {
       // Call function.
-      FunctionInfo* symbol_info = f.LookupFunction(nia_value);
+      auto symbol_info = f.LookupFunction(nia_value);
       if (cond) {
         if (!expect_true) {
           cond = f.IsFalse(cond);
@@ -84,27 +81,27 @@ int InstrEmit_branch(
       }
     }
   } else {
-    // Indirect branch to pointer.
+// Indirect branch to pointer.
 
-    // TODO(benvanik): runtime recursion detection?
+// TODO(benvanik): runtime recursion detection?
 
-    // TODO(benvanik): run a DFA pass to see if we can detect whether this is
-    //     a normal function return that is pulling the LR from the stack that
-    //     it set in the prolog. If so, we can omit the dynamic check!
+// TODO(benvanik): run a DFA pass to see if we can detect whether this is
+//     a normal function return that is pulling the LR from the stack that
+//     it set in the prolog. If so, we can omit the dynamic check!
 
-    //// Dynamic test when branching to LR, which is usually used for the return.
-    //// We only do this if LK=0 as returns wouldn't set LR.
-    //// Ideally it's a return and we can just do a simple ret and be done.
-    //// If it's not, we fall through to the full indirection logic.
-    //if (!lk && reg == kXEPPCRegLR) {
-    //  // The return block will spill registers for us.
-    //  // TODO(benvanik): 'lr_mismatch' debug info.
-    //  // Note: we need to test on *only* the 32-bit target, as the target ptr may
-    //  //     have garbage in the upper 32 bits.
-    //  c.cmp(target.r32(), c.getGpArg(1).r32());
-    //  // TODO(benvanik): evaluate hint here.
-    //  c.je(e.GetReturnLabel(), kCondHintLikely);
-    //}
+//// Dynamic test when branching to LR, which is usually used for the return.
+//// We only do this if LK=0 as returns wouldn't set LR.
+//// Ideally it's a return and we can just do a simple ret and be done.
+//// If it's not, we fall through to the full indirection logic.
+// if (!lk && reg == kXEPPCRegLR) {
+//  // The return block will spill registers for us.
+//  // TODO(benvanik): 'lr_mismatch' debug info.
+//  // Note: we need to test on *only* the 32-bit target, as the target ptr may
+//  //     have garbage in the upper 32 bits.
+//  c.cmp(target.r32(), c.getGpArg(1).r32());
+//  // TODO(benvanik): evaluate hint here.
+//  c.je(e.GetReturnLabel(), kCondHintLikely);
+//}
 #if 0
     // This breaks longjump, as that uses blr with a non-return lr.
     // It'd be nice to move SET_RETURN_ADDRESS semantics up into context
@@ -124,27 +121,26 @@ int InstrEmit_branch(
 #else
     {
 #endif
-      // Jump to pointer.
-      bool likely_return = !lk && nia_is_lr;
-      if (likely_return) {
-        call_flags |= CALL_POSSIBLE_RETURN;
+    // Jump to pointer.
+    bool likely_return = !lk && nia_is_lr;
+    if (likely_return) {
+      call_flags |= CALL_POSSIBLE_RETURN;
+    }
+    if (cond) {
+      if (!expect_true) {
+        cond = f.IsFalse(cond);
       }
-      if (cond) {
-        if (!expect_true) {
-          cond = f.IsFalse(cond);
-        }
-        f.CallIndirectTrue(cond, nia, call_flags);
-      } else {
-        f.CallIndirect(nia, call_flags);
-      }
+      f.CallIndirectTrue(cond, nia, call_flags);
+    } else {
+      f.CallIndirect(nia, call_flags);
     }
   }
-
-  return 0;
 }
 
+return 0;
+}
 
-XEEMITTER(bx,           0x48000000, I  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(bx, 0x48000000, I)(PPCHIRBuilder& f, InstrData& i) {
   // if AA then
   //   NIA <- EXTS(LI || 0b00)
   // else
@@ -159,11 +155,10 @@ XEEMITTER(bx,           0x48000000, I  )(PPCHIRBuilder& f, InstrData& i) {
     nia = (uint32_t)(i.address + XEEXTS26(i.I.LI << 2));
   }
 
-  return InstrEmit_branch(
-      f, "bx", i.address, f.LoadConstant(nia), i.I.LK);
+  return InstrEmit_branch(f, "bx", i.address, f.LoadConstant(nia), i.I.LK);
 }
 
-XEEMITTER(bcx,          0x40000000, B  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
@@ -236,11 +231,11 @@ XEEMITTER(bcx,          0x40000000, B  )(PPCHIRBuilder& f, InstrData& i) {
   } else {
     nia = (uint32_t)(i.address + XEEXTS16(i.B.BD << 2));
   }
-  return InstrEmit_branch(
-      f, "bcx", i.address, f.LoadConstant(nia), i.B.LK, ok, expect_true);
+  return InstrEmit_branch(f, "bcx", i.address, f.LoadConstant(nia), i.B.LK, ok,
+                          expect_true);
 }
 
-XEEMITTER(bcctrx,       0x4C000420, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(bcctrx, 0x4C000420, XL)(PPCHIRBuilder& f, InstrData& i) {
   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
   // if cond_ok then
   //   NIA <- CTR[0:61] || 0b00
@@ -268,11 +263,11 @@ XEEMITTER(bcctrx,       0x4C000420, XL )(PPCHIRBuilder& f, InstrData& i) {
   }
 
   bool expect_true = !not_cond_ok;
-  return InstrEmit_branch(
-      f, "bcctrx", i.address, f.LoadCTR(), i.XL.LK, cond_ok, expect_true);
+  return InstrEmit_branch(f, "bcctrx", i.address, f.LoadCTR(), i.XL.LK, cond_ok,
+                          expect_true);
 }
 
-XEEMITTER(bclrx,        0x4C000020, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
@@ -336,71 +331,68 @@ XEEMITTER(bclrx,        0x4C000020, XL )(PPCHIRBuilder& f, InstrData& i) {
     expect_true = !not_cond_ok;
   }
 
-  return InstrEmit_branch(
-      f, "bclrx", i.address, f.LoadLR(), i.XL.LK, ok, expect_true, true);
+  return InstrEmit_branch(f, "bclrx", i.address, f.LoadLR(), i.XL.LK, ok,
+                          expect_true, true);
 }
-
 
 // Condition register logical (A-23)
 
-XEEMITTER(crand,        0x4C000202, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(crand, 0x4C000202, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crandc,       0x4C000102, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(crandc, 0x4C000102, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(creqv,        0x4C000242, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(creqv, 0x4C000242, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crnand,       0x4C0001C2, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(crnand, 0x4C0001C2, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crnor,        0x4C000042, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(crnor, 0x4C000042, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(cror,         0x4C000382, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(cror, 0x4C000382, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crorc,        0x4C000342, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(crorc, 0x4C000342, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(crxor,        0x4C000182, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(crxor, 0x4C000182, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mcrf,         0x4C000000, XL )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mcrf, 0x4C000000, XL)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
-
 
 // System linkage (A-24)
 
-XEEMITTER(sc,           0x44000002, SC )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(sc, 0x44000002, SC)(PPCHIRBuilder& f, InstrData& i) {
   f.CallExtern(f.symbol_info());
   return 0;
 }
 
-
 // Trap (A-25)
 
-int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i,
-                   Value* va, Value* vb, uint32_t TO) {
+int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i, Value* va, Value* vb,
+                   uint32_t TO) {
   // if (a < b) & TO[0] then TRAP
   // if (a > b) & TO[1] then TRAP
   // if (a = b) & TO[2] then TRAP
@@ -435,7 +427,7 @@ int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i,
   return 0;
 }
 
-XEEMITTER(td,           0x7C000088, X  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(td, 0x7C000088, X)(PPCHIRBuilder& f, InstrData& i) {
   // a <- (RA)
   // b <- (RB)
   // if (a < b) & TO[0] then TRAP
@@ -448,7 +440,7 @@ XEEMITTER(td,           0x7C000088, X  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.X.RT);
 }
 
-XEEMITTER(tdi,          0x08000000, D  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(tdi, 0x08000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -460,7 +452,7 @@ XEEMITTER(tdi,          0x08000000, D  )(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.D.RT);
 }
 
-XEEMITTER(tw,           0x7C000008, X  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(tw, 0x7C000008, X)(PPCHIRBuilder& f, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
   // if (a < b) & TO[0] then TRAP
@@ -468,14 +460,14 @@ XEEMITTER(tw,           0x7C000008, X  )(PPCHIRBuilder& f, InstrData& i) {
   // if (a = b) & TO[2] then TRAP
   // if (a <u b) & TO[3] then TRAP
   // if (a >u b) & TO[4] then TRAP
-  Value* ra = f.SignExtend(f.Truncate(
-      f.LoadGPR(i.X.RA), INT32_TYPE), INT64_TYPE);
-  Value* rb = f.SignExtend(f.Truncate(
-      f.LoadGPR(i.X.RB), INT32_TYPE), INT64_TYPE);
+  Value* ra =
+      f.SignExtend(f.Truncate(f.LoadGPR(i.X.RA), INT32_TYPE), INT64_TYPE);
+  Value* rb =
+      f.SignExtend(f.Truncate(f.LoadGPR(i.X.RB), INT32_TYPE), INT64_TYPE);
   return InstrEmit_trap(f, i, ra, rb, i.X.RT);
 }
 
-XEEMITTER(twi,          0x0C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(twi, 0x0C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -488,21 +480,20 @@ XEEMITTER(twi,          0x0C000000, D  )(PPCHIRBuilder& f, InstrData& i) {
     f.Trap(type);
     return 0;
   }
-  Value* ra = f.SignExtend(f.Truncate(
-      f.LoadGPR(i.D.RA), INT32_TYPE), INT64_TYPE);
+  Value* ra =
+      f.SignExtend(f.Truncate(f.LoadGPR(i.D.RA), INT32_TYPE), INT64_TYPE);
   Value* rb = f.LoadConstant(XEEXTS16(i.D.DS));
   return InstrEmit_trap(f, i, ra, rb, i.D.RT);
 }
 
-
 // Processor control (A-26)
 
-XEEMITTER(mfcr,         0x7C000026, X  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mfcr, 0x7C000026, X)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mfspr,        0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   RT <- SPR(n)
@@ -511,40 +502,40 @@ XEEMITTER(mfspr,        0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   Value* v;
   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
   switch (n) {
-  case 1:
-    // XER
-    v = f.LoadXER();
-    break;
-  case 8:
-    // LR
-    v = f.LoadLR();
-    break;
-  case 9:
-    // CTR
-    v = f.LoadCTR();
-    break;
-  // 268 + 269 = TB + TBU
-  default:
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
+    case 1:
+      // XER
+      v = f.LoadXER();
+      break;
+    case 8:
+      // LR
+      v = f.LoadLR();
+      break;
+    case 9:
+      // CTR
+      v = f.LoadCTR();
+      break;
+    // 268 + 269 = TB + TBU
+    default:
+      XEINSTRNOTIMPLEMENTED();
+      return 1;
   }
   f.StoreGPR(i.XFX.RT, v);
   return 0;
 }
 
-XEEMITTER(mftb,         0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mftb, 0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   Value* time = f.LoadClock();
   f.StoreGPR(i.XFX.RT, time);
 
   return 0;
 }
 
-XEEMITTER(mtcrf,        0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mtcrf, 0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   SPR(n) <- (RS)
@@ -555,21 +546,21 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 
   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
   switch (n) {
-  case 1:
-    // XER
-    f.StoreXER(rt);
-    break;
-  case 8:
-    // LR
-    f.StoreLR(rt);
-    break;
-  case 9:
-    // CTR
-    f.StoreCTR(rt);
-    break;
-  default:
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
+    case 1:
+      // XER
+      f.StoreXER(rt);
+      break;
+    case 8:
+      // LR
+      f.StoreLR(rt);
+      break;
+    case 9:
+      // CTR
+      f.StoreCTR(rt);
+      break;
+    default:
+      XEINSTRNOTIMPLEMENTED();
+      return 1;
   }
 
   return 0;
@@ -578,51 +569,49 @@ XEEMITTER(mtspr,        0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 // TODO(benvanik): MSR is used for toggling interrupts, and it'd be nice to
 //                 obey that setting. It's usually guarding atomic stores.
 
-XEEMITTER(mfmsr,        0x7C0000A6, X  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mfmsr, 0x7C0000A6, X)(PPCHIRBuilder& f, InstrData& i) {
   f.Nop();
   return 0;
 }
 
-XEEMITTER(mtmsr,        0x7C000124, X  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
   f.Nop();
   return 0;
 }
 
-XEEMITTER(mtmsrd,       0x7C000164, X  )(PPCHIRBuilder& f, InstrData& i) {
+XEEMITTER(mtmsrd, 0x7C000164, X)(PPCHIRBuilder& f, InstrData& i) {
   f.Nop();
   return 0;
 }
-
 
 void RegisterEmitCategoryControl() {
-  XEREGISTERINSTR(bx,           0x48000000);
-  XEREGISTERINSTR(bcx,          0x40000000);
-  XEREGISTERINSTR(bcctrx,       0x4C000420);
-  XEREGISTERINSTR(bclrx,        0x4C000020);
-  XEREGISTERINSTR(crand,        0x4C000202);
-  XEREGISTERINSTR(crandc,       0x4C000102);
-  XEREGISTERINSTR(creqv,        0x4C000242);
-  XEREGISTERINSTR(crnand,       0x4C0001C2);
-  XEREGISTERINSTR(crnor,        0x4C000042);
-  XEREGISTERINSTR(cror,         0x4C000382);
-  XEREGISTERINSTR(crorc,        0x4C000342);
-  XEREGISTERINSTR(crxor,        0x4C000182);
-  XEREGISTERINSTR(mcrf,         0x4C000000);
-  XEREGISTERINSTR(sc,           0x44000002);
-  XEREGISTERINSTR(td,           0x7C000088);
-  XEREGISTERINSTR(tdi,          0x08000000);
-  XEREGISTERINSTR(tw,           0x7C000008);
-  XEREGISTERINSTR(twi,          0x0C000000);
-  XEREGISTERINSTR(mfcr,         0x7C000026);
-  XEREGISTERINSTR(mfspr,        0x7C0002A6);
-  XEREGISTERINSTR(mftb,         0x7C0002E6);
-  XEREGISTERINSTR(mtcrf,        0x7C000120);
-  XEREGISTERINSTR(mtspr,        0x7C0003A6);
-  XEREGISTERINSTR(mfmsr,        0x7C0000A6);
-  XEREGISTERINSTR(mtmsr,        0x7C000124);
-  XEREGISTERINSTR(mtmsrd,       0x7C000164);
+  XEREGISTERINSTR(bx, 0x48000000);
+  XEREGISTERINSTR(bcx, 0x40000000);
+  XEREGISTERINSTR(bcctrx, 0x4C000420);
+  XEREGISTERINSTR(bclrx, 0x4C000020);
+  XEREGISTERINSTR(crand, 0x4C000202);
+  XEREGISTERINSTR(crandc, 0x4C000102);
+  XEREGISTERINSTR(creqv, 0x4C000242);
+  XEREGISTERINSTR(crnand, 0x4C0001C2);
+  XEREGISTERINSTR(crnor, 0x4C000042);
+  XEREGISTERINSTR(cror, 0x4C000382);
+  XEREGISTERINSTR(crorc, 0x4C000342);
+  XEREGISTERINSTR(crxor, 0x4C000182);
+  XEREGISTERINSTR(mcrf, 0x4C000000);
+  XEREGISTERINSTR(sc, 0x44000002);
+  XEREGISTERINSTR(td, 0x7C000088);
+  XEREGISTERINSTR(tdi, 0x08000000);
+  XEREGISTERINSTR(tw, 0x7C000008);
+  XEREGISTERINSTR(twi, 0x0C000000);
+  XEREGISTERINSTR(mfcr, 0x7C000026);
+  XEREGISTERINSTR(mfspr, 0x7C0002A6);
+  XEREGISTERINSTR(mftb, 0x7C0002E6);
+  XEREGISTERINSTR(mtcrf, 0x7C000120);
+  XEREGISTERINSTR(mtspr, 0x7C0003A6);
+  XEREGISTERINSTR(mfmsr, 0x7C0000A6);
+  XEREGISTERINSTR(mtmsr, 0x7C000124);
+  XEREGISTERINSTR(mtmsrd, 0x7C000164);
 }
-
 
 }  // namespace ppc
 }  // namespace frontend

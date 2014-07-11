@@ -14,26 +14,28 @@
 #include <alloy/runtime/module.h>
 #include <alloy/runtime/tracing.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::frontend;
-using namespace alloy::runtime;
+// TODO(benvanik): based on compiler support
+#include <alloy/backend/ivm/ivm_backend.h>
+#include <alloy/backend/x64/x64_backend.h>
 
+DEFINE_string(runtime_backend, "any", "Runtime backend [any, ivm, x64].");
 
-DEFINE_string(runtime_backend, "any",
-              "Runtime backend [any, ivm, x64].");
+namespace alloy {
+namespace runtime {
 
+using alloy::backend::Backend;
+using alloy::frontend::Frontend;
 
-Runtime::Runtime(Memory* memory) :
-    memory_(memory), debugger_(0), backend_(0), frontend_(0) {
+Runtime::Runtime(Memory* memory)
+    : memory_(memory), debugger_(0), backend_(0), frontend_(0) {
   tracing::Initialize();
 }
 
 Runtime::~Runtime() {
   {
     std::lock_guard<std::mutex> guard(modules_lock_);
-    for (ModuleList::iterator it = modules_.begin();
-         it != modules_.end(); ++it) {
+    for (ModuleList::iterator it = modules_.begin(); it != modules_.end();
+         ++it) {
       Module* module = *it;
       delete module;
     }
@@ -45,10 +47,6 @@ Runtime::~Runtime() {
 
   tracing::Flush();
 }
-
-// TODO(benvanik): based on compiler support
-#include <alloy/backend/ivm/ivm_backend.h>
-#include <alloy/backend/x64/x64_backend.h>
 
 int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   // Must be initialized by subclass before calling into this.
@@ -64,27 +62,23 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   if (!backend) {
 #if defined(ALLOY_HAS_X64_BACKEND) && ALLOY_HAS_X64_BACKEND
     if (FLAGS_runtime_backend == "x64") {
-      backend = new alloy::backend::x64::X64Backend(
-          this);
+      backend = new alloy::backend::x64::X64Backend(this);
     }
 #endif  // ALLOY_HAS_X64_BACKEND
 #if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
     if (FLAGS_runtime_backend == "ivm") {
-      backend = new alloy::backend::ivm::IVMBackend(
-          this);
+      backend = new alloy::backend::ivm::IVMBackend(this);
     }
 #endif  // ALLOY_HAS_IVM_BACKEND
     if (FLAGS_runtime_backend == "any") {
 #if defined(ALLOY_HAS_X64_BACKEND) && ALLOY_HAS_X64_BACKEND
       if (!backend) {
-        backend = new alloy::backend::x64::X64Backend(
-            this);
+        backend = new alloy::backend::x64::X64Backend(this);
       }
 #endif  // ALLOY_HAS_X64_BACKEND
 #if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
       if (!backend) {
-        backend = new alloy::backend::ivm::IVMBackend(
-            this);
+        backend = new alloy::backend::ivm::IVMBackend(this);
       }
 #endif  // ALLOY_HAS_IVM_BACKEND
     }
@@ -118,8 +112,7 @@ int Runtime::AddModule(Module* module) {
 Module* Runtime::GetModule(const char* name) {
   std::lock_guard<std::mutex> guard(modules_lock_);
   Module* result = NULL;
-  for (ModuleList::iterator it = modules_.begin();
-       it != modules_.end(); ++it) {
+  for (ModuleList::iterator it = modules_.begin(); it != modules_.end(); ++it) {
     Module* module = *it;
     if (xestrcmpa(module->name(), name) == 0) {
       result = module;
@@ -147,7 +140,7 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
   if (status == Entry::STATUS_NEW) {
     // Needs to be generated. We have the 'lock' on it and must do so now.
-  
+
     // Grab symbol declaration.
     FunctionInfo* symbol_info;
     int result = LookupFunctionInfo(address, &symbol_info);
@@ -173,8 +166,8 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
   }
 }
 
-int Runtime::LookupFunctionInfo(
-    uint64_t address, FunctionInfo** out_symbol_info) {
+int Runtime::LookupFunctionInfo(uint64_t address,
+                                FunctionInfo** out_symbol_info) {
   SCOPE_profile_cpu_f("alloy");
 
   *out_symbol_info = NULL;
@@ -187,8 +180,8 @@ int Runtime::LookupFunctionInfo(
     std::lock_guard<std::mutex> guard(modules_lock_);
     // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
     // TODO(benvanik): cache last module low/high, as likely to be in there.
-    for (ModuleList::const_iterator it = modules_.begin();
-         it != modules_.end(); ++it) {
+    for (ModuleList::const_iterator it = modules_.begin(); it != modules_.end();
+         ++it) {
       Module* module = *it;
       if (module->ContainsAddress(address)) {
         code_module = module;
@@ -227,8 +220,8 @@ int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
   return 0;
 }
 
-int Runtime::DemandFunction(
-    FunctionInfo* symbol_info, Function** out_function) {
+int Runtime::DemandFunction(FunctionInfo* symbol_info,
+                            Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
   *out_function = NULL;
@@ -240,7 +233,8 @@ int Runtime::DemandFunction(
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undefined, so define now.
     Function* function = NULL;
-    int result = frontend_->DefineFunction(symbol_info, DEBUG_INFO_DEFAULT, &function);
+    int result =
+        frontend_->DefineFunction(symbol_info, DEBUG_INFO_DEFAULT, &function);
     if (result) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
       return result;
@@ -263,3 +257,6 @@ int Runtime::DemandFunction(
 
   return 0;
 }
+
+}  // namespace runtime
+}  // namespace alloy

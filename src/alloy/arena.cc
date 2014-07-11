@@ -9,13 +9,10 @@
 
 #include <alloy/arena.h>
 
-using namespace alloy;
+namespace alloy {
 
-
-Arena::Arena(size_t chunk_size) :
-    chunk_size_(chunk_size),
-    head_chunk_(NULL), active_chunk_(NULL) {
-}
+Arena::Arena(size_t chunk_size)
+    : chunk_size_(chunk_size), head_chunk_(NULL), active_chunk_(NULL) {}
 
 Arena::~Arena() {
   Reset();
@@ -48,7 +45,7 @@ void* Arena::Alloc(size_t size) {
     if (active_chunk_->capacity - active_chunk_->offset < size + 4096) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        XEASSERT(size < chunk_size_); // need to support larger chunks
+        XEASSERT(size < chunk_size_);  // need to support larger chunks
         next = new Chunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -88,9 +85,8 @@ void* Arena::CloneContents() {
   return result;
 }
 
-Arena::Chunk::Chunk(size_t chunk_size) :
-    next(NULL),
-    capacity(chunk_size), buffer(0), offset(0) {
+Arena::Chunk::Chunk(size_t chunk_size)
+    : next(NULL), capacity(chunk_size), buffer(0), offset(0) {
   buffer = (uint8_t*)xe_malloc(capacity);
 }
 
@@ -99,3 +95,5 @@ Arena::Chunk::~Chunk() {
     xe_free(buffer);
   }
 }
+
+}  // namespace alloy

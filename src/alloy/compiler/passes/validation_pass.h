@@ -12,28 +12,24 @@
 
 #include <alloy/compiler/compiler_pass.h>
 
-
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class ValidationPass : public CompilerPass {
-public:
+ public:
   ValidationPass();
   virtual ~ValidationPass();
 
   virtual int Run(hir::HIRBuilder* builder);
 
-private:
+ private:
   int ValidateInstruction(hir::Block* block, hir::Instr* instr);
   int ValidateValue(hir::Block* block, hir::Instr* instr, hir::Value* value);
 };
 
-
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_VALIDATION_PASS_H_

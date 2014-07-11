@@ -12,28 +12,24 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace hir {
 
 class Block;
 
-
 class Label {
-public:
+ public:
   Block* block;
   Label* next;
   Label* prev;
 
-  uint32_t  id;
-  char*     name;
+  uint32_t id;
+  char* name;
 
-  void*     tag;
+  void* tag;
 };
-
 
 }  // namespace hir
 }  // namespace alloy
-
 
 #endif  // ALLOY_HIR_LABEL_H_

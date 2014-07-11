@@ -14,13 +14,11 @@
 
 #include <alloy/tracing/event_type.h>
 
-
 namespace alloy {
 namespace tracing {
 
 class Channel;
 class Tracer;
-
 
 bool Initialize(Channel* channel = 0);
 void Shutdown();
@@ -30,7 +28,8 @@ Tracer* GetThreadTracer();
 
 void WriteEvent(uint32_t event_type, size_t size = 0, const void* data = 0);
 
-template<typename T> void WriteEvent(const T& ev) {
+template <typename T>
+void WriteEvent(const T& ev) {
   if (sizeof(T) > 1) {
     alloy::tracing::WriteEvent(T::event_type, sizeof(T), &ev);
   } else {
@@ -38,9 +37,7 @@ template<typename T> void WriteEvent(const T& ev) {
   }
 }
 
-
 }  // namespace tracing
 }  // namespace alloy
-
 
 #endif  // ALLOY_TRACING_TRACING_H_

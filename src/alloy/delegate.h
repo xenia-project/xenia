@@ -16,15 +16,13 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
-
 
 // TODO(benvanik): go lockfree, and don't hold the lock while emitting.
 
 template <typename T>
 class Delegate {
-public:
+ public:
   typedef std::function<void(T&)> listener_t;
 
   void AddListener(listener_t const& listener) {
@@ -49,18 +47,16 @@ public:
 
   void operator()(T& e) {
     std::lock_guard<std::mutex> guard(lock_);
-    for (auto &listener : listeners_) {
+    for (auto& listener : listeners_) {
       listener(e);
     }
   }
 
-private:
+ private:
   std::mutex lock_;
   std::vector<listener_t> listeners_;
 };
 
-
 }  // namespace alloy
-
 
 #endif  // ALLOY_DELEGATE_H_

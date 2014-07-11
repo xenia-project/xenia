@@ -10,8 +10,6 @@
 #ifndef POLY_POLY_H_
 #define POLY_POLY_H_
 
-namespace poly {
-
-}  // namespace poly
+namespace poly {}  // namespace poly
 
 #endif  // POLY_POLY_H_

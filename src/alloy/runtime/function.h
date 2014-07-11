@@ -16,7 +16,6 @@
 #include <alloy/core.h>
 #include <alloy/runtime/debug_info.h>
 
-
 namespace alloy {
 namespace runtime {
 
@@ -24,9 +23,8 @@ class Breakpoint;
 class FunctionInfo;
 class ThreadState;
 
-
 class Function {
-public:
+ public:
   Function(FunctionInfo* symbol_info);
   virtual ~Function();
 
@@ -41,14 +39,13 @@ public:
 
   int Call(ThreadState* thread_state, uint64_t return_address);
 
-protected:
+ protected:
   Breakpoint* FindBreakpoint(uint64_t address);
   virtual int AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
   virtual int RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
-  virtual int CallImpl(ThreadState* thread_state,
-                       uint64_t return_address) = 0;
+  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address) = 0;
 
-protected:
+ protected:
   uint64_t address_;
   FunctionInfo* symbol_info_;
   DebugInfo* debug_info_;
@@ -58,9 +55,7 @@ protected:
   std::vector<Breakpoint*> breakpoints_;
 };
 
-
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_FUNCTION_H_

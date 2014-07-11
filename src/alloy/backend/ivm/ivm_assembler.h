@@ -14,14 +14,12 @@
 
 #include <alloy/backend/assembler.h>
 
-
 namespace alloy {
 namespace backend {
 namespace ivm {
 
-
 class IVMAssembler : public Assembler {
-public:
+ public:
   IVMAssembler(Backend* backend);
   virtual ~IVMAssembler();
 
@@ -29,21 +27,19 @@ public:
 
   virtual void Reset();
 
-  virtual int Assemble(
-      runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
-      uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
-      runtime::Function** out_function);
+  virtual int Assemble(runtime::FunctionInfo* symbol_info,
+                       hir::HIRBuilder* builder, uint32_t debug_info_flags,
+                       runtime::DebugInfo* debug_info,
+                       runtime::Function** out_function);
 
-private:
-  Arena     intcode_arena_;
-  Arena     source_map_arena_;
-  Arena     scratch_arena_;
+ private:
+  Arena intcode_arena_;
+  Arena source_map_arena_;
+  Arena scratch_arena_;
 };
-
 
 }  // namespace ivm
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_IVM_IVM_ASSEMBLER_H_

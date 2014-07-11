@@ -9,19 +9,11 @@
 
 #include <alloy/frontend/ppc/ppc_context.h>
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
+namespace alloy {
+namespace frontend {
+namespace ppc {
 
-
-namespace {
-
-uint64_t ParseInt64(const char* value) {
-  return xestrtoulla(value, NULL, 0);
-}
-
-}
-
+uint64_t ParseInt64(const char* value) { return xestrtoulla(value, NULL, 0); }
 
 void PPCContext::SetRegFromString(const char* name, const char* value) {
   int n;
@@ -32,9 +24,8 @@ void PPCContext::SetRegFromString(const char* name, const char* value) {
   }
 }
 
-bool PPCContext::CompareRegWithString(
-    const char* name, const char* value,
-    char* out_value, size_t out_value_size) {
+bool PPCContext::CompareRegWithString(const char* name, const char* value,
+                                      char* out_value, size_t out_value_size) {
   int n;
   if (sscanf(name, "r%d", &n) == 1) {
     uint64_t expected = ParseInt64(value);
@@ -48,3 +39,7 @@ bool PPCContext::CompareRegWithString(
     return false;
   }
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

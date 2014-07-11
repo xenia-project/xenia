@@ -13,21 +13,19 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::Edge;
+using alloy::hir::HIRBuilder;
 
-ControlFlowAnalysisPass::ControlFlowAnalysisPass() :
-    CompilerPass() {
-}
+ControlFlowAnalysisPass::ControlFlowAnalysisPass() : CompilerPass() {}
 
-ControlFlowAnalysisPass::~ControlFlowAnalysisPass() {
-}
+ControlFlowAnalysisPass::~ControlFlowAnalysisPass() {}
 
 int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -46,7 +44,7 @@ int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
         auto label = instr->src1.label;
         builder->AddEdge(block, label->block, Edge::UNCONDITIONAL);
       } else if (instr->opcode == &OPCODE_BRANCH_TRUE_info ||
-                  instr->opcode == &OPCODE_BRANCH_FALSE_info) {
+                 instr->opcode == &OPCODE_BRANCH_FALSE_info) {
         auto label = instr->src2.label;
         builder->AddEdge(block, label->block, 0);
       }
@@ -67,3 +65,7 @@ int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

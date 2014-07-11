@@ -12,27 +12,23 @@
 
 #include <alloy/compiler/compiler_pass.h>
 
-
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class ConstantPropagationPass : public CompilerPass {
-public:
+ public:
   ConstantPropagationPass();
   virtual ~ConstantPropagationPass();
 
   virtual int Run(hir::HIRBuilder* builder);
 
-private:
+ private:
   void PropagateCarry(hir::Value* v, bool did_carry);
 };
-
 
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_CONSTANT_PROPAGATION_PASS_H_

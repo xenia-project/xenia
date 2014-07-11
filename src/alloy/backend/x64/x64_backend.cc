@@ -15,20 +15,16 @@
 #include <alloy/backend/x64/x64_sequences.h>
 #include <alloy/backend/x64/x64_thunk_emitter.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
+namespace x64 {
 
+using alloy::runtime::Runtime;
 
-X64Backend::X64Backend(Runtime* runtime) :
-    code_cache_(0),
-    Backend(runtime) {
-}
+X64Backend::X64Backend(Runtime* runtime) : code_cache_(0), Backend(runtime) {}
 
 X64Backend::~X64Backend() {
-  alloy::tracing::WriteEvent(EventType::Deinit({
-  }));
+  alloy::tracing::WriteEvent(EventType::Deinit({}));
   delete code_cache_;
 }
 
@@ -41,17 +37,12 @@ int X64Backend::Initialize() {
   RegisterSequences();
 
   machine_info_.register_sets[0] = {
-    0,
-    "gpr",
-    MachineInfo::RegisterSet::INT_TYPES,
-    X64Emitter::GPR_COUNT,
+      0, "gpr", MachineInfo::RegisterSet::INT_TYPES, X64Emitter::GPR_COUNT,
   };
   machine_info_.register_sets[1] = {
-    1,
-    "xmm",
-    MachineInfo::RegisterSet::FLOAT_TYPES |
-    MachineInfo::RegisterSet::VEC_TYPES,
-    X64Emitter::XMM_COUNT,
+      1, "xmm", MachineInfo::RegisterSet::FLOAT_TYPES |
+                    MachineInfo::RegisterSet::VEC_TYPES,
+      X64Emitter::XMM_COUNT,
   };
 
   code_cache_ = new X64CodeCache();
@@ -67,12 +58,13 @@ int X64Backend::Initialize() {
   delete thunk_emitter;
   delete allocator;
 
-  alloy::tracing::WriteEvent(EventType::Init({
-  }));
+  alloy::tracing::WriteEvent(EventType::Init({}));
 
   return result;
 }
 
-Assembler* X64Backend::CreateAssembler() {
-  return new X64Assembler(this);
-}
+Assembler* X64Backend::CreateAssembler() { return new X64Assembler(this); }
+
+}  // namespace x64
+}  // namespace backend
+}  // namespace alloy

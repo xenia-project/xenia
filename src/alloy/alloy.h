@@ -18,10 +18,4 @@
 #include <alloy/runtime/thread_state.h>
 #include <alloy/tracing/tracing.h>
 
-
-namespace alloy {
-
-}  // namespace alloy
-
-
 #endif  // ALLOY_ALLOY_H_

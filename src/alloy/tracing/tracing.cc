@@ -17,33 +17,24 @@
 #include <alloy/tracing/tracer.h>
 #include <alloy/tracing/channels/file_channel.h>
 
-using namespace alloy;
-using namespace alloy::tracing;
-
-
-DEFINE_string(trace_file, "",
-    "Traces to the given file path.");
+DEFINE_string(trace_file, "", "Traces to the given file path.");
 // trace shared memory
 // trace socket
 
+namespace alloy {
+namespace tracing {
 
-namespace {
-
-static Channel* shared_channel = NULL;
+Channel* shared_channel = NULL;
 __declspec(thread) Tracer* thread_tracer = NULL;
 
 void CleanupTracing() {
   if (shared_channel) {
-    alloy::tracing::WriteEvent(EventType::TraceEOF({
-    }));
+    alloy::tracing::WriteEvent(EventType::TraceEOF({}));
     shared_channel->Flush();
   }
 }
 
-};
-
-
-bool alloy::tracing::Initialize(Channel* channel) {
+bool Initialize(Channel* channel) {
   if (shared_channel) {
     return false;
   }
@@ -58,24 +49,23 @@ bool alloy::tracing::Initialize(Channel* channel) {
     }
   }
   shared_channel = channel;
-  alloy::tracing::WriteEvent(EventType::TraceInit({
-  }));
+  alloy::tracing::WriteEvent(EventType::TraceInit({}));
   channel->Flush();
   atexit(CleanupTracing);
   return true;
 }
 
-void alloy::tracing::Shutdown() {
+void Shutdown() {
   // ?
 }
 
-void alloy::tracing::Flush() {
+void Flush() {
   if (shared_channel) {
     shared_channel->Flush();
   }
 }
 
-Tracer* alloy::tracing::GetThreadTracer() {
+Tracer* GetThreadTracer() {
   if (!shared_channel) {
     return NULL;
   }
@@ -85,10 +75,12 @@ Tracer* alloy::tracing::GetThreadTracer() {
   return thread_tracer;
 }
 
-void alloy::tracing::WriteEvent(
-    uint32_t event_type, size_t size, const void* data) {
+void WriteEvent(uint32_t event_type, size_t size, const void* data) {
   Tracer* t = GetThreadTracer();
   if (t) {
     t->WriteEvent(event_type, size, (const uint8_t*)data);
   }
 }
+
+}  // namespace tracing
+}  // namespace alloy

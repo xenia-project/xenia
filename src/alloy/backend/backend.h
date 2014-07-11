@@ -13,17 +13,19 @@
 #include <alloy/core.h>
 #include <alloy/backend/machine_info.h>
 
-
-namespace alloy { namespace runtime { class Runtime; } }
+namespace alloy {
+namespace runtime {
+class Runtime;
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace backend {
 
 class Assembler;
 
-
 class Backend {
-public:
+ public:
   Backend(runtime::Runtime* runtime);
   virtual ~Backend();
 
@@ -37,14 +39,12 @@ public:
 
   virtual Assembler* CreateAssembler() = 0;
 
-protected:
+ protected:
   runtime::Runtime* runtime_;
   MachineInfo machine_info_;
 };
 
-
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_BACKEND_H_

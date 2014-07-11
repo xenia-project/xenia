@@ -13,18 +13,16 @@
 #include <alloy/tracing/tracing.h>
 #include <alloy/tracing/event_type.h>
 
-
 namespace alloy {
 namespace frontend {
 
 const uint32_t ALLOY_FRONTEND = alloy::tracing::EventType::ALLOY_FRONTEND;
 
-
 class EventType {
-public:
+ public:
   enum {
-    ALLOY_FRONTEND_INIT                 = ALLOY_FRONTEND | (1),
-    ALLOY_FRONTEND_DEINIT               = ALLOY_FRONTEND | (2),
+    ALLOY_FRONTEND_INIT = ALLOY_FRONTEND | (1),
+    ALLOY_FRONTEND_DEINIT = ALLOY_FRONTEND | (2),
   };
 
   typedef struct Init_s {
@@ -35,9 +33,7 @@ public:
   } Deinit;
 };
 
-
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_TRACING_H_

@@ -13,21 +13,18 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::HIRBuilder;
 
-FinalizationPass::FinalizationPass() :
-    CompilerPass() {
-}
+FinalizationPass::FinalizationPass() : CompilerPass() {}
 
-FinalizationPass::~FinalizationPass() {
-}
+FinalizationPass::~FinalizationPass() {}
 
 int FinalizationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -70,3 +67,7 @@ int FinalizationPass::Run(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

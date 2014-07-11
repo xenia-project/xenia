@@ -15,19 +15,18 @@
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 
-
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
 class PPCFrontend;
 
-
 class PPCHIRBuilder : public hir::HIRBuilder {
   using Instr = alloy::hir::Instr;
   using Label = alloy::hir::Label;
   using Value = alloy::hir::Value;
-public:
+
+ public:
   PPCHIRBuilder(PPCFrontend* frontend);
   virtual ~PPCHIRBuilder();
 
@@ -53,9 +52,9 @@ public:
   void StoreFPSCR(Value* value);
   Value* LoadXER();
   void StoreXER(Value* value);
-  //void UpdateXERWithOverflow();
-  //void UpdateXERWithOverflowAndCarry();
-  //void StoreOV(Value* value);
+  // void UpdateXERWithOverflow();
+  // void UpdateXERWithOverflowAndCarry();
+  // void StoreOV(Value* value);
   Value* LoadCA();
   void StoreCA(Value* value);
   Value* LoadSAT();
@@ -68,31 +67,30 @@ public:
   Value* LoadVR(uint32_t reg);
   void StoreVR(uint32_t reg, Value* value);
 
-  Value* LoadAcquire(Value* address, hir::TypeName type, uint32_t load_flags = 0);
+  Value* LoadAcquire(Value* address, hir::TypeName type,
+                     uint32_t load_flags = 0);
   Value* StoreRelease(Value* address, Value* value, uint32_t store_flags = 0);
 
-private:
+ private:
   void AnnotateLabel(uint64_t address, Label* label);
 
-private:
-  PPCFrontend*  frontend_;
+ private:
+  PPCFrontend* frontend_;
 
   // Reset whenever needed:
   StringBuffer* comment_buffer_;
 
   // Reset each Emit:
-  bool          with_debug_info_;
+  bool with_debug_info_;
   runtime::FunctionInfo* symbol_info_;
-  uint64_t      start_address_;
-  uint64_t      instr_count_;
-  Instr**       instr_offset_list_;
-  Label**       label_list_;
+  uint64_t start_address_;
+  uint64_t instr_count_;
+  Instr** instr_offset_list_;
+  Label** label_list_;
 };
-
 
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_

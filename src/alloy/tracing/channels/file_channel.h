@@ -16,33 +16,28 @@
 
 #include <alloy/tracing/channel.h>
 
-
 namespace alloy {
 namespace tracing {
 namespace channels {
 
-
 class FileChannel : public Channel {
-public:
+ public:
   FileChannel(const char* path);
   virtual ~FileChannel();
 
-  virtual void Write(
-      size_t buffer_count,
-      size_t buffer_lengths[], const uint8_t* buffers[]);
+  virtual void Write(size_t buffer_count, size_t buffer_lengths[],
+                     const uint8_t* buffers[]);
 
   virtual void Flush();
 
-private:
+ private:
   char* path_;
   FILE* file_;
   std::mutex lock_;
 };
 
-
 }  // namespace channels
 }  // namespace tracing
 }  // namespace alloy
-
 
 #endif  // ALLOY_TRACING_CHANNELS_FILE_CHANNEL_H_

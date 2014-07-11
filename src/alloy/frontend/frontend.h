@@ -16,17 +16,17 @@
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 
-
-namespace alloy { namespace runtime {
-  class Runtime;
-} }
+namespace alloy {
+namespace runtime {
+class Runtime;
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace frontend {
 
-
 class Frontend {
-public:
+ public:
   Frontend(runtime::Runtime* runtime);
   virtual ~Frontend();
 
@@ -36,20 +36,17 @@ public:
 
   virtual int Initialize();
 
-  virtual int DeclareFunction(
-      runtime::FunctionInfo* symbol_info) = 0;
-  virtual int DefineFunction(
-      runtime::FunctionInfo* symbol_info, uint32_t debug_info_flags,
-      runtime::Function** out_function) = 0;
+  virtual int DeclareFunction(runtime::FunctionInfo* symbol_info) = 0;
+  virtual int DefineFunction(runtime::FunctionInfo* symbol_info,
+                             uint32_t debug_info_flags,
+                             runtime::Function** out_function) = 0;
 
-protected:
+ protected:
   runtime::Runtime* runtime_;
   ContextInfo* context_info_;
 };
 
-
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_FRONTEND_H_

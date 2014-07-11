@@ -12,27 +12,25 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace hir {
 class HIRBuilder;
-}
+}  // namespace hir
 namespace runtime {
 class DebugInfo;
 class Function;
 class FunctionInfo;
 class Runtime;
-}
-}
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace backend {
 
 class Backend;
 
-
 class Assembler {
-public:
+ public:
   Assembler(Backend* backend);
   virtual ~Assembler();
 
@@ -40,18 +38,16 @@ public:
 
   virtual void Reset();
 
-  virtual int Assemble(
-      runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
-      uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
-      runtime::Function** out_function) = 0;
+  virtual int Assemble(runtime::FunctionInfo* symbol_info,
+                       hir::HIRBuilder* builder, uint32_t debug_info_flags,
+                       runtime::DebugInfo* debug_info,
+                       runtime::Function** out_function) = 0;
 
-protected:
+ protected:
   Backend* backend_;
 };
 
-
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_ASSEMBLER_H_

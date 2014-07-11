@@ -12,8 +12,4 @@
 
 #include <gflags/gflags.h>
 
-namespace poly {
-
-}  // namespace poly
-
 #endif  // POLY_POLY_PRIVATE_H_

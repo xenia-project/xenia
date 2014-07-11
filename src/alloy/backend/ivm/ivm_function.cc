@@ -14,17 +14,21 @@
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::ivm;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
+namespace ivm {
 
+using alloy::runtime::Breakpoint;
+using alloy::runtime::FunctionInfo;
+using alloy::runtime::ThreadState;
 
-IVMFunction::IVMFunction(FunctionInfo* symbol_info) :
-    register_count_(0), intcode_count_(0), intcodes_(0),
-    source_map_count_(0), source_map_(0),
-    Function(symbol_info) {
-}
+IVMFunction::IVMFunction(FunctionInfo* symbol_info)
+    : register_count_(0),
+      intcode_count_(0),
+      intcodes_(0),
+      source_map_count_(0),
+      source_map_(0),
+      Function(symbol_info) {}
 
 IVMFunction::~IVMFunction() {
   xe_free(intcodes_);
@@ -57,8 +61,7 @@ int IVMFunction::AddBreakpointImpl(Breakpoint* breakpoint) {
   }
 
   // TEMP breakpoints always overwrite normal ones.
-  if (!i->debug_flags ||
-      breakpoint->type() == Breakpoint::TEMP_TYPE) {
+  if (!i->debug_flags || breakpoint->type() == Breakpoint::TEMP_TYPE) {
     uint64_t breakpoint_ptr = (uint64_t)breakpoint;
     i->src2_reg = (uint32_t)breakpoint_ptr;
     i->src3_reg = (uint32_t)(breakpoint_ptr >> 32);
@@ -127,8 +130,8 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
 
   volatile int* suspend_flag_address = thread_state->suspend_flag_address();
 
-  // TODO(benvanik): DID_CARRY -- need HIR to set a OPCODE_FLAG_SET_CARRY
-  //                 or something so the fns can set an ics flag.
+// TODO(benvanik): DID_CARRY -- need HIR to set a OPCODE_FLAG_SET_CARRY
+//                 or something so the fns can set an ics flag.
 
 #ifdef TRACE_SOURCE_OFFSET
   size_t source_index = 0;
@@ -177,3 +180,7 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
 
   return 0;
 }
+
+}  // namespace ivm
+}  // namespace backend
+}  // namespace alloy

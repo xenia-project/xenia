@@ -12,17 +12,15 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace hir {
 
-
 enum CallFlags {
-  CALL_TAIL             = (1 << 1),
-  CALL_POSSIBLE_RETURN  = (1 << 2),
+  CALL_TAIL = (1 << 1),
+  CALL_POSSIBLE_RETURN = (1 << 2),
 };
 enum BranchFlags {
-  BRANCH_LIKELY   = (1 << 1),
+  BRANCH_LIKELY = (1 << 1),
   BRANCH_UNLIKELY = (1 << 2),
 };
 enum RoundMode {
@@ -33,20 +31,20 @@ enum RoundMode {
   ROUND_TO_POSITIVE_INFINITY,
 };
 enum LoadFlags {
-  LOAD_NO_ALIAS   = (1 << 1),
-  LOAD_ALIGNED    = (1 << 2),
-  LOAD_UNALIGNED  = (1 << 3),
-  LOAD_VOLATILE   = (1 << 4),
+  LOAD_NO_ALIAS = (1 << 1),
+  LOAD_ALIGNED = (1 << 2),
+  LOAD_UNALIGNED = (1 << 3),
+  LOAD_VOLATILE = (1 << 4),
 };
 enum StoreFlags {
-  STORE_NO_ALIAS  = (1 << 1),
-  STORE_ALIGNED   = (1 << 2),
+  STORE_NO_ALIAS = (1 << 1),
+  STORE_ALIGNED = (1 << 2),
   STORE_UNALIGNED = (1 << 3),
-  STORE_VOLATILE  = (1 << 4),
+  STORE_VOLATILE = (1 << 4),
 };
 enum PrefetchFlags {
-  PREFETCH_LOAD   = (1 << 1),
-  PREFETCH_STORE  = (1 << 2),
+  PREFETCH_LOAD = (1 << 1),
+  PREFETCH_STORE = (1 << 2),
 };
 enum ArithmeticFlags {
   ARITHMETIC_SET_CARRY = (1 << 1),
@@ -56,11 +54,8 @@ enum ArithmeticFlags {
 enum Permutes {
   PERMUTE_XY_ZW = 0x00010405,
 };
-#define SWIZZLE_MASK(x, y, z, w) ( \
-    (((x) & 0x3) << 6) | \
-    (((y) & 0x3) << 4) | \
-    (((z) & 0x3) << 2) | \
-    (((w) & 0x3)))
+#define SWIZZLE_MASK(x, y, z, w) \
+  ((((x)&0x3) << 6) | (((y)&0x3) << 4) | (((z)&0x3) << 2) | (((w)&0x3)))
 enum Swizzles {
   SWIZZLE_XYZW_TO_XYZW = SWIZZLE_MASK(0, 1, 2, 3),
   SWIZZLE_XYZW_TO_YZWX = SWIZZLE_MASK(1, 2, 3, 0),
@@ -78,19 +73,14 @@ enum PackType {
   PACK_TYPE_S16_IN_32_HI = 7,
 };
 
-
 enum Opcode {
   OPCODE_COMMENT,
   OPCODE_NOP,
-
   OPCODE_SOURCE_OFFSET,
-
   OPCODE_DEBUG_BREAK,
   OPCODE_DEBUG_BREAK_TRUE,
-
   OPCODE_TRAP,
   OPCODE_TRAP_TRUE,
-
   OPCODE_CALL,
   OPCODE_CALL_TRUE,
   OPCODE_CALL_INDIRECT,
@@ -99,11 +89,9 @@ enum Opcode {
   OPCODE_RETURN,
   OPCODE_RETURN_TRUE,
   OPCODE_SET_RETURN_ADDRESS,
-
   OPCODE_BRANCH,
   OPCODE_BRANCH_TRUE,
   OPCODE_BRANCH_FALSE,
-
   OPCODE_ASSIGN,
   OPCODE_CAST,
   OPCODE_ZERO_EXTEND,
@@ -113,22 +101,16 @@ enum Opcode {
   OPCODE_ROUND,
   OPCODE_VECTOR_CONVERT_I2F,
   OPCODE_VECTOR_CONVERT_F2I,
-
   OPCODE_LOAD_VECTOR_SHL,
   OPCODE_LOAD_VECTOR_SHR,
-
   OPCODE_LOAD_CLOCK,
-
   OPCODE_LOAD_LOCAL,
   OPCODE_STORE_LOCAL,
-
   OPCODE_LOAD_CONTEXT,
   OPCODE_STORE_CONTEXT,
-
   OPCODE_LOAD,
   OPCODE_STORE,
   OPCODE_PREFETCH,
-
   OPCODE_MAX,
   OPCODE_MIN,
   OPCODE_SELECT,
@@ -152,13 +134,12 @@ enum Opcode {
   OPCODE_VECTOR_COMPARE_SGE,
   OPCODE_VECTOR_COMPARE_UGT,
   OPCODE_VECTOR_COMPARE_UGE,
-
   OPCODE_ADD,
   OPCODE_ADD_CARRY,
   OPCODE_VECTOR_ADD,
   OPCODE_SUB,
   OPCODE_MUL,
-  OPCODE_MUL_HI, // TODO(benvanik): remove this and add INT128 type.
+  OPCODE_MUL_HI,  // TODO(benvanik): remove this and add INT128 type.
   OPCODE_DIV,
   OPCODE_MUL_ADD,
   OPCODE_MUL_SUB,
@@ -170,7 +151,6 @@ enum Opcode {
   OPCODE_LOG2,
   OPCODE_DOT_PRODUCT_3,
   OPCODE_DOT_PRODUCT_4,
-
   OPCODE_AND,
   OPCODE_OR,
   OPCODE_XOR,
@@ -191,22 +171,20 @@ enum Opcode {
   OPCODE_SWIZZLE,
   OPCODE_PACK,
   OPCODE_UNPACK,
-
   OPCODE_COMPARE_EXCHANGE,
   OPCODE_ATOMIC_EXCHANGE,
   OPCODE_ATOMIC_ADD,
   OPCODE_ATOMIC_SUB,
-
-  __OPCODE_MAX_VALUE, // Keep at end.
+  __OPCODE_MAX_VALUE,  // Keep at end.
 };
 
 enum OpcodeFlags {
-  OPCODE_FLAG_BRANCH      = (1 << 1),
-  OPCODE_FLAG_MEMORY      = (1 << 2),
+  OPCODE_FLAG_BRANCH = (1 << 1),
+  OPCODE_FLAG_MEMORY = (1 << 2),
   OPCODE_FLAG_COMMUNATIVE = (1 << 3),
-  OPCODE_FLAG_VOLATILE    = (1 << 4),
-  OPCODE_FLAG_IGNORE      = (1 << 5),
-  OPCODE_FLAG_HIDE        = (1 << 6),
+  OPCODE_FLAG_VOLATILE = (1 << 4),
+  OPCODE_FLAG_IGNORE = (1 << 5),
+  OPCODE_FLAG_HIDE = (1 << 6),
   OPCODE_FLAG_PAIRED_PREV = (1 << 7),
 };
 
@@ -220,26 +198,38 @@ enum OpcodeSignatureType {
 };
 
 enum OpcodeSignature {
-  OPCODE_SIG_X        = (OPCODE_SIG_TYPE_X),
-  OPCODE_SIG_X_L      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_L << 3),
-  OPCODE_SIG_X_O      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_O << 3),
-  OPCODE_SIG_X_O_V    = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_O << 3) | (OPCODE_SIG_TYPE_V << 6),
-  OPCODE_SIG_X_S      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_S << 3),
-  OPCODE_SIG_X_V      = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3),
-  OPCODE_SIG_X_V_L    = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_L << 6),
-  OPCODE_SIG_X_V_L_L  = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_L << 6) | (OPCODE_SIG_TYPE_L << 9),
-  OPCODE_SIG_X_V_O    = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_O << 6),
-  OPCODE_SIG_X_V_S    = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_S << 6),
-  OPCODE_SIG_X_V_V    = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6),
-  OPCODE_SIG_X_V_V_V  = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6) | (OPCODE_SIG_TYPE_V << 9),
-  OPCODE_SIG_V        = (OPCODE_SIG_TYPE_V),
-  OPCODE_SIG_V_O      = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_O << 3),
-  OPCODE_SIG_V_V      = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3),
-  OPCODE_SIG_V_V_O    = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_O << 6),
-  OPCODE_SIG_V_V_O_V  = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_O << 6) | (OPCODE_SIG_TYPE_V << 9),
-  OPCODE_SIG_V_V_V    = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6),
-  OPCODE_SIG_V_V_V_O  = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6) | (OPCODE_SIG_TYPE_O << 9),
-  OPCODE_SIG_V_V_V_V  = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6) | (OPCODE_SIG_TYPE_V << 9),
+  OPCODE_SIG_X = (OPCODE_SIG_TYPE_X),
+  OPCODE_SIG_X_L = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_L << 3),
+  OPCODE_SIG_X_O = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_O << 3),
+  OPCODE_SIG_X_O_V =
+      (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_O << 3) | (OPCODE_SIG_TYPE_V << 6),
+  OPCODE_SIG_X_S = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_S << 3),
+  OPCODE_SIG_X_V = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3),
+  OPCODE_SIG_X_V_L =
+      (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_L << 6),
+  OPCODE_SIG_X_V_L_L = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) |
+                       (OPCODE_SIG_TYPE_L << 6) | (OPCODE_SIG_TYPE_L << 9),
+  OPCODE_SIG_X_V_O =
+      (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_O << 6),
+  OPCODE_SIG_X_V_S =
+      (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_S << 6),
+  OPCODE_SIG_X_V_V =
+      (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6),
+  OPCODE_SIG_X_V_V_V = (OPCODE_SIG_TYPE_X) | (OPCODE_SIG_TYPE_V << 3) |
+                       (OPCODE_SIG_TYPE_V << 6) | (OPCODE_SIG_TYPE_V << 9),
+  OPCODE_SIG_V = (OPCODE_SIG_TYPE_V),
+  OPCODE_SIG_V_O = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_O << 3),
+  OPCODE_SIG_V_V = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3),
+  OPCODE_SIG_V_V_O =
+      (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_O << 6),
+  OPCODE_SIG_V_V_O_V = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) |
+                       (OPCODE_SIG_TYPE_O << 6) | (OPCODE_SIG_TYPE_V << 9),
+  OPCODE_SIG_V_V_V =
+      (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6),
+  OPCODE_SIG_V_V_V_O = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) |
+                       (OPCODE_SIG_TYPE_V << 6) | (OPCODE_SIG_TYPE_O << 9),
+  OPCODE_SIG_V_V_V_V = (OPCODE_SIG_TYPE_V) | (OPCODE_SIG_TYPE_V << 3) |
+                       (OPCODE_SIG_TYPE_V << 6) | (OPCODE_SIG_TYPE_V << 9),
 };
 
 #define GET_OPCODE_SIG_TYPE_DEST(sig) (OpcodeSignatureType)(sig & 0x7)
@@ -248,21 +238,17 @@ enum OpcodeSignature {
 #define GET_OPCODE_SIG_TYPE_SRC3(sig) (OpcodeSignatureType)((sig >> 9) & 0x7)
 
 typedef struct {
-  uint32_t    flags;
-  uint32_t    signature;
+  uint32_t flags;
+  uint32_t signature;
   const char* name;
-  Opcode      num;
+  Opcode num;
 } OpcodeInfo;
 
-
-#define DEFINE_OPCODE(num, name, sig, flags) \
-    extern const OpcodeInfo num##_info;
+#define DEFINE_OPCODE(num, name, sig, flags) extern const OpcodeInfo num##_info;
 #include <alloy/hir/opcodes.inl>
 #undef DEFINE_OPCODE
 
-
 }  // namespace hir
 }  // namespace alloy
-
 
 #endif  // ALLOY_HIR_OPCODES_H_

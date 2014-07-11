@@ -11,19 +11,18 @@
 
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
-
-namespace {
 __declspec(thread) ThreadState* thread_state_ = NULL;
-}
 
-
-ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id) :
-    runtime_(runtime), memory_(runtime->memory()),
-    thread_id_(thread_id), name_(0),
-    backend_data_(0), raw_context_(0) {
+ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id)
+    : runtime_(runtime),
+      memory_(runtime->memory()),
+      thread_id_(thread_id),
+      name_(0),
+      backend_data_(0),
+      raw_context_(0) {
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
     // set so people know what's up.
@@ -59,10 +58,9 @@ void ThreadState::Bind(ThreadState* thread_state) {
   thread_state_ = thread_state;
 }
 
-ThreadState* ThreadState::Get() {
-  return thread_state_;
-}
+ThreadState* ThreadState::Get() { return thread_state_; }
 
-uint32_t ThreadState::GetThreadID() {
-  return thread_state_->thread_id_;
-}
+uint32_t ThreadState::GetThreadID() { return thread_state_->thread_id_; }
+
+}  // namespace runtime
+}  // namespace alloy

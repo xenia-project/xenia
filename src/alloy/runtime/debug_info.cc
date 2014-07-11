@@ -9,18 +9,16 @@
 
 #include <alloy/runtime/debug_info.h>
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
-
-DebugInfo::DebugInfo() :
-    source_disasm_(0),
-    raw_hir_disasm_(0),
-    hir_disasm_(0),
-    machine_code_disasm_(0),
-    source_map_count_(0),
-    source_map_(NULL) {
-}
+DebugInfo::DebugInfo()
+    : source_disasm_(0),
+      raw_hir_disasm_(0),
+      hir_disasm_(0),
+      machine_code_disasm_(0),
+      source_map_count_(0),
+      source_map_(NULL) {}
 
 DebugInfo::~DebugInfo() {
   xe_free(source_map_);
@@ -70,3 +68,6 @@ SourceMapEntry* DebugInfo::LookupCodeOffset(uint64_t offset) {
   }
   return NULL;
 }
+
+}  // namespace runtime
+}  // namespace alloy

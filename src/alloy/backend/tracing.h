@@ -13,24 +13,20 @@
 #include <alloy/tracing/tracing.h>
 #include <alloy/tracing/event_type.h>
 
-
 namespace alloy {
 namespace backend {
 
 const uint32_t ALLOY_BACKEND = alloy::tracing::EventType::ALLOY_BACKEND;
 
-
 class EventType {
-public:
+ public:
   enum {
-    ALLOY_BACKEND_IVM                   = ALLOY_BACKEND | (1 << 24),
-    ALLOY_BACKEND_X64                   = ALLOY_BACKEND | (2 << 24),
+    ALLOY_BACKEND_IVM = ALLOY_BACKEND | (1 << 24),
+    ALLOY_BACKEND_X64 = ALLOY_BACKEND | (2 << 24),
   };
 };
 
-
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_TRACING_H_

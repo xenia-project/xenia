@@ -12,14 +12,12 @@
 
 #include <alloy/compiler/compiler_pass.h>
 
-
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class ContextPromotionPass : public CompilerPass {
-public:
+ public:
   ContextPromotionPass();
   virtual ~ContextPromotionPass();
 
@@ -27,19 +25,17 @@ public:
 
   virtual int Run(hir::HIRBuilder* builder);
 
-private:
+ private:
   void PromoteBlock(hir::Block* block);
   void RemoveDeadStoresBlock(hir::Block* block);
 
-private:
+ private:
   size_t context_values_size_;
   hir::Value** context_values_;
 };
 
-
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_

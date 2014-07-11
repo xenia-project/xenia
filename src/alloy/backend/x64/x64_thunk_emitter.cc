@@ -11,21 +11,16 @@
 
 #include <third_party/xbyak/xbyak/xbyak.h>
 
-
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
+namespace alloy {
+namespace backend {
+namespace x64 {
 
 using namespace Xbyak;
 
+X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
+    : X64Emitter(backend, allocator) {}
 
-X64ThunkEmitter::X64ThunkEmitter(
-    X64Backend* backend, XbyakAllocator* allocator) :
-    X64Emitter(backend, allocator) {
-}
-
-X64ThunkEmitter::~X64ThunkEmitter() {
-}
+X64ThunkEmitter::~X64ThunkEmitter() {}
 
 HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   // rcx = target
@@ -101,7 +96,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   // rdx = target function
   // r8  = arg0
   // r9  = arg1
-  
+
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
   // rsp + 0 = return address
   mov(qword[rsp + 8 * 2], rdx);
@@ -143,3 +138,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   void* fn = Emplace(stack_size);
   return (HostToGuestThunk)fn;
 }
+
+}  // namespace x64
+}  // namespace backend
+}  // namespace alloy

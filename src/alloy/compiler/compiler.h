@@ -13,17 +13,19 @@
 #include <alloy/core.h>
 #include <alloy/hir/hir_builder.h>
 
-namespace alloy { namespace runtime { class Runtime; } }
-
+namespace alloy {
+namespace runtime {
+class Runtime;
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace compiler {
 
 class CompilerPass;
 
-
 class Compiler {
-public:
+ public:
   Compiler(runtime::Runtime* runtime);
   ~Compiler();
 
@@ -36,7 +38,7 @@ public:
 
   int Compile(hir::HIRBuilder* builder);
 
-private:
+ private:
   runtime::Runtime* runtime_;
   Arena* scratch_arena_;
 
@@ -44,9 +46,7 @@ private:
   PassList passes_;
 };
 
-
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_COMPILER_H_

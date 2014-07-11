@@ -9,15 +9,13 @@
 
 #include <alloy/hir/opcodes.h>
 
-using namespace alloy;
-using namespace alloy::hir;
-
-
 namespace alloy {
 namespace hir {
 
 #define DEFINE_OPCODE(num, name, sig, flags) \
-    static const OpcodeInfo num##_info = { flags, sig, name, num, };
+  static const OpcodeInfo num##_info = {     \
+      flags, sig, name, num,                 \
+  };
 #include <alloy/hir/opcodes.inl>
 #undef DEFINE_OPCODE
 

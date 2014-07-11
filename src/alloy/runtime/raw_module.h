@@ -12,13 +12,11 @@
 
 #include <alloy/runtime/module.h>
 
-
 namespace alloy {
 namespace runtime {
 
-
 class RawModule : public Module {
-public:
+ public:
   RawModule(Runtime* runtime);
   virtual ~RawModule();
 
@@ -28,16 +26,14 @@ public:
 
   virtual bool ContainsAddress(uint64_t address);
 
-private:
-  char*     name_;
-  uint64_t  base_address_;
-  uint64_t  low_address_;
-  uint64_t  high_address_;
+ private:
+  char* name_;
+  uint64_t base_address_;
+  uint64_t low_address_;
+  uint64_t high_address_;
 };
-
 
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_RAW_MODULE_H_

@@ -12,26 +12,22 @@
 
 #include <alloy/compiler/compiler_pass.h>
 
-
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class ControlFlowAnalysisPass : public CompilerPass {
-public:
+ public:
   ControlFlowAnalysisPass();
   virtual ~ControlFlowAnalysisPass();
 
   virtual int Run(hir::HIRBuilder* builder);
 
-private:
+ private:
 };
-
 
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_CONTROL_FLOW_ANALYSIS_PASS_H_

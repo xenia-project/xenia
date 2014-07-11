@@ -12,12 +12,10 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 
-
 class StringBuffer {
-public:
+ public:
   StringBuffer(size_t initial_capacity = 0);
   ~StringBuffer();
 
@@ -33,14 +31,12 @@ public:
   char* ToString();
   char* EncodeBase64();
 
-private:
-  char*   buffer_;
-  size_t  capacity_;
-  size_t  offset_;
+ private:
+  char* buffer_;
+  size_t capacity_;
+  size_t offset_;
 };
 
-
 }  // namespace alloy
-
 
 #endif  // ALLOY_STRING_BUFFER_H_

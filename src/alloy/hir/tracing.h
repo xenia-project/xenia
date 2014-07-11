@@ -13,23 +13,19 @@
 #include <alloy/tracing/tracing.h>
 #include <alloy/tracing/event_type.h>
 
-
 namespace alloy {
 namespace hir {
 
 const uint32_t ALLOY_HIR = alloy::tracing::EventType::ALLOY_HIR;
 
-
 class EventType {
-public:
+ public:
   enum {
-    ALLOY_HIR_FOO                       = ALLOY_HIR | (0),
+    ALLOY_HIR_FOO = ALLOY_HIR | (0),
   };
 };
 
-
 }  // namespace hir
 }  // namespace alloy
-
 
 #endif  // ALLOY_HIR_TRACING_H_

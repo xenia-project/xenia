@@ -14,7 +14,6 @@
 
 #include <gflags/gflags.h>
 
-
 DECLARE_bool(debug);
 DECLARE_bool(always_disasm);
 
@@ -22,11 +21,5 @@ DECLARE_bool(validate_hir);
 
 DECLARE_uint64(break_on_instruction);
 DECLARE_uint64(break_on_memory);
-
-
-namespace alloy {
-
-}  // namespace alloy
-
 
 #endif  // ALLOY_ALLOY_PRIVATE_H_

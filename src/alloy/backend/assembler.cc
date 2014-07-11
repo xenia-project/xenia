@@ -11,22 +11,16 @@
 
 #include <alloy/backend/tracing.h>
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
 
+Assembler::Assembler(Backend* backend) : backend_(backend) {}
 
-Assembler::Assembler(Backend* backend) :
-    backend_(backend) {
-}
+Assembler::~Assembler() { Reset(); }
 
-Assembler::~Assembler() {
-  Reset();
-}
+int Assembler::Initialize() { return 0; }
 
-int Assembler::Initialize() {
-  return 0;
-}
+void Assembler::Reset() {}
 
-void Assembler::Reset() {
-}
+}  // namespace backend
+}  // namespace alloy

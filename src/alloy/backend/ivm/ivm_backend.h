@@ -14,17 +14,14 @@
 
 #include <alloy/backend/backend.h>
 
-
 namespace alloy {
 namespace backend {
 namespace ivm {
 
-
 #define ALLOY_HAS_IVM_BACKEND 1
 
-
 class IVMBackend : public Backend {
-public:
+ public:
   IVMBackend(runtime::Runtime* runtime);
   virtual ~IVMBackend();
 
@@ -36,10 +33,8 @@ public:
   virtual Assembler* CreateAssembler();
 };
 
-
 }  // namespace ivm
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_IVM_IVM_BACKEND_H_

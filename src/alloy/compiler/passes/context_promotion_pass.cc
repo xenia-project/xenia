@@ -14,22 +14,24 @@
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
 
-using namespace alloy;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
-using namespace alloy::hir;
-using namespace alloy::runtime;
-
-
 DEFINE_bool(store_all_context_values, false,
             "Don't strip dead context stores to aid in debugging.");
 
+namespace alloy {
+namespace compiler {
+namespace passes {
 
-ContextPromotionPass::ContextPromotionPass() :
-    context_values_size_(0), context_values_(0),
-    CompilerPass() {
-}
+// TODO(benvanik): remove when enums redefined.
+using namespace alloy::hir;
+
+using alloy::frontend::ContextInfo;
+using alloy::hir::Block;
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::Value;
+
+ContextPromotionPass::ContextPromotionPass()
+    : context_values_size_(0), context_values_(0), CompilerPass() {}
 
 ContextPromotionPass::~ContextPromotionPass() {
   if (context_values_) {
@@ -70,7 +72,7 @@ int ContextPromotionPass::Run(HIRBuilder* builder) {
 
   // Promote loads to values.
   // Process each block independently, for now.
-  Block* block = builder->first_block();
+  auto block = builder->first_block();
   while (block) {
     PromoteBlock(block);
     block = block->next;
@@ -121,7 +123,7 @@ void ContextPromotionPass::PromoteBlock(Block* block) {
 void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
   // TODO(benvanik): use a bitvector.
   // To avoid clearing the structure, we use a token.
-  Value* token = (Value*)block;
+  auto token = (Value*)block;
 
   // Walk backwards and mark offsets that are written to.
   // If the offset was written to earlier, ignore the store.
@@ -141,3 +143,7 @@ void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
     i = prev;
   }
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

@@ -15,7 +15,6 @@
 
 #include <alloy/core.h>
 
-
 namespace alloy {
 namespace runtime {
 
@@ -25,14 +24,14 @@ class FunctionInfo;
 class Runtime;
 class ThreadState;
 
-
 class Breakpoint {
-public:
+ public:
   enum Type {
     TEMP_TYPE,
     CODE_TYPE,
   };
-public:
+
+ public:
   Breakpoint(Type type, uint64_t address);
   ~Breakpoint();
 
@@ -42,42 +41,41 @@ public:
   const char* id() const { return id_.c_str(); }
   void set_id(const char* id) { id_ = id; }
 
-private:
+ private:
   Type type_;
   uint64_t address_;
 
   std::string id_;
 };
 
-
 class DebugEvent {
-public:
-  DebugEvent(Debugger* debugger) :
-      debugger_(debugger) {}
+ public:
+  DebugEvent(Debugger* debugger) : debugger_(debugger) {}
   virtual ~DebugEvent() {}
   Debugger* debugger() const { return debugger_; }
-protected:
+
+ protected:
   Debugger* debugger_;
 };
 
-
 class BreakpointHitEvent : public DebugEvent {
-public:
-  BreakpointHitEvent(
-      Debugger* debugger, ThreadState* thread_state, Breakpoint* breakpoint) :
-      thread_state_(thread_state), breakpoint_(breakpoint),
-      DebugEvent(debugger) {}
+ public:
+  BreakpointHitEvent(Debugger* debugger, ThreadState* thread_state,
+                     Breakpoint* breakpoint)
+      : thread_state_(thread_state),
+        breakpoint_(breakpoint),
+        DebugEvent(debugger) {}
   virtual ~BreakpointHitEvent() {}
   ThreadState* thread_state() const { return thread_state_; }
   Breakpoint* breakpoint() const { return breakpoint_; }
-protected:
+
+ protected:
   ThreadState* thread_state_;
   Breakpoint* breakpoint_;
 };
 
-
 class Debugger {
-public:
+ public:
   Debugger(Runtime* runtime);
   ~Debugger();
 
@@ -87,12 +85,12 @@ public:
   int ResumeThread(uint32_t thread_id);
   int ResumeAllThreads(bool force = false);
 
-  void ForEachThread(std::function<void (ThreadState*)> callback);
+  void ForEachThread(std::function<void(ThreadState*)> callback);
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
-  void FindBreakpoints(
-      uint64_t address, std::vector<Breakpoint*>& out_breakpoints);
+  void FindBreakpoints(uint64_t address,
+                       std::vector<Breakpoint*>& out_breakpoints);
 
   void OnThreadCreated(ThreadState* thread_state);
   void OnThreadDestroyed(ThreadState* thread_state);
@@ -100,10 +98,10 @@ public:
 
   void OnBreakpointHit(ThreadState* thread_state, Breakpoint* breakpoint);
 
-public:
+ public:
   Delegate<BreakpointHitEvent> breakpoint_hit;
 
-private:
+ private:
   Runtime* runtime_;
 
   std::mutex threads_lock_;
@@ -115,9 +113,7 @@ private:
   BreakpointMultimap breakpoints_;
 };
 
-
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_DEBUGGER_H_

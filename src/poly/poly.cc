@@ -10,6 +10,4 @@
 #include <poly/poly.h>
 #include <poly/poly-private.h>
 
-namespace poly {
-
-}  // namespace poly
+namespace poly {}  // namespace poly

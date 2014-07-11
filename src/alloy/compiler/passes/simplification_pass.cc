@@ -9,18 +9,20 @@
 
 #include <alloy/compiler/passes/simplification_pass.h>
 
-using namespace alloy;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
 
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::Value;
 
-SimplificationPass::SimplificationPass() :
-    CompilerPass() {
-}
+SimplificationPass::SimplificationPass() : CompilerPass() {}
 
-SimplificationPass::~SimplificationPass() {
-}
+SimplificationPass::~SimplificationPass() {}
 
 int SimplificationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -65,7 +67,7 @@ void SimplificationPass::CheckTruncate(Instr* i) {
   // Walk backward up src's chain looking for an extend. We may have
   // assigns, so skip those.
   auto src = i->src1.value;
-  Instr* def = src->def;
+  auto def = src->def;
   while (def && def->opcode == &OPCODE_ASSIGN_info) {
     // Skip asignments.
     def = def->src1.value->def;
@@ -93,7 +95,7 @@ void SimplificationPass::CheckByteSwap(Instr* i) {
   // Walk backward up src's chain looking for a byte swap. We may have
   // assigns, so skip those.
   auto src = i->src1.value;
-  Instr* def = src->def;
+  auto def = src->def;
   while (def && def->opcode == &OPCODE_ASSIGN_info) {
     // Skip asignments.
     def = def->src1.value->def;
@@ -147,11 +149,11 @@ void SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
 }
 
 Value* SimplificationPass::CheckValue(Value* value) {
-  Instr* def = value->def;
+  auto def = value->def;
   if (def && def->opcode == &OPCODE_ASSIGN_info) {
     // Value comes from an assignment - recursively find if it comes from
     // another assignment. It probably doesn't, if we already replaced it.
-    Value* replacement = def->src1.value;
+    auto replacement = def->src1.value;
     while (true) {
       def = replacement->def;
       if (!def || def->opcode != &OPCODE_ASSIGN_info) {
@@ -163,3 +165,7 @@ Value* SimplificationPass::CheckValue(Value* value) {
   }
   return value;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

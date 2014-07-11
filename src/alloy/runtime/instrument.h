@@ -14,7 +14,6 @@
 
 XEDECLARECLASS1(alloy, Memory);
 
-
 namespace alloy {
 namespace runtime {
 
@@ -22,9 +21,8 @@ class Function;
 class Runtime;
 class ThreadState;
 
-
 class Instrument {
-public:
+ public:
   Instrument(Runtime* runtime);
   virtual ~Instrument();
 
@@ -35,15 +33,14 @@ public:
   virtual bool Attach();
   virtual bool Detach();
 
-private:
-  Runtime*  runtime_;
-  Memory*   memory_;
-  bool      is_attached_;
+ private:
+  Runtime* runtime_;
+  Memory* memory_;
+  bool is_attached_;
 };
 
-
 class FunctionInstrument : public Instrument {
-public:
+ public:
   FunctionInstrument(Runtime* runtime, Function* function);
   virtual ~FunctionInstrument() {}
 
@@ -52,13 +49,13 @@ public:
   virtual bool Attach();
   virtual bool Detach();
 
-public:
+ public:
   void Enter(ThreadState* thread_state);
   void Exit(ThreadState* thread_state);
 
-protected:
+ protected:
   class Instance {
-  public:
+   public:
     Instance(FunctionInstrument* instrument) : instrument_(instrument) {}
     virtual ~Instance() {}
 
@@ -75,17 +72,16 @@ protected:
     //     Call(target_fn/address)
     //     Return(opt_value)
 
-  private:
+   private:
     FunctionInstrument* instrument_;
   };
 
-private:
+ private:
   Function* target_;
 };
 
-
 class MemoryInstrument : public Instrument {
-public:
+ public:
   MemoryInstrument(Runtime* runtime, uint64_t address, uint64_t end_address);
   virtual ~MemoryInstrument() {}
 
@@ -95,33 +91,32 @@ public:
   virtual bool Attach();
   virtual bool Detach();
 
-public:
+ public:
   enum AccessType {
     ACCESS_READ = (1 << 1),
     ACCESS_WRITE = (1 << 2),
   };
   void Access(ThreadState* thread_state, uint64_t address, AccessType type);
 
-protected:
+ protected:
   class Instance {
-  public:
+   public:
     Instance(MemoryInstrument* instrument) : instrument_(instrument) {}
     virtual ~Instance() {}
 
     MemoryInstrument* instrument() const { return instrument_; }
 
-    virtual void OnAccess(
-        ThreadState* thread_state, uint64_t address, AccessType type) = 0;
+    virtual void OnAccess(ThreadState* thread_state, uint64_t address,
+                          AccessType type) = 0;
 
-  private:
+   private:
     MemoryInstrument* instrument_;
   };
 
-private:
+ private:
   uint64_t address_;
   uint64_t end_address_;
 };
-
 
 // ThreadInstrument
 //   (v Detach())
@@ -141,9 +136,7 @@ private:
 //     v OnUnload(context)
 //     // get proc address?
 
-
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_INSTRUMENT_H_

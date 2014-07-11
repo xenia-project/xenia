@@ -12,24 +12,20 @@
 
 #include <alloy/backend/tracing.h>
 
-
 namespace alloy {
 namespace backend {
 namespace ivm {
 
-const uint32_t ALLOY_BACKEND_IVM =
-    alloy::backend::EventType::ALLOY_BACKEND_IVM;
-
+const uint32_t ALLOY_BACKEND_IVM = alloy::backend::EventType::ALLOY_BACKEND_IVM;
 
 class EventType {
-public:
+ public:
   enum {
-    ALLOY_BACKEND_IVM_INIT              = ALLOY_BACKEND_IVM | (1),
-    ALLOY_BACKEND_IVM_DEINIT            = ALLOY_BACKEND_IVM | (2),
-
-    ALLOY_BACKEND_IVM_ASSEMBLER         = ALLOY_BACKEND_IVM | (1 << 20),
-    ALLOY_BACKEND_IVM_ASSEMBLER_INIT    = ALLOY_BACKEND_IVM_ASSEMBLER | (1),
-    ALLOY_BACKEND_IVM_ASSEMBLER_DEINIT  = ALLOY_BACKEND_IVM_ASSEMBLER | (2),
+    ALLOY_BACKEND_IVM_INIT = ALLOY_BACKEND_IVM | (1),
+    ALLOY_BACKEND_IVM_DEINIT = ALLOY_BACKEND_IVM | (2),
+    ALLOY_BACKEND_IVM_ASSEMBLER = ALLOY_BACKEND_IVM | (1 << 20),
+    ALLOY_BACKEND_IVM_ASSEMBLER_INIT = ALLOY_BACKEND_IVM_ASSEMBLER | (1),
+    ALLOY_BACKEND_IVM_ASSEMBLER_DEINIT = ALLOY_BACKEND_IVM_ASSEMBLER | (2),
   };
 
   typedef struct Init_s {
@@ -47,10 +43,8 @@ public:
   } AssemblerDeinit;
 };
 
-
 }  // namespace ivm
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_IVM_TRACING_H_
