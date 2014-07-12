@@ -32,7 +32,7 @@ STFSContainerEntry::~STFSContainerEntry() {
 }
 
 X_STATUS STFSContainerEntry::QueryInfo(XFileInfo* out_info) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
   out_info->creation_time     = stfs_entry_->update_timestamp;
   out_info->last_access_time  = stfs_entry_->access_timestamp;
   out_info->last_write_time   = stfs_entry_->update_timestamp;
@@ -45,7 +45,7 @@ X_STATUS STFSContainerEntry::QueryInfo(XFileInfo* out_info) {
 
 X_STATUS STFSContainerEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, const char* file_name, bool restart) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
 
   if (restart && stfs_entry_iterator_ != stfs_entry_->children.end()) {
     stfs_entry_iterator_ = stfs_entry_->children.end();

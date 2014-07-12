@@ -168,7 +168,7 @@ SHIM_CALL DbgPrint_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 8 || arg_size == 4);
+      assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
           uint64_t value = arg_index < 7
@@ -179,7 +179,7 @@ SHIM_CALL DbgPrint_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
       else if (arg_size == 4) {
@@ -192,13 +192,13 @@ SHIM_CALL DbgPrint_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
     }
     else if (*end == 'n')
     {
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = arg_index < 7
           ? SHIM_GET_ARG_32(1 + arg_index)
@@ -207,7 +207,7 @@ SHIM_CALL DbgPrint_shim(
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else if (*end == 's' ||
@@ -216,7 +216,7 @@ SHIM_CALL DbgPrint_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = arg_index < 7
           ? SHIM_GET_ARG_32(1 + arg_index)
@@ -227,11 +227,11 @@ SHIM_CALL DbgPrint_shim(
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else {
-      XEASSERT(false);
+      assert_true(false);
       break;
     }
 
@@ -271,7 +271,7 @@ SHIM_CALL RtlRaiseException_shim(
     // SetThreadName. FFS.
     uint32_t thread_info_ptr = record_ptr + 20;
     uint32_t type = SHIM_MEM_32(thread_info_ptr + 0);
-    XEASSERT(type == 0x1000);
+    assert_true(type == 0x1000);
     uint32_t name_ptr = SHIM_MEM_32(thread_info_ptr + 4);
     uint32_t thread_id = SHIM_MEM_32(thread_info_ptr + 8);
 

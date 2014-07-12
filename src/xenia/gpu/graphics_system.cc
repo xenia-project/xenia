@@ -72,7 +72,7 @@ void GraphicsSystem::ThreadStart() {
 
   // Initialize driver and ringbuffer.
   Initialize();
-  XEASSERTNOTNULL(driver_);
+  assert_not_null(driver_);
   SetEvent(thread_wait_);
 
   // Main run loop.
@@ -128,7 +128,7 @@ void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
   while (!driver_) {
     Sleep(0);
   }
-  XEASSERTNOTNULL(driver_);
+  assert_not_null(driver_);
   command_processor_->Initialize(driver_, ptr, page_count);
 }
 
@@ -154,7 +154,7 @@ uint64_t GraphicsSystem::ReadRegister(uint64_t addr) {
     return 1;
   }
 
-  XEASSERT(r >= 0 && r < RegisterFile::kRegisterCount);
+  assert_true(r >= 0 && r < RegisterFile::kRegisterCount);
   return regs->values[r].u32;
 }
 
@@ -175,7 +175,7 @@ void GraphicsSystem::WriteRegister(uint64_t addr, uint64_t value) {
       break;
   }
 
-  XEASSERT(r >= 0 && r < RegisterFile::kRegisterCount);
+  assert_true(r >= 0 && r < RegisterFile::kRegisterCount);
   regs->values[r].u32 = (uint32_t)value;
 }
 

@@ -32,7 +32,7 @@ XenonThreadState::XenonThreadState(
 
   // Allocate with 64b alignment.
   context_ = (PPCContext*)xe_malloc_aligned(sizeof(PPCContext));
-  XEASSERT(((uint64_t)context_ & 0xF) == 0);
+  assert_true(((uint64_t)context_ & 0xF) == 0);
   xe_zero_struct(context_, sizeof(PPCContext));
 
   // Stash pointers to common structures that callbacks may need.

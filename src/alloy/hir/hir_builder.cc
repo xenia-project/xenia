@@ -114,7 +114,7 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
                     value->constant.v128.w);
         break;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         break;
     }
   } else {
@@ -276,12 +276,12 @@ void HIRBuilder::AssertNoCycles() {
   while ((hare = hare->next)) {
     if (hare == tortoise) {
       // Cycle!
-      XEASSERTALWAYS();
+      assert_always();
     }
     hare = hare->next;
     if (hare == tortoise) {
       // Cycle!
-      XEASSERTALWAYS();
+      assert_always();
     }
     tortoise = tortoise->next;
     if (!hare || !tortoise) {
@@ -937,7 +937,7 @@ Value* HIRBuilder::LoadConstant(const vec128_t& value) {
 }
 
 Value* HIRBuilder::LoadVectorShl(Value* sh) {
-  XEASSERT(sh->type == INT8_TYPE);
+  assert_true(sh->type == INT8_TYPE);
   Instr* i =
       AppendInstr(OPCODE_LOAD_VECTOR_SHL_info, 0, AllocValue(VEC128_TYPE));
   i->set_src1(sh);
@@ -946,7 +946,7 @@ Value* HIRBuilder::LoadVectorShl(Value* sh) {
 }
 
 Value* HIRBuilder::LoadVectorShr(Value* sh) {
-  XEASSERT(sh->type == INT8_TYPE);
+  assert_true(sh->type == INT8_TYPE);
   Instr* i =
       AppendInstr(OPCODE_LOAD_VECTOR_SHR_info, 0, AllocValue(VEC128_TYPE));
   i->set_src1(sh);
@@ -1050,7 +1050,7 @@ Value* HIRBuilder::Min(Value* value1, Value* value2) {
 }
 
 Value* HIRBuilder::Select(Value* cond, Value* value1, Value* value2) {
-  XEASSERT(cond->type == INT8_TYPE);  // for now
+  assert_true(cond->type == INT8_TYPE);  // for now
   ASSERT_TYPES_EQUAL(value1, value2);
 
   if (cond->IsConstant()) {
@@ -1233,7 +1233,7 @@ Value* HIRBuilder::Add(Value* value1, Value* value2,
 Value* HIRBuilder::AddWithCarry(Value* value1, Value* value2, Value* value3,
                                 uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
-  XEASSERT(value3->type == INT8_TYPE);
+  assert_true(value3->type == INT8_TYPE);
 
   Instr* i = AppendInstr(OPCODE_ADD_CARRY_info, arithmetic_flags,
                          AllocValue(value1->type));
@@ -1250,7 +1250,7 @@ Value* HIRBuilder::VectorAdd(Value* value1, Value* value2, TypeName part_type,
 
   // This is shady.
   uint32_t flags = part_type | (arithmetic_flags << 8);
-  XEASSERTZERO(flags >> 16);
+  assert_zero(flags >> 16);
 
   Instr* i = AppendInstr(OPCODE_VECTOR_ADD_info, (uint16_t)flags,
                          AllocValue(value1->type));
@@ -1701,7 +1701,7 @@ Value* HIRBuilder::Permute(Value* control, Value* value1, Value* value2,
 Value* HIRBuilder::Swizzle(Value* value, TypeName part_type,
                            uint32_t swizzle_mask) {
   // For now.
-  XEASSERT(part_type == INT32_TYPE || part_type == FLOAT32_TYPE);
+  assert_true(part_type == INT32_TYPE || part_type == FLOAT32_TYPE);
 
   if (swizzle_mask == SWIZZLE_XYZW_TO_XYZW) {
     return Assign(value);

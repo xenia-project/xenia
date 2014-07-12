@@ -1,9 +1,11 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'assert.h',
     'config.h',
     'cxx_compat.h',
     'math.h',
+    'platform.h',
     'poly-private.h',
     'poly.cc',
     'poly.h',

@@ -144,10 +144,10 @@ void CommandProcessor::ExecutePrimaryBuffer(
   uint32_t n = 0;
   while (args.ptr != end_ptr) {
     n += ExecutePacket(args);
-    XEASSERT(args.ptr < args.max_address);
+    assert_true(args.ptr < args.max_address);
   }
   if (end_index > start_index) {
-    XEASSERT(n == (end_index - start_index));
+    assert_true(n == (end_index - start_index));
   }
 
   XETRACECP("           ExecutePrimaryBuffer End");
@@ -164,7 +164,7 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
   args.ptr_mask     = 0;
   for (uint32_t n = 0; n < length;) {
     n += ExecutePacket(args);
-    XEASSERT(n <= length);
+    assert_true(n <= length);
   }
 
   XETRACECP("           ExecuteIndirectBuffer End");
@@ -343,7 +343,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
               value = GpuSwap(value, endianness);
             } else {
               // Register.
-              XEASSERT(poll_reg_addr < RegisterFile::kRegisterCount);
+              assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
               value = regs->values[poll_reg_addr].u32;
               if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
                 MakeCoherent();
@@ -438,7 +438,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
             value = GpuSwap(value, endianness);
           } else {
             // Register.
-            XEASSERT(poll_reg_addr < RegisterFile::kRegisterCount);
+            assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
             value = regs->values[poll_reg_addr].u32;
           }
           bool matched = false;
@@ -496,7 +496,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
             // Just an event flag? Where does this write?
           } else {
             // Write to an address.
-            XEASSERTALWAYS();
+            assert_always();
             ADVANCE_PTR(count - 1);
           }
         }
@@ -564,7 +564,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
               draw_command_.index_buffer = nullptr;
             } else {
               // Unknown source select.
-              XEASSERTALWAYS();
+              assert_always();
             }
             driver_->Draw(draw_command_);
           } else {
@@ -584,7 +584,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
           uint32_t index_count = d0 >> 16;
           uint32_t prim_type = d0 & 0x3F;
           uint32_t src_sel = (d0 >> 6) & 0x3;
-          XEASSERT(src_sel == 0x2); // 'SrcSel=AutoIndex'
+          assert_true(src_sel == 0x2); // 'SrcSel=AutoIndex'
           if (!driver_->PrepareDraw(draw_command_)) {
             draw_command_.prim_type = (XE_GPU_PRIMITIVE_TYPE)prim_type;
             draw_command_.start_index = 0;
@@ -619,7 +619,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
             }
             break;
           default:
-            XEASSERTALWAYS();
+            assert_always();
             break;
           }
         }
@@ -660,7 +660,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
           uint32_t start_size = READ_PTR();
           uint32_t start = start_size >> 16;
           uint32_t size = start_size & 0xFFFF; // dwords
-          XEASSERT(start == 0);
+          assert_true(start == 0);
           driver_->LoadShader((XE_GPU_SHADER_TYPE)type,
                               GpuToCpu(packet_ptr, addr), size * 4, start);
         }
@@ -675,9 +675,9 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
           uint32_t start_size = READ_PTR();
           uint32_t start = start_size >> 16;
           uint32_t size = start_size & 0xFFFF; // dwords
-          XEASSERT(start == 0);
+          assert_true(start == 0);
           // TODO(benvanik): figure out if this could wrap.
-          XEASSERT(args.ptr + size * 4 < args.max_address);
+          assert_true(args.ptr + size * 4 < args.max_address);
           driver_->LoadShader((XE_GPU_SHADER_TYPE)type,
                               args.ptr, size * 4, start);
           ADVANCE_PTR(size);
@@ -751,7 +751,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
 void CommandProcessor::WriteRegister(
     uint32_t packet_ptr, uint32_t index, uint32_t value) {
   RegisterFile* regs = driver_->register_file();
-  XEASSERT(index < RegisterFile::kRegisterCount);
+  assert_true(index < RegisterFile::kRegisterCount);
   regs->values[index].u32 = value;
 
   // If this is a COHER register, set the dirty flag.

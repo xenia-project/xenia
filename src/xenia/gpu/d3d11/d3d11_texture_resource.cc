@@ -136,13 +136,13 @@ int D3D11TextureResource::CreateHandle2D() {
 
 int D3D11TextureResource::CreateHandle3D() {
   XELOGE("D3D11: CreateTexture3D not yet implemented");
-  XEASSERTALWAYS();
+  assert_always();
   return 1;
 }
 
 int D3D11TextureResource::CreateHandleCube() {
   XELOGE("D3D11: CreateTextureCube not yet implemented");
-  XEASSERTALWAYS();
+  assert_always();
   return 1;
 }
 

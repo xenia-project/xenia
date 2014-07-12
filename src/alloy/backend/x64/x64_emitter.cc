@@ -140,7 +140,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   //     Adding or changing anything here must be matched!
   const bool emit_prolog = true;
   const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
-  XEASSERT((stack_size + 8) % 16 == 0);
+  assert_true((stack_size + 8) % 16 == 0);
   out_stack_size = stack_size;
   stack_size_ = stack_size;
   if (emit_prolog) {
@@ -167,7 +167,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
       const Instr* new_tail = instr;
       if (!SelectSequence(*this, instr, &new_tail)) {
         // No sequence found!
-        XEASSERTALWAYS();
+        assert_always();
         XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
         break;
       }
@@ -231,7 +231,7 @@ void X64Emitter::Trap(uint16_t trap_type) {
 void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
   // TODO(benvanik): notify debugger.
   db(0xCC);
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 // Total size of ResolveFunctionSymbol call site in bytes.
@@ -259,7 +259,7 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
   // Resolve function. This will demand compile as required.
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
-  XEASSERTNOTNULL(fn);
+  assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
 
@@ -307,7 +307,7 @@ void X64Emitter::Call(const hir::Instr* instr,
     // 5b
     ReloadECX();
     size_t total_size = getSize() - start;
-    XEASSERT(total_size == TOTAL_RESOLVE_SIZE);
+    assert_true(total_size == TOTAL_RESOLVE_SIZE);
     // EDX overwritten, don't bother reloading.
   }
 
@@ -334,7 +334,7 @@ uint64_t ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
 
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(target_address, &fn);
-  XEASSERTNOTNULL(fn);
+  assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   return reinterpret_cast<uint64_t>(x64_fn->machine_code());
 }
@@ -375,7 +375,7 @@ uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
 }
 void X64Emitter::CallExtern(const hir::Instr* instr,
                             const FunctionInfo* symbol_info) {
-  XEASSERT(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
+  assert_true(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
   if (!symbol_info->extern_handler()) {
     CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
   } else {

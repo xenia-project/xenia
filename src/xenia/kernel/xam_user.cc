@@ -136,7 +136,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   // 0xfffe07d1 = profile?
 
   // TODO(benvanik): implement overlapped support
-  XEASSERTZERO(overlapped_ptr);
+  assert_zero(overlapped_ptr);
 
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.

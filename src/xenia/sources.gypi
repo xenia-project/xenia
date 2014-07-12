@@ -1,7 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'assert.h',
     'atomic.h',
     'byte_order.h',
     'common.h',

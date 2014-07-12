@@ -97,7 +97,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
   if (v->def && v->def->block != block) {    \
     incoming_values.set(v->ordinal);         \
   }                                          \
-  XEASSERT(v->ordinal < max_value_estimate); \
+  assert_true(v->ordinal < max_value_estimate); \
   value_map[v->ordinal] = v;
       if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
         SET_INCOMING_VALUE(instr->src1.value);
@@ -128,7 +128,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     auto outgoing_ordinal = outgoing_values.find_first();
     while (outgoing_ordinal != -1) {
       Value* src_value = value_map[outgoing_ordinal];
-      XEASSERTNOTNULL(src_value);
+      assert_not_null(src_value);
       if (!src_value->local_slot) {
         src_value->local_slot = builder->AllocLocal(src_value->type);
       }
@@ -142,7 +142,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
         while (def_next && def_next->opcode->flags & OPCODE_FLAG_PAIRED_PREV) {
           def_next = def_next->next;
         }
-        XEASSERTNOTNULL(def_next);
+        assert_not_null(def_next);
         builder->last_instr()->MoveBefore(def_next);
 
         // We don't need it in the incoming list.
@@ -153,7 +153,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
         while (tail && tail->opcode->flags & OPCODE_FLAG_BRANCH) {
           tail = tail->prev;
         }
-        XEASSERTNOTZERO(tail);
+        assert_not_zero(tail);
         builder->last_instr()->MoveBefore(tail->next);
       }
 
@@ -164,7 +164,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     auto incoming_ordinal = incoming_values.find_first();
     while (incoming_ordinal != -1) {
       Value* src_value = value_map[incoming_ordinal];
-      XEASSERTNOTNULL(src_value);
+      assert_not_null(src_value);
       if (!src_value->local_slot) {
         src_value->local_slot = builder->AllocLocal(src_value->type);
       }

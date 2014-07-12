@@ -28,7 +28,7 @@ void xeKeBugCheckEx(uint32_t code, uint32_t param1, uint32_t param2, uint32_t pa
   XELOGD("*** STOP: 0x%.8X (0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X)", code, param1, param2, param3, param4);
   fflush(stdout);
   DebugBreak();
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 SHIM_CALL KeBugCheck_shim(

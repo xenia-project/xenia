@@ -16,6 +16,7 @@
 // http://en.cppreference.com/w/cpp/language/storage_duration
 #if XE_COMPILER_MSVC
 // VC++2014 may have this.
+#define _ALLOW_KEYWORD_MACROS 1
 #define thread_local __declspec(thread)
 #elif XE_LIKE_OSX
 // Clang supports it on OSX but the runtime doesn't.

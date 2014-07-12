@@ -100,7 +100,7 @@ bool Window::OnResize(uint32_t width, uint32_t height) {
 }
 
 void Window::EndResizing() {
-  XEASSERT(resizing_);
+  assert_true(resizing_);
   resizing_ = false;
   auto e = UIEvent(this);
   resized(e);

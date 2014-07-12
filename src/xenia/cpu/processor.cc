@@ -68,7 +68,7 @@ Processor::~Processor() {
 }
 
 int Processor::Setup() {
-  XEASSERTNULL(runtime_);
+  assert_null(runtime_);
 
   runtime_ = new XenonRuntime(memory_, export_resolver_);
   if (!runtime_) {
@@ -127,7 +127,7 @@ uint64_t Processor::Execute(
   SCOPE_profile_cpu_f("cpu");
 
   PPCContext* context = thread_state->context();
-  XEASSERT(arg_count <= 5);
+  assert_true(arg_count <= 5);
   for (size_t i = 0; i < arg_count; ++i) {
     context->r[3 + i] = args[i];
   }

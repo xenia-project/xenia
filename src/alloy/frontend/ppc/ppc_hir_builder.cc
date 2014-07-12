@@ -206,7 +206,7 @@ Value* PPCHIRBuilder::LoadLR() {
 }
 
 void PPCHIRBuilder::StoreLR(Value* value) {
-  XEASSERT(value->type == INT64_TYPE);
+  assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, lr), value);
 }
 
@@ -215,12 +215,12 @@ Value* PPCHIRBuilder::LoadCTR() {
 }
 
 void PPCHIRBuilder::StoreCTR(Value* value) {
-  XEASSERT(value->type == INT64_TYPE);
+  assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, ctr), value);
 }
 
 Value* PPCHIRBuilder::LoadCR(uint32_t n) {
-  XEASSERTALWAYS();
+  assert_always();
   return 0;
 }
 
@@ -230,7 +230,7 @@ Value* PPCHIRBuilder::LoadCRField(uint32_t n, uint32_t bit) {
 
 void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
   // TODO(benvanik): split bits out and store in values.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, bool is_signed) {
@@ -271,23 +271,23 @@ Value* PPCHIRBuilder::LoadFPSCR() {
 }
 
 void PPCHIRBuilder::StoreFPSCR(Value* value) {
-  XEASSERT(value->type == INT64_TYPE);
+  assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, fpscr), value);
 }
 
 Value* PPCHIRBuilder::LoadXER() {
-  XEASSERTALWAYS();
+  assert_always();
   return NULL;
 }
 
-void PPCHIRBuilder::StoreXER(Value* value) { XEASSERTALWAYS(); }
+void PPCHIRBuilder::StoreXER(Value* value) { assert_always(); }
 
 Value* PPCHIRBuilder::LoadCA() {
   return LoadContext(offsetof(PPCContext, xer_ca), INT8_TYPE);
 }
 
 void PPCHIRBuilder::StoreCA(Value* value) {
-  XEASSERT(value->type == INT8_TYPE);
+  assert_true(value->type == INT8_TYPE);
   StoreContext(offsetof(PPCContext, xer_ca), value);
 }
 
@@ -305,7 +305,7 @@ Value* PPCHIRBuilder::LoadGPR(uint32_t reg) {
 }
 
 void PPCHIRBuilder::StoreGPR(uint32_t reg, Value* value) {
-  XEASSERT(value->type == INT64_TYPE);
+  assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, r) + reg * 8, value);
 }
 
@@ -314,7 +314,7 @@ Value* PPCHIRBuilder::LoadFPR(uint32_t reg) {
 }
 
 void PPCHIRBuilder::StoreFPR(uint32_t reg, Value* value) {
-  XEASSERT(value->type == FLOAT64_TYPE);
+  assert_true(value->type == FLOAT64_TYPE);
   StoreContext(offsetof(PPCContext, f) + reg * 8, value);
 }
 
@@ -323,7 +323,7 @@ Value* PPCHIRBuilder::LoadVR(uint32_t reg) {
 }
 
 void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
-  XEASSERT(value->type == VEC128_TYPE);
+  assert_true(value->type == VEC128_TYPE);
   StoreContext(offsetof(PPCContext, v) + reg * 16, value);
 }
 

@@ -54,7 +54,7 @@ HostPathEntry::~HostPathEntry() {
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
 X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
 
   WIN32_FILE_ATTRIBUTE_DATA data;
   if (!GetFileAttributesEx(
@@ -75,7 +75,7 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
 
 X_STATUS HostPathEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, const char* file_name, bool restart) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
 
   WIN32_FIND_DATA ffd;
 

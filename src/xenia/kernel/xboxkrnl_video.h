@@ -36,7 +36,7 @@ typedef struct {
 }
 X_VIDEO_MODE;
 #pragma pack(pop)
-XEASSERTSTRUCTSIZE(X_VIDEO_MODE, 48);
+static_assert_size(X_VIDEO_MODE, 48);
 
 void xeVdGetCurrentDisplayGamma(uint32_t* arg0, float* arg1);
 uint32_t xeVdQueryVideoFlags();

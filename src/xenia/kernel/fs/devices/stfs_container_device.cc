@@ -100,11 +100,11 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
 
 
 X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
+  assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
 X_STATUS STFSContainerDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
+  assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }

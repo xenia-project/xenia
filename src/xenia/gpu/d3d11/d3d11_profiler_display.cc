@@ -140,7 +140,7 @@ D3D11ProfilerDisplay::D3D11ProfilerDisplay(D3D11Window* window) : window_(window
       !SetupShaders() ||
       !SetupFont()) {
     // Hrm.
-    XEASSERTALWAYS();
+    assert_always();
   }
 
   // Pass through mouse events.
@@ -183,7 +183,7 @@ bool D3D11ProfilerDisplay::SetupState() {
   blend_desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
   blend_desc.RenderTarget[0].RenderTargetWriteMask = 0x0F;
   hr = device->CreateBlendState(&blend_desc, &blend_state_);
-  XEASSERT(SUCCEEDED(hr));
+  assert_true(SUCCEEDED(hr));
 
   D3D11_DEPTH_STENCIL_DESC depth_stencil_desc;
   xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
@@ -191,7 +191,7 @@ bool D3D11ProfilerDisplay::SetupState() {
   depth_stencil_desc.StencilEnable = false;
   depth_stencil_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
   hr = device->CreateDepthStencilState(&depth_stencil_desc, &depth_stencil_state_);
-  XEASSERT(SUCCEEDED(hr));
+  assert_true(SUCCEEDED(hr));
 
   return true;
 }
@@ -484,7 +484,7 @@ D3D11ProfilerDisplay::Vertex* D3D11ProfilerDisplay::AllocateVertices(
   if (draw_state_.vertex_index + count > XECOUNT(draw_state_.vertex_buffer)) {
     Flush();
   }
-  XEASSERT(draw_state_.vertex_index + count <= XECOUNT(draw_state_.vertex_buffer));
+  assert_true(draw_state_.vertex_index + count <= XECOUNT(draw_state_.vertex_buffer));
 
   size_t head = draw_state_.vertex_index;
   draw_state_.vertex_index += count;
@@ -493,7 +493,7 @@ D3D11ProfilerDisplay::Vertex* D3D11ProfilerDisplay::AllocateVertices(
       draw_state_.commands[draw_state_.command_index - 1].primitive == primitive) {
     draw_state_.commands[draw_state_.command_index - 1].vertex_count += count;
   } else {
-    XEASSERT(draw_state_.command_index < XECOUNT(draw_state_.commands));
+    assert_true(draw_state_.command_index < XECOUNT(draw_state_.commands));
     draw_state_.commands[draw_state_.command_index].primitive = primitive;
     draw_state_.commands[draw_state_.command_index].vertex_count = count;
     ++draw_state_.command_index;
@@ -511,7 +511,7 @@ void D3D11ProfilerDisplay::Flush() {
   context->Map(vertex_buffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
   memcpy(res.pData, draw_state_.vertex_buffer, sizeof(Vertex) * draw_state_.vertex_index);
   context->Unmap(vertex_buffer_, 0);
-  
+
   uint32_t stride = 20;
   uint32_t offset = 0;
   context->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);

@@ -23,7 +23,7 @@ namespace ppc {
   RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
 #define XEINSTRNOTIMPLEMENTED()
-//#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
+//#define XEINSTRNOTIMPLEMENTED assert_trueALWAYS
 //#define XEINSTRNOTIMPLEMENTED() __debugbreak()
 
 }  // namespace ppc

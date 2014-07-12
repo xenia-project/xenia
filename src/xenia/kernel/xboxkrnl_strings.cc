@@ -173,7 +173,7 @@ SHIM_CALL vsprintf_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 8 || arg_size == 4);
+      assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
           uint64_t value = SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
@@ -182,7 +182,7 @@ SHIM_CALL vsprintf_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
       else if (arg_size == 4) {
@@ -193,20 +193,20 @@ SHIM_CALL vsprintf_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
     }
     else if (*end == 'n')
     {
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(char)));
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else if (*end == 's' ||
@@ -215,7 +215,7 @@ SHIM_CALL vsprintf_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         const void* pointer = (const void*)SHIM_MEM_ADDR(value);
@@ -224,11 +224,11 @@ SHIM_CALL vsprintf_shim(
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else {
-      XEASSERT(false);
+      assert_true(false);
       break;
     }
     format = end;
@@ -386,7 +386,7 @@ SHIM_CALL _vsnprintf_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 8 || arg_size == 4);
+      assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
           uint64_t value = SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
@@ -395,7 +395,7 @@ SHIM_CALL _vsnprintf_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
       else if (arg_size == 4) {
@@ -406,20 +406,20 @@ SHIM_CALL _vsnprintf_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
     }
     else if (*end == 'n')
     {
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(char)));
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else if (*end == 's' ||
@@ -428,7 +428,7 @@ SHIM_CALL _vsnprintf_shim(
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         const void* pointer = (const void*)SHIM_MEM_ADDR(value);
@@ -437,11 +437,11 @@ SHIM_CALL _vsnprintf_shim(
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else {
-      XEASSERT(false);
+      assert_true(false);
       break;
     }
     format = end;
@@ -612,7 +612,7 @@ SHIM_CALL _vswprintf_shim(
       local[0] = '\0';
       wcsncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 8 || arg_size == 4);
+      assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
           uint64_t value = SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
@@ -621,7 +621,7 @@ SHIM_CALL _vswprintf_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
       else if (arg_size == 4) {
@@ -632,20 +632,20 @@ SHIM_CALL _vswprintf_shim(
           arg_index++;
         }
         else {
-          XEASSERT(false);
+          assert_true(false);
         }
       }
     }
     else if (*end == 'n')
     {
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(wchar_t)));
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else if (*end == 'p') {
@@ -653,7 +653,7 @@ SHIM_CALL _vswprintf_shim(
       local[0] = '\0';
       wcsncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         const void* pointer = (void*)SHIM_MEM_ADDR(value);
@@ -662,7 +662,7 @@ SHIM_CALL _vswprintf_shim(
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else if (*end == 's') {
@@ -670,7 +670,7 @@ SHIM_CALL _vswprintf_shim(
       local[0] = '\0';
       wcsncat(local, start, end + 1 - start);
 
-      XEASSERT(arg_size == 4);
+      assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(arg_ptr + (arg_index * 8)); // TODO: check if this is correct...
         const wchar_t* data = (const wchar_t*)SHIM_MEM_ADDR(value);
@@ -687,11 +687,11 @@ SHIM_CALL _vswprintf_shim(
         arg_index++;
       }
       else {
-        XEASSERT(false);
+        assert_true(false);
       }
     }
     else {
-      XEASSERT(false);
+      assert_true(false);
       break;
     }
     format = end;

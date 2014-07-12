@@ -45,7 +45,7 @@ int ValidationPass::Run(HIRBuilder* builder) {
   while (block) {
     auto label = block->label_head;
     while (label) {
-      XEASSERT(label->block == block);
+      assert_true(label->block == block);
       if (label->block != block) {
         return 1;
       }
@@ -67,7 +67,7 @@ int ValidationPass::Run(HIRBuilder* builder) {
 }
 
 int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
-  XEASSERT(instr->block == block);
+  assert_true(instr->block == block);
   if (instr->block != block) {
     return 1;
   }
@@ -95,7 +95,7 @@ int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
 int ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
   // if (value->def) {
   //  auto def = value->def;
-  //  XEASSERT(def->block == block);
+  //  assert_true(def->block == block);
   //  if (def->block != block) {
   //    return 1;
   //  }

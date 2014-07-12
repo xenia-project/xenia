@@ -69,7 +69,7 @@ X_STATUS xeExCreateThread(
     uint32_t xapi_thread_startup,
     uint32_t start_address, uint32_t start_context, uint32_t creation_flags) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // DWORD
   // LPHANDLE Handle,
@@ -158,7 +158,7 @@ SHIM_CALL ExTerminateThread_shim(
 
 X_STATUS xeNtResumeThread(uint32_t handle, uint32_t* out_suspend_count) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -198,7 +198,7 @@ SHIM_CALL NtResumeThread_shim(
 
 X_STATUS xeKeResumeThread(void* thread_ptr, uint32_t* out_suspend_count) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -236,7 +236,7 @@ SHIM_CALL KeResumeThread_shim(
 
 X_STATUS xeNtSuspendThread(uint32_t handle, uint32_t* out_suspend_count) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -276,7 +276,7 @@ SHIM_CALL NtSuspendThread_shim(
 
 uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
   if (thread) {
@@ -326,7 +326,7 @@ SHIM_CALL KeQueryBasePriorityThread_shim(
 
 uint32_t xeKeSetBasePriorityThread(void* thread_ptr, int32_t increment) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   int32_t prev_priority = 0;
 
@@ -358,7 +358,7 @@ SHIM_CALL KeSetBasePriorityThread_shim(
 
 uint32_t xeKeGetCurrentProcessType() {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // DWORD
 
@@ -595,7 +595,7 @@ SHIM_CALL KeTlsSetValue_shim(
 X_STATUS xeNtCreateEvent(uint32_t* handle_ptr, void* obj_attributes,
                          uint32_t event_type, uint32_t initial_state) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XEvent* ev = new XEvent(state);
   ev->Initialize(!event_type, !!initial_state);
@@ -638,10 +638,10 @@ SHIM_CALL NtCreateEvent_shim(
 
 int32_t xeKeSetEvent(void* event_ptr, uint32_t increment, uint32_t wait) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XEvent* ev = (XEvent*)XObject::GetObject(state, event_ptr);
-  XEASSERTNOTNULL(ev);
+  assert_not_null(ev);
   if (!ev) {
     return 0;
   }
@@ -708,7 +708,7 @@ SHIM_CALL KePulseEvent_shim(
 
   void* event_ptr = SHIM_MEM_ADDR(event_ref);
   XEvent* ev = (XEvent*)XObject::GetObject(state, event_ptr);
-  XEASSERTNOTNULL(ev);
+  assert_not_null(ev);
   if (ev) {
     result = ev->Pulse(increment, !!wait);
   }
@@ -746,10 +746,10 @@ SHIM_CALL NtPulseEvent_shim(
 
 int32_t xeKeResetEvent(void* event_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XEvent* ev = (XEvent*)XEvent::GetObject(state, event_ptr);
-  XEASSERTNOTNULL(ev);
+  assert_not_null(ev);
   if (!ev) {
     return 0;
   }
@@ -825,11 +825,11 @@ SHIM_CALL NtCreateSemaphore_shim(
 void xeKeInitializeSemaphore(
     void* semaphore_ptr, int32_t count, int32_t limit) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XSemaphore* sem = (XSemaphore*)XSemaphore::GetObject(
       state, semaphore_ptr, 5 /* SemaphoreObject */);
-  XEASSERTNOTNULL(sem);
+  assert_not_null(sem);
   if (!sem) {
     return;
   }
@@ -856,10 +856,10 @@ SHIM_CALL KeInitializeSemaphore_shim(
 int32_t xeKeReleaseSemaphore(
     void* semaphore_ptr, int32_t increment, int32_t adjustment, bool wait) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XSemaphore* sem = (XSemaphore*)XSemaphore::GetObject(state, semaphore_ptr);
-  XEASSERTNOTNULL(sem);
+  assert_not_null(sem);
   if (!sem) {
     return 0;
   }
@@ -954,7 +954,7 @@ SHIM_CALL NtReleaseMutant_shim(
   // Whatever arg 1 is all games seem to set it to 0, so whether it's
   // abandon or wait we just say false. Which is good, cause they are
   // both ignored.
-  XEASSERTZERO(unknown);
+  assert_zero(unknown);
   uint32_t priority_increment = 0;
   bool abandon = false;
   bool wait = false;
@@ -1016,8 +1016,8 @@ SHIM_CALL NtSetTimerEx_shim(
   uint32_t period_ms = SHIM_GET_ARG_32(6);
   uint32_t unk_zero = SHIM_GET_ARG_32(7);
 
-  XEASSERT(unk_one == 1);
-  XEASSERT(unk_zero == 0);
+  assert_true(unk_one == 1);
+  assert_true(unk_zero == 0);
 
   uint64_t due_time = SHIM_MEM_64(due_time_ptr);
 
@@ -1075,7 +1075,7 @@ X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint64_t* opt_timeout) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   XObject* object = XObject::GetObject(state, object_ptr);
   if (!object) {
@@ -1153,7 +1153,7 @@ SHIM_CALL KeWaitForMultipleObjects_shim(
       count, objects_ptr, wait_type, wait_reason, processor_mode,
       alertable, timeout_ptr, wait_block_array_ptr);
 
-  XEASSERT(wait_type >= 0 && wait_type <= 1);
+  assert_true(wait_type >= 0 && wait_type <= 1);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -1192,7 +1192,7 @@ SHIM_CALL NtWaitForMultipleObjectsEx_shim(
       count, handles_ptr, wait_type, wait_mode,
       alertable, timeout_ptr);
 
-  XEASSERT(wait_type >= 0 && wait_type <= 1);
+  assert_true(wait_type >= 0 && wait_type <= 1);
 
   X_STATUS result = X_STATUS_SUCCESS;
 

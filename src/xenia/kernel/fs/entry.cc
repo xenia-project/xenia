@@ -26,7 +26,7 @@ MemoryMapping::~MemoryMapping() {
 Entry::Entry(Type type, Device* device, const char* path) :
     type_(type),
     device_(device) {
-  XEASSERTNOTNULL(device);
+  assert_not_null(device);
   path_ = xestrdupa(path);
   // TODO(benvanik): *shudder*
   absolute_path_ = xestrdupa((std::string(device->path()) + std::string(path)).c_str());

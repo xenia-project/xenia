@@ -25,15 +25,25 @@ namespace poly {
 // return value is the size of the input operand (8, 16, 32, or 64). If the most
 // significant bit of value is one, the return value is zero.
 #if XE_COMPILER_MSVC
-inline uint8_t lzcnt(uint8_t v) { return static_cast<uint8_t>(__lzcnt16(v) - 8); }
+inline uint8_t lzcnt(uint8_t v) {
+  return static_cast<uint8_t>(__lzcnt16(v) - 8);
+}
 inline uint8_t lzcnt(uint16_t v) { return static_cast<uint8_t>(__lzcnt16(v)); }
 inline uint8_t lzcnt(uint32_t v) { return static_cast<uint8_t>(__lzcnt(v)); }
 inline uint8_t lzcnt(uint64_t v) { return static_cast<uint8_t>(__lzcnt64(v)); }
 #else
-inline uint8_t lzcnt(uint8_t v) { return static_cast<uint8_t>(__builtin_clzs(v) - 8); }
-inline uint8_t lzcnt(uint16_t v) { return static_cast<uint8_t>(__builtin_clzs(v)); }
-inline uint8_t lzcnt(uint32_t v) { return static_cast<uint8_t>(__builtin_clz(v)); }
-inline uint8_t lzcnt(uint64_t v) { return static_cast<uint8_t>(__builtin_clzll(v)); }
+inline uint8_t lzcnt(uint8_t v) {
+  return static_cast<uint8_t>(__builtin_clzs(v) - 8);
+}
+inline uint8_t lzcnt(uint16_t v) {
+  return static_cast<uint8_t>(__builtin_clzs(v));
+}
+inline uint8_t lzcnt(uint32_t v) {
+  return static_cast<uint8_t>(__builtin_clz(v));
+}
+inline uint8_t lzcnt(uint64_t v) {
+  return static_cast<uint8_t>(__builtin_clzll(v));
+}
 #endif  // XE_COMPILER_MSVC
 inline uint8_t lzcnt(int8_t v) { return lzcnt(static_cast<uint8_t>(v)); }
 inline uint8_t lzcnt(int16_t v) { return lzcnt(static_cast<uint16_t>(v)); }
@@ -49,7 +59,8 @@ inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   return _BitScanForward(reinterpret_cast<DWORD*>(out_first_set_index), v) != 0;
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  return _BitScanForward64(reinterpret_cast<DWORD*>(out_first_set_index), v) != 0;
+  return _BitScanForward64(reinterpret_cast<DWORD*>(out_first_set_index), v) !=
+         0;
 }
 #else
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {

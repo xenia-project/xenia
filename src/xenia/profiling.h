@@ -55,7 +55,7 @@ namespace xe {
 // Enters a CPU profiling scope by function name, active for the duration of
 // the containing block. No previous definition required.
 #define SCOPE_profile_cpu_f(group_name) \
-    MICROPROFILE_SCOPEI(group_name, XE_CURRENT_FUNCTION, xe::Profiler::GetColor(XE_CURRENT_FUNCTION))
+    MICROPROFILE_SCOPEI(group_name, __FUNCTION__, xe::Profiler::GetColor(__FUNCTION__))
 
 // Enters a previously defined GPU profiling scope, active for the duration
 // of the containing block.
@@ -70,7 +70,7 @@ namespace xe {
 // Enters a GPU profiling scope by function name, active for the duration of
 // the containing block. No previous definition required.
 #define SCOPE_profile_gpu_f(group_name) \
-    MICROPROFILE_SCOPEGPUI(group_name, XE_CURRENT_FUNCTION, xe::Profiler::GetColor(XE_CURRENT_FUNCTION))
+    MICROPROFILE_SCOPEGPUI(group_name, __FUNCTION__, xe::Profiler::GetColor(__FUNCTION__))
 
 // Tracks a CPU value counter.
 #define COUNT_profile_cpu(name, count) MICROPROFILE_META_CPU(name, count)

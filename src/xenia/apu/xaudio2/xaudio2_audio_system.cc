@@ -31,7 +31,7 @@ void XAudio2AudioSystem::Initialize() {
 }
 
 X_STATUS XAudio2AudioSystem::CreateDriver(size_t index, HANDLE wait, AudioDriver** out_driver) {
-  XEASSERTNOTNULL(out_driver);
+  assert_not_null(out_driver);
   auto driver = new XAudio2AudioDriver(emulator_, wait);
   driver->Initialize();
   *out_driver = driver;
@@ -39,9 +39,9 @@ X_STATUS XAudio2AudioSystem::CreateDriver(size_t index, HANDLE wait, AudioDriver
 }
 
 void XAudio2AudioSystem::DestroyDriver(AudioDriver* driver) {
-  XEASSERTNOTNULL(driver);
+  assert_not_null(driver);
   auto xdriver = static_cast<XAudio2AudioDriver*>(driver);
   xdriver->Shutdown();
-  XEASSERTNOTNULL(xdriver);
+  assert_not_null(xdriver);
   delete xdriver;
 }

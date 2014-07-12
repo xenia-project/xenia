@@ -334,7 +334,7 @@ X_STATUS XThread::PlatformCreate() {
         this);
 #else
     // TODO(benvanik): pthread_create_suspended_np on linux
-    XEASSERTALWAYS();
+    assert_always();
 #endif  // OSX
   } else {
     result_code = pthread_create(
@@ -552,7 +552,7 @@ X_STATUS XThread::Delay(
   if (timeout_ticks > 0) {
     // Absolute time, based on January 1, 1601.
     // TODO(benvanik): convert time to relative time.
-    XEASSERTALWAYS();
+    assert_always();
     timeout_ms = 0;
   } else if (timeout_ticks < 0) {
     // Relative time.

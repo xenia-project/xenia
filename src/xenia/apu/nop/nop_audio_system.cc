@@ -29,5 +29,5 @@ X_STATUS NopAudioSystem::CreateDriver(size_t index, HANDLE wait_handle, AudioDri
 }
 
 void NopAudioSystem::DestroyDriver(AudioDriver* driver) {
-  XEASSERTALWAYS();
+  assert_always();
 }

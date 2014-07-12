@@ -50,7 +50,7 @@ Runtime::~Runtime() {
 
 int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   // Must be initialized by subclass before calling into this.
-  XEASSERTNOTNULL(memory_);
+  assert_not_null(memory_);
 
   // Create debugger first. Other types hook up to it.
   debugger_ = new Debugger(this);

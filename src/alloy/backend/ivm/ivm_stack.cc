@@ -32,7 +32,7 @@ Register* IVMStack::Alloc(size_t register_count) {
     if (active_chunk_->capacity - active_chunk_->offset < size) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        XEASSERT(size < chunk_size_);  // need to support larger chunks
+        assert_true(size < chunk_size_, "need to support larger chunks");
         next = new Chunk(chunk_size_);
         next->prev = active_chunk_;
         active_chunk_->next = next;

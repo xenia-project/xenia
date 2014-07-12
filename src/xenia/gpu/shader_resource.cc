@@ -29,7 +29,7 @@ ShaderResource::ShaderResource(const MemoryRange& memory_range,
 
   // Verify.
   dword_count_ = memory_range.length / 4;
-  XEASSERT(dword_count_ <= 512);
+  assert_true(dword_count_ <= 512);
 
   // Copy bytes and swap.
   size_t byte_size = dword_count_ * sizeof(uint32_t);
@@ -122,7 +122,7 @@ void ShaderResource::GatherExec(const instr_cf_exec_t* cf) {
       case TEX_SET_GRADIENTS_H:
       case TEX_SET_GRADIENTS_V:
       default:
-        XEASSERTALWAYS();
+        assert_always();
         break;
       }
     } else {
@@ -145,7 +145,7 @@ void ShaderResource::GatherExec(const instr_cf_exec_t* cf) {
 }
 
 void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
-  XEASSERT(type_ == XE_GPU_SHADER_TYPE_VERTEX);
+  assert_true(type_ == XE_GPU_SHADER_TYPE_VERTEX);
 
   // dst_reg/dst_swiz
   // src_reg/src_swiz
@@ -188,16 +188,16 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
     auto& desc = inputs.descs[n];
     auto& info = desc.info;
     if (desc.fetch_slot == fetch_slot) {
-      XEASSERT(info.element_count <= XECOUNT(info.elements));
+      assert_true(info.element_count <= XECOUNT(info.elements));
       // It may not hold that all strides are equal, but I hope it does.
-      XEASSERT(!vtx->stride || info.stride_words == vtx->stride);
+      assert_true(!vtx->stride || info.stride_words == vtx->stride);
       el = &info.elements[info.element_count++];
       break;
     }
   }
   if (!el) {
-    XEASSERTNOTZERO(vtx->stride);
-    XEASSERT(inputs.count + 1 < XECOUNT(inputs.descs));
+    assert_not_zero(vtx->stride);
+    assert_true(inputs.count + 1 < XECOUNT(inputs.descs));
     auto& desc = inputs.descs[inputs.count++];
     desc.input_index = inputs.count - 1;
     desc.fetch_slot = fetch_slot;
@@ -243,7 +243,7 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
     break;
   default:
     XELOGE("Unknown vertex format: %d", el->format);
-    XEASSERTALWAYS();
+    assert_always();
     break;
   }
 }
@@ -251,7 +251,7 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
 void ShaderResource::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {
   // TODO(benvanik): check dest_swiz to see if we are writing anything.
 
-  XEASSERT(sampler_inputs_.count + 1 < XECOUNT(sampler_inputs_.descs));
+  assert_true(sampler_inputs_.count + 1 < XECOUNT(sampler_inputs_.descs));
   auto& input = sampler_inputs_.descs[sampler_inputs_.count++];
   input.input_index = sampler_inputs_.count - 1;
   input.fetch_slot = tex->const_idx & 0xF; // ?

@@ -29,7 +29,7 @@ X_STATUS xeNtAllocateVirtualMemory(
     uint32_t allocation_type, uint32_t protect_bits,
     uint32_t unknown) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -39,7 +39,7 @@ X_STATUS xeNtAllocateVirtualMemory(
   // ? handle?
 
   // I've only seen zero.
-  XEASSERT(unknown == 0);
+  assert_true(unknown == 0);
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
@@ -73,7 +73,7 @@ X_STATUS xeNtAllocateVirtualMemory(
   // already happened.
   if (*base_addr_ptr) {
     // Having a pointer already means that this is likely a follow-on COMMIT.
-    XEASSERT(!(allocation_type & X_MEM_RESERVE) &&
+    assert_true(!(allocation_type & X_MEM_RESERVE) &&
              (allocation_type & X_MEM_COMMIT));
     return X_STATUS_SUCCESS;
   }
@@ -127,7 +127,7 @@ X_STATUS xeNtFreeVirtualMemory(
     uint32_t* base_addr_ptr, uint32_t* region_size_ptr,
     uint32_t free_type, uint32_t unknown) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -136,7 +136,7 @@ X_STATUS xeNtFreeVirtualMemory(
   // ? handle?
 
   // I've only seen zero.
-  XEASSERT(unknown == 0);
+  assert_true(unknown == 0);
 
   if (!*base_addr_ptr) {
     return X_STATUS_MEMORY_NOT_ALLOCATED;
@@ -193,7 +193,7 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
     uint32_t type, uint32_t region_size, uint32_t protect_bits,
     uint32_t min_addr_range, uint32_t max_addr_range, uint32_t alignment) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
   // by D3D/etc.
@@ -230,8 +230,8 @@ uint32_t xeMmAllocatePhysicalMemoryEx(
   // and the memory must be allocated there. I haven't seen a game do this,
   // and instead they all do min=0 / max=-1 to indicate the system should pick.
   // If we have to suport arbitrary placement things will get nasty.
-  XEASSERT(min_addr_range == 0);
-  XEASSERT(max_addr_range == 0xFFFFFFFF);
+  assert_true(min_addr_range == 0);
+  assert_true(max_addr_range == 0xFFFFFFFF);
 
   // Allocate.
   uint32_t flags = MEMORY_FLAG_PHYSICAL;
@@ -280,7 +280,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
 
 void xeMmFreePhysicalMemory(uint32_t type, uint32_t base_address) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // base_address = result of MmAllocatePhysicalMemory.
 
@@ -310,7 +310,7 @@ SHIM_CALL MmFreePhysicalMemory_shim(
 
 uint32_t xeMmQueryAddressProtect(uint32_t base_address) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   uint32_t access = state->memory()->QueryProtect(base_address);
 
@@ -334,7 +334,7 @@ SHIM_CALL MmQueryAddressProtect_shim(
 
 uint32_t xeMmQueryAllocationSize(uint32_t base_address) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   size_t size = state->memory()->QuerySize(base_address);
 

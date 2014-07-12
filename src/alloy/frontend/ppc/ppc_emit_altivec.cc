@@ -62,7 +62,7 @@ Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
 #define VX128_R_VB128 (i.VX128_R.VB128l | (i.VX128_R.VB128h << 5))
 
 unsigned int xerotl(unsigned int value, unsigned int shift) {
-  XEASSERT(shift < 32);
+  assert_true(shift < 32);
   return shift == 0 ? value : ((value << shift) | (value >> (32 - shift)));
 }
 
@@ -588,7 +588,7 @@ int InstrEmit_vcmpxxfp_(PPCHIRBuilder& f, InstrData& i, vcmpxxfp_op cmpop,
       v = f.VectorCompareSGE(f.LoadVR(va), f.LoadVR(vb), FLOAT32_TYPE);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(cmpop);
+      assert_unhandled_case(cmpop);
       return 1;
   }
   if (rc) {
@@ -648,7 +648,7 @@ int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop,
           v = f.VectorCompareEQ(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
           break;
         default:
-          XEASSERTUNHANDLEDCASE(width);
+          assert_unhandled_case(width);
           return 1;
       }
       break;
@@ -664,7 +664,7 @@ int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop,
           v = f.VectorCompareSGT(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
           break;
         default:
-          XEASSERTUNHANDLEDCASE(width);
+          assert_unhandled_case(width);
           return 1;
       }
       break;
@@ -680,12 +680,12 @@ int InstrEmit_vcmpxxi_(PPCHIRBuilder& f, InstrData& i, vcmpxxi_op cmpop,
           v = f.VectorCompareUGT(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
           break;
         default:
-          XEASSERTUNHANDLEDCASE(width);
+          assert_unhandled_case(width);
           return 1;
       }
       break;
     default:
-      XEASSERTUNHANDLEDCASE(cmpop);
+      assert_unhandled_case(cmpop);
       return 1;
   }
   if (rc) {
@@ -1233,7 +1233,7 @@ XEEMITTER(vrlimi128, VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f,
         swizzle_mask = SWIZZLE_XYZW_TO_WXYZ;
         break;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return 1;
     }
     v = f.Swizzle(f.LoadVR(vb), FLOAT32_TYPE, swizzle_mask);
@@ -1707,7 +1707,7 @@ XEEMITTER(vupkhsh, 0x1000024E, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 XEEMITTER(vupkhsh128, 0x100002CE, VX)(PPCHIRBuilder& f, InstrData& i) {
   uint32_t va = VX128_VA128;
-  XEASSERTZERO(va);
+  assert_zero(va);
   return InstrEmit_vupkhsh_(f, VX128_VD128, VX128_VB128);
 }
 
@@ -1722,7 +1722,7 @@ XEEMITTER(vupklsh, 0x100002CE, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 XEEMITTER(vupklsh128, 0x100002CE, VX)(PPCHIRBuilder& f, InstrData& i) {
   uint32_t va = VX128_VA128;
-  XEASSERTZERO(va);
+  assert_zero(va);
   return InstrEmit_vupklsh_(f, VX128_VD128, VX128_VB128);
 }
 
@@ -1784,7 +1784,7 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
       v = f.Pack(v, PACK_TYPE_FLOAT16_4);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       return 1;
   }
   // http://hlssmod.net/he_code/public/pixelwriter.h
@@ -1819,7 +1819,7 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
       control = (control & ~mask) | (src & mask);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(pack);
+      assert_unhandled_case(pack);
       return 1;
   }
   v = f.Permute(f.LoadConstant(control), f.LoadVR(vd), v, INT32_TYPE);
@@ -1851,7 +1851,7 @@ XEEMITTER(vupkd3d128, VX128_3(6, 2032), VX128_3)(PPCHIRBuilder& f,
       v = f.Unpack(v, PACK_TYPE_FLOAT16_4);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       return 1;
   }
   f.StoreVR(vd, v);

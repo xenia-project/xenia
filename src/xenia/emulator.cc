@@ -127,7 +127,7 @@ XECLEANUP:
 }
 
 void Emulator::set_main_window(Window* window) {
-  XEASSERTNULL(main_window_);
+  assert_null(main_window_);
   main_window_ = window;
 
   window->closed.AddListener([](UIEvent& e) {

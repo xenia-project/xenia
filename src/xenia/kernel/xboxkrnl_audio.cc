@@ -75,7 +75,7 @@ SHIM_CALL XAudioGetVoiceCategoryVolumeChangeMask_shim(
       "XAudioGetVoiceCategoryVolumeChangeMask(%.8X, %.8X)",
       driver_ptr, out_ptr);
 
-  XEASSERT((driver_ptr & 0xFFFF0000) == 0x41550000);
+  assert_true((driver_ptr & 0xFFFF0000) == 0x41550000);
 
   auto audio_system = state->emulator()->audio_system();
 
@@ -124,7 +124,7 @@ SHIM_CALL XAudioRegisterRenderDriverClient_shim(
     return;
   }
 
-  XEASSERTTRUE(!(index & ~0x0000FFFF));
+  assert_true(!(index & ~0x0000FFFF));
   SHIM_SET_MEM_32(driver_ptr, 0x41550000 | (index & 0x0000FFFF));
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
@@ -138,7 +138,7 @@ SHIM_CALL XAudioUnregisterRenderDriverClient_shim(
       "XAudioUnregisterRenderDriverClient(%.8X)",
       driver_ptr);
 
-  XEASSERT((driver_ptr & 0xFFFF0000) == 0x41550000);
+  assert_true((driver_ptr & 0xFFFF0000) == 0x41550000);
 
   auto audio_system = state->emulator()->audio_system();
   audio_system->UnregisterClient(driver_ptr & 0x0000FFFF);
@@ -155,7 +155,7 @@ SHIM_CALL XAudioSubmitRenderDriverFrame_shim(
       "XAudioSubmitRenderDriverFrame(%.8X, %.8X)",
       driver_ptr, samples_ptr);
 
-  XEASSERT((driver_ptr & 0xFFFF0000) == 0x41550000);
+  assert_true((driver_ptr & 0xFFFF0000) == 0x41550000);
 
   auto audio_system = state->emulator()->audio_system();
   audio_system->SubmitFrame(driver_ptr & 0x0000FFFF, samples_ptr);

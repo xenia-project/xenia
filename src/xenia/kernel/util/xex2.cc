@@ -238,7 +238,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       {
         const size_t max_count = XECOUNT(header->import_libraries);
         size_t count = XEGETUINT32BE(pp + 0x08);
-        XEASSERT(count <= max_count);
+        assert_true(count <= max_count);
         if (count > max_count) {
           XELOGW("ignoring %zu extra entries in XEX_HEADER_IMPORT_LIBRARIES",
                  (max_count - count));
@@ -260,7 +260,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
 
           const uint16_t name_index = XEGETUINT16BE(pp + 0x24) & 0xFF;
           for (size_t i = 0, j = 0; i < string_table_size;) {
-            XEASSERT(j <= 0xFF);
+            assert_true(j <= 0xFF);
             if (j == name_index) {
               XEIGNORE(xestrcpya(library->name, XECOUNT(library->name),
                                  string_table + i));
@@ -293,7 +293,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       {
         const size_t max_count = XECOUNT(header->static_libraries);
         size_t count = (opt_header->length - 4) / 16;
-        XEASSERT(count <= max_count);
+        assert_true(count <= max_count);
         if (count > max_count) {
           XELOGW("ignoring %zu extra entries in XEX_HEADER_STATIC_LIBRARIES",
                  (max_count - count));
@@ -326,7 +326,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         switch (fmt->compression_type) {
         case XEX_COMPRESSION_NONE:
           // TODO: XEX_COMPRESSION_NONE
-          XEASSERTALWAYS();
+          assert_always();
           break;
         case XEX_COMPRESSION_BASIC:
           {
@@ -368,7 +368,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           break;
         case XEX_COMPRESSION_DELTA:
           // TODO: XEX_COMPRESSION_DELTA
-          XEASSERTALWAYS();
+          assert_always();
           break;
         }
       }
@@ -460,7 +460,7 @@ typedef struct mspack_memory_file_t {
 } mspack_memory_file;
 mspack_memory_file *mspack_memory_open(struct mspack_system *sys,
                                        void* buffer, const size_t buffer_size) {
-  XEASSERT(buffer_size < INT_MAX);
+  assert_true(buffer_size < INT_MAX);
   if (buffer_size >= INT_MAX) {
     return NULL;
   }
@@ -575,7 +575,7 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
                            uncompressed_size);
     return 0;
   default:
-    XEASSERTALWAYS();
+    assert_always();
     return 1;
   }
 
@@ -642,7 +642,7 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
       }
       break;
     default:
-      XEASSERTALWAYS();
+      assert_always();
       return 1;
     }
 
@@ -701,7 +701,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
                            (uint8_t*)input_buffer, input_size);
     break;
   default:
-    XEASSERTALWAYS();
+    assert_always();
     return false;
   }
 
@@ -809,7 +809,7 @@ int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
     return xe_xex2_read_image_compressed(
         header, xex_addr, xex_length, memory);
   default:
-    XEASSERTALWAYS();
+    assert_always();
     return 1;
   }
 }
@@ -922,7 +922,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
       break;
     }
   }
-  XEASSERT(library_index != (size_t)-1);
+  assert_true(library_index != (size_t)-1);
 
   // Records:
   // The number of records does not correspond to the number of imports!
@@ -947,9 +947,9 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   // Allocate storage.
   xe_xex2_import_info_t *infos = (xe_xex2_import_info_t*)xe_calloc(
       info_count * sizeof(xe_xex2_import_info_t));
-  XEEXPECTNOTNULL(infos);
+  assert_not_null(infos);
 
-  XEASSERTNOTZERO(info_count);
+  assert_not_zero(info_count);
 
   // Construct infos.
   for (size_t n = 0, i = 0; n < library->record_count; n++) {
@@ -958,7 +958,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
     const uint32_t type = (value & 0xFF000000) >> 24;
 
     // Verify library index matches given library.
-    //XEASSERT(library_index == ((value >> 16) & 0xFF));
+    //assert_true(library_index == ((value >> 16) & 0xFF));
 
     switch (type) {
     case 0x00:
@@ -971,14 +971,14 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
     case 0x01:
       {
         // Thunk for previous record.
-        XEASSERT(i > 0);
+        assert_true(i > 0);
         xe_xex2_import_info_t* info = &infos[i - 1];
-        XEASSERT(info->ordinal == (value & 0xFFFF));
+        assert_true(info->ordinal == (value & 0xFFFF));
         info->thunk_address = record;
       }
       break;
     default:
-      //XEASSERTALWAYS();
+      //assert_always();
       break;
     }
   }
@@ -986,10 +986,6 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   xex->library_imports[library_index].count = info_count;
   xex->library_imports[library_index].infos = infos;
   return 0;
-
-XECLEANUP:
-  xe_free(infos);
-  return 1;
 }
 
 int xe_xex2_get_import_infos(xe_xex2_ref xex,

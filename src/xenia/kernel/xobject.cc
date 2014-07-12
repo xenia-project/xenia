@@ -29,8 +29,8 @@ XObject::XObject(KernelState* kernel_state, Type type) :
 }
 
 XObject::~XObject() {
-  XEASSERTZERO(handle_ref_count_);
-  XEASSERTZERO(pointer_ref_count_);
+  assert_zero(handle_ref_count_);
+  assert_zero(pointer_ref_count_);
 }
 
 Memory* XObject::memory() const {
@@ -62,7 +62,7 @@ void XObject::Retain() {
 
 void XObject::Release() {
   if (!xe_atomic_dec_32(&pointer_ref_count_)) {
-    XEASSERT(pointer_ref_count_ >= handle_ref_count_);
+    assert_true(pointer_ref_count_ >= handle_ref_count_);
     delete this;
   }
 }
@@ -75,7 +75,7 @@ uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {
   if (timeout_ticks > 0) {
     // Absolute time, based on January 1, 1601.
     // TODO(benvanik): convert time to relative time.
-    XEASSERTALWAYS();
+    assert_always();
     return 0;
   } else if (timeout_ticks < 0) {
     // Relative time.
@@ -135,7 +135,7 @@ X_STATUS XObject::WaitMultiple(
   void** wait_handles = (void**)alloca(sizeof(void*) * count);
   for (uint32_t n = 0; n < count; n++) {
     wait_handles[n] = objects[n]->GetWaitHandle();
-    XEASSERTNOTNULL(wait_handles[n]);
+    assert_not_null(wait_handles[n]);
   }
 
   DWORD timeout_ms = opt_timeout ?
@@ -167,7 +167,7 @@ void XObject::SetNativePointer(uint32_t native_ptr) {
   header.wait_list_flink = XESWAP32(header_be->wait_list_flink);
   header.wait_list_blink = XESWAP32(header_be->wait_list_blink);
 
-  XEASSERT(!(header.wait_list_blink & 0x1));
+  assert_true(!(header.wait_list_blink & 0x1));
 
   // Stash pointer in struct.
   uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
@@ -252,7 +252,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     case 23: // ProfileObject
     case 24: // ThreadedDpcObject
     default:
-      XEASSERTALWAYS();
+      assert_always();
       XObject::UnlockType();
       return NULL;
     }

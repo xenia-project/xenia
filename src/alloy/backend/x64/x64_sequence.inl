@@ -133,7 +133,7 @@ struct ValueOp : Op<ValueOp<T, KEY_TYPE, REG_TYPE, CONST_TYPE, TAG>, KEY_TYPE> {
   bool is_constant;
   virtual bool ConstantFitsIn32Reg() const { return true; }
   const REG_TYPE& reg() const {
-    XEASSERT(!is_constant);
+    assert_true(!is_constant);
     return reg_;
   }
   operator const REG_TYPE&() const {
@@ -184,28 +184,28 @@ protected:
 template <int TAG = -1>
 struct I8 : ValueOp<I8<TAG>, KEY_TYPE_V_I8, Reg8, int8_t, TAG> {
   const int8_t constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.i8;
   }
 };
 template <int TAG = -1>
 struct I16 : ValueOp<I16<TAG>, KEY_TYPE_V_I16, Reg16, int16_t, TAG> {
   const int16_t constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.i16;
   }
 };
 template <int TAG = -1>
 struct I32 : ValueOp<I32<TAG>, KEY_TYPE_V_I32, Reg32, int32_t, TAG> {
   const int32_t constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.i32;
   }
 };
 template <int TAG = -1>
 struct I64 : ValueOp<I64<TAG>, KEY_TYPE_V_I64, Reg64, int64_t, TAG> {
   const int64_t constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.i64;
   }
   bool ConstantFitsIn32Reg() const override {
@@ -223,21 +223,21 @@ struct I64 : ValueOp<I64<TAG>, KEY_TYPE_V_I64, Reg64, int64_t, TAG> {
 template <int TAG = -1>
 struct F32 : ValueOp<F32<TAG>, KEY_TYPE_V_F32, Xmm, float, TAG> {
   const float constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.f32;
   }
 };
 template <int TAG = -1>
 struct F64 : ValueOp<F64<TAG>, KEY_TYPE_V_F64, Xmm, double, TAG> {
   const double constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.f64;
   }
 };
 template <int TAG = -1>
 struct V128 : ValueOp<V128<TAG>, KEY_TYPE_V_V128, Xmm, vec128_t, TAG> {
   const vec128_t& constant() const {
-    XEASSERT(is_constant);
+    assert_true(is_constant);
     return value->constant.v128;
   }
 };
@@ -542,7 +542,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       X64Emitter& e, const EmitArgType& i,
       const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       if (i.dest == i.src2) {
         if (i.src1.ConstantFitsIn32Reg()) {
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
@@ -584,7 +584,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       X64Emitter& e, const EmitArgType& i,
       const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       if (i.dest == i.src2) {
         auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
         e.mov(temp, i.src2);
@@ -632,7 +632,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   static void EmitCommutativeBinaryXmmOp(
       X64Emitter& e, const EmitArgType& i, const FN& fn) {
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
       fn(e, i.dest, e.xmm0, i.src2);
     } else if (i.src2.is_constant) {
@@ -647,7 +647,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   static void EmitAssociativeBinaryXmmOp(
       X64Emitter& e, const EmitArgType& i, const FN& fn) {
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
       fn(e, i.dest, e.xmm0, i.src2);
     } else if (i.src2.is_constant) {
@@ -663,7 +663,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       X64Emitter& e, const EmitArgType& i,
       const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       if (i.src1.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.src2, static_cast<int32_t>(i.src1.constant()));
       } else {
@@ -688,7 +688,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       X64Emitter& e, const EmitArgType& i,
       const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       if (i.src1.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.dest, i.src2, static_cast<int32_t>(i.src1.constant()), true);
       } else {

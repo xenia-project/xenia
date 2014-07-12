@@ -40,11 +40,11 @@ NopGraphicsSystem::~NopGraphicsSystem() {
 void NopGraphicsSystem::Initialize() {
   GraphicsSystem::Initialize();
 
-  XEASSERTNULL(driver_);
+  assert_null(driver_);
   driver_ = new NopGraphicsDriver(memory_);
 
-  XEASSERTNULL(timer_queue_);
-  XEASSERTNULL(vsync_timer_);
+  assert_null(timer_queue_);
+  assert_null(vsync_timer_);
 
   timer_queue_ = CreateTimerQueue();
   CreateTimerQueueTimer(

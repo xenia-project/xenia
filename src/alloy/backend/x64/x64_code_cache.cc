@@ -73,7 +73,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
     if (active_chunk_->capacity - active_chunk_->offset < code_size) {
       auto next = active_chunk_->next;
       if (!next) {
-        XEASSERT(code_size < chunk_size_);  // need to support larger chunks
+        assert_true(code_size < chunk_size_, "need to support larger chunks");
         next = new X64CodeChunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -197,7 +197,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     size_t new_size = old_size * 2;
     auto new_table =
         (RUNTIME_FUNCTION*)xe_realloc(fn_table, old_size, new_size);
-    XEASSERTNOTNULL(new_table);
+    assert_not_null(new_table);
     if (!new_table) {
       return;
     }

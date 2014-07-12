@@ -70,8 +70,8 @@ SHIM_CALL NtCreateFile_shim(
       attrs.root_directory != 0) {
     result = state->object_table()->GetObject(
       attrs.root_directory, (XObject**)&root_file);
-    XEASSERT(XSUCCEEDED(result));
-    XEASSERT(root_file->type() == XObject::Type::kTypeFile);
+    assert_true(XSUCCEEDED(result));
+    assert_true(root_file->type() == XObject::Type::kTypeFile);
 
     auto root_path = root_file->absolute_path();
     auto target_path = xestrdupa((std::string(root_path) + std::string(object_name)).c_str());
@@ -147,9 +147,9 @@ SHIM_CALL NtOpenFile_shim(
   if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
     result = state->object_table()->GetObject(
       attrs.root_directory, (XObject**)&root_file);
-    XEASSERT(XSUCCEEDED(result));
-    XEASSERT(root_file->type() == XObject::Type::kTypeFile);
-    XEASSERTALWAYS();
+    assert_true(XSUCCEEDED(result));
+    assert_true(root_file->type() == XObject::Type::kTypeFile);
+    assert_always();
   }
 
   // Resolve the file using the virtual file system.
@@ -226,7 +226,7 @@ SHIM_CALL NtReadFile_shim(
       byte_offset);
 
   // Async not supported yet.
-  XEASSERTNULL(apc_routine_ptr);
+  assert_zero(apc_routine_ptr);
 
   X_STATUS result = X_STATUS_SUCCESS;
   uint32_t info = 0;
@@ -338,13 +338,13 @@ SHIM_CALL NtSetInformationFile_shim(
       // struct FILE_POSITION_INFORMATION {
       //   LARGE_INTEGER CurrentByteOffset;
       // };
-      XEASSERT(length == 8);
+      assert_true(length == 8);
       info = 8;
       file->set_position(SHIM_MEM_64(file_info_ptr));
       break;
     default:
       // Unsupported, for now.
-      XEASSERTALWAYS();
+      assert_always();
       info = 0;
       break;
     }
@@ -394,7 +394,7 @@ SHIM_CALL NtQueryInformationFile_shim(
     switch (file_info_class) {
     case XFileInternalInformation:
       // Internal unique file pointer. Not sure why anyone would want this.
-      XEASSERT(length == 8);
+      assert_true(length == 8);
       info = 8;
       // TODO(benvanik): use pointer to fs:: entry?
       SHIM_SET_MEM_64(file_info_ptr, hash_combine(0, file->absolute_path()));
@@ -403,7 +403,7 @@ SHIM_CALL NtQueryInformationFile_shim(
       // struct FILE_POSITION_INFORMATION {
       //   LARGE_INTEGER CurrentByteOffset;
       // };
-      XEASSERT(length == 8);
+      assert_true(length == 8);
       info = 8;
       SHIM_SET_MEM_64(file_info_ptr, file->position());
       break;
@@ -418,7 +418,7 @@ SHIM_CALL NtQueryInformationFile_shim(
       //   ULONG         FileAttributes;
       //   ULONG         Unknown;
       // };
-      XEASSERT(length == 56);
+      assert_true(length == 56);
       XFileInfo file_info;
       result = file->QueryInfo(&file_info);
       if (XSUCCEEDED(result)) {
@@ -447,7 +447,7 @@ SHIM_CALL NtQueryInformationFile_shim(
       break;
     default:
       // Unsupported, for now.
-      XEASSERTALWAYS();
+      assert_always();
       info = 0;
       break;
     }
@@ -489,9 +489,9 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
   if (attrs.root_directory != 0xFFFFFFFD) { // ObDosDevices
     result = state->object_table()->GetObject(
       attrs.root_directory, (XObject**)&root_file);
-    XEASSERT(XSUCCEEDED(result));
-    XEASSERT(root_file->type() == XObject::Type::kTypeFile);
-    XEASSERTALWAYS();
+    assert_true(XSUCCEEDED(result));
+    assert_true(root_file->type() == XObject::Type::kTypeFile);
+    assert_always();
   }
 
   // Resolve the file using the virtual file system.
@@ -560,7 +560,7 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(
     }
     default:
       // Unsupported, for now.
-      XEASSERTALWAYS();
+      assert_always();
       info = 0;
       break;
     }

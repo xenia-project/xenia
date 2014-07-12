@@ -67,7 +67,7 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
 
 // TODO(gibbed): call into HostPathDevice?
 X_STATUS HostPathDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
   const char* name = "test"; // TODO(gibbed): actual value
 
   auto end = (uint8_t*)out_info + length;
@@ -86,7 +86,7 @@ X_STATUS HostPathDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
 
 // TODO(gibbed): call into HostPathDevice?
 X_STATUS HostPathDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
   const char* name = "test"; // TODO(gibbed): actual value
 
   auto end = (uint8_t*)out_info + length;

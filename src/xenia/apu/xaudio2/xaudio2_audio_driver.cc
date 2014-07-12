@@ -67,7 +67,7 @@ void XAudio2AudioDriver::Initialize() {
   hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
     XELOGE("XAudio2Create failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
@@ -83,7 +83,7 @@ void XAudio2AudioDriver::Initialize() {
   hr = audio_->CreateMasteringVoice(&mastering_voice_);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
@@ -106,14 +106,14 @@ void XAudio2AudioDriver::Initialize() {
                                  voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
   hr = pcm_voice_->Start();
   if (FAILED(hr)) {
     XELOGE("Start failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
@@ -148,7 +148,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   hr = pcm_voice_->SubmitSourceBuffer(&buffer);
   if (FAILED(hr)) {
     XELOGE("SubmitSourceBuffer failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 }

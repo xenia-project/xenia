@@ -25,13 +25,13 @@ namespace kernel {
 
 void xeHalReturnToFirmware(uint32_t routine) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // void
   // IN FIRMWARE_REENTRY  Routine
 
   // Routine must be 1 'HalRebootRoutine'
-  XEASSERT(routine == 1);
+  assert_true(routine == 1);
 
   // TODO(benvank): diediedie much more gracefully
   // Not sure how to blast back up the stack in LLVM without exceptions, though.

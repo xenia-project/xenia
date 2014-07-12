@@ -146,7 +146,7 @@ SHIM_CALL VdQueryVideoMode_shim(
 void xeVdInitializeEngines(uint32_t unk0, uint32_t callback, uint32_t unk1,
                            uint32_t unk2_ptr, uint32_t unk3_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
     return;
@@ -188,7 +188,7 @@ SHIM_CALL VdShutdownEngines_shim(
 
 void xeVdSetGraphicsInterruptCallback(uint32_t callback, uint32_t user_data) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
     return;
@@ -217,7 +217,7 @@ SHIM_CALL VdSetGraphicsInterruptCallback_shim(
 
 void xeVdInitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
     return;
@@ -249,7 +249,7 @@ SHIM_CALL VdInitializeRingBuffer_shim(
 
 void xeVdEnableRingBufferRPtrWriteBack(uint32_t ptr, uint32_t block_size) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
     return;
@@ -317,7 +317,7 @@ SHIM_CALL VdGetSystemCommandBuffer_shim(
 
 void xeVdSetSystemCommandBufferGpuIdentifierAddress(uint32_t unk) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
     return;

@@ -26,13 +26,13 @@ XSemaphore::~XSemaphore() {
 }
 
 void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   handle_ = CreateSemaphore(NULL, initial_count, maximum_count, NULL);
 }
 
 void XSemaphore::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   // NOT IMPLEMENTED
   // We expect Initialize to be called shortly.

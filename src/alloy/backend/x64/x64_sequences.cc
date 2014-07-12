@@ -1016,7 +1016,7 @@ EMITTER(LOAD_VECTOR_SHL_I8, MATCH(I<OPCODE_LOAD_VECTOR_SHL, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
-      XEASSERT(sh < XECOUNT(lvsl_table));
+      assert_true(sh < XECOUNT(lvsl_table));
       e.mov(e.rax, (uintptr_t)&lvsl_table[sh]);
       e.vmovaps(i.dest, e.ptr[e.rax]);
     } else {
@@ -1068,7 +1068,7 @@ EMITTER(LOAD_VECTOR_SHR_I8, MATCH(I<OPCODE_LOAD_VECTOR_SHR, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
-      XEASSERT(sh < XECOUNT(lvsr_table));
+      assert_true(sh < XECOUNT(lvsr_table));
       e.mov(e.rax, (uintptr_t)&lvsr_table[sh]);
       e.vmovaps(i.dest, e.ptr[e.rax]);
     } else {
@@ -2176,28 +2176,28 @@ EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGE, setae);
 // https://code.google.com/p/corkami/wiki/x86oddities
 EMITTER(DID_CARRY_I8, MATCH(I<OPCODE_DID_CARRY, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.src1.is_constant);
+    assert_true(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
 };
 EMITTER(DID_CARRY_I16, MATCH(I<OPCODE_DID_CARRY, I8<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.src1.is_constant);
+    assert_true(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
 };
 EMITTER(DID_CARRY_I32, MATCH(I<OPCODE_DID_CARRY, I8<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.src1.is_constant);
+    assert_true(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
 };
 EMITTER(DID_CARRY_I64, MATCH(I<OPCODE_DID_CARRY, I8<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.src1.is_constant);
+    assert_true(!i.src1.is_constant);
     e.LoadEflags();
     e.setc(i.dest);
   }
@@ -2629,8 +2629,8 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
             if (saturate) {
               if (is_unsigned) {
                 // We reuse all these temps...
-                XEASSERT(src1 != e.xmm0 && src1 != e.xmm1 && src1 != e.xmm2);
-                XEASSERT(src2 != e.xmm0 && src2 != e.xmm1 && src2 != e.xmm2);
+                assert_true(src1 != e.xmm0 && src1 != e.xmm1 && src1 != e.xmm2);
+                assert_true(src2 != e.xmm0 && src2 != e.xmm1 && src2 != e.xmm2);
                 // Clamp to 0xFFFFFFFF.
                 // Wish there was a vpaddusd...
                 // | A | B | C | D |
@@ -2655,7 +2655,7 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
                 // dest.f[n] = xmm1.f[n] ? xmm1.f[n] : dest.f[n];
                 e.vblendvps(dest, dest, e.xmm1, e.xmm1);
               } else {
-                XEASSERTALWAYS();
+                assert_always();
               }
             } else {
               e.vpaddd(dest, src1, src2);
@@ -2664,7 +2664,7 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
           case FLOAT32_TYPE:
             e.vaddps(dest, src1, src2);
             break;
-          default: XEASSERTUNHANDLEDCASE(part_type); break;
+          default: assert_unhandled_case(part_type); break;
           }
         });
   }
@@ -2728,7 +2728,7 @@ EMITTER(SUB_I64, MATCH(I<OPCODE_SUB, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(SUB_F32, MATCH(I<OPCODE_SUB, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vsubss(dest, src1, src2);
@@ -2737,7 +2737,7 @@ EMITTER(SUB_F32, MATCH(I<OPCODE_SUB, F32<>, F32<>, F32<>>)) {
 };
 EMITTER(SUB_F64, MATCH(I<OPCODE_SUB, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vsubsd(dest, src1, src2);
@@ -2746,7 +2746,7 @@ EMITTER(SUB_F64, MATCH(I<OPCODE_SUB, F64<>, F64<>, F64<>>)) {
 };
 EMITTER(SUB_V128, MATCH(I<OPCODE_SUB, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vsubps(dest, src1, src2);
@@ -2774,7 +2774,7 @@ EMITTER(MUL_I8, MATCH(I<OPCODE_MUL, I8<>, I8<>, I8<>>)) {
     // dest hi, dest low = src * edx
     // TODO(benvanik): place src2 in edx?
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       e.movzx(e.edx, i.src2);
       e.mov(e.eax, static_cast<uint8_t>(i.src1.constant()));
       e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
@@ -2793,7 +2793,7 @@ EMITTER(MUL_I16, MATCH(I<OPCODE_MUL, I16<>, I16<>, I16<>>)) {
     // dest hi, dest low = src * edx
     // TODO(benvanik): place src2 in edx?
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       e.movzx(e.edx, i.src2);
       e.mov(e.ax, static_cast<uint16_t>(i.src1.constant()));
       e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
@@ -2813,7 +2813,7 @@ EMITTER(MUL_I32, MATCH(I<OPCODE_MUL, I32<>, I32<>, I32<>>)) {
     // dest hi, dest low = src * edx
     // TODO(benvanik): place src2 in edx?
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       e.mov(e.edx, i.src2);
       e.mov(e.eax, i.src1.constant());
       e.mulx(e.edx, i.dest, e.eax);
@@ -2833,7 +2833,7 @@ EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
     // dest hi, dest low = src * rdx
     // TODO(benvanik): place src2 in edx?
     if (i.src1.is_constant) {
-      XEASSERT(!i.src2.is_constant);
+      assert_true(!i.src2.is_constant);
       e.mov(e.rdx, i.src2);
       e.mov(e.rax, i.src1.constant());
       e.mulx(e.rdx, i.dest, e.rax);
@@ -2850,7 +2850,7 @@ EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(MUL_F32, MATCH(I<OPCODE_MUL, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitCommutativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vmulss(dest, src1, src2);
@@ -2859,7 +2859,7 @@ EMITTER(MUL_F32, MATCH(I<OPCODE_MUL, F32<>, F32<>, F32<>>)) {
 };
 EMITTER(MUL_F64, MATCH(I<OPCODE_MUL, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitCommutativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vmulsd(dest, src1, src2);
@@ -2868,7 +2868,7 @@ EMITTER(MUL_F64, MATCH(I<OPCODE_MUL, F64<>, F64<>, F64<>>)) {
 };
 EMITTER(MUL_V128, MATCH(I<OPCODE_MUL, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitCommutativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vmulps(dest, src1, src2);
@@ -2993,7 +2993,7 @@ EMITTER(DIV_I8, MATCH(I<OPCODE_DIV, I8<>, I8<>, I8<>>)) {
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
-      XEASSERT(!i.src1.is_constant);
+      assert_true(!i.src1.is_constant);
       clobbered_rcx = true;
       e.mov(e.cl, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
@@ -3032,7 +3032,7 @@ EMITTER(DIV_I16, MATCH(I<OPCODE_DIV, I16<>, I16<>, I16<>>)) {
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
-      XEASSERT(!i.src1.is_constant);
+      assert_true(!i.src1.is_constant);
       clobbered_rcx = true;
       e.mov(e.cx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
@@ -3081,7 +3081,7 @@ EMITTER(DIV_I32, MATCH(I<OPCODE_DIV, I32<>, I32<>, I32<>>)) {
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
-      XEASSERT(!i.src1.is_constant);
+      assert_true(!i.src1.is_constant);
       clobbered_rcx = true;
       e.mov(e.ecx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
@@ -3130,7 +3130,7 @@ EMITTER(DIV_I64, MATCH(I<OPCODE_DIV, I64<>, I64<>, I64<>>)) {
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
-      XEASSERT(!i.src1.is_constant);
+      assert_true(!i.src1.is_constant);
       clobbered_rcx = true;
       e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
@@ -3176,7 +3176,7 @@ EMITTER(DIV_I64, MATCH(I<OPCODE_DIV, I64<>, I64<>, I64<>>)) {
 };
 EMITTER(DIV_F32, MATCH(I<OPCODE_DIV, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vdivss(dest, src1, src2);
@@ -3185,7 +3185,7 @@ EMITTER(DIV_F32, MATCH(I<OPCODE_DIV, F32<>, F32<>, F32<>>)) {
 };
 EMITTER(DIV_F64, MATCH(I<OPCODE_DIV, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vdivsd(dest, src1, src2);
@@ -3194,7 +3194,7 @@ EMITTER(DIV_F64, MATCH(I<OPCODE_DIV, F64<>, F64<>, F64<>>)) {
 };
 EMITTER(DIV_V128, MATCH(I<OPCODE_DIV, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vdivps(dest, src1, src2);
@@ -3380,7 +3380,7 @@ EMITTER(NEG_F64, MATCH(I<OPCODE_NEG, F64<>, F64<>>)) {
 };
 EMITTER(NEG_V128, MATCH(I<OPCODE_NEG, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERT(!i.instr->flags);
+    assert_true(!i.instr->flags);
     e.vxorps(i.dest, i.src1, e.GetXmmConstPtr(XMMSignMaskPS));
   }
 };
@@ -3483,7 +3483,7 @@ EMITTER(POW2_F32, MATCH(I<OPCODE_POW2, F32<>, F32<>>)) {
     return _mm_load_ss(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
     e.CallNativeSafe(EmulatePow2);
     e.vmovaps(i.dest, e.xmm0);
@@ -3495,7 +3495,7 @@ EMITTER(POW2_F64, MATCH(I<OPCODE_POW2, F64<>, F64<>>)) {
     return _mm_load_sd(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
     e.CallNativeSafe(EmulatePow2);
     e.vmovaps(i.dest, e.xmm0);
@@ -3534,7 +3534,7 @@ EMITTER(LOG2_F32, MATCH(I<OPCODE_LOG2, F32<>, F32<>>)) {
     return _mm_load_ss(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
     e.CallNativeSafe(EmulateLog2);
     e.vmovaps(i.dest, e.xmm0);
@@ -3546,7 +3546,7 @@ EMITTER(LOG2_F64, MATCH(I<OPCODE_LOG2, F64<>, F64<>>)) {
     return _mm_load_sd(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
     e.CallNativeSafe(EmulateLog2);
     e.vmovaps(i.dest, e.xmm0);
@@ -3958,7 +3958,7 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
       EmitInt32(e, i);
       break;
     default:
-      XEASSERTALWAYS();
+      assert_always();
       break;
     }
   }
@@ -3990,7 +3990,7 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
         }
       } else {
         // Counts differ, so pre-mask and load constant.
-        XEASSERTALWAYS();
+        assert_always();
       }
     } else {
       // Fully variable shift.
@@ -4046,11 +4046,11 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
         e.vpsllw(i.dest, i.src1, shamt.s8[0] & 0xF);
       } else {
         // Counts differ, so pre-mask and load constant.
-        XEASSERTALWAYS();
+        assert_always();
       }
     } else {
       // Fully variable shift.
-      XEASSERTALWAYS();
+      assert_always();
     }
   }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
@@ -4105,7 +4105,7 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
       EmitInt32(e, i);
       break;
     default:
-      XEASSERTALWAYS();
+      assert_always();
       break;
     }
   }
@@ -4137,11 +4137,11 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
         }
       } else {
         // Counts differ, so pre-mask and load constant.
-        XEASSERTALWAYS();
+        assert_always();
       }
     } else {
       // Fully variable shift.
-      XEASSERTALWAYS();
+      assert_always();
     }
   }
   static void EmitInt16(X64Emitter& e, const EmitArgType& i) {
@@ -4159,11 +4159,11 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
         e.vpsrlw(i.dest, i.src1, shamt.s8[0] & 0xF);
       } else {
         // Counts differ, so pre-mask and load constant.
-        XEASSERTALWAYS();
+        assert_always();
       }
     } else {
       // Fully variable shift.
-      XEASSERTALWAYS();
+      assert_always();
     }
   }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
@@ -4215,7 +4215,7 @@ EMITTER(VECTOR_SHA_V128, MATCH(I<OPCODE_VECTOR_SHA, V128<>, V128<>, V128<>>)) {
       e.vpsravd(i.dest, i.src1, e.xmm0);
       break;
     default:
-      XEASSERTALWAYS();
+      assert_always();
       break;
     }
   }
@@ -4375,14 +4375,14 @@ EMITTER(EXTRACT_I8, MATCH(I<OPCODE_EXTRACT, I8<>, V128<>, I8<>>)) {
     if (i.src2.is_constant) {
       e.vpextrb(i.dest.reg().cvt32(), i.src1, VEC128_B(i.src2.constant()));
     } else {
-      XEASSERTALWAYS();
+      assert_always();
       // TODO(benvanik): try out hlide's version:
       // e.mov(e.eax, 0x80808003);
       // e.xor(e.al, i.src2);
       // e.and(e.al, 15);
       // e.vmovd(e.xmm0, e.eax);
       // e.vpshufb(e.xmm0, i.src1, e.xmm0);
-      // e.vmovd(i.dest.reg().cvt32(), e.xmm0); 
+      // e.vmovd(i.dest.reg().cvt32(), e.xmm0);
     }
   }
 };
@@ -4443,7 +4443,7 @@ EMITTER(EXTRACT_F32, MATCH(I<OPCODE_EXTRACT, F32<>, V128<>, I8<>>)) {
     if (i.src2.is_constant) {
       e.vextractps(i.dest, i.src1, VEC128_F(i.src2.constant()));
     } else {
-      XEASSERTALWAYS();
+      assert_always();
       // TODO(benvanik): try out hlide's version:
       // e.mov(e.eax, 3);
       // e.and(e.al, i.src2);       // eax = [(i&3), 0, 0, 0]
@@ -4573,7 +4573,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
       }
     } else {
       // Permute by non-constant.
-      XEASSERTALWAYS();
+      assert_always();
     }
   }
 };
@@ -4650,9 +4650,9 @@ EMITTER(SWIZZLE, MATCH(I<OPCODE_SWIZZLE, V128<>, V128<>, OffsetOp>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     auto element_type = i.instr->flags;
     if (element_type == INT8_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     } else if (element_type == INT16_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     } else if (element_type == INT32_TYPE || element_type == FLOAT32_TYPE) {
       uint8_t swizzle_mask = static_cast<uint8_t>(i.src2.value);
       swizzle_mask =
@@ -4662,9 +4662,9 @@ EMITTER(SWIZZLE, MATCH(I<OPCODE_SWIZZLE, V128<>, V128<>, OffsetOp>)) {
           (((swizzle_mask >> 0) & 0x3) << 6);
       e.vpshufd(i.dest, i.src1, swizzle_mask);
     } else if (element_type == INT64_TYPE || element_type == FLOAT64_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     } else {
-      XEASSERTALWAYS();
+      assert_always();
     }
   }
 };
@@ -4703,7 +4703,7 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     case PACK_TYPE_S16_IN_32_HI:
       EmitS16_IN_32_HI(e, i);
       break;
-    default: XEASSERTUNHANDLEDCASE(i.instr->flags); break;
+    default: assert_unhandled_case(i.instr->flags); break;
     }
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {
@@ -4755,19 +4755,19 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     e.vpblendw(i.dest, e.xmm0, B11110000);
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
   }
   static void EmitS8_IN_16_LO(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
   }
   static void EmitS8_IN_16_HI(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
   }
   static void EmitS16_IN_32_LO(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
   }
   static void EmitS16_IN_32_HI(X64Emitter& e, const EmitArgType& i) {
-    XEASSERTALWAYS();
+    assert_always();
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -4805,7 +4805,7 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     case PACK_TYPE_S16_IN_32_HI:
       EmitS16_IN_32_HI(e, i);
       break;
-    default: XEASSERTUNHANDLEDCASE(i.instr->flags); break;
+    default: assert_unhandled_case(i.instr->flags); break;
     }
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {

@@ -277,13 +277,13 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
 
         case OPCODE_DID_CARRY:
-          XEASSERT(!i->src1.value->IsConstant());
+          assert_true(!i->src1.value->IsConstant());
           break;
         case OPCODE_DID_OVERFLOW:
-          XEASSERT(!i->src1.value->IsConstant());
+          assert_true(!i->src1.value->IsConstant());
           break;
         case OPCODE_DID_SATURATE:
-          XEASSERT(!i->src1.value->IsConstant());
+          assert_true(!i->src1.value->IsConstant());
           break;
 
         case OPCODE_ADD:

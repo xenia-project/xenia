@@ -30,7 +30,7 @@ namespace kernel {
 uint32_t xeRtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr,
                             uint32_t length) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // SIZE_T
   // _In_  const VOID *Source1,
@@ -74,7 +74,7 @@ SHIM_CALL RtlCompareMemory_shim(
 uint32_t xeRtlCompareMemoryUlong(uint32_t source_ptr, uint32_t length,
                                  uint32_t pattern) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // SIZE_T
   // _In_  PVOID Source,
@@ -124,7 +124,7 @@ SHIM_CALL RtlCompareMemoryUlong_shim(
 void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
                           uint32_t pattern) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Out_  PVOID Destination,
@@ -172,7 +172,7 @@ SHIM_CALL RtlFillMemoryUlong_shim(
 // http://msdn.microsoft.com/en-us/library/ff561918
 void xeRtlInitAnsiString(uint32_t destination_ptr, uint32_t source_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Out_     PANSI_STRING DestinationString,
@@ -207,7 +207,7 @@ SHIM_CALL RtlInitAnsiString_shim(
 // http://msdn.microsoft.com/en-us/library/ff561899
 void xeRtlFreeAnsiString(uint32_t string_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Inout_  PANSI_STRING AnsiString
@@ -242,7 +242,7 @@ SHIM_CALL RtlFreeAnsiString_shim(
 // http://msdn.microsoft.com/en-us/library/ff561934
 void xeRtlInitUnicodeString(uint32_t destination_ptr, uint32_t source_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Out_     PUNICODE_STRING DestinationString,
@@ -281,7 +281,7 @@ SHIM_CALL RtlInitUnicodeString_shim(
 // http://msdn.microsoft.com/en-us/library/ff561903
 void xeRtlFreeUnicodeString(uint32_t string_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Inout_  PUNICODE_STRING UnicodeString
@@ -310,7 +310,7 @@ SHIM_CALL RtlFreeUnicodeString_shim(
 X_STATUS xeRtlUnicodeStringToAnsiString(
     uint32_t destination_ptr, uint32_t source_ptr, uint32_t alloc_dest) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // NTSTATUS
   // _Inout_  PANSI_STRING DestinationString,
@@ -318,7 +318,7 @@ X_STATUS xeRtlUnicodeStringToAnsiString(
   // _In_     BOOLEAN AllocateDestinationString
 
   XELOGE("RtlUnicodeStringToAnsiString not yet implemented");
-  XEASSERTALWAYS();
+  assert_always();
 
   if (alloc_dest) {
     // Allocate a new buffer to place the string into.
@@ -438,7 +438,7 @@ SHIM_CALL RtlNtStatusToDosError_shim(
 uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
                                   uint32_t image_field) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // PVOID
   // PVOID XexHeaderBase
@@ -525,11 +525,11 @@ typedef struct {
 #pragma pack(pop)
 }
 
-XEASSERTSTRUCTSIZE(X_RTL_CRITICAL_SECTION, 28);
+static_assert_size(X_RTL_CRITICAL_SECTION, 28);
 
 void xeRtlInitializeCriticalSection(uint32_t cs_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Out_  LPCRITICAL_SECTION lpCriticalSection
@@ -556,7 +556,7 @@ SHIM_CALL RtlInitializeCriticalSection_shim(
 X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(
     uint32_t cs_ptr, uint32_t spin_count) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // NTSTATUS
   // _Out_  LPCRITICAL_SECTION lpCriticalSection,
@@ -597,7 +597,7 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
 // TODO(benvanik): remove the need for passing in thread_id.
 void xeRtlEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
@@ -651,7 +651,7 @@ SHIM_CALL RtlEnterCriticalSection_shim(
 // TODO(benvanik): remove the need for passing in thread_id.
 uint32_t xeRtlTryEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // DWORD
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
@@ -689,7 +689,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(
 
 void xeRtlLeaveCriticalSection(uint32_t cs_ptr) {
   KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  assert_not_null(state);
 
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection

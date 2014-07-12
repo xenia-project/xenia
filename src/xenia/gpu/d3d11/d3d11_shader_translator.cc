@@ -58,7 +58,7 @@ const char* GetFormatTypeName(const VertexBufferResource::DeclElement& el) {
     return "float4";
   default:
     XELOGE("Unknown vertex format: %d", el.format);
-    XEASSERTALWAYS();
+    assert_always();
     return "float4";
   }
 }
@@ -141,7 +141,7 @@ int D3D11ShaderTranslator::TranslateVertexShader(
   append(
     "struct VS_OUTPUT {\n");
   if (alloc_counts.positions) {
-    XEASSERT(alloc_counts.positions == 1);
+    assert_true(alloc_counts.positions == 1);
     append(
       "  float4 oPos : SV_POSITION;\n");
   }
@@ -244,7 +244,7 @@ int D3D11ShaderTranslator::TranslatePixelShader(
   append(
     "struct VS_OUTPUT {\n");
   if (alloc_counts.positions) {
-    XEASSERT(alloc_counts.positions == 1);
+    assert_true(alloc_counts.positions == 1);
     append(
       "  float4 oPos : SV_POSITION;\n");
   }
@@ -417,7 +417,7 @@ void D3D11ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
       default:
         // TODO(benvanik): other render targets?
         // TODO(benvanik): depth?
-        XEASSERTALWAYS();
+        assert_always();
         break;
       }
       break;
@@ -1272,7 +1272,7 @@ int D3D11ShaderTranslator::GetFormatComponentCount(uint32_t format) {
     return 4;
   default:
     XELOGE("Unknown vertex format: %d", format);
-    XEASSERTALWAYS();
+    assert_always();
     return 4;
   }
 }
@@ -1348,7 +1348,7 @@ int D3D11ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
       case TEX_SET_GRADIENTS_H:
       case TEX_SET_GRADIENTS_V:
       default:
-        XEASSERTALWAYS();
+        assert_always();
         break;
       }
     } else {

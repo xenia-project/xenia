@@ -22,7 +22,7 @@ ObjectTable::ObjectTable() :
     table_(NULL),
     last_free_entry_(0) {
   table_mutex_ = xe_mutex_alloc(0);
-  XEASSERTNOTNULL(table_mutex_);
+  assert_not_null(table_mutex_);
 }
 
 ObjectTable::~ObjectTable() {
@@ -88,7 +88,7 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
 }
 
 X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
-  XEASSERTNOTNULL(out_handle);
+  assert_not_null(out_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -156,7 +156,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
-  XEASSERTNOTNULL(out_object);
+  assert_not_null(out_object);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -197,7 +197,7 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
   if (handle == 0xFFFFFFFF) {
     // CurrentProcess
-    //XEASSERTALWAYS();
+    //assert_always();
     return 0;
   } else if (handle == 0xFFFFFFFE) {
     // CurrentThread

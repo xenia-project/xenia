@@ -11,7 +11,7 @@
 #define POLY_CONFIG_H_
 
 #if defined(DEBUG) || defined(_DEBUG)
-#define XE_DEBUG                1
+#define XE_DEBUG 1
 #endif  // DEBUG
 
 #endif  // POLY_CONFIG_H_

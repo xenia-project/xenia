@@ -78,7 +78,7 @@ KernelExport* ExportResolver::GetExportByOrdinal(const char* library_name,
 KernelExport* ExportResolver::GetExportByName(const char* library_name,
                                               const char* name) {
   // TODO(benvanik): lookup by name.
-  XEASSERTALWAYS();
+  assert_always();
   return NULL;
 }
 
@@ -86,7 +86,7 @@ void ExportResolver::SetVariableMapping(const char* library_name,
                                         const uint32_t ordinal,
                                         uint32_t value) {
   KernelExport* kernel_export = GetExportByOrdinal(library_name, ordinal);
-  XEASSERTNOTNULL(kernel_export);
+  assert_not_null(kernel_export);
   kernel_export->is_implemented = true;
   kernel_export->variable_ptr = value;
 }
@@ -96,7 +96,7 @@ void ExportResolver::SetFunctionMapping(
     void* shim_data, xe_kernel_export_shim_fn shim,
     xe_kernel_export_impl_fn impl) {
   KernelExport* kernel_export = GetExportByOrdinal(library_name, ordinal);
-  XEASSERTNOTNULL(kernel_export);
+  assert_not_null(kernel_export);
   kernel_export->is_implemented = true;
   kernel_export->function_data.shim_data = shim_data;
   kernel_export->function_data.shim = shim;

@@ -157,7 +157,7 @@ int GraphicsDriver::PopulateShaders(DrawCommand& command) {
     XELOGE("No pixel shader bound; ignoring");
     return 1;
   }
-  
+
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = register_file_[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
   if (!vertex_shader_->is_prepared()) {
@@ -181,7 +181,7 @@ int GraphicsDriver::PopulateShaders(DrawCommand& command) {
 
 int GraphicsDriver::PopulateInputAssembly(DrawCommand& command) {
   SCOPE_profile_cpu_f("gpu");
-  
+
   const auto& buffer_inputs = command.vertex_shader->buffer_inputs();
   command.vertex_buffer_count = buffer_inputs.count;
   for (size_t n = 0; n < buffer_inputs.count; n++) {
@@ -201,10 +201,10 @@ int GraphicsDriver::PopulateInputAssembly(DrawCommand& command) {
       fetch = &group->vertex_fetch_2;
       break;
     }
-    XEASSERTNOTNULL(fetch);
+    assert_not_null(fetch);
     // If this assert doesn't hold, maybe we just abort?
-    XEASSERT(fetch->type == 0x3);
-    XEASSERTNOTZERO(fetch->size);
+    assert_true(fetch->type == 0x3);
+    assert_not_zero(fetch->size);
 
     const auto& info = desc.info;
 
@@ -278,7 +278,7 @@ int GraphicsDriver::PopulateSamplerSet(
     XELOGW("D3D11: unknown texture format %d", info.format);
     return 0;  // invalid texture used
   }
-  
+
   // TODO(benvanik): quick validate without refetching intraframe.
   // Fetch texture from the cache.
   MemoryRange memory_range;

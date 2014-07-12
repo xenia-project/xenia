@@ -23,12 +23,12 @@ void Block::AssertNoCycles() {
   while ((hare = hare->next)) {
     if (hare == tortoise) {
       // Cycle!
-      XEASSERTALWAYS();
+      assert_always();
     }
     hare = hare->next;
     if (hare == tortoise) {
       // Cycle!
-      XEASSERTALWAYS();
+      assert_always();
     }
     tortoise = tortoise->next;
     if (!hare || !tortoise) {

@@ -28,7 +28,7 @@ XTimer::~XTimer() {
 }
 
 void XTimer::Initialize(uint32_t timer_type) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   bool manual_reset = false;
   switch (timer_type) {
@@ -39,7 +39,7 @@ void XTimer::Initialize(uint32_t timer_type) {
     manual_reset = false;
     break;
   default:
-    XEASSERTALWAYS();
+    assert_always();
     break;
   }
 
@@ -71,7 +71,7 @@ X_STATUS XTimer::SetTimer(
 
 void XTimer::CompletionRoutine(
     XTimer* timer, DWORD timer_low, DWORD timer_high) {
-  XEASSERT(timer->current_routine_);
+  assert_true(timer->current_routine_);
 
   // Queue APC to call back routine with (arg, low, high).
   // TODO(benvanik): APC dispatch.

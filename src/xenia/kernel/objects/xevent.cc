@@ -26,13 +26,13 @@ XEvent::~XEvent() {
 }
 
 void XEvent::Initialize(bool manual_reset, bool initial_state) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
 }
 
 void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   bool manual_reset;
   switch (header.type_flags >> 24) {
@@ -43,7 +43,7 @@ void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
     manual_reset = false;
     break;
   default:
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 

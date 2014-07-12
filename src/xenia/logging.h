@@ -32,14 +32,14 @@ void xe_handle_fatal(
 
 #if XE_OPTION_ENABLE_LOGGING
 #define XELOGCORE(level, fmt, ...) xe_log_line( \
-    XE_CURRENT_FILE, XE_CURRENT_LINE, XE_CURRENT_FUNCTION, level, \
+    __FILE__, __LINE__, __FUNCTION__, level, \
     fmt, ##__VA_ARGS__)
 #else
 #define XELOGCORE(level, fmt, ...) XE_EMPTY_MACRO
 #endif  // ENABLE_LOGGING
 
 #define XEFATAL(fmt, ...) do { \
-    xe_handle_fatal(XE_CURRENT_FILE, XE_CURRENT_LINE, XE_CURRENT_FUNCTION, \
+    xe_handle_fatal(__FILE__, __LINE__, __FUNCTION__, \
                     fmt, ##__VA_ARGS__); \
   } while (false);
 

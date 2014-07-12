@@ -146,7 +146,7 @@ void InstrAccessBits::MarkAccess(InstrRegister& reg) {
       }
       break;
     default:
-      XEASSERTUNHANDLEDCASE(reg.set);
+      assert_unhandled_case(reg.set);
       break;
   }
 }
@@ -384,11 +384,11 @@ InstrType* GetInstrType(uint32_t code) {
 
 int RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
   InstrType* instr_type = GetInstrType(code);
-  XEASSERTNOTNULL(instr_type);
+  assert_not_null(instr_type);
   if (!instr_type) {
     return 1;
   }
-  XEASSERTNULL(instr_type->emit);
+  assert_null(instr_type->emit);
   instr_type->emit = emit;
   return 0;
 }

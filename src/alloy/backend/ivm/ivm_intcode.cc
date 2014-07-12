@@ -159,8 +159,8 @@ uint32_t AllocOpRegister(TranslationContext& ctx, OpcodeSignatureType sig_type,
 uint32_t IntCode_INVALID(IntCodeState& ics, const IntCode* i);
 uint32_t IntCode_INVALID_TYPE(IntCodeState& ics, const IntCode* i);
 int DispatchToC(TranslationContext& ctx, Instr* i, IntCodeFn fn) {
-  XEASSERT(fn != IntCode_INVALID);
-  XEASSERT(fn != IntCode_INVALID_TYPE);
+  assert_true(fn != IntCode_INVALID);
+  assert_true(fn != IntCode_INVALID_TYPE);
 
   const OpcodeInfo* op = i->opcode;
   uint32_t sig = op->signature;
@@ -194,11 +194,11 @@ int DispatchToC(TranslationContext& ctx, Instr* i, IntCodeFn fn) {
 }
 
 uint32_t IntCode_INVALID(IntCodeState& ics, const IntCode* i) {
-  XEASSERTALWAYS();
+  assert_always();
   return IA_NEXT;
 }
 uint32_t IntCode_INVALID_TYPE(IntCodeState& ics, const IntCode* i) {
-  XEASSERTALWAYS();
+  assert_always();
   return IA_NEXT;
 }
 int TranslateInvalid(TranslationContext& ctx, Instr* i) {
@@ -368,7 +368,7 @@ uint32_t IntCode_CALL_XX(IntCodeState& ics, const IntCode* i, uint32_t reg) {
   if (!fn) {
     ics.thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
   }
-  XEASSERTNOTNULL(fn);
+  assert_not_null(fn);
   // TODO(benvanik): proper tail call support, somehow.
   uint64_t return_address =
       (i->flags & CALL_TAIL) ? ics.return_address : ics.call_return_address;
@@ -444,7 +444,7 @@ uint32_t IntCode_CALL_INDIRECT_XX(IntCodeState& ics, const IntCode* i,
   // Real call.
   Function* fn = NULL;
   ics.thread_state->runtime()->ResolveFunction(target, &fn);
-  XEASSERTNOTNULL(fn);
+  assert_not_null(fn);
   // TODO(benvanik): proper tail call support, somehow.
   uint64_t return_address =
       (i->flags & CALL_TAIL) ? ics.return_address : ics.call_return_address;
@@ -2309,17 +2309,17 @@ uint32_t IntCode_ADD_I64_I64(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_ADD_F32_F32(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 + ics.rf[i->src2_reg].f32;
   return IA_NEXT;
 }
 uint32_t IntCode_ADD_F64_F64(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 + ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
 uint32_t IntCode_ADD_V128_V128(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   const vec128_t& src2 = ics.rf[i->src2_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
@@ -2380,13 +2380,13 @@ uint32_t IntCode_ADD_CARRY_I64_I64(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_ADD_CARRY_F32_F32(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 + ics.rf[i->src2_reg].f32 +
                             ics.rf[i->src3_reg].i8;
   return IA_NEXT;
 }
 uint32_t IntCode_ADD_CARRY_F64_F64(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 + ics.rf[i->src2_reg].f64 +
                             ics.rf[i->src3_reg].i8;
   return IA_NEXT;
@@ -2570,12 +2570,12 @@ uint32_t IntCode_SUB_I64_I64(IntCodeState& ics, const IntCode* i) {
   return IA_NEXT;
 }
 uint32_t IntCode_SUB_F32_F32(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   ics.rf[i->dest_reg].f32 = ics.rf[i->src1_reg].f32 - ics.rf[i->src2_reg].f32;
   return IA_NEXT;
 }
 uint32_t IntCode_SUB_F64_F64(IntCodeState& ics, const IntCode* i) {
-  XEASSERT(!i->flags);
+  assert_true(!i->flags);
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 - ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
@@ -3564,7 +3564,7 @@ int Translate_BYTE_SWAP(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_CNTLZ_I8(IntCodeState& ics, const IntCode* i) {
   // CHECK
-  XEASSERTALWAYS();
+  assert_always();
   DWORD index;
   DWORD mask = ics.rf[i->src1_reg].i8;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
@@ -3573,7 +3573,7 @@ uint32_t IntCode_CNTLZ_I8(IntCodeState& ics, const IntCode* i) {
 }
 uint32_t IntCode_CNTLZ_I16(IntCodeState& ics, const IntCode* i) {
   // CHECK
-  XEASSERTALWAYS();
+  assert_always();
   DWORD index;
   DWORD mask = ics.rf[i->src1_reg].i16;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);

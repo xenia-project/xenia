@@ -36,7 +36,7 @@ void Value::RemoveUse(Use* use) {
 }
 
 uint32_t Value::AsUint32() {
-  XEASSERT(IsConstant());
+  assert_true(IsConstant());
   switch (type) {
     case INT8_TYPE:
       return constant.i8;
@@ -47,13 +47,13 @@ uint32_t Value::AsUint32() {
     case INT64_TYPE:
       return (uint32_t)constant.i64;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       return 0;
   }
 }
 
 uint64_t Value::AsUint64() {
-  XEASSERT(IsConstant());
+  assert_true(IsConstant());
   switch (type) {
     case INT8_TYPE:
       return constant.i8;
@@ -64,14 +64,14 @@ uint64_t Value::AsUint64() {
     case INT64_TYPE:
       return constant.i64;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       return 0;
   }
 }
 
 void Value::Cast(TypeName target_type) {
   // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 void Value::ZeroExtend(TypeName target_type) {
@@ -89,7 +89,7 @@ void Value::ZeroExtend(TypeName target_type) {
       constant.i64 = constant.i64 & 0xFFFFFFFF;
       return;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -109,7 +109,7 @@ void Value::SignExtend(TypeName target_type) {
           constant.i64 = constant.i8;
           return;
         default:
-          XEASSERTUNHANDLEDCASE(target_type);
+          assert_unhandled_case(target_type);
           return;
       }
     case INT16_TYPE:
@@ -122,7 +122,7 @@ void Value::SignExtend(TypeName target_type) {
           constant.i64 = constant.i16;
           return;
         default:
-          XEASSERTUNHANDLEDCASE(target_type);
+          assert_unhandled_case(target_type);
           return;
       }
     case INT32_TYPE:
@@ -132,11 +132,11 @@ void Value::SignExtend(TypeName target_type) {
           constant.i64 = constant.i32;
           return;
         default:
-          XEASSERTUNHANDLEDCASE(target_type);
+          assert_unhandled_case(target_type);
           return;
       }
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       return;
   }
 }
@@ -150,7 +150,7 @@ void Value::Truncate(TypeName target_type) {
           constant.i64 = constant.i64 & 0xFF;
           return;
         default:
-          XEASSERTUNHANDLEDCASE(target_type);
+          assert_unhandled_case(target_type);
           return;
       }
     case INT32_TYPE:
@@ -164,7 +164,7 @@ void Value::Truncate(TypeName target_type) {
           constant.i64 = constant.i64 & 0xFFFF;
           return;
         default:
-          XEASSERTUNHANDLEDCASE(target_type);
+          assert_unhandled_case(target_type);
           return;
       }
     case INT64_TYPE:
@@ -182,29 +182,29 @@ void Value::Truncate(TypeName target_type) {
           constant.i64 = constant.i64 & 0xFFFFFFFF;
           return;
         default:
-          XEASSERTUNHANDLEDCASE(target_type);
+          assert_unhandled_case(target_type);
           return;
       }
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       return;
   }
 }
 
 void Value::Convert(TypeName target_type, RoundMode round_mode) {
   // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 void Value::Round(RoundMode round_mode) {
   // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 bool Value::Add(Value* other) {
 #define CHECK_DID_CARRY(v1, v2) (((uint64_t)v2) > ~((uint64_t)v1))
 #define ADD_DID_CARRY(a, b) CHECK_DID_CARRY(a, b)
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   bool did_carry = false;
   switch (type) {
     case INT8_TYPE:
@@ -230,7 +230,7 @@ bool Value::Add(Value* other) {
       constant.f64 += other->constant.f64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
   return did_carry;
@@ -238,7 +238,7 @@ bool Value::Add(Value* other) {
 
 bool Value::Sub(Value* other) {
 #define SUB_DID_CARRY(a, b) (b > a)
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   bool did_carry = false;
   switch (type) {
     case INT8_TYPE:
@@ -264,14 +264,14 @@ bool Value::Sub(Value* other) {
       constant.f64 -= other->constant.f64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
   return did_carry;
 }
 
 void Value::Mul(Value* other) {
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   switch (type) {
     case INT8_TYPE:
       constant.i8 *= other->constant.i8;
@@ -292,13 +292,13 @@ void Value::Mul(Value* other) {
       constant.f64 *= other->constant.f64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::Div(Value* other) {
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   switch (type) {
     case INT8_TYPE:
       constant.i8 /= other->constant.i8;
@@ -319,19 +319,19 @@ void Value::Div(Value* other) {
       constant.f64 /= other->constant.f64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::MulAdd(Value* dest, Value* value1, Value* value2, Value* value3) {
   // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 void Value::MulSub(Value* dest, Value* value1, Value* value2, Value* value3) {
   // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 void Value::Neg() {
@@ -355,7 +355,7 @@ void Value::Neg() {
       constant.f64 = -constant.f64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -381,7 +381,7 @@ void Value::Abs() {
       constant.f64 = abs(constant.f64);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -395,7 +395,7 @@ void Value::Sqrt() {
       constant.f64 = 1.0 / sqrt(constant.f64);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -409,13 +409,13 @@ void Value::RSqrt() {
       constant.f64 = sqrt(constant.f64);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::And(Value* other) {
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   switch (type) {
     case INT8_TYPE:
       constant.i8 &= other->constant.i8;
@@ -430,13 +430,13 @@ void Value::And(Value* other) {
       constant.i64 &= other->constant.i64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::Or(Value* other) {
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   switch (type) {
     case INT8_TYPE:
       constant.i8 |= other->constant.i8;
@@ -451,13 +451,13 @@ void Value::Or(Value* other) {
       constant.i64 |= other->constant.i64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::Xor(Value* other) {
-  XEASSERT(type == other->type);
+  assert_true(type == other->type);
   switch (type) {
     case INT8_TYPE:
       constant.i8 ^= other->constant.i8;
@@ -472,7 +472,7 @@ void Value::Xor(Value* other) {
       constant.i64 ^= other->constant.i64;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -496,13 +496,13 @@ void Value::Not() {
       constant.v128.high = ~constant.v128.high;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::Shl(Value* other) {
-  XEASSERT(other->type == INT8_TYPE);
+  assert_true(other->type == INT8_TYPE);
   switch (type) {
     case INT8_TYPE:
       constant.i8 <<= other->constant.i8;
@@ -517,13 +517,13 @@ void Value::Shl(Value* other) {
       constant.i64 <<= other->constant.i8;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::Shr(Value* other) {
-  XEASSERT(other->type == INT8_TYPE);
+  assert_true(other->type == INT8_TYPE);
   switch (type) {
     case INT8_TYPE:
       constant.i8 = (uint8_t)constant.i8 >> other->constant.i8;
@@ -538,13 +538,13 @@ void Value::Shr(Value* other) {
       constant.i64 = (uint16_t)constant.i64 >> other->constant.i8;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 void Value::Sha(Value* other) {
-  XEASSERT(other->type == INT8_TYPE);
+  assert_true(other->type == INT8_TYPE);
   switch (type) {
     case INT8_TYPE:
       constant.i8 = constant.i8 >> other->constant.i8;
@@ -559,7 +559,7 @@ void Value::Sha(Value* other) {
       constant.i64 = constant.i64 >> other->constant.i8;
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -584,7 +584,7 @@ void Value::ByteSwap() {
       }
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
@@ -604,14 +604,14 @@ void Value::CountLeadingZeros(const Value* other) {
       constant.i8 = poly::lzcnt(constant.i64);
       break;
     default:
-      XEASSERTUNHANDLEDCASE(type);
+      assert_unhandled_case(type);
       break;
   }
 }
 
 bool Value::Compare(Opcode opcode, Value* other) {
   // TODO(benvanik): big matrix.
-  XEASSERTALWAYS();
+  assert_always();
   return false;
 }
 

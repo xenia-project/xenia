@@ -252,7 +252,7 @@ int D3D11VertexShaderResource::CreateInputLayout(const void* byte_code,
         vtx_format = DXGI_FORMAT_R32G32B32A32_FLOAT;
         break;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         break;
       }
       element_descs[el_index].SemanticName         = "XE_VF";
@@ -299,7 +299,7 @@ int D3D11VertexShaderResource::DemandGeometryShader(
     shader = new D3D11QuadListGeometryShader(device);
     break;
   default:
-    XEASSERTALWAYS();
+    assert_always();
     return 1;
   }
   if (!shader) {

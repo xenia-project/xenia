@@ -33,8 +33,8 @@ D3D11GraphicsSystem::~D3D11GraphicsSystem() {
 void D3D11GraphicsSystem::Initialize() {
   GraphicsSystem::Initialize();
 
-  XEASSERTNULL(timer_queue_);
-  XEASSERTNULL(vsync_timer_);
+  assert_null(timer_queue_);
+  assert_null(vsync_timer_);
 
   timer_queue_ = CreateTimerQueue();
   CreateTimerQueueTimer(
@@ -111,7 +111,7 @@ void D3D11GraphicsSystem::Initialize() {
   // Create the window.
   // This will pump through the run-loop and and be where our swapping
   // will take place.
-  XEASSERTNULL(window_);
+  assert_null(window_);
   window_ = new D3D11Window(run_loop_, dxgi_factory_, device_);
   if (window_->Initialize("Xenia D3D11", 1280, 720)) {
     XELOGE("Failed to create D3D11Window");
@@ -126,7 +126,7 @@ void D3D11GraphicsSystem::Initialize() {
   // Create the driver.
   // This runs in the worker thread and builds command lines to present
   // in the window.
-  XEASSERTNULL(driver_);
+  assert_null(driver_);
   driver_ = new D3D11GraphicsDriver(
       memory_, window_->swap_chain(), device_);
   if (driver_->Initialize()) {
@@ -180,7 +180,7 @@ void __stdcall D3D11GraphicsSystem::VsyncCallback(D3D11GraphicsSystem* gs,
 
 void D3D11GraphicsSystem::Shutdown() {
   GraphicsSystem::Shutdown();
-  
+
   if (vsync_timer_) {
     DeleteTimerQueueTimer(timer_queue_, vsync_timer_, NULL);
   }

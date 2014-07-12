@@ -48,7 +48,7 @@ void Memory::Copy(uint64_t dest, uint64_t src, size_t size) {
 
 uint64_t Memory::SearchAligned(uint64_t start, uint64_t end,
                                const uint32_t* values, size_t value_count) {
-  XEASSERT(start <= end);
+  assert_true(start <= end);
   const uint32_t* p = (const uint32_t*)(membase_ + start);
   const uint32_t* pe = (const uint32_t*)(membase_ + end);
   while (p != pe) {

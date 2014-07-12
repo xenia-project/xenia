@@ -48,7 +48,7 @@ static size_t GetTypeSize(TypeName type_name) {
     case VEC128_TYPE:
       return 16;
     default:
-      XEASSERTUNHANDLEDCASE(type_name);
+      assert_unhandled_case(type_name);
       return 0;
   }
 }
@@ -177,13 +177,13 @@ class Value {
   inline bool IsConstant() const { return !!(flags & VALUE_IS_CONSTANT); }
   bool IsConstantTrue() const {
     if (type == VEC128_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     }
     return (flags & VALUE_IS_CONSTANT) && !!constant.i64;
   }
   bool IsConstantFalse() const {
     if (type == VEC128_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     }
     return (flags & VALUE_IS_CONSTANT) && !constant.i64;
   }
@@ -196,20 +196,20 @@ class Value {
   }
   bool IsConstantEQ(Value* other) const {
     if (type == VEC128_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     }
     return (flags & VALUE_IS_CONSTANT) && (other->flags & VALUE_IS_CONSTANT) &&
            constant.i64 == other->constant.i64;
   }
   bool IsConstantNE(Value* other) const {
     if (type == VEC128_TYPE) {
-      XEASSERTALWAYS();
+      assert_always();
     }
     return (flags & VALUE_IS_CONSTANT) && (other->flags & VALUE_IS_CONSTANT) &&
            constant.i64 != other->constant.i64;
   }
   bool IsConstantSLT(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return constant.i8 < other->constant.i8;
@@ -224,12 +224,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 < other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantSLE(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return constant.i8 <= other->constant.i8;
@@ -244,12 +244,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 <= other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantSGT(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return constant.i8 > other->constant.i8;
@@ -264,12 +264,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 > other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantSGE(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return constant.i8 >= other->constant.i8;
@@ -284,12 +284,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 >= other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantULT(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return (uint8_t)constant.i8 < (uint8_t)other->constant.i8;
@@ -304,12 +304,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 < other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantULE(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return (uint8_t)constant.i8 <= (uint8_t)other->constant.i8;
@@ -324,12 +324,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 <= other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantUGT(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return (uint8_t)constant.i8 > (uint8_t)other->constant.i8;
@@ -344,12 +344,12 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 > other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }
   bool IsConstantUGE(Value* other) const {
-    XEASSERT(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
+    assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
     switch (type) {
       case INT8_TYPE:
         return (uint8_t)constant.i8 >= (uint8_t)other->constant.i8;
@@ -364,7 +364,7 @@ class Value {
       case FLOAT64_TYPE:
         return constant.f64 >= other->constant.f64;
       default:
-        XEASSERTALWAYS();
+        assert_always();
         return false;
     }
   }

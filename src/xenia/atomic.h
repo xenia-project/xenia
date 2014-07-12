@@ -13,6 +13,7 @@
 #include <cstdint>
 
 #include <xenia/platform.h>
+#include <xenia/types.h>
 
 
 // These functions are modeled off of the Apple OSAtomic routines

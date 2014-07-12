@@ -81,7 +81,7 @@ public:
     } while (info->next_entry_offset != 0);
   }
 };
-XEASSERTSTRUCTSIZE(XDirectoryInfo, 72);
+static_assert_size(XDirectoryInfo, 72);
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287(v=vs.85).aspx
 class XVolumeInfo {
@@ -102,7 +102,7 @@ public:
     xe_copy_memory(dst + 20, this->label_length, this->label, this->label_length);
   }
 };
-XEASSERTSTRUCTSIZE(XVolumeInfo, 24);
+static_assert_size(XVolumeInfo, 24);
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
 class XFileSystemAttributeInfo {
@@ -121,7 +121,7 @@ public:
     xe_copy_memory(dst + 12, this->fs_name_length, this->fs_name, this->fs_name_length);
   }
 };
-XEASSERTSTRUCTSIZE(XFileSystemAttributeInfo, 16);
+static_assert_size(XFileSystemAttributeInfo, 16);
 
 class XFile : public XObject {
 public:

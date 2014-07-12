@@ -10,7 +10,8 @@
 #ifndef XENIA_COMMON_H_
 #define XENIA_COMMON_H_
 
-#include <xenia/assert.h>
+#include <poly/assert.h>
+
 #include <xenia/atomic.h>
 #include <xenia/byte_order.h>
 #include <xenia/config.h>

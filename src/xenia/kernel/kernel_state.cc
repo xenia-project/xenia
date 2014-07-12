@@ -42,7 +42,7 @@ KernelState::KernelState(Emulator* emulator) :
   object_table_ = new ObjectTable();
   object_mutex_ = xe_mutex_alloc(10000);
 
-  XEASSERTNULL(shared_kernel_state_);
+  assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
 }
 
@@ -55,7 +55,7 @@ KernelState::~KernelState() {
 
   delete dispatcher_;
 
-  XEASSERT(shared_kernel_state_ == this);
+  assert_true(shared_kernel_state_ == this);
   shared_kernel_state_ = NULL;
 }
 
@@ -81,7 +81,7 @@ XModule* KernelState::GetModule(const char* name) {
     return NULL;
   } else {
     // TODO(benvanik): support user modules/loading/etc.
-    XEASSERTALWAYS();
+    assert_always();
     return NULL;
   }
 }

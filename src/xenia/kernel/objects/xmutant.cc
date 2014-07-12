@@ -26,22 +26,22 @@ XMutant::~XMutant() {
 }
 
 void XMutant::Initialize(bool initial_owner) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   handle_ = CreateMutex(NULL, initial_owner ? TRUE : FALSE, NULL);
 }
 
 void XMutant::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   // Haven't seen this yet, but it's possible.
-  XEASSERTALWAYS();
+  assert_always();
 }
 
 X_STATUS XMutant::ReleaseMutant(
     uint32_t priority_increment, bool abandon, bool wait) {
   // TODO(benvanik): abandoning.
-  XEASSERTFALSE(abandon);
+  assert_false(abandon);
   BOOL result = ReleaseMutex(handle_);
   if (result) {
     return X_STATUS_SUCCESS;

@@ -98,11 +98,11 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
 }
 
 X_STATUS DiscImageDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
+  assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
 X_STATUS DiscImageDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
+  assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }

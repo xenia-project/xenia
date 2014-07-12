@@ -28,7 +28,7 @@ XNotifyListener::~XNotifyListener() {
 }
 
 void XNotifyListener::Initialize(uint64_t mask) {
-  XEASSERTNULL(wait_handle_);
+  assert_null(wait_handle_);
 
   lock_ = xe_mutex_alloc();
   wait_handle_ = CreateEvent(NULL, TRUE, FALSE, NULL);

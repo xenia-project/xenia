@@ -44,8 +44,8 @@ SHIM_CALL XMsgInProcessCall_shim(
       uint32_t a = SHIM_MEM_32(arg1 + 0); // 0x00000002
       uint32_t b = SHIM_MEM_32(arg1 + 4); // out ptr to 4b - expect 0
       XELOGD("XMPGetStatusEx(%.8X, %.8X)", a, b);
-      XEASSERTZERO(arg2);
-      XEASSERT(a == 2);
+      assert_zero(arg2);
+      assert_true(a == 2);
       SHIM_SET_MEM_32(b, 0);
       handled = true;
     } else if (message == 0x0007001A) {
@@ -59,8 +59,8 @@ SHIM_CALL XMsgInProcessCall_shim(
       uint32_t a = SHIM_MEM_32(arg1 + 0); // 0x00000002
       uint32_t b = SHIM_MEM_32(arg1 + 4); // out ptr to 4b - expect 0
       XELOGD("XMPGetStatus(%.8X, %.8X)", a, b);
-      XEASSERTZERO(arg2);
-      XEASSERT(a == 2);
+      assert_zero(arg2);
+      assert_true(a == 2);
       SHIM_SET_MEM_32(b, 0);
       handled = true;
     }

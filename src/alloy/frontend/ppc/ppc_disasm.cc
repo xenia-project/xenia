@@ -412,7 +412,7 @@ void Disasm_rld(InstrData& i, StringBuffer* str) {
                 i.MD.Rc ? "." : "", i.MD.RA, i.MD.RT, (i.MD.SH5 << 5) | i.MD.SH,
                 (i.MD.MB5 << 5) | i.MD.MB);
   } else {
-    XEASSERTALWAYS();
+    assert_always();
   }
 }
 void Disasm_rlwim(InstrData& i, StringBuffer* str) {

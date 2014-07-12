@@ -174,7 +174,7 @@ LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
         auto action = ex_info->ExceptionRecord->ExceptionInformation[0];
         if (action == 0) {
           uint64_t value = range.read(range.context, address & 0xFFFFFFFF);
-          XEASSERT((disasm.Argument1.ArgType & BE::REGISTER_TYPE) ==
+          assert_true((disasm.Argument1.ArgType & BE::REGISTER_TYPE) ==
                    BE::REGISTER_TYPE);
           uint64_t* reg_ptr = GetContextRegPtr(disasm.Argument1.ArgType,
                                                ex_info->ContextRecord);
@@ -203,7 +203,7 @@ LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
           } else if ((disasm.Argument2.ArgType & BE::CONSTANT_TYPE) == BE::CONSTANT_TYPE) {
             value = disasm.Instruction.Immediat;
           } else {
-            XEASSERTALWAYS();
+            assert_always();
           }
           switch (disasm.Argument2.ArgSize) {
           case 8:
@@ -290,7 +290,7 @@ int XenonMemory::Initialize() {
       NULL);
   if (!mapping_) {
     XELOGE("Unable to reserve the 4gb guest address space.");
-    XEASSERTNOTNULL(mapping_);
+    assert_not_null(mapping_);
     XEFAIL();
   }
 
@@ -306,7 +306,7 @@ int XenonMemory::Initialize() {
   }
   if (!mapping_base_) {
     XELOGE("Unable to find a continuous block in the 64bit address space.");
-    XEASSERTALWAYS();
+    assert_always();
     XEFAIL();
   }
   membase_ = mapping_base_;
@@ -362,7 +362,7 @@ int XenonMemory::MapViews(uint8_t* mapping_base) {
     0xC0000000, 0xDFFFFFFF, 0x00000000, //          - physical 16mb pages
     0xE0000000, 0xFFFFFFFF, 0x00000000, //          - physical 4k pages
   };
-  XEASSERT(XECOUNT(map_info) == XECOUNT(views_.all_views));
+  assert_true(XECOUNT(map_info) == XECOUNT(views_.all_views));
   for (size_t n = 0; n < XECOUNT(map_info); n++) {
     views_.all_views[n] = (uint8_t*)MapViewOfFileEx(
         mapping_,
@@ -398,14 +398,14 @@ bool XenonMemory::AddMappedRange(uint64_t address, uint64_t mask,
     protect = PAGE_READONLY;
   } else {
     // Write-only memory is not supported.
-    XEASSERTALWAYS();
+    assert_always();
   }
   if (!VirtualAlloc(Translate(address),
                     size,
                     MEM_COMMIT, protect)) {
     return false;
   }
-  XEASSERT(g_mapped_range_count_ + 1 < XECOUNT(g_mapped_ranges_));
+  assert_true(g_mapped_range_count_ + 1 < XECOUNT(g_mapped_ranges_));
   g_mapped_ranges_[g_mapped_range_count_++] = {
     reinterpret_cast<uint64_t>(mapping_base_) | address,
     0xFFFFFFFF00000000 | mask,
@@ -518,13 +518,13 @@ uint64_t XenonMemory::HeapAlloc(
     if (base_address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
         base_address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
       // Overlapping managed heap.
-      XEASSERTALWAYS();
+      assert_always();
       return 0;
     }
     if (base_address >= XENON_MEMORY_PHYSICAL_HEAP_LOW &&
         base_address < XENON_MEMORY_PHYSICAL_HEAP_HIGH) {
       // Overlapping managed heap.
-      XEASSERTALWAYS();
+      assert_always();
       return 0;
     }
 
@@ -534,7 +534,7 @@ uint64_t XenonMemory::HeapAlloc(
     void* pv = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
     if (!pv) {
       // Failed.
-      XEASSERTALWAYS();
+      assert_always();
       return 0;
     }
 

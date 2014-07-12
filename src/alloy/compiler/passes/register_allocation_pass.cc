@@ -114,13 +114,13 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
           // dest.
           has_preferred_reg = true;
           preferred_reg = instr->src1.value->reg;
-          XEASSERTNOTNULL(preferred_reg.set);
+          assert_not_null(preferred_reg.set);
         }
       }
 
       if (GET_OPCODE_SIG_TYPE_DEST(signature) == OPCODE_SIG_TYPE_V) {
         // Must not have been set already.
-        XEASSERTNULL(instr->dest->reg.set);
+        assert_null(instr->dest->reg.set);
 
         // Sort the usage list. We depend on this in future uses of this
         // variable.
@@ -144,7 +144,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
           if (!SpillOneRegister(builder, instr->dest->type)) {
             // Unable to spill anything - this shouldn't happen.
             XELOGE("Unable to spill any registers");
-            XEASSERTALWAYS();
+            assert_always();
             return 1;
           }
 
@@ -152,7 +152,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
           if (!TryAllocateRegister(instr->dest)) {
             // Boned.
             XELOGE("Register allocation failed");
-            XEASSERTALWAYS();
+            assert_always();
             return 1;
           }
         }
@@ -330,14 +330,14 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder,
 
   DumpUsage("SpillOneRegister (pre)");
   // Pick the one with the furthest next use.
-  XEASSERT(!usage_set->upcoming_uses.empty());
+  assert_true(!usage_set->upcoming_uses.empty());
   auto furthest_usage = std::max_element(usage_set->upcoming_uses.begin(),
                                          usage_set->upcoming_uses.end(),
                                          RegisterUsage::Comparer());
   auto spill_value = furthest_usage->value;
   Value::Use* prev_use = furthest_usage->use->prev;
   Value::Use* next_use = furthest_usage->use;
-  XEASSERTNOTNULL(next_use);
+  assert_not_null(next_use);
   usage_set->upcoming_uses.erase(furthest_usage);
   DumpUsage("SpillOneRegister (post)");
   const auto reg = spill_value->reg;
@@ -361,11 +361,11 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder,
     builder->StoreLocal(spill_value->local_slot, spill_value);
     auto spill_store = builder->last_instr();
     auto spill_store_use = spill_store->src2_use;
-    XEASSERTNULL(spill_store_use->prev);
+    assert_null(spill_store_use->prev);
     if (prev_use && prev_use->instr->opcode->flags & OPCODE_FLAG_PAIRED_PREV) {
       // Instruction is paired. This is bad. We will insert the spill after the
       // paired instruction.
-      XEASSERTNOTNULL(prev_use->instr->next);
+      assert_not_null(prev_use->instr->next);
       spill_store->MoveBefore(prev_use->instr->next);
 
       // Update last use.

@@ -53,7 +53,7 @@ DiscImageEntry::~DiscImageEntry() {
 }
 
 X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
   out_info->creation_time     = 0;
   out_info->last_access_time  = 0;
   out_info->last_write_time   = 0;
@@ -66,7 +66,7 @@ X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
 
 X_STATUS DiscImageEntry::QueryDirectory(
     XDirectoryInfo* out_info, size_t length, const char* file_name, bool restart) {
-  XEASSERTNOTNULL(out_info);
+  assert_not_null(out_info);
 
   if (restart == true && gdfx_entry_iterator_ != gdfx_entry_->children.end()) {
     gdfx_entry_iterator_ = gdfx_entry_->children.end();

@@ -12,6 +12,6 @@
 
 const xechar_t* xe_path_get_tmp(const xechar_t* prefix) {
   //
-  XEASSERTALWAYS();
+  assert_always();
   return NULL;
 }
