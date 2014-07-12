@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef POLY_POLY_CXX_COMPAT_H_
-#define POLY_POLY_CXX_COMPAT_H_
+#ifndef POLY_CXX_COMPAT_H_
+#define POLY_CXX_COMPAT_H_
 
 #include <poly/config.h>
 
@@ -24,4 +24,4 @@
 
 namespace poly {}  // namespace poly
 
-#endif  // POLY_POLY_CXX_COMPAT_H_
+#endif  // POLY_CXX_COMPAT_H_
