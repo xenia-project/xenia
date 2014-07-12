@@ -44,7 +44,7 @@ keypresses:
 
 #### setup
 
-Run this on initial checkout to pull down all dependencies and setup LLVM.
+Run this on initial checkout to pull down all dependencies and submodules.
 
     xb setup
 
