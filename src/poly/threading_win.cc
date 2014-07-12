@@ -9,6 +9,8 @@
 
 #include <poly/threading.h>
 
+#include <poly/platform.h>
+
 namespace poly {
 namespace threading {
 
@@ -22,7 +24,7 @@ void Sleep(std::chrono::microseconds duration) {
   if (duration.count() < 100) {
     SwitchToThread();
   } else {
-    Sleep(duration.count() / 1000);
+    ::Sleep(static_cast<DWORD>(duration.count() / 1000));
   }
 }
 

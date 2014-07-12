@@ -11,6 +11,7 @@
 #define ALLOY_RUNTIME_ENTRY_TABLE_H_
 
 #include <mutex>
+#include <unordered_map>
 
 #include <alloy/core.h>
 

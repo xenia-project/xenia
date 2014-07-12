@@ -11,6 +11,7 @@
 #define XENIA_GPU_RESOURCE_CACHE_H_
 
 #include <map>
+#include <unordered_map>
 
 #include <xenia/core.h>
 #include <xenia/gpu/buffer_resource.h>

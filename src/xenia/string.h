@@ -11,7 +11,6 @@
 #define XENIA_STRING_H_
 
 #include <xenia/platform.h>
-#include <xenia/platform_includes.h>
 
 
 // NOTE: these differing implementations should behave pretty much the same.

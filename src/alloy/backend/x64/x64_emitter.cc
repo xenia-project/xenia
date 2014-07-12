@@ -265,7 +265,7 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
 
 // Overwrite the call site.
 // The return address points to ReloadRCX work after the call.
-#if XE_WIN32_LIKE
+#if XE_LIKE_WIN32
   uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
 #else
   uint64_t return_address =

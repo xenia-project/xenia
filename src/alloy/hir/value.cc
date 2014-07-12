@@ -136,7 +136,7 @@ void Value::SignExtend(TypeName target_type) {
           return;
       }
     default:
-      XEASSERTUNHANDLEDCASE();
+      XEASSERTUNHANDLEDCASE(type);
       return;
   }
 }

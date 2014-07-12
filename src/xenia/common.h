@@ -17,7 +17,6 @@
 #include <xenia/logging.h>
 #include <xenia/malloc.h>
 #include <xenia/platform.h>
-#include <xenia/platform_includes.h>
 #include <xenia/profiling.h>
 #include <xenia/string.h>
 #include <xenia/types.h>

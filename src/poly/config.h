@@ -7,15 +7,11 @@
  ******************************************************************************
  */
 
-#ifndef POLY_POLY_H_
-#define POLY_POLY_H_
+#ifndef POLY_CONFIG_H_
+#define POLY_CONFIG_H_
 
-#include <poly/config.h>
-#include <poly/cxx_compat.h>
-#include <poly/math.h>
-#include <poly/platform.h>
-#include <poly/threading.h>
+#if defined(DEBUG) || defined(_DEBUG)
+#define XE_DEBUG                1
+#endif  // DEBUG
 
-namespace poly {}  // namespace poly
-
-#endif  // POLY_POLY_H_
+#endif  // POLY_CONFIG_H_

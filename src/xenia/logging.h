@@ -10,8 +10,9 @@
 #ifndef XENIA_LOGGING_H_
 #define XENIA_LOGGING_H_
 
+#include <cstdint>
+
 #include <xenia/platform.h>
-#include <xenia/platform_includes.h>
 #include <xenia/config.h>
 #include <xenia/string.h>
 

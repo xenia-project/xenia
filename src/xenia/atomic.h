@@ -10,8 +10,9 @@
 #ifndef XENIA_ATOMIC_H_
 #define XENIA_ATOMIC_H_
 
+#include <cstdint>
+
 #include <xenia/platform.h>
-#include <xenia/platform_includes.h>
 
 
 // These functions are modeled off of the Apple OSAtomic routines

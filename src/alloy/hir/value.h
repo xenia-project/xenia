@@ -49,7 +49,7 @@ static size_t GetTypeSize(TypeName type_name) {
       return 16;
     default:
       XEASSERTUNHANDLEDCASE(type_name);
-      break;
+      return 0;
   }
 }
 

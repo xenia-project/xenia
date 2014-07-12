@@ -10,10 +10,11 @@
 #ifndef XENIA_KERNEL_FS_FILESYSTEM_H_
 #define XENIA_KERNEL_FS_FILESYSTEM_H_
 
+#include <unordered_map>
+#include <vector>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
-
-#include <vector>
 
 #include <xenia/kernel/fs/entry.h>
 

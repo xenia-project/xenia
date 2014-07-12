@@ -10,6 +10,8 @@
 #ifndef XENIA_BYTE_ORDER_H_
 #define XENIA_BYTE_ORDER_H_
 
+#include <cstdint>
+
 #include <xenia/platform.h>
 #include <xenia/types.h>
 

@@ -1,6 +1,7 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'config.h',
     'cxx_compat.h',
     'math.h',
     'poly-private.h',

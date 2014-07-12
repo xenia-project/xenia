@@ -10,6 +10,8 @@
 #ifndef POLY_POLY_CXX_COMPAT_H_
 #define POLY_POLY_CXX_COMPAT_H_
 
+#include <poly/config.h>
+
 // C++11 thread local storage.
 // http://en.cppreference.com/w/cpp/language/storage_duration
 #if XE_COMPILER_MSVC

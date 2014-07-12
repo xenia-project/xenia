@@ -9,9 +9,10 @@
 
 #include <xenia/core/socket.h>
 
+#include <errno.h>
+#include <mstcpip.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <mstcpip.h>
 
 
 // TODO(benvanik): win32 calls

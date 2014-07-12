@@ -10,14 +10,9 @@
 #ifndef XENIA_TYPES_H_
 #define XENIA_TYPES_H_
 
-#include <xenia/platform.h>
-#include <xenia/platform_includes.h>
+#include <cstdint>
 
-namespace xe {
-// TODO(benvanik): support other compilers/etc
-using std::auto_ptr;
-using std::shared_ptr;
-}  // namespace xe
+#include <xenia/platform.h>
 
 
 #define XE_EMPTY_MACRO          do { } while(0)
