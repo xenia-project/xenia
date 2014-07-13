@@ -31,7 +31,7 @@ class Runtime {
   typedef std::vector<Module*> ModuleList;
 
  public:
-  Runtime(Memory* memory);
+  explicit Runtime(Memory* memory);
   virtual ~Runtime();
 
   Memory* memory() const { return memory_; }

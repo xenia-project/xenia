@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
 #include <alloy/alloy.h>
-
 #include <alloy/runtime/raw_module.h>
+#include <xenia/export_resolver.h>
 #include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>
+#include <xenia/cpu/xenon_thread_state.h>
 
 #include <gflags/gflags.h>
 
@@ -21,7 +21,6 @@ using namespace alloy::backend;
 using namespace alloy::runtime;
 using namespace xe;
 using namespace xe::cpu;
-
 
 int alloy_sandbox(int argc, xechar_t** argv) {
   Profiler::Initialize();
@@ -43,8 +42,8 @@ int alloy_sandbox(int argc, xechar_t** argv) {
   module->LoadFile(0x82000000, "test\\codegen\\instr_add.bin");
   runtime->AddModule(module);
 
-  XenonThreadState* thread_state = new XenonThreadState(
-      runtime, 100, 64 * 1024, 0);
+  XenonThreadState* thread_state =
+      new XenonThreadState(runtime, 100, 64 * 1024, 0);
 
   Function* fn;
   runtime->ResolveFunction(0x82000000, &fn);
@@ -54,6 +53,7 @@ int alloy_sandbox(int argc, xechar_t** argv) {
   ctx->r[25] = 25;
   fn->Call(thread_state, ctx->lr);
   auto result = ctx->r[11];
+  printf("%llu", result);
 
   delete thread_state;
 

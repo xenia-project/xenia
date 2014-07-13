@@ -23,12 +23,11 @@ using namespace xe::cpu;
 XenonThreadState::XenonThreadState(
     XenonRuntime* runtime, uint32_t thread_id,
     size_t stack_size, uint64_t thread_state_address) :
-    stack_size_(stack_size), thread_state_address_(thread_state_address),
-    ThreadState(runtime, thread_id) {
+    ThreadState(runtime, thread_id),
+    stack_size_(stack_size),
+    thread_state_address_(thread_state_address) {
   stack_address_ = memory_->HeapAlloc(
       0, stack_size, MEMORY_FLAG_ZERO);
-
-  debug_break_ = CreateEvent(NULL, FALSE, FALSE, NULL);
 
   // Allocate with 64b alignment.
   context_ = (PPCContext*)xe_malloc_aligned(sizeof(PPCContext));
@@ -60,40 +59,9 @@ XenonThreadState::XenonThreadState(
 XenonThreadState::~XenonThreadState() {
   runtime_->debugger()->OnThreadDestroyed(this);
 
-  CloseHandle(debug_break_);
-
   alloy::tracing::WriteEvent(EventType::ThreadDeinit({
   }));
 
   xe_free_aligned(context_);
   memory_->HeapFree(stack_address_, stack_size_);
-}
-
-volatile int* XenonThreadState::suspend_flag_address() const {
-  return &context_->suspend_flag;
-}
-
-int XenonThreadState::Suspend(uint32_t timeout_ms) {
-  // Set suspend flag.
-  // One of the checks should call in to OnSuspend() at some point.
-  poly::atomic_inc(&context_->suspend_flag);
-  return 0;
-}
-
-int XenonThreadState::Resume(bool force) {
-  if (context_->suspend_flag) {
-    if (force) {
-      context_->suspend_flag = 0;
-      SetEvent(debug_break_);
-    } else {
-      if (!poly::atomic_dec(&context_->suspend_flag)) {
-        SetEvent(debug_break_);
-      }
-    }
-  }
-  return 0;
-}
-
-void XenonThreadState::EnterSuspend() {
-  WaitForSingleObject(debug_break_, INFINITE);
 }

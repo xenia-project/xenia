@@ -34,11 +34,6 @@ public:
   uint64_t thread_state_address() const { return thread_state_address_; }
   PPCContext* context() const { return context_; }
 
-  virtual volatile int* suspend_flag_address() const;
-  virtual int Suspend(uint32_t timeout_ms = UINT_MAX);
-  virtual int Resume(bool force = false);
-  virtual void EnterSuspend();
-
 private:
   uint64_t  stack_address_;
   size_t    stack_size_;
@@ -46,8 +41,6 @@ private:
 
   // NOTE: must be 64b aligned for SSE ops.
   PPCContext* context_;
-
-  HANDLE    debug_break_;
 };
 
 

@@ -199,7 +199,6 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
   runtime::Runtime*     runtime;
-  volatile int          suspend_flag;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,

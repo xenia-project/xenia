@@ -32,10 +32,8 @@ class ThreadState {
   void* backend_data() const { return backend_data_; }
   void* raw_context() const { return raw_context_; }
 
-  virtual volatile int* suspend_flag_address() const = 0;
-  virtual int Suspend(uint32_t timeout_ms = UINT_MAX) = 0;
-  virtual int Resume(bool force = false) = 0;
-  virtual void EnterSuspend() = 0;
+  virtual int Suspend(uint32_t timeout_ms = UINT_MAX) { return 1; }
+  virtual int Resume(bool force = false) { return 1; }
 
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();
