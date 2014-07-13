@@ -25,12 +25,39 @@ namespace poly {
 // return value is the size of the input operand (8, 16, 32, or 64). If the most
 // significant bit of value is one, the return value is zero.
 #if XE_COMPILER_MSVC
+#if 1
 inline uint8_t lzcnt(uint8_t v) {
   return static_cast<uint8_t>(__lzcnt16(v) - 8);
 }
 inline uint8_t lzcnt(uint16_t v) { return static_cast<uint8_t>(__lzcnt16(v)); }
 inline uint8_t lzcnt(uint32_t v) { return static_cast<uint8_t>(__lzcnt(v)); }
 inline uint8_t lzcnt(uint64_t v) { return static_cast<uint8_t>(__lzcnt64(v)); }
+#else
+inline uint8_t lzcnt(uint8_t v) {
+  DWORD index;
+  DWORD mask = v;
+  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index - 24) ^ 0x7 : 8);
+}
+inline uint8_t lzcnt(uint16_t v) {
+  DWORD index;
+  DWORD mask = v;
+  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index - 16) ^ 0xF : 16);
+}
+inline uint8_t lzcnt(uint32_t v) {
+  DWORD index;
+  DWORD mask = v;
+  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
+}
+inline uint8_t lzcnt(uint64_t v) {
+  DWORD index;
+  DWORD64 mask = v;
+  BOOLEAN is_nonzero = _BitScanReverse64(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
+}
+#endif  // LZCNT supported
 #else
 inline uint8_t lzcnt(uint8_t v) {
   return static_cast<uint8_t>(__builtin_clzs(v) - 8);
@@ -120,6 +147,9 @@ template <int N>
 int64_t m128_i64(const __m128& v) {
   return m128_i64<N>(_mm_castps_pd(v));
 }
+
+uint16_t float_to_half(float value);
+float half_to_float(uint16_t value);
 
 }  // namespace poly
 

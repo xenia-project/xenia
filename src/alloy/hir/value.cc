@@ -9,6 +9,8 @@
 
 #include <alloy/hir/value.h>
 
+#include <cmath>
+
 namespace alloy {
 namespace hir {
 

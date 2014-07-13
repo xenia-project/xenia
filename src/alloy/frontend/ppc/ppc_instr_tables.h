@@ -10,6 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_INSTR_TABLES_H_
 #define ALLOY_FRONTEND_PPC_PPC_INSTR_TABLES_H_
 
+#include <cmath>
+
 #include <alloy/frontend/ppc/ppc_instr.h>
 
 namespace alloy {

@@ -70,7 +70,7 @@ namespace poly {
   poly_assert((expr) != nullptr || !message)
 
 #define assert_unhandled_case(variable) \
-  assert_always("unhandled switch("## #variable##") case")
+  assert_always("unhandled switch(" #variable ") case")
 
 }  // namespace poly
 

@@ -5,6 +5,7 @@
     'atomic.h',
     'config.h',
     'cxx_compat.h',
+    'math.cc',
     'math.h',
     'platform.h',
     'poly-private.h',

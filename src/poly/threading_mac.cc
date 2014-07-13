@@ -9,11 +9,15 @@
 
 #include <poly/threading.h>
 
+#include <mach/mach.h>
+#include <mach/mach_time.h>
 #include <pthread.h>
 #include <time.h>
 
 namespace poly {
 namespace threading {
+
+uint64_t ticks() { return mach_absolute_time(); }
 
 uint32_t current_thread_id() {
   mach_port_t tid = pthread_mach_thread_np(pthread_self());

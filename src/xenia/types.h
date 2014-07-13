@@ -11,6 +11,7 @@
 #define XENIA_TYPES_H_
 
 #include <cstdint>
+#include <functional>
 
 #include <xenia/platform.h>
 

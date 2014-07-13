@@ -14,6 +14,15 @@
 namespace poly {
 namespace threading {
 
+uint64_t ticks() {
+  LARGE_INTEGER counter;
+  uint64_t time = 0;
+  if (QueryPerformanceCounter(&counter)) {
+    time = counter.QuadPart;
+  }
+  return time;
+}
+
 uint32_t current_thread_id() {
   return static_cast<uint32_t>(GetCurrentThreadId());
 }

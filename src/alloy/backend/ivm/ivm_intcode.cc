@@ -14,9 +14,6 @@
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
 
-// TODO(benvanik): reimplement packing functions
-#include <DirectXPackedVector.h>
-
 // TODO(benvanik): make a compile time flag?
 //#define DYNAMIC_REGISTER_ACCESS_CHECK(address) false
 #define DYNAMIC_REGISTER_ACCESS_CHECK(address) \
@@ -38,10 +35,10 @@ using alloy::hir::Value;
 using alloy::runtime::Function;
 using alloy::runtime::FunctionInfo;
 
-#define IPRINT
-#define IFLUSH()
-#define DPRINT
-#define DFLUSH()
+#define IPRINT(...) (void())
+#define IFLUSH() (void())
+#define DPRINT(...) (void())
+#define DFLUSH() (void())
 
 //#define IPRINT if (ics.thread_state->thread_id() == 1) printf
 //#define IFLUSH() fflush(stdout)
@@ -101,7 +98,7 @@ uint32_t AllocConstant(TranslationContext& ctx, Value* value) {
 uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
   // If it's a back-branch to an already tagged label avoid setting up
   // a reference.
-  uint32_t value = (uint32_t)label->tag;
+  uint32_t value = *reinterpret_cast<uint32_t*>(label->tag);
   if (value & 0x80000000) {
     // Already set.
     return AllocConstant(ctx, value & ~0x80000000);
@@ -124,11 +121,11 @@ uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
 
 uint32_t AllocDynamicRegister(TranslationContext& ctx, Value* value) {
   if (value->flags & VALUE_IS_ALLOCATED) {
-    return (uint32_t)value->tag;
+    return *reinterpret_cast<uint32_t*>(value->tag);
   } else {
     value->flags |= VALUE_IS_ALLOCATED;
     auto reg = ctx.register_count++;
-    value->tag = (void*)reg;
+    value->tag = reinterpret_cast<void*>(reg);
     return (uint32_t)reg;
   }
 }
@@ -207,6 +204,7 @@ int TranslateInvalid(TranslationContext& ctx, Instr* i) {
 
 uint32_t IntCode_COMMENT(IntCodeState& ics, const IntCode* i) {
   char* value = (char*)(i->src1_reg | ((uint64_t)i->src2_reg << 32));
+  (void)(value);
   IPRINT("XE[t] :%d: %s\n", ics.thread_state->thread_id(), value);
   IFLUSH();
   return IA_NEXT;
@@ -1186,12 +1184,7 @@ int Translate_LOAD_VECTOR_SHR(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_LOAD_CLOCK(IntCodeState& ics, const IntCode* i) {
-  LARGE_INTEGER counter;
-  uint64_t time = 0;
-  if (QueryPerformanceCounter(&counter)) {
-    time = counter.QuadPart;
-  }
-  ics.rf[i->dest_reg].i64 = time;
+  ics.rf[i->dest_reg].i64 = poly::threading::ticks();
   return IA_NEXT;
 }
 int Translate_LOAD_CLOCK(TranslationContext& ctx, Instr* i) {
@@ -2664,7 +2657,7 @@ int Translate_MUL(TranslationContext& ctx, Instr* i) {
   }
 }
 
-namespace {
+#if !XE_COMPILER_MSVC
 uint64_t Mul128(uint64_t xi_low, uint64_t xi_high, uint64_t yi_low,
                 uint64_t yi_high) {
 // 128bit multiply, simplified for two input 64bit integers.
@@ -2680,7 +2673,6 @@ uint64_t Mul128(uint64_t xi_low, uint64_t xi_high, uint64_t yi_low,
   uint64_t f = yi_high & LO_WORD;
   uint64_t e = (yi_high & HI_WORD) >> 32LL;
   uint64_t acc = d * h;
-  uint64_t o1 = acc & LO_WORD;
   acc >>= 32LL;
   uint64_t carry = 0;
 
@@ -2692,7 +2684,6 @@ uint64_t Mul128(uint64_t xi_low, uint64_t xi_high, uint64_t yi_low,
   if (acc < ac2) {
     carry++;
   }
-  uint64_t rv2_lo = o1 | (acc << 32LL);
   ac2 = (acc >> 32LL) | (carry << 32LL);
   carry = 0;
 
@@ -2719,7 +2710,7 @@ uint64_t Mul128(uint64_t xi_low, uint64_t xi_high, uint64_t yi_low,
 
   return rv2_hi;
 }
-}
+#endif  // !XE_COMPILER_MSVC
 
 uint32_t IntCode_MUL_HI_I8_I8(IntCodeState& ics, const IntCode* i) {
   int16_t v = (int16_t)ics.rf[i->src1_reg].i8 * (int16_t)ics.rf[i->src2_reg].i8;
@@ -3565,33 +3556,21 @@ int Translate_BYTE_SWAP(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_CNTLZ_I8(IntCodeState& ics, const IntCode* i) {
   // CHECK
   assert_always();
-  DWORD index;
-  DWORD mask = ics.rf[i->src1_reg].i8;
-  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)(index - 24) ^ 0x7 : 8;
+  ics.rf[i->dest_reg].i8 = poly::lzcnt(ics.rf[i->src1_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_CNTLZ_I16(IntCodeState& ics, const IntCode* i) {
   // CHECK
   assert_always();
-  DWORD index;
-  DWORD mask = ics.rf[i->src1_reg].i16;
-  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)(index - 16) ^ 0xF : 16;
+  ics.rf[i->dest_reg].i8 = poly::lzcnt(ics.rf[i->src1_reg].i16);
   return IA_NEXT;
 }
 uint32_t IntCode_CNTLZ_I32(IntCodeState& ics, const IntCode* i) {
-  DWORD index;
-  DWORD mask = ics.rf[i->src1_reg].i32;
-  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)index ^ 0x1F : 32;
+  ics.rf[i->dest_reg].i8 = poly::lzcnt(ics.rf[i->src1_reg].i32);
   return IA_NEXT;
 }
 uint32_t IntCode_CNTLZ_I64(IntCodeState& ics, const IntCode* i) {
-  DWORD index;
-  DWORD64 mask = ics.rf[i->src1_reg].i64;
-  BOOLEAN is_nonzero = _BitScanReverse64(&index, mask);
-  ics.rf[i->dest_reg].i8 = is_nonzero ? (int8_t)index ^ 0x3F : 64;
+  ics.rf[i->dest_reg].i8 = poly::lzcnt(ics.rf[i->src1_reg].i64);
   return IA_NEXT;
 }
 int Translate_CNTLZ(TranslationContext& ctx, Instr* i) {
@@ -3872,21 +3851,18 @@ uint32_t IntCode_PACK_FLOAT16_2(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   dest.ix = dest.iy = dest.iz = 0;
-  dest.iw =
-      ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.x) << 16) |
-      DirectX::PackedVector::XMConvertFloatToHalf(src1.y);
+  dest.iw = (uint32_t(poly::float_to_half(src1.x)) << 16) |
+            poly::float_to_half(src1.y);
   return IA_NEXT;
 }
 uint32_t IntCode_PACK_FLOAT16_4(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   dest.ix = dest.iy = 0;
-  dest.iz =
-      ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.x) << 16) |
-      DirectX::PackedVector::XMConvertFloatToHalf(src1.y);
-  dest.iw =
-      ((uint32_t)DirectX::PackedVector::XMConvertFloatToHalf(src1.z) << 16) |
-      DirectX::PackedVector::XMConvertFloatToHalf(src1.w);
+  dest.iz = (uint32_t(poly::float_to_half(src1.x)) << 16) |
+            poly::float_to_half(src1.y);
+  dest.iw = (uint32_t(poly::float_to_half(src1.z)) << 16) |
+            poly::float_to_half(src1.w);
   return IA_NEXT;
 }
 uint32_t IntCode_PACK_SHORT_2(IntCodeState& ics, const IntCode* i) {
@@ -3932,7 +3908,7 @@ uint32_t IntCode_UNPACK_FLOAT16_2(IntCodeState& ics, const IntCode* i) {
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   uint32_t src = src1.iw;
   for (int n = 0; n < 2; n++) {
-    dest.f4[n] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
+    dest.f4[n] = poly::half_to_float(uint16_t(src));
     src >>= 16;
   }
   dest.f4[2] = 0.0f;
@@ -3944,7 +3920,7 @@ uint32_t IntCode_UNPACK_FLOAT16_4(IntCodeState& ics, const IntCode* i) {
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   uint64_t src = src1.iz | ((uint64_t)src1.iw << 32);
   for (int n = 0; n < 4; n++) {
-    dest.f4[n] = DirectX::PackedVector::XMConvertHalfToFloat((uint16_t)src);
+    dest.f4[n] = poly::half_to_float(uint16_t(src));
     src >>= 16;
   }
   return IA_NEXT;

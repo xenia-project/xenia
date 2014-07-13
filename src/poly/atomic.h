@@ -15,32 +15,35 @@
 #include <poly/config.h>
 #include <poly/platform.h>
 
+#if XE_LIKE_OSX
+#include <libkern/OSAtomic.h>
+#endif  // XE_LIKE_OSX
+
 namespace poly {
 
 // These functions are modeled off of the Apple OSAtomic routines
 // http://developer.apple.com/library/mac/#documentation/DriversKernelHardware/Reference/libkern_ref/OSAtomic_h/
 
 #if XE_LIKE_OSX
-#include <libkern/OSAtomic.h>
 
 inline int32_t atomic_inc(volatile int32_t* value) {
-  return OSAtomicIncrement32Barrier(reinterpret_cast<volatile LONG*>(value));
+  return OSAtomicIncrement32Barrier(reinterpret_cast<volatile int32_t*>(value));
 }
 inline int32_t atomic_dec(volatile int32_t* value) {
-  return OSAtomicDecrement32Barrier(reinterpret_cast<volatile LONG*>(value));
+  return OSAtomicDecrement32Barrier(reinterpret_cast<volatile int32_t*>(value));
 }
 
 inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
-  //
+  return OSAtomicCompareAndSwap32Barrier(*value, new_value, value);
 }
 inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
-  //
+  return OSAtomicCompareAndSwap64Barrier(*value, new_value, value);
 }
 
 inline int32_t atomic_cas(int32_t old_value, int32_t new_value,
                           volatile int32_t* value) {
   return OSAtomicCompareAndSwap32Barrier(
-      old_value, new_value, reinterpret_cast<volatile LONG*>(value));
+      old_value, new_value, reinterpret_cast<volatile int32_t*>(value));
 }
 
 #elif XE_LIKE_WIN32
@@ -77,10 +80,10 @@ inline int32_t atomic_dec(volatile int32_t* value) {
 }
 
 inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
-  //
+  return __sync_val_compare_and_swap(*value, value, new_value);
 }
 inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
-  //
+  return __sync_val_compare_and_swap(*value, value, new_value);
 }
 
 inline int32_t atomic_cas(int32_t old_value, int32_t new_value,
