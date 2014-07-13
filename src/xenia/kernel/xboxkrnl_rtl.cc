@@ -606,13 +606,13 @@ void xeRtlEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
 
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
 spin:
-  if (xe_atomic_inc_32(&cs->lock_count) != 0) {
+  if (poly::atomic_inc(&cs->lock_count) != 0) {
     // If this thread already owns the CS increment the recursion count.
     if (cs->owning_thread_id == thread_id) {
       cs->recursion_count++;
       return;
     }
-    xe_atomic_dec_32(&cs->lock_count);
+    poly::atomic_dec(&cs->lock_count);
 
     // Thread was locked - spin wait.
     if (spin_wait_remaining) {
@@ -658,13 +658,13 @@ uint32_t xeRtlTryEnterCriticalSection(uint32_t cs_ptr, uint32_t thread_id) {
 
   X_RTL_CRITICAL_SECTION* cs = (X_RTL_CRITICAL_SECTION*)IMPL_MEM_ADDR(cs_ptr);
 
-  if (xe_atomic_cas_32(-1, 0, &cs->lock_count)) {
+  if (poly::atomic_cas(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.
     cs->owning_thread_id  = thread_id;
     cs->recursion_count   = 1;
     return 1;
   } else if (cs->owning_thread_id == thread_id) {
-    xe_atomic_inc_32(&cs->lock_count);
+    poly::atomic_inc(&cs->lock_count);
     ++cs->recursion_count;
     return 1;
   }
@@ -699,13 +699,13 @@ void xeRtlLeaveCriticalSection(uint32_t cs_ptr) {
   // Drop recursion count - if we are still not zero'ed return.
   uint32_t recursion_count = --cs->recursion_count;
   if (recursion_count) {
-    xe_atomic_dec_32(&cs->lock_count);
+    poly::atomic_dec(&cs->lock_count);
     return;
   }
 
   // Unlock!
   cs->owning_thread_id  = 0;
-  if (xe_atomic_dec_32(&cs->lock_count) != -1) {
+  if (poly::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
     // TODO(benvanik): wake a waiter.
     XELOGE("RtlLeaveCriticalSection would have woken a waiter");

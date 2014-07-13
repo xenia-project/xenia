@@ -11,6 +11,7 @@
 #define POLY_POLY_H_
 
 #include <poly/assert.h>
+#include <poly/atomic.h>
 #include <poly/config.h>
 #include <poly/cxx_compat.h>
 #include <poly/math.h>

@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XTHREAD_H_
 #define XENIA_KERNEL_XBOXKRNL_XTHREAD_H_
 
+#include <atomic>
+
 #include <xenia/kernel/xobject.h>
 
 #include <xenia/xbox.h>
@@ -94,7 +96,7 @@ private:
 
   char*         name_;
 
-  uint32_t      irql_;
+  std::atomic<uint32_t> irql_;
   xe_mutex_t*   apc_lock_;
   NativeList*   apc_list_;
 

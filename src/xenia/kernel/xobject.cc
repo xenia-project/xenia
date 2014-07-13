@@ -46,22 +46,22 @@ X_HANDLE XObject::handle() const {
 }
 
 void XObject::RetainHandle() {
-  xe_atomic_inc_32(&handle_ref_count_);
+  ++handle_ref_count_;
 }
 
 bool XObject::ReleaseHandle() {
-  if (!xe_atomic_dec_32(&handle_ref_count_)) {
+  if (--handle_ref_count_ == 0) {
     return true;
   }
   return false;
 }
 
 void XObject::Retain() {
-  xe_atomic_inc_32(&pointer_ref_count_);
+  ++pointer_ref_count_;
 }
 
 void XObject::Release() {
-  if (!xe_atomic_dec_32(&pointer_ref_count_)) {
+  if (--pointer_ref_count_ == 0) {
     assert_true(pointer_ref_count_ >= handle_ref_count_);
     delete this;
   }

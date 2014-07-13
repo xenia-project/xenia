@@ -11,7 +11,6 @@
 #define ALLOY_CORE_H_
 
 // TODO(benvanik): move the common stuff into here?
-#include <xenia/atomic.h>
 #include <xenia/byte_order.h>
 #include <xenia/config.h>
 #include <xenia/logging.h>

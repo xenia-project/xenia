@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
 #define XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
 
+#include <atomic>
+
 #include <xenia/kernel/kernel_state.h>
 
 #include <xenia/xbox.h>
@@ -87,8 +89,8 @@ protected:
   KernelState*  kernel_state_;
 
 private:
-  volatile int32_t handle_ref_count_;
-  volatile int32_t pointer_ref_count_;
+  std::atomic<int32_t> handle_ref_count_;
+  std::atomic<int32_t> pointer_ref_count_;
 
   Type          type_;
   X_HANDLE      handle_;

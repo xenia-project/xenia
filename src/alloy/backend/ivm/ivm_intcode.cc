@@ -4020,16 +4020,16 @@ int Translate_UNPACK(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_ATOMIC_EXCHANGE_I32(IntCodeState& ics, const IntCode* i) {
-  auto address = (uint8_t*)ics.rf[i->src1_reg].u64;
+  auto address = (uint32_t*)ics.rf[i->src1_reg].u64;
   auto new_value = ics.rf[i->src2_reg].u32;
-  auto old_value = xe_atomic_exchange_32(new_value, address);
+  auto old_value = poly::atomic_exchange(new_value, address);
   ics.rf[i->dest_reg].u32 = old_value;
   return IA_NEXT;
 }
 uint32_t IntCode_ATOMIC_EXCHANGE_I64(IntCodeState& ics, const IntCode* i) {
-  auto address = (uint8_t*)ics.rf[i->src1_reg].u64;
+  auto address = (uint64_t*)ics.rf[i->src1_reg].u64;
   auto new_value = ics.rf[i->src2_reg].u64;
-  auto old_value = xe_atomic_exchange_64(new_value, address);
+  auto old_value = poly::atomic_exchange(new_value, address);
   ics.rf[i->dest_reg].u64 = old_value;
   return IA_NEXT;
 }

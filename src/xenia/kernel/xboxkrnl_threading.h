@@ -52,8 +52,8 @@ X_STATUS xeKeWaitForSingleObject(
     void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
     uint32_t alertable, uint64_t* opt_timeout);
 
-uint32_t xeKfAcquireSpinLock(void* lock_ptr);
-void xeKfReleaseSpinLock(void* lock_ptr, uint32_t old_irql);
+uint32_t xeKfAcquireSpinLock(uint32_t* lock_ptr);
+void xeKfReleaseSpinLock(uint32_t* lock_ptr, uint32_t old_irql);
 
 void xeKeEnterCriticalRegion();
 void xeKeLeaveCriticalRegion();

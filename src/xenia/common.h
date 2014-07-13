@@ -11,8 +11,8 @@
 #define XENIA_COMMON_H_
 
 #include <poly/assert.h>
+#include <poly/atomic.h>
 
-#include <xenia/atomic.h>
 #include <xenia/byte_order.h>
 #include <xenia/config.h>
 #include <xenia/logging.h>

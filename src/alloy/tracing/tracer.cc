@@ -9,15 +9,17 @@
 
 #include <alloy/tracing/tracer.h>
 
+#include <atomic>
+
 #include <alloy/tracing/channel.h>
 
 namespace alloy {
 namespace tracing {
 
-volatile int next_thread_id_ = 0x10000000;
+std::atomic<int> next_thread_id_(0x10000000);
 
 Tracer::Tracer(Channel* channel) : channel_(channel) {
-  thread_id_ = xe_atomic_inc_32(&next_thread_id_);
+  thread_id_ = ++next_thread_id_;
 }
 
 Tracer::~Tracer() {}

@@ -76,7 +76,7 @@ volatile int* XenonThreadState::suspend_flag_address() const {
 int XenonThreadState::Suspend(uint32_t timeout_ms) {
   // Set suspend flag.
   // One of the checks should call in to OnSuspend() at some point.
-  xe_atomic_inc_32(&context_->suspend_flag);
+  poly::atomic_inc(&context_->suspend_flag);
   return 0;
 }
 
@@ -86,7 +86,7 @@ int XenonThreadState::Resume(bool force) {
       context_->suspend_flag = 0;
       SetEvent(debug_break_);
     } else {
-      if (!xe_atomic_dec_32(&context_->suspend_flag)) {
+      if (!poly::atomic_dec(&context_->suspend_flag)) {
         SetEvent(debug_break_);
       }
     }

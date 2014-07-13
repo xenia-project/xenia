@@ -1258,9 +1258,9 @@ SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(
 }
 
 
-uint32_t xeKfAcquireSpinLock(void* lock_ptr) {
+uint32_t xeKfAcquireSpinLock(uint32_t* lock_ptr) {
   // Lock.
-  while (!xe_atomic_cas_32(0, 1, lock_ptr)) {
+  while (!poly::atomic_cas(0, 1, lock_ptr)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
   }
@@ -1279,19 +1279,20 @@ SHIM_CALL KfAcquireSpinLock_shim(
       "KfAcquireSpinLock(%.8X)",
       lock_ptr);
 
-  uint32_t old_irql = xeKfAcquireSpinLock(SHIM_MEM_ADDR(lock_ptr));
+  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  uint32_t old_irql = xeKfAcquireSpinLock(lock);
 
   SHIM_SET_RETURN_64(old_irql);
 }
 
 
-void xeKfReleaseSpinLock(void* lock_ptr, uint32_t old_irql) {
+void xeKfReleaseSpinLock(uint32_t* lock_ptr, uint32_t old_irql) {
   // Restore IRQL.
   XThread* thread = XThread::GetCurrentThread();
   thread->LowerIrql(old_irql);
 
   // Unlock.
-  xe_atomic_dec_32(lock_ptr);
+  poly::atomic_dec(lock_ptr);
 }
 
 
@@ -1305,7 +1306,8 @@ SHIM_CALL KfReleaseSpinLock_shim(
       lock_ptr,
       old_irql);
 
-  xeKfReleaseSpinLock(SHIM_MEM_ADDR(lock_ptr), old_irql);
+  xeKfReleaseSpinLock(reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr)),
+                      old_irql);
 }
 
 
@@ -1318,8 +1320,8 @@ SHIM_CALL KeAcquireSpinLockAtRaisedIrql_shim(
       lock_ptr);
 
   // Lock.
-  void* lock = SHIM_MEM_ADDR(lock_ptr);
-  while (!xe_atomic_cas_32(0, 1, lock)) {
+  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  while (!poly::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
   }
@@ -1335,8 +1337,8 @@ SHIM_CALL KeReleaseSpinLockFromRaisedIrql_shim(
       lock_ptr);
 
   // Unlock.
-  void* lock = SHIM_MEM_ADDR(lock_ptr);
-  xe_atomic_dec_32(lock);
+  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  poly::atomic_dec(lock);
 }
 
 

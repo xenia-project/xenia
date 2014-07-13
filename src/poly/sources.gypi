@@ -2,6 +2,7 @@
 {
   'sources': [
     'assert.h',
+    'atomic.h',
     'config.h',
     'cxx_compat.h',
     'math.h',

@@ -406,7 +406,7 @@ void XThread::LeaveCriticalRegion() {
 }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
-  return xe_atomic_exchange_32(new_irql, &irql_);
+  return irql_.exchange(new_irql);
 }
 
 void XThread::LowerIrql(uint32_t new_irql) {
