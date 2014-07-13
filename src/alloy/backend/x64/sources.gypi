@@ -6,7 +6,6 @@
     'x64_assembler.h',
     'x64_backend.cc',
     'x64_backend.h',
-    'x64_code_cache.cc',
     'x64_code_cache.h',
     'x64_emitter.cc',
     'x64_emitter.h',
@@ -19,5 +18,18 @@
     'x64_thunk_emitter.h',
     'x64_tracers.cc',
     'x64_tracers.h',
+  ],
+
+  'conditions': [
+    ['OS == "mac" or OS == "linux"', {
+      'sources': [
+        'x64_code_cache_posix.cc',
+      ],
+    }],
+    ['OS == "win"', {
+      'sources': [
+        'x64_code_cache_win.cc',
+      ],
+    }],
   ],
 }
