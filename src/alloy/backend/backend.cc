@@ -15,14 +15,14 @@ namespace backend {
 using alloy::runtime::Runtime;
 
 Backend::Backend(Runtime* runtime) : runtime_(runtime) {
-  xe_zero_struct(&machine_info_, sizeof(machine_info_));
+  memset(&machine_info_, 0, sizeof(machine_info_));
 }
 
-Backend::~Backend() {}
+Backend::~Backend() = default;
 
 int Backend::Initialize() { return 0; }
 
-void* Backend::AllocThreadData() { return NULL; }
+void* Backend::AllocThreadData() { return nullptr; }
 
 void Backend::FreeThreadData(void* thread_data) {}
 

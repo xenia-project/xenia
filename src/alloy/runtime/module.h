@@ -63,10 +63,8 @@ class Module {
  private:
   // TODO(benvanik): replace with a better data structure.
   std::mutex lock_;
-  typedef std::unordered_map<uint64_t, SymbolInfo*> SymbolMap;
-  SymbolMap map_;
-  typedef std::vector<SymbolInfo*> SymbolList;
-  SymbolList list_;
+  std::unordered_map<uint64_t, SymbolInfo*> map_;
+  std::vector<std::unique_ptr<SymbolInfo>> list_;
 };
 
 }  // namespace runtime

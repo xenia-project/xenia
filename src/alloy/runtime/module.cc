@@ -20,20 +20,13 @@ namespace runtime {
 Module::Module(Runtime* runtime)
     : runtime_(runtime), memory_(runtime->memory()) {}
 
-Module::~Module() {
-  std::lock_guard<std::mutex> guard(lock_);
-  SymbolMap::iterator it = map_.begin();
-  for (; it != map_.end(); ++it) {
-    SymbolInfo* symbol_info = it->second;
-    delete symbol_info;
-  }
-}
+Module::~Module() = default;
 
 bool Module::ContainsAddress(uint64_t address) { return true; }
 
 SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
   lock_.lock();
-  SymbolMap::const_iterator it = map_.find(address);
+  const auto it = map_.find(address);
   SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   if (symbol_info) {
     if (symbol_info->status() == SymbolInfo::STATUS_DECLARING) {
@@ -60,7 +53,7 @@ SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
                                          SymbolInfo** out_symbol_info) {
   *out_symbol_info = nullptr;
   lock_.lock();
-  SymbolMap::const_iterator it = map_.find(address);
+  auto it = map_.find(address);
   SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   SymbolInfo::Status status;
   if (symbol_info) {
@@ -91,7 +84,7 @@ SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
         break;
     }
     map_[address] = symbol_info;
-    list_.push_back(symbol_info);
+    list_.emplace_back(symbol_info);
     status = SymbolInfo::STATUS_NEW;
   }
   lock_.unlock();
@@ -157,10 +150,9 @@ SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
 void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("alloy");
   std::lock_guard<std::mutex> guard(lock_);
-  for (auto it = list_.begin(); it != list_.end(); ++it) {
-    SymbolInfo* symbol_info = *it;
+  for (auto& symbol_info : list_) {
     if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
-      FunctionInfo* info = (FunctionInfo*)symbol_info;
+      FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
       callback(info);
     }
   }
@@ -173,9 +165,9 @@ void Module::ForEachFunction(size_t since, size_t& version,
   size_t count = list_.size();
   version = count;
   for (size_t n = since; n < count; n++) {
-    SymbolInfo* symbol_info = list_[n];
+    auto& symbol_info = list_[n];
     if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
-      FunctionInfo* info = (FunctionInfo*)symbol_info;
+      FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
       callback(info);
     }
   }

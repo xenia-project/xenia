@@ -19,9 +19,9 @@ namespace passes {
 class FinalizationPass : public CompilerPass {
  public:
   FinalizationPass();
-  virtual ~FinalizationPass();
+  ~FinalizationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
 };

@@ -43,23 +43,24 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   bool validate = FLAGS_validate_hir;
 
   // Build the CFG first.
-  compiler_->AddPass(new passes::ControlFlowAnalysisPass());
+  compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
 
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::ContextPromotionPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::SimplificationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::ConstantPropagationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::SimplificationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  // compiler_->AddPass(new passes::DeadStoreEliminationPass());
-  // if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::DeadCodeEliminationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::ContextPromotionPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::ConstantPropagationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  // compiler_->AddPass(std::make_unique<passes::DeadStoreEliminationPass>());
+  // if (validate)
+  // compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::DeadCodeEliminationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
 
   //// Removes all unneeded variables. Try not to add new ones after this.
   // compiler_->AddPass(new passes::ValueReductionPass());
@@ -69,12 +70,12 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   // Will modify the HIR to add loads/stores.
   // This should be the last pass before finalization, as after this all
   // registers are assigned and ready to be emitted.
-  compiler_->AddPass(
-      new passes::RegisterAllocationPass(backend->machine_info()));
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
+  compiler_->AddPass(std::make_unique<passes::RegisterAllocationPass>(
+      backend->machine_info()));
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
 
   // Must come last. The HIR is not really HIR after this.
-  compiler_->AddPass(new passes::FinalizationPass());
+  compiler_->AddPass(std::make_unique<passes::FinalizationPass>());
 }
 
 PPCTranslator::~PPCTranslator() {

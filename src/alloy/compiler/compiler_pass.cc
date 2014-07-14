@@ -16,7 +16,7 @@ namespace compiler {
 
 CompilerPass::CompilerPass() : runtime_(0), compiler_(0) {}
 
-CompilerPass::~CompilerPass() {}
+CompilerPass::~CompilerPass() = default;
 
 int CompilerPass::Initialize(Compiler* compiler) {
   runtime_ = compiler->runtime();

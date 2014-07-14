@@ -107,12 +107,10 @@ class Debugger {
   Runtime* runtime_;
 
   std::mutex threads_lock_;
-  typedef std::unordered_map<uint32_t, ThreadState*> ThreadMap;
-  ThreadMap threads_;
+  std::unordered_map<uint32_t, ThreadState*> threads_;
 
   std::mutex breakpoints_lock_;
-  typedef std::multimap<uint64_t, Breakpoint*> BreakpointMultimap;
-  BreakpointMultimap breakpoints_;
+  std::multimap<uint64_t, Breakpoint*> breakpoints_;
 };
 
 }  // namespace runtime

@@ -69,7 +69,7 @@ class FunctionInfo : public SymbolInfo {
 
  public:
   FunctionInfo(Module* module, uint64_t address);
-  virtual ~FunctionInfo();
+  ~FunctionInfo() override;
 
   bool has_end_address() const { return end_address_ > 0; }
   uint64_t end_address() const { return end_address_; }
@@ -101,9 +101,7 @@ class FunctionInfo : public SymbolInfo {
 class VariableInfo : public SymbolInfo {
  public:
   VariableInfo(Module* module, uint64_t address);
-  virtual ~VariableInfo();
-
- private:
+  ~VariableInfo() override;
 };
 
 }  // namespace runtime

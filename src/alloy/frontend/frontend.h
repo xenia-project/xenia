@@ -10,6 +10,8 @@
 #ifndef ALLOY_FRONTEND_FRONTEND_H_
 #define ALLOY_FRONTEND_FRONTEND_H_
 
+#include <memory>
+
 #include <alloy/core.h>
 #include <alloy/memory.h>
 #include <alloy/frontend/context_info.h>
@@ -32,7 +34,7 @@ class Frontend {
 
   runtime::Runtime* runtime() const { return runtime_; }
   Memory* memory() const;
-  ContextInfo* context_info() const { return context_info_; }
+  ContextInfo* context_info() const { return context_info_.get(); }
 
   virtual int Initialize();
 
@@ -43,7 +45,7 @@ class Frontend {
 
  protected:
   runtime::Runtime* runtime_;
-  ContextInfo* context_info_;
+  std::unique_ptr<ContextInfo> context_info_;
 };
 
 }  // namespace frontend

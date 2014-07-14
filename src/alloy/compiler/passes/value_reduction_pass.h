@@ -19,9 +19,9 @@ namespace passes {
 class ValueReductionPass : public CompilerPass {
  public:
   ValueReductionPass();
-  virtual ~ValueReductionPass();
+  ~ValueReductionPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
   void ComputeLastUse(hir::Value* value);

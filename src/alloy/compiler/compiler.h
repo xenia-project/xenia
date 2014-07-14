@@ -10,6 +10,9 @@
 #ifndef ALLOY_COMPILER_COMPILER_H_
 #define ALLOY_COMPILER_COMPILER_H_
 
+#include <memory>
+#include <vector>
+
 #include <alloy/core.h>
 #include <alloy/hir/hir_builder.h>
 
@@ -30,9 +33,9 @@ class Compiler {
   ~Compiler();
 
   runtime::Runtime* runtime() const { return runtime_; }
-  Arena* scratch_arena() const { return scratch_arena_; }
+  Arena* scratch_arena() { return &scratch_arena_; }
 
-  void AddPass(CompilerPass* pass);
+  void AddPass(std::unique_ptr<CompilerPass> pass);
 
   void Reset();
 
@@ -40,10 +43,9 @@ class Compiler {
 
  private:
   runtime::Runtime* runtime_;
-  Arena* scratch_arena_;
+  Arena scratch_arena_;
 
-  typedef std::vector<CompilerPass*> PassList;
-  PassList passes_;
+  std::vector<std::unique_ptr<CompilerPass>> passes_;
 };
 
 }  // namespace compiler

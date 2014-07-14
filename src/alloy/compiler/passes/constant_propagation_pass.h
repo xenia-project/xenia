@@ -19,9 +19,9 @@ namespace passes {
 class ConstantPropagationPass : public CompilerPass {
  public:
   ConstantPropagationPass();
-  virtual ~ConstantPropagationPass();
+  ~ConstantPropagationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
   void PropagateCarry(hir::Value* v, bool did_carry);

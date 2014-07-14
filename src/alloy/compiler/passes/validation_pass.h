@@ -19,9 +19,9 @@ namespace passes {
 class ValidationPass : public CompilerPass {
  public:
   ValidationPass();
-  virtual ~ValidationPass();
+  ~ValidationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
   int ValidateInstruction(hir::Block* block, hir::Instr* instr);

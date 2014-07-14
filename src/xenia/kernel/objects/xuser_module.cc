@@ -103,25 +103,26 @@ XECLEANUP:
 X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   Processor* processor = kernel_state()->processor();
   XenonRuntime* runtime = processor->runtime();
-  XexModule* xex_module = NULL;
 
   // Load the XEX into memory and decrypt.
   xe_xex2_options_t xex_options;
   xe_zero_struct(&xex_options, sizeof(xex_options));
   xex_ = xe_xex2_load(kernel_state()->memory(), addr, length, xex_options);
-  XEEXPECTNOTNULL(xex_);
+  if (!xex_) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
 
   // Prepare the module for execution.
   // Runtime takes ownership.
-  xex_module = new XexModule(runtime);
-  XEEXPECTZERO(xex_module->Load(name_, path_, xex_));
-  XEEXPECTZERO(runtime->AddModule(xex_module));
+  auto xex_module = std::make_unique<XexModule>(runtime);
+  if (xex_module->Load(name_, path_, xex_)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  if (runtime->AddModule(std::move(xex_module))) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
 
   return X_STATUS_SUCCESS;
-
-XECLEANUP:
-  delete xex_module;
-  return X_STATUS_UNSUCCESSFUL;
 }
 
 void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {

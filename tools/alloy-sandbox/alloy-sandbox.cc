@@ -38,9 +38,9 @@ int alloy_sandbox(int argc, xechar_t** argv) {
   // backend.reset(new alloy::backend::x64::X64Backend(runtime));
   runtime->Initialize(std::move(backend));
 
-  RawModule* module = new RawModule(runtime);
+  auto module = std::make_unique<RawModule>(runtime);
   module->LoadFile(0x82000000, "test\\codegen\\instr_add.bin");
-  runtime->AddModule(module);
+  runtime->AddModule(std::move(module));
 
   XenonThreadState* thread_state =
       new XenonThreadState(runtime, 100, 64 * 1024, 0);

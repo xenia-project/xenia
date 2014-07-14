@@ -14,10 +14,9 @@
 namespace alloy {
 namespace frontend {
 
-Frontend::Frontend(runtime::Runtime* runtime)
-    : runtime_(runtime), context_info_(0) {}
+Frontend::Frontend(runtime::Runtime* runtime) : runtime_(runtime) {}
 
-Frontend::~Frontend() { delete context_info_; }
+Frontend::~Frontend() = default;
 
 Memory* Frontend::memory() const { return runtime_->memory(); }
 

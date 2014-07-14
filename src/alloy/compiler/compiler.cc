@@ -17,24 +17,13 @@ namespace compiler {
 using alloy::hir::HIRBuilder;
 using alloy::runtime::Runtime;
 
-Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {
-  scratch_arena_ = new Arena();
-}
+Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {}
 
-Compiler::~Compiler() {
-  Reset();
+Compiler::~Compiler() { Reset(); }
 
-  for (auto it = passes_.begin(); it != passes_.end(); ++it) {
-    CompilerPass* pass = *it;
-    delete pass;
-  }
-
-  delete scratch_arena_;
-}
-
-void Compiler::AddPass(CompilerPass* pass) {
+void Compiler::AddPass(std::unique_ptr<CompilerPass> pass) {
   pass->Initialize(this);
-  passes_.push_back(pass);
+  passes_.push_back(std::move(pass));
 }
 
 void Compiler::Reset() {}
@@ -44,9 +33,8 @@ int Compiler::Compile(HIRBuilder* builder) {
 
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
-  for (auto it = passes_.begin(); it != passes_.end(); ++it) {
-    CompilerPass* pass = *it;
-    scratch_arena_->Reset();
+  for (auto& pass : passes_) {
+    scratch_arena_.Reset();
     if (pass->Run(builder)) {
       return 1;
     }

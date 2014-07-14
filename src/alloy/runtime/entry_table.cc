@@ -16,7 +16,7 @@ EntryTable::EntryTable() = default;
 
 EntryTable::~EntryTable() {
   std::lock_guard<std::mutex> guard(lock_);
-  EntryMap::iterator it = map_.begin();
+  auto& it = map_.begin();
   for (; it != map_.end(); ++it) {
     Entry* entry = it->second;
     delete entry;
@@ -25,7 +25,7 @@ EntryTable::~EntryTable() {
 
 Entry* EntryTable::Get(uint64_t address) {
   std::lock_guard<std::mutex> guard(lock_);
-  EntryMap::const_iterator it = map_.find(address);
+  const auto& it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : nullptr;
   if (entry) {
     // TODO(benvanik): wait if needed?
@@ -38,7 +38,7 @@ Entry* EntryTable::Get(uint64_t address) {
 
 Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
   lock_.lock();
-  EntryMap::const_iterator it = map_.find(address);
+  const auto& it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : nullptr;
   Entry::Status status;
   if (entry) {

@@ -47,8 +47,7 @@ class EntryTable {
  private:
   // TODO(benvanik): replace with a better data structure.
   std::mutex lock_;
-  typedef std::unordered_map<uint64_t, Entry*> EntryMap;
-  EntryMap map_;
+  std::unordered_map<uint64_t, Entry*> map_;
 };
 
 }  // namespace runtime

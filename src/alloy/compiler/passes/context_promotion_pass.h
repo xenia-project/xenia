@@ -19,11 +19,11 @@ namespace passes {
 class ContextPromotionPass : public CompilerPass {
  public:
   ContextPromotionPass();
-  virtual ~ContextPromotionPass();
+  virtual ~ContextPromotionPass() override;
 
-  virtual int Initialize(Compiler* compiler);
+  int Initialize(Compiler* compiler) override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
   void PromoteBlock(hir::Block* block);

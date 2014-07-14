@@ -21,9 +21,9 @@ namespace passes {
 class DataFlowAnalysisPass : public CompilerPass {
 public:
   DataFlowAnalysisPass();
-  virtual ~DataFlowAnalysisPass();
+  ~DataFlowAnalysisPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
 private:
   uint32_t LinearizeBlocks(hir::HIRBuilder* builder);

@@ -21,9 +21,9 @@ namespace passes {
 class DeadCodeEliminationPass : public CompilerPass {
 public:
   DeadCodeEliminationPass();
-  virtual ~DeadCodeEliminationPass();
+  ~DeadCodeEliminationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
 private:
   void MakeNopRecursive(hir::Instr* i);

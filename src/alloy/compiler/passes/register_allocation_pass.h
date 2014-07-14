@@ -24,9 +24,9 @@ namespace passes {
 class RegisterAllocationPass : public CompilerPass {
  public:
   RegisterAllocationPass(const backend::MachineInfo* machine_info);
-  virtual ~RegisterAllocationPass();
+  ~RegisterAllocationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
   // TODO(benvanik): rewrite all this set shit -- too much indirection, the

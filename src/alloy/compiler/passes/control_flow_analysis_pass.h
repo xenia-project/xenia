@@ -19,9 +19,9 @@ namespace passes {
 class ControlFlowAnalysisPass : public CompilerPass {
  public:
   ControlFlowAnalysisPass();
-  virtual ~ControlFlowAnalysisPass();
+  ~ControlFlowAnalysisPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
 };

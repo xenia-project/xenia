@@ -29,9 +29,6 @@ namespace runtime {
 
 class Runtime {
  public:
-  typedef std::vector<Module*> ModuleList;
-
- public:
   explicit Runtime(Memory* memory);
   virtual ~Runtime();
 
@@ -43,9 +40,10 @@ class Runtime {
   int Initialize(std::unique_ptr<frontend::Frontend> frontend,
                  std::unique_ptr<backend::Backend> backend = 0);
 
-  int AddModule(Module* module);
+  int AddModule(std::unique_ptr<Module> module);
   Module* GetModule(const char* name);
-  ModuleList GetModules();
+  Module* GetModule(const std::string& name) { return GetModule(name.c_str()); }
+  std::vector<Module*> GetModules();
 
   std::vector<Function*> FindFunctionsWithAddress(uint64_t address);
 
@@ -69,7 +67,7 @@ class Runtime {
 
   EntryTable entry_table_;
   std::mutex modules_lock_;
-  ModuleList modules_;
+  std::vector<std::unique_ptr<Module>> modules_;
 };
 
 }  // namespace runtime

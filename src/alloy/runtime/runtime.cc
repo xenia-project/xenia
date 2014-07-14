@@ -30,11 +30,7 @@ Runtime::Runtime(Memory* memory) : memory_(memory) {}
 Runtime::~Runtime() {
   {
     std::lock_guard<std::mutex> guard(modules_lock_);
-    for (ModuleList::iterator it = modules_.begin(); it != modules_.end();
-         ++it) {
-      Module* module = *it;
-      delete module;
-    }
+    modules_.clear();
   }
 
   debugger_.reset();
@@ -99,28 +95,28 @@ int Runtime::Initialize(std::unique_ptr<Frontend> frontend,
   return 0;
 }
 
-int Runtime::AddModule(Module* module) {
+int Runtime::AddModule(std::unique_ptr<Module> module) {
   std::lock_guard<std::mutex> guard(modules_lock_);
-  modules_.push_back(module);
+  modules_.push_back(std::move(module));
   return 0;
 }
 
 Module* Runtime::GetModule(const char* name) {
   std::lock_guard<std::mutex> guard(modules_lock_);
-  Module* result = NULL;
-  for (ModuleList::iterator it = modules_.begin(); it != modules_.end(); ++it) {
-    Module* module = *it;
+  for (const auto& module : modules_) {
     if (module->name() == name) {
-      result = module;
-      break;
+      return module.get();
     }
   }
-  return result;
+  return nullptr;
 }
 
-Runtime::ModuleList Runtime::GetModules() {
+std::vector<Module*> Runtime::GetModules() {
   std::lock_guard<std::mutex> guard(modules_lock_);
-  ModuleList clone = modules_;
+  std::vector<Module*> clone(modules_.size());
+  for (const auto& module : modules_) {
+    clone.push_back(module.get());
+  }
   return clone;
 }
 
@@ -176,11 +172,9 @@ int Runtime::LookupFunctionInfo(uint64_t address,
     std::lock_guard<std::mutex> guard(modules_lock_);
     // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
     // TODO(benvanik): cache last module low/high, as likely to be in there.
-    for (ModuleList::const_iterator it = modules_.begin(); it != modules_.end();
-         ++it) {
-      Module* module = *it;
+    for (const auto& module : modules_) {
       if (module->ContainsAddress(address)) {
-        code_module = module;
+        code_module = module.get();
         break;
       }
     }

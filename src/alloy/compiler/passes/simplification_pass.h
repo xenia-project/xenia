@@ -19,9 +19,9 @@ namespace passes {
 class SimplificationPass : public CompilerPass {
  public:
   SimplificationPass();
-  virtual ~SimplificationPass();
+  ~SimplificationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
  private:
   void EliminateConversions(hir::HIRBuilder* builder);
