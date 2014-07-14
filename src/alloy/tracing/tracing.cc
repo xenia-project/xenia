@@ -24,13 +24,14 @@ DEFINE_string(trace_file, "", "Traces to the given file path.");
 namespace alloy {
 namespace tracing {
 
-Channel* shared_channel = NULL;
-thread_local Tracer* thread_tracer = NULL;
+Channel* shared_channel = nullptr;
+thread_local Tracer* thread_tracer = nullptr;
 
 void CleanupTracing() {
   if (shared_channel) {
     alloy::tracing::WriteEvent(EventType::TraceEOF({}));
     shared_channel->Flush();
+    shared_channel = nullptr;
   }
 }
 
@@ -67,7 +68,7 @@ void Flush() {
 
 Tracer* GetThreadTracer() {
   if (!shared_channel) {
-    return NULL;
+    return nullptr;
   }
   if (!thread_tracer) {
     thread_tracer = new Tracer(shared_channel);

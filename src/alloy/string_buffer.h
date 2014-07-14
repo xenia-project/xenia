@@ -10,6 +10,8 @@
 #ifndef ALLOY_STRING_BUFFER_H_
 #define ALLOY_STRING_BUFFER_H_
 
+#include <vector>
+
 #include <alloy/core.h>
 
 namespace alloy {
@@ -23,6 +25,7 @@ class StringBuffer {
 
   void Reset();
 
+  void Append(const std::string& value);
   void Append(const char* format, ...);
   void AppendVarargs(const char* format, va_list args);
   void AppendBytes(const uint8_t* buffer, size_t length);
@@ -32,8 +35,7 @@ class StringBuffer {
   char* EncodeBase64();
 
  private:
-  char* buffer_;
-  size_t capacity_;
+  std::vector<char> buffer_;
   size_t offset_;
 };
 

@@ -2,19 +2,21 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include <alloy/tracing/channel.h>
+#ifndef POLY_MEMORY_H_
+#define POLY_MEMORY_H_
 
-namespace alloy {
-namespace tracing {
+#include <poly/config.h>
+#include <poly/platform.h>
 
-Channel::Channel() = default;
+namespace poly {
 
-Channel::~Channel() = default;
+size_t page_size();
 
-}  // namespace tracing
-}  // namespace alloy
+}  // namespace poly
+
+#endif  // POLY_MEMORY_H_

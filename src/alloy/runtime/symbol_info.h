@@ -10,6 +10,8 @@
 #ifndef ALLOY_RUNTIME_SYMBOL_INFO_H_
 #define ALLOY_RUNTIME_SYMBOL_INFO_H_
 
+#include <string>
+
 #include <alloy/core.h>
 
 namespace alloy {
@@ -43,8 +45,8 @@ class SymbolInfo {
   void set_status(Status value) { status_ = value; }
   uint64_t address() const { return address_; }
 
-  const char* name() const { return name_; }
-  void set_name(const char* name);
+  const std::string& name() const { return name_; }
+  void set_name(const std::string& value) { name_ = value; }
 
  protected:
   Type type_;
@@ -52,7 +54,7 @@ class SymbolInfo {
   Status status_;
   uint64_t address_;
 
-  char* name_;
+  std::string name_;
 };
 
 class FunctionInfo : public SymbolInfo {

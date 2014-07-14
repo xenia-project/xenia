@@ -7,6 +7,8 @@
     'cxx_compat.h',
     'math.cc',
     'math.h',
+    'memory.cc',
+    'memory.h',
     'platform.h',
     'poly-private.h',
     'poly.cc',

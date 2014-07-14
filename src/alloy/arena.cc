@@ -12,7 +12,7 @@
 namespace alloy {
 
 Arena::Arena(size_t chunk_size)
-    : chunk_size_(chunk_size), head_chunk_(NULL), active_chunk_(NULL) {}
+    : chunk_size_(chunk_size), head_chunk_(nullptr), active_chunk_(nullptr) {}
 
 Arena::~Arena() {
   Reset();
@@ -22,7 +22,7 @@ Arena::~Arena() {
     delete chunk;
     chunk = next;
   }
-  head_chunk_ = NULL;
+  head_chunk_ = nullptr;
 }
 
 void Arena::Reset() {
@@ -86,7 +86,7 @@ void* Arena::CloneContents() {
 }
 
 Arena::Chunk::Chunk(size_t chunk_size)
-    : next(NULL), capacity(chunk_size), buffer(0), offset(0) {
+    : next(nullptr), capacity(chunk_size), buffer(0), offset(0) {
   buffer = (uint8_t*)xe_malloc(capacity);
 }
 

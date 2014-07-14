@@ -10,6 +10,8 @@
 #ifndef XENIA_CPU_XEX_MODULE_H_
 #define XENIA_CPU_XEX_MODULE_H_
 
+#include <string>
+
 #include <alloy/runtime/module.h>
 #include <xenia/core.h>
 #include <xenia/kernel/util/xex2.h>
@@ -28,11 +30,11 @@ public:
 
   xe_xex2_ref xex() const { return xex_; }
 
-  int Load(const char* name, const char* path, xe_xex2_ref xex);
+  int Load(const std::string& name, const std::string& path, xe_xex2_ref xex);
 
-  virtual const char* name() const { return name_; }
+  const std::string& name() const override { return name_; }
 
-  virtual bool ContainsAddress(uint64_t address);
+  bool ContainsAddress(uint64_t address) override;
 
 private:
   int SetupImports(xe_xex2_ref xex);
@@ -41,13 +43,13 @@ private:
 
 private:
   XenonRuntime* runtime_;
-  char*       name_;
-  char*       path_;
-  xe_xex2_ref xex_;
+  std::string   name_;
+  std::string   path_;
+  xe_xex2_ref   xex_;
 
-  uint64_t    base_address_;
-  uint64_t    low_address_;
-  uint64_t    high_address_;
+  uint64_t      base_address_;
+  uint64_t      low_address_;
+  uint64_t      high_address_;
 };
 
 

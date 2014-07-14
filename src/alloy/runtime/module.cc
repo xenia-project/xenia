@@ -34,7 +34,7 @@ bool Module::ContainsAddress(uint64_t address) { return true; }
 SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
   lock_.lock();
   SymbolMap::const_iterator it = map_.find(address);
-  SymbolInfo* symbol_info = it != map_.end() ? it->second : NULL;
+  SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   if (symbol_info) {
     if (symbol_info->status() == SymbolInfo::STATUS_DECLARING) {
       // Some other thread is declaring the symbol - wait.
@@ -47,7 +47,7 @@ SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
         } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
       } else {
         // Immediate request, just return.
-        symbol_info = NULL;
+        symbol_info = nullptr;
       }
     }
   }
@@ -58,10 +58,10 @@ SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
 SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
                                          uint64_t address,
                                          SymbolInfo** out_symbol_info) {
-  *out_symbol_info = NULL;
+  *out_symbol_info = nullptr;
   lock_.lock();
   SymbolMap::const_iterator it = map_.find(address);
-  SymbolInfo* symbol_info = it != map_.end() ? it->second : NULL;
+  SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   SymbolInfo::Status status;
   if (symbol_info) {
     // If we exist but are the wrong type, die.
@@ -235,8 +235,8 @@ int Module::ReadMap(const char* file_name) {
         continue;
       }
       // Don't overwrite names we've set elsewhere.
-      if (!fn_info->name()) {
-        // If it's an mangled C++ name (?name@...) just use the name.
+      if (fn_info->name().empty()) {
+        // If it's a mangled C++ name (?name@...) just use the name.
         // TODO(benvanik): better demangling, or leave it to clients.
         /*if (name[0] == '?') {
           size_t at = name.find('@');

@@ -23,8 +23,8 @@ using namespace xe::cpu;
 
 XenonRuntime::XenonRuntime(
     alloy::Memory* memory, ExportResolver* export_resolver) :
-    export_resolver_(export_resolver),
-    Runtime(memory) {
+    Runtime(memory),
+    export_resolver_(export_resolver) {
 }
 
 XenonRuntime::~XenonRuntime() {
@@ -32,11 +32,11 @@ XenonRuntime::~XenonRuntime() {
   }));
 }
 
-int XenonRuntime::Initialize(backend::Backend* backend) {
-  PPCFrontend* frontend = new PPCFrontend(this);
+int XenonRuntime::Initialize(std::unique_ptr<backend::Backend> backend) {
+  std::unique_ptr<PPCFrontend> frontend(new PPCFrontend(this));
   // TODO(benvanik): set options/etc.
 
-  int result = Runtime::Initialize(frontend, backend);
+  int result = Runtime::Initialize(std::move(frontend), std::move(backend));
   if (result) {
     return result;
   }

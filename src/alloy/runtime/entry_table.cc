@@ -26,11 +26,11 @@ EntryTable::~EntryTable() {
 Entry* EntryTable::Get(uint64_t address) {
   std::lock_guard<std::mutex> guard(lock_);
   EntryMap::const_iterator it = map_.find(address);
-  Entry* entry = it != map_.end() ? it->second : NULL;
+  Entry* entry = it != map_.end() ? it->second : nullptr;
   if (entry) {
     // TODO(benvanik): wait if needed?
     if (entry->status != Entry::STATUS_READY) {
-      entry = NULL;
+      entry = nullptr;
     }
   }
   return entry;
@@ -39,7 +39,7 @@ Entry* EntryTable::Get(uint64_t address) {
 Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
   lock_.lock();
   EntryMap::const_iterator it = map_.find(address);
-  Entry* entry = it != map_.end() ? it->second : NULL;
+  Entry* entry = it != map_.end() ? it->second : nullptr;
   Entry::Status status;
   if (entry) {
     // If we aren't ready yet spin and wait.
@@ -72,8 +72,8 @@ std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
   SCOPE_profile_cpu_f("alloy");
   std::lock_guard<std::mutex> guard(lock_);
   std::vector<Function*> fns;
-  for (auto it = map_.begin(); it != map_.end(); ++it) {
-    Entry* entry = it->second;
+  for (auto& it : map_) {
+    Entry* entry = it.second;
     if (address >= entry->address && address <= entry->end_address) {
       if (entry->status == Entry::STATUS_READY) {
         fns.push_back(entry->function);

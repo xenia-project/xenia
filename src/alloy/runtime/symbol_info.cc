@@ -17,30 +17,19 @@ SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address)
       module_(module),
       status_(STATUS_DEFINING),
       address_(address),
-      name_(0) {}
+      name_("") {}
 
-SymbolInfo::~SymbolInfo() {
-  if (name_) {
-    xe_free(name_);
-  }
-}
-
-void SymbolInfo::set_name(const char* name) {
-  if (name_) {
-    xe_free(name_);
-  }
-  name_ = xestrdupa(name);
-}
+SymbolInfo::~SymbolInfo() = default;
 
 FunctionInfo::FunctionInfo(Module* module, uint64_t address)
     : SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address),
       end_address_(0),
       behavior_(BEHAVIOR_DEFAULT),
       function_(0) {
-  xe_zero_struct(&extern_info_, sizeof(extern_info_));
+  memset(&extern_info_, 0, sizeof(extern_info_));
 }
 
-FunctionInfo::~FunctionInfo() {}
+FunctionInfo::~FunctionInfo() = default;
 
 void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
   behavior_ = BEHAVIOR_EXTERN;
@@ -52,7 +41,7 @@ void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
 VariableInfo::VariableInfo(Module* module, uint64_t address)
     : SymbolInfo(SymbolInfo::TYPE_VARIABLE, module, address) {}
 
-VariableInfo::~VariableInfo() {}
+VariableInfo::~VariableInfo() = default;
 
 }  // namespace runtime
 }  // namespace alloy

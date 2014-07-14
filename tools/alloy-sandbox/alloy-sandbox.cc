@@ -8,6 +8,8 @@
  */
 
 #include <alloy/alloy.h>
+#include <alloy/backend/ivm/ivm_backend.h>
+#include <alloy/backend/x64/x64_backend.h>
 #include <alloy/runtime/raw_module.h>
 #include <xenia/export_resolver.h>
 #include <xenia/cpu/xenon_memory.h>
@@ -31,12 +33,10 @@ int alloy_sandbox(int argc, xechar_t** argv) {
   ExportResolver* export_resolver = new ExportResolver();
   XenonRuntime* runtime = new XenonRuntime(memory, export_resolver);
 
-  Backend* backend = 0;
-  // Backend* backend = new alloy::backend::interpreter::InterpreterBackend(
-  //     runtime);
-  // Backend* backend = new alloy::backend::x64::X64Backend(
-  //     runtime);
-  runtime->Initialize(backend);
+  std::unique_ptr<Backend> backend;
+  // backend.reset(new alloy::backend::ivm::IVMBackend(runtime));
+  // backend.reset(new alloy::backend::x64::X64Backend(runtime));
+  runtime->Initialize(std::move(backend));
 
   RawModule* module = new RawModule(runtime);
   module->LoadFile(0x82000000, "test\\codegen\\instr_add.bin");

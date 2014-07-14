@@ -20,13 +20,14 @@ namespace tracing {
 class Channel;
 class Tracer;
 
-bool Initialize(Channel* channel = 0);
+bool Initialize(Channel* channel = nullptr);
 void Shutdown();
 void Flush();
 
 Tracer* GetThreadTracer();
 
-void WriteEvent(uint32_t event_type, size_t size = 0, const void* data = 0);
+void WriteEvent(uint32_t event_type, size_t size = 0,
+                const void* data = nullptr);
 
 template <typename T>
 void WriteEvent(const T& ev) {

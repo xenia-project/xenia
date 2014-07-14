@@ -13,17 +13,16 @@ namespace alloy {
 namespace tracing {
 namespace channels {
 
-FileChannel::FileChannel(const char* path) {
-  path_ = xestrdupa(path);
-  file_ = fopen(path, "wb");
+FileChannel::FileChannel(const std::string& path) : path_(path) {
+  file_ = fopen(path_.c_str(), "wb");
 }
 
 FileChannel::~FileChannel() {
   std::lock_guard<std::mutex> guard(lock_);
-  fclose(file_);
-  file_ = 0;
-  free(path_);
-  path_ = 0;
+  if (file_) {
+    fclose(file_);
+    file_ = nullptr;
+  }
 }
 
 void FileChannel::Write(size_t buffer_count, size_t buffer_lengths[],

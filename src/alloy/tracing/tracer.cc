@@ -22,7 +22,7 @@ Tracer::Tracer(Channel* channel) : channel_(channel) {
   thread_id_ = ++next_thread_id_;
 }
 
-Tracer::~Tracer() {}
+Tracer::~Tracer() = default;
 
 void Tracer::WriteEvent(uint32_t event_type, size_t size, const uint8_t* data) {
   uint32_t header[] = {

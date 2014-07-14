@@ -25,7 +25,7 @@ class Arena {
   void* Alloc(size_t size);
   template <typename T>
   T* Alloc() {
-    return (T*)Alloc(sizeof(T));
+    return reinterpret_cast<T*>(Alloc(sizeof(T)));
   }
 
   void* CloneContents();

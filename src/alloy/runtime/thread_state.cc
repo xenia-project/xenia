@@ -14,13 +14,13 @@
 namespace alloy {
 namespace runtime {
 
-thread_local ThreadState* thread_state_ = NULL;
+thread_local ThreadState* thread_state_ = nullptr;
 
 ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id)
     : runtime_(runtime),
       memory_(runtime->memory()),
       thread_id_(thread_id),
-      name_(0),
+      name_(""),
       backend_data_(0),
       raw_context_(0) {
   if (thread_id_ == UINT_MAX) {
@@ -37,21 +37,8 @@ ThreadState::~ThreadState() {
     runtime_->backend()->FreeThreadData(backend_data_);
   }
   if (thread_state_ == this) {
-    thread_state_ = NULL;
+    thread_state_ = nullptr;
   }
-  if (name_) {
-    xe_free(name_);
-  }
-}
-
-void ThreadState::set_name(const char* value) {
-  if (value == name_) {
-    return;
-  }
-  if (name_) {
-    xe_free(name_);
-  }
-  name_ = xestrdupa(value);
 }
 
 void ThreadState::Bind(ThreadState* thread_state) {

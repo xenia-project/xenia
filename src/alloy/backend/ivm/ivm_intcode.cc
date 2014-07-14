@@ -2657,7 +2657,7 @@ int Translate_MUL(TranslationContext& ctx, Instr* i) {
   }
 }
 
-#if !XE_COMPILER_MSVC
+#if XE_COMPILER_MSVC
 uint64_t Mul128(uint64_t xi_low, uint64_t xi_high, uint64_t yi_low,
                 uint64_t yi_high) {
 // 128bit multiply, simplified for two input 64bit integers.

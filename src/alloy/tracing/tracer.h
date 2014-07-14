@@ -26,7 +26,7 @@ class Tracer {
   void set_thread_id(int value) { thread_id_ = value; }
 
   void WriteEvent(uint32_t event_type, size_t size = 0,
-                  const uint8_t* data = 0);
+                  const uint8_t* data = nullptr);
 
  private:
   Channel* channel_;

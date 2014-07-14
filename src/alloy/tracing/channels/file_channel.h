@@ -22,16 +22,16 @@ namespace channels {
 
 class FileChannel : public Channel {
  public:
-  FileChannel(const char* path);
-  virtual ~FileChannel();
+  FileChannel(const std::string& path);
+  ~FileChannel() override;
 
-  virtual void Write(size_t buffer_count, size_t buffer_lengths[],
-                     const uint8_t* buffers[]);
+  void Write(size_t buffer_count, size_t buffer_lengths[],
+             const uint8_t* buffers[]) override;
 
-  virtual void Flush();
+  void Flush() override;
 
  private:
-  char* path_;
+  std::string path_;
   FILE* file_;
   std::mutex lock_;
 };

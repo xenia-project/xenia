@@ -146,7 +146,7 @@ void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
     case OPCODE_SIG_TYPE_S:
       if (true) {
         auto target = op->symbol_info;
-        str->Append(target->name() ? target->name() : "<fn>");
+        str->Append(!target->name().empty() ? target->name() : "<fn>");
       }
       break;
     case OPCODE_SIG_TYPE_V:

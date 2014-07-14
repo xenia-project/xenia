@@ -10,6 +10,7 @@
 #ifndef ALLOY_RUNTIME_RUNTIME_H_
 #define ALLOY_RUNTIME_RUNTIME_H_
 
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -35,11 +36,12 @@ class Runtime {
   virtual ~Runtime();
 
   Memory* memory() const { return memory_; }
-  Debugger* debugger() const { return debugger_; }
-  frontend::Frontend* frontend() const { return frontend_; }
-  backend::Backend* backend() const { return backend_; }
+  Debugger* debugger() const { return debugger_.get(); }
+  frontend::Frontend* frontend() const { return frontend_.get(); }
+  backend::Backend* backend() const { return backend_.get(); }
 
-  int Initialize(frontend::Frontend* frontend, backend::Backend* backend = 0);
+  int Initialize(std::unique_ptr<frontend::Frontend> frontend,
+                 std::unique_ptr<backend::Backend> backend = 0);
 
   int AddModule(Module* module);
   Module* GetModule(const char* name);
@@ -60,10 +62,10 @@ class Runtime {
  protected:
   Memory* memory_;
 
-  Debugger* debugger_;
+  std::unique_ptr<Debugger> debugger_;
 
-  frontend::Frontend* frontend_;
-  backend::Backend* backend_;
+  std::unique_ptr<frontend::Frontend> frontend_;
+  std::unique_ptr<backend::Backend> backend_;
 
   EntryTable entry_table_;
   std::mutex modules_lock_;

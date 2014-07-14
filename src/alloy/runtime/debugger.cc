@@ -19,19 +19,18 @@ namespace runtime {
 Breakpoint::Breakpoint(Type type, uint64_t address)
     : type_(type), address_(address) {}
 
-Breakpoint::~Breakpoint() {}
+Breakpoint::~Breakpoint() = default;
 
 Debugger::Debugger(Runtime* runtime) : runtime_(runtime) {}
 
-Debugger::~Debugger() {}
+Debugger::~Debugger() = default;
 
 int Debugger::SuspendAllThreads(uint32_t timeout_ms) {
   std::lock_guard<std::mutex> guard(threads_lock_);
 
   int result = 0;
-  for (auto it = threads_.begin(); it != threads_.end(); ++it) {
-    ThreadState* thread_state = it->second;
-    if (thread_state->Suspend(timeout_ms)) {
+  for (auto thread_state : threads_) {
+    if (thread_state.second->Suspend(timeout_ms)) {
       result = 1;
     }
   }
@@ -57,9 +56,8 @@ int Debugger::ResumeAllThreads(bool force) {
   std::lock_guard<std::mutex> guard(threads_lock_);
 
   int result = 0;
-  for (auto it = threads_.begin(); it != threads_.end(); ++it) {
-    ThreadState* thread_state = it->second;
-    if (thread_state->Resume(force)) {
+  for (auto thread_state : threads_) {
+    if (thread_state.second->Resume(force)) {
       result = 1;
     }
   }
@@ -69,9 +67,8 @@ int Debugger::ResumeAllThreads(bool force) {
 void Debugger::ForEachThread(std::function<void(ThreadState*)> callback) {
   std::lock_guard<std::mutex> guard(threads_lock_);
 
-  for (auto it = threads_.begin(); it != threads_.end(); ++it) {
-    ThreadState* thread_state = it->second;
-    callback(thread_state);
+  for (auto thread_state : threads_) {
+    callback(thread_state.second);
   }
 }
 
@@ -87,8 +84,7 @@ int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
   auto fns = runtime_->FindFunctionsWithAddress(breakpoint->address());
 
   // Add.
-  for (auto it = fns.begin(); it != fns.end(); ++it) {
-    Function* fn = *it;
+  for (auto fn : fns) {
     if (fn->AddBreakpoint(breakpoint)) {
       return 1;
     }
@@ -122,8 +118,7 @@ int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
   auto fns = runtime_->FindFunctionsWithAddress(breakpoint->address());
 
   // Remove.
-  for (auto it = fns.begin(); it != fns.end(); ++it) {
-    Function* fn = *it;
+  for (auto fn : fns) {
     fn->RemoveBreakpoint(breakpoint);
   }
 
@@ -181,8 +176,8 @@ void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
 
   if (breakpoints.size()) {
     // Breakpoints to add!
-    for (auto it = breakpoints.begin(); it != breakpoints.end(); ++it) {
-      function->AddBreakpoint(*it);
+    for (auto breakpoint : breakpoints) {
+      function->AddBreakpoint(breakpoint);
     }
   }
 }

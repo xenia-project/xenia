@@ -26,8 +26,7 @@ namespace runtime {
 using alloy::backend::Backend;
 using alloy::frontend::Frontend;
 
-Runtime::Runtime(Memory* memory)
-    : memory_(memory), debugger_(0), frontend_(0), backend_(0) {
+Runtime::Runtime(Memory* memory) : memory_(memory) {
   tracing::Initialize();
 }
 
@@ -41,19 +40,20 @@ Runtime::~Runtime() {
     }
   }
 
-  delete frontend_;
-  delete backend_;
-  delete debugger_;
+  debugger_.reset();
+  frontend_.reset();
+  backend_.reset();
 
   tracing::Flush();
 }
 
-int Runtime::Initialize(Frontend* frontend, Backend* backend) {
+int Runtime::Initialize(std::unique_ptr<Frontend> frontend,
+                        std::unique_ptr<Backend> backend) {
   // Must be initialized by subclass before calling into this.
   assert_not_null(memory_);
 
   // Create debugger first. Other types hook up to it.
-  debugger_ = new Debugger(this);
+  debugger_.reset(new Debugger(this));
 
   if (frontend_ || backend_) {
     return 1;
@@ -62,23 +62,23 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   if (!backend) {
 #if defined(ALLOY_HAS_X64_BACKEND) && ALLOY_HAS_X64_BACKEND
     if (FLAGS_runtime_backend == "x64") {
-      backend = new alloy::backend::x64::X64Backend(this);
+      backend.reset(new alloy::backend::x64::X64Backend(this));
     }
 #endif  // ALLOY_HAS_X64_BACKEND
 #if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
     if (FLAGS_runtime_backend == "ivm") {
-      backend = new alloy::backend::ivm::IVMBackend(this);
+      backend.reset(new alloy::backend::ivm::IVMBackend(this));
     }
 #endif  // ALLOY_HAS_IVM_BACKEND
     if (FLAGS_runtime_backend == "any") {
 #if defined(ALLOY_HAS_X64_BACKEND) && ALLOY_HAS_X64_BACKEND
       if (!backend) {
-        backend = new alloy::backend::x64::X64Backend(this);
+        backend.reset(new alloy::backend::x64::X64Backend(this));
       }
 #endif  // ALLOY_HAS_X64_BACKEND
 #if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
       if (!backend) {
-        backend = new alloy::backend::ivm::IVMBackend(this);
+        backend.reset(new alloy::backend::ivm::IVMBackend(this));
       }
 #endif  // ALLOY_HAS_IVM_BACKEND
     }
@@ -87,18 +87,19 @@ int Runtime::Initialize(Frontend* frontend, Backend* backend) {
   if (!backend) {
     return 1;
   }
-  backend_ = backend;
-  frontend_ = frontend;
 
-  int result = backend_->Initialize();
+  int result = backend->Initialize();
   if (result) {
     return result;
   }
 
-  result = frontend_->Initialize();
+  result = frontend->Initialize();
   if (result) {
     return result;
   }
+
+  backend_ = std::move(backend);
+  frontend_ = std::move(frontend);
 
   return 0;
 }
@@ -114,7 +115,7 @@ Module* Runtime::GetModule(const char* name) {
   Module* result = NULL;
   for (ModuleList::iterator it = modules_.begin(); it != modules_.end(); ++it) {
     Module* module = *it;
-    if (xestrcmpa(module->name(), name) == 0) {
+    if (module->name() == name) {
       result = module;
       break;
     }
@@ -135,7 +136,7 @@ std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {
 int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
-  *out_function = NULL;
+  *out_function = nullptr;
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
   if (status == Entry::STATUS_NEW) {
@@ -170,12 +171,12 @@ int Runtime::LookupFunctionInfo(uint64_t address,
                                 FunctionInfo** out_symbol_info) {
   SCOPE_profile_cpu_f("alloy");
 
-  *out_symbol_info = NULL;
+  *out_symbol_info = nullptr;
 
   // TODO(benvanik): fast reject invalid addresses/log errors.
 
   // Find the module that contains the address.
-  Module* code_module = NULL;
+  Module* code_module = nullptr;
   {
     std::lock_guard<std::mutex> guard(modules_lock_);
     // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
@@ -203,7 +204,7 @@ int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
 
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
-  FunctionInfo* symbol_info = NULL;
+  FunctionInfo* symbol_info = nullptr;
   SymbolInfo::Status symbol_status =
       module->DeclareFunction(address, &symbol_info);
   if (symbol_status == SymbolInfo::STATUS_NEW) {
@@ -224,7 +225,7 @@ int Runtime::DemandFunction(FunctionInfo* symbol_info,
                             Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
-  *out_function = NULL;
+  *out_function = nullptr;
 
   // Lock function for generation. If it's already being generated
   // by another thread this will block and return DECLARED.
@@ -232,7 +233,7 @@ int Runtime::DemandFunction(FunctionInfo* symbol_info,
   SymbolInfo::Status symbol_status = module->DefineFunction(symbol_info);
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undefined, so define now.
-    Function* function = NULL;
+    Function* function = nullptr;
     int result =
         frontend_->DefineFunction(symbol_info, DEBUG_INFO_DEFAULT, &function);
     if (result) {

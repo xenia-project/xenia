@@ -13,17 +13,12 @@ namespace alloy {
 namespace runtime {
 
 RawModule::RawModule(Runtime* runtime)
-    : Module(runtime),
-      name_(0),
-      base_address_(0),
-      low_address_(0),
-      high_address_(0) {}
+    : Module(runtime), base_address_(0), low_address_(0), high_address_(0) {}
 
 RawModule::~RawModule() {
   if (base_address_) {
     memory_->HeapFree(base_address_, high_address_ - low_address_);
   }
-  xe_free(name_);
 }
 
 int RawModule::LoadFile(uint64_t base_address, const char* path) {
@@ -47,8 +42,7 @@ int RawModule::LoadFile(uint64_t base_address, const char* path) {
   fclose(file);
 
   // Setup debug info.
-  const char* name = xestrrchra(path, XE_PATH_SEPARATOR) + 1;
-  name_ = xestrdupa(name);
+  name_ = std::string(xestrrchra(path, XE_PATH_SEPARATOR) + 1);
   // TODO(benvanik): debug info
 
   low_address_ = base_address;

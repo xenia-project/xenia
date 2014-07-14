@@ -142,6 +142,7 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #undef min
 #undef max
 #undef Yield
+#define strdup _strdup
 #endif  // WINCE || WIN32
 
 #if XE_PLATFORM_XBOX360

@@ -31,7 +31,7 @@ public:
 
   ExportResolver* export_resolver() const { return export_resolver_; }
 
-  virtual int Initialize(alloy::backend::Backend* backend = 0);
+  virtual int Initialize(std::unique_ptr<alloy::backend::Backend> backend = 0);
 
 private:
   ExportResolver* export_resolver_;

@@ -75,12 +75,10 @@ int Processor::Setup() {
     return 1;
   }
 
-  Backend* backend = 0;
-  // Backend* backend = new alloy::backend::ivm::IVMBackend(
-  //     runtime);
-  // Backend* backend = new alloy::backend::x64::X64Backend(
-  //     runtime);
-  int result = runtime_->Initialize(backend);
+  std::unique_ptr<Backend> backend;
+  // backend.reset(new alloy::backend::ivm::IVMBackend(runtime));
+  // backend.reset(new alloy::backend::x64::X64Backend(runtime));
+  int result = runtime_->Initialize(std::move(backend));
   if (result) {
     return result;
   }

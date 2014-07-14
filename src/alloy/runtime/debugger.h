@@ -41,7 +41,7 @@ class Breakpoint {
   uint64_t address() const { return address_; }
 
   const char* id() const { return id_.c_str(); }
-  void set_id(const char* id) { id_ = id; }
+  void set_id(const char* id) { id_ = std::string(id); }
 
  private:
   Type type_;
@@ -53,7 +53,7 @@ class Breakpoint {
 class DebugEvent {
  public:
   DebugEvent(Debugger* debugger) : debugger_(debugger) {}
-  virtual ~DebugEvent() {}
+  virtual ~DebugEvent() = default;
   Debugger* debugger() const { return debugger_; }
 
  protected:
@@ -67,7 +67,7 @@ class BreakpointHitEvent : public DebugEvent {
       : DebugEvent(debugger),
         thread_state_(thread_state),
         breakpoint_(breakpoint) {}
-  virtual ~BreakpointHitEvent() {}
+  ~BreakpointHitEvent() override = default;
   ThreadState* thread_state() const { return thread_state_; }
   Breakpoint* breakpoint() const { return breakpoint_; }
 

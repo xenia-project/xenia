@@ -23,14 +23,14 @@ namespace alloy {
 template <typename T>
 class Delegate {
  public:
-  typedef std::function<void(T&)> listener_t;
+  typedef std::function<void(T&)> Listener;
 
-  void AddListener(listener_t const& listener) {
+  void AddListener(Listener const& listener) {
     std::lock_guard<std::mutex> guard(lock_);
     listeners_.push_back(listener);
   }
 
-  void RemoveListener(listener_t const& listener) {
+  void RemoveListener(Listener const& listener) {
     std::lock_guard<std::mutex> guard(lock_);
     for (auto it = listeners_.begin(); it != listeners_.end(); ++it) {
       if (it == listener) {
@@ -54,7 +54,7 @@ class Delegate {
 
  private:
   std::mutex lock_;
-  std::vector<listener_t> listeners_;
+  std::vector<Listener> listeners_;
 };
 
 }  // namespace alloy

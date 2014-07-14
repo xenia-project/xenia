@@ -26,9 +26,10 @@ Function::~Function() = default;
 int Function::AddBreakpoint(Breakpoint* breakpoint) {
   std::lock_guard<std::mutex> guard(lock_);
   bool found = false;
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-    if (*it == breakpoint) {
+  for (auto other : breakpoints_) {
+    if (other == breakpoint) {
       found = true;
+      break;
     }
   }
   if (!found) {
@@ -54,9 +55,8 @@ int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
 
 Breakpoint* Function::FindBreakpoint(uint64_t address) {
   std::lock_guard<std::mutex> guard(lock_);
-  Breakpoint* result = NULL;
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-    Breakpoint* breakpoint = *it;
+  Breakpoint* result = nullptr;
+  for (auto breakpoint : breakpoints_) {
     if (breakpoint->address() == address) {
       result = breakpoint;
       break;

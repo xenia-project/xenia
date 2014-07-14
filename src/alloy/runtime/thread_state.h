@@ -27,8 +27,8 @@ class ThreadState {
   Runtime* runtime() const { return runtime_; }
   Memory* memory() const { return memory_; }
   uint32_t thread_id() const { return thread_id_; }
-  const char* name() const { return name_; }
-  void set_name(const char* value);
+  const std::string& name() const { return name_; }
+  void set_name(const std::string& value) { name_ = value; }
   void* backend_data() const { return backend_data_; }
   void* raw_context() const { return raw_context_; }
 
@@ -43,7 +43,7 @@ class ThreadState {
   Runtime* runtime_;
   Memory* memory_;
   uint32_t thread_id_;
-  char* name_;
+  std::string name_;
   void* backend_data_;
   void* raw_context_;
 };

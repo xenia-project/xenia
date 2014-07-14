@@ -29,18 +29,16 @@ void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
 XexModule::XexModule(
     XenonRuntime* runtime) :
     runtime_(runtime),
-    name_(0), path_(0), xex_(0),
+    xex_(0),
     base_address_(0), low_address_(0), high_address_(0),
     Module(runtime) {
 }
 
 XexModule::~XexModule() {
   xe_xex2_release(xex_);
-  xe_free(name_);
-  xe_free(path_);
 }
 
-int XexModule::Load(const char* name, const char* path, xe_xex2_ref xex) {
+int XexModule::Load(const std::string& name, const std::string& path, xe_xex2_ref xex) {
   int result;
 
   xex_ = xe_xex2_retain(xex);
@@ -79,8 +77,8 @@ int XexModule::Load(const char* name, const char* path, xe_xex2_ref xex) {
   }
 
   // Setup debug info.
-  name_ = xestrdupa(name);
-  path_ = xestrdupa(path);
+  name_ = std::string(name);
+  path_ = std::string(path);
   // TODO(benvanik): debug info
 
   // Load a specified module map and diff.
