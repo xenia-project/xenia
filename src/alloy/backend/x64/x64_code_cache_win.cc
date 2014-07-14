@@ -9,8 +9,6 @@
 
 #include <alloy/backend/x64/x64_code_cache.h>
 
-#include <alloy/backend/x64/tracing.h>
-
 namespace alloy {
 namespace backend {
 namespace x64 {

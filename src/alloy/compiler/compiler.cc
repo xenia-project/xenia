@@ -10,7 +10,6 @@
 #include <alloy/compiler/compiler.h>
 
 #include <alloy/compiler/compiler_pass.h>
-#include <alloy/compiler/tracing.h>
 
 namespace alloy {
 namespace compiler {
@@ -20,8 +19,6 @@ using alloy::runtime::Runtime;
 
 Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {
   scratch_arena_ = new Arena();
-
-  alloy::tracing::WriteEvent(EventType::Init({}));
 }
 
 Compiler::~Compiler() {
@@ -33,8 +30,6 @@ Compiler::~Compiler() {
   }
 
   delete scratch_arena_;
-
-  alloy::tracing::WriteEvent(EventType::Deinit({}));
 }
 
 void Compiler::AddPass(CompilerPass* pass) {

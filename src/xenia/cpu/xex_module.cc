@@ -9,7 +9,6 @@
 
 #include <xenia/cpu/xex_module.h>
 
-#include <alloy/runtime/tracing.h>
 #include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/export_resolver.h>

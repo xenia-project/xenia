@@ -9,7 +9,6 @@
 
 #include <alloy/frontend/ppc/ppc_frontend.h>
 
-#include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_emit.h>
@@ -56,8 +55,6 @@ PPCFrontend::PPCFrontend(Runtime* runtime) : Frontend(runtime) {
 PPCFrontend::~PPCFrontend() {
   // Force cleanup now before we deinit.
   translator_pool_.Reset();
-
-  alloy::tracing::WriteEvent(EventType::Deinit({}));
 }
 
 int PPCFrontend::Initialize() {
@@ -65,8 +62,6 @@ int PPCFrontend::Initialize() {
   if (result) {
     return result;
   }
-
-  alloy::tracing::WriteEvent(EventType::Init({}));
 
   return result;
 }

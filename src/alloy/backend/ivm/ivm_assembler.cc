@@ -12,7 +12,6 @@
 #include <alloy/backend/backend.h>
 #include <alloy/backend/ivm/ivm_intcode.h>
 #include <alloy/backend/ivm/ivm_function.h>
-#include <alloy/backend/ivm/tracing.h>
 #include <alloy/hir/hir_builder.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
@@ -28,17 +27,13 @@ using alloy::runtime::FunctionInfo;
 IVMAssembler::IVMAssembler(Backend* backend)
     : Assembler(backend), source_map_arena_(128 * 1024) {}
 
-IVMAssembler::~IVMAssembler() {
-  alloy::tracing::WriteEvent(EventType::AssemblerDeinit({}));
-}
+IVMAssembler::~IVMAssembler() = default;
 
 int IVMAssembler::Initialize() {
   int result = Assembler::Initialize();
   if (result) {
     return result;
   }
-
-  alloy::tracing::WriteEvent(EventType::AssemblerInit({}));
 
   return result;
 }

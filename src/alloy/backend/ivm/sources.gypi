@@ -10,6 +10,5 @@
     'ivm_function.cc',
     'ivm_stack.cc',
     'ivm_stack.h',
-    'tracing.h',
   ],
 }

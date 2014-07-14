@@ -16,6 +16,5 @@
 #include <alloy/runtime/module.h>
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
-#include <alloy/tracing/tracing.h>
 
 #endif  // ALLOY_ALLOY_H_

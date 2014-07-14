@@ -11,12 +11,9 @@
 
 #include <mutex>
 
-#include <alloy/runtime/tracing.h>
-
 #include <gflags/gflags.h>
 
 using namespace alloy;
-using namespace alloy::runtime;
 using namespace xe::cpu;
 
 // TODO(benvanik): move xbox.h out
@@ -267,9 +264,6 @@ XenonMemory::~XenonMemory() {
     CloseHandle(mapping_);
     mapping_base_ = 0;
     mapping_ = 0;
-
-    alloy::tracing::WriteEvent(EventType::MemoryDeinit({
-    }));
   }
 }
 
@@ -310,9 +304,6 @@ int XenonMemory::Initialize() {
     XEFAIL();
   }
   membase_ = mapping_base_;
-
-  alloy::tracing::WriteEvent(EventType::MemoryInit({
-  }));
 
   // Prepare heaps.
   virtual_heap_->Initialize(
@@ -542,10 +533,6 @@ uint64_t XenonMemory::HeapAlloc(
       xe_zero_struct(pv, size);
     }
 
-    alloy::tracing::WriteEvent(EventType::MemoryHeapAlloc({
-      0, flags, base_address, size,
-    }));
-
     return base_address;
   }
 }
@@ -559,9 +546,6 @@ int XenonMemory::HeapFree(uint64_t address, size_t size) {
     return physical_heap_->Free(address, size) ? 0 : 1;
   } else {
     // A placed address. Decommit.
-    alloy::tracing::WriteEvent(EventType::MemoryHeapFree({
-      0, address,
-    }));
     uint8_t* p = Translate(address);
     return VirtualFree(p, size, MEM_DECOMMIT) ? 0 : 1;
   }
@@ -628,10 +612,6 @@ XenonMemoryHeap::~XenonMemoryHeap() {
 
   if (ptr_) {
     XEIGNORE(VirtualFree(ptr_, 0, MEM_RELEASE));
-
-    alloy::tracing::WriteEvent(EventType::MemoryHeapDeinit({
-      heap_id_,
-    }));
   }
 }
 
@@ -647,10 +627,6 @@ int XenonMemoryHeap::Initialize(uint64_t low, uint64_t high) {
     return 1;
   }
   space_ = create_mspace_with_base(ptr_, size_, 0);
-
-  alloy::tracing::WriteEvent(EventType::MemoryHeapInit({
-    heap_id_, low, high, is_physical_,
-  }));
 
   return 0;
 }
@@ -719,10 +695,6 @@ uint64_t XenonMemoryHeap::Alloc(
   uint64_t address =
       (uint64_t)((uintptr_t)p - (uintptr_t)memory_->mapping_base_);
 
-  alloy::tracing::WriteEvent(EventType::MemoryHeapAlloc({
-    heap_id_, flags, address, size,
-  }));
-
   return address;
 }
 
@@ -774,10 +746,6 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
         size,
         MEM_DECOMMIT);
   }
-
-  alloy::tracing::WriteEvent(EventType::MemoryHeapFree({
-    heap_id_, address,
-  }));
 
   return (uint64_t)real_size;
 }

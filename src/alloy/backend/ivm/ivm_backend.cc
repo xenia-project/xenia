@@ -11,7 +11,6 @@
 
 #include <alloy/backend/ivm/ivm_assembler.h>
 #include <alloy/backend/ivm/ivm_stack.h>
-#include <alloy/backend/ivm/tracing.h>
 
 namespace alloy {
 namespace backend {
@@ -21,7 +20,7 @@ using alloy::runtime::Runtime;
 
 IVMBackend::IVMBackend(Runtime* runtime) : Backend(runtime) {}
 
-IVMBackend::~IVMBackend() { alloy::tracing::WriteEvent(EventType::Deinit({})); }
+IVMBackend::~IVMBackend() = default;
 
 int IVMBackend::Initialize() {
   int result = Backend::Initialize();
@@ -37,8 +36,6 @@ int IVMBackend::Initialize() {
                     MachineInfo::RegisterSet::VEC_TYPES,
       16,
   };
-
-  alloy::tracing::WriteEvent(EventType::Init({}));
 
   return result;
 }

@@ -10,7 +10,6 @@
 #include <alloy/backend/ivm/ivm_function.h>
 
 #include <alloy/backend/ivm/ivm_stack.h>
-#include <alloy/backend/tracing.h>
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/thread_state.h>
 

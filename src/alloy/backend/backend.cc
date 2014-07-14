@@ -9,8 +9,6 @@
 
 #include <alloy/backend/backend.h>
 
-#include <alloy/backend/tracing.h>
-
 namespace alloy {
 namespace backend {
 

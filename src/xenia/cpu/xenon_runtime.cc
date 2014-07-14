@@ -10,7 +10,6 @@
 #include <xenia/cpu/xenon_runtime.h>
 
 #include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/runtime/tracing.h>
 
 #include <xenia/cpu/xenon_thread_state.h>
 
@@ -27,10 +26,7 @@ XenonRuntime::XenonRuntime(
     export_resolver_(export_resolver) {
 }
 
-XenonRuntime::~XenonRuntime() {
-  alloy::tracing::WriteEvent(EventType::Deinit({
-  }));
-}
+XenonRuntime::~XenonRuntime() = default;
 
 int XenonRuntime::Initialize(std::unique_ptr<backend::Backend> backend) {
   std::unique_ptr<PPCFrontend> frontend(new PPCFrontend(this));
@@ -40,9 +36,6 @@ int XenonRuntime::Initialize(std::unique_ptr<backend::Backend> backend) {
   if (result) {
     return result;
   }
-
-  alloy::tracing::WriteEvent(EventType::Init({
-  }));
 
   return result;
 }

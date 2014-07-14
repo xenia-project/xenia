@@ -9,7 +9,6 @@
 
 #include <alloy/backend/x64/x64_backend.h>
 
-#include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_assembler.h>
 #include <alloy/backend/x64/x64_code_cache.h>
 #include <alloy/backend/x64/x64_sequences.h>
@@ -23,10 +22,7 @@ using alloy::runtime::Runtime;
 
 X64Backend::X64Backend(Runtime* runtime) : Backend(runtime), code_cache_(0) {}
 
-X64Backend::~X64Backend() {
-  alloy::tracing::WriteEvent(EventType::Deinit({}));
-  delete code_cache_;
-}
+X64Backend::~X64Backend() { delete code_cache_; }
 
 int X64Backend::Initialize() {
   int result = Backend::Initialize();
@@ -57,8 +53,6 @@ int X64Backend::Initialize() {
   guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
   delete thunk_emitter;
   delete allocator;
-
-  alloy::tracing::WriteEvent(EventType::Init({}));
 
   return result;
 }

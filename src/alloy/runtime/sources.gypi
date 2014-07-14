@@ -21,7 +21,6 @@
     'symbol_info.h',
     'thread_state.cc',
     'thread_state.h',
-    'tracing.h',
   ],
 
   'includes': [

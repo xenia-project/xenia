@@ -11,7 +11,6 @@
 
 #include <map>
 
-#include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/runtime/runtime.h>

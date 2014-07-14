@@ -40,6 +40,5 @@
     'frontend/sources.gypi',
     'hir/sources.gypi',
     'runtime/sources.gypi',
-    'tracing/sources.gypi',
   ],
 }

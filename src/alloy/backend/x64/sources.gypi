@@ -1,7 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'tracing.h',
     'x64_assembler.cc',
     'x64_assembler.h',
     'x64_backend.cc',

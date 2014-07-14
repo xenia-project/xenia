@@ -9,7 +9,6 @@
 
 #include <alloy/frontend/frontend.h>
 
-#include <alloy/frontend/tracing.h>
 #include <alloy/runtime/runtime.h>
 
 namespace alloy {

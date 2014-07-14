@@ -12,7 +12,6 @@
 #include <gflags/gflags.h>
 
 #include <alloy/runtime/module.h>
-#include <alloy/runtime/tracing.h>
 
 // TODO(benvanik): based on compiler support
 #include <alloy/backend/ivm/ivm_backend.h>
@@ -26,9 +25,7 @@ namespace runtime {
 using alloy::backend::Backend;
 using alloy::frontend::Frontend;
 
-Runtime::Runtime(Memory* memory) : memory_(memory) {
-  tracing::Initialize();
-}
+Runtime::Runtime(Memory* memory) : memory_(memory) {}
 
 Runtime::~Runtime() {
   {
@@ -43,8 +40,6 @@ Runtime::~Runtime() {
   debugger_.reset();
   frontend_.reset();
   backend_.reset();
-
-  tracing::Flush();
 }
 
 int Runtime::Initialize(std::unique_ptr<Frontend> frontend,

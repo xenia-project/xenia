@@ -9,7 +9,6 @@
 
 #include <alloy/backend/x64/x64_assembler.h>
 
-#include <alloy/backend/x64/tracing.h>
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/backend/x64/x64_emitter.h>
 #include <alloy/backend/x64/x64_function.h>
@@ -37,8 +36,6 @@ X64Assembler::X64Assembler(X64Backend* backend)
     : Assembler(backend), x64_backend_(backend), emitter_(0), allocator_(0) {}
 
 X64Assembler::~X64Assembler() {
-  alloy::tracing::WriteEvent(EventType::AssemblerDeinit({}));
-
   delete emitter_;
   delete allocator_;
 }
@@ -51,8 +48,6 @@ int X64Assembler::Initialize() {
 
   allocator_ = new XbyakAllocator();
   emitter_ = new X64Emitter(x64_backend_, allocator_);
-
-  alloy::tracing::WriteEvent(EventType::AssemblerInit({}));
 
   return result;
 }

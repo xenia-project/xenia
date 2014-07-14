@@ -10,7 +10,6 @@
 #include <alloy/frontend/ppc/ppc_hir_builder.h>
 
 #include <alloy/alloy-private.h>
-#include <alloy/frontend/tracing.h>
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
