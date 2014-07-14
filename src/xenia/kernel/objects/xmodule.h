@@ -34,7 +34,7 @@ public:
 
 protected:
   char            name_[256];
-  char            path_[XE_MAX_PATH];
+  char            path_[poly::max_path];
 };
 
 

@@ -61,7 +61,7 @@ EMITTER(COMMENT, MATCH(I<OPCODE_COMMENT, VoidOp, OffsetOp>)) {
       auto str = reinterpret_cast<const char*>(i.src1.value);
       // TODO(benvanik): pass through.
       // TODO(benvanik): don't just leak this memory.
-      auto str_copy = xestrdupa(str);
+      auto str_copy = strdup(str);
       e.mov(e.rdx, reinterpret_cast<uint64_t>(str_copy));
       e.CallNative(TraceString);
     }

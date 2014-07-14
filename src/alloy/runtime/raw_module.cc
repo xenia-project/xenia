@@ -21,8 +21,8 @@ RawModule::~RawModule() {
   }
 }
 
-int RawModule::LoadFile(uint64_t base_address, const char* path) {
-  FILE* file = fopen(path, "rb");
+int RawModule::LoadFile(uint64_t base_address, const std::string& path) {
+  FILE* file = fopen(path.c_str(), "rb");
   fseek(file, 0, SEEK_END);
   size_t file_length = ftell(file);
   fseek(file, 0, SEEK_SET);
@@ -42,7 +42,12 @@ int RawModule::LoadFile(uint64_t base_address, const char* path) {
   fclose(file);
 
   // Setup debug info.
-  name_ = std::string(xestrrchra(path, XE_PATH_SEPARATOR) + 1);
+  auto last_slash = path.find_last_of(poly::path_separator);
+  if (last_slash != std::string::npos) {
+    name_ = path.substr(last_slash + 1);
+  } else {
+    name_ = path;
+  }
   // TODO(benvanik): debug info
 
   low_address_ = base_address;

@@ -65,7 +65,7 @@ public:
   X_STATUS LaunchSTFSTitle(const xechar_t* path);
 
 private:
-  xechar_t                command_line_[XE_MAX_PATH];
+  xechar_t                command_line_[poly::max_path];
 
   ui::Window*             main_window_;
 

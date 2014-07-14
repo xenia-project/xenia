@@ -10,6 +10,7 @@
 #ifndef ALLOY_RUNTIME_FUNCTION_H_
 #define ALLOY_RUNTIME_FUNCTION_H_
 
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -31,8 +32,10 @@ class Function {
   uint64_t address() const { return address_; }
   FunctionInfo* symbol_info() const { return symbol_info_; }
 
-  DebugInfo* debug_info() const { return debug_info_; }
-  void set_debug_info(DebugInfo* debug_info) { debug_info_ = debug_info; }
+  DebugInfo* debug_info() const { return debug_info_.get(); }
+  void set_debug_info(std::unique_ptr<DebugInfo> debug_info) {
+    debug_info_ = std::move(debug_info);
+  }
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
@@ -48,7 +51,7 @@ class Function {
  protected:
   uint64_t address_;
   FunctionInfo* symbol_info_;
-  DebugInfo* debug_info_;
+  std::unique_ptr<DebugInfo> debug_info_;
 
   // TODO(benvanik): move elsewhere? DebugData?
   std::mutex lock_;

@@ -31,7 +31,7 @@ void xe_format_log_line(
     const char* function_name, const char level_char,
     const char* fmt, va_list args) {
   // Strip out just the filename from the path.
-  const char* filename = xestrrchra(file_path, XE_PATH_SEPARATOR);
+  const char* filename = xestrrchra(file_path, poly::path_separator);
   if (filename) {
     // Slash - skip over it.
     filename++;

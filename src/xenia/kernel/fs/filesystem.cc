@@ -91,7 +91,7 @@ Entry* FileSystem::ResolvePath(const char* path) {
   // Resolve symlinks.
   // TODO(benvanik): more robust symlink handling - right now we assume simple
   //     drive path -> device mappings with nothing nested.
-  char full_path[XE_MAX_PATH];
+  char full_path[poly::max_path];
   XEIGNORE(xestrcpya(full_path, XECOUNT(full_path), path));
   for (std::unordered_map<std::string, std::string>::iterator it =
        symlinks_.begin(); it != symlinks_.end(); ++it) {
@@ -111,7 +111,7 @@ Entry* FileSystem::ResolvePath(const char* path) {
     if (xestrcasestra(full_path, device->path()) == full_path) {
       // Found!
       // Trim the device prefix off and pass down.
-      char device_path[XE_MAX_PATH];
+      char device_path[poly::max_path];
       XEIGNORE(xestrcpya(device_path, XECOUNT(device_path),
                          full_path + xestrlena(device->path())));
       return device->ResolvePath(device_path);

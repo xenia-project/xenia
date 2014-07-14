@@ -10,6 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_TRANSLATOR_H_
 #define ALLOY_FRONTEND_PPC_PPC_TRANSLATOR_H_
 
+#include <memory>
+
 #include <alloy/core.h>
 #include <alloy/backend/assembler.h>
 #include <alloy/compiler/compiler.h>
@@ -37,10 +39,10 @@ class PPCTranslator {
 
  private:
   PPCFrontend* frontend_;
-  PPCScanner* scanner_;
-  PPCHIRBuilder* builder_;
-  compiler::Compiler* compiler_;
-  backend::Assembler* assembler_;
+  std::unique_ptr<PPCScanner> scanner_;
+  std::unique_ptr<PPCHIRBuilder> builder_;
+  std::unique_ptr<compiler::Compiler> compiler_;
+  std::unique_ptr<backend::Assembler> assembler_;
 
   StringBuffer string_buffer_;
 };

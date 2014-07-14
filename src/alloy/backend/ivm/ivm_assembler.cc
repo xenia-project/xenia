@@ -9,6 +9,7 @@
 
 #include <alloy/backend/ivm/ivm_assembler.h>
 
+#include <alloy/reset_scope.h>
 #include <alloy/backend/backend.h>
 #include <alloy/backend/ivm/ivm_intcode.h>
 #include <alloy/backend/ivm/ivm_function.h>
@@ -21,6 +22,7 @@ namespace backend {
 namespace ivm {
 
 using alloy::hir::HIRBuilder;
+using alloy::runtime::DebugInfo;
 using alloy::runtime::Function;
 using alloy::runtime::FunctionInfo;
 
@@ -47,10 +49,15 @@ void IVMAssembler::Reset() {
 
 int IVMAssembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
                            uint32_t debug_info_flags,
-                           runtime::DebugInfo* debug_info,
+                           std::unique_ptr<DebugInfo> debug_info,
                            Function** out_function) {
+  SCOPE_profile_cpu_f("alloy");
+
+  // Reset when we leave.
+  make_reset_scope(this);
+
   IVMFunction* fn = new IVMFunction(symbol_info);
-  fn->set_debug_info(debug_info);
+  fn->set_debug_info(std::move(debug_info));
 
   TranslationContext ctx;
   ctx.register_count = 0;

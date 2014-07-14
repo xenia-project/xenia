@@ -216,7 +216,7 @@ int Translate_COMMENT(TranslationContext& ctx, Instr* i) {
   ic->flags = i->flags;
   ic->debug_flags = 0;
   // HACK HACK HACK
-  char* src = xestrdupa((char*)i->src1.offset);
+  char* src = strdup(reinterpret_cast<char*>(i->src1.offset));
   uint64_t src_p = (uint64_t)src;
   ic->src1_reg = (uint32_t)src_p;
   ic->src2_reg = (uint32_t)(src_p >> 32);

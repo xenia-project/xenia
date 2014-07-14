@@ -21,16 +21,16 @@ namespace ivm {
 class IVMAssembler : public Assembler {
  public:
   IVMAssembler(Backend* backend);
-  virtual ~IVMAssembler();
+  ~IVMAssembler() override;
 
-  virtual int Initialize();
+  int Initialize() override;
 
-  virtual void Reset();
+  void Reset() override;
 
-  virtual int Assemble(runtime::FunctionInfo* symbol_info,
-                       hir::HIRBuilder* builder, uint32_t debug_info_flags,
-                       runtime::DebugInfo* debug_info,
-                       runtime::Function** out_function);
+  int Assemble(runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
+               uint32_t debug_info_flags,
+               std::unique_ptr<runtime::DebugInfo> debug_info,
+               runtime::Function** out_function) override;
 
  private:
   Arena intcode_arena_;

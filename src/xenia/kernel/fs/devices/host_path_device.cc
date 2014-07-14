@@ -35,23 +35,23 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
   XELOGFS("HostPathDevice::ResolvePath(%s)", path);
 
 #if XE_WCHAR
-  xechar_t rel_path[XE_MAX_PATH];
+  xechar_t rel_path[poly::max_path];
   XEIGNORE(xestrwiden(rel_path, XECOUNT(rel_path), path));
 #else
   const xechar_t* rel_path = path;
 #endif
 
-  xechar_t full_path[XE_MAX_PATH];
+  xechar_t full_path[poly::max_path];
   xe_path_join(local_path_, rel_path, full_path, XECOUNT(full_path));
 
   // Swap around path separators.
-  if (XE_PATH_SEPARATOR != '\\') {
+  if (poly::path_separator != '\\') {
     for (size_t n = 0; n < XECOUNT(full_path); n++) {
       if (full_path[n] == 0) {
         break;
       }
       if (full_path[n] == '\\') {
-        full_path[n] = XE_PATH_SEPARATOR;
+        full_path[n] = poly::path_separator;
       }
     }
   }

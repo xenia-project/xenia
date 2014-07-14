@@ -10,6 +10,8 @@
 #ifndef ALLOY_BACKEND_BACKEND_H_
 #define ALLOY_BACKEND_BACKEND_H_
 
+#include <memory>
+
 #include <alloy/core.h>
 #include <alloy/backend/machine_info.h>
 
@@ -37,7 +39,7 @@ class Backend {
   virtual void* AllocThreadData();
   virtual void FreeThreadData(void* thread_data);
 
-  virtual Assembler* CreateAssembler() = 0;
+  virtual std::unique_ptr<Assembler> CreateAssembler() = 0;
 
  protected:
   runtime::Runtime* runtime_;

@@ -62,7 +62,7 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
 
   // Walk the path, one separator at a time.
   // We copy it into the buffer and shift it left over and over.
-  char remaining[XE_MAX_PATH];
+  char remaining[poly::max_path];
   XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), path));
   while (remaining[0]) {
     char* next_slash = xestrchra(remaining, '\\');

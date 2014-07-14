@@ -47,17 +47,18 @@ int X64Backend::Initialize() {
     return result;
   }
 
-  auto allocator = new XbyakAllocator();
-  auto thunk_emitter = new X64ThunkEmitter(this, allocator);
+  // Generate thunks used to transition between jitted code and host code.
+  auto allocator = std::make_unique<XbyakAllocator>();
+  auto thunk_emitter = std::make_unique<X64ThunkEmitter>(this, allocator.get());
   host_to_guest_thunk_ = thunk_emitter->EmitHostToGuestThunk();
   guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
-  delete thunk_emitter;
-  delete allocator;
 
   return result;
 }
 
-Assembler* X64Backend::CreateAssembler() { return new X64Assembler(this); }
+std::unique_ptr<Assembler> X64Backend::CreateAssembler() {
+  return std::make_unique<X64Assembler>(this);
+}
 
 }  // namespace x64
 }  // namespace backend

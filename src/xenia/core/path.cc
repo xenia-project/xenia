@@ -13,11 +13,11 @@
 void xe_path_join(const xechar_t* left, const xechar_t* right,
                   xechar_t* out_path, size_t out_path_size) {
 #if XE_WCHAR
-  xesnprintf(out_path, out_path_size, XT("%ls%c%ls"),
-             left, XE_PATH_SEPARATOR, right);
+  xesnprintf(out_path, out_path_size, L"%ls%c%ls",
+             left, poly::path_separator, right);
 #else
-  xesnprintf(out_path, out_path_size, XT("%s%c%s"),
-             left, XE_PATH_SEPARATOR, right);
+  xesnprintf(out_path, out_path_size, L"%s%c%s",
+             left, poly::path_separator, right);
 #endif  // XE_WCHAR
 }
 

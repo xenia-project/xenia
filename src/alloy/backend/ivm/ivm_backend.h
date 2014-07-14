@@ -23,14 +23,14 @@ namespace ivm {
 class IVMBackend : public Backend {
  public:
   IVMBackend(runtime::Runtime* runtime);
-  virtual ~IVMBackend();
+  ~IVMBackend() override;
 
-  virtual int Initialize();
+  int Initialize() override;
 
-  virtual void* AllocThreadData();
-  virtual void FreeThreadData(void* thread_data);
+  void* AllocThreadData() override;
+  void FreeThreadData(void* thread_data) override;
 
-  virtual Assembler* CreateAssembler();
+  std::unique_ptr<Assembler> CreateAssembler() override;
 };
 
 }  // namespace ivm

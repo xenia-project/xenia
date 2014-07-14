@@ -30,12 +30,12 @@ xe_file_ref xe_file_open(const xe_file_mode mode, const xechar_t *path) {
   xechar_t mode_string[10];
   mode_string[0] = 0;
   if (mode & kXEFileModeRead) {
-    XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), XT("r")));
+    XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), L"r"));
   }
   if (mode & kXEFileModeWrite) {
-    XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), XT("w")));
+    XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), L"w"));
   }
-  XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), XT("b")));
+  XEIGNORE(xestrcat(mode_string, XECOUNT(mode_string), L"b"));
 
 #if XE_LIKE_WIN32 && XE_WCHAR
   XEEXPECTZERO(_wfopen_s((FILE**)&file->handle, path, mode_string));

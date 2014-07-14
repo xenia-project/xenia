@@ -87,10 +87,10 @@ X_STATUS HostPathEntry::QueryDirectory(
   }
 
   if (handle == INVALID_HANDLE_VALUE) {
-    xechar_t target_path[XE_MAX_PATH];
-    xestrcpy(target_path, XE_MAX_PATH, local_path_);
+    xechar_t target_path[poly::max_path];
+    xestrcpy(target_path, poly::max_path, local_path_);
     if (file_name == NULL) {
-      xestrcat(target_path, XE_MAX_PATH, XETEXT("*"));
+      xestrcat(target_path, poly::max_path, L"*");
     }
     else {
       auto target_length = xestrlen(local_path_);

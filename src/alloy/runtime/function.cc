@@ -18,8 +18,7 @@ namespace runtime {
 
 Function::Function(FunctionInfo* symbol_info)
     : address_(symbol_info->address()),
-      symbol_info_(symbol_info),
-      debug_info_(0) {}
+      symbol_info_(symbol_info) {}
 
 Function::~Function() = default;
 

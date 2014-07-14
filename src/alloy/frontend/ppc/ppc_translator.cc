@@ -10,6 +10,7 @@
 #include <alloy/frontend/ppc/ppc_translator.h>
 
 #include <alloy/alloy-private.h>
+#include <alloy/reset_scope.h>
 #include <alloy/compiler/compiler_passes.h>
 #include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
@@ -34,10 +35,10 @@ namespace passes = alloy::compiler::passes;
 PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   Backend* backend = frontend->runtime()->backend();
 
-  scanner_ = new PPCScanner(frontend);
-  builder_ = new PPCHIRBuilder(frontend);
-  compiler_ = new Compiler(frontend->runtime());
-  assembler_ = backend->CreateAssembler();
+  scanner_.reset(new PPCScanner(frontend));
+  builder_.reset(new PPCHIRBuilder(frontend));
+  compiler_.reset(new Compiler(frontend->runtime()));
+  assembler_ = std::move(backend->CreateAssembler());
   assembler_->Initialize();
 
   bool validate = FLAGS_validate_hir;
@@ -78,17 +79,18 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   compiler_->AddPass(std::make_unique<passes::FinalizationPass>());
 }
 
-PPCTranslator::~PPCTranslator() {
-  delete assembler_;
-  delete compiler_;
-  delete builder_;
-  delete scanner_;
-}
+PPCTranslator::~PPCTranslator() = default;
 
 int PPCTranslator::Translate(FunctionInfo* symbol_info,
                              uint32_t debug_info_flags,
                              Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
+
+  // Reset() all caching when we leave.
+  make_reset_scope(builder_);
+  make_reset_scope(compiler_);
+  make_reset_scope(assembler_);
+  make_reset_scope(&string_buffer_);
 
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
@@ -106,9 +108,9 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   if (FLAGS_always_disasm) {
     debug_info_flags |= DEBUG_INFO_ALL_DISASM;
   }
-  DebugInfo* debug_info = NULL;
+  std::unique_ptr<DebugInfo> debug_info;
   if (debug_info_flags) {
-    debug_info = new DebugInfo();
+    debug_info.reset(new DebugInfo());
   }
 
   // Stash source.
@@ -119,8 +121,10 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Emit function.
-  int result = builder_->Emit(symbol_info, debug_info != NULL);
-  XEEXPECTZERO(result);
+  int result = builder_->Emit(symbol_info, debug_info != nullptr);
+  if (result) {
+    return result;
+  }
 
   // Stash raw HIR.
   if (debug_info_flags & DEBUG_INFO_RAW_HIR_DISASM) {
@@ -130,8 +134,10 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Compile/optimize/etc.
-  result = compiler_->Compile(builder_);
-  XEEXPECTZERO(result);
+  result = compiler_->Compile(builder_.get());
+  if (result) {
+    return result;
+  }
 
   // Stash optimized HIR.
   if (debug_info_flags & DEBUG_INFO_HIR_DISASM) {
@@ -141,21 +147,13 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Assemble to backend machine code.
-  result = assembler_->Assemble(symbol_info, builder_, debug_info_flags,
-                                debug_info, out_function);
-  XEEXPECTZERO(result);
-
-  result = 0;
-
-XECLEANUP:
+  result = assembler_->Assemble(symbol_info, builder_.get(), debug_info_flags,
+                                std::move(debug_info), out_function);
   if (result) {
-    delete debug_info;
+    return result;
   }
-  builder_->Reset();
-  compiler_->Reset();
-  assembler_->Reset();
-  string_buffer_.Reset();
-  return result;
+
+  return 0;
 };
 
 void PPCTranslator::DumpSource(runtime::FunctionInfo* symbol_info,

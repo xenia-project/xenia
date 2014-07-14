@@ -22,7 +22,7 @@ class RawModule : public Module {
   RawModule(Runtime* runtime);
   ~RawModule() override;
 
-  int LoadFile(uint64_t base_address, const char* path);
+  int LoadFile(uint64_t base_address, const std::string& path);
 
   const std::string& name() const override { return name_; }
 

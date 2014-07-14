@@ -28,15 +28,15 @@ typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 class X64Backend : public Backend {
  public:
   X64Backend(runtime::Runtime* runtime);
-  virtual ~X64Backend();
+  ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_; }
   HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
   GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
 
-  virtual int Initialize();
+  int Initialize() override;
 
-  virtual Assembler* CreateAssembler();
+  std::unique_ptr<Assembler> CreateAssembler() override;
 
  private:
   X64CodeCache* code_cache_;

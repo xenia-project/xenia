@@ -47,7 +47,9 @@ void IVMBackend::FreeThreadData(void* thread_data) {
   delete stack;
 }
 
-Assembler* IVMBackend::CreateAssembler() { return new IVMAssembler(this); }
+std::unique_ptr<Assembler> IVMBackend::CreateAssembler() {
+  return std::make_unique<IVMAssembler>(this);
+}
 
 }  // namespace ivm
 }  // namespace backend

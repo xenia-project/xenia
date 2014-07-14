@@ -10,6 +10,8 @@
 #ifndef ALLOY_BACKEND_ASSEMBLER_H_
 #define ALLOY_BACKEND_ASSEMBLER_H_
 
+#include <memory>
+
 #include <alloy/core.h>
 
 namespace alloy {
@@ -40,7 +42,7 @@ class Assembler {
 
   virtual int Assemble(runtime::FunctionInfo* symbol_info,
                        hir::HIRBuilder* builder, uint32_t debug_info_flags,
-                       runtime::DebugInfo* debug_info,
+                       std::unique_ptr<runtime::DebugInfo> debug_info,
                        runtime::Function** out_function) = 0;
 
  protected:

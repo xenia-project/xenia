@@ -161,4 +161,16 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #include <x86intrin.h>
 #endif  // MSVC
 
+namespace poly {
+
+#if XE_LIKE_WIN32
+const char path_separator = '\\';
+const size_t max_path = _MAX_PATH;
+#else
+const char path_separator = '/';
+const size_t max_path = PATH_MAX;
+#endif  // WIN32
+
+}  // namespace poly
+
 #endif  // POLY_PLATFORM_H_

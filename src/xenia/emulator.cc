@@ -147,7 +147,7 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
   int result_code = 0;
 
   // Get just the filename (foo.xex).
-  const xechar_t* file_name = xestrrchr(path, XE_PATH_SEPARATOR);
+  const xechar_t* file_name = xestrrchr(path, poly::path_separator);
   if (file_name) {
     // Skip slash.
     file_name++;
@@ -157,7 +157,7 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
   }
 
   // Get the parent path of the file.
-  xechar_t parent_path[XE_MAX_PATH];
+  xechar_t parent_path[poly::max_path];
   XEIGNORE(xestrcpy(parent_path, XECOUNT(parent_path), path));
   parent_path[file_name - path] = 0;
 
@@ -176,7 +176,7 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
       "d:", "\\Device\\Harddisk1\\Partition0");
 
   // Get the file name of the module to load from the filesystem.
-  char fs_path[XE_MAX_PATH];
+  char fs_path[poly::max_path];
   XEIGNORE(xestrcpya(fs_path, XECOUNT(fs_path), "game:\\"));
   char* fs_path_ptr = fs_path + xestrlena(fs_path);
   *fs_path_ptr = 0;

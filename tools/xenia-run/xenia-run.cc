@@ -37,7 +37,7 @@ int xenia_run(int argc, xechar_t** argv) {
   if (FLAGS_target.size()) {
     // Passed as a named argument.
     // TODO(benvanik): find something better than gflags that supports unicode.
-    xechar_t buffer[XE_MAX_PATH];
+    xechar_t buffer[poly::max_path];
     XEIGNORE(xestrwiden(buffer, sizeof(buffer), FLAGS_target.c_str()));
     path = buffer;
   } else {
@@ -52,7 +52,7 @@ int xenia_run(int argc, xechar_t** argv) {
 
   // Normalize the path and make absolute.
   // TODO(benvanik): move this someplace common.
-  xechar_t abs_path[XE_MAX_PATH];
+  xechar_t abs_path[poly::max_path];
   xe_path_get_absolute(path, abs_path, XECOUNT(abs_path));
 
   // Grab file extension.
@@ -60,7 +60,7 @@ int xenia_run(int argc, xechar_t** argv) {
   const xechar_t* dot = xestrrchr(abs_path, '.');
 
   // Create the emulator.
-  emulator = new Emulator(XT(""));
+  emulator = new Emulator(L"");
   XEEXPECTNOTNULL(emulator);
   X_STATUS result = emulator->Setup();
   if (XFAILED(result)) {
@@ -74,7 +74,7 @@ int xenia_run(int argc, xechar_t** argv) {
   if (!dot) {
     // Likely an STFS container.
     result = emulator->LaunchSTFSTitle(abs_path);
-  } else if (xestrcmp(dot, XT(".xex")) == 0) {
+  } else if (xestrcmp(dot, L".xex") == 0) {
     // Treat as a naked xex file.
     result = emulator->LaunchXexFile(abs_path);
   } else {
@@ -96,4 +96,4 @@ XECLEANUP:
   Profiler::Shutdown();
   return result_code;
 }
-XE_MAIN_WINDOW_THUNK(xenia_run, XETEXT("xenia-run"), "xenia-run some.xex");
+XE_MAIN_WINDOW_THUNK(xenia_run, L"xenia-run", "xenia-run some.xex");

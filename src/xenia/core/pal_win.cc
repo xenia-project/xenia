@@ -75,7 +75,7 @@ int xe_pal_get_system_info(xe_system_info* out_info) {
   LPFN_GLPI glpi      = NULL;
   PSYSTEM_LOGICAL_PROCESSOR_INFORMATION buffer = NULL;
 
-  kernel32 = GetModuleHandle(TEXT("kernel32"));
+  kernel32 = GetModuleHandle(L"kernel32");
   XEEXPECTNOTNULL(kernel32);
   glpi = (LPFN_GLPI)GetProcAddress(kernel32, "GetLogicalProcessorInformation");
   XEEXPECTNOTNULL(glpi);

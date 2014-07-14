@@ -94,7 +94,7 @@ int xe_main_window_thunk(
   xe_attach_console();
   wchar_t buffer[2048];
   xestrcpy(buffer, XECOUNT(buffer), name);
-  xestrcat(buffer, XECOUNT(buffer), XETEXT(" "));
+  xestrcat(buffer, XECOUNT(buffer), L" ");
   xestrcat(buffer, XECOUNT(buffer), command_line);
   int argc;
   wchar_t** argv = CommandLineToArgvW(buffer, &argc);

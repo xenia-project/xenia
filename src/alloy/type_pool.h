@@ -52,8 +52,7 @@ class TypePool {
 
  private:
   std::mutex lock_;
-  typedef std::vector<T*> TList;
-  TList list_;
+  std::vector<T*> list_;
 };
 
 }  // namespace alloy
