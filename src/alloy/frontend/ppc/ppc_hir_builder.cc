@@ -31,11 +31,9 @@ using alloy::runtime::Runtime;
 using alloy::runtime::FunctionInfo;
 
 PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
-    : HIRBuilder(), frontend_(frontend) {
-  comment_buffer_ = new StringBuffer(4096);
-}
+    : HIRBuilder(), frontend_(frontend), comment_buffer_(4096) {}
 
-PPCHIRBuilder::~PPCHIRBuilder() { delete comment_buffer_; }
+PPCHIRBuilder::~PPCHIRBuilder() = default;
 
 void PPCHIRBuilder::Reset() {
   start_address_ = 0;
@@ -100,9 +98,9 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
       if (label) {
         AnnotateLabel(address, label);
       }
-      comment_buffer_->Reset();
-      DisasmPPC(i, comment_buffer_);
-      Comment("%.8X %.8X %s", address, i.code, comment_buffer_->GetString());
+      comment_buffer_.Reset();
+      DisasmPPC(i, &comment_buffer_);
+      Comment("%.8X %.8X %s", address, i.code, comment_buffer_.GetString());
       first_instr = last_instr();
     }
 

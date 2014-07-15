@@ -10,6 +10,7 @@
 #include <alloy/runtime/thread_state.h>
 
 #include <alloy/runtime/runtime.h>
+#include <poly/poly.h>
 
 namespace alloy {
 namespace runtime {

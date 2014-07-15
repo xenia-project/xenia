@@ -11,6 +11,7 @@
 #define ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_
 
 #include <alloy/core.h>
+#include <alloy/string_buffer.h>
 #include <alloy/hir/hir_builder.h>
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
@@ -78,7 +79,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   PPCFrontend* frontend_;
 
   // Reset whenever needed:
-  StringBuffer* comment_buffer_;
+  StringBuffer comment_buffer_;
 
   // Reset each Emit:
   bool with_debug_info_;

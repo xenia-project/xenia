@@ -13,6 +13,7 @@
 #include <sstream>
 
 #include <alloy/runtime/runtime.h>
+#include <poly/poly.h>
 
 namespace alloy {
 namespace runtime {

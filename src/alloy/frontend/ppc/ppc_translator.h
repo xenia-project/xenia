@@ -13,6 +13,7 @@
 #include <memory>
 
 #include <alloy/core.h>
+#include <alloy/string_buffer.h>
 #include <alloy/backend/assembler.h>
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/symbol_info.h>

@@ -10,6 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_SCANNER_H_
 #define ALLOY_FRONTEND_PPC_PPC_SCANNER_H_
 
+#include <vector>
+
 #include <alloy/core.h>
 #include <alloy/runtime/symbol_info.h>
 

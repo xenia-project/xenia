@@ -14,6 +14,7 @@
     'string_buffer.cc',
     'string_buffer.h',
     'type_pool.h',
+    'vec128.h',
   ],
 
   'conditions': [

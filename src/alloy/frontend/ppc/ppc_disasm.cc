@@ -9,6 +9,9 @@
 
 #include <alloy/frontend/ppc/ppc_disasm.h>
 
+#include <poly/poly.h>
+#include <alloy/string_buffer.h>
+
 namespace alloy {
 namespace frontend {
 namespace ppc {

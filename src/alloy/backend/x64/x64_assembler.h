@@ -14,6 +14,7 @@
 
 #include <alloy/core.h>
 
+#include <alloy/string_buffer.h>
 #include <alloy/backend/assembler.h>
 
 namespace alloy {

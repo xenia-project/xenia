@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_ENTRY_H_
 #define XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_ENTRY_H_
 
+#include <vector>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 

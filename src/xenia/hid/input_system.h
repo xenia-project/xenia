@@ -10,6 +10,8 @@
 #ifndef XENIA_HID_INPUT_SYSTEM_H_
 #define XENIA_HID_INPUT_SYSTEM_H_
 
+#include <vector>
+
 #include <xenia/core.h>
 #include <xenia/xbox.h>
 

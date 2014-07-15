@@ -9,6 +9,8 @@
 
 #include <alloy/arena.h>
 
+#include <poly/poly.h>
+
 namespace alloy {
 
 Arena::Arena(size_t chunk_size)

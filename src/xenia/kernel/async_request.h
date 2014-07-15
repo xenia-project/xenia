@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_ASYNC_REQUEST_H_
 #define XENIA_KERNEL_XBOXKRNL_ASYNC_REQUEST_H_
 
+#include <vector>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 

@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_SHADER_RESOURCE_H_
 #define XENIA_GPU_SHADER_RESOURCE_H_
 
+#include <vector>
+
 #include <xenia/gpu/buffer_resource.h>
 #include <xenia/gpu/resource.h>
 #include <xenia/gpu/xenos/ucode.h>

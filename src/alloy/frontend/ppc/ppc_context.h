@@ -11,6 +11,7 @@
 #define ALLOY_FRONTEND_PPC_PPC_CONTEXT_H_
 
 #include <alloy/core.h>
+#include <alloy/vec128.h>
 
 
 namespace alloy { namespace runtime {

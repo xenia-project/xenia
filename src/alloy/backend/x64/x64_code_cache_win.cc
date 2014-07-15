@@ -9,6 +9,8 @@
 
 #include <alloy/backend/x64/x64_code_cache.h>
 
+#include <poly/poly.h>
+
 namespace alloy {
 namespace backend {
 namespace x64 {

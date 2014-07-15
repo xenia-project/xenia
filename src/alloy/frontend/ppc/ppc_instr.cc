@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include <alloy/frontend/ppc/ppc_instr_tables.h>
+#include <poly/poly.h>
 
 namespace alloy {
 namespace frontend {

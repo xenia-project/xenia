@@ -9,6 +9,7 @@
 
 #include <alloy/backend/ivm/ivm_intcode.h>
 
+#include <poly/poly.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/symbol_info.h>

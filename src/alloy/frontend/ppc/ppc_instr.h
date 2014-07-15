@@ -10,10 +10,14 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_INSTR_H_
 #define ALLOY_FRONTEND_PPC_PPC_INSTR_H_
 
-#include <alloy/core.h>
-
 #include <string>
 #include <vector>
+
+#include <alloy/core.h>
+
+namespace alloy {
+class StringBuffer;
+}  // namespace alloy
 
 namespace alloy {
 namespace frontend {

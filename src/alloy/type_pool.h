@@ -11,6 +11,7 @@
 #define ALLOY_TYPE_POOL_H_
 
 #include <mutex>
+#include <vector>
 
 #include <alloy/core.h>
 

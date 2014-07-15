@@ -10,12 +10,18 @@
 #ifndef ALLOY_HIR_HIR_BUILDER_H_
 #define ALLOY_HIR_HIR_BUILDER_H_
 
+#include <vector>
+
 #include <alloy/core.h>
 #include <alloy/hir/block.h>
 #include <alloy/hir/instr.h>
 #include <alloy/hir/label.h>
 #include <alloy/hir/opcodes.h>
 #include <alloy/hir/value.h>
+
+namespace alloy {
+class StringBuffer;
+}  // namespace alloy
 
 namespace alloy {
 namespace hir {

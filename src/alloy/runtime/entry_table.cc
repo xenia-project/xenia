@@ -9,6 +9,8 @@
 
 #include <alloy/runtime/entry_table.h>
 
+#include <poly/poly.h>
+
 namespace alloy {
 namespace runtime {
 

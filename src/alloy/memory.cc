@@ -9,7 +9,7 @@
 
 #include <alloy/memory.h>
 
-#include <poly/memory.h>
+#include <poly/poly.h>
 
 namespace alloy {
 

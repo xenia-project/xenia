@@ -12,6 +12,7 @@
 
 #include <alloy/core.h>
 
+#include <alloy/arena.h>
 #include <alloy/backend/assembler.h>
 
 namespace alloy {
