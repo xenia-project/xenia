@@ -29,21 +29,21 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
       library_name, ordinals::##export_name, \
       shim_data, \
       (xe_kernel_export_shim_fn)export_name##_shim, \
-      NULL);
+      nullptr);
 
 #define SHIM_MEM_BASE         ppc_state->membase
-#define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : NULL)
+#define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : nullptr)
 
-#define SHIM_MEM_8(a)         (*(uint8_t*)SHIM_MEM_ADDR(a))
-#define SHIM_MEM_16(a)        (uint16_t)poly::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
-#define SHIM_MEM_32(a)        (uint32_t)poly::load_and_swap<uint32_t>(SHIM_MEM_ADDR(a))
-#define SHIM_MEM_64(a)        (uint64_t)poly::load_and_swap<uint64_t>(SHIM_MEM_ADDR(a))
-#define SHIM_SET_MEM_8(a, v)  (*(uint8_t*)SHIM_MEM_ADDR(a)) = v
-#define SHIM_SET_MEM_16(a, v) (*(uint16_t*)SHIM_MEM_ADDR(a)) = poly::byte_swap(v)
-#define SHIM_SET_MEM_32(a, v) (*(uint32_t*)SHIM_MEM_ADDR(a)) = poly::byte_swap(v)
-#define SHIM_SET_MEM_64(a, v) (*(uint64_t*)SHIM_MEM_ADDR(a)) = poly::byte_swap(v)
-#define SHIM_SET_MEM_F32(a, v) (*(float*)SHIM_MEM_ADDR(a)) = poly::byte_swap(v)
-#define SHIM_SET_MEM_F64(a, v) (*(double*)SHIM_MEM_ADDR(a)) = poly::byte_swap(v)
+#define SHIM_MEM_8(a)         poly::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
+#define SHIM_MEM_16(a)        poly::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
+#define SHIM_MEM_32(a)        poly::load_and_swap<uint32_t>(SHIM_MEM_ADDR(a))
+#define SHIM_MEM_64(a)        poly::load_and_swap<uint64_t>(SHIM_MEM_ADDR(a))
+#define SHIM_SET_MEM_8(a, v)  poly::store_and_swap<uint8_t>(SHIM_MEM_ADDR(a), v)
+#define SHIM_SET_MEM_16(a, v) poly::store_and_swap<uint16_t>(SHIM_MEM_ADDR(a), v)
+#define SHIM_SET_MEM_32(a, v) poly::store_and_swap<uint32_t>(SHIM_MEM_ADDR(a), v)
+#define SHIM_SET_MEM_64(a, v) poly::store_and_swap<uint64_t>(SHIM_MEM_ADDR(a), v)
+#define SHIM_SET_MEM_F32(a, v) poly::store_and_swap<float>(SHIM_MEM_ADDR(a), v)
+#define SHIM_SET_MEM_F64(a, v) poly::store_and_swap<double>(SHIM_MEM_ADDR(a), v)
 
 #define SHIM_GPR_8(n)         (uint8_t)(ppc_state->r[n])
 #define SHIM_GPR_16(n)        (uint16_t)(ppc_state->r[n])
@@ -60,14 +60,14 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 #define SHIM_SET_RETURN_64(v) SHIM_SET_GPR_64(3, v)
 
 
-#define IMPL_MEM_ADDR(a)      (a ? state->memory()->Translate(a) : NULL)
+#define IMPL_MEM_ADDR(a)      (a ? state->memory()->Translate(a) : nullptr)
 
-#define IMPL_MEM_8(a)         (*(uint8_t*)(IMPL_MEM_ADDR(a)))
-#define IMPL_MEM_16(a)        (uint16_t)poly::load_and_swap<uint16_t>(IMPL_MEM_ADDR(a))
-#define IMPL_MEM_32(a)        (uint32_t)poly::load_and_swap<uint32_t>(IMPL_MEM_ADDR(a))
-#define IMPL_SET_MEM_8(a, v)  (*(uint8_t*)IMPL_MEM_ADDR(a)) = v
-#define IMPL_SET_MEM_16(a, v) (*(uint16_t*)IMPL_MEM_ADDR(a)) = poly::byte_swap(v)
-#define IMPL_SET_MEM_32(a, v) (*(uint32_t*)IMPL_MEM_ADDR(a)) = poly::byte_swap(v)
+#define IMPL_MEM_8(a)         poly::load_and_swap<uint8_t>(IMPL_MEM_ADDR(a))
+#define IMPL_MEM_16(a)        poly::load_and_swap<uint16_t>(IMPL_MEM_ADDR(a))
+#define IMPL_MEM_32(a)        poly::load_and_swap<uint32_t>(IMPL_MEM_ADDR(a))
+#define IMPL_SET_MEM_8(a, v)  poly::store_and_swap<uint8_t>(IMPL_MEM_ADDR(a), v)
+#define IMPL_SET_MEM_16(a, v) poly::store_and_swap<uint16_t>(IMPL_MEM_ADDR(a), v)
+#define IMPL_SET_MEM_32(a, v) poly::store_and_swap<uint32_t>(IMPL_MEM_ADDR(a), v)
 
 
 }  // namespace kernel
