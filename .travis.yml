@@ -10,7 +10,7 @@ os:
 # Run setup to build ninja/gyp/etc and actually build xenia.
 before_script:
   - travis_retry ./xenia-build.py setup
-  - ./xenia-build.py build
+  - ./xenia-build.py build --debug
 
 # Run test suite.
 script: ./test/run-tests.sh

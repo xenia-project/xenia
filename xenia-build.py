@@ -416,7 +416,7 @@ class BuildCommand(Command):
     # TODO(benvanik): add arguments:
     # --force
     debug = '--debug' in args
-    config = 'debug' if debug else 'release'
+    config = 'Debug' if debug else 'Release'
 
     print('Building %s...' % (config))
     print('')
