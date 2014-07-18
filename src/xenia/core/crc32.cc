@@ -300,7 +300,7 @@ uint32_t xe_crc32(const void* data, size_t length, uint32_t previous_crc) {
   const uint32_t* current = (const uint32_t*)data;
   while (length >= 8) {
 #if XE_CPU_BIGENDIAN
-    uint32_t one = *current++ ^ XESWAP32(crc);
+    uint32_t one = *current++ ^ poly::byte_swap(crc);
     uint32_t two = *current++;
     crc = xe_crc32_lookup_[0][ two      & 0xFF] ^
           xe_crc32_lookup_[1][(two>> 8) & 0xFF] ^

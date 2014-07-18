@@ -33,14 +33,14 @@ public:
   X_FILE_ATTRIBUTES attributes;
 
   void Write(uint8_t* base, uint32_t p) {
-    XESETUINT64BE(base + p, creation_time);
-    XESETUINT64BE(base + p + 8, last_access_time);
-    XESETUINT64BE(base + p + 16, last_write_time);
-    XESETUINT64BE(base + p + 24, change_time);
-    XESETUINT64BE(base + p + 32, allocation_size);
-    XESETUINT64BE(base + p + 40, file_length);
-    XESETUINT32BE(base + p + 48, attributes);
-    XESETUINT32BE(base + p + 52, 0); // pad
+    poly::store_and_swap<uint64_t>(base + p, creation_time);
+    poly::store_and_swap<uint64_t>(base + p + 8, last_access_time);
+    poly::store_and_swap<uint64_t>(base + p + 16, last_write_time);
+    poly::store_and_swap<uint64_t>(base + p + 24, change_time);
+    poly::store_and_swap<uint64_t>(base + p + 32, allocation_size);
+    poly::store_and_swap<uint64_t>(base + p + 40, file_length);
+    poly::store_and_swap<uint32_t>(base + p + 48, attributes);
+    poly::store_and_swap<uint32_t>(base + p + 52, 0); // pad
   }
 };
 
@@ -65,16 +65,16 @@ public:
     XDirectoryInfo* info;
     do {
       info = (XDirectoryInfo*)src;
-      XESETUINT32BE(dst, info->next_entry_offset);
-      XESETUINT32BE(dst + 4, info->file_index);
-      XESETUINT64BE(dst + 8, info->creation_time);
-      XESETUINT64BE(dst + 16, info->last_access_time);
-      XESETUINT64BE(dst + 24, info->last_write_time);
-      XESETUINT64BE(dst + 32, info->change_time);
-      XESETUINT64BE(dst + 40, info->end_of_file);
-      XESETUINT64BE(dst + 48, info->allocation_size);
-      XESETUINT32BE(dst + 56, info->attributes);
-      XESETUINT32BE(dst + 60, info->file_name_length);
+      poly::store_and_swap<uint32_t>(dst, info->next_entry_offset);
+      poly::store_and_swap<uint32_t>(dst + 4, info->file_index);
+      poly::store_and_swap<uint64_t>(dst + 8, info->creation_time);
+      poly::store_and_swap<uint64_t>(dst + 16, info->last_access_time);
+      poly::store_and_swap<uint64_t>(dst + 24, info->last_write_time);
+      poly::store_and_swap<uint64_t>(dst + 32, info->change_time);
+      poly::store_and_swap<uint64_t>(dst + 40, info->end_of_file);
+      poly::store_and_swap<uint64_t>(dst + 48, info->allocation_size);
+      poly::store_and_swap<uint32_t>(dst + 56, info->attributes);
+      poly::store_and_swap<uint32_t>(dst + 60, info->file_name_length);
       xe_copy_memory(dst + 64, info->file_name_length, info->file_name, info->file_name_length);
       dst += info->next_entry_offset;
       src += info->next_entry_offset;
@@ -95,10 +95,10 @@ public:
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
-    XESETUINT64BE(dst + 0, this->creation_time);
-    XESETUINT32BE(dst + 8, this->serial_number);
-    XESETUINT32BE(dst + 12, this->label_length);
-    XESETUINT32BE(dst + 16, this->supports_objects);
+    poly::store_and_swap<uint64_t>(dst + 0, this->creation_time);
+    poly::store_and_swap<uint32_t>(dst + 8, this->serial_number);
+    poly::store_and_swap<uint32_t>(dst + 12, this->label_length);
+    poly::store_and_swap<uint32_t>(dst + 16, this->supports_objects);
     xe_copy_memory(dst + 20, this->label_length, this->label, this->label_length);
   }
 };
@@ -115,9 +115,9 @@ public:
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
-    XESETUINT32BE(dst + 0, this->attributes);
-    XESETUINT32BE(dst + 4, this->maximum_component_name_length);
-    XESETUINT32BE(dst + 8, this->fs_name_length);
+    poly::store_and_swap<uint32_t>(dst + 0, this->attributes);
+    poly::store_and_swap<uint32_t>(dst + 4, this->maximum_component_name_length);
+    poly::store_and_swap<uint32_t>(dst + 8, this->fs_name_length);
     xe_copy_memory(dst + 12, this->fs_name_length, this->fs_name, this->fs_name_length);
   }
 };

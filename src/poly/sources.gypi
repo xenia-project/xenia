@@ -3,6 +3,7 @@
   'sources': [
     'assert.h',
     'atomic.h',
+    'byte_order.h',
     'config.h',
     'cxx_compat.h',
     'math.cc',

@@ -118,7 +118,7 @@ void CommandProcessor::Pump() {
   // TODO(benvanik): use read_ptr_update_freq_ and only issue after moving
   //     that many indices.
   if (read_ptr_writeback_ptr_) {
-    XESETUINT32BE(p + read_ptr_writeback_ptr_, read_ptr_index_);
+    poly::store_and_swap<uint32_t>(p + read_ptr_writeback_ptr_, read_ptr_index_);
   }
 }
 
@@ -174,7 +174,7 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
   for (uint32_t __m = 0; __m < count; __m++) { \
     XETRACECP("[%.8X]   %.8X", \
               packet_ptr + (1 + __m) * 4, \
-              XEGETUINT32BE(packet_base + 1 * 4 + __m * 4)); \
+              poly::load_and_swap<uint32_t>(packet_base + 1 * 4 + __m * 4)); \
   }
 
 void CommandProcessor::AdvancePtr(PacketArgs& args, uint32_t n) {
@@ -186,9 +186,9 @@ void CommandProcessor::AdvancePtr(PacketArgs& args, uint32_t n) {
 }
 #define ADVANCE_PTR(n) AdvancePtr(args, n)
 #define PEEK_PTR() \
-    XEGETUINT32BE(p + args.ptr)
+    poly::load_and_swap<uint32_t>(p + args.ptr)
 #define READ_PTR() \
-    XEGETUINT32BE(p + args.ptr); ADVANCE_PTR(1);
+    poly::load_and_swap<uint32_t>(p + args.ptr); ADVANCE_PTR(1);
 
 uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
   uint8_t* p = memory_->membase();
@@ -339,7 +339,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
               // Memory.
               XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(poll_reg_addr & 0x3);
               poll_reg_addr &= ~0x3;
-              value = XEGETUINT32LE(p + GpuToCpu(packet_ptr, poll_reg_addr));
+              value = poly::load<uint32_t>(p + GpuToCpu(packet_ptr, poll_reg_addr));
               value = GpuSwap(value, endianness);
             } else {
               // Register.
@@ -434,7 +434,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
             // Memory.
             XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(poll_reg_addr & 0x3);
             poll_reg_addr &= ~0x3;
-            value = XEGETUINT32LE(p + GpuToCpu(packet_ptr, poll_reg_addr));
+            value = poly::load<uint32_t>(p + GpuToCpu(packet_ptr, poll_reg_addr));
             value = GpuSwap(value, endianness);
           } else {
             // Register.
@@ -475,8 +475,8 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
               XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(write_reg_addr & 0x3);
               write_reg_addr &= ~0x3;
               write_data = GpuSwap(write_data, endianness);
-              XESETUINT32LE(p + GpuToCpu(packet_ptr, write_reg_addr),
-                            write_data);
+              poly::store(p + GpuToCpu(packet_ptr, write_reg_addr),
+                          write_data);
             } else {
               // Register.
               WriteRegister(packet_ptr, write_reg_addr, write_data);
@@ -524,7 +524,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
           XE_GPU_ENDIAN endianness = (XE_GPU_ENDIAN)(address & 0x3);
           address &= ~0x3;
           data_value = GpuSwap(data_value, endianness);
-          XESETUINT32LE(p + GpuToCpu(address), data_value);
+          poly::store(p + GpuToCpu(address), data_value);
         }
         break;
 
@@ -637,7 +637,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
           size &= 0xFFF;
           index += 0x4000; // alu constants
           for (uint32_t n = 0; n < size; n++, index++) {
-            uint32_t data = XEGETUINT32BE(
+            uint32_t data = poly::load_and_swap<uint32_t>(
                 p + GpuToCpu(packet_ptr, address + n * 4));
             const char* reg_name = regs->GetRegisterName(index);
             XETRACECP("[%.8X]   %.8X -> %.4X %s",
@@ -769,7 +769,7 @@ void CommandProcessor::WriteRegister(
       uint8_t* p = memory_->membase();
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
-      XESETUINT32BE(p + GpuToCpu(primary_buffer_ptr_, mem_addr), value);
+      poly::store_and_swap<uint32_t>(p + GpuToCpu(primary_buffer_ptr_, mem_addr), value);
     }
   }
 }

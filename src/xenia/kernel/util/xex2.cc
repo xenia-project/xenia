@@ -125,21 +125,21 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
   const uint8_t *ps;
   xe_xex2_loader_info_t *ldr;
 
-  header->xex2 = XEGETUINT32BE(p + 0x00);
+  header->xex2 = poly::load_and_swap<uint32_t>(p + 0x00);
   if (header->xex2 != 0x58455832) {
     return 1;
   }
 
-  header->module_flags        = (xe_xex2_module_flags)XEGETUINT32BE(p + 0x04);
-  header->exe_offset          = XEGETUINT32BE(p + 0x08);
-  header->unknown0            = XEGETUINT32BE(p + 0x0C);
-  header->certificate_offset  = XEGETUINT32BE(p + 0x10);
-  header->header_count        = XEGETUINT32BE(p + 0x14);
+  header->module_flags        = (xe_xex2_module_flags)poly::load_and_swap<uint32_t>(p + 0x04);
+  header->exe_offset          = poly::load_and_swap<uint32_t>(p + 0x08);
+  header->unknown0            = poly::load_and_swap<uint32_t>(p + 0x0C);
+  header->certificate_offset  = poly::load_and_swap<uint32_t>(p + 0x10);
+  header->header_count        = poly::load_and_swap<uint32_t>(p + 0x14);
 
   for (size_t n = 0; n < header->header_count; n++) {
     const uint8_t *ph = p + 0x18 + (n * 8);
-    const uint32_t key = XEGETUINT32BE(ph + 0x00);
-    const uint32_t data_offset = XEGETUINT32BE(ph + 0x04);
+    const uint32_t key = poly::load_and_swap<uint32_t>(ph + 0x00);
+    const uint32_t data_offset = poly::load_and_swap<uint32_t>(ph + 0x04);
 
     xe_xex2_opt_header_t *opt_header = &header->headers[n];
     opt_header->key = key;
@@ -151,7 +151,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       break;
     case 0xFF:
       // dataOffset = offset (first dword in data is size)
-      opt_header->length  = XEGETUINT32BE(p + data_offset);
+      opt_header->length  = poly::load_and_swap<uint32_t>(p + data_offset);
       opt_header->offset  = data_offset;
       break;
     default:
@@ -176,8 +176,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           auto& res = header->resource_infos[n];
           XEEXPECTZERO(xe_copy_memory(res.name,
                                       sizeof(res.name), ph + 0x00, 8));
-          res.address           = XEGETUINT32BE(ph + 0x08);
-          res.size              = XEGETUINT32BE(ph + 0x0C);
+          res.address           = poly::load_and_swap<uint32_t>(ph + 0x08);
+          res.size              = poly::load_and_swap<uint32_t>(ph + 0x0C);
           ph += 16;
         }
       }
@@ -185,41 +185,41 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
     case XEX_HEADER_EXECUTION_INFO:
       {
         xe_xex2_execution_info_t *ex = &header->execution_info;
-        ex->media_id            = XEGETUINT32BE(pp + 0x00);
-        ex->version.value       = XEGETUINT32BE(pp + 0x04);
-        ex->base_version.value  = XEGETUINT32BE(pp + 0x08);
-        ex->title_id            = XEGETUINT32BE(pp + 0x0C);
-        ex->platform            = XEGETUINT8BE(pp + 0x10);
-        ex->executable_table    = XEGETUINT8BE(pp + 0x11);
-        ex->disc_number         = XEGETUINT8BE(pp + 0x12);
-        ex->disc_count          = XEGETUINT8BE(pp + 0x13);
-        ex->savegame_id         = XEGETUINT32BE(pp + 0x14);
+        ex->media_id            = poly::load_and_swap<uint32_t>(pp + 0x00);
+        ex->version.value       = poly::load_and_swap<uint32_t>(pp + 0x04);
+        ex->base_version.value  = poly::load_and_swap<uint32_t>(pp + 0x08);
+        ex->title_id            = poly::load_and_swap<uint32_t>(pp + 0x0C);
+        ex->platform            = poly::load_and_swap<uint8_t>(pp + 0x10);
+        ex->executable_table    = poly::load_and_swap<uint8_t>(pp + 0x11);
+        ex->disc_number         = poly::load_and_swap<uint8_t>(pp + 0x12);
+        ex->disc_count          = poly::load_and_swap<uint8_t>(pp + 0x13);
+        ex->savegame_id         = poly::load_and_swap<uint32_t>(pp + 0x14);
       }
       break;
     case XEX_HEADER_GAME_RATINGS:
       {
         xe_xex2_game_ratings_t *ratings = &header->game_ratings;
-        ratings->esrb   = (xe_xex2_rating_esrb_value)XEGETUINT8BE(pp + 0x00);
-        ratings->pegi   = (xe_xex2_rating_pegi_value)XEGETUINT8BE(pp + 0x01);
-        ratings->pegifi = (xe_xex2_rating_pegi_fi_value)XEGETUINT8BE(pp + 0x02);
-        ratings->pegipt = (xe_xex2_rating_pegi_pt_value)XEGETUINT8BE(pp + 0x03);
-        ratings->bbfc   = (xe_xex2_rating_bbfc_value)XEGETUINT8BE(pp + 0x04);
-        ratings->cero   = (xe_xex2_rating_cero_value)XEGETUINT8BE(pp + 0x05);
-        ratings->usk    = (xe_xex2_rating_usk_value)XEGETUINT8BE(pp + 0x06);
-        ratings->oflcau = (xe_xex2_rating_oflc_au_value)XEGETUINT8BE(pp + 0x07);
-        ratings->oflcnz = (xe_xex2_rating_oflc_nz_value)XEGETUINT8BE(pp + 0x08);
-        ratings->kmrb   = (xe_xex2_rating_kmrb_value)XEGETUINT8BE(pp + 0x09);
-        ratings->brazil = (xe_xex2_rating_brazil_value)XEGETUINT8BE(pp + 0x0A);
-        ratings->fpb    = (xe_xex2_rating_fpb_value)XEGETUINT8BE(pp + 0x0B);
+        ratings->esrb   = (xe_xex2_rating_esrb_value)poly::load_and_swap<uint8_t>(pp + 0x00);
+        ratings->pegi   = (xe_xex2_rating_pegi_value)poly::load_and_swap<uint8_t>(pp + 0x01);
+        ratings->pegifi = (xe_xex2_rating_pegi_fi_value)poly::load_and_swap<uint8_t>(pp + 0x02);
+        ratings->pegipt = (xe_xex2_rating_pegi_pt_value)poly::load_and_swap<uint8_t>(pp + 0x03);
+        ratings->bbfc   = (xe_xex2_rating_bbfc_value)poly::load_and_swap<uint8_t>(pp + 0x04);
+        ratings->cero   = (xe_xex2_rating_cero_value)poly::load_and_swap<uint8_t>(pp + 0x05);
+        ratings->usk    = (xe_xex2_rating_usk_value)poly::load_and_swap<uint8_t>(pp + 0x06);
+        ratings->oflcau = (xe_xex2_rating_oflc_au_value)poly::load_and_swap<uint8_t>(pp + 0x07);
+        ratings->oflcnz = (xe_xex2_rating_oflc_nz_value)poly::load_and_swap<uint8_t>(pp + 0x08);
+        ratings->kmrb   = (xe_xex2_rating_kmrb_value)poly::load_and_swap<uint8_t>(pp + 0x09);
+        ratings->brazil = (xe_xex2_rating_brazil_value)poly::load_and_swap<uint8_t>(pp + 0x0A);
+        ratings->fpb    = (xe_xex2_rating_fpb_value)poly::load_and_swap<uint8_t>(pp + 0x0B);
       }
       break;
     case XEX_HEADER_TLS_INFO:
       {
         xe_xex2_tls_info_t *tls = &header->tls_info;
-        tls->slot_count           = XEGETUINT32BE(pp + 0x00);
-        tls->raw_data_address     = XEGETUINT32BE(pp + 0x04);
-        tls->data_size            = XEGETUINT32BE(pp + 0x08);
-        tls->raw_data_size        = XEGETUINT32BE(pp + 0x0C);
+        tls->slot_count           = poly::load_and_swap<uint32_t>(pp + 0x00);
+        tls->raw_data_address     = poly::load_and_swap<uint32_t>(pp + 0x04);
+        tls->data_size            = poly::load_and_swap<uint32_t>(pp + 0x08);
+        tls->raw_data_size        = poly::load_and_swap<uint32_t>(pp + 0x0C);
       }
       break;
     case XEX_HEADER_IMAGE_BASE_ADDRESS:
@@ -237,7 +237,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
     case XEX_HEADER_IMPORT_LIBRARIES:
       {
         const size_t max_count = XECOUNT(header->import_libraries);
-        size_t count = XEGETUINT32BE(pp + 0x08);
+        size_t count = poly::load_and_swap<uint32_t>(pp + 0x08);
         assert_true(count <= max_count);
         if (count > max_count) {
           XELOGW("ignoring %zu extra entries in XEX_HEADER_IMPORT_LIBRARIES",
@@ -246,7 +246,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         }
         header->import_library_count = count;
 
-        uint32_t string_table_size = XEGETUINT32BE(pp + 0x04);
+        uint32_t string_table_size = poly::load_and_swap<uint32_t>(pp + 0x04);
         const char *string_table = (const char*)(pp + 0x0C);
 
         pp += 12 + string_table_size;
@@ -254,11 +254,11 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           xe_xex2_import_library_t *library = &header->import_libraries[m];
           XEEXPECTZERO(xe_copy_memory(library->digest, sizeof(library->digest),
                                       pp + 0x04, 20));
-          library->import_id          = XEGETUINT32BE(pp + 0x18);
-          library->version.value      = XEGETUINT32BE(pp + 0x1C);
-          library->min_version.value  = XEGETUINT32BE(pp + 0x20);
+          library->import_id          = poly::load_and_swap<uint32_t>(pp + 0x18);
+          library->version.value      = poly::load_and_swap<uint32_t>(pp + 0x1C);
+          library->min_version.value  = poly::load_and_swap<uint32_t>(pp + 0x20);
 
-          const uint16_t name_index = XEGETUINT16BE(pp + 0x24) & 0xFF;
+          const uint16_t name_index = poly::load_and_swap<uint16_t>(pp + 0x24) & 0xFF;
           for (size_t i = 0, j = 0; i < string_table_size;) {
             assert_true(j <= 0xFF);
             if (j == name_index) {
@@ -277,13 +277,13 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
             }
           }
 
-          library->record_count   = XEGETUINT16BE(pp + 0x26);
+          library->record_count   = poly::load_and_swap<uint16_t>(pp + 0x26);
           library->records        = (uint32_t*)xe_calloc(
               library->record_count * sizeof(uint32_t));
           XEEXPECTNOTNULL(library->records);
           pp += 0x28;
           for (size_t i = 0; i < library->record_count; i++) {
-            library->records[i] = XEGETUINT32BE(pp);
+            library->records[i] = poly::load_and_swap<uint32_t>(pp);
             pp += 4;
           }
         }
@@ -306,10 +306,10 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           XEEXPECTZERO(xe_copy_memory(library->name, sizeof(library->name),
                                       pp + 0x00, 8));
           library->name[8]      = 0;
-          library->major        = XEGETUINT16BE(pp + 0x08);
-          library->minor        = XEGETUINT16BE(pp + 0x0A);
-          library->build        = XEGETUINT16BE(pp + 0x0C);
-          uint16_t qfeapproval  = XEGETUINT16BE(pp + 0x0E);
+          library->major        = poly::load_and_swap<uint16_t>(pp + 0x08);
+          library->minor        = poly::load_and_swap<uint16_t>(pp + 0x0A);
+          library->build        = poly::load_and_swap<uint16_t>(pp + 0x0C);
+          uint16_t qfeapproval  = poly::load_and_swap<uint16_t>(pp + 0x0E);
           library->approval     = (xe_xex2_approval_type)(qfeapproval & 0x8000);
           library->qfe          = qfeapproval & ~0x8000;
           pp += 16;
@@ -320,9 +320,9 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       {
         xe_xex2_file_format_info_t *fmt = &header->file_format_info;
         fmt->encryption_type    =
-            (xe_xex2_encryption_type)XEGETUINT16BE(pp + 0x04);
+            (xe_xex2_encryption_type)poly::load_and_swap<uint16_t>(pp + 0x04);
         fmt->compression_type   =
-            (xe_xex2_compression_type)XEGETUINT16BE(pp + 0x06);
+            (xe_xex2_compression_type)poly::load_and_swap<uint16_t>(pp + 0x06);
         switch (fmt->compression_type) {
         case XEX_COMPRESSION_NONE:
           // TODO: XEX_COMPRESSION_NONE
@@ -332,7 +332,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           {
             xe_xex2_file_basic_compression_info_t *comp_info =
                 &fmt->compression_info.basic;
-            uint32_t info_size = XEGETUINT32BE(pp + 0x00);
+            uint32_t info_size = poly::load_and_swap<uint32_t>(pp + 0x00);
             comp_info->block_count  = (info_size - 8) / 8;
             comp_info->blocks       = (xe_xex2_file_basic_compression_block_t*)
                 xe_calloc(comp_info->block_count *
@@ -341,8 +341,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
             for (size_t m = 0; m < comp_info->block_count; m++) {
               xe_xex2_file_basic_compression_block_t *block =
                   &comp_info->blocks[m];
-              block->data_size = XEGETUINT32BE(pp + 0x08 + (m * 8));
-              block->zero_size = XEGETUINT32BE(pp + 0x0C + (m * 8));
+              block->data_size = poly::load_and_swap<uint32_t>(pp + 0x08 + (m * 8));
+              block->zero_size = poly::load_and_swap<uint32_t>(pp + 0x0C + (m * 8));
             }
           }
           break;
@@ -350,7 +350,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           {
             xe_xex2_file_normal_compression_info_t *comp_info =
                 &fmt->compression_info.normal;
-            uint32_t window_size = XEGETUINT32BE(pp + 0x08);
+            uint32_t window_size = poly::load_and_swap<uint32_t>(pp + 0x08);
             uint32_t window_bits = 0;
             for (size_t m = 0; m < 32; m++, window_bits++) {
               window_size <<= 1;
@@ -358,9 +358,9 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
                 break;
               }
             }
-            comp_info->window_size  = XEGETUINT32BE(pp + 0x08);
+            comp_info->window_size  = poly::load_and_swap<uint32_t>(pp + 0x08);
             comp_info->window_bits  = window_bits;
-            comp_info->block_size   = XEGETUINT32BE(pp + 0x0C);
+            comp_info->block_size   = poly::load_and_swap<uint32_t>(pp + 0x0C);
             XEEXPECTZERO(xe_copy_memory(comp_info->block_hash,
                                         sizeof(comp_info->block_hash),
                                         pp + 0x10, 20));
@@ -379,16 +379,16 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
   // Loader info.
   pc = p + header->certificate_offset;
   ldr = &header->loader_info;
-  ldr->header_size        = XEGETUINT32BE(pc + 0x000);
-  ldr->image_size         = XEGETUINT32BE(pc + 0x004);
+  ldr->header_size        = poly::load_and_swap<uint32_t>(pc + 0x000);
+  ldr->image_size         = poly::load_and_swap<uint32_t>(pc + 0x004);
   XEEXPECTZERO(xe_copy_memory(ldr->rsa_signature, sizeof(ldr->rsa_signature),
                               pc + 0x008, 256));
-  ldr->unklength          = XEGETUINT32BE(pc + 0x108);
-  ldr->image_flags        = (xe_xex2_image_flags)XEGETUINT32BE(pc + 0x10C);
-  ldr->load_address       = XEGETUINT32BE(pc + 0x110);
+  ldr->unklength          = poly::load_and_swap<uint32_t>(pc + 0x108);
+  ldr->image_flags        = (xe_xex2_image_flags)poly::load_and_swap<uint32_t>(pc + 0x10C);
+  ldr->load_address       = poly::load_and_swap<uint32_t>(pc + 0x110);
   XEEXPECTZERO(xe_copy_memory(ldr->section_digest, sizeof(ldr->section_digest),
                               pc + 0x114, 20));
-  ldr->import_table_count = XEGETUINT32BE(pc + 0x128);
+  ldr->import_table_count = poly::load_and_swap<uint32_t>(pc + 0x128);
   XEEXPECTZERO(xe_copy_memory(ldr->import_table_digest,
                               sizeof(ldr->import_table_digest),
                               pc + 0x12C, 20));
@@ -396,22 +396,22 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
                               pc + 0x140, 16));
   XEEXPECTZERO(xe_copy_memory(ldr->file_key, sizeof(ldr->file_key),
                               pc + 0x150, 16));
-  ldr->export_table       = XEGETUINT32BE(pc + 0x160);
+  ldr->export_table       = poly::load_and_swap<uint32_t>(pc + 0x160);
   XEEXPECTZERO(xe_copy_memory(ldr->header_digest, sizeof(ldr->header_digest),
                               pc + 0x164, 20));
-  ldr->game_regions       = (xe_xex2_region_flags)XEGETUINT32BE(pc + 0x178);
-  ldr->media_flags        = (xe_xex2_media_flags)XEGETUINT32BE(pc + 0x17C);
+  ldr->game_regions       = (xe_xex2_region_flags)poly::load_and_swap<uint32_t>(pc + 0x178);
+  ldr->media_flags        = (xe_xex2_media_flags)poly::load_and_swap<uint32_t>(pc + 0x17C);
 
   // Section info follows loader info.
   ps = p + header->certificate_offset + 0x180;
-  header->section_count   = XEGETUINT32BE(ps + 0x000);
+  header->section_count   = poly::load_and_swap<uint32_t>(ps + 0x000);
   ps += 4;
   header->sections        = (xe_xex2_section_t*)xe_calloc(
       header->section_count * sizeof(xe_xex2_section_t));
   XEEXPECTNOTNULL(header->sections);
   for (size_t n = 0; n < header->section_count; n++) {
     xe_xex2_section_t *section = &header->sections[n];
-    section->info.value = XEGETUINT32BE(ps);
+    section->info.value = poly::load_and_swap<uint32_t>(ps);
     ps += 4;
     XEEXPECTZERO(xe_copy_memory(section->digest, sizeof(section->digest), ps,
                                 sizeof(section->digest)));
@@ -717,7 +717,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
   block_size = header->file_format_info.compression_info.normal.block_size;
   while (block_size) {
     const uint8_t *pnext = p + block_size;
-    const size_t next_size = XEGETINT32BE(p);
+    const size_t next_size = poly::load_and_swap<int32_t>(p);
     p += 4;
     p += 20; // skip 20b hash
 
@@ -935,7 +935,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   size_t info_count = 0;
   for (size_t n = 0; n < library->record_count; n++) {
     const uint32_t record = library->records[n];
-    const uint32_t value = XEGETUINT32BE(mem + record);
+    const uint32_t value = poly::load_and_swap<uint32_t>(mem + record);
     if (value & 0xFF000000) {
       // Thunk for previous record - ignore.
     } else {
@@ -954,7 +954,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   // Construct infos.
   for (size_t n = 0, i = 0; n < library->record_count; n++) {
     const uint32_t record = library->records[n];
-    const uint32_t value = XEGETUINT32BE(mem + record);
+    const uint32_t value = poly::load_and_swap<uint32_t>(mem + record);
     const uint32_t type = (value & 0xFF000000) >> 24;
 
     // Verify library index matches given library.

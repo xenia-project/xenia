@@ -69,7 +69,7 @@ int D3D11IndexBufferResource::InvalidateRegion(
         memory_range_.host_base);
     uint32_t* dest = reinterpret_cast<uint32_t*>(res.pData);
     for (uint32_t n = 0; n < index_count; n++) {
-      dest[n] = XESWAP32(src[n]);
+      dest[n] = poly::byte_swap(src[n]);
     }
   } else {
     uint32_t index_count = memory_range_.length / 2;
@@ -77,7 +77,7 @@ int D3D11IndexBufferResource::InvalidateRegion(
         memory_range_.host_base);
     uint16_t* dest = reinterpret_cast<uint16_t*>(res.pData);
     for (uint32_t n = 0; n < index_count; n++) {
-      dest[n] = XESWAP16(src[n]);
+      dest[n] = poly::byte_swap(src[n]);
     }
   }
   resource_cache_->context()->Unmap(handle_, 0);
@@ -138,7 +138,7 @@ int D3D11VertexBufferResource::InvalidateRegion(
     uint32_t o = 0;
     for (uint32_t i = 0; i < count; i++) {
       for (uint32_t j = 0; j < el.size_words; j++) {
-        dest_ptr[o + j] = XESWAP32(src_ptr[o + j]);
+        dest_ptr[o + j] = poly::byte_swap(src_ptr[o + j]);
       }
       o += stride;
     }

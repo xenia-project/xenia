@@ -472,9 +472,8 @@ SHIM_CALL _vswprintf_shim(
 
   // swap the format buffer
   wchar_t* swapped_format = (wchar_t*)xe_malloc((format_length + 1) * sizeof(wchar_t));
-  for (size_t i = 0; i < format_length; ++i)
-  {
-    swapped_format[i] = XESWAP16(format[i]);
+  for (size_t i = 0; i < format_length; ++i) {
+    swapped_format[i] = poly::byte_swap(format[i]);
   }
   swapped_format[format_length] = '\0';
 
@@ -676,9 +675,8 @@ SHIM_CALL _vswprintf_shim(
         const wchar_t* data = (const wchar_t*)SHIM_MEM_ADDR(value);
         size_t data_length = wcslen(data);
         wchar_t* swapped_data = (wchar_t*)xe_malloc((data_length + 1) * sizeof(wchar_t));
-        for (size_t i = 0; i < data_length; ++i)
-        {
-          swapped_data[i] = XESWAP16(data[i]);
+        for (size_t i = 0; i < data_length; ++i) {
+          swapped_data[i] = poly::byte_swap(data[i]);
         }
         swapped_data[data_length] = '\0';
         int result = wsprintf(b, local, swapped_data);
@@ -703,7 +701,7 @@ SHIM_CALL _vswprintf_shim(
   // swap the result buffer
   for (wchar_t* swap = buffer; swap != b; ++swap)
   {
-    *swap = XESWAP16(*swap);
+    *swap = poly::byte_swap(*swap);
   }
 
   SHIM_SET_RETURN_32((uint32_t)((b - buffer) / sizeof(wchar_t)));

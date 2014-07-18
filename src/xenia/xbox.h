@@ -205,10 +205,10 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    length = XEGETUINT16BE(base + p);
-    maximum_length = XEGETUINT16BE(base + p + 2);
+    length = poly::load_and_swap<uint16_t>(base + p);
+    maximum_length = poly::load_and_swap<uint16_t>(base + p + 2);
     if (maximum_length) {
-      buffer = (const char*)(base + XEGETUINT32BE(base + p + 4));
+      buffer = (const char*)(base + poly::load_and_swap<uint32_t>(base + p + 4));
     } else {
       buffer = 0;
     }
@@ -242,14 +242,14 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    root_directory  = XEGETUINT32BE(base + p);
-    object_name_ptr = XEGETUINT32BE(base + p + 4);
+    root_directory  = poly::load_and_swap<uint32_t>(base + p);
+    object_name_ptr = poly::load_and_swap<uint32_t>(base + p + 4);
     if (object_name_ptr) {
       object_name.Read(base, object_name_ptr);
     } else {
       object_name.Zero();
     }
-    attributes      = XEGETUINT32BE(base + p + 8);
+    attributes      = poly::load_and_swap<uint32_t>(base + p + 8);
   }
   void Zero() {
     root_directory = 0;
@@ -302,22 +302,22 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    buttons = XEGETUINT16BE(base + p);
-    left_trigger = XEGETUINT8BE(base + p + 2);
-    right_trigger = XEGETUINT8BE(base + p + 3);
-    thumb_lx = XEGETINT16BE(base + p + 4);
-    thumb_ly = XEGETINT16BE(base + p + 6);
-    thumb_rx = XEGETINT16BE(base + p + 8);
-    thumb_ry = XEGETINT16BE(base + p + 10);
+    buttons = poly::load_and_swap<uint16_t>(base + p);
+    left_trigger = poly::load_and_swap<uint8_t>(base + p + 2);
+    right_trigger = poly::load_and_swap<uint8_t>(base + p + 3);
+    thumb_lx = poly::load_and_swap<int16_t>(base + p + 4);
+    thumb_ly = poly::load_and_swap<int16_t>(base + p + 6);
+    thumb_rx = poly::load_and_swap<int16_t>(base + p + 8);
+    thumb_ry = poly::load_and_swap<int16_t>(base + p + 10);
   }
   void Write(uint8_t* base, uint32_t p) {
-    XESETUINT16BE(base + p, buttons);
-    XESETUINT8BE(base + p + 2, left_trigger);
-    XESETUINT8BE(base + p + 3, right_trigger);
-    XESETINT16BE(base + p + 4, thumb_lx);
-    XESETINT16BE(base + p + 6, thumb_ly);
-    XESETINT16BE(base + p + 8, thumb_rx);
-    XESETINT16BE(base + p + 10, thumb_ry);
+    poly::store_and_swap<uint16_t>(base + p, buttons);
+    poly::store_and_swap<uint8_t>(base + p + 2, left_trigger);
+    poly::store_and_swap<uint8_t>(base + p + 3, right_trigger);
+    poly::store_and_swap<int16_t>(base + p + 4, thumb_lx);
+    poly::store_and_swap<int16_t>(base + p + 6, thumb_ly);
+    poly::store_and_swap<int16_t>(base + p + 8, thumb_rx);
+    poly::store_and_swap<int16_t>(base + p + 10, thumb_ry);
   }
   void Zero() {
     buttons = 0;
@@ -337,11 +337,11 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    packet_number = XEGETUINT32BE(base + p);
+    packet_number = poly::load_and_swap<uint32_t>(base + p);
     gamepad.Read(base, p + 4);
   }
   void Write(uint8_t* base, uint32_t p) {
-    XESETUINT32BE(base + p, packet_number);
+    poly::store_and_swap<uint32_t>(base + p, packet_number);
     gamepad.Write(base, p + 4);
   }
   void Zero() {
@@ -361,12 +361,12 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    left_motor_speed  = XEGETUINT16BE(base + p);
-    right_motor_speed = XEGETUINT16BE(base + p + 2);
+    left_motor_speed  = poly::load_and_swap<uint16_t>(base + p);
+    right_motor_speed = poly::load_and_swap<uint16_t>(base + p + 2);
   }
   void Write(uint8_t* base, uint32_t p) {
-    XESETUINT16BE(base + p, left_motor_speed);
-    XESETUINT16BE(base + p + 2, right_motor_speed);
+    poly::store_and_swap<uint16_t>(base + p, left_motor_speed);
+    poly::store_and_swap<uint16_t>(base + p + 2, right_motor_speed);
   }
   void Zero() {
     left_motor_speed = right_motor_speed = 0;
@@ -387,16 +387,16 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    type      = XEGETUINT8BE(base + p);
-    sub_type  = XEGETUINT8BE(base + p + 1);
-    flags     = XEGETUINT16BE(base + p + 2);
+    type      = poly::load_and_swap<uint8_t>(base + p);
+    sub_type  = poly::load_and_swap<uint8_t>(base + p + 1);
+    flags     = poly::load_and_swap<uint16_t>(base + p + 2);
     gamepad.Read(base, p + 4);
     vibration.Read(base, p + 4 + 12);
   }
   void Write(uint8_t* base, uint32_t p) {
-    XESETUINT8BE(base + p, type);
-    XESETUINT8BE(base + p + 1, sub_type);
-    XESETUINT16BE(base + p + 2, flags);
+    poly::store_and_swap<uint8_t>(base + p, type);
+    poly::store_and_swap<uint8_t>(base + p + 1, sub_type);
+    poly::store_and_swap<uint16_t>(base + p + 2, flags);
     gamepad.Write(base, p + 4);
     vibration.Write(base, p + 4 + 12);
   }
@@ -424,18 +424,18 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    virtual_key = XEGETUINT16BE(base + p + 0);
-    unicode     = XEGETUINT16BE(base + p + 2);
-    flags       = XEGETUINT16BE(base + p + 4);
-    user_index  = XEGETUINT8BE(base + p + 6);
-    hid_code    = XEGETUINT8BE(base + p + 7);
+    virtual_key = poly::load_and_swap<uint16_t>(base + p + 0);
+    unicode     = poly::load_and_swap<uint16_t>(base + p + 2);
+    flags       = poly::load_and_swap<uint16_t>(base + p + 4);
+    user_index  = poly::load_and_swap<uint8_t>(base + p + 6);
+    hid_code    = poly::load_and_swap<uint8_t>(base + p + 7);
   }
   void Write(uint8_t* base, uint32_t p) {
-    XESETUINT16BE(base + p + 0, virtual_key);
-    XESETUINT16BE(base + p + 2, unicode);
-    XESETUINT16BE(base + p + 4, flags);
-    XESETUINT8BE(base + p + 6, user_index);
-    XESETUINT8BE(base + p + 7, hid_code);
+    poly::store_and_swap<uint16_t>(base + p + 0, virtual_key);
+    poly::store_and_swap<uint16_t>(base + p + 2, unicode);
+    poly::store_and_swap<uint16_t>(base + p + 4, flags);
+    poly::store_and_swap<uint8_t>(base + p + 6, user_index);
+    poly::store_and_swap<uint8_t>(base + p + 7, hid_code);
   }
   void Zero() {
     virtual_key = 0;

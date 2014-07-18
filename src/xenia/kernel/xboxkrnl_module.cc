@@ -63,7 +63,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeDebugMonitorData,
       pKeDebugMonitorData);
-  XESETUINT32BE(mem + pKeDebugMonitorData, 0);
+  poly::store_and_swap<uint32_t>(mem + pKeDebugMonitorData, 0);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
@@ -71,7 +71,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeCertMonitorData,
       pKeCertMonitorData);
-  XESETUINT32BE(mem + pKeCertMonitorData, 0);
+  poly::store_and_swap<uint32_t>(mem + pKeCertMonitorData, 0);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
@@ -82,8 +82,8 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxHardwareInfo,
       pXboxHardwareInfo);
-  XESETUINT32BE(mem + pXboxHardwareInfo + 0, 0x00000000); // flags
-  XESETUINT8BE (mem + pXboxHardwareInfo + 4, 0x06);       // cpu count
+  poly::store_and_swap<uint32_t>(mem + pXboxHardwareInfo + 0, 0x00000000); // flags
+  poly::store_and_swap<uint8_t> (mem + pXboxHardwareInfo + 4, 0x06);       // cpu count
   // Remaining 11b are zeroes?
 
   // XexExecutableModuleHandle (?**)
@@ -101,8 +101,8 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
       ppXexExecutableModuleHandle);
   uint32_t pXexExecutableModuleHandle =
       (uint32_t)memory_->HeapAlloc(0, 256, 0);
-  XESETUINT32BE(mem + ppXexExecutableModuleHandle, pXexExecutableModuleHandle);
-  XESETUINT32BE(mem + pXexExecutableModuleHandle + 0x58, 0x80101100);
+  poly::store_and_swap<uint32_t>(mem + ppXexExecutableModuleHandle, pXexExecutableModuleHandle);
+  poly::store_and_swap<uint32_t>(mem + pXexExecutableModuleHandle + 0x58, 0x80101100);
 
   // ExLoadedCommandLine (char*)
   // The name of the xex. Not sure this is ever really used on real devices.
@@ -123,19 +123,19 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxKrnlVersion,
       pXboxKrnlVersion);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 0, 2);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 2, 0xFFFF);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 4, 0xFFFF);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 6, 0xFFFF);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 0, 2);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 2, 0xFFFF);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 4, 0xFFFF);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 6, 0xFFFF);
 
   // KeTimeStampBundle (ad)
   uint32_t pKeTimeStampBundle = (uint32_t)memory_->HeapAlloc(0, 24, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeTimeStampBundle,
       pKeTimeStampBundle);
-  XESETUINT64BE(mem + pKeTimeStampBundle + 0,  0);
-  XESETUINT64BE(mem + pKeTimeStampBundle + 8,  0);
-  XESETUINT32BE(mem + pKeTimeStampBundle + 12, 0);
+  poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 0,  0);
+  poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 8,  0);
+  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 12, 0);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {

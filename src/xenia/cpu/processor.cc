@@ -144,7 +144,7 @@ uint64_t Processor::ExecuteInterrupt(
 
   // Set 0x10C(r13) to the current CPU ID.
   uint8_t* p = memory_->membase();
-  XESETUINT8BE(p + interrupt_thread_block_ + 0x10C, cpu);
+  poly::store_and_swap<uint8_t>(p + interrupt_thread_block_ + 0x10C, cpu);
 
   // Execute interrupt.
   uint64_t result = Execute(interrupt_thread_state_, address, args, arg_count);

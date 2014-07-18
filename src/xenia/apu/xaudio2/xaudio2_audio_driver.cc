@@ -131,7 +131,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   // interleave the data
   for (int index = 0, o = 0; index < channel_samples_; ++index) {
     for (int channel = 0, table = 0; channel < interleave_channels; ++channel, table += channel_samples_) {
-      output_frame[o++] = XESWAPF32BE(input_frame[table + index]);
+      output_frame[o++] = poly::byte_swap(input_frame[table + index]);
     }
   }
 

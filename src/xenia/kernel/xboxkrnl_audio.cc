@@ -125,7 +125,7 @@ SHIM_CALL XAudioRegisterRenderDriverClient_shim(
   }
 
   assert_true(!(index & ~0x0000FFFF));
-  SHIM_SET_MEM_32(driver_ptr, 0x41550000 | (index & 0x0000FFFF));
+  SHIM_SET_MEM_32(driver_ptr, 0x41550000 | (static_cast<uint32_t>(index) & 0x0000FFFF));
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 

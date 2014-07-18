@@ -435,7 +435,7 @@ SHIM_CALL NtQueryInformationFile_shim(
         if (XSUCCEEDED(result)) {
           if (bytes_read == sizeof(magic)) {
             info = 4;
-            SHIM_SET_MEM_32(file_info_ptr, magic == XESWAP32BE(0x0FF512ED));
+            SHIM_SET_MEM_32(file_info_ptr, magic == poly::byte_swap(0x0FF512ED));
           }
           else {
             result = X_STATUS_UNSUCCESSFUL;

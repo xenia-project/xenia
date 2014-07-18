@@ -1405,7 +1405,7 @@ uint32_t IntCode_LOAD_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     ics.rf[i->dest_reg].i16 =
-        XESWAP16(ics.thread_state->memory()->LoadI16(address));
+        poly::byte_swap(ics.thread_state->memory()->LoadI16(address));
     return IA_NEXT;
   }
   DPRINT("%d (%X) = load.i16 %.8X\n", *((int16_t*)(ics.membase + address)),
@@ -1418,7 +1418,7 @@ uint32_t IntCode_LOAD_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     ics.rf[i->dest_reg].i32 =
-        XESWAP32(ics.thread_state->memory()->LoadI32(address));
+        poly::byte_swap(ics.thread_state->memory()->LoadI32(address));
     return IA_NEXT;
   }
   DFLUSH();
@@ -1432,7 +1432,7 @@ uint32_t IntCode_LOAD_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
     ics.rf[i->dest_reg].i64 =
-        XESWAP64(ics.thread_state->memory()->LoadI64(address));
+        poly::byte_swap(ics.thread_state->memory()->LoadI64(address));
     return IA_NEXT;
   }
   DPRINT("%lld (%llX) = load.i64 %.8X\n", *((int64_t*)(ics.membase + address)),
@@ -1498,8 +1498,8 @@ uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    ics.thread_state->memory()->StoreI16(address,
-                                         XESWAP16(ics.rf[i->src2_reg].i16));
+    ics.thread_state->memory()->StoreI16(
+        address, poly::byte_swap(ics.rf[i->src2_reg].i16));
     return IA_NEXT;
   }
   DPRINT("store.i16 %.8X = %d (%X)\n", address, ics.rf[i->src2_reg].i16,
@@ -1512,8 +1512,8 @@ uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    ics.thread_state->memory()->StoreI32(address,
-                                         XESWAP32(ics.rf[i->src2_reg].i32));
+    ics.thread_state->memory()->StoreI32(
+        address, poly::byte_swap(ics.rf[i->src2_reg].i32));
     return IA_NEXT;
   }
   DPRINT("store.i32 %.8X = %d (%X)\n", address, ics.rf[i->src2_reg].i32,
@@ -1526,8 +1526,8 @@ uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
-    ics.thread_state->memory()->StoreI64(address,
-                                         XESWAP64(ics.rf[i->src2_reg].i64));
+    ics.thread_state->memory()->StoreI64(
+        address, poly::byte_swap(ics.rf[i->src2_reg].i64));
     return IA_NEXT;
   }
   DPRINT("store.i64 %.8X = %lld (%llX)\n", address, ics.rf[i->src2_reg].i64,
@@ -2210,13 +2210,13 @@ int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_SGE_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGE_I8(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(int8_t, b16, b16, 16, >= )};
-uint32_t IntCode_VECTOR_COMPARE_SGE_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGE_I16(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(int16_t, s8, s8, 8, >= )};
-uint32_t IntCode_VECTOR_COMPARE_SGE_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGE_I32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(int32_t, i4, i4, 4, >= )};
-uint32_t IntCode_VECTOR_COMPARE_SGE_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGE_F32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(float, f4, i4, 4, >= )};
 int Translate_VECTOR_COMPARE_SGE(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
@@ -2228,13 +2228,13 @@ int Translate_VECTOR_COMPARE_SGE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_UGT_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGT_I8(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint8_t, b16, b16, 16, > )};
-uint32_t IntCode_VECTOR_COMPARE_UGT_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGT_I16(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint16_t, s8, s8, 8, > )};
-uint32_t IntCode_VECTOR_COMPARE_UGT_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGT_I32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint32_t, i4, i4, 4, > )};
-uint32_t IntCode_VECTOR_COMPARE_UGT_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGT_F32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(float, f4, i4, 4, > )};
 int Translate_VECTOR_COMPARE_UGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
@@ -2246,13 +2246,13 @@ int Translate_VECTOR_COMPARE_UGT(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_UGE_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGE_I8(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint8_t, b16, b16, 16, >= )};
-uint32_t IntCode_VECTOR_COMPARE_UGE_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGE_I16(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint16_t, s8, s8, 8, >= )};
-uint32_t IntCode_VECTOR_COMPARE_UGE_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGE_I32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint32_t, i4, i4, 4, >= )};
-uint32_t IntCode_VECTOR_COMPARE_UGE_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_UGE_F32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(float, f4, i4, 4, >= )};
 int Translate_VECTOR_COMPARE_UGE(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
@@ -3526,22 +3526,22 @@ int Translate_ROTATE_LEFT(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_BYTE_SWAP_I16(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i16 = XESWAP16(ics.rf[i->src1_reg].i16);
+  ics.rf[i->dest_reg].i16 = poly::byte_swap(ics.rf[i->src1_reg].i16);
   return IA_NEXT;
 }
 uint32_t IntCode_BYTE_SWAP_I32(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i32 = XESWAP32(ics.rf[i->src1_reg].i32);
+  ics.rf[i->dest_reg].i32 = poly::byte_swap(ics.rf[i->src1_reg].i32);
   return IA_NEXT;
 }
 uint32_t IntCode_BYTE_SWAP_I64(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i64 = XESWAP64(ics.rf[i->src1_reg].i64);
+  ics.rf[i->dest_reg].i64 = poly::byte_swap(ics.rf[i->src1_reg].i64);
   return IA_NEXT;
 }
 uint32_t IntCode_BYTE_SWAP_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
   for (int n = 0; n < 4; n++) {
-    VECI4(dest, n) = XESWAP32(VECI4(src1, n));
+    VECI4(dest, n) = poly::byte_swap(VECI4(src1, n));
   }
   return IA_NEXT;
 }

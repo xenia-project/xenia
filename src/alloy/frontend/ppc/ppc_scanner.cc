@@ -14,6 +14,7 @@
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/runtime/runtime.h>
+#include <poly/memory.h>
 
 namespace alloy {
 namespace frontend {
@@ -58,7 +59,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
   InstrData i;
   while (true) {
     i.address = address;
-    i.code = XEGETUINT32BE(p + address);
+    i.code = poly::load_and_swap<uint32_t>(p + address);
 
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
@@ -291,7 +292,7 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   InstrData i;
   for (uint64_t address = start_address; address <= end_address; address += 4) {
     i.address = address;
-    i.code = XEGETUINT32BE(p + address);
+    i.code = poly::load_and_swap<uint32_t>(p + address);
     if (!i.code) {
       continue;
     }

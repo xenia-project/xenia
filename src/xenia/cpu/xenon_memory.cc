@@ -180,13 +180,13 @@ LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
             *reg_ptr = static_cast<uint8_t>(value);
             break;
           case 16:
-            *reg_ptr = XESWAP16(static_cast<uint16_t>(value));
+            *reg_ptr = poly::byte_swap(static_cast<uint16_t>(value));
             break;
           case 32:
-            *reg_ptr = XESWAP32(static_cast<uint32_t>(value));
+            *reg_ptr = poly::byte_swap(static_cast<uint32_t>(value));
             break;
           case 64:
-            *reg_ptr = XESWAP64(static_cast<uint64_t>(value));
+            *reg_ptr = poly::byte_swap(static_cast<uint64_t>(value));
             break;
           }
           ex_info->ContextRecord->Rip += len;
@@ -207,13 +207,13 @@ LONG CALLBACK CheckMMIOHandler(PEXCEPTION_POINTERS ex_info) {
             value = static_cast<uint8_t>(value);
             break;
           case 16:
-            value = XESWAP16(static_cast<uint16_t>(value));
+            value = poly::byte_swap(static_cast<uint16_t>(value));
             break;
           case 32:
-            value = XESWAP32(static_cast<uint32_t>(value));
+            value = poly::byte_swap(static_cast<uint32_t>(value));
             break;
           case 64:
-            value = XESWAP64(static_cast<uint64_t>(value));
+            value = poly::byte_swap(static_cast<uint64_t>(value));
             break;
           }
           range.write(range.context, address & 0xFFFFFFFF, value);

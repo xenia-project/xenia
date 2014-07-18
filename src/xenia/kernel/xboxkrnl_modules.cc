@@ -97,7 +97,7 @@ X_STATUS xeExGetXConfigSetting(
   }
 
   if (buffer) {
-    XESETUINT32BE(buffer, value);
+    poly::store_and_swap<uint32_t>(buffer, value);
   }
   if (required_size) {
     *required_size = setting_size;

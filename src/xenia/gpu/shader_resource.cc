@@ -35,7 +35,7 @@ ShaderResource::ShaderResource(const MemoryRange& memory_range,
   size_t byte_size = dword_count_ * sizeof(uint32_t);
   dwords_ = (uint32_t*)xe_malloc(byte_size);
   for (uint32_t n = 0; n < dword_count_; n++) {
-    dwords_[n] = XEGETUINT32BE(memory_range.host_base + n * 4);
+    dwords_[n] = poly::load_and_swap<uint32_t>(memory_range.host_base + n * 4);
   }
 
   // Disassemble, for debugging.

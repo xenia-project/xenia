@@ -1,7 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'byte_order.h',
     'common.h',
     'config.h',
     'core.h',

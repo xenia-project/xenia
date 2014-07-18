@@ -149,7 +149,7 @@ X_STATUS AudioSystem::RegisterClient(
 
   uint32_t ptr = (uint32_t)memory()->HeapAlloc(0, 0x4, 0);
   auto mem = memory()->membase();
-  XESETUINT32BE(mem + ptr, callback_arg);
+  poly::store_and_swap<uint32_t>(mem + ptr, callback_arg);
 
   clients_[index] = { driver, callback, callback_arg, ptr };
 

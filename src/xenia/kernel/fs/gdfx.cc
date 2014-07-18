@@ -122,8 +122,8 @@ GDFX::Error GDFX::Verify(ParseState& state) {
     return kErrorReadError;
   }
   uint8_t* fs_ptr = state.ptr + state.game_offset + (32 * kXESectorSize);
-  state.root_sector = XEGETUINT32LE(fs_ptr + 20);
-  state.root_size   = XEGETUINT32LE(fs_ptr + 24);
+  state.root_sector = poly::load<uint32_t>(fs_ptr + 20);
+  state.root_size   = poly::load<uint32_t>(fs_ptr + 24);
   state.root_offset = state.game_offset + (state.root_sector * kXESectorSize);
   if (state.root_size < 13 ||
       state.root_size > 32 * 1024 * 1024) {
@@ -157,12 +157,12 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
                      uint16_t entry_ordinal, GDFXEntry* parent) {
   const uint8_t* p = buffer + (entry_ordinal * 4);
 
-  uint16_t  node_l      = XEGETUINT16LE(p + 0);
-  uint16_t  node_r      = XEGETUINT16LE(p + 2);
-  size_t    sector      = XEGETUINT32LE(p + 4);
-  size_t    length      = XEGETUINT32LE(p + 8);
-  uint8_t   attributes  = XEGETUINT8LE(p + 12);
-  uint8_t   name_length = XEGETUINT8LE(p + 13);
+  uint16_t  node_l      = poly::load<uint16_t>(p + 0);
+  uint16_t  node_r      = poly::load<uint16_t>(p + 2);
+  size_t    sector      = poly::load<uint32_t>(p + 4);
+  size_t    length      = poly::load<uint32_t>(p + 8);
+  uint8_t   attributes  = poly::load<uint8_t>(p + 12);
+  uint8_t   name_length = poly::load<uint8_t>(p + 13);
   char*     name        = (char*)(p + 14);
 
   if (node_l && !ReadEntry(state, buffer, node_l, parent)) {

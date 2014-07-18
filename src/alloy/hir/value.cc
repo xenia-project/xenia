@@ -572,17 +572,17 @@ void Value::ByteSwap() {
       constant.i8 = constant.i8;
       break;
     case INT16_TYPE:
-      constant.i16 = XESWAP16(constant.i16);
+      constant.i16 = poly::byte_swap(constant.i16);
       break;
     case INT32_TYPE:
-      constant.i32 = XESWAP32(constant.i32);
+      constant.i32 = poly::byte_swap(constant.i32);
       break;
     case INT64_TYPE:
-      constant.i64 = XESWAP64(constant.i64);
+      constant.i64 = poly::byte_swap(constant.i64);
       break;
     case VEC128_TYPE:
       for (int n = 0; n < 4; n++) {
-        constant.v128.i4[n] = XESWAP32(constant.v128.i4[n]);
+        constant.v128.i4[n] = poly::byte_swap(constant.v128.i4[n]);
       }
       break;
     default:

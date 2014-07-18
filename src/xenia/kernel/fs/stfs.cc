@@ -16,21 +16,29 @@ using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
+#define XEGETUINT24BE(p) \
+    (((uint32_t)poly::load_and_swap<uint8_t>((p) + 0) << 16) | \
+     ((uint32_t)poly::load_and_swap<uint8_t>((p) + 1) << 8) | \
+     (uint32_t)poly::load_and_swap<uint8_t>((p) + 2))
+#define XEGETUINT24LE(p) \
+    (((uint32_t)poly::load<uint8_t>((p) + 2) << 16) | \
+     ((uint32_t)poly::load<uint8_t>((p) + 1) << 8) | \
+     (uint32_t)poly::load<uint8_t>((p) + 0))
 
 bool STFSVolumeDescriptor::Read(const uint8_t* p) {
-  descriptor_size               = XEGETUINT8BE(p + 0x00);
+  descriptor_size               = poly::load_and_swap<uint8_t>(p + 0x00);
   if (descriptor_size != 0x24) {
     XELOGE("STFS volume descriptor size mismatch, expected 0x24 but got 0x%X",
            descriptor_size);
     return false;
   }
-  reserved                      = XEGETUINT8BE(p + 0x01);
-  block_separation              = XEGETUINT8BE(p + 0x02);
-  file_table_block_count        = XEGETUINT16BE(p + 0x03);
+  reserved                      = poly::load_and_swap<uint8_t>(p + 0x01);
+  block_separation              = poly::load_and_swap<uint8_t>(p + 0x02);
+  file_table_block_count        = poly::load_and_swap<uint16_t>(p + 0x03);
   file_table_block_number       = XEGETUINT24BE(p + 0x05);
   xe_copy_struct(top_hash_table_hash, p + 0x08, 0x14);
-  total_allocated_block_count   = XEGETUINT32BE(p + 0x1C);
-  total_unallocated_block_count = XEGETUINT32BE(p + 0x20);
+  total_allocated_block_count   = poly::load_and_swap<uint32_t>(p + 0x1C);
+  total_unallocated_block_count = poly::load_and_swap<uint32_t>(p + 0x20);
   return true;
 };
 
@@ -38,29 +46,29 @@ bool STFSVolumeDescriptor::Read(const uint8_t* p) {
 bool STFSHeader::Read(const uint8_t* p) {
   xe_copy_struct(license_entries, p + 0x22C, 0x100);
   xe_copy_struct(header_hash, p + 0x32C, 0x14);
-  header_size       = XEGETUINT32BE(p + 0x340);
-  content_type      = (STFSContentType)XEGETUINT32BE(p + 0x344);
-  metadata_version  = XEGETUINT32BE(p + 0x348);
+  header_size       = poly::load_and_swap<uint32_t>(p + 0x340);
+  content_type      = (STFSContentType)poly::load_and_swap<uint32_t>(p + 0x344);
+  metadata_version  = poly::load_and_swap<uint32_t>(p + 0x348);
   if (metadata_version > 1) {
     // This is a variant of thumbnail data/etc.
     // Can just ignore it for now (until we parse thumbnails).
     XELOGW("STFSContainer doesn't support version %d yet", metadata_version);
   }
-  content_size      = XEGETUINT32BE(p + 0x34C);
-  media_id          = XEGETUINT32BE(p + 0x354);
-  version           = XEGETUINT32BE(p + 0x358);
-  base_version      = XEGETUINT32BE(p + 0x35C);
-  title_id          = XEGETUINT32BE(p + 0x360);
-  platform          = (STFSPlatform)XEGETUINT8BE(p + 0x364);
-  executable_type   = XEGETUINT8BE(p + 0x365);
-  disc_number       = XEGETUINT8BE(p + 0x366);
-  disc_in_set       = XEGETUINT8BE(p + 0x367);
-  save_game_id      = XEGETUINT32BE(p + 0x368);
+  content_size      = poly::load_and_swap<uint32_t>(p + 0x34C);
+  media_id          = poly::load_and_swap<uint32_t>(p + 0x354);
+  version           = poly::load_and_swap<uint32_t>(p + 0x358);
+  base_version      = poly::load_and_swap<uint32_t>(p + 0x35C);
+  title_id          = poly::load_and_swap<uint32_t>(p + 0x360);
+  platform          = (STFSPlatform)poly::load_and_swap<uint8_t>(p + 0x364);
+  executable_type   = poly::load_and_swap<uint8_t>(p + 0x365);
+  disc_number       = poly::load_and_swap<uint8_t>(p + 0x366);
+  disc_in_set       = poly::load_and_swap<uint8_t>(p + 0x367);
+  save_game_id      = poly::load_and_swap<uint32_t>(p + 0x368);
   xe_copy_struct(console_id, p + 0x36C, 0x5);
   xe_copy_struct(profile_id, p + 0x371, 0x8);
-  data_file_count             = XEGETUINT32BE(p + 0x39D);
-  data_file_combined_size     = XEGETUINT64BE(p + 0x3A1);
-  descriptor_type             = (STFSDescriptorType)XEGETUINT8BE(p + 0x3A9);
+  data_file_count             = poly::load_and_swap<uint32_t>(p + 0x39D);
+  data_file_combined_size     = poly::load_and_swap<uint64_t>(p + 0x3A1);
+  descriptor_type             = (STFSDescriptorType)poly::load_and_swap<uint8_t>(p + 0x3A9);
   if (descriptor_type != STFS_DESCRIPTOR_STFS) {
     XELOGE("STFS descriptor format not supported: %d", descriptor_type);
     return false;
@@ -70,16 +78,16 @@ bool STFSHeader::Read(const uint8_t* p) {
   }
   xe_copy_struct(device_id, p + 0x3FD, 0x14);
   for (size_t n = 0; n < 0x900 / 2; n++) {
-    display_names[n] = XEGETUINT16BE(p + 0x411 + n * 2);
-    display_descs[n] = XEGETUINT16BE(p + 0xD11 + n * 2);
+    display_names[n] = poly::load_and_swap<uint16_t>(p + 0x411 + n * 2);
+    display_descs[n] = poly::load_and_swap<uint16_t>(p + 0xD11 + n * 2);
   }
   for (size_t n = 0; n < 0x80 / 2; n++) {
-    publisher_name[n] = XEGETUINT16BE(p + 0x1611 + n * 2);
-    title_name[n] = XEGETUINT16BE(p + 0x1691 + n * 2);
+    publisher_name[n] = poly::load_and_swap<uint16_t>(p + 0x1611 + n * 2);
+    title_name[n] = poly::load_and_swap<uint16_t>(p + 0x1691 + n * 2);
   }
-  transfer_flags              = XEGETUINT8BE(p + 0x1711);
-  thumbnail_image_size        = XEGETUINT32BE(p + 0x1712);
-  title_thumbnail_image_size  = XEGETUINT32BE(p + 0x1716);
+  transfer_flags              = poly::load_and_swap<uint8_t>(p + 0x1711);
+  thumbnail_image_size        = poly::load_and_swap<uint32_t>(p + 0x1712);
+  title_thumbnail_image_size  = poly::load_and_swap<uint32_t>(p + 0x1716);
   xe_copy_struct(thumbnail_image, p + 0x171A, 0x4000);
   xe_copy_struct(title_thumbnail_image, p + 0x571A, 0x4000);
   return true;
@@ -203,13 +211,13 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
         // Done.
         break;
       }
-      uint8_t filename_length_flags   = XEGETUINT8BE(p + 0x28);
+      uint8_t filename_length_flags   = poly::load_and_swap<uint8_t>(p + 0x28);
       uint32_t allocated_block_count  = XEGETUINT24LE(p + 0x29);
       uint32_t start_block_index      = XEGETUINT24LE(p + 0x2F);
-      uint16_t path_indicator         = XEGETUINT16BE(p + 0x32);
-      uint32_t file_size              = XEGETUINT32BE(p + 0x34);
-      uint32_t update_timestamp       = XEGETUINT32BE(p + 0x38);
-      uint32_t access_timestamp       = XEGETUINT32BE(p + 0x3C);
+      uint16_t path_indicator         = poly::load_and_swap<uint16_t>(p + 0x32);
+      uint32_t file_size              = poly::load_and_swap<uint32_t>(p + 0x34);
+      uint32_t update_timestamp       = poly::load_and_swap<uint32_t>(p + 0x38);
+      uint32_t access_timestamp       = poly::load_and_swap<uint32_t>(p + 0x3C);
       p += 0x40;
 
       STFSEntry* entry = new STFSEntry();
@@ -337,7 +345,7 @@ STFS::BlockHash_t STFS::GetBlockHash(
   //table_index += table_offset - (1 << table_size_shift_);
   const uint8_t* hash_data = map_ptr + BlockToOffset(table_index);
   const uint8_t* record_data = hash_data + record * 0x18;
-  uint32_t info = XEGETUINT8BE(record_data + 0x14);
+  uint32_t info = poly::load_and_swap<uint8_t>(record_data + 0x14);
   uint32_t next_block_index = XEGETUINT24BE(record_data + 0x15);
   return{ next_block_index, info };
 }

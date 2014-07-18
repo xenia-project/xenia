@@ -120,7 +120,7 @@ uint32_t XThread::GetCurrentThreadHandle() {
 }
 
 uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
-  return XEGETUINT32BE(thread_state_block + 0x14C);
+  return poly::load_and_swap<uint32_t>(thread_state_block + 0x14C);
 }
 
 uint32_t XThread::thread_state() {
@@ -133,12 +133,12 @@ uint32_t XThread::thread_id() {
 
 uint32_t XThread::last_error() {
   uint8_t *p = memory()->Translate(thread_state_address_);
-  return XEGETUINT32BE(p + 0x160);
+  return poly::load_and_swap<uint32_t>(p + 0x160);
 }
 
 void XThread::set_last_error(uint32_t error_code) {
   uint8_t *p = memory()->Translate(thread_state_address_);
-  XESETUINT32BE(p + 0x160, error_code);
+  poly::store_and_swap<uint32_t>(p + 0x160, error_code);
 }
 
 void XThread::set_name(const char* name) {
@@ -221,11 +221,11 @@ X_STATUS XThread::Create() {
 
   // Setup the thread state block (last error/etc).
   uint8_t *p = memory()->Translate(thread_state_address_);
-  XESETUINT32BE(p + 0x000, tls_address_);
-  XESETUINT32BE(p + 0x100, thread_state_address_);
-  XESETUINT32BE(p + 0x14C, thread_id_);
-  XESETUINT32BE(p + 0x150, 0); // ?
-  XESETUINT32BE(p + 0x160, 0); // last error
+  poly::store_and_swap<uint32_t>(p + 0x000, tls_address_);
+  poly::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
+  poly::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
+  poly::store_and_swap<uint32_t>(p + 0x150, 0); // ?
+  poly::store_and_swap<uint32_t>(p + 0x160, 0); // last error
 
   // Allocate processor thread state.
   // This is thread safe.
@@ -440,25 +440,25 @@ void XThread::DeliverAPCs(void* data) {
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_address = apc_list->Shift() - 8;
     uint8_t* apc_ptr = membase + apc_address;
-    uint32_t kernel_routine = XEGETUINT32BE(apc_ptr + 16);
-    uint32_t normal_routine = XEGETUINT32BE(apc_ptr + 24);
-    uint32_t normal_context = XEGETUINT32BE(apc_ptr + 28);
-    uint32_t system_arg1 = XEGETUINT32BE(apc_ptr + 32);
-    uint32_t system_arg2 = XEGETUINT32BE(apc_ptr + 36);
+    uint32_t kernel_routine = poly::load_and_swap<uint32_t>(apc_ptr + 16);
+    uint32_t normal_routine = poly::load_and_swap<uint32_t>(apc_ptr + 24);
+    uint32_t normal_context = poly::load_and_swap<uint32_t>(apc_ptr + 28);
+    uint32_t system_arg1 = poly::load_and_swap<uint32_t>(apc_ptr + 32);
+    uint32_t system_arg2 = poly::load_and_swap<uint32_t>(apc_ptr + 36);
 
     // Mark as uninserted so that it can be reinserted again by the routine.
-    uint32_t old_flags = XEGETUINT32BE(apc_ptr + 40);
-    XESETUINT32BE(apc_ptr + 40, old_flags & ~0xFF00);
+    uint32_t old_flags = poly::load_and_swap<uint32_t>(apc_ptr + 40);
+    poly::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
 
     // Call kernel routine.
     // The routine can modify all of its arguments before passing it on.
     // Since we need to give guest accessible pointers over, we copy things
     // into and out of scratch.
     uint8_t* scratch_ptr = membase + thread->scratch_address_;
-    XESETUINT32BE(scratch_ptr + 0, normal_routine);
-    XESETUINT32BE(scratch_ptr + 4, normal_context);
-    XESETUINT32BE(scratch_ptr + 8, system_arg1);
-    XESETUINT32BE(scratch_ptr + 12, system_arg2);
+    poly::store_and_swap<uint32_t>(scratch_ptr + 0, normal_routine);
+    poly::store_and_swap<uint32_t>(scratch_ptr + 4, normal_context);
+    poly::store_and_swap<uint32_t>(scratch_ptr + 8, system_arg1);
+    poly::store_and_swap<uint32_t>(scratch_ptr + 12, system_arg2);
     // kernel_routine(apc_address, &normal_routine, &normal_context, &system_arg1, &system_arg2)
     uint64_t kernel_args[] = {
       apc_address,
@@ -469,10 +469,10 @@ void XThread::DeliverAPCs(void* data) {
     };
     processor->ExecuteInterrupt(
         0, kernel_routine, kernel_args, XECOUNT(kernel_args));
-    normal_routine = XEGETUINT32BE(scratch_ptr + 0);
-    normal_context = XEGETUINT32BE(scratch_ptr + 4);
-    system_arg1 = XEGETUINT32BE(scratch_ptr + 8);
-    system_arg2 = XEGETUINT32BE(scratch_ptr + 12);
+    normal_routine = poly::load_and_swap<uint32_t>(scratch_ptr + 0);
+    normal_context = poly::load_and_swap<uint32_t>(scratch_ptr + 4);
+    system_arg1 = poly::load_and_swap<uint32_t>(scratch_ptr + 8);
+    system_arg2 = poly::load_and_swap<uint32_t>(scratch_ptr + 12);
 
     // Call the normal routine. Note that it may have been killed by the kernel
     // routine.
@@ -496,11 +496,11 @@ void XThread::RundownAPCs() {
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_address = apc_list_->Shift() - 8;
     uint8_t* apc_ptr = membase + apc_address;
-    uint32_t rundown_routine = XEGETUINT32BE(apc_ptr + 20);
+    uint32_t rundown_routine = poly::load_and_swap<uint32_t>(apc_ptr + 20);
 
     // Mark as uninserted so that it can be reinserted again by the routine.
-    uint32_t old_flags = XEGETUINT32BE(apc_ptr + 40);
-    XESETUINT32BE(apc_ptr + 40, old_flags & ~0xFF00);
+    uint32_t old_flags = poly::load_and_swap<uint32_t>(apc_ptr + 40);
+    poly::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
 
     // Call the rundown routine.
     if (rundown_routine) {

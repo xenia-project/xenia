@@ -117,15 +117,15 @@ void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap) {
   video_mode->unknown_0x01    = 0x01;
 
   if (swap) {
-    video_mode->display_width   = XESWAP32BE(video_mode->display_width);
-    video_mode->display_height  = XESWAP32BE(video_mode->display_height);
-    video_mode->is_interlaced   = XESWAP32BE(video_mode->is_interlaced);
-    video_mode->is_widescreen   = XESWAP32BE(video_mode->is_widescreen);
-    video_mode->is_hi_def       = XESWAP32BE(video_mode->is_hi_def);
-    video_mode->refresh_rate    = XESWAPF32BE(video_mode->refresh_rate);
-    video_mode->video_standard  = XESWAP32BE(video_mode->video_standard);
-    video_mode->unknown_0x8a    = XESWAP32BE(video_mode->unknown_0x8a);
-    video_mode->unknown_0x01    = XESWAP32BE(video_mode->unknown_0x01);
+    video_mode->display_width   = poly::byte_swap(video_mode->display_width);
+    video_mode->display_height  = poly::byte_swap(video_mode->display_height);
+    video_mode->is_interlaced   = poly::byte_swap(video_mode->is_interlaced);
+    video_mode->is_widescreen   = poly::byte_swap(video_mode->is_widescreen);
+    video_mode->is_hi_def       = poly::byte_swap(video_mode->is_hi_def);
+    video_mode->refresh_rate    = poly::byte_swap(video_mode->refresh_rate);
+    video_mode->video_standard  = poly::byte_swap(video_mode->video_standard);
+    video_mode->unknown_0x8a    = poly::byte_swap(video_mode->unknown_0x8a);
+    video_mode->unknown_0x01    = poly::byte_swap(video_mode->unknown_0x01);
   }
 }
 
@@ -430,9 +430,9 @@ SHIM_CALL VdSwap_shim(
   // use this method.
   xe_zero_struct(SHIM_MEM_ADDR(unk0), 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
-  dwords[0] = XESWAP32((0x03 << 30) |
-                       ((1 - 1) << 16) |
-                       (xenos::PM4_XE_SWAP << 8));
+  dwords[0] = poly::byte_swap((0x03 << 30) |
+                              ((1 - 1) << 16) |
+                              (xenos::PM4_XE_SWAP << 8));
 
   SHIM_SET_RETURN_64(0);
 }
@@ -472,7 +472,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalDevice,
       pVdGlobalDevice);
-  XESETUINT32BE(mem + pVdGlobalDevice, 0);
+  poly::store_and_swap<uint32_t>(mem + pVdGlobalDevice, 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
@@ -480,7 +480,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalXamDevice,
       pVdGlobalXamDevice);
-  XESETUINT32BE(mem + pVdGlobalXamDevice, 0);
+  poly::store_and_swap<uint32_t>(mem + pVdGlobalXamDevice, 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
@@ -488,7 +488,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGpuClockInMHz,
       pVdGpuClockInMHz);
-  XESETUINT32BE(mem + pVdGpuClockInMHz, 500);
+  poly::store_and_swap<uint32_t>(mem + pVdGpuClockInMHz, 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.

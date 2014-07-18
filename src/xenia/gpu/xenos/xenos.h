@@ -83,7 +83,7 @@ XEFORCEINLINE uint32_t GpuSwap(uint32_t value, XE_GPU_ENDIAN endianness) {
            ((value >> 8) & 0x00FF00FF);
   case XE_GPU_ENDIAN_8IN32: // Swap bytes.
     // NOTE: we are likely doing two swaps here. Wasteful. Oh well.
-    return XESWAP32(value);
+    return poly::byte_swap(value);
   case XE_GPU_ENDIAN_16IN32: // Swap half words.
     return ((value >> 16) & 0xFFFF) | (value << 16);
   }

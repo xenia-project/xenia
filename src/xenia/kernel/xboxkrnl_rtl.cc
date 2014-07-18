@@ -91,7 +91,7 @@ uint32_t xeRtlCompareMemoryUlong(uint32_t source_ptr, uint32_t length,
   // TODO(benvanik): ensure byte order of pattern is correct.
   // Since we are doing byte-by-byte comparison we may not want to swap.
   // GET_ARG swaps, so this is a swap back. Ugly.
-  const uint32_t pb32 = XESWAP32BE(pattern);
+  const uint32_t pb32 = poly::byte_swap(pattern);
   const uint8_t* pb = (uint8_t*)&pb32;
 
   uint32_t c = 0;
@@ -138,7 +138,7 @@ void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
   // swapped arg value.
 
   uint32_t count = length >> 2;
-  uint32_t native_pattern = XESWAP32BE(pattern);
+  uint32_t native_pattern = poly::byte_swap(pattern);
 
   // TODO: unroll loop?
 
@@ -364,7 +364,7 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(
   auto destination = (uint16_t*)SHIM_MEM_ADDR(destination_ptr);
   for (uint32_t i = 0; i < copy_len; i++)
   {
-    *destination++ = XESWAP16(*source++);
+    *destination++ = poly::byte_swap(*source++);
   }
 
   if (written_ptr != 0)
@@ -393,7 +393,7 @@ SHIM_CALL RtlUnicodeToMultiByteN_shim(
   auto destination = (uint8_t*)SHIM_MEM_ADDR(destination_ptr);
   for (uint32_t i = 0; i < copy_len; i++)
   {
-    uint16_t c = XESWAP16(*source++);
+    uint16_t c = poly::byte_swap(*source++);
     *destination++ = c < 256 ? (uint8_t)c : '?';
   }
 

@@ -307,12 +307,12 @@ void TextureResource::TextureSwap(uint8_t* dest, const uint8_t* src,
   switch (info_.endianness) {
     case XE_GPU_ENDIAN_8IN16:
       for (uint32_t i = 0; i < pitch; i += 2, src += 2, dest += 2) {
-        *(uint16_t*)dest = XESWAP16(*(uint16_t*)src);
+        *(uint16_t*)dest = poly::byte_swap(*(uint16_t*)src);
       }
       break;
     case XE_GPU_ENDIAN_8IN32: // Swap bytes.
       for (uint32_t i = 0; i < pitch; i += 4, src += 4, dest += 4) {
-        *(uint32_t*)dest = XESWAP32(*(uint32_t*)src);
+        *(uint32_t*)dest = poly::byte_swap(*(uint32_t*)src);
       }
       break;
     case XE_GPU_ENDIAN_16IN32: // Swap half words.

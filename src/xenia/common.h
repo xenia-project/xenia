@@ -12,8 +12,9 @@
 
 #include <poly/assert.h>
 #include <poly/atomic.h>
+#include <poly/byte_order.h>
+#include <poly/memory.h>
 
-#include <xenia/byte_order.h>
 #include <xenia/config.h>
 #include <xenia/logging.h>
 #include <xenia/malloc.h>

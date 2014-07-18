@@ -81,7 +81,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
   for (uint64_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
-    i.code = XEGETUINT32BE(p + address);
+    i.code = poly::load_and_swap<uint32_t>(p + address);
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
 
