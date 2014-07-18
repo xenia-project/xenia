@@ -23,6 +23,13 @@
 #define thread_local __thread
 #endif  // XE_COMPILER_MSVC
 
+// C++11 alignas keyword.
+// This will hopefully be coming soon, as most of the alignment spec is in the
+// latest CTP.
+#if XE_COMPILER_MSVC
+#define alignas(N) __declspec(align(N))
+#endif  // XE_COMPILER_MSVC
+
 namespace poly {}  // namespace poly
 
 #endif  // POLY_CXX_COMPAT_H_

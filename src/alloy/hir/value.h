@@ -34,7 +34,7 @@ enum TypeName {
   MAX_TYPENAME,
 };
 
-static size_t GetTypeSize(TypeName type_name) {
+inline size_t GetTypeSize(TypeName type_name) {
   switch (type_name) {
     case INT8_TYPE:
       return 1;

@@ -183,33 +183,37 @@ protected:
 
 template <int TAG = -1>
 struct I8 : ValueOp<I8<TAG>, KEY_TYPE_V_I8, Reg8, int8_t, TAG> {
+  typedef ValueOp<I8<TAG>, KEY_TYPE_V_I8, Reg8, int8_t, TAG> BASE;
   const int8_t constant() const {
-    assert_true(is_constant);
-    return value->constant.i8;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.i8;
   }
 };
 template <int TAG = -1>
 struct I16 : ValueOp<I16<TAG>, KEY_TYPE_V_I16, Reg16, int16_t, TAG> {
+  typedef ValueOp<I16<TAG>, KEY_TYPE_V_I16, Reg16, int16_t, TAG> BASE;
   const int16_t constant() const {
-    assert_true(is_constant);
-    return value->constant.i16;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.i16;
   }
 };
 template <int TAG = -1>
 struct I32 : ValueOp<I32<TAG>, KEY_TYPE_V_I32, Reg32, int32_t, TAG> {
+  typedef ValueOp<I32<TAG>, KEY_TYPE_V_I32, Reg32, int32_t, TAG> BASE;
   const int32_t constant() const {
-    assert_true(is_constant);
-    return value->constant.i32;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.i32;
   }
 };
 template <int TAG = -1>
 struct I64 : ValueOp<I64<TAG>, KEY_TYPE_V_I64, Reg64, int64_t, TAG> {
+  typedef ValueOp<I64<TAG>, KEY_TYPE_V_I64, Reg64, int64_t, TAG> BASE;
   const int64_t constant() const {
-    assert_true(is_constant);
-    return value->constant.i64;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.i64;
   }
   bool ConstantFitsIn32Reg() const override {
-    int64_t v = value->constant.i64;
+    int64_t v = BASE::value->constant.i64;
     if ((v & ~0x7FFFFFFF) == 0) {
       // Fits under 31 bits, so just load using normal mov.
       return true;
@@ -222,23 +226,26 @@ struct I64 : ValueOp<I64<TAG>, KEY_TYPE_V_I64, Reg64, int64_t, TAG> {
 };
 template <int TAG = -1>
 struct F32 : ValueOp<F32<TAG>, KEY_TYPE_V_F32, Xmm, float, TAG> {
+  typedef ValueOp<F32<TAG>, KEY_TYPE_V_F32, Xmm, float, TAG> BASE;
   const float constant() const {
-    assert_true(is_constant);
-    return value->constant.f32;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.f32;
   }
 };
 template <int TAG = -1>
 struct F64 : ValueOp<F64<TAG>, KEY_TYPE_V_F64, Xmm, double, TAG> {
+  typedef ValueOp<F64<TAG>, KEY_TYPE_V_F64, Xmm, double, TAG> BASE;
   const double constant() const {
-    assert_true(is_constant);
-    return value->constant.f64;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.f64;
   }
 };
 template <int TAG = -1>
 struct V128 : ValueOp<V128<TAG>, KEY_TYPE_V_V128, Xmm, vec128_t, TAG> {
+  typedef ValueOp<V128<TAG>, KEY_TYPE_V_V128, Xmm, vec128_t, TAG> BASE;
   const vec128_t& constant() const {
-    assert_true(is_constant);
-    return value->constant.v128;
+    assert_true(BASE::is_constant);
+    return BASE::value->constant.v128;
   }
 };
 
@@ -308,6 +315,7 @@ template <hir::Opcode OPCODE, typename... Ts>
 struct I;
 template <hir::Opcode OPCODE, typename DEST>
 struct I<OPCODE, DEST> : DestField<DEST> {
+  typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
   static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
@@ -316,7 +324,7 @@ protected:
   template <typename... Ti> friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
     if (InstrKey(i).value == key &&
-        LoadDest(i, tag_table)) {
+        BASE::LoadDest(i, tag_table)) {
       instr = i;
       return true;
     }
@@ -325,6 +333,7 @@ protected:
 };
 template <hir::Opcode OPCODE, typename DEST, typename SRC1>
 struct I<OPCODE, DEST, SRC1> : DestField<DEST> {
+  typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
   static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
@@ -335,7 +344,7 @@ protected:
   template <typename... Ti> friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
     if (InstrKey(i).value == key &&
-        LoadDest(i, tag_table) &&
+        BASE::LoadDest(i, tag_table) &&
         tag_table.CheckTag<SRC1>(i->src1)) {
       instr = i;
       src1.Load(i->src1);
@@ -346,6 +355,7 @@ protected:
 };
 template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2>
 struct I<OPCODE, DEST, SRC1, SRC2> : DestField<DEST> {
+  typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
   static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type, SRC2::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
@@ -358,7 +368,7 @@ protected:
   template <typename... Ti> friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
     if (InstrKey(i).value == key &&
-        LoadDest(i, tag_table) &&
+        BASE::LoadDest(i, tag_table) &&
         tag_table.CheckTag<SRC1>(i->src1) &&
         tag_table.CheckTag<SRC2>(i->src2)) {
       instr = i;
@@ -371,6 +381,7 @@ protected:
 };
 template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2, typename SRC3>
 struct I<OPCODE, DEST, SRC1, SRC2, SRC3> : DestField<DEST> {
+  typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
   static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type, SRC2::key_type, SRC3::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
@@ -385,7 +396,7 @@ protected:
   template <typename... Ti> friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
     if (InstrKey(i).value == key &&
-        LoadDest(i, tag_table) &&
+        BASE::LoadDest(i, tag_table) &&
         tag_table.CheckTag<SRC1>(i->src1) &&
         tag_table.CheckTag<SRC2>(i->src2) &&
         tag_table.CheckTag<SRC3>(i->src3)) {
@@ -404,7 +415,6 @@ struct SequenceFields;
 template <typename I1>
 struct SequenceFields<I1> {
   I1 i1;
-  typedef typename I1 I1Type;
 protected:
   template <typename SEQ, typename... Ti> friend struct Sequence;
   bool Check(const Instr* i, TagTable& tag_table, const Instr** new_tail) {
@@ -516,9 +526,10 @@ const Reg64 GetTempReg<Reg64>(X64Emitter& e) {
 
 template <typename SEQ, typename T>
 struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
+  typedef Sequence<SingleSequence<SEQ, T>, T> BASE;
   typedef T EmitArgType;
   static const uint32_t head_key = T::key;
-  static void Emit(X64Emitter& e, const EmitArgs& _) {
+  static void Emit(X64Emitter& e, const typename BASE::EmitArgs& _) {
     SEQ::Emit(e, _.i1);
   }
 
@@ -547,7 +558,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
         if (i.src1.ConstantFitsIn32Reg()) {
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
         } else {
-          auto temp = GetTempReg<decltype(i.src1)::reg_type>(e);
+          auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
           e.mov(temp, i.src1.constant());
           reg_reg_fn(e, i.dest, temp);
         }
@@ -560,7 +571,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
         if (i.src2.ConstantFitsIn32Reg()) {
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src2.constant()));
         } else {
-          auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+          auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
           e.mov(temp, i.src2.constant());
           reg_reg_fn(e, i.dest, temp);
         }
@@ -586,7 +597,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       if (i.dest == i.src2) {
-        auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+        auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
         e.mov(temp, i.src2);
         e.mov(i.dest, i.src1.constant());
         reg_reg_fn(e, i.dest, temp);
@@ -599,7 +610,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
         if (i.src2.ConstantFitsIn32Reg()) {
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src2.constant()));
         } else {
-          auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+          auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
           e.mov(temp, i.src2.constant());
           reg_reg_fn(e, i.dest, temp);
         }
@@ -608,7 +619,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
         if (i.src2.ConstantFitsIn32Reg()) {
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src2.constant()));
         } else {
-          auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+          auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
           e.mov(temp, i.src2.constant());
           reg_reg_fn(e, i.dest, temp);
         }
@@ -617,7 +628,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       if (i.dest == i.src1) {
         reg_reg_fn(e, i.dest, i.src2);
       } else if (i.dest == i.src2) {
-        auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+        auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
         e.mov(temp, i.src2);
         e.mov(i.dest, i.src1);
         reg_reg_fn(e, i.dest, temp);
@@ -667,7 +678,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       if (i.src1.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.src2, static_cast<int32_t>(i.src1.constant()));
       } else {
-        auto temp = GetTempReg<decltype(i.src1)::reg_type>(e);
+        auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
         e.mov(temp, i.src1.constant());
         reg_reg_fn(e, i.src2, temp);
       }
@@ -675,7 +686,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       if (i.src2.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.src1, static_cast<int32_t>(i.src2.constant()));
       } else {
-        auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+        auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
         e.mov(temp, i.src2.constant());
         reg_reg_fn(e, i.src1, temp);
       }
@@ -692,7 +703,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       if (i.src1.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.dest, i.src2, static_cast<int32_t>(i.src1.constant()), true);
       } else {
-        auto temp = GetTempReg<decltype(i.src1)::reg_type>(e);
+        auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
         e.mov(temp, i.src1.constant());
         reg_reg_fn(e, i.dest, i.src2, temp, true);
       }
@@ -700,7 +711,7 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       if (i.src2.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.dest, i.src1, static_cast<int32_t>(i.src2.constant()), false);
       } else {
-        auto temp = GetTempReg<decltype(i.src2)::reg_type>(e);
+        auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
         e.mov(temp, i.src2.constant());
         reg_reg_fn(e, i.dest, i.src1, temp, false);
       }
@@ -720,8 +731,6 @@ static const tag_t TAG4 = 4;
 static const tag_t TAG5 = 5;
 static const tag_t TAG6 = 6;
 static const tag_t TAG7 = 7;
-
-typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*, const Instr**);
 
 template <typename T>
 void Register() {

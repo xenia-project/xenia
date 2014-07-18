@@ -39,10 +39,11 @@ using namespace Xbyak;
 using namespace alloy::hir;
 using namespace alloy::runtime;
 
+typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*, const Instr**);
+std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
+
 // Utilities/types used only in this file:
 #include <alloy/backend/x64/x64_sequence.inl>
-
-std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
 
 // Selects the right byte/word/etc from a vector. We need to flip logical
 // indices (0,1,2,3,4,5,6,7,...) = (3,2,1,0,7,6,5,4,...)
@@ -63,7 +64,7 @@ EMITTER(COMMENT, MATCH(I<OPCODE_COMMENT, VoidOp, OffsetOp>)) {
       // TODO(benvanik): don't just leak this memory.
       auto str_copy = strdup(str);
       e.mov(e.rdx, reinterpret_cast<uint64_t>(str_copy));
-      e.CallNative(TraceString);
+      e.CallNative(reinterpret_cast<void*>(TraceString));
     }
   }
 };
@@ -1104,12 +1105,7 @@ EMITTER(LOAD_CLOCK, MATCH(I<OPCODE_LOAD_CLOCK, I64<>>)) {
     e.mov(i.dest, e.rax);
   }
   static uint64_t LoadClock(void* raw_context) {
-    LARGE_INTEGER counter;
-    uint64_t time = 0;
-    if (QueryPerformanceCounter(&counter)) {
-      time = counter.QuadPart;
-    }
-    return time;
+    return poly::threading::ticks();
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -1245,7 +1241,7 @@ EMITTER(LOAD_CONTEXT_I8, MATCH(I<OPCODE_LOAD_CONTEXT, I8<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.mov(e.r8, e.byte[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadI8);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI8));
     }
   }
 };
@@ -1256,7 +1252,7 @@ EMITTER(LOAD_CONTEXT_I16, MATCH(I<OPCODE_LOAD_CONTEXT, I16<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.mov(e.r8, e.word[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadI16);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI16));
     }
   }
 };
@@ -1267,7 +1263,7 @@ EMITTER(LOAD_CONTEXT_I32, MATCH(I<OPCODE_LOAD_CONTEXT, I32<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.mov(e.r8, e.dword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadI32);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI32));
     }
   }
 };
@@ -1278,7 +1274,7 @@ EMITTER(LOAD_CONTEXT_I64, MATCH(I<OPCODE_LOAD_CONTEXT, I64<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.mov(e.r8, e.qword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadI64);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI64));
     }
   }
 };
@@ -1289,7 +1285,7 @@ EMITTER(LOAD_CONTEXT_F32, MATCH(I<OPCODE_LOAD_CONTEXT, F32<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.lea(e.r8, e.dword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadF32);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadF32));
     }
   }
 };
@@ -1300,7 +1296,7 @@ EMITTER(LOAD_CONTEXT_F64, MATCH(I<OPCODE_LOAD_CONTEXT, F64<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.lea(e.r8, e.qword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadF64);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadF64));
     }
   }
 };
@@ -1311,7 +1307,7 @@ EMITTER(LOAD_CONTEXT_V128, MATCH(I<OPCODE_LOAD_CONTEXT, V128<>, OffsetOp>)) {
     if (IsTracingData()) {
       e.lea(e.r8, e.ptr[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextLoadV128);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadV128));
     }
   }
 };
@@ -1341,7 +1337,7 @@ EMITTER(STORE_CONTEXT_I8, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, I8<>>)
     if (IsTracingData()) {
       e.mov(e.r8, e.byte[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreI8);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI8));
     }
   }
 };
@@ -1356,7 +1352,7 @@ EMITTER(STORE_CONTEXT_I16, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, I16<>
     if (IsTracingData()) {
       e.mov(e.r8, e.word[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreI16);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI16));
     }
   }
 };
@@ -1371,7 +1367,7 @@ EMITTER(STORE_CONTEXT_I32, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, I32<>
     if (IsTracingData()) {
       e.mov(e.r8, e.dword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreI32);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI32));
     }
   }
 };
@@ -1386,7 +1382,7 @@ EMITTER(STORE_CONTEXT_I64, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, I64<>
     if (IsTracingData()) {
       e.mov(e.r8, e.qword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreI64);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI64));
     }
   }
 };
@@ -1401,7 +1397,7 @@ EMITTER(STORE_CONTEXT_F32, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, F32<>
     if (IsTracingData()) {
       e.lea(e.r8, e.dword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreF32);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreF32));
     }
   }
 };
@@ -1416,7 +1412,7 @@ EMITTER(STORE_CONTEXT_F64, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, F64<>
     if (IsTracingData()) {
       e.lea(e.r8, e.qword[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreF64);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreF64));
     }
   }
 };
@@ -1432,7 +1428,7 @@ EMITTER(STORE_CONTEXT_V128, MATCH(I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, V128
     if (IsTracingData()) {
       e.lea(e.r8, e.ptr[addr]);
       e.mov(e.rdx, i.src1.value);
-      e.CallNative(TraceContextStoreV128);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreV128));
     }
   }
 };
@@ -1473,7 +1469,7 @@ EMITTER(LOAD_I8, MATCH(I<OPCODE_LOAD, I8<>, I64<>>)) {
     if (IsTracingData()) {
       e.mov(e.r8b, i.dest);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadI8);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI8));
     }
   }
 };
@@ -1484,7 +1480,7 @@ EMITTER(LOAD_I16, MATCH(I<OPCODE_LOAD, I16<>, I64<>>)) {
     if (IsTracingData()) {
       e.mov(e.r8w, i.dest);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadI16);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI16));
     }
   }
 };
@@ -1495,7 +1491,7 @@ EMITTER(LOAD_I32, MATCH(I<OPCODE_LOAD, I32<>, I64<>>)) {
     if (IsTracingData()) {
       e.mov(e.r8d, i.dest);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadI32);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI32));
     }
   }
 };
@@ -1506,7 +1502,7 @@ EMITTER(LOAD_I64, MATCH(I<OPCODE_LOAD, I64<>, I64<>>)) {
     if (IsTracingData()) {
       e.mov(e.r8, i.dest);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadI64);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI64));
     }
   }
 };
@@ -1517,7 +1513,7 @@ EMITTER(LOAD_F32, MATCH(I<OPCODE_LOAD, F32<>, I64<>>)) {
     if (IsTracingData()) {
       e.lea(e.r8, e.dword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadF32);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadF32));
     }
   }
 };
@@ -1528,7 +1524,7 @@ EMITTER(LOAD_F64, MATCH(I<OPCODE_LOAD, F64<>, I64<>>)) {
     if (IsTracingData()) {
       e.lea(e.r8, e.qword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadF64);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadF64));
     }
   }
 };
@@ -1540,7 +1536,7 @@ EMITTER(LOAD_V128, MATCH(I<OPCODE_LOAD, V128<>, I64<>>)) {
     if (IsTracingData()) {
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryLoadV128);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadV128));
     }
   }
 };
@@ -1578,7 +1574,7 @@ EMITTER(STORE_I8, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I8<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8b, e.byte[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreI8);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI8));
     }
   }
 };
@@ -1595,7 +1591,7 @@ EMITTER(STORE_I16, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I16<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8w, e.word[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreI16);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI16));
     }
   }
 };
@@ -1612,7 +1608,7 @@ EMITTER(STORE_I32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I32<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8d, e.dword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreI32);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));
     }
   }
 };
@@ -1629,7 +1625,7 @@ EMITTER(STORE_I64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I64<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8, e.qword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreI64);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI64));
     }
   }
 };
@@ -1646,7 +1642,7 @@ EMITTER(STORE_F32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F32<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreF32);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF32));
     }
   }
 };
@@ -1663,7 +1659,7 @@ EMITTER(STORE_F64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F64<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreF64);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF64));
     }
   }
 };
@@ -1681,7 +1677,7 @@ EMITTER(STORE_V128, MATCH(I<OPCODE_STORE, VoidOp, I64<>, V128<>>)) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
-      e.CallNative(TraceMemoryStoreV128);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreV128));
     }
   }
 };
@@ -2099,7 +2095,7 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_COMPARE_*
 // ============================================================================
 #define EMITTER_ASSOCIATIVE_COMPARE_INT(op, instr, inverse_instr, type, reg_type) \
-    EMITTER(COMPARE_##op##_##type, MATCH(I<OPCODE_COMPARE_##op##, I8<>, type<>, type<>>)) { \
+    EMITTER(COMPARE_##op##_##type, MATCH(I<OPCODE_COMPARE_##op, I8<>, type<>, type<>>)) { \
         static void Emit(X64Emitter& e, const EmitArgType& i) { \
           EmitAssociativeCompareOp( \
               e, i, \
@@ -2119,7 +2115,7 @@ EMITTER_OPCODE_TABLE(
     EMITTER_ASSOCIATIVE_COMPARE_INT(op, instr, inverse_instr, I32, Reg32); \
     EMITTER_ASSOCIATIVE_COMPARE_INT(op, instr, inverse_instr, I64, Reg64); \
     EMITTER_OPCODE_TABLE( \
-        OPCODE_COMPARE_##op##, \
+        OPCODE_COMPARE_##op, \
         COMPARE_##op##_I8, \
         COMPARE_##op##_I16, \
         COMPARE_##op##_I32, \
@@ -2135,13 +2131,13 @@ EMITTER_ASSOCIATIVE_COMPARE_XX(UGE, setae, setb);
 
 // http://x86.renejeschke.de/html/file_module_x86_id_288.html
 #define EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(op, instr) \
-    EMITTER(COMPARE_##op##_F32, MATCH(I<OPCODE_COMPARE_##op##, I8<>, F32<>, F32<>>)) { \
+    EMITTER(COMPARE_##op##_F32, MATCH(I<OPCODE_COMPARE_##op, I8<>, F32<>, F32<>>)) { \
       static void Emit(X64Emitter& e, const EmitArgType& i) { \
         e.vcomiss(i.src1, i.src2); \
         e.instr(i.dest); \
       } \
     }; \
-    EMITTER(COMPARE_##op##_F64, MATCH(I<OPCODE_COMPARE_##op##, I8<>, F64<>, F64<>>)) { \
+    EMITTER(COMPARE_##op##_F64, MATCH(I<OPCODE_COMPARE_##op, I8<>, F64<>, F64<>>)) { \
       static void Emit(X64Emitter& e, const EmitArgType& i) { \
         if (i.src1.is_constant) { \
           e.LoadConstantXmm(e.xmm0, i.src1.constant()); \
@@ -3479,39 +3475,44 @@ EMITTER_OPCODE_TABLE(
 //     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 EMITTER(POW2_F32, MATCH(I<OPCODE_POW2, F32<>, F32<>>)) {
   static __m128 EmulatePow2(__m128 src) {
-    float result = static_cast<float>(pow(2, src.m128_f32[0]));
+    float src_value;
+    _mm_store_ss(&src_value, src);
+    float result = std::pow(2, src_value);
     return _mm_load_ss(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNativeSafe(EmulatePow2);
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.vmovaps(i.dest, e.xmm0);
   }
 };
 EMITTER(POW2_F64, MATCH(I<OPCODE_POW2, F64<>, F64<>>)) {
   static __m128d EmulatePow2(__m128 src) {
-    double result = pow(2, src.m128_f32[0]);
+    double src_value;
+    _mm_store_sd(&src_value, src);
+    double result = std::pow(2, src_value);
     return _mm_load_sd(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNativeSafe(EmulatePow2);
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.vmovaps(i.dest, e.xmm0);
   }
 };
 EMITTER(POW2_V128, MATCH(I<OPCODE_POW2, V128<>, V128<>>)) {
   static __m128 EmulatePow2(__m128 src) {
-    __m128 result;
+    alignas(16) float values[4];
+    _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
-      result.m128_f32[i] = static_cast<float>(pow(2, src.m128_f32[i]));
+      values[i] = std::pow(2, values[i]);
     }
-    return result;
+    return _mm_load_ps(values);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNativeSafe(EmulatePow2);
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -3530,39 +3531,44 @@ EMITTER_OPCODE_TABLE(
 // TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 EMITTER(LOG2_F32, MATCH(I<OPCODE_LOG2, F32<>, F32<>>)) {
   static __m128 EmulateLog2(__m128 src) {
-    float result = log2(src.m128_f32[0]);
+    float src_value;
+    _mm_store_ss(&src_value, src);
+    float result = std::log2(src_value);
     return _mm_load_ss(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNativeSafe(EmulateLog2);
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.vmovaps(i.dest, e.xmm0);
   }
 };
 EMITTER(LOG2_F64, MATCH(I<OPCODE_LOG2, F64<>, F64<>>)) {
   static __m128d EmulateLog2(__m128d src) {
-    double result = log2(src.m128d_f64[0]);
+    double src_value;
+    _mm_store_sd(&src_value, src);
+    double result = std::log2(src_value);
     return _mm_load_sd(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNativeSafe(EmulateLog2);
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.vmovaps(i.dest, e.xmm0);
   }
 };
 EMITTER(LOG2_V128, MATCH(I<OPCODE_LOG2, V128<>, V128<>>)) {
   static __m128 EmulateLog2(__m128 src) {
-    __m128 result;
+    alignas(16) float values[4];
+    _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
-      result.m128_f32[i] = log2(src.m128_f32[i]);
+      values[i] = std::log2(values[i]);
     }
-    return result;
+    return _mm_load_ps(values);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.lea(e.r8, e.StashXmm(i.src1));
-    e.CallNativeSafe(EmulateLog2);
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.vmovaps(i.dest, e.xmm0);
   }
 };
@@ -4996,7 +5002,7 @@ EMITTER_OPCODE_TABLE(
 
 
 
-void alloy::backend::x64::RegisterSequences() {
+void RegisterSequences() {
   #define REGISTER_EMITTER_OPCODE_TABLE(opcode) Register_##opcode()
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMMENT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_NOP);
@@ -5109,7 +5115,7 @@ void alloy::backend::x64::RegisterSequences() {
   //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_SUB);
 }
 
-bool alloy::backend::x64::SelectSequence(X64Emitter& e, const Instr* i, const Instr** new_tail) {
+bool SelectSequence(X64Emitter& e, const Instr* i, const Instr** new_tail) {
   const InstrKey key(i);
   const auto its = sequence_table.equal_range(key);
   for (auto it = its.first; it != its.second; ++it) {

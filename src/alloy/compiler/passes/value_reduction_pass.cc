@@ -43,7 +43,7 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
   // Note that this list isn't sorted (unfortunately), so we have to scan
   // them all.
   uint32_t max_ordinal = 0;
-  Value::Use* last_use = NULL;
+  Value::Use* last_use = nullptr;
   auto use = value->use_head;
   while (use) {
     if (!last_use || use->instr->ordinal >= max_ordinal) {
@@ -52,7 +52,7 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
     }
     use = use->next;
   }
-  value->last_use = last_use->instr;
+  value->last_use = last_use ? last_use->instr : nullptr;
 }
 
 int ValueReductionPass::Run(HIRBuilder* builder) {

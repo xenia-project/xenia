@@ -18,7 +18,7 @@
 namespace poly {
 namespace threading {
 
-// Gets the current high-perforance tick count.
+// Gets the current high-performance tick count.
 uint64_t ticks();
 
 // Gets a stable thread-specific ID, but may not be. Use for informative

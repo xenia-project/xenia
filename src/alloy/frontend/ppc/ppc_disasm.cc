@@ -248,6 +248,9 @@ void Disasm_dcbf(InstrData& i, StringBuffer* str) {
     case 3:
       name = "dcbflp";
       break;
+    default:
+      name = "dcbf.??";
+      break;
   }
   str->Append("%-8s r%d, r%d", name, i.X.RA, i.X.RB);
 }
