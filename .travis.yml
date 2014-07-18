@@ -1,0 +1,16 @@
+language: cpp
+compiler:
+  - clang
+  # - gcc don't really care
+
+os:
+  - linux
+  - osx    # beta only
+
+# Run setup to build ninja/gyp/etc and actually build xenia.
+before_script:
+  - travis_retry ./xenia-build.py setup
+  - ./xenia-build.py build
+
+# Run test suite.
+script: ./test/run-tests.sh
