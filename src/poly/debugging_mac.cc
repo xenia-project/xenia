@@ -25,5 +25,11 @@ bool IsDebuggerAttached() {
   return (info.kp_proc.p_flag & P_TRACED) != 0;
 }
 
+// TODO(benvanik): find a more reliable way.
+void Break() {
+  // __asm__("int $3");
+  __builtin_debugtrap();
+}
+
 }  // namespace debugging
 }  // namespace poly

@@ -23,6 +23,10 @@ namespace debugging {
 // though, so avoid calling it frequently.
 bool IsDebuggerAttached();
 
+// Breaks into the debugger if it is attached.
+// If no debugger is present, a signal will be raised.
+void Break();
+
 }  // namespace debugging
 }  // namespace poly
 

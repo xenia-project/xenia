@@ -16,5 +16,9 @@ bool IsDebuggerAttached() {
   return IsDebuggerPresent() ? true : false;
 }
 
+void Break() {
+  __debugbreak();
+}
+
 }  // namespace debugging
 }  // namespace poly

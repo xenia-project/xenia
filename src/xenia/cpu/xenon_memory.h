@@ -10,9 +10,12 @@
 #ifndef XENIA_CPU_XENON_MEMORY_H_
 #define XENIA_CPU_XENON_MEMORY_H_
 
+#include <memory>
+
 #include <alloy/memory.h>
 
 #include <xenia/core.h>
+#include <xenia/cpu/mmio_handler.h>
 
 
 typedef struct xe_ppc_state xe_ppc_state_t;
@@ -21,10 +24,6 @@ namespace xe {
 namespace cpu {
 
 class XenonMemoryHeap;
-
-typedef uint64_t (*MMIOReadCallback)(void* context, uint64_t addr);
-typedef void (*MMIOWriteCallback)(void* context, uint64_t addr,
-                                  uint64_t value);
 
 class XenonMemory : public alloy::Memory {
 public:
@@ -38,8 +37,8 @@ public:
   bool AddMappedRange(uint64_t address, uint64_t mask,
                       uint64_t size,
                       void* context,
-                      MMIOReadCallback read_callback = nullptr,
-                      MMIOWriteCallback write_callback = nullptr);
+                      MMIOReadCallback read_callback,
+                      MMIOWriteCallback write_callback);
 
   uint8_t LoadI8(uint64_t address) override;
   uint16_t LoadI16(uint64_t address) override;
@@ -64,9 +63,6 @@ private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
 
-  bool CheckMMIOLoad(uint64_t address, uint64_t* out_value);
-  bool CheckMMIOStore(uint64_t address, uint64_t value);
-
 private:
   HANDLE    mapping_;
   uint8_t*  mapping_base_;
@@ -81,6 +77,8 @@ private:
     };
     uint8_t*    all_views[6];
   } views_;
+
+  std::unique_ptr<MMIOHandler> mmio_handler_;
 
   XenonMemoryHeap* virtual_heap_;
   XenonMemoryHeap* physical_heap_;
