@@ -18,9 +18,8 @@ EntryTable::EntryTable() = default;
 
 EntryTable::~EntryTable() {
   std::lock_guard<std::mutex> guard(lock_);
-  auto& it = map_.begin();
-  for (; it != map_.end(); ++it) {
-    Entry* entry = it->second;
+  for (auto it : map_) {
+    Entry* entry = it.second;
     delete entry;
   }
 }

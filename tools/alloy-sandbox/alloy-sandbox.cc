@@ -11,6 +11,7 @@
 #include <alloy/backend/ivm/ivm_backend.h>
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/runtime/raw_module.h>
+#include <poly/poly.h>
 #include <xenia/export_resolver.h>
 #include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>

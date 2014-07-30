@@ -17,8 +17,7 @@ namespace alloy {
 namespace runtime {
 
 Function::Function(FunctionInfo* symbol_info)
-    : address_(symbol_info->address()),
-      symbol_info_(symbol_info) {}
+    : address_(symbol_info->address()), symbol_info_(symbol_info) {}
 
 Function::~Function() = default;
 
@@ -81,7 +80,7 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
               symbol_info_->extern_arg1());
     } else {
       XELOGW("undefined extern call to %.8llX %s", symbol_info_->address(),
-             symbol_info_->name());
+             symbol_info_->name().c_str());
       result = 1;
     }
   } else {

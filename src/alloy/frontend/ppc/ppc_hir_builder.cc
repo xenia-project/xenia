@@ -55,9 +55,9 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
 
   with_debug_info_ = with_debug_info;
   if (with_debug_info_) {
-    Comment("%s fn %.8X-%.8X %s", symbol_info->module()->name(),
+    Comment("%s fn %.8X-%.8X %s", symbol_info->module()->name().c_str(),
             symbol_info->address(), symbol_info->end_address(),
-            symbol_info->name());
+            symbol_info->name().c_str());
   }
 
   // Allocate offset list.

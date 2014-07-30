@@ -10,6 +10,8 @@
 #ifndef POLY_CXX_COMPAT_H_
 #define POLY_CXX_COMPAT_H_
 
+#include <memory>
+
 #include <poly/config.h>
 
 // C++11 thread local storage.
@@ -29,6 +31,16 @@
 #if XE_COMPILER_MSVC
 #define alignas(N) __declspec(align(N))
 #endif  // XE_COMPILER_MSVC
+
+// C++1y make_unique.
+// http://herbsutter.com/2013/05/29/gotw-89-solution-smart-pointers/
+// This is present in clang with -std=c++1y, but not otherwise.
+namespace std {
+template <typename T, typename... Args>
+unique_ptr<T> make_unique(Args&&... args) {
+  return unique_ptr<T>(new T(forward<Args>(args)...));
+}
+}  // namespace std
 
 namespace poly {}  // namespace poly
 

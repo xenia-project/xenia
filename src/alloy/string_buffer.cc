@@ -23,7 +23,7 @@ void StringBuffer::Reset() {
 }
 
 void StringBuffer::Append(const std::string& value) {
-  Append(value.c_str());
+  AppendBytes(reinterpret_cast<const uint8_t*>(value.data()), value.size());
 }
 
 void StringBuffer::Append(const char* format, ...) {

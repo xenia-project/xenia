@@ -9,9 +9,9 @@
 
 #include <alloy/backend/x64/x64_code_cache.h>
 
-#include <sys/mman.h>
+#include <poly/assert.h>
 
-#include <alloy/backend/x64/tracing.h>
+#include <sys/mman.h>
 
 namespace alloy {
 namespace backend {

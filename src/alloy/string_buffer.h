@@ -10,6 +10,7 @@
 #ifndef ALLOY_STRING_BUFFER_H_
 #define ALLOY_STRING_BUFFER_H_
 
+#include <string>
 #include <vector>
 
 #include <alloy/core.h>

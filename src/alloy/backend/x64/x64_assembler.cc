@@ -19,7 +19,7 @@
 
 namespace BE {
 #include <beaengine/BeaEngine.h>
-}
+}  // namespace BE
 
 namespace alloy {
 namespace backend {

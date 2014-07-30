@@ -10,6 +10,8 @@
 #ifndef ALLOY_RUNTIME_THREAD_STATE_H_
 #define ALLOY_RUNTIME_THREAD_STATE_H_
 
+#include <string>
+
 #include <alloy/core.h>
 
 #include <alloy/memory.h>
@@ -32,7 +34,8 @@ class ThreadState {
   void* backend_data() const { return backend_data_; }
   void* raw_context() const { return raw_context_; }
 
-  virtual int Suspend(uint32_t timeout_ms = UINT_MAX) { return 1; }
+  int Suspend() { return Suspend(~0); }
+  virtual int Suspend(uint32_t timeout_ms) { return 1; }
   virtual int Resume(bool force = false) { return 1; }
 
   static void Bind(ThreadState* thread_state);

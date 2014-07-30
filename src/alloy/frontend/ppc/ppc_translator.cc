@@ -161,9 +161,10 @@ void PPCTranslator::DumpSource(runtime::FunctionInfo* symbol_info,
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
-  string_buffer->Append("%s fn %.8X-%.8X %s\n", symbol_info->module()->name(),
+  string_buffer->Append("%s fn %.8X-%.8X %s\n",
+                        symbol_info->module()->name().c_str(),
                         symbol_info->address(), symbol_info->end_address(),
-                        symbol_info->name());
+                        symbol_info->name().c_str());
 
   auto blocks = scanner_->FindBlocks(symbol_info);
 

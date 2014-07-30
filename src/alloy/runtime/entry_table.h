@@ -12,6 +12,7 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include <alloy/core.h>
 

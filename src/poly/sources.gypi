@@ -4,6 +4,7 @@
     'assert.h',
     'atomic.h',
     'byte_order.h',
+    'debugging.h',
     'config.h',
     'cxx_compat.h',
     'math.cc',
@@ -28,11 +29,13 @@
     }],
     ['OS == "mac"', {
       'sources': [
+        'debugging_mac.cc',
         'threading_mac.cc',
       ],
     }],
     ['OS == "win"', {
       'sources': [
+        'debugging_win.cc',
         'threading_win.cc',
       ],
     }],
