@@ -60,7 +60,7 @@
     ],
 
     'cflags': [
-      #'-std=c99',
+      '-std=c++11',
     ],
 
     'configurations': {

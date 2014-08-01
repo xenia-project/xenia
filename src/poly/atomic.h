@@ -88,8 +88,8 @@ inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
 
 inline int32_t atomic_cas(int32_t old_value, int32_t new_value,
                           volatile int32_t* value) {
-  return __sync_bool_compare_and_swap(reinterpret_cast<volatile LONG*>(value),
-                                      old_value, new_value);
+  return __sync_bool_compare_and_swap(
+      reinterpret_cast<volatile int32_t*>(value), old_value, new_value);
 }
 
 #else
