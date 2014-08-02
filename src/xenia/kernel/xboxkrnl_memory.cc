@@ -448,6 +448,44 @@ SHIM_CALL MmGetPhysicalAddress_shim(
 }
 
 
+SHIM_CALL ExAllocatePoolTypeWithTag_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t size = SHIM_GET_ARG_32(0);
+  uint32_t tag = SHIM_GET_ARG_32(1);
+  uint32_t zero = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "ExAllocatePoolTypeWithTag(%d, %.8X, %d)",
+      size, tag, zero);
+
+  uint32_t alignment = 8;
+  uint32_t adjusted_size = size;
+  if (adjusted_size < 4 * 1024) {
+    adjusted_size = XEROUNDUP(adjusted_size, 4 * 1024);
+  } else {
+    alignment = 4 * 1024;
+  }
+
+  uint32_t addr = (uint32_t)state->memory()->HeapAlloc(
+      0, adjusted_size, MEMORY_FLAG_ZERO, alignment);
+
+  SHIM_SET_RETURN_32(addr);
+}
+
+
+
+SHIM_CALL ExFreePool_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t base_address = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "ExFreePool(%.8X)",
+      base_address);
+
+  state->memory()->HeapFree(base_address, 0);
+}
+
+
 SHIM_CALL KeLockL2_shim(
     PPCContext* ppc_state, KernelState* state) {
   // Ignored for now. This is just a perf optimization, I think.
@@ -482,6 +520,9 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAllocationSize, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryStatistics, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", ExAllocatePoolTypeWithTag, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", ExFreePool, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLockL2, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeUnlockL2, state);
