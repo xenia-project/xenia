@@ -32,6 +32,7 @@
 #define alignas(N) __declspec(align(N))
 #endif  // XE_COMPILER_MSVC
 
+#if !XE_COMPILER_MSVC
 // C++1y make_unique.
 // http://herbsutter.com/2013/05/29/gotw-89-solution-smart-pointers/
 // This is present in clang with -std=c++1y, but not otherwise.
@@ -41,6 +42,7 @@ unique_ptr<T> make_unique(Args&&... args) {
   return unique_ptr<T>(new T(forward<Args>(args)...));
 }
 }  // namespace std
+#endif  // !XE_COMPILER_MSVC
 
 namespace poly {}  // namespace poly
 
