@@ -9,6 +9,8 @@
 
 #include <poly/debugging.h>
 
+#include <Windows.h>
+
 namespace poly {
 namespace debugging {
 

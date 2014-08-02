@@ -34,11 +34,11 @@ namespace cpu {
 
 class MachMMIOHandler : public MMIOHandler {
  public:
-  MachMMIOHandler();
+  MachMMIOHandler(uint8_t* mapping_base);
+  ~MachMMIOHandler() override;
 
  protected:
   bool Initialize() override;
-  void Uninstall() override;
 
   uint64_t GetThreadStateRip(void* thread_state_ptr) override;
   void SetThreadStateRip(void* thread_state_ptr, uint64_t rip) override;
@@ -54,11 +54,12 @@ class MachMMIOHandler : public MMIOHandler {
   mach_port_t listen_port_;
 };
 
-std::unique_ptr<MMIOHandler> CreateMMIOHandler() {
-  return std::make_unique<MachMMIOHandler>();
+std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* mapping_base) {
+  return std::make_unique<MachMMIOHandler>(mapping_base);
 }
 
-MachMMIOHandler::MachMMIOHandler() : listen_port_(0) {}
+MachMMIOHandler::MachMMIOHandler(uint8_t* mapping_base)
+    : MMIOHandler(mapping_base), listen_port_(0) {}
 
 bool MachMMIOHandler::Initialize() {
   // Allocates the port that listens for exceptions.
@@ -93,7 +94,7 @@ bool MachMMIOHandler::Initialize() {
   return true;
 }
 
-void MachMMIOHandler::Uninstall() {
+MachMMIOHandler::~MachMMIOHandler() {
   task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, 0,
                            EXCEPTION_DEFAULT, 0);
   mach_port_deallocate(mach_task_self(), listen_port_);

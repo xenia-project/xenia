@@ -130,13 +130,6 @@ XenonMemory::~XenonMemory() {
   // requests.
   mmio_handler_.reset();
 
-  // Unallocate mapped ranges.
-  for (int i = 0; i < g_mapped_range_count_; ++i) {
-    const auto& range = g_mapped_ranges_[i];
-    VirtualFree(reinterpret_cast<LPVOID>(range.address), range.size,
-                MEM_DECOMMIT);
-  }
-
   if (mapping_base_) {
     // GPU writeback.
     VirtualFree(
@@ -208,7 +201,7 @@ int XenonMemory::Initialize() {
       MEM_COMMIT, PAGE_READWRITE);
 
   // Add handlers for MMIO.
-  mmio_handler_ = MMIOHandler::Install();
+  mmio_handler_ = MMIOHandler::Install(mapping_base_);
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();

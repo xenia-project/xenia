@@ -24,7 +24,7 @@ class MMIOHandler {
  public:
   virtual ~MMIOHandler();
 
-  static std::unique_ptr<MMIOHandler> Install();
+  static std::unique_ptr<MMIOHandler> Install(uint8_t* mapping_base);
   static MMIOHandler* global_handler() { return global_handler_; }
 
   bool RegisterRange(uint64_t address, uint64_t mask, uint64_t size,
@@ -38,15 +38,16 @@ class MMIOHandler {
   bool HandleAccessFault(void* thread_state, uint64_t fault_address);
 
  protected:
-  MMIOHandler() = default;
+  MMIOHandler(uint8_t* mapping_base) : mapping_base_(mapping_base) {}
 
   virtual bool Initialize() = 0;
-  virtual void Uninstall() = 0;
 
   virtual uint64_t GetThreadStateRip(void* thread_state_ptr) = 0;
   virtual void SetThreadStateRip(void* thread_state_ptr, uint64_t rip) = 0;
   virtual uint64_t* GetThreadStateRegPtr(void* thread_state_ptr,
                                          int32_t be_reg_index) = 0;
+
+  uint8_t* mapping_base_;
 
   struct MMIORange {
     uint64_t address;

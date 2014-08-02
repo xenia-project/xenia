@@ -21,9 +21,9 @@ namespace cpu {
 MMIOHandler* MMIOHandler::global_handler_ = nullptr;
 
 // Implemented in the platform cc file.
-std::unique_ptr<MMIOHandler> CreateMMIOHandler();
+std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* mapping_base);
 
-std::unique_ptr<MMIOHandler> MMIOHandler::Install() {
+std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* mapping_base) {
   // There can be only one handler at a time.
   assert_null(global_handler_);
   if (global_handler_) {
@@ -31,7 +31,7 @@ std::unique_ptr<MMIOHandler> MMIOHandler::Install() {
   }
 
   // Create the platform-specific handler.
-  auto handler = CreateMMIOHandler();
+  auto handler = CreateMMIOHandler(mapping_base);
 
   // Platform-specific initialization for the handler.
   if (!handler->Initialize()) {
@@ -45,19 +45,17 @@ std::unique_ptr<MMIOHandler> MMIOHandler::Install() {
 MMIOHandler::~MMIOHandler() {
   assert_true(global_handler_ == this);
   global_handler_ = nullptr;
-
-  // Platform-specific handler uninstall.
-  Uninstall();
 }
 
 bool MMIOHandler::RegisterRange(uint64_t address, uint64_t mask, uint64_t size,
                                 void* context, MMIOReadCallback read_callback,
                                 MMIOWriteCallback write_callback) {
-  mapped_ranges_.emplace_back({
+  mapped_ranges_.push_back({
       reinterpret_cast<uint64_t>(mapping_base_) | address,
       0xFFFFFFFF00000000ull | mask, size, context, read_callback,
       write_callback,
   });
+  return true;
 }
 
 bool MMIOHandler::CheckLoad(uint64_t address, uint64_t* out_value) {
@@ -153,7 +151,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
       if (!poly::bit_scan_forward(arg2_type & 0xFFFF, &be_reg_index)) {
         be_reg_index = 0;
       }
-      uint64_t* reg_ptr = GetThreadStateRegPtr(thread_state, arg2_type);
+      uint64_t* reg_ptr = GetThreadStateRegPtr(thread_state, be_reg_index);
       value = *reg_ptr;
     } else if ((arg2_type & BE::CONSTANT_TYPE) == BE::CONSTANT_TYPE) {
       value = disasm.Instruction.Immediat;

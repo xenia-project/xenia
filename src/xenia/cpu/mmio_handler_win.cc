@@ -9,6 +9,8 @@
 
 #include <xenia/cpu/mmio_handler.h>
 
+#include <Windows.h>
+
 namespace xe {
 namespace cpu {
 
@@ -16,11 +18,11 @@ LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info);
 
 class WinMMIOHandler : public MMIOHandler {
  public:
-  WinMMIOHandler() = default;
+  WinMMIOHandler(uint8_t* mapping_base) : MMIOHandler(mapping_base) {}
+  ~WinMMIOHandler() override;
 
  protected:
   bool Initialize() override;
-  void Uninstall() override;
 
   uint64_t GetThreadStateRip(void* thread_state_ptr) override;
   void SetThreadStateRip(void* thread_state_ptr, uint64_t rip) override;
@@ -28,8 +30,8 @@ class WinMMIOHandler : public MMIOHandler {
                                  int32_t be_reg_index) override;
 };
 
-std::unique_ptr<MMIOHandler> CreateMMIOHandler() {
-  return std::make_unique<WinMMIOHandler>();
+std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* mapping_base) {
+  return std::make_unique<WinMMIOHandler>(mapping_base);
 }
 
 bool WinMMIOHandler::Initialize() {
@@ -43,7 +45,7 @@ bool WinMMIOHandler::Initialize() {
   return true;
 }
 
-void WinMMIOHandler::Uninstall() {
+WinMMIOHandler::~WinMMIOHandler() {
   // Remove exception handlers.
   RemoveVectoredExceptionHandler(MMIOExceptionHandler);
   RemoveVectoredContinueHandler(MMIOExceptionHandler);
@@ -58,7 +60,8 @@ LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info) {
   auto code = ex_info->ExceptionRecord->ExceptionCode;
   if (code == STATUS_ACCESS_VIOLATION) {
     auto fault_address = ex_info->ExceptionRecord->ExceptionInformation[1];
-    if (HandleAccessFault(ex_info->ContextRecord, fault_address)) {
+    if (MMIOHandler::global_handler()->HandleAccessFault(ex_info->ContextRecord,
+                                                         fault_address)) {
       // Handled successfully - RIP has been updated and we can continue.
       return EXCEPTION_CONTINUE_EXECUTION;
     } else {
