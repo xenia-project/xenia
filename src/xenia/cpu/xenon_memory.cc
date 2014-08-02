@@ -158,12 +158,19 @@ int XenonMemory::Initialize() {
 
   // Create main page file-backed mapping. This is all reserved but
   // uncommitted (so it shouldn't expand page file).
+#if XE_PLATFORM_WIN32
   mapping_ = CreateFileMapping(
       INVALID_HANDLE_VALUE,
       NULL,
       PAGE_READWRITE | SEC_RESERVE,
       1, 0, // entire 4gb space
       NULL);
+#else
+  char mapping_path[] = "/xenia/mapping/XXXXXX";
+  mktemp(mapping_path);
+  mapping_ = shm_open(mapping_path, O_CREAT, 0);
+  ftruncate(mapping_, 0x100000000);
+#endif  // XE_PLATFORM_WIN32
   if (!mapping_) {
     XELOGE("Unable to reserve the 4gb guest address space.");
     assert_not_null(mapping_);
@@ -221,27 +228,34 @@ XECLEANUP:
   return result;
 }
 
+const static struct {
+  uint64_t  virtual_address_start;
+  uint64_t  virtual_address_end;
+  uint64_t  target_address;
+} map_info[] = {
+  0x00000000, 0x3FFFFFFF, 0x00000000, // (1024mb) - virtual 4k pages
+  0x40000000, 0x7FFFFFFF, 0x40000000, // (1024mb) - virtual 64k pages
+  0x80000000, 0x9FFFFFFF, 0x80000000, //  (512mb) - xex pages
+  0xA0000000, 0xBFFFFFFF, 0x00000000, //  (512mb) - physical 64k pages
+  0xC0000000, 0xDFFFFFFF, 0x00000000, //          - physical 16mb pages
+  0xE0000000, 0xFFFFFFFF, 0x00000000, //          - physical 4k pages
+};
 int XenonMemory::MapViews(uint8_t* mapping_base) {
-  static struct {
-    uint64_t  virtual_address_start;
-    uint64_t  virtual_address_end;
-    uint64_t  target_address;
-  } map_info[] = {
-    0x00000000, 0x3FFFFFFF, 0x00000000, // (1024mb) - virtual 4k pages
-    0x40000000, 0x7FFFFFFF, 0x40000000, // (1024mb) - virtual 64k pages
-    0x80000000, 0x9FFFFFFF, 0x80000000, //  (512mb) - xex pages
-    0xA0000000, 0xBFFFFFFF, 0x00000000, //  (512mb) - physical 64k pages
-    0xC0000000, 0xDFFFFFFF, 0x00000000, //          - physical 16mb pages
-    0xE0000000, 0xFFFFFFFF, 0x00000000, //          - physical 4k pages
-  };
   assert_true(XECOUNT(map_info) == XECOUNT(views_.all_views));
   for (size_t n = 0; n < XECOUNT(map_info); n++) {
-    views_.all_views[n] = (uint8_t*)MapViewOfFileEx(
+#if XE_PLATFORM_WIN32
+    views_.all_views[n] = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
         mapping_,
         FILE_MAP_ALL_ACCESS,
         0x00000000, (DWORD)map_info[n].target_address,
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
-        mapping_base + map_info[n].virtual_address_start);
+        mapping_base + map_info[n].virtual_address_start));
+#else
+    views_.all_views[n] = reinterpret_cast<uint8_t*>(mmap(
+        map_info[n].virtual_address_start + mapping_base,
+        map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
+        PROT_NONE, MAP_SHARED | MAP_FIXED, mapping_, map_info[n].target_address));
+#endif  // XE_PLATFORM_WIN32
     XEEXPECTNOTNULL(views_.all_views[n]);
   }
   return 0;
@@ -254,7 +268,12 @@ XECLEANUP:
 void XenonMemory::UnmapViews() {
   for (size_t n = 0; n < XECOUNT(views_.all_views); n++) {
     if (views_.all_views[n]) {
+#if XE_PLATFORM_WIN32
       UnmapViewOfFile(views_.all_views[n]);
+#else
+      size_t length = map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1;
+      munmap(views_.all_views[n], length);
+#endif  // XE_PLATFORM_WIN32
     }
   }
 }
@@ -404,7 +423,7 @@ size_t XenonMemory::QuerySize(uint64_t base_address) {
              base_address < XENON_MEMORY_PHYSICAL_HEAP_HIGH) {
     return physical_heap_->QuerySize(base_address);
   } else {
-    // A placed address. Decommit.
+    // A placed address.
     uint8_t* p = Translate(base_address);
     MEMORY_BASIC_INFORMATION mem_info;
     if (VirtualQuery(p, &mem_info, sizeof(mem_info))) {
