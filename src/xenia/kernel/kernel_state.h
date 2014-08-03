@@ -10,11 +10,14 @@
 #ifndef XENIA_KERNEL_KERNEL_STATE_H_
 #define XENIA_KERNEL_KERNEL_STATE_H_
 
+#include <memory>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 #include <xenia/export_resolver.h>
 #include <xenia/xbox.h>
+#include <xenia/kernel/app.h>
 #include <xenia/kernel/object_table.h>
 #include <xenia/kernel/fs/filesystem.h>
 
@@ -47,6 +50,8 @@ public:
 
   Dispatcher* dispatcher() const { return dispatcher_; }
 
+  XAppManager* app_manager() const { return app_manager_.get(); }
+
   ObjectTable* object_table() const { return object_table_; }
 
   XModule* GetModule(const char* name);
@@ -68,6 +73,8 @@ private:
   fs::FileSystem* file_system_;
 
   Dispatcher*     dispatcher_;
+
+  std::unique_ptr<XAppManager> app_manager_;
 
   ObjectTable*    object_table_;
   xe_mutex_t*     object_mutex_;

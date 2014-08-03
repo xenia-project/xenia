@@ -15,6 +15,7 @@
 #include <xenia/kernel/xboxkrnl_module.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/xobject.h>
+#include <xenia/kernel/apps/apps.h>
 #include <xenia/kernel/objects/xmodule.h>
 #include <xenia/kernel/objects/xnotify_listener.h>
 #include <xenia/kernel/objects/xthread.h>
@@ -39,11 +40,15 @@ KernelState::KernelState(Emulator* emulator) :
 
   dispatcher_   = new Dispatcher(this);
 
+  app_manager_  = std::make_unique<XAppManager>();
+
   object_table_ = new ObjectTable();
   object_mutex_ = xe_mutex_alloc(10000);
 
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
+
+  apps::RegisterApps(this, app_manager_.get());
 }
 
 KernelState::~KernelState() {
@@ -52,6 +57,9 @@ KernelState::~KernelState() {
   // Delete all objects.
   xe_mutex_free(object_mutex_);
   delete object_table_;
+
+  // Shutdown apps.
+  app_manager_.reset();
 
   delete dispatcher_;
 

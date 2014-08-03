@@ -34,43 +34,9 @@ SHIM_CALL XMsgInProcessCall_shim(
       "XMsgInProcessCall(%.8X, %.8X, %.8X, %.8X)",
       app, message, arg1, arg2);
 
-  bool handled = false;
-
-  // TODO(benvanik): build XMsg pump? async/sync/etc
-  if (app == 0xFA) {
-    // XMP = music
-    // http://freestyledash.googlecode.com/svn-history/r1/trunk/Freestyle/Scenes/Media/Music/ScnMusic.cpp
-    if (message == 0x00070009) {
-      uint32_t a = SHIM_MEM_32(arg1 + 0); // 0x00000002
-      uint32_t b = SHIM_MEM_32(arg1 + 4); // out ptr to 4b - expect 0
-      XELOGD("XMPGetStatusEx(%.8X, %.8X)", a, b);
-      assert_zero(arg2);
-      assert_true(a == 2);
-      SHIM_SET_MEM_32(b, 0);
-      handled = true;
-    } else if (message == 0x0007001A) {
-      // dcz
-      // arg1 = ?
-      // arg2 = 0
-    } else if (message == 0x0007001B) {
-      // Some stupid games will hammer this on a thread - induce a delay
-      // here to keep from starving real threads.
-      Sleep(1);
-      uint32_t a = SHIM_MEM_32(arg1 + 0); // 0x00000002
-      uint32_t b = SHIM_MEM_32(arg1 + 4); // out ptr to 4b - expect 0
-      XELOGD("XMPGetStatus(%.8X, %.8X)", a, b);
-      assert_zero(arg2);
-      assert_true(a == 2);
-      SHIM_SET_MEM_32(b, 0);
-      handled = true;
-    }
-  }
-
-  if (!handled) {
-    XELOGE("Unimplemented XMsgInProcessCall message!");
-  }
-
-  SHIM_SET_RETURN_32(handled ? X_ERROR_SUCCESS : X_ERROR_NOT_FOUND);
+  auto result = state->app_manager()->DispatchMessageSync(
+      app, message, arg1, arg2);
+  SHIM_SET_RETURN_32(result);
 }
 
 
@@ -86,31 +52,11 @@ SHIM_CALL XMsgStartIORequest_shim(
       "XMsgStartIORequest(%.8X, %.8X, %.8X, %.8X, %d)",
       app, message, overlapped_ptr, buffer, buffer_length);
 
-  bool handled = false;
-
   assert_zero(overlapped_ptr);
 
-  // TODO(benvanik): build XMsg pump? async/sync/etc
-  if (app == 0xFA) {
-    // XMP = music
-    // http://freestyledash.googlecode.com/svn-history/r1/trunk/Freestyle/Scenes/Media/Music/ScnMusic.cpp
-    if (message == 0x00070009) {
-      assert(buffer_length == 8);
-      uint32_t a = SHIM_MEM_32(buffer + 0); // 0x00000002
-      uint32_t b = SHIM_MEM_32(buffer + 4); // out ptr to 4b - expect 0
-      XELOGD("XMPGetStatusEx(%.8X, %.8X)", a, b);
-      assert_true(a == 2);
-      SHIM_SET_MEM_32(b, 0);
-      Sleep(1);
-      handled = true;
-    }
-  }
-
-  if (!handled) {
-    XELOGE("Unimplemented XMsgStartIORequest message!");
-  }
-
-  SHIM_SET_RETURN_32(handled ? X_ERROR_SUCCESS : X_ERROR_NOT_FOUND);
+  auto result = state->app_manager()->DispatchMessageAsync(
+      app, message, buffer, buffer_length);
+  SHIM_SET_RETURN_32(result);
 }
 
 

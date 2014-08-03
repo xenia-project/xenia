@@ -1,6 +1,8 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'app.cc',
+    'app.h',
     'async_request.cc',
     'async_request.h',
     'dispatcher.cc',
@@ -70,6 +72,7 @@
   ],
 
   'includes': [
+    'apps/sources.gypi',
     'fs/sources.gypi',
     'objects/sources.gypi',
     'util/sources.gypi',
