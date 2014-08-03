@@ -63,6 +63,7 @@ typedef uint32_t X_RESULT;
 #define X_HRESULT_FROM_WIN32(x) ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
 #define X_ERROR_SUCCESS                                 X_HRESULT_FROM_WIN32(0x00000000L)
 #define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
+#define X_ERROR_INVALID_HANDLE                          X_HRESULT_FROM_WIN32(0x00000006L)
 #define X_ERROR_NO_MORE_FILES                           X_HRESULT_FROM_WIN32(0x00000018L)
 #define X_ERROR_INSUFFICIENT_BUFFER                     X_HRESULT_FROM_WIN32(0x0000007AL)
 #define X_ERROR_BAD_ARGUMENTS                           X_HRESULT_FROM_WIN32(0x000000A0L)
@@ -190,6 +191,35 @@ typedef enum _X_FILE_INFORMATION_CLASS {
   XFileMaximumInformation
 } X_FILE_INFORMATION_CLASS;
 
+
+inline void XOverlappedSetResult(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  p[0] = value;
+}
+inline void XOverlappedSetLength(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  p[1] = value;
+}
+inline void XOverlappedSetContext(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  p[2] = value;
+}
+inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  p[7] = value;
+}
+inline X_HANDLE XOverlappedGetEvent(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return p[4];
+}
+inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return p[5];
+}
+inline uint32_t XOverlappedGetCompletionContext(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return p[6];
+}
 
 class X_ANSI_STRING {
 private:

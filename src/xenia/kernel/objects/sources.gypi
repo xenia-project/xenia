@@ -1,6 +1,8 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'xenumerator.cc',
+    'xenumerator.h',
     'xevent.cc',
     'xevent.h',
     'xfile.cc',

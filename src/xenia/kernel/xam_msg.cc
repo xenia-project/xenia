@@ -74,8 +74,48 @@ SHIM_CALL XMsgInProcessCall_shim(
 }
 
 
+SHIM_CALL XMsgStartIORequest_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t app = SHIM_GET_ARG_32(0);
+  uint32_t message = SHIM_GET_ARG_32(1);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(2);
+  uint32_t buffer = SHIM_GET_ARG_32(3);
+  uint32_t buffer_length = SHIM_GET_ARG_32(4);
+
+  XELOGD(
+      "XMsgStartIORequest(%.8X, %.8X, %.8X, %.8X, %d)",
+      app, message, overlapped_ptr, buffer, buffer_length);
+
+  bool handled = false;
+
+  assert_zero(overlapped_ptr);
+
+  // TODO(benvanik): build XMsg pump? async/sync/etc
+  if (app == 0xFA) {
+    // XMP = music
+    // http://freestyledash.googlecode.com/svn-history/r1/trunk/Freestyle/Scenes/Media/Music/ScnMusic.cpp
+    if (message == 0x00070009) {
+      assert(buffer_length == 8);
+      uint32_t a = SHIM_MEM_32(buffer + 0); // 0x00000002
+      uint32_t b = SHIM_MEM_32(buffer + 4); // out ptr to 4b - expect 0
+      XELOGD("XMPGetStatusEx(%.8X, %.8X)", a, b);
+      assert_true(a == 2);
+      SHIM_SET_MEM_32(b, 0);
+      Sleep(1);
+      handled = true;
+    }
+  }
+
+  if (!handled) {
+    XELOGE("Unimplemented XMsgStartIORequest message!");
+  }
+
+  SHIM_SET_RETURN_32(handled ? X_ERROR_SUCCESS : X_ERROR_NOT_FOUND);
+}
+
+
 SHIM_CALL XMsgCancelIORequest_shim(
-  PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_state, KernelState* state) {
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(0);
   uint32_t wait = SHIM_GET_ARG_32(1);
 
@@ -97,5 +137,6 @@ SHIM_CALL XMsgCancelIORequest_shim(
 void xe::kernel::xam::RegisterMsgExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XMsgInProcessCall, state);
+  SHIM_SET_MAPPING("xam.xex", XMsgStartIORequest, state);
   SHIM_SET_MAPPING("xam.xex", XMsgCancelIORequest, state);
 }

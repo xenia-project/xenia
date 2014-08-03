@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xam_private.h>
+#include <xenia/kernel/objects/xenumerator.h>
 #include <xenia/kernel/util/shim_utils.h>
 
 
@@ -191,6 +192,30 @@ SHIM_CALL XamShowSigninUI_shim(
 }
 
 
+SHIM_CALL XamUserCreateAchievementEnumerator_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t title_id = SHIM_GET_ARG_32(0);
+  uint32_t user_index = SHIM_GET_ARG_32(1);
+  uint32_t xuid = SHIM_GET_ARG_32(2);
+  uint32_t flags = SHIM_GET_ARG_32(3);
+  uint32_t offset = SHIM_GET_ARG_32(4);
+  uint32_t count = SHIM_GET_ARG_32(5);
+  uint32_t buffer = SHIM_GET_ARG_32(6);
+  uint32_t handle_ptr = SHIM_GET_ARG_32(7);
+
+  XELOGD(
+      "XamUserCreateAchievementEnumerator(%.8X, %d, %.8X, %.8X, %d, %d, %.8X, %.8X)",
+      title_id, user_index, xuid, flags, offset, count, buffer, handle_ptr);
+
+  XEnumerator* e = new XEnumerator(state);
+  e->Initialize();
+
+  SHIM_SET_MEM_32(handle_ptr, e->handle());
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -203,4 +228,5 @@ void xe::kernel::xam::RegisterUserExports(
   SHIM_SET_MAPPING("xam.xex", XamUserGetName, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
   SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserCreateAchievementEnumerator, state);
 }

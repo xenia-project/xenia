@@ -41,6 +41,7 @@ public:
     kTypeNotifyListener,
     kTypeMutant,
     kTypeTimer,
+    kTypeEnumerator,
   };
 
   XObject(KernelState* kernel_state, Type type);

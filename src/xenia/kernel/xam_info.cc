@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xam_private.h>
+#include <xenia/kernel/objects/xenumerator.h>
 #include <xenia/kernel/util/shim_utils.h>
 #include <xenia/kernel/util/xex2.h>
 
@@ -102,6 +103,42 @@ SHIM_CALL XamLoaderGetLaunchData_shim(
 }
 
 
+SHIM_CALL XamEnumerate_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t zero = SHIM_GET_ARG_32(1);
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
+  uint32_t buffer_length = SHIM_GET_ARG_32(3);
+  uint32_t item_count_ptr = SHIM_GET_ARG_32(4);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(5);
+
+  XELOGD(
+      "XamEnumerate(%.8X, %d, %d, %.8X, %d, %.8X, %.8X)",
+      handle, zero, buffer_ptr, buffer_length, item_count_ptr,
+      overlapped_ptr);
+
+  XEnumerator* e = nullptr;
+  if (XFAILED(state->object_table()->GetObject(
+      handle, (XObject**)&e))) {
+    SHIM_SET_RETURN_64(X_ERROR_INVALID_HANDLE);
+    return;
+  }
+
+  if (item_count_ptr) {
+    SHIM_SET_MEM_32(item_count_ptr, 0);
+  } else if (overlapped_ptr) {
+    // TODO(benvanik): overlapped IO.
+    assert_zero(overlapped_ptr);
+  } else {
+    assert_always();
+  }
+
+  e->Release();
+
+  SHIM_SET_RETURN_64(0);
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -115,4 +152,6 @@ void xe::kernel::xam::RegisterInfoExports(
 
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchDataSize, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchData, state);
+
+  SHIM_SET_MAPPING("xam.xex", XamEnumerate, state);
 }
