@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xam_private.h>
+#include <xenia/kernel/objects/xevent.h>
 #include <xenia/kernel/util/shim_utils.h>
 
 
@@ -36,6 +37,9 @@ SHIM_CALL XMsgInProcessCall_shim(
 
   auto result = state->app_manager()->DispatchMessageSync(
       app, message, arg1, arg2);
+  if (result == X_ERROR_NOT_FOUND) {
+    XELOGE("XMsgStartIORequest: app not found");
+  }
   SHIM_SET_RETURN_32(result);
 }
 
@@ -56,6 +60,9 @@ SHIM_CALL XMsgStartIORequest_shim(
 
   auto result = state->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
+  if (result == X_ERROR_NOT_FOUND) {
+    XELOGE("XMsgStartIORequest: app not found");
+  }
   SHIM_SET_RETURN_32(result);
 }
 
@@ -69,8 +76,15 @@ SHIM_CALL XMsgCancelIORequest_shim(
       "XMsgCancelIORequest(%.8X, %d)",
       overlapped_ptr, wait);
 
-  // ?
-  XELOGW("XMsgCancelIORequest NOT IMPLEMENTED (wait?)");
+  X_HANDLE event_handle = XOverlappedGetEvent(SHIM_MEM_ADDR(overlapped_ptr));
+  if (event_handle && wait) {
+    XEvent* ev = nullptr;
+    if (XSUCCEEDED(state->object_table()->GetObject(
+        event_handle, reinterpret_cast<XObject**>(&ev)))) {
+      ev->Wait(0, 0, true, nullptr);
+      ev->Release();
+    }
+  }
 
   SHIM_SET_RETURN_32(0);
 }

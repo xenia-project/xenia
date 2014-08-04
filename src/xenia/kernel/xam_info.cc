@@ -125,10 +125,11 @@ SHIM_CALL XamEnumerate_shim(
   }
 
   if (item_count_ptr) {
+    assert_zero(overlapped_ptr);
     SHIM_SET_MEM_32(item_count_ptr, 0);
   } else if (overlapped_ptr) {
-    // TODO(benvanik): overlapped IO.
-    assert_zero(overlapped_ptr);
+    assert_zero(item_count_ptr);
+    state->CompleteOverlappedImmediate(overlapped_ptr, 0, 0);
   } else {
     assert_always();
   }

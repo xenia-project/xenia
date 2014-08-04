@@ -141,6 +141,10 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   // Title ID = 0 means us.
   // 0xfffe07d1 = profile?
 
+  if (user_index == 255) {
+    user_index = 0;
+  }
+
   if (user_index) {
     // Only support user 0.
     SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);

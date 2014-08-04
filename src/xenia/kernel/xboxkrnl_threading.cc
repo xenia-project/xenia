@@ -388,8 +388,8 @@ uint64_t xeKeQueryPerformanceFrequency() {
 
 SHIM_CALL KeQueryPerformanceFrequency_shim(
     PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "KeQueryPerformanceFrequency()");
+  // XELOGD(
+  //     "KeQueryPerformanceFrequency()");
 
   uint64_t result = xeKeQueryPerformanceFrequency();
   SHIM_SET_RETURN_64(result);
@@ -410,9 +410,9 @@ SHIM_CALL KeDelayExecutionThread_shim(
   uint32_t interval_ptr = SHIM_GET_ARG_32(2);
   uint64_t interval = SHIM_MEM_64(interval_ptr);
 
-  XELOGD(
-    "KeDelayExecutionThread(%.8X, %d, %.8X(%.16llX)",
-    processor_mode, alertable, interval_ptr, interval);
+  // XELOGD(
+  //     "KeDelayExecutionThread(%.8X, %d, %.8X(%.16llX)",
+  //     processor_mode, alertable, interval_ptr, interval);
 
   X_STATUS result = xeKeDelayExecutionThread(
       processor_mode, alertable, interval);
