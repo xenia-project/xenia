@@ -135,6 +135,17 @@ uint64_t Processor::Execute(
   return context->r[3];
 }
 
+Irql Processor::RaiseIrql(Irql new_value) {
+  return static_cast<Irql>(
+      poly::atomic_exchange(static_cast<uint32_t>(new_value),
+                            reinterpret_cast<volatile uint32_t*>(&irql_)));
+}
+
+void Processor::LowerIrql(Irql old_value) {
+  poly::atomic_exchange(static_cast<uint32_t>(old_value),
+                        reinterpret_cast<volatile uint32_t*>(&irql_));
+}
+
 uint64_t Processor::ExecuteInterrupt(
     uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");

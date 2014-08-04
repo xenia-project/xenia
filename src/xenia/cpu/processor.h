@@ -27,6 +27,14 @@ namespace xe {
 namespace cpu {
 
 
+enum class Irql : uint32_t {
+  PASSIVE = 0,
+  APC = 1,
+  DISPATCH = 2,
+  DPC = 3,
+};
+
+
 class Processor {
 public:
   Processor(Emulator* emulator);
@@ -44,6 +52,9 @@ public:
       XenonThreadState* thread_state, uint64_t address, uint64_t args[],
       size_t arg_count);
 
+  Irql RaiseIrql(Irql new_value);
+  void LowerIrql(Irql old_value);
+
   uint64_t ExecuteInterrupt(
       uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count);
 
@@ -54,6 +65,7 @@ private:
   XenonRuntime*       runtime_;
   Memory*             memory_;
 
+  Irql                irql_;
   xe_mutex_t*         interrupt_thread_lock_;
   XenonThreadState*   interrupt_thread_state_;
   uint64_t            interrupt_thread_block_;

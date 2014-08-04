@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/xboxkrnl_threading.h>
 
+#include <xenia/cpu/processor.h>
 #include <xenia/kernel/dispatcher.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/native_list.h>
@@ -1275,9 +1276,9 @@ SHIM_CALL KfAcquireSpinLock_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "KfAcquireSpinLock(%.8X)",
-      lock_ptr);
+  // XELOGD(
+  //     "KfAcquireSpinLock(%.8X)",
+  //     lock_ptr);
 
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
   uint32_t old_irql = xeKfAcquireSpinLock(lock);
@@ -1301,10 +1302,10 @@ SHIM_CALL KfReleaseSpinLock_shim(
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
   uint32_t old_irql = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "KfReleaseSpinLock(%.8X, %d)",
-      lock_ptr,
-      old_irql);
+  // XELOGD(
+  //     "KfReleaseSpinLock(%.8X, %d)",
+  //     lock_ptr,
+  //     old_irql);
 
   xeKfReleaseSpinLock(reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr)),
                       old_irql);
@@ -1315,9 +1316,9 @@ SHIM_CALL KeAcquireSpinLockAtRaisedIrql_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "KeAcquireSpinLockAtRaisedIrql(%.8X)",
-      lock_ptr);
+  // XELOGD(
+  //     "KeAcquireSpinLockAtRaisedIrql(%.8X)",
+  //     lock_ptr);
 
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
@@ -1332,9 +1333,9 @@ SHIM_CALL KeReleaseSpinLockFromRaisedIrql_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t lock_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "KeReleaseSpinLockFromRaisedIrql(%.8X)",
-      lock_ptr);
+  // XELOGD(
+  //     "KeReleaseSpinLockFromRaisedIrql(%.8X)",
+  //     lock_ptr);
 
   // Unlock.
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
@@ -1349,8 +1350,8 @@ void xeKeEnterCriticalRegion() {
 
 SHIM_CALL KeEnterCriticalRegion_shim(
     PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "KeEnterCriticalRegion()");
+  // XELOGD(
+  //     "KeEnterCriticalRegion()");
   xeKeEnterCriticalRegion();
 }
 
@@ -1362,9 +1363,28 @@ void xeKeLeaveCriticalRegion() {
 
 SHIM_CALL KeLeaveCriticalRegion_shim(
     PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "KeLeaveCriticalRegion()");
+  // XELOGD(
+  //     "KeLeaveCriticalRegion()");
   xeKeLeaveCriticalRegion();
+}
+
+
+SHIM_CALL KeRaiseIrqlToDpcLevel_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  // XELOGD(
+  //     "KeRaiseIrqlToDpcLevel()");
+  auto old_value = state->processor()->RaiseIrql(cpu::Irql::DPC);
+  SHIM_SET_RETURN_32(old_value);
+}
+
+
+SHIM_CALL KfLowerIrql_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t old_value = SHIM_GET_ARG_32(0);
+  // XELOGD(
+  //     "KfLowerIrql(%d)",
+  //     old_value);
+  state->processor()->LowerIrql(static_cast<cpu::Irql>(old_value));
 }
 
 
@@ -1672,6 +1692,9 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeRaiseIrqlToDpcLevel, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KfLowerIrql, state);
 
   //SHIM_SET_MAPPING("xboxkrnl.exe", NtQueueApcThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeApc, state);
