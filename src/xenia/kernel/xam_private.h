@@ -31,6 +31,7 @@ void RegisterNetExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterNotifyExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterUserExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterVideoExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterVoiceExports(ExportResolver* export_resolver, KernelState* state);
 }  // namespace xam
 
 }  // namespace kernel

@@ -38,6 +38,8 @@
     'xam_user.h',
     'xam_video.cc',
     'xam_video.h',
+    'xam_voice.cc',
+    'xam_voice.h',
     'xboxkrnl_audio.cc',
     'xboxkrnl_audio.h',
     'xboxkrnl_debug.cc',
