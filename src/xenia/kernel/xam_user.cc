@@ -222,6 +222,23 @@ SHIM_CALL XamUserReadProfileSettings_shim(
 }
 
 
+SHIM_CALL XamUserCheckPrivilege_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t mask = SHIM_GET_ARG_32(1);
+  uint32_t out_value_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "XamUserCheckPrivilege(%d, %.8X, %.8X)",
+      user_index, mask, out_value_ptr);
+
+  // If we deny everything, games should hopefully not try to do stuff.
+  SHIM_SET_MEM_32(out_value_ptr, 0);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+}
+
+
 SHIM_CALL XamShowSigninUI_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);
@@ -274,6 +291,7 @@ void xe::kernel::xam::RegisterUserExports(
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetName, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserCheckPrivilege, state);
   SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
   SHIM_SET_MAPPING("xam.xex", XamUserCreateAchievementEnumerator, state);
 }
