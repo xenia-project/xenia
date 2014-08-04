@@ -44,13 +44,13 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   }
 
   xe_mutex_lock(lock_);
-  auto existing = notifications_.find(id);
-  if (existing != notifications_.end()) {
+  if (notifications_.count(id)) {
     // Already exists. Overwrite.
     notifications_[id] = data;
   } else {
     // New.
     notification_count_++;
+    notifications_.insert({ id, data });
   }
   SetEvent(wait_handle_);
   xe_mutex_unlock(lock_);

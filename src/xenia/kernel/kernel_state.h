@@ -19,6 +19,7 @@
 #include <xenia/xbox.h>
 #include <xenia/kernel/app.h>
 #include <xenia/kernel/object_table.h>
+#include <xenia/kernel/user_profile.h>
 #include <xenia/kernel/fs/filesystem.h>
 
 
@@ -51,6 +52,7 @@ public:
   Dispatcher* dispatcher() const { return dispatcher_; }
 
   XAppManager* app_manager() const { return app_manager_.get(); }
+  UserProfile* user_profile() const { return user_profile_.get(); }
 
   ObjectTable* object_table() const { return object_table_; }
 
@@ -66,6 +68,9 @@ public:
   void UnregisterNotifyListener(XNotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
+  void CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result, uint32_t length = 0);
+  void CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT result, uint32_t length = 0);
+
 private:
   Emulator*       emulator_;
   Memory*         memory_;
@@ -75,6 +80,7 @@ private:
   Dispatcher*     dispatcher_;
 
   std::unique_ptr<XAppManager> app_manager_;
+  std::unique_ptr<UserProfile> user_profile_;
 
   ObjectTable*    object_table_;
   xe_mutex_t*     object_mutex_;

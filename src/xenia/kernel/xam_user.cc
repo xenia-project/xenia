@@ -12,6 +12,7 @@
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xam_private.h>
 #include <xenia/kernel/objects/xenumerator.h>
+#include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/util/shim_utils.h>
 
 
@@ -37,8 +38,9 @@ SHIM_CALL XamUserGetXUID_shim(
       xuid_ptr);
 
   if (user_index == 0) {
+    const auto& user_profile = state->user_profile();
     if (xuid_ptr) {
-      SHIM_SET_MEM_32(xuid_ptr, 0xBABEBABE);
+      SHIM_SET_MEM_64(xuid_ptr, user_profile->xuid());
     }
     SHIM_SET_RETURN_32(0);
   } else {
@@ -59,7 +61,8 @@ SHIM_CALL XamUserGetSigninState_shim(
   // This should keep games from asking us to sign in and also keep them
   // from initializing the network.
   if (user_index == 0) {
-    SHIM_SET_RETURN_64(1);
+    const auto& user_profile = state->user_profile();
+    SHIM_SET_RETURN_64(user_profile->signin_state());
   } else {
     SHIM_SET_RETURN_64(0);
   }
@@ -77,13 +80,14 @@ SHIM_CALL XamUserGetSigninInfo_shim(
       user_index, flags, info_ptr);
 
   if (user_index == 0) {
-    SHIM_SET_MEM_32(info_ptr + 0, 0xBABEBABE); // XUID
-    SHIM_SET_MEM_32(info_ptr + 4, 1); // maybe zero?
-    SHIM_SET_MEM_32(info_ptr + 8, 1); // signin state, same as above
-    SHIM_SET_MEM_32(info_ptr + 12, 0); // ?
+    const auto& user_profile = state->user_profile();
+    SHIM_SET_MEM_64(info_ptr + 0, user_profile->xuid());
+    SHIM_SET_MEM_32(info_ptr + 8, 0); // maybe zero?
+    SHIM_SET_MEM_32(info_ptr + 12, user_profile->signin_state());
     SHIM_SET_MEM_32(info_ptr + 16, 0); // ?
-    char* buffer = (char*)SHIM_MEM_ADDR(info_ptr + 20);
-    xestrncpya(buffer, 0x10, "User0", 5);
+    SHIM_SET_MEM_32(info_ptr + 20, 0); // ?
+    char* buffer = (char*)SHIM_MEM_ADDR(info_ptr + 24);
+    strcpy(buffer, user_profile->name().data());
     SHIM_SET_RETURN_32(0);
   } else {
     SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
@@ -102,8 +106,9 @@ SHIM_CALL XamUserGetName_shim(
       user_index, buffer_ptr, buffer_len);
 
   if (user_index == 0) {
+    const auto& user_profile = state->user_profile();
     char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);
-    xestrncpya(buffer, buffer_len, "User0", 5);
+    strcpy(buffer, user_profile->name().data());
     SHIM_SET_RETURN_32(0);
   } else {
     SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
@@ -136,42 +141,80 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   // Title ID = 0 means us.
   // 0xfffe07d1 = profile?
 
-  // TODO(benvanik): implement overlapped support
-  assert_zero(overlapped_ptr);
+  if (user_index) {
+    // Only support user 0.
+    SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
+    return;
+  }
+  const auto& user_profile = state->user_profile();
 
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.
 
+  // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // Result buffer is:
   // uint32_t setting_count
-  // [repeated X_USER_PROFILE_SETTING structs]
+  // struct {
+  //   uint32_t source;
+  //   (4b pad)
+  //   uint32_t user_index;
+  //   (4b pad)
+  //   uint32_t setting_id;
+  //   (4b pad)
+  //   <data>
+  // } settings[setting_count]
+  const size_t kSettingSize = 4 + 4 + 4 + 4 + 4 + 4 + 16;
 
-  typedef union {
-    struct {
-      uint32_t id : 14;
-      uint32_t unk : 2;
-      uint32_t size : 12;
-      uint32_t type : 4;
-    };
-    uint32_t value;
-  } x_profile_setting_t;
-
-  // Compute sizes.
-  uint32_t size_needed = 4;
-  for (uint32_t n = 0; n < setting_count; n++) {
-    x_profile_setting_t setting;
-    setting.value = SHIM_MEM_32(setting_ids_ptr + n * 4);
-    size_needed += setting.size;
+  // Compute required size.
+  uint32_t size_needed = 4 + 4 + setting_count * kSettingSize;
+  for (uint32_t n = 0; n < setting_count; ++n) {
+    uint32_t setting_id = SHIM_MEM_32(setting_ids_ptr + n * 4);
+    auto setting = user_profile->GetSetting(setting_id);
+    if (setting) {
+      auto extra_size = static_cast<uint32_t>(setting->extra_size());;
+      size_needed += extra_size;
+    }
   }
   SHIM_SET_MEM_32(buffer_size_ptr, size_needed);
   if (buffer_size < size_needed) {
+    if (overlapped_ptr) {
+      state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_INSUFFICIENT_BUFFER);
+    }
     SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
     return;
   }
 
-  // TODO(benvanik): read profile data.
-  // For now, just return signed out.
-  SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
+  SHIM_SET_MEM_32(buffer_ptr + 0, setting_count);
+  SHIM_SET_MEM_32(buffer_ptr + 4, buffer_ptr + 8);
+
+  size_t buffer_offset = 4 + setting_count * kSettingSize;
+  size_t user_data_ptr = buffer_ptr + 8;
+  for (uint32_t n = 0; n < setting_count; ++n) {
+    uint32_t setting_id = SHIM_MEM_32(setting_ids_ptr + n * 4);
+    auto setting = user_profile->GetSetting(setting_id);
+    if (setting) {
+      SHIM_SET_MEM_32(user_data_ptr + 0, setting->is_title_specific() ? 2 : 1);
+    } else {
+      SHIM_SET_MEM_32(user_data_ptr + 0, 0);
+    }
+    SHIM_SET_MEM_32(user_data_ptr + 8, user_index);
+    SHIM_SET_MEM_32(user_data_ptr + 16, setting_id);
+    if (setting) {
+      buffer_offset = setting->Append(SHIM_MEM_ADDR(user_data_ptr + 24),
+                                      SHIM_MEM_ADDR(buffer_ptr),
+                                      buffer_offset);
+    } else {
+      memset(SHIM_MEM_ADDR(user_data_ptr + 24), 0, 16);
+    }
+    user_data_ptr += kSettingSize;
+  }
+
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  } else {
+    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  }
 }
 
 

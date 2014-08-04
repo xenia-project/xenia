@@ -15,6 +15,8 @@
     'native_list.h',
     'object_table.cc',
     'object_table.h',
+    'user_profile.cc',
+    'user_profile.h',
     'xam_content.cc',
     'xam_content.h',
     'xam_info.cc',
