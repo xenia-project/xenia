@@ -51,6 +51,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   RegisterRtlExports(export_resolver_, kernel_state_);
   RegisterStringExports(export_resolver_, kernel_state_);
   RegisterThreadingExports(export_resolver_, kernel_state);
+  RegisterUsbcamExports(export_resolver_, kernel_state);
   RegisterVideoExports(export_resolver_, kernel_state);
 
   uint8_t* mem = memory_->membase();

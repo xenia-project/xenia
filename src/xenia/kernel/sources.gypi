@@ -71,6 +71,8 @@
     'xboxkrnl_table.inc',
     'xboxkrnl_threading.cc',
     'xboxkrnl_threading.h',
+    'xboxkrnl_usbcam.cc',
+    'xboxkrnl_usbcam.h',
     'xboxkrnl_video.cc',
     'xboxkrnl_video.h',
     'xobject.cc',
