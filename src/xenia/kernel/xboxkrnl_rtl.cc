@@ -9,6 +9,9 @@
 
 #include <xenia/kernel/xboxkrnl_rtl.h>
 
+#include <locale>
+#include <codecvt>
+
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xthread.h>
@@ -212,9 +215,12 @@ void xeRtlFreeAnsiString(uint32_t string_ptr) {
   // VOID
   // _Inout_  PANSI_STRING AnsiString
 
-  //uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
-  // TODO(benvanik): free the buffer
-  XELOGE("RtlFreeAnsiString leaking buffer");
+  uint32_t buffer = IMPL_MEM_32(string_ptr + 4);
+  if (!buffer) {
+    return;
+  }
+  uint32_t length = IMPL_MEM_16(string_ptr + 2);
+  state->memory()->HeapFree(buffer, length);
 
   IMPL_SET_MEM_16(string_ptr + 0, 0);
   IMPL_SET_MEM_16(string_ptr + 2, 0);
@@ -286,9 +292,12 @@ void xeRtlFreeUnicodeString(uint32_t string_ptr) {
   // VOID
   // _Inout_  PUNICODE_STRING UnicodeString
 
-  //uint32_t buffer = IMPL_MEM_32(string_ptr + 4);
-  // TODO(benvanik): free the buffer
-  XELOGE("RtlFreeUnicodeString leaking buffer");
+  uint32_t buffer = IMPL_MEM_32(string_ptr + 4);
+  if (!buffer) {
+    return;
+  }
+  uint32_t length = IMPL_MEM_16(string_ptr + 2);
+  state->memory()->HeapFree(buffer, length);
 
   IMPL_SET_MEM_16(string_ptr + 0, 0);
   IMPL_SET_MEM_16(string_ptr + 2, 0);
@@ -307,8 +316,9 @@ SHIM_CALL RtlFreeUnicodeString_shim(
 
 
 // http://msdn.microsoft.com/en-us/library/ff562969
-X_STATUS xeRtlUnicodeStringToAnsiString(
-    uint32_t destination_ptr, uint32_t source_ptr, uint32_t alloc_dest) {
+X_STATUS xeRtlUnicodeStringToAnsiString(uint32_t destination_ptr,
+                                        uint32_t source_ptr,
+                                        uint32_t alloc_dest) {
   KernelState* state = shared_kernel_state_;
   assert_not_null(state);
 
@@ -317,18 +327,36 @@ X_STATUS xeRtlUnicodeStringToAnsiString(
   // _In_     PCUNICODE_STRING SourceString,
   // _In_     BOOLEAN AllocateDestinationString
 
-  XELOGE("RtlUnicodeStringToAnsiString not yet implemented");
-  assert_always();
-
-  if (alloc_dest) {
-    // Allocate a new buffer to place the string into.
-    //IMPL_SET_MEM_32(destination_ptr + 4, buffer_ptr);
-  } else {
-    // Reuse the buffer in the target.
-    //uint32_t buffer_size = IMPL_MEM_16(destination_ptr + 2);
+  std::wstring unicode_str = poly::load_and_swap<std::wstring>(
+      IMPL_MEM_ADDR(IMPL_MEM_32(source_ptr + 4)));
+  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+  std::string ansi_str = converter.to_bytes(unicode_str);
+  if (ansi_str.size() > 0xFFFF - 1) {
+    return X_STATUS_INVALID_PARAMETER_2;
   }
 
-  return X_STATUS_UNSUCCESSFUL;
+  X_STATUS result = X_STATUS_SUCCESS;
+  if (alloc_dest) {
+    auto buffer_ptr = state->memory()->HeapAlloc(0, ansi_str.size() + 1, 0);
+    memcpy(IMPL_MEM_ADDR(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
+    IMPL_SET_MEM_16(destination_ptr + 0,
+                    static_cast<uint16_t>(ansi_str.size()));
+    IMPL_SET_MEM_16(destination_ptr + 2,
+                    static_cast<uint16_t>(ansi_str.size() + 1));
+    IMPL_SET_MEM_32(destination_ptr + 4, static_cast<uint32_t>(buffer_ptr));
+  } else {
+    uint32_t buffer_capacity = IMPL_MEM_16(destination_ptr + 2);
+    uint32_t buffer_ptr = IMPL_MEM_32(destination_ptr + 4);
+    if (buffer_capacity < ansi_str.size() + 1) {
+      // Too large - we just write what we can.
+      result = X_STATUS_BUFFER_OVERFLOW;
+      memcpy(IMPL_MEM_ADDR(buffer_ptr), ansi_str.data(), buffer_capacity - 1);
+    } else {
+      memcpy(IMPL_MEM_ADDR(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
+    }
+    IMPL_SET_MEM_8(buffer_ptr + buffer_capacity - 1, 0);  // \0
+  }
+  return result;
 }
 
 
