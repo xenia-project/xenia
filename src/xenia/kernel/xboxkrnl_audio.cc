@@ -105,6 +105,18 @@ SHIM_CALL XAudioGetVoiceCategoryVolume_shim(
 }
 
 
+SHIM_CALL XAudioEnableDucker_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "XAudioEnableDucker(%.8X)",
+      unk);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+}
+
+
 SHIM_CALL XAudioRegisterRenderDriverClient_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t callback_ptr = SHIM_GET_ARG_32(0);
@@ -195,9 +207,9 @@ void xe::kernel::xboxkrnl::RegisterAudioExports(
   // SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetInputBufferReadOffset, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetSpeakerConfig, state);
-
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetVoiceCategoryVolumeChangeMask, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetVoiceCategoryVolume, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", XAudioEnableDucker, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioRegisterRenderDriverClient, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioUnregisterRenderDriverClient, state);
