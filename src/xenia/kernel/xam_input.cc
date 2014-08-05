@@ -202,6 +202,30 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(
 }
 
 
+SHIM_CALL XamUserGetDeviceContext_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t unk = SHIM_GET_ARG_32(1);
+  uint32_t out_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "XamUserGetDeviceContext(%d, %d, %.8X)",
+      user_index,
+      unk,
+      out_ptr);
+
+  // Games check the result - usually with some masking.
+  // If this function fails they assume zero, so let's fail AND
+  // set zero just to be safe.
+  SHIM_SET_MEM_32(out_ptr, 0);
+  if (!user_index || (user_index & 0xFF) == 0xFF) {
+    SHIM_SET_RETURN_32(0);
+  } else {
+    SHIM_SET_RETURN_32(-1);
+  }
+}
+
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -215,4 +239,5 @@ void xe::kernel::xam::RegisterInputExports(
   SHIM_SET_MAPPING("xam.xex", XamInputSetState, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetKeystroke, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetKeystrokeEx, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserGetDeviceContext, state);
 }
