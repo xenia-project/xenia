@@ -143,13 +143,25 @@ XEEMITTER(lha, 0xA8000000, D)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(lhau, 0xAC000000, D)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + EXTS(D)
+  // RT <- EXTS(MEM(EA, 2))
+  // RA <- EA
+  Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
+  Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
+  f.StoreGPR(i.D.RT, rt);
+  f.StoreGPR(i.D.RA, ea);
+  return 0;
 }
 
 XEEMITTER(lhaux, 0x7C0002EE, X)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // EA <- (RA) + (RB)
+  // RT <- EXTS(MEM(EA, 2))
+  // RA <- EA
+  Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
+  Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
+  f.StoreGPR(i.X.RT, rt);
+  f.StoreGPR(i.X.RA, ea);
+  return 0;
 }
 
 XEEMITTER(lhax, 0x7C0002AE, X)(PPCHIRBuilder& f, InstrData& i) {
