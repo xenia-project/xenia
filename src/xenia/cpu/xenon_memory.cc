@@ -508,6 +508,7 @@ uint64_t XenonMemoryHeap::Alloc(
       space_,
       alignment,
       alloc_size + heap_guard_size * 2);
+  assert_true(reinterpret_cast<uint64_t>(p) <= 0xFFFFFFFFFull);
   if (FLAGS_heap_guard_pages) {
     size_t real_size = mspace_usable_size(p);
     DWORD old_protect;
