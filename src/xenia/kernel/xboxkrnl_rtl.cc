@@ -705,7 +705,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
+  // XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
 
   const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
   uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);

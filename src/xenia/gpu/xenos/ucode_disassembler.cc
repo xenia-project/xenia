@@ -590,8 +590,12 @@ int disasm_fetch(
                  dwords[0], dwords[1], dwords[2]);
 
   output->append("   %sFETCH:\t", sync ? "(S)" : "   ");
-  output->append("%s", fetch_instructions[fetch->opc].name);
-  fetch_instructions[fetch->opc].fxn(output, fetch);
+  if (fetch_instructions[fetch->opc].fxn) {
+    output->append("%s", fetch_instructions[fetch->opc].name);
+    fetch_instructions[fetch->opc].fxn(output, fetch);
+  } else {
+    output->append("???");
+  }
   output->append("\n");
 
   return 0;
