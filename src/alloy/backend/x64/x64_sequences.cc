@@ -2855,6 +2855,66 @@ EMITTER_OPCODE_TABLE(
 
 
 // ============================================================================
+// OPCODE_VECTOR_SUB
+// ============================================================================
+EMITTER(VECTOR_SUB, MATCH(I<OPCODE_VECTOR_SUB, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1, const Xmm& src2) {
+          const TypeName part_type = static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
+          switch (part_type) {
+          case INT8_TYPE:
+            if (saturate) {
+              // TODO(benvanik): trace DID_SATURATE
+              if (is_unsigned) {
+                e.vpsubusb(dest, src1, src2);
+              } else {
+                e.vpsubsb(dest, src1, src2);
+              }
+            } else {
+              e.vpsubb(dest, src1, src2);
+            }
+            break;
+          case INT16_TYPE:
+            if (saturate) {
+              // TODO(benvanik): trace DID_SATURATE
+              if (is_unsigned) {
+                e.vpsubusw(dest, src1, src2);
+              } else {
+                e.vpsubsw(dest, src1, src2);
+              }
+            } else {
+              e.vpsubw(dest, src1, src2);
+            }
+            break;
+          case INT32_TYPE:
+            if (saturate) {
+              if (is_unsigned) {
+                assert_always();
+              } else {
+                assert_always();
+              }
+            } else {
+              e.vpsubd(dest, src1, src2);
+            }
+            break;
+          case FLOAT32_TYPE:
+            e.vsubps(dest, src1, src2);
+            break;
+          default: assert_unhandled_case(part_type); break;
+          }
+        });
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_SUB,
+    VECTOR_SUB);
+
+
+// ============================================================================
 // OPCODE_MUL
 // ============================================================================
 // Sign doesn't matter here, as we don't use the high bits.
@@ -5202,6 +5262,7 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ADD_CARRY);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_SUB);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SUB);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MUL);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MUL_HI);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DIV);

@@ -169,6 +169,8 @@ class HIRBuilder {
   Value* VectorAdd(Value* value1, Value* value2, TypeName part_type,
                    uint32_t arithmetic_flags = 0);
   Value* Sub(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
+  Value* VectorSub(Value* value1, Value* value2, TypeName part_type,
+                   uint32_t arithmetic_flags = 0);
   Value* Mul(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* MulHi(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* Div(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);

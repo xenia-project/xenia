@@ -390,6 +390,12 @@ DEFINE_OPCODE(
     0)
 
 DEFINE_OPCODE(
+    OPCODE_VECTOR_SUB,
+    "vector_sub",
+    OPCODE_SIG_V_V_V,
+    0)
+
+DEFINE_OPCODE(
     OPCODE_MUL,
     "mul",
     OPCODE_SIG_V_V_V,

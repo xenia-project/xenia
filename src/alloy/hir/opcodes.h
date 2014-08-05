@@ -140,6 +140,7 @@ enum Opcode {
   OPCODE_ADD_CARRY,
   OPCODE_VECTOR_ADD,
   OPCODE_SUB,
+  OPCODE_VECTOR_SUB,
   OPCODE_MUL,
   OPCODE_MUL_HI,  // TODO(benvanik): remove this and add INT128 type.
   OPCODE_DIV,

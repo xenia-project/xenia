@@ -1299,6 +1299,23 @@ Value* HIRBuilder::Sub(Value* value1, Value* value2,
   return i->dest;
 }
 
+Value* HIRBuilder::VectorSub(Value* value1, Value* value2, TypeName part_type,
+                             uint32_t arithmetic_flags) {
+  ASSERT_VECTOR_TYPE(value1);
+  ASSERT_VECTOR_TYPE(value2);
+
+  // This is shady.
+  uint32_t flags = part_type | (arithmetic_flags << 8);
+  assert_zero(flags >> 16);
+
+  Instr* i = AppendInstr(OPCODE_VECTOR_SUB_info, (uint16_t)flags,
+                         AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::Mul(Value* value1, Value* value2,
                        uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);

@@ -2735,6 +2735,12 @@ int Translate_SUB(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
+int Translate_VECTOR_SUB(TranslationContext& ctx, Instr* i) {
+  // TODO(benvanik): VECTOR_SUB in IVM.
+  assert_always();
+  return 1;
+}
+
 uint32_t IntCode_MUL_I8_I8(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].i8 = ics.rf[i->src1_reg].i8 * ics.rf[i->src2_reg].i8;
   return IA_NEXT;
@@ -4200,23 +4206,23 @@ static const TranslateFn dispatch_table[] = {
     Translate_VECTOR_COMPARE_UGT, Translate_VECTOR_COMPARE_UGE,
     Translate_ADD,                Translate_ADD_CARRY,
     Translate_VECTOR_ADD,         Translate_SUB,
-    Translate_MUL,                Translate_MUL_HI,
-    Translate_DIV,                Translate_MUL_ADD,
-    Translate_MUL_SUB,            Translate_NEG,
-    Translate_ABS,                Translate_SQRT,
-    Translate_RSQRT,              Translate_POW2,
-    Translate_LOG2,               Translate_DOT_PRODUCT_3,
-    Translate_DOT_PRODUCT_4,      Translate_AND,
-    Translate_OR,                 Translate_XOR,
-    Translate_NOT,                Translate_SHL,
-    Translate_VECTOR_SHL,         Translate_SHR,
-    Translate_VECTOR_SHR,         Translate_SHA,
-    Translate_VECTOR_SHA,         Translate_ROTATE_LEFT,
-    Translate_BYTE_SWAP,          Translate_CNTLZ,
-    Translate_INSERT,             Translate_EXTRACT,
-    Translate_SPLAT,              Translate_PERMUTE,
-    Translate_SWIZZLE,            Translate_PACK,
-    Translate_UNPACK,
+    Translate_VECTOR_SUB,         Translate_MUL,
+    Translate_MUL_HI,             Translate_DIV,
+    Translate_MUL_ADD,            Translate_MUL_SUB,
+    Translate_NEG,                Translate_ABS,
+    Translate_SQRT,               Translate_RSQRT,
+    Translate_POW2,               Translate_LOG2,
+    Translate_DOT_PRODUCT_3,      Translate_DOT_PRODUCT_4,
+    Translate_AND,                Translate_OR,
+    Translate_XOR,                Translate_NOT,
+    Translate_SHL,                Translate_VECTOR_SHL,
+    Translate_SHR,                Translate_VECTOR_SHR,
+    Translate_SHA,                Translate_VECTOR_SHA,
+    Translate_ROTATE_LEFT,        Translate_BYTE_SWAP,
+    Translate_CNTLZ,              Translate_INSERT,
+    Translate_EXTRACT,            Translate_SPLAT,
+    Translate_PERMUTE,            Translate_SWIZZLE,
+    Translate_PACK,               Translate_UNPACK,
     TranslateInvalid,  // Translate_COMPARE_EXCHANGE,
     Translate_ATOMIC_EXCHANGE,
     TranslateInvalid,  // Translate_ATOMIC_ADD,
