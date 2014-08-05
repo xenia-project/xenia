@@ -38,7 +38,7 @@ SHIM_CALL XMsgInProcessCall_shim(
   auto result = state->app_manager()->DispatchMessageSync(
       app, message, arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgStartIORequest: app not found");
+    XELOGE("XMsgInProcessCall: app %.8X undefined", app);
   }
   SHIM_SET_RETURN_32(result);
 }
@@ -61,7 +61,7 @@ SHIM_CALL XMsgStartIORequest_shim(
   auto result = state->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgStartIORequest: app not found");
+    XELOGE("XMsgStartIORequest: app %.8X undefined", app);
   }
   SHIM_SET_RETURN_32(result);
 }
