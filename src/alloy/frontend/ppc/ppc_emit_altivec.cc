@@ -1596,18 +1596,27 @@ XEEMITTER(vsubsws, 0x10000780, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vsububm, 0x10000400, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (EXTZ(VA) + ¬EXTZ(VB) + 1) % 256
+  Value* v = f.VectorSub(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vsubuhm, 0x10000440, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (EXTZ(VA) + ¬EXTZ(VB) + 1) % 2^16
+  Value* v = f.VectorSub(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vsubuwm, 0x10000480, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- (EXTZ(VA) + ¬EXTZ(VB) + 1) % 2^32
+  Value* v = f.VectorSub(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vsububs, 0x10000600, VX)(PPCHIRBuilder& f, InstrData& i) {
