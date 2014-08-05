@@ -230,6 +230,10 @@ void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
   assert_always();
 }
 
+void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
+  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + bit, value);
+}
+
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, bool is_signed) {
   UpdateCR(n, lhs, LoadZero(lhs->type), is_signed);
 }

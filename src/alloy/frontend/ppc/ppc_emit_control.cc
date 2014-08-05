@@ -338,43 +338,75 @@ XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
 // Condition register logical (A-23)
 
 XEEMITTER(crand, 0x4C000202, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- CR[ba] & CR[bb]   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.And(ba, bb);
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(crandc, 0x4C000102, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- CR[ba] & ¬CR[bb]   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.And(ba, f.Not(bb));
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(creqv, 0x4C000242, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- CR[ba] == CR[bb]   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.CompareEQ(ba, bb);
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(crnand, 0x4C0001C2, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- ¬(CR[ba] & CR[bb])   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.Not(f.And(ba, bb));
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(crnor, 0x4C000042, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- ¬(CR[ba] | CR[bb])   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.Not(f.Or(ba, bb));
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(cror, 0x4C000382, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- CR[ba] | CR[bb]   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.Or(ba, bb);
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(crorc, 0x4C000342, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- CR[ba] | ¬CR[bb]   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.Or(ba, f.Not(bb));
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(crxor, 0x4C000182, XL)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // CR[bt] <- CR[ba] xor CR[bb]   bt=bo, ba=bi, bb=bb
+  Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
+  Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
+  Value* bt = f.Xor(ba, bb);
+  f.StoreCRField(i.XL.BO >> 2, i.XL.BO & 3, bt);
+  return 0;
 }
 
 XEEMITTER(mcrf, 0x4C000000, XL)(PPCHIRBuilder& f, InstrData& i) {
