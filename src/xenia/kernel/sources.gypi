@@ -34,6 +34,8 @@
     'xam_ordinals.h',
     'xam_private.h',
     'xam_table.inc',
+    'xam_ui.cc',
+    'xam_ui.h',
     'xam_user.cc',
     'xam_user.h',
     'xam_video.cc',

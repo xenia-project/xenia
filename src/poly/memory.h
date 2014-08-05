@@ -10,6 +10,8 @@
 #ifndef POLY_MEMORY_H_
 #define POLY_MEMORY_H_
 
+#include <string>
+
 #include <poly/byte_order.h>
 
 namespace poly {
@@ -100,6 +102,32 @@ inline float load_and_swap<float>(const void* mem) {
 template <>
 inline double load_and_swap<double>(const void* mem) {
   return byte_swap(*reinterpret_cast<const double*>(mem));
+}
+template <>
+inline std::string load_and_swap<std::string>(const void* mem) {
+  std::string value;
+  for (int i = 0;; ++i) {
+    auto c =
+        poly::load_and_swap<uint8_t>(reinterpret_cast<const uint8_t*>(mem) + i);
+    if (!c) {
+      break;
+    }
+    value.push_back(static_cast<char>(c));
+  }
+  return value;
+}
+template <>
+inline std::wstring load_and_swap<std::wstring>(const void* mem) {
+  std::wstring value;
+  for (int i = 0;; ++i) {
+    auto c = poly::load_and_swap<uint16_t>(
+        reinterpret_cast<const uint16_t*>(mem) + i);
+    if (!c) {
+      break;
+    }
+    value.push_back(static_cast<wchar_t>(c));
+  }
+  return value;
 }
 
 template <typename T>

@@ -60,7 +60,7 @@ SHIM_CALL XamUserGetSigninState_shim(
   // Lie and say we are signed in, but local-only.
   // This should keep games from asking us to sign in and also keep them
   // from initializing the network.
-  if (user_index == 0) {
+  if (user_index == 0 || (user_index & 0xFF) == 0xFF) {
     const auto& user_profile = state->user_profile();
     SHIM_SET_RETURN_64(user_profile->signin_state());
   } else {
