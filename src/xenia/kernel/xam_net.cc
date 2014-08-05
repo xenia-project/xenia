@@ -38,6 +38,38 @@ SHIM_CALL NetDll_XNetStartup_shim(
   SHIM_SET_RETURN_64(0);
 }
 
+SHIM_CALL NetDll_XNetCleanup_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t params_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD(
+      "NetDll_XNetCleanup(%d, %.8X)",
+      arg0,
+      params_ptr);
+
+  SHIM_SET_RETURN_64(0);
+}
+
+SHIM_CALL NetDll_XNetRandom_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
+  uint32_t length = SHIM_GET_ARG_32(2);
+
+  XELOGD(
+      "NetDll_XNetRandom(%d, %.8X, %d)",
+      arg0,
+      buffer_ptr,
+      length);
+
+  // For now, constant values.
+  // This makes replicating things easier.
+  memset(SHIM_MEM_ADDR(buffer_ptr), 0xBB, length);
+
+  SHIM_SET_RETURN_64(0);
+}
+
 SHIM_CALL NetDll_WSAStartup_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t arg0 = SHIM_GET_ARG_32(0);
@@ -213,6 +245,8 @@ SHIM_CALL NetDll_send_shim(
 void xe::kernel::xam::RegisterNetExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetStartup, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_XNetCleanup, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_XNetRandom, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAGetLastError, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetTitleXnAddr, state);
