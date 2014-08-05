@@ -112,9 +112,11 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
         if (!instr->src1_use->next) {
           // Pull off preferred register. We will try to reuse this for the
           // dest.
-          has_preferred_reg = true;
-          preferred_reg = instr->src1.value->reg;
-          assert_not_null(preferred_reg.set);
+          // NOTE: set may be null if this is a store local.
+          if (preferred_reg.set) {
+            has_preferred_reg = true;
+            preferred_reg = instr->src1.value->reg;
+          }
         }
       }
 
