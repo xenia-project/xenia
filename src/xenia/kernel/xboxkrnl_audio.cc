@@ -35,6 +35,8 @@ SHIM_CALL XMACreateContext_shim(
       context_ptr);
 
   // TODO(benvanik): allocate and return -- see if size required or just dummy?
+  // Games will call MmGetPhysicalAddress on the result.
+  SHIM_SET_MEM_32(context_ptr, 0xAAAABABE);
 
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
