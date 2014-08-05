@@ -9,6 +9,8 @@
 
 #include <xenia/kernel/objects/xthread.h>
 
+#include <poly/math.h>
+
 #include <xenia/cpu/cpu.h>
 #include <xenia/kernel/native_list.h>
 #include <xenia/kernel/xboxkrnl_threading.h>
@@ -47,6 +49,9 @@ XThread::XThread(KernelState* kernel_state,
   creation_params_.xapi_thread_startup  = xapi_thread_startup;
   creation_params_.start_address        = start_address;
   creation_params_.start_context        = start_context;
+
+  // top 8 bits = processor ID (or 0 for default)
+  // bit 0 = 1 to create suspended
   creation_params_.creation_flags       = creation_flags;
 
   // Adjust stack size - min of 16k.
@@ -244,6 +249,11 @@ X_STATUS XThread::Create() {
   xesnprintfa(thread_name, XECOUNT(thread_name), "XThread%04X", handle());
   set_name(thread_name);
 
+  uint32_t proc_mask = creation_params_.creation_flags >> 24;
+  if (proc_mask) {
+    SetAffinity(proc_mask);
+  }
+
   module->Release();
   return X_STATUS_SUCCESS;
 }
@@ -277,12 +287,13 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 }
 
 X_STATUS XThread::PlatformCreate() {
+  bool suspended = creation_params_.creation_flags & 0x1;
   thread_handle_ = CreateThread(
       NULL,
       creation_params_.stack_size,
       (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
       this,
-      creation_params_.creation_flags,
+      suspended ? CREATE_SUSPENDED : 0,
       NULL);
   if (!thread_handle_) {
     uint32_t last_error = GetLastError();
@@ -325,7 +336,7 @@ X_STATUS XThread::PlatformCreate() {
   pthread_attr_setstacksize(&attr, creation_params_.stack_size);
 
   int result_code;
-  if (creation_params_.creation_flags & X_CREATE_SUSPENDED) {
+  if (creation_params_.creation_flags & 0x1) {
 #if XE_PLATFORM_OSX
     result_code = pthread_create_suspended_np(
         reinterpret_cast<pthread_t*>(&thread_handle_),
@@ -519,6 +530,11 @@ int32_t XThread::QueryPriority() {
 
 void XThread::SetPriority(int32_t increment) {
   SetThreadPriority(thread_handle_, increment);
+}
+
+void XThread::SetAffinity(uint32_t affinity) {
+  // TODO(benvanik): implement.
+  XELOGW("KeSetAffinityThread not implemented");
 }
 
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {

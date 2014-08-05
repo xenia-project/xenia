@@ -281,8 +281,7 @@ uint32_t xeKeSetAffinityThread(void* thread_ptr, uint32_t affinity) {
 
   XThread* thread = (XThread*)XObject::GetObject(state, thread_ptr);
   if (thread) {
-    // TODO(benvanik): implement.
-    XELOGW("KeSetAffinityThread not implemented");
+    thread->SetAffinity(affinity);
   }
 
   return affinity;

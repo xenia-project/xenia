@@ -62,6 +62,7 @@ public:
 
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
+  void SetAffinity(uint32_t affinity);
 
   X_STATUS Resume(uint32_t* out_suspend_count);
   X_STATUS Suspend(uint32_t* out_suspend_count);
