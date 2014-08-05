@@ -4150,7 +4150,23 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
       }
     } else {
       // Fully variable shift.
-      assert_always();
+      // TODO(benvanik): find a better sequence.
+      Xmm temp = i.dest;
+      if (i.dest == i.src1 || i.dest == i.src2) {
+        temp = e.xmm2;
+      }
+      // Even:
+      e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskEvenPI16));
+      e.vpsllvd(e.xmm1, i.src1, e.xmm0);
+      e.vpand(e.xmm1, e.GetXmmConstPtr(XMMMaskEvenPI16));
+      // Odd:
+      e.vpsrld(e.xmm0, i.src2, 16);
+      e.vpand(e.xmm0, e.GetXmmConstPtr(XMMShiftMaskEvenPI16));
+      e.vpsrld(i.dest, i.src1, 16);
+      e.vpsllvd(i.dest, i.dest, e.xmm0);
+      e.vpslld(i.dest, 8);
+      // Merge:
+      e.vpor(i.dest, e.xmm1);
     }
   }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
@@ -4308,6 +4324,20 @@ EMITTER_OPCODE_TABLE(
 EMITTER(VECTOR_SHA_V128, MATCH(I<OPCODE_VECTOR_SHA, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
+    case INT16_TYPE:
+      // Even halfwords:
+      e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskEvenPI16));
+      e.vpslld(e.xmm1, i.src1, 16);
+      e.vpsrad(e.xmm1, 8);
+      e.vpsravd(e.xmm1, e.xmm1, e.xmm0);
+      // Odd halfwords:
+      e.vpsrld(e.xmm0, i.src2, 16);
+      e.vpand(e.xmm0, e.GetXmmConstPtr(XMMShiftMaskEvenPI16));
+      e.vpslld(i.dest, i.src1, 16);
+      e.vpsravd(i.dest, i.dest, e.xmm0);
+      // Merge:
+      e.vpor(i.dest, e.xmm1);
+      break;
     case INT32_TYPE:
       // src shift mask may have values >31, and x86 sets to zero when
       // that happens so we mask.

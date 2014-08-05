@@ -54,6 +54,8 @@ enum XmmConst {
   XMMPackD3DCOLOR,
   XMMUnpackD3DCOLOR,
   XMMOneOver255,
+  XMMMaskEvenPI16,
+  XMMShiftMaskEvenPI16,
   XMMShiftMaskPS,
   XMMShiftByteMask,
   XMMUnsignedDwordMax,
