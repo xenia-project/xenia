@@ -136,7 +136,11 @@ class HIRBuilder {
   void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
 
   Value* Max(Value* value1, Value* value2);
+  Value* VectorMax(Value* value1, Value* value2, TypeName part_type,
+                   uint32_t arithmetic_flags = 0);
   Value* Min(Value* value1, Value* value2);
+  Value* VectorMin(Value* value1, Value* value2, TypeName part_type,
+                   uint32_t arithmetic_flags = 0);
   Value* Select(Value* cond, Value* value1, Value* value2);
   Value* IsTrue(Value* value);
   Value* IsFalse(Value* value);

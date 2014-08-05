@@ -237,8 +237,20 @@ DEFINE_OPCODE(
     0)
 
 DEFINE_OPCODE(
+    OPCODE_VECTOR_MAX,
+    "vector_max",
+    OPCODE_SIG_V_V_V,
+    0)
+
+DEFINE_OPCODE(
     OPCODE_MIN,
     "min",
+    OPCODE_SIG_V_V_V,
+    0)
+
+DEFINE_OPCODE(
+    OPCODE_VECTOR_MIN,
+    "vector_min",
     OPCODE_SIG_V_V_V,
     0)
 

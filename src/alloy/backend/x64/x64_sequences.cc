@@ -1740,6 +1740,53 @@ EMITTER_OPCODE_TABLE(
 
 
 // ============================================================================
+// OPCODE_VECTOR_MAX
+// ============================================================================
+EMITTER(VECTOR_MAX, MATCH(I<OPCODE_VECTOR_MAX, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          uint32_t part_type = i.instr->flags >> 8;
+          if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+            switch (part_type) {
+            case INT8_TYPE:
+              e.vpmaxub(dest, src1, src2);
+              break;
+            case INT16_TYPE:
+              e.vpmaxuw(dest, src1, src2);
+              break;
+            case INT32_TYPE:
+              e.vpmaxud(dest, src1, src2);
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
+            }
+          } else {
+            switch (part_type) {
+            case INT8_TYPE:
+              e.vpmaxsb(dest, src1, src2);
+              break;
+            case INT16_TYPE:
+              e.vpmaxsw(dest, src1, src2);
+              break;
+            case INT32_TYPE:
+              e.vpmaxsd(dest, src1, src2);
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
+            }
+          }
+        });
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_MAX,
+    VECTOR_MAX);
+
+
+// ============================================================================
 // OPCODE_MIN
 // ============================================================================
 EMITTER(MIN_F32, MATCH(I<OPCODE_MIN, F32<>, F32<>, F32<>>)) {
@@ -1771,6 +1818,53 @@ EMITTER_OPCODE_TABLE(
     MIN_F32,
     MIN_F64,
     MIN_V128);
+
+
+// ============================================================================
+// OPCODE_VECTOR_MIN
+// ============================================================================
+EMITTER(VECTOR_MIN, MATCH(I<OPCODE_VECTOR_MIN, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+        [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          uint32_t part_type = i.instr->flags >> 8;
+          if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+            switch (part_type) {
+            case INT8_TYPE:
+              e.vpminub(dest, src1, src2);
+              break;
+            case INT16_TYPE:
+              e.vpminuw(dest, src1, src2);
+              break;
+            case INT32_TYPE:
+              e.vpminud(dest, src1, src2);
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
+            }
+          } else {
+            switch (part_type) {
+            case INT8_TYPE:
+              e.vpminsb(dest, src1, src2);
+              break;
+            case INT16_TYPE:
+              e.vpminsw(dest, src1, src2);
+              break;
+            case INT32_TYPE:
+              e.vpminsd(dest, src1, src2);
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
+            }
+          }
+        });
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_MIN,
+    VECTOR_MIN);
 
 
 // ============================================================================
@@ -5042,7 +5136,9 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_PREFETCH);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MAX);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_MAX);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MIN);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_MIN);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_SELECT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_IS_TRUE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_IS_FALSE);

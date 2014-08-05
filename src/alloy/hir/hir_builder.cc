@@ -1035,6 +1035,19 @@ Value* HIRBuilder::Max(Value* value1, Value* value2) {
   return i->dest;
 }
 
+Value* HIRBuilder::VectorMax(Value* value1, Value* value2, TypeName part_type,
+                             uint32_t arithmetic_flags) {
+  ASSERT_TYPES_EQUAL(value1, value2);
+
+  uint16_t flags = arithmetic_flags | (part_type << 8);
+  Instr* i =
+      AppendInstr(OPCODE_VECTOR_MAX_info, flags, AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::Min(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
@@ -1044,6 +1057,19 @@ Value* HIRBuilder::Min(Value* value1, Value* value2) {
   }
 
   Instr* i = AppendInstr(OPCODE_MIN_info, 0, AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* HIRBuilder::VectorMin(Value* value1, Value* value2, TypeName part_type,
+                             uint32_t arithmetic_flags) {
+  ASSERT_TYPES_EQUAL(value1, value2);
+
+  uint16_t flags = arithmetic_flags | (part_type << 8);
+  Instr* i =
+      AppendInstr(OPCODE_VECTOR_MIN_info, flags, AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
   i->src3.value = NULL;

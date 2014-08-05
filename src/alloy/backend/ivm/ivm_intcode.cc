@@ -9,6 +9,8 @@
 
 #include <alloy/backend/ivm/ivm_intcode.h>
 
+#include <algorithm>
+
 #include <poly/poly.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
@@ -1636,6 +1638,77 @@ int Translate_MAX(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
+uint32_t IntCode_VECTOR_MAX_I8_UNSIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = std::max(src1.b16[n], src2.b16[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MAX_I16_UNSIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = std::max(src1.s8[n], src2.s8[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MAX_I32_UNSIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = std::max(src1.i4[n], src2.i4[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MAX_I8_SIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = std::max((int8_t)src1.b16[n], (int8_t)src2.b16[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MAX_I16_SIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = std::max((int16_t)src1.s8[n], (int16_t)src2.s8[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MAX_I32_SIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = std::max((int32_t)src1.i4[n], (int32_t)src2.i4[n]);
+  }
+  return IA_NEXT;
+}
+int Translate_VECTOR_MAX(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn unsigned_fns[] = {
+      IntCode_VECTOR_MAX_I8_UNSIGNED, IntCode_VECTOR_MAX_I16_UNSIGNED,
+      IntCode_VECTOR_MAX_I32_UNSIGNED,
+  };
+  static IntCodeFn signed_fns[] = {
+      IntCode_VECTOR_MAX_I8_SIGNED, IntCode_VECTOR_MAX_I16_SIGNED,
+      IntCode_VECTOR_MAX_I32_SIGNED,
+  };
+  uint32_t part_type = i->flags >> 8;
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    return DispatchToC(ctx, i, unsigned_fns[part_type]);
+  } else {
+    return DispatchToC(ctx, i, signed_fns[part_type]);
+  }
+}
+
 uint32_t IntCode_MIN_I8_I8(IntCodeState& ics, const IntCode* i) {
   int8_t a = ics.rf[i->src1_reg].i8;
   int8_t b = ics.rf[i->src2_reg].i8;
@@ -1686,6 +1759,77 @@ int Translate_MIN(TranslationContext& ctx, Instr* i) {
       IntCode_MIN_V128_V128,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+uint32_t IntCode_VECTOR_MIN_I8_UNSIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = std::min(src1.b16[n], src2.b16[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MIN_I16_UNSIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = std::min(src1.s8[n], src2.s8[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MIN_I32_UNSIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = std::min(src1.i4[n], src2.i4[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MIN_I8_SIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 16; n++) {
+    dest.b16[n] = std::min((int8_t)src1.b16[n], (int8_t)src2.b16[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MIN_I16_SIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 8; n++) {
+    dest.s8[n] = std::min((int16_t)src1.s8[n], (int16_t)src2.s8[n]);
+  }
+  return IA_NEXT;
+}
+uint32_t IntCode_VECTOR_MIN_I32_SIGNED(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.i4[n] = std::min((int32_t)src1.i4[n], (int32_t)src2.i4[n]);
+  }
+  return IA_NEXT;
+}
+int Translate_VECTOR_MIN(TranslationContext& ctx, Instr* i) {
+  static IntCodeFn unsigned_fns[] = {
+      IntCode_VECTOR_MIN_I8_UNSIGNED, IntCode_VECTOR_MIN_I16_UNSIGNED,
+      IntCode_VECTOR_MIN_I32_UNSIGNED,
+  };
+  static IntCodeFn signed_fns[] = {
+      IntCode_VECTOR_MIN_I8_SIGNED, IntCode_VECTOR_MIN_I16_SIGNED,
+      IntCode_VECTOR_MIN_I32_SIGNED,
+  };
+  uint32_t part_type = i->flags >> 8;
+  if (i->flags & ARITHMETIC_UNSIGNED) {
+    return DispatchToC(ctx, i, unsigned_fns[part_type]);
+  } else {
+    return DispatchToC(ctx, i, signed_fns[part_type]);
+  }
 }
 
 uint32_t IntCode_SELECT_I8(IntCodeState& ics, const IntCode* i) {
@@ -2174,13 +2318,13 @@ int Translate_DID_SATURATE(TranslationContext& ctx, Instr* i) {
   }                                                                    \
   return IA_NEXT;
 
-uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint8_t, b16, b16, 16, == )};
-uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint16_t, s8, s8, 8, == )};
-uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(uint32_t, i4, i4, 4, == )};
-uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(float, f4, i4, 4, == )};
 int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
@@ -2192,13 +2336,13 @@ int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(int8_t, b16, b16, 16, > )};
-uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(int16_t, s8, s8, 8, > )};
-uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(int32_t, i4, i4, 4, > )};
-uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i) {
+uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i){
     VECTOR_COMPARER(float, f4, i4, 4, > )};
 int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
@@ -4041,7 +4185,8 @@ static const TranslateFn dispatch_table[] = {
     Translate_LOAD_CONTEXT,       Translate_STORE_CONTEXT,
     Translate_LOAD,               Translate_STORE,
     Translate_PREFETCH,           Translate_MAX,
-    Translate_MIN,                Translate_SELECT,
+    Translate_VECTOR_MAX,         Translate_MIN,
+    Translate_VECTOR_MIN,         Translate_SELECT,
     Translate_IS_TRUE,            Translate_IS_FALSE,
     Translate_COMPARE_EQ,         Translate_COMPARE_NE,
     Translate_COMPARE_SLT,        Translate_COMPARE_SLE,

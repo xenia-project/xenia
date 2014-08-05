@@ -803,33 +803,48 @@ XEEMITTER(vmaxfp128, VX128(6, 640), VX128)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vmaxsb, 0x10000102, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- max((VA), (VB)) (signed int8)
+  Value* v = f.VectorMax(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmaxsh, 0x10000142, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- max((VA), (VB)) (signed int16)
+  Value* v = f.VectorMax(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmaxsw, 0x10000182, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- max((VA), (VB)) (signed int32)
+  Value* v = f.VectorMax(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmaxub, 0x10000002, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- max((VA), (VB)) (unsigned int8)
+  Value* v = f.VectorMax(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmaxuh, 0x10000042, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- max((VA), (VB)) (unsigned int16)
+  Value* v = f.VectorMax(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmaxuw, 0x10000082, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- max((VA), (VB)) (unsigned int32)
+  Value* v = f.VectorMax(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmhaddshs, 0x10000020, VXA)(PPCHIRBuilder& f, InstrData& i) {
@@ -856,33 +871,48 @@ XEEMITTER(vminfp128, VX128(6, 704), VX128)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vminsb, 0x10000302, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- min((VA), (VB)) (signed int8)
+  Value* v = f.VectorMin(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vminsh, 0x10000342, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- min((VA), (VB)) (signed int16)
+  Value* v = f.VectorMin(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vminsw, 0x10000382, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- min((VA), (VB)) (signed int32)
+  Value* v = f.VectorMin(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vminub, 0x10000202, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- min((VA), (VB)) (unsigned int8)
+  Value* v = f.VectorMin(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vminuh, 0x10000242, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- min((VA), (VB)) (unsigned int16)
+  Value* v = f.VectorMin(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vminuw, 0x10000282, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- min((VA), (VB)) (unsigned int32)
+  Value* v = f.VectorMin(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE,
+                         ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmladduhm, 0x10000022, VXA)(PPCHIRBuilder& f, InstrData& i) {
