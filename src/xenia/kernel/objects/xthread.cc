@@ -55,8 +55,8 @@ XThread::XThread(KernelState* kernel_state,
   creation_params_.creation_flags       = creation_flags;
 
   // Adjust stack size - min of 16k.
-  if (creation_params_.stack_size < 16 * 1024 * 1024) {
-    creation_params_.stack_size = 16 * 1024 * 1024;
+  if (creation_params_.stack_size < 16 * 1024) {
+    creation_params_.stack_size = 16 * 1024;
   }
 
   apc_lock_ = xe_mutex_alloc();
