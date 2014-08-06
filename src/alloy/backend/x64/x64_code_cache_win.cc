@@ -60,20 +60,22 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
                               size_t stack_size) {
   SCOPE_profile_cpu_f("alloy");
 
+  size_t alloc_size = code_size;
+
   // Add unwind info into the allocation size. Keep things 16b aligned.
-  code_size += XEROUNDUP(X64CodeChunk::UNWIND_INFO_SIZE, 16);
+  alloc_size += XEROUNDUP(X64CodeChunk::UNWIND_INFO_SIZE, 16);
 
   // Always move the code to land on 16b alignment. We do this by rounding up
   // to 16b so that all offsets are aligned.
-  code_size = XEROUNDUP(code_size, 16);
+  alloc_size = XEROUNDUP(alloc_size, 16);
 
   lock_.lock();
 
   if (active_chunk_) {
-    if (active_chunk_->capacity - active_chunk_->offset < code_size) {
+    if (active_chunk_->capacity - active_chunk_->offset < alloc_size) {
       auto next = active_chunk_->next;
       if (!next) {
-        assert_true(code_size < chunk_size_, "need to support larger chunks");
+        assert_true(alloc_size < chunk_size_, "need to support larger chunks");
         next = new X64CodeChunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -84,17 +86,18 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   }
 
   uint8_t* final_address = active_chunk_->buffer + active_chunk_->offset;
-  active_chunk_->offset += code_size;
+  active_chunk_->offset += alloc_size;
 
   // Add entry to fn table.
-  active_chunk_->AddTableEntry(final_address, code_size, stack_size);
+  active_chunk_->AddTableEntry(final_address, alloc_size, stack_size);
+
   lock_.unlock();
 
   // Copy code.
   xe_copy_struct(final_address, machine_code, code_size);
 
   // This isn't needed on x64 (probably), but is convention.
-  FlushInstructionCache(GetCurrentProcess(), final_address, code_size);
+  FlushInstructionCache(GetCurrentProcess(), final_address, alloc_size);
   return final_address;
 }
 
