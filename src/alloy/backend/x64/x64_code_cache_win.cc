@@ -88,7 +88,6 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
 
   // Add entry to fn table.
   active_chunk_->AddTableEntry(final_address, code_size, stack_size);
-
   lock_.unlock();
 
   // Copy code.
@@ -210,8 +209,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
 
   // Allocate unwind data. We know we have space because we overallocated.
   // This should be the tailing 16b with 16b alignment.
-  size_t unwind_info_offset = offset;
-  offset += UNWIND_INFO_SIZE;
+  size_t unwind_info_offset = offset - UNWIND_INFO_SIZE;
 
   if (!stack_size) {
     // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
