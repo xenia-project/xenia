@@ -4211,18 +4211,18 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
     } else {
       // Fully variable shift.
       // TODO(benvanik): find a better sequence.
-      Xmm temp = i.dest;
-      if (i.dest == i.src1 || i.dest == i.src2) {
-        temp = e.xmm2;
+      Xmm src1 = !i.src1.is_constant ? i.src1 : e.xmm2;
+      if (i.src1.is_constant) {
+        e.LoadConstantXmm(src1, i.src1.constant());
       }
       // Even:
       e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskEvenPI16));
-      e.vpsllvd(e.xmm1, i.src1, e.xmm0);
+      e.vpsllvd(e.xmm1, src1, e.xmm0);
       e.vpand(e.xmm1, e.GetXmmConstPtr(XMMMaskEvenPI16));
       // Odd:
       e.vpsrld(e.xmm0, i.src2, 16);
       e.vpand(e.xmm0, e.GetXmmConstPtr(XMMShiftMaskEvenPI16));
-      e.vpsrld(i.dest, i.src1, 16);
+      e.vpsrld(i.dest, src1, 16);
       e.vpsllvd(i.dest, i.dest, e.xmm0);
       e.vpslld(i.dest, 8);
       // Merge:
