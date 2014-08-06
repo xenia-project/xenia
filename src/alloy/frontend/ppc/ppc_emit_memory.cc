@@ -712,8 +712,7 @@ XEEMITTER(stdcx, 0x7C0001AD, X)(PPCHIRBuilder& f, InstrData& i) {
   // CR0[LT GT EQ SO] = 0b00 || n || XER[SO]
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.LoadGPR(i.X.RT));
-  Value* stored = f.StoreRelease(ea, rt);
-  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), stored);
+  f.StoreRelease(ea, rt);  // also updates cr0
   return 0;
 }
 
@@ -729,8 +728,7 @@ XEEMITTER(stwcx, 0x7C00012D, X)(PPCHIRBuilder& f, InstrData& i) {
   // CR0[LT GT EQ SO] = 0b00 || n || XER[SO]
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE));
-  Value* stored = f.StoreRelease(ea, rt);
-  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), stored);
+  f.StoreRelease(ea, rt);  // also updates cr0
   return 0;
 }
 
