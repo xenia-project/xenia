@@ -366,7 +366,7 @@ EMITTER(CALL_INDIRECT_TRUE_I8, MATCH(I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, I8<>, 
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
-    e.jz(skip);
+    e.jz(skip, CodeGenerator::T_NEAR);
     e.CallIndirect(i.instr, i.src2);
     e.L(skip);
   }
@@ -375,7 +375,7 @@ EMITTER(CALL_INDIRECT_TRUE_I16, MATCH(I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, I16<>
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
-    e.jz(skip);
+    e.jz(skip, CodeGenerator::T_NEAR);
     e.CallIndirect(i.instr, i.src2);
     e.L(skip);
   }
@@ -384,7 +384,7 @@ EMITTER(CALL_INDIRECT_TRUE_I32, MATCH(I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, I32<>
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
-    e.jz(skip);
+    e.jz(skip, CodeGenerator::T_NEAR);
     e.CallIndirect(i.instr, i.src2);
     e.L(skip);
   }
@@ -393,7 +393,7 @@ EMITTER(CALL_INDIRECT_TRUE_I64, MATCH(I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, I64<>
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
-    e.jz(skip);
+    e.jz(skip, CodeGenerator::T_NEAR);
     e.CallIndirect(i.instr, i.src2);
     e.L(skip);
   }
@@ -402,7 +402,7 @@ EMITTER(CALL_INDIRECT_TRUE_F32, MATCH(I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, F32<>
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.vptest(i.src1, i.src1);
     Xbyak::Label skip;
-    e.jz(skip);
+    e.jz(skip, CodeGenerator::T_NEAR);
     e.CallIndirect(i.instr, i.src2);
     e.L(skip);
   }
@@ -411,7 +411,7 @@ EMITTER(CALL_INDIRECT_TRUE_F64, MATCH(I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, F64<>
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.vptest(i.src1, i.src1);
     Xbyak::Label skip;
-    e.jz(skip);
+    e.jz(skip, CodeGenerator::T_NEAR);
     e.CallIndirect(i.instr, i.src2);
     e.L(skip);
   }

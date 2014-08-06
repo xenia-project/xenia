@@ -138,6 +138,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void ReloadECX();
   void ReloadEDX();
 
+  void nop(size_t length = 1);
+
   // TODO(benvanik): Label for epilog (don't use strings).
 
   void LoadEflags();

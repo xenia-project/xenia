@@ -239,18 +239,6 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 const size_t TOTAL_RESOLVE_SIZE = 27;
 const size_t ASM_OFFSET = 2 + 2 + 8 + 2 + 8;
 
-// Length    Assembly                                   Byte Sequence
-// =================================================================================
-// 2 bytes   66 NOP                                     66 90H
-// 3 bytes   NOP DWORD ptr [EAX]                        0F 1F 00H
-// 4 bytes   NOP DWORD ptr [EAX + 00H]                  0F 1F 40 00H
-// 5 bytes   NOP DWORD ptr [EAX + EAX*1 + 00H]          0F 1F 44 00 00H
-// 6 bytes   66 NOP DWORD ptr [EAX + EAX*1 + 00H]       66 0F 1F 44 00 00H
-// 7 bytes   NOP DWORD ptr [EAX + 00000000H]            0F 1F 80 00 00 00 00H
-// 8 bytes   NOP DWORD ptr [EAX + EAX*1 + 00000000H]    0F 1F 84 00 00 00 00 00H
-// 9 bytes   66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] 66 0F 1F 84 00 00 00 00
-// 00H
-
 uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
@@ -281,6 +269,7 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
     uint8_t mov_rcx[5];
   };
 #pragma pack(pop)
+  static_assert_size(Asm, TOTAL_RESOLVE_SIZE);
   Asm* code = reinterpret_cast<Asm*>(return_address - ASM_OFFSET);
   code->rax_constant = addr;
   code->call_rax = 0x9066;
@@ -293,7 +282,6 @@ void X64Emitter::Call(const hir::Instr* instr,
                       runtime::FunctionInfo* symbol_info) {
   auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
   // Resolve address to the function to call and store in rax.
-  // TODO(benvanik): caching/etc. For now this makes debugging easier.
   if (fn) {
     mov(rax, reinterpret_cast<uint64_t>(fn->machine_code()));
   } else {
@@ -325,18 +313,66 @@ void X64Emitter::Call(const hir::Instr* instr,
   }
 }
 
+// NOTE: slot count limited by short jump size.
+const int kICSlotCount = 4;
+const int kICSlotSize = 23;
+const uint64_t kICSlotInvalidTargetAddress = 0x0F0F0F0F0F0F0F0F;
+
 uint64_t ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
   target_address &= 0xFFFFFFFF;
+  assert_not_zero(target_address);
 
   Function* fn = NULL;
   thread_state->runtime()->ResolveFunction(target_address, &fn);
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
-  return reinterpret_cast<uint64_t>(x64_fn->machine_code());
+  uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
+
+// Add an IC slot, if there is room.
+#if XE_LIKE_WIN32
+  uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
+#else
+  uint64_t return_address =
+      reinterpret_cast<uint64_t>(__builtin_return_address(0));
+#endif  // XE_WIN32_LIKE
+#pragma pack(push, 1)
+  struct Asm {
+    uint16_t cmp_rdx;
+    uint32_t address_constant;
+    uint16_t jmp_next_slot;
+    uint16_t mov_rax;
+    uint64_t target_constant;
+    uint8_t jmp_skip_resolve[5];
+  };
+#pragma pack(pop)
+  static_assert_size(Asm, kICSlotSize);
+  // The return address points to ReloadRCX work after the call.
+  // To get the top of the table, look back a ways.
+  uint64_t table_start = return_address - 12 - kICSlotSize * kICSlotCount;
+  // NOTE: order matters here - we update the address BEFORE we switch the code
+  // over to passing the compare.
+  Asm* table_slot = reinterpret_cast<Asm*>(table_start);
+  bool wrote_ic = false;
+  for (int i = 0; i < kICSlotCount; ++i) {
+    if (poly::atomic_cas(kICSlotInvalidTargetAddress, addr,
+                         &table_slot->target_constant)) {
+      // Got slot! Just write the compare and we're done.
+      table_slot->address_constant = static_cast<uint32_t>(target_address);
+      wrote_ic = true;
+      break;
+    }
+    ++table_slot;
+  }
+  if (!wrote_ic) {
+    // TODO(benvanik): log that IC table is full.
+  }
+
+  // We need to return the target in rax so that it gets called.
+  return addr;
 }
 
 void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
@@ -346,14 +382,49 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
     je("epilog", CodeGenerator::T_NEAR);
   }
 
-  // Resolve address to the function to call and store in rax.
-  // TODO(benvanik): caching/etc. For now this makes debugging easier.
   if (reg.getIdx() != rdx.getIdx()) {
     mov(rdx, reg);
   }
+
+  inLocalLabel();
+  Xbyak::Label skip_resolve;
+
+  // TODO(benvanik): make empty tables skippable (cmp, jump right to resolve).
+
+  // IC table, initially empty.
+  // This will get filled in as functions are resolved.
+  // Note that we only have a limited cache, and once it's full all calls
+  // will fall through.
+  // TODO(benvanik): check miss rate when full and add a 2nd-level table?
+  // 0000000264BD4DC3 81 FA 0F0F0F0F         cmp         edx,0F0F0F0Fh
+  // 0000000264BD4DC9 75 0C                  jne         0000000264BD4DD7
+  // 0000000264BD4DCB 48 B8 0F0F0F0F0F0F0F0F mov         rax,0F0F0F0F0F0F0F0Fh
+  // 0000000264BD4DD5 EB XXXXXXXX            jmp         0000000264BD4E00
+  size_t table_start = getSize();
+  for (int i = 0; i < kICSlotCount; ++i) {
+    // Compare target address with constant, if matches jump there.
+    // Otherwise, fall through.
+    // 6b
+    cmp(edx, 0x0F0F0F0F);
+    Xbyak::Label next_slot;
+    // 2b
+    jne(next_slot, T_SHORT);
+    // Match! Load up rax and skip down to the jmp code.
+    // 10b
+    mov(rax, kICSlotInvalidTargetAddress);
+    // 5b
+    jmp(skip_resolve, T_NEAR);
+    L(next_slot);
+  }
+  size_t table_size = getSize() - table_start;
+  assert_true(table_size == kICSlotSize * kICSlotCount);
+
+  // Resolve address to the function to call and store in rax.
+  // We fall through to this when there are no hits in the IC table.
   CallNative(ResolveFunctionAddress);
 
   // Actually jump/call to rax.
+  L(skip_resolve);
   if (instr->flags & CALL_TAIL) {
     // Pass the callers return address over.
     mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
@@ -365,6 +436,8 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
     mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
     call(rax);
   }
+
+  outLocalLabel();
 }
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
@@ -449,6 +522,23 @@ void X64Emitter::ReloadECX() {
 
 void X64Emitter::ReloadEDX() {
   mov(rdx, qword[rcx + 8]);  // membase
+}
+
+// Len Assembly                                   Byte Sequence
+// ============================================================================
+// 2b  66 NOP                                     66 90H
+// 3b  NOP DWORD ptr [EAX]                        0F 1F 00H
+// 4b  NOP DWORD ptr [EAX + 00H]                  0F 1F 40 00H
+// 5b  NOP DWORD ptr [EAX + EAX*1 + 00H]          0F 1F 44 00 00H
+// 6b  66 NOP DWORD ptr [EAX + EAX*1 + 00H]       66 0F 1F 44 00 00H
+// 7b  NOP DWORD ptr [EAX + 00000000H]            0F 1F 80 00 00 00 00H
+// 8b  NOP DWORD ptr [EAX + EAX*1 + 00000000H]    0F 1F 84 00 00 00 00 00H
+// 9b  66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] 66 0F 1F 84 00 00 00 00 00H
+void X64Emitter::nop(size_t length) {
+  // TODO(benvanik): fat nop
+  for (size_t i = 0; i < length; ++i) {
+    db(0x90);
+  }
 }
 
 void X64Emitter::LoadEflags() {
