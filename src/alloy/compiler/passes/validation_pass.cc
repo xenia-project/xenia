@@ -72,6 +72,15 @@ int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
     return 1;
   }
 
+  if (instr->dest) {
+    assert_true(instr->dest->def == instr);
+    auto use = instr->dest->use_head;
+    while (use) {
+      assert_true(use->instr->block == block);
+      use = use->next;
+    }
+  }
+
   uint32_t signature = instr->opcode->signature;
   if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
     if (ValidateValue(block, instr, instr->src1.value)) {

@@ -62,7 +62,8 @@ class RegisterAllocationPass : public CompilerPass {
   bool TryAllocateRegister(hir::Value* value,
                            const hir::RegAssignment& preferred_reg);
   bool TryAllocateRegister(hir::Value* value);
-  bool SpillOneRegister(hir::HIRBuilder* builder, hir::TypeName required_type);
+  bool SpillOneRegister(hir::HIRBuilder* builder, hir::Block* block,
+                        hir::TypeName required_type);
 
   RegisterSetUsage* RegisterSetForValue(const hir::Value* value);
 

@@ -143,7 +143,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
         if (!allocated) {
           // Failed to allocate register -- need to spill and try again.
           // We spill only those registers we aren't using.
-          if (!SpillOneRegister(builder, instr->dest->type)) {
+          if (!SpillOneRegister(builder, block, instr->dest->type)) {
             // Unable to spill anything - this shouldn't happen.
             XELOGE("Unable to spill any registers");
             assert_always();
@@ -237,6 +237,8 @@ void RegisterAllocationPass::AdvanceUses(Instr* instr) {
         // Remove the iterator.
         auto value = it->value;
         it = upcoming_uses.erase(it);
+        assert_true(next_use->instr->block == instr->block);
+        assert_true(value->def->block == instr->block);
         upcoming_uses.emplace_back(value, next_use);
       }
     }
@@ -336,6 +338,8 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder,
   auto furthest_usage = std::max_element(usage_set->upcoming_uses.begin(),
                                          usage_set->upcoming_uses.end(),
                                          RegisterUsage::Comparer());
+  assert_true(furthest_usage->value->def->block == block);
+  assert_true(furthest_usage->use->instr->block == block);
   auto spill_value = furthest_usage->value;
   Value::Use* prev_use = furthest_usage->use->prev;
   Value::Use* next_use = furthest_usage->use;
