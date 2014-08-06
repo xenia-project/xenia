@@ -11,8 +11,9 @@
 #define ALLOY_COMPILER_COMPILER_PASSES_H_
 
 #include <alloy/compiler/passes/constant_propagation_pass.h>
-#include <alloy/compiler/passes/control_flow_analysis_pass.h>
 #include <alloy/compiler/passes/context_promotion_pass.h>
+#include <alloy/compiler/passes/control_flow_analysis_pass.h>
+#include <alloy/compiler/passes/control_flow_simplification_pass.h>
 #include <alloy/compiler/passes/data_flow_analysis_pass.h>
 #include <alloy/compiler/passes/dead_code_elimination_pass.h>
 //#include <alloy/compiler/passes/dead_store_elimination_pass.h>

@@ -663,8 +663,6 @@ spin:
 
 SHIM_CALL RtlEnterCriticalSection_shim(
     PPCContext* ppc_state, KernelState* state) {
-  SCOPE_profile_cpu_f("kernel");
-
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
   // XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);

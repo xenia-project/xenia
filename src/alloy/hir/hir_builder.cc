@@ -436,6 +436,88 @@ void HIRBuilder::AddEdge(Block* src, Block* dest, uint32_t flags) {
   dest->incoming_edge_head = edge;
 }
 
+void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
+  assert_true(left->next == right && right->prev == left);
+  assert_true(!right->incoming_edge_head ||
+              right->incoming_edge_head->flags & Edge::DOMINATES);
+
+  // If the left block ends with a branch to the right block, drop it.
+  if (left->instr_tail &&
+      left->instr_tail->opcode->flags & OPCODE_FLAG_BRANCH) {
+    auto sig = left->instr_tail->opcode->signature;
+    if (GET_OPCODE_SIG_TYPE_SRC1(sig) == OPCODE_SIG_TYPE_L) {
+      if (left->instr_tail->src1.label->block == right) {
+        left->instr_tail->Remove();
+      }
+    }
+    if (GET_OPCODE_SIG_TYPE_SRC2(sig) == OPCODE_SIG_TYPE_L) {
+      if (left->instr_tail->src2.label->block == right) {
+        left->instr_tail->Remove();
+      }
+    }
+  }
+
+  // Walk through the right instructions and shift each one back into the left.
+  while (right->instr_head) {
+    auto instr = right->instr_head;
+    auto next = instr->next;
+
+    // Link into block list.
+    instr->next = nullptr;
+    instr->prev = left->instr_tail;
+    if (left->instr_tail) {
+      left->instr_tail->next = instr;
+    } else {
+      left->instr_head = left->instr_tail = instr;
+    }
+    left->instr_tail = instr;
+
+    // Unlink from old block list;
+    right->instr_head = next;
+    if (right->instr_tail == instr) {
+      right->instr_tail = nullptr;
+    }
+    if (next) {
+      next->prev = nullptr;
+    }
+
+    // Update state.
+    instr->block = left;
+  }
+
+  // Move/remove labels.
+  // We only need to preserve named labels.
+  while (right->label_head) {
+    auto label = right->label_head;
+    if (label->name) {
+      // Label is named - move it.
+      label->block = left;
+      label->prev = left->label_tail;
+      if (left->label_tail) {
+        left->label_tail->next = label;
+      }
+      left->label_tail = label;
+      if (!left->label_head) {
+        left->label_head = label;
+      }
+    }
+    right->label_head = label->next;
+    if (right->label_tail == label) {
+      right->label_tail = nullptr;
+    }
+    label->next = nullptr;
+  }
+
+  // Remove the right block from the block list.
+  left->next = right->next;
+  if (right->next) {
+    right->next->prev = left;
+  }
+  if (block_tail_ == right) {
+    block_tail_ = left;
+  }
+}
+
 Block* HIRBuilder::AppendBlock() {
   Block* block = arena_->Alloc<Block>();
   block->arena = arena_;

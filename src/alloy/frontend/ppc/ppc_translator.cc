@@ -43,7 +43,10 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
 
   bool validate = FLAGS_validate_hir;
 
-  // Build the CFG first.
+  // Merge blocks early. This will let us use more context in other passes.
+  // The CFG is required for simplification and dirtied by it.
+  compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
+  compiler_->AddPass(std::make_unique<passes::ControlFlowSimplificationPass>());
   compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
 
   // Passes are executed in the order they are added. Multiple of the same

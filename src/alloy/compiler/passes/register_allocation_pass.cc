@@ -320,8 +320,7 @@ bool RegisterAllocationPass::TryAllocateRegister(Value* value) {
   return false;
 }
 
-bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder,
-                                              Block* block,
+bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
                                               TypeName required_type) {
   // Get the set that we will be picking from.
   RegisterSetUsage* usage_set;
