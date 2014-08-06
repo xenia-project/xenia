@@ -30,14 +30,9 @@ using alloy::hir::HIRBuilder;
 using alloy::hir::Instr;
 using alloy::hir::Value;
 
-ContextPromotionPass::ContextPromotionPass()
-    : CompilerPass(), context_values_size_(0), context_values_(0) {}
+ContextPromotionPass::ContextPromotionPass() : CompilerPass() {}
 
-ContextPromotionPass::~ContextPromotionPass() {
-  if (context_values_) {
-    xe_free(context_values_);
-  }
-}
+ContextPromotionPass::~ContextPromotionPass() {}
 
 int ContextPromotionPass::Initialize(Compiler* compiler) {
   if (CompilerPass::Initialize(compiler)) {
@@ -46,8 +41,8 @@ int ContextPromotionPass::Initialize(Compiler* compiler) {
 
   // This is a terrible implementation.
   ContextInfo* context_info = runtime_->frontend()->context_info();
-  context_values_size_ = context_info->size() * sizeof(Value*);
-  context_values_ = (Value**)xe_calloc(context_values_size_);
+  context_values_.resize(context_info->size());
+  context_validity_.resize(static_cast<uint32_t>(context_info->size()));
 
   return 0;
 }
@@ -91,57 +86,55 @@ int ContextPromotionPass::Run(HIRBuilder* builder) {
 }
 
 void ContextPromotionPass::PromoteBlock(Block* block) {
-  // Clear the context values list.
-  // TODO(benvanik): new data structure that isn't so stupid.
-  //     Bitvector of validity, perhaps?
-  xe_zero_struct(context_values_, context_values_size_);
+  auto& validity = context_validity_;
+  validity.reset();
 
   Instr* i = block->instr_head;
   while (i) {
+    auto next = i->next;
     if (i->opcode->flags & OPCODE_FLAG_VOLATILE) {
       // Volatile instruction - requires all context values be flushed.
-      xe_zero_struct(context_values_, context_values_size_);
+      validity.reset();
     } else if (i->opcode == &OPCODE_LOAD_CONTEXT_info) {
       size_t offset = i->src1.offset;
-      Value* previous_value = context_values_[offset];
-      if (previous_value) {
+      if (validity.test(static_cast<uint32_t>(offset))) {
         // Legit previous value, reuse.
+        Value* previous_value = context_values_[offset];
         i->opcode = &hir::OPCODE_ASSIGN_info;
         i->set_src1(previous_value);
       } else {
         // Store the loaded value into the table.
         context_values_[offset] = i->dest;
+        validity.set(static_cast<uint32_t>(offset));
       }
     } else if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
       Value* value = i->src2.value;
       // Store value into the table for later.
       context_values_[offset] = value;
+      validity.set(static_cast<uint32_t>(offset));
     }
-
-    i = i->next;
+    i = next;
   }
 }
 
 void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
-  // TODO(benvanik): use a bitvector.
-  // To avoid clearing the structure, we use a token.
-  // Upper bits are block address, lower bits increment each reset.
-  uint64_t token = reinterpret_cast<uint64_t>(block) << 16;
+  auto& validity = context_validity_;
+  validity.reset();
 
   // Walk backwards and mark offsets that are written to.
   // If the offset was written to earlier, ignore the store.
   Instr* i = block->instr_tail;
   while (i) {
     Instr* prev = i->prev;
-    if (i->opcode->flags & OPCODE_FLAG_VOLATILE) {
+    if (i->opcode->flags & (OPCODE_FLAG_VOLATILE | OPCODE_FLAG_BRANCH)) {
       // Volatile instruction - requires all context values be flushed.
-      ++token;
+      validity.reset();
     } else if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
-      if (context_values_[offset] != reinterpret_cast<Value*>(token)) {
-        // Mark offset as written to.
-        context_values_[offset] = reinterpret_cast<Value*>(token);
+      if (!validity.test(static_cast<uint32_t>(offset))) {
+        // Offset not yet written, mark and continue.
+        validity.set(static_cast<uint32_t>(offset));
       } else {
         // Already written to. Remove this store.
         i->Remove();

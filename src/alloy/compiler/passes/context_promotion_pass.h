@@ -12,6 +12,16 @@
 
 #include <alloy/compiler/compiler_pass.h>
 
+#if XE_COMPILER_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
+#include <llvm/ADT/BitVector.h>
+#pragma warning(pop)
+#else
+#include <llvm/ADT/BitVector.h>
+#endif  // XE_COMPILER_MSVC
+
 namespace alloy {
 namespace compiler {
 namespace passes {
@@ -30,8 +40,8 @@ class ContextPromotionPass : public CompilerPass {
   void RemoveDeadStoresBlock(hir::Block* block);
 
  private:
-  size_t context_values_size_;
-  hir::Value** context_values_;
+  std::vector<hir::Value*> context_values_;
+  llvm::BitVector context_validity_;
 };
 
 }  // namespace passes
