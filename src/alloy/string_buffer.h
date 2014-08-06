@@ -22,7 +22,7 @@ class StringBuffer {
   StringBuffer(size_t initial_capacity = 0);
   ~StringBuffer();
 
-  size_t length() const { return offset_; }
+  size_t length() const { return buffer_.size(); }
 
   void Reset();
 
@@ -36,8 +36,9 @@ class StringBuffer {
   char* EncodeBase64();
 
  private:
+  void Grow(size_t additional_length);
+
   std::vector<char> buffer_;
-  size_t offset_;
 };
 
 }  // namespace alloy

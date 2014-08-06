@@ -9,17 +9,26 @@
 
 #include <alloy/string_buffer.h>
 
+#include <algorithm>
+
 namespace alloy {
 
-StringBuffer::StringBuffer(size_t initial_capacity) : offset_(0) {
-  buffer_.resize(MAX(initial_capacity, 1024));
+StringBuffer::StringBuffer(size_t initial_capacity) {
+  buffer_.reserve(MAX(initial_capacity, 1024));
 }
 
 StringBuffer::~StringBuffer() = default;
 
-void StringBuffer::Reset() {
-  offset_ = 0;
-  buffer_[0] = 0;
+void StringBuffer::Reset() { buffer_.resize(0); }
+
+void StringBuffer::Grow(size_t additional_length) {
+  size_t old_capacity = buffer_.capacity();
+  if (buffer_.size() + additional_length <= old_capacity) {
+    return;
+  }
+  size_t new_capacity =
+      std::max(buffer_.size() + additional_length, old_capacity * 2);
+  buffer_.reserve(new_capacity);
 }
 
 void StringBuffer::Append(const std::string& value) {
@@ -34,27 +43,20 @@ void StringBuffer::Append(const char* format, ...) {
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
-  while (true) {
-    int len = vsnprintf(buffer_.data() + offset_, buffer_.size() - offset_ - 1,
-                        format, args);
-    if (len == -1) {
-      buffer_.resize(buffer_.size() * 2);
-      continue;
-    } else {
-      offset_ += len;
-      break;
-    }
-  }
-  buffer_[offset_] = 0;
+  int length = vsnprintf(nullptr, 0, format, args);
+  auto offset = buffer_.size();
+  Grow(length + 1);
+  buffer_.resize(buffer_.size() + length);
+  vsnprintf(buffer_.data() + offset, buffer_.capacity() - 1, format, args);
+  buffer_[buffer_.size()] = 0;
 }
 
 void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
-  if (offset_ + length > buffer_.size()) {
-    buffer_.resize(MAX(buffer_.size() * 2, buffer_.size() + length));
-  }
-  memcpy(buffer_.data() + offset_, buffer, length);
-  offset_ += length;
-  buffer_[offset_] = 0;
+  auto offset = buffer_.size();
+  Grow(length + 1);
+  buffer_.resize(buffer_.size() + length);
+  memcpy(buffer_.data() + offset, buffer, length);
+  buffer_[buffer_.size()] = 0;
 }
 
 const char* StringBuffer::GetString() const { return buffer_.data(); }
