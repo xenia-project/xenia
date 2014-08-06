@@ -3640,30 +3640,26 @@ int Translate_VECTOR_SHA(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-template <typename T>
-T ROTL(T v, int8_t sh) {
-  return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
-}
 uint32_t IntCode_ROTATE_LEFT_I8(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i8 =
-      ROTL<uint8_t>(ics.rf[i->src1_reg].i8, ics.rf[i->src2_reg].i8);
+  ics.rf[i->dest_reg].i8 = poly::rotate_left<uint8_t>(ics.rf[i->src1_reg].i8,
+                                                      ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_ROTATE_LEFT_I16(IntCodeState& ics, const IntCode* i) {
-  ics.rf[i->dest_reg].i16 =
-      ROTL<uint16_t>(ics.rf[i->src1_reg].i16, ics.rf[i->src2_reg].i8);
+  ics.rf[i->dest_reg].i16 = poly::rotate_left<uint16_t>(ics.rf[i->src1_reg].i16,
+                                                        ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_ROTATE_LEFT_I32(IntCodeState& ics, const IntCode* i) {
   // TODO(benvanik): use _rtol on vc++
-  ics.rf[i->dest_reg].i32 =
-      ROTL<uint32_t>(ics.rf[i->src1_reg].i32, ics.rf[i->src2_reg].i8);
+  ics.rf[i->dest_reg].i32 = poly::rotate_left<uint32_t>(ics.rf[i->src1_reg].i32,
+                                                        ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 uint32_t IntCode_ROTATE_LEFT_I64(IntCodeState& ics, const IntCode* i) {
   // TODO(benvanik): use _rtol64 on vc++
-  ics.rf[i->dest_reg].i64 =
-      ROTL<uint64_t>(ics.rf[i->src1_reg].i64, ics.rf[i->src2_reg].i8);
+  ics.rf[i->dest_reg].i64 = poly::rotate_left<uint64_t>(ics.rf[i->src1_reg].i64,
+                                                        ics.rf[i->src2_reg].i8);
   return IA_NEXT;
 }
 int Translate_ROTATE_LEFT(TranslationContext& ctx, Instr* i) {
@@ -3673,6 +3669,11 @@ int Translate_ROTATE_LEFT(TranslationContext& ctx, Instr* i) {
       IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
+}
+
+int Translate_VECTOR_ROTATE_LEFT(TranslationContext& ctx, Instr* i) {
+  assert_always();
+  return 1;
 }
 
 uint32_t IntCode_BYTE_SWAP_I16(IntCodeState& ics, const IntCode* i) {
@@ -4218,11 +4219,12 @@ static const TranslateFn dispatch_table[] = {
     Translate_SHL,                Translate_VECTOR_SHL,
     Translate_SHR,                Translate_VECTOR_SHR,
     Translate_SHA,                Translate_VECTOR_SHA,
-    Translate_ROTATE_LEFT,        Translate_BYTE_SWAP,
-    Translate_CNTLZ,              Translate_INSERT,
-    Translate_EXTRACT,            Translate_SPLAT,
-    Translate_PERMUTE,            Translate_SWIZZLE,
-    Translate_PACK,               Translate_UNPACK,
+    Translate_ROTATE_LEFT,        Translate_VECTOR_ROTATE_LEFT,
+    Translate_BYTE_SWAP,          Translate_CNTLZ,
+    Translate_INSERT,             Translate_EXTRACT,
+    Translate_SPLAT,              Translate_PERMUTE,
+    Translate_SWIZZLE,            Translate_PACK,
+    Translate_UNPACK,
     TranslateInvalid,  // Translate_COMPARE_EXCHANGE,
     Translate_ATOMIC_EXCHANGE,
     TranslateInvalid,  // Translate_ATOMIC_ADD,

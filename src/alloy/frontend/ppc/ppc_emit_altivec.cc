@@ -1212,22 +1212,30 @@ XEEMITTER(vrfiz128, VX128_3(6, 1008), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vrlb, 0x10000004, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- ROTL((VA), (VB)&0x3)
+  Value* v = f.VectorRotateLeft(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vrlh, 0x10000044, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD) <- ROTL((VA), (VB)&0xF)
+  Value* v = f.VectorRotateLeft(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
+int InstrEmit_vrlw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- ROTL((VA), (VB)&0x1F)
+  Value* v = f.VectorRotateLeft(f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vrlw, 0x10000084, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrlw_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vrlw128, VX128(6, 80), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vrlw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vrlimi128, VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f,

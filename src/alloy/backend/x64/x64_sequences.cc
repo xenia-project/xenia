@@ -4476,6 +4476,76 @@ EMITTER_OPCODE_TABLE(
 
 
 // ============================================================================
+// OPCODE_VECTOR_ROTATE_LEFT
+// ============================================================================
+// TODO(benvanik): AVX512 has a native variable rotate (rolv).
+EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128<>, V128<>>)) {
+  static __m128i EmulateVectorRotateLeftI8(__m128i src1, __m128i src2) {
+    alignas(16) __m128i value;
+    alignas(16) __m128i shamt;
+    _mm_store_si128(&value, src1);
+    _mm_store_si128(&shamt, src2);
+    for (size_t i = 0; i < 16; ++i) {
+      value.m128i_u8[i] = poly::rotate_left<uint8_t>(
+          value.m128i_u8[i], shamt.m128i_u8[i] & 0x3);
+    }
+    return _mm_load_si128(&value);
+  }
+  static __m128i EmulateVectorRotateLeftI16(__m128i src1, __m128i src2) {
+    alignas(16) __m128i value;
+    alignas(16) __m128i shamt;
+    _mm_store_si128(&value, src1);
+    _mm_store_si128(&shamt, src2);
+    for (size_t i = 0; i < 8; ++i) {
+      value.m128i_u16[i] = poly::rotate_left<uint16_t>(
+          value.m128i_u16[i], shamt.m128i_u16[i] & 0xF);
+    }
+    return _mm_load_si128(&value);
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    switch (i.instr->flags) {
+    case INT8_TYPE:
+      // TODO(benvanik): native version (with shift magic).
+      e.lea(e.r8, e.StashXmm(i.src1));
+      e.lea(e.r9, e.StashXmm(i.src2));
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorRotateLeftI8));
+      e.vmovaps(i.dest, e.xmm0);
+      break;
+    case INT16_TYPE:
+      // TODO(benvanik): native version (with shift magic).
+      e.lea(e.r8, e.StashXmm(i.src1));
+      e.lea(e.r9, e.StashXmm(i.src2));
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorRotateLeftI16));
+      e.vmovaps(i.dest, e.xmm0);
+      break;
+    case INT32_TYPE: {
+      Xmm temp = i.dest;
+      if (i.dest == i.src1 || i.dest == i.src2) {
+        temp = e.xmm2;
+      }
+      // Shift left (to get high bits):
+      e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+      e.vpsllvd(e.xmm1, i.src1, e.xmm0);
+      // Shift right (to get low bits):
+      e.vmovaps(temp, e.GetXmmConstPtr(XMMPI32));
+      e.vpsubd(temp, e.xmm0);
+      e.vpsrlvd(i.dest, i.src1, e.xmm0);
+      // Merge:
+      e.vpor(i.dest, e.xmm1);
+      break;
+    }
+    default:
+      assert_always();
+      break;
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_ROTATE_LEFT,
+    VECTOR_ROTATE_LEFT_V128);
+
+
+// ============================================================================
 // OPCODE_BYTE_SWAP
 // ============================================================================
 // TODO(benvanik): put dest/src1 together.
@@ -5287,6 +5357,7 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHR);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHA);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ROTATE_LEFT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ROTATE_LEFT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_BYTE_SWAP);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_CNTLZ);
   //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_INSERT);

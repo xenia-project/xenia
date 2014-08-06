@@ -1661,6 +1661,17 @@ Value* HIRBuilder::RotateLeft(Value* value1, Value* value2) {
   return i->dest;
 }
 
+Value* HIRBuilder::VectorRotateLeft(Value* value1, Value* value2, TypeName part_type) {
+  ASSERT_VECTOR_TYPE(value1);
+  ASSERT_VECTOR_TYPE(value2);
+
+  Instr* i = AppendInstr(OPCODE_VECTOR_ROTATE_LEFT_info, part_type, AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::ByteSwap(Value* value) {
   if (value->type == INT8_TYPE) {
     return value;

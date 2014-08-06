@@ -108,6 +108,29 @@ inline bool bit_scan_forward(int64_t v, uint32_t* out_first_set_index) {
   return bit_scan_forward(static_cast<uint64_t>(v), out_first_set_index);
 }
 
+template <typename T>
+inline T rotate_left(T v, uint8_t sh) {
+  return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
+}
+#if XE_COMPILER_MSVC
+template <>
+inline uint8_t rotate_left(uint8_t v, uint8_t sh) {
+  return _rotl8(v, sh);
+}
+template <>
+inline uint16_t rotate_left(uint16_t v, uint8_t sh) {
+  return _rotl16(v, sh);
+}
+template <>
+inline uint32_t rotate_left(uint32_t v, uint8_t sh) {
+  return _rotl(v, sh);
+}
+template <>
+inline uint64_t rotate_left(uint64_t v, uint8_t sh) {
+  return _rotl64(v, sh);
+}
+#endif  // XE_COMPILER_MSVC
+
 // Utilities for SSE values.
 template <int N>
 float m128_f32(const __m128& v) {

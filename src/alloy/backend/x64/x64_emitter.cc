@@ -550,6 +550,7 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
       /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u,
                                            0xFFFFFFFFu, 0x00000000u),
       /* XMM255                 */ vec128f(255.0f, 255.0f, 255.0f, 255.0f),
+      /* XMMPI32                */ vec128i(32, 32, 32, 32),
       /* XMMSignMaskI8          */ vec128i(0x80808080u, 0x80808080u,
                                            0x80808080u, 0x80808080u),
       /* XMMSignMaskI16         */ vec128i(0x80008000u, 0x80008000u,

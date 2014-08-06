@@ -199,6 +199,7 @@ class HIRBuilder {
   Value* Sha(Value* value1, int8_t value2);
   Value* VectorSha(Value* value1, Value* value2, TypeName part_type);
   Value* RotateLeft(Value* value1, Value* value2);
+  Value* VectorRotateLeft(Value* value1, Value* value2, TypeName part_type);
   Value* ByteSwap(Value* value);
   Value* CountLeadingZeros(Value* value);
   Value* Insert(Value* value, Value* index, Value* part);

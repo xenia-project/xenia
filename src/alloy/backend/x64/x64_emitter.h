@@ -60,6 +60,7 @@ enum XmmConst {
   XMMShiftByteMask,
   XMMUnsignedDwordMax,
   XMM255,
+  XMMPI32,
   XMMSignMaskI8,
   XMMSignMaskI16,
   XMMSignMaskI32,
