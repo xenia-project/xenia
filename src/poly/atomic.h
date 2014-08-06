@@ -40,10 +40,15 @@ inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
   return OSAtomicCompareAndSwap64Barrier(*value, new_value, value);
 }
 
-inline int32_t atomic_cas(int32_t old_value, int32_t new_value,
-                          volatile int32_t* value) {
+inline bool atomic_cas(int32_t old_value, int32_t new_value,
+                       volatile int32_t* value) {
   return OSAtomicCompareAndSwap32Barrier(
       old_value, new_value, reinterpret_cast<volatile int32_t*>(value));
+}
+inline bool atomic_cas(int64_t old_value, int64_t new_value,
+                       volatile int32_t* value) {
+  return OSAtomicCompareAndSwap64Barrier(
+      old_value, new_value, reinterpret_cast<volatile int64_t*>(value));
 }
 
 #elif XE_LIKE_WIN32
@@ -64,10 +69,15 @@ inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
                                new_value);
 }
 
-inline int32_t atomic_cas(int32_t old_value, int32_t new_value,
-                          volatile int32_t* value) {
+inline bool atomic_cas(int32_t old_value, int32_t new_value,
+                       volatile int32_t* value) {
   return InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(value),
                                     new_value, old_value) == old_value;
+}
+inline bool atomic_cas(int64_t old_value, int64_t new_value,
+                       volatile int64_t* value) {
+  return InterlockedCompareExchange64(reinterpret_cast<volatile LONG64*>(value),
+                                      new_value, old_value) == old_value;
 }
 
 #elif XE_LIKE_POSIX
@@ -86,10 +96,15 @@ inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
   return __sync_val_compare_and_swap(*value, value, new_value);
 }
 
-inline int32_t atomic_cas(int32_t old_value, int32_t new_value,
-                          volatile int32_t* value) {
+inline bool atomic_cas(int32_t old_value, int32_t new_value,
+                       volatile int32_t* value) {
   return __sync_bool_compare_and_swap(
       reinterpret_cast<volatile int32_t*>(value), old_value, new_value);
+}
+inline bool atomic_cas(int64_t old_value, int64_t new_value,
+                       volatile int64_t* value) {
+  return __sync_bool_compare_and_swap(
+      reinterpret_cast<volatile int64_t*>(value), old_value, new_value);
 }
 
 #else
@@ -118,11 +133,17 @@ inline uint64_t atomic_exchange(uint64_t new_value, volatile uint64_t* value) {
                       reinterpret_cast<volatile int64_t*>(value)));
 }
 
-inline uint32_t atomic_cas(uint32_t old_value, uint32_t new_value,
-                           volatile uint32_t* value) {
-  return static_cast<uint32_t>(atomic_cas(
-      static_cast<int32_t>(old_value), static_cast<int32_t>(new_value),
-      reinterpret_cast<volatile int32_t*>(value)));
+inline bool atomic_cas(uint32_t old_value, uint32_t new_value,
+                       volatile uint32_t* value) {
+  return atomic_cas(static_cast<int32_t>(old_value),
+                    static_cast<int32_t>(new_value),
+                    reinterpret_cast<volatile int32_t*>(value));
+}
+inline bool atomic_cas(uint64_t old_value, uint64_t new_value,
+                       volatile uint64_t* value) {
+  return atomic_cas(static_cast<int64_t>(old_value),
+                    static_cast<int64_t>(new_value),
+                    reinterpret_cast<volatile int64_t*>(value));
 }
 
 }  // namespace poly
