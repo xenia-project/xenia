@@ -98,7 +98,10 @@ void ContextPromotionPass::PromoteBlock(Block* block) {
 
   Instr* i = block->instr_head;
   while (i) {
-    if (i->opcode == &OPCODE_LOAD_CONTEXT_info) {
+    if (i->opcode->flags & OPCODE_FLAG_VOLATILE) {
+      // Volatile instruction - requires all context values be flushed.
+      xe_zero_struct(context_values_, context_values_size_);
+    } else if (i->opcode == &OPCODE_LOAD_CONTEXT_info) {
       size_t offset = i->src1.offset;
       Value* previous_value = context_values_[offset];
       if (previous_value) {
@@ -123,18 +126,22 @@ void ContextPromotionPass::PromoteBlock(Block* block) {
 void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
   // TODO(benvanik): use a bitvector.
   // To avoid clearing the structure, we use a token.
-  auto token = (Value*)block;
+  // Upper bits are block address, lower bits increment each reset.
+  uint64_t token = reinterpret_cast<uint64_t>(block) << 16;
 
   // Walk backwards and mark offsets that are written to.
   // If the offset was written to earlier, ignore the store.
   Instr* i = block->instr_tail;
   while (i) {
     Instr* prev = i->prev;
-    if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
+    if (i->opcode->flags & OPCODE_FLAG_VOLATILE) {
+      // Volatile instruction - requires all context values be flushed.
+      ++token;
+    } else if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
-      if (context_values_[offset] != token) {
+      if (context_values_[offset] != reinterpret_cast<Value*>(token)) {
         // Mark offset as written to.
-        context_values_[offset] = token;
+        context_values_[offset] = reinterpret_cast<Value*>(token);
       } else {
         // Already written to. Remove this store.
         i->Remove();
