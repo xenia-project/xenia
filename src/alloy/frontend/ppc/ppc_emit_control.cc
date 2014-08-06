@@ -436,25 +436,34 @@ int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i, Value* va, Value* vb,
   if (!TO) {
     return 0;
   }
+  Value* v = nullptr;
   if (TO & (1 << 4)) {
     // a < b
-    f.TrapTrue(f.CompareSLT(va, vb));
+    auto cmp = f.CompareSLT(va, vb);
+    v = v ? f.Or(v, cmp) : cmp;
   }
   if (TO & (1 << 3)) {
     // a > b
-    f.TrapTrue(f.CompareSGT(va, vb));
+    auto cmp = f.CompareSGT(va, vb);
+    v = v ? f.Or(v, cmp) : cmp;
   }
   if (TO & (1 << 2)) {
     // a = b
-    f.TrapTrue(f.CompareEQ(va, vb));
+    auto cmp = f.CompareEQ(va, vb);
+    v = v ? f.Or(v, cmp) : cmp;
   }
   if (TO & (1 << 1)) {
     // a <u b
-    f.TrapTrue(f.CompareULT(va, vb));
+    auto cmp = f.CompareULT(va, vb);
+    v = v ? f.Or(v, cmp) : cmp;
   }
   if (TO & (1 << 0)) {
     // a >u b
-    f.TrapTrue(f.CompareUGT(va, vb));
+    auto cmp = f.CompareUGT(va, vb);
+    v = v ? f.Or(v, cmp) : cmp;
+  }
+  if (v) {
+    f.TrapTrue(v);
   }
   return 0;
 }
