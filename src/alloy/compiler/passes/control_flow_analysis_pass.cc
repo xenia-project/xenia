@@ -30,10 +30,18 @@ ControlFlowAnalysisPass::~ControlFlowAnalysisPass() {}
 int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
 
-  // TODO(benvanik): reset edges for all blocks? Needed to be re-runnable.
+  // Reset edges for all blocks. Needed to be re-runnable.
+  // Note that this wastes a bunch of arena memory, so we shouldn't
+  // re-run too often.
+  auto block = builder->first_block();
+  while (block) {
+    block->incoming_edge_head = nullptr;
+    block->outgoing_edge_head = nullptr;
+    block = block->next;
+  }
 
   // Add edges.
-  auto block = builder->first_block();
+  block = builder->first_block();
   while (block) {
     auto instr = block->instr_tail;
     while (instr) {

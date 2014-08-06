@@ -33,7 +33,8 @@ int Compiler::Compile(HIRBuilder* builder) {
 
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
-  for (auto& pass : passes_) {
+  for (size_t i = 0; i < passes_.size(); ++i) {
+    auto& pass = passes_[i];
     scratch_arena_.Reset();
     if (pass->Run(builder)) {
       return 1;
