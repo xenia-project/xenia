@@ -300,6 +300,26 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
         // TODO(benvanik): ADD_CARRY (w/ ARITHMETIC_SET_CARRY)
+        case OPCODE_ADD_CARRY:
+          if (i->src1.value->IsConstantZero() && i->src2.value->IsConstantZero()) {
+            Value* ca = i->src3.value;
+            // If carry is set find the DID_CARRY and fix it.
+            if (!!(i->flags & ARITHMETIC_SET_CARRY)) {
+              auto next = i->dest->use_head;
+              while (next) {
+                auto use = next;
+                next = use->next;
+                if (use->instr->opcode == &OPCODE_DID_CARRY_info) {
+                  // Replace carry value.
+                  use->instr->Replace(&OPCODE_ASSIGN_info, 0);
+                  use->instr->set_src1(ca);
+                }
+              }
+            }
+            i->Replace(&OPCODE_ASSIGN_info, 0);
+            i->set_src1(ca);
+          }
+          break;
         case OPCODE_SUB:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
