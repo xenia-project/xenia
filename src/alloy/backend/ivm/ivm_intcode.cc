@@ -101,7 +101,7 @@ uint32_t AllocConstant(TranslationContext& ctx, Value* value) {
 uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
   // If it's a back-branch to an already tagged label avoid setting up
   // a reference.
-  uint32_t value = *reinterpret_cast<uint32_t*>(label->tag);
+  uint32_t value = reinterpret_cast<uint32_t>(label->tag);
   if (value & 0x80000000) {
     // Already set.
     return AllocConstant(ctx, value & ~0x80000000);
@@ -124,7 +124,7 @@ uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
 
 uint32_t AllocDynamicRegister(TranslationContext& ctx, Value* value) {
   if (value->flags & VALUE_IS_ALLOCATED) {
-    return *reinterpret_cast<uint32_t*>(value->tag);
+    return reinterpret_cast<uint32_t>(value->tag);
   } else {
     value->flags |= VALUE_IS_ALLOCATED;
     auto reg = ctx.register_count++;
