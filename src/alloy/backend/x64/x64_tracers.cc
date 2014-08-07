@@ -72,10 +72,12 @@ void TraceContextLoadF32(void* raw_context, uint64_t offset, __m128 value) {
   DPRINT("%e (%X) = ctx f32 +%llu\n", poly::m128_f32<0>(value),
          poly::m128_i32<0>(value), offset);
 }
-void TraceContextLoadF64(void* raw_context, uint64_t offset, __m128 value) {
+void TraceContextLoadF64(void* raw_context, uint64_t offset,
+                         const double* value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%le (%llX) = ctx f64 +%llu\n", poly::m128_f64<0>(value),
-         poly::m128_i64<0>(value), offset);
+  auto v = _mm_loadu_pd(value);
+  DPRINT("%le (%llX) = ctx f64 +%llu\n", poly::m128_f64<0>(v),
+         poly::m128_i64<0>(v), offset);
 }
 void TraceContextLoadV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
@@ -107,10 +109,12 @@ void TraceContextStoreF32(void* raw_context, uint64_t offset, __m128 value) {
   DPRINT("ctx f32 +%llu = %e (%X)\n", offset, poly::m128_f32<0>(value),
          poly::m128_i32<0>(value));
 }
-void TraceContextStoreF64(void* raw_context, uint64_t offset, __m128 value) {
+void TraceContextStoreF64(void* raw_context, uint64_t offset,
+                          const double* value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("ctx f64 +%llu = %le (%llX)\n", offset, poly::m128_f64<0>(value),
-         poly::m128_i64<0>(value));
+  auto v = _mm_loadu_pd(value);
+  DPRINT("ctx f64 +%llu = %le (%llX)\n", offset, poly::m128_f64<0>(v),
+         poly::m128_i64<0>(v));
 }
 void TraceContextStoreV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
@@ -121,70 +125,70 @@ void TraceContextStoreV128(void* raw_context, uint64_t offset, __m128 value) {
          poly::m128_i32<2>(value), poly::m128_i32<3>(value));
 }
 
-void TraceMemoryLoadI8(void* raw_context, uint64_t address, uint8_t value) {
+void TraceMemoryLoadI8(void* raw_context, uint32_t address, uint8_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%d (%X) = load.i8 %.8llX\n", (int8_t)value, value, address);
+  DPRINT("%d (%X) = load.i8 %.8X\n", (int8_t)value, value, address);
 }
-void TraceMemoryLoadI16(void* raw_context, uint64_t address, uint16_t value) {
+void TraceMemoryLoadI16(void* raw_context, uint32_t address, uint16_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%d (%X) = load.i16 %.8llX\n", (int16_t)value, value, address);
+  DPRINT("%d (%X) = load.i16 %.8X\n", (int16_t)value, value, address);
 }
-void TraceMemoryLoadI32(void* raw_context, uint64_t address, uint32_t value) {
+void TraceMemoryLoadI32(void* raw_context, uint32_t address, uint32_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%d (%X) = load.i32 %.8llX\n", (int32_t)value, value, address);
+  DPRINT("%d (%X) = load.i32 %.8X\n", (int32_t)value, value, address);
 }
-void TraceMemoryLoadI64(void* raw_context, uint64_t address, uint64_t value) {
+void TraceMemoryLoadI64(void* raw_context, uint32_t address, uint64_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%lld (%llX) = load.i64 %.8llX\n", (int64_t)value, value, address);
+  DPRINT("%lld (%llX) = load.i64 %.8X\n", (int64_t)value, value, address);
 }
-void TraceMemoryLoadF32(void* raw_context, uint64_t address, __m128 value) {
+void TraceMemoryLoadF32(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%e (%X) = load.f32 %.8llX\n", poly::m128_f32<0>(value),
+  DPRINT("%e (%X) = load.f32 %.8X\n", poly::m128_f32<0>(value),
          poly::m128_i32<0>(value), address);
 }
-void TraceMemoryLoadF64(void* raw_context, uint64_t address, __m128 value) {
+void TraceMemoryLoadF64(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("%le (%llX) = load.f64 %.8llX\n", poly::m128_f64<0>(value),
+  DPRINT("%le (%llX) = load.f64 %.8X\n", poly::m128_f64<0>(value),
          poly::m128_i64<0>(value), address);
 }
-void TraceMemoryLoadV128(void* raw_context, uint64_t address, __m128 value) {
+void TraceMemoryLoadV128(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load.v128 %.8llX\n",
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = load.v128 %.8X\n",
          poly::m128_f32<0>(value), poly::m128_f32<1>(value),
          poly::m128_f32<2>(value), poly::m128_f32<3>(value),
          poly::m128_i32<0>(value), poly::m128_i32<1>(value),
          poly::m128_i32<2>(value), poly::m128_i32<3>(value), address);
 }
 
-void TraceMemoryStoreI8(void* raw_context, uint64_t address, uint8_t value) {
+void TraceMemoryStoreI8(void* raw_context, uint32_t address, uint8_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.i8 %.8llX = %d (%X)\n", address, (int8_t)value, value);
+  DPRINT("store.i8 %.8X = %d (%X)\n", address, (int8_t)value, value);
 }
-void TraceMemoryStoreI16(void* raw_context, uint64_t address, uint16_t value) {
+void TraceMemoryStoreI16(void* raw_context, uint32_t address, uint16_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.i16 %.8llX = %d (%X)\n", address, (int16_t)value, value);
+  DPRINT("store.i16 %.8X = %d (%X)\n", address, (int16_t)value, value);
 }
-void TraceMemoryStoreI32(void* raw_context, uint64_t address, uint32_t value) {
+void TraceMemoryStoreI32(void* raw_context, uint32_t address, uint32_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.i32 %.8llX = %d (%X)\n", address, (int32_t)value, value);
+  DPRINT("store.i32 %.8X = %d (%X)\n", address, (int32_t)value, value);
 }
-void TraceMemoryStoreI64(void* raw_context, uint64_t address, uint64_t value) {
+void TraceMemoryStoreI64(void* raw_context, uint32_t address, uint64_t value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.i64 %.8llX = %lld (%llX)\n", address, (int64_t)value, value);
+  DPRINT("store.i64 %.8X = %lld (%llX)\n", address, (int64_t)value, value);
 }
-void TraceMemoryStoreF32(void* raw_context, uint64_t address, __m128 value) {
+void TraceMemoryStoreF32(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.f32 %.8llX = %e (%X)\n", address, poly::m128_f32<0>(value),
+  DPRINT("store.f32 %.8X = %e (%X)\n", address, poly::m128_f32<0>(value),
          poly::m128_i32<0>(value));
 }
-void TraceMemoryStoreF64(void* raw_context, uint64_t address, __m128 value) {
+void TraceMemoryStoreF64(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.f64 %.8llX = %le (%llX)\n", address, poly::m128_f64<0>(value),
+  DPRINT("store.f64 %.8X = %le (%llX)\n", address, poly::m128_f64<0>(value),
          poly::m128_i64<0>(value));
 }
-void TraceMemoryStoreV128(void* raw_context, uint64_t address, __m128 value) {
+void TraceMemoryStoreV128(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *((ThreadState**)raw_context);
-  DPRINT("store.v128 %.8llX = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
+  DPRINT("store.v128 %.8X = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
          address, poly::m128_f32<0>(value), poly::m128_f32<1>(value),
          poly::m128_f32<2>(value), poly::m128_f32<3>(value),
          poly::m128_i32<0>(value), poly::m128_i32<1>(value),
