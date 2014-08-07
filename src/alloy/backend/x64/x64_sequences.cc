@@ -2745,7 +2745,17 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
                 // dest.f[n] = xmm1.f[n] ? xmm1.f[n] : dest.f[n];
                 e.vblendvps(dest, dest, e.xmm1, e.xmm1);
               } else {
-                assert_always();
+                // https://software.intel.com/en-us/forums/topic/285219
+                // We reuse all these temps...
+                assert_true(src1 != e.xmm0 && src1 != e.xmm1 && src1 != e.xmm2);
+                assert_true(src2 != e.xmm0 && src2 != e.xmm1 && src2 != e.xmm2);
+                e.vpaddd(e.xmm0, src1, src2);  // res
+                e.vpand(e.xmm1, src1, src2);  // sign_and
+                e.vpandn(e.xmm2, e.xmm0, e.xmm1);  // min_sat_mask
+                e.vblendvps(e.xmm2, e.xmm0, e.GetXmmConstPtr(XMMSignMaskPS), e.xmm2);
+                e.vpor(e.xmm1, src1, src2);  // sign_or
+                e.vpandn(e.xmm1, e.xmm0);  // max_sat_mask
+                e.vblendvps(e.xmm2, e.GetXmmConstPtr(XMMAbsMaskPS), e.xmm1);
               }
             } else {
               e.vpaddd(dest, src1, src2);
