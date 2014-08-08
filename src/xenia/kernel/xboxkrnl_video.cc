@@ -77,17 +77,34 @@ SHIM_CALL VdGetCurrentDisplayInformation_shim(
       ptr);
 
   // Expecting a length 0x58 struct of stuff.
-  SHIM_SET_MEM_32(ptr + 0x10, 1280);
-  SHIM_SET_MEM_32(ptr + 0x14, 720);
-  SHIM_SET_MEM_16(ptr + 0x48, 1280);
-  SHIM_SET_MEM_16(ptr + 0x4A, 720);
-  SHIM_SET_MEM_16(ptr + 0x56, 1280);
+  SHIM_SET_MEM_32(ptr + 0, (1280 << 16) | 720);
+  SHIM_SET_MEM_32(ptr + 4, 0);
+  SHIM_SET_MEM_32(ptr + 8, 0);
+  SHIM_SET_MEM_32(ptr + 12, 0);
+  SHIM_SET_MEM_32(ptr + 16, 1280);  // backbuffer width?
+  SHIM_SET_MEM_32(ptr + 20, 720);  // backbuffer height?
+  SHIM_SET_MEM_32(ptr + 24, 1280);
+  SHIM_SET_MEM_32(ptr + 28, 720);
+  SHIM_SET_MEM_32(ptr + 32, 1);
+  SHIM_SET_MEM_32(ptr + 36, 0);
+  SHIM_SET_MEM_32(ptr + 40, 0);
+  SHIM_SET_MEM_32(ptr + 44, 0);
+  SHIM_SET_MEM_32(ptr + 48, 1);
+  SHIM_SET_MEM_32(ptr + 52, 0);
+  SHIM_SET_MEM_32(ptr + 56, 0);
+  SHIM_SET_MEM_32(ptr + 60, 0);
+  SHIM_SET_MEM_32(ptr + 64, 0x014000B4);  // ?
+  SHIM_SET_MEM_32(ptr + 68, 0x014000B4);  // ?
+  SHIM_SET_MEM_32(ptr + 72, (1280 << 16) | 720);  // actual display size?
+  SHIM_SET_MEM_32(ptr + 76, 0x42700000);
+  SHIM_SET_MEM_32(ptr + 80, 0);
+  SHIM_SET_MEM_32(ptr + 84, 1280);  // display width
 }
 
 
 uint32_t xeVdQueryVideoFlags() {
   // ?
-  return 0x00000007;
+  return 0x00000006;
 }
 
 
