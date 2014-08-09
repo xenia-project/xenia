@@ -2,7 +2,7 @@
 {
   'targets': [
     {
-      'target_name': 'xenia-run',
+      'target_name': 'xenia-debug',
       'type': 'executable',
 
       'msvs_settings': {
@@ -12,6 +12,7 @@
       },
 
       'dependencies': [
+        'xdb',
         'xenia',
       ],
 
@@ -20,7 +21,7 @@
       ],
 
       'sources': [
-        'xenia-run.cc',
+        'xenia-debug.cc',
       ],
     },
   ],

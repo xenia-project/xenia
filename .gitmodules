@@ -16,3 +16,6 @@
 [submodule "third_party/ninja"]
 	path = third_party/ninja
 	url = https://chromium.googlesource.com/external/martine/ninja
+[submodule "third_party/wxWidgets"]
+	path = third_party/wxWidgets
+	url = https://github.com/wxWidgets/wxWidgets.git

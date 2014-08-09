@@ -444,5 +444,78 @@
         'src/xenia/sources.gypi',
       ],
     },
+
+    {
+      'target_name': 'xdb',
+      'product_name': 'xdb',
+      'type': 'static_library',
+
+      'dependencies': [
+        'gflags',
+        'xenia',
+      ],
+      'export_dependent_settings': [
+        'gflags',
+        'xenia',
+      ],
+
+      'direct_dependent_settings': {
+        'include_dirs': [
+          'src/',
+          'third_party/wxWidgets/include/',
+        ],
+
+        'target_conditions': [
+          ['_type=="shared_library"', {
+            'cflags': [
+            ],
+          }],
+          ['_type=="executable"', {
+            'conditions': [
+              ['OS == "win"', {
+                'libraries': [
+                  'kernel32',
+                  'user32',
+                  'ole32',
+                  'wsock32',
+                  'Ws2_32',
+                  'Shell32',
+                  # TODO(benvanik): root dir
+                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxbase31u',
+                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxmsw31u_core',
+                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxmsw31u_aui',
+                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxmsw31u_stc',
+                ],
+              }],
+              ['OS == "mac"', {
+                'xcode_settings': {
+                  'OTHER_LDFLAGS': [
+                  ],
+                },
+              }],
+              ['OS == "linux"', {
+                'libraries': [
+                  '-lpthread',
+                  '-ldl',
+                ],
+              }],
+            ],
+          }],
+        ],
+      },
+
+      'cflags': [
+      ],
+
+      'include_dirs': [
+        '.',
+        'src/',
+        'third_party/wxWidgets/include/',
+      ],
+
+      'includes': [
+        'src/xdb/sources.gypi',
+      ],
+    },
   ],
 }

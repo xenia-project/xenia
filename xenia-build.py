@@ -282,6 +282,24 @@ class SetupCommand(Command):
       shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
       print('')
 
+    # wxWidgets.
+    print('- wxWidgets...')
+    os.chdir('third_party/wxWidgets')
+    if sys.platform == 'win32':
+      shutil.copyfile('include/wx/msw/setup0.h', 'include/wx/msw/setup.h')
+      shell_call(' '.join([
+          'msbuild',
+          'build\msw\wx_vc10.sln',
+          '/nologo',
+          '/verbosity:quiet',
+          '/p:Configuration=Release',
+          '/p:Platform=x64',
+          ]))
+    else:
+      print('WARNING: wxWidgets build not supported yet');
+    os.chdir(cwd)
+    print('')
+
     # Binutils.
     # TODO(benvanik): disable on Windows
     print('- binutils...')
