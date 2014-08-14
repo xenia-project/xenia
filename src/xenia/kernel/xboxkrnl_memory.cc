@@ -189,6 +189,48 @@ SHIM_CALL NtFreeVirtualMemory_shim(
 }
 
 
+X_STATUS xeNtQueryVirtualMemory(
+    uint32_t* base_addr_ptr, X_MEMORY_BASIC_INFORMATION *memory_basic_information, bool swap) {
+
+  memory_basic_information->base_address        = XEROUNDUP(*base_addr_ptr, 4096);
+  memory_basic_information->allocation_base     = NULL;
+  memory_basic_information->allocation_protect  = 0;
+  memory_basic_information->region_size         = 0;
+  memory_basic_information->state               = X_MEM_FREE;
+  memory_basic_information->protect             = X_PAGE_NOACCESS;
+  memory_basic_information->type                = 0;
+
+  if (swap) {
+    memory_basic_information->base_address        = poly::byte_swap(memory_basic_information->base_address);
+    memory_basic_information->allocation_base     = poly::byte_swap(memory_basic_information->allocation_base);
+    memory_basic_information->allocation_protect  = poly::byte_swap(memory_basic_information->allocation_protect);
+    memory_basic_information->region_size         = poly::byte_swap(memory_basic_information->region_size);
+    memory_basic_information->state               = poly::byte_swap(memory_basic_information->state);
+    memory_basic_information->protect             = poly::byte_swap(memory_basic_information->protect);
+    memory_basic_information->type                = poly::byte_swap(memory_basic_information->type);
+  }
+
+  XELOGE("NtQueryVirtualMemory NOT IMPLEMENTED");
+
+  return X_STATUS_SUCCESS;
+}
+
+
+SHIM_CALL NtQueryVirtualMemory_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t base_addr_ptr = SHIM_GET_ARG_32(0);
+  uint32_t memory_basic_information_ptr = SHIM_GET_ARG_32(1);
+  X_MEMORY_BASIC_INFORMATION *memory_basic_information = (X_MEMORY_BASIC_INFORMATION*)SHIM_MEM_ADDR(memory_basic_information_ptr);
+
+  XELOGD(
+  	"NtQueryVirtualMemory(%.8X, %.8X)",
+    base_addr_ptr, memory_basic_information_ptr);
+
+  X_STATUS result = xeNtQueryVirtualMemory(&base_addr_ptr, memory_basic_information, true);
+  SHIM_SET_RETURN_32(result);
+}
+
+
 uint32_t xeMmAllocatePhysicalMemoryEx(
     uint32_t type, uint32_t region_size, uint32_t protect_bits,
     uint32_t min_addr_range, uint32_t max_addr_range, uint32_t alignment) {
@@ -513,6 +555,7 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", NtAllocateVirtualMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtFreeVirtualMemory, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVirtualMemory, state);
   //SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
