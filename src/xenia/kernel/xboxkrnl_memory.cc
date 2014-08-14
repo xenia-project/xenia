@@ -190,9 +190,10 @@ SHIM_CALL NtFreeVirtualMemory_shim(
 
 
 X_STATUS xeNtQueryVirtualMemory(
-    uint32_t* base_addr_ptr, X_MEMORY_BASIC_INFORMATION *memory_basic_information, bool swap) {
+    uint32_t base_address, X_MEMORY_BASIC_INFORMATION *memory_basic_information, bool swap) {
 
-  memory_basic_information->base_address        = XEROUNDUP(*base_addr_ptr, 4096);
+  // Just pretend that there is no virtual address allocated at given base address
+  memory_basic_information->base_address        = XEROUNDUP(base_address, 4096);
   memory_basic_information->allocation_base     = NULL;
   memory_basic_information->allocation_protect  = 0;
   memory_basic_information->region_size         = 0;
@@ -218,15 +219,15 @@ X_STATUS xeNtQueryVirtualMemory(
 
 SHIM_CALL NtQueryVirtualMemory_shim(
     PPCContext* ppc_state, KernelState* state) {
-  uint32_t base_addr_ptr = SHIM_GET_ARG_32(0);
+  uint32_t base_address = SHIM_GET_ARG_32(0);
   uint32_t memory_basic_information_ptr = SHIM_GET_ARG_32(1);
   X_MEMORY_BASIC_INFORMATION *memory_basic_information = (X_MEMORY_BASIC_INFORMATION*)SHIM_MEM_ADDR(memory_basic_information_ptr);
 
   XELOGD(
   	"NtQueryVirtualMemory(%.8X, %.8X)",
-    base_addr_ptr, memory_basic_information_ptr);
+    base_address, memory_basic_information_ptr);
 
-  X_STATUS result = xeNtQueryVirtualMemory(&base_addr_ptr, memory_basic_information, true);
+  X_STATUS result = xeNtQueryVirtualMemory(base_address, memory_basic_information, true);
   SHIM_SET_RETURN_32(result);
 }
 
