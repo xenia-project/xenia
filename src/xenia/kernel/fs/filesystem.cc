@@ -33,19 +33,86 @@ FileSystem::~FileSystem() {
   symlinks_.clear();
 }
 
-int FileSystem::RegisterDevice(const char* path, Device* device) {
+fs::FileSystemType FileSystem::InferType(const std::wstring& local_path) {
+  auto last_dot = local_path.find_last_of('.');
+  if (last_dot == std::wstring::npos) {
+    // Likely an STFS container.
+    return FileSystemType::STFS_TITLE;
+  } else if (local_path.substr(last_dot) == L".xex") {
+    // Treat as a naked xex file.
+    return FileSystemType::XEX_FILE;
+  } else {
+    // Assume a disc image.
+    return FileSystemType::DISC_IMAGE;
+  }
+}
+
+int FileSystem::InitializeFromPath(fs::FileSystemType type,
+                                   const std::wstring& local_path) {
+  switch (type) {
+    case FileSystemType::STFS_TITLE: {
+      // Register the container in the virtual filesystem.
+      int result_code =
+          RegisterSTFSContainerDevice("\\Device\\Cdrom0", local_path);
+      if (result_code) {
+        XELOGE("Unable to mount STFS container");
+        return result_code;
+      }
+
+      // TODO(benvanik): figure out paths.
+      // Create symlinks to the device.
+      CreateSymbolicLink("game:", "\\Device\\Cdrom0");
+      CreateSymbolicLink("d:", "\\Device\\Cdrom0");
+      break;
+    }
+    case FileSystemType::XEX_FILE: {
+      // Get the parent path of the file.
+      auto last_slash = local_path.find_last_of(poly::path_separator);
+      std::wstring parent_path = local_path.substr(0, last_slash);
+
+      // Register the local directory in the virtual filesystem.
+      int result_code = RegisterHostPathDevice(
+          "\\Device\\Harddisk1\\Partition0", parent_path);
+      if (result_code) {
+        XELOGE("Unable to mount local directory");
+        return result_code;
+      }
+
+      // Create symlinks to the device.
+      CreateSymbolicLink("game:", "\\Device\\Harddisk1\\Partition0");
+      CreateSymbolicLink("d:", "\\Device\\Harddisk1\\Partition0");
+      break;
+    }
+    case FileSystemType::DISC_IMAGE: {
+      // Register the disc image in the virtual filesystem.
+      int result_code = RegisterDiscImageDevice("\\Device\\Cdrom0", local_path);
+      if (result_code) {
+        XELOGE("Unable to mount disc image");
+        return result_code;
+      }
+
+      // Create symlinks to the device.
+      CreateSymbolicLink("game:", "\\Device\\Cdrom0");
+      CreateSymbolicLink("d:", "\\Device\\Cdrom0");
+      break;
+    }
+  }
+  return 0;
+}
+
+int FileSystem::RegisterDevice(const std::string& path, Device* device) {
   devices_.push_back(device);
   return 0;
 }
 
 int FileSystem::RegisterHostPathDevice(
-    const char* path, const xechar_t* local_path) {
+    const std::string& path, const std::wstring& local_path) {
   Device* device = new HostPathDevice(path, local_path);
   return RegisterDevice(path, device);
 }
 
 int FileSystem::RegisterDiscImageDevice(
-    const char* path, const xechar_t* local_path) {
+    const std::string& path, const std::wstring& local_path) {
   DiscImageDevice* device = new DiscImageDevice(path, local_path);
   if (device->Init()) {
     return 1;
@@ -54,7 +121,7 @@ int FileSystem::RegisterDiscImageDevice(
 }
 
 int FileSystem::RegisterSTFSContainerDevice(
-    const char* path, const xechar_t* local_path) {
+    const std::string& path, const std::wstring& local_path) {
   STFSContainerDevice* device = new STFSContainerDevice(path, local_path);
   if (device->Init()) {
     return 1;

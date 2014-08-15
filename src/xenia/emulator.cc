@@ -9,6 +9,7 @@
 
 #include <xenia/emulator.h>
 
+#include <poly/poly.h>
 #include <xdb/protocol.h>
 #include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
@@ -149,7 +150,7 @@ void Emulator::set_main_window(Window* window) {
   });
 }
 
-X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
+X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.
   // e.g., /my/files/foo.xex will get a local fs at:
@@ -157,111 +158,60 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
-  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
-  if (ev) {
-    ev->type = xdb::protocol::EventType::PROCESS_START;
+  int result_code =
+      file_system_->InitializeFromPath(FileSystemType::XEX_FILE, path);
+  if (result_code) {
+    return X_STATUS_INVALID_PARAMETER;
   }
-
-  int result_code = 0;
 
   // Get just the filename (foo.xex).
-  const xechar_t* file_name = xestrrchr(path, poly::path_separator);
-  if (file_name) {
-    // Skip slash.
-    file_name++;
-  } else {
+  std::wstring file_name;
+  auto last_slash = path.find_last_of(poly::path_separator);
+  if (last_slash == std::string::npos) {
     // No slash found, whole thing is a file.
     file_name = path;
+  } else {
+    // Skip slash.
+    file_name = path.substr(last_slash + 1);
   }
-
-  // Get the parent path of the file.
-  xechar_t parent_path[poly::max_path];
-  XEIGNORE(xestrcpy(parent_path, XECOUNT(parent_path), path));
-  parent_path[file_name - path] = 0;
-
-  // Register the local directory in the virtual filesystem.
-  result_code = file_system_->RegisterHostPathDevice(
-      "\\Device\\Harddisk1\\Partition0", parent_path);
-  if (result_code) {
-    XELOGE("Unable to mount local directory");
-    return result_code;
-  }
-
-  // Create symlinks to the device.
-  file_system_->CreateSymbolicLink(
-      "game:", "\\Device\\Harddisk1\\Partition0");
-  file_system_->CreateSymbolicLink(
-      "d:", "\\Device\\Harddisk1\\Partition0");
-
-  // Get the file name of the module to load from the filesystem.
-  char fs_path[poly::max_path];
-  XEIGNORE(xestrcpya(fs_path, XECOUNT(fs_path), "game:\\"));
-  char* fs_path_ptr = fs_path + xestrlena(fs_path);
-  *fs_path_ptr = 0;
-#if XE_WCHAR
-  XEIGNORE(xestrnarrow(fs_path_ptr, XECOUNT(fs_path), file_name));
-#else
-  XEIGNORE(xestrcpya(fs_path_ptr, XECOUNT(fs_path), file_name));
-#endif
 
   // Launch the game.
-  return xboxkrnl_->LaunchModule(fs_path);
+  std::string fs_path = "game:\\" + poly::to_string(file_name);
+  return CompleteLaunch(path, fs_path);
 }
 
-X_STATUS Emulator::LaunchDiscImage(const xechar_t* path) {
-  int result_code = 0;
+X_STATUS Emulator::LaunchDiscImage(const std::wstring& path) {
+  int result_code =
+      file_system_->InitializeFromPath(FileSystemType::DISC_IMAGE, path);
+  if (result_code) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
+  // Launch the game.
+  return CompleteLaunch(path, "game:\\default.xex");
+}
+
+X_STATUS Emulator::LaunchSTFSTitle(const std::wstring& path) {
+  int result_code =
+      file_system_->InitializeFromPath(FileSystemType::STFS_TITLE, path);
+  if (result_code) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  // Launch the game.
+  return CompleteLaunch(path, "game:\\default.xex");
+}
+
+X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
+                                  const std::string& module_path) {
   auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
   if (ev) {
     ev->type = xdb::protocol::EventType::PROCESS_START;
+    ev->membase = reinterpret_cast<uint64_t>(memory()->membase());
+    auto path_length = poly::to_string(path)
+                           .copy(ev->launch_path, sizeof(ev->launch_path) - 1);
+    ev->launch_path[path_length] = 0;
   }
 
-  // Register the disc image in the virtual filesystem.
-  result_code = file_system_->RegisterDiscImageDevice(
-      "\\Device\\Cdrom0", path);
-  if (result_code) {
-    XELOGE("Unable to mount disc image");
-    return result_code;
-  }
-
-  // Create symlinks to the device.
-  file_system_->CreateSymbolicLink(
-      "game:",
-      "\\Device\\Cdrom0");
-  file_system_->CreateSymbolicLink(
-      "d:",
-      "\\Device\\Cdrom0");
-
-  // Launch the game.
-  return xboxkrnl_->LaunchModule("game:\\default.xex");
-}
-
-X_STATUS Emulator::LaunchSTFSTitle(const xechar_t* path) {
-  int result_code = 0;
-
-  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
-  if (ev) {
-    ev->type = xdb::protocol::EventType::PROCESS_START;
-  }
-
-  // TODO(benvanik): figure out paths.
-
-  // Register the disc image in the virtual filesystem.
-  result_code = file_system_->RegisterSTFSContainerDevice(
-      "\\Device\\Cdrom0", path);
-  if (result_code) {
-    XELOGE("Unable to mount STFS container");
-    return result_code;
-  }
-
-  // Create symlinks to the device.
-  file_system_->CreateSymbolicLink(
-      "game:",
-      "\\Device\\Cdrom0");
-  file_system_->CreateSymbolicLink(
-      "d:",
-      "\\Device\\Cdrom0");
-
-  // Launch the game.
-  return xboxkrnl_->LaunchModule("game:\\default.xex");
+  return xboxkrnl_->LaunchModule(module_path.c_str());
 }

@@ -23,7 +23,7 @@ using vec128_t = alloy::vec128_t;
 #pragma pack(push, 4)
 
 enum class EventType : uint8_t {
-  SETUP,
+  END_OF_STREAM = 0,
 
   PROCESS_START,
   PROCESS_EXIT,
@@ -61,15 +61,16 @@ struct Event {
         sizeof(T), reinterpret_cast<uint64_t*>(trace_base));
     return reinterpret_cast<T*>(ptr);
   }
-};
 
-struct SetupEvent : public Event<SetupEvent> {
-  EventType type;
-  uint64_t membase;
+  static const T* Get(const void* ptr) {
+    return reinterpret_cast<const T*>(ptr);
+  }
 };
 
 struct ProcessStartEvent : public Event<ProcessStartEvent> {
   EventType type;
+  uint64_t membase;
+  char launch_path[256];
 };
 
 struct ProcessExitEvent : public Event<ProcessExitEvent> {

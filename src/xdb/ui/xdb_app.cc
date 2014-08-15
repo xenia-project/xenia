@@ -10,10 +10,9 @@
 #include <xdb/ui/xdb_app.h>
 
 #include <atomic>
-#include <codecvt>
 #include <thread>
 
-#include <poly/assert.h>
+#include <poly/poly.h>
 #include <xdb/postmortem_debug_target.h>
 #include <xdb/ui/main_frame.h>
 #include <xdb/ui/open_postmortem_trace_dialog.h>
@@ -46,22 +45,16 @@ void XdbApp::OpenEmpty() {
 
 bool XdbApp::OpenTraceFile(const std::string& trace_file_path,
                            const std::string& content_file_path) {
-  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-  return OpenTraceFile(converter.from_bytes(trace_file_path),
-                       converter.from_bytes(content_file_path));
+  return OpenTraceFile(poly::to_wstring(trace_file_path),
+                       poly::to_wstring(content_file_path));
 }
 
 bool XdbApp::OpenTraceFile(const std::wstring& trace_file_path,
                            const std::wstring& content_file_path) {
   std::unique_ptr<PostmortemDebugTarget> target(new PostmortemDebugTarget());
 
-  if (!target->LoadTrace(trace_file_path)) {
+  if (!target->LoadTrace(trace_file_path, content_file_path)) {
     HandleOpenError("Unable to load trace file.");
-    return false;
-  }
-
-  if (!target->LoadContent(content_file_path)) {
-    HandleOpenError("Unable to load source game content module.");
     return false;
   }
 

@@ -9,8 +9,7 @@
 
 #include <xenia/debug_agent.h>
 
-#include <codecvt>
-
+#include <poly/string.h>
 #include <gflags/gflags.h>
 
 DEFINE_string(trace_file, "", "Trace to the given file.");
@@ -45,8 +44,7 @@ int DebugAgent::Initialize() {
 }
 
 int DebugAgent::SetupTracing(const std::string& trace_file, uint64_t capacity) {
-  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> cvt;
-  auto file_path = cvt.from_bytes(trace_file);
+  auto file_path = poly::to_wstring(trace_file);
   file_ = CreateFile(file_path.c_str(), GENERIC_READ | GENERIC_WRITE,
                      FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
                      FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY,

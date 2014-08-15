@@ -10,42 +10,40 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_DEVICE_H_
 #define XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_DEVICE_H_
 
+#include <string>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 #include <xenia/kernel/fs/device.h>
 
-
 namespace xe {
 namespace kernel {
 namespace fs {
 
-
 class STFS;
 
-
 class STFSContainerDevice : public Device {
-public:
-  STFSContainerDevice(const char* path, const xechar_t* local_path);
-  virtual ~STFSContainerDevice();
+ public:
+  STFSContainerDevice(const std::string& path, const std::wstring& local_path);
+  ~STFSContainerDevice() override;
 
   int Init();
 
-  virtual Entry* ResolvePath(const char* path);
+  Entry* ResolvePath(const char* path) override;
 
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length);
+  X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) override;
+  X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+                                     size_t length) override;
 
-private:
-  xechar_t*   local_path_;
+ private:
+  std::wstring local_path_;
   xe_mmap_ref mmap_;
-  STFS*       stfs_;
+  STFS* stfs_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_DEVICE_H_

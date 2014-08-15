@@ -10,6 +10,8 @@
 #ifndef XENIA_EMULATOR_H_
 #define XENIA_EMULATOR_H_
 
+#include <string>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 #include <xenia/debug_agent.h>
@@ -32,7 +34,7 @@ XEDECLARECLASS2(xe, ui, Window);
 namespace xe {
 
 class Emulator {
-public:
+ public:
   Emulator(const xechar_t* command_line);
   ~Emulator();
 
@@ -59,11 +61,14 @@ public:
   X_STATUS Setup();
 
   // TODO(benvanik): raw binary.
-  X_STATUS LaunchXexFile(const xechar_t* path);
-  X_STATUS LaunchDiscImage(const xechar_t* path);
-  X_STATUS LaunchSTFSTitle(const xechar_t* path);
+  X_STATUS LaunchXexFile(const std::wstring& path);
+  X_STATUS LaunchDiscImage(const std::wstring& path);
+  X_STATUS LaunchSTFSTitle(const std::wstring& path);
 
-private:
+ private:
+  X_STATUS CompleteLaunch(const std::wstring& path,
+                         const std::string& module_path);
+
   xechar_t                command_line_[poly::max_path];
 
   ui::Window*             main_window_;

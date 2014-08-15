@@ -51,7 +51,10 @@ int main(int argc, xechar_t** argv) {
 
   if (!FLAGS_trace_file.empty()) {
     // Trace file specified on command line.
-    app->OpenTraceFile(FLAGS_trace_file, FLAGS_content_file);
+    if (!app->OpenTraceFile(FLAGS_trace_file, FLAGS_content_file)) {
+      XEFATAL("Failed to open trace file");
+      return 1;
+    }
   } else {
     app->OpenEmpty();
   }

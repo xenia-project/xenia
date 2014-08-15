@@ -17,23 +17,17 @@ using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
-
-
-DiscImageDevice::DiscImageDevice(const char* path, const xechar_t* local_path) :
-    Device(path) {
-  local_path_ = xestrdup(local_path);
-  mmap_ = NULL;
-  gdfx_ = NULL;
-}
+DiscImageDevice::DiscImageDevice(const std::string& path,
+                                 const std::wstring& local_path)
+    : Device(path), local_path_(local_path), mmap_(nullptr), gdfx_(nullptr) {}
 
 DiscImageDevice::~DiscImageDevice() {
   delete gdfx_;
   xe_mmap_release(mmap_);
-  xe_free(local_path_);
 }
 
 int DiscImageDevice::Init() {
-  mmap_ = xe_mmap_open(kXEFileModeRead, local_path_, 0, 0);
+  mmap_ = xe_mmap_open(kXEFileModeRead, local_path_.c_str(), 0, 0);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
     return 1;

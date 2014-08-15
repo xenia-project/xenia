@@ -10,12 +10,22 @@
 #ifndef XDB_DEBUG_TARGET_H_
 #define XDB_DEBUG_TARGET_H_
 
+#include <xenia/kernel/fs/filesystem.h>
+
 namespace xdb {
 
 class DebugTarget {
  public:
+  virtual ~DebugTarget() = default;
+
+  xe::kernel::fs::FileSystem* file_system() const { return file_system_.get(); }
+
  protected:
   DebugTarget() = default;
+
+  bool InitializeFileSystem(const std::wstring& path);
+
+  std::unique_ptr<xe::kernel::fs::FileSystem> file_system_;
 };
 
 }  // namespace xdb

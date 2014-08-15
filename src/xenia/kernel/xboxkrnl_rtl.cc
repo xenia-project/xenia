@@ -9,9 +9,7 @@
 
 #include <xenia/kernel/xboxkrnl_rtl.h>
 
-#include <locale>
-#include <codecvt>
-
+#include <poly/string.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xthread.h>
@@ -329,8 +327,7 @@ X_STATUS xeRtlUnicodeStringToAnsiString(uint32_t destination_ptr,
 
   std::wstring unicode_str = poly::load_and_swap<std::wstring>(
       IMPL_MEM_ADDR(IMPL_MEM_32(source_ptr + 4)));
-  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-  std::string ansi_str = converter.to_bytes(unicode_str);
+  std::string ansi_str = poly::to_string(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
   }

@@ -9,20 +9,12 @@
 
 #include <xenia/kernel/fs/device.h>
 
-
 using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
+Device::Device(const std::string& path) : path_(path) {}
 
-Device::Device(const char* path) {
-  path_ = xestrdupa(path);
-}
+Device::~Device() {}
 
-Device::~Device() {
-  xe_free(path_);
-}
-
-const char* Device::path() {
-  return path_;
-}
+const char* Device::path() const { return path_.c_str(); }

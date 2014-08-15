@@ -15,6 +15,8 @@
     'poly-private.h',
     'poly.cc',
     'poly.h',
+    'string.cc',
+    'string.h',
     'threading.h',
   ],
 

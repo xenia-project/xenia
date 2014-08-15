@@ -7,21 +7,18 @@
  ******************************************************************************
  */
 
-#ifndef POLY_POLY_H_
-#define POLY_POLY_H_
+#ifndef POLY_STRING_H_
+#define POLY_STRING_H_
 
-#include <poly/assert.h>
-#include <poly/atomic.h>
-#include <poly/byte_order.h>
+#include <string>
+
 #include <poly/config.h>
-#include <poly/cxx_compat.h>
-#include <poly/debugging.h>
-#include <poly/math.h>
-#include <poly/memory.h>
-#include <poly/platform.h>
-#include <poly/string.h>
-#include <poly/threading.h>
 
-namespace poly {}  // namespace poly
+namespace poly {
 
-#endif  // POLY_POLY_H_
+std::string to_string(const std::wstring& source);
+std::wstring to_wstring(const std::string& source);
+
+}  // namespace poly
+
+#endif  // POLY_STRING_H_

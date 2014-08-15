@@ -17,15 +17,11 @@ using namespace xe;
 using namespace xe::kernel;
 using namespace xe::kernel::fs;
 
+HostPathDevice::HostPathDevice(const std::string& path,
+                               const std::wstring& local_path)
+    : Device(path), local_path_(local_path) {}
 
-HostPathDevice::HostPathDevice(const char* path, const xechar_t* local_path) :
-    Device(path) {
-  local_path_ = xestrdup(local_path);
-}
-
-HostPathDevice::~HostPathDevice() {
-  xe_free(local_path_);
-}
+HostPathDevice::~HostPathDevice() {}
 
 Entry* HostPathDevice::ResolvePath(const char* path) {
   // The filesystem will have stripped our prefix off already, so the path will
@@ -42,7 +38,7 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
 #endif
 
   xechar_t full_path[poly::max_path];
-  xe_path_join(local_path_, rel_path, full_path, XECOUNT(full_path));
+  xe_path_join(local_path_.c_str(), rel_path, full_path, XECOUNT(full_path));
 
   // Swap around path separators.
   if (poly::path_separator != '\\') {

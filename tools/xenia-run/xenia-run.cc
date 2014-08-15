@@ -55,10 +55,6 @@ int xenia_run(int argc, xechar_t** argv) {
   xechar_t abs_path[poly::max_path];
   xe_path_get_absolute(path, abs_path, XECOUNT(abs_path));
 
-  // Grab file extension.
-  // May be NULL if an STFS file.
-  const xechar_t* dot = xestrrchr(abs_path, '.');
-
   // Create the emulator.
   emulator = new Emulator(L"");
   XEEXPECTNOTNULL(emulator);
@@ -70,16 +66,17 @@ int xenia_run(int argc, xechar_t** argv) {
 
   // Launch based on file type.
   // This is a silly guess based on file extension.
-  // NOTE: the runtime launch routine will wait until the module exits.
-  if (!dot) {
-    // Likely an STFS container.
-    result = emulator->LaunchSTFSTitle(abs_path);
-  } else if (xestrcmp(dot, L".xex") == 0) {
-    // Treat as a naked xex file.
-    result = emulator->LaunchXexFile(abs_path);
-  } else {
-    // Assume a disc image.
-    result = emulator->LaunchDiscImage(abs_path);
+  auto file_system_type = emulator->file_system()->InferType(abs_path);
+  switch (file_system_type) {
+    case kernel::fs::FileSystemType::STFS_TITLE:
+      result = emulator->LaunchSTFSTitle(abs_path);
+      break;
+    case kernel::fs::FileSystemType::XEX_FILE:
+      result = emulator->LaunchXexFile(abs_path);
+      break;
+    case kernel::fs::FileSystemType::DISC_IMAGE:
+      result = emulator->LaunchDiscImage(abs_path);
+      break;
   }
   if (XFAILED(result)) {
     XELOGE("Failed to launch target: %.8X", result);

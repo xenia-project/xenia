@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include <poly/assert.h>
 #include <poly/byte_order.h>
 
 namespace poly {
@@ -59,6 +60,20 @@ inline float load<float>(const void* mem) {
 template <>
 inline double load<double>(const void* mem) {
   return *reinterpret_cast<const double*>(mem);
+}
+template <typename T>
+inline T load(const void* mem) {
+  if (sizeof(T) == 1) {
+    return static_cast<T>(load<uint8_t>(mem));
+  } else if (sizeof(T) == 2) {
+    return static_cast<T>(load<uint16_t>(mem));
+  } else if (sizeof(T) == 4) {
+    return static_cast<T>(load<uint32_t>(mem));
+  } else if (sizeof(T) == 8) {
+    return static_cast<T>(load<uint64_t>(mem));
+  } else {
+    assert_always("Invalid poly::load size");
+  }
 }
 
 template <typename T>
@@ -171,6 +186,20 @@ inline void store<float>(void* mem, float value) {
 template <>
 inline void store<double>(void* mem, double value) {
   *reinterpret_cast<double*>(mem) = value;
+}
+template <typename T>
+inline void store(const void* mem, T value) {
+  if (sizeof(T) == 1) {
+    store<uint8_t>(mem, static_cast<uint8_t>(value));
+  } else if (sizeof(T) == 2) {
+    store<uint8_t>(mem, static_cast<uint16_t>(value));
+  } else if (sizeof(T) == 4) {
+    store<uint8_t>(mem, static_cast<uint32_t>(value));
+  } else if (sizeof(T) == 8) {
+    store<uint8_t>(mem, static_cast<uint64_t>(value));
+  } else {
+    assert_always("Invalid poly::store size");
+  }
 }
 
 template <typename T>
