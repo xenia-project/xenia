@@ -191,15 +191,23 @@ SHIM_CALL NtFreeVirtualMemory_shim(
 
 X_STATUS xeNtQueryVirtualMemory(
     uint32_t base_address, X_MEMORY_BASIC_INFORMATION *memory_basic_information, bool swap) {
+  KernelState* state = shared_kernel_state_;
+  assert_not_null(state);
 
-  // Just pretend that there is no virtual address allocated at given base address
-  memory_basic_information->base_address        = XEROUNDUP(base_address, 4096);
-  memory_basic_information->allocation_base     = NULL;
-  memory_basic_information->allocation_protect  = 0;
-  memory_basic_information->region_size         = 0;
-  memory_basic_information->state               = X_MEM_FREE;
-  memory_basic_information->protect             = X_PAGE_NOACCESS;
-  memory_basic_information->type                = 0;
+  MEMORY_BASIC_INFORMATION mem_info;
+  size_t result = state->memory()->QueryInformation(base_address, mem_info);
+
+  if (!result) {
+    return STATUS_INVALID_PARAMETER;
+  }
+
+  memory_basic_information->base_address        = (uint32_t) mem_info.BaseAddress;
+  memory_basic_information->allocation_base     = (uint32_t) mem_info.AllocationBase;
+  memory_basic_information->allocation_protect  = mem_info.AllocationProtect;
+  memory_basic_information->region_size         = mem_info.RegionSize;
+  memory_basic_information->state               = mem_info.State;
+  memory_basic_information->protect             = mem_info.Protect;
+  memory_basic_information->type                = mem_info.Type;
 
   if (swap) {
     memory_basic_information->base_address        = poly::byte_swap(memory_basic_information->base_address);

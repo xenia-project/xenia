@@ -54,6 +54,7 @@ public:
       uint32_t alignment = 0x20) override;
   int HeapFree(uint64_t address, size_t size) override;
 
+  size_t QueryInformation(uint64_t base_address, MEMORY_BASIC_INFORMATION mem_info) override;
   size_t QuerySize(uint64_t base_address) override;
 
   int Protect(uint64_t address, size_t size, uint32_t access) override;
