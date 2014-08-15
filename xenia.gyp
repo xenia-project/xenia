@@ -96,6 +96,7 @@
             #'LinkIncremental': '1', # 1 = NO, 2 = YES
             'TargetMachine': '17', # x86 - 64
             'AdditionalLibraryDirectories': [
+              '..\\..\\third_party\\wxWidgets\\lib\\vc_x64_lib\\',
             ],
           },
         },
@@ -463,6 +464,7 @@
         'include_dirs': [
           'src/',
           'third_party/wxWidgets/include/',
+          'third_party/wxWidgets/include/msvc/',
         ],
 
         'target_conditions': [
@@ -480,11 +482,11 @@
                   'wsock32',
                   'Ws2_32',
                   'Shell32',
-                  # TODO(benvanik): root dir
-                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxbase31u',
-                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxmsw31u_core',
-                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxmsw31u_aui',
-                  '../../third_party/wxWidgets/lib/vc_x64_lib/wxmsw31u_stc',
+                  'Msimg32',
+                  'wxbase31u',
+                  'wxmsw31u_core',
+                  'wxmsw31u_aui',
+                  'wxmsw31u_stc',
                 ],
               }],
               ['OS == "mac"', {
@@ -511,6 +513,7 @@
         '.',
         'src/',
         'third_party/wxWidgets/include/',
+        'third_party/wxWidgets/include/msvc/',
       ],
 
       'includes': [

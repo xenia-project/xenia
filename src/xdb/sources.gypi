@@ -4,8 +4,11 @@
     'protocol.h',
     'xdb.cc',
     'xdb.h',
+    'xdb_app.cc',
+    'xdb_app.h',
   ],
 
   'includes': [
+    'ui/sources.gypi',
   ],
 }

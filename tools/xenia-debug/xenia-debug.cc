@@ -9,26 +9,49 @@
 
 #include <xdb/xdb.h>
 
+#include <memory>
+
 #include <gflags/gflags.h>
+#include <poly/poly.h>
+#include <third_party/wxWidgets/include/wx/wx.h>
+#include <xdb/xdb_app.h>
 
+namespace xdb {
 
-//using namespace xdb;
-
-
-int xenia_debug(int argc, xechar_t** argv) {
-  int result_code = 1;
-
+int main(int argc, xechar_t** argv) {
   // Create platform abstraction layer.
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
-  XEEXPECTZERO(xe_pal_init(pal_options));
-
-
-  result_code = 0;
-XECLEANUP:
-  if (result_code) {
-    XEFATAL("Failed to launch debugger: %d", result_code);
+  if (xe_pal_init(pal_options)) {
+    XEFATAL("Failed to initialize PAL");
+    return 1;
   }
+
+  wxInitializer init;
+  if (!init.IsOk()) {
+    XEFATAL("Failed to initialize wxWidgets");
+    return 1;
+  }
+
+  // App is auto-freed by wx.
+  auto app = new XdbApp();
+  wxApp::SetInstance(app);
+  if (!wxEntryStart(0, nullptr)) {
+    XEFATAL("Failed to enter wxWidgets app");
+    return 1;
+  }
+  if (!app->OnInit()) {
+    XEFATAL("Failed to init app");
+    return 1;
+  }
+  app->OnRun();
+  int result_code = app->OnExit();
+  wxEntryCleanup();
   return result_code;
 }
-XE_MAIN_WINDOW_THUNK(xenia_debug, XETEXT("xenia-debug"), "xenia-debug");
+
+}  // namespace xdb
+
+// TODO(benvanik): move main thunk into poly
+// ehhh
+XE_MAIN_WINDOW_THUNK(xdb::main, L"xenia-debug", "xenia-debug");
