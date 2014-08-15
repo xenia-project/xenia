@@ -40,10 +40,16 @@ MainFrameBase::MainFrameBase( wxWindow* parent, wxWindowID id, const wxString& t
 	
 	m_mgr.Update();
 	this->Centre( wxBOTH );
+	
+	// Connect Events
+	this->Connect( wxEVT_IDLE, wxIdleEventHandler( MainFrameBase::OnIdle ) );
 }
 
 MainFrameBase::~MainFrameBase()
 {
+	// Disconnect Events
+	this->Disconnect( wxEVT_IDLE, wxIdleEventHandler( MainFrameBase::OnIdle ) );
+	
 	m_mgr.UnInit();
 	
 }

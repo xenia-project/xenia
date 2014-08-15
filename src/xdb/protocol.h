@@ -77,14 +77,9 @@ struct ProcessExitEvent : public Event<ProcessExitEvent> {
   EventType type;
 };
 
-struct ModuleInfo {
-  uint32_t module_id;
-};
-
 struct ModuleLoadEvent : public Event<ModuleLoadEvent> {
   EventType type;
   uint32_t module_id;
-  ModuleInfo module_info;
 };
 
 struct ModuleUnloadEvent : public Event<ModuleUnloadEvent> {
@@ -226,6 +221,31 @@ struct InstrEventR16R16 : public Event<InstrEventR16R16> {
 };
 
 #pragma pack(pop)
+
+// Matches the EventType ordering to allow for quick event size checks.
+const size_t kEventSizes[] = {
+    0,
+    sizeof(protocol::ProcessStartEvent),
+    sizeof(protocol::ProcessExitEvent),
+    sizeof(protocol::ModuleLoadEvent),
+    sizeof(protocol::ModuleUnloadEvent),
+    sizeof(protocol::ThreadCreateEvent),
+    sizeof(protocol::ThreadInfoEvent),
+    sizeof(protocol::ThreadExitEvent),
+    sizeof(protocol::FunctionCompiledEvent),
+    sizeof(protocol::OutputStringEvent),
+    sizeof(protocol::KernelCallEvent),
+    sizeof(protocol::KernelCallReturnEvent),
+    sizeof(protocol::UserCallEvent),
+    sizeof(protocol::UserCallReturnEvent),
+    sizeof(protocol::InstrEvent),
+    sizeof(protocol::InstrEventR8),
+    sizeof(protocol::InstrEventR8R8),
+    sizeof(protocol::InstrEventR8R16),
+    sizeof(protocol::InstrEventR16),
+    sizeof(protocol::InstrEventR16R8),
+    sizeof(protocol::InstrEventR16R16),
+};
 
 }  // namespace protocol
 }  // namespace xdb

@@ -27,4 +27,16 @@ bool DebugTarget::InitializeFileSystem(const std::wstring& path) {
   return true;
 }
 
+Module* DebugTarget::GetModule(uint16_t module_id) {
+  std::lock_guard<std::mutex> lock(object_lock_);
+  auto it = module_map_.find(module_id);
+  return it != module_map_.end() ? it->second : nullptr;
+}
+
+Thread* DebugTarget::GetThread(uint16_t thread_id) {
+  std::lock_guard<std::mutex> lock(object_lock_);
+  auto it = thread_map_.find(thread_id);
+  return it != thread_map_.end() ? it->second : nullptr;
+}
+
 }  // namespace xdb

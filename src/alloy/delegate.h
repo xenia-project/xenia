@@ -21,6 +21,9 @@ namespace alloy {
 // TODO(benvanik): go lockfree, and don't hold the lock while emitting.
 
 template <typename T>
+class Delegate;
+
+template <typename T>
 class Delegate {
  public:
   typedef std::function<void(T&)> Listener;
@@ -28,16 +31,6 @@ class Delegate {
   void AddListener(Listener const& listener) {
     std::lock_guard<std::mutex> guard(lock_);
     listeners_.push_back(listener);
-  }
-
-  void RemoveListener(Listener const& listener) {
-    std::lock_guard<std::mutex> guard(lock_);
-    for (auto it = listeners_.begin(); it != listeners_.end(); ++it) {
-      if (it == listener) {
-        listeners_.erase(it);
-        break;
-      }
-    }
   }
 
   void RemoveAllListeners() {
@@ -49,6 +42,33 @@ class Delegate {
     std::lock_guard<std::mutex> guard(lock_);
     for (auto& listener : listeners_) {
       listener(e);
+    }
+  }
+
+ private:
+  std::mutex lock_;
+  std::vector<Listener> listeners_;
+};
+
+template <>
+class Delegate<void> {
+ public:
+  typedef std::function<void()> Listener;
+
+  void AddListener(Listener const& listener) {
+    std::lock_guard<std::mutex> guard(lock_);
+    listeners_.push_back(listener);
+  }
+
+  void RemoveAllListeners() {
+    std::lock_guard<std::mutex> guard(lock_);
+    listeners_.clear();
+  }
+
+  void operator()() {
+    std::lock_guard<std::mutex> guard(lock_);
+    for (auto& listener : listeners_) {
+      listener();
     }
   }
 

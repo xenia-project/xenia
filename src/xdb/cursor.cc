@@ -7,30 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XDB_UI_MAIN_FRAME_H_
-#define XDB_UI_MAIN_FRAME_H_
-
-#include <memory>
-
-#include <xdb/debug_target.h>
-#include <xdb/ui/xdb_ui.h>
+#include <xdb/cursor.h>
 
 namespace xdb {
-namespace ui {
 
-class MainFrame : public MainFrameBase {
- public:
-  MainFrame(std::unique_ptr<DebugTarget> debug_target);
+//
 
- protected:
-  void OnIdle(wxIdleEvent& event) override;
-
- private:
-  std::unique_ptr<DebugTarget> debug_target_;
-  std::unique_ptr<Cursor> cursor_;
-};
-
-}  // namespace ui
 }  // namespace xdb
-
-#endif  // XDB_UI_MAIN_FRAME_H_

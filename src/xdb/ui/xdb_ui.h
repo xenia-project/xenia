@@ -53,6 +53,10 @@ namespace xdb
 				wxAuiNotebook* notebook_;
 				wxPanel* m_panel3;
 				wxPanel* m_panel4;
+				
+				// Virtual event handlers, overide them in your derived class
+				virtual void OnIdle( wxIdleEvent& event ) { event.Skip(); }
+				
 			
 			public:
 				

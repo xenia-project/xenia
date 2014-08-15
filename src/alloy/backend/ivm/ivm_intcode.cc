@@ -249,7 +249,6 @@ int Translate_SOURCE_OFFSET(TranslationContext& ctx, Instr* i) {
 
 // TODO(benvanik): dispatch of register forms.
 uint32_t IntCode_TRACE_SOURCE(IntCodeState& ics, const IntCode* i) {
-  // TODO(benvanik): append to active trace writer.
   uint64_t trace_base = ics.thread_state->memory()->trace_base();
   if (trace_base) {
     auto ev = xdb::protocol::InstrEvent::Append(trace_base);
@@ -323,7 +322,7 @@ uint32_t IntCode_TRAP(IntCodeState& ics, const IntCode* i) {
   switch (i->flags) {
     case 20:
       // 0x0FE00014 is a 'debug print' where r3 = buffer r4 = length
-      break;
+      return IA_NEXT;
     case 22:
       // Always trap?
       break;

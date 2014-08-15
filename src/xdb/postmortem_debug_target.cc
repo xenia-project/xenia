@@ -10,36 +10,12 @@
 #include <xdb/postmortem_debug_target.h>
 
 #include <poly/poly.h>
+#include <xdb/postmortem_cursor.h>
 #include <xenia/logging.h>
 
 namespace xdb {
 
 using xdb::protocol::EventType;
-
-// Matches the EventType ordering to allow for quick event size checks.
-const size_t event_sizes[] = {
-    0,
-    sizeof(protocol::ProcessStartEvent),
-    sizeof(protocol::ProcessExitEvent),
-    sizeof(protocol::ModuleLoadEvent),
-    sizeof(protocol::ModuleUnloadEvent),
-    sizeof(protocol::ThreadCreateEvent),
-    sizeof(protocol::ThreadInfoEvent),
-    sizeof(protocol::ThreadExitEvent),
-    sizeof(protocol::FunctionCompiledEvent),
-    sizeof(protocol::OutputStringEvent),
-    sizeof(protocol::KernelCallEvent),
-    sizeof(protocol::KernelCallReturnEvent),
-    sizeof(protocol::UserCallEvent),
-    sizeof(protocol::UserCallReturnEvent),
-    sizeof(protocol::InstrEvent),
-    sizeof(protocol::InstrEventR8),
-    sizeof(protocol::InstrEventR8R8),
-    sizeof(protocol::InstrEventR8R16),
-    sizeof(protocol::InstrEventR16),
-    sizeof(protocol::InstrEventR16R8),
-    sizeof(protocol::InstrEventR16R16),
-};
 
 PostmortemDebugTarget::PostmortemDebugTarget()
     : file_(nullptr),
@@ -66,8 +42,8 @@ bool PostmortemDebugTarget::LoadTrace(const std::wstring& path,
     return false;
   }
 
-  file_mapping_ = CreateFileMapping(file_, nullptr, PAGE_READONLY, 0, 0,
-                                    L"Local\\xenia_xdb_trace");
+  file_mapping_ =
+      CreateFileMapping(file_, nullptr, PAGE_READONLY, 0, 0, nullptr);
   if (!file_mapping_) {
     XELOGE("Could not create trace file mapping");
     return false;
@@ -95,7 +71,7 @@ bool PostmortemDebugTarget::LoadTrace(const std::wstring& path,
     if (process_start_event_) {
       break;
     }
-    ptr += event_sizes[static_cast<uint8_t>(event_type)];
+    ptr += protocol::kEventSizes[static_cast<uint8_t>(event_type)];
   }
 
   bool initialized_filesystem = false;
@@ -129,7 +105,8 @@ bool PostmortemDebugTarget::Prepare(std::atomic<bool>& cancelled) {
          EventType::END_OF_STREAM) {
     switch (event_type) {
       case EventType::PROCESS_START: {
-        process_start_event_ = protocol::ProcessStartEvent::Get(ptr);
+        assert_true(process_start_event_ ==
+                    protocol::ProcessStartEvent::Get(ptr));
         break;
       }
       case EventType::PROCESS_EXIT: {
@@ -209,10 +186,17 @@ bool PostmortemDebugTarget::Prepare(std::atomic<bool>& cancelled) {
         break;
       }
     }
-    ptr += event_sizes[static_cast<uint8_t>(event_type)];
+    ptr += protocol::kEventSizes[static_cast<uint8_t>(event_type)];
   };
 
+  trace_length_ = ptr - trace_base_;
+
   return true;
+}
+
+std::unique_ptr<Cursor> PostmortemDebugTarget::CreateCursor() {
+  auto cursor = std::make_unique<PostmortemCursor>(this);
+  return std::unique_ptr<Cursor>(cursor.release());
 }
 
 }  // namespace xdb
