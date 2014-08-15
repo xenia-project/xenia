@@ -40,6 +40,11 @@ inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
   return OSAtomicCompareAndSwap64Barrier(*value, new_value, value);
 }
 
+//inline int32_t atomic_exchange_add(int32_t amount, volatile int32_t* value) {
+//}
+//inline int64_t atomic_exchange_add(int64_t amount, volatile int64_t* value) {
+//}
+
 inline bool atomic_cas(int32_t old_value, int32_t new_value,
                        volatile int32_t* value) {
   return OSAtomicCompareAndSwap32Barrier(
@@ -69,6 +74,15 @@ inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
                                new_value);
 }
 
+inline int32_t atomic_exchange_add(int32_t amount, volatile int32_t* value) {
+  return InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(value),
+                                amount);
+}
+inline int64_t atomic_exchange_add(int64_t amount, volatile int64_t* value) {
+  return InterlockedExchangeAdd64(reinterpret_cast<volatile LONGLONG*>(value),
+                                  amount);
+}
+
 inline bool atomic_cas(int32_t old_value, int32_t new_value,
                        volatile int32_t* value) {
   return InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(value),
@@ -95,6 +109,11 @@ inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
 inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
   return __sync_val_compare_and_swap(*value, value, new_value);
 }
+
+//inline int32_t atomic_exchange_add(int32_t amount, volatile int32_t* value) {
+//}
+//inline int64_t atomic_exchange_add(int64_t amount, volatile int64_t* value) {
+//}
 
 inline bool atomic_cas(int32_t old_value, int32_t new_value,
                        volatile int32_t* value) {
@@ -131,6 +150,17 @@ inline uint64_t atomic_exchange(uint64_t new_value, volatile uint64_t* value) {
   return static_cast<uint64_t>(
       atomic_exchange(static_cast<int64_t>(new_value),
                       reinterpret_cast<volatile int64_t*>(value)));
+}
+
+inline uint32_t atomic_exchange_add(uint32_t amount, volatile uint32_t* value) {
+  return static_cast<uint32_t>(
+      atomic_exchange_add(static_cast<int32_t>(amount),
+                          reinterpret_cast<volatile int32_t*>(value)));
+}
+inline uint64_t atomic_exchange_add(uint64_t amount, volatile uint64_t* value) {
+  return static_cast<uint64_t>(
+      atomic_exchange_add(static_cast<int64_t>(amount),
+                          reinterpret_cast<volatile int64_t*>(value)));
 }
 
 inline bool atomic_cas(uint32_t old_value, uint32_t new_value,

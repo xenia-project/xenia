@@ -297,8 +297,8 @@ XEEMITTER(fnmsubsx, 0xEC00003C, A)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(fcfidx, 0xFC00069C, X)(PPCHIRBuilder& f, InstrData& i) {
   // frD <- signed_int64_to_double( frB )
-  Value* v = f.Convert(f.Cast(f.LoadFPR(i.A.FRB), INT64_TYPE), FLOAT64_TYPE);
-  f.StoreFPR(i.A.FRT, v);
+  Value* v = f.Convert(f.Cast(f.LoadFPR(i.X.RB), INT64_TYPE), FLOAT64_TYPE);
+  f.StoreFPR(i.X.RT, v);
   // f.UpdateFPRF(v);
   if (i.A.Rc) {
     // e.update_cr_with_cond(1, v);
@@ -337,7 +337,7 @@ XEEMITTER(fctiwx, 0xFC00001C, X)(PPCHIRBuilder& f, InstrData& i) {
   v = f.Cast(f.ZeroExtend(v, INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
   // f.UpdateFPRF(v);
-  if (i.A.Rc) {
+  if (i.X.Rc) {
     // e.update_cr_with_cond(1, v);
     XEINSTRNOTIMPLEMENTED();
     return 1;
@@ -409,7 +409,8 @@ XEEMITTER(mffsx, 0xFC00048E, X)(PPCHIRBuilder& f, InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
-  f.StoreFPR(i.X.RT, f.Cast(f.LoadFPSCR(), FLOAT64_TYPE));
+  Value* v = f.Cast(f.LoadFPSCR(), FLOAT64_TYPE);
+  f.StoreFPR(i.X.RT, v);
   return 0;
 }
 

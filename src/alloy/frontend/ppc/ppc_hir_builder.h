@@ -33,7 +33,15 @@ class PPCHIRBuilder : public hir::HIRBuilder {
 
   virtual void Reset();
 
-  int Emit(runtime::FunctionInfo* symbol_info, bool with_debug_info);
+  enum EmitFlags {
+    // Emit comment nodes.
+    EMIT_DEBUG_COMMENTS = 1 << 0,
+    // Emit TraceSource nodes.
+    EMIT_TRACE_SOURCE = 1 << 1,
+    // Emit TraceSource nodes with the resulting values of the operations.
+    EMIT_TRACE_SOURCE_VALUES = EMIT_TRACE_SOURCE | (1 << 2),
+  };
+  int Emit(runtime::FunctionInfo* symbol_info, uint32_t flags);
 
   runtime::FunctionInfo* symbol_info() const { return symbol_info_; }
   runtime::FunctionInfo* LookupFunction(uint64_t address);
@@ -89,6 +97,15 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   uint64_t instr_count_;
   Instr** instr_offset_list_;
   Label** label_list_;
+
+  // Reset each instruction.
+  struct {
+    uint32_t dest_count;
+    struct {
+      uint8_t reg;
+      Value* value;
+    } dests[4];
+  } trace_info_;
 };
 
 }  // namespace ppc

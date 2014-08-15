@@ -649,6 +649,28 @@ void HIRBuilder::SourceOffset(uint64_t offset) {
   i->src2.value = i->src3.value = NULL;
 }
 
+void HIRBuilder::TraceSource(uint64_t offset) {
+  Instr* i = AppendInstr(OPCODE_TRACE_SOURCE_info, 100 | (100 << 8));
+  i->src1.offset = offset;
+  i->set_src2(LoadZero(INT64_TYPE));
+  i->set_src3(LoadZero(INT64_TYPE));
+}
+
+void HIRBuilder::TraceSource(uint64_t offset, uint8_t index, Value* value) {
+  Instr* i = AppendInstr(OPCODE_TRACE_SOURCE_info, index | (100 << 8));
+  i->src1.offset = offset;
+  i->set_src2(value);
+  i->set_src3(LoadZero(INT64_TYPE));
+}
+
+void HIRBuilder::TraceSource(uint64_t offset, uint8_t index_0, Value* value_0,
+                             uint8_t index_1, Value* value_1) {
+  Instr* i = AppendInstr(OPCODE_TRACE_SOURCE_info, index_0 | (index_1 << 8));
+  i->src1.offset = offset;
+  i->set_src2(value_0);
+  i->set_src3(value_1);
+}
+
 void HIRBuilder::DebugBreak() {
   Instr* i = AppendInstr(OPCODE_DEBUG_BREAK_info, 0);
   i->src1.value = i->src2.value = i->src3.value = NULL;
@@ -1743,11 +1765,13 @@ Value* HIRBuilder::RotateLeft(Value* value1, Value* value2) {
   return i->dest;
 }
 
-Value* HIRBuilder::VectorRotateLeft(Value* value1, Value* value2, TypeName part_type) {
+Value* HIRBuilder::VectorRotateLeft(Value* value1, Value* value2,
+                                    TypeName part_type) {
   ASSERT_VECTOR_TYPE(value1);
   ASSERT_VECTOR_TYPE(value2);
 
-  Instr* i = AppendInstr(OPCODE_VECTOR_ROTATE_LEFT_info, part_type, AllocValue(value1->type));
+  Instr* i = AppendInstr(OPCODE_VECTOR_ROTATE_LEFT_info, part_type,
+                         AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
   i->src3.value = NULL;

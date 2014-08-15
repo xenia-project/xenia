@@ -13,6 +13,7 @@
 
 #include <alloy/runtime/module.h>
 #include <poly/poly.h>
+#include <xdb/protocol.h>
 
 // TODO(benvanik): based on compiler support
 #include <alloy/backend/ivm/ivm_backend.h>
@@ -26,7 +27,11 @@ namespace runtime {
 using alloy::backend::Backend;
 using alloy::frontend::Frontend;
 
-Runtime::Runtime(Memory* memory) : memory_(memory) {}
+Runtime::Runtime(Memory* memory, uint32_t debug_info_flags,
+                 uint32_t trace_flags)
+    : memory_(memory),
+      debug_info_flags_(debug_info_flags),
+      trace_flags_(trace_flags) {}
 
 Runtime::~Runtime() {
   {
@@ -224,13 +229,23 @@ int Runtime::DemandFunction(FunctionInfo* symbol_info,
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undefined, so define now.
     Function* function = nullptr;
-    int result =
-        frontend_->DefineFunction(symbol_info, DEBUG_INFO_DEFAULT, &function);
+    int result = frontend_->DefineFunction(symbol_info, debug_info_flags_,
+                                           trace_flags_, &function);
     if (result) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
       return result;
     }
     symbol_info->set_function(function);
+
+    auto trace_base = memory()->trace_base();
+    if (trace_base && trace_flags_ & TRACE_FUNCTION_GENERATION) {
+      auto ev = xdb::protocol::FunctionCompiledEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::FUNCTION_COMPILED;
+      ev->flags = 0;
+      ev->address = static_cast<uint32_t>(symbol_info->address());
+      ev->length =
+          static_cast<uint32_t>(symbol_info->end_address() - ev->address);
+    }
 
     // Before we give the symbol back to the rest, let the debugger know.
     debugger_->OnFunctionDefined(symbol_info, function);

@@ -26,6 +26,15 @@ enum DebugInfoFlags {
   DEBUG_INFO_ALL_DISASM = 0xFFFF,
 };
 
+enum TraceFlags {
+  TRACE_NONE = 0,
+  TRACE_EXTERN_CALLS = (1 << 0),
+  TRACE_USER_CALLS = (1 << 1),
+  TRACE_SOURCE = (1 << 2),
+  TRACE_SOURCE_VALUES = (1 << 3),
+  TRACE_FUNCTION_GENERATION = (1 << 4),
+};
+
 typedef struct SourceMapEntry_s {
   uint64_t source_offset;  // Original source address/offset.
   uint64_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)

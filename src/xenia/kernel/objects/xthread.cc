@@ -11,6 +11,7 @@
 
 #include <poly/math.h>
 
+#include <xdb/protocol.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/kernel/native_list.h>
 #include <xenia/kernel/xboxkrnl_threading.h>
@@ -70,6 +71,12 @@ XThread::XThread(KernelState* kernel_state,
 }
 
 XThread::~XThread() {
+  auto ev = xdb::protocol::ThreadExitEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::THREAD_EXIT;
+    ev->thread_id = handle();
+  }
+
   // Unregister first to prevent lookups while deleting.
   kernel_state_->UnregisterThread(this);
 
@@ -252,6 +259,13 @@ X_STATUS XThread::Create() {
   uint32_t proc_mask = creation_params_.creation_flags >> 24;
   if (proc_mask) {
     SetAffinity(proc_mask);
+  }
+
+  auto ev = xdb::protocol::ThreadCreateEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::THREAD_CREATE;
+    ev->thread_id = handle();
+    thread_state_->WriteRegisters(&ev->registers);
   }
 
   module->Release();

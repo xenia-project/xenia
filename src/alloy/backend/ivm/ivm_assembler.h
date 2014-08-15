@@ -31,7 +31,7 @@ class IVMAssembler : public Assembler {
   int Assemble(runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
                uint32_t debug_info_flags,
                std::unique_ptr<runtime::DebugInfo> debug_info,
-               runtime::Function** out_function) override;
+               uint32_t trace_flags, runtime::Function** out_function) override;
 
  private:
   Arena intcode_arena_;

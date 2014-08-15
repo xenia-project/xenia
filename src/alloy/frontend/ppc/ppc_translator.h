@@ -32,7 +32,7 @@ class PPCTranslator {
   ~PPCTranslator();
 
   int Translate(runtime::FunctionInfo* symbol_info, uint32_t debug_info_flags,
-                runtime::Function** out_function);
+                uint32_t trace_flags, runtime::Function** out_function);
 
  private:
   void DumpSource(runtime::FunctionInfo* symbol_info,

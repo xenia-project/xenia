@@ -47,7 +47,8 @@ PPCFrontend::PPCFrontend(Runtime* runtime) : Frontend(runtime) {
   InitializeIfNeeded();
 
   std::unique_ptr<ContextInfo> context_info(
-      new ContextInfo(sizeof(PPCContext), offsetof(PPCContext, thread_state)));
+      new ContextInfo(sizeof(PPCContext), offsetof(PPCContext, thread_state),
+                      offsetof(PPCContext, thread_id)));
   // Add fields/etc.
   context_info_ = std::move(context_info);
 }
@@ -77,10 +78,11 @@ int PPCFrontend::DeclareFunction(FunctionInfo* symbol_info) {
 
 int PPCFrontend::DefineFunction(FunctionInfo* symbol_info,
                                 uint32_t debug_info_flags,
+                                uint32_t trace_flags,
                                 Function** out_function) {
   PPCTranslator* translator = translator_pool_.Allocate(this);
   int result =
-      translator->Translate(symbol_info, debug_info_flags, out_function);
+      translator->Translate(symbol_info, debug_info_flags, trace_flags, out_function);
   translator_pool_.Release(translator);
   return result;
 }

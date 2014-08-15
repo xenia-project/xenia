@@ -13,55 +13,28 @@
 #include <alloy/core.h>
 #include <alloy/vec128.h>
 
-
 namespace alloy { namespace runtime {
   class Runtime;
   class ThreadState;
 } }
 
-
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
-
 using vec128_t = alloy::vec128_t;
 
-
-typedef union {
-  uint32_t  value;
-  struct {
-    uint8_t lt          :1;     // Negative (LT) - result is negative
-    uint8_t gt          :1;     // Positive (GT) - result is positive (and not zero)
-    uint8_t eq          :1;     // Zero (EQ) - result is zero or a stwcx/stdcx completed successfully
-    uint8_t so          :1;     // Summary Overflow (SO) - copy of XER[SO]
-  } cr0;
-  struct {
-    uint8_t fx          :1;     // FP exception summary - copy of FPSCR[FX]
-    uint8_t fex         :1;     // FP enabled exception summary - copy of FPSCR[FEX]
-    uint8_t vx          :1;     // FP invalid operation exception summary - copy of FPSCR[VX]
-    uint8_t ox          :1;     // FP overflow exception - copy of FPSCR[OX]
-  } cr1;
-  struct {
-    uint8_t value       :4;
-  } cr2;
-  struct {
-    uint8_t value       :4;
-  } cr3;
-  struct {
-    uint8_t value       :4;
-  } cr4;
-  struct {
-    uint8_t value       :4;
-  } cr5;
-  struct {
-    uint8_t value       :4;
-  } cr6;
-  struct {
-    uint8_t value       :4;
-  } cr7;
-} PPCCR;
-
+// Map:
+// 0-31: GPR
+// 32-63: FPR
+// 64: LR
+// 65: CTR
+// 66: XER
+// 67: FPSCR
+// 68: VSCR
+// 69-76: CR0-7
+// 100: invalid
+// 128-256: VR
 
 #pragma pack(push, 4)
 typedef struct XECACHEALIGN64 PPCContext_s {
@@ -194,12 +167,15 @@ typedef struct XECACHEALIGN64 PPCContext_s {
   //   fpscr.value = (fpscr.value & ~0x000F8000) | v;
   // }
 
+  // Thread ID assigned to this context.
+  uint32_t thread_id;
+
   // Reserve address for load acquire/store release. Shared.
-  uint32_t*             reserve_address;
+  uint32_t* reserve_address;
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
-  runtime::Runtime*     runtime;
+  runtime::Runtime* runtime;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,
@@ -207,10 +183,8 @@ typedef struct XECACHEALIGN64 PPCContext_s {
 } PPCContext;
 #pragma pack(pop)
 
-
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_CONTEXT_H_

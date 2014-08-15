@@ -56,6 +56,8 @@ public:
 
   ObjectTable* object_table() const { return object_table_; }
 
+  void RegisterModule(XModule* module);
+  void UnregisterModule(XModule* module);
   XModule* GetModule(const char* name);
   XUserModule* GetExecutableModule();
   void SetExecutableModule(XUserModule* module);

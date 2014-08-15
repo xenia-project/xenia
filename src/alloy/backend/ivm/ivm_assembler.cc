@@ -50,7 +50,7 @@ void IVMAssembler::Reset() {
 int IVMAssembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
                            uint32_t debug_info_flags,
                            std::unique_ptr<DebugInfo> debug_info,
-                           Function** out_function) {
+                           uint32_t trace_flags, Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
   // Reset when we leave.

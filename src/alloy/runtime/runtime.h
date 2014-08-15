@@ -29,7 +29,8 @@ namespace runtime {
 
 class Runtime {
  public:
-  explicit Runtime(Memory* memory);
+  explicit Runtime(Memory* memory, uint32_t debug_info_flags = 0,
+                   uint32_t trace_flags = 0);
   virtual ~Runtime();
 
   Memory* memory() const { return memory_; }
@@ -59,6 +60,9 @@ class Runtime {
 
  protected:
   Memory* memory_;
+
+  uint32_t debug_info_flags_;
+  uint32_t trace_flags_;
 
   std::unique_ptr<Debugger> debugger_;
 

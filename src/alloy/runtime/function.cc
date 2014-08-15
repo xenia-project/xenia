@@ -12,6 +12,7 @@
 #include <alloy/runtime/debugger.h>
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
+#include <xdb/protocol.h>
 
 namespace alloy {
 namespace runtime {
@@ -73,8 +74,18 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
 
   int result = 0;
 
+  uint64_t trace_base = thread_state->memory()->trace_base();
   if (symbol_info_->behavior() == FunctionInfo::BEHAVIOR_EXTERN) {
     auto handler = symbol_info_->extern_handler();
+
+    if (trace_base && true) {
+      auto ev = xdb::protocol::KernelCallEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::KERNEL_CALL;
+      ev->thread_id = thread_state->thread_id();
+      ev->module_id = 0;
+      ev->ordinal = 0;
+    }
+
     if (handler) {
       handler(thread_state->raw_context(), symbol_info_->extern_arg0(),
               symbol_info_->extern_arg1());
@@ -83,8 +94,28 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
              symbol_info_->name().c_str());
       result = 1;
     }
+
+    if (trace_base && true) {
+      auto ev = xdb::protocol::KernelCallReturnEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::KERNEL_CALL_RETURN;
+      ev->thread_id = thread_state->thread_id();
+    }
   } else {
+    if (trace_base && true) {
+      auto ev = xdb::protocol::UserCallEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::USER_CALL;
+      ev->call_type = 0; // ?
+      ev->thread_id = thread_state->thread_id();
+      ev->address = static_cast<uint32_t>(symbol_info_->address());
+    }
+
     CallImpl(thread_state, return_address);
+
+    if (trace_base && true) {
+      auto ev = xdb::protocol::UserCallReturnEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::USER_CALL_RETURN;
+      ev->thread_id = thread_state->thread_id();
+    }
   }
 
   if (original_thread_state != thread_state) {

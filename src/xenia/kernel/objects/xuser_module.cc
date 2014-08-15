@@ -122,6 +122,8 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
+  OnLoad();
+
   return X_STATUS_SUCCESS;
 }
 

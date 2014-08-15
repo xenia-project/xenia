@@ -84,8 +84,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   int Initialize();
 
   int Emit(hir::HIRBuilder* builder, uint32_t debug_info_flags,
-           runtime::DebugInfo* debug_info, void*& out_code_address,
-           size_t& out_code_size);
+           runtime::DebugInfo* debug_info, uint32_t trace_flags,
+           void*& out_code_address, size_t& out_code_size);
 
  public:
   // Reserved:  rsp
@@ -163,6 +163,10 @@ class X64Emitter : public Xbyak::CodeGenerator {
  protected:
   void* Emplace(size_t stack_size);
   int Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
+  void EmitTraceSource(const hir::Instr* instr);
+  void EmitTraceSourceAppendValue(const hir::Value* value, size_t r8_offset);
+  void EmitGetCurrentThreadId();
+  void EmitTraceUserCallReturn();
 
  protected:
   runtime::Runtime* runtime_;
@@ -176,6 +180,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Arena source_map_arena_;
 
   size_t stack_size_;
+
+  uint32_t trace_flags_;
 
   static const uint32_t gpr_reg_map_[GPR_COUNT];
   static const uint32_t xmm_reg_map_[XMM_COUNT];

@@ -85,7 +85,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
 PPCTranslator::~PPCTranslator() = default;
 
 int PPCTranslator::Translate(FunctionInfo* symbol_info,
-                             uint32_t debug_info_flags,
+                             uint32_t debug_info_flags, uint32_t trace_flags,
                              Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
@@ -124,7 +124,16 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Emit function.
-  int result = builder_->Emit(symbol_info, debug_info != nullptr);
+  uint32_t emit_flags = 0;
+  if (debug_info) {
+    emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
+  }
+  if (trace_flags & TRACE_SOURCE_VALUES) {
+    emit_flags |= PPCHIRBuilder::EMIT_TRACE_SOURCE_VALUES;
+  } else if (trace_flags & TRACE_SOURCE) {
+    emit_flags |= PPCHIRBuilder::EMIT_TRACE_SOURCE;
+  }
+  int result = builder_->Emit(symbol_info, emit_flags);
   if (result) {
     return result;
   }
@@ -150,8 +159,9 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Assemble to backend machine code.
-  result = assembler_->Assemble(symbol_info, builder_.get(), debug_info_flags,
-                                std::move(debug_info), out_function);
+  result =
+      assembler_->Assemble(symbol_info, builder_.get(), debug_info_flags,
+                           std::move(debug_info), trace_flags, out_function);
   if (result) {
     return result;
   }

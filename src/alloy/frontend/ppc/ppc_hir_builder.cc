@@ -43,7 +43,7 @@ void PPCHIRBuilder::Reset() {
   HIRBuilder::Reset();
 }
 
-int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
+int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   SCOPE_profile_cpu_f("alloy");
 
   Memory* memory = frontend_->memory();
@@ -53,7 +53,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
   start_address_ = symbol_info->address();
   instr_count_ = (symbol_info->end_address() - symbol_info->address()) / 4 + 1;
 
-  with_debug_info_ = with_debug_info;
+  with_debug_info_ = (flags & EMIT_DEBUG_COMMENTS) == EMIT_DEBUG_COMMENTS;
   if (with_debug_info_) {
     Comment("%s fn %.8X-%.8X %s", symbol_info->module()->name().c_str(),
             symbol_info->address(), symbol_info->end_address(),
@@ -84,6 +84,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
     i.code = poly::load_and_swap<uint32_t>(p + address);
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
+    trace_info_.dest_count = 0;
 
     // Mark label, if we were assigned one earlier on in the walk.
     // We may still get a label, but it'll be inserted by LookupLabel
@@ -135,6 +136,30 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, bool with_debug_info) {
       Comment("UNIMPLEMENTED!");
       // DebugBreak();
       // TraceInvalidInstruction(i);
+    }
+
+    if (flags & EMIT_TRACE_SOURCE) {
+      if (flags & EMIT_TRACE_SOURCE_VALUES) {
+        switch (trace_info_.dest_count) {
+          case 0:
+            TraceSource(i.address);
+            break;
+          case 1:
+            TraceSource(i.address, trace_info_.dests[0].reg,
+                        trace_info_.dests[0].value);
+            break;
+          case 2:
+            TraceSource(i.address, trace_info_.dests[0].reg,
+                        trace_info_.dests[0].value, trace_info_.dests[1].reg,
+                        trace_info_.dests[1].value);
+            break;
+          default:
+            assert_unhandled_case(trace_info_.dest_count);
+            break;
+        }
+      } else {
+        TraceSource(i.address);
+      }
     }
   }
 
@@ -205,6 +230,10 @@ Value* PPCHIRBuilder::LoadLR() {
 void PPCHIRBuilder::StoreLR(Value* value) {
   assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, lr), value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = 64;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadCTR() {
@@ -214,6 +243,10 @@ Value* PPCHIRBuilder::LoadCTR() {
 void PPCHIRBuilder::StoreCTR(Value* value) {
   assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, ctr), value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = 65;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadCR(uint32_t n) {
@@ -232,6 +265,8 @@ void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
 
 void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + bit, value);
+
+  // TODO(benvanik): trace CR.
 }
 
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, bool is_signed) {
@@ -256,6 +291,8 @@ void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, Value* rhs,
 
   // Value* so = AllocValue(UINT8_TYPE);
   // StoreContext(offsetof(PPCContext, cr) + (4 * n) + 3, so);
+
+  // TOOD(benvanik): trace CR.
 }
 
 void PPCHIRBuilder::UpdateCR6(Value* src_value) {
@@ -265,6 +302,8 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   StoreContext(offsetof(PPCContext, cr6.cr6_all_equal),
                IsFalse(Not(src_value)));
   StoreContext(offsetof(PPCContext, cr6.cr6_none_equal), IsFalse(src_value));
+
+  // TOOD(benvanik): trace CR.
 }
 
 Value* PPCHIRBuilder::LoadFPSCR() {
@@ -274,6 +313,10 @@ Value* PPCHIRBuilder::LoadFPSCR() {
 void PPCHIRBuilder::StoreFPSCR(Value* value) {
   assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, fpscr), value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = 67;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadXER() {
@@ -290,6 +333,10 @@ Value* PPCHIRBuilder::LoadCA() {
 void PPCHIRBuilder::StoreCA(Value* value) {
   assert_true(value->type == INT8_TYPE);
   StoreContext(offsetof(PPCContext, xer_ca), value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = 66;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadSAT() {
@@ -299,6 +346,10 @@ Value* PPCHIRBuilder::LoadSAT() {
 void PPCHIRBuilder::StoreSAT(Value* value) {
   value = Truncate(value, INT8_TYPE);
   StoreContext(offsetof(PPCContext, vscr_sat), value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = 44;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadGPR(uint32_t reg) {
@@ -308,6 +359,10 @@ Value* PPCHIRBuilder::LoadGPR(uint32_t reg) {
 void PPCHIRBuilder::StoreGPR(uint32_t reg, Value* value) {
   assert_true(value->type == INT64_TYPE);
   StoreContext(offsetof(PPCContext, r) + reg * 8, value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = reg;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadFPR(uint32_t reg) {
@@ -317,6 +372,10 @@ Value* PPCHIRBuilder::LoadFPR(uint32_t reg) {
 void PPCHIRBuilder::StoreFPR(uint32_t reg, Value* value) {
   assert_true(value->type == FLOAT64_TYPE);
   StoreContext(offsetof(PPCContext, f) + reg * 8, value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = reg + 32;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadVR(uint32_t reg) {
@@ -326,6 +385,10 @@ Value* PPCHIRBuilder::LoadVR(uint32_t reg) {
 void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
   assert_true(value->type == VEC128_TYPE);
   StoreContext(offsetof(PPCContext, v) + reg * 16, value);
+
+  auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
+  trace_reg.reg = 128 + reg;
+  trace_reg.value = value;
 }
 
 Value* PPCHIRBuilder::LoadAcquire(Value* address, TypeName type,

@@ -12,6 +12,7 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
+#include <xenia/debug_agent.h>
 #include <xenia/xbox.h>
 #include <xenia/cpu/xenon_memory.h>
 
@@ -19,7 +20,6 @@
 XEDECLARECLASS1(xe, ExportResolver);
 XEDECLARECLASS2(xe, apu, AudioSystem);
 XEDECLARECLASS2(xe, cpu, Processor);
-XEDECLARECLASS2(xe, debug, DebugServer);
 XEDECLARECLASS2(xe, gpu, GraphicsSystem);
 XEDECLARECLASS2(xe, hid, InputSystem);
 XEDECLARECLASS2(xe, kernel, KernelState);
@@ -30,7 +30,6 @@ XEDECLARECLASS2(xe, ui, Window);
 
 
 namespace xe {
-
 
 class Emulator {
 public:
@@ -44,7 +43,7 @@ public:
 
   cpu::XenonMemory* memory() const { return memory_; }
 
-  debug::DebugServer* debug_server() const { return debug_server_; }
+  DebugAgent* debug_agent() const { return debug_agent_.get(); }
 
   cpu::Processor* processor() const { return processor_; }
   apu::AudioSystem* audio_system() const { return audio_system_; }
@@ -71,7 +70,7 @@ private:
 
   cpu::XenonMemory*       memory_;
 
-  debug::DebugServer*     debug_server_;
+  std::unique_ptr<DebugAgent> debug_agent_;
 
   cpu::Processor*         processor_;
   apu::AudioSystem*       audio_system_;

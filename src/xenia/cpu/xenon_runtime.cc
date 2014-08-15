@@ -19,12 +19,11 @@ using namespace alloy::runtime;
 using namespace xe;
 using namespace xe::cpu;
 
-
-XenonRuntime::XenonRuntime(
-    alloy::Memory* memory, ExportResolver* export_resolver) :
-    Runtime(memory),
-    export_resolver_(export_resolver) {
-}
+XenonRuntime::XenonRuntime(alloy::Memory* memory,
+                           ExportResolver* export_resolver,
+                           uint32_t debug_info_flags, uint32_t trace_flags)
+    : Runtime(memory, debug_info_flags, trace_flags),
+      export_resolver_(export_resolver) {}
 
 XenonRuntime::~XenonRuntime() = default;
 

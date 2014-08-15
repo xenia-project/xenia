@@ -11,11 +11,12 @@
 
 #include <algorithm>
 
-#include <poly/poly.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
+#include <poly/poly.h>
+#include <xdb/protocol.h>
 
 // TODO(benvanik): make a compile time flag?
 //#define DYNAMIC_REGISTER_ACCESS_CHECK(address) false
@@ -244,6 +245,22 @@ int Translate_SOURCE_OFFSET(TranslationContext& ctx, Instr* i) {
   entry->source_offset = i->src1.offset;
   ctx.source_map_count++;
   return 0;
+}
+
+// TODO(benvanik): dispatch of register forms.
+uint32_t IntCode_TRACE_SOURCE(IntCodeState& ics, const IntCode* i) {
+  // TODO(benvanik): append to active trace writer.
+  uint64_t trace_base = ics.thread_state->memory()->trace_base();
+  if (trace_base) {
+    auto ev = xdb::protocol::InstrEvent::Append(trace_base);
+    ev->type = xdb::protocol::EventType::INSTR;
+    ev->thread_id = ics.thread_state->thread_id();
+    ev->address = ics.rf[i->src1_reg].i32;
+  }
+  return IA_NEXT;
+}
+int Translate_TRACE_SOURCE(TranslationContext& ctx, Instr* i) {
+  return DispatchToC(ctx, i, IntCode_TRACE_SOURCE);
 }
 
 uint32_t IntCode_DEBUG_BREAK(IntCodeState& ics, const IntCode* i) {
@@ -4174,33 +4191,33 @@ int Translate_ATOMIC_EXCHANGE(TranslationContext& ctx, Instr* i) {
 typedef int (*TranslateFn)(TranslationContext& ctx, Instr* i);
 static const TranslateFn dispatch_table[] = {
     Translate_COMMENT,            Translate_NOP,
-    Translate_SOURCE_OFFSET,      Translate_DEBUG_BREAK,
-    Translate_DEBUG_BREAK_TRUE,   Translate_TRAP,
-    Translate_TRAP_TRUE,          Translate_CALL,
-    Translate_CALL_TRUE,          Translate_CALL_INDIRECT,
-    Translate_CALL_INDIRECT_TRUE, Translate_CALL_EXTERN,
-    Translate_RETURN,             Translate_RETURN_TRUE,
-    Translate_SET_RETURN_ADDRESS, Translate_BRANCH,
-    Translate_BRANCH_TRUE,        Translate_BRANCH_FALSE,
-    Translate_ASSIGN,             Translate_CAST,
-    Translate_ZERO_EXTEND,        Translate_SIGN_EXTEND,
-    Translate_TRUNCATE,           Translate_CONVERT,
-    Translate_ROUND,              Translate_VECTOR_CONVERT_I2F,
-    Translate_VECTOR_CONVERT_F2I, Translate_LOAD_VECTOR_SHL,
-    Translate_LOAD_VECTOR_SHR,    Translate_LOAD_CLOCK,
-    Translate_LOAD_LOCAL,         Translate_STORE_LOCAL,
-    Translate_LOAD_CONTEXT,       Translate_STORE_CONTEXT,
-    Translate_LOAD,               Translate_STORE,
-    Translate_PREFETCH,           Translate_MAX,
-    Translate_VECTOR_MAX,         Translate_MIN,
-    Translate_VECTOR_MIN,         Translate_SELECT,
-    Translate_IS_TRUE,            Translate_IS_FALSE,
-    Translate_COMPARE_EQ,         Translate_COMPARE_NE,
-    Translate_COMPARE_SLT,        Translate_COMPARE_SLE,
-    Translate_COMPARE_SGT,        Translate_COMPARE_SGE,
-    Translate_COMPARE_ULT,        Translate_COMPARE_ULE,
-    Translate_COMPARE_UGT,        Translate_COMPARE_UGE,
-    Translate_DID_CARRY,
+    Translate_SOURCE_OFFSET,      Translate_TRACE_SOURCE,
+    Translate_DEBUG_BREAK,        Translate_DEBUG_BREAK_TRUE,
+    Translate_TRAP,               Translate_TRAP_TRUE,
+    Translate_CALL,               Translate_CALL_TRUE,
+    Translate_CALL_INDIRECT,      Translate_CALL_INDIRECT_TRUE,
+    Translate_CALL_EXTERN,        Translate_RETURN,
+    Translate_RETURN_TRUE,        Translate_SET_RETURN_ADDRESS,
+    Translate_BRANCH,             Translate_BRANCH_TRUE,
+    Translate_BRANCH_FALSE,       Translate_ASSIGN,
+    Translate_CAST,               Translate_ZERO_EXTEND,
+    Translate_SIGN_EXTEND,        Translate_TRUNCATE,
+    Translate_CONVERT,            Translate_ROUND,
+    Translate_VECTOR_CONVERT_I2F, Translate_VECTOR_CONVERT_F2I,
+    Translate_LOAD_VECTOR_SHL,    Translate_LOAD_VECTOR_SHR,
+    Translate_LOAD_CLOCK,         Translate_LOAD_LOCAL,
+    Translate_STORE_LOCAL,        Translate_LOAD_CONTEXT,
+    Translate_STORE_CONTEXT,      Translate_LOAD,
+    Translate_STORE,              Translate_PREFETCH,
+    Translate_MAX,                Translate_VECTOR_MAX,
+    Translate_MIN,                Translate_VECTOR_MIN,
+    Translate_SELECT,             Translate_IS_TRUE,
+    Translate_IS_FALSE,           Translate_COMPARE_EQ,
+    Translate_COMPARE_NE,         Translate_COMPARE_SLT,
+    Translate_COMPARE_SLE,        Translate_COMPARE_SGT,
+    Translate_COMPARE_SGE,        Translate_COMPARE_ULT,
+    Translate_COMPARE_ULE,        Translate_COMPARE_UGT,
+    Translate_COMPARE_UGE,        Translate_DID_CARRY,
     TranslateInvalid,  // Translate_DID_OVERFLOW,
     Translate_DID_SATURATE,       Translate_VECTOR_COMPARE_EQ,
     Translate_VECTOR_COMPARE_SGT, Translate_VECTOR_COMPARE_SGE,

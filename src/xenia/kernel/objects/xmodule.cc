@@ -9,6 +9,8 @@
 
 #include <xenia/kernel/objects/xmodule.h>
 
+#include <xdb/protocol.h>
+
 
 using namespace xe;
 using namespace xe::cpu;
@@ -32,6 +34,23 @@ XModule::XModule(KernelState* kernel_state, const char* path) :
 }
 
 XModule::~XModule() {
+  auto ev = xdb::protocol::ModuleUnloadEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::MODULE_UNLOAD;
+    ev->module_id = handle();
+  }
+
+  kernel_state_->UnregisterModule(this);
+}
+
+void XModule::OnLoad() {
+  auto ev = xdb::protocol::ModuleLoadEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::MODULE_LOAD;
+    ev->module_id = handle();
+  }
+
+  kernel_state_->RegisterModule(this);
 }
 
 X_STATUS XModule::GetSection(

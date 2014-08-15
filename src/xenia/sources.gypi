@@ -4,6 +4,8 @@
     'common.h',
     'config.h',
     'core.h',
+    'debug_agent.cc',
+    'debug_agent.h',
     'emulator.cc',
     'emulator.h',
     'export_resolver.cc',

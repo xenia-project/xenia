@@ -9,6 +9,7 @@
 
 #include <xenia/emulator.h>
 
+#include <xdb/protocol.h>
 #include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/cpu/xenon_memory.h>
@@ -44,9 +45,16 @@ Emulator::Emulator(const xechar_t* command_line) :
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
 
+  auto ev = xdb::protocol::ProcessExitEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::PROCESS_EXIT;
+  }
+
   if (main_window_) {
     main_window_->Close();
   }
+
+  debug_agent_.reset();
 
   delete xam_;
   delete xboxkrnl_;
@@ -70,11 +78,16 @@ Emulator::~Emulator() {
 X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
+  debug_agent_.reset(new DebugAgent(this));
+  result = debug_agent_->Initialize();
+  XEEXPECTZERO(result);
+
   // Create memory system first, as it is required for other systems.
   memory_ = new XenonMemory();
   XEEXPECTNOTNULL(memory_);
   result = memory_->Initialize();
   XEEXPECTZERO(result);
+  memory_->set_trace_base(debug_agent_->trace_base());
 
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = new ExportResolver();
@@ -144,6 +157,11 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
+  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::PROCESS_START;
+  }
+
   int result_code = 0;
 
   // Get just the filename (foo.xex).
@@ -193,6 +211,11 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
 X_STATUS Emulator::LaunchDiscImage(const xechar_t* path) {
   int result_code = 0;
 
+  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::PROCESS_START;
+  }
+
   // Register the disc image in the virtual filesystem.
   result_code = file_system_->RegisterDiscImageDevice(
       "\\Device\\Cdrom0", path);
@@ -215,6 +238,11 @@ X_STATUS Emulator::LaunchDiscImage(const xechar_t* path) {
 
 X_STATUS Emulator::LaunchSTFSTitle(const xechar_t* path) {
   int result_code = 0;
+
+  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::PROCESS_START;
+  }
 
   // TODO(benvanik): figure out paths.
 

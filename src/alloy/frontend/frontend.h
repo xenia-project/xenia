@@ -40,7 +40,7 @@ class Frontend {
 
   virtual int DeclareFunction(runtime::FunctionInfo* symbol_info) = 0;
   virtual int DefineFunction(runtime::FunctionInfo* symbol_info,
-                             uint32_t debug_info_flags,
+                             uint32_t debug_info_flags, uint32_t trace_flags,
                              runtime::Function** out_function) = 0;
 
  protected:

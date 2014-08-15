@@ -11,6 +11,7 @@
 
 #include <xenia/emulator.h>
 #include <xenia/export_resolver.h>
+#include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/cpu/xex_module.h>
@@ -70,7 +71,26 @@ Processor::~Processor() {
 int Processor::Setup() {
   assert_null(runtime_);
 
-  runtime_ = new XenonRuntime(memory_, export_resolver_);
+  uint32_t debug_info_flags = DEBUG_INFO_DEFAULT;
+  uint32_t trace_flags = 0;
+  if (FLAGS_trace_function_generation) {
+    trace_flags |= TRACE_FUNCTION_GENERATION;
+  }
+  if (FLAGS_trace_kernel_calls) {
+    trace_flags |= TRACE_EXTERN_CALLS;
+  }
+  if (FLAGS_trace_user_calls) {
+    trace_flags |= TRACE_USER_CALLS;
+  }
+  if (FLAGS_trace_instructions) {
+    trace_flags |= TRACE_SOURCE;
+  }
+  if (FLAGS_trace_registers) {
+    trace_flags |= TRACE_SOURCE_VALUES;
+  }
+
+  runtime_ = new XenonRuntime(memory_, export_resolver_, debug_info_flags,
+                              trace_flags);
   if (!runtime_) {
     return 1;
   }

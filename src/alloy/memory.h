@@ -33,6 +33,9 @@ class Memory {
 
   virtual uint64_t page_table() const = 0;
 
+  uint64_t trace_base() const { return trace_base_; }
+  void set_trace_base(uint64_t value) { trace_base_ = value; }
+
   virtual int Initialize();
 
   void Zero(uint64_t address, size_t size);
@@ -65,6 +68,7 @@ class Memory {
   size_t system_page_size_;
   uint8_t* membase_;
   uint32_t reserve_address_;
+  uint64_t trace_base_;
 };
 
 }  // namespace alloy

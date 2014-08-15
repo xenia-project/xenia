@@ -13,7 +13,7 @@
 
 namespace alloy {
 
-Memory::Memory() : membase_(nullptr), reserve_address_(0) {
+Memory::Memory() : membase_(nullptr), reserve_address_(0), trace_base_(0) {
   system_page_size_ = poly::page_size();
 }
 

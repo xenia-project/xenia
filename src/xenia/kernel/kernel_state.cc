@@ -73,6 +73,10 @@ KernelState* KernelState::shared() {
   return shared_kernel_state_;
 }
 
+void KernelState::RegisterModule(XModule* module) {}
+
+void KernelState::UnregisterModule(XModule* module) {}
+
 XModule* KernelState::GetModule(const char* name) {
   if (!name) {
     // NULL name = self.

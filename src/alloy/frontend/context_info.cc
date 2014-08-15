@@ -12,8 +12,11 @@
 namespace alloy {
 namespace frontend {
 
-ContextInfo::ContextInfo(size_t size, uintptr_t thread_state_offset)
-    : size_(size), thread_state_offset_(thread_state_offset) {}
+ContextInfo::ContextInfo(size_t size, uintptr_t thread_state_offset,
+                         uintptr_t thread_id_offset)
+    : size_(size),
+      thread_state_offset_(thread_state_offset),
+      thread_id_offset_(thread_id_offset) {}
 
 ContextInfo::~ContextInfo() {}
 

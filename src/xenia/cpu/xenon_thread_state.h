@@ -14,6 +14,11 @@
 #include <alloy/runtime/thread_state.h>
 #include <xenia/core.h>
 
+namespace xdb {
+namespace protocol {
+struct Registers;
+}  // namespace protocol
+}  // namespace xdb
 
 namespace xe {
 namespace cpu {
@@ -33,6 +38,8 @@ public:
   size_t stack_size() const { return stack_size_; }
   uint64_t thread_state_address() const { return thread_state_address_; }
   PPCContext* context() const { return context_; }
+
+  void WriteRegisters(xdb::protocol::Registers* registers);
 
 private:
   uint64_t  stack_address_;

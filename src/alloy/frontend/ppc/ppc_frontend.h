@@ -24,14 +24,14 @@ class PPCTranslator;
 class PPCFrontend : public Frontend {
  public:
   PPCFrontend(runtime::Runtime* runtime);
-  virtual ~PPCFrontend();
+  ~PPCFrontend() override;
 
-  virtual int Initialize();
+  int Initialize() override;
 
-  virtual int DeclareFunction(runtime::FunctionInfo* symbol_info);
-  virtual int DefineFunction(runtime::FunctionInfo* symbol_info,
-                             uint32_t debug_info_flags,
-                             runtime::Function** out_function);
+  int DeclareFunction(runtime::FunctionInfo* symbol_info) override;
+  int DefineFunction(runtime::FunctionInfo* symbol_info,
+                     uint32_t debug_info_flags, uint32_t trace_flags,
+                     runtime::Function** out_function) override;
 
  private:
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;

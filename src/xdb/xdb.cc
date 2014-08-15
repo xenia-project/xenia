@@ -9,5 +9,8 @@
 
 #include <xdb/xdb.h>
 
-void test() {
-}
+namespace xdb {
+
+void test() {}
+
+}  // namespace xdb

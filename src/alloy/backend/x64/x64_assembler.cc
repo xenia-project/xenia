@@ -58,7 +58,7 @@ void X64Assembler::Reset() {
 int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
                            uint32_t debug_info_flags,
                            std::unique_ptr<DebugInfo> debug_info,
-                           Function** out_function) {
+                           uint32_t trace_flags, Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
 
   // Reset when we leave.
@@ -68,7 +68,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   void* machine_code = 0;
   size_t code_size = 0;
   int result = emitter_->Emit(builder, debug_info_flags, debug_info.get(),
-                              machine_code, code_size);
+                              trace_flags, machine_code, code_size);
   if (result) {
     return result;
   }

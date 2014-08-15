@@ -33,6 +33,8 @@ public:
       uint32_t* out_section_data, uint32_t* out_section_size);
 
 protected:
+  void OnLoad();
+
   char            name_[256];
   char            path_[poly::max_path];
 };
