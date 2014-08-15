@@ -20,6 +20,20 @@ namespace xe {
 namespace kernel {
 
 
+#pragma pack(push, 1)
+typedef struct {
+	uint32_t base_address;
+	uint32_t allocation_base;
+	uint32_t allocation_protect;
+	uint32_t region_size;
+	uint32_t state;
+	uint32_t protect;
+	uint32_t type;
+}
+X_MEMORY_BASIC_INFORMATION;
+#pragma pack(pop)
+
+
 X_STATUS xeNtAllocateVirtualMemory(
     uint32_t* base_addr_ptr, uint32_t* region_size_ptr,
     uint32_t allocation_type, uint32_t protect_bits,
