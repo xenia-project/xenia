@@ -7,13 +7,19 @@
  ******************************************************************************
  */
 
-#include <xdb/ui/main_frame.h>
+#include <xdb/sym/symbol_provider.h>
 
 namespace xdb {
-namespace ui {
+namespace sym {
 
-MainFrame::MainFrame(std::unique_ptr<DebugTarget> debug_target)
-    : MainFrameBase(nullptr), debug_target_(std::move(debug_target)) {}
+void SymbolProvider::AddSearchPath(const std::string& path) {
+  //
+}
 
-}  // namespace ui
+std::unique_ptr<SymbolDatabase> SymbolProvider::LoadDatabase(
+    const std::string& module_path) {
+  return nullptr;
+}
+
+}  // namespace sym
 }  // namespace xdb

@@ -7,13 +7,17 @@
  ******************************************************************************
  */
 
-#include <xdb/ui/main_frame.h>
+#ifndef XDB_DEBUG_TARGET_H_
+#define XDB_DEBUG_TARGET_H_
 
 namespace xdb {
-namespace ui {
 
-MainFrame::MainFrame(std::unique_ptr<DebugTarget> debug_target)
-    : MainFrameBase(nullptr), debug_target_(std::move(debug_target)) {}
+class DebugTarget {
+ public:
+ protected:
+  DebugTarget() = default;
+};
 
-}  // namespace ui
 }  // namespace xdb
+
+#endif  // XDB_DEBUG_TARGET_H_

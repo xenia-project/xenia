@@ -11,9 +11,17 @@
 #define XDB_XDB_APP_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
-#include <xdb/ui/main_frame.h>
+#include <xdb/debug_target.h>
 #include <third_party/wxWidgets/include/wx/wx.h>
+
+namespace xdb {
+namespace ui {
+class MainFrame;
+}  // namespace ui
+}  // namespace xdb
 
 namespace xdb {
 
@@ -22,8 +30,19 @@ class XdbApp : public wxApp {
   bool OnInit() override;
   int OnExit() override;
 
+  void OpenEmpty();
+  bool OpenTraceFile(const std::string& trace_file_path,
+                     const std::string& content_file_path = "");
+  bool OpenTraceFile(const std::wstring& trace_file_path,
+                     const std::wstring& content_file_path = L"");
+  bool OpenDebugTarget(std::unique_ptr<DebugTarget> debug_target);
+
  private:
-  std::unique_ptr<ui::MainFrame> main_frame_;
+  void HandleOpenError(const std::string& message);
+
+  void OnMainFrameDestroy(wxEvent& event);
+
+  std::vector<ui::MainFrame*> main_frames_;
 };
 
 }  // namespace xdb

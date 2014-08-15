@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
-#include <xdb/ui/main_frame.h>
+#include <xdb/sym/symbol_database.h>
 
 namespace xdb {
-namespace ui {
+namespace sym {
 
-MainFrame::MainFrame(std::unique_ptr<DebugTarget> debug_target)
-    : MainFrameBase(nullptr), debug_target_(std::move(debug_target)) {}
+//
 
-}  // namespace ui
+}  // namespace sym
 }  // namespace xdb

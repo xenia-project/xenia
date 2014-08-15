@@ -7,13 +7,14 @@
  ******************************************************************************
  */
 
-#include <xdb/ui/main_frame.h>
+#include <xdb/sym/map_symbol_database.h>
 
 namespace xdb {
-namespace ui {
+namespace sym {
 
-MainFrame::MainFrame(std::unique_ptr<DebugTarget> debug_target)
-    : MainFrameBase(nullptr), debug_target_(std::move(debug_target)) {}
+Symbol* MapSymbolDatabase::Lookup(uint32_t address) {
+  return nullptr;
+}
 
-}  // namespace ui
+}  // namespace sym
 }  // namespace xdb

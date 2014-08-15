@@ -16,6 +16,10 @@
 #include <third_party/wxWidgets/include/wx/wx.h>
 #include <xdb/xdb_app.h>
 
+DEFINE_string(trace_file, "", "Trace file to load on startup.");
+DEFINE_string(content_file, "",
+              "ISO/STFS/XEX file the specified trace_file should reference.");
+
 namespace xdb {
 
 int main(int argc, xechar_t** argv) {
@@ -44,6 +48,14 @@ int main(int argc, xechar_t** argv) {
     XEFATAL("Failed to init app");
     return 1;
   }
+
+  if (!FLAGS_trace_file.empty()) {
+    // Trace file specified on command line.
+    app->OpenTraceFile(FLAGS_trace_file, FLAGS_content_file);
+  } else {
+    app->OpenEmpty();
+  }
+
   app->OnRun();
   int result_code = app->OnExit();
   wxEntryCleanup();

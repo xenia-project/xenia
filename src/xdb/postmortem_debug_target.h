@@ -7,13 +7,27 @@
  ******************************************************************************
  */
 
-#include <xdb/ui/main_frame.h>
+#ifndef XDB_POSTMORTEM_DEBUG_TARGET_H_
+#define XDB_POSTMORTEM_DEBUG_TARGET_H_
+
+#include <atomic>
+#include <string>
+
+#include <xdb/debug_target.h>
 
 namespace xdb {
-namespace ui {
 
-MainFrame::MainFrame(std::unique_ptr<DebugTarget> debug_target)
-    : MainFrameBase(nullptr), debug_target_(std::move(debug_target)) {}
+class PostmortemDebugTarget : public DebugTarget {
+ public:
+  PostmortemDebugTarget() = default;
 
-}  // namespace ui
+  bool LoadTrace(const std::wstring& path);
+  bool LoadContent(const std::wstring& path = L"");
+
+  bool Prepare();
+  bool Prepare(std::atomic<bool>& cancelled);
+};
+
 }  // namespace xdb
+
+#endif  // XDB_POSTMORTEM_DEBUG_TARGET_H_

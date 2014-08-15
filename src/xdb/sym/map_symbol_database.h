@@ -7,13 +7,20 @@
  ******************************************************************************
  */
 
-#include <xdb/ui/main_frame.h>
+#ifndef XDB_SYM_MAP_SYMBOL_DATABASE_H_
+#define XDB_SYM_MAP_SYMBOL_DATABASE_H_
+
+#include <xdb/sym/symbol_database.h>
 
 namespace xdb {
-namespace ui {
+namespace sym {
 
-MainFrame::MainFrame(std::unique_ptr<DebugTarget> debug_target)
-    : MainFrameBase(nullptr), debug_target_(std::move(debug_target)) {}
+class MapSymbolDatabase : public SymbolDatabase {
+ public:
+  Symbol* Lookup(uint32_t address) override;
+};
 
-}  // namespace ui
+}  // namespace sym
 }  // namespace xdb
+
+#endif  // XDB_SYM_MAP_SYMBOL_DATABASE_H_

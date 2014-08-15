@@ -7,29 +7,27 @@
  ******************************************************************************
  */
 
-#ifndef XDB_UI_MAIN_FRAME_H_
-#define XDB_UI_MAIN_FRAME_H_
+#ifndef XDB_UI_OPEN_POSTMORTEM_TRACE_DIALOG_H_
+#define XDB_UI_OPEN_POSTMORTEM_TRACE_DIALOG_H_
 
-#include <memory>
-
-#include <xdb/debug_target.h>
 #include <xdb/ui/xdb_ui.h>
 
 namespace xdb {
 namespace ui {
 
-class MainFrame : public MainFrameBase {
+class OpenPostmortemTraceDialog : public OpenPostmortemTraceDialogBase {
  public:
-  MainFrame(std::unique_ptr<DebugTarget> debug_target);
+  OpenPostmortemTraceDialog() : OpenPostmortemTraceDialogBase(nullptr) {}
 
- protected:
-  //
-
- private:
-   std::unique_ptr<DebugTarget> debug_target_;
+  const std::wstring trace_file_path() const {
+    return trace_file_picker_->GetFileName().GetFullPath().ToStdWstring();
+  }
+  const std::wstring content_file_path() const {
+    return content_file_picker_->GetFileName().GetFullPath().ToStdWstring();
+  }
 };
 
 }  // namespace ui
 }  // namespace xdb
 
-#endif  // XDB_UI_MAIN_FRAME_H_
+#endif  // XDB_UI_OPEN_POSTMORTEM_TRACE_DIALOG_H_

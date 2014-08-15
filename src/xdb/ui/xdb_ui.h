@@ -25,6 +25,11 @@
 #include <wx/panel.h>
 #include <wx/aui/auibook.h>
 #include <wx/frame.h>
+#include <wx/stattext.h>
+#include <wx/filepicker.h>
+#include <wx/sizer.h>
+#include <wx/button.h>
+#include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +46,7 @@ namespace xdb
 			
 			protected:
 				wxMenuBar* menu_bar_;
-				wxMenu* file;
+				wxMenu* file_menu_;
 				wxAuiToolBar* tool_bar_;
 				wxAuiToolBarItem* tool_test_; 
 				wxStatusBar* status_bar_;
@@ -55,6 +60,32 @@ namespace xdb
 				wxAuiManager m_mgr;
 				
 				~MainFrameBase();
+			
+		};
+		
+		///////////////////////////////////////////////////////////////////////////////
+		/// Class OpenPostmortemTraceDialogBase
+		///////////////////////////////////////////////////////////////////////////////
+		class OpenPostmortemTraceDialogBase : public wxDialog 
+		{
+			private:
+			
+			protected:
+				wxFilePickerCtrl* trace_file_picker_;
+				wxFilePickerCtrl* content_file_picker_;
+				wxStdDialogButtonSizer* dialog_buttons_;
+				wxButton* dialog_buttons_OK;
+				wxButton* dialog_buttons_Cancel;
+				
+				// Virtual event handlers, overide them in your derived class
+				virtual void OnCancelButtonClick( wxCommandEvent& event ) { event.Skip(); }
+				virtual void OnOKButtonClick( wxCommandEvent& event ) { event.Skip(); }
+				
+			
+			public:
+				
+				OpenPostmortemTraceDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Open Postmortem Trace"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE ); 
+				~OpenPostmortemTraceDialogBase();
 			
 		};
 		
