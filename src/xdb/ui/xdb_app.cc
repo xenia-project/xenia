@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xdb/xdb_app.h>
+#include <xdb/ui/xdb_app.h>
 
 #include <atomic>
 #include <codecvt>
@@ -20,6 +20,7 @@
 #include <third_party/wxWidgets/include/wx/progdlg.h>
 
 namespace xdb {
+namespace ui {
 
 IMPLEMENT_APP(XdbApp);
 
@@ -32,7 +33,7 @@ int XdbApp::OnExit() {
 
 void XdbApp::OpenEmpty() {
   while (true) {
-    ui::OpenPostmortemTraceDialog dialog;
+    OpenPostmortemTraceDialog dialog;
     if (dialog.ShowModal() == wxID_CANCEL) {
       Exit();
       return;
@@ -100,7 +101,7 @@ bool XdbApp::OpenTraceFile(const std::wstring& trace_file_path,
 }
 
 bool XdbApp::OpenDebugTarget(std::unique_ptr<DebugTarget> debug_target) {
-  auto main_frame = new ui::MainFrame(std::move(debug_target));
+  auto main_frame = new MainFrame(std::move(debug_target));
 
   main_frames_.push_back(main_frame);
   main_frame->Connect(wxEVT_DESTROY, wxEventHandler(XdbApp::OnMainFrameDestroy),
@@ -128,4 +129,5 @@ void XdbApp::OnMainFrameDestroy(wxEvent& event) {
   assert_always();
 }
 
+}  // namespace ui
 }  // namespace xdb

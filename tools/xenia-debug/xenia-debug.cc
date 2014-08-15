@@ -14,7 +14,7 @@
 #include <gflags/gflags.h>
 #include <poly/poly.h>
 #include <third_party/wxWidgets/include/wx/wx.h>
-#include <xdb/xdb_app.h>
+#include <xdb/ui/xdb_app.h>
 
 DEFINE_string(trace_file, "", "Trace file to load on startup.");
 DEFINE_string(content_file, "",
@@ -38,7 +38,7 @@ int main(int argc, xechar_t** argv) {
   }
 
   // App is auto-freed by wx.
-  auto app = new XdbApp();
+  auto app = new ui::XdbApp();
   wxApp::SetInstance(app);
   if (!wxEntryStart(0, nullptr)) {
     XEFATAL("Failed to enter wxWidgets app");

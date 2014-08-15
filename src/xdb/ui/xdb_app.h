@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XDB_XDB_APP_H_
-#define XDB_XDB_APP_H_
+#ifndef XDB_UI_XDB_APP_H_
+#define XDB_UI_XDB_APP_H_
 
 #include <memory>
 #include <string>
@@ -19,11 +19,8 @@
 
 namespace xdb {
 namespace ui {
-class MainFrame;
-}  // namespace ui
-}  // namespace xdb
 
-namespace xdb {
+class MainFrame;
 
 class XdbApp : public wxApp {
  public:
@@ -42,9 +39,10 @@ class XdbApp : public wxApp {
 
   void OnMainFrameDestroy(wxEvent& event);
 
-  std::vector<ui::MainFrame*> main_frames_;
+  std::vector<MainFrame*> main_frames_;
 };
 
+}  // namespace ui
 }  // namespace xdb
 
-#endif  // XDB_XDB_APP_H_
+#endif  // XDB_UI_XDB_APP_H_
