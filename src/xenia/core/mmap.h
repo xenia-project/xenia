@@ -11,13 +11,16 @@
 #define XENIA_CORE_MMAP_H_
 
 #include <xenia/common.h>
-#include <xenia/core/file.h>
 #include <xenia/core/ref.h>
 
 
 struct xe_mmap;
 typedef struct xe_mmap* xe_mmap_ref;
 
+typedef enum {
+  kXEFileModeRead = (1 << 0),
+  kXEFileModeWrite = (1 << 1),
+} xe_file_mode;
 
 xe_mmap_ref xe_mmap_open(const xe_file_mode mode, const xechar_t *path,
                          const size_t offset, const size_t length);

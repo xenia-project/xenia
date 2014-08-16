@@ -1,10 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'crc32.cc',
-    'crc32.h',
-    'file.cc',
-    'file.h',
     'hash.cc',
     'hash.h',
     'mmap.h',
