@@ -29,15 +29,15 @@ HostPathFile::~HostPathFile() {
   CloseHandle(file_handle_);
 }
 
-const char* HostPathFile::path(void) const {
+const std::string& HostPathFile::path() const {
   return entry_->path();
 }
 
-const char* HostPathFile::absolute_path(void) const {
+const std::string& HostPathFile::absolute_path() const {
   return entry_->absolute_path();
 }
 
-const char* HostPathFile::name(void) const {
+const std::string& HostPathFile::name() const {
   return entry_->name();
 }
 

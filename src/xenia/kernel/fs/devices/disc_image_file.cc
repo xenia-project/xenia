@@ -29,15 +29,15 @@ DiscImageFile::DiscImageFile(
 DiscImageFile::~DiscImageFile() {
 }
 
-const char* DiscImageFile::path(void) const {
+const std::string& DiscImageFile::path() const {
   return entry_->path();
 }
 
-const char* DiscImageFile::absolute_path(void) const {
+const std::string& DiscImageFile::absolute_path() const {
   return entry_->absolute_path();
 }
 
-const char* DiscImageFile::name(void) const {
+const std::string& DiscImageFile::name() const {
   return entry_->name();
 }
 

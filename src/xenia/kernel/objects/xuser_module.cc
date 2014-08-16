@@ -139,7 +139,7 @@ X_STATUS XUserModule::GetSection(
   auto header = xe_xex2_get_header(xex_);
   for (size_t n = 0; n < header->resource_info_count; n++) {
     auto& res = header->resource_infos[n];
-    if (xestrcmpa(name, res.name) == 0) {
+    if (strcmp(name, res.name) == 0) {
       // Found!
       *out_section_data = res.address;
       *out_section_size = res.size;

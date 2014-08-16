@@ -754,7 +754,7 @@ char* xenos::DisassembleShader(
     }
   }
 
-  char* result = xestrdupa(output->buffer);
+  char* result = strdup(output->buffer);
   delete output;
   return result;
 }

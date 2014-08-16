@@ -42,7 +42,6 @@ XThread::XThread(KernelState* kernel_state,
     thread_state_address_(0),
     thread_state_(0),
     event_(NULL),
-    name_(0),
     irql_(0) {
   creation_params_.stack_size           = stack_size;
   creation_params_.xapi_thread_startup  = xapi_thread_startup;
@@ -95,9 +94,6 @@ XThread::~XThread() {
   if (thread_state_address_) {
     kernel_state()->memory()->HeapFree(thread_state_address_, 0);
   }
-  if (name_) {
-    xe_free(name_);
-  }
 
   if (thread_handle_) {
     // TODO(benvanik): platform kill
@@ -149,35 +145,9 @@ void XThread::set_last_error(uint32_t error_code) {
   poly::store_and_swap<uint32_t>(p + 0x160, error_code);
 }
 
-void XThread::set_name(const char* name) {
-  if (name == name_) {
-    return;
-  }
-  if (name_) {
-    xe_free(name_);
-  }
-  name_ = xestrdupa(name);
-
-#if XE_PLATFORM_WIN32
-  // Do the nasty set for us.
-  #pragma pack(push, 8)
-  typedef struct tagTHREADNAME_INFO {
-    DWORD dwType; // must be 0x1000
-    LPCSTR szName; // pointer to name (in user addr space)
-    DWORD dwThreadID; // thread ID (-1=caller thread)
-    DWORD dwFlags; // reserved for future use, must be zero
-  } THREADNAME_INFO;
-  #pragma pack(pop)
-  THREADNAME_INFO info;
-  info.dwType = 0x1000;
-  info.szName = name_;
-  info.dwThreadID = ::GetThreadId(thread_handle_);
-  info.dwFlags = 0;
-  __try {
-    RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
-  } __except(EXCEPTION_CONTINUE_EXECUTION) {
-  }
-#endif  // WIN32
+void XThread::set_name(const std::string& name) {
+  name_ = name;
+  poly::threading::set_name(thread_handle_, name);
 }
 
 X_STATUS XThread::Create() {
@@ -287,7 +257,7 @@ X_STATUS XThread::Exit(int exit_code) {
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
-  xe::Profiler::ThreadEnter(thread->name());
+  xe::Profiler::ThreadEnter(thread->name().c_str());
   current_thread_tls = thread;
   thread->Execute();
   current_thread_tls = nullptr;

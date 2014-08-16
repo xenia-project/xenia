@@ -18,7 +18,6 @@
     'platform.h',
     'profiling.cc',
     'profiling.h',
-    'string.cc',
     'string.h',
     'types.h',
     'xbox.h',

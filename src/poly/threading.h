@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <thread>
 
 #include <poly/config.h>
 
@@ -28,6 +29,8 @@ uint32_t current_thread_id();
 
 // Sets the current thread name.
 void set_name(const std::string& name);
+// Sets the target thread name.
+void set_name(std::thread::native_handle_type handle, const std::string& name);
 
 // Yields the current thread to the scheduler. Maybe.
 void Yield();

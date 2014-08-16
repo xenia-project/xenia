@@ -128,7 +128,7 @@ int D3D11VertexShaderResource::Prepare(
     XELOGE("D3D11: failed to translate vertex shader");
     return ret;
   }
-  translated_src_ = xestrdupa(translator.translated_src());
+  translated_src_ = strdup(translator.translated_src());
 
   ID3D10Blob* shader_blob = D3D11ShaderCompile(
       XE_GPU_SHADER_TYPE_VERTEX, translated_src_, disasm_src());
@@ -351,7 +351,7 @@ int D3D11PixelShaderResource::Prepare(const xe_gpu_program_cntl_t& program_cntl,
     XELOGE("D3D11: failed to translate pixel shader");
     return ret;
   }
-  translated_src_ = xestrdupa(translator.translated_src());
+  translated_src_ = strdup(translator.translated_src());
 
   ID3D10Blob* shader_blob = D3D11ShaderCompile(
       XE_GPU_SHADER_TYPE_PIXEL, translated_src_, disasm_src());

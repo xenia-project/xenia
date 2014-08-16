@@ -902,7 +902,7 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
 const PESection* xe_xex2_get_pe_section(xe_xex2_ref xex, const char* name) {
   for (std::vector<PESection*>::iterator it = xex->sections->begin();
        it != xex->sections->end(); ++it) {
-    if (!xestrcmpa((*it)->name, name)) {
+    if (!strcmp((*it)->name, name)) {
       return *it;
     }
   }

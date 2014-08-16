@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/fs/filesystem.h>
 
+#include <poly/string.h>
 #include <xenia/kernel/fs/devices/disc_image_device.h>
 #include <xenia/kernel/fs/devices/host_path_device.h>
 #include <xenia/kernel/fs/devices/stfs_container_device.h>
@@ -129,24 +130,22 @@ int FileSystem::RegisterSTFSContainerDevice(
   return RegisterDevice(path, device);
 }
 
-int FileSystem::CreateSymbolicLink(const char* path, const char* target) {
-  symlinks_.insert(std::pair<const char*, const char*>(
-      xestrdupa(path),
-      xestrdupa(target)));
+int FileSystem::CreateSymbolicLink(const std::string& path,
+                                   const std::string& target) {
+  symlinks_.insert({path, target});
   return 0;
 }
 
-int FileSystem::DeleteSymbolicLink(const char* path) {
-  std::unordered_map<std::string, std::string>::iterator it =
-      symlinks_.find(std::string(path));
-  if (it != symlinks_.end()) {
-    symlinks_.erase(it);
-    return 0;
+int FileSystem::DeleteSymbolicLink(const std::string& path) {
+  auto& it = symlinks_.find(path);
+  if (it == symlinks_.end()) {
+    return 1;
   }
-  return 1;
+  symlinks_.erase(it);
+  return 0;
 }
 
-Entry* FileSystem::ResolvePath(const char* path) {
+Entry* FileSystem::ResolvePath(const std::string& path) {
   // Strip off prefix and pass to device.
   // e.g., d:\some\PATH.foo -> some\PATH.foo
   // Support both symlinks and device specifiers, like:
@@ -158,33 +157,24 @@ Entry* FileSystem::ResolvePath(const char* path) {
   // Resolve symlinks.
   // TODO(benvanik): more robust symlink handling - right now we assume simple
   //     drive path -> device mappings with nothing nested.
-  char full_path[poly::max_path];
-  XEIGNORE(xestrcpya(full_path, XECOUNT(full_path), path));
-  for (std::unordered_map<std::string, std::string>::iterator it =
-       symlinks_.begin(); it != symlinks_.end(); ++it) {
-    if (xestrcasestra(path, it->first.c_str()) == path) {
-      // Found symlink, fixup.
-      const char* after_path = path + it->first.size();
-      XEIGNORE(xesnprintfa(full_path, XECOUNT(full_path), "%s%s",
-                           it->second.c_str(), after_path));
+  std::string full_path = path;
+  for (const auto& it : symlinks_) {
+    if (poly::find_first_of_case(path, it.first) == 0) {
+      // Found symlink, fixup by replacing the prefix.
+      full_path = it.second + full_path.substr(it.first.size());
       break;
     }
   }
 
   // Scan all devices.
-  for (std::vector<Device*>::iterator it = devices_.begin();
-       it != devices_.end(); ++it) {
-    Device* device = *it;
-    if (xestrcasestra(full_path, device->path()) == full_path) {
-      // Found!
-      // Trim the device prefix off and pass down.
-      char device_path[poly::max_path];
-      XEIGNORE(xestrcpya(device_path, XECOUNT(device_path),
-                         full_path + xestrlena(device->path())));
-      return device->ResolvePath(device_path);
+  for (auto& device : devices_) {
+    if (poly::find_first_of_case(full_path, device->path()) == 0) {
+      // Found! Trim the device prefix off and pass down.
+      auto device_path = full_path.substr(device->path().size());
+      return device->ResolvePath(device_path.c_str());
     }
   }
 
-  XELOGE("ResolvePath(%s) failed - no root found", path);
+  XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
   return NULL;
 }

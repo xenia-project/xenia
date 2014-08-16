@@ -23,4 +23,20 @@ std::wstring to_wstring(const std::string& source) {
   return converter.from_bytes(source);
 }
 
+std::string::size_type find_first_of_case(const std::string& target,
+                                          const std::string& search) {
+  const char* str = target.c_str();
+  while (*str) {
+    if (!strncasecmp(str, search.c_str(), search.size())) {
+      break;
+    }
+    str++;
+  }
+  if (*str) {
+    return str - target.c_str();
+  } else {
+    return std::string::npos;
+  }
+}
+
 }  // namespace poly

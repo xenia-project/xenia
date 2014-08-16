@@ -9,27 +9,25 @@
 
 #include <poly/threading.h>
 
-#include <mach/mach.h>
-#include <mach/mach_time.h>
 #include <pthread.h>
 #include <time.h>
 
 namespace poly {
 namespace threading {
 
-uint64_t ticks() { return mach_absolute_time(); }
+//uint64_t ticks() { return mach_absolute_time(); }
 
-uint32_t current_thread_id() {
-  mach_port_t tid = pthread_mach_thread_np(pthread_self());
-  return static_cast<uint32_t>(tid);
-}
+// uint32_t current_thread_id() {
+//   mach_port_t tid = pthread_mach_thread_np(pthread_self());
+//   return static_cast<uint32_t>(tid);
+// }
 
 void set_name(const std::string& name) {
-  pthread_setname_np(name.c_str());
+  pthread_setname_np(pthread_self(), name.c_str());
 }
 
 void set_name(std::thread::native_handle_type handle, const std::string& name) {
-  // ?
+  pthread_setname_np(pthread_self(), name.c_str());
 }
 
 void Yield() { pthread_yield_np(); }

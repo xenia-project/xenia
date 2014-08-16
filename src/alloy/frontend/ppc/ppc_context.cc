@@ -13,7 +13,9 @@ namespace alloy {
 namespace frontend {
 namespace ppc {
 
-uint64_t ParseInt64(const char* value) { return xestrtoulla(value, NULL, 0); }
+uint64_t ParseInt64(const char* value) {
+  return std::strtoull(value, nullptr, 0);
+}
 
 void PPCContext::SetRegFromString(const char* name, const char* value) {
   int n;

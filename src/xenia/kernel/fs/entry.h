@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_FS_ENTRY_H_
 #define XENIA_KERNEL_FS_ENTRY_H_
 
+#include <string>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 
@@ -52,14 +54,14 @@ public:
     kTypeDirectory,
   };
 
-  Entry(Type type, Device* device, const char* path);
+  Entry(Type type, Device* device, const std::string& path);
   virtual ~Entry();
 
   Type type() const { return type_; }
   Device* device() const { return device_; }
-  const char* path() const { return path_; }
-  const char* absolute_path() const { return absolute_path_; }
-  const char* name() const { return name_; }
+  const std::string& path() const { return path_; }
+  const std::string& absolute_path() const { return absolute_path_; }
+  const std::string& name() const { return name_; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
@@ -79,9 +81,9 @@ public:
 private:
   Type      type_;
   Device*   device_;
-  char*     path_;
-  char*     absolute_path_;
-  char*     name_;
+  std::string path_;
+  std::string absolute_path_;
+  std::string name_;
 };
 
 

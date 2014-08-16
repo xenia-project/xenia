@@ -127,18 +127,19 @@ class XFile : public XObject {
 public:
   virtual ~XFile();
 
-  virtual const char* path(void) const = 0;
-  virtual const char* absolute_path(void) const = 0;
-  virtual const char* name(void) const = 0;
+  virtual const std::string& path() const = 0;
+  virtual const std::string& absolute_path() const = 0;
+  virtual const std::string& name() const = 0;
 
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
-                                  size_t length, const char* file_name, bool restart) = 0;
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+                                  const char* file_name, bool restart) = 0;
   virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) = 0;
+  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+                                             size_t length) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);

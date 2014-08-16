@@ -57,6 +57,10 @@ void set_name(const std::string& name) {
   set_name(static_cast<DWORD>(-1), name);
 }
 
+void set_name(std::thread::native_handle_type handle, const std::string& name) {
+  set_name(GetThreadId(handle), name);
+}
+
 void Yield() { SwitchToThread(); }
 
 void Sleep(std::chrono::microseconds duration) {

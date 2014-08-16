@@ -29,15 +29,15 @@ STFSContainerFile::STFSContainerFile(
 STFSContainerFile::~STFSContainerFile() {
 }
 
-const char* STFSContainerFile::path(void) const {
+const std::string& STFSContainerFile::path() const {
   return entry_->path();
 }
 
-const char* STFSContainerFile::absolute_path(void) const {
+const std::string& STFSContainerFile::absolute_path() const {
   return entry_->absolute_path();
 }
 
-const char* STFSContainerFile::name(void) const {
+const std::string& STFSContainerFile::name() const {
   return entry_->name();
 }
 

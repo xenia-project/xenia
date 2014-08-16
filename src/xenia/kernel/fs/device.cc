@@ -15,6 +15,4 @@ using namespace xe::kernel::fs;
 
 Device::Device(const std::string& path) : path_(path) {}
 
-Device::~Device() {}
-
-const char* Device::path() const { return path_.c_str(); }
+Device::~Device() = default;

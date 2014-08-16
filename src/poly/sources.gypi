@@ -27,6 +27,7 @@
     }],
     ['OS == "linux"', {
       'sources': [
+        'threading_posix.cc',
       ],
     }],
     ['OS == "mac"', {

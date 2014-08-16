@@ -108,7 +108,7 @@ STFSEntry* STFSEntry::GetChild(const char* name) {
   // TODO(benvanik): a faster search
   for (auto it = children.begin(); it != children.end(); ++it) {
     STFSEntry* entry = *it;
-    if (xestrcasecmpa(entry->name.c_str(), name) == 0) {
+    if (strcasecmp(entry->name.c_str(), name) == 0) {
       return entry;
     }
   }

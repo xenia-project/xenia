@@ -80,15 +80,15 @@ XModule* KernelState::GetModule(const char* name) {
     // NULL name = self.
     // TODO(benvanik): lookup module from caller address.
     return GetExecutableModule();
-  } else if (xestrcasecmpa(name, "xam.xex") == 0) {
+  } else if (strcasecmp(name, "xam.xex") == 0) {
     auto module = emulator_->xam();
     module->Retain();
     return module;
-  } else if (xestrcasecmpa(name, "xboxkrnl.exe") == 0) {
+  } else if (strcasecmp(name, "xboxkrnl.exe") == 0) {
     auto module = emulator_->xboxkrnl();
     module->Retain();
     return module;
-  } else if (xestrcasecmpa(name, "kernel32.dll") == 0) {
+  } else if (strcasecmp(name, "kernel32.dll") == 0) {
     // Some games request this, for some reason. wtf.
     return NULL;
   } else {

@@ -40,7 +40,7 @@ GDFXEntry* GDFXEntry::GetChild(const char* name) {
   for (std::vector<GDFXEntry*>::iterator it = children.begin();
        it != children.end(); ++it) {
     GDFXEntry* entry = *it;
-    if (xestrcasecmpa(entry->name.c_str(), name) == 0) {
+    if (strcasecmp(entry->name.c_str(), name) == 0) {
       return entry;
     }
   }

@@ -26,7 +26,7 @@ class Device {
   Device(const std::string& path);
   virtual ~Device();
 
-  const char* path() const;
+  const std::string& path() const { return path_; }
 
   virtual Entry* ResolvePath(const char* path) = 0;
 

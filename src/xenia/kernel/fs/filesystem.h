@@ -47,10 +47,10 @@ class FileSystem {
   int RegisterSTFSContainerDevice(const std::string& path,
                                   const std::wstring& local_path);
 
-  int CreateSymbolicLink(const char* path, const char* target);
-  int DeleteSymbolicLink(const char* path);
+  int CreateSymbolicLink(const std::string& path, const std::string& target);
+  int DeleteSymbolicLink(const std::string& path);
 
-  Entry* ResolvePath(const char* path);
+  Entry* ResolvePath(const std::string& path);
 
  private:
   std::vector<Device*> devices_;

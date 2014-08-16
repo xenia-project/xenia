@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <string>
 
 #include <xenia/kernel/xobject.h>
 
@@ -44,8 +45,8 @@ public:
   uint32_t thread_id();
   uint32_t last_error();
   void set_last_error(uint32_t error_code);
-  const char* name() const { return name_; }
-  void set_name(const char* name);
+  const std::string& name() const { return name_; }
+  void set_name(const std::string& name);
 
   X_STATUS Create();
   X_STATUS Exit(int exit_code);
@@ -96,7 +97,7 @@ private:
   uint32_t      thread_state_address_;
   cpu::XenonThreadState* thread_state_;
 
-  char*         name_;
+  std::string   name_;
 
   std::atomic<uint32_t> irql_;
   std::mutex apc_lock_;
