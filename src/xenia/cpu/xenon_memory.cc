@@ -415,10 +415,11 @@ int XenonMemory::HeapFree(uint64_t address, size_t size) {
   }
 }
 
-size_t XenonMemory::QueryInformation(uint64_t base_address, MEMORY_BASIC_INFORMATION mem_info) {
+size_t XenonMemory::QueryInformation(uint64_t base_address,
+                                     MEMORY_BASIC_INFORMATION* mem_info) {
   uint8_t* p = Translate(base_address);
 
-  return VirtualQuery(p, &mem_info, sizeof(mem_info));
+  return VirtualQuery(p, mem_info, sizeof(MEMORY_BASIC_INFORMATION));
 }
 
 size_t XenonMemory::QuerySize(uint64_t base_address) {
