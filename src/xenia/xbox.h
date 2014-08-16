@@ -76,6 +76,7 @@ typedef uint32_t X_RESULT;
 #define X_ERROR_NOT_FOUND                               X_HRESULT_FROM_WIN32(0x00000490L)
 #define X_ERROR_CANCELLED                               X_HRESULT_FROM_WIN32(0x000004C7L)
 #define X_ERROR_NO_SUCH_USER                            X_HRESULT_FROM_WIN32(0x00000525L)
+#define X_ERROR_FUNCTION_FAILED                         X_HRESULT_FROM_WIN32(0x0000065BL)
 #define X_ERROR_EMPTY                                   X_HRESULT_FROM_WIN32(0x000010D2L)
 
 // MEM_*, used by NtAllocateVirtualMemory
