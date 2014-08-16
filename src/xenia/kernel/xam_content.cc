@@ -76,7 +76,7 @@ SHIM_CALL XamShowDeviceSelectorUI_shim(
   XELOGD(
       "XamShowDeviceSelectorUI(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
       arg0, arg1, arg2, arg3, arg4, arg5);
-  SHIM_SET_RETURN_32(997);
+  SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
 
