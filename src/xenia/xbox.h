@@ -68,6 +68,7 @@ typedef uint32_t X_RESULT;
 #define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
 #define X_ERROR_INVALID_HANDLE                          X_HRESULT_FROM_WIN32(0x00000006L)
 #define X_ERROR_NO_MORE_FILES                           X_HRESULT_FROM_WIN32(0x00000018L)
+#define X_ERROR_INVALID_PARAMETER                       X_HRESULT_FROM_WIN32(0x00000057L)
 #define X_ERROR_IO_PENDING                              X_HRESULT_FROM_WIN32(0x000003E5L)
 #define X_ERROR_INSUFFICIENT_BUFFER                     X_HRESULT_FROM_WIN32(0x0000007AL)
 #define X_ERROR_BAD_ARGUMENTS                           X_HRESULT_FROM_WIN32(0x000000A0L)

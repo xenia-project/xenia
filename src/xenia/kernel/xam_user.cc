@@ -218,6 +218,46 @@ SHIM_CALL XamUserReadProfileSettings_shim(
 }
 
 
+SHIM_CALL XamUserWriteProfileSettings_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t unknown = SHIM_GET_ARG_32(1);
+  uint32_t setting_count = SHIM_GET_ARG_32(2);
+  uint32_t settings_ptr = SHIM_GET_ARG_32(3);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
+  
+  XELOGD(
+    "XamUserWriteProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, %.8X)",
+    user_index, unknown, setting_count, settings_ptr, overlapped_ptr);
+
+  if (!setting_count || !settings_ptr) {
+    SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
+  }
+
+  if (user_index == 255) {
+    user_index = 0;
+  }
+
+  if (user_index) {
+    // Only support user 0.
+    SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
+    return;
+  }
+
+  const auto& user_profile = state->user_profile();
+
+  // TODO: Update and save settings.
+
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  }
+  else {
+    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  }
+}
+
+
 SHIM_CALL XamUserCheckPrivilege_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -310,6 +350,7 @@ void xe::kernel::xam::RegisterUserExports(
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetName, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserWriteProfileSettings, state);
   SHIM_SET_MAPPING("xam.xex", XamUserCheckPrivilege, state);
   SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
   SHIM_SET_MAPPING("xam.xex", XamUserCreateAchievementEnumerator, state);
