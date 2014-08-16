@@ -18,13 +18,12 @@
 #include <xenia/kernel/objects/xuser_module.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
-
 DEFINE_bool(abort_before_entry, false,
     "Abort execution right before launching the module.");
+
+
+namespace xe {
+namespace kernel {
 
 
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
@@ -39,19 +38,19 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
       "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
 
   // Register all exported functions.
-  RegisterAudioExports(export_resolver_, kernel_state);
-  RegisterDebugExports(export_resolver_, kernel_state);
-  RegisterHalExports(export_resolver_, kernel_state);
-  RegisterIoExports(export_resolver_, kernel_state);
-  RegisterMemoryExports(export_resolver_, kernel_state);
-  RegisterMiscExports(export_resolver_, kernel_state);
-  RegisterModuleExports(export_resolver_, kernel_state);
-  RegisterObExports(export_resolver_, kernel_state);
-  RegisterRtlExports(export_resolver_, kernel_state_);
-  RegisterStringExports(export_resolver_, kernel_state_);
-  RegisterThreadingExports(export_resolver_, kernel_state);
-  RegisterUsbcamExports(export_resolver_, kernel_state);
-  RegisterVideoExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterAudioExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterDebugExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterHalExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterIoExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterMemoryExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterMiscExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterModuleExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterObExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterRtlExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterStringExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterThreadingExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterUsbcamExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterVideoExports(export_resolver_, kernel_state);
 
   uint8_t* mem = memory_->membase();
 
@@ -177,3 +176,6 @@ int XboxkrnlModule::LaunchModule(const char* path) {
 
   return 0;
 }
+
+}  // namespace kernel
+}  // namespace xe

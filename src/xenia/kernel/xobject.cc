@@ -15,9 +15,8 @@
 #include <xenia/kernel/objects/xsemaphore.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
+namespace xe {
+namespace kernel {
 
 
 XObject::XObject(KernelState* kernel_state, Type type) :
@@ -267,3 +266,6 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     return object;
   }
 }
+
+}  // namespace kernel
+}  // namespace xe

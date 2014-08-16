@@ -23,18 +23,15 @@
 #include <xenia/kernel/objects/xuser_module.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
+namespace xe {
+namespace kernel {
 
 
 // This is a global object initialized with the XboxkrnlModule.
 // It references the current kernel state object that all kernel methods should
 // be using to stash their variables.
-namespace xe {
-namespace kernel {
 KernelState* shared_kernel_state_ = nullptr;
-}  // namespace kernel
-}  // namespace xe
+
 
 KernelState::KernelState(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
@@ -213,3 +210,6 @@ void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT 
                         XThread::GetCurrentThreadHandle());
   CompleteOverlapped(overlapped_ptr, result, length);
 }
+
+}  // namespace kernel
+}  // namespace xe

@@ -13,8 +13,8 @@
 #include <xenia/kernel/native_list.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
+namespace xe {
+namespace kernel {
 
 
 Dispatcher::Dispatcher(KernelState* kernel_state) :
@@ -35,3 +35,6 @@ void Dispatcher::Lock() {
 void Dispatcher::Unlock() {
   xe_mutex_unlock(lock_);
 }
+
+}  // namespace kernel
+}  // namespace xe

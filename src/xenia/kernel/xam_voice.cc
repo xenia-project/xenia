@@ -16,12 +16,6 @@
 #include <xenia/kernel/util/shim_utils.h>
 
 
-using namespace xe;
-using namespace xe::hid;
-using namespace xe::kernel;
-using namespace xe::kernel::xam;
-
-
 namespace xe {
 namespace kernel {
 

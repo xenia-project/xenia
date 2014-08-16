@@ -17,11 +17,6 @@
 #include <xenia/kernel/util/shim_utils.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
-
 namespace xe {
 namespace kernel {
 

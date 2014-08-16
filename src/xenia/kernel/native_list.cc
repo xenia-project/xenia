@@ -10,8 +10,8 @@
 #include <xenia/kernel/native_list.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
+namespace xe {
+namespace kernel {
 
 
 NativeList::NativeList(Memory* memory) :
@@ -70,3 +70,6 @@ uint32_t NativeList::Shift() {
 bool NativeList::HasPending() {
   return head_ != kInvalidPointer;
 }
+
+}  // namespace kernel
+}  // namespace xe

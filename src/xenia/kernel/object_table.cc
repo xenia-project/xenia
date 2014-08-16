@@ -13,8 +13,8 @@
 #include <xenia/kernel/objects/xthread.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
+namespace xe {
+namespace kernel {
 
 
 ObjectTable::ObjectTable() :
@@ -206,3 +206,6 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
     return handle;
   }
 }
+
+}  // namespace kernel
+}  // namespace xe

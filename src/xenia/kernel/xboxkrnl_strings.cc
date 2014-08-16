@@ -18,11 +18,6 @@
 #include <xenia/kernel/util/xex2.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
-
 namespace xe {
 namespace kernel {
 

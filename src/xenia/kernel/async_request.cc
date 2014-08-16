@@ -13,9 +13,8 @@
 #include <xenia/kernel/objects/xevent.h>
 
 
-using namespace std;
-using namespace xe;
-using namespace xe::kernel;
+namespace xe {
+namespace kernel {
 
 
 XAsyncRequest::XAsyncRequest(
@@ -28,8 +27,7 @@ XAsyncRequest::XAsyncRequest(
 }
 
 XAsyncRequest::~XAsyncRequest() {
-  for (vector<XEvent*>::iterator it = wait_events_.begin();
-       it != wait_events_.end(); ++it) {
+  for (auto it = wait_events_.begin(); it != wait_events_.end(); ++it) {
     (*it)->Release();
   }
   object_->Release();
@@ -39,3 +37,6 @@ void XAsyncRequest::AddWaitEvent(XEvent* ev) {
   ev->Retain();
   wait_events_.push_back(ev);
 }
+
+}  // namespace kernel
+}  // namespace xe

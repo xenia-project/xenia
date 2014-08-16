@@ -20,14 +20,10 @@
 #include <xenia/kernel/util/shim_utils.h>
 
 
-using namespace xe;
-using namespace xe::gpu;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
-
 namespace xe {
 namespace kernel {
+
+using xe::gpu::GraphicsSystem;
 
 
 // http://www.tweakoz.com/orkid/
@@ -376,7 +372,7 @@ SHIM_CALL VdSwap_shim(
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
   dwords[0] = poly::byte_swap((0x03 << 30) |
                               ((1 - 1) << 16) |
-                              (xenos::PM4_XE_SWAP << 8));
+                              (xe::gpu::xenos::PM4_XE_SWAP << 8));
 
   SHIM_SET_RETURN_64(0);
 }

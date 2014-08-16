@@ -15,12 +15,6 @@
 #include <xenia/kernel/util/shim_utils.h>
 
 
-using namespace alloy;
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
-
 namespace xe {
 namespace kernel {
 
@@ -268,7 +262,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
   assert_true(max_addr_range == 0xFFFFFFFF);
 
   // Allocate.
-  uint32_t flags = MEMORY_FLAG_PHYSICAL;
+  uint32_t flags = alloy::MEMORY_FLAG_PHYSICAL;
   uint32_t base_address = (uint32_t)state->memory()->HeapAlloc(
       0, adjusted_size, flags, adjusted_alignment);
   if (!base_address) {
@@ -445,7 +439,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(
   }
 
   uint32_t addr = (uint32_t)state->memory()->HeapAlloc(
-      0, adjusted_size, MEMORY_FLAG_ZERO, alignment);
+      0, adjusted_size, alloy::MEMORY_FLAG_ZERO, alignment);
 
   SHIM_SET_RETURN_32(addr);
 }

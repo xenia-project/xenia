@@ -18,13 +18,10 @@
 #include <xenia/kernel/util/shim_utils.h>
 
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
-
-
 namespace xe {
 namespace kernel {
+
+using namespace xe::kernel::fs;
 
 
 SHIM_CALL NtCreateFile_shim(
