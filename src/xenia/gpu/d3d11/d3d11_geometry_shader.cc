@@ -95,7 +95,7 @@ ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
   if (FLAGS_dump_shaders.size()) {
     base_path = FLAGS_dump_shaders.c_str();
   }
-  uint64_t hash = xe_hash64(shader_source, xestrlena(shader_source)); // ?
+  uint64_t hash = xe_hash64(shader_source, strlen(shader_source)); // ?
   char file_name[poly::max_path];
   xesnprintfa(file_name, XECOUNT(file_name),
       "%s/gen_%.16llX.gs",

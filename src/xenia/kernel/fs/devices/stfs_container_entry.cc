@@ -66,10 +66,9 @@ X_STATUS STFSContainerEntry::QueryDirectory(
   auto end = (uint8_t*)out_info + length;
 
   auto entry = *stfs_entry_iterator_;
-  auto entry_name = entry->name.c_str();
-  size_t entry_name_length = xestrlena(entry_name);
+  auto entry_name = entry->name;
 
-  if (((uint8_t*)&out_info->file_name[0]) + entry_name_length > end) {
+  if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
     stfs_entry_iterator_ = stfs_entry_->children.end();
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -82,8 +81,8 @@ X_STATUS STFSContainerEntry::QueryDirectory(
   out_info->end_of_file      = entry->size;
   out_info->allocation_size  = 4096;
   out_info->attributes       = entry->attributes;
-  out_info->file_name_length = (uint32_t)entry_name_length;
-  memcpy(out_info->file_name, entry_name, entry_name_length);
+  out_info->file_name_length = static_cast<uint32_t>(entry_name.size());
+  memcpy(out_info->file_name, entry_name.c_str(), entry_name.size());
 
   return X_STATUS_SUCCESS;
 }

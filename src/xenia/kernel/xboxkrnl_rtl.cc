@@ -153,7 +153,7 @@ SHIM_CALL RtlInitAnsiString_shim(
 
   if (source_ptr != 0) {
     const char* source = (char*)SHIM_MEM_ADDR(source_ptr);
-    uint16_t length = (uint16_t)xestrlena(source);
+    uint16_t length = (uint16_t)strlen(source);
     SHIM_SET_MEM_16(destination_ptr + 0, length);
     SHIM_SET_MEM_16(destination_ptr + 2, length + 1);
   } else {
@@ -211,8 +211,10 @@ SHIM_CALL RtlInitUnicodeString_shim(
   // _In_opt_  PCWSTR SourceString
 
   if (source.size()) {
-    SHIM_SET_MEM_16(destination_ptr + 0, source.size() * 2);
-    SHIM_SET_MEM_16(destination_ptr + 2, (source.size() + 1) * 2);
+    SHIM_SET_MEM_16(destination_ptr + 0,
+                    static_cast<uint16_t>(source.size() * 2));
+    SHIM_SET_MEM_16(destination_ptr + 2,
+                    static_cast<uint16_t>((source.size() + 1) * 2));
     SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
   } else {
     SHIM_SET_MEM_16(destination_ptr + 0, 0);

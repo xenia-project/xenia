@@ -203,7 +203,7 @@ bool D3D11ProfilerDisplay::SetupShaders() {
   ID3DBlob* vs_code_blob = nullptr;
   ID3DBlob* vs_errors = nullptr;
   hr = D3DCompile(
-      shader_code, xestrlena(shader_code),
+      shader_code, strlen(shader_code),
       "D3D11ProfilerDisplay.vs",
       nullptr,
       nullptr,
@@ -229,7 +229,7 @@ bool D3D11ProfilerDisplay::SetupShaders() {
   ID3DBlob* ps_code_blob = nullptr;
   ID3DBlob* ps_errors = nullptr;
   hr = D3DCompile(
-      shader_code, xestrlena(shader_code),
+      shader_code, strlen(shader_code),
       "D3D11ProfilerDisplay.ps",
       nullptr,
       nullptr,

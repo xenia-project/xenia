@@ -35,10 +35,10 @@ namespace xe {
 
 class Emulator {
  public:
-  Emulator(const xechar_t* command_line);
+  Emulator(const std::wstring& command_line);
   ~Emulator();
 
-  const xechar_t* command_line() const { return command_line_; }
+  const std::wstring& command_line() const { return command_line_; }
 
   ui::Window* main_window() const { return main_window_; }
   void set_main_window(ui::Window* window);
@@ -69,7 +69,7 @@ class Emulator {
   X_STATUS CompleteLaunch(const std::wstring& path,
                          const std::string& module_path);
 
-  xechar_t                command_line_[poly::max_path];
+  std::wstring            command_line_;
 
   ui::Window*             main_window_;
 

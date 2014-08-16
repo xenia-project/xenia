@@ -32,16 +32,19 @@ using namespace xe::kernel;
 using namespace xe::kernel::fs;
 using namespace xe::ui;
 
-
-Emulator::Emulator(const xechar_t* command_line) :
-    main_window_(0),
-    memory_(0),
-    processor_(0),
-    audio_system_(0), graphics_system_(0), input_system_(0),
-    export_resolver_(0), file_system_(0),
-    kernel_state_(0), xam_(0), xboxkrnl_(0) {
-  XEIGNORE(xestrcpy(command_line_, XECOUNT(command_line_), command_line));
-}
+Emulator::Emulator(const std::wstring& command_line)
+    : command_line_(command_line),
+      main_window_(0),
+      memory_(0),
+      processor_(0),
+      audio_system_(0),
+      graphics_system_(0),
+      input_system_(0),
+      export_resolver_(0),
+      file_system_(0),
+      kernel_state_(0),
+      xam_(0),
+      xboxkrnl_(0) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.

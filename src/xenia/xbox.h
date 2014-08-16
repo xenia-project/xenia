@@ -272,8 +272,8 @@ public:
     if (buffer == NULL || length == 0) {
       return NULL;
     }
-    auto copy = (char*)xe_calloc(length+1);
-    xestrncpya(copy, length+1, buffer, length);
+    auto copy = (char*)xe_calloc(length + 1);
+    std::strncpy(copy, buffer, length);
     return copy;
   }
 };
