@@ -15,42 +15,37 @@
 
 #include <xenia/kernel/fs/entry.h>
 
-
 namespace xe {
 namespace kernel {
 namespace fs {
 
-
 class HostPathEntry : public Entry {
-public:
+ public:
   HostPathEntry(Type type, Device* device, const char* path,
-            const xechar_t* local_path);
+                const std::wstring& local_path);
   virtual ~HostPathEntry();
 
-  const xechar_t* local_path() { return local_path_; }
+  const std::wstring& local_path() { return local_path_; }
 
   virtual X_STATUS QueryInfo(XFileInfo* out_info);
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
-                                  size_t length, const char* file_name, bool restart);
+  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+                                  const char* file_name, bool restart);
 
   virtual bool can_map() { return true; }
-  virtual MemoryMapping* CreateMemoryMapping(
-      xe_file_mode file_mode, const size_t offset, const size_t length);
+  virtual MemoryMapping* CreateMemoryMapping(xe_file_mode file_mode,
+                                             const size_t offset,
+                                             const size_t length);
 
-  virtual X_STATUS Open(
-      KernelState* kernel_state,
-      uint32_t desired_access, bool async,
-      XFile** out_file);
+  virtual X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
+                        bool async, XFile** out_file);
 
-private:
-  xechar_t*   local_path_;
-  HANDLE      find_file_;
+ private:
+  std::wstring local_path_;
+  HANDLE find_file_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_DEVICES_HOST_PATH_ENTRY_H_

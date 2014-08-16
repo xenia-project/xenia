@@ -72,9 +72,8 @@ SHIM_CALL NtCreateFile_shim(
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
     auto root_path = root_file->absolute_path();
-    auto target_path = xestrdupa((std::string(root_path) + std::string(object_name)).c_str());
+    auto target_path = root_path + object_name;
     entry = fs->ResolvePath(target_path);
-    xe_free(target_path);
   }
   else {
     // Resolve the file using the virtual file system.

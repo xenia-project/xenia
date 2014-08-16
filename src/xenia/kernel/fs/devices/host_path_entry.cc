@@ -36,19 +36,16 @@ private:
 
 }
 
-
 HostPathEntry::HostPathEntry(Type type, Device* device, const char* path,
-                     const xechar_t* local_path) :
-    Entry(type, device, path),
-    find_file_(INVALID_HANDLE_VALUE) {
-  local_path_ = xestrdup(local_path);
-}
+                             const std::wstring& local_path)
+    : Entry(type, device, path),
+      local_path_(local_path),
+      find_file_(INVALID_HANDLE_VALUE) {}
 
 HostPathEntry::~HostPathEntry() {
   if (find_file_ != INVALID_HANDLE_VALUE) {
     FindClose(find_file_);
   }
-  xe_free(local_path_);
 }
 
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
@@ -58,7 +55,7 @@ X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
 
   WIN32_FILE_ATTRIBUTE_DATA data;
   if (!GetFileAttributesEx(
-      local_path_, GetFileExInfoStandard, &data)) {
+      local_path_.c_str(), GetFileExInfoStandard, &data)) {
     return X_STATUS_ACCESS_DENIED;
   }
 
@@ -87,16 +84,13 @@ X_STATUS HostPathEntry::QueryDirectory(
   }
 
   if (handle == INVALID_HANDLE_VALUE) {
-    xechar_t target_path[poly::max_path];
-    xestrcpy(target_path, poly::max_path, local_path_);
-    if (file_name == NULL) {
-      xestrcat(target_path, poly::max_path, L"*");
+    std::wstring target_path = local_path_;
+    if (!file_name) {
+      target_path += L"*";
+    } else {
+      target_path += poly::to_wstring(file_name);
     }
-    else {
-      auto target_length = xestrlen(local_path_);
-      xestrwiden(target_path + target_length, XECOUNT(target_path) - target_length, file_name);
-    }
-    handle = find_file_ = FindFirstFile(target_path, &ffd);
+    handle = find_file_ = FindFirstFile(target_path.c_str(), &ffd);
     if (handle == INVALID_HANDLE_VALUE) {
       if (GetLastError() == ERROR_FILE_NOT_FOUND) {
         return X_STATUS_NO_MORE_FILES;
@@ -140,9 +134,11 @@ X_STATUS HostPathEntry::QueryDirectory(
   return X_STATUS_SUCCESS;
 }
 
-MemoryMapping* HostPathEntry::CreateMemoryMapping(
-    xe_file_mode file_mode, const size_t offset, const size_t length) {
-  xe_mmap_ref mmap = xe_mmap_open(file_mode, local_path_, offset, length);
+MemoryMapping* HostPathEntry::CreateMemoryMapping(xe_file_mode file_mode,
+                                                  const size_t offset,
+                                                  const size_t length) {
+  xe_mmap_ref mmap =
+      xe_mmap_open(file_mode, local_path_.c_str(), offset, length);
   if (!mmap) {
     return NULL;
   }
@@ -163,7 +159,7 @@ X_STATUS HostPathEntry::Open(
   DWORD creation_disposition = OPEN_EXISTING;
   DWORD flags_and_attributes = async ? FILE_FLAG_OVERLAPPED : 0;
   HANDLE file = CreateFile(
-      local_path_,
+      local_path_.c_str(),
       desired_access,
       share_mode,
       NULL,

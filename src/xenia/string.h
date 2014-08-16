@@ -21,20 +21,13 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 #define strcpy_s(dest, destLength, source)              !(strcpy(dest, source) == dest + (destLength*0))
 #define strcat_s(dest, destLength, source)              !(strcat(dest, source) == dest + (destLength*0))
 #define _snprintf_s(dest, destLength, x, format, ...)   snprintf(dest, destLength, format, ##__VA_ARGS__)
-#define xestrdupa                                       strdup
-#else
-#define xestrdupa                                       _strdup
 #endif  // !WIN32
 
 #define xestrlenw                                       wcslen
-#define xestrdupw                                       _wcsdup
 #define xestrchrw                                       wcschr
-#define xestrrchrw                                      wcsrchr
 #define xestrcpyw(dest, destLength, source)             (wcscpy_s(dest, destLength, source) == 0)
-#define xestrncpyw(dest, destLength, source, count)     (wcsncpy_s(dest, destLength, source, count) == 0)
 #define xestrcatw(dest, destLength, source)             (wcscat_s(dest, destLength, source) == 0)
 #define xesnprintfw(buffer, bufferCount, format, ...)   _snwprintf_s(buffer, bufferCount, (bufferCount) ? (bufferCount - 1) : 0, format, ##__VA_ARGS__)
-#define xevsnprintfw(buffer, bufferCount, format, args) _vsnwprintf_s(buffer, bufferCount, (bufferCount) ? (bufferCount - 1) : 0, format, args)
 
 #define xestrlena                                       strlen
 #define xestrchra                                       strchr
@@ -50,15 +43,17 @@ int strncpy_s(char* dest, size_t destLength, const char* source, size_t count);
 typedef wchar_t xechar_t;
 #define XE_WCHAR            1
 
-#define xestrlen            xestrlenw
-#define xestrdup            xestrdupw
-#define xestrchr            xestrchrw
-#define xestrrchr           xestrrchrw
+// xestrchr 2 uses in fs
+// xestrrchra xmodule/logging
+// xestrcpy fs + module
+// xestrncpya one use in xbox.h
+// xestrcat 2 uses in platform
+// xesnprintf many uses - only remove some?
+// xevsnprintf logging, disasm
+
 #define xestrcpy            xestrcpyw
-#define xestrncpy           xestrncpyw
 #define xestrcat            xestrcatw
 #define xesnprintf          xesnprintfw
-#define xevsnprintf         xevsnprintfw
 #define xestrnarrow(dest, destLength, source)   (wcstombs_s(NULL, dest, destLength, source, _TRUNCATE) == 0)
 #define xestrwiden(dest, destLength, source)    (mbstowcs_s(NULL, dest, destLength, source, _TRUNCATE) == 0)
 
@@ -67,15 +62,9 @@ typedef wchar_t xechar_t;
 typedef char xechar_t;
 #define XE_CHAR             1
 
-#define xestrlen            xestrlena
-#define xestrdup            xestrdupa
-#define xestrchr            xestrchra
-#define xestrrchr           xestrrchra
 #define xestrcpy            xestrcpya
-#define xestrncpy           xestrncpya
 #define xestrcat            xestrcata
 #define xesnprintf          xesnprintfa
-#define xevsnprintf         xevsnprintfa
 #define xestrnarrow(dest, destLength, source)   xestrcpy(dest, destLength, source)
 #define xestrwiden(dest, destLength, source)    xestrcpy(dest, destLength, source)
 

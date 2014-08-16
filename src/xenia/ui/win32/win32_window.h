@@ -10,46 +10,45 @@
 #ifndef XENIA_UI_WIN32_WIN32_WINDOW_H_
 #define XENIA_UI_WIN32_WIN32_WINDOW_H_
 
+#include <string>
+
 #include <xenia/core.h>
 
 #include <xenia/ui/window.h>
-
 
 namespace xe {
 namespace ui {
 namespace win32 {
 
-
 class Win32Window : public Window {
-public:
+ public:
   Win32Window(xe_run_loop_ref run_loop);
-  virtual ~Win32Window();
+  ~Win32Window() override;
 
-  virtual int Initialize(const char* title, uint32_t width, uint32_t height);
+  int Initialize(const std::wstring& title, uint32_t width,
+                 uint32_t height) override;
 
-  virtual bool set_title(const char* title);
-  virtual bool set_cursor_visible(bool value);
+  bool set_title(const std::wstring& title) override;
+  bool set_cursor_visible(bool value) override;
   HWND handle() const { return handle_; }
 
   LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-protected:
-  virtual bool SetSize(uint32_t width, uint32_t height);
-  virtual void OnClose();
+ protected:
+  bool SetSize(uint32_t width, uint32_t height) override;
+  void OnClose() override;
 
-private:
+ private:
   void EnableMMCSS();
   bool HandleMouse(UINT message, WPARAM wParam, LPARAM lParam);
   bool HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam);
 
-  HWND  handle_;
-  bool  closing_;
+  HWND handle_;
+  bool closing_;
 };
-
 
 }  // namespace win32
 }  // namespace ui
 }  // namespace xe
-
 
 #endif  // XENIA_UI_WIN32_WIN32_WINDOW_H_

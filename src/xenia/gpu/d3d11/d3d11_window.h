@@ -27,18 +27,19 @@ public:
   D3D11Window(
       xe_run_loop_ref run_loop,
       IDXGIFactory1* dxgi_factory, ID3D11Device* device);
-  virtual ~D3D11Window();
+  ~D3D11Window() override;
 
   ID3D11Device* device() const { return device_; }
   IDXGISwapChain* swap_chain() const { return swap_chain_; }
   ID3D11DeviceContext* context() const { return context_; }
 
-  virtual int Initialize(const char* title, uint32_t width, uint32_t height);
+  int Initialize(const std::wstring& title, uint32_t width,
+                 uint32_t height) override;
 
   void Swap();
 
 protected:
-  virtual bool OnResize(uint32_t width, uint32_t height);
+  bool OnResize(uint32_t width, uint32_t height) override;
 
 private:
   IDXGIFactory1*          dxgi_factory_;

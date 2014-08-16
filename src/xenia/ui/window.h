@@ -10,27 +10,28 @@
 #ifndef XENIA_UI_WINDOW_H_
 #define XENIA_UI_WINDOW_H_
 
+#include <string>
+
 #include <xenia/core.h>
 
 #include <alloy/delegate.h>
 #include <xenia/ui/ui_event.h>
 
-
 namespace xe {
 namespace ui {
 
-
 class Window {
-public:
+ public:
   Window(xe_run_loop_ref run_loop);
   virtual ~Window();
 
-  virtual int Initialize(const char* title, uint32_t width, uint32_t height);
+  virtual int Initialize(const std::wstring& title, uint32_t width,
+                         uint32_t height);
 
   xe_run_loop_ref run_loop() const { return run_loop_; }
 
-  const char* title() const { return title_; }
-  virtual bool set_title(const char* title);
+  const std::wstring& title() const { return title_; }
+  virtual bool set_title(const std::wstring& title);
   bool is_visible() const { return is_visible_; }
   bool is_cursor_visible() const { return is_cursor_visible_; }
   virtual bool set_cursor_visible(bool value);
@@ -40,7 +41,7 @@ public:
 
   void Close();
 
-public:
+ public:
   alloy::Delegate<UIEvent> shown;
   alloy::Delegate<UIEvent> hidden;
   alloy::Delegate<UIEvent> resizing;
@@ -56,7 +57,7 @@ public:
   alloy::Delegate<MouseEvent> mouse_up;
   alloy::Delegate<MouseEvent> mouse_wheel;
 
-protected:
+ protected:
   void OnShow();
   void OnHide();
 
@@ -67,19 +68,17 @@ protected:
 
   virtual void OnClose();
 
-private:
+ private:
   xe_run_loop_ref run_loop_;
-  char*     title_;
-  bool      is_visible_;
-  bool      is_cursor_visible_;
-  bool      resizing_;
-  uint32_t  width_;
-  uint32_t  height_;
+  std::wstring title_;
+  bool is_visible_;
+  bool is_cursor_visible_;
+  bool resizing_;
+  uint32_t width_;
+  uint32_t height_;
 };
-
 
 }  // namespace ui
 }  // namespace xe
-
 
 #endif  // XENIA_UI_WINDOW_H_

@@ -53,7 +53,8 @@ Win32Window::~Win32Window() {
   }
 }
 
-int Win32Window::Initialize(const char* title, uint32_t width, uint32_t height) {
+int Win32Window::Initialize(const std::wstring& title, uint32_t width,
+                            uint32_t height) {
   int result = Window::Initialize(title, width, height);
   if (result) {
     return result;
@@ -164,11 +165,11 @@ void Win32Window::EnableMMCSS() {
   FreeLibrary(hLibrary);
 }
 
-bool Win32Window::set_title(const char* title) {
+bool Win32Window::set_title(const std::wstring& title) {
   if (!Window::set_title(title)) {
     return false;
   }
-  XEIGNORE(SetWindowTextA(handle_, title));
+  XEIGNORE(SetWindowText(handle_, title.c_str()));
   return true;
 }
 

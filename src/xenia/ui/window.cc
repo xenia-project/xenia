@@ -9,39 +9,33 @@
 
 #include <xenia/ui/window.h>
 
-
 using namespace xe;
 using namespace xe::ui;
 
-
-Window::Window(xe_run_loop_ref run_loop) :
-    title_(0), is_visible_(true), is_cursor_visible_(true),
-    width_(0), height_(0) {
+Window::Window(xe_run_loop_ref run_loop)
+    : title_(L"Window"),
+      is_visible_(true),
+      is_cursor_visible_(true),
+      width_(0),
+      height_(0) {
   run_loop_ = xe_run_loop_retain(run_loop);
 }
 
-Window::~Window() {
-  if (title_) {
-    xe_free(title_);
-  }
-  xe_run_loop_release(run_loop_);
-}
+Window::~Window() { xe_run_loop_release(run_loop_); }
 
-int Window::Initialize(const char* title, uint32_t width, uint32_t height) {
-  title_ = xestrdupa(title);
+int Window::Initialize(const std::wstring& title, uint32_t width,
+                       uint32_t height) {
+  title_ = title;
   width_ = width;
   height_ = height;
   return 0;
 }
 
-bool Window::set_title(const char* title) {
+bool Window::set_title(const std::wstring& title) {
   if (title == title_) {
     return false;
   }
-  if (title_) {
-    xe_free(title_);
-  }
-  title_ = xestrdupa(title);
+  title_ = title;
   return true;
 }
 
@@ -74,7 +68,7 @@ void Window::OnHide() {
 void Window::Resize(uint32_t width, uint32_t height) {
   BeginResizing();
   SetSize(width, height);
-  OnResize(width, height); // redundant?
+  OnResize(width, height);  // redundant?
   EndResizing();
 }
 
@@ -116,5 +110,4 @@ void Window::Close() {
   closed(e);
 }
 
-void Window::OnClose() {
-}
+void Window::OnClose() {}

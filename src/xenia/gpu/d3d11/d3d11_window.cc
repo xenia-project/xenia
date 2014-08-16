@@ -49,7 +49,8 @@ D3D11Window::~D3D11Window() {
   XESAFERELEASE(dxgi_factory_);
 }
 
-int D3D11Window::Initialize(const char* title, uint32_t width, uint32_t height) {
+int D3D11Window::Initialize(const std::wstring& title, uint32_t width,
+                            uint32_t height) {
   int result = Win32Window::Initialize(title, width, height);
   if (result) {
     return result;
