@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xam_input.h>
-
+#include <xenia/common.h>
+#include <xenia/core.h>
+#include <xenia/xbox.h>
 #include <xenia/emulator.h>
 #include <xenia/hid/hid.h>
 #include <xenia/kernel/kernel_state.h>

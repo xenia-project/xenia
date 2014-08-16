@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_video.h>
-
+#include <xenia/common.h>
+#include <xenia/core.h>
+#include <xenia/xbox.h>
 #include <xenia/emulator.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/gpu/gpu.h>

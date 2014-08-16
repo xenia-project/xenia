@@ -18,13 +18,7 @@
 #include <xenia/kernel/objects/xkernel_module.h>
 
 // All of the exported functions:
-#include <xenia/kernel/xboxkrnl_debug.h>
-#include <xenia/kernel/xboxkrnl_hal.h>
-#include <xenia/kernel/xboxkrnl_memory.h>
-#include <xenia/kernel/xboxkrnl_module.h>
 #include <xenia/kernel/xboxkrnl_rtl.h>
-#include <xenia/kernel/xboxkrnl_threading.h>
-#include <xenia/kernel/xboxkrnl_video.h>
 
 
 namespace xe {

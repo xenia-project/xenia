@@ -17,10 +17,6 @@
 #include <xenia/kernel/xam_ordinals.h>
 #include <xenia/kernel/objects/xkernel_module.h>
 
-// All of the exported functions:
-#include <xenia/kernel/xam_info.h>
-
-
 namespace xe {
 namespace kernel {
 

@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_audio.h>
-
+#include <xenia/common.h>
+#include <xenia/core.h>
+#include <xenia/xbox.h>
 #include <xenia/emulator.h>
 #include <xenia/apu/apu.h>
 #include <xenia/kernel/kernel_state.h>

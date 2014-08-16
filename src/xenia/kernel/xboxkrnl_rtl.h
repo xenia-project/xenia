@@ -12,33 +12,12 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/xbox.h>
 
 
 namespace xe {
 namespace kernel {
 
-
-uint32_t xeRtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr,
-                            uint32_t length);
-uint32_t xeRtlCompareMemoryUlong(uint32_t source_ptr, uint32_t length,
-                                 uint32_t pattern);
-void xeRtlFillMemoryUlong(uint32_t destination_ptr, uint32_t length,
-                          uint32_t pattern);
-
-void xeRtlInitAnsiString(uint32_t destination_ptr, uint32_t source_ptr);
-void xeRtlFreeAnsiString(uint32_t string_ptr);
-
-void xeRtlInitUnicodeString(uint32_t destination_ptr, uint32_t source_ptr);
-void xeRtlFreeUnicodeString(uint32_t string_ptr);
-X_STATUS xeRtlUnicodeStringToAnsiString(
-    uint32_t destination_ptr, uint32_t source_ptr, uint32_t alloc_dest);
-
-uint32_t xeRtlNtStatusToDosError(X_STATUS status);
-
-uint32_t xeRtlImageXexHeaderField(uint32_t xex_header_base_ptr,
-                                  uint32_t image_field);
 
 void xeRtlInitializeCriticalSection(uint32_t cs_ptr);
 X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(

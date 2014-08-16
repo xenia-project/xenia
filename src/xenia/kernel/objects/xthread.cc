@@ -9,12 +9,10 @@
 
 #include <xenia/kernel/objects/xthread.h>
 
-#include <poly/math.h>
-
+#include <poly/poly.h>
 #include <xdb/protocol.h>
 #include <xenia/cpu/cpu.h>
 #include <xenia/kernel/native_list.h>
-#include <xenia/kernel/xboxkrnl_threading.h>
 #include <xenia/kernel/objects/xevent.h>
 #include <xenia/kernel/objects/xuser_module.h>
 
@@ -27,7 +25,7 @@ using namespace xe::kernel;
 
 namespace {
   static uint32_t next_xthread_id = 0;
-  static uint32_t current_thread_tls = xeKeTlsAlloc();
+  static thread_local XThread* current_thread_tls;
   static xe_mutex_t* critical_region_ = xe_mutex_alloc(10000);
   static XThread* shared_kernel_thread_ = 0;
 }
@@ -110,7 +108,7 @@ XThread::~XThread() {
 }
 
 XThread* XThread::GetCurrentThread() {
-  XThread* thread = (XThread*)xeKeTlsGetValue(current_thread_tls);
+  XThread* thread = current_thread_tls;
   if (!thread) {
     // Assume this is some shared interrupt thread/etc.
     XThread::EnterCriticalRegion();
@@ -119,7 +117,7 @@ XThread* XThread::GetCurrentThread() {
       thread = new XThread(
           KernelState::shared(), 32 * 1024, 0, 0, 0, 0);
       shared_kernel_thread_ = thread;
-      xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
+      current_thread_tls = thread;
     }
     XThread::LeaveCriticalRegion();
   }
@@ -292,9 +290,9 @@ X_STATUS XThread::Exit(int exit_code) {
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
   xe::Profiler::ThreadEnter(thread->name());
-  xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
+  current_thread_tls = thread;
   thread->Execute();
-  xeKeTlsSetValue(current_thread_tls, NULL);
+  current_thread_tls = nullptr;
   thread->Release();
   xe::Profiler::ThreadExit();
   return 0;
@@ -335,9 +333,9 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 static void* XThreadStartCallbackPthreads(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
   xe::Profiler::ThreadEnter(thread->name());
-  xeKeTlsSetValue(current_thread_tls, (uint64_t)thread);
+  current_thread_tls = thread;
   thread->Execute();
-  xeKeTlsSetValue(current_thread_tls, NULL);
+  current_thread_tls = nullptr;
   thread->Release();
   xe::Profiler::ThreadExit();
   return 0;

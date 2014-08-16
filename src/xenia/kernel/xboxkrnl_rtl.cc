@@ -27,6 +27,32 @@ namespace xe {
 namespace kernel {
 
 
+//RtlCompareMemory
+struct x {
+};
+
+struct RtlCompareMemoryExport {
+  KernelState* state;
+  static void Call(PPCContext* ppc_state) {
+    uint32_t source1 = SHIM_GET_ARG_32(0);
+    uint32_t source2 = SHIM_GET_ARG_32(1);
+    uint32_t length = SHIM_GET_ARG_32(2);
+
+    XELOGD(
+        "RtlCompareMemory(%.8X, %.8X, %d)",
+        source1, source2, length);
+
+    uint32_t result = 0;
+    SHIM_SET_RETURN_64(result);
+  }
+  virtual void Log() {
+    //
+  }
+  X_STATUS RtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr, uint32_t length) {
+  }
+};
+
+
 // http://msdn.microsoft.com/en-us/library/ff561778
 uint32_t xeRtlCompareMemory(uint32_t source1_ptr, uint32_t source2_ptr,
                             uint32_t length) {

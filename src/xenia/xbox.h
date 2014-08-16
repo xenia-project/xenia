@@ -17,6 +17,9 @@
 namespace xe {
 
 
+#pragma pack(push, 4)
+
+
 typedef uint32_t X_HANDLE;
 #define X_INVALID_HANDLE_VALUE  ((X_HANDLE)-1)
 
@@ -193,6 +196,17 @@ typedef enum _X_FILE_INFORMATION_CLASS {
 } X_FILE_INFORMATION_CLASS;
 
 
+struct X_MEMORY_BASIC_INFORMATION {
+  uint32_t base_address;
+  uint32_t allocation_base;
+  uint32_t allocation_protect;
+  uint32_t region_size;
+  uint32_t state;
+  uint32_t protect;
+  uint32_t type;
+};
+
+
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
   poly::store_and_swap<uint32_t>(&p[0], value);
@@ -297,6 +311,22 @@ public:
 
 // Values seem to be all over the place - GUIDs?
 typedef uint32_t XNotificationID;
+
+
+// http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
+struct X_VIDEO_MODE {
+    uint32_t display_width;
+    uint32_t display_height;
+    uint32_t is_interlaced;
+    uint32_t is_widescreen;
+    uint32_t is_hi_def;
+    float    refresh_rate;
+    uint32_t video_standard;
+    uint32_t unknown_0x8a;
+    uint32_t unknown_0x01;
+    uint32_t reserved[3];
+};
+static_assert_size(X_VIDEO_MODE, 48);
 
 
 typedef enum _X_INPUT_FLAG {
@@ -480,6 +510,9 @@ public:
     hid_code = 0;
   }
 };
+
+
+#pragma pack(pop)
 
 
 }  // namespace xe

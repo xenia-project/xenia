@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_threading.h>
-
+#include <xenia/common.h>
+#include <xenia/core.h>
+#include <xenia/xbox.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/kernel/dispatcher.h>
 #include <xenia/kernel/kernel_state.h>

@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_memory.h>
-
+#include <xenia/common.h>
+#include <xenia/core.h>
+#include <xenia/xbox.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/util/shim_utils.h>
