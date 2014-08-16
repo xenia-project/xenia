@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
 #define XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
 
+#include <mutex>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 
@@ -40,7 +42,7 @@ private:
     XObject* object;
   } ObjectTableEntry;
 
-  xe_mutex_t*       table_mutex_;
+  std::mutex        table_mutex_;
   uint32_t          table_capacity_;
   ObjectTableEntry* table_;
   uint32_t          last_free_entry_;

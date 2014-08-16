@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_XBOXKRNL_XTHREAD_H_
 
 #include <atomic>
+#include <mutex>
 
 #include <xenia/kernel/xobject.h>
 
@@ -98,7 +99,7 @@ private:
   char*         name_;
 
   std::atomic<uint32_t> irql_;
-  xe_mutex_t*   apc_lock_;
+  std::mutex apc_lock_;
   NativeList*   apc_list_;
 
   XEvent*       event_;

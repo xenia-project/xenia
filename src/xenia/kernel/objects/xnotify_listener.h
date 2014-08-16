@@ -13,6 +13,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 #define XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 
+#include <mutex>
+
 #include <xenia/kernel/xobject.h>
 
 #include <xenia/xbox.h>
@@ -37,7 +39,7 @@ public:
 
 private:
   HANDLE wait_handle_;
-  xe_mutex_t* lock_;
+  std::mutex lock_;
   std::unordered_map<XNotificationID, uint32_t> notifications_;
   size_t notification_count_;
   uint64_t mask_;

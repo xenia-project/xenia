@@ -19,21 +19,19 @@ namespace kernel {
 
 Dispatcher::Dispatcher(KernelState* kernel_state) :
     kernel_state_(kernel_state) {
-  lock_ = xe_mutex_alloc();
   dpc_list_ = new NativeList(kernel_state->memory());
 }
 
 Dispatcher::~Dispatcher() {
   delete dpc_list_;
-  xe_mutex_free(lock_);
 }
 
 void Dispatcher::Lock() {
-  xe_mutex_lock(lock_);
+  lock_.lock();
 }
 
 void Dispatcher::Unlock() {
-  xe_mutex_unlock(lock_);
+  lock_.unlock();
 }
 
 }  // namespace kernel

@@ -9,8 +9,8 @@
 
 #include <xenia/kernel/fs/devices/host_path_device.h>
 
+#include <xenia/core/path.h>
 #include <xenia/kernel/fs/devices/host_path_entry.h>
-
 #include <xenia/kernel/objects/xfile.h>
 
 using namespace xe;

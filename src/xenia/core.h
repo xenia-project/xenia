@@ -19,8 +19,8 @@ namespace xe {
 
 #include <xenia/core/hash.h>
 #include <xenia/core/mmap.h>
-#include <xenia/core/mutex.h>
 #include <xenia/core/pal.h>
+#include <xenia/core/path.h>
 #include <xenia/core/ref.h>
 #include <xenia/core/run_loop.h>
 #include <xenia/core/socket.h>

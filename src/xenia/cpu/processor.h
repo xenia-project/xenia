@@ -10,9 +10,11 @@
 #ifndef XENIA_CPU_PROCESSOR_H_
 #define XENIA_CPU_PROCESSOR_H_
 
+#include <mutex>
+#include <vector>
+
 #include <xenia/core.h>
 
-#include <vector>
 
 XEDECLARECLASS2(alloy, runtime, Breakpoint);
 XEDECLARECLASS1(xe, Emulator);
@@ -66,7 +68,7 @@ private:
   Memory*             memory_;
 
   Irql                irql_;
-  xe_mutex_t*         interrupt_thread_lock_;
+  std::mutex          interrupt_thread_lock_;
   XenonThreadState*   interrupt_thread_state_;
   uint64_t            interrupt_thread_block_;
 };

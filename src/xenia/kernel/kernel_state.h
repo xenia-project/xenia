@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_KERNEL_STATE_H_
 
 #include <memory>
+#include <mutex>
 
 #include <xenia/common.h>
 #include <xenia/core.h>
@@ -55,6 +56,7 @@ public:
   UserProfile* user_profile() const { return user_profile_.get(); }
 
   ObjectTable* object_table() const { return object_table_; }
+  std::mutex& object_mutex() { return object_mutex_; }
 
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
@@ -85,7 +87,7 @@ private:
   std::unique_ptr<UserProfile> user_profile_;
 
   ObjectTable*    object_table_;
-  xe_mutex_t*     object_mutex_;
+  std::mutex      object_mutex_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<XNotifyListener*> notify_listeners_;
 

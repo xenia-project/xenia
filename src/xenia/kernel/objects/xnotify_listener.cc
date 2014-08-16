@@ -16,12 +16,11 @@ using namespace xe::kernel;
 
 XNotifyListener::XNotifyListener(KernelState* kernel_state) :
     XObject(kernel_state, kTypeNotifyListener),
-    wait_handle_(NULL), lock_(0), mask_(0), notification_count_(0) {
+    wait_handle_(NULL), mask_(0), notification_count_(0) {
 }
 
 XNotifyListener::~XNotifyListener() {
   kernel_state_->UnregisterNotifyListener(this);
-  xe_mutex_free(lock_);
   if (wait_handle_) {
     CloseHandle(wait_handle_);
   }
@@ -30,7 +29,6 @@ XNotifyListener::~XNotifyListener() {
 void XNotifyListener::Initialize(uint64_t mask) {
   assert_null(wait_handle_);
 
-  lock_ = xe_mutex_alloc();
   wait_handle_ = CreateEvent(NULL, TRUE, FALSE, NULL);
   mask_ = mask;
 
@@ -43,7 +41,7 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
     return;
   }
 
-  xe_mutex_lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
   if (notifications_.count(id)) {
     // Already exists. Overwrite.
     notifications_[id] = data;
@@ -53,13 +51,12 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
     notifications_.insert({ id, data });
   }
   SetEvent(wait_handle_);
-  xe_mutex_unlock(lock_);
 }
 
 bool XNotifyListener::DequeueNotification(
     XNotificationID* out_id, uint32_t* out_data) {
+  std::lock_guard<std::mutex> lock(lock_);
   bool dequeued = false;
-  xe_mutex_lock(lock_);
   if (notification_count_) {
     dequeued = true;
     auto it = notifications_.begin();
@@ -71,14 +68,13 @@ bool XNotifyListener::DequeueNotification(
       ResetEvent(wait_handle_);
     }
   }
-  xe_mutex_unlock(lock_);
   return dequeued;
 }
 
 bool XNotifyListener::DequeueNotification(
     XNotificationID id, uint32_t* out_data) {
+  std::lock_guard<std::mutex> lock(lock_);
   bool dequeued = false;
-  xe_mutex_lock(lock_);
   if (notification_count_) {
     dequeued = true;
     auto it = notifications_.find(id);
@@ -91,6 +87,5 @@ bool XNotifyListener::DequeueNotification(
       }
     }
   }
-  xe_mutex_unlock(lock_);
   return dequeued;
 }

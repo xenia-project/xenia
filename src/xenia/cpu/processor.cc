@@ -53,7 +53,7 @@ namespace {
 Processor::Processor(Emulator* emulator) :
     emulator_(emulator), export_resolver_(emulator->export_resolver()),
     runtime_(0), memory_(emulator->memory()),
-    interrupt_thread_lock_(NULL), interrupt_thread_state_(NULL),
+    interrupt_thread_state_(NULL),
     interrupt_thread_block_(0) {
   InitializeIfNeeded();
 }
@@ -62,7 +62,6 @@ Processor::~Processor() {
   if (interrupt_thread_block_) {
     memory_->HeapFree(interrupt_thread_block_, 2048);
     delete interrupt_thread_state_;
-    xe_mutex_free(interrupt_thread_lock_);
   }
 
   delete runtime_;
@@ -103,7 +102,6 @@ int Processor::Setup() {
     return result;
   }
 
-  interrupt_thread_lock_ = xe_mutex_alloc(10000);
   interrupt_thread_state_ = new XenonThreadState(
       runtime_, 0, 16 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
@@ -171,7 +169,7 @@ uint64_t Processor::ExecuteInterrupt(
   SCOPE_profile_cpu_f("cpu");
 
   // Acquire lock on interrupt thread (we can only dispatch one at a time).
-  xe_mutex_lock(interrupt_thread_lock_);
+  std::lock_guard<std::mutex> lock(interrupt_thread_lock_);
 
   // Set 0x10C(r13) to the current CPU ID.
   uint8_t* p = memory_->membase();
@@ -180,6 +178,5 @@ uint64_t Processor::ExecuteInterrupt(
   // Execute interrupt.
   uint64_t result = Execute(interrupt_thread_state_, address, args, arg_count);
 
-  xe_mutex_unlock(interrupt_thread_lock_);
   return result;
 }

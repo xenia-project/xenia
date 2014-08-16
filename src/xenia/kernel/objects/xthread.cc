@@ -26,7 +26,7 @@ using namespace xe::kernel;
 namespace {
   static uint32_t next_xthread_id = 0;
   static thread_local XThread* current_thread_tls;
-  static xe_mutex_t* critical_region_ = xe_mutex_alloc(10000);
+  static std::mutex critical_region_;
   static XThread* shared_kernel_thread_ = 0;
 }
 
@@ -58,7 +58,6 @@ XThread::XThread(KernelState* kernel_state,
     creation_params_.stack_size = 16 * 1024;
   }
 
-  apc_lock_ = xe_mutex_alloc();
   apc_list_ = new NativeList(kernel_state->memory());
 
   event_ = new XEvent(kernel_state);
@@ -79,7 +78,6 @@ XThread::~XThread() {
   kernel_state_->UnregisterThread(this);
 
   delete apc_list_;
-  xe_mutex_free(apc_lock_);
 
   event_->Release();
 
@@ -421,11 +419,11 @@ void XThread::Execute() {
 
 void XThread::EnterCriticalRegion() {
   // Global critical region. This isn't right, but is easy.
-  xe_mutex_lock(critical_region_);
+  critical_region_.lock();
 }
 
 void XThread::LeaveCriticalRegion() {
-  xe_mutex_unlock(critical_region_);
+  critical_region_.unlock();
 }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
@@ -437,12 +435,12 @@ void XThread::LowerIrql(uint32_t new_irql) {
 }
 
 void XThread::LockApc() {
-  xe_mutex_lock(apc_lock_);
+  apc_lock_.lock();
 }
 
 void XThread::UnlockApc() {
   bool needs_apc = apc_list_->HasPending();
-  xe_mutex_unlock(apc_lock_);
+  apc_lock_.unlock();
   if (needs_apc) {
     QueueUserAPC(reinterpret_cast<PAPCFUNC>(DeliverAPCs),
                  thread_handle_,

@@ -9,7 +9,6 @@
 
 #include <xenia/core/run_loop.h>
 
-#include <xenia/core/mutex.h>
 #include <xenia/core/thread.h>
 
 

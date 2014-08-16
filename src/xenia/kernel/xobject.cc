@@ -147,16 +147,8 @@ X_STATUS XObject::WaitMultiple(
   return result;
 }
 
-void XObject::LockType() {
-  xe_mutex_lock(KernelState::shared()->object_mutex_);
-}
-
-void XObject::UnlockType() {
-  xe_mutex_unlock(KernelState::shared()->object_mutex_);
-}
-
 void XObject::SetNativePointer(uint32_t native_ptr) {
-  XObject::LockType();
+  std::lock_guard<std::mutex> lock(kernel_state_->object_mutex());
 
   DISPATCH_HEADER* header_be =
       (DISPATCH_HEADER*)kernel_state_->memory()->Translate(native_ptr);
@@ -173,8 +165,6 @@ void XObject::SetNativePointer(uint32_t native_ptr) {
   object_ptr |= 0x1;
   header_be->wait_list_flink = poly::byte_swap((uint32_t)(object_ptr >> 32));
   header_be->wait_list_blink = poly::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
-
-  XObject::UnlockType();
 }
 
 XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
@@ -188,7 +178,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
   // We identify this by checking the low bit of wait_list_blink - if it's 1,
   // we have already put our pointer in there.
 
-  XObject::LockType();
+  std::lock_guard<std::mutex> lock(kernel_state->object_mutex());
 
   DISPATCH_HEADER* header_be = (DISPATCH_HEADER*)native_ptr;
   DISPATCH_HEADER header;
@@ -208,7 +198,6 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
         ((header.wait_list_blink) & ~0x1);
     XObject* object = reinterpret_cast<XObject*>(object_ptr);
     // TODO(benvanik): assert nothing has been changed in the struct.
-    XObject::UnlockType();
     return object;
   } else {
     // First use, create new.
@@ -252,7 +241,6 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     case 24: // ThreadedDpcObject
     default:
       assert_always();
-      XObject::UnlockType();
       return NULL;
     }
 
@@ -262,7 +250,6 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     header_be->wait_list_flink = poly::byte_swap((uint32_t)(object_ptr >> 32));
     header_be->wait_list_blink = poly::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
 
-    XObject::UnlockType();
     return object;
   }
 }

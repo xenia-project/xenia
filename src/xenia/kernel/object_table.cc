@@ -21,12 +21,10 @@ ObjectTable::ObjectTable() :
     table_capacity_(0),
     table_(NULL),
     last_free_entry_(0) {
-  table_mutex_ = xe_mutex_alloc(0);
-  assert_not_null(table_mutex_);
 }
 
 ObjectTable::~ObjectTable() {
-  xe_mutex_lock(table_mutex_);
+  std::lock_guard<std::mutex> lock(table_mutex_);
 
   // Release all objects.
   for (uint32_t n = 0; n < table_capacity_; n++) {
@@ -41,11 +39,6 @@ ObjectTable::~ObjectTable() {
   last_free_entry_ = 0;
   xe_free(table_);
   table_ = NULL;
-
-  xe_mutex_unlock(table_mutex_);
-
-  xe_mutex_free(table_mutex_);
-  table_mutex_ = NULL;
 }
 
 X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
@@ -91,24 +84,24 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
   assert_not_null(out_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
-
-  xe_mutex_lock(table_mutex_);
-
-  // Find a free slot.
+  
   uint32_t slot = 0;
-  result = FindFreeSlot(&slot);
+  {
+    std::lock_guard<std::mutex> lock(table_mutex_);
 
-  // Stash.
-  if (XSUCCEEDED(result)) {
-    ObjectTableEntry& entry = table_[slot];
-    entry.object = object;
+    // Find a free slot.
+    result = FindFreeSlot(&slot);
 
-    // Retain so long as the object is in the table.
-    object->RetainHandle();
-    object->Retain();
+    // Stash.
+    if (XSUCCEEDED(result)) {
+      ObjectTableEntry& entry = table_[slot];
+      entry.object = object;
+
+      // Retain so long as the object is in the table.
+      object->RetainHandle();
+      object->Retain();
+    }
   }
-
-  xe_mutex_unlock(table_mutex_);
 
   if (XSUCCEEDED(result)) {
     *out_handle = slot << 2;
@@ -125,26 +118,26 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  xe_mutex_lock(table_mutex_);
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
-
-  // Verify slot.
   XObject* object = NULL;
-  if (slot > table_capacity_) {
-    result = X_STATUS_INVALID_HANDLE;
-  } else {
-    ObjectTableEntry& entry = table_[slot];
-    if (entry.object) {
-      // Release after we lose the lock.
-      object = entry.object;
-    } else {
+  {
+    std::lock_guard<std::mutex> lock(table_mutex_);
+
+    // Lower 2 bits are ignored.
+    uint32_t slot = handle >> 2;
+
+    // Verify slot.
+    if (slot > table_capacity_) {
       result = X_STATUS_INVALID_HANDLE;
+    } else {
+      ObjectTableEntry& entry = table_[slot];
+      if (entry.object) {
+        // Release after we lose the lock.
+        object = entry.object;
+      } else {
+        result = X_STATUS_INVALID_HANDLE;
+      }
     }
   }
-
-  xe_mutex_unlock(table_mutex_);
 
   if (object) {
     // Release the object handle now that it is out of the table.
@@ -165,30 +158,31 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  xe_mutex_lock(table_mutex_);
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
-
-  // Verify slot.
   XObject* object = NULL;
-  if (slot > table_capacity_) {
-    result = X_STATUS_INVALID_HANDLE;
-  } else {
-    ObjectTableEntry& entry = table_[slot];
-    if (entry.object) {
-      object = entry.object;
-    } else {
+  {
+    std::lock_guard<std::mutex> lock(table_mutex_);
+
+    // Lower 2 bits are ignored.
+    uint32_t slot = handle >> 2;
+
+    // Verify slot.
+    if (slot > table_capacity_) {
       result = X_STATUS_INVALID_HANDLE;
+    } else {
+      ObjectTableEntry& entry = table_[slot];
+      if (entry.object) {
+        object = entry.object;
+      } else {
+        result = X_STATUS_INVALID_HANDLE;
+      }
     }
-  }
 
-  // Retain the object pointer.
-  if (object) {
-    object->Retain();
-  }
+    // Retain the object pointer.
+    if (object) {
+      object->Retain();
+    }
 
-  xe_mutex_unlock(table_mutex_);
+  }
 
   *out_object = object;
   return result;

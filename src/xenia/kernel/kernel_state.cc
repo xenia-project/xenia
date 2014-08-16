@@ -45,7 +45,6 @@ KernelState::KernelState(Emulator* emulator) :
   user_profile_ = std::make_unique<UserProfile>();
 
   object_table_ = new ObjectTable();
-  object_mutex_ = xe_mutex_alloc(10000);
 
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
@@ -57,7 +56,6 @@ KernelState::~KernelState() {
   SetExecutableModule(NULL);
 
   // Delete all objects.
-  xe_mutex_free(object_mutex_);
   delete object_table_;
 
   // Shutdown apps.
@@ -124,41 +122,37 @@ void KernelState::SetExecutableModule(XUserModule* module) {
 }
 
 void KernelState::RegisterThread(XThread* thread) {
-  xe_mutex_lock(object_mutex_);
+  std::lock_guard<std::mutex> lock(object_mutex_);
   threads_by_id_[thread->thread_id()] = thread;
-  xe_mutex_unlock(object_mutex_);
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
-  xe_mutex_lock(object_mutex_);
+  std::lock_guard<std::mutex> lock(object_mutex_);
   auto it = threads_by_id_.find(thread->thread_id());
   if (it != threads_by_id_.end()) {
     threads_by_id_.erase(it);
   }
-  xe_mutex_unlock(object_mutex_);
 }
 
 XThread* KernelState::GetThreadByID(uint32_t thread_id) {
+  std::lock_guard<std::mutex> lock(object_mutex_);
   XThread* thread = NULL;
-  xe_mutex_lock(object_mutex_);
   auto it = threads_by_id_.find(thread_id);
   if (it != threads_by_id_.end()) {
     thread = it->second;
     // Caller must release.
     thread->Retain();
   }
-  xe_mutex_unlock(object_mutex_);
   return thread;
 }
 
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
-  xe_mutex_lock(object_mutex_);
+  std::lock_guard<std::mutex> lock(object_mutex_);
   notify_listeners_.push_back(listener);
-  xe_mutex_unlock(object_mutex_);
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
-  xe_mutex_lock(object_mutex_);
+  std::lock_guard<std::mutex> lock(object_mutex_);
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     if (*it == listener) {
@@ -166,16 +160,14 @@ void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
       break;
     }
   }
-  xe_mutex_unlock(object_mutex_);
 }
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
-  xe_mutex_lock(object_mutex_);
+  std::lock_guard<std::mutex> lock(object_mutex_);
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     (*it)->EnqueueNotification(id, data);
   }
-  xe_mutex_unlock(object_mutex_);
 }
 
 void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result, uint32_t length) {

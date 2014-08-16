@@ -10,10 +10,11 @@
 #ifndef XENIA_APU_AUDIO_SYSTEM_H_
 #define XENIA_APU_AUDIO_SYSTEM_H_
 
+#include <mutex>
+#include <queue>
+
 #include <xenia/core.h>
 #include <xenia/xbox.h>
-
-#include <queue>
 
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS2(xe, cpu, Processor);
@@ -74,7 +75,7 @@ protected:
   uint32_t          thread_block_;
   bool              running_;
 
-  xe_mutex_t*       lock_;
+  std::mutex        lock_;
 
   static const size_t maximum_client_count_ = 8;
 

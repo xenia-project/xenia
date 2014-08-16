@@ -74,8 +74,6 @@ public:
       uint32_t wait_type, uint32_t wait_reason, uint32_t processor_mode,
       uint32_t alertable, uint64_t* opt_timeout);
 
-  static void LockType();
-  static void UnlockType();
   static XObject* GetObject(KernelState* kernel_state, void* native_ptr,
                             int32_t as_type = -1);
 

@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
 #define XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
 
+#include <mutex>
+
 #include <xenia/common.h>
 #include <xenia/core.h>
 
@@ -40,7 +42,7 @@ private:
 private:
   KernelState*        kernel_state_;
 
-  xe_mutex_t*         lock_;
+  std::mutex          lock_;
   NativeList*         dpc_list_;
 };
 
