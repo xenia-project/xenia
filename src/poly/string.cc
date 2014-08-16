@@ -39,4 +39,52 @@ std::string::size_type find_first_of_case(const std::string& target,
   }
 }
 
+std::wstring to_absolute_path(const std::wstring& path) {
+#if XE_LIKE_WIN32
+  wchar_t buffer[poly::max_path];
+  _wfullpath(buffer, path.c_str(), sizeof(buffer) / sizeof(wchar_t));
+  return buffer;
+#else
+  char buffer[poly::max_path];
+  realpath(poly::to_string(path).c_str(), buffer);
+  return poly::to_wstring(buffer);
+#endif  // XE_LIKE_WIN32
+}
+
+std::wstring join_paths(const std::wstring& left, const std::wstring& right,
+                        wchar_t sep) {
+  if (!left.size()) {
+    return right;
+  } else if (!right.size()) {
+    return left;
+  }
+  if (left[left.size() - 1] == sep) {
+    return left + right;
+  } else {
+    return left + sep + right;
+  }
+}
+
+std::wstring fix_path_separators(const std::wstring& source, wchar_t new_sep) {
+  // Swap all separators to new_sep.
+  wchar_t old_sep = new_sep == '\\' ? '/' : '\\';
+  std::wstring::size_type pos = 0;
+  std::wstring dest = source;
+  while ((pos = source.find_first_of(old_sep, pos)) != std::wstring::npos) {
+    dest[pos] = new_sep;
+    ++pos;
+  }
+  // Replace redundant separators.
+  pos = 0;
+  while ((pos = dest.find_first_of(new_sep, pos)) != std::wstring::npos) {
+    if (pos < dest.size() - 1) {
+      if (dest[pos + 1] == new_sep) {
+        dest.erase(pos + 1, 1);
+      }
+    }
+    ++pos;
+  }
+  return dest;
+}
+
 }  // namespace poly

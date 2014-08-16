@@ -12,6 +12,7 @@
 #include <memory>
 
 #include <gflags/gflags.h>
+#include <poly/main.h>
 #include <poly/poly.h>
 #include <third_party/wxWidgets/include/wx/wx.h>
 #include <xdb/ui/xdb_app.h>
@@ -22,7 +23,7 @@ DEFINE_string(content_file, "",
 
 namespace xdb {
 
-int main(int argc, xechar_t** argv) {
+int main(std::vector<std::wstring>& args) {
   // Create platform abstraction layer.
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
@@ -67,6 +68,4 @@ int main(int argc, xechar_t** argv) {
 
 }  // namespace xdb
 
-// TODO(benvanik): move main thunk into poly
-// ehhh
-XE_MAIN_WINDOW_THUNK(xdb::main, L"xenia-debug", "xenia-debug");
+DEFINE_ENTRY_POINT(L"xenia-debug", L"xenia-debug", xdb::main);

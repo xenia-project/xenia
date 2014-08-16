@@ -10,6 +10,7 @@
 #include <memory>
 
 #include <gflags/gflags.h>
+#include <poly/main.h>
 #include <poly/poly.h>
 #include <xdb/postmortem_debug_target.h>
 #include <xdb/xdb.h>
@@ -21,7 +22,7 @@ namespace xc {
 
 using xdb::PostmortemDebugTarget;
 
-int main(int argc, xechar_t** argv) {
+int main(std::vector<std::wstring>& args) {
   // Create platform abstraction layer.
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
@@ -46,6 +47,4 @@ int main(int argc, xechar_t** argv) {
 
 }  // namespace xc
 
-// TODO(benvanik): move main thunk into poly
-// ehhh
-XE_MAIN_WINDOW_THUNK(xc::main, L"xenia-compare", "xenia-compare");
+DEFINE_ENTRY_POINT(L"xenia-compare", L"xenia-compare", xc::main);

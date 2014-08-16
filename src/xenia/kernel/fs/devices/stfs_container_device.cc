@@ -59,7 +59,7 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
   char remaining[poly::max_path];
   XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), path));
   while (remaining[0]) {
-    char* next_slash = xestrchra(remaining, '\\');
+    char* next_slash = strchr(remaining, '\\');
     if (next_slash == remaining) {
       // Leading slash - shift
       XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), remaining + 1));

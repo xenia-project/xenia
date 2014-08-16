@@ -5,6 +5,12 @@
       'target_name': 'xenia-test',
       'type': 'executable',
 
+      'msvs_settings': {
+        'VCLinkerTool': {
+          'SubSystem': '1',
+        },
+      },
+
       'dependencies': [
         'xenia',
       ],

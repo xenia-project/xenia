@@ -7,8 +7,8 @@
 
       'msvs_settings': {
         'VCLinkerTool': {
-          'SubSystem': '2'
-        }
+          'SubSystem': '1'
+        },
       },
 
       'dependencies': [

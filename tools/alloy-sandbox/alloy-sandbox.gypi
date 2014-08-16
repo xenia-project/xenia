@@ -5,6 +5,12 @@
       'target_name': 'alloy-sandbox',
       'type': 'executable',
 
+      'msvs_settings': {
+        'VCLinkerTool': {
+          'SubSystem': '1'
+        },
+      },
+
       'dependencies': [
         'alloy',
         'xenia',

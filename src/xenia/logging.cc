@@ -11,10 +11,9 @@
 
 #include <mutex>
 
-#include <xenia/common.h>
-
 #include <gflags/gflags.h>
-
+#include <poly/main.h>
+#include <xenia/common.h>
 
 DEFINE_bool(fast_stdout, false,
     "Don't lock around stdout/stderr. May introduce weirdness.");
@@ -31,7 +30,7 @@ void xe_format_log_line(
     const char* function_name, const char level_char,
     const char* fmt, va_list args) {
   // Strip out just the filename from the path.
-  const char* filename = xestrrchra(file_path, poly::path_separator);
+  const char* filename = strrchr(file_path, poly::path_separator);
   if (filename) {
     // Slash - skip over it.
     filename++;
@@ -108,7 +107,7 @@ void xe_handle_fatal(
   }
 
 #if XE_LIKE_WIN32
-  if (!xe_has_console()) {
+  if (!poly::has_console_attached()) {
     MessageBoxA(NULL, buffer, "Xenia Error",
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
   }

@@ -9,7 +9,6 @@
 
 #include <xenia/kernel/fs/devices/host_path_device.h>
 
-#include <xenia/core/path.h>
 #include <xenia/kernel/fs/devices/host_path_entry.h>
 #include <xenia/kernel/objects/xfile.h>
 
@@ -30,27 +29,9 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
 
   XELOGFS("HostPathDevice::ResolvePath(%s)", path);
 
-#if XE_WCHAR
-  xechar_t rel_path[poly::max_path];
-  XEIGNORE(xestrwiden(rel_path, XECOUNT(rel_path), path));
-#else
-  const xechar_t* rel_path = path;
-#endif
-
-  xechar_t full_path[poly::max_path];
-  xe_path_join(local_path_.c_str(), rel_path, full_path, XECOUNT(full_path));
-
-  // Swap around path separators.
-  if (poly::path_separator != '\\') {
-    for (size_t n = 0; n < XECOUNT(full_path); n++) {
-      if (full_path[n] == 0) {
-        break;
-      }
-      if (full_path[n] == '\\') {
-        full_path[n] = poly::path_separator;
-      }
-    }
-  }
+  auto rel_path = poly::to_wstring(path);
+  auto full_path = poly::join_paths(local_path_, rel_path);
+  full_path = poly::fix_path_separators(full_path);
 
   // TODO(benvanik): get file info
   // TODO(benvanik): fail if does not exit

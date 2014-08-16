@@ -12,7 +12,6 @@
 
 #include <cstdint>
 
-#include <xenia/platform.h>
 #include <xenia/config.h>
 #include <xenia/string.h>
 

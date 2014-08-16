@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <functional>
 
-#include <xenia/platform.h>
+#include <poly/platform.h>
 
 
 #define XE_EMPTY_MACRO          do { } while(0)

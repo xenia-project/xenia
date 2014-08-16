@@ -98,6 +98,7 @@
             'AdditionalLibraryDirectories': [
               '..\\..\\third_party\\wxWidgets\\lib\\vc_x64_lib\\',
             ],
+            'EntryPointSymbol': 'wWinMainCRTStartup',
           },
         },
 

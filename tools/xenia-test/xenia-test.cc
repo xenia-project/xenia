@@ -14,6 +14,8 @@
 #endif  // !WIN32
 #include <gflags/gflags.h>
 
+#include <poly/main.h>
+
 
 using namespace std;
 using namespace xe;
@@ -273,7 +275,7 @@ int xenia_test(int argc, xechar_t **argv) {
   if (argc >= 2) {
     test_name = argv[1];
   }
-  
+
   string test_name_str;
   if (test_name) {
 #if XE_WCHAR
@@ -290,4 +292,5 @@ int xenia_test(int argc, xechar_t **argv) {
 
   return result_code;
 }
-XE_MAIN_THUNK(xenia_test, "xenia-test some.xex");
+
+DEFINE_ENTRY_POINT(L"xenia-test", L"xenia-test some.xex", xenia_test);

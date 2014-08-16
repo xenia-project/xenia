@@ -7,13 +7,12 @@
     'debugging.h',
     'config.h',
     'cxx_compat.h',
+    'main.h',
     'math.cc',
     'math.h',
     'memory.cc',
     'memory.h',
     'platform.h',
-    'poly-private.h',
-    'poly.cc',
     'poly.h',
     'string.cc',
     'string.h',
@@ -23,6 +22,7 @@
   'conditions': [
     ['OS == "mac" or OS == "linux"', {
       'sources': [
+        'main_posix.cc',
       ],
     }],
     ['OS == "linux"', {
@@ -39,6 +39,7 @@
     ['OS == "win"', {
       'sources': [
         'debugging_win.cc',
+        'main_win.cc',
         'threading_win.cc',
       ],
     }],

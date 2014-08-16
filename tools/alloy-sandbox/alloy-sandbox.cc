@@ -13,6 +13,7 @@
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
 #include <alloy/runtime/raw_module.h>
+#include <poly/main.h>
 #include <poly/poly.h>
 #include <xenia/cpu/xenon_memory.h>
 
@@ -75,7 +76,7 @@ class ThreadState : public alloy::runtime::ThreadState {
 
 // TODO(benvanik): simple memory? move more into core?
 
-int main(int argc, xechar_t** argv) {
+int main(std::vector<std::wstring>& args) {
   xe::Profiler::Initialize();
   xe::Profiler::ThreadEnter("main");
 
@@ -122,7 +123,4 @@ int main(int argc, xechar_t** argv) {
 }  // namespace sandbox
 }  // namespace alloy
 
-// TODO(benvanik): move main thunk into poly
-// ehhh
-#include <xenia/platform.cc>
-XE_MAIN_THUNK(alloy::sandbox::main, "alloy-sandbox");
+DEFINE_ENTRY_POINT(L"alloy-sandbox", L"?", alloy::sandbox::main);

@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XMODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_XMODULE_H_
 
+#include <string>
+
 #include <xenia/kernel/xobject.h>
 
 #include <xenia/xbox.h>
@@ -21,11 +23,11 @@ namespace kernel {
 
 class XModule : public XObject {
 public:
-  XModule(KernelState* kernel_state, const char* path);
+  XModule(KernelState* kernel_state, const std::string& path);
   virtual ~XModule();
 
-  const char* path() const { return path_; }
-  const char* name() const { return name_; }
+  const std::string& path() const { return path_; }
+  const std::string& name() const { return name_; }
 
   virtual void* GetProcAddressByOrdinal(uint16_t ordinal) = 0;
   virtual X_STATUS GetSection(
@@ -35,8 +37,8 @@ public:
 protected:
   void OnLoad();
 
-  char            name_[256];
-  char            path_[poly::max_path];
+  std::string name_;
+  std::string path_;
 };
 
 

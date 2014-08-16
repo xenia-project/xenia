@@ -13,7 +13,6 @@
 #include <memory>
 
 #include <xenia/config.h>
-#include <xenia/platform.h>
 #include <xenia/string.h>
 #include <xenia/types.h>
 

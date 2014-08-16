@@ -17,19 +17,20 @@ using namespace xe::cpu;
 using namespace xe::kernel;
 
 
-XModule::XModule(KernelState* kernel_state, const char* path) :
-    XObject(kernel_state, kTypeModule) {
-  XEIGNORE(xestrcpya(path_, XECOUNT(path_), path));
-  const char* slash = xestrrchra(path, '/');
-  if (!slash) {
-    slash = xestrrchra(path, '\\');
+XModule::XModule(KernelState* kernel_state, const std::string& path) :
+    XObject(kernel_state, kTypeModule), path_(path) {
+  auto last_slash = path.find_last_of('/');
+  if (last_slash == path.npos) {
+    last_slash = path.find_last_of('\\');
   }
-  if (slash) {
-    XEIGNORE(xestrcpya(name_, XECOUNT(name_), slash + 1));
+  if (last_slash == path.npos) {
+    name_ = path_;
+  } else {
+    name_ = path_.substr(last_slash + 1);
   }
-  char* dot = xestrrchra(name_, '.');
-  if (dot) {
-    *dot = 0;
+  auto dot = name_.find_last_of('.');
+  if (dot != name_.npos) {
+    name_ = name_.substr(0, dot);
   }
 }
 

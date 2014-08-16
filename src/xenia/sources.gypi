@@ -14,8 +14,6 @@
     'logging.h',
     'malloc.cc',
     'malloc.h',
-    'platform.cc',
-    'platform.h',
     'profiling.cc',
     'profiling.h',
     'string.h',

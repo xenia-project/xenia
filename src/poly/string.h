@@ -24,8 +24,21 @@ namespace poly {
 std::string to_string(const std::wstring& source);
 std::wstring to_wstring(const std::string& source);
 
+// find_first_of string, case insensitive.
 std::string::size_type find_first_of_case(const std::string& target,
                                           const std::string& search);
+
+// Converts the given path to an absolute path based on cwd.
+std::wstring to_absolute_path(const std::wstring& path);
+
+// Joins two path segments with the given separator.
+std::wstring join_paths(const std::wstring& left, const std::wstring& right,
+                        wchar_t sep = poly::path_separator);
+
+// Replaces all path separators with the given value and removes redundant
+// separators.
+std::wstring fix_path_separators(const std::wstring& source,
+                                 wchar_t new_sep = poly::path_separator);
 
 }  // namespace poly
 

@@ -200,19 +200,19 @@ SHIM_CALL RtlInitUnicodeString_shim(
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
-  const wchar_t* source =
-      source_ptr ? (const wchar_t*)SHIM_MEM_ADDR(source_ptr) : NULL;
-  XELOGD("RtlInitUnicodeString(%.8X, %.8X = %ls)",
-         destination_ptr, source_ptr, source ? source : L"<null>");
+  auto source =
+      source_ptr ? poly::load_and_swap<std::wstring>(SHIM_MEM_ADDR(source_ptr))
+                 : L"";
+  XELOGD("RtlInitUnicodeString(%.8X, %.8X = %ls)", destination_ptr, source_ptr,
+         source.empty() ? L"<null>" : source.c_str());
 
   // VOID
   // _Out_     PUNICODE_STRING DestinationString,
   // _In_opt_  PCWSTR SourceString
 
-  if (source) {
-    uint16_t length = (uint16_t)xestrlenw(source);
-    SHIM_SET_MEM_16(destination_ptr + 0, length * 2);
-    SHIM_SET_MEM_16(destination_ptr + 2, (length + 1) * 2);
+  if (source.size()) {
+    SHIM_SET_MEM_16(destination_ptr + 0, source.size() * 2);
+    SHIM_SET_MEM_16(destination_ptr + 2, (source.size() + 1) * 2);
     SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
   } else {
     SHIM_SET_MEM_16(destination_ptr + 0, 0);
