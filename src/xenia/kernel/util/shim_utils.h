@@ -28,8 +28,7 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
   export_resolver->SetFunctionMapping( \
       library_name, ordinals::##export_name, \
       shim_data, \
-      (xe_kernel_export_shim_fn)export_name##_shim, \
-      nullptr);
+      (xe_kernel_export_shim_fn)export_name##_shim);
 
 #define SHIM_MEM_BASE         ppc_state->membase
 #define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : nullptr)

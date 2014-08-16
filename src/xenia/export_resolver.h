@@ -21,7 +21,6 @@ typedef struct xe_ppc_state xe_ppc_state_t;
 namespace xe {
 
 
-typedef void (*xe_kernel_export_impl_fn)();
 typedef void (*xe_kernel_export_shim_fn)(xe_ppc_state_t*, void*);
 
 class KernelExport {
@@ -52,9 +51,6 @@ public:
       // This is called directly from generated code.
       // It should parse args, do fixups, and call the impl.
       xe_kernel_export_shim_fn shim;
-
-      // Real function implementation.
-      xe_kernel_export_impl_fn impl;
     } function_data;
   };
 };
@@ -79,8 +75,7 @@ public:
   void SetVariableMapping(const char* library_name, const uint32_t ordinal,
                           uint32_t value);
   void SetFunctionMapping(const char* library_name, const uint32_t ordinal,
-                          void* shim_data, xe_kernel_export_shim_fn shim,
-                          xe_kernel_export_impl_fn impl);
+                          void* shim_data, xe_kernel_export_shim_fn shim);
 
 private:
   class ExportTable {

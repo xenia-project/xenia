@@ -32,7 +32,6 @@ void ExportResolver::RegisterTable(
     exports[n].variable_ptr = 0;
     exports[n].function_data.shim_data = NULL;
     exports[n].function_data.shim = NULL;
-    exports[n].function_data.impl = NULL;
   }
 }
 
@@ -93,12 +92,10 @@ void ExportResolver::SetVariableMapping(const char* library_name,
 
 void ExportResolver::SetFunctionMapping(
     const char* library_name, const uint32_t ordinal,
-    void* shim_data, xe_kernel_export_shim_fn shim,
-    xe_kernel_export_impl_fn impl) {
+    void* shim_data, xe_kernel_export_shim_fn shim) {
   KernelExport* kernel_export = GetExportByOrdinal(library_name, ordinal);
   assert_not_null(kernel_export);
   kernel_export->is_implemented = true;
   kernel_export->function_data.shim_data = shim_data;
   kernel_export->function_data.shim = shim;
-  kernel_export->function_data.impl = impl;
 }
