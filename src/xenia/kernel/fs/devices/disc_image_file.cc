@@ -9,10 +9,11 @@
 
 #include <xenia/kernel/fs/devices/disc_image_file.h>
 
-#include <xenia/kernel/fs/gdfx.h>
-#include <xenia/kernel/fs/devices/disc_image_entry.h>
+#include <algorithm>
 
 #include <xenia/kernel/fs/device.h>
+#include <xenia/kernel/fs/devices/disc_image_entry.h>
+#include <xenia/kernel/fs/gdfx.h>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -67,7 +68,7 @@ X_STATUS DiscImageFile::ReadSync(
     return X_STATUS_END_OF_FILE;
   }
   size_t real_offset = gdfx_entry->offset + byte_offset;
-  size_t real_length = MIN(buffer_length, gdfx_entry->size - byte_offset);
+  size_t real_length = std::min(buffer_length, gdfx_entry->size - byte_offset);
   xe_copy_memory(
       buffer, buffer_length,
       xe_mmap_get_addr(mmap) + real_offset, real_length);

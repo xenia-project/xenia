@@ -74,7 +74,7 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
 #if 0// defined(OutputDebugString)
   OutputDebugStringA(buffer);
 #else
-  XEIGNORE(fprintf(stdout, buffer));
+  fprintf(stdout, buffer);
   fflush(stdout);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
@@ -99,7 +99,7 @@ void xe_handle_fatal(
 #if defined(OutputDebugString)
   OutputDebugStringA(buffer);
 #else
-  XEIGNORE(fprintf(stderr, buffer));
+  fprintf(stderr, buffer);
   fflush(stderr);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {

@@ -18,8 +18,6 @@
 
 #define XE_EMPTY_MACRO          do { } while(0)
 
-#define XEUNREFERENCED(expr)    (void)(expr)
-
 #define XEDECLARECLASS1(ns1, name) \
     namespace ns1 { class name; }
 #define XEDECLARECLASS2(ns1, ns2, name) \
@@ -34,28 +32,6 @@
     namespace ns1 { namespace ns2 { namespace ns3 { namespace ns4 { \
       class name; \
     } } } }
-
-#if XE_COMPILER_MSVC
-#define XEASSUME(expr)          __analysis_assume(expr)
-#else
-#define XEASSUME(expr)
-#endif  // MSVC
-
-#if XE_COMPILER_MSVC
-#define XECDECL                 __cdecl
-#else
-#define XECDECL
-#endif  // MSVC
-
-#if defined(__cplusplus)
-#define XEEXTERNC               extern "C"
-#define XEEXTERNC_BEGIN         extern "C" {
-#define XEEXTERNC_END           }
-#else
-#define XEEXTERNC               extern
-#define XEEXTERNC_BEGIN
-#define XEEXTERNC_END
-#endif  // __cplusplus
 
 #if XE_COMPILER_MSVC
 // http://msdn.microsoft.com/en-us/library/z8y1yy88.aspx
@@ -115,21 +91,6 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XECOUNT(array)          (sizeof(array) / sizeof(array[0]))
 #endif  // MSVC
 
-#if !defined(MIN)
-#if XE_COMPILER_GNUC
-#define MIN(A, B)               ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); (__a < __b) ? __a : __b; })
-#define MAX(A, B)               ({ __typeof__(A) __a = (A); __typeof__(B) __b = (B); (__a < __b) ? __b : __a; })
-//#elif XE_COMPILER_MSVC
-// TODO(benvanik): experiment with decltype:
-//     http://msdn.microsoft.com/en-us/library/dd537655.aspx
-#else
-// NOTE: this implementation will evaluate the arguments twice - may be worth
-// writing an inline function instead.
-#define MIN(A, B)               ( ((A) < (B)) ? (A) : (B) )
-#define MAX(A, B)               ( ((A) < (B)) ? (B) : (A) )
-#endif  // GNUC
-#endif  // !MIN
-
 XEFORCEINLINE size_t hash_combine(size_t seed) {
   return seed;
 }
@@ -153,7 +114,6 @@ static inline uint32_t XENEXTPOW2(uint32_t v) {
 }
 #define XEALIGN(value, align) ((value + align - 1) & ~(align - 1))
 
-#define XESUCCEED()             goto XECLEANUP
 #define XEFAIL()                goto XECLEANUP
 #define XEEXPECT(expr)          if (!(expr)         ) { goto XECLEANUP; }
 #define XEEXPECTTRUE(expr)      if (!(expr)         ) { goto XECLEANUP; }
@@ -162,7 +122,6 @@ static inline uint32_t XENEXTPOW2(uint32_t v) {
 #define XEEXPECTNOTZERO(expr)   if ( (expr) == 0    ) { goto XECLEANUP; }
 #define XEEXPECTNULL(expr)      if ( (expr) != NULL ) { goto XECLEANUP; }
 #define XEEXPECTNOTNULL(expr)   if ( (expr) == NULL ) { goto XECLEANUP; }
-#define XEIGNORE(expr)          do { (void)(expr); } while(0)
 
 
 #endif  // XENIA_TYPES_H_

@@ -57,12 +57,12 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
   // Walk the path, one separator at a time.
   // We copy it into the buffer and shift it left over and over.
   char remaining[poly::max_path];
-  XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), path));
+  xestrcpya(remaining, XECOUNT(remaining), path);
   while (remaining[0]) {
     char* next_slash = strchr(remaining, '\\');
     if (next_slash == remaining) {
       // Leading slash - shift
-      XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), remaining + 1));
+      xestrcpya(remaining, XECOUNT(remaining), remaining + 1);
       continue;
     }
 
@@ -82,7 +82,7 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
     if (!next_slash) {
       break;
     }
-    XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), next_slash + 1));
+    xestrcpya(remaining, XECOUNT(remaining), next_slash + 1);
   }
 
   Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?

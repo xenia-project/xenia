@@ -9,6 +9,8 @@
 
 #include <xenia/kernel/fs/devices/disc_image_entry.h>
 
+#include <algorithm>
+
 #include <xenia/kernel/fs/gdfx.h>
 #include <xenia/kernel/fs/devices/disc_image_file.h>
 
@@ -118,7 +120,7 @@ MemoryMapping* DiscImageEntry::CreateMemoryMapping(
 
   size_t real_offset = gdfx_entry_->offset + offset;
   size_t real_length = length ?
-      MIN(length, gdfx_entry_->size) : gdfx_entry_->size;
+      std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
   return new DiscImageMemoryMapping(
       xe_mmap_get_addr(mmap_) + real_offset,
       real_length,

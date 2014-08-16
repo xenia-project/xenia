@@ -9,6 +9,8 @@
 
 #include <xenia/cpu/xex_module.h>
 
+#include <algorithm>
+
 #include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/export_resolver.h>
@@ -54,8 +56,10 @@ int XexModule::Load(const std::string& name, const std::string& path, xe_xex2_re
     const size_t end_address =
         start_address + (section->info.page_count * xe_xex2_section_length);
     if (section->info.type == XEX_SECTION_CODE) {
-      low_address_ = (uint32_t)MIN(low_address_, start_address);
-      high_address_ = (uint32_t)MAX(high_address_, end_address);
+      low_address_ =
+          static_cast<uint32_t>(std::min(low_address_, start_address));
+      high_address_ =
+          static_cast<uint32_t>(std::max(high_address_, end_address));
     }
     i += section->info.page_count;
   }

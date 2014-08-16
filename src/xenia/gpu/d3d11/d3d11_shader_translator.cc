@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/d3d11/d3d11_shader_translator.h>
 
+#include <algorithm>
+
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 #include <xenia/gpu/d3d11/d3d11_resource_cache.h>
@@ -282,7 +284,7 @@ int D3D11ShaderTranslator::TranslatePixelShader(
 
   // Add temporary registers.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
-  for (uint32_t n = 0; n <= MAX(15, temp_regs); n++) {
+  for (uint32_t n = 0; n <= std::max(15u, temp_regs); n++) {
     append(
       "  float4 r%d = c[%d];\n", n, n + 256);
   }

@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/fs/stfs.h>
 
+#include <algorithm>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -257,7 +258,7 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
         while (remaining_size &&
                 block_index &&
                 info >= 0x80) {
-          size_t block_size = MIN(0x1000, remaining_size);
+          size_t block_size = std::min(0x1000ull, remaining_size);
           size_t offset = BlockToOffset(ComputeBlockNumber(block_index));
           entry->block_list.push_back({ offset, block_size });
           remaining_size -= block_size;

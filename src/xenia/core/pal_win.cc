@@ -9,6 +9,7 @@
 
 #include <xenia/core/pal.h>
 
+#include <algorithm>
 
 namespace {
 typedef struct xe_pal_win {
@@ -38,7 +39,7 @@ int xe_pal_init(xe_pal_options_t options) {
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
-  XEIGNORE(CoInitializeEx(NULL, COINIT_MULTITHREADED));
+  CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
   atexit(xe_pal_dealloc);
   return 0;
@@ -114,9 +115,9 @@ int xe_pal_get_system_info(xe_system_info* out_info) {
   }
 
   out_info->processors.physical_count =
-      MAX(1, out_info->processors.physical_count);
+      std::max(1u, out_info->processors.physical_count);
   out_info->processors.logical_count  =
-      MAX(1, out_info->processors.logical_count);
+      std::max(1u, out_info->processors.logical_count);
 
   result_code = 0;
 XECLEANUP:

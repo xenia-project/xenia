@@ -22,7 +22,7 @@ ExportResolver::~ExportResolver() {
 void ExportResolver::RegisterTable(
     const char* library_name, KernelExport* exports, const size_t count) {
   ExportTable table;
-  XEIGNORE(xestrcpya(table.name, XECOUNT(table.name), library_name));
+  xestrcpya(table.name, XECOUNT(table.name), library_name);
   table.exports = exports;
   table.count = count;
   tables_.push_back(table);

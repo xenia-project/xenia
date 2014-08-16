@@ -9,6 +9,8 @@
 
 #include <xenia/kernel/object_table.h>
 
+#include <algorithm>
+
 #include <xenia/kernel/xobject.h>
 #include <xenia/kernel/objects/xthread.h>
 
@@ -61,10 +63,9 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
   }
 
   // Table out of slots, expand.
-  uint32_t new_table_capacity = MAX(16 * 1024, table_capacity_ * 2);
+  uint32_t new_table_capacity = std::max(16 * 1024u, table_capacity_ * 2);
   ObjectTableEntry* new_table = (ObjectTableEntry*)xe_recalloc(
-      table_,
-      table_capacity_ * sizeof(ObjectTableEntry),
+      table_, table_capacity_ * sizeof(ObjectTableEntry),
       new_table_capacity * sizeof(ObjectTableEntry));
   if (!new_table) {
     return X_STATUS_NO_MEMORY;

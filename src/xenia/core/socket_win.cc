@@ -264,7 +264,7 @@ int xe_socket_loop_poll(xe_socket_loop_t* loop,
   loop->pending_queued_write = loop->events[1].revents != 0;
   if (loop->pending_queued_write) {
     char dummy;
-    XEIGNORE(recv(loop->notify_rd_id, &dummy, 1, 0));
+    recv(loop->notify_rd_id, &dummy, 1, 0);
   }
   loop->events[1].revents = 0;
   loop->events[1].events = POLLIN;

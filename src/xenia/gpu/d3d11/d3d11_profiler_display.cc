@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/d3d11/d3d11_profiler_display.h>
 
+#include <algorithm>
+
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_window.h>
 
@@ -548,8 +550,8 @@ void D3D11ProfilerDisplay::DrawBox(
     uint32_t r = 0xFF & (color >> 16);
     uint32_t g = 0xFF & (color >> 8);
     uint32_t b = 0xFF & color;
-    uint32_t max_c = MAX(MAX(MAX(r, g), b), 30u);
-    uint32_t min_c = MIN(MIN(MIN(r, g), b), 180u);
+    uint32_t max_c = std::max(std::max(std::max(r, g), b), 30u);
+    uint32_t min_c = std::min(std::min(std::min(r, g), b), 180u);
     uint32_t r0 = 0xFF & ((r + max_c)/2);
     uint32_t g0 = 0xFF & ((g + max_c)/2);
     uint32_t b0 = 0xFF & ((b + max_c)/2);

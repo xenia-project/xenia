@@ -9,10 +9,11 @@
 
 #include <xenia/kernel/fs/devices/stfs_container_file.h>
 
-#include <xenia/kernel/fs/stfs.h>
-#include <xenia/kernel/fs/devices/stfs_container_entry.h>
+#include <algorithm>
 
 #include <xenia/kernel/fs/device.h>
+#include <xenia/kernel/fs/devices/stfs_container_entry.h>
+#include <xenia/kernel/fs/stfs.h>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -71,20 +72,20 @@ X_STATUS STFSContainerFile::ReadSync(
   // Each block is 4096.
   // Blocks may not be sequential, so we need to read by blocks and handle the
   // offsets.
-  size_t real_length = MIN(buffer_length, stfs_entry->size - byte_offset);
+  size_t real_length = std::min(buffer_length, stfs_entry->size - byte_offset);
   size_t start_block = byte_offset / 4096;
-  size_t end_block = MIN(
-      stfs_entry->block_list.size(),
-      (size_t)ceil((byte_offset + real_length) / 4096.0));
+  size_t end_block =
+      std::min(stfs_entry->block_list.size(),
+               (size_t)ceil((byte_offset + real_length) / 4096.0));
   uint8_t* dest_ptr = (uint8_t*)buffer;
   size_t remaining_length = real_length;
   for (size_t n = start_block; n < end_block; n++) {
     auto& record = stfs_entry->block_list[n];
     size_t offset = record.offset;
-    size_t read_length = MIN(remaining_length, record.length);
+    size_t read_length = std::min(remaining_length, record.length);
     if (n == start_block) {
       offset += byte_offset % 4096;
-      read_length = MIN(read_length, record.length - (byte_offset % 4096));
+      read_length = std::min(read_length, record.length - (byte_offset % 4096));
     }
     xe_copy_struct(dest_ptr, map_ptr + offset, read_length);
     dest_ptr += read_length;

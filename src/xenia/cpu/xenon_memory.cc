@@ -9,6 +9,7 @@
 
 #include <xenia/cpu/xenon_memory.h>
 
+#include <algorithm>
 #include <mutex>
 
 #include <gflags/gflags.h>
@@ -482,7 +483,7 @@ XenonMemoryHeap::~XenonMemoryHeap() {
   }
 
   if (ptr_) {
-    XEIGNORE(VirtualFree(ptr_, 0, MEM_RELEASE));
+    VirtualFree(ptr_, 0, MEM_RELEASE);
   }
 }
 
@@ -508,13 +509,11 @@ uint64_t XenonMemoryHeap::Alloc(
   size_t alloc_size = size;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   if (heap_guard_size) {
-    alignment = (uint32_t)MAX(alignment, heap_guard_size);
+    alignment = std::max(alignment, static_cast<uint32_t>(heap_guard_size));
     alloc_size = (uint32_t)XEROUNDUP(size, heap_guard_size);
   }
-  uint8_t* p = (uint8_t*)mspace_memalign(
-      space_,
-      alignment,
-      alloc_size + heap_guard_size * 2);
+  uint8_t* p = (uint8_t*)mspace_memalign(space_, alignment,
+                                         alloc_size + heap_guard_size * 2);
   assert_true(reinterpret_cast<uint64_t>(p) <= 0xFFFFFFFFFull);
   if (FLAGS_heap_guard_pages) {
     size_t real_size = mspace_usable_size(p);

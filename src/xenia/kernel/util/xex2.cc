@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/util/xex2.h>
 
+#include <algorithm>
 #include <vector>
 
 #include <gflags/gflags.h>
@@ -262,8 +263,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           for (size_t i = 0, j = 0; i < string_table_size;) {
             assert_true(j <= 0xFF);
             if (j == name_index) {
-              XEIGNORE(xestrcpya(library->name, XECOUNT(library->name),
-                                 string_table + i));
+              xestrcpya(library->name, XECOUNT(library->name),
+                        string_table + i);
               break;
             }
             if (string_table[i] == 0) {
@@ -481,7 +482,7 @@ void mspack_memory_close(mspack_memory_file *file) {
 int mspack_memory_read(struct mspack_file *file, void *buffer, int chars) {
   mspack_memory_file *memfile = (mspack_memory_file*)file;
   const off_t remaining = memfile->buffer_size - memfile->offset;
-  const off_t total = MIN(chars, remaining);
+  const off_t total = std::min(static_cast<off_t>(chars), remaining);
   if (xe_copy_memory(buffer, total,
                      (uint8_t*)memfile->buffer + memfile->offset, total)) {
     return -1;
@@ -492,7 +493,7 @@ int mspack_memory_read(struct mspack_file *file, void *buffer, int chars) {
 int mspack_memory_write(struct mspack_file *file, void *buffer, int chars) {
   mspack_memory_file *memfile = (mspack_memory_file*)file;
   const off_t remaining = memfile->buffer_size - memfile->offset;
-  const off_t total = MIN(chars, remaining);
+  const off_t total = std::min(static_cast<off_t>(chars), remaining);
   if (xe_copy_memory((uint8_t*)memfile->buffer + memfile->offset,
                      memfile->buffer_size - memfile->offset, buffer, total)) {
     return -1;
@@ -501,7 +502,6 @@ int mspack_memory_write(struct mspack_file *file, void *buffer, int chars) {
   return (int)total;
 }
 void *mspack_memory_alloc(struct mspack_system *sys, size_t chars) {
-  XEUNREFERENCED(sys);
   return xe_calloc(chars);
 }
 void mspack_memory_free(void *ptr) {
@@ -876,7 +876,7 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
     const size_t physical_address = opthdr->ImageBase + sechdr->VirtualAddress;
     upper_address =
-        MAX(upper_address, physical_address + sechdr->Misc.VirtualSize);
+        std::max(upper_address, physical_address + sechdr->Misc.VirtualSize);
   }
 
   // Setup/load sections.

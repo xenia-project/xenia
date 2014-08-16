@@ -9,6 +9,7 @@
 
 #include <alloy/frontend/ppc/ppc_scanner.h>
 
+#include <algorithm>
 #include <map>
 
 #include <alloy/frontend/ppc/ppc_frontend.h>
@@ -49,10 +50,10 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
 
   XELOGSDB("Analyzing function %.8X...", symbol_info->address());
 
-  uint64_t start_address = symbol_info->address();
-  uint64_t end_address = symbol_info->end_address();
-  uint64_t address = start_address;
-  uint64_t furthest_target = start_address;
+  uint32_t start_address = symbol_info->address();
+  uint32_t end_address = symbol_info->end_address();
+  uint32_t address = start_address;
+  uint32_t furthest_target = start_address;
   size_t blocks_found = 0;
   bool in_block = false;
   bool starts_with_mfspr_lr = false;
@@ -191,7 +192,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         */
 
         if (!ends_fn && !IsRestGprLr(target)) {
-          furthest_target = MAX(furthest_target, target);
+          furthest_target = std::max(furthest_target, target);
 
           // TODO(benvanik): perhaps queue up for a speculative check? I think
           //     we are running over tail-call functions here that branch to
@@ -217,7 +218,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         // TODO(benvanik): GetOrInsertFunction? it's likely a BB
 
         if (!IsRestGprLr(target)) {
-          furthest_target = MAX(furthest_target, target);
+          furthest_target = std::max(furthest_target, target);
         }
       }
       ends_block = true;

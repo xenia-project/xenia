@@ -14,7 +14,7 @@
 namespace alloy {
 
 StringBuffer::StringBuffer(size_t initial_capacity) {
-  buffer_.reserve(MAX(initial_capacity, 1024));
+  buffer_.reserve(std::max(initial_capacity, 1024ull));
 }
 
 StringBuffer::~StringBuffer() = default;

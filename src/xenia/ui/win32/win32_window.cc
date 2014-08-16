@@ -169,7 +169,7 @@ bool Win32Window::set_title(const std::wstring& title) {
   if (!Window::set_title(title)) {
     return false;
   }
-  XEIGNORE(SetWindowText(handle_, title.c_str()));
+  SetWindowText(handle_, title.c_str());
   return true;
 }
 

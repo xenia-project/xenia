@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/command_processor.h>
 
+#include <algorithm>
+
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/graphics_system.h>
@@ -79,8 +81,9 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
 }
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
-  write_ptr_max_index_  = MAX(write_ptr_max_index_, value);
-  write_ptr_index_      = value;
+  write_ptr_max_index_ =
+      std::max(static_cast<uint32_t>(write_ptr_max_index_), value);
+  write_ptr_index_ = value;
   SetEvent(write_ptr_index_event_);
 }
 
