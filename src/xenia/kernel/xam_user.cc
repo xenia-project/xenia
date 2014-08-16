@@ -283,13 +283,19 @@ SHIM_CALL XamWriteGamerTile_shim(
   uint32_t arg2 = SHIM_GET_ARG_32(2);
   uint32_t arg3 = SHIM_GET_ARG_32(3);
   uint32_t arg4 = SHIM_GET_ARG_32(4);
-  uint32_t arg5 = SHIM_GET_ARG_32(5);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(5);
 
   XELOGD(
     "XamWriteGamerTile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
-    arg0, arg1, arg2, arg3, arg4, arg5);
+    arg0, arg1, arg2, arg3, arg4, overlapped_ptr);
 
-  SHIM_SET_RETURN_32(0x3E5);
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  }
+  else {
+    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  }
 }
 
 
