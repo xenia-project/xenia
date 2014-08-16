@@ -11,8 +11,6 @@
     'ref.h',
     'run_loop.h',
     'socket.h',
-    'thread.cc',
-    'thread.h',
   ],
 
   'conditions': [

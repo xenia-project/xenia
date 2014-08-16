@@ -9,8 +9,6 @@
 
 #include <xenia/core/run_loop.h>
 
-#include <xenia/core/thread.h>
-
 
 typedef struct xe_run_loop {
   xe_ref_t ref;

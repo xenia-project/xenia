@@ -10,6 +10,7 @@
 #include <xenia/apu/audio_system.h>
 #include <xenia/apu/audio_driver.h>
 
+#include <poly/threading.h>
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/cpu/xenon_thread_state.h>
@@ -22,7 +23,7 @@ using namespace xe::cpu;
 
 AudioSystem::AudioSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
-    thread_(0), running_(false) {
+    running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -61,15 +62,15 @@ X_STATUS AudioSystem::Setup() {
   // Init needs to happen there so that any thread-local stuff
   // is created on the right thread.
   running_ = true;
-  thread_ = xe_thread_create(
-      "AudioSystem",
-      (xe_thread_callback)ThreadStartThunk, this);
-  xe_thread_start(thread_);
+  thread_ = std::thread(std::bind(&AudioSystem::ThreadStart, this));
 
   return X_STATUS_SUCCESS;
 }
 
 void AudioSystem::ThreadStart() {
+  poly::threading::set_name("AudioSystemThread");
+  xe::Profiler::ThreadEnter("AudioSystemThread");
+
   // Initialize driver and ringbuffer.
   Initialize();
 
@@ -113,6 +114,8 @@ void AudioSystem::ThreadStart() {
   running_ = false;
 
   // TODO(benvanik): call module API to kill?
+
+  xe::Profiler::ThreadExit();
 }
 
 void AudioSystem::Initialize() {
@@ -120,8 +123,7 @@ void AudioSystem::Initialize() {
 
 void AudioSystem::Shutdown() {
   running_ = false;
-  xe_thread_join(thread_);
-  xe_thread_release(thread_);
+  thread_.join();
 
   delete thread_state_;
   memory()->HeapFree(thread_block_, 0);

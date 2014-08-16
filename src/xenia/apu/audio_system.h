@@ -10,8 +10,10 @@
 #ifndef XENIA_APU_AUDIO_SYSTEM_H_
 #define XENIA_APU_AUDIO_SYSTEM_H_
 
+#include <atomic>
 #include <mutex>
 #include <queue>
+#include <thread>
 
 #include <xenia/core.h>
 #include <xenia/xbox.h>
@@ -50,9 +52,6 @@ protected:
   virtual void Initialize();
 
 private:
-  static void ThreadStartThunk(AudioSystem* this_ptr) {
-    this_ptr->ThreadStart();
-  }
   void ThreadStart();
 
   static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint64_t addr) {
@@ -70,10 +69,10 @@ protected:
   Memory*           memory_;
   cpu::Processor*   processor_;
 
-  xe_thread_ref     thread_;
+  std::thread       thread_;
   cpu::XenonThreadState* thread_state_;
   uint32_t          thread_block_;
-  bool              running_;
+  std::atomic<bool> running_;
 
   std::mutex        lock_;
 

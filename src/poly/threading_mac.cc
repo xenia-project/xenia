@@ -24,6 +24,14 @@ uint32_t current_thread_id() {
   return static_cast<uint32_t>(tid);
 }
 
+void set_name(const std::string& name) {
+#if XE_LIKE_OSX
+  pthread_setname_np(name.c_str());
+#else
+  pthread_setname_np(pthread_self(), name.c_str());
+#endif  // XE_LIKE_OSX
+}
+
 void Yield() { pthread_yield_np(); }
 
 void Sleep(std::chrono::microseconds duration) {

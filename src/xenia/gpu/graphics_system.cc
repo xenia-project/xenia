@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/graphics_system.h>
 
+#include <poly/threading.h>
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/gpu/command_processor.h>
@@ -25,7 +26,7 @@ using namespace xe::gpu::xenos;
 
 GraphicsSystem::GraphicsSystem(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),
-    thread_(nullptr), running_(false), driver_(nullptr),
+    running_(false), driver_(nullptr),
     command_processor_(nullptr),
     interrupt_callback_(0), interrupt_callback_data_(0),
     last_interrupt_time_(0), thread_wait_(nullptr) {
@@ -59,15 +60,15 @@ X_STATUS GraphicsSystem::Setup() {
   // Init needs to happen there so that any thread-local stuff
   // is created on the right thread.
   running_ = true;
-  thread_ = xe_thread_create(
-      "GraphicsSystem",
-      (xe_thread_callback)ThreadStartThunk, this);
-  xe_thread_start(thread_);
+  thread_ = std::thread(std::bind(&GraphicsSystem::ThreadStart, this));
   WaitForSingleObject(thread_wait_, INFINITE);
   return X_STATUS_SUCCESS;
 }
 
 void GraphicsSystem::ThreadStart() {
+  poly::threading::set_name("GraphicsSystemThread");
+  xe::Profiler::ThreadEnter("GraphicsSystemThread");
+
   xe_run_loop_ref run_loop = xe_run_loop_retain(run_loop_);
 
   // Initialize driver and ringbuffer.
@@ -101,6 +102,8 @@ void GraphicsSystem::ThreadStart() {
   running_ = false;
 
   xe_run_loop_release(run_loop);
+
+  xe::Profiler::ThreadExit();
 }
 
 void GraphicsSystem::Initialize() {
@@ -108,8 +111,7 @@ void GraphicsSystem::Initialize() {
 
 void GraphicsSystem::Shutdown() {
   running_ = false;
-  xe_thread_join(thread_);
-  xe_thread_release(thread_);
+  thread_.join();
 
   delete command_processor_;
 

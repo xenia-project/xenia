@@ -24,6 +24,5 @@ namespace xe {
 #include <xenia/core/ref.h>
 #include <xenia/core/run_loop.h>
 #include <xenia/core/socket.h>
-#include <xenia/core/thread.h>
 
 #endif  // XENIA_CORE_H_

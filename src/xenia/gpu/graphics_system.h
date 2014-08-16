@@ -10,6 +10,9 @@
 #ifndef XENIA_GPU_GRAPHICS_SYSTEM_H_
 #define XENIA_GPU_GRAPHICS_SYSTEM_H_
 
+#include <atomic>
+#include <thread>
+
 #include <xenia/core.h>
 #include <xenia/xbox.h>
 
@@ -52,9 +55,6 @@ protected:
   virtual void Pump() = 0;
 
 private:
-  static void ThreadStartThunk(GraphicsSystem* this_ptr) {
-    this_ptr->ThreadStart();
-  }
   void ThreadStart();
 
   static uint64_t MMIOReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
@@ -73,8 +73,8 @@ protected:
   cpu::Processor*   processor_;
 
   xe_run_loop_ref   run_loop_;
-  xe_thread_ref     thread_;
-  bool              running_;
+  std::thread       thread_;
+  std::atomic<bool> running_;
 
   GraphicsDriver*   driver_;
   CommandProcessor* command_processor_;

@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <string>
 
 #include <poly/config.h>
 
@@ -24,6 +25,9 @@ uint64_t ticks();
 // Gets a stable thread-specific ID, but may not be. Use for informative
 // purposes only.
 uint32_t current_thread_id();
+
+// Sets the current thread name.
+void set_name(const std::string& name);
 
 // Yields the current thread to the scheduler. Maybe.
 void Yield();
