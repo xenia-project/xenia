@@ -59,16 +59,6 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 #define SHIM_SET_RETURN_64(v) SHIM_SET_GPR_64(3, v)
 
 
-#define IMPL_MEM_ADDR(a)      (a ? state->memory()->Translate(a) : nullptr)
-
-#define IMPL_MEM_8(a)         poly::load_and_swap<uint8_t>(IMPL_MEM_ADDR(a))
-#define IMPL_MEM_16(a)        poly::load_and_swap<uint16_t>(IMPL_MEM_ADDR(a))
-#define IMPL_MEM_32(a)        poly::load_and_swap<uint32_t>(IMPL_MEM_ADDR(a))
-#define IMPL_SET_MEM_8(a, v)  poly::store_and_swap<uint8_t>(IMPL_MEM_ADDR(a), v)
-#define IMPL_SET_MEM_16(a, v) poly::store_and_swap<uint16_t>(IMPL_MEM_ADDR(a), v)
-#define IMPL_SET_MEM_32(a, v) poly::store_and_swap<uint32_t>(IMPL_MEM_ADDR(a), v)
-
-
 }  // namespace kernel
 }  // namespace xe
 

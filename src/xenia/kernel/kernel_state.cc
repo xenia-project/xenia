@@ -30,8 +30,11 @@ using namespace xe::kernel;
 // This is a global object initialized with the XboxkrnlModule.
 // It references the current kernel state object that all kernel methods should
 // be using to stash their variables.
-KernelState* xe::kernel::shared_kernel_state_ = NULL;
-
+namespace xe {
+namespace kernel {
+KernelState* shared_kernel_state_ = nullptr;
+}  // namespace kernel
+}  // namespace xe
 
 KernelState::KernelState(Emulator* emulator) :
     emulator_(emulator), memory_(emulator->memory()),

@@ -68,7 +68,7 @@ void XObject::Release() {
 }
 
 X_STATUS XObject::Delete() {
-  return shared_kernel_state_->object_table()->RemoveHandle(handle_);
+  return kernel_state_->object_table()->RemoveHandle(handle_);
 }
 
 uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {
@@ -149,11 +149,11 @@ X_STATUS XObject::WaitMultiple(
 }
 
 void XObject::LockType() {
-  xe_mutex_lock(shared_kernel_state_->object_mutex_);
+  xe_mutex_lock(KernelState::shared()->object_mutex_);
 }
 
 void XObject::UnlockType() {
-  xe_mutex_unlock(shared_kernel_state_->object_mutex_);
+  xe_mutex_unlock(KernelState::shared()->object_mutex_);
 }
 
 void XObject::SetNativePointer(uint32_t native_ptr) {

@@ -24,9 +24,13 @@ namespace xe {
 namespace kernel {
 
 
-void xeHalReturnToFirmware(uint32_t routine) {
-  KernelState* state = shared_kernel_state_;
-  assert_not_null(state);
+SHIM_CALL HalReturnToFirmware_shim(
+    PPCContext* ppc_state, KernelState* state) {
+  uint32_t routine = SHIM_GET_ARG_32(0);
+
+  XELOGD(
+      "HalReturnToFirmware(%d)",
+      routine);
 
   // void
   // IN FIRMWARE_REENTRY  Routine
@@ -38,18 +42,6 @@ void xeHalReturnToFirmware(uint32_t routine) {
   // Not sure how to blast back up the stack in LLVM without exceptions, though.
   XELOGE("Game requested shutdown via HalReturnToFirmware");
   exit(0);
-}
-
-
-SHIM_CALL HalReturnToFirmware_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  uint32_t routine = SHIM_GET_ARG_32(0);
-
-  XELOGD(
-      "HalReturnToFirmware(%d)",
-      routine);
-
-  xeHalReturnToFirmware(routine);
 }
 
 

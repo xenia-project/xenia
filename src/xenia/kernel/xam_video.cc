@@ -23,13 +23,13 @@ using namespace xe::kernel::xam;
 namespace xe {
 namespace kernel {
 
+
 // TODO(benvanik): actually check to see if these are the same.
-void xeVdQueryVideoMode(X_VIDEO_MODE *video_mode, bool swap);
-SHIM_CALL XGetVideoMode_shim(
-  PPCContext* ppc_state, KernelState* state) {
+void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode);
+SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);
   X_VIDEO_MODE* video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
-  xeVdQueryVideoMode(video_mode, true);
+  xeVdQueryVideoMode(video_mode);
 }
 
 

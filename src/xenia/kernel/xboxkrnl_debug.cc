@@ -244,14 +244,10 @@ SHIM_CALL DbgPrint_shim(
 }
 
 
-void xeDbgBreakPoint() {
-  DebugBreak();
-}
-
-
 SHIM_CALL DbgBreakPoint_shim(
     PPCContext* ppc_state, KernelState* state) {
   XELOGD("DbgBreakPoint()");
+  DebugBreak();
 }
 
 

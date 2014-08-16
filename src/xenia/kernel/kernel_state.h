@@ -95,13 +95,6 @@ private:
 };
 
 
-// This is a global object initialized with the KernelState ctor.
-// It references the current kernel state object that all kernel methods should
-// be using to stash their variables.
-// This sucks, but meh.
-extern KernelState* shared_kernel_state_;
-
-
 }  // namespace kernel
 }  // namespace xe
 
