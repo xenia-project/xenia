@@ -20,6 +20,11 @@
 
 namespace poly {
 
+template <typename T, size_t N>
+size_t countof(T (&arr)[N]) {
+  return std::extent<T[N]>::value;
+}
+
 // Rounds up the given value to the given alignment.
 template <typename T>
 T align(T value, T alignment) {

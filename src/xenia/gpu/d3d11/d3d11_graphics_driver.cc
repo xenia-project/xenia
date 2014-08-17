@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
+#include <poly/math.h>
 #include <xenia/core/hash.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/buffer_resource.h>
@@ -249,7 +250,7 @@ int D3D11GraphicsDriver::UpdateState(const DrawCommand& command) {
     register_file_[XE_GPU_REG_RB_COLOR3_INFO].u32,
   };
   ID3D11RenderTargetView* render_target_views[4] = { 0 };
-  for (int n = 0; n < XECOUNT(color_info); n++) {
+  for (int n = 0; n < poly::countof(color_info); n++) {
     auto cb = render_targets_.color_buffers[n];
     uint32_t color_format = (color_info[n] >> 16) & 0xF;
     switch (color_format) {
@@ -484,7 +485,7 @@ int D3D11GraphicsDriver::SetupBlendState(const DrawCommand& command) {
     //blend_desc.AlphaToCoverageEnable = false;
     // ?
     blend_desc.IndependentBlendEnable = true;
-    for (int n = 0; n < XECOUNT(blend_control); n++) {
+    for (int n = 0; n < poly::countof(blend_control); n++) {
       // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
       blend_desc.RenderTarget[n].SrcBlend           = blend_map[(blend_control[n] & 0x0000001F) >> 0];
       // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
@@ -642,13 +643,14 @@ int D3D11GraphicsDriver::SetupShaders(const DrawCommand& command) {
 
     // Set constant buffers.
     ID3D11Buffer* vs_constant_buffers[] = {
-      state_.constant_buffers.float_constants,
-      state_.constant_buffers.bool_constants,
-      state_.constant_buffers.loop_constants,
-      state_.constant_buffers.vs_consts,
+        state_.constant_buffers.float_constants,
+        state_.constant_buffers.bool_constants,
+        state_.constant_buffers.loop_constants,
+        state_.constant_buffers.vs_consts,
     };
-    context_->VSSetConstantBuffers(0, XECOUNT(vs_constant_buffers),
-                                   vs_constant_buffers);
+    context_->VSSetConstantBuffers(
+        0, static_cast<UINT>(poly::countof(vs_constant_buffers)),
+        vs_constant_buffers);
 
     // Setup input layout (as encoded in vertex shader).
     auto vs = static_cast<D3D11VertexShaderResource*>(command.vertex_shader);
@@ -666,12 +668,13 @@ int D3D11GraphicsDriver::SetupShaders(const DrawCommand& command) {
 
     // Set constant buffers.
     ID3D11Buffer* vs_constant_buffers[] = {
-      state_.constant_buffers.float_constants,
-      state_.constant_buffers.bool_constants,
-      state_.constant_buffers.loop_constants,
+        state_.constant_buffers.float_constants,
+        state_.constant_buffers.bool_constants,
+        state_.constant_buffers.loop_constants,
     };
-    context_->PSSetConstantBuffers(0, XECOUNT(vs_constant_buffers),
-                                   vs_constant_buffers);
+    context_->PSSetConstantBuffers(
+        0, static_cast<UINT>(poly::countof(vs_constant_buffers)),
+        vs_constant_buffers);
   } else {
     context_->PSSetShader(nullptr, nullptr, 0);
     return 1;
@@ -824,7 +827,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
   SCOPE_profile_cpu_f("gpu");
 
   // Remove old versions.
-  for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
+  for (int n = 0; n < poly::countof(render_targets_.color_buffers); n++) {
     auto& cb = render_targets_.color_buffers[n];
     SafeRelease(cb.buffer);
     SafeRelease(cb.color_view_8888);
@@ -841,7 +844,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
     return 0;
   }
 
-  for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
+  for (int n = 0; n < poly::countof(render_targets_.color_buffers); n++) {
     auto& cb = render_targets_.color_buffers[n];
     D3D11_TEXTURE2D_DESC color_buffer_desc;
     xe_zero_struct(&color_buffer_desc, sizeof(color_buffer_desc));

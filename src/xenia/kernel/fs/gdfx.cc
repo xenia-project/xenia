@@ -11,6 +11,7 @@
 
 #include <xenia/kernel/fs/gdfx.h>
 
+#include <poly/math.h>
 
 using namespace xe;
 using namespace xe::kernel;
@@ -105,7 +106,7 @@ GDFX::Error GDFX::Verify(ParseState& state) {
     0x00000000, 0x0000FB20, 0x00020600, 0x0FD90000,
   };
   bool magic_found = false;
-  for (size_t n = 0; n < XECOUNT(likely_offsets); n++) {
+  for (size_t n = 0; n < poly::countof(likely_offsets); n++) {
     state.game_offset = likely_offsets[n];
     if (VerifyMagic(state, state.game_offset + (32 * kXESectorSize))) {
       magic_found = true;

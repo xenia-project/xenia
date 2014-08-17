@@ -9,6 +9,7 @@
 
 #include <xenia/export_resolver.h>
 
+#include <poly/math.h>
 
 using namespace xe;
 
@@ -22,7 +23,7 @@ ExportResolver::~ExportResolver() {
 void ExportResolver::RegisterTable(
     const char* library_name, KernelExport* exports, const size_t count) {
   ExportTable table;
-  xestrcpya(table.name, XECOUNT(table.name), library_name);
+  xestrcpya(table.name, poly::countof(table.name), library_name);
   table.exports = exports;
   table.count = count;
   tables_.push_back(table);

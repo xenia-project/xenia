@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 
+#include <poly/math.h>
 #include <xenia/core/hash.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_shader_resource.h>
@@ -98,7 +99,7 @@ ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
   }
   uint64_t hash = hash64(shader_source, strlen(shader_source)); // ?
   char file_name[poly::max_path];
-  xesnprintfa(file_name, XECOUNT(file_name),
+  xesnprintfa(file_name, poly::countof(file_name),
       "%s/gen_%.16llX.gs",
       base_path,
       hash);

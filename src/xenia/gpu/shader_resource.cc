@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/shader_resource.h>
 
+#include <poly/math.h>
 #include <xenia/gpu/xenos/ucode_disassembler.h>
 
 
@@ -188,7 +189,7 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
     auto& desc = inputs.descs[n];
     auto& info = desc.info;
     if (desc.fetch_slot == fetch_slot) {
-      assert_true(info.element_count <= XECOUNT(info.elements));
+      assert_true(info.element_count <= poly::countof(info.elements));
       // It may not hold that all strides are equal, but I hope it does.
       assert_true(!vtx->stride || info.stride_words == vtx->stride);
       el = &info.elements[info.element_count++];
@@ -197,7 +198,7 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
   }
   if (!el) {
     assert_not_zero(vtx->stride);
-    assert_true(inputs.count + 1 < XECOUNT(inputs.descs));
+    assert_true(inputs.count + 1 < poly::countof(inputs.descs));
     auto& desc = inputs.descs[inputs.count++];
     desc.input_index = inputs.count - 1;
     desc.fetch_slot = fetch_slot;
@@ -251,7 +252,7 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
 void ShaderResource::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {
   // TODO(benvanik): check dest_swiz to see if we are writing anything.
 
-  assert_true(sampler_inputs_.count + 1 < XECOUNT(sampler_inputs_.descs));
+  assert_true(sampler_inputs_.count + 1 < poly::countof(sampler_inputs_.descs));
   auto& input = sampler_inputs_.descs[sampler_inputs_.count++];
   input.input_index = sampler_inputs_.count - 1;
   input.fetch_slot = tex->const_idx & 0xF; // ?

@@ -13,6 +13,7 @@
 #include <cmath>
 
 #include <alloy/frontend/ppc/ppc_instr.h>
+#include <poly/poly.h>
 
 namespace alloy {
 namespace frontend {
@@ -91,8 +92,8 @@ void Disasm_vspltisw(InstrData& i, StringBuffer* str);
 
 namespace tables {
 
-static InstrType** instr_table_prep(InstrType* unprep, int unprep_count, int a,
-                                    int b) {
+static InstrType** instr_table_prep(InstrType* unprep, size_t unprep_count,
+                                    int a, int b) {
   int prep_count = (int)pow(2.0, b - a + 1);
   InstrType** prep = (InstrType**)xe_calloc(prep_count * sizeof(void*));
   for (int n = 0; n < unprep_count; n++) {
@@ -102,7 +103,7 @@ static InstrType** instr_table_prep(InstrType* unprep, int unprep_count, int a,
   return prep;
 }
 
-static InstrType** instr_table_prep_63(InstrType* unprep, int unprep_count,
+static InstrType** instr_table_prep_63(InstrType* unprep, size_t unprep_count,
                                        int a, int b) {
   // Special handling for A format instructions.
   int prep_count = (int)pow(2.0, b - a + 1);
@@ -362,7 +363,7 @@ static InstrType instr_table_4_unprep[] = {
                 "Vector Logical XOR"),
 };
 static InstrType** instr_table_4 = instr_table_prep(
-    instr_table_4_unprep, XECOUNT(instr_table_4_unprep), 0, 11);
+    instr_table_4_unprep, poly::countof(instr_table_4_unprep), 0, 11);
 
 // Opcode = 19, index = bits 10-1 (10)
 static InstrType instr_table_19_unprep[] = {
@@ -382,7 +383,7 @@ static InstrType instr_table_19_unprep[] = {
                 "Branch Conditional to Count Register"),
 };
 static InstrType** instr_table_19 = instr_table_prep(
-    instr_table_19_unprep, XECOUNT(instr_table_19_unprep), 1, 10);
+    instr_table_19_unprep, poly::countof(instr_table_19_unprep), 1, 10);
 
 // Opcode = 30, index = bits 4-1 (4)
 static InstrType instr_table_30_unprep[] = {
@@ -398,7 +399,7 @@ static InstrType instr_table_30_unprep[] = {
     // INSTRUCTION(rldcrx,         0x78000012, MDS, General        , 0),
 };
 static InstrType** instr_table_30 = instr_table_prep(
-    instr_table_30_unprep, XECOUNT(instr_table_30_unprep), 0, 0);
+    instr_table_30_unprep, poly::countof(instr_table_30_unprep), 0, 0);
 
 // Opcode = 31, index = bits 10-1 (10)
 static InstrType instr_table_31_unprep[] = {
@@ -645,7 +646,7 @@ static InstrType instr_table_31_unprep[] = {
                 "Store Vector Right Indexed LRU"),
 };
 static InstrType** instr_table_31 = instr_table_prep(
-    instr_table_31_unprep, XECOUNT(instr_table_31_unprep), 1, 10);
+    instr_table_31_unprep, poly::countof(instr_table_31_unprep), 1, 10);
 
 // Opcode = 58, index = bits 1-0 (2)
 static InstrType instr_table_58_unprep[] = {
@@ -656,7 +657,7 @@ static InstrType instr_table_58_unprep[] = {
                 "Load Word Algebraic"),
 };
 static InstrType** instr_table_58 = instr_table_prep(
-    instr_table_58_unprep, XECOUNT(instr_table_58_unprep), 0, 1);
+    instr_table_58_unprep, poly::countof(instr_table_58_unprep), 0, 1);
 
 // Opcode = 59, index = bits 5-1 (5)
 static InstrType instr_table_59_unprep[] = {
@@ -682,7 +683,7 @@ static InstrType instr_table_59_unprep[] = {
                 "Floating Negative Multiply-Add [Single]"),
 };
 static InstrType** instr_table_59 = instr_table_prep(
-    instr_table_59_unprep, XECOUNT(instr_table_59_unprep), 1, 5);
+    instr_table_59_unprep, poly::countof(instr_table_59_unprep), 1, 5);
 
 // Opcode = 62, index = bits 1-0 (2)
 static InstrType instr_table_62_unprep[] = {
@@ -691,7 +692,7 @@ static InstrType instr_table_62_unprep[] = {
                 "Store Doubleword with Update"),
 };
 static InstrType** instr_table_62 = instr_table_prep(
-    instr_table_62_unprep, XECOUNT(instr_table_62_unprep), 0, 1);
+    instr_table_62_unprep, poly::countof(instr_table_62_unprep), 0, 1);
 
 // Opcode = 63, index = bits 10-1 (10)
 // NOTE: the A format instructions need some special handling because
@@ -751,7 +752,7 @@ static InstrType instr_table_63_unprep[] = {
                 "Floating Convert From Integer Doubleword"),
 };
 static InstrType** instr_table_63 = instr_table_prep_63(
-    instr_table_63_unprep, XECOUNT(instr_table_63_unprep), 1, 10);
+    instr_table_63_unprep, poly::countof(instr_table_63_unprep), 1, 10);
 
 // Main table, index = bits 31-26 (6) : (code >> 26)
 static InstrType instr_table_unprep[64] = {
@@ -830,8 +831,8 @@ static InstrType instr_table_unprep[64] = {
     INSTRUCTION(stfdu, 0xDC000000, D, General, D_FRT_RA_I,
                 "Store Floating-Point Double with Update"),
 };
-static InstrType** instr_table =
-    instr_table_prep(instr_table_unprep, XECOUNT(instr_table_unprep), 26, 31);
+static InstrType** instr_table = instr_table_prep(
+    instr_table_unprep, poly::countof(instr_table_unprep), 26, 31);
 
 // Altivec instructions.
 // TODO(benvanik): build a table like the other instructions.

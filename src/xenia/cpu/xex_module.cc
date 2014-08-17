@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include <poly/math.h>
 #include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/export_resolver.h>
@@ -113,12 +114,12 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (kernel_export) {
       if (info->thunk_address) {
-        xesnprintfa(name, XECOUNT(name), "__imp_%s", kernel_export->name);
+        xesnprintfa(name, poly::countof(name), "__imp_%s", kernel_export->name);
       } else {
-        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+        xesnprintfa(name, poly::countof(name), "%s", kernel_export->name);
       }
     } else {
-      xesnprintfa(name, XECOUNT(name), "__imp_%s_%.3X", library->name,
+      xesnprintfa(name, poly::countof(name), "__imp_%s_%.3X", library->name,
                   info->ordinal);
     }
 
@@ -158,10 +159,10 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (info->thunk_address) {
       if (kernel_export) {
-        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+        xesnprintfa(name, poly::countof(name), "%s", kernel_export->name);
       } else {
-        xesnprintfa(name, XECOUNT(name), "__kernel_%s_%.3X", library->name,
-                    info->ordinal);
+        xesnprintfa(name, poly::countof(name), "__kernel_%s_%.3X",
+                    library->name, info->ordinal);
       }
 
       // On load we have something like this in memory:
@@ -398,17 +399,17 @@ int XexModule::FindSaveRest() {
       if (!gplr_start) {
         gplr_start = memory_->SearchAligned(
             start_address, end_address,
-            gprlr_code_values, XECOUNT(gprlr_code_values));
+            gprlr_code_values, poly::countof(gprlr_code_values));
       }
       if (!fpr_start) {
         fpr_start = memory_->SearchAligned(
             start_address, end_address,
-            fpr_code_values, XECOUNT(fpr_code_values));
+            fpr_code_values, poly::countof(fpr_code_values));
       }
       if (!vmx_start) {
         vmx_start = memory_->SearchAligned(
             start_address, end_address,
-            vmx_code_values, XECOUNT(vmx_code_values));
+            vmx_code_values, poly::countof(vmx_code_values));
       }
       if (gplr_start && fpr_start && vmx_start) {
         break;
@@ -422,7 +423,7 @@ int XexModule::FindSaveRest() {
   if (gplr_start) {
     uint64_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savegprlr_%d", n);
+      xesnprintfa(name, poly::countof(name), "__savegprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 2 * 4);
@@ -435,7 +436,7 @@ int XexModule::FindSaveRest() {
     }
     address = gplr_start + 20 * 4;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restgprlr_%d", n);
+      xesnprintfa(name, poly::countof(name), "__restgprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 3 * 4);
@@ -450,7 +451,7 @@ int XexModule::FindSaveRest() {
   if (fpr_start) {
     uint64_t address = fpr_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savefpr_%d", n);
+      xesnprintfa(name, poly::countof(name), "__savefpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -463,7 +464,7 @@ int XexModule::FindSaveRest() {
     }
     address = fpr_start + (18 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restfpr_%d", n);
+      xesnprintfa(name, poly::countof(name), "__restfpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -483,7 +484,7 @@ int XexModule::FindSaveRest() {
     // 64-127 rest
     uint64_t address = vmx_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savevmx_%d", n);
+      xesnprintfa(name, poly::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -495,7 +496,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savevmx_%d", n);
+      xesnprintfa(name, poly::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -507,7 +508,7 @@ int XexModule::FindSaveRest() {
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restvmx_%d", n);
+      xesnprintfa(name, poly::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -519,7 +520,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restvmx_%d", n);
+      xesnprintfa(name, poly::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);

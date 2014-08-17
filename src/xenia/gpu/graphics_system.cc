@@ -9,7 +9,7 @@
 
 #include <xenia/gpu/graphics_system.h>
 
-#include <poly/threading.h>
+#include <poly/poly.h>
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/gpu/command_processor.h>
@@ -199,5 +199,5 @@ void GraphicsSystem::DispatchInterruptCallback(
   }
   uint64_t args[] = { source, interrupt_callback_data_ };
   processor_->ExecuteInterrupt(
-      cpu, interrupt_callback_, args, XECOUNT(args));
+      cpu, interrupt_callback_, args, poly::countof(args));
 }

@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/fs/devices/stfs_container_device.h>
 
+#include <poly/math.h>
 #include <xenia/kernel/fs/stfs.h>
 #include <xenia/kernel/fs/devices/stfs_container_entry.h>
 
@@ -57,12 +58,12 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
   // Walk the path, one separator at a time.
   // We copy it into the buffer and shift it left over and over.
   char remaining[poly::max_path];
-  xestrcpya(remaining, XECOUNT(remaining), path);
+  xestrcpya(remaining, poly::countof(remaining), path);
   while (remaining[0]) {
     char* next_slash = strchr(remaining, '\\');
     if (next_slash == remaining) {
       // Leading slash - shift
-      xestrcpya(remaining, XECOUNT(remaining), remaining + 1);
+      xestrcpya(remaining, poly::countof(remaining), remaining + 1);
       continue;
     }
 
@@ -82,7 +83,7 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
     if (!next_slash) {
       break;
     }
-    xestrcpya(remaining, XECOUNT(remaining), next_slash + 1);
+    xestrcpya(remaining, poly::countof(remaining), next_slash + 1);
   }
 
   Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?

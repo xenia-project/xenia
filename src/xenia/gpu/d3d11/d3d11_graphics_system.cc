@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_graphics_system.h>
 
+#include <poly/math.h>
 #include <xenia/emulator.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
@@ -89,7 +90,7 @@ void D3D11GraphicsSystem::Initialize() {
       0, // software driver HMODULE
       flags,
       feature_levels,
-      XECOUNT(feature_levels),
+      static_cast<UINT>(poly::countof(feature_levels)),
       D3D11_SDK_VERSION,
       &device_,
       &actual_feature_level,

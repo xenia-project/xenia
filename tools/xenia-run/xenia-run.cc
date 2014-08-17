@@ -17,12 +17,8 @@ using namespace xe;
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 
 int xenia_run(std::vector<std::wstring>& args) {
-  int result_code = 1;
-
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
-
-  Emulator* emulator = NULL;
 
   // Grab path from the flag or unnamed argument.
   if (!FLAGS_target.size() && args.size() < 2) {
@@ -45,15 +41,17 @@ int xenia_run(std::vector<std::wstring>& args) {
   // Create platform abstraction layer.
   xe_pal_options_t pal_options;
   xe_zero_struct(&pal_options, sizeof(pal_options));
-  XEEXPECTZERO(xe_pal_init(pal_options));
+  if (xe_pal_init(pal_options)) {
+    XELOGE("Failed to initialize PAL");
+    return 1;
+  }
 
   // Create the emulator.
-  emulator = new Emulator(L"");
-  XEEXPECTNOTNULL(emulator);
+  auto emulator = std::make_unique<Emulator>(L"");
   X_STATUS result = emulator->Setup();
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
-    XEFAIL();
+    return 1;
   }
 
   // Launch based on file type.
@@ -72,18 +70,13 @@ int xenia_run(std::vector<std::wstring>& args) {
   }
   if (XFAILED(result)) {
     XELOGE("Failed to launch target: %.8X", result);
-    XEFAIL();
+    return 1;
   }
 
-  result_code = 0;
-XECLEANUP:
-  delete emulator;
-  if (result_code) {
-    XEFATAL("Failed to launch emulator: %d", result_code);
-  }
+  emulator.reset();
   Profiler::Dump();
   Profiler::Shutdown();
-  return result_code;
+  return 0;
 }
 
 DEFINE_ENTRY_POINT(L"xenia-run", L"xenia-run some.xex", xenia_run);

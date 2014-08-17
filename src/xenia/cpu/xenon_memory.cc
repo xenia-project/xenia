@@ -243,8 +243,8 @@ const static struct {
   0xE0000000, 0xFFFFFFFF, 0x00000000, //          - physical 4k pages
 };
 int XenonMemory::MapViews(uint8_t* mapping_base) {
-  assert_true(XECOUNT(map_info) == XECOUNT(views_.all_views));
-  for (size_t n = 0; n < XECOUNT(map_info); n++) {
+  assert_true(poly::countof(map_info) == poly::countof(views_.all_views));
+  for (size_t n = 0; n < poly::countof(map_info); n++) {
 #if XE_PLATFORM_WIN32
     views_.all_views[n] = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
         mapping_,
@@ -268,7 +268,7 @@ XECLEANUP:
 }
 
 void XenonMemory::UnmapViews() {
-  for (size_t n = 0; n < XECOUNT(views_.all_views); n++) {
+  for (size_t n = 0; n < poly::countof(views_.all_views); n++) {
     if (views_.all_views[n]) {
 #if XE_PLATFORM_WIN32
       UnmapViewOfFile(views_.all_views[n]);

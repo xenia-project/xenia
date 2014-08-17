@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include <poly/math.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_window.h>
 
@@ -267,14 +268,23 @@ bool D3D11ProfilerDisplay::SetupShaders() {
   }
 
   D3D11_INPUT_ELEMENT_DESC element_descs[] = {
-    { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0, },
-    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0, },
-    { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0, },
+      {
+       "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
+       D3D11_INPUT_PER_VERTEX_DATA, 0,
+      },
+      {
+       "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT,
+       D3D11_INPUT_PER_VERTEX_DATA, 0,
+      },
+      {
+       "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, D3D11_APPEND_ALIGNED_ELEMENT,
+       D3D11_INPUT_PER_VERTEX_DATA, 0,
+      },
   };
-  hr = device->CreateInputLayout(element_descs, (UINT)XECOUNT(element_descs),
-                                 vs_code_blob->GetBufferPointer(),
-                                 vs_code_blob->GetBufferSize(),
-                                 &shader_layout_);
+  hr = device->CreateInputLayout(
+      element_descs, (UINT)poly::countof(element_descs),
+      vs_code_blob->GetBufferPointer(), vs_code_blob->GetBufferSize(),
+      &shader_layout_);
   if (FAILED(hr)) {
     XELOGE("Failed to create profiler input layout");
     return false;
@@ -298,7 +308,7 @@ bool D3D11ProfilerDisplay::SetupFont() {
   auto device = window_->device();
 
   // Setup font lookup table.
-  for (uint32_t i = 0; i < XECOUNT(font_description_.char_offsets); ++i) {
+  for (uint32_t i = 0; i < poly::countof(font_description_.char_offsets); ++i) {
     font_description_.char_offsets[i] = 206;
   }
   for (uint32_t i = 'A'; i <= 'Z'; ++i) {
@@ -468,12 +478,14 @@ void D3D11ProfilerDisplay::Begin() {
     font_sampler_state_,
     nullptr,
   };
-  context->PSSetSamplers(0, XECOUNT(ps_samplers), ps_samplers);
-  ID3D11ShaderResourceView* ps_resources[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {
-    font_texture_view_,
-    nullptr,
-  };
-  context->PSSetShaderResources(0, XECOUNT(ps_resources), ps_resources);
+  context->PSSetSamplers(0, static_cast<UINT>(poly::countof(ps_samplers)),
+                         ps_samplers);
+  ID3D11ShaderResourceView*
+      ps_resources[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {
+          font_texture_view_, nullptr,
+      };
+  context->PSSetShaderResources(
+      0, static_cast<UINT>(poly::countof(ps_resources)), ps_resources);
   context->IASetInputLayout(shader_layout_);
 }
 
@@ -483,19 +495,23 @@ void D3D11ProfilerDisplay::End() {
 
 D3D11ProfilerDisplay::Vertex* D3D11ProfilerDisplay::AllocateVertices(
     D3D_PRIMITIVE_TOPOLOGY primitive, size_t count) {
-  if (draw_state_.vertex_index + count > XECOUNT(draw_state_.vertex_buffer)) {
+  if (draw_state_.vertex_index + count >
+      poly::countof(draw_state_.vertex_buffer)) {
     Flush();
   }
-  assert_true(draw_state_.vertex_index + count <= XECOUNT(draw_state_.vertex_buffer));
+  assert_true(draw_state_.vertex_index + count <=
+              poly::countof(draw_state_.vertex_buffer));
 
   size_t head = draw_state_.vertex_index;
   draw_state_.vertex_index += count;
 
   if (draw_state_.command_index &&
-      draw_state_.commands[draw_state_.command_index - 1].primitive == primitive) {
+      draw_state_.commands[draw_state_.command_index - 1].primitive ==
+          primitive) {
     draw_state_.commands[draw_state_.command_index - 1].vertex_count += count;
   } else {
-    assert_true(draw_state_.command_index < XECOUNT(draw_state_.commands));
+    assert_true(draw_state_.command_index <
+                poly::countof(draw_state_.commands));
     draw_state_.commands[draw_state_.command_index].primitive = primitive;
     draw_state_.commands[draw_state_.command_index].vertex_count = count;
     ++draw_state_.command_index;

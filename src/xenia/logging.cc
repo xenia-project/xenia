@@ -13,6 +13,7 @@
 
 #include <gflags/gflags.h>
 #include <poly/main.h>
+#include <poly/math.h>
 #include <xenia/common.h>
 
 DEFINE_bool(fast_stdout, false,
@@ -63,7 +64,7 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
   char buffer[2048];
   va_list args;
   va_start(args, fmt);
-  xe_format_log_line(buffer, XECOUNT(buffer),
+  xe_format_log_line(buffer, poly::countof(buffer),
                      file_path, line_number, function_name, level_char,
                      fmt, args);
   va_end(args);
@@ -88,7 +89,7 @@ void xe_handle_fatal(
   char buffer[2048];
   va_list args;
   va_start(args, fmt);
-  xe_format_log_line(buffer, XECOUNT(buffer),
+  xe_format_log_line(buffer, poly::countof(buffer),
                      file_path, line_number, function_name, 'X',
                      fmt, args);
   va_end(args);

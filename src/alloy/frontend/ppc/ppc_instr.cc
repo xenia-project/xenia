@@ -25,7 +25,7 @@ void InstrOperand::Dump(std::string& out_str) {
   }
 
   char buffer[32];
-  const size_t max_count = XECOUNT(buffer);
+  const size_t max_count = poly::countof(buffer);
   switch (type) {
     case InstrOperand::kRegister:
       switch (reg.set) {
@@ -373,7 +373,7 @@ InstrType* GetInstrType(uint32_t code) {
   // Slow lookup via linear scan.
   // This is primarily due to laziness. It could be made fast like the others.
   for (size_t n = 0;
-       n < XECOUNT(alloy::frontend::ppc::tables::instr_table_scan); n++) {
+       n < poly::countof(alloy::frontend::ppc::tables::instr_table_scan); n++) {
     slot = &(alloy::frontend::ppc::tables::instr_table_scan[n]);
     if (slot->opcode == (code & slot->opcode_mask)) {
       return slot;

@@ -9,6 +9,8 @@
 
 #include <xenia/core/socket.h>
 
+#include <poly/math.h>
+
 #include <errno.h>
 #include <mstcpip.h>
 #include <winsock2.h>
@@ -121,7 +123,7 @@ int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
 
   int client_ip = client_addr.sin_addr.s_addr;
   inet_ntop(AF_INET, &client_ip,
-      out_client_info->addr, XECOUNT(out_client_info->addr));
+      out_client_info->addr, poly::countof(out_client_info->addr));
 
   return 0;
 }
@@ -250,7 +252,8 @@ int xe_socket_loop_poll(xe_socket_loop_t* loop,
   }
 
   // Poll.
-  int r = WSAPoll(loop->events, XECOUNT(loop->events), -1);
+  int r = WSAPoll(loop->events, static_cast<ULONG>(poly::countof(loop->events)),
+                  -1);
   if (r == -1) {
     return 1;
   }

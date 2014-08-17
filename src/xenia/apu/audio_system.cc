@@ -10,20 +10,17 @@
 #include <xenia/apu/audio_system.h>
 #include <xenia/apu/audio_driver.h>
 
-#include <poly/threading.h>
+#include <poly/poly.h>
 #include <xenia/emulator.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/cpu/xenon_thread_state.h>
-
 
 using namespace xe;
 using namespace xe::apu;
 using namespace xe::cpu;
 
-
-AudioSystem::AudioSystem(Emulator* emulator) :
-    emulator_(emulator), memory_(emulator->memory()),
-    running_(false) {
+AudioSystem::AudioSystem(Emulator* emulator)
+    : emulator_(emulator), memory_(emulator->memory()), running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -42,19 +39,16 @@ X_STATUS AudioSystem::Setup() {
 
   // Let the processor know we want register access callbacks.
   emulator_->memory()->AddMappedRange(
-      0x7FEA0000,
-      0xFFFF0000,
-      0x0000FFFF,
-      this,
+      0x7FEA0000, 0xFFFF0000, 0x0000FFFF, this,
       reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup worker thread state. This lets us make calls into guest code.
-  thread_state_ = new XenonThreadState(
-      emulator_->processor()->runtime(), 0, 16 * 1024, 0);
+  thread_state_ =
+      new XenonThreadState(emulator_->processor()->runtime(), 0, 16 * 1024, 0);
   thread_state_->set_name("Audio Worker");
-  thread_block_ = (uint32_t)memory_->HeapAlloc(
-      0, 2048, alloy::MEMORY_FLAG_ZERO);
+  thread_block_ =
+      (uint32_t)memory_->HeapAlloc(0, 2048, alloy::MEMORY_FLAG_ZERO);
   thread_state_->context()->r[13] = thread_block_;
 
   // Create worker thread.
@@ -78,7 +72,8 @@ void AudioSystem::ThreadStart() {
 
   // Main run loop.
   while (running_) {
-    auto result = WaitForMultipleObjectsEx(maximum_client_count_, client_wait_handles_, FALSE, INFINITE, FALSE);
+    auto result = WaitForMultipleObjectsEx(
+        maximum_client_count_, client_wait_handles_, FALSE, INFINITE, FALSE);
     if (result == WAIT_FAILED) {
       DWORD err = GetLastError();
       assert_always();
@@ -86,7 +81,8 @@ void AudioSystem::ThreadStart() {
     }
 
     size_t pumped = 0;
-    if (result >= WAIT_OBJECT_0 && result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
+    if (result >= WAIT_OBJECT_0 &&
+        result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
       size_t index = result - WAIT_OBJECT_0;
       do {
         lock_.lock();
@@ -94,12 +90,15 @@ void AudioSystem::ThreadStart() {
         uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
         lock_.unlock();
         if (client_callback) {
-          uint64_t args[] = { client_callback_arg };
-          processor->Execute(thread_state_, client_callback, args, XECOUNT(args));
+          uint64_t args[] = {client_callback_arg};
+          processor->Execute(thread_state_, client_callback, args,
+                             poly::countof(args));
         }
         pumped++;
         index++;
-      } while (index < maximum_client_count_ && WaitForSingleObject(client_wait_handles_[index], 0) == WAIT_OBJECT_0);
+      } while (index < maximum_client_count_ &&
+               WaitForSingleObject(client_wait_handles_[index], 0) ==
+                   WAIT_OBJECT_0);
     }
 
     if (!running_) {
@@ -118,8 +117,7 @@ void AudioSystem::ThreadStart() {
   xe::Profiler::ThreadExit();
 }
 
-void AudioSystem::Initialize() {
-}
+void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
   running_ = false;
@@ -129,8 +127,8 @@ void AudioSystem::Shutdown() {
   memory()->HeapFree(thread_block_, 0);
 }
 
-X_STATUS AudioSystem::RegisterClient(
-    uint32_t callback, uint32_t callback_arg, size_t* out_index) {
+X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
+                                     size_t* out_index) {
   assert_true(unused_clients_.size());
   std::lock_guard<std::mutex> lock(lock_);
 
@@ -151,7 +149,7 @@ X_STATUS AudioSystem::RegisterClient(
   auto mem = memory()->membase();
   poly::store_and_swap<uint32_t>(mem + ptr, callback_arg);
 
-  clients_[index] = { driver, callback, callback_arg, ptr };
+  clients_[index] = {driver, callback, callback_arg, ptr};
 
   if (out_index) {
     *out_index = index;
@@ -176,7 +174,7 @@ void AudioSystem::UnregisterClient(size_t index) {
   std::lock_guard<std::mutex> lock(lock_);
   assert_true(index < maximum_client_count_);
   DestroyDriver(clients_[index].driver);
-  clients_[index] = { 0 };
+  clients_[index] = {0};
   unused_clients_.push(index);
 }
 

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <gflags/gflags.h>
+#include <poly/math.h>
 #include <third_party/crypto/rijndael-alg-fst.h>
 #include <third_party/crypto/rijndael-alg-fst.c>
 #include <third_party/mspack/lzx.h>
@@ -237,7 +238,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       break;
     case XEX_HEADER_IMPORT_LIBRARIES:
       {
-        const size_t max_count = XECOUNT(header->import_libraries);
+        const size_t max_count = poly::countof(header->import_libraries);
         size_t count = poly::load_and_swap<uint32_t>(pp + 0x08);
         assert_true(count <= max_count);
         if (count > max_count) {
@@ -263,7 +264,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           for (size_t i = 0, j = 0; i < string_table_size;) {
             assert_true(j <= 0xFF);
             if (j == name_index) {
-              xestrcpya(library->name, XECOUNT(library->name),
+              xestrcpya(library->name, poly::countof(library->name),
                         string_table + i);
               break;
             }
@@ -292,7 +293,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       break;
     case XEX_HEADER_STATIC_LIBRARIES:
       {
-        const size_t max_count = XECOUNT(header->static_libraries);
+        const size_t max_count = poly::countof(header->static_libraries);
         size_t count = (opt_header->length - 4) / 16;
         assert_true(count <= max_count);
         if (count > max_count) {

@@ -1017,7 +1017,7 @@ EMITTER(LOAD_VECTOR_SHL_I8, MATCH(I<OPCODE_LOAD_VECTOR_SHL, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
-      assert_true(sh < XECOUNT(lvsl_table));
+      assert_true(sh < poly::countof(lvsl_table));
       e.mov(e.rax, (uintptr_t)&lvsl_table[sh]);
       e.vmovaps(i.dest, e.ptr[e.rax]);
     } else {
@@ -1069,7 +1069,7 @@ EMITTER(LOAD_VECTOR_SHR_I8, MATCH(I<OPCODE_LOAD_VECTOR_SHR, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
-      assert_true(sh < XECOUNT(lvsr_table));
+      assert_true(sh < poly::countof(lvsr_table));
       e.mov(e.rax, (uintptr_t)&lvsr_table[sh]);
       e.vmovaps(i.dest, e.ptr[e.rax]);
     } else {

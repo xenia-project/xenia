@@ -9,6 +9,7 @@
 
 #include <xenia/kernel/xam_module.h>
 
+#include <poly/math.h>
 #include <xenia/export_resolver.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/xam_private.h>
@@ -27,7 +28,7 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state) :
   };
   #include <xenia/kernel/util/export_table_post.inc>
   export_resolver_->RegisterTable(
-      "xam.xex", xam_export_table, XECOUNT(xam_export_table));
+      "xam.xex", xam_export_table, poly::countof(xam_export_table));
 
   // Register all exported functions.
   xam::RegisterContentExports(export_resolver_, kernel_state);

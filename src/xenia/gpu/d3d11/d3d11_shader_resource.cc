@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_shader_resource.h>
 
+#include <poly/math.h>
 #include <xenia/core/hash.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
@@ -49,7 +50,7 @@ ID3D10Blob* D3D11ShaderCompile(XE_GPU_SHADER_TYPE type,
   }
   size_t hash = hash64(disasm_source, strlen(disasm_source)); // ?
   char file_name[poly::max_path];
-  xesnprintfa(file_name, XECOUNT(file_name),
+  xesnprintfa(file_name, poly::countof(file_name),
       "%s/gen_%.16llX.%s",
       base_path,
       hash,
@@ -105,7 +106,7 @@ D3D11VertexShaderResource::D3D11VertexShaderResource(
 D3D11VertexShaderResource::~D3D11VertexShaderResource() {
   SafeRelease(handle_);
   SafeRelease(input_layout_);
-  for (int i = 0; i < XECOUNT(geometry_shaders_); ++i) {
+  for (int i = 0; i < poly::countof(geometry_shaders_); ++i) {
     delete geometry_shaders_[i];
   }
   xe_free(translated_src_);

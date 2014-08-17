@@ -10,7 +10,7 @@
 #include <xenia/kernel/xboxkrnl_module.h>
 
 #include <gflags/gflags.h>
-
+#include <poly/math.h>
 #include <xenia/emulator.h>
 #include <xenia/export_resolver.h>
 #include <xenia/kernel/kernel_state.h>
@@ -34,8 +34,8 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
     #include <xenia/kernel/xboxkrnl_table.inc>
   };
   #include <xenia/kernel/util/export_table_post.inc>
-  export_resolver_->RegisterTable(
-      "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
+  export_resolver_->RegisterTable("xboxkrnl.exe", xboxkrnl_export_table,
+                                  poly::countof(xboxkrnl_export_table));
 
   // Register all exported functions.
   xboxkrnl::RegisterAudioExports(export_resolver_, kernel_state);
@@ -113,7 +113,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
       pExLoadedCommandLine);
   char command_line[] = "\"default.xex\"";
   xe_copy_memory(mem + pExLoadedCommandLine, 1024,
-                 command_line, XECOUNT(command_line) + 1);
+                 command_line, poly::countof(command_line) + 1);
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.

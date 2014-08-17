@@ -82,15 +82,6 @@
 #endif  // MSVC
 typedef XECACHEALIGN volatile void xe_aligned_void_t;
 
-#if XE_COMPILER_MSVC
-// http://msdn.microsoft.com/en-us/library/ms175773.aspx
-#define XECOUNT(array)          _countof(array)
-#elif XE_COMPILER_GNUC
-#define XECOUNT(array)          (sizeof(array) / sizeof(__typeof__(array[0])))
-#else
-#define XECOUNT(array)          (sizeof(array) / sizeof(array[0]))
-#endif  // MSVC
-
 #define XEFAIL()                goto XECLEANUP
 #define XEEXPECT(expr)          if (!(expr)         ) { goto XECLEANUP; }
 #define XEEXPECTTRUE(expr)      if (!(expr)         ) { goto XECLEANUP; }

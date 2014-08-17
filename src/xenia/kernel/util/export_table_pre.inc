@@ -19,7 +19,7 @@
  * #include <xenia/kernel/util/export_table_post.inc>
  * export_resolver_->RegisterTable(
  *     "my_module.xex",
- *     my_module_export_table, XECOUNT(my_module_export_table));
+ *     my_module_export_table, poly::countof(my_module_export_table));
  */
 
 

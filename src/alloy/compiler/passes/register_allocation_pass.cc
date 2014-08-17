@@ -55,7 +55,7 @@ RegisterAllocationPass::RegisterAllocationPass(const MachineInfo* machine_info)
 }
 
 RegisterAllocationPass::~RegisterAllocationPass() {
-  for (size_t n = 0; n < XECOUNT(usage_sets_.all_sets); n++) {
+  for (size_t n = 0; n < poly::countof(usage_sets_.all_sets); n++) {
     if (!usage_sets_.all_sets[n]) {
       break;
     }
@@ -171,7 +171,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
 void RegisterAllocationPass::DumpUsage(const char* name) {
 #if 0
   fprintf(stdout, "\n%s:\n", name);
-  for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
+  for (size_t i = 0; i < poly::countof(usage_sets_.all_sets); ++i) {
     auto usage_set = usage_sets_.all_sets[i];
     if (usage_set) {
       fprintf(stdout, "set %s:\n", usage_set->set->name);
@@ -190,7 +190,7 @@ void RegisterAllocationPass::DumpUsage(const char* name) {
 }
 
 void RegisterAllocationPass::PrepareBlockState() {
-  for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
+  for (size_t i = 0; i < poly::countof(usage_sets_.all_sets); ++i) {
     auto usage_set = usage_sets_.all_sets[i];
     if (usage_set) {
       usage_set->availability.set();
@@ -201,7 +201,7 @@ void RegisterAllocationPass::PrepareBlockState() {
 }
 
 void RegisterAllocationPass::AdvanceUses(Instr* instr) {
-  for (size_t i = 0; i < XECOUNT(usage_sets_.all_sets); ++i) {
+  for (size_t i = 0; i < poly::countof(usage_sets_.all_sets); ++i) {
     auto usage_set = usage_sets_.all_sets[i];
     if (!usage_set) {
       break;

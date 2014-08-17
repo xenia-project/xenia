@@ -219,7 +219,7 @@ X_STATUS XThread::Create() {
   }
 
   char thread_name[32];
-  xesnprintfa(thread_name, XECOUNT(thread_name), "XThread%04X", handle());
+  xesnprintfa(thread_name, poly::countof(thread_name), "XThread%04X", handle());
   set_name(thread_name);
 
   uint32_t proc_mask = creation_params_.creation_flags >> 24;
@@ -366,22 +366,19 @@ void XThread::Execute() {
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {
-    uint64_t args[] = {
-      creation_params_.start_address,
-      creation_params_.start_context
-    };
-    kernel_state()->processor()->Execute(
-        thread_state_,
-        creation_params_.xapi_thread_startup, args, XECOUNT(args));
+    uint64_t args[] = {creation_params_.start_address,
+                       creation_params_.start_context};
+    kernel_state()->processor()->Execute(thread_state_,
+                                         creation_params_.xapi_thread_startup,
+                                         args, poly::countof(args));
   } else {
     // Run user code.
-    uint64_t args[] = {
-      creation_params_.start_context
-    };
+    uint64_t args[] = {creation_params_.start_context};
     int exit_code = (int)kernel_state()->processor()->Execute(
-        thread_state_,
-        creation_params_.start_address, args, XECOUNT(args));
-    // If we got here it means the execute completed without an exit being called.
+        thread_state_, creation_params_.start_address, args,
+        poly::countof(args));
+    // If we got here it means the execute completed without an exit being
+    // called.
     // Treat the return code as an implicit exit code.
     Exit(exit_code);
   }
@@ -459,7 +456,7 @@ void XThread::DeliverAPCs(void* data) {
       thread->scratch_address_ + 12,
     };
     processor->ExecuteInterrupt(
-        0, kernel_routine, kernel_args, XECOUNT(kernel_args));
+        0, kernel_routine, kernel_args, poly::countof(kernel_args));
     normal_routine = poly::load_and_swap<uint32_t>(scratch_ptr + 0);
     normal_context = poly::load_and_swap<uint32_t>(scratch_ptr + 4);
     system_arg1 = poly::load_and_swap<uint32_t>(scratch_ptr + 8);
@@ -472,7 +469,7 @@ void XThread::DeliverAPCs(void* data) {
       // normal_routine(normal_context, system_arg1, system_arg2)
       uint64_t normal_args[] = { normal_context, system_arg1, system_arg2 };
       processor->ExecuteInterrupt(
-          0, normal_routine, normal_args, XECOUNT(normal_args));
+          0, normal_routine, normal_args, poly::countof(normal_args));
       thread->LockApc();
     }
   }
@@ -498,7 +495,7 @@ void XThread::RundownAPCs() {
       // rundown_routine(apc)
       uint64_t args[] = { apc_address };
       kernel_state()->processor()->ExecuteInterrupt(
-          0, rundown_routine, args, XECOUNT(args));
+          0, rundown_routine, args, poly::countof(args));
     }
   }
   UnlockApc();
