@@ -29,7 +29,7 @@ D3D11IndexBufferResource::D3D11IndexBufferResource(
 }
 
 D3D11IndexBufferResource::~D3D11IndexBufferResource() {
-  XESAFERELEASE(handle_);
+  SafeRelease(handle_);
 }
 
 int D3D11IndexBufferResource::CreateHandle() {
@@ -95,7 +95,7 @@ D3D11VertexBufferResource::D3D11VertexBufferResource(
 }
 
 D3D11VertexBufferResource::~D3D11VertexBufferResource() {
-  XESAFERELEASE(handle_);
+  SafeRelease(handle_);
 }
 
 int D3D11VertexBufferResource::CreateHandle() {

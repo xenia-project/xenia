@@ -30,8 +30,8 @@ D3D11TextureResource::D3D11TextureResource(
 }
 
 D3D11TextureResource::~D3D11TextureResource() {
-  XESAFERELEASE(texture_);
-  XESAFERELEASE(handle_);
+  SafeRelease(texture_);
+  SafeRelease(handle_);
 }
 
 int D3D11TextureResource::CreateHandle() {

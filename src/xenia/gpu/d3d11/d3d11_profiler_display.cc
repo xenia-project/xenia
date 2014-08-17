@@ -369,7 +369,7 @@ bool D3D11ProfilerDisplay::SetupFont() {
   texture_view_desc.Texture2D.MostDetailedMip = 0;
   hr = device->CreateShaderResourceView(
         font_texture, &texture_view_desc, &font_texture_view_);
-  XESAFERELEASE(font_texture);
+  SafeRelease(font_texture);
   if (FAILED(hr)) {
     XELOGE("Unable to create profiler font texture view");
     return false;
@@ -403,15 +403,15 @@ bool D3D11ProfilerDisplay::SetupFont() {
 }
 
 D3D11ProfilerDisplay::~D3D11ProfilerDisplay() {
-  XESAFERELEASE(blend_state_);
-  XESAFERELEASE(depth_stencil_state_);
-  XESAFERELEASE(vertex_shader_);
-  XESAFERELEASE(pixel_shader_);
-  XESAFERELEASE(shader_constants_);
-  XESAFERELEASE(shader_layout_);
-  XESAFERELEASE(font_texture_view_);
-  XESAFERELEASE(font_sampler_state_);
-  XESAFERELEASE(vertex_buffer_);
+  SafeRelease(blend_state_);
+  SafeRelease(depth_stencil_state_);
+  SafeRelease(vertex_shader_);
+  SafeRelease(pixel_shader_);
+  SafeRelease(shader_constants_);
+  SafeRelease(shader_layout_);
+  SafeRelease(font_texture_view_);
+  SafeRelease(font_sampler_state_);
+  SafeRelease(vertex_buffer_);
 }
 
 uint32_t D3D11ProfilerDisplay::width() const {

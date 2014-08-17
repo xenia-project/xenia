@@ -11,10 +11,8 @@
 #define XENIA_GPU_D3D11_D3D11_BUFFER_RESOURCE_H_
 
 #include <xenia/gpu/buffer_resource.h>
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/gpu/xenos/xenos.h>
-
-#include <d3d11.h>
-
 
 namespace xe {
 namespace gpu {

@@ -42,11 +42,11 @@ D3D11Window::~D3D11Window() {
   if (context_) {
     context_->ClearState();
   }
-  XESAFERELEASE(render_target_view_);
-  XESAFERELEASE(context_);
-  XESAFERELEASE(swap_chain_);
-  XESAFERELEASE(device_);
-  XESAFERELEASE(dxgi_factory_);
+  SafeRelease(render_target_view_);
+  SafeRelease(context_);
+  SafeRelease(swap_chain_);
+  SafeRelease(device_);
+  SafeRelease(dxgi_factory_);
 }
 
 int D3D11Window::Initialize(const std::wstring& title, uint32_t width,

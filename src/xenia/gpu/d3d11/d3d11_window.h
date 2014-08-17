@@ -12,9 +12,8 @@
 
 #include <xenia/core.h>
 
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/ui/win32/win32_window.h>
-
-#include <d3d11.h>
 
 
 namespace xe {

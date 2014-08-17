@@ -91,10 +91,6 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XECOUNT(array)          (sizeof(array) / sizeof(array[0]))
 #endif  // MSVC
 
-#if XE_PLATFORM_WIN32
-#define XESAFERELEASE(p)        if (p) { p->Release(); }
-#endif  // WIN32
-
 #define XEFAIL()                goto XECLEANUP
 #define XEEXPECT(expr)          if (!(expr)         ) { goto XECLEANUP; }
 #define XEEXPECTTRUE(expr)      if (!(expr)         ) { goto XECLEANUP; }

@@ -11,8 +11,7 @@
 #define XENIA_GPU_D3D11_D3D11_PROFILER_DISPLAY_H_
 
 #include <xenia/core.h>
-
-#include <d3d11.h>
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 
 
 namespace xe {

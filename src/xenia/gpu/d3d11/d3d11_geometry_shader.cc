@@ -31,8 +31,8 @@ D3D11GeometryShader::D3D11GeometryShader(ID3D11Device* device)
 }
 
 D3D11GeometryShader::~D3D11GeometryShader() {
-  XESAFERELEASE(handle_);
-  XESAFERELEASE(device_);
+  SafeRelease(handle_);
+  SafeRelease(device_);
 }
 
 int D3D11GeometryShader::Prepare(D3D11VertexShaderResource* vertex_shader) {
@@ -61,7 +61,7 @@ int D3D11GeometryShader::Prepare(D3D11VertexShaderResource* vertex_shader) {
   byte_code = xe_malloc(byte_code_length);
   xe_copy_struct(
       byte_code, shader_blob->GetBufferPointer(), byte_code_length);
-  XESAFERELEASE(shader_blob);
+  SafeRelease(shader_blob);
 
   // Create shader.
   HRESULT hr = device_->CreateGeometryShader(
@@ -124,7 +124,7 @@ ID3D10Blob* D3D11GeometryShader::Compile(const char* shader_source) {
     char* msg = (char*)error_blob->GetBufferPointer();
     XELOGE("D3D11: shader compile failed with %s", msg);
   }
-  XESAFERELEASE(error_blob);
+  SafeRelease(error_blob);
   if (FAILED(hr)) {
     return NULL;
   }

@@ -12,20 +12,23 @@
 
 #include <xenia/core.h>
 
-#include <xenia/gpu/d3d11/d3d11_gpu.h>
+#include <d3d11.h>
 
+#include <xenia/gpu/d3d11/d3d11_gpu.h>
 
 namespace xe {
 namespace gpu {
 namespace d3d11 {
 
-
-
-
+template <typename T>
+void SafeRelease(T* ptr) {
+  if (ptr) {
+    ptr->Release();
+  }
+}
 
 }  // namespace d3d11
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_D3D11_D3D11_GPU_PRIVATE_H_

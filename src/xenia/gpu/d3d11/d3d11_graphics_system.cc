@@ -188,9 +188,9 @@ void D3D11GraphicsSystem::Shutdown() {
     DeleteTimerQueueEx(timer_queue_, NULL);
   }
 
-  XESAFERELEASE(device_);
+  SafeRelease(device_);
   device_ = 0;
-  XESAFERELEASE(dxgi_factory_);
+  SafeRelease(dxgi_factory_);
   dxgi_factory_ = 0;
   delete window_;
   window_ = 0;

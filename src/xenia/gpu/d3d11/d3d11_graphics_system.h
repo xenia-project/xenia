@@ -15,8 +15,6 @@
 #include <xenia/gpu/graphics_system.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 
-#include <d3d11.h>
-
 
 namespace xe {
 namespace gpu {

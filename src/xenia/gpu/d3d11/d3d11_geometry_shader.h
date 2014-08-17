@@ -13,8 +13,7 @@
 #include <xenia/core.h>
 
 #include <alloy/string_buffer.h>
-
-#include <d3d11.h>
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 
 
 namespace xe {

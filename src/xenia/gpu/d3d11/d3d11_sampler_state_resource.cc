@@ -27,7 +27,7 @@ D3D11SamplerStateResource::D3D11SamplerStateResource(
 }
 
 D3D11SamplerStateResource::~D3D11SamplerStateResource() {
-  XESAFERELEASE(handle_);
+  SafeRelease(handle_);
 }
 
 int D3D11SamplerStateResource::Prepare() {

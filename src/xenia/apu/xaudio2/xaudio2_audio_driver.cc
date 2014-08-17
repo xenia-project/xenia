@@ -162,7 +162,7 @@ void XAudio2AudioDriver::Shutdown() {
   mastering_voice_ = NULL;
 
   audio_->StopEngine();
-  XESAFERELEASE(audio_);
+  audio_->Release();
 
   delete voice_callback_;
   CloseHandle(wait_handle_);

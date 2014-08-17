@@ -31,8 +31,8 @@ D3D11ResourceCache::D3D11ResourceCache(Memory* memory,
 }
 
 D3D11ResourceCache::~D3D11ResourceCache() {
-  XESAFERELEASE(device_);
-  XESAFERELEASE(context_);
+  SafeRelease(device_);
+  SafeRelease(context_);
 }
 
 VertexShaderResource* D3D11ResourceCache::CreateVertexShader(

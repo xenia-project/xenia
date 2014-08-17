@@ -10,10 +10,9 @@
 #ifndef XENIA_GPU_D3D11_D3D11_TEXTURE_RESOURCE_H_
 #define XENIA_GPU_D3D11_D3D11_TEXTURE_RESOURCE_H_
 
+#include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/gpu/texture_resource.h>
 #include <xenia/gpu/xenos/xenos.h>
-
-#include <d3d11.h>
 
 
 namespace xe {

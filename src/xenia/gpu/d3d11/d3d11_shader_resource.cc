@@ -80,7 +80,7 @@ ID3D10Blob* D3D11ShaderCompile(XE_GPU_SHADER_TYPE type,
     char* msg = (char*)error_blob->GetBufferPointer();
     XELOGE("D3D11: shader compile failed with %s", msg);
   }
-  XESAFERELEASE(error_blob);
+  SafeRelease(error_blob);
   if (FAILED(hr)) {
     return nullptr;
   }
@@ -103,8 +103,8 @@ D3D11VertexShaderResource::D3D11VertexShaderResource(
 }
 
 D3D11VertexShaderResource::~D3D11VertexShaderResource() {
-  XESAFERELEASE(handle_);
-  XESAFERELEASE(input_layout_);
+  SafeRelease(handle_);
+  SafeRelease(input_layout_);
   for (int i = 0; i < XECOUNT(geometry_shaders_); ++i) {
     delete geometry_shaders_[i];
   }
@@ -140,7 +140,7 @@ int D3D11VertexShaderResource::Prepare(
   byte_code = xe_malloc(byte_code_length);
   xe_copy_struct(
       byte_code, shader_blob->GetBufferPointer(), byte_code_length);
-  XESAFERELEASE(shader_blob);
+  SafeRelease(shader_blob);
 
   // Create shader.
   HRESULT hr = resource_cache_->device()->CreateVertexShader(
@@ -328,7 +328,7 @@ D3D11PixelShaderResource::D3D11PixelShaderResource(
 }
 
 D3D11PixelShaderResource::~D3D11PixelShaderResource() {
-  XESAFERELEASE(handle_);
+  SafeRelease(handle_);
   xe_free(translated_src_);
 }
 
@@ -363,7 +363,7 @@ int D3D11PixelShaderResource::Prepare(const xe_gpu_program_cntl_t& program_cntl,
   byte_code = xe_malloc(byte_code_length);
   xe_copy_struct(
       byte_code, shader_blob->GetBufferPointer(), byte_code_length);
-  XESAFERELEASE(shader_blob);
+  SafeRelease(shader_blob);
 
   // Create shader.
   HRESULT hr = resource_cache_->device()->CreatePixelShader(

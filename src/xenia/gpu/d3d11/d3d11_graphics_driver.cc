@@ -67,29 +67,29 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
 
 D3D11GraphicsDriver::~D3D11GraphicsDriver() {
   RebuildRenderTargets(0, 0);
-  XESAFERELEASE(state_.constant_buffers.float_constants);
-  XESAFERELEASE(state_.constant_buffers.bool_constants);
-  XESAFERELEASE(state_.constant_buffers.loop_constants);
-  XESAFERELEASE(state_.constant_buffers.vs_consts);
-  XESAFERELEASE(state_.constant_buffers.gs_consts);
+  SafeRelease(state_.constant_buffers.float_constants);
+  SafeRelease(state_.constant_buffers.bool_constants);
+  SafeRelease(state_.constant_buffers.loop_constants);
+  SafeRelease(state_.constant_buffers.vs_consts);
+  SafeRelease(state_.constant_buffers.gs_consts);
   for (auto it = rasterizer_state_cache_.begin();
        it != rasterizer_state_cache_.end(); ++it) {
-    XESAFERELEASE(it->second);
+    SafeRelease(it->second);
   }
   for (auto it = blend_state_cache_.begin();
        it != blend_state_cache_.end(); ++it) {
-    XESAFERELEASE(it->second);
+    SafeRelease(it->second);
   }
   for (auto it = depth_stencil_state_cache_.begin();
        it != depth_stencil_state_cache_.end(); ++it) {
-    XESAFERELEASE(it->second);
+    SafeRelease(it->second);
   }
-  XESAFERELEASE(invalid_texture_view_);
-  XESAFERELEASE(invalid_texture_sampler_state_);
+  SafeRelease(invalid_texture_view_);
+  SafeRelease(invalid_texture_sampler_state_);
   delete resource_cache_;
-  XESAFERELEASE(context_);
-  XESAFERELEASE(device_);
-  XESAFERELEASE(swap_chain_);
+  SafeRelease(context_);
+  SafeRelease(device_);
+  SafeRelease(swap_chain_);
 }
 
 int D3D11GraphicsDriver::Initialize() {
@@ -138,7 +138,7 @@ void D3D11GraphicsDriver::InitializeInvalidTexture() {
   texture_view_desc.Texture2D.MostDetailedMip = 0;
   hr = device_->CreateShaderResourceView(
         texture, &texture_view_desc, &invalid_texture_view_);
-  XESAFERELEASE(texture);
+  SafeRelease(texture);
 
   D3D11_SAMPLER_DESC sampler_desc;
   xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
@@ -826,12 +826,12 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
   // Remove old versions.
   for (int n = 0; n < XECOUNT(render_targets_.color_buffers); n++) {
     auto& cb = render_targets_.color_buffers[n];
-    XESAFERELEASE(cb.buffer);
-    XESAFERELEASE(cb.color_view_8888);
+    SafeRelease(cb.buffer);
+    SafeRelease(cb.color_view_8888);
   }
-  XESAFERELEASE(render_targets_.depth_buffer);
-  XESAFERELEASE(render_targets_.depth_view_d28s8);
-  XESAFERELEASE(render_targets_.depth_view_d28fs8);
+  SafeRelease(render_targets_.depth_buffer);
+  SafeRelease(render_targets_.depth_view_d28s8);
+  SafeRelease(render_targets_.depth_view_d28fs8);
 
   render_targets_.width   = width;
   render_targets_.height  = height;
@@ -917,7 +917,7 @@ int D3D11GraphicsDriver::Resolve() {
   } else {
     // TODO(benvanik): scale size using a quad draw.
   }
-  XESAFERELEASE(back_buffer);
+  SafeRelease(back_buffer);
 
   // TODO(benvanik): remove!
   float color[4] = { 0.5f, 0.5f, 0.0f, 1.0f };
