@@ -14,7 +14,6 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/objects/xfile.h>
 
 namespace xe {
@@ -25,8 +24,8 @@ class HostPathEntry;
 
 class HostPathFile : public XFile {
  public:
-  HostPathFile(KernelState* kernel_state, uint32_t desired_access,
-               HostPathEntry* entry, HANDLE file_handle);
+  HostPathFile(KernelState* kernel_state, Mode mode, HostPathEntry* entry,
+               HANDLE file_handle);
   ~HostPathFile() override;
 
   const std::string& path() const override;

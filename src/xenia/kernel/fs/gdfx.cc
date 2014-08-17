@@ -50,16 +50,12 @@ void GDFXEntry::Dump(int indent) {
   }
 }
 
-GDFX::GDFX(xe_mmap_ref mmap) {
-  mmap_ = xe_mmap_retain(mmap);
-
-  root_entry_ = NULL;
+GDFX::GDFX(poly::MappedMemory* mmap) : mmap_(mmap) {
+  root_entry_ = nullptr;
 }
 
 GDFX::~GDFX() {
   delete root_entry_;
-
-  xe_mmap_release(mmap_);
 }
 
 GDFXEntry* GDFX::root_entry() { return root_entry_; }
@@ -68,8 +64,8 @@ GDFX::Error GDFX::Load() {
   ParseState state;
   xe_zero_struct(&state, sizeof(state));
 
-  state.ptr = (uint8_t*)xe_mmap_get_addr(mmap_);
-  state.size = xe_mmap_get_length(mmap_);
+  state.ptr = mmap_->data();
+  state.size = mmap_->size();
 
   auto result = Verify(state);
   if (result != kSuccess) {

@@ -149,13 +149,13 @@ public:
   virtual void* GetWaitHandle();
 
 protected:
-  XFile(KernelState* kernel_state, uint32_t desired_access);
+  XFile(KernelState* kernel_state, fs::Mode mode);
   virtual X_STATUS ReadSync(
       void* buffer, size_t buffer_length, size_t byte_offset,
       size_t* out_bytes_read) = 0;
 
 private:
-  uint32_t        desired_access_;
+  fs::Mode        mode_;
   XEvent*         async_event_;
 
   // TODO(benvanik): create flags, open state, etc.

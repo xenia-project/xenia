@@ -32,6 +32,11 @@ namespace fs {
 
 class Device;
 
+enum class Mode {
+  READ,
+  READ_WRITE,
+};
+
 class MemoryMapping {
  public:
   MemoryMapping(uint8_t* address, size_t length);
@@ -47,9 +52,9 @@ class MemoryMapping {
 
 class Entry {
  public:
-  enum Type {
-    kTypeFile,
-    kTypeDirectory,
+  enum class Type {
+    FILE,
+    DIRECTORY,
   };
 
   Entry(Type type, Device* device, const std::string& path);
@@ -66,14 +71,14 @@ class Entry {
                                   const char* file_name, bool restart) = 0;
 
   virtual bool can_map() { return false; }
-  virtual MemoryMapping* CreateMemoryMapping(xe_file_mode file_mode,
-                                             const size_t offset,
+
+  virtual MemoryMapping* CreateMemoryMapping(Mode map_mode, const size_t offset,
                                              const size_t length) {
     return NULL;
   }
 
-  virtual X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
-                        bool async, XFile** out_file) = 0;
+  virtual X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
+                        XFile** out_file) = 0;
 
  private:
   Type type_;

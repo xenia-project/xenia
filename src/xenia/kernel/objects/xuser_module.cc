@@ -50,7 +50,7 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
     result = X_STATUS_NO_SUCH_FILE;
     XEFAIL();
   }
-  if (fs_entry->type() != fs::Entry::kTypeFile) {
+  if (fs_entry->type() != fs::Entry::Type::FILE) {
     XELOGE("Invalid file type: %s", path);
     result = X_STATUS_NO_SUCH_FILE;
     XEFAIL();
@@ -59,7 +59,8 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
     // Map.
-    fs::MemoryMapping* mmap = fs_entry->CreateMemoryMapping(kXEFileModeRead, 0, 0);
+    fs::MemoryMapping* mmap =
+        fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
     XEEXPECTNOTNULL(mmap);
 
     // Load the module.
@@ -76,7 +77,7 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
     buffer = (uint8_t*)xe_malloc(buffer_length);
 
     // Open file for reading.
-    result = fs_entry->Open(kernel_state(), kXEFileModeRead, false, &file);
+    result = fs_entry->Open(kernel_state(), fs::Mode::READ, false, &file);
     XEEXPECTZERO(result);
 
     // Read entire file into memory.

@@ -12,9 +12,9 @@
 #include <xenia/kernel/fs/devices/host_path_entry.h>
 #include <xenia/kernel/objects/xfile.h>
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
 HostPathDevice::HostPathDevice(const std::string& path,
                                const std::wstring& local_path)
@@ -37,7 +37,7 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
   // TODO(benvanik): fail if does not exit
   // TODO(benvanik): switch based on type
 
-  Entry::Type type = Entry::kTypeFile;
+  auto type = Entry::Type::FILE;
   HostPathEntry* entry = new HostPathEntry(type, this, path, full_path);
   return entry;
 }
@@ -45,7 +45,7 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
 // TODO(gibbed): call into HostPathDevice?
 X_STATUS HostPathDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
   assert_not_null(out_info);
-  const char* name = "test"; // TODO(gibbed): actual value
+  const char* name = "test";  // TODO(gibbed): actual value
 
   auto end = (uint8_t*)out_info + length;
   size_t name_length = strlen(name);
@@ -62,9 +62,10 @@ X_STATUS HostPathDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
 }
 
 // TODO(gibbed): call into HostPathDevice?
-X_STATUS HostPathDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+X_STATUS HostPathDevice::QueryFileSystemAttributes(
+    XFileSystemAttributeInfo* out_info, size_t length) {
   assert_not_null(out_info);
-  const char* name = "test"; // TODO(gibbed): actual value
+  const char* name = "test";  // TODO(gibbed): actual value
 
   auto end = (uint8_t*)out_info + length;
   size_t name_length = strlen(name);
@@ -73,8 +74,12 @@ X_STATUS HostPathDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out
   }
 
   out_info->attributes = 0;
-  out_info->maximum_component_name_length = 255; // TODO(gibbed): actual value
+  out_info->maximum_component_name_length = 255;  // TODO(gibbed): actual value
   out_info->fs_name_length = (uint32_t)name_length;
   memcpy(out_info->fs_name, name, name_length);
   return X_STATUS_SUCCESS;
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

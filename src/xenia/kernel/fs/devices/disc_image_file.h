@@ -12,7 +12,6 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/objects/xfile.h>
 
 namespace xe {
@@ -23,7 +22,7 @@ class DiscImageEntry;
 
 class DiscImageFile : public XFile {
  public:
-  DiscImageFile(KernelState* kernel_state, uint32_t desired_access,
+  DiscImageFile(KernelState* kernel_state, Mode desired_access,
                 DiscImageEntry* entry);
   ~DiscImageFile() override;
 

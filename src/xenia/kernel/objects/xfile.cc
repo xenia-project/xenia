@@ -17,8 +17,8 @@ using namespace xe;
 using namespace xe::kernel;
 
 
-XFile::XFile(KernelState* kernel_state, uint32_t desired_access) :
-    desired_access_(desired_access), position_(0),
+XFile::XFile(KernelState* kernel_state, fs::Mode mode) :
+    mode_(mode), position_(0),
     XObject(kernel_state, kTypeFile) {
   async_event_ = new XEvent(kernel_state);
   async_event_->Initialize(false, false);

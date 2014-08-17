@@ -8,6 +8,7 @@
     'config.h',
     'cxx_compat.h',
     'main.h',
+    'mapped_memory.h',
     'math.cc',
     'math.h',
     'memory.cc',
@@ -23,6 +24,7 @@
     ['OS == "mac" or OS == "linux"', {
       'sources': [
         'main_posix.cc',
+        'mapped_memory_posix.cc',
       ],
     }],
     ['OS == "linux"', {
@@ -40,6 +42,7 @@
       'sources': [
         'debugging_win.cc',
         'main_win.cc',
+        'mapped_memory_win.cc',
         'threading_win.cc',
       ],
     }],

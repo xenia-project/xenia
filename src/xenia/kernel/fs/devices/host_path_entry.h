@@ -12,7 +12,6 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/fs/entry.h>
 
 namespace xe {
@@ -32,12 +31,11 @@ class HostPathEntry : public Entry {
                                   const char* file_name, bool restart);
 
   virtual bool can_map() { return true; }
-  virtual MemoryMapping* CreateMemoryMapping(xe_file_mode file_mode,
-                                             const size_t offset,
+  virtual MemoryMapping* CreateMemoryMapping(Mode map_mode, const size_t offset,
                                              const size_t length);
 
-  virtual X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
-                        bool async, XFile** out_file);
+  virtual X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
+                        XFile** out_file);
 
  private:
   std::wstring local_path_;

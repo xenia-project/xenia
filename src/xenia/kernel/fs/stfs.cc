@@ -117,17 +117,12 @@ void STFSEntry::Dump(int indent) {
   }
 }
 
-STFS::STFS(xe_mmap_ref mmap) {
-  mmap_ = xe_mmap_retain(mmap);
-}
+STFS::STFS(poly::MappedMemory* mmap) : mmap_(mmap) {}
 
-STFS::~STFS() {
-  xe_mmap_release(mmap_);
-}
+STFS::~STFS() {}
 
 STFS::Error STFS::Load() {
-  uint8_t* map_ptr = (uint8_t*)xe_mmap_get_addr(mmap_);
-  size_t map_size = xe_mmap_get_length(mmap_);
+  uint8_t* map_ptr = mmap_->data();
 
   auto result = ReadHeaderAndVerify(map_ptr);
   if (result != kSuccess) {

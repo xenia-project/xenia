@@ -3,7 +3,6 @@
   'sources': [
     'hash.cc',
     'hash.h',
-    'mmap.h',
     'ref.cc',
     'ref.h',
     'run_loop.h',
@@ -13,7 +12,6 @@
   'conditions': [
     ['OS == "mac" or OS == "linux"', {
       'sources': [
-        'mmap_posix.cc',
         'socket_posix.cc',
       ],
     }],
@@ -27,7 +25,6 @@
     }],
     ['OS == "win"', {
       'sources': [
-        'mmap_win.cc',
         'run_loop_win.cc',
         'socket_win.cc',
       ],

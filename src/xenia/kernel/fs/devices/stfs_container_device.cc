@@ -13,28 +13,24 @@
 #include <xenia/kernel/fs/stfs.h>
 #include <xenia/kernel/fs/devices/stfs_container_entry.h>
 
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
 STFSContainerDevice::STFSContainerDevice(const std::string& path,
                                          const std::wstring& local_path)
-    : Device(path), local_path_(local_path), mmap_(nullptr), stfs_(nullptr) {}
+    : Device(path), local_path_(local_path), stfs_(nullptr) {}
 
-STFSContainerDevice::~STFSContainerDevice() {
-  delete stfs_;
-  xe_mmap_release(mmap_);
-}
+STFSContainerDevice::~STFSContainerDevice() { delete stfs_; }
 
 int STFSContainerDevice::Init() {
-  mmap_ = xe_mmap_open(kXEFileModeRead, local_path_.c_str(), 0, 0);
+  mmap_ = poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::READ);
   if (!mmap_) {
     XELOGE("STFS container could not be mapped");
     return 1;
   }
 
-  stfs_ = new STFS(mmap_);
+  stfs_ = new STFS(mmap_.get());
   STFS::Error error = stfs_->Load();
   if (error != STFS::kSuccess) {
     XELOGE("STFS init failed: %d", error);
@@ -65,19 +61,24 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
     }
   }
 
-  Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?
-      Entry::kTypeDirectory : Entry::kTypeFile;
-  return new STFSContainerEntry(
-      type, this, path, mmap_, stfs_entry);
+  Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
+                         ? Entry::Type::DIRECTORY
+                         : Entry::Type::FILE;
+  return new STFSContainerEntry(type, this, path, mmap_.get(), stfs_entry);
 }
 
-
-X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
+X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info,
+                                          size_t length) {
   assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
-X_STATUS STFSContainerDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+X_STATUS STFSContainerDevice::QueryFileSystemAttributes(
+    XFileSystemAttributeInfo* out_info, size_t length) {
   assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

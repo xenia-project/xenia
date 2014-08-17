@@ -14,60 +14,45 @@
 #include <xenia/kernel/fs/gdfx.h>
 #include <xenia/kernel/fs/devices/disc_image_file.h>
 
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
-
-
-namespace {
-
+namespace xe {
+namespace kernel {
+namespace fs {
 
 class DiscImageMemoryMapping : public MemoryMapping {
-public:
-  DiscImageMemoryMapping(uint8_t* address, size_t length, xe_mmap_ref mmap) :
-      MemoryMapping(address, length) {
-    mmap_ = xe_mmap_retain(mmap);
-  }
+ public:
+  DiscImageMemoryMapping(uint8_t* address, size_t length,
+                         poly::MappedMemory* mmap)
+      : MemoryMapping(address, length), mmap_(mmap) {}
 
-  virtual ~DiscImageMemoryMapping() {
-    xe_mmap_release(mmap_);
-  }
+  virtual ~DiscImageMemoryMapping() {}
 
-private:
-  xe_mmap_ref mmap_;
+ private:
+  poly::MappedMemory* mmap_;
 };
 
-
-}
-
-
 DiscImageEntry::DiscImageEntry(Type type, Device* device, const char* path,
-                               xe_mmap_ref mmap, GDFXEntry* gdfx_entry) :
-    gdfx_entry_(gdfx_entry),
-    gdfx_entry_iterator_(gdfx_entry->children.end()),
-    Entry(type, device, path) {
-  mmap_ = xe_mmap_retain(mmap);
-}
+                               poly::MappedMemory* mmap, GDFXEntry* gdfx_entry)
+    : gdfx_entry_(gdfx_entry),
+      gdfx_entry_iterator_(gdfx_entry->children.end()),
+      mmap_(mmap),
+      Entry(type, device, path) {}
 
-DiscImageEntry::~DiscImageEntry() {
-  xe_mmap_release(mmap_);
-}
+DiscImageEntry::~DiscImageEntry() {}
 
 X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
   assert_not_null(out_info);
-  out_info->creation_time     = 0;
-  out_info->last_access_time  = 0;
-  out_info->last_write_time   = 0;
-  out_info->change_time       = 0;
-  out_info->allocation_size   = 2048;
-  out_info->file_length       = gdfx_entry_->size;
-  out_info->attributes        = gdfx_entry_->attributes;
+  out_info->creation_time = 0;
+  out_info->last_access_time = 0;
+  out_info->last_write_time = 0;
+  out_info->change_time = 0;
+  out_info->allocation_size = 2048;
+  out_info->file_length = gdfx_entry_->size;
+  out_info->attributes = gdfx_entry_->attributes;
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS DiscImageEntry::QueryDirectory(
-    XDirectoryInfo* out_info, size_t length, const char* file_name, bool restart) {
+X_STATUS DiscImageEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
+                                        const char* file_name, bool restart) {
   assert_not_null(out_info);
 
   if (restart == true && gdfx_entry_iterator_ != gdfx_entry_->children.end()) {
@@ -97,40 +82,41 @@ X_STATUS DiscImageEntry::QueryDirectory(
   }
 
   out_info->next_entry_offset = 0;
-  out_info->file_index        = 0xCDCDCDCD;
-  out_info->creation_time     = 0;
-  out_info->last_access_time  = 0;
-  out_info->last_write_time   = 0;
-  out_info->change_time       = 0;
-  out_info->end_of_file       = entry->size;
-  out_info->allocation_size   = 2048;
-  out_info->attributes        = (X_FILE_ATTRIBUTES)entry->attributes;
-  out_info->file_name_length  = static_cast<uint32_t>(entry_name.size());
+  out_info->file_index = 0xCDCDCDCD;
+  out_info->creation_time = 0;
+  out_info->last_access_time = 0;
+  out_info->last_write_time = 0;
+  out_info->change_time = 0;
+  out_info->end_of_file = entry->size;
+  out_info->allocation_size = 2048;
+  out_info->attributes = (X_FILE_ATTRIBUTES)entry->attributes;
+  out_info->file_name_length = static_cast<uint32_t>(entry_name.size());
   memcpy(out_info->file_name, entry_name.c_str(), entry_name.size());
 
   return X_STATUS_SUCCESS;
 }
 
-MemoryMapping* DiscImageEntry::CreateMemoryMapping(
-    xe_file_mode file_mode, const size_t offset, const size_t length) {
-  if (file_mode & kXEFileModeWrite) {
+MemoryMapping* DiscImageEntry::CreateMemoryMapping(Mode map_mode,
+                                                   const size_t offset,
+                                                   const size_t length) {
+  if (map_mode != Mode::READ) {
     // Only allow reads.
     return NULL;
   }
 
   size_t real_offset = gdfx_entry_->offset + offset;
-  size_t real_length = length ?
-      std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
-  return new DiscImageMemoryMapping(
-      xe_mmap_get_addr(mmap_) + real_offset,
-      real_length,
-      mmap_);
+  size_t real_length =
+      length ? std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
+  return new DiscImageMemoryMapping(mmap_->data() + real_offset, real_length,
+                                    mmap_);
 }
 
-X_STATUS DiscImageEntry::Open(
-    KernelState* kernel_state,
-    uint32_t desired_access, bool async,
-    XFile** out_file) {
-  *out_file = new DiscImageFile(kernel_state, desired_access, this);
+X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode,
+                              bool async, XFile** out_file) {
+  *out_file = new DiscImageFile(kernel_state, mode, this);
   return X_STATUS_SUCCESS;
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

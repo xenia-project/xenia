@@ -81,12 +81,15 @@ SHIM_CALL NtCreateFile_shim(
     entry = fs->ResolvePath(object_name);
   }
 
+  auto mode =
+      desired_access & GENERIC_WRITE ? fs::Mode::READ_WRITE : fs::Mode::READ;
+
   XFile* file = NULL;
-  if (entry && entry->type() == Entry::kTypeFile) {
+  if (entry && entry->type() == Entry::Type::FILE) {
     // Open the file.
     result = entry->Open(
         state,
-        desired_access,
+        mode,
         false, // TODO(benvanik): pick async mode, if needed.
         &file);
   } else {
@@ -150,15 +153,18 @@ SHIM_CALL NtOpenFile_shim(
     assert_always();
   }
 
+  auto mode =
+      desired_access & GENERIC_WRITE ? fs::Mode::READ_WRITE : fs::Mode::READ;
+
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
   Entry* entry = fs->ResolvePath(object_name);
   XFile* file = NULL;
-  if (entry && entry->type() == Entry::kTypeFile) {
+  if (entry && entry->type() == Entry::Type::FILE) {
     // Open the file.
     result = entry->Open(
       state,
-      desired_access,
+      mode,
       false, // TODO(benvanik): pick async mode, if needed.
       &file);
   }
@@ -495,7 +501,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
   Entry* entry = fs->ResolvePath(object_name);
-  if (entry && entry->type() == Entry::kTypeFile) {
+  if (entry && entry->type() == Entry::Type::FILE) {
     // Found.
     XFileInfo file_info;
     result = entry->QueryInfo(&file_info);

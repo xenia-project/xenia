@@ -12,6 +12,7 @@
 
 #include <vector>
 
+#include <poly/mapped_memory.h>
 #include <xenia/core.h>
 #include <xenia/xbox.h>
 #include <xenia/kernel/fs/entry.h>
@@ -49,7 +50,7 @@ class GDFX {
     kErrorDamagedFile = -31,
   };
 
-  GDFX(xe_mmap_ref mmap);
+  GDFX(poly::MappedMemory* mmap);
   virtual ~GDFX();
 
   GDFXEntry* root_entry();
@@ -81,7 +82,7 @@ class GDFX {
   bool ReadEntry(ParseState& state, const uint8_t* buffer,
                  uint16_t entry_ordinal, GDFXEntry* parent);
 
-  xe_mmap_ref mmap_;
+  poly::MappedMemory* mmap_;
 
   GDFXEntry* root_entry_;
 };

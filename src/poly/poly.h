@@ -16,6 +16,7 @@
 #include <poly/config.h>
 #include <poly/cxx_compat.h>
 #include <poly/debugging.h>
+#include <poly/mapped_memory.h>
 #include <poly/math.h>
 #include <poly/memory.h>
 #include <poly/platform.h>

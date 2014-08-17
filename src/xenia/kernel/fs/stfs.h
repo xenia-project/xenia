@@ -13,6 +13,7 @@
 #include <memory>
 #include <vector>
 
+#include <poly/mapped_memory.h>
 #include <xenia/core.h>
 #include <xenia/xbox.h>
 #include <xenia/kernel/fs/entry.h>
@@ -160,7 +161,7 @@ class STFS {
     kErrorDamagedFile = -31,
   };
 
-  STFS(xe_mmap_ref mmap);
+  STFS(poly::MappedMemory* mmap);
   virtual ~STFS();
 
   const STFSHeader* header() const { return &header_; }
@@ -182,7 +183,7 @@ class STFS {
   BlockHash_t GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                            uint32_t table_offset);
 
-  xe_mmap_ref mmap_;
+  poly::MappedMemory* mmap_;
 
   STFSPackageType package_type_;
   STFSHeader header_;

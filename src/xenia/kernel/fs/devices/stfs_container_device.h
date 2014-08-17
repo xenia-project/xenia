@@ -10,11 +10,12 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_DEVICE_H_
 #define XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_DEVICE_H_
 
+#include <memory>
 #include <string>
 
+#include <poly/mapped_memory.h>
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/fs/device.h>
 
 namespace xe {
@@ -38,7 +39,7 @@ class STFSContainerDevice : public Device {
 
  private:
   std::wstring local_path_;
-  xe_mmap_ref mmap_;
+  std::unique_ptr<poly::MappedMemory> mmap_;
   STFS* stfs_;
 };
 

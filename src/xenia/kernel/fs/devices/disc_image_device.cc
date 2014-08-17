@@ -13,35 +13,31 @@
 #include <xenia/kernel/fs/gdfx.h>
 #include <xenia/kernel/fs/devices/disc_image_entry.h>
 
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
 DiscImageDevice::DiscImageDevice(const std::string& path,
                                  const std::wstring& local_path)
-    : Device(path), local_path_(local_path), mmap_(nullptr), gdfx_(nullptr) {}
+    : Device(path), local_path_(local_path), gdfx_(nullptr) {}
 
-DiscImageDevice::~DiscImageDevice() {
-  delete gdfx_;
-  xe_mmap_release(mmap_);
-}
+DiscImageDevice::~DiscImageDevice() { delete gdfx_; }
 
 int DiscImageDevice::Init() {
-  mmap_ = xe_mmap_open(kXEFileModeRead, local_path_.c_str(), 0, 0);
+  mmap_ = poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::READ);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
     return 1;
   }
 
-  gdfx_ = new GDFX(mmap_);
+  gdfx_ = new GDFX(mmap_.get());
   GDFX::Error error = gdfx_->Load();
   if (error != GDFX::kSuccess) {
     XELOGE("GDFX init failed: %d", error);
     return 1;
   }
 
-  //gdfx_->Dump();
+  // gdfx_->Dump();
 
   return 0;
 }
@@ -65,10 +61,10 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
     }
   }
 
-  Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?
-      Entry::kTypeDirectory : Entry::kTypeFile;
-  return new DiscImageEntry(
-      type, this, path, mmap_, gdfx_entry);
+  Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
+                         ? Entry::Type::DIRECTORY
+                         : Entry::Type::FILE;
+  return new DiscImageEntry(type, this, path, mmap_.get(), gdfx_entry);
 }
 
 X_STATUS DiscImageDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
@@ -76,7 +72,12 @@ X_STATUS DiscImageDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
-X_STATUS DiscImageDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
+X_STATUS DiscImageDevice::QueryFileSystemAttributes(
+    XFileSystemAttributeInfo* out_info, size_t length) {
   assert_always();
   return X_STATUS_NOT_IMPLEMENTED;
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe
