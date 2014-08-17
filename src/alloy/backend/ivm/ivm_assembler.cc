@@ -78,12 +78,12 @@ int IVMAssembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
     auto slot = *it;
     size_t type_size = GetTypeSize(slot->type);
     // Align to natural size.
-    stack_offset = XEALIGN(stack_offset, type_size);
+    stack_offset = poly::align(stack_offset, type_size);
     slot->set_constant((uint32_t)stack_offset);
     stack_offset += type_size;
   }
   // Ensure 16b alignment.
-  stack_offset = XEALIGN(stack_offset, 16);
+  stack_offset = poly::align(stack_offset, 16ull);
   ctx.stack_size = stack_offset;
 
   auto block = builder->first_block();

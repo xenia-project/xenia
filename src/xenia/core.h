@@ -17,7 +17,6 @@ namespace xe {
   using Memory = alloy::Memory;
 }  // namespace xe
 
-#include <xenia/core/hash.h>
 #include <xenia/core/mmap.h>
 #include <xenia/core/pal.h>
 #include <xenia/core/ref.h>

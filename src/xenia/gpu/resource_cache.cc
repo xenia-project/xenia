@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include <xenia/core/hash.h>
 
 using namespace std;
 using namespace xe;
@@ -108,7 +109,7 @@ VertexBufferResource* ResourceCache::FetchVertexBuffer(
 
 uint64_t ResourceCache::HashRange(const MemoryRange& memory_range) {
   // We could do something smarter here to potentially early exit.
-  return xe_hash64(memory_range.host_base, memory_range.length);
+  return hash64(memory_range.host_base, memory_range.length);
 }
 
 void ResourceCache::SyncRange(uint32_t address, int length) {

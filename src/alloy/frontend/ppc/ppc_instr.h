@@ -23,6 +23,14 @@ namespace alloy {
 namespace frontend {
 namespace ppc {
 
+inline uint32_t make_bitmask(uint32_t a, uint32_t b) {
+  return (static_cast<uint32_t>(-1) >> (31 - b)) & ~((1u << a) - 1);
+}
+
+inline uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
+  return (value & make_bitmask(a, b)) >> a;
+}
+
 // TODO(benvanik): rename these
 typedef enum {
   kXEPPCInstrFormatI = 0,

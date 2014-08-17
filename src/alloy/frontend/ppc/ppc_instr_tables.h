@@ -96,7 +96,7 @@ static InstrType** instr_table_prep(InstrType* unprep, int unprep_count, int a,
   int prep_count = (int)pow(2.0, b - a + 1);
   InstrType** prep = (InstrType**)xe_calloc(prep_count * sizeof(void*));
   for (int n = 0; n < unprep_count; n++) {
-    int ordinal = XESELECTBITS(unprep[n].opcode, a, b);
+    int ordinal = select_bits(unprep[n].opcode, a, b);
     prep[ordinal] = &unprep[n];
   }
   return prep;
@@ -108,7 +108,7 @@ static InstrType** instr_table_prep_63(InstrType* unprep, int unprep_count,
   int prep_count = (int)pow(2.0, b - a + 1);
   InstrType** prep = (InstrType**)xe_calloc(prep_count * sizeof(void*));
   for (int n = 0; n < unprep_count; n++) {
-    int ordinal = XESELECTBITS(unprep[n].opcode, a, b);
+    int ordinal = select_bits(unprep[n].opcode, a, b);
     if (unprep[n].format == kXEPPCInstrFormatA) {
       // Must splat this into all of the slots that it could be in.
       for (int m = 0; m < 32; m++) {

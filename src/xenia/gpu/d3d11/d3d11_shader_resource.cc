@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_shader_resource.h>
 
+#include <xenia/core/hash.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_geometry_shader.h>
 #include <xenia/gpu/d3d11/d3d11_resource_cache.h>
@@ -46,7 +47,7 @@ ID3D10Blob* D3D11ShaderCompile(XE_GPU_SHADER_TYPE type,
   if (FLAGS_dump_shaders.size()) {
     base_path = FLAGS_dump_shaders.c_str();
   }
-  size_t hash = xe_hash64(disasm_source, strlen(disasm_source)); // ?
+  size_t hash = hash64(disasm_source, strlen(disasm_source)); // ?
   char file_name[poly::max_path];
   xesnprintfa(file_name, XECOUNT(file_name),
       "%s/gen_%.16llX.%s",

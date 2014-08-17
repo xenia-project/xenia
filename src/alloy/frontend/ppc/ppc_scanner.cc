@@ -50,8 +50,8 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
 
   XELOGSDB("Analyzing function %.8X...", symbol_info->address());
 
-  uint32_t start_address = symbol_info->address();
-  uint32_t end_address = symbol_info->end_address();
+  uint32_t start_address = static_cast<uint32_t>(symbol_info->address());
+  uint32_t end_address = static_cast<uint32_t>(symbol_info->end_address());
   uint32_t address = start_address;
   uint32_t furthest_target = start_address;
   size_t blocks_found = 0;

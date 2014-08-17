@@ -20,6 +20,32 @@
 
 namespace poly {
 
+// Rounds up the given value to the given alignment.
+template <typename T>
+T align(T value, T alignment) {
+  return (value + alignment - 1) & ~(alignment - 1);
+}
+
+// Rounds the given number up to the next highest multiple.
+template <typename T, typename V>
+T round_up(T value, V multiple) {
+  return value + multiple - 1 - (value - 1) % multiple;
+}
+
+// Gets the next power of two value that is greater than or equal to the given
+// value.
+template <typename T>
+T next_pow2(T value) {
+  value--;
+  value |= value >> 1;
+  value |= value >> 2;
+  value |= value >> 4;
+  value |= value >> 8;
+  value |= value >> 16;
+  value++;
+  return value;
+}
+
 // lzcnt instruction, typed for integers of all sizes.
 // The number of leading zero bits in the value parameter. If value is zero, the
 // return value is the size of the input operand (8, 16, 32, or 64). If the most

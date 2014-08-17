@@ -322,48 +322,48 @@ InstrType* GetInstrType(uint32_t code) {
   switch (code >> 26) {
     case 4:
       // Opcode = 4, index = bits 10-0 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_4[XESELECTBITS(code, 0,
-                                                                      10)];
+      slot =
+          alloy::frontend::ppc::tables::instr_table_4[select_bits(code, 0, 10)];
       break;
     case 19:
       // Opcode = 19, index = bits 10-1 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_19[XESELECTBITS(code, 1,
-                                                                       10)];
+      slot = alloy::frontend::ppc::tables::instr_table_19[select_bits(code, 1,
+                                                                      10)];
       break;
     case 30:
       // Opcode = 30, index = bits 4-1 (4)
       // Special cased to an uber instruction.
-      slot = alloy::frontend::ppc::tables::instr_table_30[XESELECTBITS(code, 0,
-                                                                       0)];
+      slot =
+          alloy::frontend::ppc::tables::instr_table_30[select_bits(code, 0, 0)];
       break;
     case 31:
       // Opcode = 31, index = bits 10-1 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_31[XESELECTBITS(code, 1,
-                                                                       10)];
+      slot = alloy::frontend::ppc::tables::instr_table_31[select_bits(code, 1,
+                                                                      10)];
       break;
     case 58:
       // Opcode = 58, index = bits 1-0 (2)
-      slot = alloy::frontend::ppc::tables::instr_table_58[XESELECTBITS(code, 0,
-                                                                       1)];
+      slot =
+          alloy::frontend::ppc::tables::instr_table_58[select_bits(code, 0, 1)];
       break;
     case 59:
       // Opcode = 59, index = bits 5-1 (5)
-      slot = alloy::frontend::ppc::tables::instr_table_59[XESELECTBITS(code, 1,
-                                                                       5)];
+      slot =
+          alloy::frontend::ppc::tables::instr_table_59[select_bits(code, 1, 5)];
       break;
     case 62:
       // Opcode = 62, index = bits 1-0 (2)
-      slot = alloy::frontend::ppc::tables::instr_table_62[XESELECTBITS(code, 0,
-                                                                       1)];
+      slot =
+          alloy::frontend::ppc::tables::instr_table_62[select_bits(code, 0, 1)];
       break;
     case 63:
       // Opcode = 63, index = bits 10-1 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_63[XESELECTBITS(code, 1,
-                                                                       10)];
+      slot = alloy::frontend::ppc::tables::instr_table_63[select_bits(code, 1,
+                                                                      10)];
       break;
     default:
       slot =
-          alloy::frontend::ppc::tables::instr_table[XESELECTBITS(code, 26, 31)];
+          alloy::frontend::ppc::tables::instr_table[select_bits(code, 26, 31)];
       break;
   }
   if (slot && slot->opcode) {

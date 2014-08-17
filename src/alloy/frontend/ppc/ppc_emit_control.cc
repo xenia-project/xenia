@@ -176,7 +176,7 @@ XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
   // 43210 (real)
 
   Value* ctr_ok = NULL;
-  if (XESELECTBITS(i.B.BO, 2, 2)) {
+  if (select_bits(i.B.BO, 2, 2)) {
     // Ignore ctr.
   } else {
     // Decrement counter.
@@ -187,7 +187,7 @@ XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
     ctr = f.Truncate(ctr, INT32_TYPE);
     // TODO(benvanik): could do something similar to cond and avoid the
     // is_true/branch_true pairing.
-    if (XESELECTBITS(i.B.BO, 1, 1)) {
+    if (select_bits(i.B.BO, 1, 1)) {
       ctr_ok = f.IsFalse(ctr);
     } else {
       ctr_ok = f.IsTrue(ctr);
@@ -196,12 +196,12 @@ XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
 
   Value* cond_ok = NULL;
   bool not_cond_ok = false;
-  if (XESELECTBITS(i.B.BO, 4, 4)) {
+  if (select_bits(i.B.BO, 4, 4)) {
     // Ignore cond.
   } else {
     Value* cr = f.LoadCRField(i.B.BI >> 2, i.B.BI & 3);
     cond_ok = cr;
-    if (XESELECTBITS(i.B.BO, 3, 3)) {
+    if (select_bits(i.B.BO, 3, 3)) {
       // Expect true.
       not_cond_ok = false;
     } else {
@@ -248,12 +248,12 @@ XEEMITTER(bcctrx, 0x4C000420, XL)(PPCHIRBuilder& f, InstrData& i) {
 
   Value* cond_ok = NULL;
   bool not_cond_ok = false;
-  if (XESELECTBITS(i.XL.BO, 4, 4)) {
+  if (select_bits(i.XL.BO, 4, 4)) {
     // Ignore cond.
   } else {
     Value* cr = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
     cond_ok = cr;
-    if (XESELECTBITS(i.XL.BO, 3, 3)) {
+    if (select_bits(i.XL.BO, 3, 3)) {
       // Expect true.
       not_cond_ok = false;
     } else {
@@ -282,7 +282,7 @@ XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
   // 43210 (real)
 
   Value* ctr_ok = NULL;
-  if (XESELECTBITS(i.XL.BO, 2, 2)) {
+  if (select_bits(i.XL.BO, 2, 2)) {
     // Ignore ctr.
   } else {
     // Decrement counter.
@@ -293,7 +293,7 @@ XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
     ctr = f.Truncate(ctr, INT32_TYPE);
     // TODO(benvanik): could do something similar to cond and avoid the
     // is_true/branch_true pairing.
-    if (XESELECTBITS(i.XL.BO, 1, 1)) {
+    if (select_bits(i.XL.BO, 1, 1)) {
       ctr_ok = f.IsFalse(ctr);
     } else {
       ctr_ok = f.IsTrue(ctr);
@@ -302,12 +302,12 @@ XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
 
   Value* cond_ok = NULL;
   bool not_cond_ok = false;
-  if (XESELECTBITS(i.XL.BO, 4, 4)) {
+  if (select_bits(i.XL.BO, 4, 4)) {
     // Ignore cond.
   } else {
     Value* cr = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
     cond_ok = cr;
-    if (XESELECTBITS(i.XL.BO, 3, 3)) {
+    if (select_bits(i.XL.BO, 3, 3)) {
       // Expect true.
       not_cond_ok = false;
     } else {

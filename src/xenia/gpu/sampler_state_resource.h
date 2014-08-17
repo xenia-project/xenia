@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_SAMPLER_STATE_RESOURCE_H_
 #define XENIA_GPU_SAMPLER_STATE_RESOURCE_H_
 
+#include <xenia/core/hash.h>
 #include <xenia/gpu/resource.h>
 #include <xenia/gpu/xenos/ucode.h>
 #include <xenia/gpu/xenos/xenos.h>

@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/texture_resource.h>
 
+#include <poly/math.h>
 #include <xenia/gpu/xenos/ucode.h>
 #include <xenia/gpu/xenos/xenos.h>
 
@@ -253,16 +254,16 @@ void TextureResource::Info::CalculateTextureSizes2D(
         width_multiple = minimum_multiple;
       }
     }
-    size_2d.input_width = XEROUNDUP(size_2d.logical_width, width_multiple);
-    size_2d.input_height = XEROUNDUP(size_2d.logical_height, 32);
+    size_2d.input_width = poly::round_up(size_2d.logical_width, width_multiple);
+    size_2d.input_height = poly::round_up(size_2d.logical_height, 32);
     size_2d.output_width = size_2d.logical_width;
     size_2d.output_height = size_2d.logical_height;
   } else {
     // must be 128x128
-    size_2d.input_width = XEROUNDUP(size_2d.logical_width, 128);
-    size_2d.input_height = XEROUNDUP(size_2d.logical_height, 128);
-    size_2d.output_width = XENEXTPOW2(size_2d.logical_width);
-    size_2d.output_height = XENEXTPOW2(size_2d.logical_height);
+    size_2d.input_width = poly::round_up(size_2d.logical_width, 128);
+    size_2d.input_height = poly::round_up(size_2d.logical_height, 128);
+    size_2d.output_width = poly::next_pow2(size_2d.logical_width);
+    size_2d.output_height = poly::next_pow2(size_2d.logical_height);
   }
 
   size_2d.logical_pitch = (size_2d.logical_width / block_size) * texel_pitch;

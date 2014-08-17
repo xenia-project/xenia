@@ -91,28 +91,9 @@ typedef XECACHEALIGN volatile void xe_aligned_void_t;
 #define XECOUNT(array)          (sizeof(array) / sizeof(array[0]))
 #endif  // MSVC
 
-XEFORCEINLINE size_t hash_combine(size_t seed) {
-  return seed;
-}
-template <typename T, typename... Ts>
-size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
-  std::hash<T> hasher;
-  seed ^= hasher(v) + 0x9E3779B9 + (seed << 6) + (seed >> 2);
-  return hash_combine(seed, vs...);
-}
-
 #if XE_PLATFORM_WIN32
 #define XESAFERELEASE(p)        if (p) { p->Release(); }
 #endif  // WIN32
-
-#define XEBITMASK(a, b) (((unsigned) -1 >> (31 - (b))) & ~((1U << (a)) - 1))
-#define XESELECTBITS(value, a, b) ((value & XEBITMASK(a, b)) >> a)
-
-#define XEROUNDUP(v, multiple)  ((v) + (multiple) - 1 - ((v) - 1) % (multiple))
-static inline uint32_t XENEXTPOW2(uint32_t v) {
-  v--; v |= v >> 1; v |= v >> 2; v |= v >> 4; v |= v >> 8; v |= v >> 16; v++; return v;
-}
-#define XEALIGN(value, align) ((value + align - 1) & ~(align - 1))
 
 #define XEFAIL()                goto XECLEANUP
 #define XEEXPECT(expr)          if (!(expr)         ) { goto XECLEANUP; }

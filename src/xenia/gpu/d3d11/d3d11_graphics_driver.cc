@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/d3d11/d3d11_graphics_driver.h>
 
+#include <xenia/core/hash.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/buffer_resource.h>
 #include <xenia/gpu/shader_resource.h>
