@@ -16,13 +16,10 @@
 #include <xenia/kernel/util/shim_utils.h>
 #include <xenia/kernel/util/xex2.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL XamGetSystemVersion_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XamGetSystemVersion()");
   // eh, just picking one. If we go too low we may break new games, but
   // this value seems to be used for conditionally loading symbols and if
@@ -32,9 +29,7 @@ SHIM_CALL XamGetSystemVersion_shim(
   SHIM_SET_RETURN_64(0);
 }
 
-
-SHIM_CALL XGetAVPack_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetAVPack_shim(PPCContext* ppc_state, KernelState* state) {
   // DWORD
   // Not sure what the values are for this, but 6 is VGA.
   // Other likely values are 3/4/8 for HDMI or something.
@@ -43,17 +38,13 @@ SHIM_CALL XGetAVPack_shim(
   SHIM_SET_RETURN_64(6);
 }
 
-
-SHIM_CALL XGetGameRegion_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetGameRegion_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XGetGameRegion()");
 
   SHIM_SET_RETURN_64(XEX_REGION_ALL);
 }
 
-
-SHIM_CALL XGetLanguage_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetLanguage_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XGetLanguage()");
 
   uint32_t desired_language = X_LANGUAGE_ENGLISH;
@@ -71,36 +62,28 @@ SHIM_CALL XGetLanguage_shim(
   SHIM_SET_RETURN_64(desired_language);
 }
 
-
-SHIM_CALL XamLoaderGetLaunchDataSize_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_state,
+                                          KernelState* state) {
   uint32_t size_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "XamLoaderGetLaunchDataSize(%.8X)",
-      size_ptr);
+  XELOGD("XamLoaderGetLaunchDataSize(%.8X)", size_ptr);
 
   SHIM_SET_MEM_32(size_ptr, 0);
 
   SHIM_SET_RETURN_64(0);
 }
 
-
-SHIM_CALL XamLoaderGetLaunchData_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t buffer_size = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "XamLoaderGetLaunchData(%.8X, %d)",
-      buffer_ptr, buffer_size);
+  XELOGD("XamLoaderGetLaunchData(%.8X, %d)", buffer_ptr, buffer_size);
 
   SHIM_SET_RETURN_64(0);
 }
 
-
-SHIM_CALL XamEnumerate_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t zero = SHIM_GET_ARG_32(1);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
@@ -108,14 +91,11 @@ SHIM_CALL XamEnumerate_shim(
   uint32_t item_count_ptr = SHIM_GET_ARG_32(4);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(5);
 
-  XELOGD(
-      "XamEnumerate(%.8X, %d, %d, %.8X, %d, %.8X, %.8X)",
-      handle, zero, buffer_ptr, buffer_length, item_count_ptr,
-      overlapped_ptr);
+  XELOGD("XamEnumerate(%.8X, %d, %d, %.8X, %d, %.8X, %.8X)", handle, zero,
+         buffer_ptr, buffer_length, item_count_ptr, overlapped_ptr);
 
   XEnumerator* e = nullptr;
-  if (XFAILED(state->object_table()->GetObject(
-      handle, (XObject**)&e))) {
+  if (XFAILED(state->object_table()->GetObject(handle, (XObject**)&e))) {
     SHIM_SET_RETURN_64(X_ERROR_INVALID_HANDLE);
     return;
   }
@@ -135,13 +115,11 @@ SHIM_CALL XamEnumerate_shim(
   SHIM_SET_RETURN_64(0);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterInfoExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterInfoExports(ExportResolver* export_resolver,
+                                          KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamGetSystemVersion, state);
   SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
   SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);

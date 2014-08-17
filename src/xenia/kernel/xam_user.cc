@@ -16,22 +16,15 @@
 #include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL XamUserGetXUID_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserGetXUID_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(1);
   uint32_t xuid_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamUserGetXUID(%d, %.8X, %.8X)",
-      user_index,
-      unk,
-      xuid_ptr);
+  XELOGD("XamUserGetXUID(%d, %.8X, %.8X)", user_index, unk, xuid_ptr);
 
   if (user_index == 0) {
     const auto& user_profile = state->user_profile();
@@ -44,14 +37,11 @@ SHIM_CALL XamUserGetXUID_shim(
   }
 }
 
-
-SHIM_CALL XamUserGetSigninState_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_state,
+                                     KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "XamUserGetSigninState(%d)",
-      user_index);
+  XELOGD("XamUserGetSigninState(%d)", user_index);
 
   // Lie and say we are signed in, but local-only.
   // This should keep games from asking us to sign in and also keep them
@@ -64,24 +54,20 @@ SHIM_CALL XamUserGetSigninState_shim(
   }
 }
 
-
-SHIM_CALL XamUserGetSigninInfo_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserGetSigninInfo_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t info_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamUserGetSigninInfo(%d, %.8X, %.8X)",
-      user_index, flags, info_ptr);
+  XELOGD("XamUserGetSigninInfo(%d, %.8X, %.8X)", user_index, flags, info_ptr);
 
   if (user_index == 0) {
     const auto& user_profile = state->user_profile();
     SHIM_SET_MEM_64(info_ptr + 0, user_profile->xuid());
-    SHIM_SET_MEM_32(info_ptr + 8, 0); // maybe zero?
+    SHIM_SET_MEM_32(info_ptr + 8, 0);  // maybe zero?
     SHIM_SET_MEM_32(info_ptr + 12, user_profile->signin_state());
-    SHIM_SET_MEM_32(info_ptr + 16, 0); // ?
-    SHIM_SET_MEM_32(info_ptr + 20, 0); // ?
+    SHIM_SET_MEM_32(info_ptr + 16, 0);  // ?
+    SHIM_SET_MEM_32(info_ptr + 20, 0);  // ?
     char* buffer = (char*)SHIM_MEM_ADDR(info_ptr + 24);
     strcpy(buffer, user_profile->name().data());
     SHIM_SET_RETURN_32(0);
@@ -90,16 +76,12 @@ SHIM_CALL XamUserGetSigninInfo_shim(
   }
 }
 
-
-SHIM_CALL XamUserGetName_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserGetName_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
   uint32_t buffer_len = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamUserGetName(%d, %.8X, %d)",
-      user_index, buffer_ptr, buffer_len);
+  XELOGD("XamUserGetName(%d, %.8X, %d)", user_index, buffer_ptr, buffer_len);
 
   if (user_index == 0) {
     const auto& user_profile = state->user_profile();
@@ -111,10 +93,9 @@ SHIM_CALL XamUserGetName_shim(
   }
 }
 
-
 // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/xboxtools.cpp
-SHIM_CALL XamUserReadProfileSettings_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
+                                          KernelState* state) {
   uint32_t title_id = SHIM_GET_ARG_32(0);
   uint32_t user_index = SHIM_GET_ARG_32(1);
   uint32_t unk_0 = SHIM_GET_ARG_32(2);
@@ -130,7 +111,8 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   uint32_t buffer_size = SHIM_MEM_32(buffer_size_ptr);
 
   XELOGD(
-      "XamUserReadProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, %.8X)",
+      "XamUserReadProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, "
+      "%.8X)",
       title_id, user_index, unk_0, unk_1, setting_count, setting_ids_ptr,
       buffer_size_ptr, buffer_size, buffer_ptr, overlapped_ptr);
 
@@ -171,14 +153,16 @@ SHIM_CALL XamUserReadProfileSettings_shim(
     uint32_t setting_id = SHIM_MEM_32(setting_ids_ptr + n * 4);
     auto setting = user_profile->GetSetting(setting_id);
     if (setting) {
-      auto extra_size = static_cast<uint32_t>(setting->extra_size());;
+      auto extra_size = static_cast<uint32_t>(setting->extra_size());
+      ;
       size_needed += extra_size;
     }
   }
   SHIM_SET_MEM_32(buffer_size_ptr, size_needed);
   if (buffer_size < size_needed) {
     if (overlapped_ptr) {
-      state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_INSUFFICIENT_BUFFER);
+      state->CompleteOverlappedImmediate(overlapped_ptr,
+                                         X_ERROR_INSUFFICIENT_BUFFER);
     }
     SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
     return;
@@ -201,8 +185,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(
     SHIM_SET_MEM_32(user_data_ptr + 16, setting_id);
     if (setting) {
       buffer_offset = setting->Append(SHIM_MEM_ADDR(user_data_ptr + 24),
-                                      SHIM_MEM_ADDR(buffer_ptr),
-                                      buffer_offset);
+                                      SHIM_MEM_ADDR(buffer_ptr), buffer_offset);
     } else {
       memset(SHIM_MEM_ADDR(user_data_ptr + 24), 0, 16);
     }
@@ -217,18 +200,18 @@ SHIM_CALL XamUserReadProfileSettings_shim(
   }
 }
 
-
-SHIM_CALL XamUserWriteProfileSettings_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_state,
+                                           KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t unknown = SHIM_GET_ARG_32(1);
   uint32_t setting_count = SHIM_GET_ARG_32(2);
   uint32_t settings_ptr = SHIM_GET_ARG_32(3);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
-  
+
   XELOGD(
-    "XamUserWriteProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, %.8X)",
-    user_index, unknown, setting_count, settings_ptr, overlapped_ptr);
+      "XamUserWriteProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, "
+      "%.8X)",
+      user_index, unknown, setting_count, settings_ptr, overlapped_ptr);
 
   if (!setting_count || !settings_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
@@ -251,22 +234,19 @@ SHIM_CALL XamUserWriteProfileSettings_shim(
   if (overlapped_ptr) {
     state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
-  }
-  else {
+  } else {
     SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
   }
 }
 
-
-SHIM_CALL XamUserCheckPrivilege_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserCheckPrivilege_shim(PPCContext* ppc_state,
+                                     KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t mask = SHIM_GET_ARG_32(1);
   uint32_t out_value_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamUserCheckPrivilege(%d, %.8X, %.8X)",
-      user_index, mask, out_value_ptr);
+  XELOGD("XamUserCheckPrivilege(%d, %.8X, %.8X)", user_index, mask,
+         out_value_ptr);
 
   // If we deny everything, games should hopefully not try to do stuff.
   SHIM_SET_MEM_32(out_value_ptr, 0);
@@ -274,15 +254,11 @@ SHIM_CALL XamUserCheckPrivilege_shim(
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-
-SHIM_CALL XamShowSigninUI_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamShowSigninUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);
   uint32_t unk_mask = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "XamShowSigninUI(%d, %.8X)",
-      unk_0, unk_mask);
+  XELOGD("XamShowSigninUI(%d, %.8X)", unk_0, unk_mask);
 
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification.
@@ -291,9 +267,8 @@ SHIM_CALL XamShowSigninUI_shim(
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-
-SHIM_CALL XamUserCreateAchievementEnumerator_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserCreateAchievementEnumerator_shim(PPCContext* ppc_state,
+                                                  KernelState* state) {
   uint32_t title_id = SHIM_GET_ARG_32(0);
   uint32_t user_index = SHIM_GET_ARG_32(1);
   uint32_t xuid = SHIM_GET_ARG_32(2);
@@ -304,7 +279,8 @@ SHIM_CALL XamUserCreateAchievementEnumerator_shim(
   uint32_t handle_ptr = SHIM_GET_ARG_32(7);
 
   XELOGD(
-      "XamUserCreateAchievementEnumerator(%.8X, %d, %.8X, %.8X, %d, %d, %.8X, %.8X)",
+      "XamUserCreateAchievementEnumerator(%.8X, %d, %.8X, %.8X, %d, %d, %.8X, "
+      "%.8X)",
       title_id, user_index, xuid, flags, offset, count, buffer, handle_ptr);
 
   XEnumerator* e = new XEnumerator(state);
@@ -315,9 +291,7 @@ SHIM_CALL XamUserCreateAchievementEnumerator_shim(
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-
-SHIM_CALL XamWriteGamerTile_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamWriteGamerTile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t arg0 = SHIM_GET_ARG_32(0);
   uint32_t arg1 = SHIM_GET_ARG_32(1);
   uint32_t arg2 = SHIM_GET_ARG_32(2);
@@ -325,26 +299,22 @@ SHIM_CALL XamWriteGamerTile_shim(
   uint32_t arg4 = SHIM_GET_ARG_32(4);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(5);
 
-  XELOGD(
-    "XamWriteGamerTile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
-    arg0, arg1, arg2, arg3, arg4, overlapped_ptr);
+  XELOGD("XamWriteGamerTile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", arg0, arg1,
+         arg2, arg3, arg4, overlapped_ptr);
 
   if (overlapped_ptr) {
     state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
-  }
-  else {
+  } else {
     SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
   }
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterUserExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterUserExports(ExportResolver* export_resolver,
+                                          KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamUserGetXUID, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninState, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);

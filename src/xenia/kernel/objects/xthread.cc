@@ -16,41 +16,34 @@
 #include <xenia/kernel/objects/xevent.h>
 #include <xenia/kernel/objects/xuser_module.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace alloy;
-using namespace xe;
 using namespace xe::cpu;
-using namespace xe::kernel;
 
+uint32_t next_xthread_id = 0;
+thread_local XThread* current_thread_tls;
+std::mutex critical_region_;
+XThread* shared_kernel_thread_ = 0;
 
-namespace {
-  static uint32_t next_xthread_id = 0;
-  static thread_local XThread* current_thread_tls;
-  static std::mutex critical_region_;
-  static XThread* shared_kernel_thread_ = 0;
-}
-
-
-XThread::XThread(KernelState* kernel_state,
-                 uint32_t stack_size,
-                 uint32_t xapi_thread_startup,
-                 uint32_t start_address, uint32_t start_context,
-                 uint32_t creation_flags) :
-    XObject(kernel_state, kTypeThread),
-    thread_id_(++next_xthread_id),
-    thread_handle_(0),
-    thread_state_address_(0),
-    thread_state_(0),
-    event_(NULL),
-    irql_(0) {
-  creation_params_.stack_size           = stack_size;
-  creation_params_.xapi_thread_startup  = xapi_thread_startup;
-  creation_params_.start_address        = start_address;
-  creation_params_.start_context        = start_context;
+XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
+                 uint32_t xapi_thread_startup, uint32_t start_address,
+                 uint32_t start_context, uint32_t creation_flags)
+    : XObject(kernel_state, kTypeThread),
+      thread_id_(++next_xthread_id),
+      thread_handle_(0),
+      thread_state_address_(0),
+      thread_state_(0),
+      event_(NULL),
+      irql_(0) {
+  creation_params_.stack_size = stack_size;
+  creation_params_.xapi_thread_startup = xapi_thread_startup;
+  creation_params_.start_address = start_address;
+  creation_params_.start_context = start_context;
 
   // top 8 bits = processor ID (or 0 for default)
   // bit 0 = 1 to create suspended
-  creation_params_.creation_flags       = creation_flags;
+  creation_params_.creation_flags = creation_flags;
 
   // Adjust stack size - min of 16k.
   if (creation_params_.stack_size < 16 * 1024) {
@@ -108,8 +101,7 @@ XThread* XThread::GetCurrentThread() {
     XThread::EnterCriticalRegion();
     thread = shared_kernel_thread_;
     if (!thread) {
-      thread = new XThread(
-          KernelState::shared(), 32 * 1024, 0, 0, 0, 0);
+      thread = new XThread(KernelState::shared(), 32 * 1024, 0, 0, 0, 0);
       shared_kernel_thread_ = thread;
       current_thread_tls = thread;
     }
@@ -127,21 +119,17 @@ uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
   return poly::load_and_swap<uint32_t>(thread_state_block + 0x14C);
 }
 
-uint32_t XThread::thread_state() {
-  return thread_state_address_;
-}
+uint32_t XThread::thread_state() { return thread_state_address_; }
 
-uint32_t XThread::thread_id() {
-  return thread_id_;
-}
+uint32_t XThread::thread_id() { return thread_id_; }
 
 uint32_t XThread::last_error() {
-  uint8_t *p = memory()->Translate(thread_state_address_);
+  uint8_t* p = memory()->Translate(thread_state_address_);
   return poly::load_and_swap<uint32_t>(p + 0x160);
 }
 
 void XThread::set_last_error(uint32_t error_code) {
-  uint8_t *p = memory()->Translate(thread_state_address_);
+  uint8_t* p = memory()->Translate(thread_state_address_);
   poly::store_and_swap<uint32_t>(p + 0x160, error_code);
 }
 
@@ -163,8 +151,8 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  thread_state_address_ = (uint32_t)memory()->HeapAlloc(
-      0, 2048, MEMORY_FLAG_ZERO);
+  thread_state_address_ =
+      (uint32_t)memory()->HeapAlloc(0, 2048, alloy::MEMORY_FLAG_ZERO);
   if (!thread_state_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -178,14 +166,14 @@ X_STATUS XThread::Create() {
   // Allocate thread scratch.
   // This is used by interrupts/APCs/etc so we can round-trip pointers through.
   scratch_size_ = 4 * 16;
-  scratch_address_ = (uint32_t)memory()->HeapAlloc(
-      0, scratch_size_, MEMORY_FLAG_ZERO);
+  scratch_address_ =
+      (uint32_t)memory()->HeapAlloc(0, scratch_size_, alloy::MEMORY_FLAG_ZERO);
 
   // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();
   uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
-  tls_address_ = (uint32_t)memory()->HeapAlloc(
-      0, tls_size, MEMORY_FLAG_ZERO);
+  tls_address_ =
+      (uint32_t)memory()->HeapAlloc(0, tls_size, alloy::MEMORY_FLAG_ZERO);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     module->Release();
@@ -194,22 +182,21 @@ X_STATUS XThread::Create() {
 
   // Copy in default TLS info.
   // TODO(benvanik): is this correct?
-  memory()->Copy(
-      tls_address_, header->tls_info.raw_data_address, tls_size);
+  memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
 
   // Setup the thread state block (last error/etc).
-  uint8_t *p = memory()->Translate(thread_state_address_);
+  uint8_t* p = memory()->Translate(thread_state_address_);
   poly::store_and_swap<uint32_t>(p + 0x000, tls_address_);
   poly::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
   poly::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  poly::store_and_swap<uint32_t>(p + 0x150, 0); // ?
-  poly::store_and_swap<uint32_t>(p + 0x160, 0); // last error
+  poly::store_and_swap<uint32_t>(p + 0x150, 0);  // ?
+  poly::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
 
   // Allocate processor thread state.
   // This is thread safe.
-  thread_state_ = new XenonThreadState(
-      kernel_state()->processor()->runtime(),
-      thread_id_, creation_params_.stack_size, thread_state_address_);
+  thread_state_ =
+      new XenonThreadState(kernel_state()->processor()->runtime(), thread_id_,
+                           creation_params_.stack_size, thread_state_address_);
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {
@@ -268,13 +255,10 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 
 X_STATUS XThread::PlatformCreate() {
   bool suspended = creation_params_.creation_flags & 0x1;
-  thread_handle_ = CreateThread(
-      NULL,
-      creation_params_.stack_size,
-      (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
-      this,
-      suspended ? CREATE_SUSPENDED : 0,
-      NULL);
+  thread_handle_ =
+      CreateThread(NULL, creation_params_.stack_size,
+                   (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32, this,
+                   suspended ? CREATE_SUSPENDED : 0, NULL);
   if (!thread_handle_) {
     uint32_t last_error = GetLastError();
     // TODO(benvanik): translate?
@@ -319,20 +303,15 @@ X_STATUS XThread::PlatformCreate() {
   if (creation_params_.creation_flags & 0x1) {
 #if XE_PLATFORM_OSX
     result_code = pthread_create_suspended_np(
-        reinterpret_cast<pthread_t*>(&thread_handle_),
-        &attr,
-        &XThreadStartCallbackPthreads,
-        this);
+        reinterpret_cast<pthread_t*>(&thread_handle_), &attr,
+        &XThreadStartCallbackPthreads, this);
 #else
     // TODO(benvanik): pthread_create_suspended_np on linux
     assert_always();
 #endif  // OSX
   } else {
-    result_code = pthread_create(
-        reinterpret_cast<pthread_t*>(&thread_handle_),
-        &attr,
-        &XThreadStartCallbackPthreads,
-        this);
+    result_code = pthread_create(reinterpret_cast<pthread_t*>(&thread_handle_),
+                                 &attr, &XThreadStartCallbackPthreads, this);
   }
 
   pthread_attr_destroy(&attr);
@@ -389,28 +368,21 @@ void XThread::EnterCriticalRegion() {
   critical_region_.lock();
 }
 
-void XThread::LeaveCriticalRegion() {
-  critical_region_.unlock();
-}
+void XThread::LeaveCriticalRegion() { critical_region_.unlock(); }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
   return irql_.exchange(new_irql);
 }
 
-void XThread::LowerIrql(uint32_t new_irql) {
-  irql_ = new_irql;
-}
+void XThread::LowerIrql(uint32_t new_irql) { irql_ = new_irql; }
 
-void XThread::LockApc() {
-  apc_lock_.lock();
-}
+void XThread::LockApc() { apc_lock_.lock(); }
 
 void XThread::UnlockApc() {
   bool needs_apc = apc_list_->HasPending();
   apc_lock_.unlock();
   if (needs_apc) {
-    QueueUserAPC(reinterpret_cast<PAPCFUNC>(DeliverAPCs),
-                 thread_handle_,
+    QueueUserAPC(reinterpret_cast<PAPCFUNC>(DeliverAPCs), thread_handle_,
                  reinterpret_cast<ULONG_PTR>(this));
   }
 }
@@ -447,16 +419,15 @@ void XThread::DeliverAPCs(void* data) {
     poly::store_and_swap<uint32_t>(scratch_ptr + 4, normal_context);
     poly::store_and_swap<uint32_t>(scratch_ptr + 8, system_arg1);
     poly::store_and_swap<uint32_t>(scratch_ptr + 12, system_arg2);
-    // kernel_routine(apc_address, &normal_routine, &normal_context, &system_arg1, &system_arg2)
+    // kernel_routine(apc_address, &normal_routine, &normal_context,
+    // &system_arg1, &system_arg2)
     uint64_t kernel_args[] = {
-      apc_address,
-      thread->scratch_address_ + 0,
-      thread->scratch_address_ + 4,
-      thread->scratch_address_ + 8,
-      thread->scratch_address_ + 12,
+        apc_address,                   thread->scratch_address_ + 0,
+        thread->scratch_address_ + 4,  thread->scratch_address_ + 8,
+        thread->scratch_address_ + 12,
     };
-    processor->ExecuteInterrupt(
-        0, kernel_routine, kernel_args, poly::countof(kernel_args));
+    processor->ExecuteInterrupt(0, kernel_routine, kernel_args,
+                                poly::countof(kernel_args));
     normal_routine = poly::load_and_swap<uint32_t>(scratch_ptr + 0);
     normal_context = poly::load_and_swap<uint32_t>(scratch_ptr + 4);
     system_arg1 = poly::load_and_swap<uint32_t>(scratch_ptr + 8);
@@ -467,9 +438,9 @@ void XThread::DeliverAPCs(void* data) {
     if (normal_routine) {
       thread->UnlockApc();
       // normal_routine(normal_context, system_arg1, system_arg2)
-      uint64_t normal_args[] = { normal_context, system_arg1, system_arg2 };
-      processor->ExecuteInterrupt(
-          0, normal_routine, normal_args, poly::countof(normal_args));
+      uint64_t normal_args[] = {normal_context, system_arg1, system_arg2};
+      processor->ExecuteInterrupt(0, normal_routine, normal_args,
+                                  poly::countof(normal_args));
       thread->LockApc();
     }
   }
@@ -493,17 +464,15 @@ void XThread::RundownAPCs() {
     // Call the rundown routine.
     if (rundown_routine) {
       // rundown_routine(apc)
-      uint64_t args[] = { apc_address };
-      kernel_state()->processor()->ExecuteInterrupt(
-          0, rundown_routine, args, poly::countof(args));
+      uint64_t args[] = {apc_address};
+      kernel_state()->processor()->ExecuteInterrupt(0, rundown_routine, args,
+                                                    poly::countof(args));
     }
   }
   UnlockApc();
 }
 
-int32_t XThread::QueryPriority() {
-  return GetThreadPriority(thread_handle_);
-}
+int32_t XThread::QueryPriority() { return GetThreadPriority(thread_handle_); }
 
 void XThread::SetPriority(int32_t increment) {
   SetThreadPriority(thread_handle_, increment);
@@ -538,8 +507,8 @@ X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
   }
 }
 
-X_STATUS XThread::Delay(
-  uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
+X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
+                        uint64_t interval) {
   int64_t timeout_ticks = interval;
   DWORD timeout_ms;
   if (timeout_ticks > 0) {
@@ -549,21 +518,22 @@ X_STATUS XThread::Delay(
     timeout_ms = 0;
   } else if (timeout_ticks < 0) {
     // Relative time.
-    timeout_ms = (DWORD)(-timeout_ticks / 10000); // Ticks -> MS
+    timeout_ms = (DWORD)(-timeout_ticks / 10000);  // Ticks -> MS
   } else {
     timeout_ms = 0;
   }
   DWORD result = SleepEx(timeout_ms, alertable ? TRUE : FALSE);
   switch (result) {
-  case 0:
-    return X_STATUS_SUCCESS;
-  case WAIT_IO_COMPLETION:
-    return X_STATUS_USER_APC;
-  default:
-    return X_STATUS_ALERTED;
+    case 0:
+      return X_STATUS_SUCCESS;
+    case WAIT_IO_COMPLETION:
+      return X_STATUS_USER_APC;
+    default:
+      return X_STATUS_ALERTED;
   }
 }
 
-void* XThread::GetWaitHandle() {
-  return event_->GetWaitHandle();
-}
+void* XThread::GetWaitHandle() { return event_->GetWaitHandle(); }
+
+}  // namespace kernel
+}  // namespace xe

@@ -9,15 +9,14 @@
 
 #include <xenia/kernel/objects/xnotify_listener.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::kernel;
-
-
-XNotifyListener::XNotifyListener(KernelState* kernel_state) :
-    XObject(kernel_state, kTypeNotifyListener),
-    wait_handle_(NULL), mask_(0), notification_count_(0) {
-}
+XNotifyListener::XNotifyListener(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeNotifyListener),
+      wait_handle_(NULL),
+      mask_(0),
+      notification_count_(0) {}
 
 XNotifyListener::~XNotifyListener() {
   kernel_state_->UnregisterNotifyListener(this);
@@ -48,13 +47,13 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   } else {
     // New.
     notification_count_++;
-    notifications_.insert({ id, data });
+    notifications_.insert({id, data});
   }
   SetEvent(wait_handle_);
 }
 
-bool XNotifyListener::DequeueNotification(
-    XNotificationID* out_id, uint32_t* out_data) {
+bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
+                                          uint32_t* out_data) {
   std::lock_guard<std::mutex> lock(lock_);
   bool dequeued = false;
   if (notification_count_) {
@@ -71,8 +70,8 @@ bool XNotifyListener::DequeueNotification(
   return dequeued;
 }
 
-bool XNotifyListener::DequeueNotification(
-    XNotificationID id, uint32_t* out_data) {
+bool XNotifyListener::DequeueNotification(XNotificationID id,
+                                          uint32_t* out_data) {
   std::lock_guard<std::mutex> lock(lock_);
   bool dequeued = false;
   if (notification_count_) {
@@ -89,3 +88,6 @@ bool XNotifyListener::DequeueNotification(
   }
   return dequeued;
 }
+
+}  // namespace kernel
+}  // namespace xe

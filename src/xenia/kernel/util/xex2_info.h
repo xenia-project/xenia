@@ -12,7 +12,6 @@
 
 #include <xenia/common.h>
 
-
 typedef enum {
   XEX_HEADER_RESOURCE_INFO                        = 0x000002FF,
   XEX_HEADER_FILE_FORMAT_INFO                     = 0x000003FF,
@@ -455,6 +454,5 @@ typedef struct {
   size_t                      section_count;
   xe_xex2_section_t*          sections;
 } xe_xex2_header_t;
-
 
 #endif  // XENIA_KERNEL_XEX2_INFO_H_

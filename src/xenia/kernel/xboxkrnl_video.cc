@@ -19,12 +19,10 @@
 #include <xenia/kernel/xboxkrnl_rtl.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
 using xe::gpu::GraphicsSystem;
-
 
 // http://www.tweakoz.com/orkid/
 // http://www.tweakoz.com/orkid/dox/d3/d52/xb360init_8cpp_source.html
@@ -36,30 +34,25 @@ using xe::gpu::GraphicsSystem;
 // http://web.archive.org/web/20100423054747/http://msdn.microsoft.com/en-us/library/bb313878.aspx
 // http://web.archive.org/web/20090510235238/http://msdn.microsoft.com/en-us/library/bb313942.aspx
 // http://svn.dd-wrt.com/browser/src/linux/universal/linux-3.8/drivers/gpu/drm/radeon/radeon_ring.c
-// http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped Down Direct3D: Xbox 360 Command Buffer and Resource Management"
+// http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
+// Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-
-SHIM_CALL VdGetCurrentDisplayGamma_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdGetCurrentDisplayGamma_shim(PPCContext* ppc_state,
+                                        KernelState* state) {
   uint32_t arg0_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg1_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "VdGetCurrentDisplayGamma(%.8X, %.8X)",
-      arg0_ptr, arg1_ptr);
+  XELOGD("VdGetCurrentDisplayGamma(%.8X, %.8X)", arg0_ptr, arg1_ptr);
 
   SHIM_SET_MEM_32(arg0_ptr, 2);
   SHIM_SET_MEM_F32(arg1_ptr, 2.22222233f);
 }
 
-
-SHIM_CALL VdGetCurrentDisplayInformation_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdGetCurrentDisplayInformation_shim(PPCContext* ppc_state,
+                                              KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "VdGetCurrentDisplayInformation(%.8X)",
-      ptr);
+  XELOGD("VdGetCurrentDisplayInformation(%.8X)", ptr);
 
   // Expecting a length 0x58 struct of stuff.
   SHIM_SET_MEM_32(ptr + 0, (1280 << 16) | 720);
@@ -67,7 +60,7 @@ SHIM_CALL VdGetCurrentDisplayInformation_shim(
   SHIM_SET_MEM_32(ptr + 8, 0);
   SHIM_SET_MEM_32(ptr + 12, 0);
   SHIM_SET_MEM_32(ptr + 16, 1280);  // backbuffer width?
-  SHIM_SET_MEM_32(ptr + 20, 720);  // backbuffer height?
+  SHIM_SET_MEM_32(ptr + 20, 720);   // backbuffer height?
   SHIM_SET_MEM_32(ptr + 24, 1280);
   SHIM_SET_MEM_32(ptr + 28, 720);
   SHIM_SET_MEM_32(ptr + 32, 1);
@@ -78,23 +71,19 @@ SHIM_CALL VdGetCurrentDisplayInformation_shim(
   SHIM_SET_MEM_32(ptr + 52, 0);
   SHIM_SET_MEM_32(ptr + 56, 0);
   SHIM_SET_MEM_32(ptr + 60, 0);
-  SHIM_SET_MEM_32(ptr + 64, 0x014000B4);  // ?
-  SHIM_SET_MEM_32(ptr + 68, 0x014000B4);  // ?
+  SHIM_SET_MEM_32(ptr + 64, 0x014000B4);          // ?
+  SHIM_SET_MEM_32(ptr + 68, 0x014000B4);          // ?
   SHIM_SET_MEM_32(ptr + 72, (1280 << 16) | 720);  // actual display size?
   SHIM_SET_MEM_32(ptr + 76, 0x42700000);
   SHIM_SET_MEM_32(ptr + 80, 0);
   SHIM_SET_MEM_32(ptr + 84, 1280);  // display width
 }
 
-
-SHIM_CALL VdQueryVideoFlags_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "VdQueryVideoFlags()");
+SHIM_CALL VdQueryVideoFlags_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("VdQueryVideoFlags()");
 
   SHIM_SET_RETURN_64(0x00000006);
 }
-
 
 void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   if (video_mode == NULL) {
@@ -102,80 +91,67 @@ void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   }
 
   // TODO: get info from actual display
-  video_mode->display_width   = 1280;
-  video_mode->display_height  = 720;
-  video_mode->is_interlaced   = 0;
-  video_mode->is_widescreen   = 1;
-  video_mode->is_hi_def       = 1;
-  video_mode->refresh_rate    = 60.0f;
-  video_mode->video_standard  = 1; // NTSC
-  video_mode->unknown_0x8a    = 0x8A;
-  video_mode->unknown_0x01    = 0x01;
+  video_mode->display_width = 1280;
+  video_mode->display_height = 720;
+  video_mode->is_interlaced = 0;
+  video_mode->is_widescreen = 1;
+  video_mode->is_hi_def = 1;
+  video_mode->refresh_rate = 60.0f;
+  video_mode->video_standard = 1;  // NTSC
+  video_mode->unknown_0x8a = 0x8A;
+  video_mode->unknown_0x01 = 0x01;
 
   // TODO(benvanik): auto swap structure.
-  video_mode->display_width   = poly::byte_swap(video_mode->display_width);
-  video_mode->display_height  = poly::byte_swap(video_mode->display_height);
-  video_mode->is_interlaced   = poly::byte_swap(video_mode->is_interlaced);
-  video_mode->is_widescreen   = poly::byte_swap(video_mode->is_widescreen);
-  video_mode->is_hi_def       = poly::byte_swap(video_mode->is_hi_def);
-  video_mode->refresh_rate    = poly::byte_swap(video_mode->refresh_rate);
-  video_mode->video_standard  = poly::byte_swap(video_mode->video_standard);
-  video_mode->unknown_0x8a    = poly::byte_swap(video_mode->unknown_0x8a);
-  video_mode->unknown_0x01    = poly::byte_swap(video_mode->unknown_0x01);
+  video_mode->display_width = poly::byte_swap(video_mode->display_width);
+  video_mode->display_height = poly::byte_swap(video_mode->display_height);
+  video_mode->is_interlaced = poly::byte_swap(video_mode->is_interlaced);
+  video_mode->is_widescreen = poly::byte_swap(video_mode->is_widescreen);
+  video_mode->is_hi_def = poly::byte_swap(video_mode->is_hi_def);
+  video_mode->refresh_rate = poly::byte_swap(video_mode->refresh_rate);
+  video_mode->video_standard = poly::byte_swap(video_mode->video_standard);
+  video_mode->unknown_0x8a = poly::byte_swap(video_mode->unknown_0x8a);
+  video_mode->unknown_0x01 = poly::byte_swap(video_mode->unknown_0x01);
 }
 
-
-SHIM_CALL VdQueryVideoMode_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);
-  X_VIDEO_MODE *video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
+  X_VIDEO_MODE* video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
 
-  XELOGD(
-      "VdQueryVideoMode(%.8X)",
-      video_mode_ptr);
+  XELOGD("VdQueryVideoMode(%.8X)", video_mode_ptr);
 
   xeVdQueryVideoMode(video_mode);
 }
 
-
-SHIM_CALL VdInitializeEngines_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t callback = SHIM_GET_ARG_32(1);
   uint32_t unk1 = SHIM_GET_ARG_32(2);
   uint32_t unk2_ptr = SHIM_GET_ARG_32(3);
   uint32_t unk3_ptr = SHIM_GET_ARG_32(4);
 
-  XELOGD(
-      "VdInitializeEngines(%.8X, %.8X, %.8X, %.8X, %.8X)",
-      unk0, callback, unk1, unk2_ptr, unk3_ptr);
-  
+  XELOGD("VdInitializeEngines(%.8X, %.8X, %.8X, %.8X, %.8X)", unk0, callback,
+         unk1, unk2_ptr, unk3_ptr);
+
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = 0
   // r6/r7 = some binary data in .data
 }
 
-
-SHIM_CALL VdShutdownEngines_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "VdShutdownEngines()");
+SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("VdShutdownEngines()");
 
   // Ignored for now.
   // Games seem to call an Initialize/Shutdown pair to query info, then
   // re-initialize.
 }
 
-
-SHIM_CALL VdSetGraphicsInterruptCallback_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdSetGraphicsInterruptCallback_shim(PPCContext* ppc_state,
+                                              KernelState* state) {
   uint32_t callback = SHIM_GET_ARG_32(0);
   uint32_t user_data = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "VdSetGraphicsInterruptCallback(%.8X, %.8X)",
-      callback, user_data);
+  XELOGD("VdSetGraphicsInterruptCallback(%.8X, %.8X)", callback, user_data);
 
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
@@ -189,16 +165,13 @@ SHIM_CALL VdSetGraphicsInterruptCallback_shim(
   gs->SetInterruptCallback(callback, user_data);
 }
 
-
-SHIM_CALL VdInitializeRingBuffer_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdInitializeRingBuffer_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
   uint32_t page_count = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "VdInitializeRingBuffer(%.8X, %.8X)",
-      ptr, page_count);
-  
+  XELOGD("VdInitializeRingBuffer(%.8X, %.8X)", ptr, page_count);
+
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
     return;
@@ -214,15 +187,12 @@ SHIM_CALL VdInitializeRingBuffer_shim(
   gs->InitializeRingBuffer(ptr, page_count);
 }
 
-
-SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(PPCContext* ppc_state,
+                                               KernelState* state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
   uint32_t block_size = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "VdEnableRingBufferRPtrWriteBack(%.8X, %.8X)",
-      ptr, block_size);
+  XELOGD("VdEnableRingBufferRPtrWriteBack(%.8X, %.8X)", ptr, block_size);
 
   GraphicsSystem* gs = state->emulator()->graphics_system();
   if (!gs) {
@@ -233,99 +203,83 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(
   gs->EnableReadPointerWriteBack(ptr, block_size);
 
   ptr += 0x20000000;
-  //printf("%.8X", ptr);
+  // printf("%.8X", ptr);
   // 0x0110343c
 
   // r3 = 0x2B10(d3d?) + 0x3C
 
   //((p + 0x3C) & 0x1FFFFFFF) + ((((p + 0x3C) >> 20) + 0x200) & 0x1000)
-  //also 0x3C offset into WriteBacks is PrimaryRingBufferReadIndex
+  // also 0x3C offset into WriteBacks is PrimaryRingBufferReadIndex
   //(1:17:38 AM) Rick: .text:8201B348                 lwz       r11, 0x2B10(r31)
   //(1:17:38 AM) Rick: .text:8201B34C                 addi      r11, r11, 0x3C
-  //(1:17:38 AM) Rick: .text:8201B350                 srwi      r10, r11, 20  # r10 = r11 >> 20
-  //(1:17:38 AM) Rick: .text:8201B354                 clrlwi    r11, r11, 3   # r11 = r11 & 0x1FFFFFFF
+  //(1:17:38 AM) Rick: .text:8201B350                 srwi      r10, r11, 20  #
+  //r10 = r11 >> 20
+  //(1:17:38 AM) Rick: .text:8201B354                 clrlwi    r11, r11, 3   #
+  //r11 = r11 & 0x1FFFFFFF
   //(1:17:38 AM) Rick: .text:8201B358                 addi      r10, r10, 0x200
-  //(1:17:39 AM) Rick: .text:8201B35C                 rlwinm    r10, r10, 0,19,19 # r10 = r10 & 0x1000
+  //(1:17:39 AM) Rick: .text:8201B35C                 rlwinm    r10, r10,
+  //0,19,19 # r10 = r10 & 0x1000
   //(1:17:39 AM) Rick: .text:8201B360                 add       r3, r10, r11
-  //(1:17:39 AM) Rick: .text:8201B364                 bl        VdEnableRingBufferRPtrWriteBack
+  //(1:17:39 AM) Rick: .text:8201B364                 bl
+  //VdEnableRingBufferRPtrWriteBack
   // TODO(benvanik): something?
 }
 
-
-SHIM_CALL VdGetSystemCommandBuffer_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdGetSystemCommandBuffer_shim(PPCContext* ppc_state,
+                                        KernelState* state) {
   uint32_t p0_ptr = SHIM_GET_ARG_32(0);
   uint32_t p1_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-    "VdGetSystemCommandBuffer(%.8X, %.8X)",
-    p0_ptr,
-    p1_ptr);
+  XELOGD("VdGetSystemCommandBuffer(%.8X, %.8X)", p0_ptr, p1_ptr);
 
   SHIM_SET_MEM_32(p0_ptr, 0xBEEF0000);
   SHIM_SET_MEM_32(p1_ptr, 0xBEEF0001);
 }
 
-
 SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
     PPCContext* ppc_state, KernelState* state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "VdSetSystemCommandBufferGpuIdentifierAddress(%.8X)",
-      unk);
-  
+  XELOGD("VdSetSystemCommandBufferGpuIdentifierAddress(%.8X)", unk);
+
   // r3 = 0x2B10(d3d?) + 8
 }
-
 
 // VdVerifyMEInitCommand
 // r3
 // r4 = 19
 // no op?
 
-
 // VdCallGraphicsNotificationRoutines
 // r3 = 1
 // r4 = ?
 // callbacks get 0, r3, r4
 
-
-SHIM_CALL VdIsHSIOTrainingSucceeded_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "VdIsHSIOTrainingSucceeded()");
+SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
+                                         KernelState* state) {
+  XELOGD("VdIsHSIOTrainingSucceeded()");
 
   // Not really sure what this should be - code does weird stuff here:
   // (cntlzw    r11, r3  / extrwi    r11, r11, 1, 26)
   SHIM_SET_RETURN_64(1);
 }
 
-
-SHIM_CALL VdPersistDisplay_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "VdPersistDisplay(?)");
+SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("VdPersistDisplay(?)");
 
   // ?
   SHIM_SET_RETURN_64(1);
 }
 
-
-SHIM_CALL VdRetrainEDRAMWorker_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdRetrainEDRAMWorker_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "VdRetrainEDRAMWorker(%.8X)",
-      unk0);
+  XELOGD("VdRetrainEDRAMWorker(%.8X)", unk0);
 
   SHIM_SET_RETURN_64(0);
 }
 
-
-SHIM_CALL VdRetrainEDRAM_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
@@ -333,35 +287,24 @@ SHIM_CALL VdRetrainEDRAM_shim(
   uint32_t unk4 = SHIM_GET_ARG_32(4);
   uint32_t unk5 = SHIM_GET_ARG_32(5);
 
-  XELOGD(
-      "VdRetrainEDRAM(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
-      unk0, unk1, unk2, unk3, unk4, unk5);
+  XELOGD("VdRetrainEDRAM(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1, unk2,
+         unk3, unk4, unk5);
 
   SHIM_SET_RETURN_64(0);
 }
 
-
-SHIM_CALL VdSwap_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  uint32_t unk0 = SHIM_GET_ARG_32(0); // ptr into primary ringbuffer
+SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0);  // ptr into primary ringbuffer
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t unk3 = SHIM_GET_ARG_32(3); // ptr to 0xBEEF0000
-  uint32_t unk4 = SHIM_GET_ARG_32(4); // 0xBEEF0001
+  uint32_t unk3 = SHIM_GET_ARG_32(3);  // ptr to 0xBEEF0000
+  uint32_t unk4 = SHIM_GET_ARG_32(4);  // 0xBEEF0001
   uint32_t unk5 = SHIM_GET_ARG_32(5);
   uint32_t unk6 = SHIM_GET_ARG_32(6);
   uint32_t unk7 = SHIM_GET_ARG_32(7);
 
-  XELOGD(
-      "VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
-      unk0,
-      unk1,
-      unk2,
-      unk3,
-      unk4,
-      unk5,
-      unk6,
-      unk7);
+  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1,
+         unk2, unk3, unk4, unk5, unk6, unk7);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
   // for this method to do what it needs. We just zero them out and send a
@@ -370,20 +313,17 @@ SHIM_CALL VdSwap_shim(
   // use this method.
   xe_zero_struct(SHIM_MEM_ADDR(unk0), 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
-  dwords[0] = poly::byte_swap((0x03 << 30) |
-                              ((1 - 1) << 16) |
+  dwords[0] = poly::byte_swap((0x03 << 30) | ((1 - 1) << 16) |
                               (xe::gpu::xenos::PM4_XE_SWAP << 8));
 
   SHIM_SET_RETURN_64(0);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xboxkrnl::RegisterVideoExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
+                                                KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayGamma, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayInformation, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);
@@ -394,8 +334,8 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetSystemCommandBuffer, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe",
-      VdSetSystemCommandBufferGpuIdentifierAddress, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdSetSystemCommandBufferGpuIdentifierAddress,
+                   state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdIsHSIOTrainingSucceeded, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdPersistDisplay, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAMWorker, state);

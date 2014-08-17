@@ -12,9 +12,7 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/xam_ordinals.h>
-
 
 namespace xe {
 namespace kernel {
@@ -23,7 +21,8 @@ class KernelState;
 
 namespace xam {
 // Registration functions, one per file.
-void RegisterContentExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterContentExports(ExportResolver* export_resolver,
+                            KernelState* state);
 void RegisterInfoExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterInputExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterMsgExports(ExportResolver* export_resolver, KernelState* state);
@@ -37,6 +36,5 @@ void RegisterVoiceExports(ExportResolver* export_resolver, KernelState* state);
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XAM_PRIVATE_H_

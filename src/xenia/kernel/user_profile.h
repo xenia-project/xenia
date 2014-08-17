@@ -20,13 +20,11 @@
 
 #include <xenia/xbox.h>
 
-
 namespace xe {
 namespace kernel {
 
-
 class UserProfile {
-public:
+ public:
   struct Setting {
     enum class Type {
       UNKNOWN = 0,
@@ -54,14 +52,15 @@ public:
     Setting(uint32_t setting_id, Type type, size_t size)
         : setting_id(setting_id), type(type), size(size) {}
     virtual size_t extra_size() const { return 0; }
-    virtual size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) {
-      poly::store_and_swap<uint8_t>(user_data + kTypeOffset, static_cast<uint8_t>(type));
+    virtual size_t Append(uint8_t* user_data, uint8_t* buffer,
+                          size_t buffer_offset) {
+      poly::store_and_swap<uint8_t>(user_data + kTypeOffset,
+                                    static_cast<uint8_t>(type));
       return buffer_offset;
     }
-    bool is_title_specific() const {
-      return (setting_id & 0x3F00) == 0x3F00;
-    }
-  protected:
+    bool is_title_specific() const { return (setting_id & 0x3F00) == 0x3F00; }
+
+   protected:
     const size_t kTypeOffset = 0;
     const size_t kValueOffset = 8;
     const size_t kPointerOffset = 12;
@@ -70,7 +69,8 @@ public:
     Int32Setting(uint32_t setting_id, int32_t value)
         : Setting(setting_id, Type::INT32, 4), value(value) {}
     int32_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       poly::store_and_swap<int32_t>(user_data + kValueOffset, value);
       return buffer_offset;
@@ -80,7 +80,8 @@ public:
     Int64Setting(uint32_t setting_id, int64_t value)
         : Setting(setting_id, Type::INT64, 8), value(value) {}
     int64_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       poly::store_and_swap<int64_t>(user_data + kValueOffset, value);
       return buffer_offset;
@@ -90,7 +91,8 @@ public:
     DoubleSetting(uint32_t setting_id, double value)
         : Setting(setting_id, Type::DOUBLE, 8), value(value) {}
     double value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       poly::store_and_swap<double>(user_data + kValueOffset, value);
       return buffer_offset;
@@ -103,7 +105,8 @@ public:
     size_t extra_size() const override {
       return value.empty() ? 0 : 2 * (static_cast<int32_t>(value.size()) + 1);
     }
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       int32_t length;
       if (value.empty()) {
@@ -124,7 +127,8 @@ public:
     FloatSetting(uint32_t setting_id, float value)
         : Setting(setting_id, Type::FLOAT, 4), value(value) {}
     float value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       poly::store_and_swap<float>(user_data + kValueOffset, value);
       return buffer_offset;
@@ -137,7 +141,8 @@ public:
     size_t extra_size() const override {
       return static_cast<int32_t>(value.size());
     }
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       int32_t length;
       if (value.empty()) {
@@ -158,7 +163,8 @@ public:
     DateTimeSetting(uint32_t setting_id, int64_t value)
         : Setting(setting_id, Type::DATETIME, 8), value(value) {}
     int64_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, size_t buffer_offset) override {
+    size_t Append(uint8_t* user_data, uint8_t* buffer,
+                  size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
       poly::store_and_swap<int64_t>(user_data + kValueOffset, value);
       return buffer_offset;
@@ -174,16 +180,14 @@ public:
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
-private:
+ private:
   uint64_t xuid_;
   std::string name_;
   std::vector<std::unique_ptr<Setting>> setting_list_;
   std::unordered_map<uint32_t, Setting*> settings_;
 };
 
-
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_USER_PROFILE_H_

@@ -11,16 +11,13 @@
 #define XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_
 
 #include <xenia/kernel/xobject.h>
-
 #include <xenia/xbox.h>
-
 
 namespace xe {
 namespace kernel {
 
-
 class XSemaphore : public XObject {
-public:
+ public:
   XSemaphore(KernelState* kernel_state);
   virtual ~XSemaphore();
 
@@ -31,13 +28,11 @@ public:
 
   virtual void* GetWaitHandle() { return handle_; }
 
-private:
+ private:
   HANDLE handle_;
 };
 
-
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_

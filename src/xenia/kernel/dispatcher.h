@@ -17,16 +17,14 @@
 
 #include <xenia/xbox.h>
 
-
 namespace xe {
 namespace kernel {
 
 class KernelState;
 class NativeList;
 
-
 class Dispatcher {
-public:
+ public:
   Dispatcher(KernelState* kernel_state);
   virtual ~Dispatcher();
 
@@ -37,18 +35,15 @@ public:
 
   NativeList* dpc_list() const { return dpc_list_; }
 
-private:
+ private:
+ private:
+  KernelState* kernel_state_;
 
-private:
-  KernelState*        kernel_state_;
-
-  std::mutex          lock_;
-  NativeList*         dpc_list_;
+  std::mutex lock_;
+  NativeList* dpc_list_;
 };
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_

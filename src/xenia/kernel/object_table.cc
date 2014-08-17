@@ -14,16 +14,11 @@
 #include <xenia/kernel/xobject.h>
 #include <xenia/kernel/objects/xthread.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-ObjectTable::ObjectTable() :
-    table_capacity_(0),
-    table_(NULL),
-    last_free_entry_(0) {
-}
+ObjectTable::ObjectTable()
+    : table_capacity_(0), table_(NULL), last_free_entry_(0) {}
 
 ObjectTable::~ObjectTable() {
   std::lock_guard<std::mutex> lock(table_mutex_);
@@ -85,7 +80,7 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
   assert_not_null(out_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
-  
+
   uint32_t slot = 0;
   {
     std::lock_guard<std::mutex> lock(table_mutex_);
@@ -182,7 +177,6 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
     if (object) {
       object->Retain();
     }
-
   }
 
   *out_object = object;
@@ -192,7 +186,7 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
   if (handle == 0xFFFFFFFF) {
     // CurrentProcess
-    //assert_always();
+    // assert_always();
     return 0;
   } else if (handle == 0xFFFFFFFE) {
     // CurrentThread

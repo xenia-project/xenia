@@ -14,13 +14,11 @@
 #include <xenia/kernel/xam_private.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
 // http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
-SHIM_CALL XamShowMessageBoxUI_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t title_ptr = SHIM_GET_ARG_32(1);
   uint32_t text_ptr = SHIM_GET_ARG_32(2);
@@ -61,12 +59,10 @@ SHIM_CALL XamShowMessageBoxUI_shim(
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterUIExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterUIExports(ExportResolver* export_resolver,
+                                        KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamShowMessageBoxUI, state);
 }

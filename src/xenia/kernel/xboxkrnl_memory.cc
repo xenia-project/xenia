@@ -15,26 +15,22 @@
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
+SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
+  uint32_t base_addr_ptr = SHIM_GET_ARG_32(0);
+  uint32_t base_addr_value = SHIM_MEM_32(base_addr_ptr);
+  uint32_t region_size_ptr = SHIM_GET_ARG_32(1);
+  uint32_t region_size_value = SHIM_MEM_32(region_size_ptr);
+  uint32_t allocation_type = SHIM_GET_ARG_32(2);  // X_MEM_* bitmask
+  uint32_t protect_bits = SHIM_GET_ARG_32(3);     // X_PAGE_* bitmask
+  uint32_t unknown = SHIM_GET_ARG_32(4);
 
-SHIM_CALL NtAllocateVirtualMemory_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  uint32_t base_addr_ptr      = SHIM_GET_ARG_32(0);
-  uint32_t base_addr_value    = SHIM_MEM_32(base_addr_ptr);
-  uint32_t region_size_ptr    = SHIM_GET_ARG_32(1);
-  uint32_t region_size_value  = SHIM_MEM_32(region_size_ptr);
-  uint32_t allocation_type    = SHIM_GET_ARG_32(2); // X_MEM_* bitmask
-  uint32_t protect_bits       = SHIM_GET_ARG_32(3); // X_PAGE_* bitmask
-  uint32_t unknown            = SHIM_GET_ARG_32(4);
-
-  XELOGD(
-      "NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)",
-      base_addr_ptr, base_addr_value,
-      region_size_ptr, region_size_value,
-      allocation_type, protect_bits, unknown);
+  XELOGD("NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)",
+         base_addr_ptr, base_addr_value, region_size_ptr, region_size_value,
+         allocation_type, protect_bits, unknown);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -68,7 +64,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
   }
   // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
-      X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
+                      X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
     SHIM_SET_RETURN_32(X_STATUS_ACCESS_DENIED);
     return;
   }
@@ -83,7 +79,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
   if (base_addr_value) {
     // Having a pointer already means that this is likely a follow-on COMMIT.
     assert_true(!(allocation_type & X_MEM_RESERVE) &&
-             (allocation_type & X_MEM_COMMIT));
+                (allocation_type & X_MEM_COMMIT));
     SHIM_SET_MEM_32(base_addr_ptr, base_addr_value);
     SHIM_SET_MEM_32(region_size_ptr, adjusted_size);
     SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
@@ -92,8 +88,8 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
 
   // Allocate.
   uint32_t flags = (allocation_type & X_MEM_NOZERO);
-  uint32_t addr = (uint32_t)state->memory()->HeapAlloc(
-      base_addr_value, adjusted_size, flags);
+  uint32_t addr = (uint32_t)state->memory()->HeapAlloc(base_addr_value,
+                                                       adjusted_size, flags);
   if (!addr) {
     // Failed - assume no memory available.
     SHIM_SET_RETURN_32(X_STATUS_NO_MEMORY);
@@ -107,22 +103,18 @@ SHIM_CALL NtAllocateVirtualMemory_shim(
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-
-SHIM_CALL NtFreeVirtualMemory_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  uint32_t base_addr_ptr      = SHIM_GET_ARG_32(0);
-  uint32_t base_addr_value    = SHIM_MEM_32(base_addr_ptr);
-  uint32_t region_size_ptr    = SHIM_GET_ARG_32(1);
-  uint32_t region_size_value  = SHIM_MEM_32(region_size_ptr);
+SHIM_CALL NtFreeVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t base_addr_ptr = SHIM_GET_ARG_32(0);
+  uint32_t base_addr_value = SHIM_MEM_32(base_addr_ptr);
+  uint32_t region_size_ptr = SHIM_GET_ARG_32(1);
+  uint32_t region_size_value = SHIM_MEM_32(region_size_ptr);
   // X_MEM_DECOMMIT | X_MEM_RELEASE
-  uint32_t free_type          = SHIM_GET_ARG_32(2);
-  uint32_t unknown            = SHIM_GET_ARG_32(3);
+  uint32_t free_type = SHIM_GET_ARG_32(2);
+  uint32_t unknown = SHIM_GET_ARG_32(3);
 
-  XELOGD(
-      "NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)",
-      base_addr_ptr, base_addr_value,
-      region_size_ptr, region_size_value,
-      free_type, unknown);
+  XELOGD("NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)",
+         base_addr_ptr, base_addr_value, region_size_ptr, region_size_value,
+         free_type, unknown);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -146,8 +138,7 @@ SHIM_CALL NtFreeVirtualMemory_shim(
 
   // Free.
   uint32_t flags = 0;
-  uint32_t freed_size = state->memory()->HeapFree(
-      base_addr_value, flags);
+  uint32_t freed_size = state->memory()->HeapFree(base_addr_value, flags);
   if (!freed_size) {
     SHIM_SET_RETURN_32(X_STATUS_UNSUCCESSFUL);
     return;
@@ -158,15 +149,14 @@ SHIM_CALL NtFreeVirtualMemory_shim(
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL NtQueryVirtualMemory_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
   uint32_t memory_basic_information_ptr = SHIM_GET_ARG_32(1);
-  X_MEMORY_BASIC_INFORMATION *memory_basic_information = (X_MEMORY_BASIC_INFORMATION*)SHIM_MEM_ADDR(memory_basic_information_ptr);
+  X_MEMORY_BASIC_INFORMATION* memory_basic_information =
+      (X_MEMORY_BASIC_INFORMATION*)SHIM_MEM_ADDR(memory_basic_information_ptr);
 
-  XELOGD(
-      "NtQueryVirtualMemory(%.8X, %.8X)",
-      base_address, memory_basic_information_ptr);
+  XELOGD("NtQueryVirtualMemory(%.8X, %.8X)", base_address,
+         memory_basic_information_ptr);
 
   MEMORY_BASIC_INFORMATION mem_info;
   size_t result = state->memory()->QueryInformation(base_address, &mem_info);
@@ -208,9 +198,8 @@ SHIM_CALL NtQueryVirtualMemory_shim(
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-
-SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
+                                          KernelState* state) {
   uint32_t type = SHIM_GET_ARG_32(0);
   uint32_t region_size = SHIM_GET_ARG_32(1);
   uint32_t protect_bits = SHIM_GET_ARG_32(2);
@@ -218,10 +207,8 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
   uint32_t max_addr_range = SHIM_GET_ARG_32(4);
   uint32_t alignment = SHIM_GET_ARG_32(5);
 
-  XELOGD(
-      "MmAllocatePhysicalMemoryEx(%d, %.8X, %.8X, %.8X, %.8X, %.8X)",
-      type, region_size, protect_bits,
-      min_addr_range, max_addr_range, alignment);
+  XELOGD("MmAllocatePhysicalMemoryEx(%d, %.8X, %.8X, %.8X, %.8X, %.8X)", type,
+         region_size, protect_bits, min_addr_range, max_addr_range, alignment);
 
   // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
   // by D3D/etc.
@@ -273,7 +260,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
   }
 
   // Move the address into the right range.
-  //if (protect_bits & X_MEM_LARGE_PAGES) {
+  // if (protect_bits & X_MEM_LARGE_PAGES) {
   //  base_address += 0xA0000000;
   //} else if (protect_bits & X_MEM_16MB_PAGES) {
   //  base_address += 0xC0000000;
@@ -285,16 +272,12 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(
   SHIM_SET_RETURN_32(base_address);
 }
 
-
-SHIM_CALL MmFreePhysicalMemory_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL MmFreePhysicalMemory_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t type = SHIM_GET_ARG_32(0);
   uint32_t base_address = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "MmFreePhysicalAddress(%d, %.8X)",
-      type, base_address);
-  
+  XELOGD("MmFreePhysicalAddress(%d, %.8X)", type, base_address);
+
   // base_address = result of MmAllocatePhysicalMemory.
 
   // Strip off physical bits before passing down.
@@ -302,47 +285,37 @@ SHIM_CALL MmFreePhysicalMemory_shim(
 
   // TODO(benvanik): free memory.
   XELOGE("xeMmFreePhysicalMemory NOT IMPLEMENTED");
-  //uint32_t size = ?;
-  //xe_memory_heap_free(
+  // uint32_t size = ?;
+  // xe_memory_heap_free(
   //    state->memory(), base_address, size);
 }
 
-
-SHIM_CALL MmQueryAddressProtect_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL MmQueryAddressProtect_shim(PPCContext* ppc_state,
+                                     KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "MmQueryAddressProtect(%.8X)",
-      base_address);
+  XELOGD("MmQueryAddressProtect(%.8X)", base_address);
 
   uint32_t access = state->memory()->QueryProtect(base_address);
 
   SHIM_SET_RETURN_32(access);
 }
 
-
-SHIM_CALL MmQueryAllocationSize_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL MmQueryAllocationSize_shim(PPCContext* ppc_state,
+                                     KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "MmQueryAllocationSize(%.8X)",
-      base_address);
-  
+  XELOGD("MmQueryAllocationSize(%.8X)", base_address);
+
   size_t size = state->memory()->QuerySize(base_address);
 
   SHIM_SET_RETURN_32(static_cast<uint32_t>(size));
 }
 
-
-SHIM_CALL MmQueryStatistics_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t stats_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "MmQueryStatistics(%.8X)",
-      stats_ptr);
+  XELOGD("MmQueryStatistics(%.8X)", stats_ptr);
 
   uint32_t size = SHIM_MEM_32(stats_ptr + 0);
   if (size != 104) {
@@ -361,45 +334,45 @@ SHIM_CALL MmQueryStatistics_shim(
   // memory, this should satisfy it. If it's actually verifying things
   // this won't work :/
   // https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
-  SHIM_SET_MEM_32(stats_ptr + 4 *  1, 0x00020000); // TotalPhysicalPages
-  SHIM_SET_MEM_32(stats_ptr + 4 *  2, 0x00000300); // KernelPages
-  SHIM_SET_MEM_32(stats_ptr + 4 *  3, 0x00020000); // TitleAvailablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 *  4, 0x2FFF0000); // TitleTotalVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 *  5, 0x00160000); // TitleReservedVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 *  6, 0x00001000); // TitlePhysicalPages
-  SHIM_SET_MEM_32(stats_ptr + 4 *  7, 0x00000010); // TitlePoolPages
-  SHIM_SET_MEM_32(stats_ptr + 4 *  8, 0x00000100); // TitleStackPages
-  SHIM_SET_MEM_32(stats_ptr + 4 *  9, 0x00000100); // TitleImagePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 10, 0x00000100); // TitleHeapPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 11, 0x00000100); // TitleVirtualPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 12, 0x00000100); // TitlePageTablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 13, 0x00000100); // TitleCachePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 14, 0x00000000); // SystemAvailablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 15, 0x00000000); // SystemTotalVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 * 16, 0x00000000); // SystemReservedVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 * 17, 0x00000000); // SystemPhysicalPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 18, 0x00000000); // SystemPoolPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 19, 0x00000000); // SystemStackPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 20, 0x00000000); // SystemImagePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 21, 0x00000000); // SystemHeapPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 22, 0x00000000); // SystemVirtualPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 23, 0x00000000); // SystemPageTablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 24, 0x00000000); // SystemCachePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 25, 0x0001FFFF); // HighestPhysicalPage
+  SHIM_SET_MEM_32(stats_ptr + 4 * 1, 0x00020000);  // TotalPhysicalPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 2, 0x00000300);  // KernelPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 3, 0x00020000);  // TitleAvailablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 4,
+                  0x2FFF0000);  // TitleTotalVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 * 5,
+                  0x00160000);  // TitleReservedVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 * 6, 0x00001000);   // TitlePhysicalPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 7, 0x00000010);   // TitlePoolPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 8, 0x00000100);   // TitleStackPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 9, 0x00000100);   // TitleImagePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 10, 0x00000100);  // TitleHeapPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 11, 0x00000100);  // TitleVirtualPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 12, 0x00000100);  // TitlePageTablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 13, 0x00000100);  // TitleCachePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 14, 0x00000000);  // SystemAvailablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 15,
+                  0x00000000);  // SystemTotalVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 * 16,
+                  0x00000000);  // SystemReservedVirtualMemoryBytes
+  SHIM_SET_MEM_32(stats_ptr + 4 * 17, 0x00000000);  // SystemPhysicalPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 18, 0x00000000);  // SystemPoolPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 19, 0x00000000);  // SystemStackPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 20, 0x00000000);  // SystemImagePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 21, 0x00000000);  // SystemHeapPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 22, 0x00000000);  // SystemVirtualPages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 23, 0x00000000);  // SystemPageTablePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 24, 0x00000000);  // SystemCachePages
+  SHIM_SET_MEM_32(stats_ptr + 4 * 25, 0x0001FFFF);  // HighestPhysicalPage
 
   SHIM_SET_RETURN_32(result);
 }
 
-
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
-SHIM_CALL MmGetPhysicalAddress_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL MmGetPhysicalAddress_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "MmGetPhysicalAddress(%.8X)",
-      base_address);
-  
+  XELOGD("MmGetPhysicalAddress(%.8X)", base_address);
+
   // PHYSICAL_ADDRESS MmGetPhysicalAddress(
   //   _In_  PVOID BaseAddress
   // );
@@ -420,16 +393,13 @@ SHIM_CALL MmGetPhysicalAddress_shim(
   SHIM_SET_RETURN_32(base_address);
 }
 
-
-SHIM_CALL ExAllocatePoolTypeWithTag_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
+                                         KernelState* state) {
   uint32_t size = SHIM_GET_ARG_32(0);
   uint32_t tag = SHIM_GET_ARG_32(1);
   uint32_t zero = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "ExAllocatePoolTypeWithTag(%d, %.8X, %d)",
-      size, tag, zero);
+  XELOGD("ExAllocatePoolTypeWithTag(%d, %.8X, %d)", size, tag, zero);
 
   uint32_t alignment = 8;
   uint32_t adjusted_size = size;
@@ -445,48 +415,36 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(
   SHIM_SET_RETURN_32(addr);
 }
 
-
-SHIM_CALL ExFreePool_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ExFreePool_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "ExFreePool(%.8X)",
-      base_address);
+  XELOGD("ExFreePool(%.8X)", base_address);
 
   state->memory()->HeapFree(base_address, 0);
 }
 
-
-SHIM_CALL KeLockL2_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL KeLockL2_shim(PPCContext* ppc_state, KernelState* state) {
   // Ignored for now. This is just a perf optimization, I think.
   // It may be useful as a hint for CPU-GPU transfer.
 
-  XELOGD(
-      "KeLockL2(?)");
+  XELOGD("KeLockL2(?)");
 
   SHIM_SET_RETURN_32(0);
 }
 
-
-SHIM_CALL KeUnlockL2_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  XELOGD(
-      "KeUnlockL2(?)");
+SHIM_CALL KeUnlockL2_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("KeUnlockL2(?)");
 }
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 void xe::kernel::xboxkrnl::RegisterMemoryExports(
     ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", NtAllocateVirtualMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtFreeVirtualMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVirtualMemory, state);
-  //SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
+  // SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);

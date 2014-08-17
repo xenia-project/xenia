@@ -14,10 +14,8 @@
 #include <xenia/kernel/xam_private.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
-
 
 // TODO(benvanik): actually check to see if these are the same.
 void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode);
@@ -27,12 +25,10 @@ SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
   xeVdQueryVideoMode(video_mode);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterVideoExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterVideoExports(ExportResolver* export_resolver,
+                                           KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XGetVideoMode, state);
 }

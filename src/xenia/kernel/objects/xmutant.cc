@@ -9,15 +9,11 @@
 
 #include <xenia/kernel/objects/xmutant.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::kernel;
-
-
-XMutant::XMutant(KernelState* kernel_state) :
-    XObject(kernel_state, kTypeMutant),
-    handle_(NULL) {
-}
+XMutant::XMutant(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeMutant), handle_(NULL) {}
 
 XMutant::~XMutant() {
   if (handle_) {
@@ -38,8 +34,8 @@ void XMutant::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
   assert_always();
 }
 
-X_STATUS XMutant::ReleaseMutant(
-    uint32_t priority_increment, bool abandon, bool wait) {
+X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon,
+                                bool wait) {
   // TODO(benvanik): abandoning.
   assert_false(abandon);
   BOOL result = ReleaseMutex(handle_);
@@ -49,3 +45,6 @@ X_STATUS XMutant::ReleaseMutant(
     return X_STATUS_MUTANT_NOT_OWNED;
   }
 }
+
+}  // namespace kernel
+}  // namespace xe

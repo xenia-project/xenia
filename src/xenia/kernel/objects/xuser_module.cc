@@ -14,24 +14,17 @@
 #include <xenia/kernel/objects/xfile.h>
 #include <xenia/kernel/objects/xthread.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
 using namespace xe::cpu;
-using namespace xe::kernel;
 
+XUserModule::XUserModule(KernelState* kernel_state, const char* path)
+    : XModule(kernel_state, path), xex_(NULL) {}
 
-XUserModule::XUserModule(KernelState* kernel_state, const char* path) :
-    XModule(kernel_state, path),
-    xex_(NULL) {
-}
+XUserModule::~XUserModule() { xe_xex2_release(xex_); }
 
-XUserModule::~XUserModule() {
-  xe_xex2_release(xex_);
-}
-
-xe_xex2_ref XUserModule::xex() {
-  return xe_xex2_retain(xex_);
-}
+xe_xex2_ref XUserModule::xex() { return xe_xex2_retain(xex_); }
 
 const xe_xex2_header_t* XUserModule::xex_header() {
   return xe_xex2_get_header(xex_);
@@ -134,9 +127,8 @@ void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   return NULL;
 }
 
-X_STATUS XUserModule::GetSection(
-    const char* name,
-    uint32_t* out_section_data, uint32_t* out_section_size) {
+X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
+                                 uint32_t* out_section_size) {
   auto header = xe_xex2_get_header(xex_);
   for (size_t n = 0; n < header->resource_info_count; n++) {
     auto& res = header->resource_infos[n];
@@ -158,12 +150,8 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
   Dump();
 
   // Create a thread to run in.
-  XThread* thread = new XThread(
-      kernel_state(),
-      header->exe_stack_size,
-      0,
-      header->exe_entry_point, NULL,
-      0);
+  XThread* thread = new XThread(kernel_state(), header->exe_stack_size, 0,
+                                header->exe_entry_point, NULL, 0);
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -196,11 +184,10 @@ void XUserModule::Dump() {
   printf("\n");
   printf("  Execution Info:\n");
   printf("        Media ID: %.8X\n", header->execution_info.media_id);
-  printf("         Version: %d.%d.%d.%d\n",
-         header->execution_info.version.major,
-         header->execution_info.version.minor,
-         header->execution_info.version.build,
-         header->execution_info.version.qfe);
+  printf(
+      "         Version: %d.%d.%d.%d\n", header->execution_info.version.major,
+      header->execution_info.version.minor,
+      header->execution_info.version.build, header->execution_info.version.qfe);
   printf("    Base Version: %d.%d.%d.%d\n",
          header->execution_info.base_version.major,
          header->execution_info.base_version.minor,
@@ -222,14 +209,14 @@ void XUserModule::Dump() {
   printf("      Slot Count: %d\n", header->tls_info.slot_count);
   printf("       Data Size: %db\n", header->tls_info.data_size);
   printf("         Address: %.8X, %db\n", header->tls_info.raw_data_address,
-                                          header->tls_info.raw_data_size);
+         header->tls_info.raw_data_size);
   printf("\n");
   printf("  Headers:\n");
   for (size_t n = 0; n < header->header_count; n++) {
     const xe_xex2_opt_header_t* opt_header = &header->headers[n];
-    printf("    %.8X (%.8X, %4db) %.8X = %11d\n",
-           opt_header->key, opt_header->offset, opt_header->length,
-           opt_header->value, opt_header->value);
+    printf("    %.8X (%.8X, %4db) %.8X = %11d\n", opt_header->key,
+           opt_header->offset, opt_header->length, opt_header->value,
+           opt_header->value);
   }
   printf("\n");
 
@@ -237,8 +224,8 @@ void XUserModule::Dump() {
   printf("Resources:\n");
   for (size_t n = 0; n < header->resource_info_count; n++) {
     auto& res = header->resource_infos[n];
-    printf("  %-8s %.8X-%.8X, %db\n",
-           res.name, res.address, res.address + res.size, res.size);
+    printf("  %-8s %.8X-%.8X, %db\n", res.name, res.address,
+           res.address + res.size, res.size);
   }
   printf("\n");
 
@@ -248,23 +235,23 @@ void XUserModule::Dump() {
     const xe_xex2_section_t* section = &header->sections[n];
     const char* type = "UNKNOWN";
     switch (section->info.type) {
-    case XEX_SECTION_CODE:
-      type = "CODE   ";
-      break;
-    case XEX_SECTION_DATA:
-      type = "RWDATA ";
-      break;
-    case XEX_SECTION_READONLY_DATA:
-      type = "RODATA ";
-      break;
+      case XEX_SECTION_CODE:
+        type = "CODE   ";
+        break;
+      case XEX_SECTION_DATA:
+        type = "RWDATA ";
+        break;
+      case XEX_SECTION_READONLY_DATA:
+        type = "RODATA ";
+        break;
     }
     const size_t start_address =
         header->exe_address + (i * xe_xex2_section_length);
     const size_t end_address =
         start_address + (section->info.page_count * xe_xex2_section_length);
-    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n",
-           (int)n, type, section->info.page_count, (int)start_address,
-           (int)end_address, section->info.page_count * xe_xex2_section_length);
+    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n", (int)n, type,
+           section->info.page_count, (int)start_address, (int)end_address,
+           section->info.page_count * xe_xex2_section_length);
     i += section->info.page_count;
   }
   printf("\n");
@@ -272,9 +259,8 @@ void XUserModule::Dump() {
   // Static libraries.
   printf("Static Libraries:\n");
   for (size_t n = 0; n < header->static_library_count; n++) {
-    const xe_xex2_static_library_t *library = &header->static_libraries[n];
-    printf("  %-8s : %d.%d.%d.%d\n",
-           library->name, library->major,
+    const xe_xex2_static_library_t* library = &header->static_libraries[n];
+    printf("  %-8s : %d.%d.%d.%d\n", library->name, library->major,
            library->minor, library->build, library->qfe);
   }
   printf("\n");
@@ -286,15 +272,15 @@ void XUserModule::Dump() {
 
     xe_xex2_import_info_t* import_infos;
     size_t import_info_count;
-    if (!xe_xex2_get_import_infos(xex_, library,
-                                  &import_infos, &import_info_count)) {
+    if (!xe_xex2_get_import_infos(xex_, library, &import_infos,
+                                  &import_info_count)) {
       printf(" %s - %d imports\n", library->name, (int)import_info_count);
-      printf("   Version: %d.%d.%d.%d\n",
-             library->version.major, library->version.minor,
-             library->version.build, library->version.qfe);
-      printf("   Min Version: %d.%d.%d.%d\n",
-             library->min_version.major, library->min_version.minor,
-             library->min_version.build, library->min_version.qfe);
+      printf("   Version: %d.%d.%d.%d\n", library->version.major,
+             library->version.minor, library->version.build,
+             library->version.qfe);
+      printf("   Min Version: %d.%d.%d.%d\n", library->min_version.major,
+             library->min_version.minor, library->min_version.build,
+             library->min_version.qfe);
       printf("\n");
 
       // Counts.
@@ -323,30 +309,28 @@ void XUserModule::Dump() {
              (int)(known_count / (float)import_info_count * 100.0f),
              known_count, unknown_count);
       printf("   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
-             (int)(impl_count / (float)import_info_count * 100.0f),
-             impl_count, unimpl_count);
+             (int)(impl_count / (float)import_info_count * 100.0f), impl_count,
+             unimpl_count);
       printf("\n");
 
       // Listing.
       for (size_t m = 0; m < import_info_count; m++) {
         const xe_xex2_import_info_t* info = &import_infos[m];
-        KernelExport* kernel_export = export_resolver->GetExportByOrdinal(
-            library->name, info->ordinal);
-        const char *name = "UNKNOWN";
+        KernelExport* kernel_export =
+            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+        const char* name = "UNKNOWN";
         bool implemented = false;
         if (kernel_export) {
           name = kernel_export->name;
           implemented = kernel_export->is_implemented;
         }
         if (kernel_export && kernel_export->type == KernelExport::Variable) {
-          printf("   V %.8X          %.3X (%3d) %s %s\n",
-                 info->value_address, info->ordinal, info->ordinal,
-                 implemented ? "  " : "!!", name);
+          printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
+                 info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {
-          printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
-                 info->value_address, info->thunk_address, info->ordinal,
-                 info->ordinal, implemented ? "  " : "!!", name);
-
+          printf("   F %.8X %.8X %.3X (%3d) %s %s\n", info->value_address,
+                 info->thunk_address, info->ordinal, info->ordinal,
+                 implemented ? "  " : "!!", name);
         }
       }
     }
@@ -359,3 +343,6 @@ void XUserModule::Dump() {
   printf("  TODO\n");
   printf("\n");
 }
+
+}  // namespace kernel
+}  // namespace xe

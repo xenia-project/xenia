@@ -15,20 +15,15 @@
 #include <xenia/kernel/objects/xnotify_listener.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL XamNotifyCreateListener_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamNotifyCreateListener_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
   uint64_t mask = SHIM_GET_ARG_64(0);
   uint32_t one = SHIM_GET_ARG_32(1);
 
-  XELOGD(
-      "XamNotifyCreateListener(%.8llX, %d)",
-      mask,
-      one);
+  XELOGD("XamNotifyCreateListener(%.8llX, %d)", mask, one);
 
   // r4=1 may indicate user process?
 
@@ -42,21 +37,15 @@ SHIM_CALL XamNotifyCreateListener_shim(
   SHIM_SET_RETURN_64(handle);
 }
 
-
 // http://ffplay360.googlecode.com/svn/Test/Common/AtgSignIn.cpp
-SHIM_CALL XNotifyGetNext_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t match_id = SHIM_GET_ARG_32(1);
   uint32_t id_ptr = SHIM_GET_ARG_32(2);
   uint32_t param_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD(
-      "XNotifyGetNext(%.8X, %.8X, %.8X, %.8X)",
-      handle,
-      match_id,
-      id_ptr,
-      param_ptr);
+  XELOGD("XNotifyGetNext(%.8X, %.8X, %.8X, %.8X)", handle, match_id, id_ptr,
+         param_ptr);
 
   if (!handle) {
     SHIM_SET_RETURN_64(0);
@@ -65,8 +54,7 @@ SHIM_CALL XNotifyGetNext_shim(
 
   // Grab listener.
   XNotifyListener* listener = NULL;
-  if (XFAILED(state->object_table()->GetObject(
-      handle, (XObject**)&listener))) {
+  if (XFAILED(state->object_table()->GetObject(handle, (XObject**)&listener))) {
     SHIM_SET_RETURN_64(0);
     return;
   }
@@ -95,25 +83,19 @@ SHIM_CALL XNotifyGetNext_shim(
   SHIM_SET_RETURN_64(dequeued ? 1 : 0);
 }
 
-
-SHIM_CALL XNotifyPositionUI_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XNotifyPositionUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t position = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "XNotifyPositionUI(%.8X)",
-      position);
+  XELOGD("XNotifyPositionUI(%.8X)", position);
 
   // Ignored.
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterNotifyExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterNotifyExports(ExportResolver* export_resolver,
+                                            KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamNotifyCreateListener, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyGetNext, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyPositionUI, state);

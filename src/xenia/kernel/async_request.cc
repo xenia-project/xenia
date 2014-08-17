@@ -12,17 +12,18 @@
 #include <xenia/kernel/xobject.h>
 #include <xenia/kernel/objects/xevent.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-XAsyncRequest::XAsyncRequest(
-    KernelState* kernel_state, XObject* object,
-    CompletionCallback callback, void* callback_context) :
-    kernel_state_(kernel_state), object_(object),
-    callback_(callback), callback_context_(callback_context),
-    apc_routine_(0), apc_context_(0) {
+XAsyncRequest::XAsyncRequest(KernelState* kernel_state, XObject* object,
+                             CompletionCallback callback,
+                             void* callback_context)
+    : kernel_state_(kernel_state),
+      object_(object),
+      callback_(callback),
+      callback_context_(callback_context),
+      apc_routine_(0),
+      apc_context_(0) {
   object_->Retain();
 }
 

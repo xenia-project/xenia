@@ -15,29 +15,26 @@
 #include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
-
 // TODO: clean me up!
-SHIM_CALL DbgPrint_shim(
-    PPCContext* ppc_state, KernelState* state) {
-
+SHIM_CALL DbgPrint_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   if (format_ptr == 0) {
     SHIM_SET_RETURN_64(-1);
     return;
   }
 
-  const char *format = (const char *)SHIM_MEM_ADDR(format_ptr);
+  const char* format = (const char*)SHIM_MEM_ADDR(format_ptr);
 
   int arg_index = 0;
 
-  char buffer[512]; // TODO: ensure it never writes past the end of the buffer...
-  char *b = buffer;
+  char buffer[512];  // TODO: ensure it never writes past the end of the
+                     // buffer...
+  char* b = buffer;
   for (; *format != '\0'; ++format) {
-    const char *start = format;
+    const char* start = format;
 
     if (*format != '%') {
       *b++ = *format;
@@ -54,14 +51,11 @@ SHIM_CALL DbgPrint_shim(
       continue;
     }
 
-    const char *end;
+    const char* end;
     end = format;
 
     // skip flags
-    while (*end == '-' ||
-           *end == '+' ||
-           *end == ' ' ||
-           *end == '#' ||
+    while (*end == '-' || *end == '+' || *end == ' ' || *end == '#' ||
            *end == '0') {
       ++end;
     }
@@ -76,8 +70,7 @@ SHIM_CALL DbgPrint_shim(
     if (*end == '*') {
       ++end;
       arg_extras++;
-    }
-    else {
+    } else {
       while (*end >= '0' && *end <= '9') {
         ++end;
       }
@@ -94,8 +87,7 @@ SHIM_CALL DbgPrint_shim(
       if (*end == '*') {
         ++end;
         ++arg_extras;
-      }
-      else {
+      } else {
         while (*end >= '0' && *end <= '9') {
           ++end;
         }
@@ -115,28 +107,23 @@ SHIM_CALL DbgPrint_shim(
       if (*end == 'h') {
         ++end;
       }
-    }
-    else if (*end == 'l') {
+    } else if (*end == 'l') {
       ++end;
       arg_size = 4;
       if (*end == 'l') {
         ++end;
         arg_size = 8;
       }
-    }
-    else if (*end == 'j') {
+    } else if (*end == 'j') {
       arg_size = 8;
       ++end;
-    }
-    else if (*end == 'z') {
+    } else if (*end == 'z') {
       arg_size = 4;
       ++end;
-    }
-    else if (*end == 't') {
+    } else if (*end == 't') {
       arg_size = 8;
       ++end;
-    }
-    else if (*end == 'L') {
+    } else if (*end == 'L') {
       arg_size = 8;
       ++end;
     }
@@ -145,21 +132,10 @@ SHIM_CALL DbgPrint_shim(
       break;
     }
 
-    if (*end == 'd' ||
-        *end == 'i' ||
-        *end == 'u' ||
-        *end == 'o' ||
-        *end == 'x' ||
-        *end == 'X' ||
-        *end == 'f' ||
-        *end == 'F' ||
-        *end == 'e' ||
-        *end == 'E' ||
-        *end == 'g' ||
-        *end == 'G' ||
-        *end == 'a' ||
-        *end == 'A' ||
-        *end == 'c') {
+    if (*end == 'd' || *end == 'i' || *end == 'u' || *end == 'o' ||
+        *end == 'x' || *end == 'X' || *end == 'f' || *end == 'F' ||
+        *end == 'e' || *end == 'E' || *end == 'g' || *end == 'G' ||
+        *end == 'a' || *end == 'A' || *end == 'c') {
       char local[512];
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
@@ -167,47 +143,42 @@ SHIM_CALL DbgPrint_shim(
       assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
-          uint64_t value = arg_index < 7
-            ? SHIM_GET_ARG_64(1 + arg_index)
-            : SHIM_MEM_32(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
+          uint64_t value =
+              arg_index < 7
+                  ? SHIM_GET_ARG_64(1 + arg_index)
+                  : SHIM_MEM_32(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
           int result = sprintf(b, local, value);
           b += result;
           arg_index++;
-        }
-        else {
+        } else {
           assert_true(false);
         }
-      }
-      else if (arg_size == 4) {
+      } else if (arg_size == 4) {
         if (arg_extras == 0) {
-          uint64_t value = arg_index < 7
-            ? SHIM_GET_ARG_64(1 + arg_index)
-            : SHIM_MEM_32(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
+          uint64_t value =
+              arg_index < 7
+                  ? SHIM_GET_ARG_64(1 + arg_index)
+                  : SHIM_MEM_32(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
           int result = sprintf(b, local, (uint32_t)value);
           b += result;
           arg_index++;
-        }
-        else {
+        } else {
           assert_true(false);
         }
       }
-    }
-    else if (*end == 'n')
-    {
+    } else if (*end == 'n') {
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = arg_index < 7
-          ? SHIM_GET_ARG_32(1 + arg_index)
-          : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
-        SHIM_SET_MEM_32(value,  (uint32_t)((b - buffer) / sizeof(char)));
+                             ? SHIM_GET_ARG_32(1 + arg_index)
+                             : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 +
+                                                     ((1 + arg_index) * 8));
+        SHIM_SET_MEM_32(value, (uint32_t)((b - buffer) / sizeof(char)));
         arg_index++;
-      }
-      else {
+      } else {
         assert_true(false);
       }
-    }
-    else if (*end == 's' ||
-             *end == 'p') {
+    } else if (*end == 's' || *end == 'p') {
       char local[512];
       local[0] = '\0';
       strncat(local, start, end + 1 - start);
@@ -215,18 +186,17 @@ SHIM_CALL DbgPrint_shim(
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
         uint32_t value = arg_index < 7
-          ? SHIM_GET_ARG_32(1 + arg_index)
-          : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 + ((1 + arg_index) * 8));
-        const void *pointer = (const void *)SHIM_MEM_ADDR(value);
+                             ? SHIM_GET_ARG_32(1 + arg_index)
+                             : (uint32_t)SHIM_MEM_64(SHIM_GPR_32(1) + 16 +
+                                                     ((1 + arg_index) * 8));
+        const void* pointer = (const void*)SHIM_MEM_ADDR(value);
         int result = sprintf(b, local, pointer);
         b += result;
         arg_index++;
-      }
-      else {
+      } else {
         assert_true(false);
       }
-    }
-    else {
+    } else {
       assert_true(false);
       break;
     }
@@ -238,16 +208,12 @@ SHIM_CALL DbgPrint_shim(
   XELOGD("(DbgPrint) %s", buffer);
 }
 
-
-SHIM_CALL DbgBreakPoint_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL DbgBreakPoint_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("DbgBreakPoint()");
   DebugBreak();
 }
 
-
-SHIM_CALL RtlRaiseException_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t record_ptr = SHIM_GET_ARG_32(0);
 
   uint32_t code = SHIM_MEM_32(record_ptr + 0);
@@ -255,9 +221,7 @@ SHIM_CALL RtlRaiseException_shim(
   // ...
   uint32_t param_count = SHIM_MEM_32(record_ptr + 16);
 
-  XELOGD(
-      "RtlRaiseException(%.8X(%.8X))",
-      record_ptr, code);
+  XELOGD("RtlRaiseException(%.8X(%.8X))", record_ptr, code);
 
   if (code == 0x406D1388) {
     // SetThreadName. FFS.
@@ -294,22 +258,21 @@ SHIM_CALL RtlRaiseException_shim(
   DebugBreak();
 }
 
-
-void xeKeBugCheckEx(uint32_t code, uint32_t param1, uint32_t param2, uint32_t param3, uint32_t param4) {
-  XELOGD("*** STOP: 0x%.8X (0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X)", code, param1, param2, param3, param4);
+void xeKeBugCheckEx(uint32_t code, uint32_t param1, uint32_t param2,
+                    uint32_t param3, uint32_t param4) {
+  XELOGD("*** STOP: 0x%.8X (0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X)", code, param1,
+         param2, param3, param4);
   fflush(stdout);
   DebugBreak();
   assert_always();
 }
 
-SHIM_CALL KeBugCheck_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL KeBugCheck_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t code = SHIM_GET_ARG_32(0);
   xeKeBugCheckEx(code, 0, 0, 0, 0);
 }
 
-SHIM_CALL KeBugCheckEx_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL KeBugCheckEx_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t code = SHIM_GET_ARG_32(0);
   uint32_t param1 = SHIM_GET_ARG_32(1);
   uint32_t param2 = SHIM_GET_ARG_32(2);
@@ -318,13 +281,11 @@ SHIM_CALL KeBugCheckEx_shim(
   xeKeBugCheckEx(code, param1, param2, param3, param4);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xboxkrnl::RegisterDebugExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterDebugExports(ExportResolver* export_resolver,
+                                                KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgBreakPoint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlRaiseException, state);

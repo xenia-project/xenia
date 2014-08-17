@@ -9,17 +9,15 @@
 
 #include <xenia/kernel/objects/xenumerator.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::kernel;
+XEnumerator::XEnumerator(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeEnumerator) {}
 
+XEnumerator::~XEnumerator() {}
 
-XEnumerator::XEnumerator(KernelState* kernel_state) :
-    XObject(kernel_state, kTypeEnumerator) {
-}
+void XEnumerator::Initialize() {}
 
-XEnumerator::~XEnumerator() {
-}
-
-void XEnumerator::Initialize() {
-}
+}  // namespace kernel
+}  // namespace xe

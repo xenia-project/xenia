@@ -9,10 +9,8 @@
 
 #include <xenia/kernel/user_profile.h>
 
-
 namespace xe {
 namespace kernel {
-
 
 UserProfile::UserProfile() {
   xuid_ = 0xBABEBABEBABEBABE;
@@ -78,12 +76,10 @@ UserProfile::UserProfile() {
   AddSetting(std::make_unique<BinarySetting>(0x63E83FFD, zeros));
 }
 
-
 void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
-  settings_.insert({ setting->setting_id, setting.get() });
+  settings_.insert({setting->setting_id, setting.get()});
   setting_list_.push_back(std::move(setting));
 }
-
 
 UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
   const auto& it = settings_.find(setting_id);
@@ -92,7 +88,6 @@ UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
   }
   return it->second;
 }
-
 
 }  // namespace kernel
 }  // namespace xe

@@ -9,15 +9,11 @@
 
 #include <xenia/kernel/objects/xsemaphore.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::kernel;
-
-
-XSemaphore::XSemaphore(KernelState* kernel_state) :
-    XObject(kernel_state, kTypeSemaphore),
-    handle_(NULL) {
-}
+XSemaphore::XSemaphore(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeSemaphore), handle_(NULL) {}
 
 XSemaphore::~XSemaphore() {
   if (handle_) {
@@ -43,3 +39,6 @@ int32_t XSemaphore::ReleaseSemaphore(int32_t release_count) {
   ::ReleaseSemaphore(handle_, release_count, &previous_count);
   return previous_count;
 }
+
+}  // namespace kernel
+}  // namespace xe

@@ -13,16 +13,14 @@
 #include <xenia/kernel/objects/xmodule.h>
 
 #include <xenia/export_resolver.h>
-#include <xenia/xbox.h>
 #include <xenia/kernel/util/xex2.h>
-
+#include <xenia/xbox.h>
 
 namespace xe {
 namespace kernel {
 
-
 class XUserModule : public XModule {
-public:
+ public:
   XUserModule(KernelState* kernel_state, const char* path);
   virtual ~XUserModule();
 
@@ -33,23 +31,20 @@ public:
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
   virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
-  virtual X_STATUS GetSection(
-      const char* name,
-      uint32_t* out_section_data, uint32_t* out_section_size);
+  virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
+                              uint32_t* out_section_size);
 
   X_STATUS Launch(uint32_t flags);
 
   void Dump();
 
-private:
+ private:
   int LoadPE();
 
-  xe_xex2_ref     xex_;
+  xe_xex2_ref xex_;
 };
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_XUSER_MODULE_H_

@@ -15,25 +15,23 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/xbox.h>
-
 
 namespace xe {
 namespace kernel {
 
-
 class KernelState;
 
-
 class XApp {
-public:
+ public:
   uint32_t app_id() const { return app_id_; }
 
-  virtual X_RESULT DispatchMessageSync(uint32_t message, uint32_t arg1, uint32_t arg2) = 0;
-  virtual X_RESULT DispatchMessageAsync(uint32_t message, uint32_t buffer_ptr, size_t buffer_length) = 0;
+  virtual X_RESULT DispatchMessageSync(uint32_t message, uint32_t arg1,
+                                       uint32_t arg2) = 0;
+  virtual X_RESULT DispatchMessageAsync(uint32_t message, uint32_t buffer_ptr,
+                                        size_t buffer_length) = 0;
 
-protected:
+ protected:
   XApp(KernelState* kernel_state, uint32_t app_id);
 
   KernelState* kernel_state_;
@@ -41,22 +39,21 @@ protected:
   uint8_t* membase_;
 };
 
-
 class XAppManager {
-public:
+ public:
   void RegisterApp(std::unique_ptr<XApp> app);
 
-  X_RESULT DispatchMessageSync(uint32_t app_id, uint32_t message, uint32_t arg1, uint32_t arg2);
-  X_RESULT DispatchMessageAsync(uint32_t app_id, uint32_t message, uint32_t buffer_ptr, size_t buffer_length);
+  X_RESULT DispatchMessageSync(uint32_t app_id, uint32_t message, uint32_t arg1,
+                               uint32_t arg2);
+  X_RESULT DispatchMessageAsync(uint32_t app_id, uint32_t message,
+                                uint32_t buffer_ptr, size_t buffer_length);
 
-private:
+ private:
   std::vector<std::unique_ptr<XApp>> apps_;
   std::unordered_map<uint32_t, XApp*> app_lookup_;
 };
 
-
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_APP_H_

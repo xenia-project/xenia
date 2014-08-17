@@ -13,14 +13,11 @@
 #include <xenia/cpu/cpu.h>
 #include <xenia/kernel/objects/xthread.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::cpu;
-using namespace xe::kernel;
-
-
-XKernelModule::XKernelModule(KernelState* kernel_state, const char* path) :
-    XModule(kernel_state, path) {
+XKernelModule::XKernelModule(KernelState* kernel_state, const char* path)
+    : XModule(kernel_state, path) {
   emulator_ = kernel_state->emulator();
   memory_ = emulator_->memory();
   export_resolver_ = kernel_state->emulator()->export_resolver();
@@ -28,11 +25,13 @@ XKernelModule::XKernelModule(KernelState* kernel_state, const char* path) :
   OnLoad();
 }
 
-XKernelModule::~XKernelModule() {
-}
+XKernelModule::~XKernelModule() {}
 
 void* XKernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   // TODO(benvanik): check export tables.
   XELOGE("GetProcAddressByOrdinal not implemented");
   return NULL;
 }
+
+}  // namespace kernel
+}  // namespace xe

@@ -12,9 +12,7 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/xboxkrnl_ordinals.h>
-
 
 namespace xe {
 namespace kernel {
@@ -41,6 +39,5 @@ void RegisterVideoExports(ExportResolver* export_resolver, KernelState* state);
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_PRIVATE_H_

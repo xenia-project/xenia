@@ -9,15 +9,11 @@
 
 #include <xenia/kernel/native_list.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-NativeList::NativeList(Memory* memory) :
-    memory_(memory),
-    head_(kInvalidPointer) {
-}
+NativeList::NativeList(Memory* memory)
+    : memory_(memory), head_(kInvalidPointer) {}
 
 void NativeList::Insert(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
@@ -67,9 +63,7 @@ uint32_t NativeList::Shift() {
   return ptr;
 }
 
-bool NativeList::HasPending() {
-  return head_ != kInvalidPointer;
-}
+bool NativeList::HasPending() { return head_ != kInvalidPointer; }
 
 }  // namespace kernel
 }  // namespace xe

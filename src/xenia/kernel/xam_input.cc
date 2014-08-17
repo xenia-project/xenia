@@ -16,53 +16,40 @@
 #include <xenia/kernel/xam_private.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
 using xe::hid::InputSystem;
 
-
-SHIM_CALL XamResetInactivity_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "XamResetInactivity(%d)",
-      unk);
+  XELOGD("XamResetInactivity(%d)", unk);
 
   // Result ignored.
   SHIM_SET_RETURN_64(0);
 }
 
-
-SHIM_CALL XamEnableInactivityProcessing_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_state,
+                                             KernelState* state) {
   uint32_t zero = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamEnableInactivityProcessing(%d, %d)",
-      zero,
-      unk);
+  XELOGD("XamEnableInactivityProcessing(%d, %d)", zero, unk);
 
   // Expects 0.
   SHIM_SET_RETURN_64(0);
 }
 
-
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
-SHIM_CALL XamInputGetCapabilities_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t caps_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamInputGetCapabilities(%d, %.8X, %.8X)",
-      user_index,
-      flags,
-      caps_ptr);
+  XELOGD("XamInputGetCapabilities(%d, %.8X, %.8X)", user_index, flags,
+         caps_ptr);
 
   if (!caps_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
@@ -79,19 +66,13 @@ SHIM_CALL XamInputGetCapabilities_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
-SHIM_CALL XamInputGetState_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputGetState_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t one = SHIM_GET_ARG_32(1);
   uint32_t state_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamInputGetState(%d, %.8X, %.8X)",
-      user_index,
-      one,
-      state_ptr);
+  XELOGD("XamInputGetState(%d, %.8X, %.8X)", user_index, one, state_ptr);
 
   // Games call this with a NULL state ptr, probably as a query.
 
@@ -107,19 +88,13 @@ SHIM_CALL XamInputGetState_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
-SHIM_CALL XamInputSetState_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputSetState_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(1);
   uint32_t vibration_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamInputSetState(%d, %.8X, %.8X)",
-      user_index,
-      unk,
-      vibration_ptr);
+  XELOGD("XamInputSetState(%d, %.8X, %.8X)", user_index, unk, vibration_ptr);
 
   if (!vibration_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
@@ -133,10 +108,8 @@ SHIM_CALL XamInputSetState_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
-SHIM_CALL XamInputGetKeystroke_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t keystroke_ptr = SHIM_GET_ARG_32(2);
@@ -145,11 +118,8 @@ SHIM_CALL XamInputGetKeystroke_shim(
   // user index = index or XUSER_INDEX_ANY
   // flags = XINPUT_FLAG_GAMEPAD (| _ANYUSER | _ANYDEVICE)
 
-  XELOGD(
-      "XamInputGetKeystroke(%d, %.8X, %.8X)",
-      user_index,
-      flags,
-      keystroke_ptr);
+  XELOGD("XamInputGetKeystroke(%d, %.8X, %.8X)", user_index, flags,
+         keystroke_ptr);
 
   if (!keystroke_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
@@ -166,21 +136,17 @@ SHIM_CALL XamInputGetKeystroke_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
 // Same as non-ex, just takes a pointer to user index.
-SHIM_CALL XamInputGetKeystrokeEx_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
   uint32_t user_index_ptr = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t keystroke_ptr = SHIM_GET_ARG_32(2);
 
   uint32_t user_index = SHIM_MEM_32(user_index_ptr);
 
-  XELOGD(
-      "XamInputGetKeystroke(%.8X(%.d), %.8X, %.8X)",
-      user_index_ptr, user_index,
-      flags,
-      keystroke_ptr);
+  XELOGD("XamInputGetKeystroke(%.8X(%.d), %.8X, %.8X)", user_index_ptr,
+         user_index, flags, keystroke_ptr);
 
   if (!keystroke_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
@@ -198,18 +164,13 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
-SHIM_CALL XamUserGetDeviceContext_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamUserGetDeviceContext_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(1);
   uint32_t out_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamUserGetDeviceContext(%d, %d, %.8X)",
-      user_index,
-      unk,
-      out_ptr);
+  XELOGD("XamUserGetDeviceContext(%d, %d, %.8X)", user_index, unk, out_ptr);
 
   // Games check the result - usually with some masking.
   // If this function fails they assume zero, so let's fail AND
@@ -222,13 +183,11 @@ SHIM_CALL XamUserGetDeviceContext_shim(
   }
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterInputExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterInputExports(ExportResolver* export_resolver,
+                                           KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamResetInactivity, state);
   SHIM_SET_MAPPING("xam.xex", XamEnableInactivityProcessing, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);

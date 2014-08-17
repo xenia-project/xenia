@@ -22,26 +22,24 @@
 #include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/objects/xuser_module.h>
 
-
 namespace xe {
 namespace kernel {
-
 
 // This is a global object initialized with the XboxkrnlModule.
 // It references the current kernel state object that all kernel methods should
 // be using to stash their variables.
 KernelState* shared_kernel_state_ = nullptr;
 
+KernelState::KernelState(Emulator* emulator)
+    : emulator_(emulator),
+      memory_(emulator->memory()),
+      executable_module_(NULL) {
+  processor_ = emulator->processor();
+  file_system_ = emulator->file_system();
 
-KernelState::KernelState(Emulator* emulator) :
-    emulator_(emulator), memory_(emulator->memory()),
-    executable_module_(NULL) {
-  processor_    = emulator->processor();
-  file_system_  = emulator->file_system();
+  dispatcher_ = new Dispatcher(this);
 
-  dispatcher_   = new Dispatcher(this);
-
-  app_manager_  = std::make_unique<XAppManager>();
+  app_manager_ = std::make_unique<XAppManager>();
   user_profile_ = std::make_unique<UserProfile>();
 
   object_table_ = new ObjectTable();
@@ -67,9 +65,7 @@ KernelState::~KernelState() {
   shared_kernel_state_ = NULL;
 }
 
-KernelState* KernelState::shared() {
-  return shared_kernel_state_;
-}
+KernelState* KernelState::shared() { return shared_kernel_state_; }
 
 void KernelState::RegisterModule(XModule* module) {}
 
@@ -170,7 +166,8 @@ void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
   }
 }
 
-void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result, uint32_t length) {
+void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result,
+                                     uint32_t length) {
   auto ptr = memory()->membase() + overlapped_ptr;
   XOverlappedSetResult(ptr, result);
   XOverlappedSetLength(ptr, length);
@@ -179,7 +176,7 @@ void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result, u
   if (event_handle) {
     XEvent* ev = nullptr;
     if (XSUCCEEDED(object_table()->GetObject(
-        event_handle, reinterpret_cast<XObject**>(&ev)))) {
+            event_handle, reinterpret_cast<XObject**>(&ev)))) {
       ev->Set(0, false);
       ev->Release();
     }
@@ -189,17 +186,19 @@ void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result, u
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
     XThread* thread = nullptr;
     if (XSUCCEEDED(object_table()->GetObject(
-        thread_handle, reinterpret_cast<XObject**>(&thread)))) {
-      // TODO(benvanik): queue APC on the thread that requested the overlapped operation.
+            thread_handle, reinterpret_cast<XObject**>(&thread)))) {
+      // TODO(benvanik): queue APC on the thread that requested the overlapped
+      // operation.
       thread->Release();
     }
   }
 }
 
-void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT result, uint32_t length) {
+void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr,
+                                              X_RESULT result,
+                                              uint32_t length) {
   auto ptr = memory()->membase() + overlapped_ptr;
-  XOverlappedSetContext(ptr,
-                        XThread::GetCurrentThreadHandle());
+  XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
   CompleteOverlapped(overlapped_ptr, result, length);
 }
 

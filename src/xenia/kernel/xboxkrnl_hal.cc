@@ -14,18 +14,13 @@
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL HalReturnToFirmware_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL HalReturnToFirmware_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t routine = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "HalReturnToFirmware(%d)",
-      routine);
+  XELOGD("HalReturnToFirmware(%d)", routine);
 
   // void
   // IN FIRMWARE_REENTRY  Routine
@@ -39,12 +34,10 @@ SHIM_CALL HalReturnToFirmware_shim(
   exit(0);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xboxkrnl::RegisterHalExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterHalExports(ExportResolver* export_resolver,
+                                              KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", HalReturnToFirmware, state);
 }

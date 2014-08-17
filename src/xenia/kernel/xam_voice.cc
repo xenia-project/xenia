@@ -15,20 +15,15 @@
 #include <xenia/kernel/xam_private.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL XamVoiceCreate_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  uint32_t unk1 = SHIM_GET_ARG_32(0); // 0
-  uint32_t unk2 = SHIM_GET_ARG_32(1); // 0xF
+SHIM_CALL XamVoiceCreate_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk1 = SHIM_GET_ARG_32(0);  // 0
+  uint32_t unk2 = SHIM_GET_ARG_32(1);  // 0xF
   uint32_t out_voice_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "XamVoiceCreate(%.8X, %.8X, %.8X)",
-      unk1, unk2, out_voice_ptr);
+  XELOGD("XamVoiceCreate(%.8X, %.8X, %.8X)", unk1, unk2, out_voice_ptr);
 
   // Null out the ptr.
   SHIM_SET_MEM_32(out_voice_ptr, 0);
@@ -36,37 +31,28 @@ SHIM_CALL XamVoiceCreate_shim(
   SHIM_SET_RETURN_32(X_ERROR_ACCESS_DENIED);
 }
 
-
-SHIM_CALL XamVoiceClose_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamVoiceClose_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t voice_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "XamVoiceClose(%.8X)",
-      voice_ptr);
+  XELOGD("XamVoiceClose(%.8X)", voice_ptr);
 
   SHIM_SET_RETURN_32(0);
 }
 
-
-SHIM_CALL XamVoiceHeadsetPresent_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamVoiceHeadsetPresent_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
   uint32_t voice_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "XamVoiceHeadsetPresent(%.8X)",
-      voice_ptr);
+  XELOGD("XamVoiceHeadsetPresent(%.8X)", voice_ptr);
 
   SHIM_SET_RETURN_32(0);
 }
-
 
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xam::RegisterVoiceExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xam::RegisterVoiceExports(ExportResolver* export_resolver,
+                                           KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamVoiceCreate, state);
   SHIM_SET_MAPPING("xam.xex", XamVoiceClose, state);
   SHIM_SET_MAPPING("xam.xex", XamVoiceHeadsetPresent, state);

@@ -15,24 +15,20 @@
 #include <xenia/kernel/objects/xthread.h>
 #include <xenia/kernel/util/shim_utils.h>
 
-
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL KeEnableFpuExceptions_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL KeEnableFpuExceptions_shim(PPCContext* ppc_state,
+                                     KernelState* state) {
   uint32_t enabled = SHIM_GET_ARG_32(0);
   XELOGD("KeEnableFpuExceptions(%d)", enabled);
   // TODO(benvanik): can we do anything about exceptions?
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xboxkrnl::RegisterMiscExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterMiscExports(ExportResolver* export_resolver,
+                                               KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnableFpuExceptions, state);
 }

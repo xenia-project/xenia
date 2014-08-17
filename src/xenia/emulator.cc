@@ -22,8 +22,8 @@
 #include <xenia/kernel/fs/filesystem.h>
 #include <xenia/ui/window.h>
 
+namespace xe {
 
-using namespace xe;
 using namespace xe::apu;
 using namespace xe::cpu;
 using namespace xe::gpu;
@@ -218,3 +218,5 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
 
   return xboxkrnl_->LaunchModule(module_path.c_str());
 }
+
+}  // namespace xe

@@ -11,14 +11,11 @@
 
 #include <xdb/protocol.h>
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::cpu;
-using namespace xe::kernel;
-
-
-XModule::XModule(KernelState* kernel_state, const std::string& path) :
-    XObject(kernel_state, kTypeModule), path_(path) {
+XModule::XModule(KernelState* kernel_state, const std::string& path)
+    : XObject(kernel_state, kTypeModule), path_(path) {
   auto last_slash = path.find_last_of('/');
   if (last_slash == path.npos) {
     last_slash = path.find_last_of('\\');
@@ -54,8 +51,10 @@ void XModule::OnLoad() {
   kernel_state_->RegisterModule(this);
 }
 
-X_STATUS XModule::GetSection(
-    const char* name,
-    uint32_t* out_section_data, uint32_t* out_section_size) {
+X_STATUS XModule::GetSection(const char* name, uint32_t* out_section_data,
+                             uint32_t* out_section_size) {
   return X_STATUS_UNSUCCESSFUL;
 }
+
+}  // namespace kernel
+}  // namespace xe
