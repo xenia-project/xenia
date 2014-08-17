@@ -63,11 +63,11 @@ inline uint64_t Hash128to64(const uint128_t &x) {
   return b;
 }
 
-XEFORCEINLINE uint64_t UNALIGNED_LOAD64(const char *p) {
+inline uint64_t UNALIGNED_LOAD64(const char *p) {
   const uint64_t *p64 = (const uint64_t *)p;
   return *p64;
 }
-XEFORCEINLINE uint32_t UNALIGNED_LOAD32(const char *p) {
+inline uint32_t UNALIGNED_LOAD32(const char *p) {
   const uint32_t *p32 = (const uint32_t *)p;
   return *p32;
 }

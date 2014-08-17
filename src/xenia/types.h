@@ -34,23 +34,6 @@
     } } } }
 
 #if XE_COMPILER_MSVC
-// http://msdn.microsoft.com/en-us/library/z8y1yy88.aspx
-#define XEFORCEINLINE           static __forceinline
-#define XENOINLINE              __declspec(noinline)
-#elif XE_COMPILER_GNUC
-// http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html
-#if (__GNUC__ >= 4)
-#define XEFORCEINLINE           static __inline__ __attribute__((always_inline))
-#else
-#define XEFORCEINLINE           static __inline__
-#endif
-#define XENOINLINE
-#else
-#define XEFORCEINLINE
-#define XENOINLINE
-#endif  // MSVC
-
-#if XE_COMPILER_MSVC
 #define XEPACKEDSTRUCT(name, value) \
     __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
     typedef struct name##_s name;

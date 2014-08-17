@@ -42,7 +42,7 @@ typedef struct XECACHEALIGN vec128_s {
     return low == b.low && high == b.high;
   }
 } vec128_t;
-XEFORCEINLINE vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
+static inline vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
   vec128_t v;
   v.i4[0] = x;
   v.i4[1] = y;
@@ -50,7 +50,7 @@ XEFORCEINLINE vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
   v.i4[3] = w;
   return v;
 }
-XEFORCEINLINE vec128_t vec128f(float x, float y, float z, float w) {
+static inline vec128_t vec128f(float x, float y, float z, float w) {
   vec128_t v;
   v.f4[0] = x;
   v.f4[1] = y;
@@ -58,7 +58,7 @@ XEFORCEINLINE vec128_t vec128f(float x, float y, float z, float w) {
   v.f4[3] = w;
   return v;
 }
-XEFORCEINLINE vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
+static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
                                uint8_t y0, uint8_t y1, uint8_t y2, uint8_t y3,
                                uint8_t z0, uint8_t z1, uint8_t z2, uint8_t z3,
                                uint8_t w0, uint8_t w1, uint8_t w2, uint8_t w3) {
