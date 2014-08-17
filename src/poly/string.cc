@@ -51,6 +51,22 @@ std::wstring to_absolute_path(const std::wstring& path) {
 #endif  // XE_LIKE_WIN32
 }
 
+std::vector<std::string> split_path(const std::string& path) {
+  std::vector<std::string> parts;
+  size_t n = 0;
+  size_t last = 0;
+  while ((n = path.find_first_of("\\/", last)) != path.npos) {
+    if (last != n) {
+      parts.push_back(path.substr(last, n - last));
+    }
+    last = n + 1;
+  }
+  if (last != path.size()) {
+    parts.push_back(path.substr(last));
+  }
+  return parts;
+}
+
 std::wstring join_paths(const std::wstring& left, const std::wstring& right,
                         wchar_t sep) {
   if (!left.size()) {

@@ -294,7 +294,7 @@ void Disasm_bcx(InstrData& i, StringBuffer* str) {
   }
   char s2[8] = {0};
   if (!select_bits(i.B.BO, 4, 4)) {
-    xesnprintfa(s2, poly::countof(s2), "cr%d, ", i.B.BI >> 2);
+    snprintf(s2, poly::countof(s2), "cr%d, ", i.B.BI >> 2);
   }
   uint32_t nia;
   if (i.B.AA) {
@@ -310,7 +310,7 @@ void Disasm_bcctrx(InstrData& i, StringBuffer* str) {
   const char* s0 = i.XL.LK ? "lr, " : "";
   char s2[8] = {0};
   if (!select_bits(i.XL.BO, 4, 4)) {
-    xesnprintfa(s2, poly::countof(s2), "cr%d, ", i.XL.BI >> 2);
+    snprintf(s2, poly::countof(s2), "cr%d, ", i.XL.BI >> 2);
   }
   str->Append("%-8s %s%sctr", i.type->name, s0, s2);
   // TODO(benvanik): resolve target name?
@@ -328,7 +328,7 @@ void Disasm_bclrx(InstrData& i, StringBuffer* str) {
   }
   char s2[8] = {0};
   if (!select_bits(i.XL.BO, 4, 4)) {
-    xesnprintfa(s2, poly::countof(s2), "cr%d, ", i.XL.BI >> 2);
+    snprintf(s2, poly::countof(s2), "cr%d, ", i.XL.BI >> 2);
   }
   str->Append("%-8s %s%s", name, s1, s2);
 }

@@ -114,12 +114,12 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (kernel_export) {
       if (info->thunk_address) {
-        xesnprintfa(name, poly::countof(name), "__imp_%s", kernel_export->name);
+        snprintf(name, poly::countof(name), "__imp_%s", kernel_export->name);
       } else {
-        xesnprintfa(name, poly::countof(name), "%s", kernel_export->name);
+        snprintf(name, poly::countof(name), "%s", kernel_export->name);
       }
     } else {
-      xesnprintfa(name, poly::countof(name), "__imp_%s_%.3X", library->name,
+      snprintf(name, poly::countof(name), "__imp_%s_%.3X", library->name,
                   info->ordinal);
     }
 
@@ -159,10 +159,10 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (info->thunk_address) {
       if (kernel_export) {
-        xesnprintfa(name, poly::countof(name), "%s", kernel_export->name);
+        snprintf(name, poly::countof(name), "%s", kernel_export->name);
       } else {
-        xesnprintfa(name, poly::countof(name), "__kernel_%s_%.3X",
-                    library->name, info->ordinal);
+        snprintf(name, poly::countof(name), "__kernel_%s_%.3X", library->name,
+                 info->ordinal);
       }
 
       // On load we have something like this in memory:
@@ -423,7 +423,7 @@ int XexModule::FindSaveRest() {
   if (gplr_start) {
     uint64_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, poly::countof(name), "__savegprlr_%d", n);
+      snprintf(name, poly::countof(name), "__savegprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 2 * 4);
@@ -436,7 +436,7 @@ int XexModule::FindSaveRest() {
     }
     address = gplr_start + 20 * 4;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, poly::countof(name), "__restgprlr_%d", n);
+      snprintf(name, poly::countof(name), "__restgprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 3 * 4);
@@ -451,7 +451,7 @@ int XexModule::FindSaveRest() {
   if (fpr_start) {
     uint64_t address = fpr_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, poly::countof(name), "__savefpr_%d", n);
+      snprintf(name, poly::countof(name), "__savefpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -464,7 +464,7 @@ int XexModule::FindSaveRest() {
     }
     address = fpr_start + (18 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, poly::countof(name), "__restfpr_%d", n);
+      snprintf(name, poly::countof(name), "__restfpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -484,7 +484,7 @@ int XexModule::FindSaveRest() {
     // 64-127 rest
     uint64_t address = vmx_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, poly::countof(name), "__savevmx_%d", n);
+      snprintf(name, poly::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -496,7 +496,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      xesnprintfa(name, poly::countof(name), "__savevmx_%d", n);
+      snprintf(name, poly::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -508,7 +508,7 @@ int XexModule::FindSaveRest() {
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, poly::countof(name), "__restvmx_%d", n);
+      snprintf(name, poly::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -520,7 +520,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      xesnprintfa(name, poly::countof(name), "__restvmx_%d", n);
+      snprintf(name, poly::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);

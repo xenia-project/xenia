@@ -51,7 +51,6 @@ xe_xex2_ref xe_xex2_load(xe::Memory* memory,
 xe_xex2_ref xe_xex2_retain(xe_xex2_ref xex);
 void xe_xex2_release(xe_xex2_ref xex);
 
-const xechar_t *xe_xex2_get_name(xe_xex2_ref xex);
 const xe_xex2_header_t *xe_xex2_get_header(xe_xex2_ref xex);
 const PESection* xe_xex2_get_pe_section(xe_xex2_ref xex, const char* name);
 

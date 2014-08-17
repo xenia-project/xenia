@@ -50,11 +50,8 @@ ID3D10Blob* D3D11ShaderCompile(XE_GPU_SHADER_TYPE type,
   }
   size_t hash = hash64(disasm_source, strlen(disasm_source)); // ?
   char file_name[poly::max_path];
-  xesnprintfa(file_name, poly::countof(file_name),
-      "%s/gen_%.16llX.%s",
-      base_path,
-      hash,
-      type == XE_GPU_SHADER_TYPE_VERTEX ? "vs" : "ps");
+  snprintf(file_name, poly::countof(file_name), "%s/gen_%.16llX.%s", base_path,
+           hash, type == XE_GPU_SHADER_TYPE_VERTEX ? "vs" : "ps");
 
   if (FLAGS_dump_shaders.size()) {
     FILE* f = fopen(file_name, "w");

@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include <xenia/string.h>
+#include <poly/string.h>
 
 #define XE_OPTION_ENABLE_LOGGING        1
 #define XE_OPTION_LOG_ERROR             1

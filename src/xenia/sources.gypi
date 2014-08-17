@@ -15,7 +15,6 @@
     'malloc.h',
     'profiling.cc',
     'profiling.h',
-    'string.h',
     'types.h',
     'xbox.h',
   ],

@@ -30,28 +30,28 @@ void InstrOperand::Dump(std::string& out_str) {
     case InstrOperand::kRegister:
       switch (reg.set) {
         case InstrRegister::kXER:
-          xesnprintfa(buffer, max_count, "XER");
+          snprintf(buffer, max_count, "XER");
           break;
         case InstrRegister::kLR:
-          xesnprintfa(buffer, max_count, "LR");
+          snprintf(buffer, max_count, "LR");
           break;
         case InstrRegister::kCTR:
-          xesnprintfa(buffer, max_count, "CTR");
+          snprintf(buffer, max_count, "CTR");
           break;
         case InstrRegister::kCR:
-          xesnprintfa(buffer, max_count, "CR%d", reg.ordinal);
+          snprintf(buffer, max_count, "CR%d", reg.ordinal);
           break;
         case InstrRegister::kFPSCR:
-          xesnprintfa(buffer, max_count, "FPSCR");
+          snprintf(buffer, max_count, "FPSCR");
           break;
         case InstrRegister::kGPR:
-          xesnprintfa(buffer, max_count, "r%d", reg.ordinal);
+          snprintf(buffer, max_count, "r%d", reg.ordinal);
           break;
         case InstrRegister::kFPR:
-          xesnprintfa(buffer, max_count, "f%d", reg.ordinal);
+          snprintf(buffer, max_count, "f%d", reg.ordinal);
           break;
         case InstrRegister::kVMX:
-          xesnprintfa(buffer, max_count, "vr%d", reg.ordinal);
+          snprintf(buffer, max_count, "vr%d", reg.ordinal);
           break;
       }
       break;
@@ -59,30 +59,30 @@ void InstrOperand::Dump(std::string& out_str) {
       switch (imm.width) {
         case 1:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%d", (int32_t)(int8_t)imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)(int8_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.2X", (uint8_t)imm.value);
+            snprintf(buffer, max_count, "0x%.2X", (uint8_t)imm.value);
           }
           break;
         case 2:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%d", (int32_t)(int16_t)imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)(int16_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.4X", (uint16_t)imm.value);
+            snprintf(buffer, max_count, "0x%.4X", (uint16_t)imm.value);
           }
           break;
         case 4:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%d", (int32_t)imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.8X", (uint32_t)imm.value);
+            snprintf(buffer, max_count, "0x%.8X", (uint32_t)imm.value);
           }
           break;
         case 8:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%lld", (int64_t)imm.value);
+            snprintf(buffer, max_count, "%lld", (int64_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.16llX", imm.value);
+            snprintf(buffer, max_count, "0x%.16llX", imm.value);
           }
           break;
       }

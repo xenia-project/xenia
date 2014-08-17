@@ -58,8 +58,7 @@ struct Output {
   void append(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int len = xevsnprintfa(
-        buffer + offset, capacity - offset, format, args);
+    int len = vsnprintf(buffer + offset, capacity - offset, format, args);
     va_end(args);
     offset += len;
     buffer[offset] = 0;

@@ -56,34 +56,13 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
   GDFXEntry* gdfx_entry = gdfx_->root_entry();
 
   // Walk the path, one separator at a time.
-  // We copy it into the buffer and shift it left over and over.
-  char remaining[poly::max_path];
-  xestrcpya(remaining, poly::countof(remaining), path);
-  while (remaining[0]) {
-    char* next_slash = strchr(remaining, '\\');
-    if (next_slash == remaining) {
-      // Leading slash - shift
-      xestrcpya(remaining, poly::countof(remaining), remaining + 1);
-      continue;
-    }
-
-    // Make the buffer just the name.
-    if (next_slash) {
-      *next_slash = 0;
-    }
-
-    // Look up in the entry.
-    gdfx_entry = gdfx_entry->GetChild(remaining);
+  auto path_parts = poly::split_path(path);
+  for (auto& part : path_parts) {
+    gdfx_entry = gdfx_entry->GetChild(part.c_str());
     if (!gdfx_entry) {
       // Not found.
-      return NULL;
+      return nullptr;
     }
-
-    // Shift the buffer down, unless we are at the end.
-    if (!next_slash) {
-      break;
-    }
-    xestrcpya(remaining, poly::countof(remaining), next_slash + 1);
   }
 
   Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?

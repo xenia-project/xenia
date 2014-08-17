@@ -111,11 +111,6 @@ void xe_xex2_release(xe_xex2_ref xex) {
   xe_ref_release((xe_ref)xex, (xe_ref_dealloc_t)xe_xex2_dealloc);
 }
 
-const xechar_t* xe_xex2_get_name(xe_xex2_ref xex) {
-  // TODO(benvanik): get name.
-  return NULL;
-}
-
 const xe_xex2_header_t* xe_xex2_get_header(xe_xex2_ref xex) {
   return &xex->header;
 }
@@ -264,8 +259,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
           for (size_t i = 0, j = 0; i < string_table_size;) {
             assert_true(j <= 0xFF);
             if (j == name_index) {
-              xestrcpya(library->name, poly::countof(library->name),
-                        string_table + i);
+              std::strncpy(library->name, string_table + i,
+                           poly::countof(library->name));
               break;
             }
             if (string_table[i] == 0) {

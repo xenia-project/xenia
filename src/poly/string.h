@@ -10,13 +10,16 @@
 #ifndef POLY_STRING_H_
 #define POLY_STRING_H_
 
+#include <cstdio>
 #include <string>
+#include <vector>
 
 #include <poly/platform.h>
 
 #if XE_LIKE_WIN32
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#define snprintf _snprintf
 #endif  // XE_LIKE_WIN32
 
 namespace poly {
@@ -30,6 +33,9 @@ std::string::size_type find_first_of_case(const std::string& target,
 
 // Converts the given path to an absolute path based on cwd.
 std::wstring to_absolute_path(const std::wstring& path);
+
+// Splits the given path on any valid path separator and returns all parts.
+std::vector<std::string> split_path(const std::string& path);
 
 // Joins two path segments with the given separator.
 std::wstring join_paths(const std::wstring& left, const std::wstring& right,

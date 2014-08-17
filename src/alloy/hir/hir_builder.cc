@@ -625,7 +625,7 @@ void HIRBuilder::Comment(const char* format, ...) {
   char buffer[1024];
   va_list args;
   va_start(args, format);
-  xevsnprintfa(buffer, 1024, format, args);
+  vsnprintf(buffer, 1024, format, args);
   va_end(args);
   size_t len = strlen(buffer);
   if (!len) {

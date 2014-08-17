@@ -42,12 +42,13 @@ void xe_format_log_line(
 
   // Format string - add a trailing newline if required.
   const char* outfmt = "XE[%c] %s:%d: ";
-  char* buffer_ptr = buffer + xesnprintfa(
-      buffer, buffer_count - 1, outfmt, level_char, filename, line_number);
+  char* buffer_ptr = buffer + snprintf(buffer, buffer_count - 1, outfmt,
+                                       level_char, filename, line_number);
 
   // Scribble args into the print buffer.
-  buffer_ptr = buffer_ptr + xevsnprintfa(
-      buffer_ptr, buffer_count - (buffer_ptr - buffer) - 1, fmt, args);
+  buffer_ptr = buffer_ptr + vsnprintf(buffer_ptr,
+                                      buffer_count - (buffer_ptr - buffer) - 1,
+                                      fmt, args);
 
   // Add a trailing newline.
   if (buffer_ptr[-1] != '\n') {

@@ -22,7 +22,7 @@ typedef enum {
   kXEFileModeWrite = (1 << 1),
 } xe_file_mode;
 
-xe_mmap_ref xe_mmap_open(const xe_file_mode mode, const xechar_t *path,
+xe_mmap_ref xe_mmap_open(const xe_file_mode mode, const wchar_t *path,
                          const size_t offset, const size_t length);
 xe_mmap_ref xe_mmap_retain(xe_mmap_ref mmap);
 void xe_mmap_release(xe_mmap_ref mmap);

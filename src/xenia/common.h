@@ -14,11 +14,11 @@
 #include <poly/atomic.h>
 #include <poly/byte_order.h>
 #include <poly/memory.h>
+#include <poly/string.h>
 
 #include <xenia/logging.h>
 #include <xenia/malloc.h>
 #include <xenia/profiling.h>
-#include <xenia/string.h>
 #include <xenia/types.h>
 
 #endif  // XENIA_COMMON_H_

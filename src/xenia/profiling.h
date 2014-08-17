@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <xenia/string.h>
+#include <poly/string.h>
 #include <xenia/types.h>
 
 #define XE_OPTION_PROFILING 1

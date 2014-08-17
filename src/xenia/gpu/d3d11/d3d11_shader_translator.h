@@ -48,8 +48,7 @@ private:
   void append(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int len = xevsnprintfa(buffer_ + offset_, capacity_ - offset_,
-                           format, args);
+    int len = vsnprintf(buffer_ + offset_, capacity_ - offset_, format, args);
     va_end(args);
     offset_ += len;
     buffer_[offset_] = 0;

@@ -219,7 +219,7 @@ X_STATUS XThread::Create() {
   }
 
   char thread_name[32];
-  xesnprintfa(thread_name, poly::countof(thread_name), "XThread%04X", handle());
+  snprintf(thread_name, poly::countof(thread_name), "XThread%04X", handle());
   set_name(thread_name);
 
   uint32_t proc_mask = creation_params_.creation_flags >> 24;

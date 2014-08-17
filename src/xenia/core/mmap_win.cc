@@ -21,7 +21,7 @@ typedef struct xe_mmap {
 } xe_mmap_t;
 
 
-xe_mmap_ref xe_mmap_open(const xe_file_mode mode, const xechar_t *path,
+xe_mmap_ref xe_mmap_open(const xe_file_mode mode, const wchar_t *path,
                          const size_t offset, const size_t length) {
   xe_mmap_ref mmap = (xe_mmap_ref)xe_calloc(sizeof(xe_mmap_t));
   xe_ref_init((xe_ref)mmap);
