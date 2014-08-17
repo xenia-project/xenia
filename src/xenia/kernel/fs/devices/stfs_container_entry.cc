@@ -65,7 +65,7 @@ X_STATUS STFSContainerEntry::QueryDirectory(
 
   auto end = (uint8_t*)out_info + length;
 
-  auto entry = *stfs_entry_iterator_;
+  auto entry = stfs_entry_iterator_->get();
   auto entry_name = entry->name;
 
   if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {

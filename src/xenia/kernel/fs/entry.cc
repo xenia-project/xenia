@@ -10,9 +10,9 @@
 #include <xenia/kernel/fs/entry.h>
 #include <xenia/kernel/fs/device.h>
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
 MemoryMapping::MemoryMapping(uint8_t* address, size_t length)
     : address_(address), length_(length) {}
@@ -28,3 +28,7 @@ Entry::Entry(Type type, Device* device, const std::string& path)
 }
 
 Entry::~Entry() = default;
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

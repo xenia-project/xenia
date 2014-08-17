@@ -14,14 +14,11 @@
 #include <xenia/kernel/fs/devices/host_path_device.h>
 #include <xenia/kernel/fs/devices/stfs_container_device.h>
 
+namespace xe {
+namespace kernel {
+namespace fs {
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
-
-
-FileSystem::FileSystem() {
-}
+FileSystem::FileSystem() {}
 
 FileSystem::~FileSystem() {
   // Delete all devices.
@@ -106,14 +103,14 @@ int FileSystem::RegisterDevice(const std::string& path, Device* device) {
   return 0;
 }
 
-int FileSystem::RegisterHostPathDevice(
-    const std::string& path, const std::wstring& local_path) {
+int FileSystem::RegisterHostPathDevice(const std::string& path,
+                                       const std::wstring& local_path) {
   Device* device = new HostPathDevice(path, local_path);
   return RegisterDevice(path, device);
 }
 
-int FileSystem::RegisterDiscImageDevice(
-    const std::string& path, const std::wstring& local_path) {
+int FileSystem::RegisterDiscImageDevice(const std::string& path,
+                                        const std::wstring& local_path) {
   DiscImageDevice* device = new DiscImageDevice(path, local_path);
   if (device->Init()) {
     return 1;
@@ -121,8 +118,8 @@ int FileSystem::RegisterDiscImageDevice(
   return RegisterDevice(path, device);
 }
 
-int FileSystem::RegisterSTFSContainerDevice(
-    const std::string& path, const std::wstring& local_path) {
+int FileSystem::RegisterSTFSContainerDevice(const std::string& path,
+                                            const std::wstring& local_path) {
   STFSContainerDevice* device = new STFSContainerDevice(path, local_path);
   if (device->Init()) {
     return 1;
@@ -178,3 +175,7 @@ Entry* FileSystem::ResolvePath(const std::string& path) {
   XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
   return NULL;
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

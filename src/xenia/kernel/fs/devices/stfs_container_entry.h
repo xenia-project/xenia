@@ -46,7 +46,7 @@ public:
 private:
   xe_mmap_ref mmap_;
   STFSEntry*  stfs_entry_;
-  std::vector<STFSEntry*>::iterator stfs_entry_iterator_;
+  std::vector<std::unique_ptr<STFSEntry>>::iterator stfs_entry_iterator_;
 };
 
 

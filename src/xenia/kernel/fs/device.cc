@@ -9,10 +9,14 @@
 
 #include <xenia/kernel/fs/device.h>
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
 Device::Device(const std::string& path) : path_(path) {}
 
 Device::~Device() = default;
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

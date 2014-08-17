@@ -10,25 +10,20 @@
 #ifndef XENIA_KERNEL_FS_GDFX_H_
 #define XENIA_KERNEL_FS_GDFX_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-
 #include <vector>
 
+#include <xenia/core.h>
 #include <xenia/xbox.h>
 #include <xenia/kernel/fs/entry.h>
-
 
 namespace xe {
 namespace kernel {
 namespace fs {
 
-
 class GDFX;
 
-
 class GDFXEntry {
-public:
+ public:
   GDFXEntry();
   ~GDFXEntry();
 
@@ -36,23 +31,22 @@ public:
 
   void Dump(int indent);
 
-  std::string       name;
+  std::string name;
   X_FILE_ATTRIBUTES attributes;
-  size_t            offset;
-  size_t            size;
+  size_t offset;
+  size_t size;
 
   std::vector<GDFXEntry*> children;
 };
 
-
 class GDFX {
-public:
+ public:
   enum Error {
-    kSuccess            = 0,
-    kErrorOutOfMemory   = -1,
-    kErrorReadError     = -10,
-    kErrorFileMismatch  = -30,
-    kErrorDamagedFile   = -31,
+    kSuccess = 0,
+    kErrorOutOfMemory = -1,
+    kErrorReadError = -10,
+    kErrorFileMismatch = -30,
+    kErrorDamagedFile = -31,
   };
 
   GDFX(xe_mmap_ref mmap);
@@ -63,17 +57,22 @@ public:
   Error Load();
   void Dump();
 
-private:
+ private:
   typedef struct {
-    uint8_t*  ptr;
+    uint8_t* ptr;
 
-    size_t    size;           // Size (bytes) of total image
+    // Size (bytes) of total image.
+    size_t size;
 
-    size_t    game_offset;    // Offset (bytes) of game partition
+    // Offset (bytes) of game partition.
+    size_t game_offset;
 
-    size_t    root_sector;    // Offset (sector) of root
-    size_t    root_offset;    // Offset (bytes) of root
-    size_t    root_size;      // Size (bytes) of root
+    // Offset (sector) of root.
+    size_t root_sector;
+    // Offset (bytes) of root.
+    size_t root_offset;
+    // Size (bytes) of root.
+    size_t root_size;
   } ParseState;
 
   Error Verify(ParseState& state);
@@ -84,13 +83,11 @@ private:
 
   xe_mmap_ref mmap_;
 
-  GDFXEntry*  root_entry_;
+  GDFXEntry* root_entry_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_GDFX_H_

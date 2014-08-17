@@ -12,9 +12,7 @@
 
 #include <string>
 
-#include <xenia/common.h>
 #include <xenia/core.h>
-
 #include <xenia/kernel/fs/entry.h>
 
 namespace xe {
