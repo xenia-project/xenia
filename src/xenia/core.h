@@ -18,7 +18,6 @@ namespace xe {
 }  // namespace xe
 
 #include <xenia/core/mmap.h>
-#include <xenia/core/pal.h>
 #include <xenia/core/ref.h>
 #include <xenia/core/run_loop.h>
 #include <xenia/core/socket.h>

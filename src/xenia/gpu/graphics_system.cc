@@ -29,7 +29,7 @@ GraphicsSystem::GraphicsSystem(Emulator* emulator) :
     running_(false), driver_(nullptr),
     command_processor_(nullptr),
     interrupt_callback_(0), interrupt_callback_data_(0),
-    last_interrupt_time_(0), thread_wait_(nullptr) {
+    thread_wait_(nullptr) {
   // Create the run loop used for any windows/etc.
   // This must be done on the thread we create the driver.
   run_loop_ = xe_run_loop_create();
@@ -193,7 +193,6 @@ void GraphicsSystem::DispatchInterruptCallback(
   }
 
   // NOTE: we may be executing in some random thread.
-  last_interrupt_time_ = xe_pal_now();
   if (!interrupt_callback_) {
     return;
   }

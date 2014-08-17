@@ -38,14 +38,6 @@ int xenia_run(std::vector<std::wstring>& args) {
   // Normalize the path and make absolute.
   std::wstring abs_path = poly::to_absolute_path(path);
 
-  // Create platform abstraction layer.
-  xe_pal_options_t pal_options;
-  xe_zero_struct(&pal_options, sizeof(pal_options));
-  if (xe_pal_init(pal_options)) {
-    XELOGE("Failed to initialize PAL");
-    return 1;
-  }
-
   // Create the emulator.
   auto emulator = std::make_unique<Emulator>(L"");
   X_STATUS result = emulator->Setup();

@@ -23,14 +23,6 @@ namespace xc {
 using xdb::PostmortemDebugTarget;
 
 int main(std::vector<std::wstring>& args) {
-  // Create platform abstraction layer.
-  xe_pal_options_t pal_options;
-  xe_zero_struct(&pal_options, sizeof(pal_options));
-  if (xe_pal_init(pal_options)) {
-    XEFATAL("Failed to initialize PAL");
-    return 1;
-  }
-
   auto left_target = std::make_unique<PostmortemDebugTarget>();
   if (!left_target->LoadTrace(poly::to_wstring(FLAGS_trace_file_left))) {
     XEFATAL("Unable to load left trace file: %s",

@@ -4,7 +4,6 @@
     'hash.cc',
     'hash.h',
     'mmap.h',
-    'pal.h',
     'ref.cc',
     'ref.h',
     'run_loop.h',
@@ -20,18 +19,15 @@
     }],
     ['OS == "linux"', {
       'sources': [
-        'pal_posix.cc',
       ],
     }],
     ['OS == "mac"', {
       'sources': [
-        'pal_mac.cc',
       ],
     }],
     ['OS == "win"', {
       'sources': [
         'mmap_win.cc',
-        'pal_win.cc',
         'run_loop_win.cc',
         'socket_win.cc',
       ],

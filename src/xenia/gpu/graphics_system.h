@@ -81,7 +81,6 @@ protected:
 
   uint32_t          interrupt_callback_;
   uint32_t          interrupt_callback_data_;
-  double            last_interrupt_time_;
   HANDLE            thread_wait_;
 };
 

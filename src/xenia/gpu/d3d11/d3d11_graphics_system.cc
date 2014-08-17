@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/d3d11/d3d11_graphics_system.h>
 
+#include <chrono>
+
 #include <poly/math.h>
 #include <xenia/emulator.h>
 #include <xenia/gpu/gpu-private.h>
@@ -24,8 +26,7 @@ using namespace xe::gpu::d3d11;
 D3D11GraphicsSystem::D3D11GraphicsSystem(Emulator* emulator)
     : GraphicsSystem(emulator),
       window_(nullptr), dxgi_factory_(nullptr), device_(nullptr),
-      timer_queue_(nullptr), vsync_timer_(nullptr),
-      last_swap_time_(0.0) {
+      timer_queue_(nullptr), vsync_timer_(nullptr) {
 }
 
 D3D11GraphicsSystem::~D3D11GraphicsSystem() {
@@ -142,8 +143,9 @@ void D3D11GraphicsSystem::Initialize() {
 void D3D11GraphicsSystem::Pump() {
   SCOPE_profile_cpu_f("gpu");
 
-  double time_since_last_swap = xe_pal_now() - last_swap_time_;
-  if (time_since_last_swap > 1.0) {
+  auto time_since_last_swap = std::chrono::duration_cast<std::chrono::seconds>(
+      std::chrono::high_resolution_clock::now() - last_swap_time_);
+  if (time_since_last_swap.count() > 1) {
     // Force a swap when profiling.
     if (Profiler::is_enabled()) {
       window_->Swap();
@@ -159,7 +161,7 @@ void D3D11GraphicsSystem::Swap() {
   // If we are set to vsync this will block.
   window_->Swap();
 
-  last_swap_time_ = xe_pal_now();
+  last_swap_time_ = std::chrono::high_resolution_clock::now();
 }
 
 void __stdcall D3D11GraphicsSystem::VsyncCallback(D3D11GraphicsSystem* gs,

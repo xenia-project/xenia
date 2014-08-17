@@ -229,10 +229,6 @@ int run_tests(std::string& test_name) {
 
   vector<string> test_files;
 
-  xe_pal_options_t pal_options;
-  xe_zero_struct(&pal_options, sizeof(pal_options));
-  XEEXPECTZERO(xe_pal_init(pal_options));
-
   XEEXPECTZERO(discover_tests(FLAGS_test_path, test_files));
   if (!test_files.size()) {
     printf("No tests discovered - invalid path?\n");

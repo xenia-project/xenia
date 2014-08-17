@@ -49,7 +49,7 @@ private:
   HANDLE          timer_queue_;
   HANDLE          vsync_timer_;
 
-  double          last_swap_time_;
+  std::chrono::high_resolution_clock::time_point last_swap_time_;
 };
 
 

@@ -24,14 +24,6 @@ DEFINE_string(content_file, "",
 namespace xdb {
 
 int main(std::vector<std::wstring>& args) {
-  // Create platform abstraction layer.
-  xe_pal_options_t pal_options;
-  xe_zero_struct(&pal_options, sizeof(pal_options));
-  if (xe_pal_init(pal_options)) {
-    XEFATAL("Failed to initialize PAL");
-    return 1;
-  }
-
   wxInitializer init;
   if (!init.IsOk()) {
     XEFATAL("Failed to initialize wxWidgets");

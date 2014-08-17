@@ -37,13 +37,13 @@ void AttachConsole() {
   auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
   auto fp = _fdopen(con_handle, "w");
   *stdout = *fp;
-  setvbuf(stdout, NULL, _IONBF, 0);
+  setvbuf(stdout, nullptr, _IONBF, 0);
 
   std_handle = (intptr_t)GetStdHandle(STD_ERROR_HANDLE);
   con_handle = _open_osfhandle(std_handle, _O_TEXT);
   fp = _fdopen(con_handle, "w");
   *stderr = *fp;
-  setvbuf(stderr, NULL, _IONBF, 0);
+  setvbuf(stderr, nullptr, _IONBF, 0);
 }
 
 }  // namespace poly
@@ -62,7 +62,7 @@ int wmain(int argc, wchar_t* argv[]) {
   for (int n = 0; n < argca; n++) {
     size_t len = wcslen(argv[n]);
     argva[n] = (char*)alloca(len + 1);
-    wcstombs_s(NULL, argva[n], len + 1, argv[n], _TRUNCATE);
+    wcstombs_s(nullptr, argva[n], len + 1, argv[n], _TRUNCATE);
   }
 
   // Parse flags; this may delete some of them.
@@ -73,6 +73,10 @@ int wmain(int argc, wchar_t* argv[]) {
   for (int n = 0; n < argc; n++) {
     args.push_back(poly::to_wstring(argva[n]));
   }
+
+  // Setup COM on the main thread.
+  // NOTE: this may fail if COM has already been initialized - that's OK.
+  CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
   // Call app-provided entry point.
   int result = entry_info.entry_point(args);
