@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/xenia.h>
-
 #include <gflags/gflags.h>
 #include <poly/main.h>
+#include <xenia/emulator.h>
+#include <xenia/kernel/kernel.h>
 
 using namespace xe;
 

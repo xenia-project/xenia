@@ -2,7 +2,6 @@
 {
   'sources': [
     'common.h',
-    'config.h',
     'core.h',
     'debug_agent.cc',
     'debug_agent.h',
@@ -19,7 +18,6 @@
     'string.h',
     'types.h',
     'xbox.h',
-    'xenia.h',
   ],
 
   'includes': [

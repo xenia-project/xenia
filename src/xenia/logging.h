@@ -12,9 +12,19 @@
 
 #include <cstdint>
 
-#include <xenia/config.h>
 #include <xenia/string.h>
 
+#define XE_OPTION_ENABLE_LOGGING        1
+#define XE_OPTION_LOG_ERROR             1
+#define XE_OPTION_LOG_WARNING           1
+#define XE_OPTION_LOG_INFO              1
+#define XE_OPTION_LOG_DEBUG             1
+#define XE_OPTION_LOG_CPU               1
+#define XE_OPTION_LOG_SDB               0
+#define XE_OPTION_LOG_APU               1
+#define XE_OPTION_LOG_GPU               1
+#define XE_OPTION_LOG_KERNEL            1
+#define XE_OPTION_LOG_FS                1
 
 #if XE_COMPILER_GNUC
 #define XE_LOG_LINE_ATTRIBUTE __attribute__ ((format (printf, 5, 6)))
