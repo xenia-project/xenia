@@ -21,6 +21,7 @@ void *xe_realloc(void *ptr, const size_t old_size, const size_t new_size);
 void *xe_recalloc(void *ptr, const size_t old_size, const size_t new_size);
 void xe_free(void *ptr);
 
+typedef __declspec(align(16)) volatile void xe_aligned_void_t;
 xe_aligned_void_t *xe_malloc_aligned(const size_t size);
 void xe_free_aligned(xe_aligned_void_t *ptr);
 

@@ -12,6 +12,7 @@
 
 #include <alloy/core.h>
 #include <alloy/vec128.h>
+#include <poly/poly.h>
 
 namespace alloy { namespace runtime {
   class Runtime;
@@ -37,7 +38,7 @@ using vec128_t = alloy::vec128_t;
 // 128-256: VR
 
 #pragma pack(push, 4)
-typedef struct XECACHEALIGN64 PPCContext_s {
+typedef struct alignas(64) PPCContext_s {
   // Must be stored at 0x0 for now.
   // TODO(benvanik): find a nice way to describe this to the JIT.
   runtime::ThreadState* thread_state;

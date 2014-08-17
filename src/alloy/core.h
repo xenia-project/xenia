@@ -14,7 +14,5 @@
 #include <xenia/logging.h>
 #include <xenia/malloc.h>
 #include <xenia/profiling.h>
-#include <xenia/string.h>
-#include <xenia/types.h>
 
 #endif  // ALLOY_CORE_H_

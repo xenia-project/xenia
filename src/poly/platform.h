@@ -123,12 +123,6 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #define XE_CPU_LITTLEENDIAN 1
 #endif  // [big endian flags]
 
-#if XE_CPU_32BIT
-#define XE_ALIGNMENT 8
-#else
-#define XE_ALIGNMENT 16
-#endif  // 32BIT
-
 #if XE_PLATFORM_WINCE || XE_PLATFORM_WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

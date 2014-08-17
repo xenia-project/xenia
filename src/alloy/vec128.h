@@ -11,10 +11,11 @@
 #define ALLOY_VEC128_H_
 
 #include <alloy/core.h>
+#include <poly/poly.h>
 
 namespace alloy {
 
-typedef struct XECACHEALIGN vec128_s {
+typedef struct alignas(16) vec128_s {
   union {
     struct {
       float x;

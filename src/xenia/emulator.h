@@ -14,24 +14,36 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-#include <xenia/debug_agent.h>
-#include <xenia/xbox.h>
 #include <xenia/cpu/xenon_memory.h>
-
-
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, apu, AudioSystem);
-XEDECLARECLASS2(xe, cpu, Processor);
-XEDECLARECLASS2(xe, gpu, GraphicsSystem);
-XEDECLARECLASS2(xe, hid, InputSystem);
-XEDECLARECLASS2(xe, kernel, KernelState);
-XEDECLARECLASS2(xe, kernel, XamModule);
-XEDECLARECLASS2(xe, kernel, XboxkrnlModule);
-XEDECLARECLASS3(xe, kernel, fs, FileSystem);
-XEDECLARECLASS2(xe, ui, Window);
-
+#include <xenia/debug_agent.h>
+#include <xenia/kernel/kernel_state.h>
+#include <xenia/xbox.h>
 
 namespace xe {
+namespace apu {
+class AudioSystem;
+}  // namespace apu
+namespace cpu {
+class Processor;
+}  // namespace cpu
+namespace gpu {
+class GraphicsSystem;
+}  // namespace gpu
+namespace hid {
+class InputSystem;
+}  // namespace hid
+namespace kernel {
+class XamModule;
+class XboxkrnlModule;
+}  // namespace kernel
+namespace ui {
+class Window;
+}  // namespace ui
+}  // namespace xe
+
+namespace xe {
+
+class ExportResolver;
 
 class Emulator {
  public:

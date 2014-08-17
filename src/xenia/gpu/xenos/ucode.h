@@ -18,6 +18,25 @@ namespace gpu {
 namespace xenos {
 
 
+#if XE_COMPILER_MSVC
+#define XEPACKEDSTRUCT(name, value) \
+    __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
+    typedef struct name##_s name;
+#define XEPACKEDSTRUCTANONYMOUS(value) \
+    __pragma(pack(push, 1)) struct value __pragma(pack(pop));
+#define XEPACKEDUNION(name, value) \
+    __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
+    typedef union name##_s name;
+#elif XE_COMPILER_GNUC
+#define XEPACKEDSTRUCT(name, value) \
+    struct __attribute__((packed)) name
+#define XEPACKEDSTRUCTANONYMOUS(value) \
+    struct __attribute__((packed))
+#define XEPACKEDUNION(name, value) \
+    union __attribute__((packed)) name
+#endif  // MSVC
+
+
 // This code comes from the freedreno project:
 // https://github.com/freedreno/freedreno/blob/master/includes/instr-a2xx.h
 /*

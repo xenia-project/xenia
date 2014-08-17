@@ -26,6 +26,8 @@
 #define XE_OPTION_LOG_KERNEL            1
 #define XE_OPTION_LOG_FS                1
 
+#define XE_EMPTY_MACRO          do { } while(0)
+
 #if XE_COMPILER_GNUC
 #define XE_LOG_LINE_ATTRIBUTE __attribute__ ((format (printf, 5, 6)))
 #else
