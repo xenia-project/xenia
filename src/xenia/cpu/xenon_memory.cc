@@ -25,32 +25,27 @@ using namespace xe::cpu;
 #include <sys/mman.h>
 #endif  // WIN32
 
-#define MSPACES                 1
-#define USE_LOCKS               0
-#define USE_DL_PREFIX           1
-#define HAVE_MORECORE           0
-#define HAVE_MREMAP             0
-#define malloc_getpagesize      4096
-#define DEFAULT_GRANULARITY     64 * 1024
-#define DEFAULT_TRIM_THRESHOLD  MAX_SIZE_T
-#define MALLOC_ALIGNMENT        32
-#define MALLOC_INSPECT_ALL      1
+#define MSPACES 1
+#define USE_LOCKS 0
+#define USE_DL_PREFIX 1
+#define HAVE_MORECORE 0
+#define HAVE_MREMAP 0
+#define malloc_getpagesize 4096
+#define DEFAULT_GRANULARITY 64 * 1024
+#define DEFAULT_TRIM_THRESHOLD MAX_SIZE_T
+#define MALLOC_ALIGNMENT 32
+#define MALLOC_INSPECT_ALL 1
 #if XE_DEBUG
-#define FOOTERS                 0
+#define FOOTERS 0
 #endif  // XE_DEBUG
 #include <third_party/dlmalloc/malloc.c.h>
 
-
-DEFINE_bool(
-    log_heap, false,
-    "Log heap structure on alloc/free.");
+DEFINE_bool(log_heap, false, "Log heap structure on alloc/free.");
 DEFINE_uint64(
     heap_guard_pages, 0,
     "Allocate the given number of guard pages around all heap chunks.");
-DEFINE_bool(
-    scribble_heap, false,
-    "Scribble 0xCD into all allocated heap memory.");
-
+DEFINE_bool(scribble_heap, false,
+            "Scribble 0xCD into all allocated heap memory.");
 
 /**
  * Memory map:
@@ -84,45 +79,43 @@ DEFINE_bool(
  * this.
  */
 
-#define XENON_MEMORY_PHYSICAL_HEAP_LOW    0x00010000
-#define XENON_MEMORY_PHYSICAL_HEAP_HIGH   0x20000000
-#define XENON_MEMORY_VIRTUAL_HEAP_LOW     0x20000000
-#define XENON_MEMORY_VIRTUAL_HEAP_HIGH    0x40000000
-
+#define XENON_MEMORY_PHYSICAL_HEAP_LOW 0x00010000
+#define XENON_MEMORY_PHYSICAL_HEAP_HIGH 0x20000000
+#define XENON_MEMORY_VIRTUAL_HEAP_LOW 0x20000000
+#define XENON_MEMORY_VIRTUAL_HEAP_HIGH 0x40000000
 
 class xe::cpu::XenonMemoryHeap {
-public:
+ public:
   XenonMemoryHeap(XenonMemory* memory, bool is_physical);
   ~XenonMemoryHeap();
 
   int Initialize(uint64_t low, uint64_t high);
 
-  uint64_t Alloc(uint64_t base_address, size_t size,
-                 uint32_t flags, uint32_t alignment);
+  uint64_t Alloc(uint64_t base_address, size_t size, uint32_t flags,
+                 uint32_t alignment);
   uint64_t Free(uint64_t address, size_t size);
   size_t QuerySize(uint64_t base_address);
 
   void Dump();
 
-private:
+ private:
   static uint32_t next_heap_id_;
-  static void DumpHandler(
-      void* start, void* end, size_t used_bytes, void* context);
+  static void DumpHandler(void* start, void* end, size_t used_bytes,
+                          void* context);
 
-private:
-  XenonMemory*  memory_;
-  uint32_t      heap_id_;
-  bool          is_physical_;
-  std::mutex    lock_;
-  size_t        size_;
-  uint8_t*      ptr_;
-  mspace        space_;
+ private:
+  XenonMemory* memory_;
+  uint32_t heap_id_;
+  bool is_physical_;
+  std::mutex lock_;
+  size_t size_;
+  uint8_t* ptr_;
+  mspace space_;
 };
 uint32_t XenonMemoryHeap::next_heap_id_ = 1;
 
 XenonMemory::XenonMemory()
-    : Memory(),
-      mapping_(0), mapping_base_(0), page_table_(0) {
+    : Memory(), mapping_(0), mapping_base_(0), page_table_(0) {
   virtual_heap_ = new XenonMemoryHeap(this, false);
   physical_heap_ = new XenonMemoryHeap(this, true);
 }
@@ -134,9 +127,7 @@ XenonMemory::~XenonMemory() {
 
   if (mapping_base_) {
     // GPU writeback.
-    VirtualFree(
-        Translate(0xC0000000), 0x00100000,
-        MEM_DECOMMIT);
+    VirtualFree(Translate(0xC0000000), 0x00100000, MEM_DECOMMIT);
   }
 
   delete physical_heap_;
@@ -158,15 +149,13 @@ int XenonMemory::Initialize() {
   }
   result = 1;
 
-  // Create main page file-backed mapping. This is all reserved but
-  // uncommitted (so it shouldn't expand page file).
+// Create main page file-backed mapping. This is all reserved but
+// uncommitted (so it shouldn't expand page file).
 #if XE_PLATFORM_WIN32
-  mapping_ = CreateFileMapping(
-      INVALID_HANDLE_VALUE,
-      NULL,
-      PAGE_READWRITE | SEC_RESERVE,
-      1, 0, // entire 4gb space
-      NULL);
+  mapping_ =
+      CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
+                        PAGE_READWRITE | SEC_RESERVE, 1, 0,  // entire 4gb space
+                        NULL);
 #else
   char mapping_path[] = "/xenia/mapping/XXXXXX";
   mktemp(mapping_path);
@@ -197,17 +186,14 @@ int XenonMemory::Initialize() {
   membase_ = mapping_base_;
 
   // Prepare heaps.
-  virtual_heap_->Initialize(
-      XENON_MEMORY_VIRTUAL_HEAP_LOW, XENON_MEMORY_VIRTUAL_HEAP_HIGH);
-  physical_heap_->Initialize(
-      XENON_MEMORY_PHYSICAL_HEAP_LOW, XENON_MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
+  virtual_heap_->Initialize(XENON_MEMORY_VIRTUAL_HEAP_LOW,
+                            XENON_MEMORY_VIRTUAL_HEAP_HIGH);
+  physical_heap_->Initialize(XENON_MEMORY_PHYSICAL_HEAP_LOW,
+                             XENON_MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
-  VirtualAlloc(
-      Translate(0xC0000000),
-      0x00100000,
-      MEM_COMMIT, PAGE_READWRITE);
+  VirtualAlloc(Translate(0xC0000000), 0x00100000, MEM_COMMIT, PAGE_READWRITE);
 
   // Add handlers for MMIO.
   mmio_handler_ = MMIOHandler::Install(mapping_base_);
@@ -220,9 +206,8 @@ int XenonMemory::Initialize() {
   // Allocate dirty page table.
   // This must live within our low heap. Ideally we'd hardcode the address but
   // this is more flexible.
-  page_table_ = physical_heap_->Alloc(
-      0, (512 * 1024 * 1024) / (16 * 1024),
-      X_MEM_COMMIT, 16 * 1024);
+  page_table_ = physical_heap_->Alloc(0, (512 * 1024 * 1024) / (16 * 1024),
+                                      X_MEM_COMMIT, 16 * 1024);
 
   return 0;
 
@@ -231,32 +216,32 @@ XECLEANUP:
 }
 
 const static struct {
-  uint64_t  virtual_address_start;
-  uint64_t  virtual_address_end;
-  uint64_t  target_address;
+  uint64_t virtual_address_start;
+  uint64_t virtual_address_end;
+  uint64_t target_address;
 } map_info[] = {
-  0x00000000, 0x3FFFFFFF, 0x00000000, // (1024mb) - virtual 4k pages
-  0x40000000, 0x7FFFFFFF, 0x40000000, // (1024mb) - virtual 64k pages
-  0x80000000, 0x9FFFFFFF, 0x80000000, //  (512mb) - xex pages
-  0xA0000000, 0xBFFFFFFF, 0x00000000, //  (512mb) - physical 64k pages
-  0xC0000000, 0xDFFFFFFF, 0x00000000, //          - physical 16mb pages
-  0xE0000000, 0xFFFFFFFF, 0x00000000, //          - physical 4k pages
+      0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
+      0x40000000, 0x7FFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages
+      0x80000000, 0x9FFFFFFF, 0x80000000,  //  (512mb) - xex pages
+      0xA0000000, 0xBFFFFFFF, 0x00000000,  //  (512mb) - physical 64k pages
+      0xC0000000, 0xDFFFFFFF, 0x00000000,  //          - physical 16mb pages
+      0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages
 };
 int XenonMemory::MapViews(uint8_t* mapping_base) {
   assert_true(poly::countof(map_info) == poly::countof(views_.all_views));
   for (size_t n = 0; n < poly::countof(map_info); n++) {
 #if XE_PLATFORM_WIN32
     views_.all_views[n] = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
-        mapping_,
-        FILE_MAP_ALL_ACCESS,
-        0x00000000, (DWORD)map_info[n].target_address,
+        mapping_, FILE_MAP_ALL_ACCESS, 0x00000000,
+        (DWORD)map_info[n].target_address,
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
         mapping_base + map_info[n].virtual_address_start));
 #else
     views_.all_views[n] = reinterpret_cast<uint8_t*>(mmap(
         map_info[n].virtual_address_start + mapping_base,
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
-        PROT_NONE, MAP_SHARED | MAP_FIXED, mapping_, map_info[n].target_address));
+        PROT_NONE, MAP_SHARED | MAP_FIXED, mapping_,
+        map_info[n].target_address));
 #endif  // XE_PLATFORM_WIN32
     XEEXPECTNOTNULL(views_.all_views[n]);
   }
@@ -273,25 +258,24 @@ void XenonMemory::UnmapViews() {
 #if XE_PLATFORM_WIN32
       UnmapViewOfFile(views_.all_views[n]);
 #else
-      size_t length = map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1;
+      size_t length = map_info[n].virtual_address_end -
+                      map_info[n].virtual_address_start + 1;
       munmap(views_.all_views[n], length);
 #endif  // XE_PLATFORM_WIN32
     }
   }
 }
 
-bool XenonMemory::AddMappedRange(uint64_t address, uint64_t mask,
-                                 uint64_t size, void* context,
-                                 MMIOReadCallback read_callback,
+bool XenonMemory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
+                                 void* context, MMIOReadCallback read_callback,
                                  MMIOWriteCallback write_callback) {
   DWORD protect = PAGE_NOACCESS;
-  if (!VirtualAlloc(Translate(address),
-                    size,
-                    MEM_COMMIT, protect)) {
+  if (!VirtualAlloc(Translate(address), size, MEM_COMMIT, protect)) {
     XELOGE("Unable to map range; commit/protect failed");
     return false;
   }
-  return mmio_handler_->RegisterRange(address, mask, size, context, read_callback, write_callback);
+  return mmio_handler_->RegisterRange(address, mask, size, context,
+                                      read_callback, write_callback);
 }
 
 uint8_t XenonMemory::LoadI8(uint64_t address) {
@@ -350,20 +334,17 @@ void XenonMemory::StoreI64(uint64_t address, uint64_t value) {
   }
 }
 
-uint64_t XenonMemory::HeapAlloc(
-    uint64_t base_address, size_t size, uint32_t flags,
-    uint32_t alignment) {
+uint64_t XenonMemory::HeapAlloc(uint64_t base_address, size_t size,
+                                uint32_t flags, uint32_t alignment) {
   // If we were given a base address we are outside of the normal heap and
   // will place wherever asked (so long as it doesn't overlap the heap).
   if (!base_address) {
     // Normal allocation from the managed heap.
     uint64_t result;
     if (flags & MEMORY_FLAG_PHYSICAL) {
-      result = physical_heap_->Alloc(
-          base_address, size, flags, alignment);
+      result = physical_heap_->Alloc(base_address, size, flags, alignment);
     } else {
-      result = virtual_heap_->Alloc(
-          base_address, size, flags, alignment);
+      result = virtual_heap_->Alloc(base_address, size, flags, alignment);
     }
     if (result) {
       if (flags & MEMORY_FLAG_ZERO) {
@@ -417,11 +398,22 @@ int XenonMemory::HeapFree(uint64_t address, size_t size) {
   }
 }
 
-size_t XenonMemory::QueryInformation(uint64_t base_address,
-                                     MEMORY_BASIC_INFORMATION* mem_info) {
+bool XenonMemory::QueryInformation(uint64_t base_address,
+                                   AllocationInfo* mem_info) {
   uint8_t* p = Translate(base_address);
-
-  return VirtualQuery(p, mem_info, sizeof(MEMORY_BASIC_INFORMATION));
+  MEMORY_BASIC_INFORMATION mbi;
+  if (!VirtualQuery(p, &mbi, sizeof(mbi))) {
+    return false;
+  }
+  mem_info->base_address = base_address;
+  mem_info->allocation_base =
+      static_cast<uint64_t>(mbi.AllocationBase - membase_);
+  mem_info->allocation_protect = mbi.AllocationProtect;
+  mem_info->region_size = mbi.RegionSize;
+  mem_info->state = mbi.State;
+  mem_info->protect = mbi.Protect;
+  mem_info->type = mbi.Type;
+  return true;
 }
 
 size_t XenonMemory::QuerySize(uint64_t base_address) {
@@ -451,10 +443,10 @@ int XenonMemory::Protect(uint64_t address, size_t size, uint32_t access) {
   p += heap_guard_size;
 
   DWORD new_protect = access;
-  new_protect = new_protect & (
-      X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
-      X_PAGE_WRITECOPY | X_PAGE_GUARD | X_PAGE_NOCACHE |
-      X_PAGE_WRITECOMBINE);
+  new_protect =
+      new_protect &
+      (X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE | X_PAGE_WRITECOPY |
+       X_PAGE_GUARD | X_PAGE_NOCACHE | X_PAGE_WRITECOMBINE);
 
   DWORD old_protect;
   return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
@@ -470,9 +462,8 @@ uint32_t XenonMemory::QueryProtect(uint64_t address) {
   return info.Protect;
 }
 
-
-XenonMemoryHeap::XenonMemoryHeap(XenonMemory* memory, bool is_physical) :
-    memory_(memory), is_physical_(is_physical) {
+XenonMemoryHeap::XenonMemoryHeap(XenonMemory* memory, bool is_physical)
+    : memory_(memory), is_physical_(is_physical) {
   heap_id_ = next_heap_id_++;
 }
 
@@ -494,8 +485,7 @@ int XenonMemoryHeap::Initialize(uint64_t low, uint64_t high) {
   //     as it goes.
   size_ = high - low;
   ptr_ = memory_->views_.v00000000 + low;
-  void* heap_result = VirtualAlloc(
-      ptr_, size_, MEM_COMMIT, PAGE_READWRITE);
+  void* heap_result = VirtualAlloc(ptr_, size_, MEM_COMMIT, PAGE_READWRITE);
   if (!heap_result) {
     return 1;
   }
@@ -504,8 +494,8 @@ int XenonMemoryHeap::Initialize(uint64_t low, uint64_t high) {
   return 0;
 }
 
-uint64_t XenonMemoryHeap::Alloc(
-    uint64_t base_address, size_t size, uint32_t flags, uint32_t alignment) {
+uint64_t XenonMemoryHeap::Alloc(uint64_t base_address, size_t size,
+                                uint32_t flags, uint32_t alignment) {
   lock_.lock();
   size_t alloc_size = size;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -519,13 +509,10 @@ uint64_t XenonMemoryHeap::Alloc(
   if (FLAGS_heap_guard_pages) {
     size_t real_size = mspace_usable_size(p);
     DWORD old_protect;
-    VirtualProtect(
-        p, heap_guard_size,
-        PAGE_NOACCESS, &old_protect);
+    VirtualProtect(p, heap_guard_size, PAGE_NOACCESS, &old_protect);
     p += heap_guard_size;
-    VirtualProtect(
-        p + alloc_size, heap_guard_size,
-        PAGE_NOACCESS, &old_protect);
+    VirtualProtect(p + alloc_size, heap_guard_size, PAGE_NOACCESS,
+                   &old_protect);
   }
   if (FLAGS_log_heap) {
     Dump();
@@ -538,25 +525,15 @@ uint64_t XenonMemoryHeap::Alloc(
   if (is_physical_) {
     // If physical, we need to commit the memory in the physical address ranges
     // so that it can be accessed.
-    VirtualAlloc(
-        memory_->views_.vA0000000 + (p - memory_->views_.v00000000),
-        size,
-        MEM_COMMIT,
-        PAGE_READWRITE);
-    VirtualAlloc(
-        memory_->views_.vC0000000 + (p - memory_->views_.v00000000),
-        size,
-        MEM_COMMIT,
-        PAGE_READWRITE);
-    VirtualAlloc(
-        memory_->views_.vE0000000 + (p - memory_->views_.v00000000),
-        size,
-        MEM_COMMIT,
-        PAGE_READWRITE);
+    VirtualAlloc(memory_->views_.vA0000000 + (p - memory_->views_.v00000000),
+                 size, MEM_COMMIT, PAGE_READWRITE);
+    VirtualAlloc(memory_->views_.vC0000000 + (p - memory_->views_.v00000000),
+                 size, MEM_COMMIT, PAGE_READWRITE);
+    VirtualAlloc(memory_->views_.vE0000000 + (p - memory_->views_.v00000000),
+                 size, MEM_COMMIT, PAGE_READWRITE);
   }
 
-  if ((flags & X_MEM_NOZERO) &&
-      FLAGS_scribble_heap) {
+  if ((flags & X_MEM_NOZERO) && FLAGS_scribble_heap) {
     // Trash the memory so that we can see bad read-before-write bugs easier.
     memset(p, 0xCD, alloc_size);
   } else {
@@ -590,12 +567,9 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
   lock_.lock();
   if (FLAGS_heap_guard_pages) {
     DWORD old_protect;
-    VirtualProtect(
-        p, heap_guard_size,
-        PAGE_READWRITE, &old_protect);
-    VirtualProtect(
-        p + heap_guard_size + real_size, heap_guard_size,
-        PAGE_READWRITE, &old_protect);
+    VirtualProtect(p, heap_guard_size, PAGE_READWRITE, &old_protect);
+    VirtualProtect(p + heap_guard_size + real_size, heap_guard_size,
+                   PAGE_READWRITE, &old_protect);
   }
   mspace_free(space_, p);
   if (FLAGS_log_heap) {
@@ -605,18 +579,12 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
 
   if (is_physical_) {
     // If physical, decommit from physical ranges too.
-    VirtualFree(
-        memory_->views_.vA0000000 + (p - memory_->views_.v00000000),
-        size,
-        MEM_DECOMMIT);
-    VirtualFree(
-        memory_->views_.vC0000000 + (p - memory_->views_.v00000000),
-        size,
-        MEM_DECOMMIT);
-    VirtualFree(
-        memory_->views_.vE0000000 + (p - memory_->views_.v00000000),
-        size,
-        MEM_DECOMMIT);
+    VirtualFree(memory_->views_.vA0000000 + (p - memory_->views_.v00000000),
+                size, MEM_DECOMMIT);
+    VirtualFree(memory_->views_.vC0000000 + (p - memory_->views_.v00000000),
+                size, MEM_DECOMMIT);
+    VirtualFree(memory_->views_.vE0000000 + (p - memory_->views_.v00000000),
+                size, MEM_DECOMMIT);
   }
 
   return (uint64_t)real_size;
@@ -638,8 +606,7 @@ size_t XenonMemoryHeap::QuerySize(uint64_t base_address) {
 }
 
 void XenonMemoryHeap::Dump() {
-  XELOGI("XenonMemoryHeap::Dump - %s",
-         is_physical_ ? "physical" : "virtual");
+  XELOGI("XenonMemoryHeap::Dump - %s", is_physical_ ? "physical" : "virtual");
   if (FLAGS_heap_guard_pages) {
     XELOGI("  (heap guard pages enabled, stats will be wrong)");
   }
@@ -655,8 +622,8 @@ void XenonMemoryHeap::Dump() {
   mspace_inspect_all(space_, DumpHandler, this);
 }
 
-void XenonMemoryHeap::DumpHandler(
-  void* start, void* end, size_t used_bytes, void* context) {
+void XenonMemoryHeap::DumpHandler(void* start, void* end, size_t used_bytes,
+                                  void* context) {
   XenonMemoryHeap* heap = (XenonMemoryHeap*)context;
   XenonMemory* memory = heap->memory_;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -664,12 +631,10 @@ void XenonMemoryHeap::DumpHandler(
   uint64_t end_addr = (uint64_t)end - heap_guard_size;
   uint32_t guest_start =
       (uint32_t)(start_addr - (uintptr_t)memory->mapping_base_);
-  uint32_t guest_end =
-      (uint32_t)(end_addr - (uintptr_t)memory->mapping_base_);
+  uint32_t guest_end = (uint32_t)(end_addr - (uintptr_t)memory->mapping_base_);
   if (int32_t(end_addr - start_addr) > 0) {
-    XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used",
-           guest_start, guest_end, (guest_end - guest_start),
-           start_addr, end_addr,
+    XELOGI(" - %.8X-%.8X (%10db) %.16llX-%.16llX - %9db used", guest_start,
+           guest_end, (guest_end - guest_start), start_addr, end_addr,
            used_bytes);
   } else {
     XELOGI(" -                                 %.16llX-%.16llX - %9db used",

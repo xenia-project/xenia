@@ -17,7 +17,6 @@
 #include <xenia/core.h>
 #include <xenia/cpu/mmio_handler.h>
 
-
 typedef struct xe_ppc_state xe_ppc_state_t;
 
 namespace xe {
@@ -26,7 +25,7 @@ namespace cpu {
 class XenonMemoryHeap;
 
 class XenonMemory : public alloy::Memory {
-public:
+ public:
   XenonMemory();
   virtual ~XenonMemory();
 
@@ -34,10 +33,8 @@ public:
 
   uint64_t page_table() const override { return page_table_; }
 
-  bool AddMappedRange(uint64_t address, uint64_t mask,
-                      uint64_t size,
-                      void* context,
-                      MMIOReadCallback read_callback,
+  bool AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
+                      void* context, MMIOReadCallback read_callback,
                       MMIOWriteCallback write_callback);
 
   uint8_t LoadI8(uint64_t address) override;
@@ -49,35 +46,34 @@ public:
   void StoreI32(uint64_t address, uint32_t value) override;
   void StoreI64(uint64_t address, uint64_t value) override;
 
-  uint64_t HeapAlloc(
-      uint64_t base_address, size_t size, uint32_t flags,
-      uint32_t alignment = 0x20) override;
+  uint64_t HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
+                     uint32_t alignment = 0x20) override;
   int HeapFree(uint64_t address, size_t size) override;
 
-  size_t QueryInformation(uint64_t base_address,
-                          MEMORY_BASIC_INFORMATION* mem_info) override;
+  bool QueryInformation(uint64_t base_address,
+                        alloy::AllocationInfo* mem_info) override;
   size_t QuerySize(uint64_t base_address) override;
 
   int Protect(uint64_t address, size_t size, uint32_t access) override;
   uint32_t QueryProtect(uint64_t address) override;
 
-private:
+ private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
 
-private:
-  HANDLE    mapping_;
-  uint8_t*  mapping_base_;
+ private:
+  HANDLE mapping_;
+  uint8_t* mapping_base_;
   union {
     struct {
-      uint8_t*  v00000000;
-      uint8_t*  v40000000;
-      uint8_t*  v80000000;
-      uint8_t*  vA0000000;
-      uint8_t*  vC0000000;
-      uint8_t*  vE0000000;
+      uint8_t* v00000000;
+      uint8_t* v40000000;
+      uint8_t* v80000000;
+      uint8_t* vA0000000;
+      uint8_t* vC0000000;
+      uint8_t* vE0000000;
     };
-    uint8_t*    all_views[6];
+    uint8_t* all_views[6];
   } views_;
 
   std::unique_ptr<MMIOHandler> mmio_handler_;
@@ -90,9 +86,7 @@ private:
   friend class XenonMemoryHeap;
 };
 
-
 }  // namespace cpu
 }  // namespace xe
-
 
 #endif  // XENIA_CPU_XENON_MEMORY_H_

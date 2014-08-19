@@ -20,6 +20,17 @@ enum {
   MEMORY_FLAG_PHYSICAL = (1 << 3),
 };
 
+// Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct.
+struct AllocationInfo {
+  uint64_t base_address;
+  uint64_t allocation_base;
+  uint32_t allocation_protect;  // TBD
+  size_t region_size;
+  uint32_t state;    // TBD
+  uint32_t protect;  // TBD
+  uint32_t type;     // TBD
+};
+
 class Memory {
  public:
   Memory();
@@ -58,8 +69,8 @@ class Memory {
                              uint32_t alignment = 0x20) = 0;
   virtual int HeapFree(uint64_t address, size_t size) = 0;
 
-  virtual size_t QueryInformation(uint64_t base_address,
-                                  MEMORY_BASIC_INFORMATION* mem_info) = 0;
+  virtual bool QueryInformation(uint64_t base_address,
+                                AllocationInfo* mem_info) = 0;
   virtual size_t QuerySize(uint64_t base_address) = 0;
 
   virtual int Protect(uint64_t address, size_t size, uint32_t access) = 0;
