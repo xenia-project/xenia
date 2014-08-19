@@ -102,7 +102,8 @@ uint32_t AllocConstant(TranslationContext& ctx, Value* value) {
 uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
   // If it's a back-branch to an already tagged label avoid setting up
   // a reference.
-  uint32_t value = reinterpret_cast<uint32_t>(label->tag);
+  uint32_t value =
+      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(label->tag));
   if (value & 0x80000000) {
     // Already set.
     return AllocConstant(ctx, value & ~0x80000000);
@@ -125,7 +126,7 @@ uint32_t AllocLabel(TranslationContext& ctx, Label* label) {
 
 uint32_t AllocDynamicRegister(TranslationContext& ctx, Value* value) {
   if (value->flags & VALUE_IS_ALLOCATED) {
-    return reinterpret_cast<uint32_t>(value->tag);
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value->tag));
   } else {
     value->flags |= VALUE_IS_ALLOCATED;
     auto reg = ctx.register_count++;
@@ -2334,13 +2335,13 @@ int Translate_DID_SATURATE(TranslationContext& ctx, Instr* i) {
   }                                                                          \
   return IA_NEXT;
 
-uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(uint8_t, b16, b16, 16, == )};
-uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(uint16_t, s8, s8, 8, == )};
-uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(uint32_t, i4, i4, 4, == )};
-uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(float, f4, i4, 4, == )};
 int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
@@ -2352,13 +2353,13 @@ int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->flags]);
 }
 
-uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(int8_t, b16, b16, 16, > )};
-uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(int16_t, s8, s8, 8, > )};
-uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(int32_t, i4, i4, 4, > )};
-uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i){
+uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i) {
     VECTOR_COMPARER(float, f4, i4, 4, > )};
 int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {

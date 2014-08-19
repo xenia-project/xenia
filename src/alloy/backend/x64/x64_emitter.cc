@@ -127,7 +127,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   }
   // Ensure 16b alignment.
   stack_offset -= StackLayout::GUEST_STACK_SIZE;
-  stack_offset = poly::align(stack_offset, 16ull);
+  stack_offset = poly::align(stack_offset, static_cast<size_t>(16));
 
   // Function prolog.
   // Must be 16b aligned.
@@ -242,7 +242,7 @@ void X64Emitter::EmitTraceSource(const Instr* instr) {
   uint8_t dest_reg_1 = instr->flags >> 8;
 
   xdb::protocol::EventType event_type;
-  size_t event_size;
+  size_t event_size = 0;
   if (dest_reg_0 == 100) {
     event_type = xdb::protocol::EventType::INSTR;
     event_size = sizeof(xdb::protocol::InstrEvent);
@@ -269,6 +269,7 @@ void X64Emitter::EmitTraceSource(const Instr* instr) {
       event_size = sizeof(xdb::protocol::InstrEventR8R8);
     }
   }
+  assert_not_zero(event_size);
 
   mov(rax, trace_base);
   mov(r8d, static_cast<uint32_t>(event_size));
@@ -289,6 +290,7 @@ void X64Emitter::EmitTraceSource(const Instr* instr) {
   mov(word[r8 + 2], ax);
 
   switch (event_type) {
+    default:
     case xdb::protocol::EventType::INSTR:
       break;
     case xdb::protocol::EventType::INSTR_R8:
@@ -330,8 +332,7 @@ void X64Emitter::EmitTraceSourceAppendValue(const Value* value,
 
 void X64Emitter::EmitGetCurrentThreadId() {
   // rcx must point to context. We could fetch from the stack if needed.
-  mov(ax,
-      word[rcx + runtime_->frontend()->context_info()->thread_id_offset()]);
+  mov(ax, word[rcx + runtime_->frontend()->context_info()->thread_id_offset()]);
 }
 
 void X64Emitter::EmitTraceUserCallReturn() {
@@ -345,7 +346,7 @@ void X64Emitter::EmitTraceUserCallReturn() {
   lock();
   xadd(qword[rax], r8);
   mov(rax, static_cast<uint64_t>(xdb::protocol::EventType::USER_CALL_RETURN) |
-                (static_cast<uint64_t>(0) << 8) | (0ull << 32));
+               (static_cast<uint64_t>(0) << 8) | (0ull << 32));
   mov(qword[r8], rax);
   EmitGetCurrentThreadId();
   mov(word[r8 + 2], ax);
@@ -645,8 +646,6 @@ void X64Emitter::CallExtern(const hir::Instr* instr,
         static_cast<uint32_t>(sizeof(xdb::protocol::KernelCallReturnEvent)));
     lock();
     xadd(qword[rax], r8);
-    uint32_t module_id = 0;
-    uint32_t ordinal = 0;
     mov(rax,
         static_cast<uint64_t>(xdb::protocol::EventType::KERNEL_CALL_RETURN) |
             (static_cast<uint64_t>(0) << 8) | (0));

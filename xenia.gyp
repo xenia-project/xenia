@@ -110,7 +110,7 @@
           'SYMROOT': '<(DEPTH)/build/xenia/',
           'ALWAYS_SEARCH_USER_PATHS': 'NO',
           'ARCHS': ['x86_64'],
-          'CLANG_CXX_LANGUAGE_STANDARD': 'c++11',
+          'CLANG_CXX_LANGUAGE_STANDARD': 'c++1y',
           'COMBINE_HIDPI_IMAGES': 'YES',
           'GCC_C_LANGUAGE_STANDARD': 'gnu99',
           'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',

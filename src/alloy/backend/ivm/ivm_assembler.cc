@@ -83,7 +83,7 @@ int IVMAssembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
     stack_offset += type_size;
   }
   // Ensure 16b alignment.
-  stack_offset = poly::align(stack_offset, 16ull);
+  stack_offset = poly::align(stack_offset, static_cast<size_t>(16));
   ctx.stack_size = stack_offset;
 
   auto block = builder->first_block();

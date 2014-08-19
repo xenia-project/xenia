@@ -36,22 +36,22 @@ class PosixMappedMemory : public MappedMemory {
 std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
                                                  Mode mode, size_t offset,
                                                  size_t length) {
-  const char* mode;
+  const char* mode_str;
   int prot;
   switch (mode) {
     case Mode::READ:
-      mode = "rb";
+      mode_str = "rb";
       prot = PROT_READ;
       break;
     case Mode::READ_WRITE:
-      mode = "r+b";
+      mode_str = "r+b";
       prot = PROT_READ | PROT_WRITE;
       break;
   }
 
   auto mm = std::make_unique<PosixMappedMemory>(path, mode);
 
-  mm->file_handle = fopen(poly::to_string(path).c_str(), mode);
+  mm->file_handle = fopen(poly::to_string(path).c_str(), mode_str);
   if (!mm->file_handle) {
     return nullptr;
   }

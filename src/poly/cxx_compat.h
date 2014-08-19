@@ -36,12 +36,14 @@
 // C++1y make_unique.
 // http://herbsutter.com/2013/05/29/gotw-89-solution-smart-pointers/
 // This is present in clang with -std=c++1y, but not otherwise.
+#if __clang_major__ < 3 || (__clang_major__ == 3 && __clang_minor__ < 4)
 namespace std {
 template <typename T, typename... Args>
 unique_ptr<T> make_unique(Args&&... args) {
   return unique_ptr<T>(new T(forward<Args>(args)...));
 }
 }  // namespace std
+#endif  // clang < 3.4
 #endif  // !XE_COMPILER_MSVC
 
 namespace poly {}  // namespace poly

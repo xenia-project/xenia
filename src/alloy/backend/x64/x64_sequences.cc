@@ -4491,26 +4491,24 @@ EMITTER_OPCODE_TABLE(
 // TODO(benvanik): AVX512 has a native variable rotate (rolv).
 EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128<>, V128<>>)) {
   static __m128i EmulateVectorRotateLeftI8(__m128i src1, __m128i src2) {
-    alignas(16) __m128i value;
-    alignas(16) __m128i shamt;
-    _mm_store_si128(&value, src1);
-    _mm_store_si128(&shamt, src2);
+    alignas(16) uint8_t value[16];
+    alignas(16) uint8_t shamt[16];
+    _mm_store_si128(reinterpret_cast<__m128i*>(&value), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(&shamt), src2);
     for (size_t i = 0; i < 16; ++i) {
-      value.m128i_u8[i] = poly::rotate_left<uint8_t>(
-          value.m128i_u8[i], shamt.m128i_u8[i] & 0x3);
+      value[i] = poly::rotate_left<uint8_t>(value[i], shamt[i] & 0x3);
     }
-    return _mm_load_si128(&value);
+    return _mm_load_si128(reinterpret_cast<__m128i*>(&value));
   }
   static __m128i EmulateVectorRotateLeftI16(__m128i src1, __m128i src2) {
-    alignas(16) __m128i value;
-    alignas(16) __m128i shamt;
-    _mm_store_si128(&value, src1);
-    _mm_store_si128(&shamt, src2);
+    alignas(16) uint16_t value[8];
+    alignas(16) uint16_t shamt[8];
+    _mm_store_si128(reinterpret_cast<__m128i*>(&value), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(&shamt), src2);
     for (size_t i = 0; i < 8; ++i) {
-      value.m128i_u16[i] = poly::rotate_left<uint16_t>(
-          value.m128i_u16[i], shamt.m128i_u16[i] & 0xF);
+      value[i] = poly::rotate_left<uint16_t>(value[i], shamt[i] & 0xF);
     }
-    return _mm_load_si128(&value);
+    return _mm_load_si128(reinterpret_cast<__m128i*>(&value));
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {

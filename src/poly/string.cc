@@ -10,6 +10,7 @@
 #include <poly/string.h>
 
 #include <codecvt>
+#include <locale>
 
 namespace poly {
 

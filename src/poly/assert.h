@@ -19,7 +19,7 @@ namespace poly {
 
 #define static_assert_size(type, size) \
   static_assert(sizeof(type) == size,  \
-                "bad definition for "## #type##": must be "## #size##" bytes")
+                "bad definition for " #type ": must be " #size " bytes")
 
 // We rely on assert being compiled out in NDEBUG.
 #define poly_assert assert
