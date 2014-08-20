@@ -12,7 +12,6 @@
 #include <xenia/emulator.h>
 #include <xenia/export_resolver.h>
 #include <xenia/cpu/cpu-private.h>
-#include <xenia/cpu/xenon_memory.h>
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/cpu/xex_module.h>
 

@@ -8,8 +8,6 @@
     'mmio_handler.h',
     'processor.cc',
     'processor.h',
-    'xenon_memory.cc',
-    'xenon_memory.h',
     'xenon_runtime.cc',
     'xenon_runtime.h',
     'xenon_thread_state.cc',

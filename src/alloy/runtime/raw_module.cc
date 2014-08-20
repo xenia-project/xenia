@@ -15,11 +15,7 @@ namespace runtime {
 RawModule::RawModule(Runtime* runtime)
     : Module(runtime), base_address_(0), low_address_(0), high_address_(0) {}
 
-RawModule::~RawModule() {
-  if (base_address_) {
-    memory_->HeapFree(base_address_, high_address_ - low_address_);
-  }
-}
+RawModule::~RawModule() {}
 
 int RawModule::LoadFile(uint64_t base_address, const std::string& path) {
   FILE* file = fopen(path.c_str(), "rb");
@@ -28,15 +24,12 @@ int RawModule::LoadFile(uint64_t base_address, const std::string& path) {
   fseek(file, 0, SEEK_SET);
 
   // Allocate memory.
-  base_address_ =
-      memory_->HeapAlloc(base_address, file_length, MEMORY_FLAG_ZERO);
-  if (!base_address_) {
-    fclose(file);
-    return 1;
-  }
+  // Since we have no real heap just load it wherever.
+  base_address_ = base_address;
+  uint8_t* p = memory_->Translate(base_address_);
+  memset(p, 0, file_length);
 
   // Read into memory.
-  uint8_t* p = memory_->Translate(base_address_);
   fread(p, file_length, 1, file);
 
   fclose(file);

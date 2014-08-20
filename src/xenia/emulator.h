@@ -14,7 +14,6 @@
 
 #include <xenia/common.h>
 #include <xenia/core.h>
-#include <xenia/cpu/xenon_memory.h>
 #include <xenia/debug_agent.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/xbox.h>
@@ -55,7 +54,7 @@ class Emulator {
   ui::Window* main_window() const { return main_window_; }
   void set_main_window(ui::Window* window);
 
-  cpu::XenonMemory* memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
 
   DebugAgent* debug_agent() const { return debug_agent_.get(); }
 
@@ -79,31 +78,29 @@ class Emulator {
 
  private:
   X_STATUS CompleteLaunch(const std::wstring& path,
-                         const std::string& module_path);
+                          const std::string& module_path);
 
-  std::wstring            command_line_;
+  std::wstring command_line_;
 
-  ui::Window*             main_window_;
+  ui::Window* main_window_;
 
-  cpu::XenonMemory*       memory_;
+  Memory* memory_;
 
   std::unique_ptr<DebugAgent> debug_agent_;
 
-  cpu::Processor*         processor_;
-  apu::AudioSystem*       audio_system_;
-  gpu::GraphicsSystem*    graphics_system_;
-  hid::InputSystem*       input_system_;
+  cpu::Processor* processor_;
+  apu::AudioSystem* audio_system_;
+  gpu::GraphicsSystem* graphics_system_;
+  hid::InputSystem* input_system_;
 
-  ExportResolver*         export_resolver_;
+  ExportResolver* export_resolver_;
   kernel::fs::FileSystem* file_system_;
 
-  kernel::KernelState*    kernel_state_;
-  kernel::XamModule*      xam_;
+  kernel::KernelState* kernel_state_;
+  kernel::XamModule* xam_;
   kernel::XboxkrnlModule* xboxkrnl_;
 };
 
-
 }  // namespace xe
-
 
 #endif  // XENIA_EMULATOR_H_

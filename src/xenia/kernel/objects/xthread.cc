@@ -152,7 +152,7 @@ X_STATUS XThread::Create() {
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
   thread_state_address_ =
-      (uint32_t)memory()->HeapAlloc(0, 2048, alloy::MEMORY_FLAG_ZERO);
+      (uint32_t)memory()->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   if (!thread_state_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -167,13 +167,12 @@ X_STATUS XThread::Create() {
   // This is used by interrupts/APCs/etc so we can round-trip pointers through.
   scratch_size_ = 4 * 16;
   scratch_address_ =
-      (uint32_t)memory()->HeapAlloc(0, scratch_size_, alloy::MEMORY_FLAG_ZERO);
+      (uint32_t)memory()->HeapAlloc(0, scratch_size_, MEMORY_FLAG_ZERO);
 
   // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();
   uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
-  tls_address_ =
-      (uint32_t)memory()->HeapAlloc(0, tls_size, alloy::MEMORY_FLAG_ZERO);
+  tls_address_ = (uint32_t)memory()->HeapAlloc(0, tls_size, MEMORY_FLAG_ZERO);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     module->Release();

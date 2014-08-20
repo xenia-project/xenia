@@ -15,7 +15,6 @@
 #include <alloy/runtime/raw_module.h>
 #include <poly/main.h>
 #include <poly/poly.h>
-#include <xenia/cpu/xenon_memory.h>
 
 #include <gflags/gflags.h>
 
@@ -28,11 +27,12 @@ using alloy::runtime::Runtime;
 class ThreadState : public alloy::runtime::ThreadState {
  public:
   ThreadState(Runtime* runtime, uint32_t thread_id, size_t stack_size,
-              uint64_t thread_state_address)
+              uint64_t thread_state_address, uint64_t thread_stack_address)
       : alloy::runtime::ThreadState(runtime, thread_id),
+        stack_address_(thread_stack_address),
         stack_size_(stack_size),
         thread_state_address_(thread_state_address) {
-    stack_address_ = memory_->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
+    memset(memory_->Translate(stack_address_), 0, stack_size_);
 
     // Allocate with 64b alignment.
     context_ = (PPCContext*)xe_malloc_aligned(sizeof(PPCContext));
@@ -60,7 +60,6 @@ class ThreadState : public alloy::runtime::ThreadState {
   ~ThreadState() override {
     runtime_->debugger()->OnThreadDestroyed(this);
     xe_free_aligned(context_);
-    memory_->HeapFree(stack_address_, stack_size_);
   }
 
   PPCContext* context() const { return context_; }
@@ -80,7 +79,8 @@ int main(std::vector<std::wstring>& args) {
   xe::Profiler::Initialize();
   xe::Profiler::ThreadEnter("main");
 
-  auto memory = std::make_unique<xe::cpu::XenonMemory>();
+  size_t memory_size = 16 * 1024 * 1024;
+  auto memory = std::make_unique<SimpleMemory>(memory_size);
   auto runtime = std::make_unique<Runtime>(memory.get());
 
   auto frontend =
@@ -97,11 +97,14 @@ int main(std::vector<std::wstring>& args) {
   runtime->AddModule(std::move(module));
 
   {
-    auto thread_state =
-        std::make_unique<ThreadState>(runtime.get(), 100, 64 * 1024, 0);
+    uint64_t thread_state_address = 0;
+    uint64_t stack_address = memory_size - 1024;
+    uint64_t stack_size = 64 * 1024;
+    auto thread_state = std::make_unique<ThreadState>(
+        runtime.get(), 100, stack_address, stack_size, thread_state_address);
 
     alloy::runtime::Function* fn;
-    runtime->ResolveFunction(0x82000000, &fn);
+    runtime->ResolveFunction(0x1000, &fn);
     auto ctx = thread_state->context();
     ctx->lr = 0xBEBEBEBE;
     ctx->r[5] = 10;

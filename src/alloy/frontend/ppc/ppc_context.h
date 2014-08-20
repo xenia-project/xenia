@@ -172,7 +172,7 @@ typedef struct alignas(64) PPCContext_s {
   uint32_t thread_id;
 
   // Reserve address for load acquire/store release. Shared.
-  uint32_t* reserve_address;
+  uint64_t* reserve_address;
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.

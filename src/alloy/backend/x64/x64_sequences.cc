@@ -1557,9 +1557,12 @@ EMITTER_OPCODE_TABLE(
 // Note: most *should* be aligned, but needs to be checked!
 void EmitMarkPageDirty(X64Emitter& e, RegExp& addr) {
   // 16KB pages.
-  e.shr(e.eax, 14);
-  e.and(e.eax, 0x7FFF);
-  e.mov(e.byte[e.rdx + e.rax + e.page_table_address()], 1);
+  auto page_table_address = e.page_table_address();
+  if (page_table_address) {
+    e.shr(e.eax, 14);
+    e.and(e.eax, 0x7FFF);
+    e.mov(e.byte[e.rdx + e.rax + page_table_address], 1);
+  }
 }
 EMITTER(STORE_I8, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {

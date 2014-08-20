@@ -12,13 +12,9 @@
 
 #include <xenia/common.h>
 
-#include <alloy/memory.h>
-namespace xe {
-  using Memory = alloy::Memory;
-}  // namespace xe
-
 #include <xenia/core/ref.h>
 #include <xenia/core/run_loop.h>
 #include <xenia/core/socket.h>
+#include <xenia/memory.h>
 
 #endif  // XENIA_CORE_H_

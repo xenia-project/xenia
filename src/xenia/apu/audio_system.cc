@@ -48,7 +48,7 @@ X_STATUS AudioSystem::Setup() {
       new XenonThreadState(emulator_->processor()->runtime(), 0, 16 * 1024, 0);
   thread_state_->set_name("Audio Worker");
   thread_block_ =
-      (uint32_t)memory_->HeapAlloc(0, 2048, alloy::MEMORY_FLAG_ZERO);
+      (uint32_t)memory_->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   thread_state_->context()->r[13] = thread_block_;
 
   // Create worker thread.

@@ -24,7 +24,7 @@ XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
     : ThreadState(runtime, thread_id),
       stack_size_(stack_size),
       thread_state_address_(thread_state_address) {
-  stack_address_ = memory_->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
+  stack_address_ = xenon_memory()->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
   assert_not_zero(stack_address_);
 
   // Allocate with 64b alignment.
@@ -56,7 +56,7 @@ XenonThreadState::~XenonThreadState() {
   runtime_->debugger()->OnThreadDestroyed(this);
 
   xe_free_aligned(context_);
-  memory_->HeapFree(stack_address_, stack_size_);
+  xenon_memory()->HeapFree(stack_address_, stack_size_);
 }
 
 void XenonThreadState::WriteRegisters(xdb::protocol::Registers* registers) {

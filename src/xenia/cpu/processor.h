@@ -19,6 +19,7 @@
 XEDECLARECLASS2(alloy, runtime, Breakpoint);
 XEDECLARECLASS1(xe, Emulator);
 XEDECLARECLASS1(xe, ExportResolver);
+XEDECLARECLASS1(xe, Memory);
 XEDECLARECLASS2(xe, cpu, XenonMemory);
 XEDECLARECLASS2(xe, cpu, XenonRuntime);
 XEDECLARECLASS2(xe, cpu, XenonThreadState);

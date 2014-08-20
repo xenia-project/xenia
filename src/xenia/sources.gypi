@@ -13,6 +13,8 @@
     'logging.h',
     'malloc.cc',
     'malloc.h',
+    'memory.cc',
+    'memory.h',
     'profiling.cc',
     'profiling.h',
     'types.h',

@@ -158,7 +158,7 @@ SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtQueryVirtualMemory(%.8X, %.8X)", base_address,
          memory_basic_information_ptr);
 
-  alloy::AllocationInfo mem_info;
+  AllocationInfo mem_info;
   size_t result = state->memory()->QueryInformation(base_address, &mem_info);
   if (!result) {
     SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
@@ -250,7 +250,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
   assert_true(max_addr_range == 0xFFFFFFFF);
 
   // Allocate.
-  uint32_t flags = alloy::MEMORY_FLAG_PHYSICAL;
+  uint32_t flags = MEMORY_FLAG_PHYSICAL;
   uint32_t base_address = (uint32_t)state->memory()->HeapAlloc(
       0, adjusted_size, flags, adjusted_alignment);
   if (!base_address) {
@@ -410,7 +410,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
   }
 
   uint32_t addr = (uint32_t)state->memory()->HeapAlloc(
-      0, adjusted_size, alloy::MEMORY_FLAG_ZERO, alignment);
+      0, adjusted_size, MEMORY_FLAG_ZERO, alignment);
 
   SHIM_SET_RETURN_32(addr);
 }

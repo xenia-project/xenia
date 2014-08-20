@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/xenon_memory.h>
+#include <xenia/memory.h>
 
 #include <algorithm>
 #include <mutex>
 
 #include <gflags/gflags.h>
 #include <poly/math.h>
+#include <xenia/cpu/mmio_handler.h>
 
-using namespace alloy;
-using namespace xe::cpu;
+using namespace xe;
 
 // TODO(benvanik): move xbox.h out
 #include <xenia/xbox.h>
@@ -84,10 +84,10 @@ DEFINE_bool(scribble_heap, false,
 #define XENON_MEMORY_VIRTUAL_HEAP_LOW 0x20000000
 #define XENON_MEMORY_VIRTUAL_HEAP_HIGH 0x40000000
 
-class xe::cpu::XenonMemoryHeap {
+class xe::MemoryHeap {
  public:
-  XenonMemoryHeap(XenonMemory* memory, bool is_physical);
-  ~XenonMemoryHeap();
+  MemoryHeap(Memory* memory, bool is_physical);
+  ~MemoryHeap();
 
   int Initialize(uint64_t low, uint64_t high);
 
@@ -104,7 +104,7 @@ class xe::cpu::XenonMemoryHeap {
                           void* context);
 
  private:
-  XenonMemory* memory_;
+  Memory* memory_;
   uint32_t heap_id_;
   bool is_physical_;
   std::mutex lock_;
@@ -112,15 +112,15 @@ class xe::cpu::XenonMemoryHeap {
   uint8_t* ptr_;
   mspace space_;
 };
-uint32_t XenonMemoryHeap::next_heap_id_ = 1;
+uint32_t MemoryHeap::next_heap_id_ = 1;
 
-XenonMemory::XenonMemory()
-    : Memory(), mapping_(0), mapping_base_(0), page_table_(0) {
-  virtual_heap_ = new XenonMemoryHeap(this, false);
-  physical_heap_ = new XenonMemoryHeap(this, true);
+Memory::Memory()
+    : alloy::Memory(), mapping_(0), mapping_base_(0), page_table_(0) {
+  virtual_heap_ = new MemoryHeap(this, false);
+  physical_heap_ = new MemoryHeap(this, true);
 }
 
-XenonMemory::~XenonMemory() {
+Memory::~Memory() {
   // Uninstall the MMIO handler, as we won't be able to service more
   // requests.
   mmio_handler_.reset();
@@ -142,8 +142,8 @@ XenonMemory::~XenonMemory() {
   }
 }
 
-int XenonMemory::Initialize() {
-  int result = Memory::Initialize();
+int Memory::Initialize() {
+  int result = alloy::Memory::Initialize();
   if (result) {
     return result;
   }
@@ -196,7 +196,7 @@ int XenonMemory::Initialize() {
   VirtualAlloc(Translate(0xC0000000), 0x00100000, MEM_COMMIT, PAGE_READWRITE);
 
   // Add handlers for MMIO.
-  mmio_handler_ = MMIOHandler::Install(mapping_base_);
+  mmio_handler_ = cpu::MMIOHandler::Install(mapping_base_);
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
@@ -227,7 +227,7 @@ const static struct {
       0xC0000000, 0xDFFFFFFF, 0x00000000,  //          - physical 16mb pages
       0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages
 };
-int XenonMemory::MapViews(uint8_t* mapping_base) {
+int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(poly::countof(map_info) == poly::countof(views_.all_views));
   for (size_t n = 0; n < poly::countof(map_info); n++) {
 #if XE_PLATFORM_WIN32
@@ -252,7 +252,7 @@ XECLEANUP:
   return 1;
 }
 
-void XenonMemory::UnmapViews() {
+void Memory::UnmapViews() {
   for (size_t n = 0; n < poly::countof(views_.all_views); n++) {
     if (views_.all_views[n]) {
 #if XE_PLATFORM_WIN32
@@ -266,9 +266,9 @@ void XenonMemory::UnmapViews() {
   }
 }
 
-bool XenonMemory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
-                                 void* context, MMIOReadCallback read_callback,
-                                 MMIOWriteCallback write_callback) {
+bool Memory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
+                            void* context, cpu::MMIOReadCallback read_callback,
+                            cpu::MMIOWriteCallback write_callback) {
   DWORD protect = PAGE_NOACCESS;
   if (!VirtualAlloc(Translate(address), size, MEM_COMMIT, protect)) {
     XELOGE("Unable to map range; commit/protect failed");
@@ -278,7 +278,7 @@ bool XenonMemory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
                                       read_callback, write_callback);
 }
 
-uint8_t XenonMemory::LoadI8(uint64_t address) {
+uint8_t Memory::LoadI8(uint64_t address) {
   uint64_t value;
   if (!mmio_handler_->CheckLoad(address, &value)) {
     value = *reinterpret_cast<uint8_t*>(Translate(address));
@@ -286,7 +286,7 @@ uint8_t XenonMemory::LoadI8(uint64_t address) {
   return static_cast<uint8_t>(value);
 }
 
-uint16_t XenonMemory::LoadI16(uint64_t address) {
+uint16_t Memory::LoadI16(uint64_t address) {
   uint64_t value;
   if (!mmio_handler_->CheckLoad(address, &value)) {
     value = *reinterpret_cast<uint16_t*>(Translate(address));
@@ -294,7 +294,7 @@ uint16_t XenonMemory::LoadI16(uint64_t address) {
   return static_cast<uint16_t>(value);
 }
 
-uint32_t XenonMemory::LoadI32(uint64_t address) {
+uint32_t Memory::LoadI32(uint64_t address) {
   uint64_t value;
   if (!mmio_handler_->CheckLoad(address, &value)) {
     value = *reinterpret_cast<uint32_t*>(Translate(address));
@@ -302,7 +302,7 @@ uint32_t XenonMemory::LoadI32(uint64_t address) {
   return static_cast<uint32_t>(value);
 }
 
-uint64_t XenonMemory::LoadI64(uint64_t address) {
+uint64_t Memory::LoadI64(uint64_t address) {
   uint64_t value;
   if (!mmio_handler_->CheckLoad(address, &value)) {
     value = *reinterpret_cast<uint64_t*>(Translate(address));
@@ -310,32 +310,32 @@ uint64_t XenonMemory::LoadI64(uint64_t address) {
   return static_cast<uint64_t>(value);
 }
 
-void XenonMemory::StoreI8(uint64_t address, uint8_t value) {
+void Memory::StoreI8(uint64_t address, uint8_t value) {
   if (!mmio_handler_->CheckStore(address, value)) {
     *reinterpret_cast<uint8_t*>(Translate(address)) = value;
   }
 }
 
-void XenonMemory::StoreI16(uint64_t address, uint16_t value) {
+void Memory::StoreI16(uint64_t address, uint16_t value) {
   if (!mmio_handler_->CheckStore(address, value)) {
     *reinterpret_cast<uint16_t*>(Translate(address)) = value;
   }
 }
 
-void XenonMemory::StoreI32(uint64_t address, uint32_t value) {
+void Memory::StoreI32(uint64_t address, uint32_t value) {
   if (!mmio_handler_->CheckStore(address, value)) {
     *reinterpret_cast<uint32_t*>(Translate(address)) = value;
   }
 }
 
-void XenonMemory::StoreI64(uint64_t address, uint64_t value) {
+void Memory::StoreI64(uint64_t address, uint64_t value) {
   if (!mmio_handler_->CheckStore(address, value)) {
     *reinterpret_cast<uint64_t*>(Translate(address)) = value;
   }
 }
 
-uint64_t XenonMemory::HeapAlloc(uint64_t base_address, size_t size,
-                                uint32_t flags, uint32_t alignment) {
+uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
+                           uint32_t alignment) {
   // If we were given a base address we are outside of the normal heap and
   // will place wherever asked (so long as it doesn't overlap the heap).
   if (!base_address) {
@@ -384,7 +384,7 @@ uint64_t XenonMemory::HeapAlloc(uint64_t base_address, size_t size,
   }
 }
 
-int XenonMemory::HeapFree(uint64_t address, size_t size) {
+int Memory::HeapFree(uint64_t address, size_t size) {
   if (address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
       address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
     return virtual_heap_->Free(address, size) ? 0 : 1;
@@ -398,8 +398,7 @@ int XenonMemory::HeapFree(uint64_t address, size_t size) {
   }
 }
 
-bool XenonMemory::QueryInformation(uint64_t base_address,
-                                   AllocationInfo* mem_info) {
+bool Memory::QueryInformation(uint64_t base_address, AllocationInfo* mem_info) {
   uint8_t* p = Translate(base_address);
   MEMORY_BASIC_INFORMATION mbi;
   if (!VirtualQuery(p, &mbi, sizeof(mbi))) {
@@ -416,7 +415,7 @@ bool XenonMemory::QueryInformation(uint64_t base_address,
   return true;
 }
 
-size_t XenonMemory::QuerySize(uint64_t base_address) {
+size_t Memory::QuerySize(uint64_t base_address) {
   if (base_address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
       base_address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
     return virtual_heap_->QuerySize(base_address);
@@ -436,7 +435,7 @@ size_t XenonMemory::QuerySize(uint64_t base_address) {
   }
 }
 
-int XenonMemory::Protect(uint64_t address, size_t size, uint32_t access) {
+int Memory::Protect(uint64_t address, size_t size, uint32_t access) {
   uint8_t* p = Translate(address);
 
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -452,7 +451,7 @@ int XenonMemory::Protect(uint64_t address, size_t size, uint32_t access) {
   return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
 }
 
-uint32_t XenonMemory::QueryProtect(uint64_t address) {
+uint32_t Memory::QueryProtect(uint64_t address) {
   uint8_t* p = Translate(address);
   MEMORY_BASIC_INFORMATION info;
   size_t info_size = VirtualQuery((void*)p, &info, sizeof(info));
@@ -462,12 +461,12 @@ uint32_t XenonMemory::QueryProtect(uint64_t address) {
   return info.Protect;
 }
 
-XenonMemoryHeap::XenonMemoryHeap(XenonMemory* memory, bool is_physical)
+MemoryHeap::MemoryHeap(Memory* memory, bool is_physical)
     : memory_(memory), is_physical_(is_physical) {
   heap_id_ = next_heap_id_++;
 }
 
-XenonMemoryHeap::~XenonMemoryHeap() {
+MemoryHeap::~MemoryHeap() {
   if (space_) {
     std::lock_guard<std::mutex> guard(lock_);
     destroy_mspace(space_);
@@ -479,7 +478,7 @@ XenonMemoryHeap::~XenonMemoryHeap() {
   }
 }
 
-int XenonMemoryHeap::Initialize(uint64_t low, uint64_t high) {
+int MemoryHeap::Initialize(uint64_t low, uint64_t high) {
   // Commit the memory where our heap will live and allocate it.
   // TODO(benvanik): replace dlmalloc with an implementation that can commit
   //     as it goes.
@@ -494,8 +493,8 @@ int XenonMemoryHeap::Initialize(uint64_t low, uint64_t high) {
   return 0;
 }
 
-uint64_t XenonMemoryHeap::Alloc(uint64_t base_address, size_t size,
-                                uint32_t flags, uint32_t alignment) {
+uint64_t MemoryHeap::Alloc(uint64_t base_address, size_t size, uint32_t flags,
+                           uint32_t alignment) {
   lock_.lock();
   size_t alloc_size = size;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -547,7 +546,7 @@ uint64_t XenonMemoryHeap::Alloc(uint64_t base_address, size_t size,
   return address;
 }
 
-uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
+uint64_t MemoryHeap::Free(uint64_t address, size_t size) {
   uint8_t* p = memory_->Translate(address);
 
   // Heap allocated address.
@@ -590,7 +589,7 @@ uint64_t XenonMemoryHeap::Free(uint64_t address, size_t size) {
   return (uint64_t)real_size;
 }
 
-size_t XenonMemoryHeap::QuerySize(uint64_t base_address) {
+size_t MemoryHeap::QuerySize(uint64_t base_address) {
   uint8_t* p = memory_->Translate(base_address);
 
   // Heap allocated address.
@@ -605,8 +604,8 @@ size_t XenonMemoryHeap::QuerySize(uint64_t base_address) {
   return real_size;
 }
 
-void XenonMemoryHeap::Dump() {
-  XELOGI("XenonMemoryHeap::Dump - %s", is_physical_ ? "physical" : "virtual");
+void MemoryHeap::Dump() {
+  XELOGI("MemoryHeap::Dump - %s", is_physical_ ? "physical" : "virtual");
   if (FLAGS_heap_guard_pages) {
     XELOGI("  (heap guard pages enabled, stats will be wrong)");
   }
@@ -622,10 +621,10 @@ void XenonMemoryHeap::Dump() {
   mspace_inspect_all(space_, DumpHandler, this);
 }
 
-void XenonMemoryHeap::DumpHandler(void* start, void* end, size_t used_bytes,
-                                  void* context) {
-  XenonMemoryHeap* heap = (XenonMemoryHeap*)context;
-  XenonMemory* memory = heap->memory_;
+void MemoryHeap::DumpHandler(void* start, void* end, size_t used_bytes,
+                             void* context) {
+  MemoryHeap* heap = (MemoryHeap*)context;
+  Memory* memory = heap->memory_;
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   uint64_t start_addr = (uint64_t)start + heap_guard_size;
   uint64_t end_addr = (uint64_t)end - heap_guard_size;

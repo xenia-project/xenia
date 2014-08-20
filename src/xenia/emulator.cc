@@ -13,13 +13,13 @@
 #include <xdb/protocol.h>
 #include <xenia/apu/apu.h>
 #include <xenia/cpu/cpu.h>
-#include <xenia/cpu/xenon_memory.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/hid/hid.h>
 #include <xenia/kernel/kernel.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/kernel/modules.h>
 #include <xenia/kernel/fs/filesystem.h>
+#include <xenia/memory.h>
 #include <xenia/ui/window.h>
 
 namespace xe {
@@ -87,7 +87,7 @@ X_STATUS Emulator::Setup() {
   XEEXPECTZERO(result);
 
   // Create memory system first, as it is required for other systems.
-  memory_ = new XenonMemory();
+  memory_ = new Memory();
   XEEXPECTNOTNULL(memory_);
   result = memory_->Initialize();
   XEEXPECTZERO(result);

@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_XENON_MEMORY_H_
-#define XENIA_CPU_XENON_MEMORY_H_
+#ifndef XENIA_MEMORY_H_
+#define XENIA_MEMORY_H_
 
 #include <memory>
 
@@ -20,22 +20,41 @@
 typedef struct xe_ppc_state xe_ppc_state_t;
 
 namespace xe {
-namespace cpu {
 
-class XenonMemoryHeap;
+class MemoryHeap;
 
-class XenonMemory : public alloy::Memory {
+// TODO(benvanik): move to heap.
+enum {
+  MEMORY_FLAG_64KB_PAGES = (1 << 1),
+  MEMORY_FLAG_ZERO = (1 << 2),
+  MEMORY_FLAG_PHYSICAL = (1 << 3),
+};
+
+// TODO(benvanik): move to heap.
+// Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct.
+struct AllocationInfo {
+  uint64_t base_address;
+  uint64_t allocation_base;
+  uint32_t allocation_protect;  // TBD
+  size_t region_size;
+  uint32_t state;    // TBD
+  uint32_t protect;  // TBD
+  uint32_t type;     // TBD
+};
+
+class Memory : public alloy::Memory {
  public:
-  XenonMemory();
-  virtual ~XenonMemory();
+  Memory();
+  ~Memory() override;
 
   int Initialize() override;
 
+  // TODO(benvanik): remove with GPU refactor.
   uint64_t page_table() const override { return page_table_; }
 
   bool AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
-                      void* context, MMIOReadCallback read_callback,
-                      MMIOWriteCallback write_callback);
+                      void* context, cpu::MMIOReadCallback read_callback,
+                      cpu::MMIOWriteCallback write_callback);
 
   uint8_t LoadI8(uint64_t address) override;
   uint16_t LoadI16(uint64_t address) override;
@@ -47,15 +66,14 @@ class XenonMemory : public alloy::Memory {
   void StoreI64(uint64_t address, uint64_t value) override;
 
   uint64_t HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
-                     uint32_t alignment = 0x20) override;
-  int HeapFree(uint64_t address, size_t size) override;
+                     uint32_t alignment = 0x20);
+  int HeapFree(uint64_t address, size_t size);
 
-  bool QueryInformation(uint64_t base_address,
-                        alloy::AllocationInfo* mem_info) override;
-  size_t QuerySize(uint64_t base_address) override;
+  bool QueryInformation(uint64_t base_address, AllocationInfo* mem_info);
+  size_t QuerySize(uint64_t base_address);
 
-  int Protect(uint64_t address, size_t size, uint32_t access) override;
-  uint32_t QueryProtect(uint64_t address) override;
+  int Protect(uint64_t address, size_t size, uint32_t access);
+  uint32_t QueryProtect(uint64_t address);
 
  private:
   int MapViews(uint8_t* mapping_base);
@@ -76,17 +94,16 @@ class XenonMemory : public alloy::Memory {
     uint8_t* all_views[6];
   } views_;
 
-  std::unique_ptr<MMIOHandler> mmio_handler_;
+  std::unique_ptr<cpu::MMIOHandler> mmio_handler_;
 
-  XenonMemoryHeap* virtual_heap_;
-  XenonMemoryHeap* physical_heap_;
+  MemoryHeap* virtual_heap_;
+  MemoryHeap* physical_heap_;
 
   uint64_t page_table_;
 
-  friend class XenonMemoryHeap;
+  friend class MemoryHeap;
 };
 
-}  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_XENON_MEMORY_H_
+#endif  // XENIA_MEMORY_H_

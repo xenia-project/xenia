@@ -10,25 +10,20 @@
 #include <xenia/cpu/xenon_runtime.h>
 
 #include <alloy/frontend/ppc/ppc_frontend.h>
-
 #include <xenia/cpu/xenon_thread_state.h>
 
-using namespace alloy;
-using namespace alloy::frontend::ppc;
-using namespace alloy::runtime;
 using namespace xe;
 using namespace xe::cpu;
 
-XenonRuntime::XenonRuntime(alloy::Memory* memory,
-                           ExportResolver* export_resolver,
+XenonRuntime::XenonRuntime(Memory* memory, ExportResolver* export_resolver,
                            uint32_t debug_info_flags, uint32_t trace_flags)
     : Runtime(memory, debug_info_flags, trace_flags),
       export_resolver_(export_resolver) {}
 
 XenonRuntime::~XenonRuntime() = default;
 
-int XenonRuntime::Initialize(std::unique_ptr<backend::Backend> backend) {
-  std::unique_ptr<PPCFrontend> frontend(new PPCFrontend(this));
+int XenonRuntime::Initialize(std::unique_ptr<alloy::backend::Backend> backend) {
+  auto frontend = std::make_unique<alloy::frontend::ppc::PPCFrontend>(this);
   // TODO(benvanik): set options/etc.
 
   int result = Runtime::Initialize(std::move(frontend), std::move(backend));

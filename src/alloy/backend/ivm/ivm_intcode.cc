@@ -1499,7 +1499,9 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
 
 void MarkPageDirty(IntCodeState& ics, uint32_t address) {
   // 16KB pages.
-  ics.page_table[(address >> 14) & 0x7FFF] = 1;
+  if (ics.page_table) {
+    ics.page_table[(address >> 14) & 0x7FFF] = 1;
+  }
 }
 uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
