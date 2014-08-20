@@ -245,6 +245,19 @@ inline void store_and_swap<double>(void* mem, double value) {
   *reinterpret_cast<double*>(mem) = byte_swap(value);
 }
 
+template <typename T>
+struct be {
+  be() = default;
+  be(const T& src) : value(poly::byte_swap(src)) {}
+  be(const be& other) {
+    value = other.value;
+  }
+  operator T() const {
+    return poly::byte_swap(value);
+  }
+  T value;
+};
+
 }  // namespace poly
 
 #endif  // POLY_MEMORY_H_

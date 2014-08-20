@@ -10,11 +10,15 @@
 #ifndef XENIA_XBOX_H_
 #define XENIA_XBOX_H_
 
+#include <poly/memory.h>
 #include <xenia/common.h>
 #include <xenia/core.h>
 
 
 namespace xe {
+
+template <typename T>
+using be = poly::be<T>;
 
 
 #pragma pack(push, 4)
@@ -277,6 +281,7 @@ public:
     return copy;
   }
 };
+//static_assert_size(X_ANSI_STRING, 8);
 
 
 class X_OBJECT_ATTRIBUTES {
@@ -309,6 +314,7 @@ public:
     attributes = 0;
   }
 };
+static_assert_size(X_OBJECT_ATTRIBUTES, 12 + sizeof(X_ANSI_STRING));
 
 
 // Values seem to be all over the place - GUIDs?
@@ -330,194 +336,72 @@ struct X_VIDEO_MODE {
 };
 static_assert_size(X_VIDEO_MODE, 48);
 
-
 typedef enum _X_INPUT_FLAG {
-  X_INPUT_FLAG_GAMEPAD      = 0x00000001,
+  X_INPUT_FLAG_GAMEPAD = 0x00000001,
 } X_INPUT_FLAG;
 
 typedef enum _X_INPUT_GAMEPAD_BUTTON {
-  X_INPUT_GAMEPAD_DPAD_UP         = 0x0001,
-  X_INPUT_GAMEPAD_DPAD_DOWN       = 0x0002,
-  X_INPUT_GAMEPAD_DPAD_LEFT       = 0x0004,
-  X_INPUT_GAMEPAD_DPAD_RIGHT      = 0x0008,
-  X_INPUT_GAMEPAD_START           = 0x0010,
-  X_INPUT_GAMEPAD_BACK            = 0x0020,
-  X_INPUT_GAMEPAD_LEFT_THUMB      = 0x0040,
-  X_INPUT_GAMEPAD_RIGHT_THUMB     = 0x0080,
-  X_INPUT_GAMEPAD_LEFT_SHOULDER   = 0x0100,
-  X_INPUT_GAMEPAD_RIGHT_SHOULDER  = 0x0200,
-  X_INPUT_GAMEPAD_A               = 0x1000,
-  X_INPUT_GAMEPAD_B               = 0x2000,
-  X_INPUT_GAMEPAD_X               = 0x4000,
-  X_INPUT_GAMEPAD_Y               = 0x8000,
+  X_INPUT_GAMEPAD_DPAD_UP = 0x0001,
+  X_INPUT_GAMEPAD_DPAD_DOWN = 0x0002,
+  X_INPUT_GAMEPAD_DPAD_LEFT = 0x0004,
+  X_INPUT_GAMEPAD_DPAD_RIGHT = 0x0008,
+  X_INPUT_GAMEPAD_START = 0x0010,
+  X_INPUT_GAMEPAD_BACK = 0x0020,
+  X_INPUT_GAMEPAD_LEFT_THUMB = 0x0040,
+  X_INPUT_GAMEPAD_RIGHT_THUMB = 0x0080,
+  X_INPUT_GAMEPAD_LEFT_SHOULDER = 0x0100,
+  X_INPUT_GAMEPAD_RIGHT_SHOULDER = 0x0200,
+  X_INPUT_GAMEPAD_A = 0x1000,
+  X_INPUT_GAMEPAD_B = 0x2000,
+  X_INPUT_GAMEPAD_X = 0x4000,
+  X_INPUT_GAMEPAD_Y = 0x8000,
 } X_INPUT_GAMEPAD_BUTTON;
 
-class X_INPUT_GAMEPAD {
-public:
-  uint16_t          buttons;
-  uint8_t           left_trigger;
-  uint8_t           right_trigger;
-  int16_t           thumb_lx;
-  int16_t           thumb_ly;
-  int16_t           thumb_rx;
-  int16_t           thumb_ry;
-
-  X_INPUT_GAMEPAD() {
-    Zero();
-  }
-  X_INPUT_GAMEPAD(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    buttons = poly::load_and_swap<uint16_t>(base + p);
-    left_trigger = poly::load_and_swap<uint8_t>(base + p + 2);
-    right_trigger = poly::load_and_swap<uint8_t>(base + p + 3);
-    thumb_lx = poly::load_and_swap<int16_t>(base + p + 4);
-    thumb_ly = poly::load_and_swap<int16_t>(base + p + 6);
-    thumb_rx = poly::load_and_swap<int16_t>(base + p + 8);
-    thumb_ry = poly::load_and_swap<int16_t>(base + p + 10);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    poly::store_and_swap<uint16_t>(base + p, buttons);
-    poly::store_and_swap<uint8_t>(base + p + 2, left_trigger);
-    poly::store_and_swap<uint8_t>(base + p + 3, right_trigger);
-    poly::store_and_swap<int16_t>(base + p + 4, thumb_lx);
-    poly::store_and_swap<int16_t>(base + p + 6, thumb_ly);
-    poly::store_and_swap<int16_t>(base + p + 8, thumb_rx);
-    poly::store_and_swap<int16_t>(base + p + 10, thumb_ry);
-  }
-  void Zero() {
-    buttons = 0;
-    left_trigger = right_trigger = 0;
-    thumb_lx = thumb_ly = thumb_rx = thumb_ry = 0;
-  }
+struct X_INPUT_GAMEPAD {
+  be<uint16_t> buttons;
+  be<uint8_t> left_trigger;
+  be<uint8_t> right_trigger;
+  be<int16_t> thumb_lx;
+  be<int16_t> thumb_ly;
+  be<int16_t> thumb_rx;
+  be<int16_t> thumb_ry;
 };
-class X_INPUT_STATE {
-public:
-  uint32_t          packet_number;
-  X_INPUT_GAMEPAD   gamepad;
+static_assert_size(X_INPUT_GAMEPAD, 12);
 
-  X_INPUT_STATE() {
-    Zero();
-  }
-  X_INPUT_STATE(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    packet_number = poly::load_and_swap<uint32_t>(base + p);
-    gamepad.Read(base, p + 4);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    poly::store_and_swap<uint32_t>(base + p, packet_number);
-    gamepad.Write(base, p + 4);
-  }
-  void Zero() {
-    packet_number = 0;
-    gamepad.Zero();
-  }
+struct X_INPUT_STATE {
+  be<uint32_t> packet_number;
+  X_INPUT_GAMEPAD gamepad;
 };
-class X_INPUT_VIBRATION {
-public:
-  uint16_t          left_motor_speed;
-  uint16_t          right_motor_speed;
+static_assert_size(X_INPUT_STATE, sizeof(X_INPUT_GAMEPAD) + 4);
 
-  X_INPUT_VIBRATION() {
-    Zero();
-  }
-  X_INPUT_VIBRATION(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    left_motor_speed  = poly::load_and_swap<uint16_t>(base + p);
-    right_motor_speed = poly::load_and_swap<uint16_t>(base + p + 2);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    poly::store_and_swap<uint16_t>(base + p, left_motor_speed);
-    poly::store_and_swap<uint16_t>(base + p + 2, right_motor_speed);
-  }
-  void Zero() {
-    left_motor_speed = right_motor_speed = 0;
-  }
+struct X_INPUT_VIBRATION {
+  be<uint16_t> left_motor_speed;
+  be<uint16_t> right_motor_speed;
 };
-class X_INPUT_CAPABILITIES {
-public:
-  uint8_t           type;
-  uint8_t           sub_type;
-  uint16_t          flags;
-  X_INPUT_GAMEPAD   gamepad;
+static_assert_size(X_INPUT_VIBRATION, 4);
+
+struct X_INPUT_CAPABILITIES {
+  be<uint8_t> type;
+  be<uint8_t> sub_type;
+  be<uint16_t> flags;
+  X_INPUT_GAMEPAD gamepad;
   X_INPUT_VIBRATION vibration;
-
-  X_INPUT_CAPABILITIES() {
-    Zero();
-  }
-  X_INPUT_CAPABILITIES(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    type      = poly::load_and_swap<uint8_t>(base + p);
-    sub_type  = poly::load_and_swap<uint8_t>(base + p + 1);
-    flags     = poly::load_and_swap<uint16_t>(base + p + 2);
-    gamepad.Read(base, p + 4);
-    vibration.Read(base, p + 4 + 12);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    poly::store_and_swap<uint8_t>(base + p, type);
-    poly::store_and_swap<uint8_t>(base + p + 1, sub_type);
-    poly::store_and_swap<uint16_t>(base + p + 2, flags);
-    gamepad.Write(base, p + 4);
-    vibration.Write(base, p + 4 + 12);
-  }
-  void Zero() {
-    type = 0;
-    sub_type = 0;
-    flags = 0;
-    gamepad.Zero();
-    vibration.Zero();
-  }
 };
+static_assert_size(X_INPUT_CAPABILITIES,
+                   sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx
-class X_INPUT_KEYSTROKE {
-public:
-  uint16_t  virtual_key;
-  uint16_t  unicode;
-  uint16_t  flags;
-  uint8_t   user_index;
-  uint8_t   hid_code;
-
-  X_INPUT_KEYSTROKE() {
-    Zero();
-  }
-  X_INPUT_KEYSTROKE(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    virtual_key = poly::load_and_swap<uint16_t>(base + p + 0);
-    unicode     = poly::load_and_swap<uint16_t>(base + p + 2);
-    flags       = poly::load_and_swap<uint16_t>(base + p + 4);
-    user_index  = poly::load_and_swap<uint8_t>(base + p + 6);
-    hid_code    = poly::load_and_swap<uint8_t>(base + p + 7);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    poly::store_and_swap<uint16_t>(base + p + 0, virtual_key);
-    poly::store_and_swap<uint16_t>(base + p + 2, unicode);
-    poly::store_and_swap<uint16_t>(base + p + 4, flags);
-    poly::store_and_swap<uint8_t>(base + p + 6, user_index);
-    poly::store_and_swap<uint8_t>(base + p + 7, hid_code);
-  }
-  void Zero() {
-    virtual_key = 0;
-    unicode = 0;
-    flags = 0;
-    user_index = 0;
-    hid_code = 0;
-  }
+struct X_INPUT_KEYSTROKE {
+  be<uint16_t> virtual_key;
+  be<uint16_t> unicode;
+  be<uint16_t> flags;
+  be<uint8_t> user_index;
+  be<uint8_t> hid_code;
 };
-
+static_assert_size(X_INPUT_KEYSTROKE, 8);
 
 #pragma pack(pop)
 
-
 }  // namespace xe
-
 
 #endif  // XENIA_XBOX_H_

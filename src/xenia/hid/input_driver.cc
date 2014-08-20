@@ -9,14 +9,13 @@
 
 #include <xenia/hid/input_driver.h>
 
+namespace xe {
+namespace hid {
 
-using namespace xe;
-using namespace xe::hid;
+InputDriver::InputDriver(InputSystem* input_system)
+    : input_system_(input_system) {}
 
+InputDriver::~InputDriver() = default;
 
-InputDriver::InputDriver(InputSystem* input_system) :
-    input_system_(input_system) {
-}
-
-InputDriver::~InputDriver() {
-}
+}  // namespace hid
+}  // namespace xe

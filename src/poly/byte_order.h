@@ -35,6 +35,8 @@ namespace poly {
 #define POLY_BYTE_SWAP_64 __bswap_64
 #endif  // XE_COMPILER_MSVC
 
+inline int8_t byte_swap(int8_t value) { return value; }
+inline uint8_t byte_swap(uint8_t value) { return value; }
 inline int16_t byte_swap(int16_t value) {
   return static_cast<int16_t>(POLY_BYTE_SWAP_16(static_cast<int16_t>(value)));
 }

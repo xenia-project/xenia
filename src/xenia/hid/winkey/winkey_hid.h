@@ -12,22 +12,17 @@
 
 #include <xenia/core.h>
 
-
 XEDECLARECLASS2(xe, hid, InputDriver);
 XEDECLARECLASS2(xe, hid, InputSystem);
-
 
 namespace xe {
 namespace hid {
 namespace winkey {
 
-
 InputDriver* Create(InputSystem* input_system);
-
 
 }  // namespace winkey
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_WINKEY_WINKEY_HID_H_

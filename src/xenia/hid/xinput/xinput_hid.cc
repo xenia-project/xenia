@@ -11,34 +11,32 @@
 
 #include <xenia/hid/xinput/xinput_input_driver.h>
 
+namespace xe {
+namespace hid {
+namespace xinput {
 
-using namespace xe;
-using namespace xe::hid;
-using namespace xe::hid::xinput;
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-
-namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
-
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  //
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
 
 InputDriver* xe::hid::xinput::Create(InputSystem* input_system) {
   InitializeIfNeeded();
   return new XInputInputDriver(input_system);
 }
+
+}  // namespace xinput
+}  // namespace hid
+}  // namespace xe

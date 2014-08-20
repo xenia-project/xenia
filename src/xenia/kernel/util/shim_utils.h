@@ -58,6 +58,8 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 #define SHIM_SET_RETURN_32(v) SHIM_SET_GPR_64(3, (uint64_t)(int32_t)v)
 #define SHIM_SET_RETURN_64(v) SHIM_SET_GPR_64(3, v)
 
+#define SHIM_STRUCT(type, address) \
+  reinterpret_cast<type*>(SHIM_MEM_ADDR(address))
 
 }  // namespace kernel
 }  // namespace xe

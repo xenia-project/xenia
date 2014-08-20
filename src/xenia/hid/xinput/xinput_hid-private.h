@@ -11,21 +11,16 @@
 #define XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_
 
 #include <xenia/core.h>
-
 #include <xenia/hid/xinput/xinput_hid.h>
-
 
 namespace xe {
 namespace hid {
 namespace xinput {
 
-
-
-
+//
 
 }  // namespace xinput
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_
