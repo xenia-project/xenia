@@ -100,17 +100,6 @@ void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->video_standard = 1;  // NTSC
   video_mode->unknown_0x8a = 0x8A;
   video_mode->unknown_0x01 = 0x01;
-
-  // TODO(benvanik): auto swap structure.
-  video_mode->display_width = poly::byte_swap(video_mode->display_width);
-  video_mode->display_height = poly::byte_swap(video_mode->display_height);
-  video_mode->is_interlaced = poly::byte_swap(video_mode->is_interlaced);
-  video_mode->is_widescreen = poly::byte_swap(video_mode->is_widescreen);
-  video_mode->is_hi_def = poly::byte_swap(video_mode->is_hi_def);
-  video_mode->refresh_rate = poly::byte_swap(video_mode->refresh_rate);
-  video_mode->video_standard = poly::byte_swap(video_mode->video_standard);
-  video_mode->unknown_0x8a = poly::byte_swap(video_mode->unknown_0x8a);
-  video_mode->unknown_0x01 = poly::byte_swap(video_mode->unknown_0x01);
 }
 
 SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_state, KernelState* state) {

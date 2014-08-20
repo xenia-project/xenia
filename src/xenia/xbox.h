@@ -28,6 +28,8 @@ typedef uint32_t X_HANDLE;
 #define X_INVALID_HANDLE_VALUE  ((X_HANDLE)-1)
 
 
+// TODO(benvanik): type all of this so we get some safety.
+
 // NT_STATUS (STATUS_*)
 // http://msdn.microsoft.com/en-us/library/cc704588.aspx
 // Adding as needed.
@@ -145,7 +147,7 @@ typedef uint32_t X_RESULT;
 #define X_LANGUAGE_JAPANESE       2
 
 
-typedef enum _X_FILE_ATTRIBUTES {
+enum X_FILE_ATTRIBUTES {
   X_FILE_ATTRIBUTE_NONE         = 0x0000,
   X_FILE_ATTRIBUTE_READONLY     = 0x0001,
   X_FILE_ATTRIBUTE_HIDDEN       = 0x0002,
@@ -157,11 +159,11 @@ typedef enum _X_FILE_ATTRIBUTES {
   X_FILE_ATTRIBUTE_TEMPORARY    = 0x0100,
   X_FILE_ATTRIBUTE_COMPRESSED   = 0x0800,
   X_FILE_ATTRIBUTE_ENCRYPTED    = 0x4000,
-} X_FILE_ATTRIBUTES;
+};
 
 
 // http://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
-typedef enum _X_FILE_INFORMATION_CLASS {
+enum X_FILE_INFORMATION_CLASS {
   XFileDirectoryInformation = 1,
   XFileFullDirectoryInformation,
   XFileBothDirectoryInformation,
@@ -199,19 +201,7 @@ typedef enum _X_FILE_INFORMATION_CLASS {
   XFileAttributeTagInformation,
   XFileTrackingInformation,
   XFileMaximumInformation
-} X_FILE_INFORMATION_CLASS;
-
-
-struct X_MEMORY_BASIC_INFORMATION {
-  uint32_t base_address;
-  uint32_t allocation_base;
-  uint32_t allocation_protect;
-  uint32_t region_size;
-  uint32_t state;
-  uint32_t protect;
-  uint32_t type;
 };
-
 
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
@@ -284,63 +274,30 @@ public:
 //static_assert_size(X_ANSI_STRING, 8);
 
 
-class X_OBJECT_ATTRIBUTES {
-public:
-  uint32_t      root_directory;
-  uint32_t      object_name_ptr;
-  X_ANSI_STRING object_name;
-  uint32_t      attributes;
-
-  X_OBJECT_ATTRIBUTES() {
-    Zero();
-  }
-  X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    root_directory  = poly::load_and_swap<uint32_t>(base + p);
-    object_name_ptr = poly::load_and_swap<uint32_t>(base + p + 4);
-    if (object_name_ptr) {
-      object_name.Read(base, object_name_ptr);
-    } else {
-      object_name.Zero();
-    }
-    attributes      = poly::load_and_swap<uint32_t>(base + p + 8);
-  }
-  void Zero() {
-    root_directory = 0;
-    object_name_ptr = 0;
-    object_name.Zero();
-    attributes = 0;
-  }
-};
-static_assert_size(X_OBJECT_ATTRIBUTES, 12 + sizeof(X_ANSI_STRING));
-
-
 // Values seem to be all over the place - GUIDs?
 typedef uint32_t XNotificationID;
 
 
 // http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
 struct X_VIDEO_MODE {
-    uint32_t display_width;
-    uint32_t display_height;
-    uint32_t is_interlaced;
-    uint32_t is_widescreen;
-    uint32_t is_hi_def;
-    float    refresh_rate;
-    uint32_t video_standard;
-    uint32_t unknown_0x8a;
-    uint32_t unknown_0x01;
-    uint32_t reserved[3];
+  be<uint32_t> display_width;
+  be<uint32_t> display_height;
+  be<uint32_t> is_interlaced;
+  be<uint32_t> is_widescreen;
+  be<uint32_t> is_hi_def;
+  be<float> refresh_rate;
+  be<uint32_t> video_standard;
+  be<uint32_t> unknown_0x8a;
+  be<uint32_t> unknown_0x01;
+  be<uint32_t> reserved[3];
 };
 static_assert_size(X_VIDEO_MODE, 48);
 
-typedef enum _X_INPUT_FLAG {
+enum X_INPUT_FLAG {
   X_INPUT_FLAG_GAMEPAD = 0x00000001,
-} X_INPUT_FLAG;
+};
 
-typedef enum _X_INPUT_GAMEPAD_BUTTON {
+enum X_INPUT_GAMEPAD_BUTTON {
   X_INPUT_GAMEPAD_DPAD_UP = 0x0001,
   X_INPUT_GAMEPAD_DPAD_DOWN = 0x0002,
   X_INPUT_GAMEPAD_DPAD_LEFT = 0x0004,
@@ -355,7 +312,7 @@ typedef enum _X_INPUT_GAMEPAD_BUTTON {
   X_INPUT_GAMEPAD_B = 0x2000,
   X_INPUT_GAMEPAD_X = 0x4000,
   X_INPUT_GAMEPAD_Y = 0x8000,
-} X_INPUT_GAMEPAD_BUTTON;
+};
 
 struct X_INPUT_GAMEPAD {
   be<uint16_t> buttons;

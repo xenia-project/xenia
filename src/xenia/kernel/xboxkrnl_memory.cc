@@ -149,49 +149,42 @@ SHIM_CALL NtFreeVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
+struct X_MEMORY_BASIC_INFORMATION {
+  be<uint32_t> base_address;
+  be<uint32_t> allocation_base;
+  be<uint32_t> allocation_protect;
+  be<uint32_t> region_size;
+  be<uint32_t> state;
+  be<uint32_t> protect;
+  be<uint32_t> type;
+};
+
 SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);
   uint32_t memory_basic_information_ptr = SHIM_GET_ARG_32(1);
-  X_MEMORY_BASIC_INFORMATION* memory_basic_information =
-      (X_MEMORY_BASIC_INFORMATION*)SHIM_MEM_ADDR(memory_basic_information_ptr);
+  auto memory_basic_information =
+      SHIM_STRUCT(X_MEMORY_BASIC_INFORMATION, memory_basic_information_ptr);
 
   XELOGD("NtQueryVirtualMemory(%.8X, %.8X)", base_address,
          memory_basic_information_ptr);
 
-  AllocationInfo mem_info;
-  size_t result = state->memory()->QueryInformation(base_address, &mem_info);
+  AllocationInfo alloc_info;
+  size_t result = state->memory()->QueryInformation(base_address, &alloc_info);
   if (!result) {
     SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
     return;
   }
 
-  auto membase = state->memory()->membase();
   memory_basic_information->base_address =
-      static_cast<uint32_t>(mem_info.base_address);
+      static_cast<uint32_t>(alloc_info.base_address);
   memory_basic_information->allocation_base =
-      static_cast<uint32_t>(mem_info.allocation_base);
-  memory_basic_information->allocation_protect = mem_info.allocation_protect;
+      static_cast<uint32_t>(alloc_info.allocation_base);
+  memory_basic_information->allocation_protect = alloc_info.allocation_protect;
   memory_basic_information->region_size =
-      static_cast<uint32_t>(mem_info.region_size);
-  memory_basic_information->state = mem_info.state;
-  memory_basic_information->protect = mem_info.protect;
-  memory_basic_information->type = mem_info.type;
-
-  // TODO(benvanik): auto swap structure.
-  memory_basic_information->base_address =
-      poly::byte_swap(memory_basic_information->base_address);
-  memory_basic_information->allocation_base =
-      poly::byte_swap(memory_basic_information->allocation_base);
-  memory_basic_information->allocation_protect =
-      poly::byte_swap(memory_basic_information->allocation_protect);
-  memory_basic_information->region_size =
-      poly::byte_swap(memory_basic_information->region_size);
-  memory_basic_information->state =
-      poly::byte_swap(memory_basic_information->state);
-  memory_basic_information->protect =
-      poly::byte_swap(memory_basic_information->protect);
-  memory_basic_information->type =
-      poly::byte_swap(memory_basic_information->type);
+      static_cast<uint32_t>(alloc_info.region_size);
+  memory_basic_information->state = alloc_info.state;
+  memory_basic_information->protect = alloc_info.protect;
+  memory_basic_information->type = alloc_info.type;
 
   XELOGE("NtQueryVirtualMemory NOT IMPLEMENTED");
 

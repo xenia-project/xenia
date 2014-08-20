@@ -23,6 +23,38 @@ namespace kernel {
 
 using namespace xe::kernel::fs;
 
+class X_OBJECT_ATTRIBUTES {
+public:
+  uint32_t      root_directory;
+  uint32_t      object_name_ptr;
+  X_ANSI_STRING object_name;
+  uint32_t      attributes;
+
+  X_OBJECT_ATTRIBUTES() {
+    Zero();
+  }
+  X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) {
+    Read(base, p);
+  }
+  void Read(const uint8_t* base, uint32_t p) {
+    root_directory  = poly::load_and_swap<uint32_t>(base + p);
+    object_name_ptr = poly::load_and_swap<uint32_t>(base + p + 4);
+    if (object_name_ptr) {
+      object_name.Read(base, object_name_ptr);
+    } else {
+      object_name.Zero();
+    }
+    attributes      = poly::load_and_swap<uint32_t>(base + p + 8);
+  }
+  void Zero() {
+    root_directory = 0;
+    object_name_ptr = 0;
+    object_name.Zero();
+    attributes = 0;
+  }
+};
+static_assert_size(X_OBJECT_ATTRIBUTES, 12 + sizeof(X_ANSI_STRING));
+
 SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t desired_access = SHIM_GET_ARG_32(1);
