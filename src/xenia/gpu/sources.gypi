@@ -5,7 +5,6 @@
     'buffer_resource.h',
     'command_processor.cc',
     'command_processor.h',
-    'draw_command.cc',
     'draw_command.h',
     'gpu-private.h',
     'gpu.cc',
