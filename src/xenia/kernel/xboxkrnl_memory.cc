@@ -158,7 +158,7 @@ SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtQueryVirtualMemory(%.8X, %.8X)", base_address,
          memory_basic_information_ptr);
 
-  MEMORY_BASIC_INFORMATION mem_info;
+  alloy::AllocationInfo mem_info;
   size_t result = state->memory()->QueryInformation(base_address, &mem_info);
   if (!result) {
     SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
@@ -166,16 +166,16 @@ SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
   }
 
   auto membase = state->memory()->membase();
-  memory_basic_information->base_address = static_cast<uint32_t>(
-      reinterpret_cast<uint8_t*>(mem_info.BaseAddress) - membase);
-  memory_basic_information->allocation_base = static_cast<uint32_t>(
-      reinterpret_cast<uint8_t*>(mem_info.AllocationBase) - membase);
-  memory_basic_information->allocation_protect = mem_info.AllocationProtect;
+  memory_basic_information->base_address =
+      static_cast<uint32_t>(mem_info.base_address);
+  memory_basic_information->allocation_base =
+      static_cast<uint32_t>(mem_info.allocation_base);
+  memory_basic_information->allocation_protect = mem_info.allocation_protect;
   memory_basic_information->region_size =
-      static_cast<uint32_t>(mem_info.RegionSize);
-  memory_basic_information->state = mem_info.State;
-  memory_basic_information->protect = mem_info.Protect;
-  memory_basic_information->type = mem_info.Type;
+      static_cast<uint32_t>(mem_info.region_size);
+  memory_basic_information->state = mem_info.state;
+  memory_basic_information->protect = mem_info.protect;
+  memory_basic_information->type = mem_info.type;
 
   // TODO(benvanik): auto swap structure.
   memory_basic_information->base_address =

@@ -406,8 +406,8 @@ bool XenonMemory::QueryInformation(uint64_t base_address,
     return false;
   }
   mem_info->base_address = base_address;
-  mem_info->allocation_base =
-      static_cast<uint64_t>(mbi.AllocationBase - membase_);
+  mem_info->allocation_base = static_cast<uint64_t>(
+      reinterpret_cast<uint8_t*>(mbi.AllocationBase) - membase_);
   mem_info->allocation_protect = mbi.AllocationProtect;
   mem_info->region_size = mbi.RegionSize;
   mem_info->state = mbi.State;
