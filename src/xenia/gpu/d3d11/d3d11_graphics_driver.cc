@@ -39,13 +39,12 @@ D3D11GraphicsDriver::D3D11GraphicsDriver(
 
   resource_cache_ = new D3D11ResourceCache(memory, device_, context_);
 
-  xe_zero_struct(&state_, sizeof(state_));
+  memset(&state_, 0, sizeof(state_));
 
-  xe_zero_struct(&render_targets_, sizeof(render_targets_));
+  memset(&render_targets_, 0, sizeof(render_targets_));
 
   HRESULT hr;
-  D3D11_BUFFER_DESC buffer_desc;
-  xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
+  D3D11_BUFFER_DESC buffer_desc = {0};
   buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
   buffer_desc.BindFlags       = D3D11_BIND_CONSTANT_BUFFER;
   buffer_desc.CPUAccessFlags  = D3D11_CPU_ACCESS_WRITE;
@@ -100,8 +99,7 @@ int D3D11GraphicsDriver::Initialize() {
 
 void D3D11GraphicsDriver::InitializeInvalidTexture() {
   // TODO(benvanik): pattern?
-  D3D11_TEXTURE2D_DESC texture_desc;
-  xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  D3D11_TEXTURE2D_DESC texture_desc = {0};
   texture_desc.Width          = 4;
   texture_desc.Height         = 4;
   texture_desc.MipLevels      = 1;
@@ -131,8 +129,7 @@ void D3D11GraphicsDriver::InitializeInvalidTexture() {
     return;
   }
 
-  D3D11_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
-  xe_zero_struct(&texture_view_desc, sizeof(texture_view_desc));
+  D3D11_SHADER_RESOURCE_VIEW_DESC texture_view_desc = {};
   texture_view_desc.Format = texture_desc.Format;
   texture_view_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
   texture_view_desc.Texture2D.MipLevels = 1;
@@ -141,8 +138,7 @@ void D3D11GraphicsDriver::InitializeInvalidTexture() {
         texture, &texture_view_desc, &invalid_texture_view_);
   SafeRelease(texture);
 
-  D3D11_SAMPLER_DESC sampler_desc;
-  xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
+  D3D11_SAMPLER_DESC sampler_desc = {};
   sampler_desc.Filter;
   sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
   sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -396,8 +392,7 @@ int D3D11GraphicsDriver::SetupRasterizerState(const DrawCommand& command) {
   ID3D11RasterizerState* rasterizer_state = nullptr;
   auto it = rasterizer_state_cache_.find(key);
   if (it == rasterizer_state_cache_.end()) {
-    D3D11_RASTERIZER_DESC rasterizer_desc;
-    xe_zero_struct(&rasterizer_desc, sizeof(rasterizer_desc));
+    D3D11_RASTERIZER_DESC rasterizer_desc = {};
     rasterizer_desc.FillMode              = D3D11_FILL_SOLID; // D3D11_FILL_WIREFRAME;
     switch (mode_control & 0x3) {
     case 0:
@@ -480,8 +475,7 @@ int D3D11GraphicsDriver::SetupBlendState(const DrawCommand& command) {
   ID3D11BlendState* blend_state = nullptr;
   auto it = blend_state_cache_.find(key);
   if (it == blend_state_cache_.end()) {
-    D3D11_BLEND_DESC blend_desc;
-    xe_zero_struct(&blend_desc, sizeof(blend_desc));
+    D3D11_BLEND_DESC blend_desc = {0};
     //blend_desc.AlphaToCoverageEnable = false;
     // ?
     blend_desc.IndependentBlendEnable = true;
@@ -557,8 +551,7 @@ int D3D11GraphicsDriver::SetupDepthStencilState(const DrawCommand& command) {
   ID3D11DepthStencilState* depth_stencil_state = nullptr;
   auto it = depth_stencil_state_cache_.find(key);
   if (it == depth_stencil_state_cache_.end()) {
-    D3D11_DEPTH_STENCIL_DESC depth_stencil_desc;
-    xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
+    D3D11_DEPTH_STENCIL_DESC depth_stencil_desc = {0};
     // A2XX_RB_DEPTHCONTROL_BACKFACE_ENABLE
     // ?
     // A2XX_RB_DEPTHCONTROL_Z_ENABLE
@@ -846,8 +839,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
 
   for (int n = 0; n < poly::countof(render_targets_.color_buffers); n++) {
     auto& cb = render_targets_.color_buffers[n];
-    D3D11_TEXTURE2D_DESC color_buffer_desc;
-    xe_zero_struct(&color_buffer_desc, sizeof(color_buffer_desc));
+    D3D11_TEXTURE2D_DESC color_buffer_desc = {};
     color_buffer_desc.Width           = width;
     color_buffer_desc.Height          = height;
     color_buffer_desc.MipLevels       = 1;
@@ -865,7 +857,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
         &color_buffer_desc, NULL, &cb.buffer);
 
     D3D11_RENDER_TARGET_VIEW_DESC render_target_view_desc;
-    xe_zero_struct(&render_target_view_desc, sizeof(render_target_view_desc));
+    memset(&render_target_view_desc, 0, sizeof(render_target_view_desc));
     render_target_view_desc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
     render_target_view_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
     // render_target_view_desc.Buffer ?
@@ -875,8 +867,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
         &cb.color_view_8888);
   }
 
-  D3D11_TEXTURE2D_DESC depth_stencil_desc;
-  xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
+  D3D11_TEXTURE2D_DESC depth_stencil_desc = {};
   depth_stencil_desc.Width          = width;
   depth_stencil_desc.Height         = height;
   depth_stencil_desc.MipLevels      = 1;
@@ -891,8 +882,7 @@ int D3D11GraphicsDriver::RebuildRenderTargets(uint32_t width,
   device_->CreateTexture2D(
       &depth_stencil_desc, NULL, &render_targets_.depth_buffer);
 
-  D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc;
-  xe_zero_struct(&depth_stencil_view_desc, sizeof(depth_stencil_view_desc));
+  D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc = {};
   depth_stencil_view_desc.Format        = DXGI_FORMAT_D24_UNORM_S8_UINT;
   depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
   depth_stencil_view_desc.Flags         = 0;

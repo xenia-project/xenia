@@ -10,6 +10,7 @@
 #ifndef XENIA_HID_INPUT_SYSTEM_H_
 #define XENIA_HID_INPUT_SYSTEM_H_
 
+#include <memory>
 #include <vector>
 
 #include <xenia/core.h>
@@ -32,7 +33,7 @@ class InputSystem {
 
   X_STATUS Setup();
 
-  void AddDriver(InputDriver* driver);
+  void AddDriver(std::unique_ptr<InputDriver> driver);
 
   X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags,
                            X_INPUT_CAPABILITIES* out_caps);
@@ -46,7 +47,7 @@ class InputSystem {
   Memory* memory_;
   cpu::Processor* processor_;
 
-  std::vector<InputDriver*> drivers_;
+  std::vector<std::unique_ptr<InputDriver>> drivers_;
 };
 
 }  // namespace hid

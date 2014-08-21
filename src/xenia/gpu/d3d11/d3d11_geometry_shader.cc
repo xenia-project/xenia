@@ -59,9 +59,8 @@ int D3D11GeometryShader::Prepare(D3D11VertexShaderResource* vertex_shader) {
     return 1;
   }
   byte_code_length = shader_blob->GetBufferSize();
-  byte_code = xe_malloc(byte_code_length);
-  xe_copy_struct(
-      byte_code, shader_blob->GetBufferPointer(), byte_code_length);
+  byte_code = malloc(byte_code_length);
+  memcpy(byte_code, shader_blob->GetBufferPointer(), byte_code_length);
   SafeRelease(shader_blob);
 
   // Create shader.
@@ -71,7 +70,7 @@ int D3D11GeometryShader::Prepare(D3D11VertexShaderResource* vertex_shader) {
       &handle_);
   if (FAILED(hr)) {
     XELOGE("D3D11: failed to create geometry shader");
-    xe_free(byte_code);
+    free(byte_code);
     return 1;
   }
 

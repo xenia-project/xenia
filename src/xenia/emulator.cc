@@ -33,7 +33,7 @@ using namespace xe::kernel::fs;
 using namespace xe::ui;
 
 Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line) {}
+    : command_line_(command_line), main_window_(nullptr) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -134,8 +134,8 @@ X_STATUS Emulator::Setup() {
   kernel_state_ = std::make_unique<KernelState>(this);
 
   // HLE kernel modules.
-  xboxkrnl_ = std::make_unique<XboxkrnlModule>(this, kernel_state_);
-  xam_ = std::make_unique<XamModule>(this, kernel_state_);
+  xboxkrnl_ = std::make_unique<XboxkrnlModule>(this, kernel_state_.get());
+  xam_ = std::make_unique<XamModule>(this, kernel_state_.get());
 
   return result;
 }

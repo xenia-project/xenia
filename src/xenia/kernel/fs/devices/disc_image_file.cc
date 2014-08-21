@@ -23,7 +23,7 @@ DiscImageFile::DiscImageFile(KernelState* kernel_state, Mode mode,
                              DiscImageEntry* entry)
     : XFile(kernel_state, mode), entry_(entry) {}
 
-DiscImageFile::~DiscImageFile() {}
+DiscImageFile::~DiscImageFile() { delete entry_; }
 
 const std::string& DiscImageFile::path() const { return entry_->path(); }
 

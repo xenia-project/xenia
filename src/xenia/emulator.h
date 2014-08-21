@@ -24,6 +24,7 @@ class AudioSystem;
 }  // namespace apu
 namespace cpu {
 class Processor;
+class XenonThreadState;
 }  // namespace cpu
 namespace gpu {
 class GraphicsSystem;

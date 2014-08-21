@@ -16,9 +16,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-
 // TODO(benvanik): win32 calls
-
 
 void xe_socket_init() {
   WSADATA wsa_data;
@@ -41,12 +39,8 @@ void xe_socket_close(socket_t socket) {
   struct linger so_linger;
   so_linger.l_onoff = TRUE;
   so_linger.l_linger = 30;
-  setsockopt(
-      socket,
-      SOL_SOCKET,
-      SO_LINGER,
-      (const char*)&so_linger,
-      sizeof so_linger);
+  setsockopt(socket, SOL_SOCKET, SO_LINGER, (const char*)&so_linger,
+             sizeof so_linger);
   shutdown(socket, SD_SEND);
   closesocket(socket);
 }
@@ -57,32 +51,32 @@ void xe_socket_set_keepalive(socket_t socket, bool value) {
   alive.keepalivetime = 7200000;
   alive.keepaliveinterval = 6000;
   DWORD bytes_returned;
-  WSAIoctl(socket, SIO_KEEPALIVE_VALS, &alive, sizeof(alive),
-           NULL, 0, &bytes_returned, NULL, NULL);
+  WSAIoctl(socket, SIO_KEEPALIVE_VALS, &alive, sizeof(alive), NULL, 0,
+           &bytes_returned, NULL, NULL);
 }
 
 void xe_socket_set_reuseaddr(socket_t socket, bool value) {
   int opt_value = value ? 1 : 0;
-  setsockopt(socket, SOL_SOCKET, SO_REUSEADDR,
-             (const char*)&opt_value, sizeof(opt_value));
+  setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt_value,
+             sizeof(opt_value));
 }
 
 void xe_socket_set_nodelay(socket_t socket, bool value) {
   int opt_value = value ? 1 : 0;
-  setsockopt(socket, IPPROTO_TCP, TCP_NODELAY,
-             (const char*)&opt_value, sizeof(opt_value));
+  setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt_value,
+             sizeof(opt_value));
 }
 
 void xe_socket_set_nonblock(socket_t socket, bool value) {
   u_long mode = value ? 1 : 0;
-	ioctlsocket(socket, FIONBIO, &mode);
+  ioctlsocket(socket, FIONBIO, &mode);
 }
 
 int xe_socket_bind(socket_t socket, uint32_t port) {
   struct sockaddr_in socket_addr;
-  socket_addr.sin_family      = AF_INET;
+  socket_addr.sin_family = AF_INET;
   socket_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  socket_addr.sin_port        = htons(port);
+  socket_addr.sin_port = htons(port);
   int r = bind(socket, (struct sockaddr*)&socket_addr, sizeof(socket_addr));
   if (r == SOCKET_ERROR) {
     return 1;
@@ -92,9 +86,9 @@ int xe_socket_bind(socket_t socket, uint32_t port) {
 
 int xe_socket_bind_loopback(socket_t socket) {
   struct sockaddr_in socket_addr;
-  socket_addr.sin_family      = AF_INET;
+  socket_addr.sin_family = AF_INET;
   socket_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  socket_addr.sin_port        = htons(0);
+  socket_addr.sin_port = htons(0);
   int r = bind(socket, (struct sockaddr*)&socket_addr, sizeof(socket_addr));
   if (r == SOCKET_ERROR) {
     return 1;
@@ -113,8 +107,8 @@ int xe_socket_listen(socket_t socket) {
 int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
   struct sockaddr_in client_addr;
   int client_count = sizeof(client_addr);
-  socket_t client_socket_id = accept(
-      socket, (struct sockaddr*)&client_addr, &client_count);
+  socket_t client_socket_id =
+      accept(socket, (struct sockaddr*)&client_addr, &client_count);
   if (client_socket_id == INVALID_SOCKET) {
     return 1;
   }
@@ -122,8 +116,8 @@ int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
   out_client_info->socket = client_socket_id;
 
   int client_ip = client_addr.sin_addr.s_addr;
-  inet_ntop(AF_INET, &client_ip,
-      out_client_info->addr, poly::countof(out_client_info->addr));
+  inet_ntop(AF_INET, &client_ip, out_client_info->addr,
+            poly::countof(out_client_info->addr));
 
   return 0;
 }
@@ -153,16 +147,16 @@ int64_t xe_socket_recv(socket_t socket, uint8_t* data, size_t length, int flags,
 }
 
 struct xe_socket_loop {
-  socket_t  socket;
+  socket_t socket;
 
-  socket_t  notify_rd_id;
-  socket_t  notify_wr_id;
+  socket_t notify_rd_id;
+  socket_t notify_wr_id;
 
   WSAPOLLFD events[2];
 
-  bool      pending_queued_write;
-  bool      pending_recv;
-  bool      pending_send;
+  bool pending_queued_write;
+  bool pending_recv;
+  bool pending_send;
 };
 
 namespace {
@@ -188,8 +182,8 @@ int Win32SocketPair(socket_t sockets[2]) {
   sockaddr client_name;
   int client_name_len = sizeof(client_name);
   r = getsockname(client, &client_name, &client_name_len);
-  const char *pc = (const char*)&client_name;
-  const char *pn = (const char*)&listener_name;
+  const char* pc = (const char*)&client_name;
+  const char* pn = (const char*)&listener_name;
   for (size_t n = 0; n < sizeof(client_name); n++) {
     if (pc[n] != pn[n]) {
       closesocket(listener);
@@ -208,28 +202,28 @@ int Win32SocketPair(socket_t sockets[2]) {
 }
 
 xe_socket_loop_t* xe_socket_loop_create(socket_t socket) {
-  xe_socket_loop_t* loop = (xe_socket_loop_t*)xe_calloc(
-      sizeof(xe_socket_loop_t));
+  xe_socket_loop_t* loop =
+      (xe_socket_loop_t*)calloc(1, sizeof(xe_socket_loop_t));
 
   loop->socket = socket;
 
-  socket_t notify_ids[2] = { 0, 0 };
+  socket_t notify_ids[2] = {0, 0};
   for (int retry = 0; retry < 5; retry++) {
     if (!Win32SocketPair(notify_ids)) {
       break;
     }
   }
   if (!notify_ids[0]) {
-    xe_free(loop);
+    free(loop);
     return NULL;
   }
   loop->notify_rd_id = notify_ids[0];
   loop->notify_wr_id = notify_ids[1];
 
-  loop->events[0].fd      = socket;
-  loop->events[0].events  = POLLIN;
-  loop->events[1].fd      = loop->notify_rd_id;
-  loop->events[1].events  = POLLIN;
+  loop->events[0].fd = socket;
+  loop->events[0].events = POLLIN;
+  loop->events[1].fd = loop->notify_rd_id;
+  loop->events[1].events = POLLIN;
 
   return loop;
 }
@@ -237,11 +231,11 @@ xe_socket_loop_t* xe_socket_loop_create(socket_t socket) {
 void xe_socket_loop_destroy(xe_socket_loop_t* loop) {
   closesocket(loop->notify_rd_id);
   closesocket(loop->notify_wr_id);
-  xe_free(loop);
+  free(loop);
 }
 
-int xe_socket_loop_poll(xe_socket_loop_t* loop,
-                        bool check_read, bool check_write) {
+int xe_socket_loop_poll(xe_socket_loop_t* loop, bool check_read,
+                        bool check_write) {
   // Prep events object.
   loop->events[0].events = 0;
   if (check_read) {

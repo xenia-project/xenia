@@ -52,6 +52,8 @@ class FileSystem {
   int DeleteSymbolicLink(const std::string& path);
 
   std::unique_ptr<Entry> ResolvePath(const std::string& path);
+  X_STATUS Open(std::unique_ptr<Entry> entry, KernelState* kernel_state,
+                Mode mode, bool async, XFile** out_file);
 
  private:
   std::vector<Device*> devices_;

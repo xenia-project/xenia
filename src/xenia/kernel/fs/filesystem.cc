@@ -176,6 +176,16 @@ std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
   return nullptr;
 }
 
+X_STATUS FileSystem::Open(std::unique_ptr<Entry> entry,
+                          KernelState* kernel_state, Mode mode, bool async,
+                          XFile** out_file) {
+  auto result = entry->Open(kernel_state, mode, async, out_file);
+  if (XSUCCEEDED(result)) {
+    entry.release();
+  }
+  return result;
+}
+
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe

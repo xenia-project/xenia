@@ -19,12 +19,7 @@ namespace hid {
 InputSystem::InputSystem(Emulator* emulator)
     : emulator_(emulator), memory_(emulator->memory()) {}
 
-InputSystem::~InputSystem() {
-  for (auto it = drivers_.begin(); it != drivers_.end(); ++it) {
-    InputDriver* driver = *it;
-    delete driver;
-  }
-}
+InputSystem::~InputSystem() = default;
 
 X_STATUS InputSystem::Setup() {
   processor_ = emulator_->processor();
@@ -32,14 +27,15 @@ X_STATUS InputSystem::Setup() {
   return X_STATUS_SUCCESS;
 }
 
-void InputSystem::AddDriver(InputDriver* driver) { drivers_.push_back(driver); }
+void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
+  drivers_.push_back(std::move(driver));
+}
 
 X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
                                       X_INPUT_CAPABILITIES* out_caps) {
   SCOPE_profile_cpu_f("hid");
 
-  for (auto it = drivers_.begin(); it != drivers_.end(); ++it) {
-    InputDriver* driver = *it;
+  for (auto& driver : drivers_) {
     if (XSUCCEEDED(driver->GetCapabilities(user_index, flags, out_caps))) {
       return X_ERROR_SUCCESS;
     }
@@ -50,8 +46,7 @@ X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
 X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
   SCOPE_profile_cpu_f("hid");
 
-  for (auto it = drivers_.begin(); it != drivers_.end(); ++it) {
-    InputDriver* driver = *it;
+  for (auto& driver : drivers_) {
     if (driver->GetState(user_index, out_state) == X_ERROR_SUCCESS) {
       return X_ERROR_SUCCESS;
     }
@@ -63,8 +58,7 @@ X_RESULT InputSystem::SetState(uint32_t user_index,
                                X_INPUT_VIBRATION* vibration) {
   SCOPE_profile_cpu_f("hid");
 
-  for (auto it = drivers_.begin(); it != drivers_.end(); ++it) {
-    InputDriver* driver = *it;
+  for (auto& driver : drivers_) {
     if (XSUCCEEDED(driver->SetState(user_index, vibration))) {
       return X_ERROR_SUCCESS;
     }
@@ -76,8 +70,7 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
                                    X_INPUT_KEYSTROKE* out_keystroke) {
   SCOPE_profile_cpu_f("hid");
 
-  for (auto it = drivers_.begin(); it != drivers_.end(); ++it) {
-    InputDriver* driver = *it;
+  for (auto& driver : drivers_) {
     if (XSUCCEEDED(driver->GetKeystroke(user_index, flags, out_keystroke))) {
       return X_ERROR_SUCCESS;
     }

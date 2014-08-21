@@ -95,6 +95,9 @@ class Debugger {
   void FindBreakpoints(uint64_t address,
                        std::vector<Breakpoint*>& out_breakpoints);
 
+  // TODO(benvanik): utility functions for modification (make function ignored,
+  // etc).
+
   void OnThreadCreated(ThreadState* thread_state);
   void OnThreadDestroyed(ThreadState* thread_state);
   void OnFunctionDefined(FunctionInfo* symbol_info, Function* function);

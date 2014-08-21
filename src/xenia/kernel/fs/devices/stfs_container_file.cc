@@ -23,7 +23,7 @@ STFSContainerFile::STFSContainerFile(KernelState* kernel_state, Mode mode,
                                      STFSContainerEntry* entry)
     : entry_(entry), XFile(kernel_state, mode) {}
 
-STFSContainerFile::~STFSContainerFile() {}
+STFSContainerFile::~STFSContainerFile() { delete entry_; }
 
 const std::string& STFSContainerFile::path() const { return entry_->path(); }
 

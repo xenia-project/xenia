@@ -105,9 +105,9 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
   XFile* file = NULL;
   if (entry && entry->type() == Entry::Type::FILE) {
     // Open the file.
-    result = entry->Open(state, mode,
-                         false,  // TODO(benvanik): pick async mode, if needed.
-                         &file);
+    result = fs->Open(std::move(entry), state, mode,
+                      false,  // TODO(benvanik): pick async mode, if needed.
+                      &file);
   } else {
     result = X_STATUS_NO_SUCH_FILE;
     info = X_FILE_DOES_NOT_EXIST;
@@ -173,9 +173,9 @@ SHIM_CALL NtOpenFile_shim(PPCContext* ppc_state, KernelState* state) {
   XFile* file = NULL;
   if (entry && entry->type() == Entry::Type::FILE) {
     // Open the file.
-    result = entry->Open(state, mode,
-                         false,  // TODO(benvanik): pick async mode, if needed.
-                         &file);
+    result = fs->Open(std::move(entry), state, mode,
+                      false,  // TODO(benvanik): pick async mode, if needed.
+                      &file);
   } else {
     result = X_STATUS_NO_SUCH_FILE;
     info = X_FILE_DOES_NOT_EXIST;

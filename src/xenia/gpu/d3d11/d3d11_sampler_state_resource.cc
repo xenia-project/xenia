@@ -35,8 +35,7 @@ int D3D11SamplerStateResource::Prepare() {
     return 0;
   }
 
-  D3D11_SAMPLER_DESC sampler_desc;
-  xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
+  D3D11_SAMPLER_DESC sampler_desc = {};
   // MIN, MAG, MIP
   static const D3D11_FILTER filter_matrix[2][2][3] = {
     {

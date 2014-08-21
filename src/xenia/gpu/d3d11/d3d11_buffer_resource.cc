@@ -34,7 +34,7 @@ D3D11IndexBufferResource::~D3D11IndexBufferResource() {
 
 int D3D11IndexBufferResource::CreateHandle() {
   D3D11_BUFFER_DESC buffer_desc;
-  xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
+  memset(&buffer_desc, 0, sizeof(buffer_desc));
   buffer_desc.ByteWidth       = static_cast<UINT>(memory_range_.length);
   buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
   buffer_desc.BindFlags       = D3D11_BIND_INDEX_BUFFER;
@@ -100,7 +100,7 @@ D3D11VertexBufferResource::~D3D11VertexBufferResource() {
 
 int D3D11VertexBufferResource::CreateHandle() {
   D3D11_BUFFER_DESC buffer_desc;
-  xe_zero_struct(&buffer_desc, sizeof(buffer_desc));
+  memset(&buffer_desc, 0, sizeof(buffer_desc));
   buffer_desc.ByteWidth       = static_cast<UINT>(memory_range_.length);
   buffer_desc.Usage           = D3D11_USAGE_DYNAMIC;
   buffer_desc.BindFlags       = D3D11_BIND_VERTEX_BUFFER;

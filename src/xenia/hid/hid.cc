@@ -9,6 +9,7 @@
 
 #include <xenia/hid/hid.h>
 #include <xenia/hid/hid-private.h>
+#include <xenia/hid/input_driver.h>
 
 using namespace xe;
 using namespace xe::hid;

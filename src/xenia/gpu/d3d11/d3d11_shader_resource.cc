@@ -97,7 +97,7 @@ D3D11VertexShaderResource::D3D11VertexShaderResource(
       handle_(nullptr),
       input_layout_(nullptr),
       translated_src_(nullptr) {
-  xe_zero_struct(geometry_shaders_, sizeof(geometry_shaders_));
+  memset(geometry_shaders_, 0, sizeof(geometry_shaders_));
 }
 
 D3D11VertexShaderResource::~D3D11VertexShaderResource() {
@@ -106,7 +106,7 @@ D3D11VertexShaderResource::~D3D11VertexShaderResource() {
   for (int i = 0; i < poly::countof(geometry_shaders_); ++i) {
     delete geometry_shaders_[i];
   }
-  xe_free(translated_src_);
+  free(translated_src_);
 }
 
 int D3D11VertexShaderResource::Prepare(
@@ -135,25 +135,22 @@ int D3D11VertexShaderResource::Prepare(
     return 1;
   }
   byte_code_length = shader_blob->GetBufferSize();
-  byte_code = xe_malloc(byte_code_length);
-  xe_copy_struct(
-      byte_code, shader_blob->GetBufferPointer(), byte_code_length);
+  byte_code = malloc(byte_code_length);
+  memcpy(byte_code, shader_blob->GetBufferPointer(), byte_code_length);
   SafeRelease(shader_blob);
 
   // Create shader.
   HRESULT hr = resource_cache_->device()->CreateVertexShader(
-      byte_code, byte_code_length,
-      nullptr,
-      &handle_);
+      byte_code, byte_code_length, nullptr, &handle_);
   if (FAILED(hr)) {
     XELOGE("D3D11: failed to create vertex shader");
-    xe_free(byte_code);
+    free(byte_code);
     return 1;
   }
 
   // Create input layout.
   ret = CreateInputLayout(byte_code, byte_code_length);
-  xe_free(byte_code);
+  free(byte_code);
   if (ret) {
     return 1;
   }
@@ -174,9 +171,8 @@ int D3D11VertexShaderResource::CreateInputLayout(const void* byte_code,
     return 0;
   }
 
-  D3D11_INPUT_ELEMENT_DESC* element_descs =
-      (D3D11_INPUT_ELEMENT_DESC*)xe_alloca(
-          sizeof(D3D11_INPUT_ELEMENT_DESC) * element_count);
+  D3D11_INPUT_ELEMENT_DESC* element_descs = (D3D11_INPUT_ELEMENT_DESC*)alloca(
+      sizeof(D3D11_INPUT_ELEMENT_DESC) * element_count);
   uint32_t el_index = 0;
   for (uint32_t n = 0; n < inputs.count; n++) {
     const auto& input = inputs.descs[n];
@@ -327,7 +323,7 @@ D3D11PixelShaderResource::D3D11PixelShaderResource(
 
 D3D11PixelShaderResource::~D3D11PixelShaderResource() {
   SafeRelease(handle_);
-  xe_free(translated_src_);
+  free(translated_src_);
 }
 
 int D3D11PixelShaderResource::Prepare(const xe_gpu_program_cntl_t& program_cntl,
@@ -358,9 +354,8 @@ int D3D11PixelShaderResource::Prepare(const xe_gpu_program_cntl_t& program_cntl,
     return 1;
   }
   byte_code_length = shader_blob->GetBufferSize();
-  byte_code = xe_malloc(byte_code_length);
-  xe_copy_struct(
-      byte_code, shader_blob->GetBufferPointer(), byte_code_length);
+  byte_code = malloc(byte_code_length);
+  memcpy(byte_code, shader_blob->GetBufferPointer(), byte_code_length);
   SafeRelease(shader_blob);
 
   // Create shader.
@@ -370,11 +365,11 @@ int D3D11PixelShaderResource::Prepare(const xe_gpu_program_cntl_t& program_cntl,
       &handle_);
   if (FAILED(hr)) {
     XELOGE("D3D11: failed to create pixel shader");
-    xe_free(byte_code);
+    free(byte_code);
     return 1;
   }
 
-  xe_free(byte_code);
+  free(byte_code);
   is_prepared_ = true;
   return 0;
 }

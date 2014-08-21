@@ -175,8 +175,7 @@ bool D3D11ProfilerDisplay::SetupState() {
   HRESULT hr;
   auto device = window_->device();
 
-  D3D11_BLEND_DESC blend_desc;
-  xe_zero_struct(&blend_desc, sizeof(blend_desc));
+  D3D11_BLEND_DESC blend_desc = {0};
   blend_desc.RenderTarget[0].BlendEnable = true;
   blend_desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
   blend_desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
@@ -188,8 +187,7 @@ bool D3D11ProfilerDisplay::SetupState() {
   hr = device->CreateBlendState(&blend_desc, &blend_state_);
   assert_true(SUCCEEDED(hr));
 
-  D3D11_DEPTH_STENCIL_DESC depth_stencil_desc;
-  xe_zero_struct(&depth_stencil_desc, sizeof(depth_stencil_desc));
+  D3D11_DEPTH_STENCIL_DESC depth_stencil_desc = {0};
   depth_stencil_desc.DepthEnable = false;
   depth_stencil_desc.StencilEnable = false;
   depth_stencil_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
@@ -371,8 +369,7 @@ bool D3D11ProfilerDisplay::SetupFont() {
     return false;
   }
 
-  D3D11_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
-  xe_zero_struct(&texture_view_desc, sizeof(texture_view_desc));
+  D3D11_SHADER_RESOURCE_VIEW_DESC texture_view_desc = {};
   texture_view_desc.Format = texture_desc.Format;
   texture_view_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
   texture_view_desc.Texture2D.MipLevels = 1;
@@ -385,8 +382,7 @@ bool D3D11ProfilerDisplay::SetupFont() {
     return false;
   }
 
-  D3D11_SAMPLER_DESC sampler_desc;
-  xe_zero_struct(&sampler_desc, sizeof(sampler_desc));
+  D3D11_SAMPLER_DESC sampler_desc = {};
   sampler_desc.Filter         = D3D11_ENCODE_BASIC_FILTER(
       D3D11_FILTER_TYPE_POINT, D3D11_FILTER_TYPE_POINT,
       D3D11_FILTER_TYPE_POINT, false);

@@ -37,8 +37,7 @@ D3D11TextureResource::~D3D11TextureResource() {
 int D3D11TextureResource::CreateHandle() {
   SCOPE_profile_cpu_f("gpu");
 
-  D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  xe_zero_struct(&srv_desc, sizeof(srv_desc));
+  D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
   // TODO(benvanik): this may need to be typed on the fetch instruction (float/int/etc?)
   srv_desc.Format = info_.format;
 
@@ -94,8 +93,7 @@ int D3D11TextureResource::CreateHandle() {
 int D3D11TextureResource::CreateHandle1D() {
   uint32_t width = 1 + info_.size_1d.width;
 
-  D3D11_TEXTURE1D_DESC texture_desc;
-  xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  D3D11_TEXTURE1D_DESC texture_desc = {};
   texture_desc.Width          = width;
   texture_desc.MipLevels      = 1;
   texture_desc.ArraySize      = 1;
@@ -113,8 +111,7 @@ int D3D11TextureResource::CreateHandle1D() {
 }
 
 int D3D11TextureResource::CreateHandle2D() {
-  D3D11_TEXTURE2D_DESC texture_desc;
-  xe_zero_struct(&texture_desc, sizeof(texture_desc));
+  D3D11_TEXTURE2D_DESC texture_desc = {};
   texture_desc.Width              = info_.size_2d.output_width;
   texture_desc.Height             = info_.size_2d.output_height;
   texture_desc.MipLevels          = 1;

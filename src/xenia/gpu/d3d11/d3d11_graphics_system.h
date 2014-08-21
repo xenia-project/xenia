@@ -23,7 +23,7 @@ namespace d3d11 {
 class D3D11Window;
 
 
-GraphicsSystem* Create(Emulator* emulator);
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
 
 
 class D3D11GraphicsSystem : public GraphicsSystem {

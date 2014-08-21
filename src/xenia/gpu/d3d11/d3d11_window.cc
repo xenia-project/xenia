@@ -57,8 +57,7 @@ int D3D11Window::Initialize(const std::wstring& title, uint32_t width,
   }
 
   // Setup swap chain.
-  DXGI_SWAP_CHAIN_DESC desc;
-  xe_zero_struct(&desc, sizeof(desc));
+  DXGI_SWAP_CHAIN_DESC desc = {};
   desc.OutputWindow       = handle();
   desc.Windowed           = TRUE;
   desc.SwapEffect         = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;

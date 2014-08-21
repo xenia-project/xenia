@@ -22,7 +22,7 @@ std::unique_ptr<AudioSystem> xe::apu::CreateNop(Emulator* emulator) {
 
 #if XE_PLATFORM_WIN32
 #include <xenia/apu/xaudio2/xaudio2_apu.h>
-AudioSystem* xe::apu::CreateXAudio2(Emulator* emulator) {
+std::unique_ptr<AudioSystem> xe::apu::CreateXAudio2(Emulator* emulator) {
   return xe::apu::xaudio2::Create(emulator);
 }
 #endif  // WIN32

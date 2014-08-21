@@ -94,7 +94,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   lock_.unlock();
 
   // Copy code.
-  xe_copy_struct(final_address, machine_code, code_size);
+  memcpy(final_address, machine_code, code_size);
 
   // This isn't needed on x64 (probably), but is convention.
   FlushInstructionCache(GetCurrentProcess(), final_address, alloc_size);
@@ -109,7 +109,7 @@ X64CodeChunk::X64CodeChunk(size_t chunk_size)
   fn_table_capacity =
       static_cast<uint32_t>(poly::round_up(capacity / ESTIMATED_FN_SIZE, 16));
   size_t table_size = fn_table_capacity * sizeof(RUNTIME_FUNCTION);
-  fn_table = (RUNTIME_FUNCTION*)xe_malloc(table_size);
+  fn_table = (RUNTIME_FUNCTION*)malloc(table_size);
   fn_table_count = 0;
   fn_table_handle = 0;
   RtlAddGrowableFunctionTable(&fn_table_handle, fn_table, fn_table_count,
@@ -198,8 +198,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
     RtlDeleteGrowableFunctionTable(fn_table_handle);
     size_t old_size = fn_table_capacity * sizeof(RUNTIME_FUNCTION);
     size_t new_size = old_size * 2;
-    auto new_table =
-        (RUNTIME_FUNCTION*)xe_realloc(fn_table, old_size, new_size);
+    auto new_table = (RUNTIME_FUNCTION*)realloc(fn_table, new_size);
     assert_not_null(new_table);
     if (!new_table) {
       return;

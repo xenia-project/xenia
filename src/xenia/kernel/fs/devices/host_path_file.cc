@@ -22,7 +22,10 @@ HostPathFile::HostPathFile(KernelState* kernel_state, Mode mode,
       file_handle_(file_handle),
       XFile(kernel_state, mode) {}
 
-HostPathFile::~HostPathFile() { CloseHandle(file_handle_); }
+HostPathFile::~HostPathFile() {
+  CloseHandle(file_handle_);
+  delete entry_;
+}
 
 const std::string& HostPathFile::path() const { return entry_->path(); }
 

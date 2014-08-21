@@ -62,7 +62,8 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
     std::vector<uint8_t> buffer(file_info.file_length);
 
     // Open file for reading.
-    result = fs_entry->Open(kernel_state(), fs::Mode::READ, false, &file);
+    result = kernel_state()->file_system()->Open(
+        std::move(fs_entry), kernel_state(), fs::Mode::READ, false, &file);
     XEEXPECTZERO(result);
 
     // Read entire file into memory.
