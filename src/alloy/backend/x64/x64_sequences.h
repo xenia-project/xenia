@@ -12,7 +12,11 @@
 
 #include <alloy/core.h>
 
-XEDECLARECLASS2(alloy, hir, Instr);
+namespace alloy {
+namespace hir {
+class Instr;
+}  // namespace hir
+}  // namespace alloy
 
 namespace alloy {
 namespace backend {

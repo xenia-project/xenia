@@ -13,7 +13,9 @@
 #include <alloy/arena.h>
 #include <alloy/core.h>
 
-XEDECLARECLASS1(llvm, BitVector);
+namespace llvm {
+class BitVector;
+}  // namespace llvm
 
 namespace alloy {
 namespace hir {

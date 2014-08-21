@@ -13,9 +13,10 @@
 #include <memory>
 
 #include <poly/string.h>
-#include <xenia/types.h>
 
+#if XE_LIKE_WIN32
 #define XE_OPTION_PROFILING 1
+#endif  // XE_LIKE_WIN32
 
 #if XE_OPTION_PROFILING
 // Pollutes the global namespace. Yuck.

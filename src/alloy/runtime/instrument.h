@@ -12,7 +12,9 @@
 
 #include <alloy/core.h>
 
-XEDECLARECLASS1(alloy, Memory);
+namespace alloy {
+class Memory;
+}  // namespace alloy
 
 namespace alloy {
 namespace runtime {

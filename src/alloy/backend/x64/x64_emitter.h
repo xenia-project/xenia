@@ -16,12 +16,18 @@
 
 #include <third_party/xbyak/xbyak/xbyak.h>
 
-XEDECLARECLASS2(alloy, hir, HIRBuilder);
-XEDECLARECLASS2(alloy, hir, Instr);
-XEDECLARECLASS2(alloy, runtime, DebugInfo);
-XEDECLARECLASS2(alloy, runtime, FunctionInfo);
-XEDECLARECLASS2(alloy, runtime, Runtime);
-XEDECLARECLASS2(alloy, runtime, SymbolInfo);
+namespace alloy {
+namespace hir {
+class HIRBuilder;
+class Instr;
+}  // namespace hir
+namespace runtime {
+class DebugInfo;
+class FunctionInfo;
+class Runtime;
+class SymbolInfo;
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace backend {

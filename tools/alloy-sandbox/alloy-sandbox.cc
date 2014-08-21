@@ -75,8 +75,10 @@ class ThreadState : public alloy::runtime::ThreadState {
 // TODO(benvanik): simple memory? move more into core?
 
 int main(std::vector<std::wstring>& args) {
+#if XE_OPTION_PROFILING
   xe::Profiler::Initialize();
   xe::Profiler::ThreadEnter("main");
+#endif  // XE_OPTION_PROFILING
 
   size_t memory_size = 16 * 1024 * 1024;
   auto memory = std::make_unique<SimpleMemory>(memory_size);
@@ -116,8 +118,10 @@ int main(std::vector<std::wstring>& args) {
   runtime.reset();
   memory.reset();
 
+#if XE_OPTION_PROFILING
   xe::Profiler::Dump();
   xe::Profiler::ThreadExit();
+#endif  // XE_OPTION_PROFILING
 
   return 0;
 }
