@@ -13,10 +13,8 @@
 #include <vector>
 
 #include <xenia/core.h>
+#include <xenia/emulator.h>
 #include <xenia/xbox.h>
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, cpu, Processor);
 
 namespace xe {
 namespace hid {

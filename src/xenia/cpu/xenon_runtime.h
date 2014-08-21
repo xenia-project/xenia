@@ -14,8 +14,7 @@
 
 #include <xenia/core.h>
 #include <xenia/cpu/xenon_thread_state.h>
-
-XEDECLARECLASS1(xe, ExportResolver);
+#include <xenia/export_resolver.h>
 
 namespace xe {
 namespace cpu {

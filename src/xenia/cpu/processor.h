@@ -14,21 +14,15 @@
 #include <vector>
 
 #include <xenia/core.h>
-
-
-XEDECLARECLASS2(alloy, runtime, Breakpoint);
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS1(xe, Memory);
-XEDECLARECLASS2(xe, cpu, XenonMemory);
-XEDECLARECLASS2(xe, cpu, XenonRuntime);
-XEDECLARECLASS2(xe, cpu, XenonThreadState);
-XEDECLARECLASS2(xe, cpu, XexModule);
-
+#include <xenia/emulator.h>
 
 namespace xe {
 namespace cpu {
 
+class XenonMemory;
+class XenonRuntime;
+class XenonThreadState;
+class XexModule;
 
 enum class Irql : uint32_t {
   PASSIVE = 0,
@@ -37,9 +31,8 @@ enum class Irql : uint32_t {
   DPC = 3,
 };
 
-
 class Processor {
-public:
+ public:
   Processor(Emulator* emulator);
   ~Processor();
 
@@ -49,34 +42,30 @@ public:
 
   int Setup();
 
-  int Execute(
-      XenonThreadState* thread_state, uint64_t address);
-  uint64_t Execute(
-      XenonThreadState* thread_state, uint64_t address, uint64_t args[],
-      size_t arg_count);
+  int Execute(XenonThreadState* thread_state, uint64_t address);
+  uint64_t Execute(XenonThreadState* thread_state, uint64_t address,
+                   uint64_t args[], size_t arg_count);
 
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
-  uint64_t ExecuteInterrupt(
-      uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count);
+  uint64_t ExecuteInterrupt(uint32_t cpu, uint64_t address, uint64_t args[],
+                            size_t arg_count);
 
-private:
-  Emulator*           emulator_;
-  ExportResolver*     export_resolver_;
+ private:
+  Emulator* emulator_;
+  ExportResolver* export_resolver_;
 
-  XenonRuntime*       runtime_;
-  Memory*             memory_;
+  XenonRuntime* runtime_;
+  Memory* memory_;
 
-  Irql                irql_;
-  std::mutex          interrupt_thread_lock_;
-  XenonThreadState*   interrupt_thread_state_;
-  uint64_t            interrupt_thread_block_;
+  Irql irql_;
+  std::mutex interrupt_thread_lock_;
+  XenonThreadState* interrupt_thread_state_;
+  uint64_t interrupt_thread_block_;
 };
-
 
 }  // namespace cpu
 }  // namespace xe
-
 
 #endif  // XENIA_CPU_PROCESSOR_H_

@@ -12,22 +12,19 @@
 
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, apu, AudioSystem);
-
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace apu {
+class AudioSystem;
 namespace nop {
 
-
 AudioSystem* Create(Emulator* emulator);
-
 
 }  // namespace nop
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_NOP_NOP_APU_H_

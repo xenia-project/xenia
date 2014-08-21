@@ -12,22 +12,19 @@
 
 #include <xenia/core.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, gpu, GraphicsSystem);
-
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace gpu {
+class GraphicsSystem;
 namespace nop {
 
-
 GraphicsSystem* Create(Emulator* emulator);
-
 
 }  // namespace nop
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_NOP_NOP_GPU_H_

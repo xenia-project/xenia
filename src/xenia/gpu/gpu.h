@@ -12,13 +12,12 @@
 
 #include <xenia/gpu/graphics_system.h>
 
-
-XEDECLARECLASS1(xe, Emulator);
-
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace gpu {
-
 
 GraphicsSystem* Create(Emulator* emulator);
 
@@ -28,9 +27,7 @@ GraphicsSystem* CreateNop(Emulator* emulator);
 GraphicsSystem* CreateD3D11(Emulator* emulator);
 #endif  // WIN32
 
-
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_GPU_H_

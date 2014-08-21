@@ -14,10 +14,9 @@
 #include <mutex>
 #include <string>
 
+#include <xenia/cpu/xenon_thread_state.h>
 #include <xenia/kernel/xobject.h>
 #include <xenia/xbox.h>
-
-XEDECLARECLASS2(xe, cpu, XenonThreadState);
 
 namespace xe {
 namespace kernel {

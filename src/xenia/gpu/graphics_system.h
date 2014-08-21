@@ -14,12 +14,8 @@
 #include <thread>
 
 #include <xenia/core.h>
+#include <xenia/emulator.h>
 #include <xenia/xbox.h>
-
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, cpu, Processor);
-
 
 namespace xe {
 namespace gpu {
@@ -27,9 +23,8 @@ namespace gpu {
 class CommandProcessor;
 class GraphicsDriver;
 
-
 class GraphicsSystem {
-public:
+ public:
   virtual ~GraphicsSystem();
 
   Emulator* emulator() const { return emulator_; }
@@ -50,11 +45,11 @@ public:
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu = 0xFFFFFFFF);
   virtual void Swap() = 0;
 
-protected:
+ protected:
   virtual void Initialize();
   virtual void Pump() = 0;
 
-private:
+ private:
   void ThreadStart();
 
   static uint64_t MMIOReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
@@ -65,28 +60,26 @@ private:
     gs->WriteRegister(addr, value);
   }
 
-protected:
+ protected:
   GraphicsSystem(Emulator* emulator);
 
-  Emulator*         emulator_;
-  Memory*           memory_;
-  cpu::Processor*   processor_;
+  Emulator* emulator_;
+  Memory* memory_;
+  cpu::Processor* processor_;
 
-  xe_run_loop_ref   run_loop_;
-  std::thread       thread_;
+  xe_run_loop_ref run_loop_;
+  std::thread thread_;
   std::atomic<bool> running_;
 
-  GraphicsDriver*   driver_;
+  GraphicsDriver* driver_;
   CommandProcessor* command_processor_;
 
-  uint32_t          interrupt_callback_;
-  uint32_t          interrupt_callback_data_;
-  HANDLE            thread_wait_;
+  uint32_t interrupt_callback_;
+  uint32_t interrupt_callback_data_;
+  HANDLE thread_wait_;
 };
-
 
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_GRAPHICS_SYSTEM_H_

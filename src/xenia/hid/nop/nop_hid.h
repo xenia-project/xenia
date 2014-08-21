@@ -12,11 +12,10 @@
 
 #include <xenia/core.h>
 
-XEDECLARECLASS2(xe, hid, InputDriver);
-XEDECLARECLASS2(xe, hid, InputSystem);
-
 namespace xe {
 namespace hid {
+class InputDriver;
+class InputSystem;
 namespace nop {
 
 InputDriver* Create(InputSystem* input_system);
