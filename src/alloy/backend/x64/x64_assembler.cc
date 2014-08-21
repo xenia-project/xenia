@@ -93,8 +93,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
 
 void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
                                    size_t code_size, StringBuffer* str) {
-  BE::DISASM disasm;
-  xe_zero_struct(&disasm, sizeof(disasm));
+  BE::DISASM disasm = {0};
   disasm.Archi = 64;
   disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;
   disasm.EIP = (BE::UIntPtr)machine_code;

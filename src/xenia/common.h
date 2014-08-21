@@ -17,7 +17,6 @@
 #include <poly/string.h>
 
 #include <xenia/logging.h>
-#include <xenia/malloc.h>
 #include <xenia/profiling.h>
 #include <xenia/types.h>
 

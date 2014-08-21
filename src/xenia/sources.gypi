@@ -11,8 +11,6 @@
     'export_resolver.h',
     'logging.cc',
     'logging.h',
-    'malloc.cc',
-    'malloc.h',
     'memory.cc',
     'memory.h',
     'profiling.cc',

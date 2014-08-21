@@ -12,21 +12,21 @@
 #include <poly/math.h>
 #include <xenia/gpu/xenos/ucode_disassembler.h>
 
-
 using namespace std;
 using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
-
 ShaderResource::ShaderResource(const MemoryRange& memory_range,
-                               const Info& info,
-                               xenos::XE_GPU_SHADER_TYPE type)
+                               const Info& info, xenos::XE_GPU_SHADER_TYPE type)
     : HashedResource(memory_range),
-      info_(info), type_(type), is_prepared_(false), disasm_src_(nullptr) {
-  xe_zero_struct(&alloc_counts_, sizeof(alloc_counts_));
-  xe_zero_struct(&buffer_inputs_, sizeof(buffer_inputs_));
-  xe_zero_struct(&sampler_inputs_, sizeof(sampler_inputs_));
+      info_(info),
+      type_(type),
+      is_prepared_(false),
+      disasm_src_(nullptr) {
+  memset(&alloc_counts_, 0, sizeof(alloc_counts_));
+  memset(&buffer_inputs_, 0, sizeof(buffer_inputs_));
+  memset(&sampler_inputs_, 0, sizeof(sampler_inputs_));
 
   // Verify.
   dword_count_ = memory_range.length / 4;
@@ -34,7 +34,7 @@ ShaderResource::ShaderResource(const MemoryRange& memory_range,
 
   // Copy bytes and swap.
   size_t byte_size = dword_count_ * sizeof(uint32_t);
-  dwords_ = (uint32_t*)xe_malloc(byte_size);
+  dwords_ = (uint32_t*)malloc(byte_size);
   for (uint32_t n = 0; n < dword_count_; n++) {
     dwords_[n] = poly::load_and_swap<uint32_t>(memory_range.host_base + n * 4);
   }
@@ -47,8 +47,8 @@ ShaderResource::ShaderResource(const MemoryRange& memory_range,
 }
 
 ShaderResource::~ShaderResource() {
-  xe_free(disasm_src_);
-  xe_free(dwords_);
+  free(disasm_src_);
+  free(dwords_);
 }
 
 void ShaderResource::GatherIO() {
@@ -83,18 +83,18 @@ void ShaderResource::GatherAlloc(const instr_cf_alloc_t* cf) {
   allocs_.push_back(*cf);
 
   switch (cf->buffer_select) {
-  case SQ_POSITION:
-    // Position (SV_POSITION).
-    alloc_counts_.positions += cf->size + 1;
-    break;
-  case SQ_PARAMETER_PIXEL:
-    // Output to PS (if VS), or frag output (if PS).
-    alloc_counts_.params += cf->size + 1;
-    break;
-  case SQ_MEMORY:
-    // MEMEXPORT?
-    alloc_counts_.memories += cf->size + 1;
-    break;
+    case SQ_POSITION:
+      // Position (SV_POSITION).
+      alloc_counts_.positions += cf->size + 1;
+      break;
+    case SQ_PARAMETER_PIXEL:
+      // Output to PS (if VS), or frag output (if PS).
+      alloc_counts_.params += cf->size + 1;
+      break;
+    case SQ_MEMORY:
+      // MEMEXPORT?
+      alloc_counts_.memories += cf->size + 1;
+      break;
   }
 }
 
@@ -109,27 +109,26 @@ void ShaderResource::GatherExec(const instr_cf_exec_t* cf) {
       const instr_fetch_t* fetch =
           (const instr_fetch_t*)(dwords_ + alu_off * 3);
       switch (fetch->opc) {
-      case VTX_FETCH:
-        GatherVertexFetch(&fetch->vtx);
-        break;
-      case TEX_FETCH:
-        GatherTextureFetch(&fetch->tex);
-        break;
-      case TEX_GET_BORDER_COLOR_FRAC:
-      case TEX_GET_COMP_TEX_LOD:
-      case TEX_GET_GRADIENTS:
-      case TEX_GET_WEIGHTS:
-      case TEX_SET_TEX_LOD:
-      case TEX_SET_GRADIENTS_H:
-      case TEX_SET_GRADIENTS_V:
-      default:
-        assert_always();
-        break;
+        case VTX_FETCH:
+          GatherVertexFetch(&fetch->vtx);
+          break;
+        case TEX_FETCH:
+          GatherTextureFetch(&fetch->tex);
+          break;
+        case TEX_GET_BORDER_COLOR_FRAC:
+        case TEX_GET_COMP_TEX_LOD:
+        case TEX_GET_GRADIENTS:
+        case TEX_GET_WEIGHTS:
+        case TEX_SET_TEX_LOD:
+        case TEX_SET_GRADIENTS_H:
+        case TEX_SET_GRADIENTS_V:
+        default:
+          assert_always();
+          break;
       }
     } else {
       // TODO(benvanik): gather registers used, predicate bits used, etc.
-      const instr_alu_t* alu =
-          (const instr_alu_t*)(dwords_ + alu_off * 3);
+      const instr_alu_t* alu = (const instr_alu_t*)(dwords_ + alu_off * 3);
       if (alu->vector_write_mask) {
         if (alu->export_data && alu->vector_dest == 63) {
           alloc_counts_.point_size = true;
@@ -213,39 +212,39 @@ void ShaderResource::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
   el->offset_words = vtx->offset;
   el->size_words = 0;
   switch (el->format) {
-  case FMT_8_8_8_8:
-  case FMT_2_10_10_10:
-  case FMT_10_11_11:
-  case FMT_11_11_10:
-    el->size_words = 1;
-    break;
-  case FMT_16_16:
-  case FMT_16_16_FLOAT:
-    el->size_words = 1;
-    break;
-  case FMT_16_16_16_16:
-  case FMT_16_16_16_16_FLOAT:
-    el->size_words = 2;
-    break;
-  case FMT_32:
-  case FMT_32_FLOAT:
-    el->size_words = 1;
-    break;
-  case FMT_32_32:
-  case FMT_32_32_FLOAT:
-    el->size_words = 2;
-    break;
-  case FMT_32_32_32_FLOAT:
-    el->size_words = 3;
-    break;
-  case FMT_32_32_32_32:
-  case FMT_32_32_32_32_FLOAT:
-    el->size_words = 4;
-    break;
-  default:
-    XELOGE("Unknown vertex format: %d", el->format);
-    assert_always();
-    break;
+    case FMT_8_8_8_8:
+    case FMT_2_10_10_10:
+    case FMT_10_11_11:
+    case FMT_11_11_10:
+      el->size_words = 1;
+      break;
+    case FMT_16_16:
+    case FMT_16_16_FLOAT:
+      el->size_words = 1;
+      break;
+    case FMT_16_16_16_16:
+    case FMT_16_16_16_16_FLOAT:
+      el->size_words = 2;
+      break;
+    case FMT_32:
+    case FMT_32_FLOAT:
+      el->size_words = 1;
+      break;
+    case FMT_32_32:
+    case FMT_32_32_FLOAT:
+      el->size_words = 2;
+      break;
+    case FMT_32_32_32_FLOAT:
+      el->size_words = 3;
+      break;
+    case FMT_32_32_32_32:
+    case FMT_32_32_32_32_FLOAT:
+      el->size_words = 4;
+      break;
+    default:
+      XELOGE("Unknown vertex format: %d", el->format);
+      assert_always();
+      break;
   }
 }
 
@@ -255,22 +254,20 @@ void ShaderResource::GatherTextureFetch(const xenos::instr_fetch_tex_t* tex) {
   assert_true(sampler_inputs_.count + 1 < poly::countof(sampler_inputs_.descs));
   auto& input = sampler_inputs_.descs[sampler_inputs_.count++];
   input.input_index = sampler_inputs_.count - 1;
-  input.fetch_slot = tex->const_idx & 0xF; // ?
+  input.fetch_slot = tex->const_idx & 0xF;  // ?
   input.tex_fetch = *tex;
 
   // Format mangling, size estimation, etc.
 }
 
-VertexShaderResource::VertexShaderResource(
-    const MemoryRange& memory_range, const Info& info)
-    : ShaderResource(memory_range, info, XE_GPU_SHADER_TYPE_VERTEX) {
-}
+VertexShaderResource::VertexShaderResource(const MemoryRange& memory_range,
+                                           const Info& info)
+    : ShaderResource(memory_range, info, XE_GPU_SHADER_TYPE_VERTEX) {}
 
 VertexShaderResource::~VertexShaderResource() = default;
 
-PixelShaderResource::PixelShaderResource(
-    const MemoryRange& memory_range, const Info& info)
-    : ShaderResource(memory_range, info, XE_GPU_SHADER_TYPE_PIXEL) {
-}
+PixelShaderResource::PixelShaderResource(const MemoryRange& memory_range,
+                                         const Info& info)
+    : ShaderResource(memory_range, info, XE_GPU_SHADER_TYPE_PIXEL) {}
 
 PixelShaderResource::~PixelShaderResource() = default;

@@ -35,9 +35,8 @@ class ThreadState : public alloy::runtime::ThreadState {
     memset(memory_->Translate(stack_address_), 0, stack_size_);
 
     // Allocate with 64b alignment.
-    context_ = (PPCContext*)xe_malloc_aligned(sizeof(PPCContext));
+    context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
     assert_true((reinterpret_cast<uint64_t>(context_) & 0xF) == 0);
-    memset(&context_, 0, sizeof(PPCContext));
 
     // Stash pointers to common structures that callbacks may need.
     context_->reserve_address = memory_->reserve_address();
@@ -59,7 +58,7 @@ class ThreadState : public alloy::runtime::ThreadState {
   }
   ~ThreadState() override {
     runtime_->debugger()->OnThreadDestroyed(this);
-    xe_free_aligned(context_);
+    free(context_);
   }
 
   PPCContext* context() const { return context_; }

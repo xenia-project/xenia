@@ -74,8 +74,7 @@ class XDirectoryInfo {
       poly::store_and_swap<uint64_t>(dst + 48, info->allocation_size);
       poly::store_and_swap<uint32_t>(dst + 56, info->attributes);
       poly::store_and_swap<uint32_t>(dst + 60, info->file_name_length);
-      xe_copy_memory(dst + 64, info->file_name_length, info->file_name,
-                     info->file_name_length);
+      memcpy(dst + 64, info->file_name, info->file_name_length);
       dst += info->next_entry_offset;
       src += info->next_entry_offset;
     } while (info->next_entry_offset != 0);
@@ -99,8 +98,7 @@ class XVolumeInfo {
     poly::store_and_swap<uint32_t>(dst + 8, this->serial_number);
     poly::store_and_swap<uint32_t>(dst + 12, this->label_length);
     poly::store_and_swap<uint32_t>(dst + 16, this->supports_objects);
-    xe_copy_memory(dst + 20, this->label_length, this->label,
-                   this->label_length);
+    memcpy(dst + 20, this->label, this->label_length);
   }
 };
 static_assert_size(XVolumeInfo, 24);
@@ -120,8 +118,7 @@ class XFileSystemAttributeInfo {
     poly::store_and_swap<uint32_t>(dst + 4,
                                    this->maximum_component_name_length);
     poly::store_and_swap<uint32_t>(dst + 8, this->fs_name_length);
-    xe_copy_memory(dst + 12, this->fs_name_length, this->fs_name,
-                   this->fs_name_length);
+    memcpy(dst + 12, this->fs_name, this->fs_name_length);
   }
 };
 static_assert_size(XFileSystemAttributeInfo, 16);

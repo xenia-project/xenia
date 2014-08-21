@@ -108,8 +108,8 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::ExLoadedCommandLine, pExLoadedCommandLine);
   char command_line[] = "\"default.xex\"";
-  xe_copy_memory(mem + pExLoadedCommandLine, 1024, command_line,
-                 poly::countof(command_line) + 1);
+  memcpy(mem + pExLoadedCommandLine, command_line,
+         poly::countof(command_line) + 1);
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.

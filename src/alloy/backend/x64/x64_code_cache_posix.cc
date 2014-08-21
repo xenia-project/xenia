@@ -76,7 +76,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   lock_.unlock();
 
   // Copy code.
-  xe_copy_struct(final_address, machine_code, code_size);
+  memcpy(final_address, machine_code, code_size);
 
   return final_address;
 }

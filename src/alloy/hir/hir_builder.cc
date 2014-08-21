@@ -632,7 +632,7 @@ void HIRBuilder::Comment(const char* format, ...) {
     return;
   }
   void* p = arena_->Alloc(len + 1);
-  xe_copy_struct(p, buffer, len + 1);
+  memcpy(p, buffer, len + 1);
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
   i->src2.value = i->src3.value = NULL;

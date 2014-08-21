@@ -78,7 +78,7 @@ X_STATUS STFSContainerFile::ReadSync(void* buffer, size_t buffer_length,
       offset += byte_offset % 4096;
       read_length = std::min(read_length, record.length - (byte_offset % 4096));
     }
-    xe_copy_struct(dest_ptr, entry_->mmap()->data() + offset, read_length);
+    memcpy(dest_ptr, entry_->mmap()->data() + offset, read_length);
     dest_ptr += read_length;
     remaining_length -= read_length;
   }

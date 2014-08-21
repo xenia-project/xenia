@@ -73,11 +73,11 @@ void* Arena::CloneContents() {
     }
     chunk = chunk->next;
   }
-  void* result = xe_malloc(total_length);
+  void* result = malloc(total_length);
   uint8_t* p = (uint8_t*)result;
   chunk = head_chunk_;
   while (chunk) {
-    xe_copy_struct(p, chunk->buffer, chunk->offset);
+    memcpy(p, chunk->buffer, chunk->offset);
     p += chunk->offset;
     if (chunk == active_chunk_) {
       break;
@@ -89,12 +89,12 @@ void* Arena::CloneContents() {
 
 Arena::Chunk::Chunk(size_t chunk_size)
     : next(nullptr), capacity(chunk_size), buffer(0), offset(0) {
-  buffer = (uint8_t*)xe_malloc(capacity);
+  buffer = reinterpret_cast<uint8_t*>(malloc(capacity));
 }
 
 Arena::Chunk::~Chunk() {
   if (buffer) {
-    xe_free(buffer);
+    free(buffer);
   }
 }
 

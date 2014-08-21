@@ -37,15 +37,15 @@ bool STFSVolumeDescriptor::Read(const uint8_t* p) {
   block_separation = poly::load_and_swap<uint8_t>(p + 0x02);
   file_table_block_count = poly::load_and_swap<uint16_t>(p + 0x03);
   file_table_block_number = XEGETUINT24BE(p + 0x05);
-  xe_copy_struct(top_hash_table_hash, p + 0x08, 0x14);
+  memcpy(top_hash_table_hash, p + 0x08, 0x14);
   total_allocated_block_count = poly::load_and_swap<uint32_t>(p + 0x1C);
   total_unallocated_block_count = poly::load_and_swap<uint32_t>(p + 0x20);
   return true;
 };
 
 bool STFSHeader::Read(const uint8_t* p) {
-  xe_copy_struct(license_entries, p + 0x22C, 0x100);
-  xe_copy_struct(header_hash, p + 0x32C, 0x14);
+  memcpy(license_entries, p + 0x22C, 0x100);
+  memcpy(header_hash, p + 0x32C, 0x14);
   header_size = poly::load_and_swap<uint32_t>(p + 0x340);
   content_type = (STFSContentType)poly::load_and_swap<uint32_t>(p + 0x344);
   metadata_version = poly::load_and_swap<uint32_t>(p + 0x348);
@@ -64,8 +64,8 @@ bool STFSHeader::Read(const uint8_t* p) {
   disc_number = poly::load_and_swap<uint8_t>(p + 0x366);
   disc_in_set = poly::load_and_swap<uint8_t>(p + 0x367);
   save_game_id = poly::load_and_swap<uint32_t>(p + 0x368);
-  xe_copy_struct(console_id, p + 0x36C, 0x5);
-  xe_copy_struct(profile_id, p + 0x371, 0x8);
+  memcpy(console_id, p + 0x36C, 0x5);
+  memcpy(profile_id, p + 0x371, 0x8);
   data_file_count = poly::load_and_swap<uint32_t>(p + 0x39D);
   data_file_combined_size = poly::load_and_swap<uint64_t>(p + 0x3A1);
   descriptor_type = (STFSDescriptorType)poly::load_and_swap<uint8_t>(p + 0x3A9);
@@ -76,7 +76,7 @@ bool STFSHeader::Read(const uint8_t* p) {
   if (!volume_descriptor.Read(p + 0x379)) {
     return false;
   }
-  xe_copy_struct(device_id, p + 0x3FD, 0x14);
+  memcpy(device_id, p + 0x3FD, 0x14);
   for (size_t n = 0; n < 0x900 / 2; n++) {
     display_names[n] = poly::load_and_swap<uint16_t>(p + 0x411 + n * 2);
     display_descs[n] = poly::load_and_swap<uint16_t>(p + 0xD11 + n * 2);
@@ -88,8 +88,8 @@ bool STFSHeader::Read(const uint8_t* p) {
   transfer_flags = poly::load_and_swap<uint8_t>(p + 0x1711);
   thumbnail_image_size = poly::load_and_swap<uint32_t>(p + 0x1712);
   title_thumbnail_image_size = poly::load_and_swap<uint32_t>(p + 0x1716);
-  xe_copy_struct(thumbnail_image, p + 0x171A, 0x4000);
-  xe_copy_struct(title_thumbnail_image, p + 0x571A, 0x4000);
+  memcpy(thumbnail_image, p + 0x171A, 0x4000);
+  memcpy(title_thumbnail_image, p + 0x571A, 0x4000);
   return true;
 }
 

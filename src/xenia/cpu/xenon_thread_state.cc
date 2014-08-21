@@ -28,9 +28,8 @@ XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
   assert_not_zero(stack_address_);
 
   // Allocate with 64b alignment.
-  context_ = (PPCContext*)xe_malloc_aligned(sizeof(PPCContext));
+  context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
   assert_true(((uint64_t)context_ & 0xF) == 0);
-  xe_zero_struct(context_, sizeof(PPCContext));
 
   // Stash pointers to common structures that callbacks may need.
   context_->reserve_address = memory_->reserve_address();
@@ -55,7 +54,7 @@ XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
 XenonThreadState::~XenonThreadState() {
   runtime_->debugger()->OnThreadDestroyed(this);
 
-  xe_free_aligned(context_);
+  free(context_);
   xenon_memory()->HeapFree(stack_address_, stack_size_);
 }
 

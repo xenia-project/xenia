@@ -266,7 +266,7 @@ public:
     if (buffer == NULL || length == 0) {
       return NULL;
     }
-    auto copy = (char*)xe_calloc(length + 1);
+    auto copy = (char*)calloc(length + 1, sizeof(char));
     std::strncpy(copy, buffer, length);
     return copy;
   }

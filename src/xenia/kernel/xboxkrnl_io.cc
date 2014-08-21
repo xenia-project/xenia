@@ -24,27 +24,23 @@ namespace kernel {
 using namespace xe::kernel::fs;
 
 class X_OBJECT_ATTRIBUTES {
-public:
-  uint32_t      root_directory;
-  uint32_t      object_name_ptr;
+ public:
+  uint32_t root_directory;
+  uint32_t object_name_ptr;
   X_ANSI_STRING object_name;
-  uint32_t      attributes;
+  uint32_t attributes;
 
-  X_OBJECT_ATTRIBUTES() {
-    Zero();
-  }
-  X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
+  X_OBJECT_ATTRIBUTES() { Zero(); }
+  X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) { Read(base, p); }
   void Read(const uint8_t* base, uint32_t p) {
-    root_directory  = poly::load_and_swap<uint32_t>(base + p);
+    root_directory = poly::load_and_swap<uint32_t>(base + p);
     object_name_ptr = poly::load_and_swap<uint32_t>(base + p + 4);
     if (object_name_ptr) {
       object_name.Read(base, object_name_ptr);
     } else {
       object_name.Zero();
     }
-    attributes      = poly::load_and_swap<uint32_t>(base + p + 8);
+    attributes = poly::load_and_swap<uint32_t>(base + p + 8);
   }
   void Zero() {
     root_directory = 0;
@@ -135,7 +131,7 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
     }
   }
 
-  xe_free(object_name);
+  free(object_name);
   SHIM_SET_RETURN_32(result);
 }
 
@@ -203,7 +199,7 @@ SHIM_CALL NtOpenFile_shim(PPCContext* ppc_state, KernelState* state) {
     }
   }
 
-  xe_free(object_name);
+  free(object_name);
   SHIM_SET_RETURN_32(result);
 }
 
@@ -494,7 +490,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
     }
   }
 
-  xe_free(object_name);
+  free(object_name);
   SHIM_SET_RETURN_32(result);
 }
 
@@ -520,23 +516,23 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
     result = X_STATUS_SUCCESS;
     switch (fs_info_class) {
       case 1: {  // FileFsVolumeInformation
-        auto volume_info = (XVolumeInfo*)xe_calloc(length);
+        auto volume_info = (XVolumeInfo*)calloc(length, 1);
         result = file->QueryVolume(volume_info, length);
         if (XSUCCEEDED(result)) {
           volume_info->Write(SHIM_MEM_BASE, fs_info_ptr);
           info = length;
         }
-        xe_free(volume_info);
+        free(volume_info);
         break;
       }
       case 5: {  // FileFsAttributeInformation
-        auto fs_attribute_info = (XFileSystemAttributeInfo*)xe_calloc(length);
+        auto fs_attribute_info = (XFileSystemAttributeInfo*)calloc(length, 1);
         result = file->QueryFileSystemAttributes(fs_attribute_info, length);
         if (XSUCCEEDED(result)) {
           fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);
           info = length;
         }
-        xe_free(fs_attribute_info);
+        free(fs_attribute_info);
         break;
       }
       default:
@@ -589,7 +585,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
 
   if (length < 72) {
     SHIM_SET_RETURN_32(X_STATUS_INFO_LENGTH_MISMATCH);
-    xe_free(file_name);
+    free(file_name);
     return;
   }
 
@@ -599,14 +595,14 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   XFile* file = NULL;
   result = state->object_table()->GetObject(file_handle, (XObject**)&file);
   if (XSUCCEEDED(result)) {
-    XDirectoryInfo* dir_info = (XDirectoryInfo*)xe_calloc(length);
+    XDirectoryInfo* dir_info = (XDirectoryInfo*)calloc(length, 1);
     result =
         file->QueryDirectory(dir_info, length, file_name, restart_scan != 0);
     if (XSUCCEEDED(result)) {
       dir_info->Write(SHIM_MEM_BASE, file_info_ptr);
       info = length;
     }
-    xe_free(dir_info);
+    free(dir_info);
   }
 
   if (XFAILED(result)) {
@@ -621,7 +617,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
     file->Release();
   }
 
-  xe_free(file_name);
+  free(file_name);
   SHIM_SET_RETURN_32(result);
 }
 

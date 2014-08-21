@@ -25,13 +25,13 @@ IVMFunction::IVMFunction(FunctionInfo* symbol_info)
     : Function(symbol_info),
       register_count_(0),
       intcode_count_(0),
-      intcodes_(0),
+      intcodes_(nullptr),
       source_map_count_(0),
-      source_map_(0) {}
+      source_map_(nullptr) {}
 
 IVMFunction::~IVMFunction() {
-  xe_free(intcodes_);
-  xe_free(source_map_);
+  free(intcodes_);
+  free(source_map_);
 }
 
 void IVMFunction::Setup(TranslationContext& ctx) {

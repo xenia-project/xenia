@@ -202,15 +202,15 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(PPCContext* ppc_state,
   //(1:17:38 AM) Rick: .text:8201B348                 lwz       r11, 0x2B10(r31)
   //(1:17:38 AM) Rick: .text:8201B34C                 addi      r11, r11, 0x3C
   //(1:17:38 AM) Rick: .text:8201B350                 srwi      r10, r11, 20  #
-  //r10 = r11 >> 20
+  // r10 = r11 >> 20
   //(1:17:38 AM) Rick: .text:8201B354                 clrlwi    r11, r11, 3   #
-  //r11 = r11 & 0x1FFFFFFF
+  // r11 = r11 & 0x1FFFFFFF
   //(1:17:38 AM) Rick: .text:8201B358                 addi      r10, r10, 0x200
   //(1:17:39 AM) Rick: .text:8201B35C                 rlwinm    r10, r10,
-  //0,19,19 # r10 = r10 & 0x1000
+  // 0,19,19 # r10 = r10 & 0x1000
   //(1:17:39 AM) Rick: .text:8201B360                 add       r3, r10, r11
   //(1:17:39 AM) Rick: .text:8201B364                 bl
-  //VdEnableRingBufferRPtrWriteBack
+  // VdEnableRingBufferRPtrWriteBack
   // TODO(benvanik): something?
 }
 
@@ -300,7 +300,7 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   // token value. It'd be nice to figure out what this is really doing so
   // that we could simulate it, though due to TCR I bet all games need to
   // use this method.
-  xe_zero_struct(SHIM_MEM_ADDR(unk0), 64 * 4);
+  memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
   dwords[0] = poly::byte_swap((0x03 << 30) | ((1 - 1) << 16) |
                               (xe::gpu::xenos::PM4_XE_SWAP << 8));

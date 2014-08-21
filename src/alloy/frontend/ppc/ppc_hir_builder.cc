@@ -69,8 +69,8 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   size_t list_size = instr_count_ * sizeof(void*);
   instr_offset_list_ = (Instr**)arena_->Alloc(list_size);
   label_list_ = (Label**)arena_->Alloc(list_size);
-  xe_zero_struct(instr_offset_list_, list_size);
-  xe_zero_struct(label_list_, list_size);
+  memset(instr_offset_list_, 0, list_size);
+  memset(label_list_, 0, list_size);
 
   // Always mark entry with label.
   label_list_[0] = NewLabel();
@@ -171,7 +171,7 @@ void PPCHIRBuilder::AnnotateLabel(uint64_t address, Label* label) {
   snprintf(name_buffer, poly::countof(name_buffer), "loc_%.8X",
            (uint32_t)address);
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
-  xe_copy_struct(label->name, name_buffer, sizeof(name_buffer));
+  memcpy(label->name, name_buffer, sizeof(name_buffer));
 }
 
 FunctionInfo* PPCHIRBuilder::LookupFunction(uint64_t address) {

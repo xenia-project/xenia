@@ -67,7 +67,7 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
     XEEXPECTZERO(result);
 
     size_t buffer_length = file_info.file_length;
-    buffer = (uint8_t*)xe_malloc(buffer_length);
+    buffer = (uint8_t*)malloc(buffer_length);
 
     // Open file for reading.
     result = fs_entry->Open(kernel_state(), fs::Mode::READ, false, &file);
@@ -85,7 +85,7 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
 
 XECLEANUP:
   if (buffer) {
-    xe_free(buffer);
+    free(buffer);
   }
   if (file) {
     file->Release();
@@ -99,8 +99,7 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   XenonRuntime* runtime = processor->runtime();
 
   // Load the XEX into memory and decrypt.
-  xe_xex2_options_t xex_options;
-  xe_zero_struct(&xex_options, sizeof(xex_options));
+  xe_xex2_options_t xex_options = {0};
   xex_ = xe_xex2_load(kernel_state()->memory(), addr, length, xex_options);
   if (!xex_) {
     return X_STATUS_UNSUCCESSFUL;

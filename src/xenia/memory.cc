@@ -348,7 +348,7 @@ uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
     }
     if (result) {
       if (flags & MEMORY_FLAG_ZERO) {
-        xe_zero_struct(Translate(result), size);
+        memset(Translate(result), 0, size);
       }
     }
     return result;
@@ -377,7 +377,7 @@ uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
     }
 
     if (flags & MEMORY_FLAG_ZERO) {
-      xe_zero_struct(pv, size);
+      memset(pv, 0, size);
     }
 
     return base_address;

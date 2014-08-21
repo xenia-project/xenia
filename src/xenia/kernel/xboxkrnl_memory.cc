@@ -319,7 +319,7 @@ SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_state, KernelState* state) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   // Zero out the struct.
-  xe_zero_struct(SHIM_MEM_ADDR(stats_ptr), 104);
+  memset(SHIM_MEM_ADDR(stats_ptr), 0, 104);
   SHIM_SET_MEM_32(stats_ptr + 0, 104);
 
   // Set the constants the game is likely asking for.

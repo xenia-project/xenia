@@ -21,11 +21,11 @@ DebugInfo::DebugInfo()
       source_map_(nullptr) {}
 
 DebugInfo::~DebugInfo() {
-  xe_free(source_map_);
-  xe_free(source_disasm_);
-  xe_free(raw_hir_disasm_);
-  xe_free(hir_disasm_);
-  xe_free(machine_code_disasm_);
+  free(source_map_);
+  free(source_disasm_);
+  free(raw_hir_disasm_);
+  free(hir_disasm_);
+  free(machine_code_disasm_);
 }
 
 void DebugInfo::InitializeSourceMap(size_t source_map_count,

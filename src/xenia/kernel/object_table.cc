@@ -18,7 +18,7 @@ namespace xe {
 namespace kernel {
 
 ObjectTable::ObjectTable()
-    : table_capacity_(0), table_(NULL), last_free_entry_(0) {}
+    : table_capacity_(0), table_(nullptr), last_free_entry_(0) {}
 
 ObjectTable::~ObjectTable() {
   std::lock_guard<std::mutex> lock(table_mutex_);
@@ -34,7 +34,7 @@ ObjectTable::~ObjectTable() {
 
   table_capacity_ = 0;
   last_free_entry_ = 0;
-  xe_free(table_);
+  free(table_);
   table_ = NULL;
 }
 
@@ -59,11 +59,17 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
 
   // Table out of slots, expand.
   uint32_t new_table_capacity = std::max(16 * 1024u, table_capacity_ * 2);
-  ObjectTableEntry* new_table = (ObjectTableEntry*)xe_recalloc(
-      table_, table_capacity_ * sizeof(ObjectTableEntry),
-      new_table_capacity * sizeof(ObjectTableEntry));
+  size_t new_table_size = new_table_capacity * sizeof(ObjectTableEntry);
+  size_t old_table_size = table_capacity_ * sizeof(ObjectTableEntry);
+  ObjectTableEntry* new_table =
+      (ObjectTableEntry*)realloc(table_, new_table_size);
   if (!new_table) {
     return X_STATUS_NO_MEMORY;
+  }
+  // Zero out new memory.
+  if (new_table_size > old_table_size) {
+    memset(reinterpret_cast<uint8_t*>(new_table) + old_table_size, 0,
+           new_table_size - old_table_size);
   }
   last_free_entry_ = table_capacity_;
   table_capacity_ = new_table_capacity;

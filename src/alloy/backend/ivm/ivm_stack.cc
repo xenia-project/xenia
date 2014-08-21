@@ -65,12 +65,12 @@ void IVMStack::Free(size_t register_count) {
 
 IVMStack::Chunk::Chunk(size_t chunk_size)
     : prev(NULL), next(NULL), capacity(chunk_size), buffer(0), offset(0) {
-  buffer = (uint8_t*)xe_malloc(capacity);
+  buffer = reinterpret_cast<uint8_t*>(malloc(capacity));
 }
 
 IVMStack::Chunk::~Chunk() {
   if (buffer) {
-    xe_free(buffer);
+    free(buffer);
   }
 }
 

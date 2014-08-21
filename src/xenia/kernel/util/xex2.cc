@@ -51,7 +51,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
 
 xe_xex2_ref xe_xex2_load(xe::Memory *memory, const void *addr,
                          const size_t length, xe_xex2_options_t options) {
-  xe_xex2_ref xex = (xe_xex2_ref)xe_calloc(sizeof(xe_xex2));
+  xe_xex2_ref xex = (xe_xex2_ref)calloc(1, sizeof(xe_xex2));
   xe_ref_init((xe_ref)xex);
 
   xex->memory = memory;
@@ -85,14 +85,14 @@ void xe_xex2_dealloc(xe_xex2_ref xex) {
   }
 
   xe_xex2_header_t *header = &xex->header;
-  xe_free(header->sections);
-  xe_free(header->resource_infos);
+  free(header->sections);
+  free(header->resource_infos);
   if (header->file_format_info.compression_type == XEX_COMPRESSION_BASIC) {
-    xe_free(header->file_format_info.compression_info.basic.blocks);
+    free(header->file_format_info.compression_info.basic.blocks);
   }
   for (size_t n = 0; n < header->import_library_count; n++) {
     xe_xex2_import_library_t *library = &header->import_libraries[n];
-    xe_free(library->records);
+    free(library->records);
   }
 
   xex->memory = NULL;
@@ -162,13 +162,12 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         break;
       case XEX_HEADER_RESOURCE_INFO: {
         header->resource_info_count = (opt_header->length - 4) / 16;
-        header->resource_infos = (xe_xex2_resource_info_t *)xe_calloc(
-            sizeof(xe_xex2_resource_info_t) * header->resource_info_count);
+        header->resource_infos = (xe_xex2_resource_info_t *)calloc(
+            header->resource_info_count, sizeof(xe_xex2_resource_info_t));
         const uint8_t *ph = pp + 0x04;
         for (size_t n = 0; n < header->resource_info_count; n++) {
           auto &res = header->resource_infos[n];
-          XEEXPECTZERO(
-              xe_copy_memory(res.name, sizeof(res.name), ph + 0x00, 8));
+          memcpy(res.name, ph + 0x00, 8);
           res.address = poly::load_and_swap<uint32_t>(ph + 0x08);
           res.size = poly::load_and_swap<uint32_t>(ph + 0x0C);
           ph += 16;
@@ -254,8 +253,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         pp += 12 + string_table_size;
         for (size_t m = 0; m < count; m++) {
           xe_xex2_import_library_t *library = &header->import_libraries[m];
-          XEEXPECTZERO(xe_copy_memory(library->digest, sizeof(library->digest),
-                                      pp + 0x04, 20));
+          memcpy(library->digest, pp + 0x04, 20);
           library->import_id = poly::load_and_swap<uint32_t>(pp + 0x18);
           library->version.value = poly::load_and_swap<uint32_t>(pp + 0x1C);
           library->min_version.value = poly::load_and_swap<uint32_t>(pp + 0x20);
@@ -282,7 +280,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
 
           library->record_count = poly::load_and_swap<uint16_t>(pp + 0x26);
           library->records =
-              (uint32_t *)xe_calloc(library->record_count * sizeof(uint32_t));
+              (uint32_t *)calloc(library->record_count, sizeof(uint32_t));
           XEEXPECTNOTNULL(library->records);
           pp += 0x28;
           for (size_t i = 0; i < library->record_count; i++) {
@@ -304,8 +302,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         pp += 4;
         for (size_t m = 0; m < count; m++) {
           xe_xex2_static_library_t *library = &header->static_libraries[m];
-          XEEXPECTZERO(xe_copy_memory(library->name, sizeof(library->name),
-                                      pp + 0x00, 8));
+          memcpy(library->name, pp + 0x00, 8);
           library->name[8] = 0;
           library->major = poly::load_and_swap<uint16_t>(pp + 0x08);
           library->minor = poly::load_and_swap<uint16_t>(pp + 0x0A);
@@ -333,8 +330,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
             uint32_t info_size = poly::load_and_swap<uint32_t>(pp + 0x00);
             comp_info->block_count = (info_size - 8) / 8;
             comp_info->blocks =
-                (xe_xex2_file_basic_compression_block_t *)xe_calloc(
-                    comp_info->block_count *
+                (xe_xex2_file_basic_compression_block_t *)calloc(
+                    comp_info->block_count,
                     sizeof(xe_xex2_file_basic_compression_block_t));
             XEEXPECTNOTNULL(comp_info->blocks);
             for (size_t m = 0; m < comp_info->block_count; m++) {
@@ -360,9 +357,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
             comp_info->window_size = poly::load_and_swap<uint32_t>(pp + 0x08);
             comp_info->window_bits = window_bits;
             comp_info->block_size = poly::load_and_swap<uint32_t>(pp + 0x0C);
-            XEEXPECTZERO(xe_copy_memory(comp_info->block_hash,
-                                        sizeof(comp_info->block_hash),
-                                        pp + 0x10, 20));
+            memcpy(comp_info->block_hash, pp + 0x10, 20);
           } break;
           case XEX_COMPRESSION_DELTA:
             // TODO: XEX_COMPRESSION_DELTA
@@ -378,25 +373,18 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
   ldr = &header->loader_info;
   ldr->header_size = poly::load_and_swap<uint32_t>(pc + 0x000);
   ldr->image_size = poly::load_and_swap<uint32_t>(pc + 0x004);
-  XEEXPECTZERO(xe_copy_memory(ldr->rsa_signature, sizeof(ldr->rsa_signature),
-                              pc + 0x008, 256));
+  memcpy(ldr->rsa_signature, pc + 0x008, 256);
   ldr->unklength = poly::load_and_swap<uint32_t>(pc + 0x108);
   ldr->image_flags =
       (xe_xex2_image_flags)poly::load_and_swap<uint32_t>(pc + 0x10C);
   ldr->load_address = poly::load_and_swap<uint32_t>(pc + 0x110);
-  XEEXPECTZERO(xe_copy_memory(ldr->section_digest, sizeof(ldr->section_digest),
-                              pc + 0x114, 20));
+  memcpy(ldr->section_digest, pc + 0x114, 20);
   ldr->import_table_count = poly::load_and_swap<uint32_t>(pc + 0x128);
-  XEEXPECTZERO(xe_copy_memory(ldr->import_table_digest,
-                              sizeof(ldr->import_table_digest), pc + 0x12C,
-                              20));
-  XEEXPECTZERO(
-      xe_copy_memory(ldr->media_id, sizeof(ldr->media_id), pc + 0x140, 16));
-  XEEXPECTZERO(
-      xe_copy_memory(ldr->file_key, sizeof(ldr->file_key), pc + 0x150, 16));
+  memcpy(ldr->import_table_digest, pc + 0x12C, 20);
+  memcpy(ldr->media_id, pc + 0x140, 16);
+  memcpy(ldr->file_key, pc + 0x150, 16);
   ldr->export_table = poly::load_and_swap<uint32_t>(pc + 0x160);
-  XEEXPECTZERO(xe_copy_memory(ldr->header_digest, sizeof(ldr->header_digest),
-                              pc + 0x164, 20));
+  memcpy(ldr->header_digest, pc + 0x164, 20);
   ldr->game_regions =
       (xe_xex2_region_flags)poly::load_and_swap<uint32_t>(pc + 0x178);
   ldr->media_flags =
@@ -406,15 +394,14 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
   ps = p + header->certificate_offset + 0x180;
   header->section_count = poly::load_and_swap<uint32_t>(ps + 0x000);
   ps += 4;
-  header->sections = (xe_xex2_section_t *)xe_calloc(header->section_count *
-                                                    sizeof(xe_xex2_section_t));
+  header->sections = (xe_xex2_section_t *)calloc(header->section_count,
+                                                 sizeof(xe_xex2_section_t));
   XEEXPECTNOTNULL(header->sections);
   for (size_t n = 0; n < header->section_count; n++) {
     xe_xex2_section_t *section = &header->sections[n];
     section->info.value = poly::load_and_swap<uint32_t>(ps);
     ps += 4;
-    XEEXPECTZERO(xe_copy_memory(section->digest, sizeof(section->digest), ps,
-                                sizeof(section->digest)));
+    memcpy(section->digest, ps, sizeof(section->digest));
     ps += sizeof(section->digest);
   }
 
@@ -462,7 +449,7 @@ mspack_memory_file *mspack_memory_open(struct mspack_system *sys, void *buffer,
     return NULL;
   }
   mspack_memory_file *memfile =
-      (mspack_memory_file *)xe_calloc(sizeof(mspack_memory_file));
+      (mspack_memory_file *)calloc(1, sizeof(mspack_memory_file));
   if (!memfile) {
     return NULL;
   }
@@ -473,16 +460,13 @@ mspack_memory_file *mspack_memory_open(struct mspack_system *sys, void *buffer,
 }
 void mspack_memory_close(mspack_memory_file *file) {
   mspack_memory_file *memfile = (mspack_memory_file *)file;
-  xe_free(memfile);
+  free(memfile);
 }
 int mspack_memory_read(struct mspack_file *file, void *buffer, int chars) {
   mspack_memory_file *memfile = (mspack_memory_file *)file;
   const off_t remaining = memfile->buffer_size - memfile->offset;
   const off_t total = std::min(static_cast<off_t>(chars), remaining);
-  if (xe_copy_memory(buffer, total,
-                     (uint8_t *)memfile->buffer + memfile->offset, total)) {
-    return -1;
-  }
+  memcpy(buffer, (uint8_t *)memfile->buffer + memfile->offset, total);
   memfile->offset += total;
   return (int)total;
 }
@@ -490,23 +474,20 @@ int mspack_memory_write(struct mspack_file *file, void *buffer, int chars) {
   mspack_memory_file *memfile = (mspack_memory_file *)file;
   const off_t remaining = memfile->buffer_size - memfile->offset;
   const off_t total = std::min(static_cast<off_t>(chars), remaining);
-  if (xe_copy_memory((uint8_t *)memfile->buffer + memfile->offset,
-                     memfile->buffer_size - memfile->offset, buffer, total)) {
-    return -1;
-  }
+  memcpy((uint8_t *)memfile->buffer + memfile->offset, buffer, total);
   memfile->offset += total;
   return (int)total;
 }
 void *mspack_memory_alloc(struct mspack_system *sys, size_t chars) {
-  return xe_calloc(chars);
+  return calloc(chars, 1);
 }
-void mspack_memory_free(void *ptr) { xe_free(ptr); }
+void mspack_memory_free(void *ptr) { free(ptr); }
 void mspack_memory_copy(void *src, void *dest, size_t chars) {
-  xe_copy_memory(dest, chars, src, chars);
+  memcpy(dest, src, chars);
 }
 struct mspack_system *mspack_memory_sys_create() {
   struct mspack_system *sys =
-      (struct mspack_system *)xe_calloc(sizeof(struct mspack_system));
+      (struct mspack_system *)calloc(1, sizeof(struct mspack_system));
   if (!sys) {
     return NULL;
   }
@@ -517,7 +498,7 @@ struct mspack_system *mspack_memory_sys_create() {
   sys->copy = mspack_memory_copy;
   return sys;
 }
-void mspack_memory_sys_destroy(struct mspack_system *sys) { xe_free(sys); }
+void mspack_memory_sys_destroy(struct mspack_system *sys) { free(sys); }
 
 void xe_xex2_decrypt_buffer(const uint8_t *session_key,
                             const uint8_t *input_buffer,
@@ -560,7 +541,11 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
 
   switch (header->file_format_info.encryption_type) {
     case XEX_ENCRYPTION_NONE:
-      return xe_copy_memory(buffer, uncompressed_size, p, exe_length);
+      if (exe_length > uncompressed_size) {
+        return 1;
+      }
+      memcpy(buffer, p, exe_length);
+      return 0;
     case XEX_ENCRYPTION_NORMAL:
       xe_xex2_decrypt_buffer(header->session_key, p, exe_length, buffer,
                              uncompressed_size);
@@ -597,7 +582,7 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", header->exe_address,
            uncompressed_size);
-    XEFAIL();
+    return 1;
   }
   uint8_t *buffer = memory->Translate(header->exe_address);
   uint8_t *d = buffer;
@@ -612,8 +597,12 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
 
     switch (header->file_format_info.encryption_type) {
       case XEX_ENCRYPTION_NONE:
-        XEEXPECTZERO(xe_copy_memory(d, uncompressed_size - (d - buffer), p,
-                                    exe_length - (p - source_buffer)));
+        if (exe_length - (p - source_buffer) >
+            uncompressed_size - (d - buffer)) {
+          // Overflow.
+          return 1;
+        }
+        memcpy(d, p, exe_length - (p - source_buffer));
         break;
       case XEX_ENCRYPTION_NORMAL: {
         const uint8_t *ct = p;
@@ -639,9 +628,6 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
   }
 
   return 0;
-
-XECLEANUP:
-  return 1;
 }
 
 int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
@@ -682,7 +668,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
     case XEX_ENCRYPTION_NORMAL:
       // TODO: a way to do without a copy/alloc?
       free_input = true;
-      input_buffer = (const uint8_t *)xe_calloc(input_size);
+      input_buffer = (const uint8_t *)calloc(1, input_size);
       XEEXPECTNOTNULL(input_buffer);
       xe_xex2_decrypt_buffer(header->session_key, exe_buffer, exe_length,
                              (uint8_t *)input_buffer, input_size);
@@ -692,14 +678,14 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
       return false;
   }
 
-  compress_buffer = (uint8_t *)xe_calloc(exe_length);
+  compress_buffer = (uint8_t *)calloc(1, exe_length);
   XEEXPECTNOTNULL(compress_buffer);
 
   p = input_buffer;
   d = compress_buffer;
 
   // De-block.
-  deblock_buffer = (uint8_t *)xe_calloc(input_size);
+  deblock_buffer = (uint8_t *)calloc(1, input_size);
   XEEXPECTNOTNULL(deblock_buffer);
   block_size = header->file_format_info.compression_info.normal.block_size;
   while (block_size) {
@@ -714,7 +700,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
       if (!chunk_size) {
         break;
       }
-      xe_copy_memory(d, exe_length - (d - compress_buffer), p, chunk_size);
+      memcpy(d, p, chunk_size);
       p += chunk_size;
       d += chunk_size;
 
@@ -770,10 +756,10 @@ XECLEANUP:
     mspack_memory_sys_destroy(sys);
     sys = NULL;
   }
-  xe_free(compress_buffer);
-  xe_free(deblock_buffer);
+  free(compress_buffer);
+  free(deblock_buffer);
   if (free_input) {
-    xe_free((void *)input_buffer);
+    free((void *)input_buffer);
   }
   return result_code;
 }
@@ -865,9 +851,8 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
   // Setup/load sections.
   sechdr = IMAGE_FIRST_SECTION(nthdr);
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
-    PESection *section = (PESection *)xe_calloc(sizeof(PESection));
-    xe_copy_memory(section->name, sizeof(section->name), sechdr->Name,
-                   sizeof(sechdr->Name));
+    PESection *section = (PESection *)calloc(1, sizeof(PESection));
+    memcpy(section->name, sechdr->Name, sizeof(sechdr->Name));
     section->name[8] = 0;
     section->raw_address = sechdr->PointerToRawData;
     section->raw_size = sechdr->SizeOfRawData;
@@ -928,8 +913,8 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   }
 
   // Allocate storage.
-  xe_xex2_import_info_t *infos = (xe_xex2_import_info_t *)xe_calloc(
-      info_count * sizeof(xe_xex2_import_info_t));
+  xe_xex2_import_info_t *infos = (xe_xex2_import_info_t *)calloc(
+      info_count, sizeof(xe_xex2_import_info_t));
   assert_not_null(infos);
 
   assert_not_zero(info_count);
