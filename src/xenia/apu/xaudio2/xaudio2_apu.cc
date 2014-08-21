@@ -11,34 +11,30 @@
 
 #include <xenia/apu/xaudio2/xaudio2_audio_system.h>
 
-
 using namespace xe;
 using namespace xe::apu;
 using namespace xe::apu::xaudio2;
 
-
 namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  //
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
+}
 
-AudioSystem* xe::apu::xaudio2::Create(Emulator* emulator) {
+std::unique_ptr<AudioSystem> xe::apu::xaudio2::Create(Emulator* emulator) {
   InitializeIfNeeded();
-  return new XAudio2AudioSystem(emulator);
+  return std::make_unique<XAudio2AudioSystem>(emulator);
 }

@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_FS_DEVICE_H_
 #define XENIA_KERNEL_FS_DEVICE_H_
 
+#include <memory>
 #include <string>
 
 #include <xenia/core.h>
@@ -26,7 +27,7 @@ class Device {
 
   const std::string& path() const { return path_; }
 
-  virtual Entry* ResolvePath(const char* path) = 0;
+  virtual std::unique_ptr<Entry> ResolvePath(const char* path) = 0;
 
   virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
   virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,

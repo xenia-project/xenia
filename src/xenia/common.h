@@ -18,6 +18,5 @@
 
 #include <xenia/logging.h>
 #include <xenia/profiling.h>
-#include <xenia/types.h>
 
 #endif  // XENIA_COMMON_H_

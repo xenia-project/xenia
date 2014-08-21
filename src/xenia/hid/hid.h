@@ -10,6 +10,8 @@
 #ifndef XENIA_HID_HID_H_
 #define XENIA_HID_HID_H_
 
+#include <memory>
+
 #include <xenia/hid/input_system.h>
 
 namespace xe {
@@ -19,7 +21,7 @@ class Emulator;
 namespace xe {
 namespace hid {
 
-InputSystem* Create(Emulator* emulator);
+std::unique_ptr<InputSystem> Create(Emulator* emulator);
 
 }  // namespace hid
 }  // namespace xe

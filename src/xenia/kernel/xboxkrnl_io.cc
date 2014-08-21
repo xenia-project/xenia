@@ -81,7 +81,7 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle;
 
   FileSystem* fs = state->file_system();
-  Entry* entry;
+  std::unique_ptr<Entry> entry;
 
   XFile* root_file = NULL;
   if (attrs.root_directory != 0xFFFFFFFD &&  // ObDosDevices
@@ -93,10 +93,10 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
 
     auto root_path = root_file->absolute_path();
     auto target_path = root_path + object_name;
-    entry = fs->ResolvePath(target_path);
+    entry = std::move(fs->ResolvePath(target_path));
   } else {
     // Resolve the file using the virtual file system.
-    entry = fs->ResolvePath(object_name);
+    entry = std::move(fs->ResolvePath(object_name));
   }
 
   auto mode =
@@ -169,7 +169,7 @@ SHIM_CALL NtOpenFile_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
-  Entry* entry = fs->ResolvePath(object_name);
+  auto entry = fs->ResolvePath(object_name);
   XFile* file = NULL;
   if (entry && entry->type() == Entry::Type::FILE) {
     // Open the file.
@@ -480,7 +480,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
 
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
-  Entry* entry = fs->ResolvePath(object_name);
+  auto entry = fs->ResolvePath(object_name);
   if (entry && entry->type() == Entry::Type::FILE) {
     // Found.
     XFileInfo file_info;

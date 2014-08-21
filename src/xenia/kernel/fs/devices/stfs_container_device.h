@@ -31,7 +31,7 @@ class STFSContainerDevice : public Device {
 
   int Init();
 
-  Entry* ResolvePath(const char* path) override;
+  std::unique_ptr<Entry> ResolvePath(const char* path) override;
 
   X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) override;
   X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,

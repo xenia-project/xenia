@@ -32,9 +32,9 @@ void InitializeIfNeeded() {
 
 void CleanupOnShutdown() {}
 
-InputDriver* xe::hid::winkey::Create(InputSystem* input_system) {
+std::unique_ptr<InputDriver> Create(InputSystem* input_system) {
   InitializeIfNeeded();
-  return new WinKeyInputDriver(input_system);
+  return std::make_unique<WinKeyInputDriver>(input_system);
 }
 
 }  // namespace winkey

@@ -33,41 +33,33 @@ const xe_xex2_header_t* XUserModule::xex_header() {
 X_STATUS XUserModule::LoadFromFile(const char* path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   XFile* file = NULL;
-  uint8_t* buffer = 0;
 
   // Resolve the file to open.
   // TODO(benvanik): make this code shared?
-  fs::Entry* fs_entry = kernel_state()->file_system()->ResolvePath(path);
+  auto fs_entry = kernel_state()->file_system()->ResolvePath(path);
   if (!fs_entry) {
     XELOGE("File not found: %s", path);
-    result = X_STATUS_NO_SUCH_FILE;
-    XEFAIL();
+    return X_STATUS_NO_SUCH_FILE;
   }
   if (fs_entry->type() != fs::Entry::Type::FILE) {
     XELOGE("Invalid file type: %s", path);
-    result = X_STATUS_NO_SUCH_FILE;
-    XEFAIL();
+    return X_STATUS_NO_SUCH_FILE;
   }
 
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
     // Map.
-    fs::MemoryMapping* mmap =
-        fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
+    auto mmap = fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
     XEEXPECTNOTNULL(mmap);
 
     // Load the module.
     result = LoadFromMemory(mmap->address(), mmap->length());
-
-    // Unmap memory and cleanup.
-    delete mmap;
   } else {
     XFileInfo file_info;
     result = fs_entry->QueryInfo(&file_info);
     XEEXPECTZERO(result);
 
-    size_t buffer_length = file_info.file_length;
-    buffer = (uint8_t*)malloc(buffer_length);
+    std::vector<uint8_t> buffer(file_info.file_length);
 
     // Open file for reading.
     result = fs_entry->Open(kernel_state(), fs::Mode::READ, false, &file);
@@ -76,21 +68,17 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
     // Read entire file into memory.
     // Ugh.
     size_t bytes_read = 0;
-    result = file->Read(buffer, buffer_length, 0, &bytes_read);
+    result = file->Read(buffer.data(), buffer.size(), 0, &bytes_read);
     XEEXPECTZERO(result);
 
     // Load the module.
-    result = LoadFromMemory(buffer, bytes_read);
+    result = LoadFromMemory(buffer.data(), bytes_read);
   }
 
 XECLEANUP:
-  if (buffer) {
-    free(buffer);
-  }
   if (file) {
     file->Release();
   }
-  delete fs_entry;
   return result;
 }
 

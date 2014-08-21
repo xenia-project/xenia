@@ -10,6 +10,8 @@
 #ifndef XENIA_HID_NOP_NOP_HID_H_
 #define XENIA_HID_NOP_NOP_HID_H_
 
+#include <memory>
+
 #include <xenia/core.h>
 
 namespace xe {
@@ -18,7 +20,7 @@ class InputDriver;
 class InputSystem;
 namespace nop {
 
-InputDriver* Create(InputSystem* input_system);
+std::unique_ptr<InputDriver> Create(InputSystem* input_system);
 
 }  // namespace nop
 }  // namespace hid

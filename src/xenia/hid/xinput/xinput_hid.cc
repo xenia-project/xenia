@@ -32,9 +32,9 @@ void InitializeIfNeeded() {
 
 void CleanupOnShutdown() {}
 
-InputDriver* xe::hid::xinput::Create(InputSystem* input_system) {
+std::unique_ptr<InputDriver> Create(InputSystem* input_system) {
   InitializeIfNeeded();
-  return new XInputInputDriver(input_system);
+  return std::make_unique<XInputInputDriver>(input_system);
 }
 
 }  // namespace xinput

@@ -121,9 +121,8 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
   return X_STATUS_SUCCESS;
 }
 
-MemoryMapping* HostPathEntry::CreateMemoryMapping(Mode map_mode,
-                                                  const size_t offset,
-                                                  const size_t length) {
+std::unique_ptr<MemoryMapping> HostPathEntry::CreateMemoryMapping(
+    Mode map_mode, const size_t offset, const size_t length) {
   auto mmap = poly::MappedMemory::Open(
       local_path_,
       map_mode == Mode::READ ? poly::MappedMemory::Mode::READ
@@ -133,13 +132,11 @@ MemoryMapping* HostPathEntry::CreateMemoryMapping(Mode map_mode,
     return nullptr;
   }
 
-  HostPathMemoryMapping* lfmm = new HostPathMemoryMapping(std::move(mmap));
-
-  return lfmm;
+  return std::make_unique<HostPathMemoryMapping>(std::move(mmap));
 }
 
-X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode,
-                             bool async, XFile** out_file) {
+X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
+                             XFile** out_file) {
   DWORD desired_access =
       mode == Mode::READ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
   DWORD share_mode = FILE_SHARE_READ;

@@ -147,7 +147,6 @@ int Memory::Initialize() {
   if (result) {
     return result;
   }
-  result = 1;
 
 // Create main page file-backed mapping. This is all reserved but
 // uncommitted (so it shouldn't expand page file).
@@ -165,7 +164,7 @@ int Memory::Initialize() {
   if (!mapping_) {
     XELOGE("Unable to reserve the 4gb guest address space.");
     assert_not_null(mapping_);
-    XEFAIL();
+    return 1;
   }
 
   // Attempt to create our views. This may fail at the first address
@@ -181,7 +180,7 @@ int Memory::Initialize() {
   if (!mapping_base_) {
     XELOGE("Unable to find a continuous block in the 64bit address space.");
     assert_always();
-    XEFAIL();
+    return 1;
   }
   membase_ = mapping_base_;
 
@@ -200,7 +199,7 @@ int Memory::Initialize() {
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
-    XEFAIL();
+    return 1;
   }
 
   // Allocate dirty page table.
@@ -210,9 +209,6 @@ int Memory::Initialize() {
                                       X_MEM_COMMIT, 16 * 1024);
 
   return 0;
-
-XECLEANUP:
-  return result;
 }
 
 const static struct {
@@ -243,13 +239,13 @@ int Memory::MapViews(uint8_t* mapping_base) {
         PROT_NONE, MAP_SHARED | MAP_FIXED, mapping_,
         map_info[n].target_address));
 #endif  // XE_PLATFORM_WIN32
-    XEEXPECTNOTNULL(views_.all_views[n]);
+    if (!views_.all_views[n]) {
+      // Failed, so bail and try again.
+      UnmapViews();
+      return 1;
+    }
   }
   return 0;
-
-XECLEANUP:
-  UnmapViews();
-  return 1;
 }
 
 void Memory::UnmapViews() {

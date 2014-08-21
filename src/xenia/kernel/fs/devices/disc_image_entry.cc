@@ -96,23 +96,22 @@ X_STATUS DiscImageEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
   return X_STATUS_SUCCESS;
 }
 
-MemoryMapping* DiscImageEntry::CreateMemoryMapping(Mode map_mode,
-                                                   const size_t offset,
-                                                   const size_t length) {
+std::unique_ptr<MemoryMapping> DiscImageEntry::CreateMemoryMapping(
+    Mode map_mode, const size_t offset, const size_t length) {
   if (map_mode != Mode::READ) {
     // Only allow reads.
-    return NULL;
+    return nullptr;
   }
 
   size_t real_offset = gdfx_entry_->offset + offset;
   size_t real_length =
       length ? std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
-  return new DiscImageMemoryMapping(mmap_->data() + real_offset, real_length,
-                                    mmap_);
+  return std::make_unique<DiscImageMemoryMapping>(mmap_->data() + real_offset,
+                                                  real_length, mmap_);
 }
 
-X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode,
-                              bool async, XFile** out_file) {
+X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode, bool async,
+                              XFile** out_file) {
   *out_file = new DiscImageFile(kernel_state, mode, this);
   return X_STATUS_SUCCESS;
 }

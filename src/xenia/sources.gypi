@@ -15,7 +15,6 @@
     'memory.h',
     'profiling.cc',
     'profiling.h',
-    'types.h',
     'xbox.h',
   ],
 

@@ -31,8 +31,8 @@ class HostPathEntry : public Entry {
                                   const char* file_name, bool restart);
 
   virtual bool can_map() { return true; }
-  virtual MemoryMapping* CreateMemoryMapping(Mode map_mode, const size_t offset,
-                                             const size_t length);
+  virtual std::unique_ptr<MemoryMapping> CreateMemoryMapping(
+      Mode map_mode, const size_t offset, const size_t length);
 
   virtual X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
                         XFile** out_file);

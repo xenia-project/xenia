@@ -11,34 +11,30 @@
 
 #include <xenia/gpu/nop/nop_graphics_system.h>
 
-
 using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::nop;
 
-
 namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  //
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
+}
 
-GraphicsSystem* xe::gpu::nop::Create(Emulator* emulator) {
+std::unique_ptr<GraphicsSystem> xe::gpu::nop::Create(Emulator* emulator) {
   InitializeIfNeeded();
-  return new NopGraphicsSystem(emulator);
+  return std::make_unique<NopGraphicsSystem>(emulator);
 }

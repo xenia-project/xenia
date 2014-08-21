@@ -42,7 +42,7 @@ int STFSContainerDevice::Init() {
   return 0;
 }
 
-Entry* STFSContainerDevice::ResolvePath(const char* path) {
+std::unique_ptr<Entry> STFSContainerDevice::ResolvePath(const char* path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
@@ -64,7 +64,8 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
   Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
                          ? Entry::Type::DIRECTORY
                          : Entry::Type::FILE;
-  return new STFSContainerEntry(type, this, path, mmap_.get(), stfs_entry);
+  return std::make_unique<STFSContainerEntry>(type, this, path, mmap_.get(),
+                                              stfs_entry);
 }
 
 X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info,

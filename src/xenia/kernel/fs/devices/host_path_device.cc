@@ -22,7 +22,7 @@ HostPathDevice::HostPathDevice(const std::string& path,
 
 HostPathDevice::~HostPathDevice() {}
 
-Entry* HostPathDevice::ResolvePath(const char* path) {
+std::unique_ptr<Entry> HostPathDevice::ResolvePath(const char* path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
@@ -38,8 +38,7 @@ Entry* HostPathDevice::ResolvePath(const char* path) {
   // TODO(benvanik): switch based on type
 
   auto type = Entry::Type::FILE;
-  HostPathEntry* entry = new HostPathEntry(type, this, path, full_path);
-  return entry;
+  return std::make_unique<HostPathEntry>(type, this, path, full_path);
 }
 
 // TODO(gibbed): call into HostPathDevice?

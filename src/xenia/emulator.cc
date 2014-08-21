@@ -33,18 +33,7 @@ using namespace xe::kernel::fs;
 using namespace xe::ui;
 
 Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line),
-      main_window_(0),
-      memory_(0),
-      processor_(0),
-      audio_system_(0),
-      graphics_system_(0),
-      input_system_(0),
-      export_resolver_(0),
-      file_system_(0),
-      kernel_state_(0),
-      xam_(0),
-      xboxkrnl_(0) {}
+    : command_line_(command_line) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -60,23 +49,23 @@ Emulator::~Emulator() {
 
   debug_agent_.reset();
 
-  delete xam_;
-  delete xboxkrnl_;
-  delete kernel_state_;
+  xam_.reset();
+  xboxkrnl_.reset();
+  kernel_state_.reset();
 
-  delete file_system_;
+  file_system_.reset();
 
-  delete input_system_;
+  input_system_.reset();
 
   // Give the systems time to shutdown before we delete them.
   graphics_system_->Shutdown();
   audio_system_->Shutdown();
-  delete graphics_system_;
-  delete audio_system_;
+  graphics_system_.reset();
+  audio_system_.reset();
 
-  delete processor_;
+  processor_.reset();
 
-  delete export_resolver_;
+  export_resolver_.reset();
 }
 
 X_STATUS Emulator::Setup() {
@@ -84,62 +73,70 @@ X_STATUS Emulator::Setup() {
 
   debug_agent_.reset(new DebugAgent(this));
   result = debug_agent_->Initialize();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
 
   // Create memory system first, as it is required for other systems.
-  memory_ = new Memory();
-  XEEXPECTNOTNULL(memory_);
+  memory_ = std::make_unique<Memory>();
   result = memory_->Initialize();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   memory_->set_trace_base(debug_agent_->trace_base());
 
   // Shared export resolver used to attach and query for HLE exports.
-  export_resolver_ = new ExportResolver();
-  XEEXPECTNOTNULL(export_resolver_);
+  export_resolver_ = std::make_unique<ExportResolver>();
 
   // Initialize the CPU.
-  processor_ = new Processor(this);
-  XEEXPECTNOTNULL(processor_);
+  processor_ = std::make_unique<Processor>(this);
 
   // Initialize the APU.
-  audio_system_ = xe::apu::Create(this);
-  XEEXPECTNOTNULL(audio_system_);
+  audio_system_ = std::move(xe::apu::Create(this));
+  if (!audio_system_) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // Initialize the GPU.
-  graphics_system_ = xe::gpu::Create(this);
-  XEEXPECTNOTNULL(graphics_system_);
+  graphics_system_ = std::move(xe::gpu::Create(this));
+  if (!graphics_system_) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // Initialize the HID.
-  input_system_ = xe::hid::Create(this);
-  XEEXPECTNOTNULL(input_system_);
+  input_system_ = std::move(xe::hid::Create(this));
+  if (!input_system_) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // Setup the core components.
   result = processor_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   result = audio_system_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   result = graphics_system_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   result = input_system_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
 
   // Bring up the virtual filesystem used by the kernel.
-  file_system_ = new FileSystem();
-  XEEXPECTNOTNULL(file_system_);
+  file_system_ = std::make_unique<FileSystem>();
 
   // Shared kernel state.
-  kernel_state_ = new KernelState(this);
-  XEEXPECTNOTNULL(kernel_state_);
+  kernel_state_ = std::make_unique<KernelState>(this);
 
   // HLE kernel modules.
-  xboxkrnl_ = new XboxkrnlModule(this, kernel_state_);
-  XEEXPECTNOTNULL(xboxkrnl_);
-  xam_ = new XamModule(this, kernel_state_);
-  XEEXPECTNOTNULL(xam_);
+  xboxkrnl_ = std::make_unique<XboxkrnlModule>(this, kernel_state_);
+  xam_ = std::make_unique<XamModule>(this, kernel_state_);
 
-  return result;
-
-XECLEANUP:
   return result;
 }
 

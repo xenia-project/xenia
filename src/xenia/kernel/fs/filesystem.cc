@@ -142,7 +142,7 @@ int FileSystem::DeleteSymbolicLink(const std::string& path) {
   return 0;
 }
 
-Entry* FileSystem::ResolvePath(const std::string& path) {
+std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
   // Strip off prefix and pass to device.
   // e.g., d:\some\PATH.foo -> some\PATH.foo
   // Support both symlinks and device specifiers, like:
@@ -173,7 +173,7 @@ Entry* FileSystem::ResolvePath(const std::string& path) {
   }
 
   XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
-  return NULL;
+  return nullptr;
 }
 
 }  // namespace fs

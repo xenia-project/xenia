@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_FS_FILESYSTEM_H_
 #define XENIA_KERNEL_FS_FILESYSTEM_H_
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -50,7 +51,7 @@ class FileSystem {
   int CreateSymbolicLink(const std::string& path, const std::string& target);
   int DeleteSymbolicLink(const std::string& path);
 
-  Entry* ResolvePath(const std::string& path);
+  std::unique_ptr<Entry> ResolvePath(const std::string& path);
 
  private:
   std::vector<Device*> devices_;

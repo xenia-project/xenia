@@ -10,37 +10,28 @@
 #include <xenia/gpu/gpu.h>
 #include <xenia/gpu/gpu-private.h>
 
-
-
 using namespace xe;
 using namespace xe::gpu;
 
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, nop, d3d11]");
 
-DEFINE_string(gpu, "any",
-    "Graphics system. Use: [any, nop, d3d11]");
-
-
-DEFINE_bool(trace_ring_buffer, false,
-    "Trace GPU ring buffer packets.");
+DEFINE_bool(trace_ring_buffer, false, "Trace GPU ring buffer packets.");
 DEFINE_string(dump_shaders, "",
-    "Path to write GPU shaders to as they are compiled.");
-
+              "Path to write GPU shaders to as they are compiled.");
 
 #include <xenia/gpu/nop/nop_gpu.h>
-GraphicsSystem* xe::gpu::CreateNop(Emulator* emulator) {
+std::unique_ptr<GraphicsSystem> xe::gpu::CreateNop(Emulator* emulator) {
   return xe::gpu::nop::Create(emulator);
 }
 
-
 #if XE_PLATFORM_WIN32
 #include <xenia/gpu/d3d11/d3d11_gpu.h>
-GraphicsSystem* xe::gpu::CreateD3D11(Emulator* emulator) {
+std::unique_ptr<GraphicsSystem> xe::gpu::CreateD3D11(Emulator* emulator) {
   return xe::gpu::d3d11::Create(emulator);
 }
 #endif  // WIN32
 
-
-GraphicsSystem* xe::gpu::Create(Emulator* emulator) {
+std::unique_ptr<GraphicsSystem> xe::gpu::Create(Emulator* emulator) {
   if (FLAGS_gpu.compare("nop") == 0) {
     return CreateNop(emulator);
 #if XE_PLATFORM_WIN32
@@ -49,7 +40,7 @@ GraphicsSystem* xe::gpu::Create(Emulator* emulator) {
 #endif  // WIN32
   } else {
     // Create best available.
-    GraphicsSystem* best = NULL;
+    std::unique_ptr<GraphicsSystem> best;
 
 #if XE_PLATFORM_WIN32
     best = CreateD3D11(emulator);

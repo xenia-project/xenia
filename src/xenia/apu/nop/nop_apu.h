@@ -10,6 +10,8 @@
 #ifndef XENIA_APU_NOP_NOP_APU_H_
 #define XENIA_APU_NOP_NOP_APU_H_
 
+#include <memory>
+
 #include <xenia/core.h>
 
 namespace xe {
@@ -21,7 +23,7 @@ namespace apu {
 class AudioSystem;
 namespace nop {
 
-AudioSystem* Create(Emulator* emulator);
+std::unique_ptr<AudioSystem> Create(Emulator* emulator);
 
 }  // namespace nop
 }  // namespace apu

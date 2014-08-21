@@ -42,7 +42,7 @@ int DiscImageDevice::Init() {
   return 0;
 }
 
-Entry* DiscImageDevice::ResolvePath(const char* path) {
+std::unique_ptr<Entry> DiscImageDevice::ResolvePath(const char* path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
@@ -64,7 +64,8 @@ Entry* DiscImageDevice::ResolvePath(const char* path) {
   Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
                          ? Entry::Type::DIRECTORY
                          : Entry::Type::FILE;
-  return new DiscImageEntry(type, this, path, mmap_.get(), gdfx_entry);
+  return std::make_unique<DiscImageEntry>(type, this, path, mmap_.get(),
+                                          gdfx_entry);
 }
 
 X_STATUS DiscImageDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {

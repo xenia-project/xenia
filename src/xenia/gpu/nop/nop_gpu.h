@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_NOP_NOP_GPU_H_
 #define XENIA_GPU_NOP_NOP_GPU_H_
 
+#include <memory>
+
 #include <xenia/core.h>
 
 namespace xe {
@@ -21,7 +23,7 @@ namespace gpu {
 class GraphicsSystem;
 namespace nop {
 
-GraphicsSystem* Create(Emulator* emulator);
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
 
 }  // namespace nop
 }  // namespace gpu

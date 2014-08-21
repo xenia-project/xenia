@@ -17,4 +17,15 @@
 #include <xenia/core/socket.h>
 #include <xenia/memory.h>
 
+// TODO(benvanik): remove.
+#define XEFAIL() goto XECLEANUP
+#define XEEXPECTZERO(expr) \
+  if ((expr) != 0) {       \
+    goto XECLEANUP;        \
+  }
+#define XEEXPECTNOTNULL(expr) \
+  if ((expr) == NULL) {       \
+    goto XECLEANUP;           \
+  }
+
 #endif  // XENIA_CORE_H_

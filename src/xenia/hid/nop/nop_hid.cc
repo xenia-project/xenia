@@ -32,9 +32,9 @@ void InitializeIfNeeded() {
 
 void CleanupOnShutdown() {}
 
-InputDriver* xe::hid::nop::Create(InputSystem* input_system) {
+std::unique_ptr<InputDriver> Create(InputSystem* input_system) {
   InitializeIfNeeded();
-  return new NopInputDriver(input_system);
+  return std::make_unique<NopInputDriver>(input_system);
 }
 
 }  // namespace nop

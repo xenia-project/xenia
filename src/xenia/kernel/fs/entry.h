@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_FS_ENTRY_H_
 #define XENIA_KERNEL_FS_ENTRY_H_
 
+#include <memory>
 #include <string>
 
 #include <xenia/core.h>
@@ -72,8 +73,8 @@ class Entry {
 
   virtual bool can_map() { return false; }
 
-  virtual MemoryMapping* CreateMemoryMapping(Mode map_mode, const size_t offset,
-                                             const size_t length) {
+  virtual std::unique_ptr<MemoryMapping> CreateMemoryMapping(
+      Mode map_mode, const size_t offset, const size_t length) {
     return NULL;
   }
 
