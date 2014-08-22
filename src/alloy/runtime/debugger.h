@@ -15,7 +15,6 @@
 #include <string>
 #include <unordered_map>
 
-#include <alloy/core.h>
 #include <alloy/delegate.h>
 
 namespace alloy {

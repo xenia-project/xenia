@@ -12,7 +12,6 @@
 
 #include <vector>
 
-#include <alloy/core.h>
 #include <alloy/runtime/symbol_info.h>
 
 namespace alloy {

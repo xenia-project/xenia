@@ -16,6 +16,7 @@
 #include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace frontend {

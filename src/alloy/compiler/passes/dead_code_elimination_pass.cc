@@ -9,6 +9,8 @@
 
 #include <alloy/compiler/passes/dead_code_elimination_pass.h>
 
+#include <xenia/profiling.h>
+
 namespace alloy {
 namespace compiler {
 namespace passes {

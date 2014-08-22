@@ -20,6 +20,7 @@
 #include <alloy/runtime/symbol_info.h>
 #include <alloy/runtime/thread_state.h>
 #include <xdb/protocol.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace backend {

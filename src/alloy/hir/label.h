@@ -10,8 +10,6 @@
 #ifndef ALLOY_HIR_LABEL_H_
 #define ALLOY_HIR_LABEL_H_
 
-#include <alloy/core.h>
-
 namespace alloy {
 namespace hir {
 

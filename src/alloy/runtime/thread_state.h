@@ -12,8 +12,6 @@
 
 #include <string>
 
-#include <alloy/core.h>
-
 #include <alloy/memory.h>
 
 namespace alloy {

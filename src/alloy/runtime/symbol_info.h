@@ -10,9 +10,8 @@
 #ifndef ALLOY_RUNTIME_SYMBOL_INFO_H_
 #define ALLOY_RUNTIME_SYMBOL_INFO_H_
 
+#include <cstdint>
 #include <string>
-
-#include <alloy/core.h>
 
 namespace alloy {
 namespace runtime {

@@ -12,8 +12,6 @@
 
 #include <mutex>
 
-#include <alloy/core.h>
-
 namespace alloy {
 namespace backend {
 namespace x64 {

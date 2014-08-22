@@ -12,8 +12,6 @@
 
 #include <mutex>
 
-#include <alloy/core.h>
-
 namespace alloy {
 
 template <typename T>

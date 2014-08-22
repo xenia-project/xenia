@@ -17,6 +17,7 @@
 #include <alloy/runtime/runtime.h>
 #include <poly/logging.h>
 #include <poly/memory.h>
+#include <xenia/profiling.h>
 
 #if 0
 #define LOGPPC(fmt, ...) PLOGCORE('p', fmt, ##__VA_ARGS__)

@@ -10,8 +10,6 @@
 #ifndef ALLOY_ALLOY_H_
 #define ALLOY_ALLOY_H_
 
-#include <alloy/core.h>
-
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/module.h>
 #include <alloy/runtime/runtime.h>

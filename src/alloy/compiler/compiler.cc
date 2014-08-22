@@ -10,6 +10,7 @@
 #include <alloy/compiler/compiler.h>
 
 #include <alloy/compiler/compiler_pass.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace compiler {

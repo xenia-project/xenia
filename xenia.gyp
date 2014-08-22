@@ -45,6 +45,7 @@
       '__STDC_LIMIT_MACROS=1',
       '__STDC_CONSTANT_MACROS=1',
       '_ISOC99_SOURCE=1',
+      '_CRT_NONSTDC_NO_DEPRECATE=1',
     ],
 
     'conditions': [

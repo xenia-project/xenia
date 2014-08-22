@@ -10,10 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_FRONTEND_H_
 #define ALLOY_FRONTEND_PPC_PPC_FRONTEND_H_
 
-#include <alloy/core.h>
-#include <alloy/type_pool.h>
-
 #include <alloy/frontend/frontend.h>
+#include <alloy/type_pool.h>
 
 namespace alloy {
 namespace frontend {

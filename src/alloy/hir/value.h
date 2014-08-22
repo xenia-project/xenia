@@ -10,11 +10,10 @@
 #ifndef ALLOY_HIR_VALUE_H_
 #define ALLOY_HIR_VALUE_H_
 
-#include <alloy/core.h>
 #include <alloy/arena.h>
-#include <alloy/vec128.h>
 #include <alloy/backend/machine_info.h>
 #include <alloy/hir/opcodes.h>
+#include <alloy/vec128.h>
 #include <poly/poly.h>
 
 namespace alloy {

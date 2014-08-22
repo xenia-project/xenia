@@ -10,7 +10,7 @@
 #ifndef ALLOY_ARENA_H_
 #define ALLOY_ARENA_H_
 
-#include <alloy/core.h>
+#include <cstdint>
 
 namespace alloy {
 

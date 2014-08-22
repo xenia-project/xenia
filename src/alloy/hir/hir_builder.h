@@ -12,7 +12,6 @@
 
 #include <vector>
 
-#include <alloy/core.h>
 #include <alloy/hir/block.h>
 #include <alloy/hir/instr.h>
 #include <alloy/hir/label.h>

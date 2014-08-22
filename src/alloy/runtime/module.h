@@ -11,11 +11,11 @@
 #define ALLOY_RUNTIME_MODULE_H_
 
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
 
-#include <alloy/core.h>
 #include <alloy/memory.h>
 #include <alloy/runtime/symbol_info.h>
 

@@ -10,7 +10,8 @@
 #ifndef ALLOY_MEMORY_H_
 #define ALLOY_MEMORY_H_
 
-#include <alloy/core.h>
+#include <cstdint>
+#include <vector>
 
 namespace alloy {
 

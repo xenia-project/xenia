@@ -12,6 +12,7 @@
 #include <alloy/backend/backend.h>
 #include <alloy/compiler/compiler.h>
 #include <alloy/runtime/runtime.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace compiler {

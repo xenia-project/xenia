@@ -12,8 +12,6 @@
 
 #include <memory>
 
-#include <alloy/core.h>
-
 namespace alloy {
 namespace hir {
 class HIRBuilder;

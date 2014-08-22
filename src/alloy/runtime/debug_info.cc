@@ -9,6 +9,8 @@
 
 #include <alloy/runtime/debug_info.h>
 
+#include <memory>
+
 namespace alloy {
 namespace runtime {
 

@@ -10,7 +10,7 @@
 #ifndef ALLOY_HIR_OPCODES_H_
 #define ALLOY_HIR_OPCODES_H_
 
-#include <alloy/core.h>
+#include <cstdint>
 
 namespace alloy {
 namespace hir {

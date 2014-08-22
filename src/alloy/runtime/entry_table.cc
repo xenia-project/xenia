@@ -10,6 +10,7 @@
 #include <alloy/runtime/entry_table.h>
 
 #include <poly/poly.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace runtime {

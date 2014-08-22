@@ -12,7 +12,6 @@
 
 #include <memory>
 
-#include <alloy/core.h>
 #include <alloy/backend/machine_info.h>
 
 namespace alloy {

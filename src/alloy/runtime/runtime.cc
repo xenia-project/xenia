@@ -14,6 +14,7 @@
 #include <alloy/runtime/module.h>
 #include <poly/poly.h>
 #include <xdb/protocol.h>
+#include <xenia/profiling.h>
 
 // TODO(benvanik): based on compiler support
 #include <alloy/backend/ivm/ivm_backend.h>

@@ -11,6 +11,7 @@
 
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/runtime.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace compiler {

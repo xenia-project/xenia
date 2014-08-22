@@ -10,8 +10,6 @@
 #ifndef ALLOY_BACKEND_IVM_IVM_STACK_H_
 #define ALLOY_BACKEND_IVM_IVM_STACK_H_
 
-#include <alloy/core.h>
-
 #include <alloy/backend/ivm/ivm_intcode.h>
 
 namespace alloy {

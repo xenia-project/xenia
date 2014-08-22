@@ -10,7 +10,6 @@
 #ifndef ALLOY_BACKEND_X64_X64_FUNCTION_H_
 #define ALLOY_BACKEND_X64_X64_FUNCTION_H_
 
-#include <alloy/core.h>
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 

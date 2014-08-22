@@ -18,6 +18,7 @@
 #include <alloy/frontend/ppc/ppc_instr.h>
 #include <alloy/frontend/ppc/ppc_scanner.h>
 #include <alloy/runtime/runtime.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace frontend {

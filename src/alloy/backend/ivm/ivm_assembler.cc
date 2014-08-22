@@ -16,6 +16,7 @@
 #include <alloy/hir/hir_builder.h>
 #include <alloy/hir/label.h>
 #include <alloy/runtime/runtime.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace backend {

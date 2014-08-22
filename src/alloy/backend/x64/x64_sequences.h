@@ -10,8 +10,6 @@
 #ifndef ALLOY_BACKEND_X64_X64_SEQUENCES_H_
 #define ALLOY_BACKEND_X64_X64_SEQUENCES_H_
 
-#include <alloy/core.h>
-
 namespace alloy {
 namespace hir {
 class Instr;

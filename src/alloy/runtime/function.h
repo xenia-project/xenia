@@ -14,7 +14,6 @@
 #include <mutex>
 #include <vector>
 
-#include <alloy/core.h>
 #include <alloy/runtime/debug_info.h>
 
 namespace alloy {

@@ -10,8 +10,6 @@
 #ifndef ALLOY_BACKEND_IVM_IVM_BACKEND_H_
 #define ALLOY_BACKEND_IVM_IVM_BACKEND_H_
 
-#include <alloy/core.h>
-
 #include <alloy/backend/backend.h>
 
 namespace alloy {

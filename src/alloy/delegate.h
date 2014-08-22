@@ -14,8 +14,6 @@
 #include <mutex>
 #include <vector>
 
-#include <alloy/core.h>
-
 namespace alloy {
 
 // TODO(benvanik): go lockfree, and don't hold the lock while emitting.

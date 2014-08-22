@@ -10,6 +10,7 @@
 #include <alloy/string_buffer.h>
 
 #include <algorithm>
+#include <cstdarg>
 
 namespace alloy {
 

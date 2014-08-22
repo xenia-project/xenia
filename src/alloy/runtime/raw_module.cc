@@ -9,6 +9,8 @@
 
 #include <alloy/runtime/raw_module.h>
 
+#include <poly/platform.h>
+
 namespace alloy {
 namespace runtime {
 

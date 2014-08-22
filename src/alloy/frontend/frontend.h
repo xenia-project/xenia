@@ -12,9 +12,8 @@
 
 #include <memory>
 
-#include <alloy/core.h>
-#include <alloy/memory.h>
 #include <alloy/frontend/context_info.h>
+#include <alloy/memory.h>
 #include <alloy/runtime/function.h>
 #include <alloy/runtime/symbol_info.h>
 

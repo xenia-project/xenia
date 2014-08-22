@@ -10,7 +10,7 @@
 #ifndef ALLOY_BACKEND_MACHINE_INFO_H_
 #define ALLOY_BACKEND_MACHINE_INFO_H_
 
-#include <alloy/core.h>
+#include <cstdint>
 
 namespace alloy {
 namespace backend {

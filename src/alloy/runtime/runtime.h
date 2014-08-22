@@ -14,10 +14,9 @@
 #include <mutex>
 #include <vector>
 
-#include <alloy/core.h>
-#include <alloy/memory.h>
 #include <alloy/backend/backend.h>
 #include <alloy/frontend/frontend.h>
+#include <alloy/memory.h>
 #include <alloy/runtime/debugger.h>
 #include <alloy/runtime/entry_table.h>
 #include <alloy/runtime/module.h>

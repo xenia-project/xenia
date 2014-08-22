@@ -10,9 +10,8 @@
 #ifndef ALLOY_BACKEND_X64_X64_TRACERS_H_
 #define ALLOY_BACKEND_X64_X64_TRACERS_H_
 
-#include <alloy/core.h>
-
 #include <xmmintrin.h>
+#include <cstdint>
 
 namespace alloy {
 namespace backend {

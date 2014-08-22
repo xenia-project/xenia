@@ -10,8 +10,6 @@
 #ifndef ALLOY_BACKEND_IVM_IVM_ASSEMBLER_H_
 #define ALLOY_BACKEND_IVM_IVM_ASSEMBLER_H_
 
-#include <alloy/core.h>
-
 #include <alloy/arena.h>
 #include <alloy/backend/assembler.h>
 

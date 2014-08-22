@@ -11,7 +11,6 @@
 #define ALLOY_HIR_BLOCK_H_
 
 #include <alloy/arena.h>
-#include <alloy/core.h>
 
 namespace llvm {
 class BitVector;

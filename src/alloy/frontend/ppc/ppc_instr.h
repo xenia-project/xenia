@@ -10,10 +10,9 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_INSTR_H_
 #define ALLOY_FRONTEND_PPC_PPC_INSTR_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
-
-#include <alloy/core.h>
 
 namespace alloy {
 class StringBuffer;

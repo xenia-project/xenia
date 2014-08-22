@@ -10,8 +10,6 @@
 #ifndef ALLOY_BACKEND_X64_X64_BACKEND_H_
 #define ALLOY_BACKEND_X64_X64_BACKEND_H_
 
-#include <alloy/core.h>
-
 #include <alloy/backend/backend.h>
 
 namespace alloy {

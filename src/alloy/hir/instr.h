@@ -10,7 +10,6 @@
 #ifndef ALLOY_HIR_INSTR_H_
 #define ALLOY_HIR_INSTR_H_
 
-#include <alloy/core.h>
 #include <alloy/hir/opcodes.h>
 #include <alloy/hir/value.h>
 

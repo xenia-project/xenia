@@ -14,6 +14,7 @@
 
 #include <alloy/runtime/runtime.h>
 #include <poly/poly.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace runtime {

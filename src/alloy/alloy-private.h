@@ -10,8 +10,6 @@
 #ifndef ALLOY_ALLOY_PRIVATE_H_
 #define ALLOY_ALLOY_PRIVATE_H_
 
-#include <alloy/core.h>
-
 #include <gflags/gflags.h>
 
 DECLARE_bool(debug);

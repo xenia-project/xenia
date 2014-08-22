@@ -11,6 +11,8 @@
 
 #include <algorithm>
 
+#include <xenia/profiling.h>
+
 namespace alloy {
 namespace compiler {
 namespace passes {

@@ -13,8 +13,6 @@
 #include <mutex>
 #include <vector>
 
-#include <alloy/core.h>
-
 namespace alloy {
 
 template <class T, typename A>

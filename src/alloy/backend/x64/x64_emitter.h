@@ -10,10 +10,7 @@
 #ifndef ALLOY_BACKEND_X64_X64_EMITTER_H_
 #define ALLOY_BACKEND_X64_X64_EMITTER_H_
 
-#include <alloy/core.h>
-
 #include <alloy/hir/value.h>
-
 #include <third_party/xbyak/xbyak/xbyak.h>
 
 namespace alloy {

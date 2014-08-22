@@ -10,7 +10,7 @@
 #ifndef ALLOY_FRONTEND_CONTEXT_INFO_H_
 #define ALLOY_FRONTEND_CONTEXT_INFO_H_
 
-#include <alloy/core.h>
+#include <cstdint>
 
 namespace alloy {
 namespace frontend {

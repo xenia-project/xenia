@@ -10,16 +10,14 @@
 #ifndef ALLOY_BACKEND_IVM_INTCODE_H_
 #define ALLOY_BACKEND_IVM_INTCODE_H_
 
-#include <alloy/core.h>
-
 #include <alloy/hir/instr.h>
 #include <alloy/hir/opcodes.h>
 
 namespace alloy {
 namespace runtime {
 class ThreadState;
-}
-}
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace backend {
