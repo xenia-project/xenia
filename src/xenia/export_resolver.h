@@ -61,14 +61,8 @@ class ExportResolver {
   void RegisterTable(const std::string& library_name, KernelExport* exports,
                      const size_t count);
 
-  uint16_t GetLibraryOrdinal(const std::string& library_name);
-
-  KernelExport* GetExportByOrdinal(const uint16_t library_ordinal,
-                                   const uint32_t ordinal);
   KernelExport* GetExportByOrdinal(const std::string& library_name,
                                    const uint32_t ordinal);
-  KernelExport* GetExportByName(const std::string& library_name,
-                                const std::string& name);
 
   void SetVariableMapping(const std::string& library_name,
                           const uint32_t ordinal, uint32_t value);

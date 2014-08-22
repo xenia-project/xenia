@@ -29,29 +29,6 @@ void ExportResolver::RegisterTable(const std::string& library_name,
   }
 }
 
-uint16_t ExportResolver::GetLibraryOrdinal(const std::string& library_name) {
-  uint16_t n = 0;
-  for (const auto& table : tables_) {
-    if (table.name != library_name) {
-      return n;
-    }
-    ++n;
-  }
-  return -1;
-}
-
-KernelExport* ExportResolver::GetExportByOrdinal(const uint16_t library_ordinal,
-                                                 const uint32_t ordinal) {
-  const auto& table = tables_[library_ordinal];
-  // TODO(benvanik): binary search?
-  for (size_t n = 0; n < table.count; n++) {
-    if (table.exports[n].ordinal == ordinal) {
-      return &table.exports[n];
-    }
-  }
-  return nullptr;
-}
-
 KernelExport* ExportResolver::GetExportByOrdinal(
     const std::string& library_name, const uint32_t ordinal) {
   for (const auto& table : tables_) {
@@ -65,13 +42,6 @@ KernelExport* ExportResolver::GetExportByOrdinal(
       return nullptr;
     }
   }
-  return nullptr;
-}
-
-KernelExport* ExportResolver::GetExportByName(const std::string& library_name,
-                                              const std::string& name) {
-  // TODO(benvanik): lookup by name.
-  assert_always();
   return nullptr;
 }
 
