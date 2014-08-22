@@ -37,7 +37,11 @@ using alloy::runtime::FunctionInfo;
 X64Assembler::X64Assembler(X64Backend* backend)
     : Assembler(backend), x64_backend_(backend) {}
 
-X64Assembler::~X64Assembler() = default;
+X64Assembler::~X64Assembler() {
+  // Emitter must be freed before the allocator.
+  emitter_.reset();
+  allocator_.reset();
+}
 
 int X64Assembler::Initialize() {
   int result = Assembler::Initialize();

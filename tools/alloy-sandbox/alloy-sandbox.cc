@@ -26,10 +26,10 @@ using alloy::runtime::Runtime;
 
 class ThreadState : public alloy::runtime::ThreadState {
  public:
-  ThreadState(Runtime* runtime, uint32_t thread_id, size_t stack_size,
-              uint64_t thread_state_address, uint64_t thread_stack_address)
+  ThreadState(Runtime* runtime, uint32_t thread_id, uint64_t stack_address,
+              size_t stack_size, uint64_t thread_state_address)
       : alloy::runtime::ThreadState(runtime, thread_id),
-        stack_address_(thread_stack_address),
+        stack_address_(stack_address),
         stack_size_(stack_size),
         thread_state_address_(thread_state_address) {
     memset(memory_->Translate(stack_address_), 0, stack_size_);
@@ -87,10 +87,10 @@ int main(std::vector<std::wstring>& args) {
   auto frontend =
       std::make_unique<alloy::frontend::ppc::PPCFrontend>(runtime.get());
   std::unique_ptr<alloy::backend::Backend> backend;
-  //  auto backend =
-  //      std::make_unique<alloy::backend::ivm::IVMBackend>(runtime.get());
-  //  auto backend =
-  //      std::make_unique<alloy::backend::x64::X64Backend>(runtime.get());
+  // backend =
+  //     std::make_unique<alloy::backend::ivm::IVMBackend>(runtime.get());
+  // backend =
+  //     std::make_unique<alloy::backend::x64::X64Backend>(runtime.get());
   runtime->Initialize(std::move(frontend), std::move(backend));
 
   auto module = std::make_unique<alloy::runtime::RawModule>(runtime.get());
@@ -98,9 +98,9 @@ int main(std::vector<std::wstring>& args) {
   runtime->AddModule(std::move(module));
 
   {
-    uint64_t thread_state_address = 0;
-    uint64_t stack_address = memory_size - 1024;
     uint64_t stack_size = 64 * 1024;
+    uint64_t stack_address = memory_size - stack_size;
+    uint64_t thread_state_address = stack_address - 0x1000;
     auto thread_state = std::make_unique<ThreadState>(
         runtime.get(), 100, stack_address, stack_size, thread_state_address);
 
