@@ -94,7 +94,7 @@ int main(std::vector<std::wstring>& args) {
   runtime->Initialize(std::move(frontend), std::move(backend));
 
   auto module = std::make_unique<alloy::runtime::RawModule>(runtime.get());
-  module->LoadFile(0x82000000, "test\\codegen\\instr_add.bin");
+  module->LoadFile(0x00001000, "test\\codegen\\instr_add.bin");
   runtime->AddModule(std::move(module));
 
   {

@@ -242,6 +242,7 @@
                   'ole32',
                   'ntdll',
                   'advapi32',
+                  'Shell32',
                 ],
               }],
               ['OS == "mac"', {
