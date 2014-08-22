@@ -79,7 +79,7 @@ void log_line(const char* file_path, const uint32_t line_number,
 #if 0  // defined(OutputDebugString)
   OutputDebugStringA(buffer);
 #else
-  fprintf(stdout, buffer);
+  fprintf(stdout, "%s", buffer);
   fflush(stdout);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
@@ -102,7 +102,7 @@ void handle_fatal(const char* file_path, const uint32_t line_number,
 #if defined(OutputDebugString)
   OutputDebugStringA(buffer);
 #else
-  fprintf(stderr, buffer);
+  fprintf(stderr, "%s", buffer);
   fflush(stderr);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
