@@ -53,7 +53,6 @@ class Processor {
                             size_t arg_count);
 
  private:
-  Emulator* emulator_;
   ExportResolver* export_resolver_;
 
   XenonRuntime* runtime_;

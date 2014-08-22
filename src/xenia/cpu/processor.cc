@@ -15,7 +15,6 @@
 #include <xenia/cpu/xenon_runtime.h>
 #include <xenia/cpu/xex_module.h>
 
-
 using namespace alloy;
 using namespace alloy::backend;
 using namespace alloy::frontend::ppc;
@@ -23,37 +22,35 @@ using namespace alloy::runtime;
 using namespace xe;
 using namespace xe::cpu;
 
-
 namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //ppc::RegisterDisasmCategoryAltivec();
-    //ppc::RegisterDisasmCategoryALU();
-    //ppc::RegisterDisasmCategoryControl();
-    //ppc::RegisterDisasmCategoryFPU();
-    //ppc::RegisterDisasmCategoryMemory();
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  // ppc::RegisterDisasmCategoryAltivec();
+  // ppc::RegisterDisasmCategoryALU();
+  // ppc::RegisterDisasmCategoryControl();
+  // ppc::RegisterDisasmCategoryFPU();
+  // ppc::RegisterDisasmCategoryMemory();
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
+}
 
-Processor::Processor(Emulator* emulator) :
-    emulator_(emulator), export_resolver_(emulator->export_resolver()),
-    runtime_(0), memory_(emulator->memory()),
-    interrupt_thread_state_(NULL),
-    interrupt_thread_block_(0) {
+Processor::Processor(Emulator* emulator)
+    : export_resolver_(emulator->export_resolver()),
+      runtime_(0),
+      memory_(emulator->memory()),
+      interrupt_thread_state_(NULL),
+      interrupt_thread_block_(0) {
   InitializeIfNeeded();
 }
 
@@ -101,11 +98,9 @@ int Processor::Setup() {
     return result;
   }
 
-  interrupt_thread_state_ = new XenonThreadState(
-      runtime_, 0, 16 * 1024, 0);
+  interrupt_thread_state_ = new XenonThreadState(runtime_, 0, 16 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
-  interrupt_thread_block_ = memory_->HeapAlloc(
-      0, 2048, MEMORY_FLAG_ZERO);
+  interrupt_thread_block_ = memory_->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
 
   return 0;
@@ -136,9 +131,8 @@ int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
   return 0;
 }
 
-uint64_t Processor::Execute(
-    XenonThreadState* thread_state, uint64_t address, uint64_t args[],
-    size_t arg_count) {
+uint64_t Processor::Execute(XenonThreadState* thread_state, uint64_t address,
+                            uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
   PPCContext* context = thread_state->context();
@@ -163,8 +157,8 @@ void Processor::LowerIrql(Irql old_value) {
                         reinterpret_cast<volatile uint32_t*>(&irql_));
 }
 
-uint64_t Processor::ExecuteInterrupt(
-    uint32_t cpu, uint64_t address, uint64_t args[], size_t arg_count) {
+uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint64_t address,
+                                     uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
   // Acquire lock on interrupt thread (we can only dispatch one at a time).

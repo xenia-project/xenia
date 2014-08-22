@@ -283,7 +283,7 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 
 static void* XThreadStartCallbackPthreads(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
-  xe::Profiler::ThreadEnter(thread->name());
+  xe::Profiler::ThreadEnter(thread->name().c_str());
   current_thread_tls = thread;
   thread->Execute();
   current_thread_tls = nullptr;
@@ -334,7 +334,7 @@ void XThread::PlatformDestroy() {
 
 X_STATUS XThread::PlatformExit(int exit_code) {
   // NOTE: does not return.
-  pthread_exit((void*)exit_code);
+  pthread_exit(reinterpret_cast<void*>(exit_code));
   return X_STATUS_SUCCESS;
 }
 

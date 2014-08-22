@@ -27,17 +27,17 @@ class STFSContainerEntry : public Entry {
  public:
   STFSContainerEntry(Type type, Device* device, const char* path,
                      poly::MappedMemory* mmap, STFSEntry* stfs_entry);
-  virtual ~STFSContainerEntry();
+  ~STFSContainerEntry() override;
 
   poly::MappedMemory* mmap() const { return mmap_; }
   STFSEntry* stfs_entry() const { return stfs_entry_; }
 
-  virtual X_STATUS QueryInfo(XFileInfo* out_info);
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
-                                  const char* file_name, bool restart);
+  X_STATUS QueryInfo(XFileInfo* out_info) override;
+  X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+                          const char* file_name, bool restart) override;
 
-  virtual X_STATUS Open(KernelState* kernel_state, Mode desired_access,
-                        bool async, XFile** out_file);
+  X_STATUS Open(KernelState* kernel_state, Mode desired_access, bool async,
+                XFile** out_file) override;
 
  private:
   poly::MappedMemory* mmap_;

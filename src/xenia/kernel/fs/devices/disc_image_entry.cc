@@ -20,22 +20,18 @@ namespace fs {
 
 class DiscImageMemoryMapping : public MemoryMapping {
  public:
-  DiscImageMemoryMapping(uint8_t* address, size_t length,
-                         poly::MappedMemory* mmap)
-      : MemoryMapping(address, length), mmap_(mmap) {}
+  DiscImageMemoryMapping(uint8_t* address, size_t length)
+      : MemoryMapping(address, length) {}
 
-  virtual ~DiscImageMemoryMapping() {}
-
- private:
-  poly::MappedMemory* mmap_;
+  ~DiscImageMemoryMapping() override = default;
 };
 
 DiscImageEntry::DiscImageEntry(Type type, Device* device, const char* path,
                                poly::MappedMemory* mmap, GDFXEntry* gdfx_entry)
-    : gdfx_entry_(gdfx_entry),
-      gdfx_entry_iterator_(gdfx_entry->children.end()),
+    : Entry(type, device, path),
       mmap_(mmap),
-      Entry(type, device, path) {}
+      gdfx_entry_(gdfx_entry),
+      gdfx_entry_iterator_(gdfx_entry->children.end()) {}
 
 DiscImageEntry::~DiscImageEntry() {}
 
@@ -107,7 +103,7 @@ std::unique_ptr<MemoryMapping> DiscImageEntry::CreateMemoryMapping(
   size_t real_length =
       length ? std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
   return std::make_unique<DiscImageMemoryMapping>(mmap_->data() + real_offset,
-                                                  real_length, mmap_);
+                                                  real_length);
 }
 
 X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode, bool async,

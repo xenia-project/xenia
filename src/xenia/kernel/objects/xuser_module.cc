@@ -161,7 +161,7 @@ void XUserModule::Dump() {
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 
   // XEX info.
-  printf("Module %s:\n\n", path_);
+  printf("Module %s:\n\n", path_.c_str());
   printf("    Module Flags: %.8X\n", header->module_flags);
   printf("    System Flags: %.8X\n", header->system_flags);
   printf("\n");
@@ -292,7 +292,7 @@ void XUserModule::Dump() {
           unimpl_count++;
         }
       }
-      printf("         Total: %4u\n", import_info_count);
+      printf("         Total: %4zu\n", import_info_count);
       printf("         Known:  %3d%% (%d known, %d unknown)\n",
              (int)(known_count / (float)import_info_count * 100.0f),
              known_count, unknown_count);
