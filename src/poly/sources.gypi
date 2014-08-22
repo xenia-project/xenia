@@ -7,6 +7,8 @@
     'debugging.h',
     'config.h',
     'cxx_compat.h',
+    'logging.cc',
+    'logging.h',
     'main.h',
     'mapped_memory.h',
     'math.cc',

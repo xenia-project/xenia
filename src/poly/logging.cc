@@ -7,43 +7,48 @@
  ******************************************************************************
  */
 
-#include <xenia/logging.h>
+#include <poly/logging.h>
 
 #include <mutex>
 
 #include <gflags/gflags.h>
 #include <poly/main.h>
 #include <poly/math.h>
-#include <xenia/common.h>
 
 DEFINE_bool(fast_stdout, false,
-    "Don't lock around stdout/stderr. May introduce weirdness.");
+            "Don't lock around stdout/stderr. May introduce weirdness.");
+DEFINE_bool(log_filenames, false,
+            "Log filenames/line numbers in log statements.");
 
+namespace poly {
 
-namespace {
 std::mutex log_lock;
-}  // namespace
 
+void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
+                     const uint32_t line_number, const char level_char,
+                     const char* fmt, va_list args) {
+  char* buffer_ptr;
+  if (FLAGS_log_filenames) {
+    // Strip out just the filename from the path.
+    const char* filename = strrchr(file_path, poly::path_separator);
+    if (filename) {
+      // Slash - skip over it.
+      filename++;
+    } else {
+      // No slash, entire thing is filename.
+      filename = file_path;
+    }
 
-void xe_format_log_line(
-    char* buffer, size_t buffer_count,
-    const char* file_path, const uint32_t line_number,
-    const char* function_name, const char level_char,
-    const char* fmt, va_list args) {
-  // Strip out just the filename from the path.
-  const char* filename = strrchr(file_path, poly::path_separator);
-  if (filename) {
-    // Slash - skip over it.
-    filename++;
+    // Format string - add a trailing newline if required.
+    const char* outfmt = "%c> %s:%d: ";
+    buffer_ptr = buffer + snprintf(buffer, buffer_count - 1, outfmt, level_char,
+                                   filename, line_number);
   } else {
-    // No slash, entire thing is filename.
-    filename = file_path;
+    buffer_ptr = buffer;
+    *(buffer_ptr++) = level_char;
+    *(buffer_ptr++) = '>';
+    *(buffer_ptr++) = ' ';
   }
-
-  // Format string - add a trailing newline if required.
-  const char* outfmt = "XE[%c] %s:%d: ";
-  char* buffer_ptr = buffer + snprintf(buffer, buffer_count - 1, outfmt,
-                                       level_char, filename, line_number);
 
   // Scribble args into the print buffer.
   buffer_ptr = buffer_ptr + vsnprintf(buffer_ptr,
@@ -57,23 +62,21 @@ void xe_format_log_line(
   }
 }
 
-void xe_log_line(const char* file_path, const uint32_t line_number,
-                 const char* function_name, const char level_char,
-                 const char* fmt, ...) {
-  SCOPE_profile_cpu_i("emu", "log_line");
+void log_line(const char* file_path, const uint32_t line_number,
+              const char level_char, const char* fmt, ...) {
+  // SCOPE_profile_cpu_i("emu", "log_line");
 
   char buffer[2048];
   va_list args;
   va_start(args, fmt);
-  xe_format_log_line(buffer, poly::countof(buffer),
-                     file_path, line_number, function_name, level_char,
-                     fmt, args);
+  format_log_line(buffer, poly::countof(buffer), file_path, line_number,
+                  level_char, fmt, args);
   va_end(args);
 
   if (!FLAGS_fast_stdout) {
     log_lock.lock();
   }
-#if 0// defined(OutputDebugString)
+#if 0  // defined(OutputDebugString)
   OutputDebugStringA(buffer);
 #else
   fprintf(stdout, buffer);
@@ -84,15 +87,13 @@ void xe_log_line(const char* file_path, const uint32_t line_number,
   }
 }
 
-void xe_handle_fatal(
-    const char* file_path, const uint32_t line_number,
-    const char* function_name, const char* fmt, ...) {
+void handle_fatal(const char* file_path, const uint32_t line_number,
+                  const char* fmt, ...) {
   char buffer[2048];
   va_list args;
   va_start(args, fmt);
-  xe_format_log_line(buffer, poly::countof(buffer),
-                     file_path, line_number, function_name, 'X',
-                     fmt, args);
+  format_log_line(buffer, poly::countof(buffer), file_path, line_number, 'X',
+                  fmt, args);
   va_end(args);
 
   if (!FLAGS_fast_stdout) {
@@ -117,3 +118,5 @@ void xe_handle_fatal(
 
   exit(1);
 }
+
+}  // namespace poly

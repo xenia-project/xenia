@@ -23,7 +23,7 @@ int xenia_run(std::vector<std::wstring>& args) {
   // Grab path from the flag or unnamed argument.
   if (!FLAGS_target.size() && args.size() < 2) {
     google::ShowUsageWithFlags("xenia-run");
-    XEFATAL("Pass a file to launch.");
+    PFATAL("Pass a file to launch.");
     return 1;
   }
   std::wstring path;

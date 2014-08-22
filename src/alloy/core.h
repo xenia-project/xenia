@@ -11,7 +11,6 @@
 #define ALLOY_CORE_H_
 
 // TODO(benvanik): move the common stuff into here?
-#include <xenia/logging.h>
 #include <xenia/profiling.h>
 
 #endif  // ALLOY_CORE_H_

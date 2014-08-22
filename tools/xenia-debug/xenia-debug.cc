@@ -26,7 +26,7 @@ namespace xdb {
 int main(std::vector<std::wstring>& args) {
   wxInitializer init;
   if (!init.IsOk()) {
-    XEFATAL("Failed to initialize wxWidgets");
+    PFATAL("Failed to initialize wxWidgets");
     return 1;
   }
 
@@ -34,18 +34,18 @@ int main(std::vector<std::wstring>& args) {
   auto app = new ui::XdbApp();
   wxApp::SetInstance(app);
   if (!wxEntryStart(0, nullptr)) {
-    XEFATAL("Failed to enter wxWidgets app");
+    PFATAL("Failed to enter wxWidgets app");
     return 1;
   }
   if (!app->OnInit()) {
-    XEFATAL("Failed to init app");
+    PFATAL("Failed to init app");
     return 1;
   }
 
   if (!FLAGS_trace_file.empty()) {
     // Trace file specified on command line.
     if (!app->OpenTraceFile(FLAGS_trace_file, FLAGS_content_file)) {
-      XEFATAL("Failed to open trace file");
+      PFATAL("Failed to open trace file");
       return 1;
     }
   } else {

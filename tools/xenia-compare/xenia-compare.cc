@@ -25,13 +25,12 @@ using xdb::PostmortemDebugTarget;
 int main(std::vector<std::wstring>& args) {
   auto left_target = std::make_unique<PostmortemDebugTarget>();
   if (!left_target->LoadTrace(poly::to_wstring(FLAGS_trace_file_left))) {
-    XEFATAL("Unable to load left trace file: %s",
-            FLAGS_trace_file_left.c_str());
+    PFATAL("Unable to load left trace file: %s", FLAGS_trace_file_left.c_str());
   }
   auto right_target = std::make_unique<PostmortemDebugTarget>();
   if (!right_target->LoadTrace(poly::to_wstring(FLAGS_trace_file_right))) {
-    XEFATAL("Unable to load right trace file: %s",
-            FLAGS_trace_file_right.c_str());
+    PFATAL("Unable to load right trace file: %s",
+           FLAGS_trace_file_right.c_str());
   }
 
   return 0;

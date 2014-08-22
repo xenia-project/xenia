@@ -401,7 +401,7 @@ bool D3D11ProfilerDisplay::SetupFont() {
   hr = device->CreateSamplerState(
       &sampler_desc, &font_sampler_state_);
   if (FAILED(hr)) {
-    XEFATAL("D3D11: unable to create invalid sampler state");
+    PFATAL("D3D11: unable to create invalid sampler state");
     return false;
   }
 

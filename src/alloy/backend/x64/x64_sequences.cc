@@ -5392,7 +5392,7 @@ bool SelectSequence(X64Emitter& e, const Instr* i, const Instr** new_tail) {
       return true;
     }
   }
-  XELOGE("No sequence match for variant %s", i->opcode->name);
+  PLOGE("No sequence match for variant %s", i->opcode->name);
   return false;
 }
 

@@ -193,7 +193,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
       if (!SelectSequence(*this, instr, &new_tail)) {
         // No sequence found!
         assert_always();
-        XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
+        PLOGE("Unable to process HIR opcode %s", instr->opcode->name);
         break;
       }
       instr = new_tail;
@@ -372,7 +372,7 @@ void X64Emitter::Trap(uint16_t trap_type) {
       db(0xCC);
       break;
     default:
-      XELOGW("Unknown trap type %d", trap_type);
+      PLOGW("Unknown trap type %d", trap_type);
       db(0xCC);
       break;
   }
@@ -598,8 +598,8 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
   auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
-  XELOGW("undefined extern call to %.8llX %s", symbol_info->address(),
-         symbol_info->name().c_str());
+  PLOGW("undefined extern call to %.8llX %s", symbol_info->address(),
+        symbol_info->name().c_str());
   return 0;
 }
 void X64Emitter::CallExtern(const hir::Instr* instr,

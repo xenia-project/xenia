@@ -116,7 +116,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
     instr_offset_list_[offset] = first_instr;
 
     if (!i.type) {
-      XELOGCPU("Invalid instruction %.8llX %.8X", i.address, i.code);
+      PLOGE("Invalid instruction %.8llX %.8X", i.address, i.code);
       Comment("INVALID!");
       // TraceInvalidInstruction(i);
       continue;
@@ -131,8 +131,8 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
     }
 
     if (!i.type->emit || emit(*this, i)) {
-      XELOGCPU("Unimplemented instr %.8llX %.8X %s", i.address, i.code,
-               i.type->name);
+      PLOGE("Unimplemented instr %.8llX %.8X %s", i.address, i.code,
+            i.type->name);
       Comment("UNIMPLEMENTED!");
       // DebugBreak();
       // TraceInvalidInstruction(i);

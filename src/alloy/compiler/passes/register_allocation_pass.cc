@@ -145,7 +145,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
           // We spill only those registers we aren't using.
           if (!SpillOneRegister(builder, block, instr->dest->type)) {
             // Unable to spill anything - this shouldn't happen.
-            XELOGE("Unable to spill any registers");
+            PLOGE("Unable to spill any registers");
             assert_always();
             return 1;
           }
@@ -153,7 +153,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
           // Demand allocation.
           if (!TryAllocateRegister(instr->dest)) {
             // Boned.
-            XELOGE("Register allocation failed");
+            PLOGE("Register allocation failed");
             assert_always();
             return 1;
           }

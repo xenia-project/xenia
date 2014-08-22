@@ -125,7 +125,7 @@ void D3D11GraphicsDriver::InitializeInvalidTexture() {
   HRESULT hr = device_->CreateTexture2D(
       &texture_desc, &initial_data, (ID3D11Texture2D**)&texture);
   if (FAILED(hr)) {
-    XEFATAL("D3D11: unable to create invalid texture");
+    PFATAL("D3D11: unable to create invalid texture");
     return;
   }
 
@@ -155,7 +155,7 @@ void D3D11GraphicsDriver::InitializeInvalidTexture() {
   hr = device_->CreateSamplerState(
       &sampler_desc, &invalid_texture_sampler_state_);
   if (FAILED(hr)) {
-    XEFATAL("D3D11: unable to create invalid sampler state");
+    PFATAL("D3D11: unable to create invalid sampler state");
     return;
   }
 }
