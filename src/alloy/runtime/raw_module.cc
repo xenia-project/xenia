@@ -10,6 +10,7 @@
 #include <alloy/runtime/raw_module.h>
 
 #include <poly/platform.h>
+#include <poly/string.h>
 
 namespace alloy {
 namespace runtime {
@@ -19,8 +20,9 @@ RawModule::RawModule(Runtime* runtime)
 
 RawModule::~RawModule() {}
 
-int RawModule::LoadFile(uint64_t base_address, const std::string& path) {
-  FILE* file = fopen(path.c_str(), "rb");
+int RawModule::LoadFile(uint64_t base_address, const std::wstring& path) {
+  auto fixed_path = poly::to_string(poly::fix_path_separators(path));
+  FILE* file = fopen(fixed_path.c_str(), "rb");
   fseek(file, 0, SEEK_END);
   size_t file_length = ftell(file);
   fseek(file, 0, SEEK_SET);
@@ -37,11 +39,11 @@ int RawModule::LoadFile(uint64_t base_address, const std::string& path) {
   fclose(file);
 
   // Setup debug info.
-  auto last_slash = path.find_last_of(poly::path_separator);
+  auto last_slash = fixed_path.find_last_of(poly::path_separator);
   if (last_slash != std::string::npos) {
-    name_ = path.substr(last_slash + 1);
+    name_ = fixed_path.substr(last_slash + 1);
   } else {
-    name_ = path;
+    name_ = fixed_path;
   }
   // TODO(benvanik): debug info
 
