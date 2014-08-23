@@ -12,30 +12,24 @@
 
 #include <xenia/core.h>
 
-
 namespace xe {
 namespace gpu {
 namespace xenos {
 
-
 #if XE_COMPILER_MSVC
-#define XEPACKEDSTRUCT(name, value) \
-    __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
-    typedef struct name##_s name;
+#define XEPACKEDSTRUCT(name, value)                                  \
+  __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
+  typedef struct name##_s name;
 #define XEPACKEDSTRUCTANONYMOUS(value) \
-    __pragma(pack(push, 1)) struct value __pragma(pack(pop));
-#define XEPACKEDUNION(name, value) \
-    __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
-    typedef union name##_s name;
-#elif XE_COMPILER_GNUC
-#define XEPACKEDSTRUCT(name, value) \
-    struct __attribute__((packed)) name
-#define XEPACKEDSTRUCTANONYMOUS(value) \
-    struct __attribute__((packed))
-#define XEPACKEDUNION(name, value) \
-    union __attribute__((packed)) name
+  __pragma(pack(push, 1)) struct value __pragma(pack(pop));
+#define XEPACKEDUNION(name, value)                                  \
+  __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
+  typedef union name##_s name;
+#else
+#define XEPACKEDSTRUCT(name, value) struct __attribute__((packed)) name
+#define XEPACKEDSTRUCTANONYMOUS(value) struct __attribute__((packed))
+#define XEPACKEDUNION(name, value) union __attribute__((packed)) name
 #endif  // MSVC
-
 
 // This code comes from the freedreno project:
 // https://github.com/freedreno/freedreno/blob/master/includes/instr-a2xx.h
@@ -61,7 +55,6 @@ namespace xenos {
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
 
 enum a2xx_sq_surfaceformat {
   FMT_1_REVERSE = 0,
@@ -126,7 +119,6 @@ enum a2xx_sq_surfaceformat {
   FMT_CTX1 = 60,
   FMT_DXT3A_AS_1_1_1_1 = 61,
 };
-
 
 /*
  * ALU instructions:
@@ -221,50 +213,48 @@ typedef enum {
 XEPACKEDSTRUCT(instr_alu_t, {
   /* dword0: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            vector_dest              : 6;
-    uint32_t            vector_dest_rel          : 1;
-    uint32_t            low_precision_16b_fp     : 1;
-    uint32_t            scalar_dest              : 6;
-    uint32_t            scalar_dest_rel          : 1;
-    uint32_t            export_data              : 1;
-    uint32_t            vector_write_mask        : 4;
-    uint32_t            scalar_write_mask        : 4;
-    uint32_t            vector_clamp             : 1;
-    uint32_t            scalar_clamp             : 1;
-    uint32_t            scalar_opc               : 6;   // instr_scalar_opc_t
+    uint32_t vector_dest : 6;
+    uint32_t vector_dest_rel : 1;
+    uint32_t low_precision_16b_fp : 1;
+    uint32_t scalar_dest : 6;
+    uint32_t scalar_dest_rel : 1;
+    uint32_t export_data : 1;
+    uint32_t vector_write_mask : 4;
+    uint32_t scalar_write_mask : 4;
+    uint32_t vector_clamp : 1;
+    uint32_t scalar_clamp : 1;
+    uint32_t scalar_opc : 6;  // instr_scalar_opc_t
   });
   /* dword1: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            src3_swiz                : 8;
-    uint32_t            src2_swiz                : 8;
-    uint32_t            src1_swiz                : 8;
-    uint32_t            src3_reg_negate          : 1;
-    uint32_t            src2_reg_negate          : 1;
-    uint32_t            src1_reg_negate          : 1;
-    uint32_t            pred_select              : 2;
-    uint32_t            relative_addr            : 1;
-    uint32_t            const_1_rel_abs          : 1;
-    uint32_t            const_0_rel_abs          : 1;
+    uint32_t src3_swiz : 8;
+    uint32_t src2_swiz : 8;
+    uint32_t src1_swiz : 8;
+    uint32_t src3_reg_negate : 1;
+    uint32_t src2_reg_negate : 1;
+    uint32_t src1_reg_negate : 1;
+    uint32_t pred_select : 2;
+    uint32_t relative_addr : 1;
+    uint32_t const_1_rel_abs : 1;
+    uint32_t const_0_rel_abs : 1;
   });
   /* dword2: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            src3_reg                 : 6;
-    uint32_t            src3_reg_select          : 1;
-    uint32_t            src3_reg_abs             : 1;
-    uint32_t            src2_reg                 : 6;
-    uint32_t            src2_reg_select          : 1;
-    uint32_t            src2_reg_abs             : 1;
-    uint32_t            src1_reg                 : 6;
-    uint32_t            src1_reg_select          : 1;
-    uint32_t            src1_reg_abs             : 1;
-    uint32_t            vector_opc               : 5;   // instr_vector_opc_t
-    uint32_t            src3_sel                 : 1;
-    uint32_t            src2_sel                 : 1;
-    uint32_t            src1_sel                 : 1;
+    uint32_t src3_reg : 6;
+    uint32_t src3_reg_select : 1;
+    uint32_t src3_reg_abs : 1;
+    uint32_t src2_reg : 6;
+    uint32_t src2_reg_select : 1;
+    uint32_t src2_reg_abs : 1;
+    uint32_t src1_reg : 6;
+    uint32_t src1_reg_select : 1;
+    uint32_t src1_reg_abs : 1;
+    uint32_t vector_opc : 5;  // instr_vector_opc_t
+    uint32_t src3_sel : 1;
+    uint32_t src2_sel : 1;
+    uint32_t src1_sel : 1;
   });
 });
-
-
 
 /*
  * CF instructions:
@@ -303,24 +293,22 @@ typedef enum {
 
 XEPACKEDSTRUCT(instr_cf_exec_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            address                 : 12;
-    uint32_t            count                   : 3;
-    uint32_t            yeild                   : 1;
-    uint32_t            serialize               : 12;
-    uint32_t            vc_hi                   : 4;
+    uint32_t address : 12;
+    uint32_t count : 3;
+    uint32_t yeild : 1;
+    uint32_t serialize : 12;
+    uint32_t vc_hi : 4;
   });
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            vc_lo                   : 2;   /* vertex cache? */
-    uint32_t            bool_addr               : 8;
-    uint32_t            condition               : 1;
-    uint32_t            address_mode            : 1;    // instr_addr_mode_t
-    uint32_t            opc                     : 4;    // instr_cf_opc_t
+    uint32_t vc_lo : 2; /* vertex cache? */
+    uint32_t bool_addr : 8;
+    uint32_t condition : 1;
+    uint32_t address_mode : 1;  // instr_addr_mode_t
+    uint32_t opc : 4;           // instr_cf_opc_t
   });
   bool is_cond_exec() const {
-    return (this->opc == COND_EXEC) ||
-           (this->opc == COND_EXEC_END) ||
-           (this->opc == COND_PRED_EXEC) ||
-           (this->opc == COND_PRED_EXEC_END) ||
+    return (this->opc == COND_EXEC) || (this->opc == COND_EXEC_END) ||
+           (this->opc == COND_PRED_EXEC) || (this->opc == COND_PRED_EXEC_END) ||
            (this->opc == COND_EXEC_PRED_CLEAN) ||
            (this->opc == COND_EXEC_PRED_CLEAN_END);
   }
@@ -328,88 +316,83 @@ XEPACKEDSTRUCT(instr_cf_exec_t, {
 
 XEPACKEDSTRUCT(instr_cf_loop_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            address                 : 13;
-    uint32_t            repeat                  : 1;
-    uint32_t            reserved0               : 2;
-    uint32_t            loop_id                 : 5;
-    uint32_t            pred_break              : 1;
-    uint32_t            reserved1_hi            : 10;
+    uint32_t address : 13;
+    uint32_t repeat : 1;
+    uint32_t reserved0 : 2;
+    uint32_t loop_id : 5;
+    uint32_t pred_break : 1;
+    uint32_t reserved1_hi : 10;
   });
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            reserved1_lo            : 10;
-    uint32_t            condition               : 1;
-    uint32_t            address_mode            : 1;    // instr_addr_mode_t
-    uint32_t            opc                     : 4;    // instr_cf_opc_t
+    uint32_t reserved1_lo : 10;
+    uint32_t condition : 1;
+    uint32_t address_mode : 1;  // instr_addr_mode_t
+    uint32_t opc : 4;           // instr_cf_opc_t
   });
 });
 
 XEPACKEDSTRUCT(instr_cf_jmp_call_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            address                 : 13;
-    uint32_t            force_call              : 1;
-    uint32_t            predicated_jmp          : 1;
-    uint32_t            reserved1_hi            : 17;
+    uint32_t address : 13;
+    uint32_t force_call : 1;
+    uint32_t predicated_jmp : 1;
+    uint32_t reserved1_hi : 17;
   });
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            reserved1_lo            : 1;
-    uint32_t            direction               : 1;
-    uint32_t            bool_addr               : 8;
-    uint32_t            condition               : 1;
-    uint32_t            address_mode            : 1;    // instr_addr_mode_t
-    uint32_t            opc                     : 4;    // instr_cf_opc_t
+    uint32_t reserved1_lo : 1;
+    uint32_t direction : 1;
+    uint32_t bool_addr : 8;
+    uint32_t condition : 1;
+    uint32_t address_mode : 1;  // instr_addr_mode_t
+    uint32_t opc : 4;           // instr_cf_opc_t
   });
 });
 
 XEPACKEDSTRUCT(instr_cf_alloc_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            size                    : 3;
-    uint32_t            reserved0_hi            : 29;
+    uint32_t size : 3;
+    uint32_t reserved0_hi : 29;
   });
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            reserved0_lo            : 8;
-    uint32_t            no_serial               : 1;
-    uint32_t            buffer_select           : 2;    // instr_alloc_type_t
-    uint32_t            alloc_mode              : 1;
-    uint32_t            opc                     : 4;    // instr_cf_opc_t
+    uint32_t reserved0_lo : 8;
+    uint32_t no_serial : 1;
+    uint32_t buffer_select : 2;  // instr_alloc_type_t
+    uint32_t alloc_mode : 1;
+    uint32_t opc : 4;  // instr_cf_opc_t
   });
 });
 
 XEPACKEDUNION(instr_cf_t, {
-  instr_cf_exec_t       exec;
-  instr_cf_loop_t       loop;
-  instr_cf_jmp_call_t   jmp_call;
-  instr_cf_alloc_t      alloc;
+  instr_cf_exec_t exec;
+  instr_cf_loop_t loop;
+  instr_cf_jmp_call_t jmp_call;
+  instr_cf_alloc_t alloc;
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t                                    : 32;
-    uint32_t                                    : 12;
-    uint32_t            opc                     : 4;    // instr_cf_opc_t
+    uint32_t:
+      32;
+    uint32_t:
+      12;
+      uint32_t opc : 4;  // instr_cf_opc_t
   });
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            dword_0;
-    uint32_t            dword_1;
+    uint32_t dword_0;
+    uint32_t dword_1;
   });
 
   bool is_exec() const {
-    return (this->opc == EXEC) ||
-           (this->opc == EXEC_END) ||
-           (this->opc == COND_EXEC) ||
-           (this->opc == COND_EXEC_END) ||
-           (this->opc == COND_PRED_EXEC) ||
-           (this->opc == COND_PRED_EXEC_END) ||
+    return (this->opc == EXEC) || (this->opc == EXEC_END) ||
+           (this->opc == COND_EXEC) || (this->opc == COND_EXEC_END) ||
+           (this->opc == COND_PRED_EXEC) || (this->opc == COND_PRED_EXEC_END) ||
            (this->opc == COND_EXEC_PRED_CLEAN) ||
            (this->opc == COND_EXEC_PRED_CLEAN_END);
   }
   bool is_cond_exec() const {
-    return (this->opc == COND_EXEC) ||
-           (this->opc == COND_EXEC_END) ||
-           (this->opc == COND_PRED_EXEC) ||
-           (this->opc == COND_PRED_EXEC_END) ||
+    return (this->opc == COND_EXEC) || (this->opc == COND_EXEC_END) ||
+           (this->opc == COND_PRED_EXEC) || (this->opc == COND_PRED_EXEC_END) ||
            (this->opc == COND_EXEC_PRED_CLEAN) ||
            (this->opc == COND_EXEC_PRED_CLEAN_END);
   }
 });
-
-
 
 /*
  * FETCH instructions:
@@ -431,7 +414,7 @@ typedef enum {
 typedef enum {
   TEX_FILTER_POINT = 0,
   TEX_FILTER_LINEAR = 1,
-  TEX_FILTER_BASEMAP = 2,            /* only applicable for mip-filter */
+  TEX_FILTER_BASEMAP = 2, /* only applicable for mip-filter */
   TEX_FILTER_USE_FETCH_CONST = 3,
 } instr_tex_filter_t;
 
@@ -472,104 +455,105 @@ typedef enum a2xx_sq_surfaceformat instr_surf_fmt_t;
 XEPACKEDSTRUCT(instr_fetch_tex_t, {
   /* dword0: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            opc                     : 5;    // instr_fetch_opc_t
-    uint32_t            src_reg                 : 6;
-    uint32_t            src_reg_am              : 1;
-    uint32_t            dst_reg                 : 6;
-    uint32_t            dst_reg_am              : 1;
-    uint32_t            fetch_valid_only        : 1;
-    uint32_t            const_idx               : 5;
-    uint32_t            tx_coord_denorm         : 1;
-    uint32_t            src_swiz                : 6;    // xyz
+    uint32_t opc : 5;  // instr_fetch_opc_t
+    uint32_t src_reg : 6;
+    uint32_t src_reg_am : 1;
+    uint32_t dst_reg : 6;
+    uint32_t dst_reg_am : 1;
+    uint32_t fetch_valid_only : 1;
+    uint32_t const_idx : 5;
+    uint32_t tx_coord_denorm : 1;
+    uint32_t src_swiz : 6;  // xyz
   });
   /* dword1: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            dst_swiz                : 12;   // xyzw
-    uint32_t            mag_filter              : 2;    // instr_tex_filter_t
-    uint32_t            min_filter              : 2;    // instr_tex_filter_t
-    uint32_t            mip_filter              : 2;    // instr_tex_filter_t
-    uint32_t            aniso_filter            : 3;    // instr_aniso_filter_t
-    uint32_t            arbitrary_filter        : 3;    // instr_arbitrary_filter_t
-    uint32_t            vol_mag_filter          : 2;    // instr_tex_filter_t
-    uint32_t            vol_min_filter          : 2;    // instr_tex_filter_t
-    uint32_t            use_comp_lod            : 1;
-    uint32_t            use_reg_lod             : 1;
-    uint32_t            unk                     : 1;
-    uint32_t            pred_select             : 1;
+    uint32_t dst_swiz : 12;         // xyzw
+    uint32_t mag_filter : 2;        // instr_tex_filter_t
+    uint32_t min_filter : 2;        // instr_tex_filter_t
+    uint32_t mip_filter : 2;        // instr_tex_filter_t
+    uint32_t aniso_filter : 3;      // instr_aniso_filter_t
+    uint32_t arbitrary_filter : 3;  // instr_arbitrary_filter_t
+    uint32_t vol_mag_filter : 2;    // instr_tex_filter_t
+    uint32_t vol_min_filter : 2;    // instr_tex_filter_t
+    uint32_t use_comp_lod : 1;
+    uint32_t use_reg_lod : 1;
+    uint32_t unk : 1;
+    uint32_t pred_select : 1;
   });
   /* dword2: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            use_reg_gradients       : 1;
-    uint32_t            sample_location         : 1;    // instr_sample_loc_t
-    uint32_t            lod_bias                : 7;
-    uint32_t            unused                  : 5;
-    uint32_t            dimension               : 2;    // instr_dimension_t
-    uint32_t            offset_x                : 5;
-    uint32_t            offset_y                : 5;
-    uint32_t            offset_z                : 5;
-    uint32_t            pred_condition          : 1;
+    uint32_t use_reg_gradients : 1;
+    uint32_t sample_location : 1;  // instr_sample_loc_t
+    uint32_t lod_bias : 7;
+    uint32_t unused : 5;
+    uint32_t dimension : 2;  // instr_dimension_t
+    uint32_t offset_x : 5;
+    uint32_t offset_y : 5;
+    uint32_t offset_z : 5;
+    uint32_t pred_condition : 1;
   });
 });
 
 XEPACKEDSTRUCT(instr_fetch_vtx_t, {
   /* dword0: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            opc                     : 5;    // instr_fetch_opc_t
-    uint32_t            src_reg                 : 6;
-    uint32_t            src_reg_am              : 1;
-    uint32_t            dst_reg                 : 6;
-    uint32_t            dst_reg_am              : 1;
-    uint32_t            must_be_one             : 1;
-    uint32_t            const_index             : 5;
-    uint32_t            const_index_sel         : 2;
-    uint32_t            reserved0               : 3;
-    uint32_t            src_swiz                : 2;
+    uint32_t opc : 5;  // instr_fetch_opc_t
+    uint32_t src_reg : 6;
+    uint32_t src_reg_am : 1;
+    uint32_t dst_reg : 6;
+    uint32_t dst_reg_am : 1;
+    uint32_t must_be_one : 1;
+    uint32_t const_index : 5;
+    uint32_t const_index_sel : 2;
+    uint32_t reserved0 : 3;
+    uint32_t src_swiz : 2;
   });
   /* dword1: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            dst_swiz                : 12;
-    uint32_t            format_comp_all         : 1;   /* '1' for signed, '0' for unsigned? */
-    uint32_t            num_format_all          : 1;   /* '0' for normalized, '1' for unnormalized */
-    uint32_t            signed_rf_mode_all      : 1;
-    uint32_t            reserved1               : 1;
-    uint32_t            format                  : 6;    // instr_surf_fmt_t
-    uint32_t            reserved2               : 1;
-    uint32_t            exp_adjust_all          : 7;
-    uint32_t            reserved3               : 1;
-    uint32_t            pred_select             : 1;
+    uint32_t dst_swiz : 12;
+    uint32_t format_comp_all : 1; /* '1' for signed, '0' for unsigned? */
+    uint32_t num_format_all : 1;  /* '0' for normalized, '1' for unnormalized */
+    uint32_t signed_rf_mode_all : 1;
+    uint32_t reserved1 : 1;
+    uint32_t format : 6;  // instr_surf_fmt_t
+    uint32_t reserved2 : 1;
+    uint32_t exp_adjust_all : 7;
+    uint32_t reserved3 : 1;
+    uint32_t pred_select : 1;
   });
   /* dword2: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t            stride                  : 8;
-    uint32_t            offset                  : 23;
-    uint32_t            pred_condition          : 1;
+    uint32_t stride : 8;
+    uint32_t offset : 23;
+    uint32_t pred_condition : 1;
   });
 });
 
 XEPACKEDUNION(instr_fetch_t, {
-  instr_fetch_tex_t     tex;
-  instr_fetch_vtx_t     vtx;
+  instr_fetch_tex_t tex;
+  instr_fetch_vtx_t vtx;
   XEPACKEDSTRUCTANONYMOUS({
     /* dword0: */
     XEPACKEDSTRUCTANONYMOUS({
-      uint32_t          opc                     : 5;    // instr_fetch_opc_t
-      uint32_t                                  : 27;
+      uint32_t opc : 5;  // instr_fetch_opc_t
+    uint32_t:
+      27;
     });
     /* dword1: */
     XEPACKEDSTRUCTANONYMOUS({
-      uint32_t                                  : 32;
+      uint32_t:
+        32;
     });
     /* dword2: */
     XEPACKEDSTRUCTANONYMOUS({
-      uint32_t                                  : 32;
+      uint32_t:
+        32;
     });
   });
 });
 
-
 }  // namespace xenos
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_XENOS_UCODE_H_

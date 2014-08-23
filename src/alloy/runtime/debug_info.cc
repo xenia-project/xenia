@@ -9,7 +9,7 @@
 
 #include <alloy/runtime/debug_info.h>
 
-#include <memory>
+#include <cstdlib>
 
 namespace alloy {
 namespace runtime {

@@ -13,6 +13,7 @@
 
 #include <poly/assert.h>
 #include <poly/math.h>
+#include <xenia/profiling.h>
 
 namespace alloy {
 namespace backend {

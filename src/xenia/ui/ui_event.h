@@ -12,41 +12,37 @@
 
 #include <xenia/core.h>
 
-
 namespace xe {
 namespace ui {
 
 class App;
 class Window;
 
-
 class UIEvent {
-public:
-  UIEvent(Window* window = NULL) :
-      window_(window) {}
-  virtual ~UIEvent() {}
+ public:
+  UIEvent(Window* window = NULL) : window_(window) {}
+  virtual ~UIEvent() = default;
 
   Window* window() const { return window_; }
 
-private:
-  Window*   window_;
+ private:
+  Window* window_;
 };
 
 class KeyEvent : public UIEvent {
-public:
-  KeyEvent(Window* window, int key_code) :
-      key_code_(key_code),
-      UIEvent(window) {}
-  virtual ~KeyEvent() {}
+ public:
+  KeyEvent(Window* window, int key_code)
+      : UIEvent(window), key_code_(key_code) {}
+  ~KeyEvent() override = default;
 
   int key_code() const { return key_code_; }
 
-private:
+ private:
   int key_code_;
 };
 
 class MouseEvent : public UIEvent {
-public:
+ public:
   enum Button {
     MOUSE_BUTTON_NONE = 0,
     MOUSE_BUTTON_LEFT,
@@ -56,13 +52,11 @@ public:
     MOUSE_BUTTON_X2,
   };
 
-public:
-  MouseEvent(Window* window,
-             Button button, int32_t x, int32_t y,
-             int32_t dx = 0, int32_t dy = 0) :
-      button_(button), x_(x), y_(y), dx_(dx), dy_(dy),
-      UIEvent(window) {}
-  virtual ~MouseEvent() {}
+ public:
+  MouseEvent(Window* window, Button button, int32_t x, int32_t y,
+             int32_t dx = 0, int32_t dy = 0)
+      : UIEvent(window), button_(button), x_(x), y_(y), dx_(dx), dy_(dy) {}
+  ~MouseEvent() override = default;
 
   Button button() const { return button_; }
   int32_t x() const { return x_; }
@@ -70,17 +64,15 @@ public:
   int32_t dx() const { return dx_; }
   int32_t dy() const { return dy_; }
 
-private:
-  Button  button_;
+ private:
+  Button button_;
   int32_t x_;
   int32_t y_;
   int32_t dx_;
   int32_t dy_;
 };
 
-
 }  // namespace ui
 }  // namespace xe
-
 
 #endif  // XENIA_UI_UI_EVENT_H_

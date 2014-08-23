@@ -528,7 +528,7 @@ template <typename SEQ, typename T>
 struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   typedef Sequence<SingleSequence<SEQ, T>, T> BASE;
   typedef T EmitArgType;
-  static const uint32_t head_key = T::key;
+  static constexpr uint32_t head_key() { return T::key; }
   static void Emit(X64Emitter& e, const typename BASE::EmitArgs& _) {
     SEQ::Emit(e, _.i1);
   }
@@ -734,7 +734,7 @@ static const tag_t TAG7 = 7;
 
 template <typename T>
 void Register() {
-  sequence_table.insert({ T::head_key, T::Select });
+  sequence_table.insert({ T::head_key(), T::Select });
 }
 template <typename T, typename Tn, typename... Ts>
 void Register() {

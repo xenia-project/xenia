@@ -10,6 +10,7 @@
 #ifndef ALLOY_RUNTIME_DEBUG_INFO_H_
 #define ALLOY_RUNTIME_DEBUG_INFO_H_
 
+#include <cstddef>
 #include <cstdint>
 
 namespace alloy {

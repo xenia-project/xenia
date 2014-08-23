@@ -21,7 +21,7 @@ namespace fs {
 
 STFSContainerFile::STFSContainerFile(KernelState* kernel_state, Mode mode,
                                      STFSContainerEntry* entry)
-    : entry_(entry), XFile(kernel_state, mode) {}
+    : XFile(kernel_state, mode), entry_(entry) {}
 
 STFSContainerFile::~STFSContainerFile() { delete entry_; }
 

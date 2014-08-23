@@ -20,12 +20,12 @@ STFSContainerEntry::STFSContainerEntry(Type type, Device* device,
                                        const char* path,
                                        poly::MappedMemory* mmap,
                                        STFSEntry* stfs_entry)
-    : stfs_entry_(stfs_entry),
-      stfs_entry_iterator_(stfs_entry->children.end()),
+    : Entry(type, device, path),
       mmap_(mmap),
-      Entry(type, device, path) {}
+      stfs_entry_(stfs_entry),
+      stfs_entry_iterator_(stfs_entry->children.end()) {}
 
-STFSContainerEntry::~STFSContainerEntry() {}
+STFSContainerEntry::~STFSContainerEntry() = default;
 
 X_STATUS STFSContainerEntry::QueryInfo(XFileInfo* out_info) {
   assert_not_null(out_info);

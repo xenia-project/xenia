@@ -22,6 +22,17 @@ and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
 
+### OSX
+
+* Mac OSX 10.9+
+* Xcode 5.1+
+
+#### Debugging
+
+Choose `Product > Scheme > Edit Scheme`. For xenia-run, alloy-sandbox, and the
+other executables select the Run action on the left and set
+`Options > Working Directory` to your root xenia/ git path.
+
 ## xenia-build
 
 A simple build script is included to manage basic tasks such as building

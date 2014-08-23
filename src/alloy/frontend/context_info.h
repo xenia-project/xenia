@@ -10,6 +10,7 @@
 #ifndef ALLOY_FRONTEND_CONTEXT_INFO_H_
 #define ALLOY_FRONTEND_CONTEXT_INFO_H_
 
+#include <cstddef>
 #include <cstdint>
 
 namespace alloy {

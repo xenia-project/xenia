@@ -9,11 +9,15 @@
 
 #include <xenia/core/socket.h>
 
-#include <fcntl.h>
-#include <poll.h>
 #include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <netinet/tcp.h>
+#include <poll.h>
 #include <sys/socket.h>
+#include <unistd.h>
+
+#include <poly/math.h>
 
 void xe_socket_init() {
   // No-op.
@@ -81,7 +85,7 @@ int xe_socket_bind_loopback(socket_t socket) {
   socket_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   socket_addr.sin_port = htons(0);
   int r = bind(socket, (struct sockaddr*)&socket_addr, sizeof(socket_addr));
-  if (r == SOCKET_ERROR) {
+  if (r == -1) {
     return 1;
   }
   return 0;
@@ -108,7 +112,7 @@ int xe_socket_accept(socket_t socket, xe_socket_connection_t* out_client_info) {
 
   int client_ip = client_addr.sin_addr.s_addr;
   inet_ntop(AF_INET, &client_ip, out_client_info->addr,
-            XECOUNT(out_client_info->addr));
+            poly::countof(out_client_info->addr));
 
   return 0;
 }
@@ -177,7 +181,7 @@ int xe_socket_loop_poll(xe_socket_loop_t* loop, bool check_read,
 
   // Poll.
   int r;
-  while ((r = poll(loop->events, XECOUNT(loop->events), -1)) == -1 &&
+  while ((r = poll(loop->events, poly::countof(loop->events), -1)) == -1 &&
          errno == EINTR)
     ;
   if (r == -1) {
@@ -193,7 +197,7 @@ int xe_socket_loop_poll(xe_socket_loop_t* loop, bool check_read,
   loop->pending_queued_write = loop->events[1].revents != 0;
   if (loop->pending_queued_write) {
     uint8_t dummy;
-    XEIGNORE(recv(loop->notify_rd_id, &dummy, 1, 0));
+    recv(loop->notify_rd_id, &dummy, 1, 0);
   }
   loop->events[1].revents = 0;
   loop->events[1].events = POLLIN;
