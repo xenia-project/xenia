@@ -144,13 +144,13 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #if XE_COMPILER_MSVC
 // Disable warning C4068: unknown pragma
 #pragma warning(disable : 4068)
-#endif  // MSVC
+#endif  // XE_COMPILER_MSVC
 
 #if XE_COMPILER_MSVC
 #include <intrin.h>
 #else
 #include <x86intrin.h>
-#endif  // MSVC
+#endif  // XE_COMPILER_MSVC
 
 namespace poly {
 
@@ -160,7 +160,7 @@ const size_t max_path = _MAX_PATH;
 #else
 const char path_separator = '/';
 const size_t max_path = 1024;  // PATH_MAX
-#endif  // WIN32
+#endif  // XE_LIKE_WIN32
 
 }  // namespace poly
 

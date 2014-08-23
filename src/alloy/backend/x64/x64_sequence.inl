@@ -528,7 +528,12 @@ template <typename SEQ, typename T>
 struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   typedef Sequence<SingleSequence<SEQ, T>, T> BASE;
   typedef T EmitArgType;
+  // TODO(benvanik): find a way to do this cross-compiler.
+#if XE_COMPILER_MSVC
+  static uint32_t head_key() { return T::key; }
+#else
   static constexpr uint32_t head_key() { return T::key; }
+#endif  // XE_COMPILER_MSVC
   static void Emit(X64Emitter& e, const typename BASE::EmitArgs& _) {
     SEQ::Emit(e, _.i1);
   }
