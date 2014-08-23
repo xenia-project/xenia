@@ -36,7 +36,8 @@ int main(std::vector<std::wstring>& args) {
     narrow_argv[i] = const_cast<char*>(narrow_arg.data());
     narrow_args.push_back(std::move(narrow_arg));
   }
-  return Catch::Session().run(int(args.size()), narrow_argv);
+  int ret = Catch::Session().run(int(args.size()), narrow_argv);
+  return ret;
 }
 
 class ThreadState : public alloy::runtime::ThreadState {
@@ -89,57 +90,73 @@ class ThreadState : public alloy::runtime::ThreadState {
 
 class TestFunction {
  public:
-  TestFunction(std::function<bool(hir::HIRBuilder& b)> generator) {
+  TestFunction(std::function<void(hir::HIRBuilder& b)> generator) {
     memory_size = 16 * 1024 * 1024;
     memory.reset(new SimpleMemory(memory_size));
-    runtime.reset(new Runtime(memory.get()));
 
-    auto frontend =
-        std::make_unique<alloy::frontend::ppc::PPCFrontend>(runtime.get());
-    std::unique_ptr<alloy::backend::Backend> backend;
-    // backend =
-    //     std::make_unique<alloy::backend::ivm::IVMBackend>(runtime.get());
-    // backend =
-    //     std::make_unique<alloy::backend::x64::X64Backend>(runtime.get());
-    runtime->Initialize(std::move(frontend), std::move(backend));
+    {
+      auto runtime = std::make_unique<Runtime>(memory.get());
+      auto frontend =
+          std::make_unique<alloy::frontend::ppc::PPCFrontend>(runtime.get());
+      auto backend =
+          std::make_unique<alloy::backend::ivm::IVMBackend>(runtime.get());
+      runtime->Initialize(std::move(frontend), std::move(backend));
+      runtimes.emplace_back(std::move(runtime));
+    }
+    {
+      auto runtime = std::make_unique<Runtime>(memory.get());
+      auto frontend =
+          std::make_unique<alloy::frontend::ppc::PPCFrontend>(runtime.get());
+      auto backend =
+          std::make_unique<alloy::backend::x64::X64Backend>(runtime.get());
+      runtime->Initialize(std::move(frontend), std::move(backend));
+      runtimes.emplace_back(std::move(runtime));
+    }
 
-    auto module = std::make_unique<alloy::runtime::TestModule>(
-        runtime.get(), "Test",
-        [](uint64_t address) { return address == 0x1000; },
-        [generator](hir::HIRBuilder& b) { return generator(b); });
-    runtime->AddModule(std::move(module));
-
-    runtime->ResolveFunction(0x1000, &fn);
+    for (auto& runtime : runtimes) {
+      auto module = std::make_unique<alloy::runtime::TestModule>(
+          runtime.get(), "Test",
+          [](uint64_t address) { return address == 0x1000; },
+          [generator](hir::HIRBuilder& b) {
+            generator(b);
+            return true;
+          });
+      runtime->AddModule(std::move(module));
+    }
   }
 
   ~TestFunction() {
-    runtime.reset();
+    runtimes.clear();
     memory.reset();
   }
 
   void Run(std::function<void(PPCContext*)> pre_call,
            std::function<void(PPCContext*)> post_call) {
-    memory->Zero(0, memory_size);
+    for (auto& runtime : runtimes) {
+      memory->Zero(0, memory_size);
 
-    uint64_t stack_size = 64 * 1024;
-    uint64_t stack_address = memory_size - stack_size;
-    uint64_t thread_state_address = stack_address - 0x1000;
-    auto thread_state = std::make_unique<ThreadState>(
-        runtime.get(), 100, stack_address, stack_size, thread_state_address);
-    auto ctx = thread_state->context();
-    ctx->lr = 0xBEBEBEBE;
+      alloy::runtime::Function* fn;
+      runtime->ResolveFunction(0x1000, &fn);
 
-    pre_call(ctx);
+      uint64_t stack_size = 64 * 1024;
+      uint64_t stack_address = memory_size - stack_size;
+      uint64_t thread_state_address = stack_address - 0x1000;
+      auto thread_state = std::make_unique<ThreadState>(
+          runtime.get(), 100, stack_address, stack_size, thread_state_address);
+      auto ctx = thread_state->context();
+      ctx->lr = 0xBEBEBEBE;
 
-    fn->Call(thread_state.get(), ctx->lr);
+      pre_call(ctx);
 
-    post_call(ctx);
+      fn->Call(thread_state.get(), ctx->lr);
+
+      post_call(ctx);
+    }
   }
 
   size_t memory_size;
   std::unique_ptr<Memory> memory;
-  std::unique_ptr<Runtime> runtime;
-  alloy::runtime::Function* fn;
+  std::vector<std::unique_ptr<Runtime>> runtimes;
 };
 
 }  // namespace test

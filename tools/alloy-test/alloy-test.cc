@@ -17,29 +17,35 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 using alloy::frontend::ppc::PPCContext;
 
-TEST_CASE("Meta test", "[test]") {
+Value* LoadGPR(hir::HIRBuilder& b, int reg) {
+  return b.LoadContext(offsetof(PPCContext, r) + reg * 8, INT64_TYPE);
+}
+
+void StoreGPR(hir::HIRBuilder& b, int reg, Value* value) {
+  b.StoreContext(offsetof(PPCContext, r) + reg * 8, value);
+}
+
+TEST_CASE("ADD", "[instr]") {
   alloy::test::TestFunction test([](hir::HIRBuilder& b) {
-    auto r = b.Add(b.LoadContext(offsetof(PPCContext, r) + 5 * 8, INT64_TYPE),
-                   b.LoadContext(offsetof(PPCContext, r) + 25 * 8, INT64_TYPE));
-    b.StoreContext(offsetof(PPCContext, r) + 11 * 8, r);
+    auto v = b.Add(LoadGPR(b, 4), LoadGPR(b, 5));
+    StoreGPR(b, 3, v);
     b.Return();
-    return true;
   });
 
   test.Run([](PPCContext* ctx) {
-             ctx->r[5] = 10;
-             ctx->r[25] = 25;
+             ctx->r[4] = 10;
+             ctx->r[5] = 25;
            },
            [](PPCContext* ctx) {
-             auto result = ctx->r[11];
+             auto result = ctx->r[3];
              REQUIRE(result == 0x23);
            });
   test.Run([](PPCContext* ctx) {
-             ctx->r[5] = 10;
-             ctx->r[25] = 25;
+             ctx->r[4] = 10;
+             ctx->r[5] = 25;
            },
            [](PPCContext* ctx) {
-             auto result = ctx->r[11];
+             auto result = ctx->r[3];
              REQUIRE(result == 0x24);
            });
 }
