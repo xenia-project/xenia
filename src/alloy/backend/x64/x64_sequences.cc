@@ -2878,7 +2878,7 @@ EMITTER(VECTOR_SUB, MATCH(I<OPCODE_VECTOR_SUB, V128<>, V128<>, V128<>>)) {
     _mm_store_si128(reinterpret_cast<__m128i*>(&src1v), src1);
     _mm_store_si128(reinterpret_cast<__m128i*>(&src2v), src2);
     for (size_t i = 0; i < 4; ++i) {
-      auto t = int64_t(src1v[i]) + int64_t(src2v[i]);
+      auto t = int64_t(src1v[i]) - int64_t(src2v[i]);
       value[i] = t < INT_MIN ? INT_MIN : (t > INT_MAX ? INT_MAX : int32_t(t));
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(&value));
