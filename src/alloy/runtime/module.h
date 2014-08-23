@@ -37,10 +37,10 @@ class Module {
   virtual bool ContainsAddress(uint64_t address);
 
   SymbolInfo* LookupSymbol(uint64_t address, bool wait = true);
-  SymbolInfo::Status DeclareFunction(uint64_t address,
-                                     FunctionInfo** out_symbol_info);
-  SymbolInfo::Status DeclareVariable(uint64_t address,
-                                     VariableInfo** out_symbol_info);
+  virtual SymbolInfo::Status DeclareFunction(uint64_t address,
+                                             FunctionInfo** out_symbol_info);
+  virtual SymbolInfo::Status DeclareVariable(uint64_t address,
+                                             VariableInfo** out_symbol_info);
 
   SymbolInfo::Status DefineFunction(FunctionInfo* symbol_info);
   SymbolInfo::Status DefineVariable(VariableInfo* symbol_info);

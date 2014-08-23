@@ -2,6 +2,7 @@
 {
   'includes': [
     'alloy-sandbox/alloy-sandbox.gypi',
+    'alloy-test/alloy-test.gypi',
     'xenia-compare/xenia-compare.gypi',
     'xenia-debug/xenia-debug.gypi',
     'xenia-run/xenia-run.gypi',
