@@ -732,8 +732,7 @@ void X64Emitter::nop(size_t length) {
 void X64Emitter::LoadEflags() {
 #if STORE_EFLAGS
   mov(eax, dword[rsp + STASH_OFFSET]);
-  push(rax);
-  popf();
+  btr(eax, 0);
 #else
 // EFLAGS already present.
 #endif  // STORE_EFLAGS
@@ -742,7 +741,7 @@ void X64Emitter::LoadEflags() {
 void X64Emitter::StoreEflags() {
 #if STORE_EFLAGS
   pushf();
-  pop(qword[rsp + STASH_OFFSET]);
+  pop(dword[rsp + STASH_OFFSET]);
 #else
 // EFLAGS should have CA set?
 // (so long as we don't fuck with it)
