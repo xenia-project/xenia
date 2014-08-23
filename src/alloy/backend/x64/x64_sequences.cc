@@ -2590,14 +2590,6 @@ EMITTER(ADD_F64, MATCH(I<OPCODE_ADD, F64<>, F64<>, F64<>>)) {
         });
   }
 };
-EMITTER(ADD_V128, MATCH(I<OPCODE_ADD, V128<>, V128<>, V128<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeBinaryXmmOp(e, i,
-        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-          e.vaddps(dest, src1, src2);
-        });
-  }
-};
 EMITTER_OPCODE_TABLE(
     OPCODE_ADD,
     ADD_I8,
@@ -2605,8 +2597,7 @@ EMITTER_OPCODE_TABLE(
     ADD_I32,
     ADD_I64,
     ADD_F32,
-    ADD_F64,
-    ADD_V128);
+    ADD_F64);
 
 
 // ============================================================================
@@ -2847,15 +2838,6 @@ EMITTER(SUB_F64, MATCH(I<OPCODE_SUB, F64<>, F64<>, F64<>>)) {
         });
   }
 };
-EMITTER(SUB_V128, MATCH(I<OPCODE_SUB, V128<>, V128<>, V128<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(!i.instr->flags);
-    EmitAssociativeBinaryXmmOp(e, i,
-        [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-          e.vsubps(dest, src1, src2);
-        });
-  }
-};
 EMITTER_OPCODE_TABLE(
     OPCODE_SUB,
     SUB_I8,
@@ -2863,8 +2845,7 @@ EMITTER_OPCODE_TABLE(
     SUB_I32,
     SUB_I64,
     SUB_F32,
-    SUB_F64,
-    SUB_V128);
+    SUB_F64);
 
 
 // ============================================================================

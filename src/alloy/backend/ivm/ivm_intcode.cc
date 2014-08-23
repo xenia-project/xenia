@@ -2475,21 +2475,11 @@ uint32_t IntCode_ADD_F64_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 + ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
-uint32_t IntCode_ADD_V128_V128(IntCodeState& ics, const IntCode* i) {
-  assert_true(!i->flags);
-  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
-  vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 4; n++) {
-    dest.f4[n] = src1.f4[n] + src2.f4[n];
-  }
-  return IA_NEXT;
-}
 int Translate_ADD(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_ADD_I8_I8,     IntCode_ADD_I16_I16, IntCode_ADD_I32_I32,
       IntCode_ADD_I64_I64,   IntCode_ADD_F32_F32, IntCode_ADD_F64_F64,
-      IntCode_ADD_V128_V128,
+      IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
@@ -2736,20 +2726,11 @@ uint32_t IntCode_SUB_F64_F64(IntCodeState& ics, const IntCode* i) {
   ics.rf[i->dest_reg].f64 = ics.rf[i->src1_reg].f64 - ics.rf[i->src2_reg].f64;
   return IA_NEXT;
 }
-uint32_t IntCode_SUB_V128_V128(IntCodeState& ics, const IntCode* i) {
-  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
-  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
-  vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (int n = 0; n < 4; n++) {
-    dest.f4[n] = src1.f4[n] - src2.f4[n];
-  }
-  return IA_NEXT;
-}
 int Translate_SUB(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_SUB_I8_I8,     IntCode_SUB_I16_I16, IntCode_SUB_I32_I32,
       IntCode_SUB_I64_I64,   IntCode_SUB_F32_F32, IntCode_SUB_F64_F64,
-      IntCode_SUB_V128_V128,
+      IntCode_INVALID_TYPE,
   };
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }

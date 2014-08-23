@@ -344,7 +344,7 @@ XEEMITTER(vaddcuw, 0x10000180, VX)(PPCHIRBuilder& f, InstrData& i) {
 
 int InstrEmit_vaddfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) + (VB) (4 x fp)
-  Value* v = f.Add(f.LoadVR(va), f.LoadVR(vb));
+  Value* v = f.VectorAdd(f.LoadVR(va), f.LoadVR(vb), FLOAT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1568,7 +1568,7 @@ XEEMITTER(vsubcuw, 0x10000580, VX)(PPCHIRBuilder& f, InstrData& i) {
 
 int InstrEmit_vsubfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) - (VB) (4 x fp)
-  Value* v = f.Sub(f.LoadVR(va), f.LoadVR(vb));
+  Value* v = f.VectorSub(f.LoadVR(va), f.LoadVR(vb), FLOAT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
