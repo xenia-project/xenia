@@ -317,8 +317,13 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
                 }
               }
             }
-            i->Replace(&OPCODE_ASSIGN_info, 0);
-            i->set_src1(ca);
+            if (i->dest->type == ca->type) {
+              i->Replace(&OPCODE_ASSIGN_info, 0);
+              i->set_src1(ca);
+            } else {
+              i->Replace(&OPCODE_ZERO_EXTEND_info, 0);
+              i->set_src1(ca);
+            }
           }
           break;
         case OPCODE_SUB:

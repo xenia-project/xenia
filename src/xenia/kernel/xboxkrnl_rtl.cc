@@ -341,7 +341,7 @@ SHIM_CALL RtlNtStatusToDosError_shim(PPCContext* ppc_state,
   }
 
   // TODO(benvanik): implement lookup table.
-  XELOGE("RtlNtStatusToDosError lookup NOT SHIMEMENTED");
+  XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
 
   uint32_t result = 317;  // ERROR_MR_MID_NOT_FOUND
 
