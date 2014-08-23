@@ -2871,6 +2871,18 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_VECTOR_SUB
 // ============================================================================
 EMITTER(VECTOR_SUB, MATCH(I<OPCODE_VECTOR_SUB, V128<>, V128<>, V128<>>)) {
+  static __m128i EmulateVectorSubSignedSatI32(__m128i src1, __m128i src2) {
+    alignas(16) int32_t src1v[4];
+    alignas(16) int32_t src2v[4];
+    alignas(16) int32_t value[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(&src1v), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(&src2v), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      auto t = int64_t(src1v[i]) + int64_t(src2v[i]);
+      value[i] = t < INT_MIN ? INT_MIN : (t > INT_MAX ? INT_MAX : int32_t(t));
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(&value));
+  }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryXmmOp(e, i,
         [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1, const Xmm& src2) {
@@ -2908,7 +2920,11 @@ EMITTER(VECTOR_SUB, MATCH(I<OPCODE_VECTOR_SUB, V128<>, V128<>, V128<>>)) {
               if (is_unsigned) {
                 assert_always();
               } else {
-                assert_always();
+                e.lea(e.r8, e.StashXmm(i.src1));
+                e.lea(e.r9, e.StashXmm(i.src2));
+                e.CallNativeSafe(
+                    reinterpret_cast<void*>(EmulateVectorSubSignedSatI32));
+                e.vmovaps(i.dest, e.xmm0);
               }
             } else {
               e.vpsubd(dest, src1, src2);
