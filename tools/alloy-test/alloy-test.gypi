@@ -23,6 +23,8 @@
         'alloy-test.cc',
         'test_add.cc',
         'test_vector_add.cc',
+        'test_vector_max.cc',
+        'test_vector_min.cc',
         'util.h',
       ],
     },
