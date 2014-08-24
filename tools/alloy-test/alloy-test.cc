@@ -28,9 +28,12 @@ int main(std::vector<std::wstring>& args) {
   }
   int ret = Catch::Session().run(int(args.size()), narrow_argv);
   if (ret) {
+#if XE_LIKE_WIN32
+    // Visual Studio kills the console on shutdown, so prevent that.
     if (poly::debugging::IsDebuggerAttached()) {
       poly::debugging::Break();
     }
+#endif  // XE_LIKE_WIN32
   }
   return ret;
 }
