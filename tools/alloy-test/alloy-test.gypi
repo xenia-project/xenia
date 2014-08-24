@@ -13,7 +13,6 @@
 
       'dependencies': [
         'alloy',
-        'xenia',
       ],
 
       'include_dirs': [
