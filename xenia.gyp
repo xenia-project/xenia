@@ -90,6 +90,7 @@
             'AdditionalOptions': [
               #'/TP',    # Compile as C++
               '/EHsc',  # C++ exception handling,
+              '/MP',
             ],
           },
           'VCLinkerTool': {
