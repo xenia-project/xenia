@@ -22,6 +22,9 @@
 
 #include <third_party/catch/single_include/catch.hpp>
 
+#define ALLOY_TEST_IVM 1
+//#define ALLOY_TEST_X64 1
+
 namespace alloy {
 namespace test {
 
@@ -82,6 +85,7 @@ class TestFunction {
     memory_size = 16 * 1024 * 1024;
     memory.reset(new SimpleMemory(memory_size));
 
+#if ALLOY_TEST_IVM
     {
       auto runtime = std::make_unique<Runtime>(memory.get());
       auto frontend =
@@ -91,6 +95,8 @@ class TestFunction {
       runtime->Initialize(std::move(frontend), std::move(backend));
       runtimes.emplace_back(std::move(runtime));
     }
+#endif  // ALLOY_TEST_IVM
+#ifdef ALLOY_TEST_X64
     {
       auto runtime = std::make_unique<Runtime>(memory.get());
       auto frontend =
@@ -100,6 +106,7 @@ class TestFunction {
       runtime->Initialize(std::move(frontend), std::move(backend));
       runtimes.emplace_back(std::move(runtime));
     }
+#endif  // ALLOY_TEST_X64
 
     for (auto& runtime : runtimes) {
       auto module = std::make_unique<alloy::runtime::TestModule>(

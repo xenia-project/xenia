@@ -9,6 +9,8 @@
 
 #include <tools/alloy-test/util.h>
 
+#include <cfloat>
+
 using namespace alloy;
 using namespace alloy::hir;
 using namespace alloy::runtime;

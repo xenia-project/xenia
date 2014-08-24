@@ -9,6 +9,8 @@
 
 #include <tools/alloy-test/util.h>
 
+#include <cfloat>
+
 using namespace alloy;
 using namespace alloy::hir;
 using namespace alloy::runtime;
@@ -262,7 +264,7 @@ TEST_CASE("VECTOR_ADD_F32", "[instr]") {
              REQUIRE(result == vec128i(0x7F800000));
            });
   test.Run([](PPCContext* ctx) {
-             ctx->v[4] = vec128f(FLT_MIN);
+             ctx->v[4] = vec128f(-FLT_MIN);
              ctx->v[5] = vec128f(-1.0f);
            },
            [](PPCContext* ctx) {
