@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_TEST_TEST_UTIL_H_
-#define ALLOY_TEST_TEST_UTIL_H_
+#ifndef ALLOY_TEST_UTIL_H_
+#define ALLOY_TEST_UTIL_H_
 
 #include <alloy/alloy.h>
 #include <alloy/backend/ivm/ivm_backend.h>
@@ -27,18 +27,6 @@ namespace test {
 
 using alloy::frontend::ppc::PPCContext;
 using alloy::runtime::Runtime;
-
-int main(std::vector<std::wstring>& args) {
-  std::vector<std::string> narrow_args;
-  auto narrow_argv = new char* [args.size()];
-  for (size_t i = 0; i < args.size(); ++i) {
-    auto narrow_arg = poly::to_string(args[i]);
-    narrow_argv[i] = const_cast<char*>(narrow_arg.data());
-    narrow_args.push_back(std::move(narrow_arg));
-  }
-  int ret = Catch::Session().run(int(args.size()), narrow_argv);
-  return ret;
-}
 
 class ThreadState : public alloy::runtime::ThreadState {
  public:
@@ -159,7 +147,28 @@ class TestFunction {
   std::vector<std::unique_ptr<Runtime>> runtimes;
 };
 
+inline hir::Value* LoadGPR(hir::HIRBuilder& b, int reg) {
+  return b.LoadContext(offsetof(PPCContext, r) + reg * 8, hir::INT64_TYPE);
+}
+inline void StoreGPR(hir::HIRBuilder& b, int reg, hir::Value* value) {
+  b.StoreContext(offsetof(PPCContext, r) + reg * 8, value);
+}
+
+inline hir::Value* LoadFPR(hir::HIRBuilder& b, int reg) {
+  return b.LoadContext(offsetof(PPCContext, f) + reg * 8, hir::FLOAT64_TYPE);
+}
+inline void StoreFPR(hir::HIRBuilder& b, int reg, hir::Value* value) {
+  b.StoreContext(offsetof(PPCContext, f) + reg * 8, value);
+}
+
+inline hir::Value* LoadVR(hir::HIRBuilder& b, int reg) {
+  return b.LoadContext(offsetof(PPCContext, v) + reg * 16, hir::VEC128_TYPE);
+}
+inline void StoreVR(hir::HIRBuilder& b, int reg, hir::Value* value) {
+  b.StoreContext(offsetof(PPCContext, v) + reg * 16, value);
+}
+
 }  // namespace test
 }  // namespace alloy
 
-#endif  // ALLOY_TEST_TEST_UTIL_H_
+#endif  // ALLOY_TEST_UTIL_H_

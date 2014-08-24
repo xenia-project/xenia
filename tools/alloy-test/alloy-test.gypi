@@ -22,7 +22,9 @@
 
       'sources': [
         'alloy-test.cc',
-        'test_util.h',
+        'test_add.cc',
+        'test_vector_add.cc',
+        'util.h',
       ],
     },
   ],

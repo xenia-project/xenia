@@ -58,6 +58,34 @@ static inline vec128_t vec128f(float x, float y, float z, float w) {
   v.f4[3] = w;
   return v;
 }
+static inline vec128_t vec128s(uint16_t src) {
+  vec128_t v;
+  for (auto i = 0; i < 8; ++i) {
+    v.s8[i] = src;
+  }
+  return v;
+}
+static inline vec128_t vec128s(uint16_t x0, uint16_t x1, uint16_t y0,
+                               uint16_t y1, uint16_t z0, uint16_t z1,
+                               uint16_t w0, uint16_t w1) {
+  vec128_t v;
+  v.s8[0] = x0;
+  v.s8[1] = x1;
+  v.s8[2] = y0;
+  v.s8[3] = y1;
+  v.s8[4] = z0;
+  v.s8[5] = z1;
+  v.s8[6] = w0;
+  v.s8[7] = w1;
+  return v;
+}
+static inline vec128_t vec128b(uint8_t src) {
+  vec128_t v;
+  for (auto i = 0; i < 16; ++i) {
+    v.b16[i] = src;
+  }
+  return v;
+}
 static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
                                uint8_t y0, uint8_t y1, uint8_t y2, uint8_t y3,
                                uint8_t z0, uint8_t z1, uint8_t z2, uint8_t z3,

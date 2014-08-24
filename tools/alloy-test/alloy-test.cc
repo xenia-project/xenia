@@ -10,44 +10,32 @@
 #define CATCH_CONFIG_RUNNER
 #include <third_party/catch/single_include/catch.hpp>
 
-#include <tools/alloy-test/test_util.h>
+#include <tools/alloy-test/util.h>
 
-using namespace alloy;
-using namespace alloy::hir;
-using namespace alloy::runtime;
+namespace alloy {
+namespace test {
+
 using alloy::frontend::ppc::PPCContext;
+using alloy::runtime::Runtime;
 
-Value* LoadGPR(hir::HIRBuilder& b, int reg) {
-  return b.LoadContext(offsetof(PPCContext, r) + reg * 8, INT64_TYPE);
+int main(std::vector<std::wstring>& args) {
+  std::vector<std::string> narrow_args;
+  auto narrow_argv = new char* [args.size()];
+  for (size_t i = 0; i < args.size(); ++i) {
+    auto narrow_arg = poly::to_string(args[i]);
+    narrow_argv[i] = const_cast<char*>(narrow_arg.data());
+    narrow_args.push_back(std::move(narrow_arg));
+  }
+  int ret = Catch::Session().run(int(args.size()), narrow_argv);
+  if (ret) {
+    if (poly::debugging::IsDebuggerAttached()) {
+      poly::debugging::Break();
+    }
+  }
+  return ret;
 }
 
-void StoreGPR(hir::HIRBuilder& b, int reg, Value* value) {
-  b.StoreContext(offsetof(PPCContext, r) + reg * 8, value);
-}
-
-TEST_CASE("ADD", "[instr]") {
-  alloy::test::TestFunction test([](hir::HIRBuilder& b) {
-    auto v = b.Add(LoadGPR(b, 4), LoadGPR(b, 5));
-    StoreGPR(b, 3, v);
-    b.Return();
-  });
-
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 10;
-             ctx->r[5] = 25;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 0x23);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 10;
-             ctx->r[5] = 25;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 0x24);
-           });
-}
+}  // namespace test
+}  // namespace alloy
 
 DEFINE_ENTRY_POINT(L"alloy-test", L"?", alloy::test::main);
