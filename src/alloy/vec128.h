@@ -42,12 +42,26 @@ typedef struct alignas(16) vec128_s {
     return low == b.low && high == b.high;
   }
 } vec128_t;
+static inline vec128_t vec128i(uint32_t src) {
+  vec128_t v;
+  for (auto i = 0; i < 4; ++i) {
+    v.i4[i] = src;
+  }
+  return v;
+}
 static inline vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
   vec128_t v;
   v.i4[0] = x;
   v.i4[1] = y;
   v.i4[2] = z;
   v.i4[3] = w;
+  return v;
+}
+static inline vec128_t vec128f(float src) {
+  vec128_t v;
+  for (auto i = 0; i < 4; ++i) {
+    v.f4[i] = src;
+  }
   return v;
 }
 static inline vec128_t vec128f(float x, float y, float z, float w) {

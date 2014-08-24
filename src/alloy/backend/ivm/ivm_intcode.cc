@@ -2630,7 +2630,7 @@ uint32_t Translate_VECTOR_ADD_I32(IntCodeState& ics, const IntCode* i) {
   if (arithmetic_flags & ARITHMETIC_SATURATE) {
     if (arithmetic_flags & ARITHMETIC_UNSIGNED) {
       for (int n = 0; n < 4; n++) {
-        uint64_t v = VECI4(src1, n) + VECI4(src2, n);
+        uint64_t v = (uint64_t)VECI4(src1, n) + (uint64_t)VECI4(src2, n);
         if (v > 0xFFFFFFFF) {
           VECI4(dest, n) = 0xFFFFFFFF;
           ics.did_saturate = 1;
@@ -2640,7 +2640,7 @@ uint32_t Translate_VECTOR_ADD_I32(IntCodeState& ics, const IntCode* i) {
       }
     } else {
       for (int n = 0; n < 4; n++) {
-        int64_t v = (int32_t)VECI4(src1, n) + (int32_t)VECI4(src2, n);
+        int64_t v = (int64_t)(int32_t)VECI4(src1, n) + (int64_t)(int32_t)VECI4(src2, n);
         if (v > 0x7FFFFFFF) {
           VECI4(dest, n) = 0x7FFFFFFF;
           ics.did_saturate = 1;

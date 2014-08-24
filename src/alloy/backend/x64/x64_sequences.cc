@@ -2749,7 +2749,7 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)) {
                 e.vblendvps(e.xmm2, e.xmm0, e.GetXmmConstPtr(XMMSignMaskPS), e.xmm2);
                 e.vpor(e.xmm1, src1, src2);  // sign_or
                 e.vpandn(e.xmm1, e.xmm0);  // max_sat_mask
-                e.vblendvps(e.xmm2, e.GetXmmConstPtr(XMMAbsMaskPS), e.xmm1);
+                e.vblendvps(dest, e.GetXmmConstPtr(XMMAbsMaskPS), e.xmm1);
               }
             } else {
               e.vpaddd(dest, src1, src2);
