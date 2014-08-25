@@ -2735,10 +2735,23 @@ int Translate_SUB(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
+uint32_t Translate_VECTOR_SUB_F32(IntCodeState& ics, const IntCode* i) {
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;
+  vec128_t& dest = ics.rf[i->dest_reg].v128;
+  for (int n = 0; n < 4; n++) {
+    dest.f4[n] = src1.f4[n] - src2.f4[n];
+  }
+  return IA_NEXT;
+}
 int Translate_VECTOR_SUB(TranslationContext& ctx, Instr* i) {
-  // TODO(benvanik): VECTOR_SUB in IVM.
-  assert_always();
-  return 1;
+  TypeName part_type = (TypeName)(i->flags & 0xFF);
+  static IntCodeFn fns[] = {
+      IntCode_INVALID_TYPE, IntCode_INVALID_TYPE,     IntCode_INVALID_TYPE,
+      IntCode_INVALID_TYPE, Translate_VECTOR_SUB_F32, IntCode_INVALID_TYPE,
+      IntCode_INVALID_TYPE,
+  };
+  return DispatchToC(ctx, i, fns[part_type]);
 }
 
 uint32_t IntCode_MUL_I8_I8(IntCodeState& ics, const IntCode* i) {
