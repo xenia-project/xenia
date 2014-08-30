@@ -12,6 +12,7 @@
 
 #include <xmmintrin.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
@@ -36,6 +37,10 @@ T align(T value, T alignment) {
 template <typename T, typename V>
 T round_up(T value, V multiple) {
   return value + multiple - 1 - (value - 1) % multiple;
+}
+
+inline float saturate(float value) {
+  return std::max(std::min(1.0f, value), -1.0f);
 }
 
 // Gets the next power of two value that is greater than or equal to the given

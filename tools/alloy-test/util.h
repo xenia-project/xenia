@@ -23,7 +23,7 @@
 #include <third_party/catch/single_include/catch.hpp>
 
 #define ALLOY_TEST_IVM 1
-//#define ALLOY_TEST_X64 1
+#define ALLOY_TEST_X64 1
 
 namespace alloy {
 namespace test {

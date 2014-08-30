@@ -582,7 +582,7 @@ void Value::ByteSwap() {
       break;
     case VEC128_TYPE:
       for (int n = 0; n < 4; n++) {
-        constant.v128.i4[n] = poly::byte_swap(constant.v128.i4[n]);
+        constant.v128.u32[n] = poly::byte_swap(constant.v128.u32[n]);
       }
       break;
     default:

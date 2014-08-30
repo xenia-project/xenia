@@ -56,6 +56,12 @@ enum XmmConst {
   XMMPermuteControl15,
   XMMPackD3DCOLOR,
   XMMUnpackD3DCOLOR,
+  XMMPackFLOAT16_2,
+  XMMUnpackFLOAT16_2,
+  XMMPackFLOAT16_4,
+  XMMUnpackFLOAT16_4,
+  XMMPackSHORT_2,
+  XMMUnpackSHORT_2,
   XMMOneOver255,
   XMMMaskEvenPI16,
   XMMShiftMaskEvenPI16,
@@ -68,6 +74,8 @@ enum XmmConst {
   XMMSignMaskI16,
   XMMSignMaskI32,
   XMMSignMaskF32,
+  XMMShortMinPS,
+  XMMShortMaxPS,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
@@ -158,8 +166,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void LoadConstantXmm(Xbyak::Xmm dest, float v);
   void LoadConstantXmm(Xbyak::Xmm dest, double v);
   void LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v);
-  Xbyak::Address StashXmm(const Xbyak::Xmm& r);
-  Xbyak::Address StashXmm(const vec128_t& v);
+  Xbyak::Address StashXmm(int index, const Xbyak::Xmm& r);
 
   size_t stack_size() const { return stack_size_; }
 

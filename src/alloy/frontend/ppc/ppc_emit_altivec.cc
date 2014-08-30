@@ -28,6 +28,7 @@ Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
 // Most of this file comes from:
 // http://biallas.net/doc/vmx128/vmx128.txt
 // https://github.com/kakaroto/ps3ida/blob/master/plugins/PPCAltivec/src/main.cpp
+// http://sannybuilder.com/forums/viewtopic.php?id=190
 
 #define OP(x) ((((uint32_t)(x)) & 0x3f) << 26)
 #define VX128(op, xop) (OP(op) | (((uint32_t)(xop)) & 0x3d0))
@@ -154,7 +155,7 @@ XEEMITTER(lvxl128, VX128_1(4, 707), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(stvebx, 0x7C00010E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  Value* el = f.And(ea, f.LoadConstant(0xFull));
+  Value* el = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant(uint8_t(0xF)));
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT8_TYPE);
   f.Store(ea, v);
   return 0;
@@ -163,7 +164,8 @@ XEEMITTER(stvebx, 0x7C00010E, X)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(stvehx, 0x7C00014E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   ea = f.And(ea, f.LoadConstant(~0x1ull));
-  Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 1);
+  Value* el =
+      f.Shr(f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant(uint8_t(0xF))), 1);
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT16_TYPE);
   f.Store(ea, f.ByteSwap(v));
   return 0;
@@ -173,7 +175,8 @@ int InstrEmit_stvewx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                       uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
   ea = f.And(ea, f.LoadConstant(~0x3ull));
-  Value* el = f.Shr(f.And(ea, f.LoadConstant(0xFull)), 2);
+  Value* el =
+      f.Shr(f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant(uint8_t(0xF))), 2);
   Value* v = f.Extract(f.LoadVR(vd), el, INT32_TYPE);
   f.Store(ea, f.ByteSwap(v));
   return 0;
@@ -239,8 +242,8 @@ int InstrEmit_lvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
   ea = f.And(ea, f.LoadConstant(~0xFull));
   // v = (new >> (16 - eb))
   Value* v = f.Permute(f.LoadVectorShr(f.Sub(f.LoadConstant((int8_t)16), eb)),
-                       f.LoadZero(VEC128_TYPE),
-                       f.ByteSwap(f.Load(ea, VEC128_TYPE)), INT8_TYPE);
+                       f.ByteSwap(f.Load(ea, VEC128_TYPE)),
+                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -935,8 +938,8 @@ int InstrEmit_vmrghw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.y) = (VB.x)
   // (VD.z) = (VA.y)
   // (VD.w) = (VB.y)
-  Value* v = f.Permute(f.LoadConstant(0x00040105), f.LoadVR(va), f.LoadVR(vb),
-                       INT32_TYPE);
+  Value* v = f.Permute(f.LoadConstant(PERMUTE_MASK(0, 0, 1, 0, 0, 1, 1, 1)),
+                       f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -962,8 +965,8 @@ int InstrEmit_vmrglw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.y) = (VB.z)
   // (VD.z) = (VA.w)
   // (VD.w) = (VB.w)
-  Value* v = f.Permute(f.LoadConstant(0x02060307), f.LoadVR(va), f.LoadVR(vb),
-                       INT32_TYPE);
+  Value* v = f.Permute(f.LoadConstant(PERMUTE_MASK(0, 2, 1, 2, 0, 3, 1, 3)),
+                       f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1140,7 +1143,8 @@ XEEMITTER(vpermwi128, VX128_P(6, 528), VX128_P)(PPCHIRBuilder& f,
   const uint32_t vd = i.VX128_P.VD128l | (i.VX128_P.VD128h << 5);
   const uint32_t vb = i.VX128_P.VB128l | (i.VX128_P.VB128h << 5);
   uint32_t uimm = i.VX128_P.PERMl | (i.VX128_P.PERMh << 5);
-  Value* v = f.Swizzle(f.LoadVR(vb), INT32_TYPE, uimm);
+  uint32_t mask = SWIZZLE_MASK(uimm >> 6, uimm >> 4, uimm >> 2, uimm >> 0);
+  Value* v = f.Swizzle(f.LoadVR(vb), INT32_TYPE, mask);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1213,14 +1217,16 @@ XEEMITTER(vrfiz128, VX128_3(6, 1008), VX128_3)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(vrlb, 0x10000004, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- ROTL((VA), (VB)&0x3)
-  Value* v = f.VectorRotateLeft(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  Value* v =
+      f.VectorRotateLeft(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
 
 XEEMITTER(vrlh, 0x10000044, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD) <- ROTL((VA), (VB)&0xF)
-  Value* v = f.VectorRotateLeft(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  Value* v =
+      f.VectorRotateLeft(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1244,10 +1250,10 @@ XEEMITTER(vrlimi128, VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f,
   const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
   uint32_t blend_mask_src = i.VX128_4.IMM;
   uint32_t blend_mask = 0;
-  for (int n = 3; n >= 0; n--) {
-    blend_mask |= ((blend_mask_src & 0x1) ? n : (4 + n)) << ((3 - n) * 8);
-    blend_mask_src >>= 1;
-  }
+  blend_mask |= (((blend_mask_src >> 3) & 0x1) ? 0 : 4) << 0;
+  blend_mask |= (((blend_mask_src >> 2) & 0x1) ? 1 : 5) << 8;
+  blend_mask |= (((blend_mask_src >> 1) & 0x1) ? 2 : 6) << 16;
+  blend_mask |= (((blend_mask_src >> 0) & 0x1) ? 3 : 7) << 24;
   uint32_t rotate = i.VX128_4.z;
   // This is just a fancy permute.
   // X Y Z W, rotated left by 2 = Z W X Y
@@ -1278,7 +1284,7 @@ XEEMITTER(vrlimi128, VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f,
   } else {
     v = f.LoadVR(vb);
   }
-  if (blend_mask != 0x00010203) {
+  if (blend_mask != PERMUTE_IDENTITY) {
     v = f.Permute(f.LoadConstant(blend_mask), v, f.LoadVR(vd), INT32_TYPE);
   }
   f.StoreVR(vd, v);
@@ -1382,7 +1388,7 @@ int InstrEmit_vsldoi_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
   // (VA << SH) OR (VB >> (16 - SH))
   vec128_t shift = *((vec128_t*)(__vsldoi_table[sh]));
   for (int i = 0; i < 4; ++i) {
-    shift.i4[i] = poly::byte_swap(shift.i4[i]);
+    shift.u32[i] = poly::byte_swap(shift.u32[i]);
   }
   Value* control = f.LoadConstant(shift);
   Value* v = f.Permute(control, f.LoadVR(va), f.LoadVR(vb), INT8_TYPE);
@@ -1410,7 +1416,7 @@ XEEMITTER(vspltb, 0x1000020C, VX)(PPCHIRBuilder& f, InstrData& i) {
   // b <- UIMM*8
   // do i = 0 to 127 by 8
   //  (VD)[i:i+7] <- (VB)[b:b+7]
-  Value* b = f.Extract(f.LoadVR(i.VX.VB), (i.VX.VA & 0xF), INT8_TYPE);
+  Value* b = f.Extract(f.LoadVR(i.VX.VB), i.VX.VA & 0xF, INT8_TYPE);
   Value* v = f.Splat(b, VEC128_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
@@ -1418,7 +1424,7 @@ XEEMITTER(vspltb, 0x1000020C, VX)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(vsplth, 0x1000024C, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD.xyzw) <- (VB.uimm)
-  Value* h = f.Extract(f.LoadVR(i.VX.VB), (i.VX.VA & 0x7), INT16_TYPE);
+  Value* h = f.Extract(f.LoadVR(i.VX.VB), i.VX.VA & 0x7, INT16_TYPE);
   Value* v = f.Splat(h, VEC128_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
@@ -1427,7 +1433,7 @@ XEEMITTER(vsplth, 0x1000024C, VX)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vspltw_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                       uint32_t uimm) {
   // (VD.xyzw) <- (VB.uimm)
-  Value* w = f.Extract(f.LoadVR(vb), (uimm & 0x3), INT32_TYPE);
+  Value* w = f.Extract(f.LoadVR(vb), uimm & 0x3, INT32_TYPE);
   Value* v = f.Splat(w, VEC128_TYPE);
   f.StoreVR(vd, v);
   return 0;
@@ -1856,8 +1862,8 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
   }
   // http://hlssmod.net/he_code/public/pixelwriter.h
   // control = prev:0123 | new:4567
-  uint32_t control = 0x00010203;  // original
-  uint32_t src = xerotl(0x04050607, shift * 8);
+  uint32_t control = PERMUTE_IDENTITY;  // original
+  uint32_t src = xerotl(0x07060504, shift * 8);
   uint32_t mask = 0;
   switch (pack) {
     case 1:  // VPACK_32
@@ -1870,8 +1876,8 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
         mask = 0x0000FFFF << (shift * 8);
       } else {
         // w
-        src = 0x00000007;
-        mask = 0x000000FF;
+        src = 0x07000000;
+        mask = 0xFF000000;
       }
       control = (control & ~mask) | (src & mask);
       break;
@@ -1880,7 +1886,7 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
         mask = 0x0000FFFF << (shift * 8);
       } else {
         // z
-        src = 0x00000006;
+        src = 0x00000004;
         mask = 0x000000FF;
       }
       control = (control & ~mask) | (src & mask);

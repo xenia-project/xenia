@@ -41,6 +41,7 @@ using alloy::runtime::ThreadState;
 static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
 
 static const size_t STASH_OFFSET = 32;
+static const size_t STASH_OFFSET_HIGH = 32 + 16;
 
 // If we are running with tracing on we have to store the EFLAGS in the stack,
 // otherwise our calls out to C to print will clear it before DID_CARRY/etc
@@ -786,8 +787,8 @@ void X64Emitter::MovMem64(const RegExp& addr, uint64_t v) {
 
 Address X64Emitter::GetXmmConstPtr(XmmConst id) {
   static const vec128_t xmm_consts[] = {
-      /* XMMZero                */ vec128f(0.0f, 0.0f, 0.0f, 0.0f),
-      /* XMMOne                 */ vec128f(1.0f, 1.0f, 1.0f, 1.0f),
+      /* XMMZero                */ vec128f(0.0f),
+      /* XMMOne                 */ vec128f(1.0f),
       /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
       /* XMMMaskX16Y16          */ vec128i(0x0000FFFFu, 0xFFFF0000u,
                                            0x00000000u, 0x00000000u),
@@ -808,14 +809,24 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
                                            0xFFFFFFFFu, 0x7FFFFFFFu),
       /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u,
                                            0x08090A0Bu, 0x0C0D0E0Fu),
-      /* XMMPermuteControl15    */ vec128b(15, 15, 15, 15, 15, 15, 15, 15, 15,
-                                           15, 15, 15, 15, 15, 15, 15),
+      /* XMMPermuteControl15    */ vec128b(15),
       /* XMMPackD3DCOLOR        */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
                                            0xFFFFFFFFu, 0x0C000408u),
       /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF0Eu, 0xFFFFFF0Du,
                                            0xFFFFFF0Cu, 0xFFFFFF0Fu),
-      /* XMMOneOver255          */ vec128f(1.0f / 255.0f, 1.0f / 255.0f,
-                                           1.0f / 255.0f, 1.0f / 255.0f),
+      /* XMMPackFLOAT16_2       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
+                                           0xFFFFFFFFu, 0x01000302u),
+      /* XMMUnpackFLOAT16_2     */ vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu,
+                                           0xFFFFFFFFu, 0xFFFFFFFFu),
+      /* XMMPackFLOAT16_4       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
+                                           0x05040706u, 0x01000302u),
+      /* XMMUnpackFLOAT16_4     */ vec128i(0x09080B0Au, 0x0D0C0F0Eu,
+                                           0xFFFFFFFFu, 0xFFFFFFFFu),
+      /* XMMPackSHORT_2         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
+                                           0xFFFFFFFFu, 0x01000504u),
+      /* XMMUnpackSHORT_2       */ vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu,
+                                           0xFFFFFFFFu, 0xFFFFFFFFu),
+      /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
       /* XMMMaskEvenPI16        */ vec128i(0x0000FFFFu, 0x0000FFFFu,
                                            0x0000FFFFu, 0x0000FFFFu),
       /* XMMShiftMaskEvenPI16   */ vec128i(0x0000000Fu, 0x0000000Fu,
@@ -826,8 +837,8 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
                                            0x000000FFu, 0x000000FFu),
       /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u,
                                            0xFFFFFFFFu, 0x00000000u),
-      /* XMM255                 */ vec128f(255.0f, 255.0f, 255.0f, 255.0f),
-      /* XMMPI32                */ vec128i(32, 32, 32, 32),
+      /* XMM255                 */ vec128f(255.0f),
+      /* XMMPI32                */ vec128i(32),
       /* XMMSignMaskI8          */ vec128i(0x80808080u, 0x80808080u,
                                            0x80808080u, 0x80808080u),
       /* XMMSignMaskI16         */ vec128i(0x80008000u, 0x80008000u,
@@ -836,6 +847,8 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
                                            0x80000000u, 0x80000000u),
       /* XMMSignMaskF32         */ vec128i(0x80000000u, 0x80000000u,
                                            0x80000000u, 0x80000000u),
+      /* XMMShortMinPS          */ vec128f(SHRT_MIN),
+      /* XMMShortMaxPS          */ vec128f(SHRT_MAX),
   };
   // TODO(benvanik): cache base pointer somewhere? stack? It'd be nice to
   // prevent this move.
@@ -901,16 +914,9 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
   }
 }
 
-Address X64Emitter::StashXmm(const Xmm& r) {
-  auto addr = ptr[rsp + STASH_OFFSET];
+Address X64Emitter::StashXmm(int index, const Xmm& r) {
+  auto addr = ptr[rsp + STASH_OFFSET + (index * 16)];
   vmovups(addr, r);
-  return addr;
-}
-
-Address X64Emitter::StashXmm(const vec128_t& v) {
-  auto addr = ptr[rsp + STASH_OFFSET];
-  LoadConstantXmm(xmm0, v);
-  vmovups(addr, xmm0);
   return addr;
 }
 
