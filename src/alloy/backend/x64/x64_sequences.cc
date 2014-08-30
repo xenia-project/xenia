@@ -3681,7 +3681,7 @@ EMITTER(POW2_F32, MATCH(I<OPCODE_POW2, F32<>, F32<>>)) {
   static __m128 EmulatePow2(void*, __m128 src) {
     float src_value;
     _mm_store_ss(&src_value, src);
-    float result = std::pow(2.0f, src_value);
+    float result = std::exp2(src_value);
     return _mm_load_ss(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -3695,7 +3695,7 @@ EMITTER(POW2_F64, MATCH(I<OPCODE_POW2, F64<>, F64<>>)) {
   static __m128d EmulatePow2(void*, __m128d src) {
     double src_value;
     _mm_store_sd(&src_value, src);
-    double result = std::pow(2, src_value);
+    double result = std::exp2(src_value);
     return _mm_load_sd(&result);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -3710,7 +3710,7 @@ EMITTER(POW2_V128, MATCH(I<OPCODE_POW2, V128<>, V128<>>)) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
-      values[i] = std::pow(2.0f, values[i]);
+      values[i] = std::exp2(values[i]);
     }
     return _mm_load_ps(values);
   }
