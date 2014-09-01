@@ -138,6 +138,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
       } else {
         result = X_STATUS_INVALID_HANDLE;
       }
+      entry.object = nullptr;
     }
   }
 
