@@ -2296,24 +2296,25 @@ int Translate_DID_SATURATE(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, IntCode_DID_SATURATE);
 }
 
-#define VECTOR_COMPARER(type, value, dest_value, count, op)                  \
-  const vec128_t& src1 = ics.rf[i->src1_reg].v128;                           \
-  const vec128_t& src2 = ics.rf[i->src2_reg].v128;                           \
-  vec128_t& dest = ics.rf[i->dest_reg].v128;                                 \
-  for (int n = 0; n < count; n++) {                                          \
-    dest.dest_value[n] =                                                     \
-        ((type)src1.value[n] op(type) src2.value[n]) ? (type)0xFFFFFFFF : 0; \
-  }                                                                          \
+#define VECTOR_COMPARER(type, value, dest_type, dest_value, count, op) \
+  const vec128_t& src1 = ics.rf[i->src1_reg].v128;                     \
+  const vec128_t& src2 = ics.rf[i->src2_reg].v128;                     \
+  vec128_t& dest = ics.rf[i->dest_reg].v128;                           \
+  for (int n = 0; n < count; n++) {                                    \
+    dest.dest_value[n] = ((type)src1.value[n] op(type) src2.value[n])  \
+                             ? (dest_type)0xFFFFFFFF                   \
+                             : 0;                                      \
+  }                                                                    \
   return IA_NEXT;
 
 uint32_t IntCode_VECTOR_COMPARE_EQ_I8(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint8_t, u8, u8, 16, == )};
+    VECTOR_COMPARER(uint8_t, u8, uint8_t, u8, 16, == )};
 uint32_t IntCode_VECTOR_COMPARE_EQ_I16(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint16_t, u16, u16, 8, == )};
+    VECTOR_COMPARER(uint16_t, u16, uint16_t, u16, 8, == )};
 uint32_t IntCode_VECTOR_COMPARE_EQ_I32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint32_t, u32, u32, 4, == )};
+    VECTOR_COMPARER(uint32_t, u32, uint32_t, u32, 4, == )};
 uint32_t IntCode_VECTOR_COMPARE_EQ_F32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(float, f32, u32, 4, == )};
+    VECTOR_COMPARER(float, f32, uint32_t, u32, 4, == )};
 int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_VECTOR_COMPARE_EQ_I8,  IntCode_VECTOR_COMPARE_EQ_I16,
@@ -2325,13 +2326,13 @@ int Translate_VECTOR_COMPARE_EQ(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_VECTOR_COMPARE_SGT_I8(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(int8_t, i8, i8, 16, > )};
+    VECTOR_COMPARER(int8_t, i8, int8_t, i8, 16, > )};
 uint32_t IntCode_VECTOR_COMPARE_SGT_I16(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(int16_t, i16, i16, 8, > )};
+    VECTOR_COMPARER(int16_t, i16, int16_t, i16, 8, > )};
 uint32_t IntCode_VECTOR_COMPARE_SGT_I32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(int32_t, i32, i32, 4, > )};
+    VECTOR_COMPARER(int32_t, i32, int32_t, i32, 4, > )};
 uint32_t IntCode_VECTOR_COMPARE_SGT_F32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(float, f32, u32, 4, > )};
+    VECTOR_COMPARER(float, f32, uint32_t, u32, 4, > )};
 int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_VECTOR_COMPARE_SGT_I8,  IntCode_VECTOR_COMPARE_SGT_I16,
@@ -2343,13 +2344,13 @@ int Translate_VECTOR_COMPARE_SGT(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_VECTOR_COMPARE_SGE_I8(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(int8_t, i8, i8, 16, >= )};
+    VECTOR_COMPARER(int8_t, i8, int8_t, i8, 16, >= )};
 uint32_t IntCode_VECTOR_COMPARE_SGE_I16(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(int16_t, i16, i16, 8, >= )};
+    VECTOR_COMPARER(int16_t, i16, int16_t, i16, 8, >= )};
 uint32_t IntCode_VECTOR_COMPARE_SGE_I32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(int32_t, i32, i32, 4, >= )};
+    VECTOR_COMPARER(int32_t, i32, int32_t, i32, 4, >= )};
 uint32_t IntCode_VECTOR_COMPARE_SGE_F32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(float, f32, u32, 4, >= )};
+    VECTOR_COMPARER(float, f32, uint32_t, u32, 4, >= )};
 int Translate_VECTOR_COMPARE_SGE(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_VECTOR_COMPARE_SGE_I8,  IntCode_VECTOR_COMPARE_SGE_I16,
@@ -2361,13 +2362,13 @@ int Translate_VECTOR_COMPARE_SGE(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_VECTOR_COMPARE_UGT_I8(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint8_t, u8, u8, 16, > )};
+    VECTOR_COMPARER(uint8_t, u8, uint8_t, u8, 16, > )};
 uint32_t IntCode_VECTOR_COMPARE_UGT_I16(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint16_t, u16, u16, 8, > )};
+    VECTOR_COMPARER(uint16_t, u16, uint16_t, u16, 8, > )};
 uint32_t IntCode_VECTOR_COMPARE_UGT_I32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint32_t, u32, u32, 4, > )};
+    VECTOR_COMPARER(uint32_t, u32, uint32_t, u32, 4, > )};
 uint32_t IntCode_VECTOR_COMPARE_UGT_F32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(float, f32, u32, 4, > )};
+    VECTOR_COMPARER(float, f32, uint32_t, u32, 4, > )};
 int Translate_VECTOR_COMPARE_UGT(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_VECTOR_COMPARE_UGT_I8,  IntCode_VECTOR_COMPARE_UGT_I16,
@@ -2379,13 +2380,13 @@ int Translate_VECTOR_COMPARE_UGT(TranslationContext& ctx, Instr* i) {
 }
 
 uint32_t IntCode_VECTOR_COMPARE_UGE_I8(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint8_t, u8, u8, 16, >= )};
+    VECTOR_COMPARER(uint8_t, u8, uint8_t, u8, 16, >= )};
 uint32_t IntCode_VECTOR_COMPARE_UGE_I16(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint16_t, u16, u16, 8, >= )};
+    VECTOR_COMPARER(uint16_t, u16, uint16_t, u16, 8, >= )};
 uint32_t IntCode_VECTOR_COMPARE_UGE_I32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(uint32_t, u32, u32, 4, >= )};
+    VECTOR_COMPARER(uint32_t, u32, uint32_t, u32, 4, >= )};
 uint32_t IntCode_VECTOR_COMPARE_UGE_F32(IntCodeState& ics, const IntCode* i){
-    VECTOR_COMPARER(float, f32, u32, 4, >= )};
+    VECTOR_COMPARER(float, f32, uint32_t, u32, 4, >= )};
 int Translate_VECTOR_COMPARE_UGE(TranslationContext& ctx, Instr* i) {
   static IntCodeFn fns[] = {
       IntCode_VECTOR_COMPARE_UGE_I8,  IntCode_VECTOR_COMPARE_UGE_I16,
