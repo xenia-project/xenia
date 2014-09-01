@@ -554,12 +554,23 @@ XEEMITTER(vcfpuxws128, VX128_3(6, 624), VX128_3)(PPCHIRBuilder& f,
   return InstrEmit_vctuxs_(f, VX128_3_VD128, VX128_3_VB128, VX128_3_IMM);
 }
 
-// vcmpbfp128      VT, VA, VB      VT.u0 = ((VA.x < VB.x) << 31)| ((VA.x > -VB.x) << 30); ...; VT.u0 = ((VA.x > VB.x) << 31)| ((VA.x < -VB.x) << 30);
-// vcmpbfp128.     VT, VA, VB      VT.u0 = ((VA.x < VB.x) << 31)| ((VA.x > -VB.x) << 30); ...; VT.u0 = ((VA.x > VB.x) << 31)| ((VA.x < -VB.x) << 30); CR0:4 = 0; CR0:5 = VT == 0; CR0:6 = CR0:7 = 0;
 int InstrEmit_vcmpbfp_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t va,
                        uint32_t vb, uint32_t rc) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* va_value = f.LoadVR(va);
+  Value* vb_value = f.LoadVR(vb);
+  Value* gt = f.VectorCompareSGT(va_value, vb_value, FLOAT32_TYPE);
+  Value* lt =
+      f.Not(f.VectorCompareSGE(va_value, f.Neg(vb_value), FLOAT32_TYPE));
+  Value* v = f.Or(f.And(gt, f.LoadConstant(vec128i(0x80000000, 0x80000000,
+                                                   0x80000000, 0x80000000))),
+                  f.And(lt, f.LoadConstant(vec128i(0x40000000, 0x40000000,
+                                                   0x40000000, 0x40000000))));
+  f.StoreVR(vd, v);
+  if (rc) {
+    // CR0:4 = 0; CR0:5 = VT == 0; CR0:6 = CR0:7 = 0;
+    assert_always();
+  }
+  return 0;
 }
 XEEMITTER(vcmpbfp, 0x100003C6, VXR)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vcmpbfp_(f, i, i.VXR.VD, i.VXR.VA, i.VXR.VB, i.VXR.Rc);
