@@ -489,7 +489,7 @@ XEEMITTER(vavguw, 0x10000482, VX)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vcfsx_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                      uint32_t uimm) {
   // (VD) <- float(VB as signed) / 2^uimm
-  float fuimm = std::exp2(uimm);
+  float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v = f.Div(f.VectorConvertI2F(f.LoadVR(vb)),
                    f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
   f.StoreVR(vd, v);
@@ -506,7 +506,7 @@ XEEMITTER(vcsxwfp128, VX128_3(6, 688), VX128_3)(PPCHIRBuilder& f,
 int InstrEmit_vcfux_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                      uint32_t uimm) {
   // (VD) <- float(VB as unsigned) / 2^uimm
-  float fuimm = std::exp2(uimm);
+  float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v = f.Div(f.VectorConvertI2F(f.LoadVR(vb), ARITHMETIC_UNSIGNED),
                    f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
   f.StoreVR(vd, v);
@@ -523,7 +523,7 @@ XEEMITTER(vcuxwfp128, VX128_3(6, 752), VX128_3)(PPCHIRBuilder& f,
 int InstrEmit_vctsxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                       uint32_t uimm) {
   // (VD) <- int_sat(VB as signed * 2^uimm)
-  float fuimm = std::exp2(uimm);
+  float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v = f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
   v = f.VectorConvertF2I(v, ARITHMETIC_SATURATE);
   f.StoreVR(vd, v);
@@ -540,7 +540,7 @@ XEEMITTER(vcfpsxws128, VX128_3(6, 560), VX128_3)(PPCHIRBuilder& f,
 int InstrEmit_vctuxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                       uint32_t uimm) {
   // (VD) <- int_sat(VB as unsigned * 2^uimm)
-  float fuimm = std::exp2(uimm);
+  float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v = f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
   v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
   f.StoreVR(vd, v);
