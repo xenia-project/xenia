@@ -5089,7 +5089,12 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // ARGB (WXYZ) -> RGBA (XYZW)
     // XMLoadColor
     if (i.src1.is_constant) {
-      assert_always();
+      if (i.src1.value->IsConstantZero()) {
+        e.vmovaps(i.dest, e.GetXmmConstPtr(XMMOne));
+        return;
+      } else {
+        assert_always();
+      }
     }
     // src = ZZYYXXWW
     // Unpack to 000000ZZ,000000YY,000000XX,000000WW
