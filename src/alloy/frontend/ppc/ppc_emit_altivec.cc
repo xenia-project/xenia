@@ -924,13 +924,24 @@ XEEMITTER(vmladduhm, 0x10000022, VXA)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vmrghb, 0x1000000C, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD.b[i]) = (VA.b[i])
+  // (VD.b[i+1]) = (VB.b[i+1])
+  // ...
+  Value* v = f.Permute(f.LoadConstant(vec128b(0, 16, 1, 17, 2, 18, 3, 19, 4, 20,
+                                              5, 21, 6, 22, 7, 23)),
+                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmrghh, 0x1000004C, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD.w[i]) = (VA.w[i])
+  // (VD.w[i+1]) = (VB.w[i+1])
+  // ...
+  Value* v = f.Permute(f.LoadConstant(vec128s(0, 8, 1, 9, 2, 10, 3, 11)),
+                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 int InstrEmit_vmrghw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
@@ -951,13 +962,24 @@ XEEMITTER(vmrghw128, VX128(6, 768), VX128)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vmrglb, 0x1000010C, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD.b[i]) = (VA.b[i])
+  // (VD.b[i+1]) = (VB.b[i+1])
+  // ...
+  Value* v = f.Permute(f.LoadConstant(vec128b(8, 24, 9, 25, 10, 26, 11, 27, 12,
+                                              28, 13, 29, 14, 30, 15, 31)),
+                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vmrglh, 0x1000014C, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // (VD.w[i]) = (VA.w[i])
+  // (VD.w[i+1]) = (VB.w[i+1])
+  // ...
+  Value* v = f.Permute(f.LoadConstant(vec128s(4, 12, 5, 13, 6, 14, 7, 15)),
+                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 int InstrEmit_vmrglw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
@@ -1357,23 +1379,23 @@ XEEMITTER(vslw128, VX128(6, 208), VX128)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vslw_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
-static uint8_t __vsldoi_table[16][16] = {
-    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
-    {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-    {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
-    {3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18},
-    {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
-    {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
-    {6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
-    {7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22},
-    {8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23},
-    {9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24},
-    {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25},
-    {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26},
-    {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27},
-    {13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28},
-    {14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
-    {15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
+static const vec128_t __vsldoi_table[16] = {
+    vec128b(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+    vec128b(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+    vec128b(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17),
+    vec128b(3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18),
+    vec128b(4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+    vec128b(5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
+    vec128b(6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
+    vec128b(7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22),
+    vec128b(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23),
+    vec128b(9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24),
+    vec128b(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25),
+    vec128b(11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26),
+    vec128b(12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27),
+    vec128b(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28),
+    vec128b(14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29),
+    vec128b(15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30),
 };
 int InstrEmit_vsldoi_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
                       uint32_t sh) {
@@ -1389,11 +1411,7 @@ int InstrEmit_vsldoi_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
   // vsldoi128 vr63,vr63,vr63,4
   // (ABCD ABCD) << 4b = (BCDA)
   // (VA << SH) OR (VB >> (16 - SH))
-  vec128_t shift = *((vec128_t*)(__vsldoi_table[sh]));
-  for (int i = 0; i < 4; ++i) {
-    shift.u32[i] = poly::byte_swap(shift.u32[i]);
-  }
-  Value* control = f.LoadConstant(shift);
+  Value* control = f.LoadConstant(__vsldoi_table[sh]);
   Value* v = f.Permute(control, f.LoadVR(va), f.LoadVR(vb), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
@@ -1406,13 +1424,21 @@ XEEMITTER(vsldoi128, VX128_5(4, 16), VX128_5)(PPCHIRBuilder& f, InstrData& i) {
                            VX128_5_SH);
 }
 
+int InstrEmit_vslo_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // (VD) <- (VA) << (VB.b[F] & 0x78) (by octet)
+  // TODO(benvanik): flag for shift-by-octet as optimization.
+  Value* sh =
+      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstant(int8_t(0x78)));
+  Value* v = f.Permute(f.LoadVectorShl(sh), f.LoadVR(va),
+                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vslo, 0x1000040C, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vslo_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vslo128, VX128(5, 912), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vslo_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vspltb, 0x1000020C, VX)(PPCHIRBuilder& f, InstrData& i) {
@@ -1551,7 +1577,14 @@ XEEMITTER(vsrh, 0x10000244, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 int InstrEmit_vsro_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
-  return 1;
+  // (VD) <- (VA) >> (VB.b[F] & 0x78) (by octet)
+  // TODO(benvanik): flag for shift-by-octet as optimization.
+  Value* sh =
+      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstant(0x78));
+  Value* v = f.Permute(f.LoadVectorShr(sh), f.LoadVR(va),
+                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
+  f.StoreVR(vd, v);
+  return 0;
 }
 XEEMITTER(vsro, 0x1000044C, VX)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vsro_(f, i.VX.VD, i.VX.VA, i.VX.VB);
