@@ -1182,7 +1182,7 @@ Value* HIRBuilder::VectorMin(Value* value1, Value* value2, TypeName part_type,
 }
 
 Value* HIRBuilder::Select(Value* cond, Value* value1, Value* value2) {
-  assert_true(cond->type == INT8_TYPE);  // for now
+  assert_true(cond->type == INT8_TYPE || cond->type == VEC128_TYPE);  // for now
   ASSERT_TYPES_EQUAL(value1, value2);
 
   if (cond->IsConstant()) {

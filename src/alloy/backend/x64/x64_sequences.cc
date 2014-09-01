@@ -1913,7 +1913,7 @@ EMITTER(SELECT_F64, MATCH(I<OPCODE_SELECT, F64<>, I8<>, F64<>, F64<>>)) {
     e.vpor(i.dest, e.xmm1);
   }
 };
-EMITTER(SELECT_V128, MATCH(I<OPCODE_SELECT, V128<>, I8<>, V128<>, V128<>>)) {
+EMITTER(SELECT_V128_I8, MATCH(I<OPCODE_SELECT, V128<>, I8<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): find a shorter sequence.
     // xmm0 = src1 != 0 ? 1111... : 0000....
@@ -1927,6 +1927,30 @@ EMITTER(SELECT_V128, MATCH(I<OPCODE_SELECT, V128<>, I8<>, V128<>, V128<>>)) {
     e.vpor(i.dest, e.xmm1);
   }
 };
+EMITTER(SELECT_V128_V128, MATCH(I<OPCODE_SELECT, V128<>, V128<>, V128<>, V128<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // TODO(benvanik): could be made shorter when consts involved.
+    if (i.src2.is_constant) {
+      if (i.src2.value->IsConstantZero()) {
+        e.vpxor(e.xmm1, e.xmm1);
+      } else {
+        assert_always();
+      }
+    } else {
+      e.vpandn(e.xmm1, i.src1, i.src2);
+    }
+    if (i.src3.is_constant) {
+      if (i.src3.value->IsConstantZero()) {
+        e.vpxor(i.dest, i.dest);
+      } else {
+        assert_always();
+      }
+    } else {
+      e.vpand(i.dest, i.src1, i.src3);
+    }
+    e.vpor(i.dest, e.xmm1);
+  }
+};
 EMITTER_OPCODE_TABLE(
     OPCODE_SELECT,
     SELECT_I8,
@@ -1935,7 +1959,8 @@ EMITTER_OPCODE_TABLE(
     SELECT_I64,
     SELECT_F32,
     SELECT_F64,
-    SELECT_V128);
+    SELECT_V128_I8,
+    SELECT_V128_V128);
 
 
 // ============================================================================
