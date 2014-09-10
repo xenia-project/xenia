@@ -35,7 +35,7 @@ cd binutils-$SNAPSHOT_VERSION/
 
 echo ""
 echo "Patching binutils with vmx128 support..."
-patch -p0 < ../binutils-$SNAPSHOT_VERSION-vmx128.patch
+patch -p0 < $THIS_SCRIPT_DIR/binutils-$SNAPSHOT_VERSION-vmx128.patch
 
 echo ""
 echo "Running ./configure..."
