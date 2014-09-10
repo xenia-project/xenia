@@ -75,5 +75,12 @@ build-test/
 # ==============================================================================
 # Local-only paths
 # ==============================================================================
+
+.vagrant
 attic/
+third_party/binutils/binutils-2.24.tar.gz
+third_party/binutils/bin/
+third_party/binutils/powerpc-none-elf/
+third_party/binutils/share/
+third_party/binutils/binutils*
 third_party/vasm/

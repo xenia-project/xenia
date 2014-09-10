@@ -282,8 +282,17 @@ class SetupCommand(Command):
       shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
       print('')
 
+    # binutils (with vmx128).
+    print('- Building binutils...')
+    if sys.platform == 'win32':
+      # TODO(benvanik): cygwin or vagrant
+      print('WARNING: binutils build not supported yet')
+    else:
+      shell_call('third_party/binutils/build.sh')
+    print('')
+
     # wxWidgets.
-    print('- wxWidgets...')
+    print('- Building wxWidgets (will take awhile)...')
     os.chdir('third_party/wxWidgets')
     if sys.platform == 'win32':
       shutil.copyfile('include/wx/msw/setup0.h', 'include/wx/msw/setup.h')
@@ -296,34 +305,8 @@ class SetupCommand(Command):
           '/p:Platform=x64',
           ]))
     else:
-      print('WARNING: wxWidgets build not supported yet');
+      print('WARNING: wxWidgets build not supported yet')
     os.chdir(cwd)
-    print('')
-
-    # Binutils.
-    # TODO(benvanik): disable on Windows
-    print('- binutils...')
-    if True:
-      print('binutils disabled')
-    elif sys.platform == 'win32':
-      print('WARNING: ignoring binutils on Windows... don\'t change tests!')
-    else:
-      if not os.path.exists('build/binutils'):
-        os.makedirs('build/binutils')
-      os.chdir('build/binutils')
-      shell_call(' '.join([
-          '../../third_party/binutils/configure',
-          '--disable-debug',
-          '--disable-dependency-tracking',
-          '--disable-werror',
-          '--enable-interwork',
-          '--enable-multilib',
-          '--target=powerpc-none-elf',
-          '--with-gnu-ld',
-          '--with-gnu-as',
-          ]))
-      shell_call('make')
-      os.chdir(cwd)
     print('')
 
     post_update_deps('debug')
@@ -435,6 +418,10 @@ class BuildCommand(Command):
     # --force
     debug = '--debug' in args
     config = 'Debug' if debug else 'Release'
+    target = ''
+    for arg in args:
+      if not arg.startswith('--'):
+        target = arg
 
     print('Building %s...' % (config))
     print('')
@@ -443,9 +430,14 @@ class BuildCommand(Command):
     run_gyp('ninja')
     print('')
 
-    print('- building xenia in %s...' % (config))
-    result = shell_call('ninja -C build/xenia/%s' % (config),
-                        throw_on_error=False)
+    if not target:
+      print('- building all:%s...' % (config))
+      result = shell_call('ninja -C build/xenia/%s' % (config),
+                          throw_on_error=False)
+    else:
+      print('- building %s:%s...' % (target, config))
+      result = shell_call('ninja -C build/xenia/%s %s' % (config, target),
+                          throw_on_error=False)
     print('')
     if result != 0:
       return result
