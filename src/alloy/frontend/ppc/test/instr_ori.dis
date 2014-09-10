@@ -4,6 +4,6 @@ instr_ori.o:     file format elf64-powerpc
 
 Disassembly of section .text:
 
-0000000000100000 <.text>:
+0000000000100000 <test_ori>:
   100000:	60 83 fe dc 	ori     r3,r4,65244
   100004:	4e 80 00 20 	blr

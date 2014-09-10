@@ -82,30 +82,133 @@ class ThreadState : public alloy::runtime::ThreadState {
   PPCContext* context_;
 };
 
-bool ReadAnnotations(std::wstring& src_file_path, AnnotationList& annotations) {
-  // TODO(benvanik): use PAL instead of this
-  FILE* f = fopen(poly::to_string(src_file_path).c_str(), "r");
-  char line_buffer[BUFSIZ];
-  while (fgets(line_buffer, sizeof(line_buffer), f)) {
-    if (strlen(line_buffer) > 3 && line_buffer[0] == '#' &&
-        line_buffer[1] == ' ') {
-      // Comment - check if formed like an annotation.
-      // We don't actually verify anything here.
-      char* next_space = strchr(line_buffer + 3, ' ');
-      if (next_space) {
-        // Looks legit.
-        std::string key(line_buffer + 2, next_space);
-        std::string value(next_space + 1);
-        while (value.find_last_of(" \t\n") == value.size() - 1) {
-          value.erase(value.end() - 1);
-        }
-        annotations.emplace_back(key, value);
+struct TestCase {
+  TestCase(uint64_t address, std::string& name)
+      : address(address), name(name) {}
+  uint64_t address;
+  std::string name;
+  AnnotationList annotations;
+};
+
+class TestSuite {
+ public:
+  TestSuite(const std::wstring& src_file_path) : src_file_path(src_file_path) {
+    name = src_file_path.substr(
+        src_file_path.find_last_of(poly::path_separator) + 1);
+    name.replace(name.end() - 2, name.end(), L"");
+    map_file_path = src_file_path;
+    map_file_path.replace(map_file_path.end() - 2, map_file_path.end(),
+                          L".map");
+    bin_file_path = src_file_path;
+    bin_file_path.replace(bin_file_path.end() - 2, bin_file_path.end(),
+                          L".bin");
+  }
+
+  bool Load() {
+    if (!ReadMap(map_file_path)) {
+      PLOGE("Unable to read map for test %ls", src_file_path.c_str());
+      return false;
+    }
+    if (!ReadAnnotations(src_file_path)) {
+      PLOGE("Unable to read annotations for test %ls", src_file_path.c_str());
+      return false;
+    }
+    return true;
+  }
+
+  std::wstring name;
+  std::wstring src_file_path;
+  std::wstring map_file_path;
+  std::wstring bin_file_path;
+  std::vector<TestCase> test_cases;
+
+ private:
+  TestCase* FindTestCase(const std::string& name) {
+    for (auto& test_case : test_cases) {
+      if (test_case.name == name) {
+        return &test_case;
       }
     }
+    return nullptr;
   }
-  fclose(f);
-  return true;
-}
+
+  bool ReadMap(const std::wstring& map_file_path) {
+    FILE* f = fopen(poly::to_string(map_file_path).c_str(), "r");
+    if (!f) {
+      return false;
+    }
+    char line_buffer[BUFSIZ];
+    while (fgets(line_buffer, sizeof(line_buffer), f)) {
+      if (!strlen(line_buffer)) {
+        continue;
+      }
+      // 0000000000000000 t test_add1\n
+      char* newline = strrchr(line_buffer, '\n');
+      if (newline) {
+        *newline = 0;
+      }
+      char* t_test_ = strstr(line_buffer, " t test_");
+      if (!t_test_) {
+        continue;
+      }
+      std::string address(line_buffer, t_test_ - line_buffer);
+      std::string name(t_test_ + strlen(" t test_"));
+      test_cases.emplace_back(START_ADDRESS + std::stoull(address, 0, 16),
+                              name);
+    }
+    fclose(f);
+    return true;
+  }
+
+  bool ReadAnnotations(const std::wstring& src_file_path) {
+    TestCase* current_test_case = nullptr;
+    FILE* f = fopen(poly::to_string(src_file_path).c_str(), "r");
+    if (!f) {
+      return false;
+    }
+    char line_buffer[BUFSIZ];
+    while (fgets(line_buffer, sizeof(line_buffer), f)) {
+      if (!strlen(line_buffer)) {
+        continue;
+      }
+      // Eat leading whitespace.
+      char* start = line_buffer;
+      while (*start == ' ') {
+        ++start;
+      }
+      if (strncmp(start, "test_", strlen("test_")) == 0) {
+        // Global test label.
+        std::string label(start + strlen("test_"), strchr(start, ':'));
+        current_test_case = FindTestCase(label);
+        if (!current_test_case) {
+          PLOGE("Test case %s not found in corresponding map for %ls",
+                label.c_str(), src_file_path.c_str());
+          return false;
+        }
+      } else if (strlen(start) > 3 && start[0] == '#' && start[1] == '_') {
+        // Annotation.
+        // We don't actually verify anything here.
+        char* next_space = strchr(start + 3, ' ');
+        if (next_space) {
+          // Looks legit.
+          std::string key(start + 3, next_space);
+          std::string value(next_space + 1);
+          while (value.find_last_of(" \t\n") == value.size() - 1) {
+            value.erase(value.end() - 1);
+          }
+          if (!current_test_case) {
+            PLOGE("Annotation outside of test case in %ls",
+                  src_file_path.c_str());
+            return false;
+          }
+          current_test_case->annotations.emplace_back(key, value);
+        }
+      }
+    }
+    fclose(f);
+    return true;
+  }
+};
 
 class TestRunner {
  public:
@@ -125,23 +228,11 @@ class TestRunner {
     memory.reset();
   }
 
-  bool Setup(std::wstring& src_file_path) {
-    // test.s -> test.bin
-    std::wstring bin_file_path;
-    size_t dot = src_file_path.find_last_of(L".s");
-    bin_file_path = src_file_path;
-    bin_file_path.replace(dot - 1, 2, L".bin");
-
-    // Read annotations so we can setup state/etc.
-    if (!ReadAnnotations(src_file_path, annotations)) {
-      PLOGE("Unable to read annotations for test %ls", src_file_path.c_str());
-      return false;
-    }
-
+  bool Setup(TestSuite& suite) {
     // Load the binary module.
     auto module = std::make_unique<alloy::runtime::RawModule>(runtime.get());
-    if (module->LoadFile(START_ADDRESS, bin_file_path)) {
-      PLOGE("Unable to load test binary %ls", bin_file_path.c_str());
+    if (module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
+      PLOGE("Unable to load test binary %ls", suite.bin_file_path.c_str());
       return false;
     }
     runtime->AddModule(std::move(module));
@@ -156,16 +247,16 @@ class TestRunner {
     return true;
   }
 
-  bool Run() {
+  bool Run(TestCase& test_case) {
     // Setup test state from annotations.
-    if (!SetupTestState()) {
+    if (!SetupTestState(test_case)) {
       PLOGE("Test setup failed");
       return false;
     }
 
     // Execute test.
     alloy::runtime::Function* fn;
-    runtime->ResolveFunction(START_ADDRESS, &fn);
+    runtime->ResolveFunction(test_case.address, &fn);
     if (!fn) {
       PLOGE("Entry function not found");
       return false;
@@ -176,38 +267,35 @@ class TestRunner {
     fn->Call(thread_state.get(), ctx->lr);
 
     // Assert test state expectations.
-    bool result = CheckTestResults();
+    bool result = CheckTestResults(test_case);
 
     return result;
   }
 
-  bool SetupTestState() {
+  bool SetupTestState(TestCase& test_case) {
     auto ppc_state = thread_state->context();
-
-    for (AnnotationList::iterator it = annotations.begin();
-         it != annotations.end(); ++it) {
-      if (it->first == "REGISTER_IN") {
-        size_t space_pos = it->second.find(" ");
-        auto reg_name = it->second.substr(0, space_pos);
-        auto reg_value = it->second.substr(space_pos + 1);
+    for (auto& it : test_case.annotations) {
+      if (it.first == "REGISTER_IN") {
+        size_t space_pos = it.second.find(" ");
+        auto reg_name = it.second.substr(0, space_pos);
+        auto reg_value = it.second.substr(space_pos + 1);
         ppc_state->SetRegFromString(reg_name.c_str(), reg_value.c_str());
       }
     }
     return true;
   }
 
-  bool CheckTestResults() {
+  bool CheckTestResults(TestCase& test_case) {
     auto ppc_state = thread_state->context();
 
     char actual_value[2048];
 
     bool any_failed = false;
-    for (AnnotationList::iterator it = annotations.begin();
-         it != annotations.end(); ++it) {
-      if (it->first == "REGISTER_OUT") {
-        size_t space_pos = it->second.find(" ");
-        auto reg_name = it->second.substr(0, space_pos);
-        auto reg_value = it->second.substr(space_pos + 1);
+    for (auto& it : test_case.annotations) {
+      if (it.first == "REGISTER_OUT") {
+        size_t space_pos = it.second.find(" ");
+        auto reg_name = it.second.substr(0, space_pos);
+        auto reg_value = it.second.substr(space_pos + 1);
         if (!ppc_state->CompareRegWithString(reg_name.c_str(),
                                              reg_value.c_str(), actual_value,
                                              poly::countof(actual_value))) {
@@ -225,7 +313,6 @@ class TestRunner {
   std::unique_ptr<Memory> memory;
   std::unique_ptr<Runtime> runtime;
   std::unique_ptr<ThreadState> thread_state;
-  AnnotationList annotations;
 };
 
 bool DiscoverTests(std::wstring& test_path,
@@ -295,24 +382,44 @@ bool RunTests(const std::wstring& test_name) {
   PLOGI("%d tests discovered.", (int)test_files.size());
   PLOGI("");
 
+  std::vector<TestSuite> test_suites;
+  bool load_failed = false;
   for (auto& test_path : test_files) {
     if (!test_name.empty() && test_path != test_name) {
       continue;
     }
 
-    PLOGI("Running %ls...", test_path.c_str());
-    TestRunner runner;
-    if (!runner.Setup(test_path)) {
-      PLOGE("TEST FAILED SETUP");
-      ++failed_count;
+    TestSuite test_suite(test_path);
+    if (!test_suite.Load()) {
+      PLOGE("TEST SUITE %ls FAILED TO LOAD", test_path.c_str());
+      load_failed = true;
+      continue;
     }
-    if (runner.Run()) {
-      PLOGI("Passed");
-      ++passed_count;
-    } else {
-      PLOGE("TEST FAILED");
-      ++failed_count;
+    test_suites.push_back(std::move(test_suite));
+  }
+  if (load_failed) {
+    return false;
+  }
+
+  for (auto& test_suite : test_suites) {
+    PLOGI("%ls.s:", test_suite.name.c_str());
+
+    for (auto& test_case : test_suite.test_cases) {
+      PLOGI("  - %s", test_case.name.c_str());
+      TestRunner runner;
+      if (!runner.Setup(test_suite)) {
+        PLOGE("    TEST FAILED SETUP");
+        ++failed_count;
+      }
+      if (runner.Run(test_case)) {
+        ++passed_count;
+      } else {
+        PLOGE("    TEST FAILED");
+        ++failed_count;
+      }
     }
+
+    PLOGI("");
   }
 
   PLOGI("");

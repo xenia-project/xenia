@@ -1,11 +1,13 @@
-BINUTILS=../../../third_party/binutils/bin/
+BINUTILS=../../../../../third_party/binutils/bin/
 PPC_AS=$(BINUTILS)/powerpc-none-elf-as
 PPC_LD=$(BINUTILS)/powerpc-none-elf-ld
 PPC_OBJDUMP=$(BINUTILS)/powerpc-none-elf-objdump
+PPC_NM=$(BINUTILS)/powerpc-none-elf-nm
 
 SRCS=$(wildcard *.s)
 BINS=$(SRCS:.s=.bin)
 DISASMS=$(SRCS:.s=.dis)
+MAPS=$(SRCS:.s=.map)
 
 %.o: %.s
 	$(PPC_AS) \
@@ -34,5 +36,10 @@ DISASMS=$(SRCS:.s=.dis)
 		-e 0x100000 \
 		-o $@ \
 		$<
+%.map: %.o
+	$(PPC_NM) \
+		--numeric-sort \
+		$< \
+		> $@
 
-all: $(BINS) $(DISASMS)
+all: $(BINS) $(DISASMS) $(MAPS)
