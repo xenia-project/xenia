@@ -1,5 +1,5 @@
 
-instr_extrwi.o:     file format elf64-powerpc
+/cygdrive/d/dev/xenia/src/alloy/frontend/ppc/test/bin//instr_extrwi.o:     file format elf64-powerpc
 
 
 Disassembly of section .text:

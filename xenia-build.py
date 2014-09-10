@@ -472,7 +472,7 @@ class TestCommand(Command):
       print('WARNING: test files not updated!');
     else:
       print('Updating test files...')
-      result = shell_call('make -C src/alloy/frontend/ppc/')
+      result = shell_call('./src/alloy/frontend/ppc/test/update.sh')
       print('')
       if result != 0:
         return result
