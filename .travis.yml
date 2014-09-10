@@ -10,10 +10,10 @@ os:
 # Run setup to build ninja/gyp/etc and actually build xenia.
 before_script:
   - travis_retry ./xenia-build.py setup
-  #- ./xenia-build.py build --debug
-  - ./third_party/ninja/ninja -C build/xenia/Debug alloy-test
+  - ./xenia-build.py build --debug alloy-test
+  - ./xenia-build.py build --debug alloy-ppc-test
 
 # Run test suite.
 script:
   - ./build/xenia/Debug/alloy-test
-  #- ./test/run-tests.sh
+  - ./build/xenia/Debug/alloy-ppc-test

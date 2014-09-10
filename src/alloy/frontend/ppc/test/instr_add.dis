@@ -1,0 +1,9 @@
+
+instr_add.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <.text>:
+  100000:	7d 65 ca 14 	add     r11,r5,r25
+  100004:	4e 80 00 20 	blr

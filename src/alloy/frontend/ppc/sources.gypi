@@ -24,4 +24,7 @@
     'ppc_translator.cc',
     'ppc_translator.h',
   ],
+
+  'includes': [
+  ],
 }

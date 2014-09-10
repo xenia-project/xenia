@@ -1,8 +1,8 @@
-# Copyright 2013 Ben Vanik. All Rights Reserved.
+# Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'targets': [
     {
-      'target_name': 'xenia-test',
+      'target_name': 'alloy-ppc-test',
       'type': 'executable',
 
       'msvs_settings': {
@@ -12,6 +12,7 @@
       },
 
       'dependencies': [
+        'alloy',
         'xenia',
       ],
 
@@ -20,7 +21,7 @@
       ],
 
       'sources': [
-        'xenia-test.cc',
+        'alloy-ppc-test.cc',
       ],
     },
   ],

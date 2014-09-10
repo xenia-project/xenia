@@ -459,18 +459,30 @@ class TestCommand(Command):
     print('Testing...')
     print('')
 
-    # First run make and update all of the test files.
-    # TOOD(benvanik): disable on Windows
-    print('Updating test files...')
-    result = shell_call('make -C test/codegen/')
+    # Run base alloy tests.
+    print('Launching alloy-test runner...')
+    result = shell_call('"build/xenia/Debug/alloy-test"')
     print('')
     if result != 0:
       return result
 
+    # First run make and update all of the test files.
+    if sys.platform == 'win32':
+      # TODO(benvanik): use cygwin/vagrant/whatever
+      print('WARNING: test files not updated!');
+    else:
+      print('Updating test files...')
+      result = shell_call('make -C src/alloy/frontend/ppc/')
+      print('')
+      if result != 0:
+        return result
+
     # Start the test runner.
-    print('Launching test runner...')
-    result = shell_call('bin/xenia-test')
+    print('Launching alloy-ppc-test runner...')
+    result = shell_call('"build/xenia/Debug/alloy-ppc-test"')
     print('')
+    if result != 0:
+      return result
 
     return result
 

@@ -1,9 +1,0 @@
-
-subfe.o:     file format elf64-powerpc
-
-
-Disassembly of section .text:
-
-0000000082010000 <.text>:
-    82010000:	7c 6a 59 10 	subfe   r3,r10,r11
-    82010004:	4e 80 00 20 	blr

@@ -14,12 +14,11 @@
 #include <vector>
 
 #include <xenia/core.h>
-#include <xenia/emulator.h>
+#include <xenia/export_resolver.h>
 
 namespace xe {
 namespace cpu {
 
-class XenonMemory;
 class XenonRuntime;
 class XenonThreadState;
 class XexModule;
@@ -33,7 +32,7 @@ enum class Irql : uint32_t {
 
 class Processor {
  public:
-  Processor(Emulator* emulator);
+  Processor(Memory* memory, ExportResolver* export_resolver);
   ~Processor();
 
   ExportResolver* export_resolver() const { return export_resolver_; }

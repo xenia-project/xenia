@@ -9,7 +9,6 @@
 
 #include <xenia/cpu/processor.h>
 
-#include <xenia/emulator.h>
 #include <xenia/export_resolver.h>
 #include <xenia/cpu/cpu-private.h>
 #include <xenia/cpu/xenon_runtime.h>
@@ -45,10 +44,10 @@ void InitializeIfNeeded() {
 void CleanupOnShutdown() {}
 }
 
-Processor::Processor(Emulator* emulator)
-    : export_resolver_(emulator->export_resolver()),
+Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
+    : export_resolver_(export_resolver),
       runtime_(0),
-      memory_(emulator->memory()),
+      memory_(memory),
       interrupt_thread_state_(NULL),
       interrupt_thread_block_(0) {
   InitializeIfNeeded();

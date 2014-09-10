@@ -1,6 +1,8 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'includes': [
+    'src/alloy/frontend/ppc/test/test.gypi',
+    'src/alloy/test/test.gypi',
     'tools/tools.gypi',
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',

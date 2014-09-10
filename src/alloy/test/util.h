@@ -137,7 +137,7 @@ class TestFunction {
       uint64_t stack_address = memory_size - stack_size;
       uint64_t thread_state_address = stack_address - 0x1000;
       auto thread_state = std::make_unique<ThreadState>(
-          runtime.get(), 100, stack_address, stack_size, thread_state_address);
+          runtime.get(), 0x100, stack_address, stack_size, thread_state_address);
       auto ctx = thread_state->context();
       ctx->lr = 0xBEBEBEBE;
 

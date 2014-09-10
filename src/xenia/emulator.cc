@@ -89,7 +89,8 @@ X_STATUS Emulator::Setup() {
   export_resolver_ = std::make_unique<ExportResolver>();
 
   // Initialize the CPU.
-  processor_ = std::make_unique<Processor>(this);
+  processor_ =
+      std::make_unique<Processor>(memory_.get(), export_resolver_.get());
 
   // Initialize the APU.
   audio_system_ = std::move(xe::apu::Create(this));
