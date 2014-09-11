@@ -23,6 +23,8 @@
 
 DEFINE_string(test_path, "src/alloy/frontend/ppc/test/",
               "Directory scanned for test files.");
+DEFINE_string(test_bin_path, "src/alloy/frontend/ppc/test/bin/",
+              "Directory with binary outputs of the test files.");
 
 namespace alloy {
 namespace test {
@@ -95,13 +97,9 @@ class TestSuite {
   TestSuite(const std::wstring& src_file_path) : src_file_path(src_file_path) {
     name = src_file_path.substr(
         src_file_path.find_last_of(poly::path_separator) + 1);
-    name.replace(name.end() - 2, name.end(), L"");
-    map_file_path = src_file_path;
-    map_file_path.replace(map_file_path.end() - 2, map_file_path.end(),
-                          L".map");
-    bin_file_path = src_file_path;
-    bin_file_path.replace(bin_file_path.end() - 2, bin_file_path.end(),
-                          L".bin");
+    name = ReplaceExtension(name, L"");
+    map_file_path = poly::to_wstring(FLAGS_test_bin_path) + name + L".map";
+    bin_file_path = poly::to_wstring(FLAGS_test_bin_path) + name + L".bin";
   }
 
   bool Load() {
@@ -123,6 +121,13 @@ class TestSuite {
   std::vector<TestCase> test_cases;
 
  private:
+  std::wstring ReplaceExtension(const std::wstring& path, const std::wstring& new_extension) {
+    std::wstring result = path;
+    auto last_dot = result.find_last_of('.');
+    result.replace(result.begin() + last_dot, result.end(), new_extension);
+    return result;
+  }
+
   TestCase* FindTestCase(const std::string& name) {
     for (auto& test_case : test_cases) {
       if (test_case.name == name) {
