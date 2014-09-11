@@ -989,14 +989,17 @@ XEEMITTER(rlwnmx, 0x5C000000, M)(PPCHIRBuilder& f, InstrData& i) {
 // Integer shift (A-7)
 
 XEEMITTER(sldx, 0x7C000036, X)(PPCHIRBuilder& f, InstrData& i) {
-  // n <- (RB)[59:63]
+  // n <- (RB)[58:63]
   // r <- ROTL64((RS), n)
-  // if (RB)[58] = 0 then
+  // if (RB)[57] = 0 then
   //   m <- MASK(0, 63-n)
   // else
   //   m <- i64.0
   // RA <- r & m
-  Value* v = f.Shl(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
+                    f.LoadConstant(int8_t(0x7F)));
+  Value* v = f.Select(f.IsTrue(f.Shr(sh, 6)), f.LoadConstant(int64_t(0)),
+                      f.Shl(f.LoadGPR(i.X.RT), sh));
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
     f.UpdateCR(0, v);
@@ -1012,8 +1015,10 @@ XEEMITTER(slwx, 0x7C000030, X)(PPCHIRBuilder& f, InstrData& i) {
   // else
   //   m <- i64.0
   // RA <- r & m
-  Value* v =
-      f.Shl(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), f.LoadGPR(i.X.RB));
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
+                    f.LoadConstant(int8_t(0x3F)));
+  Value* v = f.Select(f.IsTrue(f.Shr(sh, 5)), f.LoadConstant(int32_t(0)),
+                      f.Shl(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), sh));
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
@@ -1031,7 +1036,9 @@ XEEMITTER(srdx, 0x7C000436, X)(PPCHIRBuilder& f, InstrData& i) {
   //   m <- i64.0
   // RA <- r & m
   // TODO(benvanik): if >3F, zero out the result.
-  Value* v = f.Shr(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
+  Value* sh = f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE);
+  Value* v = f.Select(f.IsTrue(f.And(sh, f.LoadConstant(int8_t(0x40)))),
+                      f.LoadConstant(int64_t(0)), f.Shr(f.LoadGPR(i.X.RT), sh));
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
     f.UpdateCR(0, v);
@@ -1048,8 +1055,10 @@ XEEMITTER(srwx, 0x7C000430, X)(PPCHIRBuilder& f, InstrData& i) {
   //   m <- i64.0
   // RA <- r & m
   // TODO(benvanik): if >1F, zero out the result.
-  Value* v =
-      f.Shr(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), f.LoadGPR(i.X.RB));
+  Value* sh = f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE);
+  Value* v = f.Select(f.IsTrue(f.And(sh, f.LoadConstant(int8_t(0x20)))),
+                      f.LoadConstant(int32_t(0)),
+                      f.Shr(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), sh));
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
@@ -1066,32 +1075,21 @@ XEEMITTER(sradx, 0x7C000634, X)(PPCHIRBuilder& f, InstrData& i) {
   // S ← rS[0]
   // rA <- (r & m) | (((64)S) & ¬ m)
   // XER[CA] <- S & ((r & ¬ m) ¦ 0)
-
   // if n == 0: rA <- rS, XER[CA] = 0
   // if n >= 64: rA <- 64 sign bits of rS, XER[CA] = sign bit of rS
-
-  Value* v = f.LoadGPR(i.X.RT);
+  Value* rt = f.LoadGPR(i.X.RT);
   Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
-                    f.LoadConstant((int8_t)0x3F));
+                    f.LoadConstant(int8_t(0x7F)));
+  Value* clamp_sh = f.Min(sh, f.LoadConstant(int8_t(0x3F)));
+  Value* v = f.Sha(rt, clamp_sh);
 
   // CA is set if any bits are shifted out of the right and if the result
-  // is negative. Start tracking that here.
-  // TODO(benvanik): dynamically generate mask better than this.
-  Value* ca_sh = f.Sub(f.LoadConstant((int8_t)63), sh);
-  Value* ca = f.Shr(f.Shl(f.LoadConstant(0xFFFFFFFFFFFFFFFFull), ca_sh), ca_sh);
-  ca = f.CompareNE(f.And(ca, v), f.LoadZero(INT64_TYPE));
-
-  // Shift right.
-  v = f.Sha(v, sh);
-
-  // CA is set to 1 if the low-order 32 bits of (RS) contain a negative number
-  // and any 1-bits are shifted out of position 63; otherwise CA is set to 0.
-  // We already have ca set to indicate the pos 63 bit, now just and in sign.
-  ca = f.And(ca, f.Truncate(f.Shr(v, 63), INT8_TYPE));
-
+  // is negative.
+  Value* ca =
+      f.And(f.IsTrue(f.Shr(rt, 63)), f.CompareNE(f.Shl(v, clamp_sh), rt));
   f.StoreCA(ca);
-  f.StoreGPR(i.X.RA, v);
 
+  f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
     f.UpdateCR(0, v);
   }
@@ -1139,16 +1137,18 @@ XEEMITTER(srawx, 0x7C000630, X)(PPCHIRBuilder& f, InstrData& i) {
   // CA <- s & ((r&¬m)[32:63]≠0)
   // if n == 0: rA <- sign_extend(rS), XER[CA] = 0
   // if n >= 32: rA <- 64 sign bits of rS, XER[CA] = sign bit of lo_32(rS)
-  Value* v = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
-  Value* sh =
-      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT32_TYPE), f.LoadConstant(0x1F));
+  Value* rt = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
+                    f.LoadConstant(int8_t(0x3F)));
+  Value* clamp_sh = f.Min(sh, f.LoadConstant(int8_t(0x1F)));
+  Value* v = f.Sha(rt, f.Min(sh, clamp_sh));
+
   // CA is set if any bits are shifted out of the right and if the result
   // is negative.
-  Value* mask = f.Not(f.Shl(f.LoadConstant(-1), sh));
   Value* ca =
-      f.And(f.Truncate(f.Shr(v, 31), INT8_TYPE), f.IsTrue(f.And(v, mask)));
+      f.And(f.IsTrue(f.Shr(rt, 31)), f.CompareNE(f.Shl(v, clamp_sh), rt));
   f.StoreCA(ca);
-  v = f.Sha(v, sh);
+
   v = f.SignExtend(v, INT64_TYPE);
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {

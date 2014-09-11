@@ -1776,8 +1776,64 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_MIN
 // ============================================================================
+EMITTER(MIN_I8, MATCH(I<OPCODE_MIN, I8<>, I8<>, I8<>>)) {
+  static void Emit(X64Emitter & e, const EmitArgType& i) {
+    EmitCommutativeBinaryOp(e, i,
+      [](X64Emitter& e, const Reg8& dest_src, const Reg8& src) {
+        e.cmp(dest_src, src);
+        e.cmovg(dest_src.cvt32(), src.cvt32());
+      },
+      [](X64Emitter& e, const Reg8& dest_src, int32_t constant) {
+        e.mov(e.al, constant);
+        e.cmp(dest_src, e.al);
+        e.cmovg(dest_src.cvt32(), e.eax);
+      });
+  }
+};
+EMITTER(MIN_I16, MATCH(I<OPCODE_MIN, I16<>, I16<>, I16<>>)) {
+  static void Emit(X64Emitter & e, const EmitArgType& i) {
+    EmitCommutativeBinaryOp(e, i,
+      [](X64Emitter& e, const Reg16& dest_src, const Reg16& src) {
+        e.cmp(dest_src, src);
+        e.cmovg(dest_src.cvt32(), src.cvt32());
+      },
+      [](X64Emitter& e, const Reg16& dest_src, int32_t constant) {
+        e.mov(e.ax, constant);
+        e.cmp(dest_src, e.ax);
+        e.cmovg(dest_src.cvt32(), e.eax);
+      });
+  }
+};
+EMITTER(MIN_I32, MATCH(I<OPCODE_MIN, I32<>, I32<>, I32<>>)) {
+  static void Emit(X64Emitter & e, const EmitArgType& i) {
+    EmitCommutativeBinaryOp(e, i,
+      [](X64Emitter& e, const Reg32& dest_src, const Reg32& src) {
+        e.cmp(dest_src, src);
+        e.cmovg(dest_src, src);
+      },
+      [](X64Emitter& e, const Reg32& dest_src, int32_t constant) {
+        e.mov(e.eax, constant);
+        e.cmp(dest_src, e.eax);
+        e.cmovg(dest_src, e.eax);
+      });
+  }
+};
+EMITTER(MIN_I64, MATCH(I<OPCODE_MIN, I64<>, I64<>, I64<>>)) {
+  static void Emit(X64Emitter & e, const EmitArgType& i) {
+    EmitCommutativeBinaryOp(e, i,
+      [](X64Emitter& e, const Reg64& dest_src, const Reg64& src) {
+        e.cmp(dest_src, src);
+        e.cmovg(dest_src, src);
+      },
+      [](X64Emitter& e, const Reg64& dest_src, int64_t constant) {
+        e.mov(e.rax, constant);
+        e.cmp(dest_src, e.rax);
+        e.cmovg(dest_src, e.rax);
+      });
+  }
+};
 EMITTER(MIN_F32, MATCH(I<OPCODE_MIN, F32<>, F32<>, F32<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
+  static void Emit(X64Emitter & e, const EmitArgType& i) {
     EmitCommutativeBinaryXmmOp(e, i,
         [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
           e.vminss(dest, src1, src2);
@@ -1802,6 +1858,10 @@ EMITTER(MIN_V128, MATCH(I<OPCODE_MIN, V128<>, V128<>, V128<>>)) {
 };
 EMITTER_OPCODE_TABLE(
     OPCODE_MIN,
+    MIN_I8,
+    MIN_I16,
+    MIN_I32,
+    MIN_I64,
     MIN_F32,
     MIN_F64,
     MIN_V128);
@@ -1862,29 +1922,57 @@ EMITTER_OPCODE_TABLE(
 //     like SELECT(VECTOR_COMPARE_SGE(a, b), a, b)
 EMITTER(SELECT_I8, MATCH(I<OPCODE_SELECT, I8<>, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Reg8 src2;
+    if (i.src2.is_constant) {
+      src2 = e.al;
+      e.mov(src2, i.src2.constant());
+    } else {
+      src2 = i.src2;
+    }
     e.test(i.src1, i.src1);
-    e.cmovnz(i.dest.reg().cvt32(), i.src2.reg().cvt32());
+    e.cmovnz(i.dest.reg().cvt32(), src2.cvt32());
     e.cmovz(i.dest.reg().cvt32(), i.src3.reg().cvt32());
   }
 };
 EMITTER(SELECT_I16, MATCH(I<OPCODE_SELECT, I16<>, I8<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Reg16 src2;
+    if (i.src2.is_constant) {
+      src2 = e.ax;
+      e.mov(src2, i.src2.constant());
+    } else {
+      src2 = i.src2;
+    }
     e.test(i.src1, i.src1);
-    e.cmovnz(i.dest.reg().cvt32(), i.src2.reg().cvt32());
+    e.cmovnz(i.dest.reg().cvt32(), src2.cvt32());
     e.cmovz(i.dest.reg().cvt32(), i.src3.reg().cvt32());
   }
 };
 EMITTER(SELECT_I32, MATCH(I<OPCODE_SELECT, I32<>, I8<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Reg32 src2;
+    if (i.src2.is_constant) {
+      src2 = e.eax;
+      e.mov(src2, i.src2.constant());
+    } else {
+      src2 = i.src2;
+    }
     e.test(i.src1, i.src1);
-    e.cmovnz(i.dest, i.src2);
+    e.cmovnz(i.dest, src2);
     e.cmovz(i.dest, i.src3);
   }
 };
 EMITTER(SELECT_I64, MATCH(I<OPCODE_SELECT, I64<>, I8<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Reg64 src2;
+    if (i.src2.is_constant) {
+      src2 = e.rax;
+      e.mov(src2, i.src2.constant());
+    } else {
+      src2 = i.src2;
+    }
     e.test(i.src1, i.src1);
-    e.cmovnz(i.dest, i.src2);
+    e.cmovnz(i.dest, src2);
     e.cmovz(i.dest, i.src3);
   }
 };
