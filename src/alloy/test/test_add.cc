@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <tools/alloy-test/util.h>
+#include <alloy/test/util.h>
 
 #include <cfloat>
 

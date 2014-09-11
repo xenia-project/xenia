@@ -8,7 +8,7 @@
  */
 
 #include <third_party/xbyak/xbyak/xbyak_bin2hex.h>
-#include <tools/alloy-test/util.h>
+#include <alloy/test/util.h>
 
 using namespace alloy;
 using namespace alloy::hir;
