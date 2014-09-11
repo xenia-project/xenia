@@ -1,4 +1,4 @@
-test_add1:
+test_add_1:
   #_ REGISTER_IN r5 0x00100000
   #_ REGISTER_IN r25 0x0000FFFF
 
@@ -9,7 +9,7 @@ test_add1:
   #_ REGISTER_OUT r25 0x0000FFFF
   #_ REGISTER_OUT r11 0x0010FFFF
 
-test_add2:
+test_add_2:
   #_ REGISTER_IN r0 0x00100000
   #_ REGISTER_IN r25 0x0000FFFF
 
