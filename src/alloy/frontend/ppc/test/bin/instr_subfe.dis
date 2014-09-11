@@ -7,3 +7,19 @@ Disassembly of section .text:
 0000000000100000 <test_subfe>:
   100000:	7c 6a 59 10 	subfe   r3,r10,r11
   100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_subfe_2>:
+  100008:	7c 6a 59 10 	subfe   r3,r10,r11
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_subfe_3>:
+  100010:	7c 6a 59 10 	subfe   r3,r10,r11
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_subfe_4>:
+  100018:	7c 6a 59 10 	subfe   r3,r10,r11
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_subfe_5>:
+  100020:	7c 6a 59 10 	subfe   r3,r10,r11
+  100024:	4e 80 00 20 	blr
