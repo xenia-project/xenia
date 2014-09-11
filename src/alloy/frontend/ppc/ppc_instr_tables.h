@@ -591,7 +591,11 @@ static InstrType instr_table_31_unprep[] = {
     INSTRUCTION(srawix, 0x7C000670, X, General, srawix,
                 "Shift Right Algebraic Word Immediate"),
     INSTRUCTION(sradix, 0x7C000674, XS, General, sradix,
-                "Shift Right Algebraic Doubleword Immediate"),  // TODO
+                "Shift Right Algebraic Doubleword Immediate"),
+    INSTRUCTION(sradix, 0x7C000674, XS, General, sradix,
+                "Shift Right Algebraic Doubleword Immediate"),
+    INSTRUCTION(sradix, 0x7C000676, XS, General, sradix,
+                "Shift Right Algebraic Doubleword Immediate"),  // HACK
     INSTRUCTION(eieio, 0x7C0006AC, X, General, _,
                 "Enforce In-Order Execution of I/O Instruction"),
     INSTRUCTION(sthbrx, 0x7C00072C, X, General, X_RT_RA0_RB,

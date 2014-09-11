@@ -1112,13 +1112,17 @@ XEEMITTER(sradix, 0x7C000674, XS)(PPCHIRBuilder& f, InstrData& i) {
 
   // CA is set if any bits are shifted out of the right and if the result
   // is negative.
-  assert_true(sh);
-  uint64_t mask = XEMASK(64 - sh, 63);
-  Value* ca = f.And(f.Truncate(f.Shr(v, 63), INT8_TYPE),
-                    f.IsTrue(f.And(v, f.LoadConstant(mask))));
-  f.StoreCA(ca);
+  if (sh) {
+    uint64_t mask = XEMASK(64 - sh, 63);
+    Value* ca = f.And(f.Truncate(f.Shr(v, 63), INT8_TYPE),
+                      f.IsTrue(f.And(v, f.LoadConstant(mask))));
+    f.StoreCA(ca);
 
-  v = f.Sha(v, sh);
+    v = f.Sha(v, sh);
+  } else {
+    f.StoreCA(f.LoadZero(INT8_TYPE));
+  }
+
   f.StoreGPR(i.XS.RA, v);
   if (i.XS.Rc) {
     f.UpdateCR(0, v);
@@ -1252,6 +1256,7 @@ void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(srwx, 0x7C000430);
   XEREGISTERINSTR(sradx, 0x7C000634);
   XEREGISTERINSTR(sradix, 0x7C000674);
+  XEREGISTERINSTR(sradix, 0x7C000676);  // HACK
   XEREGISTERINSTR(srawx, 0x7C000630);
   XEREGISTERINSTR(srawix, 0x7C000670);
 }
