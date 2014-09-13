@@ -285,10 +285,10 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(PPCContext* ppc_state,
 
   // TODO: maybe use MultiByteToUnicode on Win32? would require swapping
 
-  auto source = (uint8_t*)SHIM_MEM_ADDR(source_ptr);
-  auto destination = (uint16_t*)SHIM_MEM_ADDR(destination_ptr);
   for (uint32_t i = 0; i < copy_len; i++) {
-    *destination++ = poly::byte_swap(*source++);
+    poly::store_and_swap<uint16_t>(
+        SHIM_MEM_ADDR(destination_ptr + i * 2),
+        poly::load<uint8_t>(SHIM_MEM_ADDR(source_ptr + i)));
   }
 
   if (written_ptr != 0) {
