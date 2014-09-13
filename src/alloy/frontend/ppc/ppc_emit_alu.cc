@@ -56,6 +56,7 @@ XEEMITTER(addcx, 0x7C000014, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(addex, 0x7C000114, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB) + XER[CA]
+  // CA <- carry bit
   Value* v = f.AddWithCarry(f.LoadGPR(i.XO.RA), f.LoadGPR(i.XO.RB), f.LoadCA(),
                             ARITHMETIC_SET_CARRY);
   f.StoreCA(f.DidCarry(v));
@@ -86,6 +87,7 @@ XEEMITTER(addi, 0x38000000, D)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(addic, 0x30000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
+  // CA <- carry bit
   Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)),
                    ARITHMETIC_SET_CARRY);
   f.StoreCA(f.DidCarry(v));
@@ -95,6 +97,7 @@ XEEMITTER(addic, 0x30000000, D)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(addicx, 0x34000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
+  // CA <- carry bit
   Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)),
                    ARITHMETIC_SET_CARRY);
   f.StoreCA(f.DidCarry(v));
@@ -119,6 +122,7 @@ XEEMITTER(addis, 0x3C000000, D)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(addmex, 0x7C0001D4, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA - 1
+  // CA <- carry bit
   Value* v = f.AddWithCarry(f.LoadGPR(i.XO.RA), f.LoadConstant((int64_t)-1),
                             f.LoadCA(), ARITHMETIC_SET_CARRY);
   if (i.XO.OE) {
@@ -138,6 +142,7 @@ XEEMITTER(addmex, 0x7C0001D4, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(addzex, 0x7C000194, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA
+  // CA <- carry bit
   Value* v = f.AddWithCarry(f.LoadGPR(i.XO.RA), f.LoadZero(INT64_TYPE),
                             f.LoadCA(), ARITHMETIC_SET_CARRY);
   if (i.XO.OE) {
