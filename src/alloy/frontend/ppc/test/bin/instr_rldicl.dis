@@ -1,0 +1,41 @@
+
+/cygdrive/d/dev/xenia/src/alloy/frontend/ppc/test/bin//instr_rldicl.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_rldicl_1>:
+  100000:	78 83 c0 00 	rotldi  r3,r4,24
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_rldicl_2>:
+  100008:	78 83 c2 00 	rldicl  r3,r4,24,8
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_rldicl_3>:
+  100010:	78 83 c7 e0 	rldicl  r3,r4,24,63
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_rldicl_4>:
+  100018:	78 83 00 00 	rotldi  r3,r4,0
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_rldicl_5>:
+  100020:	78 83 07 e0 	clrldi  r3,r4,63
+  100024:	4e 80 00 20 	blr
+
+0000000000100028 <test_rldicl_6>:
+  100028:	78 83 02 00 	clrldi  r3,r4,8
+  10002c:	4e 80 00 20 	blr
+
+0000000000100030 <test_rldicl_7>:
+  100030:	78 83 f8 02 	rotldi  r3,r4,63
+  100034:	4e 80 00 20 	blr
+
+0000000000100038 <test_rldicl_8>:
+  100038:	78 83 ff e2 	rldicl  r3,r4,63,63
+  10003c:	4e 80 00 20 	blr
+
+0000000000100040 <test_rldicl_9>:
+  100040:	78 83 f8 00 	rotldi  r3,r4,31
+  100044:	4e 80 00 20 	blr
