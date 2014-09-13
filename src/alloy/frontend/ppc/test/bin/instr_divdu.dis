@@ -1,0 +1,37 @@
+
+/cygdrive/d/dev/xenia/src/alloy/frontend/ppc/test/bin//instr_divdu.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_divdu_1>:
+  100000:	7c 64 2b 92 	divdu   r3,r4,r5
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_divdu_3>:
+  100008:	7c 64 2b 92 	divdu   r3,r4,r5
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_divdu_4>:
+  100010:	7c 64 2b 92 	divdu   r3,r4,r5
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_divdu_5>:
+  100018:	7c 64 2b 92 	divdu   r3,r4,r5
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_divdu_6>:
+  100020:	7c 64 2b 92 	divdu   r3,r4,r5
+  100024:	4e 80 00 20 	blr
+
+0000000000100028 <test_divdu_7>:
+  100028:	7c 64 2b 92 	divdu   r3,r4,r5
+  10002c:	4e 80 00 20 	blr
+
+0000000000100030 <test_divdu_8>:
+  100030:	7c 64 2b 92 	divdu   r3,r4,r5
+  100034:	4e 80 00 20 	blr
+
+0000000000100038 <test_divdu_9>:
+  100038:	7c 64 2b 92 	divdu   r3,r4,r5
+  10003c:	4e 80 00 20 	blr

@@ -226,7 +226,7 @@ XEEMITTER(divwx, 0x7C0003D6, XO)(PPCHIRBuilder& f, InstrData& i) {
   //                 if OE=1, set XER[OV] = 1
   //                 else skip the divide
   Value* v = f.Div(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), divisor);
-  v = f.SignExtend(v, INT64_TYPE);
+  v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // If we are OE=1 we need to clear the overflow bit.

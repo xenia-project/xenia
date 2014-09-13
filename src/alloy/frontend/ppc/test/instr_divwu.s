@@ -1,0 +1,108 @@
+test_divwu_1:
+  #_ REGISTER_IN r4 1
+  #_ REGISTER_IN r5 2
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 2
+
+# TODO(benvanik): x64 ignore divide by zero (=0)
+#test_divwu_2:
+#  #_ REGISTER_IN r4 1
+#  #_ REGISTER_IN r5 0
+#  divwu r3, r4, r5
+#  blr
+#  #_ REGISTER_OUT r3 0
+#  #_ REGISTER_OUT r4 1
+#  #_ REGISTER_OUT r5 0
+
+test_divwu_3:
+  #_ REGISTER_IN r4 2
+  #_ REGISTER_IN r5 1
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 2
+  #_ REGISTER_OUT r4 2
+  #_ REGISTER_OUT r5 1
+
+test_divwu_4:
+  #_ REGISTER_IN r4 35
+  #_ REGISTER_IN r5 7
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 5
+  #_ REGISTER_OUT r4 35
+  #_ REGISTER_OUT r5 7
+
+test_divwu_5:
+  #_ REGISTER_IN r4 0
+  #_ REGISTER_IN r5 1
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0
+  #_ REGISTER_OUT r5 1
+
+test_divwu_6:
+  #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_IN r5 1
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x00000000FFFFFFFF
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 1
+
+test_divwu_7:
+  #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_IN r5 0xFFFFFFFFFFFFFFFF
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 1
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
+
+test_divwu_8:
+  #_ REGISTER_IN r4 1
+  #_ REGISTER_IN r5 0xFFFFFFFFFFFFFFFF
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
+
+test_divwu_9:
+  #_ REGISTER_IN r4 0x000000007FFFFFFF
+  #_ REGISTER_IN r5 1
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x000000007FFFFFFF
+  #_ REGISTER_OUT r4 0x000000007FFFFFFF
+  #_ REGISTER_OUT r5 1
+
+test_divwu_10:
+  #_ REGISTER_IN r4 0x000000007FFFFFFF
+  #_ REGISTER_IN r5 0x000000007FFFFFFF
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 1
+  #_ REGISTER_OUT r4 0x000000007FFFFFFF
+  #_ REGISTER_OUT r5 0x000000007FFFFFFF
+
+test_divwu_11:
+  #_ REGISTER_IN r4 1
+  #_ REGISTER_IN r5 0x000000007FFFFFFF
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0x000000007FFFFFFF
+
+test_divwu_12:
+  #_ REGISTER_IN r4 0x80000000
+  #_ REGISTER_IN r5 -1
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0x80000000
+  #_ REGISTER_OUT r5 -1
