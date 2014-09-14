@@ -60,3 +60,10 @@ test_rldicl_9:
   blr
   #_ REGISTER_OUT r3 0xc4d5e6f78091a2b3
   #_ REGISTER_OUT r4 0x0123456789ABCDEF
+
+test_rldicl_10:
+  #_ REGISTER_IN r4 0x16300000
+  rldicl r3, r4, 58, 6
+  blr
+  #_ REGISTER_OUT r3 0x58C000
+  #_ REGISTER_OUT r4 0x16300000
