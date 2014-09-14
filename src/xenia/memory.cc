@@ -218,7 +218,8 @@ const static struct {
 } map_info[] = {
       0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
       0x40000000, 0x7FFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages
-      0x80000000, 0x9FFFFFFF, 0x80000000,  //  (512mb) - xex pages
+      0x80000000, 0x8FFFFFFF, 0x80000000,  //  (256mb) - xex 64k pages
+      0x90000000, 0x9FFFFFFF, 0x80000000,  //  (256mb) - xex 4k pages
       0xA0000000, 0xBFFFFFFF, 0x00000000,  //  (512mb) - physical 64k pages
       0xC0000000, 0xDFFFFFFF, 0x00000000,  //          - physical 16mb pages
       0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages

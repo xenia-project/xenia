@@ -399,6 +399,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
   XEEXPECTNOTNULL(header->sections);
   for (size_t n = 0; n < header->section_count; n++) {
     xe_xex2_section_t *section = &header->sections[n];
+    section->page_size =
+        header->exe_address <= 0x90000000 ? 64 * 1024 : 4 * 1024;
     section->info.value = poly::load_and_swap<uint32_t>(ps);
     ps += 4;
     memcpy(section->digest, ps, sizeof(section->digest));

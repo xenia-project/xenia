@@ -410,17 +410,16 @@ typedef enum {
 } xe_xex2_section_type;
 
 typedef struct {
+  size_t page_size;
   union {
     struct {
       xe_xex2_section_type  type          : 4;
-      uint32_t              page_count    : 28;   // # of 64kb pages
+      uint32_t              page_count    : 28;   // # of pages
     };
     uint32_t  value;                              // To make uint8_t swapping easier
   } info;
   uint8_t digest[20];
 } xe_xex2_section_t;
-
-#define xe_xex2_section_length    0x00010000
 
 typedef struct {
   uint32_t                    xex2;

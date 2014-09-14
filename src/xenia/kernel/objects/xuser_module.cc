@@ -233,13 +233,12 @@ void XUserModule::Dump() {
         type = "RODATA ";
         break;
     }
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
+    const size_t start_address = header->exe_address + (i * section->page_size);
     const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
+        start_address + (section->info.page_count * section->page_size);
     printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n", (int)n, type,
            section->info.page_count, (int)start_address, (int)end_address,
-           section->info.page_count * xe_xex2_section_length);
+           section->info.page_count * section->page_size);
     i += section->info.page_count;
   }
   printf("\n");
@@ -292,7 +291,7 @@ void XUserModule::Dump() {
           unimpl_count++;
         }
       }
-      printf("         Total: %4zu\n", import_info_count);
+      printf("         Total: %4u\n", uint32_t(import_info_count));
       printf("         Known:  %3d%% (%d known, %d unknown)\n",
              (int)(known_count / (float)import_info_count * 100.0f),
              known_count, unknown_count);

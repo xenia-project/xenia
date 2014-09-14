@@ -52,10 +52,9 @@ int XexModule::Load(const std::string& name, const std::string& path, xe_xex2_re
   high_address_ = 0;
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
+    const size_t start_address = header->exe_address + (i * section->page_size);
     const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
+        start_address + (section->info.page_count * section->page_size);
     if (section->info.type == XEX_SECTION_CODE) {
       low_address_ =
           static_cast<uint32_t>(std::min(low_address_, start_address));
@@ -391,25 +390,24 @@ int XexModule::FindSaveRest() {
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
+    const size_t start_address = header->exe_address + (i * section->page_size);
     const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
+        start_address + (section->info.page_count * section->page_size);
     if (section->info.type == XEX_SECTION_CODE) {
       if (!gplr_start) {
-        gplr_start = memory_->SearchAligned(
-            start_address, end_address,
-            gprlr_code_values, poly::countof(gprlr_code_values));
+        gplr_start = memory_->SearchAligned(start_address, end_address,
+                                            gprlr_code_values,
+                                            poly::countof(gprlr_code_values));
       }
       if (!fpr_start) {
-        fpr_start = memory_->SearchAligned(
-            start_address, end_address,
-            fpr_code_values, poly::countof(fpr_code_values));
+        fpr_start =
+            memory_->SearchAligned(start_address, end_address, fpr_code_values,
+                                   poly::countof(fpr_code_values));
       }
       if (!vmx_start) {
-        vmx_start = memory_->SearchAligned(
-            start_address, end_address,
-            vmx_code_values, poly::countof(vmx_code_values));
+        vmx_start =
+            memory_->SearchAligned(start_address, end_address, vmx_code_values,
+                                   poly::countof(vmx_code_values));
       }
       if (gplr_start && fpr_start && vmx_start) {
         break;
