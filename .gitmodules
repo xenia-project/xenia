@@ -19,6 +19,7 @@
 [submodule "third_party/wxWidgets"]
 	path = third_party/wxWidgets
 	url = https://github.com/wxWidgets/wxWidgets.git
+	ignore = dirty
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/philsquared/Catch.git
