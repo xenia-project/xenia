@@ -21,7 +21,7 @@ SNAPSHOT_FILE=binutils-$SNAPSHOT_VERSION.tar.gz
 if [ ! -f $SNAPSHOT_FILE ]; then
   echo ""
   echo "Grabbing binutils snapshot $SNAPSHOT_FILE..."
-  wget -nv http://mirrors.kernel.org/sourceware/binutils/releases/$SNAPSHOT_FILE
+  curl -nv http://mirrors.kernel.org/sourceware/binutils/releases/$SNAPSHOT_FILE > $SNAPSHOT_FILE
 else
   echo ""
   echo "Reusing existing binutils snapshot file $SNAPSHOT_FILE..."
