@@ -104,6 +104,9 @@ typedef struct alignas(16) vec128_s {
   bool operator==(const vec128_s& b) const {
     return low == b.low && high == b.high;
   }
+  bool operator!=(const vec128_s& b) const {
+    return low != b.low || high != b.high;
+  }
 } vec128_t;
 
 static inline vec128_t vec128i(uint32_t src) {

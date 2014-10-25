@@ -285,6 +285,24 @@ class TestRunner {
         auto reg_name = it.second.substr(0, space_pos);
         auto reg_value = it.second.substr(space_pos + 1);
         ppc_state->SetRegFromString(reg_name.c_str(), reg_value.c_str());
+      } else if (it.first == "MEMORY_IN") {
+        size_t space_pos = it.second.find(" ");
+        auto address_str = it.second.substr(0, space_pos);
+        auto bytes_str = it.second.substr(space_pos + 1);
+        uint32_t address = std::strtoul(address_str.c_str(), nullptr, 16);
+        auto p = memory->Translate(address);
+        const char* c = bytes_str.c_str();
+        while (*c) {
+          while (*c == ' ') ++c;
+          if (!*c) {
+            break;
+          }
+          char ccs[3] = { c[0], c[1], 0 };
+          c += 2;
+          uint32_t b = std::strtoul(ccs, nullptr, 16);
+          *p = static_cast<uint8_t>(b);
+          ++p;
+        }
       }
     }
     return true;
@@ -390,11 +408,10 @@ bool RunTests(const std::wstring& test_name) {
   std::vector<TestSuite> test_suites;
   bool load_failed = false;
   for (auto& test_path : test_files) {
-    if (!test_name.empty() && test_path != test_name) {
+    TestSuite test_suite(test_path);
+    if (!test_name.empty() && test_suite.name != test_name) {
       continue;
     }
-
-    TestSuite test_suite(test_path);
     if (!test_suite.Load()) {
       PLOGE("TEST SUITE %ls FAILED TO LOAD", test_path.c_str());
       load_failed = true;
