@@ -96,7 +96,7 @@ class TestFunction {
       runtimes.emplace_back(std::move(runtime));
     }
 #endif  // ALLOY_TEST_IVM
-#ifdef ALLOY_TEST_X64
+#if ALLOY_TEST_X64
     {
       auto runtime = std::make_unique<Runtime>(memory.get());
       auto frontend =
