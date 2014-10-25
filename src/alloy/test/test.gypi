@@ -57,7 +57,7 @@
         #'test_atomic_exchange.cc',
         #'test_atomic_sub.cc',
         #'test_branch.cc',
-        #'test_byte_swap.cc',
+        'test_byte_swap.cc',
         #'test_cast.cc',
         #'test_cntlz.cc',
         #'test_compare.cc',

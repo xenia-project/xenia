@@ -67,6 +67,7 @@ enum XmmConst {
   XMMShiftMaskEvenPI16,
   XMMShiftMaskPS,
   XMMShiftByteMask,
+  XMMSwapWordMask,
   XMMUnsignedDwordMax,
   XMM255,
   XMMPI32,

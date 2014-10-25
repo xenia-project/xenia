@@ -4999,9 +4999,9 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
         // Control mask needs to be shuffled.
         if (i.src1.is_constant) {
           e.LoadConstantXmm(e.xmm0, i.src1.constant());
-          e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMByteSwapMask));
+          e.vxorps(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMSwapWordMask));
         } else {
-          e.vpshufb(e.xmm0, i.src1, e.GetXmmConstPtr(XMMByteSwapMask));
+          e.vxorps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
         }
         if (i.src2.is_constant) {
           e.LoadConstantXmm(i.dest, i.src2.constant());
@@ -5018,9 +5018,9 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
       // Control mask needs to be shuffled.
       if (i.src1.is_constant) {
         e.LoadConstantXmm(e.xmm2, i.src1.constant());
-        e.vpshufb(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMByteSwapMask));
+        e.vxorps(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSwapWordMask));
       } else {
-        e.vpshufb(e.xmm2, i.src1, e.GetXmmConstPtr(XMMByteSwapMask));
+        e.vxorps(e.xmm2, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
       }
       Xmm src2_shuf = e.xmm0;
       if (i.src2.value->IsConstantZero()) {
