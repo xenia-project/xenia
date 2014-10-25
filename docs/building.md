@@ -15,6 +15,9 @@ video drivers for your card.
 
 Ensure Python is in your PATH (`C:\Python27\`).
 
+I recommend using [Cmder](http://bliker.github.io/cmder/) for git and command
+line usage.
+
 #### Debugging
 
 VS behaves oddly with the debug paths. Open the xenia-run project properties
