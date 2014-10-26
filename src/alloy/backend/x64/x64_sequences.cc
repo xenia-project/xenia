@@ -4109,7 +4109,7 @@ EMITTER(NOT_I64, MATCH(I<OPCODE_NOT, I64<>, I64<>>)) {
 EMITTER(NOT_V128, MATCH(I<OPCODE_NOT, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest = src ^ 0xFFFF...
-    e.vpxor(i.dest, i.src1, e.GetXmmConstPtr(XMMOne));
+    e.vpxor(i.dest, i.src1, e.GetXmmConstPtr(XMMAbsMaskPD /* FF... */));
   }
 };
 EMITTER_OPCODE_TABLE(
