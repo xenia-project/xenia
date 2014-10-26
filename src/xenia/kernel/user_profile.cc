@@ -64,7 +64,7 @@ UserProfile::UserProfile() {
 
   // If we set this, games will try to get it.
   // XPROFILE_GAMERCARD_PICTURE_KEY
-  // AddSetting(WStringSetting(0x4064000F, L""));
+  AddSetting(std::make_unique<UnicodeSetting>(0x4064000F, L"gamercard_picture_key"));
 
   std::vector<uint8_t> zeros;
   zeros.resize(1000);

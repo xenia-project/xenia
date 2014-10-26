@@ -303,6 +303,43 @@ SHIM_CALL XamUserCreateAchievementEnumerator_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
+SHIM_CALL XamParseGamerTileKey_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t key_ptr = SHIM_GET_ARG_32(0);
+  uint32_t out0_ptr = SHIM_GET_ARG_32(1);
+  uint32_t out1_ptr = SHIM_GET_ARG_32(2);
+  uint32_t out2_ptr = SHIM_GET_ARG_32(3);
+
+  XELOGD("XamParseGamerTileKey(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", key_ptr,
+         out0_ptr, out1_ptr, out2_ptr);
+
+  SHIM_SET_MEM_32(out0_ptr, 0xC0DE0001);
+  SHIM_SET_MEM_32(out1_ptr, 0xC0DE0002);
+  SHIM_SET_MEM_32(out2_ptr, 0xC0DE0003);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+}
+
+SHIM_CALL XamReadTileToTexture_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0);  // const?
+  uint32_t unk1 = SHIM_GET_ARG_32(1);  // out0 from XamParseGamerTileKey
+  uint32_t unk2 = SHIM_GET_ARG_32(2);  // some variant of out1/out2
+  uint32_t unk3 = SHIM_GET_ARG_32(3);  // const?
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(4);
+  uint32_t stride = SHIM_GET_ARG_32(5);
+  uint32_t height = SHIM_GET_ARG_32(6);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(7);
+
+  XELOGD("XamReadTileToTexture(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1,
+         unk2, unk3, buffer_ptr, stride, height, overlapped_ptr);
+
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  } else {
+    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  }
+}
+
 SHIM_CALL XamWriteGamerTile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t arg0 = SHIM_GET_ARG_32(0);
   uint32_t arg1 = SHIM_GET_ARG_32(1);
@@ -336,5 +373,7 @@ void xe::kernel::xam::RegisterUserExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamUserCheckPrivilege, state);
   SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
   SHIM_SET_MAPPING("xam.xex", XamUserCreateAchievementEnumerator, state);
+  SHIM_SET_MAPPING("xam.xex", XamParseGamerTileKey, state);
+  SHIM_SET_MAPPING("xam.xex", XamReadTileToTexture, state);
   SHIM_SET_MAPPING("xam.xex", XamWriteGamerTile, state);
 }
