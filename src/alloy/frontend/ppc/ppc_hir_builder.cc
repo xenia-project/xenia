@@ -407,6 +407,8 @@ Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
       LoadZero(INT32_TYPE));
   Value* eq = CompareEQ(Truncate(address, INT32_TYPE), old_address);
   StoreContext(offsetof(PPCContext, cr0.cr0_eq), eq);
+  StoreContext(offsetof(PPCContext, cr0.cr0_lt), LoadZero(INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr0.cr0_gt), LoadZero(INT8_TYPE));
   auto skip_label = NewLabel();
   BranchFalse(eq, skip_label, BRANCH_UNLIKELY);
   Store(address, value, store_flags);
