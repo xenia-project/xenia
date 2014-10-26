@@ -148,18 +148,30 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
   const size_t kSettingSize = 4 + 4 + 4 + 4 + 4 + 4 + 16;
 
   // Compute required size.
+  bool any_missing = false;
   uint32_t size_needed = 4 + 4 + setting_count * kSettingSize;
   for (uint32_t n = 0; n < setting_count; ++n) {
     uint32_t setting_id = SHIM_MEM_32(setting_ids_ptr + n * 4);
     auto setting = user_profile->GetSetting(setting_id);
     if (setting) {
       auto extra_size = static_cast<uint32_t>(setting->extra_size());
-      ;
       size_needed += extra_size;
+    } else {
+      any_missing = true;
+      XELOGE("XamUserReadProfileSettings requested unimplemented setting %.8X", setting_id);
     }
   }
+  if (any_missing) {
+    // TODO(benvanik): don't fail? most games don't even check!
+    if (overlapped_ptr) {
+      state->CompleteOverlappedImmediate(overlapped_ptr,
+                                         X_ERROR_INVALID_PARAMETER);
+    }
+    SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
+    return;
+  }
   SHIM_SET_MEM_32(buffer_size_ptr, size_needed);
-  if (buffer_size < size_needed) {
+  if (!buffer_ptr || buffer_size < size_needed) {
     if (overlapped_ptr) {
       state->CompleteOverlappedImmediate(overlapped_ptr,
                                          X_ERROR_INSUFFICIENT_BUFFER);
