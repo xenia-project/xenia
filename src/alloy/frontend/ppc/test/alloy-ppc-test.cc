@@ -327,6 +327,33 @@ class TestRunner {
           printf("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());
           printf("    Actual: %s == %s\n", reg_name.c_str(), actual_value);
         }
+      } else if (it.first == "MEMORY_OUT") {
+        size_t space_pos = it.second.find(" ");
+        auto address_str = it.second.substr(0, space_pos);
+        auto bytes_str = it.second.substr(space_pos + 1);
+        uint32_t address = std::strtoul(address_str.c_str(), nullptr, 16);
+        auto base_address = memory->Translate(address);
+        auto p = base_address;
+        const char* c = bytes_str.c_str();
+        while (*c) {
+          while (*c == ' ') ++c;
+          if (!*c) {
+            break;
+          }
+          char ccs[3] = {c[0], c[1], 0};
+          c += 2;
+          uint32_t current_address =
+              address + static_cast<uint32_t>(p - base_address);
+          uint32_t expected = std::strtoul(ccs, nullptr, 16);
+          uint8_t actual = *p;
+          if (expected != actual) {
+            any_failed = true;
+            printf("Memory %s assert failed:\n", address_str.c_str());
+            printf("  Expected: %.8X %.2X\n", current_address, expected);
+            printf("    Actual: %.8X %.2X\n", current_address, actual);
+          }
+          ++p;
+        }
       }
     }
     return !any_failed;
