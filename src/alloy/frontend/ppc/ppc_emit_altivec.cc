@@ -241,9 +241,8 @@ int InstrEmit_lvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
   // ea &= ~0xF
   ea = f.And(ea, f.LoadConstant(~0xFull));
   // v = (new >> (16 - eb))
-  Value* v = f.Permute(f.LoadVectorShr(f.Sub(f.LoadConstant((int8_t)16), eb)),
-                       f.ByteSwap(f.Load(ea, VEC128_TYPE)),
-                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
+  Value* v = f.Permute(f.LoadVectorShl(eb), f.LoadZero(VEC128_TYPE),
+                       f.ByteSwap(f.Load(ea, VEC128_TYPE)), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
