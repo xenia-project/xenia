@@ -790,6 +790,8 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
       /* XMMZero                */ vec128f(0.0f),
       /* XMMOne                 */ vec128f(1.0f),
       /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
+      /* XMMFFFF                */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
+                                           0xFFFFFFFFu, 0xFFFFFFFFu),
       /* XMMMaskX16Y16          */ vec128i(0x0000FFFFu, 0xFFFF0000u,
                                            0x00000000u, 0x00000000u),
       /* XMMFlipX16Y16          */ vec128i(0x00008000u, 0x00000000u,

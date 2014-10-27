@@ -42,6 +42,7 @@ enum XmmConst {
   XMMZero = 0,
   XMMOne,
   XMMNegativeOne,
+  XMMFFFF,
   XMMMaskX16Y16,
   XMMFlipX16Y16,
   XMMFixX16Y16,
