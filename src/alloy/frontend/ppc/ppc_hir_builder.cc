@@ -301,8 +301,8 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   // Testing for all 1's and all 0's.
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
   // TODO(benvanik): efficient instruction?
-  StoreContext(offsetof(PPCContext, cr6.cr6_0), LoadZero(INT8_TYPE));
-  StoreContext(offsetof(PPCContext, cr6.cr6_2), LoadZero(INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr6.cr6_1), LoadZero(INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr6.cr6_3), LoadZero(INT8_TYPE));
   StoreContext(offsetof(PPCContext, cr6.cr6_all_equal),
                IsFalse(Not(src_value)));
   StoreContext(offsetof(PPCContext, cr6.cr6_none_equal), IsFalse(src_value));

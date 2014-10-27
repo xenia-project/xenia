@@ -102,10 +102,10 @@ typedef struct alignas(64) PPCContext_s {
   union {
     uint32_t  value;
     struct {
-      uint8_t   cr6_0;
-      uint8_t   cr6_none_equal;
-      uint8_t   cr6_2;
       uint8_t   cr6_all_equal;
+      uint8_t   cr6_1;
+      uint8_t   cr6_none_equal;
+      uint8_t   cr6_3;
     };
   } cr6;
   union {
