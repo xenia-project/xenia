@@ -63,6 +63,28 @@ SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
+SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_state,
+                                         KernelState* state) {
+  uint32_t unk = SHIM_GET_ARG_32(0);
+  uint32_t user_index = SHIM_GET_ARG_32(1);
+  uint32_t flags = SHIM_GET_ARG_32(2);
+  uint32_t caps_ptr = SHIM_GET_ARG_32(3);
+
+  XELOGD("XamInputGetCapabilitiesEx(%d, %d, %.8X, %.8X)", unk, user_index,
+         flags, caps_ptr);
+
+  if (!caps_ptr) {
+    SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
+    return;
+  }
+
+  InputSystem* input_system = state->emulator()->input_system();
+
+  auto caps = SHIM_STRUCT(X_INPUT_CAPABILITIES, caps_ptr);
+  X_RESULT result = input_system->GetCapabilities(user_index, flags, caps);
+  SHIM_SET_RETURN_32(result);
+}
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 SHIM_CALL XamInputGetState_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -179,6 +201,7 @@ void xe::kernel::xam::RegisterInputExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamResetInactivity, state);
   SHIM_SET_MAPPING("xam.xex", XamEnableInactivityProcessing, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);
+  SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilitiesEx, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetState, state);
   SHIM_SET_MAPPING("xam.xex", XamInputSetState, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetKeystroke, state);
