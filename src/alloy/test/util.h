@@ -47,6 +47,7 @@ class ThreadState : public alloy::runtime::ThreadState {
 
     // Stash pointers to common structures that callbacks may need.
     context_->reserve_address = memory_->reserve_address();
+    context_->reserve_value = memory_->reserve_value();
     context_->membase = memory_->membase();
     context_->runtime = runtime;
     context_->thread_state = this;

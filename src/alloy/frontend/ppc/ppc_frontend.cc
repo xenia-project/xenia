@@ -13,6 +13,7 @@
 #include <alloy/frontend/ppc/ppc_disasm.h>
 #include <alloy/frontend/ppc/ppc_emit.h>
 #include <alloy/frontend/ppc/ppc_translator.h>
+#include <alloy/runtime/runtime.h>
 
 namespace alloy {
 namespace frontend {
@@ -58,11 +59,36 @@ PPCFrontend::~PPCFrontend() {
   translator_pool_.Reset();
 }
 
+void CheckGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
+  ppc_state->scratch = 0x8000;
+}
+void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
+  std::mutex* global_lock = reinterpret_cast<std::mutex*>(arg0);
+  volatile bool* global_lock_taken = reinterpret_cast<bool*>(arg1);
+  uint64_t value = ppc_state->scratch;
+  if (value == 0x8000) {
+    global_lock->unlock();
+    *global_lock_taken = false;
+  } else if (value == ppc_state->r[13]) {
+    global_lock->lock();
+    *global_lock_taken = true;
+  }
+}
+
 int PPCFrontend::Initialize() {
   int result = Frontend::Initialize();
   if (result) {
     return result;
   }
+
+  void* arg0 = reinterpret_cast<void*>(&builtins_.global_lock);
+  void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_taken);
+  builtins_.check_global_lock = runtime_->DefineBuiltin(
+      "CheckGlobalLock", (FunctionInfo::ExternHandler)CheckGlobalLock, arg0,
+      arg1);
+  builtins_.handle_global_lock = runtime_->DefineBuiltin(
+      "HandleGlobalLock", (FunctionInfo::ExternHandler)HandleGlobalLock, arg0,
+      arg1);
 
   return result;
 }

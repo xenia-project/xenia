@@ -45,6 +45,11 @@ class Runtime {
   Module* GetModule(const std::string& name) { return GetModule(name.c_str()); }
   std::vector<Module*> GetModules();
 
+  Module* builtin_module() const { return builtin_module_; }
+  FunctionInfo* DefineBuiltin(const std::string& name,
+                              FunctionInfo::ExternHandler handler, void* arg0,
+                              void* arg1);
+
   std::vector<Function*> FindFunctionsWithAddress(uint64_t address);
 
   int LookupFunctionInfo(uint64_t address, FunctionInfo** out_symbol_info);
@@ -71,6 +76,8 @@ class Runtime {
   EntryTable entry_table_;
   std::mutex modules_lock_;
   std::vector<std::unique_ptr<Module>> modules_;
+  Module* builtin_module_;
+  uint64_t next_builtin_address_;
 };
 
 }  // namespace runtime

@@ -607,22 +607,38 @@ XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-// TODO(benvanik): MSR is used for toggling interrupts, and it'd be nice to
-//                 obey that setting. It's usually guarding atomic stores.
+// MSR is used for toggling interrupts (among other things).
+// We track it here for taking a global processor lock, as lots of lockfree
+// code requires it. Sequences of mtmsr/lwar/stcw/mtmsr come up a lot, and
+// without the lock here threads can livelock.
 
 XEEMITTER(mfmsr, 0x7C0000A6, X)(PPCHIRBuilder& f, InstrData& i) {
-  f.Nop();
+  f.StoreGPR(i.X.RT, f.LoadMSR());
   return 0;
 }
 
 XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
-  f.Nop();
-  return 0;
+  if (i.X.RA & 0x01) {
+    // L = 1
+    f.StoreMSR(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
+    return 0;
+  } else {
+    // L = 0
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
 }
 
 XEEMITTER(mtmsrd, 0x7C000164, X)(PPCHIRBuilder& f, InstrData& i) {
-  f.Nop();
-  return 0;
+  if (i.X.RA & 0x01) {
+    // L = 1
+    f.StoreMSR(f.LoadGPR(i.X.RT));
+    return 0;
+  } else {
+    // L = 0
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
 }
 
 void RegisterEmitCategoryControl() {

@@ -28,11 +28,25 @@ namespace runtime {
 using alloy::backend::Backend;
 using alloy::frontend::Frontend;
 
+class BuiltinModule : public Module {
+ public:
+  BuiltinModule(Runtime* runtime) : Module(runtime), name_("builtin") {}
+  const std::string& name() const override { return name_; }
+  bool ContainsAddress(uint64_t address) override {
+    return (address & 0x1FFFFFFF0) == 0x100000000;
+  }
+
+ private:
+  std::string name_;
+};
+
 Runtime::Runtime(Memory* memory, uint32_t debug_info_flags,
                  uint32_t trace_flags)
     : memory_(memory),
       debug_info_flags_(debug_info_flags),
-      trace_flags_(trace_flags) {}
+      trace_flags_(trace_flags),
+      builtin_module_(nullptr),
+      next_builtin_address_(0x100000000ull) {}
 
 Runtime::~Runtime() {
   {
@@ -52,6 +66,10 @@ int Runtime::Initialize(std::unique_ptr<Frontend> frontend,
 
   // Create debugger first. Other types hook up to it.
   debugger_.reset(new Debugger(this));
+
+  std::unique_ptr<Module> builtin_module(new BuiltinModule(this));
+  builtin_module_ = builtin_module.get();
+  modules_.push_back(std::move(builtin_module));
 
   if (frontend_ || backend_) {
     return 1;
@@ -125,6 +143,22 @@ std::vector<Module*> Runtime::GetModules() {
     clone.push_back(module.get());
   }
   return clone;
+}
+
+FunctionInfo* Runtime::DefineBuiltin(const std::string& name,
+                                     FunctionInfo::ExternHandler handler,
+                                     void* arg0, void* arg1) {
+  uint64_t address = next_builtin_address_;
+  next_builtin_address_ += 4;
+
+  FunctionInfo* fn_info;
+  builtin_module_->DeclareFunction(address, &fn_info);
+  fn_info->set_end_address(address + 4);
+  fn_info->set_name(name);
+  fn_info->SetupExtern(handler, arg0, arg1);
+  fn_info->set_status(runtime::SymbolInfo::STATUS_DECLARED);
+
+  return fn_info;
 }
 
 std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {

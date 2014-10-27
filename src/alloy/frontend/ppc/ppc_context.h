@@ -172,6 +172,10 @@ typedef struct alignas(64) PPCContext_s {
 
   // Reserve address for load acquire/store release. Shared.
   uint64_t* reserve_address;
+  uint64_t* reserve_value;
+
+  // Used to shuttle data into externs. Contents volatile.
+  uint64_t scratch;
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.

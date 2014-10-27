@@ -25,6 +25,7 @@ class Memory {
     return membase_ + guest_address;
   };
   inline uint64_t* reserve_address() { return &reserve_address_; }
+  inline uint64_t* reserve_value() { return &reserve_value_; }
 
   // TODO(benvanik): remove with GPU refactor.
   virtual uint64_t page_table() const = 0;
@@ -56,6 +57,7 @@ class Memory {
   size_t system_page_size_;
   uint8_t* membase_;
   uint64_t reserve_address_;
+  uint64_t reserve_value_;
   uint64_t trace_base_;
 };
 

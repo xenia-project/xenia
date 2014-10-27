@@ -10,6 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_FRONTEND_H_
 #define ALLOY_FRONTEND_PPC_PPC_FRONTEND_H_
 
+#include <mutex>
+
 #include <alloy/frontend/frontend.h>
 #include <alloy/type_pool.h>
 
@@ -19,12 +21,21 @@ namespace ppc {
 
 class PPCTranslator;
 
+struct PPCBuiltins {
+  std::mutex global_lock;
+  bool global_lock_taken;
+  runtime::FunctionInfo* check_global_lock;
+  runtime::FunctionInfo* handle_global_lock;
+};
+
 class PPCFrontend : public Frontend {
  public:
   PPCFrontend(runtime::Runtime* runtime);
   ~PPCFrontend() override;
 
   int Initialize() override;
+
+  PPCBuiltins* builtins() { return &builtins_; }
 
   int DeclareFunction(runtime::FunctionInfo* symbol_info) override;
   int DefineFunction(runtime::FunctionInfo* symbol_info,
@@ -33,6 +44,7 @@ class PPCFrontend : public Frontend {
 
  private:
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
+  PPCBuiltins builtins_;
 };
 
 }  // namespace ppc

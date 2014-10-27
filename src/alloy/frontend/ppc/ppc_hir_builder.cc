@@ -308,6 +308,20 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   // TOOD(benvanik): trace CR.
 }
 
+Value* PPCHIRBuilder::LoadMSR() {
+  // bit 48 = EE; interrupt enabled
+  // bit 62 = RI; recoverable interrupt
+  // return 8000h if unlocked, else 0
+  CallExtern(frontend_->builtins()->check_global_lock);
+  return LoadContext(offsetof(PPCContext, scratch), INT64_TYPE);
+}
+
+void PPCHIRBuilder::StoreMSR(Value* value) {
+  // if & 0x8000 == 0, lock, else unlock
+  StoreContext(offsetof(PPCContext, scratch), ZeroExtend(value, INT64_TYPE));
+  CallExtern(frontend_->builtins()->handle_global_lock);
+}
+
 Value* PPCHIRBuilder::LoadFPSCR() {
   return LoadContext(offsetof(PPCContext, fpscr), INT64_TYPE);
 }
@@ -397,7 +411,12 @@ Value* PPCHIRBuilder::LoadAcquire(Value* address, TypeName type,
                                   uint32_t load_flags) {
   AtomicExchange(LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
                  Truncate(address, INT32_TYPE));
-  return Load(address, type, load_flags);
+  Value* value = Load(address, type, load_flags);
+  // Save the value so that we can compare it later in StoreRelease.
+  AtomicExchange(
+      LoadContext(offsetof(PPCContext, reserve_value), INT64_TYPE),
+      value);
+  return value;
 }
 
 Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
@@ -405,7 +424,13 @@ Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
   Value* old_address = AtomicExchange(
       LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
       LoadZero(INT32_TYPE));
-  Value* eq = CompareEQ(Truncate(address, INT32_TYPE), old_address);
+  // HACK: ensure the reservation addresses match AND the value hasn't changed.
+  Value* old_value = AtomicExchange(
+      LoadContext(offsetof(PPCContext, reserve_value), INT64_TYPE),
+      LoadZero(value->type));
+  Value* current_value = Load(address, value->type);
+  Value* eq = And(CompareEQ(Truncate(address, INT32_TYPE), old_address),
+                  CompareEQ(current_value, old_value));
   StoreContext(offsetof(PPCContext, cr0.cr0_eq), eq);
   StoreContext(offsetof(PPCContext, cr0.cr0_lt), LoadZero(INT8_TYPE));
   StoreContext(offsetof(PPCContext, cr0.cr0_gt), LoadZero(INT8_TYPE));

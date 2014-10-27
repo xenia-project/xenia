@@ -13,7 +13,11 @@
 
 namespace alloy {
 
-Memory::Memory() : membase_(nullptr), reserve_address_(0), trace_base_(0) {
+Memory::Memory()
+    : membase_(nullptr),
+      reserve_address_(0),
+      reserve_value_(0),
+      trace_base_(0) {
   system_page_size_ = poly::page_size();
 }
 
@@ -64,6 +68,7 @@ uint64_t Memory::SearchAligned(uint64_t start, uint64_t end,
 SimpleMemory::SimpleMemory(size_t capacity) : memory_(capacity) {
   membase_ = reinterpret_cast<uint8_t*>(memory_.data());
   reserve_address_ = capacity - 8;
+  reserve_value_ = capacity - 16;
 }
 
 SimpleMemory::~SimpleMemory() = default;
