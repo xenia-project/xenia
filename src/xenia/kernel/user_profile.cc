@@ -43,6 +43,8 @@ UserProfile::UserProfile() {
   AddSetting(std::make_unique<Int32Setting>(0x10040013, 0));
   // XPROFILE_GAMER_DIFFICULTY
   AddSetting(std::make_unique<Int32Setting>(0x10040015, 0));
+  // XPROFILE_GAMER_CONTROL_SENSITIVITY
+  AddSetting(std::make_unique<Int32Setting>(0x10040018, 0));
   // XPROFILE_GAMER_ACTION_AUTO_AIM
   AddSetting(std::make_unique<Int32Setting>(0x10040022, 1));
   // XPROFILE_GAMER_ACTION_AUTO_CENTER

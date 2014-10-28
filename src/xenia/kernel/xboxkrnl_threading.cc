@@ -731,9 +731,6 @@ SHIM_CALL NtCancelTimer_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t timer_handle = SHIM_GET_ARG_32(0);
   uint32_t current_state_ptr = SHIM_GET_ARG_32(1);
 
-  // UNVERIFIED
-  DebugBreak();
-
   XELOGD("NtCancelTimer(%.8X, %.8X)", timer_handle, current_state_ptr);
 
   X_STATUS result = X_STATUS_SUCCESS;
