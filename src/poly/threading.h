@@ -23,6 +23,8 @@ namespace threading {
 // Gets the current high-performance tick count.
 uint64_t ticks();
 
+// TODO(benvanik): processor info API.
+
 // Gets a stable thread-specific ID, but may not be. Use for informative
 // purposes only.
 uint32_t current_thread_id();

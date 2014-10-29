@@ -478,8 +478,22 @@ void XThread::SetPriority(int32_t increment) {
 }
 
 void XThread::SetAffinity(uint32_t affinity) {
-  // TODO(benvanik): implement.
-  XELOGW("KeSetAffinityThread not implemented");
+  // Affinity mask, as in SetThreadAffinityMask.
+  // Xbox thread IDs:
+  // 0 - core 0, thread 0 - user
+  // 1 - core 0, thread 1 - user
+  // 2 - core 1, thread 0 - sometimes xcontent
+  // 3 - core 1, thread 1 - user
+  // 4 - core 2, thread 0 - xaudio
+  // 5 - core 2, thread 1 - user
+  // TODO(benvanik): implement better thread distribution.
+  // NOTE: these are logical processors, not physical processors or cores.
+  SYSTEM_INFO system_info;
+  GetSystemInfo(&system_info);
+  if (system_info.dwNumberOfProcessors < 6) {
+    XELOGW("Too few processors - scheduling will be wonky");
+  }
+  SetThreadAffinityMask(::GetCurrentThread(), affinity);
 }
 
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
