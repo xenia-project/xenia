@@ -12,6 +12,8 @@
 #include <poly/math.h>
 #include <xenia/gpu/xenos/ucode_disassembler.h>
 
+const bool kAssertOnZeroShaders = false;
+
 using namespace std;
 using namespace xe;
 using namespace xe::gpu;
@@ -35,8 +37,13 @@ ShaderResource::ShaderResource(const MemoryRange& memory_range,
   // Copy bytes and swap.
   size_t byte_size = dword_count_ * sizeof(uint32_t);
   dwords_ = (uint32_t*)malloc(byte_size);
+  bool any_nonzero = false;
   for (uint32_t n = 0; n < dword_count_; n++) {
     dwords_[n] = poly::load_and_swap<uint32_t>(memory_range.host_base + n * 4);
+    any_nonzero = any_nonzero || dwords_[n] != 0;
+  }
+  if (kAssertOnZeroShaders) {
+    assert_true(any_nonzero);
   }
 
   // Disassemble, for debugging.

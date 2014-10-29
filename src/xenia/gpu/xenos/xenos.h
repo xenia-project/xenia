@@ -94,8 +94,10 @@ inline uint32_t GpuToCpu(uint32_t p) {
 }
 
 inline uint32_t GpuToCpu(uint32_t base, uint32_t p) {
-  uint32_t upper = base & 0xFF000000;
-  uint32_t lower = p & 0x00FFFFFF;
+  // Some AMD docs say relative to base ptr, some say just this.
+  // Some games use some crazy shift magic, but it seems to nop.
+  uint32_t upper = 0;//base & 0xFF000000;
+  uint32_t lower = p & 0x01FFFFFF;
   return upper + lower;// -(((base >> 20) + 0x200) & 0x1000);
 }
 
