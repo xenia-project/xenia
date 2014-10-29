@@ -266,6 +266,47 @@ SHIM_CALL XamUserCheckPrivilege_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
+SHIM_CALL XamUserAreUsersFriends_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t unk1 = SHIM_GET_ARG_32(1);
+  uint32_t unk2 = SHIM_GET_ARG_32(2);
+  uint32_t out_value_ptr = SHIM_GET_ARG_32(3);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
+
+  XELOGD("XamUserAreUsersFriends(%d, %.8X, %.8X, %.8X, %.8X)", user_index, unk1,
+         unk2, out_value_ptr, overlapped_ptr);
+
+  if (user_index == 255) {
+    user_index = 0;
+  }
+
+  SHIM_SET_MEM_32(out_value_ptr, 0);
+
+  if (user_index) {
+    // Only support user 0.
+    SHIM_SET_RETURN_32(X_ERROR_NOT_LOGGED_ON);
+    return;
+  }
+
+  X_RESULT result = X_ERROR_SUCCESS;
+
+  const auto& user_profile = state->user_profile();
+  if (user_profile->signin_state() == 0) {
+    result = X_ERROR_NOT_LOGGED_ON;
+  }
+
+  // No friends!
+  SHIM_SET_MEM_32(out_value_ptr, 0);
+
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, result);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  } else {
+    SHIM_SET_RETURN_32(result);
+  }
+}
+
 SHIM_CALL XamShowSigninUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);
   uint32_t unk_mask = SHIM_GET_ARG_32(1);
@@ -371,6 +412,7 @@ void xe::kernel::xam::RegisterUserExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
   SHIM_SET_MAPPING("xam.xex", XamUserWriteProfileSettings, state);
   SHIM_SET_MAPPING("xam.xex", XamUserCheckPrivilege, state);
+  SHIM_SET_MAPPING("xam.xex", XamUserAreUsersFriends, state);
   SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
   SHIM_SET_MAPPING("xam.xex", XamUserCreateAchievementEnumerator, state);
   SHIM_SET_MAPPING("xam.xex", XamParseGamerTileKey, state);
