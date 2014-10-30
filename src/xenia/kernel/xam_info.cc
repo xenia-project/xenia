@@ -113,6 +113,7 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
     return;
   }
 
+  // 0 items.
   if (item_count_ptr) {
     assert_zero(overlapped_ptr);
     SHIM_SET_MEM_32(item_count_ptr, 0);

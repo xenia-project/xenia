@@ -33,7 +33,8 @@ KernelState* shared_kernel_state_ = nullptr;
 KernelState::KernelState(Emulator* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
-      executable_module_(NULL) {
+      has_notified_startup_(false),
+      executable_module_(nullptr) {
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
 
@@ -51,7 +52,7 @@ KernelState::KernelState(Emulator* emulator)
 }
 
 KernelState::~KernelState() {
-  SetExecutableModule(NULL);
+  SetExecutableModule(nullptr);
 
   // Delete all objects.
   delete object_table_;
@@ -62,7 +63,7 @@ KernelState::~KernelState() {
   delete dispatcher_;
 
   assert_true(shared_kernel_state_ == this);
-  shared_kernel_state_ = NULL;
+  shared_kernel_state_ = nullptr;
 }
 
 KernelState* KernelState::shared() { return shared_kernel_state_; }
@@ -86,17 +87,17 @@ XModule* KernelState::GetModule(const char* name) {
     return module;
   } else if (strcasecmp(name, "kernel32.dll") == 0) {
     // Some games request this, for some reason. wtf.
-    return NULL;
+    return nullptr;
   } else {
     // TODO(benvanik): support user modules/loading/etc.
     assert_always();
-    return NULL;
+    return nullptr;
   }
 }
 
 XUserModule* KernelState::GetExecutableModule() {
   if (!executable_module_) {
-    return NULL;
+    return nullptr;
   }
 
   executable_module_->Retain();
@@ -132,7 +133,7 @@ void KernelState::UnregisterThread(XThread* thread) {
 
 XThread* KernelState::GetThreadByID(uint32_t thread_id) {
   std::lock_guard<std::mutex> lock(object_mutex_);
-  XThread* thread = NULL;
+  XThread* thread = nullptr;
   auto it = threads_by_id_.find(thread_id);
   if (it != threads_by_id_.end()) {
     thread = it->second;
@@ -145,6 +146,25 @@ XThread* KernelState::GetThreadByID(uint32_t thread_id) {
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   std::lock_guard<std::mutex> lock(object_mutex_);
   notify_listeners_.push_back(listener);
+
+  // Games seem to expect a few notifications on startup, only for the first
+  // listener.
+  // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
+  if (!has_notified_startup_ && listener->mask() & 0x00000001) {
+    has_notified_startup_ = true;
+    // XN_SYS_UI (on, off)
+    listener->EnqueueNotification(0x00000009, 1);
+    listener->EnqueueNotification(0x00000009, 0);
+    // XN_SYS_SIGNINCHANGED x2
+    listener->EnqueueNotification(0x0000000A, 1);
+    listener->EnqueueNotification(0x0000000A, 1);
+    // XN_SYS_INPUTDEVICESCHANGED x2
+    listener->EnqueueNotification(0x00000012, 0);
+    listener->EnqueueNotification(0x00000012, 0);
+    // XN_SYS_INPUTDEVICECONFIGCHANGED x2
+    listener->EnqueueNotification(0x00000013, 0);
+    listener->EnqueueNotification(0x00000013, 0);
+  }
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {

@@ -93,6 +93,7 @@ class KernelState {
   std::mutex object_mutex_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<XNotifyListener*> notify_listeners_;
+  bool has_notified_startup_;
 
   XUserModule* executable_module_;
 

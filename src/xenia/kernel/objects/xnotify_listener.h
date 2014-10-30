@@ -23,6 +23,8 @@ class XNotifyListener : public XObject {
   XNotifyListener(KernelState* kernel_state);
   virtual ~XNotifyListener();
 
+  uint64_t mask() const { return mask_; }
+
   void Initialize(uint64_t mask);
 
   void EnqueueNotification(XNotificationID id, uint32_t data);
