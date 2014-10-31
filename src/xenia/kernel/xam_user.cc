@@ -50,14 +50,8 @@ SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_state,
     const auto& user_profile = state->user_profile();
     auto signin_state = user_profile->signin_state();
     SHIM_SET_RETURN_64(signin_state);
-
-    // Notify we exist, just for fun.
-    state->BroadcastNotification(0x0000000A, signin_state ? 1 : 0);
   } else {
     SHIM_SET_RETURN_64(0);
-
-    // Notify no users.
-    state->BroadcastNotification(0x0000000A, 0);
   }
 }
 
