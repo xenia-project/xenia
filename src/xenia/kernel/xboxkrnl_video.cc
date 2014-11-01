@@ -239,10 +239,26 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 // r4 = 19
 // no op?
 
-// VdCallGraphicsNotificationRoutines
-// r3 = 1
-// r4 = ?
-// callbacks get 0, r3, r4
+SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
+                                                  KernelState* state) {
+  uint32_t unk_1 = SHIM_GET_ARG_32(0);
+  uint32_t args_ptr = SHIM_GET_ARG_32(1);
+
+  assert_true(unk_1 == 1);
+
+  uint16_t fb_width = SHIM_MEM_16(args_ptr + 0);
+  uint16_t fb_height = SHIM_MEM_16(args_ptr + 2);
+  uint16_t bb_width = SHIM_MEM_16(args_ptr + 4);
+  uint16_t bb_height = SHIM_MEM_16(args_ptr + 6);
+
+  XELOGD("VdCallGraphicsNotificationRoutines(%d, %.8X(scale %dx%d -> %dx%d))",
+         unk_1, args_ptr, bb_width, bb_height, fb_width, fb_height);
+
+  // TODO(benvanik): what does this mean, I forget:
+  // callbacks get 0, r3, r4
+
+  SHIM_SET_RETURN_64(0);
+}
 
 SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
                                          KernelState* state) {
@@ -325,6 +341,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetSystemCommandBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetSystemCommandBufferGpuIdentifierAddress,
                    state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdCallGraphicsNotificationRoutines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdIsHSIOTrainingSucceeded, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdPersistDisplay, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAMWorker, state);
