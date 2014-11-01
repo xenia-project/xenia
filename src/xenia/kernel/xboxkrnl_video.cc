@@ -111,6 +111,30 @@ SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
   xeVdQueryVideoMode(video_mode);
 }
 
+SHIM_CALL VdSetDisplayMode_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t mode = SHIM_GET_ARG_32(0);
+
+  // 40000000
+  XELOGD("VdSetDisplayMode(%.8X)", mode);
+
+  SHIM_SET_RETURN_64(0);
+}
+
+SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_state,
+                                        KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0);
+  uint32_t unk1 = SHIM_GET_ARG_32(1);
+  double refresh_rate = ppc_state->f[1];  // 0, 50, 59.9, etc.
+  uint32_t unk3 = SHIM_GET_ARG_32(2);
+  uint32_t unk4 = SHIM_GET_ARG_32(3);
+
+  // TODO(benvanik): something with refresh rate?
+  XELOGD("VdSetDisplayModeOverride(%.8X, %.8X, %g, %.8X, %.8X)", unk0, unk1,
+         refresh_rate, unk3, unk4);
+
+  SHIM_SET_RETURN_64(0);
+}
+
 SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t callback = SHIM_GET_ARG_32(1);
@@ -377,6 +401,8 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayInformation, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoMode, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdSetDisplayMode, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdSetDisplayModeOverride, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdShutdownEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableDisableClockGating, state);
