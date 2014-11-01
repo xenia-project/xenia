@@ -135,6 +135,17 @@ SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
   // re-initialize.
 }
 
+SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_state,
+                                          KernelState* state) {
+  uint32_t enabled = SHIM_GET_ARG_32(0);
+
+  XELOGD("VdEnableDisableClockGating(%d)", enabled);
+
+  // Ignored, as it really doesn't matter.
+
+  SHIM_SET_RETURN_64(0);
+}
+
 SHIM_CALL VdSetGraphicsInterruptCallback_shim(PPCContext* ppc_state,
                                               KernelState* state) {
   uint32_t callback = SHIM_GET_ARG_32(0);
@@ -368,6 +379,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoMode, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdShutdownEngines, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableDisableClockGating, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableRingBufferRPtrWriteBack, state);
