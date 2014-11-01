@@ -239,6 +239,39 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 // r4 = 19
 // no op?
 
+SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
+                                               KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0); // 0?
+  uint32_t unk1 = SHIM_GET_ARG_32(1); // 0x050002d0 size of ?
+  uint32_t unk2 = SHIM_GET_ARG_32(2); // 0?
+  uint32_t unk3 = SHIM_GET_ARG_32(3); // 0x050002d0 size of ?
+  uint32_t unk4 = SHIM_GET_ARG_32(4); // 0x050002d0 size of ?
+  uint32_t unk5 = SHIM_GET_ARG_32(5); // 7?
+  uint32_t unk6 = SHIM_GET_ARG_32(6); // 0x2004909c <-- points to zeros?
+  uint32_t unk7 = SHIM_GET_ARG_32(7); // 7?
+  // arg8 is in stack!
+  uint32_t sp = (uint32_t)ppc_state->r[1];
+  // Points to the first 80000000h where the memcpy sources from.
+  uint32_t dest_ptr = SHIM_MEM_32(sp + 0x64);
+
+  XELOGD(
+      "VdInitializeScalerCommandBuffer(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, "
+      "%.8X, %.8X, %.8X)",
+      unk0, unk1, unk2, unk3, unk4, unk5, unk6, unk7, dest_ptr);
+
+  // We could fake the commands here, but I'm not sure the game checks for
+  // anything but success (non-zero ret).
+  // For now, we just fill it with NOPs.
+  size_t total_words = 0x1CC / 4;
+  uint8_t* p = SHIM_MEM_ADDR(dest_ptr);
+  for (size_t i = 0; i < total_words; ++i, p += 4) {
+    poly::store_and_swap(p, 0x80000000);
+  }
+
+  // returns memcpy size >> 2 for memcpy(...,...,ret << 2)
+  SHIM_SET_RETURN_64(total_words >> 2);
+}
+
 SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
                                                   KernelState* state) {
   uint32_t unk_1 = SHIM_GET_ARG_32(0);
@@ -341,6 +374,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetSystemCommandBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetSystemCommandBufferGpuIdentifierAddress,
                    state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeScalerCommandBuffer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdCallGraphicsNotificationRoutines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdIsHSIOTrainingSucceeded, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdPersistDisplay, state);
