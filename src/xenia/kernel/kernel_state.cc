@@ -34,6 +34,7 @@ KernelState::KernelState(Emulator* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
       has_notified_startup_(false),
+      process_type_(X_PROCTYPE_USER),
       executable_module_(nullptr) {
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();

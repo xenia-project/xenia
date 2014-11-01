@@ -59,6 +59,9 @@ class KernelState {
   ObjectTable* object_table() const { return object_table_; }
   std::mutex& object_mutex() { return object_mutex_; }
 
+  uint32_t process_type() const { return process_type_; }
+  void set_process_type(uint32_t value) { process_type_ = value; }
+
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
   XModule* GetModule(const char* name);
@@ -95,6 +98,7 @@ class KernelState {
   std::vector<XNotifyListener*> notify_listeners_;
   bool has_notified_startup_;
 
+  uint32_t process_type_;
   XUserModule* executable_module_;
 
   friend class XObject;

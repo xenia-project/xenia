@@ -242,8 +242,19 @@ SHIM_CALL KeGetCurrentProcessType_shim(PPCContext* ppc_state,
 
   // DWORD
 
-  int result = X_PROCTYPE_USER;
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_64(state->process_type());
+}
+
+SHIM_CALL KeSetCurrentProcessType_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
+  uint32_t type = SHIM_GET_ARG_32(0);
+  // One of X_PROCTYPE_?
+
+  XELOGD("KeSetCurrentProcessType(%d)", type);
+
+  assert_true(type >= 0 && type <= 2);
+
+  state->set_process_type(type);
 }
 
 SHIM_CALL KeQueryPerformanceFrequency_shim(PPCContext* ppc_state,
@@ -1232,6 +1243,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetBasePriorityThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetCurrentProcessType, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeDelayExecutionThread, state);
