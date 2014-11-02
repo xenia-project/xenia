@@ -373,7 +373,7 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk3 = SHIM_GET_ARG_32(3);  // ptr to 0xBEEF0000
   uint32_t unk4 = SHIM_GET_ARG_32(4);  // 0xBEEF0001
   uint32_t unk5 = SHIM_GET_ARG_32(5);
-  uint32_t unk6 = SHIM_GET_ARG_32(6);
+  uint32_t unk6 = SHIM_GET_ARG_32(6);  // ptr to 6?
   uint32_t unk7 = SHIM_GET_ARG_32(7);
 
   XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1,

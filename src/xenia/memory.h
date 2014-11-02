@@ -86,13 +86,15 @@ class Memory : public alloy::Memory {
     struct {
       uint8_t* v00000000;
       uint8_t* v40000000;
+      uint8_t* v7F000000;
+      uint8_t* v7F100000;
       uint8_t* v80000000;
       uint8_t* v90000000;
       uint8_t* vA0000000;
       uint8_t* vC0000000;
       uint8_t* vE0000000;
     };
-    uint8_t* all_views[7];
+    uint8_t* all_views[9];
   } views_;
 
   std::unique_ptr<cpu::MMIOHandler> mmio_handler_;

@@ -192,7 +192,7 @@ int Memory::Initialize() {
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
-  VirtualAlloc(Translate(0xC0000000), 0x00100000, MEM_COMMIT, PAGE_READWRITE);
+  VirtualAlloc(Translate(0x00000000), 0x00100000, MEM_COMMIT, PAGE_READWRITE);
 
   // Add handlers for MMIO.
   mmio_handler_ = cpu::MMIOHandler::Install(mapping_base_);
@@ -217,7 +217,9 @@ const static struct {
   uint64_t target_address;
 } map_info[] = {
       0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
-      0x40000000, 0x7FFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages
+      0x40000000, 0x7EFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages (cont)
+      0x7F000000, 0x7F0FFFFF, 0x00000000,  //    (1mb) - GPU writeback
+      0x7F100000, 0x7FFFFFFF, 0x00100000,  //   (15mb) - XPS?
       0x80000000, 0x8FFFFFFF, 0x80000000,  //  (256mb) - xex 64k pages
       0x90000000, 0x9FFFFFFF, 0x80000000,  //  (256mb) - xex 4k pages
       0xA0000000, 0xBFFFFFFF, 0x00000000,  //  (512mb) - physical 64k pages

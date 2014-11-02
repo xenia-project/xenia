@@ -14,13 +14,9 @@ using namespace xe;
 using namespace xe::gpu;
 using namespace xe::gpu::xenos;
 
+GraphicsDriver::GraphicsDriver(Memory* memory) : memory_(memory) {}
 
-GraphicsDriver::GraphicsDriver(Memory* memory) :
-    memory_(memory), address_translation_(0) {
-}
-
-GraphicsDriver::~GraphicsDriver() {
-}
+GraphicsDriver::~GraphicsDriver() = default;
 
 int GraphicsDriver::LoadShader(XE_GPU_SHADER_TYPE type,
                                uint32_t address, uint32_t length,
@@ -114,7 +110,6 @@ int GraphicsDriver::PrepareDrawIndexBuffer(
     IndexFormat format) {
   SCOPE_profile_cpu_f("gpu");
 
-  address += address_translation_;
   MemoryRange memory_range(memory_->Translate(address), address, length);
 
   IndexBufferResource::Info info;
@@ -209,7 +204,7 @@ int GraphicsDriver::PopulateInputAssembly(DrawCommand& command) {
     const auto& info = desc.info;
 
     MemoryRange memory_range;
-    memory_range.guest_base = (fetch->address << 2) + address_translation_;
+    memory_range.guest_base = fetch->address << 2;
     memory_range.host_base = memory_->Translate(memory_range.guest_base);
     memory_range.length = fetch->size * 4;
     // TODO(benvanik): if the memory range is within the command buffer, we
@@ -282,7 +277,7 @@ int GraphicsDriver::PopulateSamplerSet(
   // TODO(benvanik): quick validate without refetching intraframe.
   // Fetch texture from the cache.
   MemoryRange memory_range;
-  memory_range.guest_base = (fetch.address << 12) + address_translation_;
+  memory_range.guest_base = fetch.address << 12;
   memory_range.host_base = memory_->Translate(memory_range.guest_base);
   memory_range.length = info.input_length;
 

@@ -64,9 +64,6 @@ void CommandProcessor::Initialize(GraphicsDriver* driver,
   uint32_t original_size = 1 << (0x1C - page_count - 1);
   primary_buffer_size_  = original_size;
   read_ptr_index_       = 0;
-
-  // Tell the driver what to use for translation.
-  driver_->set_address_translation(primary_buffer_ptr_ & ~0x1FFFFFFF);
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
@@ -553,7 +550,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
               // TODO(benvanik): detect subregions of larger index buffers!
               uint32_t index_base = READ_PTR();
               uint32_t index_size = READ_PTR();
-              uint32_t endianness = index_size >> 29;
+              uint32_t endianness = index_size >> 30;
               index_size &= 0x00FFFFFF;
               bool index_32bit = (d1 >> 11) & 0x1;
               index_size *= index_32bit ? 4 : 2;

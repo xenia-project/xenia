@@ -53,7 +53,8 @@ int D3D11IndexBufferResource::InvalidateRegion(
   SCOPE_profile_cpu_f("gpu");
 
   // All that's done so far:
-  assert_true(info_.endianness == 0x2);
+  assert_true(info_.endianness == XE_GPU_ENDIAN_8IN16 ||
+              info_.endianness == XE_GPU_ENDIAN_8IN32);
 
   D3D11_MAPPED_SUBRESOURCE res;
   HRESULT hr = resource_cache_->context()->Map(

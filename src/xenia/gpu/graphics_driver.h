@@ -28,9 +28,6 @@ public:
   Memory* memory() const { return memory_; }
   virtual ResourceCache* resource_cache() const = 0;
   RegisterFile* register_file() { return &register_file_; };
-  void set_address_translation(uint32_t value) {
-    address_translation_ = value;
-  }
 
   virtual int Initialize() = 0;
 
@@ -61,7 +58,6 @@ protected:
 
   Memory* memory_;
   RegisterFile register_file_;
-  uint32_t address_translation_;
 
   VertexShaderResource* vertex_shader_;
   PixelShaderResource* pixel_shader_;
