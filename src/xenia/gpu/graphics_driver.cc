@@ -197,8 +197,9 @@ int GraphicsDriver::PopulateInputAssembly(DrawCommand& command) {
       break;
     }
     assert_not_null(fetch);
-    // If this assert doesn't hold, maybe we just abort?
-    assert_true(fetch->type == 0x3);
+    assert_true(fetch->type == 0x3); // must be of type vertex
+    // TODO(benvanik): some games have type 2, which is texture - maybe
+    // fetch_slot wrong?
     assert_not_zero(fetch->size);
 
     const auto& info = desc.info;

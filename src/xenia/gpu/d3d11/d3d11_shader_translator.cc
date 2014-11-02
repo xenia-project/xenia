@@ -1500,6 +1500,23 @@ int D3D11ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
 
 int D3D11ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
                                                  int sync) {
+  int src_component_count = 0;
+  switch (tex->dimension) {
+  case DIMENSION_1D:
+    src_component_count = 1;
+    break;
+  default:
+  case DIMENSION_2D:
+    src_component_count = 2;
+    break;
+  case DIMENSION_3D:
+    src_component_count = 3;
+    break;
+  case DIMENSION_CUBE:
+    src_component_count = 3;
+    break;
+  }
+
   // Disassemble.
   static const char *filter[] = {
     "POINT",    // TEX_FILTER_POINT
@@ -1533,7 +1550,7 @@ int D3D11ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
   }
   PrintDestFecth(tex->dst_reg, tex->dst_swiz);
   append(" = R%u.", tex->src_reg);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < src_component_count; i++) {
     append("%c", chan_names[src_swiz & 0x3]);
     src_swiz >>= 2;
   }
@@ -1581,27 +1598,8 @@ int D3D11ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
   }
   append("\n");
 
-  int src_component_count = 0;
-  switch (tex->dimension) {
-  case DIMENSION_1D:
-    src_component_count = 1;
-    break;
-  default:
-  case DIMENSION_2D:
-    src_component_count = 2;
-    break;
-  case DIMENSION_3D:
-    src_component_count = 3;
-    break;
-  case DIMENSION_CUBE:
-    src_component_count = 3;
-    break;
-  }
-
   // Translate.
-  append("  ");
-  append("r%u.xyzw", tex->dst_reg);
-  append(" = ");
+  append("  t = ");
   append(
       "x_texture_%d.Sample(x_sampler_%d, r%u.",
       tex->const_idx,
@@ -1622,15 +1620,27 @@ int D3D11ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
     dst_swiz >>= 3;
   }
   append(";\n");
-  // Do another pass to set constant values.
+
+  append("  r%u.xyzw = float4(", tex->dst_reg);
   dst_swiz = tex->dst_swiz;
   for (int i = 0; i < 4; i++) {
+    if (i) {
+      append(", ");
+    }
     if ((dst_swiz & 0x7) == 4) {
-      append("  r%u.%c = 0.0;\n", tex->dst_reg, chan_names[i]);
+      append("0.0");
     } else if ((dst_swiz & 0x7) == 5) {
-      append("  r%u.%c = 1.0;\n", tex->dst_reg, chan_names[i]);
+      append("1.0");
+    } else if ((dst_swiz & 0x7) == 6) {
+      // ?
+      append("?");
+    } else if ((dst_swiz & 0x7) == 7) {
+      append("r%u.%c", tex->dst_reg, chan_names[i]);
+    } else {
+      append("t.%c", chan_names[dst_swiz & 0x3]);
     }
     dst_swiz >>= 3;
   }
+  append(");\n");
   return 0;
 }
