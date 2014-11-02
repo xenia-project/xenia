@@ -289,6 +289,7 @@ int D3D11ShaderTranslator::TranslatePixelShader(
       "  float4 r%d = c[%d];\n", n, n + 256);
   }
   append("  float4 t;\n");
+  append("  float s;\n");  // scalar result (used for RETAIN_PREV)
 
   // Bring registers local.
   if (alloc_counts.params) {
@@ -1025,6 +1026,11 @@ int D3D11ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
 }
 int D3D11ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
   return TranslateALU_SUB_CONST_0(alu);
+}
+
+int D3D11ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
+  // TODO(benvanik): pull out prev value in s.
+  return 1;
 }
 
 namespace {

@@ -105,6 +105,7 @@ private:
   int TranslateALU_ADD_CONST_1(const xenos::instr_alu_t& alu);
   int TranslateALU_SUB_CONST_0(const xenos::instr_alu_t& alu);
   int TranslateALU_SUB_CONST_1(const xenos::instr_alu_t& alu);
+  int TranslateALU_RETAIN_PREV(const xenos::instr_alu_t& alu);
 
   void PrintDestFecth(uint32_t dst_reg, uint32_t dst_swiz);
   void AppendFetchDest(uint32_t dst_reg, uint32_t dst_swiz);
