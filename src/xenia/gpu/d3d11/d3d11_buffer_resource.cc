@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/d3d11/d3d11_buffer_resource.h>
 
+#include <algorithm>
+
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_resource_cache.h>
 
@@ -131,6 +133,9 @@ int D3D11VertexBufferResource::InvalidateRegion(
   // TODO(benvanik): rewrite to be faster/special case common/etc
   uint32_t stride = info_.stride_words;
   size_t count = (memory_range_.length / 4) / stride;
+  if (FLAGS_max_draw_elements) {
+    count = std::min(FLAGS_max_draw_elements, count);
+  }
   for (size_t n = 0; n < info_.element_count; n++) {
     const auto& el = info_.elements[n];
     const uint32_t* src_ptr = (const uint32_t*)(

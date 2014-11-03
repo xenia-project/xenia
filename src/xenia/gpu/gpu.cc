@@ -19,6 +19,9 @@ DEFINE_bool(trace_ring_buffer, false, "Trace GPU ring buffer packets.");
 DEFINE_string(dump_shaders, "",
               "Path to write GPU shaders to as they are compiled.");
 
+DEFINE_uint64(max_draw_elements, 0,
+              "Maximum element count; anything over this is ignored.");
+
 #include <xenia/gpu/nop/nop_gpu.h>
 std::unique_ptr<GraphicsSystem> xe::gpu::CreateNop(Emulator* emulator) {
   return xe::gpu::nop::Create(emulator);
