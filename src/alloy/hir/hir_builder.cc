@@ -1880,10 +1880,24 @@ Value* HIRBuilder::Swizzle(Value* value, TypeName part_type,
 }
 
 Value* HIRBuilder::Pack(Value* value, uint32_t pack_flags) {
-  ASSERT_VECTOR_TYPE(value);
+  return Pack(value, LoadZero(VEC128_TYPE), pack_flags);
+}
+
+Value* HIRBuilder::Pack(Value* value1, Value* value2, uint32_t pack_flags) {
+  ASSERT_VECTOR_TYPE(value1);
+  ASSERT_VECTOR_TYPE(value2);
+  switch (pack_flags & PACK_TYPE_MODE) {
+  case PACK_TYPE_D3DCOLOR:
+  case PACK_TYPE_FLOAT16_2:
+  case PACK_TYPE_FLOAT16_4:
+  case PACK_TYPE_SHORT_2:
+    assert_true(value2->IsConstantZero());
+    break;
+  }
   Instr* i = AppendInstr(OPCODE_PACK_info, pack_flags, AllocValue(VEC128_TYPE));
-  i->set_src1(value);
-  i->src2.value = i->src3.value = NULL;
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
   return i->dest;
 }
 

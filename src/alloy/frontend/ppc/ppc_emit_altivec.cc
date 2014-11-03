@@ -1733,76 +1733,162 @@ XEEMITTER(vpkpx, 0x1000030E, VX)(PPCHIRBuilder& f, InstrData& i) {
   return 1;
 }
 
+int InstrEmit_vpkshss_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Signed Halfword Signed Saturate
+  // Convert VA and VB from signed words to signed saturated bytes then
+  // concat:
+  // for each i in VA + VB:
+  //   i = int8_t(Clamp(EXTS(int16_t(t)), -128, 127))
+  // dest = VA | VB (lower 8bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_8_IN_16 | PACK_TYPE_IN_SIGNED |
+                        PACK_TYPE_OUT_SIGNED | PACK_TYPE_OUT_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkshss, 0x1000018E, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkshss_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkshss128, VX128(5, 512), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkshss_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkswss_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Signed Word Signed Saturate
+  // Convert VA and VB from signed int words to signed saturated shorts then
+  // concat:
+  // for each i in VA + VB:
+  //   i = int16_t(Clamp(EXTS(int32_t(t)), -2^15, 2^15-1))
+  // dest = VA | VB (lower 16bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_16_IN_32 | PACK_TYPE_IN_SIGNED |
+                        PACK_TYPE_OUT_SIGNED | PACK_TYPE_OUT_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkswss, 0x100001CE, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkswss_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkswss128, VX128(5, 640), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkswss_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkswus_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Signed Word Unsigned Saturate
+  // Convert VA and VB from signed int words to unsigned saturated shorts then
+  // concat:
+  // for each i in VA + VB:
+  //   i = uint16_t(Clamp(EXTS(int32_t(t)), 0, 2^16-1))
+  // dest = VA | VB (lower 16bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_16_IN_32 | PACK_TYPE_IN_SIGNED |
+                        PACK_TYPE_OUT_UNSIGNED | PACK_TYPE_OUT_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkswus, 0x1000014E, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkswus_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkswus128, VX128(5, 704), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkswus_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkuhum_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Unsigned Halfword Unsigned Modulo
+  // Convert VA and VB from unsigned shorts to unsigned bytes then concat:
+  // for each i in VA + VB:
+  //   i = uint8_t(uint16_t(i))
+  // dest = VA | VB (lower 8bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_8_IN_16 | PACK_TYPE_IN_UNSIGNED |
+                        PACK_TYPE_OUT_UNSIGNED | PACK_TYPE_OUT_UNSATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkuhum, 0x1000000E, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuhum_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkuhum128, VX128(5, 768), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuhum_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkuhus_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Unsigned Halfword Unsigned Saturate
+  // Convert VA and VB from unsigned shorts to unsigned saturated bytes then
+  // concat:
+  // for each i in VA + VB:
+  //   i = uint8_t(Clamp(EXTZ(uint16_t(i)), 0, 255))
+  // dest = VA | VB (lower 8bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_8_IN_16 | PACK_TYPE_IN_UNSIGNED |
+                        PACK_TYPE_OUT_UNSIGNED | PACK_TYPE_OUT_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkuhus, 0x1000008E, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuhus_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkuhus128, VX128(5, 832), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuhus_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkshus_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Signed Halfword Unsigned Saturate
+  // Convert VA and VB from signed shorts to unsigned saturated bytes then
+  // concat:
+  // for each i in VA + VB:
+  //   i = uint8_t(Clamp(EXTS(int16_t(i)), 0, 255))
+  // dest = VA | VB (lower 8bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_8_IN_16 | PACK_TYPE_IN_SIGNED |
+                        PACK_TYPE_OUT_UNSIGNED | PACK_TYPE_OUT_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkshus, 0x1000010E, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkshus_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkshus128, VX128(5, 576), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkshus_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkuwum_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Unsigned Word Unsigned Modulo
+  // Concat low shorts from VA + VB:
+  // for each i in VA + VB:
+  //   i = uint16_t(uint32_t(i))
+  // dest = VA | VB (lower 16bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_16_IN_32 | PACK_TYPE_IN_UNSIGNED |
+                        PACK_TYPE_OUT_UNSIGNED | PACK_TYPE_OUT_UNSATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkuwum, 0x1000004E, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuwum_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkuwum128, VX128(5, 896), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuwum_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
+int InstrEmit_vpkuwus_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
+  // Vector Pack Unsigned Word Unsigned Saturate
+  // Convert VA and VB from unsigned int words to unsigned saturated shorts then
+  // concat:
+  // for each i in VA + VB:
+  //   i = uint16_t(Clamp(EXTZ(uint32_t(t)), 0, 2^16-1))
+  // dest = VA | VB (lower 16bit values)
+  Value* v = f.Pack(f.LoadVR(va), f.LoadVR(vb),
+                    PACK_TYPE_16_IN_32 | PACK_TYPE_IN_UNSIGNED |
+                        PACK_TYPE_OUT_UNSIGNED | PACK_TYPE_OUT_SATURATE);
+  f.StoreVR(vd, v);
+  return 0;
+}
 XEEMITTER(vpkuwus, 0x100000CE, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuwus_(f, i.VX.VD, i.VX.VA, i.VX.VB);
 }
 XEEMITTER(vpkuwus128, VX128(5, 960), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  return InstrEmit_vpkuwus_(f, VX128_VD128, VX128_VA128, VX128_VB128);
 }
 
 XEEMITTER(vupkhpx, 0x1000034E, VX)(PPCHIRBuilder& f, InstrData& i) {
@@ -1816,8 +1902,11 @@ XEEMITTER(vupklpx, 0x100003CE, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 int InstrEmit_vupkhsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // Vector Unpack High Signed Halfword
   // halfwords 0-3 expanded to words 0-3 and sign extended
-  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_HI);
+  Value* v =
+      f.Unpack(f.LoadVR(vb), PACK_TYPE_TO_HI | PACK_TYPE_16_IN_32 |
+                                 PACK_TYPE_IN_SIGNED | PACK_TYPE_OUT_SIGNED);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1831,8 +1920,11 @@ XEEMITTER(vupkhsh128, 0x100002CE, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 int InstrEmit_vupklsh_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // Vector Unpack Low Signed Halfword
   // halfwords 4-7 expanded to words 0-3 and sign extended
-  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S16_IN_32_LO);
+  Value* v =
+      f.Unpack(f.LoadVR(vb), PACK_TYPE_TO_LO | PACK_TYPE_16_IN_32 |
+                                 PACK_TYPE_IN_SIGNED | PACK_TYPE_OUT_SIGNED);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1846,8 +1938,11 @@ XEEMITTER(vupklsh128, 0x100002CE, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 int InstrEmit_vupkhsb_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // Vector Unpack High Signed Byte
   // bytes 0-7 expanded to halfwords 0-7 and sign extended
-  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S8_IN_16_HI);
+  Value* v =
+      f.Unpack(f.LoadVR(vb), PACK_TYPE_TO_HI | PACK_TYPE_8_IN_16 |
+                                 PACK_TYPE_IN_SIGNED | PACK_TYPE_OUT_SIGNED);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1864,8 +1959,10 @@ XEEMITTER(vupkhsb128, VX128(6, 896), VX128)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 int InstrEmit_vupklsb_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
+  // Vector Unpack Low Signed Byte
   // bytes 8-15 expanded to halfwords 0-7 and sign extended
-  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_S8_IN_16_LO);
+  Value* v = f.Unpack(f.LoadVR(vb), PACK_TYPE_TO_LO | PACK_TYPE_8_IN_16 |
+                                 PACK_TYPE_IN_SIGNED | PACK_TYPE_OUT_SIGNED);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1886,8 +1983,8 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
   const uint32_t vd = i.VX128_4.VD128l | (i.VX128_4.VD128h << 5);
   const uint32_t vb = i.VX128_4.VB128l | (i.VX128_4.VB128h << 5);
   uint32_t type = i.VX128_4.IMM >> 2;
-  uint32_t shift = i.VX128_4.IMM & 0x3;
-  uint32_t pack = i.VX128_4.z;
+  uint32_t pack = i.VX128_4.IMM & 0x3;
+  uint32_t shift = i.VX128_4.z;
   Value* v = f.LoadVR(vb);
   switch (type) {
     case 0:  // VPACK_D3DCOLOR
@@ -1909,33 +2006,64 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
   // http://hlssmod.net/he_code/public/pixelwriter.h
   // control = prev:0123 | new:4567
   uint32_t control = PERMUTE_IDENTITY;  // original
-  uint32_t src = xerotl(0x07060504, shift * 8);
-  uint32_t mask = 0;
   switch (pack) {
     case 1:  // VPACK_32
       // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
-      mask = 0x000000FF << (shift * 8);
-      control = (control & ~mask) | (src & mask);
+      switch (shift) {
+        case 0:
+          control = PERMUTE_MASK(0, 0, 0, 1, 0, 2, 1, 3);
+          break;
+        case 1:
+          control = PERMUTE_MASK(0, 0, 0, 1, 1, 3, 0, 3);
+          break;
+        case 2:
+          control = PERMUTE_MASK(0, 0, 1, 3, 0, 2, 0, 3);
+          break;
+        case 3:
+          control = PERMUTE_MASK(1, 3, 0, 1, 0, 2, 0, 3);
+          break;
+        default:
+          assert_unhandled_case(shift);
+          return 1;
+      }
       break;
     case 2:  // 64bit
-      if (shift < 3) {
-        mask = 0x0000FFFF << (shift * 8);
-      } else {
-        // w
-        src = 0x07000000;
-        mask = 0xFF000000;
+      switch (shift) {
+        case 0:
+          control = PERMUTE_MASK(0, 0, 0, 1, 1, 2, 1, 3);
+          break;
+        case 1:
+          control = PERMUTE_MASK(0, 0, 1, 2, 1, 3, 0, 3);
+          break;
+        case 2:
+          control = PERMUTE_MASK(1, 2, 1, 3, 0, 2, 0, 3);
+          break;
+        case 3:
+          control = PERMUTE_MASK(1, 3, 0, 1, 0, 2, 0, 3);
+          break;
+        default:
+          assert_unhandled_case(shift);
+          return 1;
       }
-      control = (control & ~mask) | (src & mask);
       break;
     case 3:  // 64bit
-      if (shift < 3) {
-        mask = 0x0000FFFF << (shift * 8);
-      } else {
-        // z
-        src = 0x00000004;
-        mask = 0x000000FF;
+      switch (shift) {
+        case 0:
+          control = PERMUTE_MASK(0, 0, 0, 1, 1, 2, 1, 3);
+          break;
+        case 1:
+          control = PERMUTE_MASK(0, 0, 1, 2, 1, 3, 0, 3);
+          break;
+        case 2:
+          control = PERMUTE_MASK(1, 2, 1, 3, 0, 2, 0, 3);
+          break;
+        case 3:
+          control = PERMUTE_MASK(0, 0, 0, 1, 0, 2, 1, 2);
+          break;
+        default:
+          assert_unhandled_case(shift);
+          return 1;
       }
-      control = (control & ~mask) | (src & mask);
       break;
     default:
       assert_unhandled_case(pack);

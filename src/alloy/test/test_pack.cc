@@ -27,7 +27,7 @@ TEST_CASE("PACK_D3DCOLOR", "[instr]") {
            });
   test.Run([](PPCContext* ctx) {
              ctx->v[4] =
-                 vec128i(0x3F800050, 0x3F800060, 0x3F800070, 0x3F800080);
+                 vec128i(0x40400050, 0x40400060, 0x40400070, 0x40400080);
            },
            [](PPCContext* ctx) {
              auto result = ctx->v[3];

@@ -5080,9 +5080,9 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_PACK
 // ============================================================================
-EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
+EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
+    switch (i.instr->flags & PACK_TYPE_MODE) {
     case PACK_TYPE_D3DCOLOR:
       EmitD3DCOLOR(e, i);
       break;
@@ -5095,33 +5095,34 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     case PACK_TYPE_SHORT_2:
       EmitSHORT_2(e, i);
       break;
-    case PACK_TYPE_S8_IN_16_LO:
-      EmitS8_IN_16_LO(e, i);
+    case PACK_TYPE_8_IN_16:
+      Emit8_IN_16(e, i, i.instr->flags);
       break;
-    case PACK_TYPE_S8_IN_16_HI:
-      EmitS8_IN_16_HI(e, i);
-      break;
-    case PACK_TYPE_S16_IN_32_LO:
-      EmitS16_IN_32_LO(e, i);
-      break;
-    case PACK_TYPE_S16_IN_32_HI:
-      EmitS16_IN_32_HI(e, i);
+    case PACK_TYPE_16_IN_32:
+      Emit16_IN_32(e, i, i.instr->flags);
       break;
     default: assert_unhandled_case(i.instr->flags); break;
     }
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
+    // are valid.
+    if (i.src1.is_constant) {
+      e.LoadConstantXmm(i.dest, i.src1.constant());
+      e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
+    } else {
+      e.vminps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
+    }
+    e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMM3333));
+    // Extract bytes.
     // RGBA (XYZW) -> ARGB (WXYZ)
     // w = ((src1.uw & 0xFF) << 24) | ((src1.ux & 0xFF) << 16) |
     //     ((src1.uy & 0xFF) << 8) | (src1.uz & 0xFF)
-    if (i.src1.is_constant) {
-      e.LoadConstantXmm(i.dest, i.src1.constant());
-      e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
-    } else {
-      e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMPackD3DCOLOR));
-    }
+    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
     // 0|0|0|0|W|Z|Y|X
@@ -5130,34 +5131,112 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>>)) {
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
     // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
     // 0|0|0|0|W|Z|Y|X
-    e.vcvtps2ph(e.xmm0, i.src1, B00000011);
+    e.vcvtps2ph(i.dest, i.src1, B00000011);
     // Shuffle to X|Y|Z|W|0|0|0|0
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
     // Saturate.
-    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMNegativeOne));
-    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMOne));
-    // Multiply by SHRT_MAX.
-    e.vmulps(i.dest, i.dest, e.GetXmmConstPtr(XMMShortMaxPS));
-    // Convert to int32.
-    e.vcvtps2dq(i.dest, i.dest);
+    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_2Min));
+    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2Max));
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2));
   }
-  static void EmitS8_IN_16_LO(X64Emitter& e, const EmitArgType& i) {
-    assert_always();
+  static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
+    // TODO(benvanik): handle src2 (or src1) being constant zero
+    if (IsPackInUnsigned(flags)) {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> unsigned + saturate
+          assert_always();
+        } else {
+          // unsigned -> unsigned
+          assert_always();
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> signed + saturate
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      }
+    } else {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> unsigned + saturate
+          // PACKUSWB / SaturateSignedWordToUnsignedByte
+          e.vpackuswb(i.dest, i.src1, i.src2);
+          e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
+        } else {
+          // signed -> unsigned
+          assert_always();
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> signed + saturate
+          // PACKSSWB / SaturateSignedWordToSignedByte
+          e.vpacksswb(i.dest, i.src1, i.src2);
+          e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
+        } else {
+          // signed -> signed
+          assert_always();
+        }
+      }
+    }
   }
-  static void EmitS8_IN_16_HI(X64Emitter& e, const EmitArgType& i) {
-    assert_always();
-  }
-  static void EmitS16_IN_32_LO(X64Emitter& e, const EmitArgType& i) {
-    assert_always();
-  }
-  static void EmitS16_IN_32_HI(X64Emitter& e, const EmitArgType& i) {
-    assert_always();
+  static void Emit16_IN_32(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
+    // TODO(benvanik): handle src2 (or src1) being constant zero
+    if (IsPackInUnsigned(flags)) {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> unsigned + saturate
+          assert_always();
+        } else {
+          // unsigned -> unsigned
+          assert_always();
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> signed + saturate
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      }
+    } else {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> unsigned + saturate
+          // PACKUSDW
+          // TMP[15:0] <- (DEST[31:0] < 0) ? 0 : DEST[15:0];
+          // DEST[15:0] <- (DEST[31:0] > FFFFH) ? FFFFH : TMP[15:0];
+          e.vpackusdw(i.dest, i.src1, i.src2);
+          e.vpshuflw(i.dest, i.dest, B10110001);
+          e.vpshufhw(i.dest, i.dest, B10110001);
+        } else {
+          // signed -> unsigned
+          assert_always();
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> signed + saturate
+          // PACKSSDW / SaturateSignedDwordToSignedWord
+          e.vpackssdw(i.dest, i.src1, i.src2);
+          e.vpshuflw(i.dest, i.dest, B10110001);
+          e.vpshufhw(i.dest, i.dest, B10110001);
+        } else {
+          // signed -> signed
+          assert_always();
+        }
+      }
+    }
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -5170,7 +5249,7 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
+    switch (i.instr->flags & PACK_TYPE_MODE) {
     case PACK_TYPE_D3DCOLOR:
       EmitD3DCOLOR(e, i);
       break;
@@ -5183,17 +5262,11 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     case PACK_TYPE_SHORT_2:
       EmitSHORT_2(e, i);
       break;
-    case PACK_TYPE_S8_IN_16_LO:
-      EmitS8_IN_16_LO(e, i);
+    case PACK_TYPE_8_IN_16:
+      Emit8_IN_16(e, i, i.instr->flags);
       break;
-    case PACK_TYPE_S8_IN_16_HI:
-      EmitS8_IN_16_HI(e, i);
-      break;
-    case PACK_TYPE_S16_IN_32_LO:
-      EmitS16_IN_32_LO(e, i);
-      break;
-    case PACK_TYPE_S16_IN_32_HI:
-      EmitS16_IN_32_HI(e, i);
+    case PACK_TYPE_16_IN_32:
+      Emit16_IN_32(e, i, i.instr->flags);
       break;
     default: assert_unhandled_case(i.instr->flags); break;
     }
@@ -5271,21 +5344,93 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // Add 3,3,0,1.
     e.vpor(i.dest, e.GetXmmConstPtr(XMM3301));
   }
-  static void EmitS8_IN_16_LO(X64Emitter& e, const EmitArgType& i) {
-    e.vpunpckhbw(i.dest, i.src1, i.src1);
-    e.vpsrad(i.dest, 8);
+  static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
+    assert_false(IsPackOutSaturate(flags));
+    if (IsPackToLo(flags)) {
+      // Unpack to LO.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.vpunpckhbw(i.dest, i.src1, i.src1);
+          e.vpsrad(i.dest, 8);
+        }
+      }
+    } else {
+      // Unpack to HI.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.vpunpcklbw(i.dest, i.src1, i.src1);
+          e.vpsrad(i.dest, 8);
+        }
+      }
+    }
   }
-  static void EmitS8_IN_16_HI(X64Emitter& e, const EmitArgType& i) {
-    e.vpunpcklbw(i.dest, i.src1, i.src1);
-    e.vpsrad(i.dest, 8);
-  }
-  static void EmitS16_IN_32_LO(X64Emitter& e, const EmitArgType& i) {
-    e.vpunpckhwd(i.dest, i.src1, i.src1);
-    e.vpsrad(i.dest, 16);
-  }
-  static void EmitS16_IN_32_HI(X64Emitter& e, const EmitArgType& i) {
-    e.vpunpcklwd(i.dest, i.src1, i.src1);
-    e.vpsrad(i.dest, 16);
+  static void Emit16_IN_32(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
+    assert_false(IsPackOutSaturate(flags));
+    if (IsPackToLo(flags)) {
+      // Unpack to LO.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.vpunpckhwd(i.dest, i.src1, i.src1);
+          e.vpsrad(i.dest, 16);
+        }
+      }
+    } else {
+      // Unpack to HI.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.vpunpcklwd(i.dest, i.src1, i.src1);
+          e.vpsrad(i.dest, 16);
+        }
+      }
+    }
   }
 };
 EMITTER_OPCODE_TABLE(

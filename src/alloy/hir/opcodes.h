@@ -65,16 +65,46 @@ enum Swizzles {
   SWIZZLE_XYZW_TO_ZWXY = SWIZZLE_MASK(2, 3, 0, 1),
   SWIZZLE_XYZW_TO_WXYZ = SWIZZLE_MASK(3, 0, 1, 2),
 };
-enum PackType {
+enum PackType : uint16_t {
+  // Special types:
   PACK_TYPE_D3DCOLOR = 0,
   PACK_TYPE_FLOAT16_2 = 1,
   PACK_TYPE_FLOAT16_4 = 2,
   PACK_TYPE_SHORT_2 = 3,
-  PACK_TYPE_S8_IN_16_LO = 4,
-  PACK_TYPE_S8_IN_16_HI = 5,
-  PACK_TYPE_S16_IN_32_LO = 6,
-  PACK_TYPE_S16_IN_32_HI = 7,
+
+  // Types which use the bitmasks below for configuration:
+  PACK_TYPE_8_IN_16 = 4,
+  PACK_TYPE_16_IN_32 = 5,
+
+  PACK_TYPE_MODE = 0x000F,  // just to get the mode
+
+  // Unpack to low or high parts.
+  PACK_TYPE_TO_LO = 0 << 12,
+  PACK_TYPE_TO_HI = 1 << 12,
+
+  // Input/output arithmetic flags:
+  PACK_TYPE_IN_SIGNED = 0 << 13,
+  PACK_TYPE_IN_UNSIGNED = 1 << 13,
+  PACK_TYPE_OUT_SIGNED = 0 << 14,
+  PACK_TYPE_OUT_UNSIGNED = 1 << 14,
+  PACK_TYPE_OUT_UNSATURATE = 0 << 15,
+  PACK_TYPE_OUT_SATURATE = 1 << 15,
 };
+inline bool IsPackToHi(uint32_t flags) {
+  return (flags & PACK_TYPE_TO_HI) == PACK_TYPE_TO_HI;
+}
+inline bool IsPackToLo(uint32_t flags) {
+  return !IsPackToHi(flags);
+}
+inline bool IsPackInUnsigned(uint32_t flags) {
+  return (flags & PACK_TYPE_IN_UNSIGNED) == PACK_TYPE_IN_UNSIGNED;
+}
+inline bool IsPackOutUnsigned(uint32_t flags) {
+  return (flags & PACK_TYPE_OUT_UNSIGNED) == PACK_TYPE_OUT_UNSIGNED;
+}
+inline bool IsPackOutSaturate(uint32_t flags) {
+  return (flags & PACK_TYPE_OUT_SATURATE) == PACK_TYPE_OUT_SATURATE;
+}
 
 enum Opcode {
   OPCODE_COMMENT,
