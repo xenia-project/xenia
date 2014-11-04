@@ -79,6 +79,7 @@ bool TextureResource::Info::Prepare(const xe_gpu_texture_fetch_t& fetch,
     info.texel_pitch = 2;
     break;
   case FMT_8_8_8_8:
+  case FMT_8_8_8_8_AS_16_16_16_16:
     switch (fetch.swizzle) {
     case XE_GPU_SWIZZLE_RGBA:
       info.format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -152,6 +153,12 @@ bool TextureResource::Info::Prepare(const xe_gpu_texture_fetch_t& fetch,
     info.texel_pitch = 16;
     info.is_compressed = true;
     break;
+  case FMT_DXT1_AS_16_16_16_16:
+    info.format = DXGI_FORMAT_BC1_UNORM;
+    info.block_size = 4;
+    info.texel_pitch = 8;
+    info.is_compressed = true;
+    break;
   case FMT_1_REVERSE:
   case FMT_1:
   case FMT_5_6_5:
@@ -192,8 +199,6 @@ bool TextureResource::Info::Prepare(const xe_gpu_texture_fetch_t& fetch,
   case FMT_16_MPEG_INTERLACED:
   case FMT_16_16_MPEG_INTERLACED:
   case FMT_DXN:
-  case FMT_8_8_8_8_AS_16_16_16_16:
-  case FMT_DXT1_AS_16_16_16_16:
   case FMT_DXT2_3_AS_16_16_16_16:
   case FMT_DXT4_5_AS_16_16_16_16:
   case FMT_2_10_10_10_AS_16_16_16_16:
