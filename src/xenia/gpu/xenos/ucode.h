@@ -215,7 +215,7 @@ XEPACKEDSTRUCT(instr_alu_t, {
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t vector_dest : 6;
     uint32_t vector_dest_rel : 1;
-    uint32_t low_precision_16b_fp : 1;
+    uint32_t abs_constants : 1;
     uint32_t scalar_dest : 6;
     uint32_t scalar_dest_rel : 1;
     uint32_t export_data : 1;
@@ -240,21 +240,19 @@ XEPACKEDSTRUCT(instr_alu_t, {
   });
   /* dword2: */
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t src3_reg : 6;
-    uint32_t src3_reg_select : 1;
-    uint32_t src3_reg_abs : 1;
-    uint32_t src2_reg : 6;
-    uint32_t src2_reg_select : 1;
-    uint32_t src2_reg_abs : 1;
-    uint32_t src1_reg : 6;
-    uint32_t src1_reg_select : 1;
-    uint32_t src1_reg_abs : 1;
+    uint32_t src3_reg : 8;
+    uint32_t src2_reg : 8;
+    uint32_t src1_reg : 8;
     uint32_t vector_opc : 5;  // instr_vector_opc_t
     uint32_t src3_sel : 1;
     uint32_t src2_sel : 1;
     uint32_t src1_sel : 1;
   });
 });
+
+inline uint32_t get_alu_scalar_dest(const instr_alu_t& alu) {
+  return alu.vector_write_mask ? alu.scalar_dest : alu.vector_dest;
+}
 
 /*
  * CF instructions:

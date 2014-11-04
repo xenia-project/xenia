@@ -97,23 +97,35 @@ static const char chan_names[] = {
 void print_srcreg(
     Output* output,
     uint32_t num, uint32_t type,
-    uint32_t swiz, uint32_t negate, uint32_t abs) {
+    uint32_t swiz, uint32_t negate, uint32_t abs_constants,
+    XE_GPU_SHADER_TYPE shader_type) {
   if (negate) {
     output->append("-");
   }
-  if (abs) {
-    output->append("|");
+  if (type) {
+    if (num & 0x80) {
+      output->append("abs(");
+    }
+    output->append("R%u", num & 0x7F);
+    if (num & 0x80) {
+      output->append(")");
+    }
+  } else {
+    if (abs_constants) {
+      output->append("|");
+    }
+    num += shader_type == XE_GPU_SHADER_TYPE_PIXEL ? 256 : 0;
+    output->append("C%u", num);
+    if (abs_constants) {
+      output->append("|");
+    }
   }
-  output->append("%c%u", type ? 'R' : 'C', num);
   if (swiz) {
     output->append(".");
     for (int i = 0; i < 4; i++) {
       output->append("%c", chan_names[(swiz + i) & 0x3]);
       swiz >>= 2;
     }
-  }
-  if (abs) {
-    output->append("|");
   }
 }
 
@@ -275,17 +287,17 @@ int disasm_alu(
     if (vector_instructions[alu->vector_opc].num_srcs == 3) {
       print_srcreg(output,
                    alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                   alu->src3_reg_negate, alu->src3_reg_abs);
+                   alu->src3_reg_negate, alu->abs_constants, type);
       output->append(", ");
     }
     print_srcreg(output,
                  alu->src1_reg, alu->src1_sel, alu->src1_swiz,
-                 alu->src1_reg_negate, alu->src1_reg_abs);
+                 alu->src1_reg_negate, alu->abs_constants, type);
     if (vector_instructions[alu->vector_opc].num_srcs > 1) {
       output->append(", ");
       print_srcreg(output,
                    alu->src2_reg, alu->src2_sel, alu->src2_swiz,
-                   alu->src2_reg_negate, alu->src2_reg_abs);
+                   alu->src2_reg_negate, alu->abs_constants, type);
     }
 
     if (alu->vector_clamp) {
@@ -314,7 +326,7 @@ int disasm_alu(
     }
 
     print_dstreg(output,
-                 alu->scalar_dest, alu->scalar_write_mask, alu->export_data);
+                 get_alu_scalar_dest(*alu), alu->scalar_write_mask, alu->export_data);
     output->append(" = ");
     if (scalar_instructions[alu->scalar_opc].num_srcs == 2) {
       // MUL/ADD/etc
@@ -325,24 +337,24 @@ int disasm_alu(
       uint32_t swiz_b = (src3_swiz & 0x3);
       print_srcreg(output,
                    alu->src3_reg, 0, 0,
-                   alu->src3_reg_negate, alu->src3_reg_abs);
+                   alu->src3_reg_negate, alu->abs_constants, type);
       output->append(".%c", chan_names[swiz_a]);
       output->append(", ");
       uint32_t reg2 = (alu->scalar_opc & 1) | (alu->src3_swiz & 0x3C) | (alu->src3_sel << 1);
       print_srcreg(output,
                    reg2, 1, 0,
-                   alu->src3_reg_negate, alu->src3_reg_abs);
+                   alu->src3_reg_negate, alu->abs_constants, type);
       output->append(".%c", chan_names[swiz_b]);
     } else {
       print_srcreg(output,
                    alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                   alu->src3_reg_negate, alu->src3_reg_abs);
+                   alu->src3_reg_negate, alu->abs_constants, type);
     }
     if (alu->scalar_clamp) {
       output->append(" CLAMP");
     }
     if (alu->export_data) {
-      print_export_comment(output, alu->scalar_dest, type);
+      print_export_comment(output, get_alu_scalar_dest(*alu), type);
     }
     output->append("\n");
   }

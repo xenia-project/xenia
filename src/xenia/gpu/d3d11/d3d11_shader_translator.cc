@@ -167,7 +167,7 @@ int D3D11ShaderTranslator::TranslateVertexShader(
   // Always write position, as some shaders seem to only write certain values.
   if (alloc_counts.positions) {
     append(
-      "  o.oPos = float4(0.0, 0.0, 0.0, 0.0);\n");
+      "  o.oPos = float4(0.0, 0.0, 0.0, 1.0);\n");
   }
   if (alloc_counts.point_size) {
     append(
@@ -365,19 +365,28 @@ static const char chan_names[] = {
 
 void D3D11ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
                                          uint32_t swiz, uint32_t negate,
-                                         uint32_t abs) {
+                                         uint32_t abs_constants) {
   if (negate) {
     append("-");
   }
-  if (abs) {
-    append("abs(");
-  }
   if (type) {
     // Register.
-    append("r%u", num);
+    if (num & 0x80) {
+      append("abs(");
+    }
+    append("r%u", num & 0x7F);
+    if (num & 0x80) {
+      append(")");
+    }
   } else {
     // Constant.
+    if (abs_constants) {
+      append("abs(");
+    }
     append("c[%u]", type_ == XE_GPU_SHADER_TYPE_PIXEL ? num + 256 : num);
+    if (abs_constants) {
+      append(")");
+    }
   }
   if (swiz) {
     append(".");
@@ -385,9 +394,6 @@ void D3D11ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
       append("%c", chan_names[(swiz + i) & 0x3]);
       swiz >>= 2;
     }
-  }
-  if (abs) {
-    append(")");
   }
 }
 
@@ -466,23 +472,34 @@ void D3D11ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
 
 void D3D11ShaderTranslator::PrintSrcReg(uint32_t num, uint32_t type,
                                         uint32_t swiz, uint32_t negate,
-                                        uint32_t abs) {
+                                        uint32_t abs_constants) {
   if (negate) {
     append("-");
   }
-  if (abs) {
-    append("|");
+  if (type) {
+    if (num & 0x80) {
+      append("|");
+    }
+    append("R%u", num & 0x7F);
+    if (num & 0x80) {
+      append("|");
+    }
+  } else {
+    if (abs_constants) {
+      append("|");
+    }
+    num += type_ == XE_GPU_SHADER_TYPE_PIXEL ? 256 : 0;
+    append("C%u", num);
+    if (abs_constants) {
+      append("|");
+    }
   }
-  append("%c%u", type ? 'R' : 'C', num);
   if (swiz) {
     append(".");
     for (int i = 0; i < 4; i++) {
       append("%c", chan_names[(swiz + i) & 0x3]);
       swiz >>= 2;
     }
-  }
-  if (abs) {
-    append("|");
   }
 }
 
@@ -528,9 +545,9 @@ int D3D11ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(" + ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -547,9 +564,9 @@ int D3D11ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(" * ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -568,15 +585,14 @@ int D3D11ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
   if (alu.src1_reg == alu.src2_reg &&
       alu.src1_sel == alu.src2_sel &&
       alu.src1_swiz == alu.src2_swiz &&
-      alu.src1_reg_negate == alu.src2_reg_negate &&
-      alu.src1_reg_abs == alu.src2_reg_abs) {
+      alu.src1_reg_negate == alu.src2_reg_negate) {
     // This is a mov.
-    AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+    AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   } else {
     append("max(");
-    AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+    AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
     append(", ");
-    AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+    AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
     append(")");
   }
   if (alu.vector_clamp) {
@@ -594,9 +610,9 @@ int D3D11ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("min(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(", ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -613,21 +629,21 @@ int D3D11ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu, const cha
     append("saturate(");
   }
   append("float4((");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").x %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").x ? 1.0 : 0.0, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").y %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").y ? 1.0 : 0.0, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").z %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").z ? 1.0 : 0.0, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").w %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").w ? 1.0 : 0.0)");
   if (alu.vector_clamp) {
     append(")");
@@ -656,7 +672,7 @@ int D3D11ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("frac(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -673,7 +689,7 @@ int D3D11ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("trunc(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -690,7 +706,7 @@ int D3D11ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("floor(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -707,11 +723,11 @@ int D3D11ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("mad(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(", ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(", ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -729,29 +745,29 @@ int D3D11ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu, const cha
   }
   // TODO(benvanik): check argument order - could be 3 as compare and 1 and 2 as values.
   append("float4((");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").x %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").x : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(").x, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").y %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").y : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(").y, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").z %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").z : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(").z, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").w %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").w : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(").w)");
   if (alu.vector_clamp) {
     append(")");
@@ -777,9 +793,9 @@ int D3D11ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("dot(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(", ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(")");
   if (alu.vector_clamp) {
     append(")");
@@ -796,9 +812,9 @@ int D3D11ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("dot(float4(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").xyz, float4(");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").xyz)");
   if (alu.vector_clamp) {
     append(")");
@@ -815,11 +831,11 @@ int D3D11ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
     append("saturate(");
   }
   append("dot(float4(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(").xy, float4(");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.src2_reg_abs);
+  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate, alu.abs_constants);
   append(").xy) + ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(".x");
   if (alu.vector_clamp) {
     append(")");
@@ -840,13 +856,13 @@ int D3D11ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
   append("max(");
   append("max(");
   append("max(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(".x, ");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(".y), ");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(".z), ");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.src1_reg_abs);
+  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate, alu.abs_constants);
   append(".w)");
   if (alu.vector_clamp) {
     append(")");
@@ -859,62 +875,62 @@ int D3D11ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
 // ...
 
 int D3D11ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
   }
   if ((alu.src3_swiz & 0x3) == (((alu.src3_swiz >> 2) + 1) & 0x3)) {
     // This is a mov.
-    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   } else {
     append("max(");
-    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
     append(".x, ");
-    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
     append(".y).xxxx");
   }
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 
 int D3D11ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
   }
   append("min(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(".x, ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(".y).xxxx");
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 
 int D3D11ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu, const char* op) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
   }
   append("((");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(".x %s 0.0) ? 1.0 : 0.0).xxxx", op);
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 int D3D11ShaderTranslator::TranslateALU_SETEs(const instr_alu_t& alu) {
@@ -931,24 +947,24 @@ int D3D11ShaderTranslator::TranslateALU_SETNEs(const instr_alu_t& alu) {
 }
 
 int D3D11ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
   }
   append("(1.0 / ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate, alu.abs_constants);
   append(")");
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 
 int D3D11ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
@@ -958,16 +974,16 @@ int D3D11ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 = (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
   append("(");
-  AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.abs_constants);
   append(".%c * ", chan_names[swiz_a]);
-  AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.abs_constants);
   append(".%c", chan_names[swiz_b]);
   append(").xxxx");
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 int D3D11ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
@@ -975,7 +991,7 @@ int D3D11ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
 }
 
 int D3D11ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
@@ -985,16 +1001,16 @@ int D3D11ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 = (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
   append("(");
-  AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.abs_constants);
   append(".%c + ", chan_names[swiz_a]);
-  AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.abs_constants);
   append(".%c", chan_names[swiz_b]);
   append(").xxxx");
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 int D3D11ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
@@ -1002,7 +1018,7 @@ int D3D11ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
 }
 
 int D3D11ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   append(" = ");
   if (alu.scalar_clamp) {
     append("saturate(");
@@ -1012,16 +1028,16 @@ int D3D11ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 = (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
   append("(");
-  AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.abs_constants);
   append(".%c - ", chan_names[swiz_a]);
-  AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.src3_reg_abs);
+  AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.abs_constants);
   append(".%c", chan_names[swiz_b]);
   append(").xxxx");
   if (alu.scalar_clamp) {
     append(")");
   }
   append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask, alu.export_data);
   return 0;
 }
 int D3D11ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
@@ -1157,15 +1173,15 @@ int D3D11ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
     append(" = ");
     if (iv.num_srcs == 3) {
       PrintSrcReg(alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                  alu->src3_reg_negate, alu->src3_reg_abs);
+                  alu->src3_reg_negate, alu->abs_constants);
       append(", ");
     }
     PrintSrcReg(alu->src1_reg, alu->src1_sel, alu->src1_swiz,
-                alu->src1_reg_negate, alu->src1_reg_abs);
+                alu->src1_reg_negate, alu->abs_constants);
     if (iv.num_srcs > 1) {
       append(", ");
       PrintSrcReg(alu->src2_reg, alu->src2_sel, alu->src2_swiz,
-                  alu->src2_reg_negate, alu->src2_reg_abs);
+                  alu->src2_reg_negate, alu->abs_constants);
     }
     if (alu->vector_clamp) {
       append(" CLAMP");
@@ -1198,7 +1214,7 @@ int D3D11ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
     } else {
       append("\t    \tOP(%u)\t", alu->scalar_opc);
     }
-    PrintDstReg(alu->scalar_dest, alu->scalar_write_mask, alu->export_data);
+    PrintDstReg(get_alu_scalar_dest(*alu), alu->scalar_write_mask, alu->export_data);
     append(" = ");
     if (is.num_srcs == 2) {
       // ADD_CONST_0 dest, [const], [reg]
@@ -1206,22 +1222,22 @@ int D3D11ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
       uint32_t swiz_b = (src3_swiz & 0x3);
       PrintSrcReg(alu->src3_reg, 0, 0,
-                  alu->src3_reg_negate, alu->src3_reg_abs);
+                  alu->src3_reg_negate, alu->abs_constants);
       append(".%c", chan_names[swiz_a]);
       append(", ");
       uint32_t reg2 = (alu->scalar_opc & 1) | (alu->src3_swiz & 0x3C) | (alu->src3_sel << 1);
       PrintSrcReg(reg2, 1, 0,
-                  alu->src3_reg_negate, alu->src3_reg_abs);
+                  alu->src3_reg_negate, alu->abs_constants);
       append(".%c", chan_names[swiz_b]);
     } else {
       PrintSrcReg(alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                  alu->src3_reg_negate, alu->src3_reg_abs);
+                  alu->src3_reg_negate, alu->abs_constants);
     }
     if (alu->scalar_clamp) {
       append(" CLAMP");
     }
     if (alu->export_data) {
-      PrintExportComment(alu->scalar_dest);
+      PrintExportComment(get_alu_scalar_dest(*alu));
     }
     append("\n");
 
@@ -1616,19 +1632,10 @@ int D3D11ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
     append("%c", chan_names[src_swiz & 0x3]);
     src_swiz >>= 2;
   }
-  append(").");
-
-  // Pass one over dest does xyzw and fakes the special values.
-  // TODO(benvanik): detect and set as rN = float4(samp.xyz, 1.0); / etc
-  uint32_t dst_swiz = tex->dst_swiz;
-  for (int i = 0; i < 4; i++) {
-    append("%c", chan_names[dst_swiz & 0x3]);
-    dst_swiz >>= 3;
-  }
-  append(";\n");
+  append(");\n");
 
   append("  r%u.xyzw = float4(", tex->dst_reg);
-  dst_swiz = tex->dst_swiz;
+  uint32_t dst_swiz = tex->dst_swiz;
   for (int i = 0; i < 4; i++) {
     if (i) {
       append(", ");
