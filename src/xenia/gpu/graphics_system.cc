@@ -172,6 +172,9 @@ void GraphicsSystem::WriteRegister(uint64_t addr, uint64_t value) {
     case 0x0714: // CP_RB_WPTR
       command_processor_->UpdateWritePointer((uint32_t)value);
       break;
+    case 0x6110: // ? swap related?
+      XELOGW("Unimplemented GPU register %.4X write: %.8X", r, value);
+      return;
     default:
       XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
       break;

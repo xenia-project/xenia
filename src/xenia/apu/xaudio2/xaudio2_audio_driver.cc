@@ -26,7 +26,9 @@ public:
   void OnStreamEnd() {}
   void OnVoiceProcessingPassEnd() {}
   void OnVoiceProcessingPassStart(uint32_t samples_required) {}
-  void OnBufferEnd(void* context);
+  void OnBufferEnd(void* context) {
+    SetEvent(wait_handle_);
+  }
   void OnBufferStart(void* context) {}
   void OnLoopEnd(void* context) {}
   void OnVoiceError(void* context, HRESULT result) {}
@@ -34,10 +36,6 @@ public:
 private:
   HANDLE wait_handle_;
 };
-
-void XAudio2AudioDriver::VoiceCallback::OnBufferEnd(void* context) {
-  SetEvent(wait_handle_);
-}
 
 XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait) :
     audio_(0), mastering_voice_(0), pcm_voice_(0),

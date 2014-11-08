@@ -154,9 +154,18 @@ bool TextureResource::Info::Prepare(const xe_gpu_texture_fetch_t& fetch,
     info.is_compressed = true;
     break;
   case FMT_DXT1_AS_16_16_16_16:
+    // TODO(benvanik): conversion?
     info.format = DXGI_FORMAT_BC1_UNORM;
     info.block_size = 4;
     info.texel_pitch = 8;
+    info.is_compressed = true;
+    break;
+  case FMT_DXT2_3_AS_16_16_16_16:
+  case FMT_DXT4_5_AS_16_16_16_16:
+    // TODO(benvanik): conversion?
+    info.format = DXGI_FORMAT_BC3_UNORM;
+    info.block_size = 4;
+    info.texel_pitch = 16;
     info.is_compressed = true;
     break;
   case FMT_1_REVERSE:
@@ -199,8 +208,6 @@ bool TextureResource::Info::Prepare(const xe_gpu_texture_fetch_t& fetch,
   case FMT_16_MPEG_INTERLACED:
   case FMT_16_16_MPEG_INTERLACED:
   case FMT_DXN:
-  case FMT_DXT2_3_AS_16_16_16_16:
-  case FMT_DXT4_5_AS_16_16_16_16:
   case FMT_2_10_10_10_AS_16_16_16_16:
   case FMT_10_11_11_AS_16_16_16_16:
   case FMT_11_11_10_AS_16_16_16_16:
