@@ -1177,6 +1177,8 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t arg1 = SHIM_GET_ARG_32(1);
   uint32_t arg2 = SHIM_GET_ARG_32(2);
 
+  assert_always("DPC does not dispatch yet; going to hang!");
+
   XELOGD("KeInsertQueueDpc(%.8X, %.8X, %.8X)", dpc_ptr, arg1, arg2);
 
   uint32_t list_entry_ptr = dpc_ptr + 4;

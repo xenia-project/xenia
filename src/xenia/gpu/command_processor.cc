@@ -512,7 +512,7 @@ uint32_t CommandProcessor::ExecutePacket(PacketArgs& args) {
           uint32_t value = READ_PTR();
           // Writeback initiator.
           WriteRegister(packet_ptr, XE_GPU_REG_VGT_EVENT_INITIATOR,
-                        initiator & 0x1F);
+                        initiator & 0x3F);
           uint32_t data_value;
           if ((initiator >> 31) & 0x1) {
             // Write counter (GPU vblank counter?).
