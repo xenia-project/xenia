@@ -100,7 +100,6 @@
             #'LinkIncremental': '1', # 1 = NO, 2 = YES
             'TargetMachine': '17', # x86 - 64
             'AdditionalLibraryDirectories': [
-              '..\\..\\third_party\\wxWidgets\\lib\\vc_x64_lib\\',
             ],
             'EntryPointSymbol': 'wWinMainCRTStartup',
           },
@@ -469,8 +468,6 @@
       'direct_dependent_settings': {
         'include_dirs': [
           'src/',
-          'third_party/wxWidgets/include/',
-          'third_party/wxWidgets/include/msvc/',
         ],
 
         'target_conditions': [
@@ -518,8 +515,6 @@
       'include_dirs': [
         '.',
         'src/',
-        'third_party/wxWidgets/include/',
-        'third_party/wxWidgets/include/msvc/',
       ],
 
       'includes': [

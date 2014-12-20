@@ -20,6 +20,5 @@
 
   'includes': [
     'sym/sources.gypi',
-    'ui/sources.gypi',
   ],
 }

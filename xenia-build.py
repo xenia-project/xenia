@@ -291,24 +291,6 @@ class SetupCommand(Command):
       shell_call('third_party/binutils/build.sh')
     print('')
 
-    # wxWidgets.
-    print('- Building wxWidgets (will take awhile)...')
-    os.chdir('third_party/wxWidgets')
-    if sys.platform == 'win32':
-      shutil.copyfile('include/wx/msw/setup0.h', 'include/wx/msw/setup.h')
-      shell_call(' '.join([
-          'msbuild',
-          'build\msw\wx_vc10.sln',
-          '/nologo',
-          '/verbosity:quiet',
-          '/p:Configuration=Release',
-          '/p:Platform=x64',
-          ]))
-    else:
-      print('WARNING: wxWidgets build not supported yet')
-    os.chdir(cwd)
-    print('')
-
     post_update_deps('debug')
     post_update_deps('release')
 
