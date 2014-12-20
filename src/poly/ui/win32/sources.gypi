@@ -1,6 +1,8 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'win32_control.cc',
+    'win32_control.h',
     'win32_loop.cc',
     'win32_loop.h',
     'win32_menu_item.cc',

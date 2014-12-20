@@ -7,36 +7,33 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_MENU_ITEM_H_
-#define XENIA_UI_MENU_ITEM_H_
+#include <xenia/ui/main_window.h>
 
-#include <memory>
-#include <vector>
-
-#include <xenia/common.h>
+#include <poly/logging.h>
 
 namespace xe {
 namespace ui {
 
-class Window;
+MainWindow::MainWindow() : PlatformWindow(L"xenia") {}
 
-class MenuItem {
- public:
-  MenuItem(Window* window);
-  virtual ~MenuItem();
+MainWindow::~MainWindow() {}
 
-  Window* window() const { return window_; }
-  MenuItem* parent_item() const { return parent_item_; }
+void MainWindow::Start() {
+  loop_.Post([this]() {
+    if (!Initialize()) {
+      PFATAL("Failed to initialize main window");
+      exit(1);
+    }
+  });
+}
 
-  virtual void AddChild(std::unique_ptr<MenuItem> child_item);
-
- private:
-  Window* window_;
-  MenuItem* parent_item_;
-  std::vector<std::unique_ptr<MenuItem>> children_;
-};
+bool MainWindow::Initialize() {
+  if (!Window::Initialize()) {
+    return false;
+  }
+  //
+  return true;
+}
 
 }  // namespace ui
 }  // namespace xe
-
-#endif  // XENIA_UI_MENU_ITEM_H_

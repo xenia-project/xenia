@@ -7,47 +7,42 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_WIN32_WIN32_WINDOW_H_
-#define XENIA_UI_WIN32_WIN32_WINDOW_H_
+#ifndef POLY_UI_WIN32_WIN32_WINDOW_H_
+#define POLY_UI_WIN32_WIN32_WINDOW_H_
 
 #include <string>
 
-#include <xenia/common.h>
-#include <xenia/ui/window.h>
+#include <poly/ui/win32/win32_control.h>
+#include <poly/ui/window.h>
 
-namespace xe {
+namespace poly {
 namespace ui {
 namespace win32 {
 
-class Win32Window : public Window {
+class Win32Window : public Window<Win32Control> {
  public:
-  Win32Window();
+  Win32Window(const std::wstring& title);
   ~Win32Window() override;
 
-  int Initialize(const std::wstring& title, uint32_t width,
-                 uint32_t height) override;
-
   bool set_title(const std::wstring& title) override;
-  bool set_cursor_visible(bool value) override;
-  HWND handle() const { return handle_; }
-
-  LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
  protected:
-  bool SetSize(uint32_t width, uint32_t height) override;
+  bool CreateHWND() override;
+
   void OnClose() override;
+
+  LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
+                  LPARAM lParam) override;
 
  private:
   void EnableMMCSS();
-  bool HandleMouse(UINT message, WPARAM wParam, LPARAM lParam);
-  bool HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam);
 
-  HWND handle_;
+  HMENU main_menu_;
   bool closing_;
 };
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace xe
+}  // namespace poly
 
-#endif  // XENIA_UI_WIN32_WIN32_WINDOW_H_
+#endif  // POLY_UI_WIN32_WIN32_WINDOW_H_

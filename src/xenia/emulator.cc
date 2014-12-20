@@ -20,7 +20,7 @@
 #include <xenia/kernel/modules.h>
 #include <xenia/kernel/fs/filesystem.h>
 #include <xenia/memory.h>
-#include <xenia/ui/window.h>
+#include <xenia/ui/main_window.h>
 
 namespace xe {
 
@@ -33,7 +33,7 @@ using namespace xe::kernel::fs;
 using namespace xe::ui;
 
 Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line), main_window_(nullptr) {}
+    : command_line_(command_line) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -41,10 +41,6 @@ Emulator::~Emulator() {
   auto ev = xdb::protocol::ProcessExitEvent::Append(memory()->trace_base());
   if (ev) {
     ev->type = xdb::protocol::EventType::PROCESS_EXIT;
-  }
-
-  if (main_window_) {
-    main_window_->Close();
   }
 
   debug_agent_.reset();
@@ -66,10 +62,19 @@ Emulator::~Emulator() {
   processor_.reset();
 
   export_resolver_.reset();
+
+  // Kill the window last, as until the graphics system/etc is dead it's needed.
+  main_window_.reset();
 }
 
 X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
+
+  // Create the main window. Other parts will hook into this.
+  main_window_ = std::make_unique<ui::MainWindow>();
+  if (!main_window_->Initialize()) {
+    return result;
+  }
 
   debug_agent_.reset(new DebugAgent(this));
   result = debug_agent_->Initialize();
@@ -139,16 +144,6 @@ X_STATUS Emulator::Setup() {
   xam_ = std::make_unique<XamModule>(this, kernel_state_.get());
 
   return result;
-}
-
-void Emulator::set_main_window(Window* window) {
-  assert_null(main_window_);
-  main_window_ = window;
-
-  window->closed.AddListener([](UIEvent& e) {
-    // TODO(benvanik): call module API to kill? this is a bad shutdown.
-    exit(1);
-  });
 }
 
 X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {

@@ -7,32 +7,29 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_UI_EVENT_H_
-#define XENIA_UI_UI_EVENT_H_
+#ifndef POLY_UI_UI_EVENT_H_
+#define POLY_UI_UI_EVENT_H_
 
-#include <xenia/common.h>
-
-namespace xe {
+namespace poly {
 namespace ui {
 
-class App;
-class Window;
+class Control;
 
 class UIEvent {
  public:
-  UIEvent(Window* window = NULL) : window_(window) {}
+  UIEvent(Control* control = nullptr) : control_(control) {}
   virtual ~UIEvent() = default;
 
-  Window* window() const { return window_; }
+  Control* control() const { return control_; }
 
  private:
-  Window* window_;
+  Control* control_;
 };
 
 class KeyEvent : public UIEvent {
  public:
-  KeyEvent(Window* window, int key_code)
-      : UIEvent(window), key_code_(key_code) {}
+  KeyEvent(Control* control, int key_code)
+      : UIEvent(control), key_code_(key_code) {}
   ~KeyEvent() override = default;
 
   int key_code() const { return key_code_; }
@@ -43,19 +40,19 @@ class KeyEvent : public UIEvent {
 
 class MouseEvent : public UIEvent {
  public:
-  enum Button {
-    MOUSE_BUTTON_NONE = 0,
-    MOUSE_BUTTON_LEFT,
-    MOUSE_BUTTON_RIGHT,
-    MOUSE_BUTTON_MIDDLE,
-    MOUSE_BUTTON_X1,
-    MOUSE_BUTTON_X2,
+  enum class Button {
+    kNone = 0,
+    kLeft,
+    kRight,
+    kMiddle,
+    kX1,
+    kX2,
   };
 
  public:
-  MouseEvent(Window* window, Button button, int32_t x, int32_t y,
+  MouseEvent(Control* control, Button button, int32_t x, int32_t y,
              int32_t dx = 0, int32_t dy = 0)
-      : UIEvent(window), button_(button), x_(x), y_(y), dx_(dx), dy_(dy) {}
+      : UIEvent(control), button_(button), x_(x), y_(y), dx_(dx), dy_(dy) {}
   ~MouseEvent() override = default;
 
   Button button() const { return button_; }
@@ -73,6 +70,6 @@ class MouseEvent : public UIEvent {
 };
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace poly
 
-#endif  // XENIA_UI_UI_EVENT_H_
+#endif  // POLY_UI_UI_EVENT_H_

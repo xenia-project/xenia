@@ -7,16 +7,34 @@
  ******************************************************************************
  */
 
-#include <xenia/ui/win32/win32_menu_item.h>
+#ifndef POLY_UI_WIN32_WIN32_MENU_ITEM_H_
+#define POLY_UI_WIN32_WIN32_MENU_ITEM_H_
 
-namespace xe {
+#include <windows.h>
+#include <windowsx.h>
+
+#include <poly/ui/menu_item.h>
+
+namespace poly {
 namespace ui {
 namespace win32 {
 
-Win32MenuItem::Win32MenuItem(Window* window) : MenuItem(window) {}
+class Win32MenuItem : public MenuItem {
+ public:
+  ~Win32MenuItem() override;
 
-Win32MenuItem::~Win32MenuItem() {}
+ protected:
+  void OnChildAdded(MenuItem* child_item) override;
+  void OnChildRemoved(MenuItem* child_item) override;
+
+ private:
+  Win32MenuItem(Type type);
+
+  HMENU handle_;
+};
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace xe
+}  // namespace poly
+
+#endif  // POLY_UI_WIN32_WIN32_MENU_ITEM_H_

@@ -7,26 +7,25 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
-#define XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
+#ifndef POLY_UI_LOOP_H_
+#define POLY_UI_LOOP_H_
 
-#include <xenia/common.h>
-#include <xenia/ui/menu_item.h>
+#include <functional>
 
-namespace xe {
+namespace poly {
 namespace ui {
-namespace win32 {
 
-class Win32MenuItem : public MenuItem {
+class Loop {
  public:
-  Win32MenuItem(Window* window);
-  ~Win32MenuItem() override;
+  Loop() = default;
+  virtual ~Loop() = default;
 
- private:
+  virtual void Post(std::function<void()> fn) = 0;
+
+  virtual void Quit() = 0;
 };
 
-}  // namespace win32
 }  // namespace ui
-}  // namespace xe
+}  // namespace poly
 
-#endif  // XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
+#endif  // POLY_UI_LOOP_H_

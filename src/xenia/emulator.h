@@ -37,7 +37,7 @@ class XamModule;
 class XboxkrnlModule;
 }  // namespace kernel
 namespace ui {
-class Window;
+class MainWindow;
 }  // namespace ui
 }  // namespace xe
 
@@ -52,8 +52,7 @@ class Emulator {
 
   const std::wstring& command_line() const { return command_line_; }
 
-  ui::Window* main_window() const { return main_window_; }
-  void set_main_window(ui::Window* window);
+  ui::MainWindow* main_window() const { return main_window_.get(); }
 
   Memory* memory() const { return memory_.get(); }
 
@@ -85,8 +84,7 @@ class Emulator {
 
   std::wstring command_line_;
 
-  // TODO(benvanik): remove from here?
-  ui::Window* main_window_;
+  std::unique_ptr<ui::MainWindow> main_window_;
 
   std::unique_ptr<Memory> memory_;
 

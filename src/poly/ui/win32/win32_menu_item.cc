@@ -7,30 +7,31 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_WIN32_WIN32_LOOP_H_
-#define XENIA_UI_WIN32_WIN32_LOOP_H_
+#include <poly/ui/win32/win32_menu_item.h>
 
-#include <xenia/common.h>
-
-#include <xenia/ui/menu_item.h>
-
-namespace xe {
+namespace poly {
 namespace ui {
 namespace win32 {
 
-class Win32Loop {
- public:
-  Win32Loop();
-  ~Win32Loop();
+Win32MenuItem::Win32MenuItem(Type type)
+    : MenuItem(type), handle_(CreateMenu()) {}
 
-  bool Run();
-  void Quit();
+Win32MenuItem::~Win32MenuItem() {
+  if (handle_) {
+    DestroyMenu(handle_);
+  }
+}
 
- private:
-};
+void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
+  auto child_item = static_cast<Win32MenuItem*>(generic_child_item);
+  //
+}
+
+void Win32MenuItem::OnChildRemoved(MenuItem* generic_child_item) {
+  auto child_item = static_cast<Win32MenuItem*>(generic_child_item);
+  //
+}
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace xe
-
-#endif  // XENIA_UI_WIN32_WIN32_LOOP_H_
+}  // namespace poly

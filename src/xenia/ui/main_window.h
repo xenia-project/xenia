@@ -7,18 +7,37 @@
  ******************************************************************************
  */
 
-#include <xenia/ui/menu_item.h>
+#ifndef XENIA_UI_MAIN_WINDOW_H_
+#define XENIA_UI_MAIN_WINDOW_H_
+
+#include <poly/ui/window.h>
+
+// TODO(benvanik): only on windows.
+#include <poly/ui/win32/win32_loop.h>
+#include <poly/ui/win32/win32_window.h>
 
 namespace xe {
 namespace ui {
 
-MenuItem::MenuItem(Window* window) : window_(window), parent_item_(nullptr) {}
+using PlatformLoop = poly::ui::win32::Win32Loop;
+using PlatformWindow = poly::ui::win32::Win32Window;
 
-MenuItem::~MenuItem() {}
+class MainWindow : public PlatformWindow {
+ public:
+  MainWindow();
+  ~MainWindow();
 
-void MenuItem::AddChild(std::unique_ptr<MenuItem> child_item) {
-  children_.emplace_back(std::move(child_item));
-}
+  PlatformLoop* loop() { return &loop_; }
+
+  void Start();
+
+ private:
+  bool Initialize();
+
+  PlatformLoop loop_;
+};
 
 }  // namespace ui
 }  // namespace xe
+
+#endif  // XENIA_UI_MAIN_WINDOW_H_
