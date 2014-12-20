@@ -390,7 +390,8 @@ SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_state, KernelState* state) {
   int result = 0;
 
 #if XE_PLATFORM_WIN32
-  result = TlsSetValue(tls_index, (LPVOID)tls_value);
+  result = TlsSetValue(
+      tls_index, reinterpret_cast<LPVOID>(static_cast<uintptr_t>(tls_value)));
 #else
   result = pthread_setspecific(tls_index, (void*)tls_value) == 0;
 #endif  // WIN32

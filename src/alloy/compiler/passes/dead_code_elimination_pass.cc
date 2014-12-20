@@ -114,7 +114,7 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
 
   // Remove all nops.
   if (any_instr_removed) {
-    auto block = builder->first_block();
+    block = builder->first_block();
     while (block) {
       Instr* i = block->instr_head;
       while (i) {

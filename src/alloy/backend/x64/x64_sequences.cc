@@ -1548,7 +1548,7 @@ EMITTER(STORE_I8, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I8<>>)) {
       e.mov(e.byte[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8b, e.byte[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI8));
@@ -1564,7 +1564,7 @@ EMITTER(STORE_I16, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I16<>>)) {
       e.mov(e.word[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8w, e.word[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI16));
@@ -1580,7 +1580,7 @@ EMITTER(STORE_I32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I32<>>)) {
       e.mov(e.dword[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8d, e.dword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));
@@ -1596,7 +1596,7 @@ EMITTER(STORE_I64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I64<>>)) {
       e.mov(e.qword[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8, e.qword[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI64));
@@ -1612,7 +1612,7 @@ EMITTER(STORE_F32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F32<>>)) {
       e.vmovss(e.dword[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF32));
@@ -1628,7 +1628,7 @@ EMITTER(STORE_F64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F64<>>)) {
       e.vmovsd(e.qword[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF64));
@@ -1645,7 +1645,7 @@ EMITTER(STORE_V128, MATCH(I<OPCODE_STORE, VoidOp, I64<>, V128<>>)) {
       e.vmovaps(e.ptr[addr], i.src2);
     }
     if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
+      addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
       e.lea(e.rdx, e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreV128));

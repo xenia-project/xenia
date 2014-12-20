@@ -76,7 +76,9 @@
           'IntermediateDirectory': '$(OutDir)\\obj\\$(ProjectName)',
           'CharacterSet': '1',
         },
-        'msvs_disabled_warnings': [],
+        'msvs_disabled_warnings': [
+          4458,  # warning C4458: declaration of 'x' hides class member
+        ],
         'msvs_configuration_platform': 'x64',
         'msvs_cygwin_shell': '0',
         'msvs_settings': {

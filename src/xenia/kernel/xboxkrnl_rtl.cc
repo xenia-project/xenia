@@ -129,7 +129,7 @@ SHIM_CALL RtlInitAnsiString_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
-  const char* source = source_ptr ? (char*)SHIM_MEM_ADDR(source_ptr) : NULL;
+  const char* source = source_ptr ? (char*)SHIM_MEM_ADDR(source_ptr) : nullptr;
   XELOGD("RtlInitAnsiString(%.8X, %.8X = %s)", destination_ptr, source_ptr,
          source ? source : "<null>");
 
@@ -138,7 +138,6 @@ SHIM_CALL RtlInitAnsiString_shim(PPCContext* ppc_state, KernelState* state) {
   // _In_opt_  PCSZ SourceString
 
   if (source_ptr != 0) {
-    const char* source = (char*)SHIM_MEM_ADDR(source_ptr);
     uint16_t length = (uint16_t)strlen(source);
     SHIM_SET_MEM_16(destination_ptr + 0, length);
     SHIM_SET_MEM_16(destination_ptr + 2, length + 1);

@@ -114,7 +114,7 @@ uint32_t AllocDynamicRegister(TranslationContext& ctx, Value* value) {
   } else {
     value->flags |= VALUE_IS_ALLOCATED;
     auto reg = ctx.register_count++;
-    value->tag = reinterpret_cast<void*>(reg);
+    value->tag = reinterpret_cast<void*>(static_cast<uintptr_t>(reg));
     return (uint32_t)reg;
   }
 }
@@ -3179,8 +3179,8 @@ uint32_t IntCode_NEG_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_NEG_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.f32[i] = -src1.f32[i];
+  for (size_t j = 0; j < 4; j++) {
+    dest.f32[j] = -src1.f32[j];
   }
   return IA_NEXT;
 }
@@ -3219,8 +3219,8 @@ uint32_t IntCode_ABS_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_ABS_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.f32[i] = abs(src1.f32[i]);
+  for (size_t j = 0; j < 4; j++) {
+    dest.f32[j] = abs(src1.f32[j]);
   }
   return IA_NEXT;
 }
@@ -3275,8 +3275,8 @@ uint32_t IntCode_SQRT_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_SQRT_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.f32[i] = sqrt(src1.f32[i]);
+  for (size_t j = 0; j < 4; j++) {
+    dest.f32[j] = sqrt(src1.f32[j]);
   }
   return IA_NEXT;
 }
@@ -3317,8 +3317,8 @@ uint32_t IntCode_POW2_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_POW2_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.f32[i] = (float)pow(2, src1.f32[i]);
+  for (size_t j = 0; j < 4; j++) {
+    dest.f32[j] = (float)pow(2, src1.f32[j]);
   }
   return IA_NEXT;
 }
@@ -3342,8 +3342,8 @@ uint32_t IntCode_LOG2_F64(IntCodeState& ics, const IntCode* i) {
 uint32_t IntCode_LOG2_V128(IntCodeState& ics, const IntCode* i) {
   const vec128_t& src1 = ics.rf[i->src1_reg].v128;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.f32[i] = log2(src1.f32[i]);
+  for (size_t j = 0; j < 4; j++) {
+    dest.f32[j] = log2(src1.f32[j]);
   }
   return IA_NEXT;
 }
@@ -3911,32 +3911,32 @@ int Translate_INSERT(TranslationContext& ctx, Instr* i) {
 uint32_t IntCode_SPLAT_V128_INT8(IntCodeState& ics, const IntCode* i) {
   int8_t src1 = ics.rf[i->src1_reg].i8;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 16; i++) {
-    dest.u8[i] = src1;
+  for (size_t j = 0; j < 16; j++) {
+    dest.u8[j] = src1;
   }
   return IA_NEXT;
 }
 uint32_t IntCode_SPLAT_V128_INT16(IntCodeState& ics, const IntCode* i) {
   int16_t src1 = ics.rf[i->src1_reg].i16;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 8; i++) {
-    dest.u16[i] = src1;
+  for (size_t j = 0; j < 8; j++) {
+    dest.u16[j] = src1;
   }
   return IA_NEXT;
 }
 uint32_t IntCode_SPLAT_V128_INT32(IntCodeState& ics, const IntCode* i) {
   int32_t src1 = ics.rf[i->src1_reg].i32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.u32[i] = src1;
+  for (size_t j = 0; j < 4; j++) {
+    dest.u32[j] = src1;
   }
   return IA_NEXT;
 }
 uint32_t IntCode_SPLAT_V128_FLOAT32(IntCodeState& ics, const IntCode* i) {
   float src1 = ics.rf[i->src1_reg].f32;
   vec128_t& dest = ics.rf[i->dest_reg].v128;
-  for (size_t i = 0; i < 4; i++) {
-    dest.f32[i] = src1;
+  for (size_t j = 0; j < 4; j++) {
+    dest.f32[j] = src1;
   }
   return IA_NEXT;
 }

@@ -421,9 +421,9 @@ bool RunTests(const std::wstring& test_name) {
   int failed_count = 0;
   int passed_count = 0;
 
-  auto test_path = poly::fix_path_separators(poly::to_wstring(FLAGS_test_path));
+  auto test_path_root = poly::fix_path_separators(poly::to_wstring(FLAGS_test_path));
   std::vector<std::wstring> test_files;
-  if (!DiscoverTests(test_path, test_files)) {
+  if (!DiscoverTests(test_path_root, test_files)) {
     return false;
   }
   if (!test_files.size()) {

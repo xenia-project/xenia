@@ -164,13 +164,13 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         header->resource_info_count = (opt_header->length - 4) / 16;
         header->resource_infos = (xe_xex2_resource_info_t *)calloc(
             header->resource_info_count, sizeof(xe_xex2_resource_info_t));
-        const uint8_t *ph = pp + 0x04;
-        for (size_t n = 0; n < header->resource_info_count; n++) {
-          auto &res = header->resource_infos[n];
-          memcpy(res.name, ph + 0x00, 8);
-          res.address = poly::load_and_swap<uint32_t>(ph + 0x08);
-          res.size = poly::load_and_swap<uint32_t>(ph + 0x0C);
-          ph += 16;
+        const uint8_t *phi = pp + 0x04;
+        for (size_t m = 0; m < header->resource_info_count; m++) {
+          auto &res = header->resource_infos[m];
+          memcpy(res.name, phi + 0x00, 8);
+          res.address = poly::load_and_swap<uint32_t>(phi + 0x08);
+          res.size = poly::load_and_swap<uint32_t>(phi + 0x0C);
+          phi += 16;
         }
       } break;
       case XEX_HEADER_EXECUTION_INFO: {
@@ -609,7 +609,7 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
       case XEX_ENCRYPTION_NORMAL: {
         const uint8_t *ct = p;
         uint8_t *pt = d;
-        for (size_t n = 0; n < data_size; n += 16, ct += 16, pt += 16) {
+        for (size_t m = 0; m < data_size; m += 16, ct += 16, pt += 16) {
           // Decrypt 16 uint8_ts from input -> output.
           rijndaelDecrypt(rk, Nr, ct, pt);
           for (size_t i = 0; i < 16; i++) {

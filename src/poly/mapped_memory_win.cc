@@ -65,7 +65,7 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
   GetSystemInfo(&systemInfo);
 
   const size_t aligned_offset =
-      offset & (~(systemInfo.dwAllocationGranularity - 1));
+      offset & ~static_cast<size_t>(systemInfo.dwAllocationGranularity - 1);
   const size_t aligned_length = length + (offset - aligned_offset);
 
   auto mm = std::make_unique<Win32MappedMemory>(path, mode);
