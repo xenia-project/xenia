@@ -282,7 +282,8 @@ class SetupCommand(Command):
       extra_args = ''
       #if sys.platform == 'win32':
       #  extra_args = '--x64'
-      shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
+      shell_call('python third_party/ninja/configure.py --bootstrap ' +
+                 extra_args)
       print('')
 
     # binutils (with vmx128).
