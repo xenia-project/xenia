@@ -16,13 +16,13 @@ using namespace xe;
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 
-int xenia_run(std::vector<std::wstring>& args) {
+int xenia_main(std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
   // Grab path from the flag or unnamed argument.
   if (!FLAGS_target.size() && args.size() < 2) {
-    google::ShowUsageWithFlags("xenia-run");
+    google::ShowUsageWithFlags("xenia");
     PFATAL("Pass a file to launch.");
     return 1;
   }
@@ -71,4 +71,4 @@ int xenia_run(std::vector<std::wstring>& args) {
   return 0;
 }
 
-DEFINE_ENTRY_POINT(L"xenia-run", L"xenia-run some.xex", xenia_run);
+DEFINE_ENTRY_POINT(L"xenia", L"xenia some.xex", xenia_main);

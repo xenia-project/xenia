@@ -198,8 +198,8 @@
 
   'targets': [
     {
-      'target_name': 'poly',
-      'product_name': 'poly',
+      'target_name': 'libpoly',
+      'product_name': 'libpoly',
       'type': 'static_library',
 
       'dependencies': [
@@ -279,15 +279,15 @@
     },
 
     {
-      'target_name': 'alloy',
-      'product_name': 'alloy',
+      'target_name': 'liballoy',
+      'product_name': 'liballoy',
       'type': 'static_library',
 
       'dependencies': [
         'beaengine',
         'gflags',
         'llvm',
-        'poly',
+        'libpoly',
       ],
 
       'conditions': [
@@ -309,7 +309,7 @@
         'beaengine',
         'gflags',
         'llvm',
-        'poly',
+        'libpoly',
       ],
 
       'direct_dependent_settings': {
@@ -365,19 +365,19 @@
     },
 
     {
-      'target_name': 'xenia',
-      'product_name': 'xenia',
+      'target_name': 'libxenia',
+      'product_name': 'libxenia',
       'type': 'static_library',
 
       'dependencies': [
         'gflags',
-        'alloy',
-        'poly',
+        'liballoy',
+        'libpoly',
       ],
       'export_dependent_settings': [
         'gflags',
-        'alloy',
-        'poly',
+        'liballoy',
+        'libpoly',
       ],
 
       'direct_dependent_settings': {
@@ -452,73 +452,25 @@
     },
 
     {
-      'target_name': 'xdb',
-      'product_name': 'xdb',
-      'type': 'static_library',
+      'target_name': 'xenia',
+      'type': 'executable',
 
-      'dependencies': [
-        'gflags',
-        'xenia',
-      ],
-      'export_dependent_settings': [
-        'gflags',
-        'xenia',
-      ],
-
-      'direct_dependent_settings': {
-        'include_dirs': [
-          'src/',
-        ],
-
-        'target_conditions': [
-          ['_type=="shared_library"', {
-            'cflags': [
-            ],
-          }],
-          ['_type=="executable"', {
-            'conditions': [
-              ['OS == "win"', {
-                'libraries': [
-                  'kernel32',
-                  'user32',
-                  'ole32',
-                  'wsock32',
-                  'Ws2_32',
-                  'Shell32',
-                  'Msimg32',
-                  'wxbase31u',
-                  'wxmsw31u_core',
-                  'wxmsw31u_aui',
-                  'wxmsw31u_stc',
-                ],
-              }],
-              ['OS == "mac"', {
-                'xcode_settings': {
-                  'OTHER_LDFLAGS': [
-                  ],
-                },
-              }],
-              ['OS == "linux"', {
-                'libraries': [
-                  '-lpthread',
-                  '-ldl',
-                ],
-              }],
-            ],
-          }],
-        ],
+      'msvs_settings': {
+        'VCLinkerTool': {
+          'SubSystem': '2'
+        },
       },
 
-      'cflags': [
+      'dependencies': [
+        'libxenia',
       ],
 
       'include_dirs': [
         '.',
-        'src/',
       ],
 
-      'includes': [
-        'src/xdb/sources.gypi',
+      'sources': [
+        'src/xenia/xenia_main.cc',
       ],
     },
   ],

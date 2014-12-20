@@ -15,6 +15,7 @@
     'profiling.cc',
     'profiling.h',
     'xbox.h',
+    # xenia_main.cc is purposefully omitted as it's used in another target.
   ],
 
   'includes': [

@@ -12,8 +12,8 @@
       },
 
       'dependencies': [
-        'alloy',
-        'xenia',
+        'liballoy',
+        'libxenia',
       ],
 
       'include_dirs': [
@@ -38,8 +38,8 @@
       },
 
       'dependencies': [
-        'alloy',
-        'xenia',
+        'liballoy',
+        'libxenia',
       ],
 
       'include_dirs': [
