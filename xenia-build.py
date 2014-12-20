@@ -278,12 +278,14 @@ class SetupCommand(Command):
     if (not os.path.exists('third_party/ninja/ninja') and
        not os.path.exists('third_party/ninja/ninja.exe')):
       print('- preparing ninja...')
+      os.chdir('third_party/wxWidgets')
       # Windows needs --x64 to force building the 64-bit ninja.
       extra_args = ''
       #if sys.platform == 'win32':
       #  extra_args = '--x64'
       shell_call('python third_party/ninja/configure.py --bootstrap ' +
                  extra_args)
+      os.chdir(cwd)
       print('')
 
     # binutils (with vmx128).
