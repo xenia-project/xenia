@@ -10,10 +10,8 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-
 #include <alloy/frontend/ppc/ppc_context.h>
+#include <xenia/common.h>
 #include <xenia/export_resolver.h>
 
 

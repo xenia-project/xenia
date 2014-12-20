@@ -23,11 +23,19 @@
 
 // using namespace alloy;
 
+// TODO(benvanik): remove.
+#define XEEXPECTZERO(expr) \
+  if ((expr) != 0) {       \
+    goto XECLEANUP;        \
+  }
+#define XEEXPECTNOTNULL(expr) \
+  if ((expr) == NULL) {       \
+    goto XECLEANUP;           \
+  }
+
 DEFINE_bool(xex_dev_key, false, "Use the devkit key.");
 
 typedef struct xe_xex2 {
-  xe_ref_t ref;
-
   xe::Memory *memory;
 
   xe_xex2_header_t header;
@@ -52,7 +60,6 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
 xe_xex2_ref xe_xex2_load(xe::Memory *memory, const void *addr,
                          const size_t length, xe_xex2_options_t options) {
   xe_xex2_ref xex = (xe_xex2_ref)calloc(1, sizeof(xe_xex2));
-  xe_ref_init((xe_ref)xex);
 
   xex->memory = memory;
   xex->sections = new std::vector<PESection *>();
@@ -74,11 +81,15 @@ xe_xex2_ref xe_xex2_load(xe::Memory *memory, const void *addr,
   return xex;
 
 XECLEANUP:
-  xe_xex2_release(xex);
-  return NULL;
+  xe_xex2_dealloc(xex);
+  return nullptr;
 }
 
 void xe_xex2_dealloc(xe_xex2_ref xex) {
+  if (!xex) {
+    return;
+  }
+
   for (std::vector<PESection *>::iterator it = xex->sections->begin();
        it != xex->sections->end(); ++it) {
     delete *it;
@@ -96,15 +107,6 @@ void xe_xex2_dealloc(xe_xex2_ref xex) {
   }
 
   xex->memory = NULL;
-}
-
-xe_xex2_ref xe_xex2_retain(xe_xex2_ref xex) {
-  xe_ref_retain((xe_ref)xex);
-  return xex;
-}
-
-void xe_xex2_release(xe_xex2_ref xex) {
-  xe_ref_release((xe_ref)xex, (xe_ref_dealloc_t)xe_xex2_dealloc);
 }
 
 const xe_xex2_header_t *xe_xex2_get_header(xe_xex2_ref xex) {
@@ -720,7 +722,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", header->exe_address,
            uncompressed_size);
     result_code = 2;
-    XEFAIL();
+    goto XECLEANUP;
   }
   uint8_t *buffer = memory->Translate(header->exe_address);
 

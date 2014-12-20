@@ -15,7 +15,6 @@
 
 #include <poly/mapped_memory.h>
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/kernel/fs/device.h>
 
 namespace xe {

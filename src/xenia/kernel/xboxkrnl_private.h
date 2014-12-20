@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_XBOXKRNL_PRIVATE_H_
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/kernel/xboxkrnl_ordinals.h>
 
 namespace xe {

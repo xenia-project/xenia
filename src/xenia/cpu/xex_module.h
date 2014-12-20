@@ -13,15 +13,13 @@
 #include <string>
 
 #include <alloy/runtime/module.h>
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/kernel/util/xex2.h>
-
 
 namespace xe {
 namespace cpu {
 
 class XenonRuntime;
-
 
 class XexModule : public alloy::runtime::Module {
 public:
@@ -52,9 +50,7 @@ private:
   uint64_t      high_address_;
 };
 
-
 }  // namespace cpu
 }  // namespace xe
-
 
 #endif  // XENIA_CPU_XEX_MODULE_H_

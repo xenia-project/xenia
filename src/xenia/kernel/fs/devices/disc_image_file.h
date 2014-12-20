@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/kernel/objects/xfile.h>
 
 namespace xe {

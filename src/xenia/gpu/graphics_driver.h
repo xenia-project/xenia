@@ -10,16 +10,14 @@
 #ifndef XENIA_GPU_GRAPHICS_DRIVER_H_
 #define XENIA_GPU_GRAPHICS_DRIVER_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/gpu/draw_command.h>
 #include <xenia/gpu/register_file.h>
 #include <xenia/gpu/resource_cache.h>
 #include <xenia/gpu/xenos/xenos.h>
 
-
 namespace xe {
 namespace gpu {
-
 
 class GraphicsDriver {
 public:
@@ -32,7 +30,7 @@ public:
   virtual int Initialize() = 0;
 
   int LoadShader(xenos::XE_GPU_SHADER_TYPE type,
-                 uint32_t address, uint32_t length, 
+                 uint32_t address, uint32_t length,
                  uint32_t start);
 
   int PrepareDraw(DrawCommand& command);
@@ -63,9 +61,7 @@ protected:
   PixelShaderResource* pixel_shader_;
 };
 
-
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_GRAPHICS_DRIVER_H_

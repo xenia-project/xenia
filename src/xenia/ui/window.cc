@@ -9,19 +9,17 @@
 
 #include <xenia/ui/window.h>
 
-using namespace xe;
-using namespace xe::ui;
+namespace xe {
+namespace ui {
 
-Window::Window(xe_run_loop_ref run_loop)
+Window::Window()
     : title_(L"Window"),
       is_visible_(true),
       is_cursor_visible_(true),
       width_(0),
-      height_(0) {
-  run_loop_ = xe_run_loop_retain(run_loop);
-}
+      height_(0) {}
 
-Window::~Window() { xe_run_loop_release(run_loop_); }
+Window::~Window() {}
 
 int Window::Initialize(const std::wstring& title, uint32_t width,
                        uint32_t height) {
@@ -111,3 +109,6 @@ void Window::Close() {
 }
 
 void Window::OnClose() {}
+
+}  // namespace ui
+}  // namespace xe

@@ -10,10 +10,8 @@
 #ifndef XENIA_GPU_NOP_NOP_GPU_PRIVATE_H_
 #define XENIA_GPU_NOP_NOP_GPU_PRIVATE_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/gpu/nop/nop_gpu.h>
-
 
 namespace xe {
 namespace gpu {
@@ -26,6 +24,5 @@ namespace nop {
 }  // namespace nop
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_NOP_NOP_PRIVATE_H_

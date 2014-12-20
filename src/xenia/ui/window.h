@@ -12,9 +12,8 @@
 
 #include <string>
 
-#include <xenia/core.h>
-
 #include <alloy/delegate.h>
+#include <xenia/common.h>
 #include <xenia/ui/ui_event.h>
 
 namespace xe {
@@ -22,13 +21,11 @@ namespace ui {
 
 class Window {
  public:
-  Window(xe_run_loop_ref run_loop);
+  Window();
   virtual ~Window();
 
   virtual int Initialize(const std::wstring& title, uint32_t width,
                          uint32_t height);
-
-  xe_run_loop_ref run_loop() const { return run_loop_; }
 
   const std::wstring& title() const { return title_; }
   virtual bool set_title(const std::wstring& title);
@@ -69,7 +66,6 @@ class Window {
   virtual void OnClose();
 
  private:
-  xe_run_loop_ref run_loop_;
   std::wstring title_;
   bool is_visible_;
   bool is_cursor_visible_;

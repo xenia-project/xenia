@@ -10,16 +10,13 @@
 #ifndef XENIA_GPU_NOP_NOP_GRAPHICS_SYSTEM_H_
 #define XENIA_GPU_NOP_NOP_GRAPHICS_SYSTEM_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/gpu/graphics_system.h>
 #include <xenia/gpu/nop/nop_gpu-private.h>
-
 
 namespace xe {
 namespace gpu {
 namespace nop {
-
 
 class NopGraphicsSystem : public GraphicsSystem {
 public:
@@ -39,10 +36,8 @@ private:
   HANDLE vsync_timer_;
 };
 
-
 }  // namespace nop
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_NOP_NOP_GRAPHICS_SYSTEM_H_

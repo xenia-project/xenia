@@ -12,7 +12,8 @@
 
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/runtime/thread_state.h>
-#include <xenia/core.h>
+#include <xenia/common.h>
+#include <xenia/memory.h>
 
 namespace xdb {
 namespace protocol {

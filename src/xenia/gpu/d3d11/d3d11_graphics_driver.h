@@ -10,18 +10,16 @@
 #ifndef XENIA_GPU_D3D11_D3D11_GRAPHICS_DRIVER_H_
 #define XENIA_GPU_D3D11_D3D11_GRAPHICS_DRIVER_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 
 #include <xenia/gpu/graphics_driver.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/gpu/d3d11/d3d11_resource_cache.h>
 #include <xenia/gpu/xenos/xenos.h>
 
-
 namespace xe {
 namespace gpu {
 namespace d3d11 {
-
 
 class D3D11GraphicsDriver : public GraphicsDriver {
 public:
@@ -89,10 +87,8 @@ private:
   } state_;
 };
 
-
 }  // namespace d3d11
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_D3D11_D3D11_GRAPHICS_DRIVER_H_

@@ -7,15 +7,14 @@
  ******************************************************************************
  */
 
+#include <poly/memory.h>
 #include <xenia/common.h>
-#include <xenia/core.h>
-#include <xenia/core/hash.h>
 #include <xenia/kernel/async_request.h>
 #include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xevent.h>
 #include <xenia/kernel/objects/xfile.h>
 #include <xenia/kernel/util/shim_utils.h>
+#include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/xbox.h>
 
 namespace xe {
@@ -384,7 +383,8 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         assert_true(length == 8);
         info = 8;
         // TODO(benvanik): use pointer to fs:: entry?
-        SHIM_SET_MEM_64(file_info_ptr, hash_combine(0, file->absolute_path()));
+        SHIM_SET_MEM_64(file_info_ptr,
+                        poly::hash_combine(0, file->absolute_path()));
         break;
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {

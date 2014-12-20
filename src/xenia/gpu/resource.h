@@ -10,13 +10,11 @@
 #ifndef XENIA_GPU_RESOURCE_H_
 #define XENIA_GPU_RESOURCE_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/gpu/xenos/xenos.h>
-
 
 namespace xe {
 namespace gpu {
-
 
 struct MemoryRange {
   uint8_t* host_base;
@@ -96,9 +94,7 @@ protected:
   StaticResource();
 };
 
-
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_RESOURCE_H_

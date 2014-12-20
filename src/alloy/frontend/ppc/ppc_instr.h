@@ -61,7 +61,7 @@ typedef enum {
   kXEPPCInstrFormatXDSS = 26,
 } xe_ppc_instr_format_e;
 
-typedef enum {
+typedef enum : uint32_t {
   kXEPPCInstrMaskVXR = 0xFC0003FF,
   kXEPPCInstrMaskVXA = 0xFC00003F,
   kXEPPCInstrMaskVX128 = 0xFC0003D0,

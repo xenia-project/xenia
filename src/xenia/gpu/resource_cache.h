@@ -13,7 +13,7 @@
 #include <map>
 #include <unordered_map>
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/gpu/buffer_resource.h>
 #include <xenia/gpu/resource.h>
 #include <xenia/gpu/sampler_state_resource.h>
@@ -21,10 +21,8 @@
 #include <xenia/gpu/texture_resource.h>
 #include <xenia/gpu/xenos/xenos.h>
 
-
 namespace xe {
 namespace gpu {
-
 
 class ResourceCache {
 public:
@@ -36,7 +34,7 @@ public:
   PixelShaderResource* FetchPixelShader(
       const MemoryRange& memory_range,
       const PixelShaderResource::Info& info);
-  
+
   TextureResource* FetchTexture(
       const MemoryRange& memory_range,
       const TextureResource::Info& info);
@@ -92,7 +90,7 @@ protected:
     resources_.push_back(resource);
     return resource;
   }
-  
+
   virtual VertexShaderResource* CreateVertexShader(
       const MemoryRange& memory_range,
       const VertexShaderResource::Info& info) = 0;
@@ -120,9 +118,7 @@ private:
   std::multimap<uint64_t, PagedResource*> paged_resources_;
 };
 
-
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_RESOURCE_CACHE_H_

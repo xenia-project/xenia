@@ -10,12 +10,22 @@
 #ifndef POLY_MEMORY_H_
 #define POLY_MEMORY_H_
 
+#include <functional>
 #include <string>
 
 #include <poly/assert.h>
 #include <poly/byte_order.h>
 
 namespace poly {
+
+inline size_t hash_combine(size_t seed) { return seed; }
+
+template <typename T, typename... Ts>
+size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
+  std::hash<T> hasher;
+  seed ^= hasher(v) + 0x9E3779B9 + (seed << 6) + (seed >> 2);
+  return hash_combine(seed, vs...);
+}
 
 size_t page_size();
 

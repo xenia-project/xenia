@@ -12,8 +12,7 @@
 
 #include <string>
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/ui/window.h>
 
 namespace xe {
@@ -22,7 +21,7 @@ namespace win32 {
 
 class Win32Window : public Window {
  public:
-  Win32Window(xe_run_loop_ref run_loop);
+  Win32Window();
   ~Win32Window() override;
 
   int Initialize(const std::wstring& title, uint32_t width,

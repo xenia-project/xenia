@@ -10,18 +10,15 @@
 #ifndef XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 #define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 
-#include <xenia/core.h>
-
-#include <xenia/apu/audio_driver.h>
-#include <xenia/apu/xaudio2/xaudio2_apu-private.h>
-
 #include <xaudio2.h>
 
+#include <xenia/common.h>
+#include <xenia/apu/audio_driver.h>
+#include <xenia/apu/xaudio2/xaudio2_apu-private.h>
 
 namespace xe {
 namespace apu {
 namespace xaudio2 {
-
 
 class XAudio2AudioDriver : public AudioDriver {
 public:
@@ -45,10 +42,8 @@ private:
   VoiceCallback* voice_callback_;
 };
 
-
 }  // namespace xaudio2
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_

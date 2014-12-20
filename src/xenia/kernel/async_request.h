@@ -13,7 +13,6 @@
 #include <vector>
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/xbox.h>
 
 namespace xe {

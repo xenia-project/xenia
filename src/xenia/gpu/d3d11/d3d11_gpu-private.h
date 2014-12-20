@@ -10,10 +10,9 @@
 #ifndef XENIA_GPU_D3D11_D3D11_GPU_PRIVATE_H_
 #define XENIA_GPU_D3D11_D3D11_GPU_PRIVATE_H_
 
-#include <xenia/core.h>
-
 #include <d3d11.h>
 
+#include <xenia/common.h>
 #include <xenia/gpu/d3d11/d3d11_gpu.h>
 
 namespace xe {

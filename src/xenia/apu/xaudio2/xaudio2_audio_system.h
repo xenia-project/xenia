@@ -10,18 +10,15 @@
 #ifndef XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_SYSTEM_H_
 #define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_SYSTEM_H_
 
-#include <xenia/core.h>
-
-#include <xenia/apu/audio_system.h>
-#include <xenia/apu/xaudio2/xaudio2_apu-private.h>
-
 #include <xaudio2.h>
 
+#include <xenia/common.h>
+#include <xenia/apu/audio_system.h>
+#include <xenia/apu/xaudio2/xaudio2_apu-private.h>
 
 namespace xe {
 namespace apu {
 namespace xaudio2 {
-
 
 class XAudio2AudioSystem : public AudioSystem {
 public:
@@ -35,10 +32,8 @@ protected:
   virtual void Initialize();
 };
 
-
 }  // namespace xaudio2
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_SYSTEM_H_

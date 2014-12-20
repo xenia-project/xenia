@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/emulator.h>
 #include <xenia/xbox.h>
 

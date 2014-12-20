@@ -20,11 +20,11 @@ namespace kernel {
 using namespace xe::cpu;
 
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, path), xex_(NULL) {}
+    : XModule(kernel_state, path), xex_(nullptr) {}
 
-XUserModule::~XUserModule() { xe_xex2_release(xex_); }
+XUserModule::~XUserModule() { xe_xex2_dealloc(xex_); }
 
-xe_xex2_ref XUserModule::xex() { return xe_xex2_retain(xex_); }
+xe_xex2_ref XUserModule::xex() { return xex_; }
 
 const xe_xex2_header_t* XUserModule::xex_header() {
   return xe_xex2_get_header(xex_);
@@ -50,33 +50,52 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
   if (fs_entry->can_map()) {
     // Map.
     auto mmap = fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
-    XEEXPECTNOTNULL(mmap);
+    if (!mmap) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     // Load the module.
     result = LoadFromMemory(mmap->address(), mmap->length());
   } else {
     XFileInfo file_info;
     result = fs_entry->QueryInfo(&file_info);
-    XEEXPECTZERO(result);
+    if (result) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     std::vector<uint8_t> buffer(file_info.file_length);
 
     // Open file for reading.
     result = kernel_state()->file_system()->Open(
         std::move(fs_entry), kernel_state(), fs::Mode::READ, false, &file);
-    XEEXPECTZERO(result);
+    if (result) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     // Read entire file into memory.
     // Ugh.
     size_t bytes_read = 0;
     result = file->Read(buffer.data(), buffer.size(), 0, &bytes_read);
-    XEEXPECTZERO(result);
+    if (result) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     // Load the module.
     result = LoadFromMemory(buffer.data(), bytes_read);
   }
 
-XECLEANUP:
   if (file) {
     file->Release();
   }

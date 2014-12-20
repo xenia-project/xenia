@@ -10,8 +10,9 @@
 #ifndef XENIA_KERNEL_UTIL_XEX2_H_
 #define XENIA_KERNEL_UTIL_XEX2_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/kernel/util/xex2_info.h>
+#include <xenia/memory.h>
 
 typedef struct { int reserved; } xe_xex2_options_t;
 
@@ -45,8 +46,7 @@ class PESection {
 
 xe_xex2_ref xe_xex2_load(xe::Memory* memory, const void* addr,
                          const size_t length, xe_xex2_options_t options);
-xe_xex2_ref xe_xex2_retain(xe_xex2_ref xex);
-void xe_xex2_release(xe_xex2_ref xex);
+void xe_xex2_dealloc(xe_xex2_ref xex);
 
 const xe_xex2_header_t* xe_xex2_get_header(xe_xex2_ref xex);
 const PESection* xe_xex2_get_pe_section(xe_xex2_ref xex, const char* name);

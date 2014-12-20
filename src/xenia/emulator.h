@@ -13,9 +13,9 @@
 #include <string>
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/debug_agent.h>
 #include <xenia/kernel/kernel_state.h>
+#include <xenia/memory.h>
 #include <xenia/xbox.h>
 
 namespace xe {

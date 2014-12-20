@@ -10,18 +10,16 @@
 #ifndef XENIA_GPU_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_COMMAND_PROCESSOR_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/gpu/draw_command.h>
 #include <xenia/gpu/register_file.h>
 #include <xenia/gpu/xenos/xenos.h>
-
 
 namespace xe {
 namespace gpu {
 
 class GraphicsDriver;
 class GraphicsSystem;
-
 
 class CommandProcessor {
 public:
@@ -77,9 +75,7 @@ private:
   DrawCommand       draw_command_;
 };
 
-
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_COMMAND_PROCESSOR_H_

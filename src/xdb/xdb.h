@@ -11,7 +11,6 @@
 #define XDB_H_
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/emulator.h>
 #include <xenia/xbox.h>
 

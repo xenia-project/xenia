@@ -10,13 +10,11 @@
 #ifndef XENIA_GPU_XENOS_PACKETS_H_
 #define XENIA_GPU_XENOS_PACKETS_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 
 namespace xe {
 namespace gpu {
 namespace xenos {
-
 
 // Opcodes (IT_OPCODE) for Type-3 commands in the ringbuffer.
 // https://github.com/freedreno/amd-gpu/blob/master/include/api/gsl_pm4types.h
@@ -82,10 +80,8 @@ enum Type3Opcode {
   PM4_SET_BIN_SELECT_HI     = 0x63,
 };
 
-
 }  // namespace xenos
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_XENOS_PACKETS_H_

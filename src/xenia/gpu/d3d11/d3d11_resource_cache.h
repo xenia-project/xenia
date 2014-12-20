@@ -10,23 +10,20 @@
 #ifndef XENIA_GPU_D3D11_D3D11_RESOURCE_CACHE_H_
 #define XENIA_GPU_D3D11_D3D11_RESOURCE_CACHE_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/gpu/resource_cache.h>
-
 
 namespace xe {
 namespace gpu {
 namespace d3d11 {
-
 
 class D3D11ResourceCache : public ResourceCache {
 public:
   D3D11ResourceCache(Memory* memory,
                      ID3D11Device* device, ID3D11DeviceContext* context);
   virtual ~D3D11ResourceCache();
-  
+
   ID3D11Device* device() const { return device_; }
   ID3D11DeviceContext* context() const { return context_; }
 
@@ -54,10 +51,8 @@ private:
   ID3D11DeviceContext* context_;
 };
 
-
 }  // namespace d3d11
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_D3D11_D3D11_RESOURCE_CACHE_H_

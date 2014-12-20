@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_XBOXKRNL_RTL_H_
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/xbox.h>
 
 namespace xe {

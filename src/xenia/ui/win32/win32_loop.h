@@ -2,28 +2,35 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_CORE_REF_H_
-#define XENIA_CORE_REF_H_
+#ifndef XENIA_UI_WIN32_WIN32_LOOP_H_
+#define XENIA_UI_WIN32_WIN32_LOOP_H_
 
 #include <xenia/common.h>
 
+#include <xenia/ui/menu_item.h>
 
-typedef struct {
-  volatile int32_t count;
-} xe_ref_t;
-typedef xe_ref_t* xe_ref;
+namespace xe {
+namespace ui {
+namespace win32 {
 
-typedef void (*xe_ref_dealloc_t)(xe_ref);
+class Win32Loop {
+ public:
+  Win32Loop();
+  ~Win32Loop();
 
+  bool Run();
+  void Quit();
 
-void xe_ref_init(xe_ref ref);
-void xe_ref_retain(xe_ref ref);
-void xe_ref_release(xe_ref ref, xe_ref_dealloc_t dealloc);
+ private:
+};
 
+}  // namespace win32
+}  // namespace ui
+}  // namespace xe
 
-#endif  // XENIA_CORE_REF_H_
+#endif  // XENIA_UI_WIN32_WIN32_LOOP_H_

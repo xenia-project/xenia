@@ -10,18 +10,15 @@
 #ifndef XENIA_GPU_D3D11_D3D11_GEOMETRY_SHADER_H_
 #define XENIA_GPU_D3D11_D3D11_GEOMETRY_SHADER_H_
 
-#include <xenia/core.h>
-
 #include <alloy/string_buffer.h>
+#include <xenia/common.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
-
 
 namespace xe {
 namespace gpu {
 namespace d3d11 {
 
 class D3D11VertexShaderResource;
-
 
 class D3D11GeometryShader {
 public:
@@ -77,10 +74,8 @@ protected:
                alloy::StringBuffer* output) override;
 };
 
-
 }  // namespace d3d11
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_D3D11_D3D11_SHADER_H_

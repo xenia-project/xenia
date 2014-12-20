@@ -27,23 +27,22 @@ void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
 }
 }
 
-
-XexModule::XexModule(
-    XenonRuntime* runtime) :
-    runtime_(runtime),
-    xex_(0),
-    base_address_(0), low_address_(0), high_address_(0),
-    Module(runtime) {
-}
+XexModule::XexModule(XenonRuntime* runtime)
+    : Module(runtime),
+      runtime_(runtime),
+      xex_(nullptr),
+      base_address_(0),
+      low_address_(0),
+      high_address_(0) {}
 
 XexModule::~XexModule() {
-  xe_xex2_release(xex_);
+  xe_xex2_dealloc(xex_);
 }
 
 int XexModule::Load(const std::string& name, const std::string& path, xe_xex2_ref xex) {
   int result;
 
-  xex_ = xe_xex2_retain(xex);
+  xex_ = xex;
   const xe_xex2_header_t* header = xe_xex2_get_header(xex);
 
   // Scan and find the low/high addresses.

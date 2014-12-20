@@ -14,14 +14,13 @@
 #include <mutex>
 
 #include <xenia/common.h>
-#include <xenia/core.h>
-
 #include <xenia/export_resolver.h>
-#include <xenia/xbox.h>
 #include <xenia/kernel/app.h>
+#include <xenia/kernel/fs/filesystem.h>
 #include <xenia/kernel/object_table.h>
 #include <xenia/kernel/user_profile.h>
-#include <xenia/kernel/fs/filesystem.h>
+#include <xenia/memory.h>
+#include <xenia/xbox.h>
 
 namespace xe {
 class Emulator;

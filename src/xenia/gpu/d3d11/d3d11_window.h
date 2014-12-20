@@ -10,16 +10,13 @@
 #ifndef XENIA_GPU_D3D11_D3D11_WINDOW_H_
 #define XENIA_GPU_D3D11_D3D11_WINDOW_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
 #include <xenia/ui/win32/win32_window.h>
-
 
 namespace xe {
 namespace gpu {
 namespace d3d11 {
-
 
 class D3D11Window : public xe::ui::win32::Win32Window {
 public:
@@ -48,10 +45,8 @@ private:
   ID3D11RenderTargetView* render_target_view_;
 };
 
-
 }  // namespace d3d11
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_D3D11_D3D11_WINDOW_H_

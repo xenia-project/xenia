@@ -10,8 +10,7 @@
 #ifndef XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
 #define XENIA_GPU_XENOS_UCODE_DISASSEMBLER_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/gpu/xenos/ucode.h>
 #include <xenia/gpu/xenos/xenos.h>
 

@@ -2,7 +2,6 @@
 {
   'sources': [
     'common.h',
-    'core.h',
     'debug_agent.cc',
     'debug_agent.h',
     'emulator.cc',
@@ -20,7 +19,6 @@
 
   'includes': [
     'apu/sources.gypi',
-    'core/sources.gypi',
     'cpu/sources.gypi',
     'gpu/sources.gypi',
     'hid/sources.gypi',

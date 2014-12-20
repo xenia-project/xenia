@@ -10,7 +10,7 @@
 #ifndef XENIA_UI_UI_EVENT_H_
 #define XENIA_UI_UI_EVENT_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 
 namespace xe {
 namespace ui {

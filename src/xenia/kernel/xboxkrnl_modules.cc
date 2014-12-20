@@ -8,13 +8,12 @@
  */
 
 #include <xenia/common.h>
-#include <xenia/core.h>
-#include <xenia/xbox.h>
 #include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/objects/xuser_module.h>
 #include <xenia/kernel/util/shim_utils.h>
 #include <xenia/kernel/util/xex2.h>
+#include <xenia/kernel/xboxkrnl_private.h>
+#include <xenia/xbox.h>
 
 namespace xe {
 namespace kernel {
@@ -145,7 +144,6 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_state,
   const xe_xex2_header_t* header = xe_xex2_get_header(xex);
   uint32_t result = (header->system_flags & mask) > 0;
 
-  xe_xex2_release(xex);
   module->Release();
 
   SHIM_SET_RETURN_32(result);

@@ -10,28 +10,23 @@
 #ifndef XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
 #define XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
 
-#include <xenia/core.h>
-
+#include <xenia/common.h>
 #include <xenia/ui/menu_item.h>
-
 
 namespace xe {
 namespace ui {
 namespace win32 {
 
-
 class Win32MenuItem : public MenuItem {
-public:
-  Win32MenuItem(Window* window, MenuItem* parent_item = NULL);
-  virtual ~Win32MenuItem();
+ public:
+  Win32MenuItem(Window* window);
+  ~Win32MenuItem() override;
 
-private:
+ private:
 };
-
 
 }  // namespace win32
 }  // namespace ui
 }  // namespace xe
-
 
 #endif  // XENIA_UI_WIN32_WIN32_MENU_ITEM_H_

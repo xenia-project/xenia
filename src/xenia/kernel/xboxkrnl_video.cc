@@ -8,16 +8,15 @@
  */
 
 #include <xenia/common.h>
-#include <xenia/core.h>
-#include <xenia/xbox.h>
-#include <xenia/emulator.h>
 #include <xenia/cpu/cpu.h>
+#include <xenia/emulator.h>
 #include <xenia/gpu/gpu.h>
 #include <xenia/gpu/xenos/packets.h>
 #include <xenia/kernel/kernel_state.h>
+#include <xenia/kernel/util/shim_utils.h>
 #include <xenia/kernel/xboxkrnl_private.h>
 #include <xenia/kernel/xboxkrnl_rtl.h>
-#include <xenia/kernel/util/shim_utils.h>
+#include <xenia/xbox.h>
 
 namespace xe {
 namespace kernel {

@@ -9,14 +9,16 @@
 
 #include <xenia/ui/menu_item.h>
 
+namespace xe {
+namespace ui {
 
-using namespace xe;
-using namespace xe::ui;
+MenuItem::MenuItem(Window* window) : window_(window), parent_item_(nullptr) {}
 
+MenuItem::~MenuItem() {}
 
-MenuItem::MenuItem(Window* window, MenuItem* parent_item) :
-    window_(window), parent_item_(parent_item) {
+void MenuItem::AddChild(std::unique_ptr<MenuItem> child_item) {
+  children_.emplace_back(std::move(child_item));
 }
 
-MenuItem::~MenuItem() {
-}
+}  // namespace ui
+}  // namespace xe

@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
 
 #include <xenia/common.h>
-#include <xenia/core.h>
 #include <xenia/export_resolver.h>
 
 // Build an ordinal enum to make it easy to lookup ordinals.

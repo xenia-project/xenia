@@ -10,17 +10,15 @@
 #ifndef XENIA_GPU_DRAW_COMMAND_H_
 #define XENIA_GPU_DRAW_COMMAND_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/gpu/buffer_resource.h>
 #include <xenia/gpu/sampler_state_resource.h>
 #include <xenia/gpu/shader_resource.h>
 #include <xenia/gpu/texture_resource.h>
 #include <xenia/gpu/xenos/xenos.h>
 
-
 namespace xe {
 namespace gpu {
-
 
 // TODO(benvanik): move more of the enums in here?
 struct DrawCommand {
@@ -70,9 +68,7 @@ struct DrawCommand {
   size_t pixel_shader_sampler_count;
 };
 
-
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_DRAW_COMMAND_H_

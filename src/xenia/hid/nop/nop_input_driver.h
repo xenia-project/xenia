@@ -10,7 +10,7 @@
 #ifndef XENIA_HID_NOP_NOP_INPUT_DRIVER_H_
 #define XENIA_HID_NOP_NOP_INPUT_DRIVER_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/hid/input_driver.h>
 #include <xenia/hid/nop/nop_hid-private.h>
 

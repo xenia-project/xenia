@@ -10,16 +10,14 @@
 #ifndef XENIA_GPU_D3D11_D3D11_PROFILER_DISPLAY_H_
 #define XENIA_GPU_D3D11_D3D11_PROFILER_DISPLAY_H_
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 #include <xenia/gpu/d3d11/d3d11_gpu-private.h>
-
 
 namespace xe {
 namespace gpu {
 namespace d3d11 {
 
 class D3D11Window;
-
 
 class D3D11ProfilerDisplay : public ProfilerDisplay {
 public:
@@ -75,11 +73,8 @@ private:
   } font_description_;
 };
 
-
-
 }  // namespace d3d11
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_D3D11_D3D11_PROFILER_DISPLAY_H_

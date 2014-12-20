@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <xenia/core.h>
+#include <xenia/common.h>
 
 namespace xe {
 namespace hid {
