@@ -9,7 +9,7 @@ video drivers for your card.
 ### Windows
 
 * Windows 8 or 8.1
-* Visual Studio 2013
+* Visual Studio 2013+
 * [Python 2.7](http://www.python.org/download/releases/2.7.6/)
 * If you are on Windows 8, you will also need the [Windows 8.1 SDK](http://msdn.microsoft.com/en-us/windows/desktop/bg162891)
 
@@ -20,7 +20,7 @@ line usage.
 
 #### Debugging
 
-VS behaves oddly with the debug paths. Open the xenia-run project properties
+VS behaves oddly with the debug paths. Open the xenia project properties
 and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
@@ -32,7 +32,7 @@ the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`)
 
 #### Debugging
 
-Choose `Product > Scheme > Edit Scheme`. For xenia-run, alloy-sandbox, and the
+Choose `Product > Scheme > Edit Scheme`. For xenia, alloy-sandbox, and the
 other executables select the Run action on the left and set
 `Options > Working Directory` to your root xenia/ git path.
 
@@ -109,14 +109,8 @@ switching between the debug and release variants with `--debug`.
 To make life easier you can use `--flagfile=myflags.txt` to specify all
 arguments, including using `--target=my.xex` to pick an executable.
 
-### xenia-info
-
-Dumps information about a xex file.
-
-    ./bin/xenia-info some.xex
-
-### xenia-run
+### xenia
 
 Runs a xex.
 
-    ./bin/xenia-run some.xex
+    ./bin/xenia some.xex

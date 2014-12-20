@@ -35,8 +35,8 @@ def main():
   # Grab Visual Studio version and execute shell to set up environment.
   if sys.platform == 'win32':
     vs_version = import_vs_environment()
-    if not vs_version == 2013:
-      print('ERROR: Visual Studio 2013 not found!')
+    if vs_version != 2013 and vs_version != 2015:
+      print('ERROR: Visual Studio 2013 or 2015 not found!')
       print('Ensure you have the VS120COMNTOOLS environment variable!')
       sys.exit(1)
       return
@@ -75,7 +75,10 @@ def import_vs_environment():
   """
   version = 0
   tools_path = ''
-  if 'VS120COMNTOOLS' in os.environ:
+  if 'VS140COMNTOOLS' in os.environ:
+    version = 2015
+    tools_path = os.environ['VS140COMNTOOLS']
+  elif 'VS120COMNTOOLS' in os.environ:
     version = 2013
     tools_path = os.environ['VS120COMNTOOLS']
   elif 'VS110COMNTOOLS' in os.environ:
@@ -349,7 +352,7 @@ def run_gyp(format):
       '--toplevel-dir=.',
       '--generator-output=build/xenia/',
       # Set the VS version.
-      '-G msvs_version=%s' % (os.environ.get('VSVERSION', 2013)),
+      '-G msvs_version=%s' % (os.environ.get('VSVERSION', 2015)),
       #'-D windows_sdk_dir=%s' % (os.environ['WINDOWSSDKDIR']),
       '-D windows_sdk_dir="C:\\Program Files (x86)\\Windows Kits\\8.1"',
       'xenia.gyp',

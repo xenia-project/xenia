@@ -85,7 +85,7 @@ int Win32Window::Initialize(const std::wstring& title, uint32_t width,
   DWORD window_ex_style = WS_EX_APPWINDOW;
   RECT rc = {
     0, 0,
-    width, height
+    static_cast<LONG>(width), static_cast<LONG>(height)
   };
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
@@ -189,7 +189,7 @@ bool Win32Window::set_cursor_visible(bool value) {
 bool Win32Window::SetSize(uint32_t width, uint32_t height) {
   RECT rc = {
     0, 0,
-    width, height
+    static_cast<LONG>(width), static_cast<LONG>(height)
   };
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
   // TODO(benvanik): center?
