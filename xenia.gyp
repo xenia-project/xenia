@@ -6,6 +6,7 @@
     'tools/tools.gypi',
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
+    'third_party/glew.gypi',
     'third_party/llvm.gypi',
     'third_party/sparsehash.gypi',
   ],
@@ -373,11 +374,13 @@
 
       'dependencies': [
         'gflags',
+        'glew',
         'liballoy',
         'libpoly',
       ],
       'export_dependent_settings': [
         'gflags',
+        'glew',
         'liballoy',
         'libpoly',
       ],
@@ -408,6 +411,8 @@
                   'xaudio2',
                   'Shell32',
                   'advapi32',
+                  'glu32',
+                  'opengl32',
                 ],
               }],
               ['OS == "mac"', {
@@ -420,6 +425,8 @@
                 'libraries': [
                   '-lpthread',
                   '-ldl',
+                  '-lGLU',
+                  '-lGL',
                 ],
               }],
             ],
