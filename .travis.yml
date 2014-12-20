@@ -1,3 +1,6 @@
+# Make Travis use docker (for faster builds, in theory)
+sudo: false
+
 language: cpp
 compiler:
   - clang

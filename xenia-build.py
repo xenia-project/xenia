@@ -278,7 +278,7 @@ class SetupCommand(Command):
     if (not os.path.exists('third_party/ninja/ninja') and
        not os.path.exists('third_party/ninja/ninja.exe')):
       print('- preparing ninja...')
-      os.chdir('third_party/wxWidgets')
+      os.chdir('third_party/ninja')
       # Windows needs --x64 to force building the 64-bit ninja.
       extra_args = ''
       #if sys.platform == 'win32':
