@@ -114,8 +114,7 @@ class xe::MemoryHeap {
 };
 uint32_t MemoryHeap::next_heap_id_ = 1;
 
-Memory::Memory()
-    : alloy::Memory(), mapping_(0), mapping_base_(0), page_table_(0) {
+Memory::Memory() : mapping_(0), mapping_base_(nullptr) {
   virtual_heap_ = new MemoryHeap(this, false);
   physical_heap_ = new MemoryHeap(this, true);
 }
@@ -201,12 +200,6 @@ int Memory::Initialize() {
     assert_always();
     return 1;
   }
-
-  // Allocate dirty page table.
-  // This must live within our low heap. Ideally we'd hardcode the address but
-  // this is more flexible.
-  page_table_ = physical_heap_->Alloc(0, (512 * 1024 * 1024) / (16 * 1024),
-                                      X_MEM_COMMIT, 16 * 1024);
 
   return 0;
 }

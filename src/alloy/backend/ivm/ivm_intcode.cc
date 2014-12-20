@@ -1467,12 +1467,6 @@ int Translate_LOAD(TranslationContext& ctx, Instr* i) {
   return DispatchToC(ctx, i, fns[i->dest->type]);
 }
 
-void MarkPageDirty(IntCodeState& ics, uint32_t address) {
-  // 16KB pages.
-  if (ics.page_table) {
-    ics.page_table[(address >> 14) & 0x7FFF] = 1;
-  }
-}
 uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
   uint32_t address = ics.rf[i->src1_reg].u32;
   if (DYNAMIC_REGISTER_ACCESS_CHECK(address)) {
@@ -1483,7 +1477,6 @@ uint32_t IntCode_STORE_I8(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].u8);
   DFLUSH();
   *((int8_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i8;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
@@ -1497,7 +1490,6 @@ uint32_t IntCode_STORE_I16(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].u16);
   DFLUSH();
   *((int16_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i16;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
@@ -1511,7 +1503,6 @@ uint32_t IntCode_STORE_I32(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].u32);
   DFLUSH();
   *((int32_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i32;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
@@ -1525,7 +1516,6 @@ uint32_t IntCode_STORE_I64(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].u64);
   DFLUSH();
   *((int64_t*)(ics.membase + address)) = ics.rf[i->src2_reg].i64;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_F32(IntCodeState& ics, const IntCode* i) {
@@ -1534,7 +1524,6 @@ uint32_t IntCode_STORE_F32(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].u32);
   DFLUSH();
   *((float*)(ics.membase + address)) = ics.rf[i->src2_reg].f32;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_F64(IntCodeState& ics, const IntCode* i) {
@@ -1543,7 +1532,6 @@ uint32_t IntCode_STORE_F64(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].u64);
   DFLUSH();
   *((double*)(ics.membase + address)) = ics.rf[i->src2_reg].f64;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
@@ -1555,7 +1543,6 @@ uint32_t IntCode_STORE_V128(IntCodeState& ics, const IntCode* i) {
          ics.rf[i->src2_reg].v128.uz, ics.rf[i->src2_reg].v128.uw);
   DFLUSH();
   *((vec128_t*)(ics.membase + address)) = ics.rf[i->src2_reg].v128;
-  MarkPageDirty(ics, address);
   return IA_NEXT;
 }
 int Translate_STORE(TranslationContext& ctx, Instr* i) {
