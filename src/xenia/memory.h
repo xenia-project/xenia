@@ -49,9 +49,6 @@ class Memory : public alloy::Memory {
 
   int Initialize() override;
 
-  // TODO(benvanik): remove with GPU refactor.
-  uint64_t page_table() const override { return page_table_; }
-
   bool AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
                       void* context, cpu::MMIOReadCallback read_callback,
                       cpu::MMIOWriteCallback write_callback);
@@ -101,8 +98,6 @@ class Memory : public alloy::Memory {
 
   MemoryHeap* virtual_heap_;
   MemoryHeap* physical_heap_;
-
-  uint64_t page_table_;
 
   friend class MemoryHeap;
 };

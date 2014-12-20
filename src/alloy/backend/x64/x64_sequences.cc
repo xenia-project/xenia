@@ -1539,15 +1539,6 @@ EMITTER_OPCODE_TABLE(
 // OPCODE_STORE
 // ============================================================================
 // Note: most *should* be aligned, but needs to be checked!
-void EmitMarkPageDirty(X64Emitter& e, RegExp& addr) {
-  // 16KB pages.
-  auto page_table_address = e.page_table_address();
-  if (page_table_address) {
-    e.shr(e.eax, 14);
-    e.and(e.eax, 0x7FFF);
-    e.mov(e.byte[e.rdx + e.rax + page_table_address], 1);
-  }
-}
 EMITTER(STORE_I8, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     auto addr = ComputeMemoryAddress(e, i.src1);
@@ -1556,7 +1547,6 @@ EMITTER(STORE_I8, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I8<>>)) {
     } else {
       e.mov(e.byte[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8b, e.byte[addr]);
@@ -1573,7 +1563,6 @@ EMITTER(STORE_I16, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I16<>>)) {
     } else {
       e.mov(e.word[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8w, e.word[addr]);
@@ -1590,7 +1579,6 @@ EMITTER(STORE_I32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I32<>>)) {
     } else {
       e.mov(e.dword[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8d, e.dword[addr]);
@@ -1607,7 +1595,6 @@ EMITTER(STORE_I64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I64<>>)) {
     } else {
       e.mov(e.qword[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.r8, e.qword[addr]);
@@ -1624,7 +1611,6 @@ EMITTER(STORE_F32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F32<>>)) {
     } else {
       e.vmovss(e.dword[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
@@ -1641,7 +1627,6 @@ EMITTER(STORE_F64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, F64<>>)) {
     } else {
       e.vmovsd(e.qword[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);
@@ -1659,7 +1644,6 @@ EMITTER(STORE_V128, MATCH(I<OPCODE_STORE, VoidOp, I64<>, V128<>>)) {
     } else {
       e.vmovaps(e.ptr[addr], i.src2);
     }
-    EmitMarkPageDirty(e, addr);
     if (IsTracingData()) {
       auto addr = ComputeMemoryAddress(e, i.src1);
       e.lea(e.r8, e.ptr[addr]);

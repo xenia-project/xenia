@@ -27,9 +27,6 @@ class Memory {
   inline uint64_t* reserve_address() { return &reserve_address_; }
   inline uint64_t* reserve_value() { return &reserve_value_; }
 
-  // TODO(benvanik): remove with GPU refactor.
-  virtual uint64_t page_table() const = 0;
-
   uint64_t trace_base() const { return trace_base_; }
   void set_trace_base(uint64_t value) { trace_base_ = value; }
 
@@ -65,8 +62,6 @@ class SimpleMemory : public Memory {
  public:
   SimpleMemory(size_t capacity);
   ~SimpleMemory() override;
-
-  uint64_t page_table() const override { return 0; }
 
   // TODO(benvanik): remove with IVM.
   uint8_t LoadI8(uint64_t address) override;

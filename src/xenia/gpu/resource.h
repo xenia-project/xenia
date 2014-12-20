@@ -76,7 +76,7 @@ public:
   }
   virtual bool Equals(const void* info_ptr, size_t info_length) = 0;
 
-  bool is_dirty() const { return dirtied_; }
+  bool is_dirty() const { return true; }
   void MarkDirty(uint32_t lo_address, uint32_t hi_address);
 
 protected:

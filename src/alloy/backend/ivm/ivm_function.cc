@@ -120,7 +120,6 @@ int IVMFunction::CallImpl(ThreadState* thread_state, uint64_t return_address) {
   ics.locals = local_stack;
   ics.context = (uint8_t*)thread_state->raw_context();
   ics.membase = memory->membase();
-  ics.page_table = ics.membase + memory->page_table();
   ics.did_carry = 0;
   ics.did_saturate = 0;
   ics.thread_state = thread_state;

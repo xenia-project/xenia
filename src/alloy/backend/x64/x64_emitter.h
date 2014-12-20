@@ -163,8 +163,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void LoadEflags();
   void StoreEflags();
 
-  uint32_t page_table_address() const;
-
   // Moves a 64bit immediate into memory.
   bool ConstantFitsIn32Reg(uint64_t v);
   void MovMem64(const Xbyak::RegExp& addr, uint64_t v);
