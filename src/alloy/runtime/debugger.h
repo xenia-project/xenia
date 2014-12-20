@@ -15,7 +15,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <alloy/delegate.h>
+#include <poly/delegate.h>
 
 namespace alloy {
 namespace runtime {
@@ -104,7 +104,7 @@ class Debugger {
   void OnBreakpointHit(ThreadState* thread_state, Breakpoint* breakpoint);
 
  public:
-  Delegate<BreakpointHitEvent> breakpoint_hit;
+  poly::Delegate<BreakpointHitEvent> breakpoint_hit;
 
  private:
   Runtime* runtime_;

@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include <alloy/delegate.h>
+#include <poly/delegate.h>
 #include <xenia/common.h>
 #include <xenia/ui/ui_event.h>
 
@@ -39,20 +39,20 @@ class Window {
   void Close();
 
  public:
-  alloy::Delegate<UIEvent> shown;
-  alloy::Delegate<UIEvent> hidden;
-  alloy::Delegate<UIEvent> resizing;
-  alloy::Delegate<UIEvent> resized;
-  alloy::Delegate<UIEvent> closing;
-  alloy::Delegate<UIEvent> closed;
+  poly::Delegate<UIEvent> shown;
+  poly::Delegate<UIEvent> hidden;
+  poly::Delegate<UIEvent> resizing;
+  poly::Delegate<UIEvent> resized;
+  poly::Delegate<UIEvent> closing;
+  poly::Delegate<UIEvent> closed;
 
-  alloy::Delegate<KeyEvent> key_down;
-  alloy::Delegate<KeyEvent> key_up;
+  poly::Delegate<KeyEvent> key_down;
+  poly::Delegate<KeyEvent> key_up;
 
-  alloy::Delegate<MouseEvent> mouse_down;
-  alloy::Delegate<MouseEvent> mouse_move;
-  alloy::Delegate<MouseEvent> mouse_up;
-  alloy::Delegate<MouseEvent> mouse_wheel;
+  poly::Delegate<MouseEvent> mouse_down;
+  poly::Delegate<MouseEvent> mouse_move;
+  poly::Delegate<MouseEvent> mouse_up;
+  poly::Delegate<MouseEvent> mouse_wheel;
 
  protected:
   void OnShow();

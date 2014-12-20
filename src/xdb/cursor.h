@@ -12,7 +12,7 @@
 
 #include <functional>
 
-#include <alloy/delegate.h>
+#include <poly/delegate.h>
 #include <xdb/module.h>
 #include <xdb/protocol.h>
 #include <xdb/thread.h>
@@ -27,15 +27,15 @@ class Cursor {
 
   // TODO(benvanik): breakpoints/events
 
-  alloy::Delegate<void> end_of_stream;
+  poly::Delegate<void> end_of_stream;
 
   std::vector<Module*> modules();
   std::vector<Thread*> threads();
 
-  alloy::Delegate<Module*> module_loaded;
-  alloy::Delegate<Module*> module_unloaded;
-  alloy::Delegate<Thread*> thread_created;
-  alloy::Delegate<Thread*> thread_exited;
+  poly::Delegate<Module*> module_loaded;
+  poly::Delegate<Module*> module_unloaded;
+  poly::Delegate<Thread*> thread_created;
+  poly::Delegate<Thread*> thread_exited;
 
   // TODO(benvanik): memory access
 

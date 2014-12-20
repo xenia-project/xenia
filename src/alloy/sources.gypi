@@ -6,7 +6,6 @@
     'alloy.h',
     'arena.cc',
     'arena.h',
-    'delegate.h',
     'memory.cc',
     'memory.h',
     'reset_scope.h',

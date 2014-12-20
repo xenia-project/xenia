@@ -5,6 +5,7 @@
     'atomic.h',
     'byte_order.h',
     'debugging.h',
+    'delegate.h',
     'config.h',
     'cxx_compat.h',
     'logging.cc',
