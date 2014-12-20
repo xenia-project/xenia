@@ -30,10 +30,10 @@ int BufferResource::Prepare() {
     }
   }
 
-  if (!dirtied_) {
-    return 0;
-  }
-  dirtied_ = false;
+  //if (!dirtied_) {
+  //  return 0;
+  //}
+  //dirtied_ = false;
 
   // pass dirty regions?
   return InvalidateRegion(memory_range_);

@@ -173,7 +173,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
       builder->last_instr()->MoveBefore(block->instr_head);
 
       // Swap uses of original value with the local value.
-      auto instr = block->instr_head;
+      instr = block->instr_head;
       while (instr) {
         uint32_t signature = instr->opcode->signature;
         if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
