@@ -7,26 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_NOP_NOP_GPU_H_
-#define XENIA_GPU_NOP_NOP_GPU_H_
+#ifndef XENIA_GPU_GL4_GL4_GPU_PRIVATE_H_
+#define XENIA_GPU_GL4_GL4_GPU_PRIVATE_H_
 
-#include <memory>
+// GL headers
 
 #include <xenia/common.h>
-
-namespace xe {
-class Emulator;
-}  // namespace xe
+#include <xenia/gpu/gl4/gl4_gpu.h>
 
 namespace xe {
 namespace gpu {
-class GraphicsSystem;
-namespace nop {
+namespace gl4 {
 
-std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
+//
 
-}  // namespace nop
+}  // namespace gl4
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_NOP_NOP_GPU_H_
+#endif  // XENIA_GPU_GL4_GL4_GPU_PRIVATE_H_

@@ -24,7 +24,15 @@ class Win32Window : public Window<Win32Control> {
   Win32Window(const std::wstring& title);
   ~Win32Window() override;
 
+  bool Initialize() override;
+
   bool set_title(const std::wstring& title) override;
+
+  void Resize(int32_t width, int32_t height) override;
+  void Resize(int32_t left, int32_t top, int32_t right,
+              int32_t bottom) override;
+  void ResizeToFill(int32_t pad_left, int32_t pad_top, int32_t pad_right,
+                    int32_t pad_bottom) override;
 
  protected:
   bool CreateHWND() override;

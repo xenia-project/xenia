@@ -11,32 +11,15 @@
 #include <poly/main.h>
 #include <xenia/emulator.h>
 #include <xenia/kernel/kernel.h>
-
-using namespace xe;
+#include <xenia/ui/main_window.h>
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
+
+namespace xe {
 
 int xenia_main(std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
-
-  // Grab path from the flag or unnamed argument.
-  if (!FLAGS_target.size() && args.size() < 2) {
-    google::ShowUsageWithFlags("xenia");
-    PFATAL("Pass a file to launch.");
-    return 1;
-  }
-  std::wstring path;
-  if (FLAGS_target.size()) {
-    // Passed as a named argument.
-    // TODO(benvanik): find something better than gflags that supports unicode.
-    path = poly::to_wstring(FLAGS_target);
-  } else {
-    // Passed as an unnamed argument.
-    path = args[1];
-  }
-  // Normalize the path and make absolute.
-  std::wstring abs_path = poly::to_absolute_path(path);
 
   // Create the emulator.
   auto emulator = std::make_unique<Emulator>(L"");
@@ -46,24 +29,30 @@ int xenia_main(std::vector<std::wstring>& args) {
     return 1;
   }
 
-  // Launch based on file type.
-  // This is a silly guess based on file extension.
-  auto file_system_type = emulator->file_system()->InferType(abs_path);
-  switch (file_system_type) {
-    case kernel::fs::FileSystemType::STFS_TITLE:
-      result = emulator->LaunchSTFSTitle(abs_path);
-      break;
-    case kernel::fs::FileSystemType::XEX_FILE:
-      result = emulator->LaunchXexFile(abs_path);
-      break;
-    case kernel::fs::FileSystemType::DISC_IMAGE:
-      result = emulator->LaunchDiscImage(abs_path);
-      break;
+  // Grab path from the flag or unnamed argument.
+  if (FLAGS_target.size() && args.size() >= 2) {
+    std::wstring path;
+    if (FLAGS_target.size()) {
+      // Passed as a named argument.
+      // TODO(benvanik): find something better than gflags that supports
+      // unicode.
+      path = poly::to_wstring(FLAGS_target);
+    } else {
+      // Passed as an unnamed argument.
+      path = args[1];
+    }
+    // Normalize the path and make absolute.
+    std::wstring abs_path = poly::to_absolute_path(path);
+
+    result = emulator->main_window()->LaunchPath(abs_path);
+    if (XFAILED(result)) {
+      XELOGE("Failed to launch target: %.8X", result);
+      return 1;
+    }
   }
-  if (XFAILED(result)) {
-    XELOGE("Failed to launch target: %.8X", result);
-    return 1;
-  }
+
+  // Wait until we are exited.
+  emulator->main_window()->loop()->AwaitQuit();
 
   emulator.reset();
   Profiler::Dump();
@@ -71,4 +60,6 @@ int xenia_main(std::vector<std::wstring>& args) {
   return 0;
 }
 
-DEFINE_ENTRY_POINT(L"xenia", L"xenia some.xex", xenia_main);
+}  // namespace xe
+
+DEFINE_ENTRY_POINT(L"xenia", L"xenia some.xex", xe::xenia_main);

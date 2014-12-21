@@ -20,9 +20,6 @@
 namespace xe {
 namespace gpu {
 
-class CommandProcessor;
-class GraphicsDriver;
-
 class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
@@ -38,45 +35,17 @@ class GraphicsSystem {
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
-  virtual uint64_t ReadRegister(uint64_t addr);
-  virtual void WriteRegister(uint64_t addr, uint64_t value);
-
-  void MarkVblank();
-  void DispatchInterruptCallback(uint32_t source, uint32_t cpu = 0xFFFFFFFF);
-  virtual void Swap() = 0;
-
- protected:
-  virtual void Initialize();
-  virtual void Pump() = 0;
-
- private:
-  void ThreadStart();
-
-  static uint64_t MMIOReadRegisterThunk(GraphicsSystem* gs, uint64_t addr) {
-    return gs->ReadRegister(addr);
-  }
-  static void MMIOWriteRegisterThunk(GraphicsSystem* gs, uint64_t addr,
-                                     uint64_t value) {
-    gs->WriteRegister(addr, value);
-  }
-
  protected:
   GraphicsSystem(Emulator* emulator);
+
+  void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;
 
-  xe_run_loop_ref run_loop_;
-  std::thread thread_;
-  std::atomic<bool> running_;
-
-  GraphicsDriver* driver_;
-  CommandProcessor* command_processor_;
-
   uint32_t interrupt_callback_;
   uint32_t interrupt_callback_data_;
-  HANDLE thread_wait_;
 };
 
 }  // namespace gpu

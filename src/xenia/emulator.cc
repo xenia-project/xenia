@@ -71,10 +71,8 @@ X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
   // Create the main window. Other parts will hook into this.
-  main_window_ = std::make_unique<ui::MainWindow>();
-  if (!main_window_->Initialize()) {
-    return result;
-  }
+  main_window_ = std::make_unique<ui::MainWindow>(this);
+  main_window_->Start();
 
   debug_agent_.reset(new DebugAgent(this));
   result = debug_agent_->Initialize();

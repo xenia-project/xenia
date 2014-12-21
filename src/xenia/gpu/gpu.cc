@@ -10,49 +10,34 @@
 #include <xenia/gpu/gpu.h>
 #include <xenia/gpu/gpu-private.h>
 
-using namespace xe;
-using namespace xe::gpu;
+// TODO(benvanik): based on platform.
+#include <xenia/gpu/gl4/gl4_gpu.h>
 
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, nop, d3d11]");
+namespace xe {
+namespace gpu {
+
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
 
 DEFINE_bool(trace_ring_buffer, false, "Trace GPU ring buffer packets.");
 DEFINE_string(dump_shaders, "",
               "Path to write GPU shaders to as they are compiled.");
 
-DEFINE_uint64(max_draw_elements, 0,
-              "Maximum element count; anything over this is ignored.");
-
-#include <xenia/gpu/nop/nop_gpu.h>
-std::unique_ptr<GraphicsSystem> xe::gpu::CreateNop(Emulator* emulator) {
-  return xe::gpu::nop::Create(emulator);
-}
-
-#if XE_PLATFORM_WIN32
-#include <xenia/gpu/d3d11/d3d11_gpu.h>
-std::unique_ptr<GraphicsSystem> xe::gpu::CreateD3D11(Emulator* emulator) {
-  return xe::gpu::d3d11::Create(emulator);
-}
-#endif  // WIN32
-
-std::unique_ptr<GraphicsSystem> xe::gpu::Create(Emulator* emulator) {
-  if (FLAGS_gpu.compare("nop") == 0) {
-    return CreateNop(emulator);
-#if XE_PLATFORM_WIN32
-  } else if (FLAGS_gpu.compare("d3d11") == 0) {
-    return CreateD3D11(emulator);
-#endif  // WIN32
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator) {
+  if (FLAGS_gpu.compare("gl4") == 0) {
+    return xe::gpu::gl4::Create(emulator);
   } else {
     // Create best available.
     std::unique_ptr<GraphicsSystem> best;
 
-#if XE_PLATFORM_WIN32
-    best = CreateD3D11(emulator);
+    best = xe::gpu::gl4::Create(emulator);
     if (best) {
       return best;
     }
-#endif  // WIN32
 
-    // Fallback to nop.
-    return CreateNop(emulator);
+    // Nothing!
+    return nullptr;
   }
 }
+
+}  // namespace gpu
+}  // namespace xe

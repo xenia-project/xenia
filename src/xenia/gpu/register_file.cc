@@ -9,8 +9,8 @@
 
 #include <xenia/gpu/register_file.h>
 
-using namespace xe;
-using namespace xe::gpu;
+namespace xe {
+namespace gpu {
 
 RegisterFile::RegisterFile() { memset(values, 0, sizeof(values)); }
 
@@ -19,9 +19,12 @@ const char* RegisterFile::GetRegisterName(uint32_t index) {
 #define XE_GPU_REGISTER(index, type, name) \
   case index:                              \
     return #name;
-#include <xenia/gpu/xenos/register_table.inc>
+#include <xenia/gpu/register_table.inc>
 #undef XE_GPU_REGISTER
     default:
-      return NULL;
+      return nullptr;
   }
 }
+
+}  //  namespace gpu
+}  //  namespace xe

@@ -9,6 +9,8 @@
 
 #include <poly/ui/win32/win32_loop.h>
 
+#include <poly/assert.h>
+
 namespace poly {
 namespace ui {
 namespace win32 {
@@ -26,10 +28,18 @@ class PostedFn {
 };
 
 Win32Loop::Win32Loop() : thread_id_(0) {
-  thread_ = std::thread([this]() {
+  poly::threading::Fence init_fence;
+  thread_ = std::thread([&]() {
+    poly::threading::set_name("Win32 Loop");
     thread_id_ = GetCurrentThreadId();
+
+    init_fence.Signal();
+
     ThreadMain();
+
+    quit_fence_.Signal();
   });
+  init_fence.Wait();
 }
 
 Win32Loop::~Win32Loop() = default;
@@ -57,14 +67,20 @@ void Win32Loop::ThreadMain() {
 }
 
 void Win32Loop::Post(std::function<void()> fn) {
+  assert_true(thread_id_ != 0);
   PostThreadMessage(thread_id_, kWmWin32LoopPost,
                     reinterpret_cast<WPARAM>(this),
                     reinterpret_cast<LPARAM>(new PostedFn(std::move(fn))));
 }
 
 void Win32Loop::Quit() {
+  assert_true(thread_id_ != 0);
   PostThreadMessage(thread_id_, kWmWin32LoopQuit,
                     reinterpret_cast<WPARAM>(this), 0);
+}
+
+void Win32Loop::AwaitQuit() {
+  quit_fence_.Wait();
 }
 
 }  // namespace win32

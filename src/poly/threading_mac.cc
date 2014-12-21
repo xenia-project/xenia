@@ -32,7 +32,7 @@ void set_name(std::thread::native_handle_type handle, const std::string& name) {
   // ?
 }
 
-void Yield() { pthread_yield_np(); }
+void MaybeYield() { pthread_yield_np(); }
 
 void Sleep(std::chrono::microseconds duration) {
   timespec rqtp = {duration.count() / 1000000, duration.count() % 1000};

@@ -12,13 +12,9 @@
 
 #include <gflags/gflags.h>
 
-
 DECLARE_string(gpu);
 
 DECLARE_bool(trace_ring_buffer);
 DECLARE_string(dump_shaders);
-
-DECLARE_uint64(max_draw_elements);
-
 
 #endif  // XENIA_GPU_PRIVATE_H_

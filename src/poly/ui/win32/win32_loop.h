@@ -13,8 +13,12 @@
 #include <windows.h>
 #include <windowsx.h>
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
+#include <poly/threading.h>
 #include <poly/ui/loop.h>
 
 namespace poly {
@@ -24,17 +28,19 @@ namespace win32 {
 class Win32Loop : public Loop {
  public:
   Win32Loop();
-  ~Win32Loop();
+  ~Win32Loop() override;
 
   void Post(std::function<void()> fn) override;
 
   void Quit() override;
+  void AwaitQuit() override;
 
  private:
   void ThreadMain();
 
   std::thread thread_;
   DWORD thread_id_;
+  poly::threading::Fence quit_fence_;
 };
 
 }  // namespace win32

@@ -7,26 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_LOOP_H_
-#define POLY_UI_LOOP_H_
-
-#include <functional>
+#include <poly/threading.h>
 
 namespace poly {
-namespace ui {
+namespace threading {
 
-class Loop {
- public:
-  Loop() = default;
-  virtual ~Loop() = default;
+//
 
-  virtual void Post(std::function<void()> fn) = 0;
-
-  virtual void Quit() = 0;
-  virtual void AwaitQuit() = 0;
-};
-
-}  // namespace ui
+}  // namespace threading
 }  // namespace poly
-
-#endif  // POLY_UI_LOOP_H_

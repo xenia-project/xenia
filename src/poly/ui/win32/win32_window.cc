@@ -24,6 +24,11 @@ Win32Window::Win32Window(const std::wstring& title)
 
 Win32Window::~Win32Window() {}
 
+bool Win32Window::Initialize() {
+  CreateHWND();
+  return true;
+}
+
 bool Win32Window::CreateHWND() {
   HINSTANCE hInstance = GetModuleHandle(nullptr);
 
@@ -62,6 +67,7 @@ bool Win32Window::CreateHWND() {
   }
 
   main_menu_ = CreateMenu();
+  AppendMenu(main_menu_, MF_STRING, 0, L"TODO");
   SetMenu(hwnd_, main_menu_);
 
   // Disable flicks.
@@ -130,13 +136,25 @@ bool Win32Window::set_title(const std::wstring& title) {
   return true;
 }
 
-// bool Win32Window::SetSize(uint32_t width, uint32_t height) {
-//   RECT rc = {0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
-//   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
-//   // TODO(benvanik): center?
-//   MoveWindow(handle_, 0, 0, rc.right - rc.left, rc.bottom - rc.top, TRUE);
-//   return true;
-// }
+void Win32Window::Resize(int32_t width, int32_t height) {
+  RECT rc = {0, 0, width, height};
+  bool has_menu = main_menu_ ? true : false;
+  AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
+  Window::Resize(rc.right - rc.left, rc.bottom - rc.top);
+}
+
+void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
+                         int32_t bottom) {
+  RECT rc = {left, top, right, bottom};
+  bool has_menu = main_menu_ ? true : false;
+  AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
+  Window::Resize(rc.left, rc.top, rc.right, rc.bottom);
+}
+
+void Win32Window::ResizeToFill(int32_t pad_left, int32_t pad_top,
+                               int32_t pad_right, int32_t pad_bottom) {
+  // TODO(benvanik): fullscreen.
+}
 
 void Win32Window::OnClose() {
   if (!closing_ && hwnd_) {

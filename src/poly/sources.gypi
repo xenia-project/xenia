@@ -20,6 +20,7 @@
     'poly.h',
     'string.cc',
     'string.h',
+    'threading.cc',
     'threading.h',
   ],
 

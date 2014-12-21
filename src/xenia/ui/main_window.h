@@ -11,6 +11,7 @@
 #define XENIA_UI_MAIN_WINDOW_H_
 
 #include <poly/ui/window.h>
+#include <xenia/emulator.h>
 
 // TODO(benvanik): only on windows.
 #include <poly/ui/win32/win32_loop.h>
@@ -24,16 +25,22 @@ using PlatformWindow = poly::ui::win32::Win32Window;
 
 class MainWindow : public PlatformWindow {
  public:
-  MainWindow();
-  ~MainWindow();
+  explicit MainWindow(Emulator* emulator);
+  ~MainWindow() override;
 
+  Emulator* emulator() const { return emulator_; }
   PlatformLoop* loop() { return &loop_; }
 
   void Start();
 
+  X_STATUS LaunchPath(std::wstring path);
+
  private:
   bool Initialize();
 
+  void OnClose() override;
+
+  Emulator* emulator_;
   PlatformLoop loop_;
 };
 

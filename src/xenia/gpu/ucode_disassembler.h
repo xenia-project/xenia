@@ -7,25 +7,21 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GPU_H_
-#define XENIA_GPU_GPU_H_
+#ifndef XENIA_GPU_UCODE_DISASSEMBLER_H_
+#define XENIA_GPU_UCODE_DISASSEMBLER_H_
 
-#include <memory>
+#include <string>
 
-#include <xenia/gpu/graphics_system.h>
-
-namespace xe {
-class Emulator;
-}  // namespace xe
+#include <xenia/gpu/ucode.h>
+#include <xenia/gpu/xenos.h>
 
 namespace xe {
 namespace gpu {
 
-std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
-
-std::unique_ptr<GraphicsSystem> CreateGL4(Emulator* emulator);
+std::string DisassembleShader(xenos::ShaderType type, const uint32_t* dwords,
+                              size_t dword_count);
 
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_GPU_H_
+#endif  // XENIA_GPU_UCODE_DISASSEMBLER_H_

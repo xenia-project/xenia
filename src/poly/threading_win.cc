@@ -61,7 +61,7 @@ void set_name(std::thread::native_handle_type handle, const std::string& name) {
   set_name(GetThreadId(handle), name);
 }
 
-void Yield() { SwitchToThread(); }
+void MaybeYield() { SwitchToThread(); }
 
 void Sleep(std::chrono::microseconds duration) {
   if (duration.count() < 100) {

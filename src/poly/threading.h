@@ -10,8 +10,11 @@
 #ifndef POLY_THREADING_H_
 #define POLY_THREADING_H_
 
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -19,6 +22,27 @@
 
 namespace poly {
 namespace threading {
+
+class Fence {
+ public:
+  Fence() : signaled_(false) {}
+  void Signal() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    signaled_.store(true);
+    cond_.notify_all();
+  }
+  void Wait() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    while (!signaled_.load()) {
+      cond_.wait(lock);
+    }
+  }
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable cond_;
+  std::atomic<bool> signaled_;
+};
 
 // Gets the current high-performance tick count.
 uint64_t ticks();
@@ -35,7 +59,7 @@ void set_name(const std::string& name);
 void set_name(std::thread::native_handle_type handle, const std::string& name);
 
 // Yields the current thread to the scheduler. Maybe.
-void Yield();
+void MaybeYield();
 
 // Sleeps the current thread for at least as long as the given duration.
 void Sleep(std::chrono::microseconds duration);
