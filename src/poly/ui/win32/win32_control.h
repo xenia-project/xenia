@@ -24,6 +24,9 @@ class Win32Control : public Control {
   ~Win32Control() override;
 
   HWND hwnd() const { return hwnd_; }
+  HWND parent_hwnd() const {
+    return parent_ ? static_cast<Win32Control*>(parent_)->hwnd() : nullptr;
+  }
 
   void Resize(int32_t width, int32_t height) override;
   void Resize(int32_t left, int32_t top, int32_t right,
@@ -37,11 +40,15 @@ class Win32Control : public Control {
   void set_focus(bool value) override;
 
  protected:
-  Win32Control(Control* parent, uint32_t flags);
-
-  virtual bool CreateHWND() = 0;
+  explicit Win32Control(uint32_t flags);
 
   void OnCreate() override;
+  void OnDestroy() override;
+
+  void OnChildAdded(Control* child_control) override;
+  void OnChildRemoved(Control* child_control) override;
+
+  void OnResize(UIEvent& e) override;
 
   static LRESULT CALLBACK
   WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);

@@ -52,7 +52,7 @@ class Window : public T {
   poly::Delegate<UIEvent> on_closed;
 
  protected:
-  Window(const std::wstring& title) : T(nullptr, 0), title_(title) {}
+  Window(const std::wstring& title) : T(0), title_(title) {}
 
   void OnShow() {
     if (is_visible_) {

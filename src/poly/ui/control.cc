@@ -9,12 +9,14 @@
 
 #include <poly/ui/control.h>
 
+#include <poly/assert.h>
+
 namespace poly {
 namespace ui {
 
-Control::Control(Control* parent, uint32_t flags)
-    : parent_(parent),
-      flags_(flags),
+Control::Control(uint32_t flags)
+    : flags_(flags),
+      parent_(nullptr),
       width_(0),
       height_(0),
       is_cursor_visible_(true),
@@ -34,22 +36,38 @@ void Control::AddChild(std::unique_ptr<Control> child_control) {
 }
 
 void Control::AddChild(ControlPtr control) {
+  assert_null(control->parent());
+  control->parent_ = this;
   auto control_ptr = control.get();
   children_.emplace_back(std::move(control));
   OnChildAdded(control_ptr);
 }
 
-void Control::RemoveChild(Control* child_control) {
+Control::ControlPtr Control::RemoveChild(Control* child_control) {
+  assert_true(child_control->parent() == this);
   for (auto& it = children_.begin(); it != children_.end(); ++it) {
     if (it->get() == child_control) {
+      auto control_ptr = std::move(*it);
+      child_control->parent_ = nullptr;
       children_.erase(it);
       OnChildRemoved(child_control);
-      break;
+      return control_ptr;
     }
+  }
+  return ControlPtr(nullptr, [](Control*) {});
+}
+
+void Control::Layout() {
+  auto e = UIEvent(this);
+  OnLayout(e);
+  for (auto& child_control : children_) {
+    child_control->OnLayout(e);
   }
 }
 
 void Control::OnResize(UIEvent& e) { on_resize(e); }
+
+void Control::OnLayout(UIEvent& e) { on_layout(e); }
 
 void Control::OnVisible(UIEvent& e) { on_visible(e); }
 

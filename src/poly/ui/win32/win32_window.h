@@ -35,8 +35,7 @@ class Win32Window : public Window<Win32Control> {
                     int32_t pad_bottom) override;
 
  protected:
-  bool CreateHWND() override;
-
+  bool Create() override;
   void OnClose() override;
 
   LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,

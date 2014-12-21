@@ -11,6 +11,7 @@
         ],
         'defines': [
           'GLEW_STATIC=1',
+          'GLEW_MX=1',
         ],
       },
 
@@ -20,6 +21,7 @@
 
       'defines': [
         'GLEW_STATIC=1',
+        'GLEW_MX=1',
       ],
 
       'sources': [

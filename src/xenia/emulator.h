@@ -16,6 +16,7 @@
 #include <xenia/debug_agent.h>
 #include <xenia/kernel/kernel_state.h>
 #include <xenia/memory.h>
+#include <xenia/ui/main_window.h>
 #include <xenia/xbox.h>
 
 namespace xe {

@@ -9,7 +9,7 @@
 
 #include <xenia/gpu/gl4/gl4_gpu.h>
 
-//#include <xenia/gpu/gl4/gl4_graphics_system.h>
+#include <xenia/gpu/gl4/gl4_graphics_system.h>
 
 namespace xe {
 namespace gpu {
@@ -31,12 +31,6 @@ void InitializeIfNeeded() {
 }
 
 void CleanupOnShutdown() {}
-
-class GL4GraphicsSystem : public GraphicsSystem {
- public:
-  GL4GraphicsSystem(Emulator* emulator) : GraphicsSystem(emulator) {}
-  ~GL4GraphicsSystem() override = default;
-};
 
 std::unique_ptr<GraphicsSystem> Create(Emulator* emulator) {
   InitializeIfNeeded();

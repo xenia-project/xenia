@@ -13,26 +13,7 @@ namespace poly {
 namespace ui {
 namespace win32 {
 
-LRESULT CALLBACK
-Win32Control::WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-  Win32Control* control = 0;
-  if (message == WM_NCCREATE) {
-    auto create_struct = reinterpret_cast<LPCREATESTRUCT>(lParam);
-    control = reinterpret_cast<Win32Control*>(create_struct->lpCreateParams);
-    SetWindowLongPtr(hWnd, GWLP_USERDATA, (__int3264)(LONG_PTR)control);
-  } else {
-    control =
-        reinterpret_cast<Win32Control*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
-  }
-  if (control) {
-    return control->WndProc(hWnd, message, wParam, lParam);
-  } else {
-    return DefWindowProc(hWnd, message, wParam, lParam);
-  }
-}
-
-Win32Control::Win32Control(Control* parent, uint32_t flags)
-    : Control(parent, flags), hwnd_(nullptr) {}
+Win32Control::Win32Control(uint32_t flags) : Control(flags), hwnd_(nullptr) {}
 
 Win32Control::~Win32Control() {
   if (hwnd_) {
@@ -43,6 +24,18 @@ Win32Control::~Win32Control() {
 
 void Win32Control::OnCreate() {
   Control::OnCreate();
+
+  // Create all children, if needed.
+  for (auto& child_control : children_) {
+    auto win32_control = static_cast<Win32Control*>(child_control.get());
+    if (!win32_control->hwnd()) {
+      win32_control->Create();
+    } else {
+      SetParent(win32_control->hwnd(), hwnd());
+    }
+    win32_control->Layout();
+  }
+
   if (!is_cursor_visible_) {
     ShowCursor(FALSE);
   }
@@ -54,6 +47,35 @@ void Win32Control::OnCreate() {
   }
   if (has_focus_) {
     SetFocus(hwnd_);
+  }
+}
+
+void Win32Control::OnDestroy() {
+  // Destroy all children, if needed.
+  for (auto& child_control : children_) {
+    auto win32_control = static_cast<Win32Control*>(child_control.get());
+    if (!win32_control->hwnd()) {
+      win32_control->Destroy();
+    }
+  }
+}
+
+void Win32Control::OnChildAdded(Control* child_control) {
+  auto win32_control = static_cast<Win32Control*>(child_control);
+  if (hwnd_) {
+    if (!win32_control->hwnd()) {
+      win32_control->Create();
+    } else {
+      SetParent(win32_control->hwnd(), hwnd());
+    }
+    child_control->Layout();
+  }
+}
+
+void Win32Control::OnChildRemoved(Control* child_control) {
+  auto win32_control = static_cast<Win32Control*>(child_control);
+  if (win32_control->hwnd()) {
+    SetParent(win32_control->hwnd(), nullptr);
   }
 }
 
@@ -77,7 +99,23 @@ void Win32Control::ResizeToFill(int32_t pad_left, int32_t pad_top,
   GetClientRect(parent_control->hwnd(), &parent_rect);
   MoveWindow(hwnd_, parent_rect.left + pad_left, parent_rect.top + pad_top,
              parent_rect.right - pad_right - pad_left,
-             parent_rect.right - pad_bottom - pad_top, TRUE);
+             parent_rect.bottom - pad_bottom - pad_top, TRUE);
+}
+
+void Win32Control::OnResize(UIEvent& e) {
+  RECT client_rect;
+  GetClientRect(hwnd_, &client_rect);
+  int32_t width = client_rect.right - client_rect.left;
+  int32_t height = client_rect.bottom - client_rect.top;
+  if (width != width_ || height != height_) {
+    width_ = width;
+    height_ = height;
+    Layout();
+    for (auto& child_control : children_) {
+      auto win32_control = static_cast<Win32Control*>(child_control.get());
+      win32_control->OnResize(e);
+    }
+  }
 }
 
 void Win32Control::set_cursor_visible(bool value) {
@@ -129,6 +167,24 @@ void Win32Control::set_focus(bool value) {
   }
 }
 
+LRESULT CALLBACK Win32Control::WndProcThunk(HWND hWnd, UINT message,
+                                            WPARAM wParam, LPARAM lParam) {
+  Win32Control* control = nullptr;
+  if (message == WM_NCCREATE) {
+    auto create_struct = reinterpret_cast<LPCREATESTRUCT>(lParam);
+    control = reinterpret_cast<Win32Control*>(create_struct->lpCreateParams);
+    SetWindowLongPtr(hWnd, GWLP_USERDATA, (__int3264)(LONG_PTR)control);
+  } else {
+    control =
+        reinterpret_cast<Win32Control*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+  }
+  if (control) {
+    return control->WndProc(hWnd, message, wParam, lParam);
+  } else {
+    return DefWindowProc(hWnd, message, wParam, lParam);
+  }
+}
+
 LRESULT Win32Control::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                               LPARAM lParam) {
   if (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST) {
@@ -147,10 +203,8 @@ LRESULT Win32Control::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
   switch (message) {
     case WM_NCCREATE:
-      hwnd_ = hWnd;
       break;
     case WM_CREATE:
-      OnCreate();
       break;
     case WM_DESTROY:
       OnDestroy();
@@ -163,25 +217,12 @@ LRESULT Win32Control::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     case WM_SIZING:
       break;
     case WM_SIZE: {
-      RECT client_rect;
-      GetClientRect(hwnd_, &client_rect);
-      int32_t width = client_rect.right - client_rect.left;
-      int32_t height = client_rect.bottom - client_rect.top;
-      if (width != width_ || height != height_) {
-        width_ = width;
-        height_ = height;
-        auto e = UIEvent(this);
-        OnResize(e);
-      }
+      auto e = UIEvent(this);
+      OnResize(e);
       break;
     }
 
     case WM_PAINT:
-      if (flags_ & kFlagOwnPaint) {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hWnd, &ps);
-        EndPaint(hWnd, &ps);
-      }
       break;
     case WM_ERASEBKGND:
       if (flags_ & kFlagOwnPaint) {

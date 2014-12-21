@@ -25,16 +25,16 @@ Win32Window::Win32Window(const std::wstring& title)
 Win32Window::~Win32Window() {}
 
 bool Win32Window::Initialize() {
-  CreateHWND();
+  Create();
   return true;
 }
 
-bool Win32Window::CreateHWND() {
+bool Win32Window::Create() {
   HINSTANCE hInstance = GetModuleHandle(nullptr);
 
   WNDCLASSEX wcex;
   wcex.cbSize = sizeof(WNDCLASSEX);
-  wcex.style = CS_OWNDC;
+  wcex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
   wcex.lpfnWndProc = Win32Control::WndProcThunk;
   wcex.cbClsExtra = 0;
   wcex.cbWndExtra = 0;
@@ -52,7 +52,7 @@ bool Win32Window::CreateHWND() {
 
   // Setup initial size.
   DWORD window_style = WS_OVERLAPPEDWINDOW;
-  DWORD window_ex_style = WS_EX_APPWINDOW;
+  DWORD window_ex_style = WS_EX_APPWINDOW | WS_EX_CONTROLPARENT;
   RECT rc = {0, 0, width_, height_};
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
@@ -199,7 +199,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       break;
   }
 
-  return DefWindowProc(hWnd, message, wParam, lParam);
+  return Win32Control::WndProc(hWnd, message, wParam, lParam);
 }
 
 }  // namespace win32

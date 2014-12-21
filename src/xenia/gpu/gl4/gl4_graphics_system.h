@@ -1,0 +1,39 @@
+/**
+******************************************************************************
+* Xenia : Xbox 360 Emulator Research Project                                 *
+******************************************************************************
+* Copyright 2014 Ben Vanik. All rights reserved.                             *
+* Released under the BSD license - see LICENSE in the root for more details. *
+******************************************************************************
+*/
+
+#ifndef XENIA_GPU_GL4_GL4_GRAPHICS_SYSTEM_H_
+#define XENIA_GPU_GL4_GL4_GRAPHICS_SYSTEM_H_
+
+#include <memory>
+
+#include <xenia/common.h>
+#include <xenia/gpu/gl4/wgl_control.h>
+#include <xenia/gpu/graphics_system.h>
+
+namespace xe {
+namespace gpu {
+namespace gl4 {
+
+class GL4GraphicsSystem : public GraphicsSystem {
+ public:
+  GL4GraphicsSystem(Emulator* emulator);
+  ~GL4GraphicsSystem() override;
+
+  X_STATUS Setup() override;
+  void Shutdown() override;
+
+ private:
+  std::unique_ptr<WGLControl> control_;
+};
+
+}  // namespace gl4
+}  // namespace gpu
+}  // namespace xe
+
+#endif  // XENIA_GPU_GL4_GL4_GRAPHICS_SYSTEM_H_

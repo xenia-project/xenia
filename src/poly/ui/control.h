@@ -34,15 +34,17 @@ class Control {
   void AddChild(Control* child_control);
   void AddChild(std::unique_ptr<Control> child_control);
   void AddChild(ControlPtr child_control);
-  void RemoveChild(Control* child_control);
+  ControlPtr RemoveChild(Control* child_control);
 
   int32_t width() const { return width_; }
   int32_t height() const { return height_; }
   virtual void Resize(int32_t width, int32_t height) = 0;
   virtual void Resize(int32_t left, int32_t top, int32_t right,
                       int32_t bottom) = 0;
+  void ResizeToFill() { ResizeToFill(0, 0, 0, 0); }
   virtual void ResizeToFill(int32_t pad_left, int32_t pad_top,
                             int32_t pad_right, int32_t pad_bottom) = 0;
+  void Layout();
 
   // TODO(benvanik): colors/brushes/etc.
   // TODO(benvanik): fonts.
@@ -61,6 +63,7 @@ class Control {
 
  public:
   poly::Delegate<UIEvent> on_resize;
+  poly::Delegate<UIEvent> on_layout;
 
   poly::Delegate<UIEvent> on_visible;
   poly::Delegate<UIEvent> on_hidden;
@@ -77,7 +80,10 @@ class Control {
   poly::Delegate<MouseEvent> on_mouse_wheel;
 
  protected:
-  Control(Control* parent, uint32_t flags);
+  explicit Control(uint32_t flags);
+
+  virtual bool Create() = 0;
+  virtual void Destroy() {}
 
   virtual void OnCreate() {}
   virtual void OnDestroy() {}
@@ -86,6 +92,7 @@ class Control {
   virtual void OnChildRemoved(Control* child_control) {}
 
   virtual void OnResize(UIEvent& e);
+  virtual void OnLayout(UIEvent& e);
 
   virtual void OnVisible(UIEvent& e);
   virtual void OnHidden(UIEvent& e);

@@ -413,6 +413,7 @@
                   'advapi32',
                   'glu32',
                   'opengl32',
+                  'gdi32',
                 ],
               }],
               ['OS == "mac"', {

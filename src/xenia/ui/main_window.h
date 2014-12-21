@@ -11,11 +11,15 @@
 #define XENIA_UI_MAIN_WINDOW_H_
 
 #include <poly/ui/window.h>
-#include <xenia/emulator.h>
+#include <xenia/xbox.h>
 
 // TODO(benvanik): only on windows.
 #include <poly/ui/win32/win32_loop.h>
 #include <poly/ui/win32/win32_window.h>
+
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace ui {
