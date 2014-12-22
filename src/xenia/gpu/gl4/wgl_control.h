@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_GL4_WGL_CONTROL_H_
 #define XENIA_GPU_GL4_WGL_CONTROL_H_
 
+#include <poly/threading.h>
+#include <poly/ui/loop.h>
 #include <poly/ui/win32/win32_control.h>
 #include <xenia/gpu/gl4/gl_context.h>
 
@@ -19,10 +21,12 @@ namespace gl4 {
 
 class WGLControl : public poly::ui::win32::Win32Control {
  public:
-  WGLControl();
+  WGLControl(poly::ui::Loop* loop);
   ~WGLControl() override;
 
   GLContext* context() { return &context_; }
+
+  void SynchronousRepaint();
 
  protected:
   bool Create() override;
@@ -33,6 +37,7 @@ class WGLControl : public poly::ui::win32::Win32Control {
                   LPARAM lParam) override;
 
  private:
+  poly::ui::Loop* loop_;
   GLContext context_;
 };
 

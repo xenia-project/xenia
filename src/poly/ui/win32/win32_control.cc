@@ -114,7 +114,16 @@ void Win32Control::OnResize(UIEvent& e) {
     for (auto& child_control : children_) {
       auto win32_control = static_cast<Win32Control*>(child_control.get());
       win32_control->OnResize(e);
+      win32_control->Invalidate();
     }
+  }
+}
+
+void Win32Control::Invalidate() {
+  InvalidateRect(hwnd_, nullptr, FALSE);
+  for (auto& child_control : children_) {
+    auto win32_control = static_cast<Win32Control*>(child_control.get());
+    win32_control->Invalidate();
   }
 }
 

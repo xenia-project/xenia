@@ -33,6 +33,7 @@ class Win32Control : public Control {
               int32_t bottom) override;
   void ResizeToFill(int32_t pad_left, int32_t pad_top, int32_t pad_right,
                     int32_t pad_bottom) override;
+  void Invalidate() override;
 
   void set_cursor_visible(bool value) override;
   void set_enabled(bool value) override;

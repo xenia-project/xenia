@@ -45,6 +45,7 @@ class Control {
   virtual void ResizeToFill(int32_t pad_left, int32_t pad_top,
                             int32_t pad_right, int32_t pad_bottom) = 0;
   void Layout();
+  virtual void Invalidate() {}
 
   // TODO(benvanik): colors/brushes/etc.
   // TODO(benvanik): fonts.

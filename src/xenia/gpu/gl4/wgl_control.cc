@@ -9,14 +9,17 @@
 
 #include <xenia/gpu/gl4/wgl_control.h>
 
+#include <poly/assert.h>
 #include <poly/logging.h>
+#include <xenia/profiling.h>
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
 
-WGLControl::WGLControl()
-    : poly::ui::win32::Win32Control(Flags::kFlagOwnPaint) {}
+WGLControl::WGLControl(poly::ui::Loop* loop)
+    : poly::ui::win32::Win32Control(Flags::kFlagOwnPaint),
+      loop_(loop) {}
 
 WGLControl::~WGLControl() = default;
 
@@ -68,22 +71,29 @@ bool WGLControl::Create() {
   return true;
 }
 
-void WGLControl::OnLayout(poly::ui::UIEvent& e) {
-  Control::ResizeToFill();
-}
+void WGLControl::OnLayout(poly::ui::UIEvent& e) { Control::ResizeToFill(); }
 
 LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
   switch (message) {
-  case WM_PAINT:
-    context_.MakeCurrent();
-    glViewport(0, 0, width_, height_);
-    glClearColor(1.0f, 0, 0, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    SwapBuffers(context_.dc());
-    return 0;
+    case WM_PAINT:
+      context_.MakeCurrent();
+      glViewport(0, 0, width_, height_);
+      glClearColor(rand() / (float)RAND_MAX, 1.0f, 0, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+      // TODO(benvanik): profiler present.
+      // Profiler::Present();
+      SwapBuffers(context_.dc());
+      break;
   }
   return Win32Control::WndProc(hWnd, message, wParam, lParam);
+}
+
+void WGLControl::SynchronousRepaint() {
+  SCOPE_profile_cpu_f("gpu");
+  // This will not return until the WM_PAINT has completed.
+  RedrawWindow(hwnd(), nullptr, nullptr,
+               RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ALLCHILDREN);
 }
 
 }  // namespace gl4

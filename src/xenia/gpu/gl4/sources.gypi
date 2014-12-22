@@ -1,6 +1,8 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'command_processor.cc',
+    'command_processor.h',
     'gl4_gpu-private.h',
     'gl4_gpu.cc',
     'gl4_gpu.h',

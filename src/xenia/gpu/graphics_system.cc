@@ -40,15 +40,6 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
   XELOGGPU("SetInterruptCallback(%.4X, %.4X)", callback, user_data);
 }
 
-void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
-  //
-}
-
-void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
-                                                uint32_t block_size) {
-  //
-}
-
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   // Pick a CPU, if needed. We're going to guess 2. Because.
   if (cpu == 0xFFFFFFFF) {

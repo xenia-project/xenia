@@ -13,14 +13,14 @@
 // TODO(benvanik): based on platform.
 #include <xenia/gpu/gl4/gl4_gpu.h>
 
-namespace xe {
-namespace gpu {
-
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
 
 DEFINE_bool(trace_ring_buffer, false, "Trace GPU ring buffer packets.");
 DEFINE_string(dump_shaders, "",
               "Path to write GPU shaders to as they are compiled.");
+
+namespace xe {
+namespace gpu {
 
 std::unique_ptr<GraphicsSystem> Create(Emulator* emulator) {
   if (FLAGS_gpu.compare("gl4") == 0) {

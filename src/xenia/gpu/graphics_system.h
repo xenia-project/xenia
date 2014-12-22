@@ -32,13 +32,13 @@ class GraphicsSystem {
   virtual void Shutdown();
 
   void SetInterruptCallback(uint32_t callback, uint32_t user_data);
-  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
-  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
+  virtual void InitializeRingBuffer(uint32_t ptr, uint32_t page_count) = 0;
+  virtual void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size) = 0;
+
+  void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
  protected:
   GraphicsSystem(Emulator* emulator);
-
-  void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   Emulator* emulator_;
   Memory* memory_;
