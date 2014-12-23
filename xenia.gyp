@@ -9,6 +9,7 @@
     'third_party/glew.gypi',
     'third_party/llvm.gypi',
     'third_party/sparsehash.gypi',
+    'third_party/xxhash.gypi',
   ],
 
   'default_configuration': 'release',
@@ -377,12 +378,14 @@
         'glew',
         'liballoy',
         'libpoly',
+        'xxhash',
       ],
       'export_dependent_settings': [
         'gflags',
         'glew',
         'liballoy',
         'libpoly',
+        'xxhash',
       ],
 
       'direct_dependent_settings': {
