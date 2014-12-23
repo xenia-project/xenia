@@ -29,4 +29,51 @@ size_t page_size() {
   return value;
 }
 
+// TODO(benvanik): fancy AVX versions.
+// http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/cb32b70b79f430456208a2cd521d028e0ece5d5b/entry/volk/kernels/volk/volk_16u_byteswap.h
+// http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/f2bc76cc65ffba51a141950f98e75364e49df874/entry/volk/kernels/volk/volk_32u_byteswap.h
+// http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/2c4c371885c31222362f70a1cd714415d1398021/entry/volk/kernels/volk/volk_64u_byteswap.h
+
+void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
+                              size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,
+                                size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_and_swap_32_aligned(uint32_t* dest, const uint32_t* src,
+                              size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_and_swap_32_unaligned(uint32_t* dest, const uint32_t* src,
+                                size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src,
+                              size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
+                                size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
 }  // namespace poly

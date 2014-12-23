@@ -29,6 +29,54 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
 
 size_t page_size();
 
+void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
+                              size_t count);
+void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,
+                                size_t count);
+void copy_and_swap_32_aligned(uint32_t* dest, const uint32_t* src,
+                              size_t count);
+void copy_and_swap_32_unaligned(uint32_t* dest, const uint32_t* src,
+                                size_t count);
+void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src,
+                              size_t count);
+void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
+                                size_t count);
+
+template <typename T>
+void copy_and_swap(T* dest, const T* src, size_t count) {
+  bool is_aligned = reinterpret_cast<uintptr_t>(dest) % 32 == 0 &&
+                    reinterpret_cast<uintptr_t>(src) % 32 == 0;
+  if (sizeof(T) == 1) {
+    std::memcpy(dest, src, count);
+  } else if (sizeof(T) == 2) {
+    auto ps = reinterpret_cast<const uint16_t*>(src);
+    auto pd = reinterpret_cast<uint16_t*>(dest);
+    if (is_aligned) {
+      copy_and_swap_16_aligned(pd, ps, count);
+    } else {
+      copy_and_swap_16_unaligned(pd, ps, count);
+    }
+  } else if (sizeof(T) == 4) {
+    auto ps = reinterpret_cast<const uint32_t*>(src);
+    auto pd = reinterpret_cast<uint32_t*>(dest);
+    if (is_aligned) {
+      copy_and_swap_32_aligned(pd, ps, count);
+    } else {
+      copy_and_swap_32_unaligned(pd, ps, count);
+    }
+  } else if (sizeof(T) == 8) {
+    auto ps = reinterpret_cast<const uint64_t*>(src);
+    auto pd = reinterpret_cast<uint64_t*>(dest);
+    if (is_aligned) {
+      copy_and_swap_64_aligned(pd, ps, count);
+    } else {
+      copy_and_swap_64_unaligned(pd, ps, count);
+    }
+  } else {
+    assert_always("Invalid poly::copy_and_swap size");
+  }
+}
+
 template <typename T>
 T load(const void* mem);
 template <>
@@ -259,12 +307,8 @@ template <typename T>
 struct be {
   be() = default;
   be(const T& src) : value(poly::byte_swap(src)) {}
-  be(const be& other) {
-    value = other.value;
-  }
-  operator T() const {
-    return poly::byte_swap(value);
-  }
+  be(const be& other) { value = other.value; }
+  operator T() const { return poly::byte_swap(value); }
   T value;
 };
 
