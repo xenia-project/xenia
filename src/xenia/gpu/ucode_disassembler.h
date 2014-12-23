@@ -18,7 +18,7 @@
 namespace xe {
 namespace gpu {
 
-std::string DisassembleShader(xenos::ShaderType type, const uint32_t* dwords,
+std::string DisassembleShader(ShaderType type, const uint32_t* dwords,
                               size_t dword_count);
 
 }  // namespace gpu

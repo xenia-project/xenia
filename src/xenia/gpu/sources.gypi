@@ -9,6 +9,8 @@
     'register_file.cc',
     'register_file.h',
     'register_table.inc',
+    'shader.cc',
+    'shader.h',
     'ucode.h',
     'ucode_disassembler.cc',
     'ucode_disassembler.h',

@@ -16,6 +16,8 @@
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/xenos.h>
 
+#include <third_party/xxhash/xxhash.h>
+
 #define XETRACECP(fmt, ...) \
   if (FLAGS_trace_ring_buffer) XELOGGPU(fmt, ##__VA_ARGS__)
 
@@ -41,7 +43,9 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       write_ptr_index_event_(CreateEvent(NULL, FALSE, FALSE, NULL)),
       write_ptr_index_(0),
       bin_select_(0xFFFFFFFFull),
-      bin_mask_(0xFFFFFFFFull) {
+      bin_mask_(0xFFFFFFFFull),
+      active_vertex_shader_(nullptr),
+      active_pixel_shader_(nullptr) {
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
   time_base_ = perf_counter.QuadPart;
@@ -76,6 +80,9 @@ void CommandProcessor::Shutdown() {
   worker_running_ = false;
   SetEvent(write_ptr_index_event_);
   worker_thread_.join();
+
+  all_shaders_.clear();
+  shader_cache_.clear();
 }
 
 void CommandProcessor::WorkerMain() {
@@ -918,10 +925,11 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
   uint32_t addr = addr_type & ~0x3;
   uint32_t start_size = reader->Read();
   uint32_t start = start_size >> 16;
-  uint32_t size = start_size & 0xFFFF;  // dwords
+  uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
-  /*driver_->LoadShader(shader_type,
-  GpuToCpu(packet_ptr, addr), size * 4, start);*/
+  LoadShader(shader_type,
+             reinterpret_cast<uint32_t*>(membase_ + GpuToCpu(packet_ptr, addr)),
+             size_dwords);
   return true;
 }
 
@@ -936,13 +944,12 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(
   auto shader_type = static_cast<ShaderType>(dword0);
   uint32_t start_size = dword1;
   uint32_t start = start_size >> 16;
-  uint32_t size = start_size & 0xFFFF;  // dwords
+  uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
-  // TODO(benvanik): figure out if this could wrap.
-  reader->CheckRead(size);
-  /*driver_->LoadShader(shader_type, reader->ptr(), size * 4,
-  start);*/
-  reader->Advance(size);
+  reader->CheckRead(size_dwords);
+  LoadShader(shader_type, reinterpret_cast<uint32_t*>(membase_ + reader->ptr()),
+             size_dwords);
+  reader->Advance(size_dwords);
   return true;
 }
 
@@ -954,6 +961,46 @@ bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(
   reader->TraceData(count);
   uint32_t mask = reader->Read();
   // driver_->InvalidateState(mask);
+  return true;
+}
+
+bool CommandProcessor::LoadShader(ShaderType shader_type,
+                                  const uint32_t* address,
+                                  uint32_t dword_count) {
+  // Hash the input memory and lookup the shader.
+  GL4Shader* shader_ptr = nullptr;
+  uint64_t hash = XXH64(address, dword_count * sizeof(uint32_t), 0);
+  auto it = shader_cache_.find(hash);
+  if (it != shader_cache_.end()) {
+    // Found in the cache.
+    // TODO(benvanik): compare bytes? Likelyhood of collision is low.
+    shader_ptr = it->second;
+  } else {
+    // Not found in cache.
+    // No translation is performed here, as it depends on program_cntl.
+    auto shader =
+        std::make_unique<GL4Shader>(shader_type, hash, address, dword_count);
+    shader_ptr = shader.get();
+    shader_cache_.insert({hash, shader_ptr});
+    all_shaders_.emplace_back(std::move(shader));
+
+    XELOGGPU("Set %s shader at %0.8X (%db):\n%s",
+             shader_type == ShaderType::kVertex ? "vertex" : "pixel",
+             uint32_t(reinterpret_cast<uintptr_t>(address) -
+                      reinterpret_cast<uintptr_t>(membase_)),
+             dword_count * 4, shader_ptr->ucode_disassembly().c_str());
+  }
+  switch (shader_type) {
+    case ShaderType::kVertex:
+      active_vertex_shader_ = shader_ptr;
+      break;
+    case ShaderType::kPixel:
+      active_pixel_shader_ = shader_ptr;
+      break;
+    default:
+      assert_unhandled_case(shader_type);
+      return false;
+  }
   return true;
 }
 

@@ -13,7 +13,10 @@
 #include <atomic>
 #include <functional>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
+#include <xenia/gpu/gl4/gl4_shader.h>
 #include <xenia/gpu/register_file.h>
 #include <xenia/gpu/xenos.h>
 #include <xenia/memory.h>
@@ -107,6 +110,9 @@ class CommandProcessor {
                                            uint32_t packet_ptr, uint32_t packet,
                                            uint32_t count);
 
+  bool LoadShader(ShaderType shader_type, const uint32_t* address,
+                  uint32_t dword_count);
+
   Memory* memory_;
   uint8_t* membase_;
   GL4GraphicsSystem* graphics_system_;
@@ -132,6 +138,11 @@ class CommandProcessor {
 
   uint64_t bin_select_;
   uint64_t bin_mask_;
+
+  std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
+  std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
+  GL4Shader* active_vertex_shader_;
+  GL4Shader* active_pixel_shader_;
 };
 
 }  // namespace gl4

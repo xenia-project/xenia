@@ -15,19 +15,11 @@
 
 namespace xe {
 namespace gpu {
-namespace xenos {
 
 enum class ShaderType : uint32_t {
   kVertex = 0,
   kPixel = 1,
 };
-
-typedef enum {
-  XE_GPU_INVALIDATE_MASK_VERTEX_SHADER    = 1 << 8,
-  XE_GPU_INVALIDATE_MASK_PIXEL_SHADER     = 1 << 9,
-
-  XE_GPU_INVALIDATE_MASK_ALL              = 0x7FFF,
-} XE_GPU_INVALIDATE_MASK;
 
 enum class PrimitiveType : uint32_t {
   kNone = 0x00,
@@ -43,6 +35,15 @@ enum class PrimitiveType : uint32_t {
   kQuadList = 0x0D,
 };
 
+namespace xenos {
+
+typedef enum {
+  XE_GPU_INVALIDATE_MASK_VERTEX_SHADER = 1 << 8,
+  XE_GPU_INVALIDATE_MASK_PIXEL_SHADER = 1 << 9,
+
+  XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
+} XE_GPU_INVALIDATE_MASK;
+
 enum class Endian : uint32_t {
   kUnspecified = 0,
   k8in16 = 1,
@@ -50,27 +51,28 @@ enum class Endian : uint32_t {
   k16in32 = 3,
 };
 
-#define XE_GPU_MAKE_SWIZZLE(x, y, z, w) \
-    (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | ((XE_GPU_SWIZZLE_##z) << 6) | ((XE_GPU_SWIZZLE_##w) << 9))
+#define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
+  (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | \
+   ((XE_GPU_SWIZZLE_##z) << 6) | ((XE_GPU_SWIZZLE_##w) << 9))
 typedef enum {
-  XE_GPU_SWIZZLE_X                        = 0,
-  XE_GPU_SWIZZLE_R                        = 0,
-  XE_GPU_SWIZZLE_Y                        = 1,
-  XE_GPU_SWIZZLE_G                        = 1,
-  XE_GPU_SWIZZLE_Z                        = 2,
-  XE_GPU_SWIZZLE_B                        = 2,
-  XE_GPU_SWIZZLE_W                        = 3,
-  XE_GPU_SWIZZLE_A                        = 3,
-  XE_GPU_SWIZZLE_0                        = 4,
-  XE_GPU_SWIZZLE_1                        = 5,
-  XE_GPU_SWIZZLE_RGBA                     = XE_GPU_MAKE_SWIZZLE(R, G, B, A),
-  XE_GPU_SWIZZLE_BGRA                     = XE_GPU_MAKE_SWIZZLE(B, G, R, A),
-  XE_GPU_SWIZZLE_RGB1                     = XE_GPU_MAKE_SWIZZLE(R, G, B, 1),
-  XE_GPU_SWIZZLE_BGR1                     = XE_GPU_MAKE_SWIZZLE(B, G, R, 1),
-  XE_GPU_SWIZZLE_000R                     = XE_GPU_MAKE_SWIZZLE(0, 0, 0, R),
-  XE_GPU_SWIZZLE_RRR1                     = XE_GPU_MAKE_SWIZZLE(R, R, R, 1),
-  XE_GPU_SWIZZLE_R111                     = XE_GPU_MAKE_SWIZZLE(R, 1, 1, 1),
-  XE_GPU_SWIZZLE_R000                     = XE_GPU_MAKE_SWIZZLE(R, 0, 0, 0),
+  XE_GPU_SWIZZLE_X = 0,
+  XE_GPU_SWIZZLE_R = 0,
+  XE_GPU_SWIZZLE_Y = 1,
+  XE_GPU_SWIZZLE_G = 1,
+  XE_GPU_SWIZZLE_Z = 2,
+  XE_GPU_SWIZZLE_B = 2,
+  XE_GPU_SWIZZLE_W = 3,
+  XE_GPU_SWIZZLE_A = 3,
+  XE_GPU_SWIZZLE_0 = 4,
+  XE_GPU_SWIZZLE_1 = 5,
+  XE_GPU_SWIZZLE_RGBA = XE_GPU_MAKE_SWIZZLE(R, G, B, A),
+  XE_GPU_SWIZZLE_BGRA = XE_GPU_MAKE_SWIZZLE(B, G, R, A),
+  XE_GPU_SWIZZLE_RGB1 = XE_GPU_MAKE_SWIZZLE(R, G, B, 1),
+  XE_GPU_SWIZZLE_BGR1 = XE_GPU_MAKE_SWIZZLE(B, G, R, 1),
+  XE_GPU_SWIZZLE_000R = XE_GPU_MAKE_SWIZZLE(0, 0, 0, R),
+  XE_GPU_SWIZZLE_RRR1 = XE_GPU_MAKE_SWIZZLE(R, R, R, 1),
+  XE_GPU_SWIZZLE_R111 = XE_GPU_MAKE_SWIZZLE(R, 1, 1, 1),
+  XE_GPU_SWIZZLE_R000 = XE_GPU_MAKE_SWIZZLE(R, 0, 0, 0),
 } XE_GPU_SWIZZLE;
 
 inline uint32_t GpuSwap(uint32_t value, Endian endianness) {

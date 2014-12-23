@@ -8,6 +8,8 @@
     'gl4_gpu.h',
     'gl4_graphics_system.cc',
     'gl4_graphics_system.h',
+    'gl4_shader.cc',
+    'gl4_shader.h',
     'gl_context.cc',
     'gl_context.h',
   ],
