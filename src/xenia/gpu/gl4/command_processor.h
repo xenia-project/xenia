@@ -129,6 +129,9 @@ class CommandProcessor {
 
   HANDLE write_ptr_index_event_;
   std::atomic<uint32_t> write_ptr_index_;
+
+  uint64_t bin_select_;
+  uint64_t bin_mask_;
 };
 
 }  // namespace gl4

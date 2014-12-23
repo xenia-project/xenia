@@ -39,7 +39,9 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       read_ptr_update_freq_(0),
       read_ptr_writeback_ptr_(0),
       write_ptr_index_event_(CreateEvent(NULL, FALSE, FALSE, NULL)),
-      write_ptr_index_(0) {
+      write_ptr_index_(0),
+      bin_select_(0xFFFFFFFFull),
+      bin_mask_(0xFFFFFFFFull) {
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
   time_base_ = perf_counter.QuadPart;
@@ -298,6 +300,9 @@ bool CommandProcessor::ExecutePacket(RingbufferReader* reader) {
       return ExecutePacketType2(reader, packet_ptr, packet);
     case 0x03:
       return ExecutePacketType3(reader, packet_ptr, packet);
+    default:
+      assert_unhandled_case(packet_type);
+      return false;
   }
 }
 
@@ -359,10 +364,21 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
                                           uint32_t packet_ptr,
                                           uint32_t packet) {
   // Type-3 packet.
-  // & 1 == predicate, maybe?
   uint32_t opcode = (packet >> 8) & 0x7F;
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   auto data_start_offset = reader->offset();
+
+  // & 1 == predicate - when set, we do bin check to see if we should execute
+  // the packet. Only type 3 packets are affected.
+  if (packet & 1) {
+    bool any_pass = (bin_select_ & bin_mask_) != 0;
+    if (!any_pass) {
+      XETRACECP("[%.8X] Packet(%.8X): SKIPPED (predicate fail)", packet_ptr,
+                packet);
+      reader->Skip(count);
+      return true;
+    }
+  }
 
   bool result = false;
   switch (opcode) {
@@ -431,24 +447,30 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
       uint32_t value = reader->Read();
       XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_LO = %.8X", packet_ptr,
                 packet, value);
+      bin_mask_ = (bin_mask_ & 0xFFFFFFFF00000000ull) | value;
       result = true;
     } break;
     case PM4_SET_BIN_MASK_HI: {
       uint32_t value = reader->Read();
       XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_HI = %.8X", packet_ptr,
                 packet, value);
+      bin_mask_ =
+          (bin_mask_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
     } break;
     case PM4_SET_BIN_SELECT_LO: {
       uint32_t value = reader->Read();
       XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_LO = %.8X", packet_ptr,
                 packet, value);
+      bin_select_ = (bin_select_ & 0xFFFFFFFF00000000ull) | value;
       result = true;
     } break;
     case PM4_SET_BIN_SELECT_HI: {
       uint32_t value = reader->Read();
       XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_HI = %.8X", packet_ptr,
                 packet, value);
+      bin_select_ =
+          (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
     } break;
 
