@@ -592,8 +592,11 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
   XETRACECP("[%.8X] Packet(%.8X): PM4_XE_SWAP", packet_ptr, packet);
-  reader->TraceData(count);
-  reader->Advance(count);
+  // 63 words here, but only the first has any data.
+  reader->TraceData(1);
+  uint32_t frontbuffer_ptr = reader->Read();
+  // TODO(benvanik): something with the frontbuffer ptr.
+  reader->Advance(count - 1);
   if (swap_handler_) {
     swap_handler_();
   }
@@ -1074,17 +1077,20 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   if (enable_mode == ModeControl::kIgnore) {
     // Ignored.
     return true;
-  } else if (enable_mode == ModeControl::kCopy) {
+  }
+
+  if (!UpdateRenderTargets(draw_command)) {
+    PLOGE("Unable to setup render targets");
+    return false;
+  }
+
+  if (enable_mode == ModeControl::kCopy) {
     // Special copy handling.
     return IssueCopy(draw_command);
   }
 
   if (!UpdateState(draw_command)) {
     PLOGE("Unable to setup render state");
-    return false;
-  }
-  if (!UpdateRenderTargets(draw_command)) {
-    PLOGE("Unable to setup render targets");
     return false;
   }
 
@@ -1470,9 +1476,123 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
 }
 
 bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
-  // uint32_t copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
-  // uint32_t copy_dest_height = (copy_dest_pitch >> 16) & 0x3FFF;
-  // copy_dest_pitch &= 0x3FFF;
+  auto& regs = *register_file_;
+
+  // This is used to resolve surfaces, taking them from EDRAM render targets
+  // to system memory. It can optionally clear color/depth surfaces, too.
+  // The command buffer has stuff for actually doing this by drawing, however
+  // we should be able to do it without that much easier.
+
+  uint32_t copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  // Render targets 0-3, 4 = depth
+  uint32_t copy_src_select = copy_control & 0x7;
+  bool color_clear_enabled = (copy_control >> 8) & 0x1;
+  bool depth_clear_enabled = (copy_control >> 9) & 0x1;
+  auto copy_command = static_cast<CopyCommand>((copy_control >> 20) & 0x3);
+
+  uint32_t copy_dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
+  auto copy_dest_endian = static_cast<Endian128>(copy_dest_info & 0x7);
+  uint32_t copy_dest_array = (copy_dest_info >> 3) & 0x1;
+  assert_true(copy_dest_array == 0);
+  uint32_t copy_dest_slice = (copy_dest_info >> 4) & 0x7;
+  assert_true(copy_dest_slice == 0);
+  auto copy_dest_format =
+      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
+  uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
+  assert_true(copy_dest_number == 0);
+  uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
+  assert_true(copy_dest_bias == 0);
+  uint32_t copy_dest_swap = (copy_dest_info >> 25) & 0x1;
+
+  uint32_t copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
+  uint32_t copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
+  uint32_t copy_dest_height = (copy_dest_pitch >> 16) & 0x3FFF;
+  copy_dest_pitch &= 0x3FFF;
+
+  // None of this is supported yet:
+  uint32_t copy_surface_slice = regs[XE_GPU_REG_RB_COPY_SURFACE_SLICE].u32;
+  assert_true(copy_surface_slice == 0);
+  uint32_t copy_func = regs[XE_GPU_REG_RB_COPY_FUNC].u32;
+  assert_true(copy_func == 0);
+  uint32_t copy_ref = regs[XE_GPU_REG_RB_COPY_REF].u32;
+  assert_true(copy_ref == 0);
+  uint32_t copy_mask = regs[XE_GPU_REG_RB_COPY_MASK].u32;
+  assert_true(copy_mask == 0);
+
+  GLenum read_format;
+  GLenum read_type;
+  switch (copy_dest_format) {
+    case ColorFormat::kColor_8_8_8_8:
+      read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
+      read_type = GL_UNSIGNED_BYTE;
+      break;
+    default:
+      assert_unhandled_case(copy_dest_format);
+      return false;
+  }
+
+  // TODO(benvanik): swap channel ordering on copy_dest_swap
+  //                 Can we use GL swizzles for this?
+
+  // Swap byte order during read.
+  // TODO(benvanik): handle other endian modes.
+  switch (copy_dest_endian) {
+    case Endian128::kUnspecified:
+      glPixelStorei(GL_PACK_SWAP_BYTES, GL_FALSE);
+      break;
+    case Endian128::k8in32:
+      glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
+      break;
+    default:
+      assert_unhandled_case(copy_dest_endian);
+      return false;
+  }
+
+  // Destination pointer in guest memory.
+  // We have GL throw bytes directly into it.
+  // TODO(benvanik): copy to staging texture then PBO back?
+  void* ptr = membase_ + GpuToCpu(copy_dest_base);
+
+  uint32_t x = 0;
+  uint32_t y = 0;
+  uint32_t w = copy_dest_pitch;
+  uint32_t h = copy_dest_height;
+  switch (copy_command) {
+    case CopyCommand::kConvert:
+      if (copy_src_select <= 3) {
+        // Source from a bound render target.
+        glReadBuffer(GL_COLOR_ATTACHMENT0 + copy_src_select);
+        glReadPixels(x, y, w, h, read_format, read_type, ptr);
+      } else {
+        // Source from the bound depth/stencil target.
+        glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+      }
+      break;
+    case CopyCommand::kRaw:
+    case CopyCommand::kConstantOne:
+    case CopyCommand::kNull:
+    default:
+      assert_unhandled_case(copy_command);
+      return false;
+  }
+
+  if (color_clear_enabled || depth_clear_enabled) {
+    // Clear requested, so let's setup for that.
+    uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
+    uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
+    uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
+    assert_true(copy_color_clear == copy_color_clear_low);
+
+    if (color_clear_enabled) {
+      // Clear the render target we selected for copy.
+      assert_true(copy_src_select < 3);
+    }
+
+    if (depth_clear_enabled) {
+      // Clear the current depth buffer.
+    }
+  }
+
   return true;
 }
 
@@ -1567,11 +1687,11 @@ GLuint CommandProcessor::GetFramebuffer(GLuint color_targets[4],
   CachedFramebuffer* cached = nullptr;
   for (auto& it = cached_framebuffers_.begin();
        it != cached_framebuffers_.end(); ++it) {
-    if (it->depth_target == depth_target &&
-        it->color_targets[0] == color_targets[0] &&
-        it->color_targets[1] == color_targets[1] &&
-        it->color_targets[2] == color_targets[2] &&
-        it->color_targets[3] == color_targets[3]) {
+    if ((depth_target == -1u || it->depth_target == depth_target) &&
+        (color_targets[0] == -1u || it->color_targets[0] == color_targets[0]) &&
+        (color_targets[1] == -1u || it->color_targets[1] == color_targets[1]) &&
+        (color_targets[2] == -1u || it->color_targets[2] == color_targets[2]) &&
+        (color_targets[3] == -1u || it->color_targets[3] == color_targets[3])) {
       return it->framebuffer;
     }
   }
@@ -1579,9 +1699,16 @@ GLuint CommandProcessor::GetFramebuffer(GLuint color_targets[4],
   cached = &cached_framebuffers_.back();
   glCreateFramebuffers(1, &cached->framebuffer);
   for (int i = 0; i < 4; ++i) {
-    cached->color_targets[i] = color_targets[i];
+    uint32_t color_target = color_targets[i];
+    if (color_target == -1u) {
+      color_target = 0;
+    }
+    cached->color_targets[i] = color_target;
     glNamedFramebufferTexture(cached->framebuffer, GL_COLOR_ATTACHMENT0 + i,
-                              color_targets[i], 0);
+                              color_target, 0);
+  }
+  if (depth_target == -1u) {
+    depth_target = 0;
   }
   cached->depth_target = depth_target;
   glNamedFramebufferTexture(cached->framebuffer, GL_DEPTH_STENCIL_ATTACHMENT,

@@ -51,6 +51,15 @@ enum class Endian : uint32_t {
   k16in32 = 3,
 };
 
+enum class Endian128 : uint32_t {
+  kUnspecified = 0,
+  k8in16 = 1,
+  k8in32 = 2,
+  k16in32 = 3,
+  k8in64 = 4,
+  k8in128 = 5,
+};
+
 enum class IndexFormat : uint32_t {
   kInt16,
   kInt32,
@@ -78,6 +87,40 @@ enum class ModeControl : uint32_t {
   kColorDepth = 4,
   kDepth = 5,
   kCopy = 6,
+};
+
+enum class CopyCommand : uint32_t {
+  kRaw = 0,
+  kConvert = 1,
+  kConstantOne = 2,
+  kNull = 3,  // ?
+};
+
+// Subset of a2xx_sq_surfaceformat.
+enum class ColorFormat : uint32_t {
+  kColor_8 = 2,
+  kColor_1_5_5_5 = 3,
+  kColor_5_6_5 = 4,
+  kColor_6_5_5 = 5,
+  kColor_8_8_8_8 = 6,
+  kColor_2_10_10_10 = 7,
+  kColor_8_A = 8,
+  kColor_8_B = 9,
+  kColor_8_8 = 10,
+  kColor_8_8_8_8_A = 14,
+  kColor_4_4_4_4 = 15,
+  kColor_10_11_11 = 16,
+  kColor_11_11_10 = 17,
+  kColor_16 = 24,
+  kColor_16_16 = 25,
+  kColor_16_16_16_16 = 26,
+  kColor_16_FLOAT = 30,
+  kColor_16_16_FLOAT = 31,
+  kColor_16_16_16_16_FLOAT = 32,
+  kColor_32_FLOAT = 36,
+  kColor_32_32_FLOAT = 37,
+  kColor_32_32_32_32_FLOAT = 38,
+  kColor_2_10_10_10_FLOAT = 62,
 };
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \

@@ -369,14 +369,16 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);  // ptr into primary ringbuffer
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t unk3 = SHIM_GET_ARG_32(3);  // ptr to 0xBEEF0000
-  uint32_t unk4 = SHIM_GET_ARG_32(4);  // 0xBEEF0001
-  uint32_t unk5 = SHIM_GET_ARG_32(5);
-  uint32_t unk6 = SHIM_GET_ARG_32(6);  // ptr to 6?
+  uint32_t unk3 = SHIM_GET_ARG_32(3);             // ptr to 0xBEEF0000
+  uint32_t unk4 = SHIM_GET_ARG_32(4);             // 0xBEEF0001
+  uint32_t frontbuffer_ptr = SHIM_GET_ARG_32(5);  // ptr to frontbuffer address
+  uint32_t unk6 = SHIM_GET_ARG_32(6);             // ptr to 6?
   uint32_t unk7 = SHIM_GET_ARG_32(7);
 
-  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1,
-         unk2, unk3, unk4, unk5, unk6, unk7);
+  uint32_t frontbuffer = SHIM_MEM_32(frontbuffer_ptr);
+
+  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X(%.8X), %.8X, %.8X)", unk0,
+         unk1, unk2, unk3, unk4, frontbuffer_ptr, frontbuffer, unk6, unk7);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
   // for this method to do what it needs. We just zero them out and send a
@@ -385,8 +387,9 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   // use this method.
   memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
-  dwords[0] = poly::byte_swap((0x03 << 30) | ((1 - 1) << 16) |
+  dwords[0] = poly::byte_swap((0x03 << 30) | ((63 - 1) << 16) |
                               (xe::gpu::xenos::PM4_XE_SWAP << 8));
+  dwords[1] = poly::byte_swap(frontbuffer);
 
   SHIM_SET_RETURN_64(0);
 }
