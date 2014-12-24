@@ -132,8 +132,10 @@ void CommandProcessor::WorkerMain() {
 
 bool CommandProcessor::SetupGL() {
   // Uniform buffer that stores the per-draw state (constants, etc).
-  glGenBuffers(1, &uniform_data_buffer_);
-  glNamedBufferStorage(uniform_data_buffer_, 16 * 1024, nullptr, GL_MAP_WRITE_BIT);
+  glCreateBuffers(1, &uniform_data_buffer_);
+  glBindBuffer(GL_UNIFORM_BUFFER, uniform_data_buffer_);
+  glNamedBufferStorage(uniform_data_buffer_, 16 * 1024, nullptr,
+                       GL_MAP_WRITE_BIT | GL_DYNAMIC_STORAGE_BIT);
 
   return true;
 }
@@ -857,25 +859,21 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
     assert_always();
   }
 
-  if (!PrepareDraw(&draw_command_)) {
-    PLOGE("Invalid DRAW_INDX; ignoring");
-    return false;
-  }
+  PrepareDraw(&draw_command_);
   draw_command_.prim_type = prim_type;
   draw_command_.start_index = 0;
   draw_command_.index_count = index_count;
   draw_command_.base_vertex = 0;
   if (src_sel == 0x0) {
     // Indexed draw.
-    // TODO(benvanik): detect subregions of larger index buffers
-    /*driver_->PrepareDrawIndexBuffer(
-        draw_command_, index_base, index_size,
-        endianness,
-        index_32bit ? INDEX_FORMAT_32BIT : INDEX_FORMAT_16BIT);*/
-    draw_command_.index_buffer = nullptr;
+    draw_command_.index_buffer.address = membase_ + index_base;
+    draw_command_.index_buffer.size = index_size;
+    draw_command_.index_buffer.endianess = index_endianness;
+    draw_command_.index_buffer.format =
+        index_32bit ? IndexFormat::kInt32 : IndexFormat::kInt16;
   } else if (src_sel == 0x2) {
     // Auto draw.
-    draw_command_.index_buffer = nullptr;
+    draw_command_.index_buffer.address = nullptr;
   } else {
     // Unknown source select.
     assert_always();
@@ -900,14 +898,12 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
   reader->CheckRead(indices_size / sizeof(uint32_t));
   uint32_t index_ptr = reader->ptr();
   reader->Advance(count - 1);
-  if (!PrepareDraw(&draw_command_)) {
-    return false;
-  }
+  PrepareDraw(&draw_command_);
   draw_command_.prim_type = prim_type;
   draw_command_.start_index = 0;
   draw_command_.index_count = index_count;
   draw_command_.base_vertex = 0;
-  draw_command_.index_buffer = nullptr;
+  draw_command_.index_buffer.address = nullptr;
   return IssueDraw(&draw_command_);
 }
 
@@ -1056,26 +1052,62 @@ bool CommandProcessor::LoadShader(ShaderType shader_type,
   return true;
 }
 
-bool CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
-  SCOPE_profile_cpu_f("gpu");
+void CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
   auto& regs = *register_file_;
   auto& cmd = *draw_command;
 
   // Reset the things we don't modify so that we have clean state.
   cmd.prim_type = PrimitiveType::kPointList;
   cmd.index_count = 0;
-  cmd.index_buffer = nullptr;
+  cmd.index_buffer.address = nullptr;
 
   // Generic stuff.
   cmd.start_index = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   cmd.base_vertex = 0;
+}
+
+bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+  auto& regs = *register_file_;
+  auto enable_mode =
+      static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+  if (enable_mode == ModeControl::kIgnore) {
+    // Ignored.
+    return true;
+  } else if (enable_mode == ModeControl::kCopy) {
+    // Special copy handling.
+    return IssueCopy(draw_command);
+  }
 
   if (!UpdateState(draw_command)) {
+    PLOGE("Unable to setup render state");
     return false;
   }
-  if (!UpdateRenderTargets()) {
+  if (!UpdateRenderTargets(draw_command)) {
+    PLOGE("Unable to setup render targets");
     return false;
   }
+
+  // if (!PopulateShaders(draw_command)) {
+  //  XELOGE("Unable to prepare draw shaders");
+  //  return false;
+  //}
+  // if (!PopulateSamplers(draw_command)) {
+  //  XELOGE("Unable to prepare draw samplers");
+  //  return false;
+  //}
+
+  // if (!PopulateIndexBuffer(draw_command)) {
+  //  PLOGE("Unable to setup index buffer");
+  //  return false;
+  //}
+  // if (!PopulateVertexBuffers(draw_command)) {
+  //  XELOGE("Unable to setup vertex buffers");
+  //  return false;
+  //}
+
+  // TODO(benvanik): draw.
+
   return true;
 }
 
@@ -1116,7 +1148,7 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
                 "Need <=16k uniform data");
 
   auto buffer_ptr = reinterpret_cast<UniformDataBlock*>(
-      glMapNamedBufferRange(uniform_data_buffer_, 0, 0,
+      glMapNamedBufferRange(uniform_data_buffer_, 0, 16 * 1024,
                             GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT));
   if (!buffer_ptr) {
     PLOGE("Unable to map uniform data buffer");
@@ -1150,7 +1182,7 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
       regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32;  // 0
 
   // Whether each of the viewport settings is enabled.
-  // We require it to be all or nothing right now.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
   bool vport_xoffset_enable = (vte_control & (1 << 1)) > 0;
@@ -1161,6 +1193,15 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   assert_true(vport_xscale_enable == vport_yscale_enable ==
               vport_zscale_enable == vport_xoffset_enable ==
               vport_yoffset_enable == vport_zoffset_enable);
+  // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
+  //            = false: multiply the X, Y coordinates by 1/W0.
+  bool vtx_xy_fmt = (vte_control >> 8) & 0x1;
+  // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
+  //           = false: multiply the Z coordinate by 1/W0.
+  bool vtx_z_fmt = (vte_control >> 9) & 0x1;
+  // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
+  //                    get 1/W0.
+  bool vtx_w0_fmt = (vte_control >> 10) & 0x1;
   // TODO(benvanik): pass to shaders? disable transform? etc?
   glViewport(0, 0, 1280, 720);
 
@@ -1298,24 +1339,24 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   glBlendColor(blend_color[0], blend_color[1], blend_color[2], blend_color[3]);
 
   static const GLenum compare_func_map[] = {
-    /*  0 */ GL_NEVER,
-    /*  1 */ GL_LESS,
-    /*  2 */ GL_EQUAL,
-    /*  3 */ GL_LEQUAL,
-    /*  4 */ GL_GREATER,
-    /*  5 */ GL_NOTEQUAL,
-    /*  6 */ GL_GEQUAL,
-    /*  7 */ GL_ALWAYS,
+      /*  0 */ GL_NEVER,
+      /*  1 */ GL_LESS,
+      /*  2 */ GL_EQUAL,
+      /*  3 */ GL_LEQUAL,
+      /*  4 */ GL_GREATER,
+      /*  5 */ GL_NOTEQUAL,
+      /*  6 */ GL_GEQUAL,
+      /*  7 */ GL_ALWAYS,
   };
   static const GLenum stencil_op_map[] = {
-    /*  0 */ GL_KEEP,
-    /*  1 */ GL_ZERO,
-    /*  2 */ GL_REPLACE,
-    /*  3 */ GL_INCR_WRAP,
-    /*  4 */ GL_DECR_WRAP,
-    /*  5 */ GL_INVERT,
-    /*  6 */ GL_INCR,
-    /*  7 */ GL_DECR,
+      /*  0 */ GL_KEEP,
+      /*  1 */ GL_ZERO,
+      /*  2 */ GL_REPLACE,
+      /*  3 */ GL_INCR_WRAP,
+      /*  4 */ GL_DECR_WRAP,
+      /*  5 */ GL_INVERT,
+      /*  6 */ GL_INCR,
+      /*  7 */ GL_DECR,
   };
   uint32_t depth_control = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   // A2XX_RB_DEPTHCONTROL_Z_ENABLE
@@ -1382,16 +1423,170 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   return true;
 }
 
-bool CommandProcessor::UpdateRenderTargets() {
+bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
   auto& regs = *register_file_;
+
+  auto enable_mode =
+      static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+
+  // RB_SURFACE_INFO
+  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = surface_info & 0x3FFF;
+  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
+
+  // Get/create all color render targets, if we are using them.
+  // In depth-only mode we don't need them.
+  GLuint color_targets[4] = {0, 0, 0, 0};
+  if (enable_mode == ModeControl::kColorDepth) {
+    uint32_t color_info[4] = {
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
+    };
+    for (int n = 0; n < poly::countof(color_info); n++) {
+      uint32_t color_base = color_info[n] & 0xFFF;
+      auto color_format =
+          static_cast<ColorRenderTargetFormat>((color_info[n] >> 16) & 0xF);
+      color_targets[n] = GetColorRenderTarget(surface_pitch, surface_msaa,
+                                              color_base, color_format);
+    }
+  }
+
+  uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  uint32_t depth_base = depth_info & 0xFFF;
+  auto depth_format =
+      static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+  GLuint depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa,
+                                             depth_base, depth_format);
+  // TODO(benvanik): when a game switches does it expect to keep the same
+  //     depth buffer contents?
+
+  // Get/create a framebuffer with the required targets.
+  GLuint framebuffer = GetFramebuffer(color_targets, depth_target);
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
   return true;
 }
 
-bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
-  SCOPE_profile_cpu_f("gpu");
-
+bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
+  // uint32_t copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
+  // uint32_t copy_dest_height = (copy_dest_pitch >> 16) & 0x3FFF;
+  // copy_dest_pitch &= 0x3FFF;
   return true;
+}
+
+GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
+                                              MsaaSamples samples,
+                                              uint32_t base,
+                                              ColorRenderTargetFormat format) {
+  // Because we don't know the height of anything, we allocate at full res.
+  // At 2560x2560, it's impossible for EDRAM to fit anymore.
+  uint32_t width = 2560;
+  uint32_t height = 2560;
+
+  // NOTE: we strip gamma formats down to normal ones.
+  if (format == ColorRenderTargetFormat::k8888Gamma) {
+    format = ColorRenderTargetFormat::k8888;
+  }
+
+  CachedColorRenderTarget* cached = nullptr;
+  for (auto& it = cached_color_render_targets_.begin();
+       it != cached_color_render_targets_.end(); ++it) {
+    if (it->base == base && it->width == width && it->height == height &&
+        it->format == format) {
+      return it->texture;
+    }
+  }
+  cached_color_render_targets_.push_back(CachedColorRenderTarget());
+  cached = &cached_color_render_targets_.back();
+  cached->base = base;
+  cached->width = width;
+  cached->height = height;
+  cached->format = format;
+
+  GLenum internal_format;
+  switch (format) {
+    case ColorRenderTargetFormat::k8888:
+    case ColorRenderTargetFormat::k8888Gamma:
+      internal_format = GL_RGBA8;
+      break;
+    default:
+      assert_unhandled_case(format);
+      return 0;
+  }
+
+  glCreateTextures(GL_TEXTURE_2D, 1, &cached->texture);
+  glTextureStorage2D(cached->texture, 1, internal_format, width, height);
+
+  return cached->texture;
+}
+
+GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
+                                              MsaaSamples samples,
+                                              uint32_t base,
+                                              DepthRenderTargetFormat format) {
+  uint32_t width = 2560;
+  uint32_t height = 2560;
+
+  CachedDepthRenderTarget* cached = nullptr;
+  for (auto& it = cached_depth_render_targets_.begin();
+       it != cached_depth_render_targets_.end(); ++it) {
+    if (it->base == base && it->width == width && it->height == height &&
+        it->format == format) {
+      return it->texture;
+    }
+  }
+  cached_depth_render_targets_.push_back(CachedDepthRenderTarget());
+  cached = &cached_depth_render_targets_.back();
+  cached->base = base;
+  cached->width = width;
+  cached->height = height;
+  cached->format = format;
+
+  GLenum internal_format;
+  switch (format) {
+    case DepthRenderTargetFormat::kD24S8:
+      internal_format = GL_DEPTH24_STENCIL8;
+      break;
+    case DepthRenderTargetFormat::kD24FS8:
+    // TODO(benvanik): not supported in GL?
+    default:
+      assert_unhandled_case(format);
+      return 0;
+  }
+
+  glCreateTextures(GL_TEXTURE_2D, 1, &cached->texture);
+  glTextureStorage2D(cached->texture, 1, internal_format, width, height);
+
+  return cached->texture;
+}
+
+GLuint CommandProcessor::GetFramebuffer(GLuint color_targets[4],
+                                        GLuint depth_target) {
+  CachedFramebuffer* cached = nullptr;
+  for (auto& it = cached_framebuffers_.begin();
+       it != cached_framebuffers_.end(); ++it) {
+    if (it->depth_target == depth_target &&
+        it->color_targets[0] == color_targets[0] &&
+        it->color_targets[1] == color_targets[1] &&
+        it->color_targets[2] == color_targets[2] &&
+        it->color_targets[3] == color_targets[3]) {
+      return it->framebuffer;
+    }
+  }
+  cached_framebuffers_.push_back(CachedFramebuffer());
+  cached = &cached_framebuffers_.back();
+  glCreateFramebuffers(1, &cached->framebuffer);
+  for (int i = 0; i < 4; ++i) {
+    cached->color_targets[i] = color_targets[i];
+    glNamedFramebufferTexture(cached->framebuffer, GL_COLOR_ATTACHMENT0 + i,
+                              color_targets[i], 0);
+  }
+  cached->depth_target = depth_target;
+  glNamedFramebufferTexture(cached->framebuffer, GL_DEPTH_STENCIL_ATTACHMENT,
+                            depth_target, 0);
+  return cached->framebuffer;
 }
 
 }  // namespace gl4

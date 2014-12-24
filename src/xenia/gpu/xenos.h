@@ -51,6 +51,35 @@ enum class Endian : uint32_t {
   k16in32 = 3,
 };
 
+enum class IndexFormat : uint32_t {
+  kInt16,
+  kInt32,
+};
+
+enum class MsaaSamples : uint32_t {
+  k1X = 0,
+  k2X = 1,
+  k4X = 2,
+};
+
+enum class ColorRenderTargetFormat : uint32_t {
+  k8888 = 0,       // D3DFMT_A8R8G8B8 (or ABGR?)
+  k8888Gamma = 1,  // D3DFMT_A8R8G8B8 with gamma correction
+                   // ...
+};
+
+enum class DepthRenderTargetFormat : uint32_t {
+  kD24S8 = 0,
+  kD24FS8 = 1,
+};
+
+enum class ModeControl : uint32_t {
+  kIgnore = 0,
+  kColorDepth = 4,
+  kDepth = 5,
+  kCopy = 6,
+};
+
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
   (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | \
    ((XE_GPU_SWIZZLE_##z) << 6) | ((XE_GPU_SWIZZLE_##w) << 9))

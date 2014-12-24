@@ -22,6 +22,9 @@ Shader::Shader(ShaderType shader_type, uint64_t data_hash,
     : shader_type_(shader_type), data_hash_(data_hash), is_valid_(false) {
   data_.resize(dword_count);
   poly::copy_and_swap(data_.data(), dword_ptr, dword_count);
+  std::memset(&alloc_counts_, 0, sizeof(alloc_counts_));
+  std::memset(&buffer_inputs_, 0, sizeof(buffer_inputs_));
+  std::memset(&sampler_inputs_, 0, sizeof(sampler_inputs_));
 
   // Disassemble ucode and stash.
   // TODO(benvanik): debug only.

@@ -41,13 +41,17 @@ struct DrawCommand {
 
   // Index buffer, if present.
   // If index_count > 0 but buffer is nullptr then auto draw.
-  //IndexBufferResource* index_buffer;
-  void* index_buffer;
+  struct {
+    const uint8_t* address;
+    size_t size;
+    xenos::Endian endianess;
+    xenos::IndexFormat format;
+  } index_buffer;
 
   // Vertex buffers.
   struct {
     uint32_t input_index;
-    //VertexBufferResource* buffer;
+    // VertexBufferResource* buffer;
     uint32_t stride;
     uint32_t offset;
   } vertex_buffers[96];
@@ -56,8 +60,8 @@ struct DrawCommand {
   // Texture samplers.
   struct SamplerInput {
     uint32_t input_index;
-    //TextureResource* texture;
-    //SamplerStateResource* sampler_state;
+    // TextureResource* texture;
+    // SamplerStateResource* sampler_state;
   };
   SamplerInput vertex_shader_samplers[32];
   size_t vertex_shader_sampler_count;
@@ -156,10 +160,21 @@ class CommandProcessor {
   bool LoadShader(ShaderType shader_type, const uint32_t* address,
                   uint32_t dword_count);
 
-  bool PrepareDraw(DrawCommand* draw_command);
-  bool UpdateState(DrawCommand* draw_command);
-  bool UpdateRenderTargets();
+  void PrepareDraw(DrawCommand* draw_command);
   bool IssueDraw(DrawCommand* draw_command);
+  bool UpdateState(DrawCommand* draw_command);
+  bool UpdateRenderTargets(DrawCommand* draw_command);
+  // bool PopulateIndexBuffer(DrawCommand* draw_command);
+  // bool PopulateVertexBuffers(DrawCommand* draw_command);
+  bool IssueCopy(DrawCommand* draw_command);
+
+  GLuint GetFramebuffer(GLuint color_targets[4], GLuint depth_target);
+  GLuint GetColorRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
+                              uint32_t base,
+                              xenos::ColorRenderTargetFormat format);
+  GLuint GetDepthRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
+                              uint32_t base,
+                              xenos::DepthRenderTargetFormat format);
 
   Memory* memory_;
   uint8_t* membase_;
@@ -195,6 +210,29 @@ class CommandProcessor {
   GLuint uniform_data_buffer_;
 
   DrawCommand draw_command_;
+
+  struct CachedFramebuffer {
+    GLuint color_targets[4];
+    GLuint depth_target;
+    GLuint framebuffer;
+  };
+  std::vector<CachedFramebuffer> cached_framebuffers_;
+  struct CachedColorRenderTarget {
+    uint32_t base;
+    uint32_t width;
+    uint32_t height;
+    xenos::ColorRenderTargetFormat format;
+    GLuint texture;
+  };
+  std::vector<CachedColorRenderTarget> cached_color_render_targets_;
+  struct CachedDepthRenderTarget {
+    uint32_t base;
+    uint32_t width;
+    uint32_t height;
+    xenos::DepthRenderTargetFormat format;
+    GLuint texture;
+  };
+  std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
 };
 
 }  // namespace gl4

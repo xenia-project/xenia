@@ -106,6 +106,10 @@ bool GLContext::Initialize(HWND hwnd) {
     return false;
   }
 
+  while (glGetError()) {
+    // Clearing errors.
+  }
+
   return true;
 }
 
@@ -144,6 +148,10 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
 
   new_context->ClearCurrent();
   MakeCurrent();
+
+  while (glGetError()) {
+    // Clearing errors.
+  }
 
   return new_context;
 }
