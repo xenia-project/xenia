@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_GL4_GL_CONTEXT_H_
 #define XENIA_GPU_GL4_GL_CONTEXT_H_
 
+#include <memory>
+
 #include <third_party/GL/glew.h>
 #include <third_party/GL/wglew.h>
 
@@ -20,16 +22,20 @@ namespace gl4 {
 class GLContext {
  public:
   GLContext();
+  GLContext(HWND hwnd, HGLRC glrc);
   ~GLContext();
 
-  bool Initialize(HDC dc);
+  bool Initialize(HWND hwnd);
 
   HDC dc() const { return dc_; }
+
+  std::unique_ptr<GLContext> CreateShared();
 
   bool MakeCurrent();
   void ClearCurrent();
 
  private:
+  HWND hwnd_;
   HDC dc_;
   HGLRC glrc_;
 

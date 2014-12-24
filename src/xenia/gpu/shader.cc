@@ -100,7 +100,8 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
     uint32_t alu_off = (cf->address + i);
     int sync = sequence & 0x2;
     if (sequence & 0x1) {
-      auto fetch = reinterpret_cast<const instr_fetch_t*>(&data_[alu_off * 3]);
+      auto fetch =
+          reinterpret_cast<const instr_fetch_t*>(data_.data() + alu_off * 3);
       switch (fetch->opc) {
         case VTX_FETCH:
           GatherVertexFetch(&fetch->vtx);
@@ -121,7 +122,8 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
       }
     } else {
       // TODO(benvanik): gather registers used, predicate bits used, etc.
-      auto alu = reinterpret_cast<const instr_alu_t*>(&data_[alu_off * 3]);
+      auto alu =
+          reinterpret_cast<const instr_alu_t*>(data_.data() + alu_off * 3);
       if (alu->vector_write_mask) {
         if (alu->export_data && alu->vector_dest == 63) {
           alloc_counts_.point_size = true;

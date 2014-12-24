@@ -12,10 +12,12 @@
 
 #include <atomic>
 #include <functional>
+#include <memory>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 
+#include <xenia/gpu/gl4/gl_context.h>
 #include <xenia/gpu/gl4/gl4_shader.h>
 #include <xenia/gpu/register_file.h>
 #include <xenia/gpu/xenos.h>
@@ -26,6 +28,42 @@ namespace gpu {
 namespace gl4 {
 
 class GL4GraphicsSystem;
+
+// TODO(benvanik): move more of the enums in here?
+struct DrawCommand {
+  PrimitiveType prim_type;
+  uint32_t start_index;
+  uint32_t index_count;
+  uint32_t base_vertex;
+
+  GL4Shader* vertex_shader;
+  GL4Shader* pixel_shader;
+
+  // Index buffer, if present.
+  // If index_count > 0 but buffer is nullptr then auto draw.
+  //IndexBufferResource* index_buffer;
+  void* index_buffer;
+
+  // Vertex buffers.
+  struct {
+    uint32_t input_index;
+    //VertexBufferResource* buffer;
+    uint32_t stride;
+    uint32_t offset;
+  } vertex_buffers[96];
+  size_t vertex_buffer_count;
+
+  // Texture samplers.
+  struct SamplerInput {
+    uint32_t input_index;
+    //TextureResource* texture;
+    //SamplerStateResource* sampler_state;
+  };
+  SamplerInput vertex_shader_samplers[32];
+  size_t vertex_shader_sampler_count;
+  SamplerInput pixel_shader_samplers[32];
+  size_t pixel_shader_sampler_count;
+};
 
 class CommandProcessor {
  public:
@@ -38,8 +76,10 @@ class CommandProcessor {
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
 
-  void Initialize(uint32_t ptr, uint32_t page_count);
+  bool Initialize(std::unique_ptr<GLContext> context);
   void Shutdown();
+
+  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   void UpdateWritePointer(uint32_t value);
@@ -48,9 +88,12 @@ class CommandProcessor {
   class RingbufferReader;
 
   void WorkerMain();
+  bool SetupGL();
+  void ShutdownGL();
 
   void WriteRegister(uint32_t packet_ptr, uint32_t index, uint32_t value);
   void MakeCoherent();
+  void PrepareForWait();
 
   void ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
@@ -113,6 +156,11 @@ class CommandProcessor {
   bool LoadShader(ShaderType shader_type, const uint32_t* address,
                   uint32_t dword_count);
 
+  bool PrepareDraw(DrawCommand* draw_command);
+  bool UpdateState(DrawCommand* draw_command);
+  bool UpdateRenderTargets();
+  bool IssueDraw(DrawCommand* draw_command);
+
   Memory* memory_;
   uint8_t* membase_;
   GL4GraphicsSystem* graphics_system_;
@@ -120,7 +168,7 @@ class CommandProcessor {
 
   std::thread worker_thread_;
   std::atomic<bool> worker_running_;
-
+  std::unique_ptr<GLContext> context_;
   std::function<void()> swap_handler_;
 
   uint64_t time_base_;
@@ -143,6 +191,10 @@ class CommandProcessor {
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
   GL4Shader* active_vertex_shader_;
   GL4Shader* active_pixel_shader_;
+
+  GLuint uniform_data_buffer_;
+
+  DrawCommand draw_command_;
 };
 
 }  // namespace gl4

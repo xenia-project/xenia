@@ -32,9 +32,19 @@ X_STATUS GL4GraphicsSystem::Setup() {
   // This must happen on the UI thread.
   poly::threading::Fence control_ready_fence;
   auto loop = emulator_->main_window()->loop();
+  std::unique_ptr<GLContext> processor_context;
   loop->Post([&]() {
+    // Setup the GL control that actually does the drawing.
+    // We run here in the loop and only touch it (and its context) on this
+    // thread. That means some sync-fu when we want to swap.
     control_ = std::make_unique<WGLControl>(loop);
     emulator_->main_window()->AddChild(control_.get());
+
+    // Setup the GL context the command processor will do all its drawing in.
+    // It's shared with the control context so that we can resolve framebuffers
+    // from it.
+    processor_context = control_->context()->CreateShared();
+
     control_ready_fence.Signal();
   });
   control_ready_fence.Wait();
@@ -42,6 +52,10 @@ X_STATUS GL4GraphicsSystem::Setup() {
   // Create command processor. This will spin up a thread to process all
   // incoming ringbuffer packets.
   command_processor_ = std::make_unique<CommandProcessor>(this);
+  if (!command_processor_->Initialize(std::move(processor_context))) {
+    PLOGE("Unable to initialize command processor");
+    return X_STATUS_UNSUCCESSFUL;
+  }
   command_processor_->set_swap_handler(
       std::bind(&GL4GraphicsSystem::SwapHandler, this));
 
@@ -76,7 +90,7 @@ void GL4GraphicsSystem::Shutdown() {
 
 void GL4GraphicsSystem::InitializeRingBuffer(uint32_t ptr,
                                              uint32_t page_count) {
-  command_processor_->Initialize(ptr, page_count);
+  command_processor_->InitializeRingBuffer(ptr, page_count);
 }
 
 void GL4GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,

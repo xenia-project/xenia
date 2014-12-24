@@ -56,13 +56,7 @@ bool WGLControl::Create() {
     return false;
   }
 
-  HDC dc = GetDC(hwnd_);
-  if (!dc) {
-    PLOGE("No DC for WGL window");
-    return false;
-  }
-
-  if (!context_.Initialize(dc)) {
+  if (!context_.Initialize(hwnd_)) {
     PFATAL("Unable to initialize GL context");
     return false;
   }

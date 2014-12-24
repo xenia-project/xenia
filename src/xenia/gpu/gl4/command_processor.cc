@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include <poly/logging.h>
+#include <poly/math.h>
 #include <xenia/gpu/gl4/gl4_graphics_system.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/xenos.h>
@@ -26,6 +27,8 @@ namespace gpu {
 namespace gl4 {
 
 using namespace xe::gpu::xenos;
+
+extern "C" extern "C" GLEWContext* glewGetContext();
 
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
     : memory_(graphics_system->memory()),
@@ -46,6 +49,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       bin_mask_(0xFFFFFFFFull),
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr) {
+  std::memset(&draw_command_, 0, sizeof(draw_command_));
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
   time_base_ = perf_counter.QuadPart;
@@ -59,33 +63,37 @@ uint64_t CommandProcessor::QueryTime() {
   return perf_counter.QuadPart - time_base_;
 }
 
-void CommandProcessor::Initialize(uint32_t ptr, uint32_t page_count) {
-  primary_buffer_ptr_ = ptr;
-  // Not sure this is correct, but it's a way to take the page_count back to
-  // the number of bytes allocated by the physical alloc.
-  uint32_t original_size = 1 << (0x1C - page_count - 1);
-  primary_buffer_size_ = original_size;
-  read_ptr_index_ = 0;
+bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
+  context_ = std::move(context);
 
   worker_running_ = true;
   worker_thread_ = std::thread([this]() {
     poly::threading::set_name("GL4 Worker");
     xe::Profiler::ThreadEnter("GL4 Worker");
+    context_->MakeCurrent();
     WorkerMain();
     xe::Profiler::ThreadExit();
   });
+
+  return true;
 }
 
 void CommandProcessor::Shutdown() {
   worker_running_ = false;
   SetEvent(write_ptr_index_event_);
   worker_thread_.join();
+  context_.reset();
 
   all_shaders_.clear();
   shader_cache_.clear();
 }
 
 void CommandProcessor::WorkerMain() {
+  if (!SetupGL()) {
+    PFATAL("Unable to setup command processor GL state");
+    return;
+  }
+
   while (worker_running_) {
     uint32_t write_ptr_index = write_ptr_index_.load();
     while (write_ptr_index == 0xBAADF00D ||
@@ -94,6 +102,7 @@ void CommandProcessor::WorkerMain() {
       // We wait a short bit here to yield time. Since we are also running the
       // main window display we don't want to pause too long, though.
       // YieldProcessor();
+      PrepareForWait();
       const int wait_time_ms = 5;
       if (WaitForSingleObject(write_ptr_index_event_, wait_time_ms) ==
           WAIT_TIMEOUT) {
@@ -117,6 +126,28 @@ void CommandProcessor::WorkerMain() {
                                      read_ptr_index_);
     }
   }
+
+  ShutdownGL();
+}
+
+bool CommandProcessor::SetupGL() {
+  // Uniform buffer that stores the per-draw state (constants, etc).
+  glGenBuffers(1, &uniform_data_buffer_);
+  glNamedBufferStorage(uniform_data_buffer_, 16 * 1024, nullptr, GL_MAP_WRITE_BIT);
+
+  return true;
+}
+
+void CommandProcessor::ShutdownGL() {
+  glDeleteBuffers(1, &uniform_data_buffer_);
+}
+
+void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
+  primary_buffer_ptr_ = ptr;
+  // Not sure this is correct, but it's a way to take the page_count back to
+  // the number of bytes allocated by the physical alloc.
+  uint32_t original_size = 1 << (0x1C - page_count - 1);
+  primary_buffer_size_ = original_size;
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
@@ -162,6 +193,8 @@ void CommandProcessor::WriteRegister(uint32_t packet_ptr, uint32_t index,
 }
 
 void CommandProcessor::MakeCoherent() {
+  SCOPE_profile_cpu_f("gpu");
+
   // Status host often has 0x01000000 or 0x03000000.
   // This is likely toggling VC (vertex cache) or TC (texture cache).
   // Or, it also has a direction in here maybe - there is probably
@@ -187,6 +220,16 @@ void CommandProcessor::MakeCoherent() {
   // Mark coherent.
   status_host &= ~0x80000000ul;
   regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32 = status_host;
+}
+
+void CommandProcessor::PrepareForWait() {
+  SCOPE_profile_cpu_f("gpu");
+
+  // TODO(benvanik): fences and fancy stuff. We should figure out a way to
+  // make interrupt callbacks from the GPU so that we don't have to do a full
+  // synchronize here.
+  // glFlush();
+  glFinish();
 }
 
 class CommandProcessor::RingbufferReader {
@@ -274,6 +317,8 @@ void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
 }
 
 void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
+  SCOPE_profile_cpu_f("gpu");
+
   XETRACECP("[%.8X] ExecuteIndirectBuffer(%dw)", ptr, length);
 
   // Execute commands!
@@ -625,6 +670,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
     if (!matched) {
       // Wait.
       if (wait >= 0x100) {
+        PrepareForWait();
         Sleep(wait / 0x100);
       } else {
         SwitchToThread();
@@ -790,14 +836,19 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
   uint32_t dword1 = reader->Read();
   uint32_t index_count = dword1 >> 16;
   auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
+
+  uint32_t index_base = 0;
+  uint32_t index_size = 0;
+  Endian index_endianness = Endian::kUnspecified;
+  bool index_32bit = false;
   uint32_t src_sel = (dword1 >> 6) & 0x3;
   if (src_sel == 0x0) {
     // Indexed draw.
-    uint32_t index_base = reader->Read();
-    uint32_t index_size = reader->Read();
-    auto endianness = static_cast<Endian>(index_size >> 30);
+    index_base = reader->Read();
+    index_size = reader->Read();
+    index_endianness = static_cast<Endian>(index_size >> 30);
     index_size &= 0x00FFFFFF;
-    bool index_32bit = (dword1 >> 11) & 0x1;
+    index_32bit = (dword1 >> 11) & 0x1;
     index_size *= index_32bit ? 4 : 2;
   } else if (src_sel == 0x2) {
     // Auto draw.
@@ -805,33 +856,31 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
     // Unknown source select.
     assert_always();
   }
-  //  if (!driver_->PrepareDraw(draw_command_)) {
-  //    draw_command_.prim_type = prim_type;
-  //    draw_command_.start_index = 0;
-  //    draw_command_.index_count = index_count;
-  //    draw_command_.base_vertex = 0;
-  //    if (src_sel == 0x0) {
-  //      // Indexed draw.
-  //      // TODO(benvanik): detect subregions of larger index
-  //      buffers!
-  //      driver_->PrepareDrawIndexBuffer(
-  //          draw_command_, index_base, index_size,
-  //          endianness,
-  //          index_32bit ? INDEX_FORMAT_32BIT : INDEX_FORMAT_16BIT);
-  //    } else if (src_sel == 0x2) {
-  //      // Auto draw.
-  //      draw_command_.index_buffer = nullptr;
-  //    } else {
-  //      // Unknown source select.
-  //      assert_always();
-  //    }
-  //    driver_->Draw(draw_command_);
-  //  } else {
-  //    if (src_sel == 0x0) {
-  //      reader->Advance(2);  // skip
-  //    }
-  //  }
-  return true;
+
+  if (!PrepareDraw(&draw_command_)) {
+    PLOGE("Invalid DRAW_INDX; ignoring");
+    return false;
+  }
+  draw_command_.prim_type = prim_type;
+  draw_command_.start_index = 0;
+  draw_command_.index_count = index_count;
+  draw_command_.base_vertex = 0;
+  if (src_sel == 0x0) {
+    // Indexed draw.
+    // TODO(benvanik): detect subregions of larger index buffers
+    /*driver_->PrepareDrawIndexBuffer(
+        draw_command_, index_base, index_size,
+        endianness,
+        index_32bit ? INDEX_FORMAT_32BIT : INDEX_FORMAT_16BIT);*/
+    draw_command_.index_buffer = nullptr;
+  } else if (src_sel == 0x2) {
+    // Auto draw.
+    draw_command_.index_buffer = nullptr;
+  } else {
+    // Unknown source select.
+    assert_always();
+  }
+  return IssueDraw(&draw_command_);
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
@@ -849,16 +898,17 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
   bool index_32bit = (dword0 >> 11) & 0x1;
   uint32_t indices_size = index_count * (index_32bit ? 4 : 2);
   reader->CheckRead(indices_size / sizeof(uint32_t));
-  /*if (!driver_->PrepareDraw(draw_command_)) {
+  uint32_t index_ptr = reader->ptr();
+  reader->Advance(count - 1);
+  if (!PrepareDraw(&draw_command_)) {
+    return false;
+  }
   draw_command_.prim_type = prim_type;
   draw_command_.start_index = 0;
   draw_command_.index_count = index_count;
   draw_command_.base_vertex = 0;
   draw_command_.index_buffer = nullptr;
-  driver_->Draw(draw_command_);
-  }*/
-  reader->Advance(count - 1);
-  return true;
+  return IssueDraw(&draw_command_);
 }
 
 bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
@@ -967,6 +1017,8 @@ bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(
 bool CommandProcessor::LoadShader(ShaderType shader_type,
                                   const uint32_t* address,
                                   uint32_t dword_count) {
+  SCOPE_profile_cpu_f("gpu");
+
   // Hash the input memory and lookup the shader.
   GL4Shader* shader_ptr = nullptr;
   uint64_t hash = XXH64(address, dword_count * sizeof(uint32_t), 0);
@@ -1001,6 +1053,344 @@ bool CommandProcessor::LoadShader(ShaderType shader_type,
       assert_unhandled_case(shader_type);
       return false;
   }
+  return true;
+}
+
+bool CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+  auto& regs = *register_file_;
+  auto& cmd = *draw_command;
+
+  // Reset the things we don't modify so that we have clean state.
+  cmd.prim_type = PrimitiveType::kPointList;
+  cmd.index_count = 0;
+  cmd.index_buffer = nullptr;
+
+  // Generic stuff.
+  cmd.start_index = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
+  cmd.base_vertex = 0;
+
+  if (!UpdateState(draw_command)) {
+    return false;
+  }
+  if (!UpdateRenderTargets()) {
+    return false;
+  }
+  return true;
+}
+
+bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
+  // Much of this state machine is extracted from:
+  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
+  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+
+  auto& regs = *register_file_;
+
+  union float4 {
+    float v[4];
+    struct {
+      float x, y, z, w;
+    };
+  };
+  struct UniformDataBlock {
+    float4 window_offset;    // tx,ty,?,?
+    float4 window_scissor;   // x0,y0,x1,y1
+    float4 viewport_offset;  // tx,ty,tz,?
+    float4 viewport_scale;   // sx,sy,sz,?
+    // TODO(benvanik): vertex format xyzw?
+
+    float4 alpha_test;  // alpha test enable, func, ref, ?
+
+    // Register data from 0x4000 to 0x4927.
+    // SHADER_CONSTANT_000_X...
+    float4 float_consts[512];
+    // SHADER_CONSTANT_FETCH_00_0...
+    uint32_t fetch_consts[32 * 6];
+    // SHADER_CONSTANT_BOOL_000_031...
+    int32_t bool_consts[8];
+    // SHADER_CONSTANT_LOOP_00...
+    int32_t loop_consts[32];
+  };
+  static_assert(sizeof(UniformDataBlock) <= 16 * 1024,
+                "Need <=16k uniform data");
+
+  auto buffer_ptr = reinterpret_cast<UniformDataBlock*>(
+      glMapNamedBufferRange(uniform_data_buffer_, 0, 0,
+                            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT));
+  if (!buffer_ptr) {
+    PLOGE("Unable to map uniform data buffer");
+    return false;
+  }
+
+  // Window parameters.
+  // See r200UpdateWindow:
+  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
+  uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+  buffer_ptr->window_offset.x = float(window_offset & 0x7FFF);
+  buffer_ptr->window_offset.y = float((window_offset >> 16) & 0x7FFF);
+  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  buffer_ptr->window_scissor.x = float(window_scissor_tl & 0x7FFF);
+  buffer_ptr->window_scissor.y = float((window_scissor_tl >> 16) & 0x7FFF);
+  buffer_ptr->window_scissor.z = float(window_scissor_br & 0x7FFF);
+  buffer_ptr->window_scissor.w = float((window_scissor_br >> 16) & 0x7FFF);
+
+  // Viewport scaling. Only enabled if the flags are all set.
+  buffer_ptr->viewport_scale.x =
+      regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;  // 640
+  buffer_ptr->viewport_offset.x =
+      regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32;  // 640
+  buffer_ptr->viewport_scale.y =
+      regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;  // -360
+  buffer_ptr->viewport_offset.y =
+      regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;  // 360
+  buffer_ptr->viewport_scale.z = regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32;  // 1
+  buffer_ptr->viewport_offset.z =
+      regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32;  // 0
+
+  // Whether each of the viewport settings is enabled.
+  // We require it to be all or nothing right now.
+  uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
+  bool vport_xoffset_enable = (vte_control & (1 << 1)) > 0;
+  bool vport_yscale_enable = (vte_control & (1 << 2)) > 0;
+  bool vport_yoffset_enable = (vte_control & (1 << 3)) > 0;
+  bool vport_zscale_enable = (vte_control & (1 << 4)) > 0;
+  bool vport_zoffset_enable = (vte_control & (1 << 5)) > 0;
+  assert_true(vport_xscale_enable == vport_yscale_enable ==
+              vport_zscale_enable == vport_xoffset_enable ==
+              vport_yoffset_enable == vport_zoffset_enable);
+  // TODO(benvanik): pass to shaders? disable transform? etc?
+  glViewport(0, 0, 1280, 720);
+
+  // Copy over all constants.
+  // TODO(benvanik): partial updates, etc. We could use shader constant access
+  // knowledge that we get at compile time to only upload those constants
+  // required.
+  std::memcpy(
+      &buffer_ptr->float_consts, &regs[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
+      sizeof(buffer_ptr->float_consts) + sizeof(buffer_ptr->fetch_consts) +
+          sizeof(buffer_ptr->loop_consts) + sizeof(buffer_ptr->bool_consts));
+
+  // Scissoring.
+  int32_t screen_scissor_tl = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
+  int32_t screen_scissor_br = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR].u32;
+  if (screen_scissor_tl != 0 && screen_scissor_br != 0x20002000) {
+    glEnable(GL_SCISSOR_TEST);
+    // TODO(benvanik): signed?
+    int32_t screen_scissor_x = screen_scissor_tl & 0x7FFF;
+    int32_t screen_scissor_y = (screen_scissor_tl >> 16) & 0x7FFF;
+    int32_t screen_scissor_w = screen_scissor_br & 0x7FFF - screen_scissor_x;
+    int32_t screen_scissor_h =
+        (screen_scissor_br >> 16) & 0x7FFF - screen_scissor_y;
+    glScissor(screen_scissor_x, screen_scissor_y, screen_scissor_w,
+              screen_scissor_h);
+  } else {
+    glDisable(GL_SCISSOR_TEST);
+  }
+
+  // Rasterizer state.
+  uint32_t mode_control = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  if (draw_command->prim_type == PrimitiveType::kRectangleList) {
+    // Rect lists aren't culled. There may be other things they skip too.
+    glDisable(GL_CULL_FACE);
+  } else {
+    switch (mode_control & 0x3) {
+      case 0:
+        glDisable(GL_CULL_FACE);
+        break;
+      case 1:
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_FRONT);
+        break;
+      case 2:
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        break;
+    }
+  }
+  if (mode_control & 0x4) {
+    glFrontFace(GL_CW);
+  } else {
+    glFrontFace(GL_CCW);
+  }
+  // TODO(benvanik): wireframe mode.
+  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
+  // Deprecated in GL, implemented in shader.
+  // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
+  uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
+  buffer_ptr->alpha_test.x =
+      (color_control & 0x4) ? 1.0f : 0.0f;                // ALPAHTESTENABLE
+  buffer_ptr->alpha_test.y = float(color_control & 0x3);  // ALPHAFUNC
+  buffer_ptr->alpha_test.z = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+
+  static const GLenum blend_map[] = {
+      /*  0 */ GL_ZERO,
+      /*  1 */ GL_ONE,
+      /*  2 */ GL_ZERO,  // ?
+      /*  3 */ GL_ZERO,  // ?
+      /*  4 */ GL_SRC_COLOR,
+      /*  5 */ GL_ONE_MINUS_SRC_COLOR,
+      /*  6 */ GL_SRC_ALPHA,
+      /*  7 */ GL_ONE_MINUS_SRC_ALPHA,
+      /*  8 */ GL_DST_COLOR,
+      /*  9 */ GL_ONE_MINUS_DST_COLOR,
+      /* 10 */ GL_DST_ALPHA,
+      /* 11 */ GL_ONE_MINUS_DST_ALPHA,
+      /* 12 */ GL_CONSTANT_COLOR,
+      /* 13 */ GL_ONE_MINUS_CONSTANT_COLOR,
+      /* 14 */ GL_CONSTANT_ALPHA,
+      /* 15 */ GL_ONE_MINUS_CONSTANT_ALPHA,
+      /* 16 */ GL_SRC_ALPHA_SATURATE,
+  };
+  static const GLenum blend_op_map[] = {
+      /*  0 */ GL_FUNC_ADD,
+      /*  1 */ GL_FUNC_SUBTRACT,
+      /*  2 */ GL_MIN,
+      /*  3 */ GL_MAX,
+      /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
+  };
+  uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+  uint32_t blend_control[4] = {
+      regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
+      regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
+      regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
+      regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
+  };
+  for (int n = 0; n < poly::countof(blend_control); n++) {
+    // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
+    auto src_blend = blend_map[(blend_control[n] & 0x0000001F) >> 0];
+    // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
+    auto dest_blend = blend_map[(blend_control[n] & 0x00001F00) >> 8];
+    // A2XX_RB_BLEND_CONTROL_COLOR_COMB_FCN
+    auto blend_op = blend_op_map[(blend_control[n] & 0x000000E0) >> 5];
+    // A2XX_RB_BLEND_CONTROL_ALPHA_SRCBLEND
+    auto src_blend_alpha = blend_map[(blend_control[n] & 0x001F0000) >> 16];
+    // A2XX_RB_BLEND_CONTROL_ALPHA_DESTBLEND
+    auto dest_blend_alpha = blend_map[(blend_control[n] & 0x1F000000) >> 24];
+    // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
+    auto blend_op_alpha = blend_op_map[(blend_control[n] & 0x00E00000) >> 21];
+    // A2XX_RB_COLOR_MASK_WRITE_*
+    uint32_t write_mask = (color_mask >> (n * 4)) & 0xF;
+    // A2XX_RB_COLORCONTROL_BLEND_DISABLE ?? Can't find this!
+    // Just guess based on actions.
+    bool blend_enable =
+        !((src_blend == GL_ONE) && (dest_blend == GL_ZERO) &&
+          (blend_op == GL_FUNC_ADD) && (src_blend_alpha == GL_ONE) &&
+          (dest_blend_alpha == GL_ZERO) && (blend_op_alpha == GL_FUNC_ADD));
+    if (blend_enable) {
+      glEnablei(GL_BLEND, n);
+      glBlendEquationSeparatei(n, blend_op, blend_op_alpha);
+      glBlendFuncSeparatei(n, src_blend, dest_blend, src_blend_alpha,
+                           dest_blend_alpha);
+    } else {
+      glDisablei(GL_BLEND, n);
+    }
+  }
+  float blend_color[4] = {
+      regs[XE_GPU_REG_RB_BLEND_RED].f32, regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
+      regs[XE_GPU_REG_RB_BLEND_BLUE].f32, regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+  };
+  glBlendColor(blend_color[0], blend_color[1], blend_color[2], blend_color[3]);
+
+  static const GLenum compare_func_map[] = {
+    /*  0 */ GL_NEVER,
+    /*  1 */ GL_LESS,
+    /*  2 */ GL_EQUAL,
+    /*  3 */ GL_LEQUAL,
+    /*  4 */ GL_GREATER,
+    /*  5 */ GL_NOTEQUAL,
+    /*  6 */ GL_GEQUAL,
+    /*  7 */ GL_ALWAYS,
+  };
+  static const GLenum stencil_op_map[] = {
+    /*  0 */ GL_KEEP,
+    /*  1 */ GL_ZERO,
+    /*  2 */ GL_REPLACE,
+    /*  3 */ GL_INCR_WRAP,
+    /*  4 */ GL_DECR_WRAP,
+    /*  5 */ GL_INVERT,
+    /*  6 */ GL_INCR,
+    /*  7 */ GL_DECR,
+  };
+  uint32_t depth_control = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  // A2XX_RB_DEPTHCONTROL_Z_ENABLE
+  if (depth_control & 0x00000002) {
+    glEnable(GL_DEPTH_TEST);
+  } else {
+    glDisable(GL_DEPTH_TEST);
+  }
+  // A2XX_RB_DEPTHCONTROL_Z_WRITE_ENABLE
+  glDepthMask((depth_control & 0x00000004) ? GL_TRUE : GL_FALSE);
+  // A2XX_RB_DEPTHCONTROL_EARLY_Z_ENABLE
+  // ?
+  // A2XX_RB_DEPTHCONTROL_ZFUNC
+  glDepthFunc(compare_func_map[(depth_control & 0x00000070) >> 4]);
+  // A2XX_RB_DEPTHCONTROL_STENCIL_ENABLE
+  if (depth_control & 0x00000001) {
+    glEnable(GL_STENCIL_TEST);
+  } else {
+    glDisable(GL_STENCIL_TEST);
+  }
+  uint32_t stencil_ref_mask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+  // RB_STENCILREFMASK_STENCILREF
+  uint32_t stencil_ref = (stencil_ref_mask & 0x000000FF);
+  // RB_STENCILREFMASK_STENCILMASK
+  uint32_t stencil_read_mask = (stencil_ref_mask & 0x0000FF00) >> 8;
+  // RB_STENCILREFMASK_STENCILWRITEMASK
+  glStencilMask((stencil_ref_mask & 0x00FF0000) >> 16);
+  // A2XX_RB_DEPTHCONTROL_BACKFACE_ENABLE
+  bool backface_enabled = (depth_control & 0x00000080) != 0;
+  if (backface_enabled) {
+    // A2XX_RB_DEPTHCONTROL_STENCILFUNC
+    glStencilFuncSeparate(GL_FRONT,
+                          compare_func_map[(depth_control & 0x00000700) >> 8],
+                          stencil_ref, stencil_read_mask);
+    // A2XX_RB_DEPTHCONTROL_STENCILFAIL
+    // A2XX_RB_DEPTHCONTROL_STENCILZFAIL
+    // A2XX_RB_DEPTHCONTROL_STENCILZPASS
+    glStencilOpSeparate(GL_FRONT,
+                        stencil_op_map[(depth_control & 0x00003800) >> 11],
+                        stencil_op_map[(depth_control & 0x000E0000) >> 17],
+                        stencil_op_map[(depth_control & 0x0001C000) >> 14]);
+    // A2XX_RB_DEPTHCONTROL_STENCILFUNC_BF
+    glStencilFuncSeparate(GL_BACK,
+                          compare_func_map[(depth_control & 0x00700000) >> 20],
+                          stencil_ref, stencil_read_mask);
+    // A2XX_RB_DEPTHCONTROL_STENCILFAIL_BF
+    // A2XX_RB_DEPTHCONTROL_STENCILZFAIL_BF
+    // A2XX_RB_DEPTHCONTROL_STENCILZPASS_BF
+    glStencilOpSeparate(GL_BACK,
+                        stencil_op_map[(depth_control & 0x03800000) >> 23],
+                        stencil_op_map[(depth_control & 0xE0000000) >> 29],
+                        stencil_op_map[(depth_control & 0x1C000000) >> 26]);
+  } else {
+    // Backfaces disabled - treat backfaces as frontfaces.
+    glStencilFunc(compare_func_map[(depth_control & 0x00000700) >> 8],
+                  stencil_ref, stencil_read_mask);
+    glStencilOp(stencil_op_map[(depth_control & 0x00003800) >> 11],
+                stencil_op_map[(depth_control & 0x000E0000) >> 17],
+                stencil_op_map[(depth_control & 0x0001C000) >> 14]);
+  }
+
+  glUnmapNamedBuffer(uniform_data_buffer_);
+
+  return true;
+}
+
+bool CommandProcessor::UpdateRenderTargets() {
+  auto& regs = *register_file_;
+
+  return true;
+}
+
+bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+
   return true;
 }
 
