@@ -274,10 +274,11 @@ class CommandProcessor::RingbufferReader {
         ptr_mask_(ptr_mask),
         start_ptr_(start_ptr),
         end_ptr_(end_ptr),
-        ptr_(start_ptr) {}
+        ptr_(start_ptr),
+        offset_(0) {}
 
   uint32_t ptr() const { return ptr_; }
-  uint32_t offset() const { return (ptr_ - start_ptr_) / sizeof(uint32_t); }
+  uint32_t offset() const { return offset_; }
   bool can_read() const { return ptr_ != end_ptr_; }
 
   uint32_t Peek() { return poly::load_and_swap<uint32_t>(membase_ + ptr_); }
@@ -293,13 +294,13 @@ class CommandProcessor::RingbufferReader {
   }
 
   void Advance(uint32_t words) {
+    offset_ += words;
     ptr_ = ptr_ + words * sizeof(uint32_t);
     if (ptr_mask_) {
       ptr_ = base_ptr_ +
              (((ptr_ - base_ptr_) / sizeof(uint32_t)) & ptr_mask_) *
                  sizeof(uint32_t);
     }
-    assert_true(ptr_ <= end_ptr_);
   }
 
   void Skip(uint32_t words) { Advance(words); }
@@ -320,6 +321,7 @@ class CommandProcessor::RingbufferReader {
   uint32_t start_ptr_;
   uint32_t end_ptr_;
   uint32_t ptr_;
+  uint32_t offset_;
 };
 
 void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
