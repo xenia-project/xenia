@@ -37,7 +37,7 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
  private:
   void MarkVblank();
-  void SwapHandler();
+  void SwapHandler(const SwapParameters& swap_params);
   uint64_t ReadRegister(uint64_t addr);
   void WriteRegister(uint64_t addr, uint64_t value);
 

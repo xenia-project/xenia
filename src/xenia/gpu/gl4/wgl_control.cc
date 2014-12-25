@@ -11,15 +11,18 @@
 
 #include <poly/assert.h>
 #include <poly/logging.h>
+#include <xenia/gpu/gl4/gl4_gpu-private.h>
 #include <xenia/profiling.h>
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
 
+extern "C" GLEWContext* glewGetContext();
+extern "C" WGLEWContext* wglewGetContext();
+
 WGLControl::WGLControl(poly::ui::Loop* loop)
-    : poly::ui::win32::Win32Control(Flags::kFlagOwnPaint),
-      loop_(loop) {}
+    : poly::ui::win32::Win32Control(Flags::kFlagOwnPaint), loop_(loop) {}
 
 WGLControl::~WGLControl() = default;
 
@@ -70,21 +73,30 @@ void WGLControl::OnLayout(poly::ui::UIEvent& e) { Control::ResizeToFill(); }
 LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
   switch (message) {
-    case WM_PAINT:
-      context_.MakeCurrent();
+    case WM_PAINT: {
+      GLContextLock context_lock(&context_);
+      // TODO(benvanik): is viewport needed?
       glViewport(0, 0, width_, height_);
-      glClearColor(rand() / (float)RAND_MAX, 1.0f, 0, 1.0f);
-      glClear(GL_COLOR_BUFFER_BIT);
+      float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
+      glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
+      if (current_paint_callback_) {
+        current_paint_callback_();
+        current_paint_callback_ = nullptr;
+      }
       // TODO(benvanik): profiler present.
       // Profiler::Present();
       SwapBuffers(context_.dc());
-      break;
+    } break;
   }
   return Win32Control::WndProc(hWnd, message, wParam, lParam);
 }
 
-void WGLControl::SynchronousRepaint() {
+void WGLControl::SynchronousRepaint(std::function<void()> paint_callback) {
   SCOPE_profile_cpu_f("gpu");
+
+  assert_null(current_paint_callback_);
+  current_paint_callback_ = std::move(paint_callback);
+
   // This will not return until the WM_PAINT has completed.
   RedrawWindow(hwnd(), nullptr, nullptr,
                RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ALLCHILDREN);

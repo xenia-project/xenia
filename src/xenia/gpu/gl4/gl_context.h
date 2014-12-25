@@ -43,6 +43,16 @@ class GLContext {
   WGLEWContext wglew_context_;
 };
 
+struct GLContextLock {
+  GLContextLock(GLContext* context) : context_(context) {
+    context_->MakeCurrent();
+  }
+  ~GLContextLock() { context_->ClearCurrent(); }
+
+ private:
+  GLContext* context_;
+};
+
 }  // namespace gl4
 }  // namespace gpu
 }  // namespace xe

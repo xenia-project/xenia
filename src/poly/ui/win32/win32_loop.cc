@@ -33,6 +33,10 @@ Win32Loop::Win32Loop() : thread_id_(0) {
     poly::threading::set_name("Win32 Loop");
     thread_id_ = GetCurrentThreadId();
 
+    // Make a Win32 call to enable the thread queue.
+    MSG msg;
+    PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+
     init_fence.Signal();
 
     ThreadMain();
@@ -68,9 +72,11 @@ void Win32Loop::ThreadMain() {
 
 void Win32Loop::Post(std::function<void()> fn) {
   assert_true(thread_id_ != 0);
-  PostThreadMessage(thread_id_, kWmWin32LoopPost,
-                    reinterpret_cast<WPARAM>(this),
-                    reinterpret_cast<LPARAM>(new PostedFn(std::move(fn))));
+  if (!PostThreadMessage(
+          thread_id_, kWmWin32LoopPost, reinterpret_cast<WPARAM>(this),
+          reinterpret_cast<LPARAM>(new PostedFn(std::move(fn))))) {
+    assert_always("Unable to post message to thread queue");
+  }
 }
 
 void Win32Loop::Quit() {
@@ -79,9 +85,7 @@ void Win32Loop::Quit() {
                     reinterpret_cast<WPARAM>(this), 0);
 }
 
-void Win32Loop::AwaitQuit() {
-  quit_fence_.Wait();
-}
+void Win32Loop::AwaitQuit() { quit_fence_.Wait(); }
 
 }  // namespace win32
 }  // namespace ui

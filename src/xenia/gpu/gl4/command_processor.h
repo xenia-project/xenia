@@ -29,6 +29,16 @@ namespace gl4 {
 
 class GL4GraphicsSystem;
 
+struct SwapParameters {
+  uint32_t x;
+  uint32_t y;
+  uint32_t width;
+  uint32_t height;
+
+  GLuint framebuffer;
+  GLenum attachment;
+};
+
 // TODO(benvanik): move more of the enums in here?
 struct DrawCommand {
   PrimitiveType prim_type;
@@ -74,7 +84,8 @@ class CommandProcessor {
   CommandProcessor(GL4GraphicsSystem* graphics_system);
   ~CommandProcessor();
 
-  void set_swap_handler(std::function<void()> fn) { swap_handler_ = fn; }
+  typedef std::function<void(const SwapParameters& params)> SwapHandler;
+  void set_swap_handler(SwapHandler fn) { swap_handler_ = fn; }
 
   uint64_t QueryTime();
   uint32_t counter() const { return counter_; }
@@ -91,6 +102,26 @@ class CommandProcessor {
  private:
   class RingbufferReader;
 
+  struct CachedFramebuffer {
+    GLuint color_targets[4];
+    GLuint depth_target;
+    GLuint framebuffer;
+  };
+  struct CachedColorRenderTarget {
+    uint32_t base;
+    uint32_t width;
+    uint32_t height;
+    xenos::ColorRenderTargetFormat format;
+    GLuint texture;
+  };
+  struct CachedDepthRenderTarget {
+    uint32_t base;
+    uint32_t width;
+    uint32_t height;
+    xenos::DepthRenderTargetFormat format;
+    GLuint texture;
+  };
+
   void WorkerMain();
   bool SetupGL();
   void ShutdownGL();
@@ -98,6 +129,7 @@ class CommandProcessor {
   void WriteRegister(uint32_t packet_ptr, uint32_t index, uint32_t value);
   void MakeCoherent();
   void PrepareForWait();
+  void ReturnFromWait();
 
   void ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
@@ -168,7 +200,8 @@ class CommandProcessor {
   // bool PopulateVertexBuffers(DrawCommand* draw_command);
   bool IssueCopy(DrawCommand* draw_command);
 
-  GLuint GetFramebuffer(GLuint color_targets[4], GLuint depth_target);
+  CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],
+                                    GLuint depth_target);
   GLuint GetColorRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
                               uint32_t base,
                               xenos::ColorRenderTargetFormat format);
@@ -184,7 +217,7 @@ class CommandProcessor {
   std::thread worker_thread_;
   std::atomic<bool> worker_running_;
   std::unique_ptr<GLContext> context_;
-  std::function<void()> swap_handler_;
+  SwapHandler swap_handler_;
 
   uint64_t time_base_;
   uint32_t counter_;
@@ -202,37 +235,20 @@ class CommandProcessor {
   uint64_t bin_select_;
   uint64_t bin_mask_;
 
+  GLuint uniform_data_buffer_;
+
   std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
   GL4Shader* active_vertex_shader_;
   GL4Shader* active_pixel_shader_;
 
-  GLuint uniform_data_buffer_;
+  CachedFramebuffer* active_framebuffer_;
+
+  std::vector<CachedFramebuffer> cached_framebuffers_;
+  std::vector<CachedColorRenderTarget> cached_color_render_targets_;
+  std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
 
   DrawCommand draw_command_;
-
-  struct CachedFramebuffer {
-    GLuint color_targets[4];
-    GLuint depth_target;
-    GLuint framebuffer;
-  };
-  std::vector<CachedFramebuffer> cached_framebuffers_;
-  struct CachedColorRenderTarget {
-    uint32_t base;
-    uint32_t width;
-    uint32_t height;
-    xenos::ColorRenderTargetFormat format;
-    GLuint texture;
-  };
-  std::vector<CachedColorRenderTarget> cached_color_render_targets_;
-  struct CachedDepthRenderTarget {
-    uint32_t base;
-    uint32_t width;
-    uint32_t height;
-    xenos::DepthRenderTargetFormat format;
-    GLuint texture;
-  };
-  std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
 };
 
 }  // namespace gl4

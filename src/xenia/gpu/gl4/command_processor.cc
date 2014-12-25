@@ -13,6 +13,7 @@
 
 #include <poly/logging.h>
 #include <poly/math.h>
+#include <xenia/gpu/gl4/gl4_gpu-private.h>
 #include <xenia/gpu/gl4/gl4_graphics_system.h>
 #include <xenia/gpu/gpu-private.h>
 #include <xenia/gpu/xenos.h>
@@ -28,7 +29,9 @@ namespace gl4 {
 
 using namespace xe::gpu::xenos;
 
-extern "C" extern "C" GLEWContext* glewGetContext();
+extern "C" GLEWContext* glewGetContext();
+
+const GLuint kAnyTarget = UINT_MAX;
 
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
     : memory_(graphics_system->memory()),
@@ -48,7 +51,8 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       bin_select_(0xFFFFFFFFull),
       bin_mask_(0xFFFFFFFFull),
       active_vertex_shader_(nullptr),
-      active_pixel_shader_(nullptr) {
+      active_pixel_shader_(nullptr),
+      active_framebuffer_(nullptr) {
   std::memset(&draw_command_, 0, sizeof(draw_command_));
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
@@ -70,7 +74,6 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   worker_thread_ = std::thread([this]() {
     poly::threading::set_name("GL4 Worker");
     xe::Profiler::ThreadEnter("GL4 Worker");
-    context_->MakeCurrent();
     WorkerMain();
     xe::Profiler::ThreadExit();
   });
@@ -89,6 +92,7 @@ void CommandProcessor::Shutdown() {
 }
 
 void CommandProcessor::WorkerMain() {
+  context_->MakeCurrent();
   if (!SetupGL()) {
     PFATAL("Unable to setup command processor GL state");
     return;
@@ -106,9 +110,11 @@ void CommandProcessor::WorkerMain() {
       const int wait_time_ms = 5;
       if (WaitForSingleObject(write_ptr_index_event_, wait_time_ms) ==
           WAIT_TIMEOUT) {
+        ReturnFromWait();
         write_ptr_index = write_ptr_index_.load();
         continue;
       }
+      ReturnFromWait();
     }
     assert_true(read_ptr_index_ != write_ptr_index);
 
@@ -128,6 +134,7 @@ void CommandProcessor::WorkerMain() {
   }
 
   ShutdownGL();
+  context_->ClearCurrent();
 }
 
 bool CommandProcessor::SetupGL() {
@@ -232,6 +239,16 @@ void CommandProcessor::PrepareForWait() {
   // synchronize here.
   // glFlush();
   glFinish();
+
+  if (FLAGS_thread_safe_gl) {
+    context_->ClearCurrent();
+  }
+}
+
+void CommandProcessor::ReturnFromWait() {
+  if (FLAGS_thread_safe_gl) {
+    context_->MakeCurrent();
+  }
 }
 
 class CommandProcessor::RingbufferReader {
@@ -588,6 +605,10 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
                                                   uint32_t packet_ptr,
                                                   uint32_t packet,
                                                   uint32_t count) {
+  auto& regs = *register_file_;
+
+  PLOGI("XE_SWAP");
+
   // Xenia-specific VdSwap hook.
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
@@ -595,10 +616,36 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   // 63 words here, but only the first has any data.
   reader->TraceData(1);
   uint32_t frontbuffer_ptr = reader->Read();
-  // TODO(benvanik): something with the frontbuffer ptr.
   reader->Advance(count - 1);
   if (swap_handler_) {
-    swap_handler_();
+    SwapParameters swap_params;
+
+    // Lookup the framebuffer in the recently-resolved list.
+    // TODO(benvanik): make this much more sophisticated.
+    // TODO(benvanik): handle not found cases.
+    // TODO(benvanik): handle dirty cases (resolved to sysmem, touched).
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // HACK: just use whatever our current framebuffer is.
+    if (active_framebuffer_) {
+      swap_params.framebuffer = active_framebuffer_->framebuffer;
+      // TODO(benvanik): pick the right one?
+      swap_params.attachment = GL_COLOR_ATTACHMENT0;
+    } else {
+      swap_params.framebuffer = 0;
+    }
+
+    // Guess frontbuffer dimensions.
+    // Command buffer seems to set these right before the XE_SWAP.
+    uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+    uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+    swap_params.x = window_scissor_tl & 0x7FFF;
+    swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
+    swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
+    swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
+
+    PrepareForWait();
+    swap_handler_(swap_params);
+    ReturnFromWait();
   }
   return true;
 }
@@ -677,6 +724,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
       if (wait >= 0x100) {
         PrepareForWait();
         Sleep(wait / 0x100);
+        ReturnFromWait();
       } else {
         SwitchToThread();
       }
@@ -1077,18 +1125,21 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   if (enable_mode == ModeControl::kIgnore) {
     // Ignored.
     return true;
+  } else if (enable_mode == ModeControl::kCopy) {
+    // Special copy handling.
+    return IssueCopy(draw_command);
   }
 
   if (!UpdateRenderTargets(draw_command)) {
     PLOGE("Unable to setup render targets");
     return false;
   }
-
-  if (enable_mode == ModeControl::kCopy) {
-    // Special copy handling.
-    return IssueCopy(draw_command);
+  if (!active_framebuffer_) {
+    // No framebuffer, so nothing we do will actually have an effect.
+    // Treat it as a no-op.
+    XETRACECP("No-op draw (no framebuffer set)");
+    return true;
   }
-
   if (!UpdateState(draw_command)) {
     PLOGE("Unable to setup render state");
     return false;
@@ -1301,7 +1352,6 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
       /*  3 */ GL_MAX,
       /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
   };
-  uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
   uint32_t blend_control[4] = {
       regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
       regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
@@ -1321,8 +1371,6 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
     auto dest_blend_alpha = blend_map[(blend_control[n] & 0x1F000000) >> 24];
     // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
     auto blend_op_alpha = blend_op_map[(blend_control[n] & 0x00E00000) >> 21];
-    // A2XX_RB_COLOR_MASK_WRITE_*
-    uint32_t write_mask = (color_mask >> (n * 4)) & 0xF;
     // A2XX_RB_COLORCONTROL_BLEND_DISABLE ?? Can't find this!
     // Just guess based on actions.
     bool blend_enable =
@@ -1443,34 +1491,78 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
 
   // Get/create all color render targets, if we are using them.
   // In depth-only mode we don't need them.
-  GLuint color_targets[4] = {0, 0, 0, 0};
+  GLenum draw_buffers[4] = {GL_NONE, GL_NONE, GL_NONE, GL_NONE};
+  GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   if (enable_mode == ModeControl::kColorDepth) {
     uint32_t color_info[4] = {
         regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
     };
+    // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
+    uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
     for (int n = 0; n < poly::countof(color_info); n++) {
+      uint32_t write_mask = (color_mask >> (n * 4)) & 0xF;
+      if (!write_mask) {
+        // Unused, so keep disabled and set to wildcard so we'll take any
+        // framebuffer that has it.
+        continue;
+      }
       uint32_t color_base = color_info[n] & 0xFFF;
       auto color_format =
           static_cast<ColorRenderTargetFormat>((color_info[n] >> 16) & 0xF);
       color_targets[n] = GetColorRenderTarget(surface_pitch, surface_msaa,
                                               color_base, color_format);
+      draw_buffers[n] = GL_COLOR_ATTACHMENT0 + n;
+      glColorMaski(n, !!(write_mask & 0x1), !!(write_mask & 0x2),
+                   !!(write_mask & 0x4), !!(write_mask & 0x8));
     }
   }
 
-  uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  uint32_t depth_base = depth_info & 0xFFF;
-  auto depth_format =
-      static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
-  GLuint depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa,
-                                             depth_base, depth_format);
-  // TODO(benvanik): when a game switches does it expect to keep the same
-  //     depth buffer contents?
+  // Get/create depth buffer, but only if we are going to use it.
+  uint32_t depth_control = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  uint32_t stencil_ref_mask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+  bool uses_depth =
+      (depth_control & 0x00000002) || (depth_control & 0x00000004);
+  uint32_t stencil_write_mask = (stencil_ref_mask & 0x00FF0000) >> 16;
+  bool uses_stencil = (depth_control & 0x00000001) || (stencil_write_mask != 0);
+  GLuint depth_target = kAnyTarget;
+  if (uses_depth && uses_stencil) {
+    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+    uint32_t depth_base = depth_info & 0xFFF;
+    auto depth_format =
+        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa, depth_base,
+                                        depth_format);
+    // TODO(benvanik): when a game switches does it expect to keep the same
+    //     depth buffer contents?
+  }
 
   // Get/create a framebuffer with the required targets.
-  GLuint framebuffer = GetFramebuffer(color_targets, depth_target);
-  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+  // Note that none may be returned if we really don't need one.
+  auto cached_framebuffer = GetFramebuffer(color_targets, depth_target);
+  active_framebuffer_ = cached_framebuffer;
+  if (!active_framebuffer_) {
+    // Nothing to do.
+    return true;
+  }
+
+  // Setup just the targets we want.
+  glNamedFramebufferDrawBuffers(cached_framebuffer->framebuffer, 4,
+                                draw_buffers);
+
+  // Make active.
+  // TODO(benvanik): can we do this all named?
+  // TODO(benvanik): do we want this on READ too?
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
+
+  // TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST
+  // Pretend we are drawing.
+  glEnable(GL_SCISSOR_TEST);
+  glScissor(100, 100, 100, 100);
+  float red[] = {rand() / (float)RAND_MAX, 0, 0, 1.0f};
+  glClearNamedFramebufferfv(active_framebuffer_->framebuffer, GL_COLOR, 0, red);
+  glDisable(GL_SCISSOR_TEST);
 
   return true;
 }
@@ -1519,6 +1611,45 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
   uint32_t copy_mask = regs[XE_GPU_REG_RB_COPY_MASK].u32;
   assert_true(copy_mask == 0);
 
+  // RB_SURFACE_INFO
+  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = surface_info & 0x3FFF;
+  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
+
+  // Depending on the source, pick the buffer we'll be sourcing.
+  // We then query for a cached framebuffer setup with that buffer active.
+  GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
+  GLuint depth_target = kAnyTarget;
+  if (copy_src_select <= 3) {
+    // Source from a color target.
+    uint32_t color_info[4] = {
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
+    };
+    uint32_t color_base = color_info[copy_src_select] & 0xFFF;
+    auto color_format = static_cast<ColorRenderTargetFormat>(
+        (color_info[copy_src_select] >> 16) & 0xF);
+    color_targets[copy_src_select] = GetColorRenderTarget(
+        surface_pitch, surface_msaa, color_base, color_format);
+  } else {
+    // Source from depth/stencil.
+    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+    uint32_t depth_base = depth_info & 0xFFF;
+    auto depth_format =
+        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa, depth_base,
+                                        depth_format);
+  }
+  auto source_framebuffer = GetFramebuffer(color_targets, depth_target);
+  if (!source_framebuffer) {
+    // If we get here we are likely missing some state checks.
+    assert_always("No framebuffer for copy source? no-op copy?");
+    PLOGE("No framebuffer for copy source");
+    return false;
+  }
+
   GLenum read_format;
   GLenum read_type;
   switch (copy_dest_format) {
@@ -1553,15 +1684,25 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
   // TODO(benvanik): copy to staging texture then PBO back?
   void* ptr = membase_ + GpuToCpu(copy_dest_base);
 
+  // TODO(benvanik): any way to scissor this? a200 has:
+  // REG_A2XX_RB_COPY_DEST_OFFSET = A2XX_RB_COPY_DEST_OFFSET_X(tile->xoff) |
+  //                                A2XX_RB_COPY_DEST_OFFSET_Y(tile->yoff);
+  // but I can't seem to find something similar.
+  // Maybe scissor rect/window offset?
   uint32_t x = 0;
   uint32_t y = 0;
   uint32_t w = copy_dest_pitch;
   uint32_t h = copy_dest_height;
+
+  // Make active so glReadPixels reads from us.
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, source_framebuffer->framebuffer);
   switch (copy_command) {
     case CopyCommand::kConvert:
       if (copy_src_select <= 3) {
         // Source from a bound render target.
-        glReadBuffer(GL_COLOR_ATTACHMENT0 + copy_src_select);
+        // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
+        glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
+                                     GL_COLOR_ATTACHMENT0 + copy_src_select);
         glReadPixels(x, y, w, h, read_format, read_type, ptr);
       } else {
         // Source from the bound depth/stencil target.
@@ -1575,22 +1716,36 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
       assert_unhandled_case(copy_command);
       return false;
   }
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
-  if (color_clear_enabled || depth_clear_enabled) {
-    // Clear requested, so let's setup for that.
-    uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
-    uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
-    uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
-    assert_true(copy_color_clear == copy_color_clear_low);
+  // Perform any requested clears.
+  uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
+  uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
+  uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
+  assert_true(copy_color_clear == copy_color_clear_low);
 
-    if (color_clear_enabled) {
-      // Clear the render target we selected for copy.
-      assert_true(copy_src_select < 3);
-    }
+  if (color_clear_enabled) {
+    // Clear the render target we selected for copy.
+    assert_true(copy_src_select < 3);
+    // TODO(benvanik): verify color order.
+    float color[] = {(copy_color_clear & 0xFF) / 255.0f,
+                     ((copy_color_clear >> 8) & 0xFF) / 255.0f,
+                     ((copy_color_clear >> 16) & 0xFF) / 255.0f,
+                     ((copy_color_clear >> 24) & 0xFF) / 255.0f};
+    glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_COLOR,
+                              copy_src_select, color);
+  }
 
-    if (depth_clear_enabled) {
-      // Clear the current depth buffer.
-    }
+  if (depth_clear_enabled) {
+    // Clear the current depth buffer.
+    // TODO(benvanik): verify format.
+    union {
+      uint32_t uint_value;
+      GLfloat float_value;
+    } depth = {copy_depth_clear & 0xFFFFFF00};
+    GLint stencil = copy_depth_clear & 0xFF;
+    glClearNamedFramebufferfi(source_framebuffer->framebuffer, GL_DEPTH_STENCIL,
+                              depth.float_value, stencil);
   }
 
   return true;
@@ -1610,7 +1765,6 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
     format = ColorRenderTargetFormat::k8888;
   }
 
-  CachedColorRenderTarget* cached = nullptr;
   for (auto& it = cached_color_render_targets_.begin();
        it != cached_color_render_targets_.end(); ++it) {
     if (it->base == base && it->width == width && it->height == height &&
@@ -1619,7 +1773,7 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
     }
   }
   cached_color_render_targets_.push_back(CachedColorRenderTarget());
-  cached = &cached_color_render_targets_.back();
+  auto cached = &cached_color_render_targets_.back();
   cached->base = base;
   cached->width = width;
   cached->height = height;
@@ -1649,7 +1803,6 @@ GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
   uint32_t width = 2560;
   uint32_t height = 2560;
 
-  CachedDepthRenderTarget* cached = nullptr;
   for (auto& it = cached_depth_render_targets_.begin();
        it != cached_depth_render_targets_.end(); ++it) {
     if (it->base == base && it->width == width && it->height == height &&
@@ -1658,7 +1811,7 @@ GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
     }
   }
   cached_depth_render_targets_.push_back(CachedDepthRenderTarget());
-  cached = &cached_depth_render_targets_.back();
+  auto cached = &cached_depth_render_targets_.back();
   cached->base = base;
   cached->width = width;
   cached->height = height;
@@ -1682,38 +1835,58 @@ GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
   return cached->texture;
 }
 
-GLuint CommandProcessor::GetFramebuffer(GLuint color_targets[4],
-                                        GLuint depth_target) {
-  CachedFramebuffer* cached = nullptr;
+CommandProcessor::CachedFramebuffer* CommandProcessor::GetFramebuffer(
+    GLuint color_targets[4], GLuint depth_target) {
   for (auto& it = cached_framebuffers_.begin();
        it != cached_framebuffers_.end(); ++it) {
-    if ((depth_target == -1u || it->depth_target == depth_target) &&
-        (color_targets[0] == -1u || it->color_targets[0] == color_targets[0]) &&
-        (color_targets[1] == -1u || it->color_targets[1] == color_targets[1]) &&
-        (color_targets[2] == -1u || it->color_targets[2] == color_targets[2]) &&
-        (color_targets[3] == -1u || it->color_targets[3] == color_targets[3])) {
-      return it->framebuffer;
+    if ((depth_target == kAnyTarget || it->depth_target == depth_target) &&
+        (color_targets[0] == kAnyTarget ||
+         it->color_targets[0] == color_targets[0]) &&
+        (color_targets[1] == kAnyTarget ||
+         it->color_targets[1] == color_targets[1]) &&
+        (color_targets[2] == kAnyTarget ||
+         it->color_targets[2] == color_targets[2]) &&
+        (color_targets[3] == kAnyTarget ||
+         it->color_targets[3] == color_targets[3])) {
+      return &*it;
     }
   }
+
+  GLuint real_color_targets[4];
+  bool any_set = false;
+  for (int i = 0; i < 4; ++i) {
+    if (color_targets[i] == kAnyTarget) {
+      real_color_targets[i] = 0;
+    } else {
+      any_set = true;
+      real_color_targets[i] = color_targets[i];
+    }
+  }
+  GLuint real_depth_target;
+  if (depth_target == kAnyTarget) {
+    real_depth_target = 0;
+  } else {
+    any_set = true;
+    real_depth_target = depth_target;
+  }
+  if (!any_set) {
+    // No framebuffer required.
+    return nullptr;
+  }
+
   cached_framebuffers_.push_back(CachedFramebuffer());
-  cached = &cached_framebuffers_.back();
+  auto cached = &cached_framebuffers_.back();
   glCreateFramebuffers(1, &cached->framebuffer);
   for (int i = 0; i < 4; ++i) {
-    uint32_t color_target = color_targets[i];
-    if (color_target == -1u) {
-      color_target = 0;
-    }
-    cached->color_targets[i] = color_target;
+    cached->color_targets[i] = real_color_targets[i];
     glNamedFramebufferTexture(cached->framebuffer, GL_COLOR_ATTACHMENT0 + i,
-                              color_target, 0);
+                              real_color_targets[i], 0);
   }
-  if (depth_target == -1u) {
-    depth_target = 0;
-  }
-  cached->depth_target = depth_target;
+  cached->depth_target = real_depth_target;
   glNamedFramebufferTexture(cached->framebuffer, GL_DEPTH_STENCIL_ATTACHMENT,
-                            depth_target, 0);
-  return cached->framebuffer;
+                            real_depth_target, 0);
+
+  return cached;
 }
 
 }  // namespace gl4

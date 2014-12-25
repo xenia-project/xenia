@@ -17,6 +17,8 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
+extern "C" GLEWContext* glewGetContext();
+
 GL4GraphicsSystem::GL4GraphicsSystem(Emulator* emulator)
     : GraphicsSystem(emulator), timer_queue_(nullptr), vsync_timer_(nullptr) {}
 
@@ -57,7 +59,7 @@ X_STATUS GL4GraphicsSystem::Setup() {
     return X_STATUS_UNSUCCESSFUL;
   }
   command_processor_->set_swap_handler(
-      std::bind(&GL4GraphicsSystem::SwapHandler, this));
+      [this](const SwapParameters& swap_params) { SwapHandler(swap_params); });
 
   // Let the processor know we want register access callbacks.
   emulator_->memory()->AddMappedRange(
@@ -115,12 +117,18 @@ void GL4GraphicsSystem::MarkVblank() {
   DispatchInterruptCallback(0, 2);
 }
 
-void GL4GraphicsSystem::SwapHandler() {
+void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
   SCOPE_profile_cpu_f("gpu");
 
   // Swap requested. Synchronously post a request to the loop so that
   // we do the swap in the right thread.
-  control_->SynchronousRepaint();
+  control_->SynchronousRepaint([&]() {
+    glBlitNamedFramebuffer(swap_params.framebuffer, 0, swap_params.x,
+                           swap_params.y, swap_params.x + swap_params.width,
+                           swap_params.y + swap_params.height, 0, 0,
+                           control_->width(), control_->height(),
+                           GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  });
 
   // Roll over vblank.
   MarkVblank();

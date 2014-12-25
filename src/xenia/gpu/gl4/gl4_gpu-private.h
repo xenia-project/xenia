@@ -10,10 +10,12 @@
 #ifndef XENIA_GPU_GL4_GL4_GPU_PRIVATE_H_
 #define XENIA_GPU_GL4_GL4_GPU_PRIVATE_H_
 
-// GL headers
+#include <gflags/gflags.h>
 
 #include <xenia/common.h>
 #include <xenia/gpu/gl4/gl4_gpu.h>
+
+DECLARE_bool(thread_safe_gl);
 
 namespace xe {
 namespace gpu {
