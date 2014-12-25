@@ -1,6 +1,8 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'circular_buffer.cc',
+    'circular_buffer.h',
     'command_processor.cc',
     'command_processor.h',
     'gl4_gpu-private.h',

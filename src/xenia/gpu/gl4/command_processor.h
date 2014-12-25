@@ -1,11 +1,11 @@
 /**
-******************************************************************************
-* Xenia : Xbox 360 Emulator Research Project                                 *
-******************************************************************************
-* Copyright 2014 Ben Vanik. All rights reserved.                             *
-* Released under the BSD license - see LICENSE in the root for more details. *
-******************************************************************************
-*/
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
 
 #ifndef XENIA_GPU_GL4_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_GL4_COMMAND_PROCESSOR_H_
@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <xenia/gpu/gl4/circular_buffer.h>
 #include <xenia/gpu/gl4/gl_context.h>
 #include <xenia/gpu/gl4/gl4_shader.h>
 #include <xenia/gpu/register_file.h>
@@ -54,18 +55,9 @@ struct DrawCommand {
   struct {
     const uint8_t* address;
     size_t size;
-    xenos::Endian endianess;
+    xenos::Endian endianness;
     xenos::IndexFormat format;
   } index_buffer;
-
-  // Vertex buffers.
-  struct {
-    uint32_t input_index;
-    // VertexBufferResource* buffer;
-    uint32_t stride;
-    uint32_t offset;
-  } vertex_buffers[96];
-  size_t vertex_buffer_count;
 
   // Texture samplers.
   struct SamplerInput {
@@ -196,8 +188,8 @@ class CommandProcessor {
   bool IssueDraw(DrawCommand* draw_command);
   bool UpdateState(DrawCommand* draw_command);
   bool UpdateRenderTargets(DrawCommand* draw_command);
-  // bool PopulateIndexBuffer(DrawCommand* draw_command);
-  // bool PopulateVertexBuffers(DrawCommand* draw_command);
+  bool PopulateIndexBuffer(DrawCommand* draw_command);
+  bool PopulateVertexBuffers(DrawCommand* draw_command);
   bool IssueCopy(DrawCommand* draw_command);
 
   CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],
@@ -247,6 +239,8 @@ class CommandProcessor {
   std::vector<CachedFramebuffer> cached_framebuffers_;
   std::vector<CachedColorRenderTarget> cached_color_render_targets_;
   std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
+
+  CircularBuffer scratch_buffer_;
 
   DrawCommand draw_command_;
 };

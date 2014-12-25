@@ -1,11 +1,11 @@
 /**
-******************************************************************************
-* Xenia : Xbox 360 Emulator Research Project                                 *
-******************************************************************************
-* Copyright 2014 Ben Vanik. All rights reserved.                             *
-* Released under the BSD license - see LICENSE in the root for more details. *
-******************************************************************************
-*/
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
 
 #include <xenia/gpu/gl4/command_processor.h>
 
@@ -33,6 +33,11 @@ extern "C" GLEWContext* glewGetContext();
 
 const GLuint kAnyTarget = UINT_MAX;
 
+// All uncached vertex/index data goes here. If it fills up we need to sync
+// with the GPU, so this should be large enough to prevent that in a normal
+// frame.
+const size_t kScratchBufferCapacity = 64 * 1024 * 1024;
+
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
     : memory_(graphics_system->memory()),
       membase_(graphics_system->memory()->membase()),
@@ -52,7 +57,8 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       bin_mask_(0xFFFFFFFFull),
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr),
-      active_framebuffer_(nullptr) {
+      active_framebuffer_(nullptr),
+      scratch_buffer_(kScratchBufferCapacity) {
   std::memset(&draw_command_, 0, sizeof(draw_command_));
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
@@ -143,6 +149,14 @@ bool CommandProcessor::SetupGL() {
   glBindBuffer(GL_UNIFORM_BUFFER, uniform_data_buffer_);
   glNamedBufferStorage(uniform_data_buffer_, 16 * 1024, nullptr,
                        GL_MAP_WRITE_BIT | GL_DYNAMIC_STORAGE_BIT);
+
+  // Circular buffer holding scratch vertex/index data.
+  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
+  glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
+  if (!scratch_buffer_.Initialize()) {
+    PLOGE("Unable to initialize scratch buffer");
+    return false;
+  }
 
   return true;
 }
@@ -919,7 +933,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
     // Indexed draw.
     draw_command_.index_buffer.address = membase_ + index_base;
     draw_command_.index_buffer.size = index_size;
-    draw_command_.index_buffer.endianess = index_endianness;
+    draw_command_.index_buffer.endianness = index_endianness;
     draw_command_.index_buffer.format =
         index_32bit ? IndexFormat::kInt32 : IndexFormat::kInt16;
   } else if (src_sel == 0x2) {
@@ -1120,6 +1134,7 @@ void CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
 bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
+  auto& cmd = *draw_command;
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
   if (enable_mode == ModeControl::kIgnore) {
@@ -1154,16 +1169,31 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   //  return false;
   //}
 
-  // if (!PopulateIndexBuffer(draw_command)) {
-  //  PLOGE("Unable to setup index buffer");
-  //  return false;
-  //}
-  // if (!PopulateVertexBuffers(draw_command)) {
-  //  XELOGE("Unable to setup vertex buffers");
-  //  return false;
-  //}
+  if (!PopulateIndexBuffer(draw_command)) {
+    PLOGE("Unable to setup index buffer");
+    return false;
+  }
+  if (!PopulateVertexBuffers(draw_command)) {
+    XELOGE("Unable to setup vertex buffers");
+    return false;
+  }
 
-  // TODO(benvanik): draw.
+  if (cmd.index_buffer.address) {
+    // Indexed draw.
+    // PopulateIndexBuffer has our element array setup.
+    //size_t element_size = cmd.index_buffer.format == IndexFormat::kInt32
+    //                          ? sizeof(uint32_t)
+    //                          : sizeof(uint16_t);
+    //glDrawElementsBaseVertex(
+    //    prim_type, cmd.index_count,
+    //    cmd.index_buffer.format == IndexFormat::kInt32 ? GL_UNSIGNED_INT
+    //                                                   : GL_UNSIGNED_SHORT,
+    //    reinterpret_cast<void*>(cmd.start_index * element_size),
+    //    cmd.base_vertex);
+  } else {
+    // Auto draw.
+    //glDrawArrays(prim_type, cmd.start_index, cmd.index_count);
+  }
 
   return true;
 }
@@ -1563,6 +1593,103 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
   float red[] = {rand() / (float)RAND_MAX, 0, 0, 1.0f};
   glClearNamedFramebufferfv(active_framebuffer_->framebuffer, GL_COLOR, 0, red);
   glDisable(GL_SCISSOR_TEST);
+
+  return true;
+}
+
+bool CommandProcessor::PopulateIndexBuffer(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+  auto& cmd = *draw_command;
+
+  auto& info = cmd.index_buffer;
+  if (!cmd.index_count || !info.address) {
+    // No index buffer or auto draw.
+    return true;
+  }
+
+  assert_true(info.endianness == Endian::k8in16 ||
+              info.endianness == Endian::k8in32);
+
+  auto allocation = scratch_buffer_.Acquire(cmd.index_count *
+                                            (info.format == IndexFormat::kInt32
+                                                 ? sizeof(uint32_t)
+                                                 : sizeof(uint16_t)));
+
+  if (info.format == IndexFormat::kInt32) {
+    poly::copy_and_swap_32_aligned(
+        reinterpret_cast<uint32_t*>(allocation.host_ptr),
+        reinterpret_cast<const uint32_t*>(cmd.index_buffer.address),
+        cmd.index_count);
+  } else {
+    poly::copy_and_swap_16_aligned(
+        reinterpret_cast<uint16_t*>(allocation.host_ptr),
+        reinterpret_cast<const uint16_t*>(cmd.index_buffer.address),
+        cmd.index_count);
+  }
+
+  glBufferAddressRangeNV(GL_ELEMENT_ARRAY_ADDRESS_NV, 0, allocation.gpu_ptr,
+                         allocation.length);
+
+  scratch_buffer_.Commit(std::move(allocation));
+
+  return true;
+}
+
+bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+  auto& regs = *register_file_;
+  auto& cmd = *draw_command;
+
+  if (!cmd.vertex_shader) {
+    // No vertex shader, no-op.
+    return true;
+  }
+
+  const auto& buffer_inputs = cmd.vertex_shader->buffer_inputs();
+
+  // glBindVertexArray(vertex_array);
+
+  for (size_t n = 0; n < buffer_inputs.count; n++) {
+    const auto& desc = buffer_inputs.descs[n];
+
+    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
+    auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+    xe_gpu_vertex_fetch_t* fetch = nullptr;
+    switch (desc.fetch_slot % 3) {
+      case 0:
+        fetch = &group->vertex_fetch_0;
+        break;
+      case 1:
+        fetch = &group->vertex_fetch_1;
+        break;
+      case 2:
+        fetch = &group->vertex_fetch_2;
+        break;
+    }
+    assert_not_null(fetch);
+    assert_true(fetch->type == 0x3);  // must be of type vertex
+    // TODO(benvanik): some games have type 2, which is texture - maybe
+    //                 fetch_slot wrong?
+    assert_not_zero(fetch->size);
+
+    auto allocation = scratch_buffer_.Acquire(fetch->size * sizeof(uint32_t));
+
+    // Copy and byte swap the entire buffer.
+    // We could be smart about this to save GPU bandwidth by building a CRC
+    // as we copy and only if it differs from the previous value committing
+    // it (and if it matches just discard and reuse).
+    poly::copy_and_swap_32_aligned(
+        reinterpret_cast<uint32_t*>(allocation.host_ptr),
+        reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
+        fetch->size);
+
+    /*glBufferAddressRangeNV(GL_VERTEX_ATTRIB_ARRAY_ADDRESS_NV,
+                           desc.input_index,
+                           allocation.gpu_ptr, allocation.length);*/
+
+    // Flush buffer before we draw.
+    scratch_buffer_.Commit(std::move(allocation));
+  }
 
   return true;
 }
