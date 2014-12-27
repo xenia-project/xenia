@@ -47,9 +47,6 @@ struct DrawCommand {
   uint32_t index_count;
   uint32_t base_vertex;
 
-  GL4Shader* vertex_shader;
-  GL4Shader* pixel_shader;
-
   // Index buffer, if present.
   // If index_count > 0 but buffer is nullptr then auto draw.
   struct {
@@ -69,6 +66,8 @@ struct DrawCommand {
   size_t vertex_shader_sampler_count;
   SamplerInput pixel_shader_samplers[32];
   size_t pixel_shader_sampler_count;
+
+  GLuint64 state_data_gpu_ptr;
 };
 
 class CommandProcessor {
@@ -188,6 +187,7 @@ class CommandProcessor {
   bool IssueDraw(DrawCommand* draw_command);
   bool UpdateState(DrawCommand* draw_command);
   bool UpdateRenderTargets(DrawCommand* draw_command);
+  bool UpdateShaders(DrawCommand* draw_command);
   bool PopulateIndexBuffer(DrawCommand* draw_command);
   bool PopulateVertexBuffers(DrawCommand* draw_command);
   bool IssueCopy(DrawCommand* draw_command);

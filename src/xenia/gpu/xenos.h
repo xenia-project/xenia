@@ -72,9 +72,9 @@ enum class MsaaSamples : uint32_t {
 };
 
 enum class ColorRenderTargetFormat : uint32_t {
-  k8888 = 0,       // D3DFMT_A8R8G8B8 (or ABGR?)
-  k8888Gamma = 1,  // D3DFMT_A8R8G8B8 with gamma correction
-                   // ...
+  k_8_8_8_8 = 0,        // D3DFMT_A8R8G8B8 (or ABGR?)
+  k_8_8_8_8_GAMMA = 1,  // D3DFMT_A8R8G8B8 with gamma correction
+                        // ...
 };
 
 enum class DepthRenderTargetFormat : uint32_t {
@@ -98,29 +98,47 @@ enum class CopyCommand : uint32_t {
 
 // Subset of a2xx_sq_surfaceformat.
 enum class ColorFormat : uint32_t {
-  kColor_8 = 2,
-  kColor_1_5_5_5 = 3,
-  kColor_5_6_5 = 4,
-  kColor_6_5_5 = 5,
-  kColor_8_8_8_8 = 6,
-  kColor_2_10_10_10 = 7,
-  kColor_8_A = 8,
-  kColor_8_B = 9,
-  kColor_8_8 = 10,
-  kColor_8_8_8_8_A = 14,
-  kColor_4_4_4_4 = 15,
-  kColor_10_11_11 = 16,
-  kColor_11_11_10 = 17,
-  kColor_16 = 24,
-  kColor_16_16 = 25,
-  kColor_16_16_16_16 = 26,
-  kColor_16_FLOAT = 30,
-  kColor_16_16_FLOAT = 31,
-  kColor_16_16_16_16_FLOAT = 32,
-  kColor_32_FLOAT = 36,
-  kColor_32_32_FLOAT = 37,
-  kColor_32_32_32_32_FLOAT = 38,
-  kColor_2_10_10_10_FLOAT = 62,
+  k_8 = 2,
+  k_1_5_5_5 = 3,
+  k_5_6_5 = 4,
+  k_6_5_5 = 5,
+  k_8_8_8_8 = 6,
+  k_2_10_10_10 = 7,
+  k_8_A = 8,
+  k_8_B = 9,
+  k_8_8 = 10,
+  k_8_8_8_8_A = 14,
+  k_4_4_4_4 = 15,
+  k_10_11_11 = 16,
+  k_11_11_10 = 17,
+  k_16 = 24,
+  k_16_16 = 25,
+  k_16_16_16_16 = 26,
+  k_16_FLOAT = 30,
+  k_16_16_FLOAT = 31,
+  k_16_16_16_16_FLOAT = 32,
+  k_32_FLOAT = 36,
+  k_32_32_FLOAT = 37,
+  k_32_32_32_32_FLOAT = 38,
+  k_2_10_10_10_FLOAT = 62,
+};
+
+enum class VertexFormat : uint32_t {
+  k_8_8_8_8 = 6,
+  k_2_10_10_10 = 7,
+  k_10_11_11 = 16,
+  k_11_11_10 = 17,
+  k_16_16 = 25,
+  k_16_16_16_16 = 26,
+  k_16_16_FLOAT = 31,
+  k_16_16_16_16_FLOAT = 32,
+  k_32 = 33,
+  k_32_32 = 34,
+  k_32_32_32_32 = 35,
+  k_32_FLOAT = 36,
+  k_32_32_FLOAT = 37,
+  k_32_32_32_32_FLOAT = 38,
+  k_32_32_32_FLOAT = 57,
 };
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \

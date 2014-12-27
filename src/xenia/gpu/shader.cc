@@ -16,10 +16,14 @@ namespace xe {
 namespace gpu {
 
 using namespace xe::gpu::ucode;
+using namespace xe::gpu::xenos;
 
 Shader::Shader(ShaderType shader_type, uint64_t data_hash,
                const uint32_t* dword_ptr, uint32_t dword_count)
-    : shader_type_(shader_type), data_hash_(data_hash), is_valid_(false) {
+    : shader_type_(shader_type),
+      data_hash_(data_hash),
+      has_prepared_(false),
+      is_valid_(false) {
   data_.resize(dword_count);
   poly::copy_and_swap(data_.data(), dword_ptr, dword_count);
   std::memset(&alloc_counts_, 0, sizeof(alloc_counts_));
@@ -35,18 +39,7 @@ Shader::Shader(ShaderType shader_type, uint64_t data_hash,
   GatherIO();
 }
 
-bool Shader::Translate() {
-  assert_false(is_valid_);
-
-  // TODO(benvanik): disk cache/etc - lookup hash and load if found.
-  // TODO(benvanik): dump to disk.
-
-  // Attempt implementation-specific translation.
-  // This may take awhile, and probably will fail.
-  // TODO(benvanik): parallelize? (allow two translations at once, etc).
-  is_valid_ = TranslateImpl();
-  return is_valid_;
-}
+Shader::~Shader() = default;
 
 void Shader::GatherIO() {
   // Process all execution blocks.
@@ -203,44 +196,43 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
   }
 
   el->vtx_fetch = *vtx;
-  el->format = vtx->format;
+  el->format = static_cast<VertexFormat>(vtx->format);
   el->is_normalized = vtx->num_format_all == 0;
   el->is_signed = vtx->format_comp_all == 1;
   el->offset_words = vtx->offset;
   el->size_words = 0;
   switch (el->format) {
-    case FMT_8_8_8_8:
-    case FMT_2_10_10_10:
-    case FMT_10_11_11:
-    case FMT_11_11_10:
+    case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_2_10_10_10:
+    case VertexFormat::k_10_11_11:
+    case VertexFormat::k_11_11_10:
       el->size_words = 1;
       break;
-    case FMT_16_16:
-    case FMT_16_16_FLOAT:
+    case VertexFormat::k_16_16:
+    case VertexFormat::k_16_16_FLOAT:
       el->size_words = 1;
       break;
-    case FMT_16_16_16_16:
-    case FMT_16_16_16_16_FLOAT:
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
       el->size_words = 2;
       break;
-    case FMT_32:
-    case FMT_32_FLOAT:
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_FLOAT:
       el->size_words = 1;
       break;
-    case FMT_32_32:
-    case FMT_32_32_FLOAT:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_FLOAT:
       el->size_words = 2;
       break;
-    case FMT_32_32_32_FLOAT:
+    case VertexFormat::k_32_32_32_FLOAT:
       el->size_words = 3;
       break;
-    case FMT_32_32_32_32:
-    case FMT_32_32_32_32_FLOAT:
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_32_32_32_FLOAT:
       el->size_words = 4;
       break;
     default:
-      XELOGE("Unknown vertex format: %d", el->format);
-      assert_always();
+      assert_unhandled_case(el->format);
       break;
   }
 }

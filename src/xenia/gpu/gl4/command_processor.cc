@@ -151,12 +151,16 @@ bool CommandProcessor::SetupGL() {
                        GL_MAP_WRITE_BIT | GL_DYNAMIC_STORAGE_BIT);
 
   // Circular buffer holding scratch vertex/index data.
-  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
-  glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
   if (!scratch_buffer_.Initialize()) {
     PLOGE("Unable to initialize scratch buffer");
     return false;
   }
+
+  GLuint vertex_array;
+  glGenVertexArrays(1, &vertex_array);
+  glBindVertexArray(vertex_array);
+  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
+  glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
 
   return true;
 }
@@ -251,8 +255,7 @@ void CommandProcessor::PrepareForWait() {
   // TODO(benvanik): fences and fancy stuff. We should figure out a way to
   // make interrupt callbacks from the GPU so that we don't have to do a full
   // synchronize here.
-  // glFlush();
-  glFinish();
+  glFlush();
 
   if (FLAGS_thread_safe_gl) {
     context_->ClearCurrent();
@@ -1162,10 +1165,11 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     return false;
   }
 
-  // if (!PopulateShaders(draw_command)) {
-  //  XELOGE("Unable to prepare draw shaders");
-  //  return false;
-  //}
+  if (!UpdateShaders(draw_command)) {
+    PLOGE("Unable to prepare draw shaders");
+    return false;
+  }
+
   // if (!PopulateSamplers(draw_command)) {
   //  XELOGE("Unable to prepare draw samplers");
   //  return false;
@@ -1176,25 +1180,77 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     return false;
   }
   if (!PopulateVertexBuffers(draw_command)) {
-    XELOGE("Unable to setup vertex buffers");
+    PLOGE("Unable to setup vertex buffers");
     return false;
   }
+
+  GLenum prim_type = 0;
+  switch (cmd.prim_type) {
+    case PrimitiveType::kPointList:
+      prim_type = GL_POINTS;
+      /*if (vs->DemandGeometryShader(
+        D3D11VertexShaderResource::POINT_SPRITE_SHADER, &geometry_shader)) {
+        return 1;
+      }*/
+      break;
+    case PrimitiveType::kLineList:
+      prim_type = GL_LINES;
+      break;
+    case PrimitiveType::kLineStrip:
+      prim_type = GL_LINE_STRIP;
+      break;
+    case PrimitiveType::kLineLoop:
+      prim_type = GL_LINE_LOOP;
+      break;
+    case PrimitiveType::kTriangleList:
+      prim_type = GL_TRIANGLES;
+      break;
+    case PrimitiveType::kTriangleStrip:
+      prim_type = GL_TRIANGLE_STRIP;
+      break;
+    case PrimitiveType::kTriangleFan:
+      prim_type = GL_TRIANGLE_FAN;
+      break;
+    case PrimitiveType::kRectangleList:
+      prim_type = GL_TRIANGLE_STRIP;
+      /*if (vs->DemandGeometryShader(
+        D3D11VertexShaderResource::RECT_LIST_SHADER, &geometry_shader)) {
+        return 1;
+      }*/
+      break;
+    case PrimitiveType::kQuadList:
+      prim_type = GL_LINES_ADJACENCY;
+      /*if
+      (vs->DemandGeometryShader(D3D11VertexShaderResource::QUAD_LIST_SHADER,
+                                   &geometry_shader)) {
+        return 1;
+      }*/
+      break;
+    default:
+    case PrimitiveType::kUnknown0x07:
+      prim_type = GL_POINTS;
+      XELOGE("D3D11: unsupported primitive type %d", cmd.prim_type);
+      break;
+  }
+
+  // HACK HACK HACK
+  glDisable(GL_DEPTH_TEST);
 
   if (cmd.index_buffer.address) {
     // Indexed draw.
     // PopulateIndexBuffer has our element array setup.
-    //size_t element_size = cmd.index_buffer.format == IndexFormat::kInt32
-    //                          ? sizeof(uint32_t)
-    //                          : sizeof(uint16_t);
-    //glDrawElementsBaseVertex(
-    //    prim_type, cmd.index_count,
-    //    cmd.index_buffer.format == IndexFormat::kInt32 ? GL_UNSIGNED_INT
-    //                                                   : GL_UNSIGNED_SHORT,
-    //    reinterpret_cast<void*>(cmd.start_index * element_size),
-    //    cmd.base_vertex);
+    size_t element_size = cmd.index_buffer.format == IndexFormat::kInt32
+                              ? sizeof(uint32_t)
+                              : sizeof(uint16_t);
+    glDrawElementsBaseVertex(
+        prim_type, cmd.index_count,
+        cmd.index_buffer.format == IndexFormat::kInt32 ? GL_UNSIGNED_INT
+                                                       : GL_UNSIGNED_SHORT,
+        reinterpret_cast<void*>(cmd.start_index * element_size),
+        cmd.base_vertex);
   } else {
     // Auto draw.
-    //glDrawArrays(prim_type, cmd.start_index, cmd.index_count);
+    glDrawArrays(prim_type, cmd.start_index, cmd.index_count);
   }
 
   return true;
@@ -1215,10 +1271,10 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
     };
   };
   struct UniformDataBlock {
-    float4 window_offset;    // tx,ty,?,?
-    float4 window_scissor;   // x0,y0,x1,y1
-    float4 viewport_offset;  // tx,ty,tz,?
-    float4 viewport_scale;   // sx,sy,sz,?
+    float4 window_offset;      // tx,ty,rt_w,rt_h
+    float4 window_scissor;     // x0,y0,x1,y1
+    float4 viewport_offset;    // tx,ty,tz,?
+    float4 viewport_scale;     // sx,sy,sz,?
     // TODO(benvanik): vertex format xyzw?
 
     float4 alpha_test;  // alpha test enable, func, ref, ?
@@ -1236,11 +1292,10 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   static_assert(sizeof(UniformDataBlock) <= 16 * 1024,
                 "Need <=16k uniform data");
 
-  auto buffer_ptr = reinterpret_cast<UniformDataBlock*>(
-      glMapNamedBufferRange(uniform_data_buffer_, 0, 16 * 1024,
-                            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT));
+  auto allocation = scratch_buffer_.Acquire(16 * 1024);
+  auto buffer_ptr = reinterpret_cast<UniformDataBlock*>(allocation.host_ptr);
   if (!buffer_ptr) {
-    PLOGE("Unable to map uniform data buffer");
+    PLOGE("Unable to allocate uniform data buffer");
     return false;
   }
 
@@ -1257,18 +1312,9 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   buffer_ptr->window_scissor.z = float(window_scissor_br & 0x7FFF);
   buffer_ptr->window_scissor.w = float((window_scissor_br >> 16) & 0x7FFF);
 
-  // Viewport scaling. Only enabled if the flags are all set.
-  buffer_ptr->viewport_scale.x =
-      regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;  // 640
-  buffer_ptr->viewport_offset.x =
-      regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32;  // 640
-  buffer_ptr->viewport_scale.y =
-      regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;  // -360
-  buffer_ptr->viewport_offset.y =
-      regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;  // 360
-  buffer_ptr->viewport_scale.z = regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32;  // 1
-  buffer_ptr->viewport_offset.z =
-      regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32;  // 0
+  // HACK: no clue where to get these values.
+  buffer_ptr->window_offset.z = 1280;
+  buffer_ptr->window_offset.w = 720;
 
   // Whether each of the viewport settings is enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -1282,6 +1328,23 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   assert_true(vport_xscale_enable == vport_yscale_enable ==
               vport_zscale_enable == vport_xoffset_enable ==
               vport_yoffset_enable == vport_zoffset_enable);
+
+  // Viewport scaling. Only enabled if the flags are all set.
+  buffer_ptr->viewport_scale.x =
+      vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1;  // 640
+  buffer_ptr->viewport_offset.x = vport_xoffset_enable
+                                      ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
+                                      : 0;  // 640
+  buffer_ptr->viewport_scale.y = vport_yscale_enable
+                                     ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
+                                     : 1;  // -360
+  buffer_ptr->viewport_offset.y = vport_yoffset_enable
+                                      ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+                                      : 0;  // 360
+  buffer_ptr->viewport_scale.z =
+      vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1;  // 1
+  buffer_ptr->viewport_offset.z =
+      vport_zoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32 : 0;  // 0
   // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
   //            = false: multiply the X, Y coordinates by 1/W0.
   bool vtx_xy_fmt = (vte_control >> 8) & 0x1;
@@ -1504,7 +1567,9 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
                 stencil_op_map[(depth_control & 0x0001C000) >> 14]);
   }
 
-  glUnmapNamedBuffer(uniform_data_buffer_);
+  // Stash - program setup will bind this to uniforms.
+  draw_command->state_data_gpu_ptr = allocation.gpu_ptr;
+  scratch_buffer_.Commit(std::move(allocation));
 
   return true;
 }
@@ -1590,11 +1655,80 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
 
   // TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST
   // Pretend we are drawing.
-  glEnable(GL_SCISSOR_TEST);
-  glScissor(100, 100, 100, 100);
-  float red[] = {rand() / (float)RAND_MAX, 0, 0, 1.0f};
-  glClearNamedFramebufferfv(active_framebuffer_->framebuffer, GL_COLOR, 0, red);
-  glDisable(GL_SCISSOR_TEST);
+  // glEnable(GL_SCISSOR_TEST);
+  // glScissor(100, 100, 100, 100);
+  // float red[] = {rand() / (float)RAND_MAX, 0, 0, 1.0f};
+  // glClearNamedFramebufferfv(active_framebuffer_->framebuffer, GL_COLOR, 0,
+  // red);
+  // glDisable(GL_SCISSOR_TEST);
+
+  return true;
+}
+
+bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+  auto& regs = *register_file_;
+  auto& cmd = *draw_command;
+
+  xe_gpu_program_cntl_t program_cntl;
+  program_cntl.dword_0 = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
+  if (!active_vertex_shader_->has_prepared()) {
+    if (!active_vertex_shader_->PrepareVertexShader(program_cntl)) {
+      XELOGE("Unable to prepare vertex shader");
+      return false;
+    }
+  } else if (!active_vertex_shader_->is_valid()) {
+    XELOGE("Vertex shader invalid");
+    return false;
+  }
+
+  if (!active_pixel_shader_->has_prepared()) {
+    if (!active_pixel_shader_->PreparePixelShader(program_cntl,
+                                                  active_vertex_shader_)) {
+      XELOGE("Unable to prepare pixel shader");
+      return false;
+    }
+  } else if (!active_pixel_shader_->is_valid()) {
+    XELOGE("Pixel shader invalid");
+    return false;
+  }
+
+  GLuint vertex_program = active_vertex_shader_->program();
+  GLuint geometry_program = 0;
+  GLuint fragment_program = active_pixel_shader_->program();
+
+  GLuint pipeline;
+  glCreateProgramPipelines(1, &pipeline);
+  glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
+  glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT, geometry_program);
+  glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
+
+  // HACK: layout(location=0) on a bindless uniform crashes nvidia driver.
+  GLint vertex_state_loc = glGetUniformLocation(vertex_program, "state");
+  assert_true(vertex_state_loc == -1 || vertex_state_loc == 0);
+  GLint geometry_state_loc =
+      geometry_program ? glGetUniformLocation(geometry_program, "state") : -1;
+  assert_true(geometry_state_loc == -1 || geometry_state_loc == 0);
+  GLint fragment_state_loc = glGetUniformLocation(fragment_program, "state");
+  assert_true(fragment_state_loc == -1 || fragment_state_loc == 0);
+
+  // TODO(benvanik): do we need to do this for all stages if the locations
+  // match?
+  if (vertex_state_loc != -1) {
+    glProgramUniformHandleui64ARB(vertex_program, vertex_state_loc,
+                                  cmd.state_data_gpu_ptr);
+  }
+  if (geometry_program && geometry_state_loc != -1) {
+    glProgramUniformHandleui64ARB(geometry_program, geometry_state_loc,
+                                  cmd.state_data_gpu_ptr);
+  }
+  if (fragment_state_loc != -1) {
+    glProgramUniformHandleui64ARB(fragment_program, fragment_state_loc,
+                                  cmd.state_data_gpu_ptr);
+  }
+
+  glBindProgramPipeline(pipeline);
+  // glDeleteProgramPipelines(1, &pipeline);
 
   return true;
 }
@@ -1641,15 +1775,9 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
   auto& cmd = *draw_command;
+  assert_not_null(active_vertex_shader_);
 
-  if (!cmd.vertex_shader) {
-    // No vertex shader, no-op.
-    return true;
-  }
-
-  const auto& buffer_inputs = cmd.vertex_shader->buffer_inputs();
-
-  // glBindVertexArray(vertex_array);
+  const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
 
   for (size_t n = 0; n < buffer_inputs.count; n++) {
     const auto& desc = buffer_inputs.descs[n];
@@ -1685,9 +1813,100 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
         reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
         fetch->size);
 
-    /*glBufferAddressRangeNV(GL_VERTEX_ATTRIB_ARRAY_ADDRESS_NV,
-                           desc.input_index,
-                           allocation.gpu_ptr, allocation.length);*/
+    uint32_t el_index = 0;
+    for (uint32_t i = 0; i < desc.element_count; ++i) {
+      const auto& el = desc.elements[i];
+      GLuint comp_count;
+      GLuint comp_size;
+      GLenum comp_type;
+      switch (el.format) {
+        case VertexFormat::k_8_8_8_8:
+          comp_count = 4;
+          comp_size = 1;
+          comp_type = el.is_signed ? GL_BYTE : GL_UNSIGNED_BYTE;
+          break;
+        case VertexFormat::k_2_10_10_10:
+          comp_count = 4;
+          comp_size = 4;
+          comp_type = el.is_signed ? GL_INT_2_10_10_10_REV
+                                   : GL_UNSIGNED_INT_2_10_10_10_REV;
+          break;
+        case VertexFormat::k_10_11_11:
+          comp_count = 3;
+          comp_size = 4;
+          assert_false(el.is_signed);
+          comp_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
+          break;
+        /*case VertexFormat::k_11_11_10:
+          break;*/
+        case VertexFormat::k_16_16:
+          comp_count = 2;
+          comp_size = 2;
+          comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
+          break;
+        case VertexFormat::k_16_16_FLOAT:
+          comp_count = 2;
+          comp_size = 2;
+          comp_type = GL_HALF_FLOAT;
+          break;
+        case VertexFormat::k_16_16_16_16:
+          comp_count = 4;
+          comp_size = 2;
+          comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
+          break;
+        case VertexFormat::k_16_16_16_16_FLOAT:
+          comp_count = 4;
+          comp_size = 2;
+          comp_type = GL_HALF_FLOAT;
+          break;
+        case VertexFormat::k_32:
+          comp_count = 1;
+          comp_size = 4;
+          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
+          break;
+        case VertexFormat::k_32_32:
+          comp_count = 2;
+          comp_size = 4;
+          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
+          break;
+        case VertexFormat::k_32_32_32_32:
+          comp_count = 4;
+          comp_size = 4;
+          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
+          break;
+        case VertexFormat::k_32_FLOAT:
+          comp_count = 1;
+          comp_size = 4;
+          comp_type = GL_FLOAT;
+          break;
+        case VertexFormat::k_32_32_FLOAT:
+          comp_count = 2;
+          comp_size = 4;
+          comp_type = GL_FLOAT;
+          break;
+        case VertexFormat::k_32_32_32_FLOAT:
+          comp_count = 3;
+          comp_size = 4;
+          comp_type = GL_FLOAT;
+          break;
+        case VertexFormat::k_32_32_32_32_FLOAT:
+          comp_count = 4;
+          comp_size = 4;
+          comp_type = GL_FLOAT;
+          break;
+        default:
+          assert_unhandled_case(el.format);
+          break;
+      }
+      size_t offset = el.offset_words * sizeof(uint32_t);
+      glEnableVertexAttribArray(el_index);
+      glVertexAttribFormatNV(el_index, comp_count, comp_type, el.is_normalized,
+                             desc.stride_words * sizeof(uint32_t));
+      glBufferAddressRangeNV(GL_VERTEX_ATTRIB_ARRAY_ADDRESS_NV, el_index,
+                             allocation.gpu_ptr + offset,
+                             allocation.length - offset);
+      ++el_index;
+    }
 
     // Flush buffer before we draw.
     scratch_buffer_.Commit(std::move(allocation));
@@ -1782,7 +2001,7 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
   GLenum read_format;
   GLenum read_type;
   switch (copy_dest_format) {
-    case ColorFormat::kColor_8_8_8_8:
+    case ColorFormat::k_8_8_8_8:
       read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
       read_type = GL_UNSIGNED_BYTE;
       break;
@@ -1832,10 +2051,10 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
         // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
         glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
                                      GL_COLOR_ATTACHMENT0 + copy_src_select);
-        glReadPixels(x, y, w, h, read_format, read_type, ptr);
+        //glReadPixels(x, y, w, h, read_format, read_type, ptr);
       } else {
         // Source from the bound depth/stencil target.
-        glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+        //glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
       }
       break;
     case CopyCommand::kRaw:
@@ -1876,7 +2095,7 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
     glClearNamedFramebufferfi(source_framebuffer->framebuffer, GL_DEPTH_STENCIL,
                               depth.float_value, stencil);
   }
-
+  
   return true;
 }
 
@@ -1890,8 +2109,8 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
   uint32_t height = 2560;
 
   // NOTE: we strip gamma formats down to normal ones.
-  if (format == ColorRenderTargetFormat::k8888Gamma) {
-    format = ColorRenderTargetFormat::k8888;
+  if (format == ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+    format = ColorRenderTargetFormat::k_8_8_8_8;
   }
 
   for (auto& it = cached_color_render_targets_.begin();
@@ -1910,8 +2129,8 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
 
   GLenum internal_format;
   switch (format) {
-    case ColorRenderTargetFormat::k8888:
-    case ColorRenderTargetFormat::k8888Gamma:
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       internal_format = GL_RGBA8;
       break;
     default:

@@ -20,21 +20,19 @@ namespace gpu {
 
 class Shader {
  public:
-  Shader(ShaderType shader_type, uint64_t data_hash, const uint32_t* dword_ptr,
-         uint32_t dword_count);
+  virtual ~Shader();
 
   ShaderType type() const { return shader_type_; }
+  bool has_prepared() const { return has_prepared_; }
   bool is_valid() const { return is_valid_; }
   const std::string& ucode_disassembly() const { return ucode_disassembly_; }
   const std::string& translated_disassembly() const {
     return translated_disassembly_;
   }
 
-  bool Translate();
-
   struct BufferDescElement {
     ucode::instr_fetch_vtx_t vtx_fetch;
-    uint32_t format;
+    xenos::VertexFormat format;
     uint32_t offset_words;
     uint32_t size_words;
     bool is_signed;
@@ -76,7 +74,8 @@ class Shader {
   const std::vector<ucode::instr_cf_alloc_t>& allocs() const { return allocs_; }
 
  protected:
-  virtual bool TranslateImpl() = 0;
+  Shader(ShaderType shader_type, uint64_t data_hash, const uint32_t* dword_ptr,
+         uint32_t dword_count);
 
   void GatherIO();
   void GatherAlloc(const ucode::instr_cf_alloc_t* cf);
@@ -87,10 +86,12 @@ class Shader {
   ShaderType shader_type_;
   uint64_t data_hash_;
   std::vector<uint32_t> data_;
+  bool has_prepared_;
   bool is_valid_;
 
   std::string ucode_disassembly_;
   std::string translated_disassembly_;
+  std::string error_log_;
 
   AllocCounts alloc_counts_;
   std::vector<ucode::instr_cf_exec_t> execs_;

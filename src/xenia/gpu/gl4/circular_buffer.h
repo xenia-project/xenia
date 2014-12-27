@@ -31,6 +31,8 @@ class CircularBuffer {
 
   bool Initialize();
 
+  GLuint handle() const { return buffer_; }
+
   Allocation Acquire(size_t length);
   void Commit(Allocation allocation);
 
