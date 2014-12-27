@@ -31,6 +31,7 @@ class StringBuffer {
   void AppendBytes(const uint8_t* buffer, size_t length);
 
   const char* GetString() const;
+  std::string to_string();
   char* ToString();
   char* EncodeBase64();
 

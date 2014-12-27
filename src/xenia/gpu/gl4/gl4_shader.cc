@@ -10,6 +10,7 @@
 #include <xenia/gpu/gl4/gl4_shader.h>
 
 #include <poly/math.h>
+#include <xenia/gpu/gl4/gl4_shader_translator.h>
 #include <xenia/gpu/gpu-private.h>
 
 namespace xe {
@@ -17,6 +18,9 @@ namespace gpu {
 namespace gl4 {
 
 extern "C" GLEWContext* glewGetContext();
+
+// Stateful, but minimally.
+thread_local GL4ShaderTranslator shader_translator_;
 
 GL4Shader::GL4Shader(ShaderType shader_type, uint64_t data_hash,
                      const uint32_t* dword_ptr, uint32_t dword_count)
@@ -106,6 +110,13 @@ bool GL4Shader::PrepareVertexShader(
       //"  gl_Position = oPos;\n"
       "}\n";
 
+  std::string translated_source =
+      shader_translator_.TranslateVertexShader(this, program_cntl);
+  if (translated_source.empty()) {
+    PLOGE("Vertex shader failed translation");
+    return false;
+  }
+
   if (!CompileProgram(source)) {
     return false;
   }
@@ -132,6 +143,13 @@ bool GL4Shader::PreparePixelShader(
                        "  oC[0] = vtx.o[0];\n"
                        //"  gl_FragDepth = 0.0;\n"
                        "}\n";
+
+  std::string translated_source = shader_translator_.TranslatePixelShader(
+      this, program_cntl, vertex_shader->alloc_counts());
+  if (translated_source.empty()) {
+    PLOGE("Pixel shader failed translation");
+    return false;
+  }
 
   if (!CompileProgram(source)) {
     return false;

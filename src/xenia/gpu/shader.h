@@ -30,6 +30,8 @@ class Shader {
     return translated_disassembly_;
   }
 
+  const uint32_t* data() const { return data_.data(); }
+
   struct BufferDescElement {
     ucode::instr_fetch_vtx_t vtx_fetch;
     xenos::VertexFormat format;

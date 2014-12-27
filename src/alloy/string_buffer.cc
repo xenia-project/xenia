@@ -62,6 +62,8 @@ void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
 
 const char* StringBuffer::GetString() const { return buffer_.data(); }
 
+std::string StringBuffer::to_string() { return std::string(buffer_.data()); }
+
 char* StringBuffer::ToString() { return strdup(buffer_.data()); }
 
 }  // namespace alloy

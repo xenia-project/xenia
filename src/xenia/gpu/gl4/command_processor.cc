@@ -1839,82 +1839,53 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
     uint32_t el_index = 0;
     for (uint32_t i = 0; i < desc.element_count; ++i) {
       const auto& el = desc.elements[i];
-      GLuint comp_count;
-      GLuint comp_size;
+      auto comp_count = GetVertexFormatComponentCount(el.format);
       GLenum comp_type;
       switch (el.format) {
         case VertexFormat::k_8_8_8_8:
-          comp_count = 4;
-          comp_size = 1;
           comp_type = el.is_signed ? GL_BYTE : GL_UNSIGNED_BYTE;
           break;
         case VertexFormat::k_2_10_10_10:
-          comp_count = 4;
-          comp_size = 4;
           comp_type = el.is_signed ? GL_INT_2_10_10_10_REV
                                    : GL_UNSIGNED_INT_2_10_10_10_REV;
           break;
         case VertexFormat::k_10_11_11:
-          comp_count = 3;
-          comp_size = 4;
           assert_false(el.is_signed);
           comp_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
           break;
         /*case VertexFormat::k_11_11_10:
           break;*/
         case VertexFormat::k_16_16:
-          comp_count = 2;
-          comp_size = 2;
           comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
           break;
         case VertexFormat::k_16_16_FLOAT:
-          comp_count = 2;
-          comp_size = 2;
           comp_type = GL_HALF_FLOAT;
           break;
         case VertexFormat::k_16_16_16_16:
-          comp_count = 4;
-          comp_size = 2;
           comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
           break;
         case VertexFormat::k_16_16_16_16_FLOAT:
-          comp_count = 4;
-          comp_size = 2;
           comp_type = GL_HALF_FLOAT;
           break;
         case VertexFormat::k_32:
-          comp_count = 1;
-          comp_size = 4;
           comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
           break;
         case VertexFormat::k_32_32:
-          comp_count = 2;
-          comp_size = 4;
           comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
           break;
         case VertexFormat::k_32_32_32_32:
-          comp_count = 4;
-          comp_size = 4;
           comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
           break;
         case VertexFormat::k_32_FLOAT:
-          comp_count = 1;
-          comp_size = 4;
           comp_type = GL_FLOAT;
           break;
         case VertexFormat::k_32_32_FLOAT:
-          comp_count = 2;
-          comp_size = 4;
           comp_type = GL_FLOAT;
           break;
         case VertexFormat::k_32_32_32_FLOAT:
-          comp_count = 3;
-          comp_size = 4;
           comp_type = GL_FLOAT;
           break;
         case VertexFormat::k_32_32_32_32_FLOAT:
-          comp_count = 4;
-          comp_size = 4;
           comp_type = GL_FLOAT;
           break;
         default:

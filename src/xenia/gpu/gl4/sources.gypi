@@ -12,6 +12,8 @@
     'gl4_graphics_system.h',
     'gl4_shader.cc',
     'gl4_shader.h',
+    'gl4_shader_translator.cc',
+    'gl4_shader_translator.h',
     'gl_context.cc',
     'gl_context.h',
   ],
