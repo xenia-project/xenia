@@ -38,6 +38,12 @@ const GLuint kAnyTarget = UINT_MAX;
 // frame.
 const size_t kScratchBufferCapacity = 64 * 1024 * 1024;
 
+CommandProcessor::CachedPipeline::CachedPipeline() = default;
+
+CommandProcessor::CachedPipeline::~CachedPipeline() {
+  glDeleteProgramPipelines(1, &handles.default_pipeline);
+}
+
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
     : memory_(graphics_system->memory()),
       membase_(graphics_system->memory()->membase()),
@@ -91,10 +97,12 @@ void CommandProcessor::Shutdown() {
   worker_running_ = false;
   SetEvent(write_ptr_index_event_);
   worker_thread_.join();
-  context_.reset();
 
+  all_pipelines_.clear();
   all_shaders_.clear();
   shader_cache_.clear();
+
+  context_.reset();
 }
 
 void CommandProcessor::WorkerMain() {
@@ -1271,10 +1279,10 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
     };
   };
   struct UniformDataBlock {
-    float4 window_offset;      // tx,ty,rt_w,rt_h
-    float4 window_scissor;     // x0,y0,x1,y1
-    float4 viewport_offset;    // tx,ty,tz,?
-    float4 viewport_scale;     // sx,sy,sz,?
+    float4 window_offset;    // tx,ty,rt_w,rt_h
+    float4 window_scissor;   // x0,y0,x1,y1
+    float4 viewport_offset;  // tx,ty,tz,?
+    float4 viewport_scale;   // sx,sy,sz,?
     // TODO(benvanik): vertex format xyzw?
 
     float4 alpha_test;  // alpha test enable, func, ref, ?
@@ -1697,38 +1705,53 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
   GLuint geometry_program = 0;
   GLuint fragment_program = active_pixel_shader_->program();
 
-  GLuint pipeline;
-  glCreateProgramPipelines(1, &pipeline);
-  glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
-  glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT, geometry_program);
-  glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
+  uint64_t key = (uint64_t(vertex_program) << 32) | fragment_program;
+  CachedPipeline* cached_pipeline = nullptr;
+  auto it = cached_pipelines_.find(key);
+  if (it == cached_pipelines_.end()) {
+    // Existing pipeline for these programs not found - create it.
+    auto new_pipeline = std::make_unique<CachedPipeline>();
+    new_pipeline->vertex_program = vertex_program;
+    new_pipeline->fragment_program = fragment_program;
+    new_pipeline->handles.default_pipeline = 0;
+    cached_pipeline = new_pipeline.get();
+    all_pipelines_.emplace_back(std::move(new_pipeline));
+    cached_pipelines_.insert({key, cached_pipeline});
+  } else {
+    // Found a pipeline container - it may or may not have what we want.
+    cached_pipeline = it->second;
+  }
+  if (!cached_pipeline->handles.default_pipeline) {
+    GLuint pipeline;
+    glCreateProgramPipelines(1, &pipeline);
+    glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT, geometry_program);
+    glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
 
-  // HACK: layout(location=0) on a bindless uniform crashes nvidia driver.
-  GLint vertex_state_loc = glGetUniformLocation(vertex_program, "state");
-  assert_true(vertex_state_loc == -1 || vertex_state_loc == 0);
-  GLint geometry_state_loc =
-      geometry_program ? glGetUniformLocation(geometry_program, "state") : -1;
-  assert_true(geometry_state_loc == -1 || geometry_state_loc == 0);
-  GLint fragment_state_loc = glGetUniformLocation(fragment_program, "state");
-  assert_true(fragment_state_loc == -1 || fragment_state_loc == 0);
+    // HACK: layout(location=0) on a bindless uniform crashes nvidia driver.
+    GLint vertex_state_loc = glGetUniformLocation(vertex_program, "state");
+    assert_true(vertex_state_loc == 0);
+    GLint geometry_state_loc =
+        geometry_program ? glGetUniformLocation(geometry_program, "state") : -1;
+    assert_true(geometry_state_loc == -1 || geometry_state_loc == 0);
+    GLint fragment_state_loc = glGetUniformLocation(fragment_program, "state");
+    assert_true(fragment_state_loc == -1 || fragment_state_loc == 0);
+
+    cached_pipeline->handles.default_pipeline = pipeline;
+  }
 
   // TODO(benvanik): do we need to do this for all stages if the locations
   // match?
-  if (vertex_state_loc != -1) {
-    glProgramUniformHandleui64ARB(vertex_program, vertex_state_loc,
+  glProgramUniformHandleui64ARB(vertex_program, 0, cmd.state_data_gpu_ptr);
+  /*if (geometry_program && geometry_state_loc != -1) {
+    glProgramUniformHandleui64ARB(geometry_program, 0, cmd.state_data_gpu_ptr);
+  }*/
+  /*if (fragment_state_loc != -1) {
+    glProgramUniformHandleui64ARB(fragment_program, 0,
                                   cmd.state_data_gpu_ptr);
-  }
-  if (geometry_program && geometry_state_loc != -1) {
-    glProgramUniformHandleui64ARB(geometry_program, geometry_state_loc,
-                                  cmd.state_data_gpu_ptr);
-  }
-  if (fragment_state_loc != -1) {
-    glProgramUniformHandleui64ARB(fragment_program, fragment_state_loc,
-                                  cmd.state_data_gpu_ptr);
-  }
+  }*/
 
-  glBindProgramPipeline(pipeline);
-  // glDeleteProgramPipelines(1, &pipeline);
+  glBindProgramPipeline(cached_pipeline->handles.default_pipeline);
 
   return true;
 }
@@ -2051,10 +2074,10 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
         // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
         glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
                                      GL_COLOR_ATTACHMENT0 + copy_src_select);
-        //glReadPixels(x, y, w, h, read_format, read_type, ptr);
+        // glReadPixels(x, y, w, h, read_format, read_type, ptr);
       } else {
         // Source from the bound depth/stencil target.
-        //glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+        // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
       }
       break;
     case CopyCommand::kRaw:
@@ -2095,7 +2118,7 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
     glClearNamedFramebufferfi(source_framebuffer->framebuffer, GL_DEPTH_STENCIL,
                               depth.float_value, stencil);
   }
-  
+
   return true;
 }
 

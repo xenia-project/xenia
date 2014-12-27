@@ -112,6 +112,16 @@ class CommandProcessor {
     xenos::DepthRenderTargetFormat format;
     GLuint texture;
   };
+  struct CachedPipeline {
+    CachedPipeline();
+    ~CachedPipeline();
+    GLuint vertex_program;
+    GLuint fragment_program;
+    struct {
+      GLuint default_pipeline;
+      // TODO(benvanik): others with geometry shaders.
+    } handles;
+  };
 
   void WorkerMain();
   bool SetupGL();
@@ -239,6 +249,8 @@ class CommandProcessor {
   std::vector<CachedFramebuffer> cached_framebuffers_;
   std::vector<CachedColorRenderTarget> cached_color_render_targets_;
   std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
+  std::vector<std::unique_ptr<CachedPipeline>> all_pipelines_;
+  std::unordered_map<uint64_t, CachedPipeline*> cached_pipelines_;
 
   CircularBuffer scratch_buffer_;
 
