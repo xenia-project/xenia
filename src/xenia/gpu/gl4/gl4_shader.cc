@@ -9,6 +9,7 @@
 
 #include <xenia/gpu/gl4/gl4_shader.h>
 
+#include <poly/math.h>
 #include <xenia/gpu/gpu-private.h>
 
 namespace xe {
@@ -145,6 +146,22 @@ bool GL4Shader::CompileProgram(std::string source) {
 
   translated_disassembly_ = std::move(source);
   const char* source_str = translated_disassembly_.c_str();
+
+  // Save to disk, if we asked for it.
+  if (FLAGS_dump_shaders.size()) {
+    auto base_path = FLAGS_dump_shaders.c_str();
+    char file_name[poly::max_path];
+    snprintf(file_name, poly::countof(file_name), "%s/gl4_gen_%.16llX.%s",
+             base_path, data_hash_,
+             shader_type_ == ShaderType::kVertex ? "vert" : "frag");
+    FILE* f = fopen(file_name, "w");
+    fprintf(f, translated_disassembly_.c_str());
+    fprintf(f, "\n\n");
+    fprintf(f, "/*\n");
+    fprintf(f, ucode_disassembly_.c_str());
+    fprintf(f, " */\n");
+    fclose(f);
+  }
 
   program_ = glCreateShaderProgramv(shader_type_ == ShaderType::kVertex
                                         ? GL_VERTEX_SHADER
