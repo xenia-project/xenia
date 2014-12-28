@@ -33,35 +33,27 @@ const char* GetVertexFormatTypeName(const GL4Shader::BufferDescElement& el) {
       return "float";
     case VertexFormat::k_16_16:
     case VertexFormat::k_32_32:
-      if (el.is_normalized) {
-        return el.is_signed ? "snorm float2" : "unorm float2";
-      } else {
-        return el.is_signed ? "int2" : "uint2";
-      }
+      return el.is_signed ? "ivec2" : "uvec2";
     case VertexFormat::k_16_16_FLOAT:
     case VertexFormat::k_32_32_FLOAT:
-      return "float2";
+      return "vec2";
     case VertexFormat::k_10_11_11:
     case VertexFormat::k_11_11_10:
       return "int3";  // ?
     case VertexFormat::k_32_32_32_FLOAT:
-      return "float3";
+      return "vec3";
     case VertexFormat::k_8_8_8_8:
     case VertexFormat::k_2_10_10_10:
     case VertexFormat::k_16_16_16_16:
     case VertexFormat::k_32_32_32_32:
-      if (el.is_normalized) {
-        return el.is_signed ? "snorm float4" : "unorm float4";
-      } else {
-        return el.is_signed ? "int4" : "uint4";
-      }
+      return el.is_signed ? "ivec4" : "uvec4";
     case VertexFormat::k_16_16_16_16_FLOAT:
     case VertexFormat::k_32_32_32_32_FLOAT:
-      return "float4";
+      return "vec4";
     default:
       XELOGE("Unknown vertex format: %d", el.format);
       assert_always();
-      return "float4";
+      return "vec4";
   }
 }
 
@@ -81,45 +73,12 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
     GL4Shader* vertex_shader, const xe_gpu_program_cntl_t& program_cntl) {
   Reset(vertex_shader);
 
-  // Add constants buffers.
-  // We could optimize this by only including used buffers, but the compiler
-  // seems to do a good job of doing this for us.
-  // It also does read detection, so c[512] can end up c[4] in the asm -
-  // instead of doing this optimization ourselves we could maybe just query
-  // this from the compiler.
-  Append(
-      "cbuffer float_consts : register(b0) {\n"
-      "  float4 c[512];\n"
-      "};\n");
-  // TODO(benvanik): add bool/loop constants.
+  // Normal shaders only, for now.
+  assert_true(program_cntl.vs_export_mode == 0);
 
   AppendTextureHeader(vertex_shader->sampler_inputs());
 
-  // Transform utilities. We adjust the output position in various ways
-  // as we can't do this via D3D11 APIs.
-  Append(
-      "cbuffer vs_consts : register(b3) {\n"
-      "  float4 window;\n"             // x,y,w,h
-      "  float4 viewport_z_enable;\n"  // min,(max - min),?,enabled
-      "  float4 viewport_size;\n"      // x,y,w,h
-      "};"
-      "float4 applyViewport(float4 pos) {\n"
-      "  if (viewport_z_enable.w) {\n"
-      //"    pos.x = (pos.x + 1) * viewport_size.z * 0.5 + viewport_size.x;\n"
-      //"    pos.y = (1 - pos.y) * viewport_size.w * 0.5 + viewport_size.y;\n"
-      //"    pos.z = viewport_z_enable.x + pos.z * viewport_z_enable.y;\n"
-      // w?
-      "  } else {\n"
-      "    pos.xy = pos.xy / float2(window.z / 2.0, -window.w / 2.0) + "
-      "float2(-1.0, 1.0);\n"
-      "    pos.zw = float2(0.0, 1.0);\n"
-      "  }\n"
-      "  pos.xy += window.xy;\n"
-      "  return pos;\n"
-      "}\n");
-
   // Add vertex shader input.
-  Append("struct VS_INPUT {\n");
   uint32_t el_index = 0;
   const auto& buffer_inputs = vertex_shader->buffer_inputs();
   for (uint32_t n = 0; n < buffer_inputs.count; n++) {
@@ -129,55 +88,23 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
       const char* type_name = GetVertexFormatTypeName(el);
       const auto& fetch = el.vtx_fetch;
       uint32_t fetch_slot = fetch.const_index * 3 + fetch.const_index_sel;
-      Append("  %s vf%u_%d : XE_VF%u;\n", type_name, fetch_slot, fetch.offset,
-             el_index);
+      Append("layout(location = %d) in %s vf%u_%d;\n", el_index, type_name,
+             fetch_slot, fetch.offset);
       el_index++;
     }
   }
-  Append("};\n");
 
-  // Add vertex shader output (pixel shader input).
   const auto& alloc_counts = vertex_shader->alloc_counts();
-  Append("struct VS_OUTPUT {\n");
-  if (alloc_counts.positions) {
-    assert_true(alloc_counts.positions == 1);
-    Append("  float4 oPos : SV_POSITION;\n");
-  }
-  if (alloc_counts.params) {
-    Append("  float4 o[%d] : XE_O;\n", kMaxInterpolators);
-  }
-  if (alloc_counts.point_size) {
-    Append("  float4 oPointSize : PSIZE;\n");
-  }
-  Append("};\n");
 
   // Vertex shader main() header.
-  Append(
-      "VS_OUTPUT main(VS_INPUT i) {\n"
-      "  VS_OUTPUT o;\n");
-
-  // Always write position, as some shaders seem to only write certain values.
-  if (alloc_counts.positions) {
-    Append("  o.oPos = float4(0.0, 0.0, 0.0, 1.0);\n");
-  }
-  if (alloc_counts.point_size) {
-    Append("  o.oPointSize = float4(1.0, 0.0, 0.0, 0.0);\n");
-  }
-
-  // TODO(benvanik): remove this, if possible (though the compiler may be smart
-  //     enough to do it for us).
-  if (alloc_counts.params) {
-    for (uint32_t n = 0; n < kMaxInterpolators; n++) {
-      Append("  o.o[%d] = float4(0.0, 0.0, 0.0, 0.0);\n", n);
-    }
-  }
+  Append("void processVertex() {\n");
 
   // Add temporaries for any registers we may use.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
   for (uint32_t n = 0; n <= temp_regs; n++) {
-    Append("  float4 r%d = c[%d];\n", n, n);
+    Append("  vec4 r%d = state->float_consts[%d];\n", n, n);
   }
-  Append("  float4 t;\n");
+  Append("  vec4 t;\n");
 
   // Execute blocks.
   const auto& execs = vertex_shader->execs();
@@ -189,20 +116,12 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
     }
   }
 
-  // main footer.
-  if (alloc_counts.positions) {
-    Append("  o.oPos = applyViewport(o.oPos);\n");
-  }
-  Append(
-      "  return o;\n"
-      "};\n");
-
+  Append("}\n");
   return output_.to_string();
 }
 
 std::string GL4ShaderTranslator::TranslatePixelShader(
-    GL4Shader* pixel_shader, const xe_gpu_program_cntl_t& program_cntl,
-    const GL4Shader::AllocCounts& alloc_counts) {
+    GL4Shader* pixel_shader, const xe_gpu_program_cntl_t& program_cntl) {
   Reset(pixel_shader);
 
   // We need an input VS to make decisions here.
@@ -210,63 +129,22 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   // If the same PS is used with different VS that output different amounts
   // (and less than the number of required registers), things may die.
 
-  // Add constants buffers.
-  // We could optimize this by only including used buffers, but the compiler
-  // seems to do a good job of doing this for us.
-  // It also does read detection, so c[512] can end up c[4] in the asm -
-  // instead of doing this optimization ourselves we could maybe just query
-  // this from the compiler.
-  Append(
-      "cbuffer float_consts : register(b0) {\n"
-      "  float4 c[512];\n"
-      "};\n");
-  // TODO(benvanik): add bool/loop constants.
-
   AppendTextureHeader(pixel_shader->sampler_inputs());
 
-  // Add vertex shader output (pixel shader input).
-  Append("struct VS_OUTPUT {\n");
-  if (alloc_counts.positions) {
-    assert_true(alloc_counts.positions == 1);
-    Append("  float4 oPos : SV_POSITION;\n");
-  }
-  if (alloc_counts.params) {
-    Append("  float4 o[%d] : XE_O;\n", kMaxInterpolators);
-  }
-  Append("};\n");
-
-  // Add pixel shader output.
-  Append("struct PS_OUTPUT {\n");
-  for (uint32_t n = 0; n < alloc_counts.params; n++) {
-    Append("  float4 oC%d   : SV_TARGET%d;\n", n, n);
-    if (program_cntl.ps_export_depth) {
-      // Is this per render-target?
-      Append("  float oD%d   : SV_DEPTH%d;\n", n, n);
-    }
-  }
-  Append("};\n");
-
   // Pixel shader main() header.
-  Append(
-      "PS_OUTPUT main(VS_OUTPUT i) {\n"
-      "  PS_OUTPUT o;\n");
-  for (uint32_t n = 0; n < alloc_counts.params; n++) {
-    Append("  o.oC%d = float4(1.0, 0.0, 0.0, 1.0);\n", n);
-  }
+  Append("void processFragment() {\n");
 
   // Add temporary registers.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
   for (uint32_t n = 0; n <= std::max(15u, temp_regs); n++) {
-    Append("  float4 r%d = c[%d];\n", n, n + 256);
+    Append("  vec4 r%d = state->float_consts[%d];\n", n, n + 256);
   }
-  Append("  float4 t;\n");
+  Append("  vec4 t;\n");
   Append("  float s;\n");  // scalar result (used for RETAIN_PREV)
 
   // Bring registers local.
-  if (alloc_counts.params) {
-    for (uint32_t n = 0; n < kMaxInterpolators; n++) {
-      Append("  r%d = i.o[%d];\n", n, n);
-    }
+  for (uint32_t n = 0; n < kMaxInterpolators; n++) {
+    Append("  r%d = vtx.o[%d];\n", n, n);
   }
 
   // Execute blocks.
@@ -279,11 +157,7 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
     }
   }
 
-  // main footer.
-  Append(
-      "  return o;\n"
-      "}\n");
-
+  Append("}\n");
   return output_.to_string();
 }
 
@@ -343,7 +217,7 @@ void GL4ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
     if (abs_constants) {
       Append("abs(");
     }
-    Append("c[%u]", is_pixel_shader() ? num + 256 : num);
+    Append("state->float_consts[%u]", is_pixel_shader() ? num + 256 : num);
     if (abs_constants) {
       Append(")");
     }
@@ -367,14 +241,14 @@ void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
       case ShaderType::kVertex:
         switch (num) {
           case 62:
-            Append("o.oPos");
+            Append("gl_Position");
             break;
           case 63:
-            Append("o.oPointSize");
+            Append("gl_PointSize");
             break;
           default:
             // Varying.
-            Append("o.o[%u]", num);
+            Append("vtx.o[%u]", num);
             ;
             break;
         }
@@ -382,7 +256,7 @@ void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
       case ShaderType::kPixel:
         switch (num) {
           case 0:
-            Append("o.oC0");
+            Append("oC[0]");
             break;
           default:
             // TODO(benvanik): other render targets?
@@ -412,7 +286,7 @@ void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
     // Masking.
     Append("  ");
     AppendDestRegName(num, dst_exp);
-    Append(" = float4(");
+    Append(" = vec4(");
     for (int i = 0; i < 4; i++) {
       // TODO(benvanik): mask out values? mix in old value as temp?
       // Append("%c", (mask & 0x1) ? chan_names[i] : 'w');
@@ -487,12 +361,18 @@ void GL4ShaderTranslator::PrintExportComment(uint32_t num) {
         case 63:
           name = "gl_PointSize";
           break;
+        default:
+          name = "??";
+          break;
       }
       break;
     case ShaderType::kPixel:
       switch (num) {
         case 0:
           name = "gl_FragColor";
+          break;
+        default:
+          name = "??";
           break;
       }
       break;
@@ -509,7 +389,7 @@ bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
@@ -530,7 +410,7 @@ bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
@@ -540,7 +420,7 @@ bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -551,7 +431,7 @@ bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   if (alu.src1_reg == alu.src2_reg && alu.src1_sel == alu.src2_sel &&
       alu.src1_swiz == alu.src2_swiz &&
@@ -569,7 +449,7 @@ bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
     Append(")");
   }
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -580,7 +460,7 @@ bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("min(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
@@ -590,7 +470,7 @@ bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -602,9 +482,9 @@ bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
-  Append("float4((");
+  Append("vec4((");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
   Append(").x %s (", op);
@@ -630,7 +510,7 @@ bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
                alu.abs_constants);
   Append(").w ? 1.0 : 0.0)");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -653,14 +533,14 @@ bool GL4ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("frac(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -671,14 +551,14 @@ bool GL4ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("trunc(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -689,14 +569,14 @@ bool GL4ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("floor(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -707,20 +587,19 @@ bool GL4ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
-  Append("mad(");
+  Append("(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
-  Append(", ");
+  Append(" * ");
   AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
                alu.abs_constants);
-  Append(", ");
+  Append(") + ");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
                alu.abs_constants);
-  Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -732,11 +611,11 @@ bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   // TODO(benvanik): check argument order - could be 3 as compare and 1 and 2 as
   // values.
-  Append("float4((");
+  Append("vec4((");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
   Append(").x %s 0.0 ? (", op);
@@ -774,7 +653,7 @@ bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
                alu.abs_constants);
   Append(").w)");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -794,7 +673,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("dot(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
@@ -804,7 +683,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -815,17 +694,17 @@ bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
-  Append("dot(float4(");
+  Append("dot(vec4(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
-  Append(").xyz, float4(");
+  Append(").xyz, vec4(");
   AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
                alu.abs_constants);
   Append(").xyz)");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -836,12 +715,12 @@ bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
-  Append("dot(float4(");
+  Append("dot(vec4(");
   AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
                alu.abs_constants);
-  Append(").xy, float4(");
+  Append(").xy, vec4(");
   AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
                alu.abs_constants);
   Append(").xy) + ");
@@ -849,7 +728,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(".x");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -862,7 +741,7 @@ bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
   AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   Append(" = ");
   if (alu.vector_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("max(");
   Append("max(");
@@ -880,7 +759,7 @@ bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(".w)");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -894,7 +773,7 @@ bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   if ((alu.src3_swiz & 0x3) == (((alu.src3_swiz >> 2) + 1) & 0x3)) {
     // This is a mov.
@@ -910,7 +789,7 @@ bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
     Append(".y).xxxx");
   }
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -923,7 +802,7 @@ bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("min(");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
@@ -933,7 +812,7 @@ bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(".y).xxxx");
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -947,14 +826,14 @@ bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("((");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
                alu.abs_constants);
   Append(".x %s 0.0) ? 1.0 : 0.0).xxxx", op);
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -979,14 +858,14 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   Append("(1.0 / ");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
                alu.abs_constants);
   Append(")");
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -999,7 +878,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
@@ -1013,7 +892,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
   Append(".%c", chan_names[swiz_b]);
   Append(").xxxx");
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -1029,7 +908,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
@@ -1043,7 +922,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
   Append(".%c", chan_names[swiz_b]);
   Append(").xxxx");
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -1059,7 +938,7 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
                 alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
-    Append("saturate(");
+    Append("clamp(");
   }
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
@@ -1073,7 +952,7 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
   Append(".%c", chan_names[swiz_b]);
   Append(").xxxx");
   if (alu.scalar_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
@@ -1491,10 +1370,10 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
   // Translate.
   Append("  ");
   Append("r%u.xyzw", vtx->dst_reg);
-  Append(" = float4(");
+  Append(" = vec4(");
   uint32_t fetch_slot = vtx->const_index * 3 + vtx->const_index_sel;
   // TODO(benvanik): detect xyzw = xyzw, etc.
-  // TODO(benvanik): detect and set as rN = float4(samp.xyz, 1.0); / etc
+  // TODO(benvanik): detect and set as rN = vec4(samp.xyz, 1.0); / etc
   uint32_t component_count =
       GetVertexFormatComponentCount(static_cast<VertexFormat>(vtx->format));
   uint32_t dst_swiz = vtx->dst_swiz;
@@ -1509,8 +1388,7 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
     } else if ((dst_swiz & 0x7) == 7) {
       Append("r%u.%c", vtx->dst_reg, chan_names[i]);
     } else {
-      Append("i.vf%u_%d.%c", fetch_slot, vtx->offset,
-             chan_names[dst_swiz & 0x3]);
+      Append("vf%u_%d.%c", fetch_slot, vtx->offset, chan_names[dst_swiz & 0x3]);
     }
     if (i < 3) {
       Append(", ");
@@ -1633,7 +1511,7 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
   }
   Append(");\n");
 
-  Append("  r%u.xyzw = float4(", tex->dst_reg);
+  Append("  r%u.xyzw = vec4(", tex->dst_reg);
   uint32_t dst_swiz = tex->dst_swiz;
   for (int i = 0; i < 4; i++) {
     if (i) {

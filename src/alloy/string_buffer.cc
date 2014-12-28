@@ -48,7 +48,7 @@ void StringBuffer::AppendVarargs(const char* format, va_list args) {
   auto offset = buffer_.size();
   Grow(length + 1);
   buffer_.resize(buffer_.size() + length);
-  vsnprintf(buffer_.data() + offset, buffer_.capacity() - 1, format, args);
+  vsnprintf(buffer_.data() + offset, buffer_.capacity(), format, args);
   buffer_[buffer_.size()] = 0;
 }
 
@@ -62,7 +62,7 @@ void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
 
 const char* StringBuffer::GetString() const { return buffer_.data(); }
 
-std::string StringBuffer::to_string() { return std::string(buffer_.data()); }
+std::string StringBuffer::to_string() { return std::string(buffer_.data(), buffer_.size()); }
 
 char* StringBuffer::ToString() { return strdup(buffer_.data()); }
 

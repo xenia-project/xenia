@@ -92,22 +92,17 @@ bool GL4Shader::PrepareVertexShader(
       "  float gl_PointSize;\n"
       "  float gl_ClipDistance[];\n"
       "};\n"
-      "layout(location = 0) in vec3 iF0;\n"
-      "layout(location = 1) in vec4 iF1;\n"
       "layout(location = 0) out VertexData vtx;\n"
-      "void main() {\n"
-      //"  vec4 oPos = vec4(iF0.xy, 0.0, 1.0);\n"
-      "  vec4 oPos = iF0.xxxx * state->float_consts[0];\n"
-      "  oPos = (iF0.yyyy * state->float_consts[1]) + oPos;\n"
-      "  oPos = (iF0.zzzz * state->float_consts[2]) + oPos;\n"
-      "  oPos = (vec4(1.0, 1.0, 1.0, 1.0) * state->float_consts[3]) + oPos;\n"
-      //"  gl_PointSize = 1.0;\n"
+      "void processVertex();\n"
+      "void main() {\n" +
+      (alloc_counts().positions ? "  gl_Position = vec4(0.0, 0.0, 0.0, 1.0);\n"
+                                : "") +
+      (alloc_counts().point_size ? "  gl_PointSize = 1.0;\n" : "") +
       "  for (int i = 0; i < vtx.o.length(); ++i) {\n"
-      "    vtx.o[0] = vec4(0.0, 0.0, 0.0, 0.0);\n"
+      "    vtx.o[i] = vec4(0.0, 0.0, 0.0, 0.0);\n"
       "  }\n"
-      "  vtx.o[0] = iF1;\n"
-      "  gl_Position = applyViewport(oPos);\n"
-      //"  gl_Position = oPos;\n"
+      "  processVertex();\n"
+      "  gl_Position = applyViewport(gl_Position);\n"
       "}\n";
 
   std::string translated_source =
@@ -116,6 +111,7 @@ bool GL4Shader::PrepareVertexShader(
     PLOGE("Vertex shader failed translation");
     return false;
   }
+  source += translated_source;
 
   if (!CompileProgram(source)) {
     return false;
@@ -126,30 +122,33 @@ bool GL4Shader::PrepareVertexShader(
 }
 
 bool GL4Shader::PreparePixelShader(
-    const xenos::xe_gpu_program_cntl_t& program_cntl,
-    GL4Shader* vertex_shader) {
+    const xenos::xe_gpu_program_cntl_t& program_cntl) {
   if (has_prepared_) {
     return is_valid_;
   }
   has_prepared_ = true;
 
-  std::string source = header +
-                       "layout(location = 0) in VertexData vtx;\n"
-                       "layout(location = 0) out vec4 oC[4];\n"
-                       "void main() {\n"
-                       "  for (int i = 0; i < oC.length(); ++i) {\n"
-                       "    oC[i] = vec4(1.0, 0.0, 0.0, 1.0);\n"
-                       "  }\n"
-                       "  oC[0] = vtx.o[0];\n"
-                       //"  gl_FragDepth = 0.0;\n"
-                       "}\n";
+  std::string source =
+      header +
+      "layout(location = 0) in VertexData vtx;\n"
+      "layout(location = 0) out vec4 oC[4];\n"
+      "void processFragment();\n"
+      "void main() {\n"
+      "  for (int i = 0; i < oC.length(); ++i) {\n"
+      "    oC[i] = vec4(0.0, 0.0, 0.0, 0.0);\n"
+      "  }\n" +
+      (program_cntl.ps_export_depth ? "  gl_FragDepth = 0.0\n" : "") +
+      "  processFragment();\n"
+      "}\n";
 
-  std::string translated_source = shader_translator_.TranslatePixelShader(
-      this, program_cntl, vertex_shader->alloc_counts());
+  std::string translated_source =
+      shader_translator_.TranslatePixelShader(this, program_cntl);
   if (translated_source.empty()) {
     PLOGE("Pixel shader failed translation");
     return false;
   }
+
+  source += translated_source;
 
   if (!CompileProgram(source)) {
     return false;
@@ -166,12 +165,13 @@ bool GL4Shader::CompileProgram(std::string source) {
   const char* source_str = translated_disassembly_.c_str();
 
   // Save to disk, if we asked for it.
+  auto base_path = FLAGS_dump_shaders.c_str();
+  char file_name[poly::max_path];
+  snprintf(file_name, poly::countof(file_name), "%s/gl4_gen_%.16llX.%s",
+           base_path, data_hash_,
+           shader_type_ == ShaderType::kVertex ? "vert" : "frag");
   if (FLAGS_dump_shaders.size()) {
-    auto base_path = FLAGS_dump_shaders.c_str();
-    char file_name[poly::max_path];
-    snprintf(file_name, poly::countof(file_name), "%s/gl4_gen_%.16llX.%s",
-             base_path, data_hash_,
-             shader_type_ == ShaderType::kVertex ? "vert" : "frag");
+    // Note that we put the translated source first so we get good line numbers.
     FILE* f = fopen(file_name, "w");
     fprintf(f, translated_disassembly_.c_str());
     fprintf(f, "\n\n");
@@ -190,6 +190,7 @@ bool GL4Shader::CompileProgram(std::string source) {
     return false;
   }
 
+  // Get error log, if we failed to link.
   GLint link_status = 0;
   glGetProgramiv(program_, GL_LINK_STATUS, &link_status);
   if (!link_status) {
@@ -203,6 +204,50 @@ bool GL4Shader::CompileProgram(std::string source) {
     PLOGE("Unable to link program: %s", info_log.c_str());
     error_log_ = std::move(info_log);
     return false;
+  }
+
+  // Get program binary, if it's available.
+  GLint binary_length = 0;
+  glGetProgramiv(program_, GL_PROGRAM_BINARY_LENGTH, &binary_length);
+  if (binary_length) {
+    translated_binary_.resize(binary_length);
+    GLenum binary_format;
+    glGetProgramBinary(program_, binary_length, &binary_length, &binary_format,
+                       translated_binary_.data());
+
+    // Append to shader dump.
+    if (FLAGS_dump_shaders.size()) {
+      // If we are on nvidia, we can find the disassembly string.
+      // I haven't been able to figure out from the format how to do this
+      // without a search like this.
+      const char* disasm_start = nullptr;
+      size_t search_offset = 0;
+      char* search_start = reinterpret_cast<char*>(translated_binary_.data());
+      while (true) {
+        auto p = reinterpret_cast<char*>(
+            memchr(translated_binary_.data() + search_offset, '!',
+                   translated_binary_.size() - search_offset));
+        if (!p) {
+          break;
+        }
+        if (p[0] == '!' && p[1] == '!' && p[2] == 'N' && p[3] == 'V') {
+          disasm_start = p;
+          break;
+        }
+        search_offset = p - search_start;
+        ++search_offset;
+      }
+
+      if (disasm_start) {
+        FILE* f = fopen(file_name, "a");
+        fprintf(f, "\n\n/*\n");
+        fprintf(f, disasm_start);
+        fprintf(f, "\n*/\n");
+        fclose(f);
+      } else {
+        PLOGW("Got program binary but unable to find disassembly");
+      }
+    }
   }
 
   return true;

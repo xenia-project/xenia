@@ -27,8 +27,7 @@ class GL4Shader : public Shader {
   GLuint program() const { return program_; }
 
   bool PrepareVertexShader(const xenos::xe_gpu_program_cntl_t& program_cntl);
-  bool PreparePixelShader(const xenos::xe_gpu_program_cntl_t& program_cntl,
-                          GL4Shader* vertex_shader);
+  bool PreparePixelShader(const xenos::xe_gpu_program_cntl_t& program_cntl);
 
  protected:
   bool CompileProgram(std::string source);

@@ -11,6 +11,7 @@
 #define XENIA_GPU_SHADER_H_
 
 #include <string>
+#include <vector>
 
 #include <xenia/gpu/ucode.h>
 #include <xenia/gpu/xenos.h>
@@ -29,6 +30,7 @@ class Shader {
   const std::string& translated_disassembly() const {
     return translated_disassembly_;
   }
+  const std::vector<uint8_t> translated_binary() { return translated_binary_; }
 
   const uint32_t* data() const { return data_.data(); }
 
@@ -93,6 +95,7 @@ class Shader {
 
   std::string ucode_disassembly_;
   std::string translated_disassembly_;
+  std::vector<uint8_t> translated_binary_;
   std::string error_log_;
 
   AllocCounts alloc_counts_;

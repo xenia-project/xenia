@@ -34,8 +34,8 @@ class GL4ShaderTranslator {
       GL4Shader* vertex_shader,
       const xenos::xe_gpu_program_cntl_t& program_cntl);
   std::string TranslatePixelShader(
-      GL4Shader* pixel_shader, const xenos::xe_gpu_program_cntl_t& program_cntl,
-      const GL4Shader::AllocCounts& alloc_counts);
+      GL4Shader* pixel_shader,
+      const xenos::xe_gpu_program_cntl_t& program_cntl);
 
  protected:
   ShaderType shader_type_;

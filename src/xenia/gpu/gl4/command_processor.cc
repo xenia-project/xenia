@@ -1661,15 +1661,6 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
   // TODO(benvanik): do we want this on READ too?
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
 
-  // TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST
-  // Pretend we are drawing.
-  // glEnable(GL_SCISSOR_TEST);
-  // glScissor(100, 100, 100, 100);
-  // float red[] = {rand() / (float)RAND_MAX, 0, 0, 1.0f};
-  // glClearNamedFramebufferfv(active_framebuffer_->framebuffer, GL_COLOR, 0,
-  // red);
-  // glDisable(GL_SCISSOR_TEST);
-
   return true;
 }
 
@@ -1691,8 +1682,7 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
   }
 
   if (!active_pixel_shader_->has_prepared()) {
-    if (!active_pixel_shader_->PreparePixelShader(program_cntl,
-                                                  active_vertex_shader_)) {
+    if (!active_pixel_shader_->PreparePixelShader(program_cntl)) {
       XELOGE("Unable to prepare pixel shader");
       return false;
     }
