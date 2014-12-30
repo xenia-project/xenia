@@ -1,0 +1,497 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include <xenia/gpu/gl4/texture_cache.h>
+
+#include <poly/assert.h>
+#include <poly/math.h>
+#include <xenia/gpu/gpu-private.h>
+
+namespace xe {
+namespace gpu {
+namespace gl4 {
+
+using namespace xe::gpu::xenos;
+
+extern "C" GLEWContext* glewGetContext();
+extern "C" WGLEWContext* wglewGetContext();
+
+TextureCache::TextureCache() {
+  //
+}
+
+TextureCache::~TextureCache() { Shutdown(); }
+
+bool TextureCache::Initialize(CircularBuffer* scratch_buffer) {
+  scratch_buffer_ = scratch_buffer;
+  return true;
+}
+
+void TextureCache::Shutdown() {
+  Clear();
+  //
+}
+
+void TextureCache::Clear() {
+  for (auto& entry : entries_) {
+    for (auto& view : entry.views) {
+      glMakeTextureHandleNonResidentARB(view.texture_sampler_handle);
+      glDeleteSamplers(1, &view.sampler);
+    }
+    glDeleteTextures(1, &entry.base_texture);
+  }
+  entries_.clear();
+}
+
+TextureCache::EntryView* TextureCache::Demand(void* host_base, size_t length,
+                                              const TextureInfo& texture_info,
+                                              const SamplerInfo& sampler_info) {
+  entries_.emplace_back(Entry());
+  auto& entry = entries_.back();
+  entry.texture_info = texture_info;
+
+  GLenum target;
+  switch (texture_info.dimension) {
+    case Dimension::k1D:
+      target = GL_TEXTURE_1D;
+      break;
+    case Dimension::k2D:
+      target = GL_TEXTURE_2D;
+      break;
+    case Dimension::k3D:
+      target = GL_TEXTURE_3D;
+      break;
+    case Dimension::kCube:
+      target = GL_TEXTURE_CUBE_MAP;
+      break;
+  }
+
+  // Setup the base texture.
+  glCreateTextures(target, 1, &entry.base_texture);
+  if (!SetupTexture(entry.base_texture, texture_info)) {
+    PLOGE("Unable to setup texture parameters");
+    return false;
+  }
+
+  // Upload/convert.
+  bool uploaded = false;
+  switch (texture_info.dimension) {
+    case Dimension::k2D:
+      uploaded = UploadTexture2D(entry.base_texture, host_base, length,
+                                 texture_info, sampler_info);
+      break;
+    case Dimension::k1D:
+    case Dimension::k3D:
+    case Dimension::kCube:
+      assert_unhandled_case(texture_info.dimension);
+      return false;
+  }
+  if (!uploaded) {
+    PLOGE("Failed to convert/upload texture");
+    return false;
+  }
+
+  entry.views.emplace_back(EntryView());
+  auto& entry_view = entry.views.back();
+  entry_view.sampler_info = sampler_info;
+
+  // Setup the sampler.
+  glCreateSamplers(1, &entry_view.sampler);
+  if (!SetupSampler(entry_view.sampler, texture_info, sampler_info)) {
+    PLOGE("Unable to setup texture sampler parameters");
+    return false;
+  }
+
+  // Get the uvec2 handle to the texture/sampler pair and make it resident.
+  // The handle can be passed directly to the shader.
+  entry_view.texture_sampler_handle =
+      glGetTextureSamplerHandleARB(entry.base_texture, entry_view.sampler);
+  if (!entry_view.texture_sampler_handle) {
+    return nullptr;
+  }
+  glMakeTextureHandleResidentARB(entry_view.texture_sampler_handle);
+
+  return &entry_view;
+}
+
+bool TextureCache::SetupTexture(GLuint texture,
+                                const TextureInfo& texture_info) {
+  // TODO(benvanik): texture mip levels.
+  glTextureParameteri(texture, GL_TEXTURE_BASE_LEVEL, 0);
+  glTextureParameteri(texture, GL_TEXTURE_MAX_LEVEL, 1);
+
+  // Pre-shader swizzle.
+  // TODO(benvanik): can this be dynamic? Maybe per view?
+  // We may have to emulate this in the shader.
+  uint32_t swizzle_r = texture_info.swizzle & 0x7;
+  uint32_t swizzle_g = (texture_info.swizzle >> 3) & 0x7;
+  uint32_t swizzle_b = (texture_info.swizzle >> 6) & 0x7;
+  uint32_t swizzle_a = (texture_info.swizzle >> 9) & 0x7;
+  static const GLenum swizzle_map[] = {
+      GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO, GL_ONE,
+  };
+  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_R, swizzle_map[swizzle_r]);
+  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_G, swizzle_map[swizzle_g]);
+  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_B, swizzle_map[swizzle_b]);
+  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_A, swizzle_map[swizzle_a]);
+
+  return true;
+}
+
+bool TextureCache::SetupSampler(GLuint sampler, const TextureInfo& texture_info,
+                                const SamplerInfo& sampler_info) {
+  // TODO(benvanik): border color from texture fetch.
+  GLfloat border_color[4] = {0.0f};
+  glSamplerParameterfv(sampler, GL_TEXTURE_BORDER_COLOR, border_color);
+
+  // TODO(benvanik): setup LODs for mipmapping.
+  glSamplerParameterf(sampler, GL_TEXTURE_LOD_BIAS, 0.0f);
+  glSamplerParameterf(sampler, GL_TEXTURE_MIN_LOD, 0.0f);
+  glSamplerParameterf(sampler, GL_TEXTURE_MAX_LOD, 0.0f);
+
+  // Texture wrapping modes.
+  // TODO(benvanik): not sure if the middle ones are correct.
+  static const GLenum wrap_map[] = {
+      GL_REPEAT,                      //
+      GL_MIRRORED_REPEAT,             //
+      GL_CLAMP_TO_EDGE,               //
+      GL_MIRROR_CLAMP_TO_EDGE,        //
+      GL_CLAMP_TO_BORDER,             // ?
+      GL_MIRROR_CLAMP_TO_BORDER_EXT,  // ?
+      GL_CLAMP_TO_BORDER,             //
+      GL_MIRROR_CLAMP_TO_BORDER_EXT,  //
+  };
+  glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S,
+                      wrap_map[sampler_info.clamp_u]);
+  glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T,
+                      wrap_map[sampler_info.clamp_v]);
+  glSamplerParameteri(sampler, GL_TEXTURE_WRAP_R,
+                      wrap_map[sampler_info.clamp_w]);
+
+  // Texture level filtering.
+  GLenum min_filter;
+  switch (sampler_info.min_filter) {
+    case ucode::TEX_FILTER_POINT:
+      switch (sampler_info.mip_filter) {
+        case ucode::TEX_FILTER_BASEMAP:
+          min_filter = GL_NEAREST;
+          break;
+        case ucode::TEX_FILTER_POINT:
+          // min_filter = GL_NEAREST_MIPMAP_NEAREST;
+          min_filter = GL_NEAREST;
+          break;
+        case ucode::TEX_FILTER_LINEAR:
+          // min_filter = GL_NEAREST_MIPMAP_LINEAR;
+          min_filter = GL_NEAREST;
+          break;
+        default:
+          assert_unhandled_case(sampler_info.mip_filter);
+          return false;
+      }
+      break;
+    case ucode::TEX_FILTER_LINEAR:
+      switch (sampler_info.mip_filter) {
+        case ucode::TEX_FILTER_BASEMAP:
+          min_filter = GL_LINEAR;
+          break;
+        case ucode::TEX_FILTER_POINT:
+          // min_filter = GL_LINEAR_MIPMAP_NEAREST;
+          min_filter = GL_LINEAR;
+          break;
+        case ucode::TEX_FILTER_LINEAR:
+          // min_filter = GL_LINEAR_MIPMAP_LINEAR;
+          min_filter = GL_LINEAR;
+          break;
+        default:
+          assert_unhandled_case(sampler_info.mip_filter);
+          return false;
+      }
+      break;
+    default:
+      assert_unhandled_case(sampler_info.min_filter);
+      return false;
+  }
+  GLenum mag_filter;
+  switch (sampler_info.mag_filter) {
+    case ucode::TEX_FILTER_POINT:
+      mag_filter = GL_NEAREST;
+      break;
+    case ucode::TEX_FILTER_LINEAR:
+      mag_filter = GL_LINEAR;
+      break;
+    default:
+      assert_unhandled_case(mag_filter);
+      return false;
+  }
+  glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, min_filter);
+  glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, mag_filter);
+
+  // TODO(benvanik): anisotropic filtering.
+  // GL_TEXTURE_MAX_ANISOTROPY_EXT
+
+  return true;
+}
+
+void TextureSwap(Endian endianness, void* dest, const void* src,
+                 size_t length) {
+  switch (endianness) {
+    case Endian::k8in16:
+      poly::copy_and_swap_16_aligned(reinterpret_cast<uint16_t*>(dest),
+                                     reinterpret_cast<const uint16_t*>(src),
+                                     length / 2);
+      break;
+    case Endian::k8in32:
+      poly::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(dest),
+                                     reinterpret_cast<const uint32_t*>(src),
+                                     length / 4);
+      break;
+    case Endian::k16in32:
+      // TODO(benvanik): make more efficient.
+      /*for (uint32_t i = 0; i < length; i += 4, src += 4, dest += 4) {
+        uint32_t value = *(uint32_t*)src;
+        *(uint32_t*)dest = ((value >> 16) & 0xFFFF) | (value << 16);
+      }*/
+      assert_always("16in32 not supported");
+      break;
+    default:
+    case Endian::kUnspecified:
+      std::memcpy(dest, src, length);
+      break;
+  }
+}
+
+bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
+                                   size_t length,
+                                   const TextureInfo& texture_info,
+                                   const SamplerInfo& sampler_info) {
+  assert_true(length == texture_info.input_length);
+
+  GLenum internal_format = GL_RGBA8;
+  GLenum format = GL_RGBA;
+  GLenum type = GL_UNSIGNED_BYTE;
+  // https://code.google.com/p/glsnewton/source/browse/trunk/Source/uDDSLoader.pas?r=62
+  // http://dench.flatlib.jp/opengl/textures
+  // http://fossies.org/linux/WebKit/Source/ThirdParty/ANGLE/src/libGLESv2/formatutils.cpp
+  switch (texture_info.format) {
+    case TextureFormat::k_8:
+      internal_format = GL_R8;
+      format = GL_R;
+      type = GL_UNSIGNED_BYTE;
+      break;
+    case TextureFormat::k_1_5_5_5:
+      internal_format = GL_RGB5_A1;
+      format = GL_BGRA;
+      type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+      break;
+    case TextureFormat::k_5_6_5:
+      internal_format = GL_RGB565;
+      format = GL_RGB;
+      type = GL_UNSIGNED_SHORT_5_6_5;
+      break;
+    case TextureFormat::k_2_10_10_10:
+    case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
+      internal_format = GL_RGB10_A2;
+      format = GL_RGBA;
+      type = GL_UNSIGNED_INT_2_10_10_10_REV;
+      break;
+    case TextureFormat::k_10_11_11:
+    case TextureFormat::k_10_11_11_AS_16_16_16_16:
+      // ?
+      internal_format = GL_R11F_G11F_B10F;
+      format = GL_RGB;
+      type = GL_UNSIGNED_INT_10F_11F_11F_REV;
+      break;
+    case TextureFormat::k_11_11_10:
+    case TextureFormat::k_11_11_10_AS_16_16_16_16:
+      internal_format = GL_R11F_G11F_B10F;
+      format = GL_RGB;
+      type = GL_UNSIGNED_INT_10F_11F_11F_REV;
+      break;
+    case TextureFormat::k_8_8_8_8:
+    case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+      internal_format = GL_RGBA8;
+      format = GL_RGBA;
+      type = GL_UNSIGNED_BYTE;
+      break;
+    case TextureFormat::k_4_4_4_4:
+      internal_format = GL_RGBA4;
+      format = GL_RGBA;
+      type = GL_UNSIGNED_SHORT_4_4_4_4;
+      break;
+    case TextureFormat::k_16_FLOAT:
+      internal_format = GL_R16F;
+      format = GL_RED;
+      type = GL_HALF_FLOAT;
+      break;
+    case TextureFormat::k_16_16_FLOAT:
+      internal_format = GL_RG16F;
+      format = GL_RG;
+      type = GL_HALF_FLOAT;
+      break;
+    case TextureFormat::k_16_16_16_16_FLOAT:
+      internal_format = GL_RGBA16F;
+      format = GL_RGBA;
+      type = GL_HALF_FLOAT;
+      break;
+    case TextureFormat::k_32_FLOAT:
+      internal_format = GL_R32F;
+      format = GL_R;
+      type = GL_FLOAT;
+      break;
+    case TextureFormat::k_32_32_FLOAT:
+      internal_format = GL_RG32F;
+      format = GL_RG;
+      type = GL_FLOAT;
+      break;
+    case TextureFormat::k_32_32_32_FLOAT:
+      internal_format = GL_RGB32F;
+      format = GL_RGB;
+      type = GL_FLOAT;
+      break;
+    case TextureFormat::k_32_32_32_32_FLOAT:
+      internal_format = GL_RGBA32F;
+      format = GL_RGBA;
+      type = GL_FLOAT;
+      break;
+    case TextureFormat::k_DXT1:
+    case TextureFormat::k_DXT1_AS_16_16_16_16:
+      // or GL_COMPRESSED_RGB_S3TC_DXT1_EXT?
+      internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+      break;
+    case TextureFormat::k_DXT2_3:
+    case TextureFormat::k_DXT2_3_AS_16_16_16_16:
+      internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+      break;
+    case TextureFormat::k_DXT4_5:
+    case TextureFormat::k_DXT4_5_AS_16_16_16_16:
+      internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+      break;
+    case TextureFormat::k_24_8:
+      internal_format = GL_DEPTH24_STENCIL8;
+      format = GL_DEPTH_STENCIL;
+      type = GL_UNSIGNED_INT_24_8;
+      break;
+    case TextureFormat::k_24_8_FLOAT:
+      internal_format = GL_DEPTH24_STENCIL8;
+      format = GL_DEPTH_STENCIL;
+      type = GL_FLOAT_32_UNSIGNED_INT_24_8_REV;
+      break;
+    default:
+    case TextureFormat::k_1_REVERSE:
+    case TextureFormat::k_1:
+    case TextureFormat::k_6_5_5:
+    case TextureFormat::k_8_A:
+    case TextureFormat::k_8_B:
+    case TextureFormat::k_8_8:
+    case TextureFormat::k_Cr_Y1_Cb_Y0:
+    case TextureFormat::k_Y1_Cr_Y0_Cb:
+    case TextureFormat::k_8_8_8_8_A:
+    case TextureFormat::k_16:
+    case TextureFormat::k_16_16:
+    case TextureFormat::k_16_16_16_16:
+    case TextureFormat::k_16_EXPAND:
+    case TextureFormat::k_16_16_EXPAND:
+    case TextureFormat::k_16_16_16_16_EXPAND:
+    case TextureFormat::k_32_32:
+    case TextureFormat::k_32_32_32_32:
+    case TextureFormat::k_32_AS_8:
+    case TextureFormat::k_32_AS_8_8:
+    case TextureFormat::k_16_MPEG:
+    case TextureFormat::k_16_16_MPEG:
+    case TextureFormat::k_8_INTERLACED:
+    case TextureFormat::k_32_AS_8_INTERLACED:
+    case TextureFormat::k_32_AS_8_8_INTERLACED:
+    case TextureFormat::k_16_INTERLACED:
+    case TextureFormat::k_16_MPEG_INTERLACED:
+    case TextureFormat::k_16_16_MPEG_INTERLACED:
+    case TextureFormat::k_DXN:
+    case TextureFormat::k_DXT3A:
+    case TextureFormat::k_DXT5A:
+    case TextureFormat::k_CTX1:
+    case TextureFormat::k_DXT3A_AS_1_1_1_1:
+      assert_unhandled_case(texture_info.format);
+      return false;
+  }
+
+  size_t unpack_length = texture_info.input_length;
+  glTextureStorage2D(texture, 1, internal_format,
+                     texture_info.size_2d.output_width,
+                     texture_info.size_2d.output_height);
+  assert_true(unpack_length % 4 == 0);
+
+  auto allocation = scratch_buffer_->Acquire(unpack_length);
+
+  if (!texture_info.is_tiled) {
+    TextureSwap(texture_info.endianness, allocation.host_ptr, host_base,
+                unpack_length);
+    /*const uint8_t* src = reinterpret_cast<const uint8_t*>(host_base);
+    uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+    for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
+      for (uint32_t x = 0; x < texture_info.size_2d.logical_pitch;
+           x += texture_info.texel_pitch) {
+        TextureSwap(texture_info.endianness, dest + x, src + x,
+                    texture_info.texel_pitch);
+      }
+      src += texture_info.size_2d.input_pitch;
+      dest += texture_info.size_2d.input_pitch;
+    }*/
+    // std::memcpy(dest, src, unpack_length);
+  } else {
+    uint8_t* src = reinterpret_cast<uint8_t*>(host_base);
+    uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+    uint32_t output_pitch =
+        (texture_info.size_2d.output_width / texture_info.block_size) *
+        texture_info.texel_pitch;
+    auto bpp =
+        (texture_info.texel_pitch >> 2) +
+        ((texture_info.texel_pitch >> 1) >> (texture_info.texel_pitch >> 2));
+    for (uint32_t y = 0, output_base_offset = 0;
+         y < texture_info.size_2d.block_height;
+         y++, output_base_offset += output_pitch) {
+      auto input_base_offset = TextureInfo::TiledOffset2DOuter(
+          y, (texture_info.size_2d.input_width / texture_info.block_size), bpp);
+      for (uint32_t x = 0, output_offset = output_base_offset;
+           x < texture_info.size_2d.block_width;
+           x++, output_offset += texture_info.texel_pitch) {
+        auto input_offset =
+            TextureInfo::TiledOffset2DInner(x, y, bpp, input_base_offset) >>
+            bpp;
+        TextureSwap(texture_info.endianness, dest + output_offset,
+                    src + input_offset * texture_info.texel_pitch,
+                    texture_info.texel_pitch);
+      }
+    }
+  }
+  size_t unpack_offset = allocation.offset;
+  scratch_buffer_->Commit(std::move(allocation));
+
+  // glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
+  // glPixelStorei(GL_UNPACK_ALIGNMENT, texture_info.texel_pitch);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, texture_info.size_2d.input_width);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, scratch_buffer_->handle());
+  if (texture_info.is_compressed) {
+    glCompressedTextureSubImage2D(texture, 0, 0, 0,
+                                  texture_info.size_2d.output_width,
+                                  texture_info.size_2d.output_height, format,
+                                  static_cast<GLsizei>(unpack_length),
+                                  reinterpret_cast<void*>(unpack_offset));
+  } else {
+    glTextureSubImage2D(texture, 0, 0, 0, texture_info.size_2d.output_width,
+                        texture_info.size_2d.output_height, format, type,
+                        reinterpret_cast<void*>(unpack_offset));
+  }
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+  return true;
+}
+
+}  // namespace gl4
+}  // namespace gpu
+}  // namespace xe

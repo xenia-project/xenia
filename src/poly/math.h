@@ -36,7 +36,7 @@ T align(T value, T alignment) {
 // Rounds the given number up to the next highest multiple.
 template <typename T, typename V>
 T round_up(T value, V multiple) {
-  return value ? (value + multiple - 1 - (value - 1) % multiple) : multiple;
+  return value ? (((value + multiple - 1) / multiple) * multiple) : multiple;
 }
 
 inline float saturate(float value) {

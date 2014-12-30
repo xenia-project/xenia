@@ -26,10 +26,12 @@ class CircularBuffer {
   struct Allocation {
     void* host_ptr;
     GLuint64 gpu_ptr;
+    size_t offset;
     size_t length;
   };
 
   bool Initialize();
+  void Shutdown();
 
   GLuint handle() const { return buffer_; }
 

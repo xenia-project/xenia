@@ -27,27 +27,39 @@ CircularBuffer::CircularBuffer(size_t capacity)
       gpu_base_(0),
       host_base_(nullptr) {}
 
-CircularBuffer::~CircularBuffer() {
-  glUnmapNamedBuffer(buffer_);
-  glDeleteBuffers(1, &buffer_);
-}
+CircularBuffer::~CircularBuffer() { Shutdown(); }
 
 bool CircularBuffer::Initialize() {
   glCreateBuffers(1, &buffer_);
   glNamedBufferStorage(buffer_, capacity_, nullptr,
                        GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT);
   host_base_ = reinterpret_cast<uint8_t*>(glMapNamedBufferRange(
-      buffer_, 0, capacity_, GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT |
-                                 GL_MAP_UNSYNCHRONIZED_BIT |
-                                 GL_MAP_PERSISTENT_BIT));
+      buffer_, 0, capacity_,
+      GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_PERSISTENT_BIT));
   assert_not_null(host_base_);
   if (!host_base_) {
     return false;
   }
-  glMakeNamedBufferResidentNV(buffer_, GL_WRITE_ONLY);
-  glGetNamedBufferParameterui64vNV(buffer_, GL_BUFFER_GPU_ADDRESS_NV,
-                                   &gpu_base_);
+
+  if (GLEW_NV_shader_buffer_load) {
+    // To use this bindlessly we must make it resident.
+    glMakeNamedBufferResidentNV(buffer_, GL_WRITE_ONLY);
+    glGetNamedBufferParameterui64vNV(buffer_, GL_BUFFER_GPU_ADDRESS_NV,
+                                     &gpu_base_);
+  }
   return true;
+}
+
+void CircularBuffer::Shutdown() {
+  if (!buffer_) {
+    return;
+  }
+  glUnmapNamedBuffer(buffer_);
+  if (GLEW_NV_shader_buffer_load) {
+    glMakeNamedBufferNonResidentNV(buffer_);
+  }
+  glDeleteBuffers(1, &buffer_);
+  buffer_ = 0;
 }
 
 CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
@@ -64,6 +76,7 @@ CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   Allocation allocation;
   allocation.host_ptr = host_base_ + write_head_;
   allocation.gpu_ptr = gpu_base_ + write_head_;
+  allocation.offset = write_head_;
   allocation.length = length;
   write_head_ += length;
   return allocation;

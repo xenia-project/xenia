@@ -74,17 +74,32 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
   switch (message) {
     case WM_PAINT: {
-      GLContextLock context_lock(&context_);
-      // TODO(benvanik): is viewport needed?
-      glViewport(0, 0, width_, height_);
-      float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
-      glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
-      if (current_paint_callback_) {
-        current_paint_callback_();
-        current_paint_callback_ = nullptr;
+      {
+        GLContextLock context_lock(&context_);
+        wglSwapIntervalEXT(0);
+
+        // TODO(benvanik): is viewport needed?
+        glViewport(0, 0, width_, height_);
+        float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
+        glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
+
+        if (current_paint_callback_) {
+          current_paint_callback_();
+          current_paint_callback_ = nullptr;
+        }
+
+        // TODO(benvanik): profiler present.
+        // Profiler::Present();
+
+        // Hacky swap timer.
+        static int swap_count = 0;
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, 20, 20);
+        float red[] = {swap_count / 60.0f, 0, 0, 1.0f};
+        swap_count = (swap_count + 1) % 60;
+        glClearNamedFramebufferfv(0, GL_COLOR, 0, red);
+        glDisable(GL_SCISSOR_TEST);
       }
-      // TODO(benvanik): profiler present.
-      // Profiler::Present();
       SwapBuffers(context_.dc());
     } break;
   }

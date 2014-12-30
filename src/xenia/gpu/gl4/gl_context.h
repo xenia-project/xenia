@@ -35,6 +35,13 @@ class GLContext {
   void ClearCurrent();
 
  private:
+  void SetupDebugging();
+  void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
+                    GLsizei length, const GLchar* message);
+  static void GLAPIENTRY
+  DebugMessageThunk(GLenum source, GLenum type, GLuint id, GLenum severity,
+                    GLsizei length, const GLchar* message, GLvoid* user_param);
+
   HWND hwnd_;
   HDC dc_;
   HGLRC glrc_;

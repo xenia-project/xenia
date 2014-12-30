@@ -17,6 +17,9 @@
 
 DECLARE_bool(thread_safe_gl);
 
+DECLARE_bool(gl_debug_output);
+DECLARE_bool(gl_debug_output_synchronous);
+
 namespace xe {
 namespace gpu {
 namespace gl4 {

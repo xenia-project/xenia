@@ -20,6 +20,7 @@
 #include <xenia/gpu/gl4/circular_buffer.h>
 #include <xenia/gpu/gl4/gl_context.h>
 #include <xenia/gpu/gl4/gl4_shader.h>
+#include <xenia/gpu/gl4/texture_cache.h>
 #include <xenia/gpu/register_file.h>
 #include <xenia/gpu/xenos.h>
 #include <xenia/memory.h>
@@ -40,6 +41,39 @@ struct SwapParameters {
   GLenum attachment;
 };
 
+// This must match the layout in gl4_shader.cc.
+struct UniformDataBlock {
+  union float4 {
+    float v[4];
+    struct {
+      float x, y, z, w;
+    };
+  };
+
+  float4 window_offset;    // tx,ty,rt_w,rt_h
+  float4 window_scissor;   // x0,y0,x1,y1
+  float4 viewport_offset;  // tx,ty,tz,?
+  float4 viewport_scale;   // sx,sy,sz,?
+                           // TODO(benvanik): vertex format xyzw?
+
+  float4 alpha_test;  // alpha test enable, func, ref, ?
+
+                      // TODO(benvanik): overlay with fetch_consts below?
+  uint64_t texture_samplers[32];
+
+  // Register data from 0x4000 to 0x4927.
+  // SHADER_CONSTANT_000_X...
+  float4 float_consts[512];
+  // SHADER_CONSTANT_FETCH_00_0...
+  uint32_t fetch_consts[32 * 6];
+  // SHADER_CONSTANT_BOOL_000_031...
+  int32_t bool_consts[8];
+  // SHADER_CONSTANT_LOOP_00...
+  int32_t loop_consts[32];
+};
+static_assert(sizeof(UniformDataBlock) <= 16 * 1024,
+              "Need <=16k uniform data");
+
 // TODO(benvanik): move more of the enums in here?
 struct DrawCommand {
   PrimitiveType prim_type;
@@ -54,6 +88,7 @@ struct DrawCommand {
     size_t size;
     xenos::Endian endianness;
     xenos::IndexFormat format;
+    size_t buffer_offset;
   } index_buffer;
 
   // Texture samplers.
@@ -63,11 +98,9 @@ struct DrawCommand {
     // SamplerStateResource* sampler_state;
   };
   SamplerInput vertex_shader_samplers[32];
-  size_t vertex_shader_sampler_count;
   SamplerInput pixel_shader_samplers[32];
-  size_t pixel_shader_sampler_count;
 
-  GLuint64 state_data_gpu_ptr;
+  UniformDataBlock* state_data;
 };
 
 class CommandProcessor {
@@ -195,11 +228,15 @@ class CommandProcessor {
 
   void PrepareDraw(DrawCommand* draw_command);
   bool IssueDraw(DrawCommand* draw_command);
-  bool UpdateState(DrawCommand* draw_command);
   bool UpdateRenderTargets(DrawCommand* draw_command);
+  bool UpdateState(DrawCommand* draw_command);
+  bool UpdateConstants(DrawCommand* draw_command);
   bool UpdateShaders(DrawCommand* draw_command);
   bool PopulateIndexBuffer(DrawCommand* draw_command);
   bool PopulateVertexBuffers(DrawCommand* draw_command);
+  bool PopulateSamplers(DrawCommand* draw_command);
+  bool PopulateSampler(DrawCommand* draw_command,
+                       const Shader::SamplerDesc& desc);
   bool IssueCopy(DrawCommand* draw_command);
 
   CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],
@@ -237,7 +274,7 @@ class CommandProcessor {
   uint64_t bin_select_;
   uint64_t bin_mask_;
 
-  GLuint uniform_data_buffer_;
+  bool has_bindless_vbos_;
 
   std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
@@ -251,7 +288,7 @@ class CommandProcessor {
   std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
   std::vector<std::unique_ptr<CachedPipeline>> all_pipelines_;
   std::unordered_map<uint64_t, CachedPipeline*> cached_pipelines_;
-
+  TextureCache texture_cache_;
   CircularBuffer scratch_buffer_;
 
   DrawCommand draw_command_;

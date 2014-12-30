@@ -28,25 +28,21 @@ static const char chan_names[] = {
 const char* GetVertexFormatTypeName(const GL4Shader::BufferDescElement& el) {
   switch (el.format) {
     case VertexFormat::k_32:
-      return el.is_signed ? "int" : "uint";
     case VertexFormat::k_32_FLOAT:
       return "float";
     case VertexFormat::k_16_16:
     case VertexFormat::k_32_32:
-      return el.is_signed ? "ivec2" : "uvec2";
     case VertexFormat::k_16_16_FLOAT:
     case VertexFormat::k_32_32_FLOAT:
       return "vec2";
     case VertexFormat::k_10_11_11:
     case VertexFormat::k_11_11_10:
-      return "int3";  // ?
     case VertexFormat::k_32_32_32_FLOAT:
       return "vec3";
     case VertexFormat::k_8_8_8_8:
     case VertexFormat::k_2_10_10_10:
     case VertexFormat::k_16_16_16_16:
     case VertexFormat::k_32_32_32_32:
-      return el.is_signed ? "ivec4" : "uvec4";
     case VertexFormat::k_16_16_16_16_FLOAT:
     case VertexFormat::k_32_32_32_32_FLOAT:
       return "vec4";
@@ -58,14 +54,13 @@ const char* GetVertexFormatTypeName(const GL4Shader::BufferDescElement& el) {
 }
 
 GL4ShaderTranslator::GL4ShaderTranslator()
-    : output_(kOutputCapacity), tex_fetch_index_(0), dwords_(nullptr) {}
+    : output_(kOutputCapacity), dwords_(nullptr) {}
 
 GL4ShaderTranslator::~GL4ShaderTranslator() = default;
 
 void GL4ShaderTranslator::Reset(GL4Shader* shader) {
   output_.Reset();
   shader_type_ = shader->type();
-  tex_fetch_index_ = 0;
   dwords_ = shader->data();
 }
 
@@ -75,8 +70,6 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
 
   // Normal shaders only, for now.
   assert_true(program_cntl.vs_export_mode == 0);
-
-  AppendTextureHeader(vertex_shader->sampler_inputs());
 
   // Add vertex shader input.
   uint32_t el_index = 0;
@@ -102,7 +95,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
   // Add temporaries for any registers we may use.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
   for (uint32_t n = 0; n <= temp_regs; n++) {
-    Append("  vec4 r%d = state->float_consts[%d];\n", n, n);
+    Append("  vec4 r%d = state.float_consts[%d];\n", n, n);
   }
   Append("  vec4 t;\n");
 
@@ -129,15 +122,13 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   // If the same PS is used with different VS that output different amounts
   // (and less than the number of required registers), things may die.
 
-  AppendTextureHeader(pixel_shader->sampler_inputs());
-
   // Pixel shader main() header.
   Append("void processFragment() {\n");
 
   // Add temporary registers.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
   for (uint32_t n = 0; n <= std::max(15u, temp_regs); n++) {
-    Append("  vec4 r%d = state->float_consts[%d];\n", n, n + 256);
+    Append("  vec4 r%d = state.float_consts[%d];\n", n, n + 256);
   }
   Append("  vec4 t;\n");
   Append("  float s;\n");  // scalar result (used for RETAIN_PREV)
@@ -161,42 +152,6 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   return output_.to_string();
 }
 
-void GL4ShaderTranslator::AppendTextureHeader(
-    const GL4Shader::SamplerInputs& sampler_inputs) {
-  bool fetch_setup[32] = {false};
-
-  // 1 texture per constant slot, 1 sampler per fetch.
-  for (uint32_t n = 0; n < sampler_inputs.count; n++) {
-    const auto& input = sampler_inputs.descs[n];
-    const auto& fetch = input.tex_fetch;
-
-    // Add texture, if needed.
-    if (!fetch_setup[fetch.const_idx]) {
-      fetch_setup[fetch.const_idx] = true;
-      const char* texture_type = nullptr;
-      switch (fetch.dimension) {
-        case DIMENSION_1D:
-          texture_type = "Texture1D";
-          break;
-        default:
-        case DIMENSION_2D:
-          texture_type = "Texture2D";
-          break;
-        case DIMENSION_3D:
-          texture_type = "Texture3D";
-          break;
-        case DIMENSION_CUBE:
-          texture_type = "TextureCube";
-          break;
-      }
-      Append("%s x_texture_%d;\n", texture_type, fetch.const_idx);
-    }
-
-    // Add sampler.
-    Append("SamplerState x_sampler_%d;\n", n);
-  }
-}
-
 void GL4ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
                                        uint32_t swiz, uint32_t negate,
                                        uint32_t abs_constants) {
@@ -217,7 +172,7 @@ void GL4ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
     if (abs_constants) {
       Append("abs(");
     }
-    Append("state->float_consts[%u]", is_pixel_shader() ? num + 256 : num);
+    Append("state.float_consts[%u]", is_pixel_shader() ? num + 256 : num);
     if (abs_constants) {
       Append(")");
     }
@@ -258,9 +213,12 @@ void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
           case 0:
             Append("oC[0]");
             break;
+          case 61:
+            // Write to t, as we need to splice just x out of it.
+            Append("t");
+            break;
           default:
             // TODO(benvanik): other render targets?
-            // TODO(benvanik): depth?
             assert_always();
             break;
         }
@@ -282,7 +240,10 @@ void GL4ShaderTranslator::AppendDestReg(uint32_t num, uint32_t mask,
 
 void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
                                             uint32_t dst_exp) {
-  if (mask != 0xF) {
+  if (num == 61) {
+    // gl_FragDepth handling to just get x from the temp result.
+    Append("  gl_FragDepth = t.x;\n");
+  } else if (mask != 0xF) {
     // Masking.
     Append("  ");
     AppendDestRegName(num, dst_exp);
@@ -399,7 +360,7 @@ bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
                alu.abs_constants);
   Append(")");
   if (alu.vector_clamp) {
-    Append(")");
+    Append(", 0.0, 1.0)");
   }
   Append(";\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
@@ -685,7 +646,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
   if (alu.vector_clamp) {
     Append(", 0.0, 1.0)");
   }
-  Append(";\n");
+  Append(".xxxx;\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return true;
 }
@@ -706,7 +667,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
   if (alu.vector_clamp) {
     Append(", 0.0, 1.0)");
   }
-  Append(";\n");
+  Append(".xxxx;\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return true;
 }
@@ -730,7 +691,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
   if (alu.vector_clamp) {
     Append(", 0.0, 1.0)");
   }
-  Append(";\n");
+  Append(".xxxx;\n");
   AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
   return true;
 }
@@ -1402,20 +1363,27 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
 bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
                                                 int sync) {
   int src_component_count = 0;
+  const char* sampler_type;
   switch (tex->dimension) {
     case DIMENSION_1D:
       src_component_count = 1;
+      sampler_type = "sampler1D";
       break;
-    default:
     case DIMENSION_2D:
       src_component_count = 2;
+      sampler_type = "sampler2D";
       break;
     case DIMENSION_3D:
       src_component_count = 3;
+      sampler_type = "sampler3D";
       break;
     case DIMENSION_CUBE:
       src_component_count = 3;
+      sampler_type = "samplerCube";
       break;
+    default:
+      assert_unhandled_case(tex->dimension);
+      return false;
   }
 
   // Disassemble.
@@ -1500,16 +1468,36 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
   Append("\n");
 
   // Translate.
-  Append("  t = ");
-  Append("x_texture_%d.Sample(x_sampler_%d, r%u.", tex->const_idx,
-         tex_fetch_index_++,  // hacky way to line up to tex buffers
-         tex->src_reg);
+  // TODO(benvanik): if sampler == null, set to invalid color.
+  Append("  t = texture(");
+  Append("%s(state.texture_samplers[%d])", sampler_type, tex->const_idx & 0xF);
+  Append(", r%u.", tex->src_reg);
   src_swiz = tex->src_swiz;
   for (int i = 0; i < src_component_count; i++) {
     Append("%c", chan_names[src_swiz & 0x3]);
     src_swiz >>= 2;
   }
   Append(");\n");
+
+  // Output texture coordinates as color.
+  // TODO(benvanik): only if texture is invalid?
+  // Append("  t = vec4(r%u.", tex->src_reg);
+  // src_swiz = tex->src_swiz;
+  // for (int i = 0; i < src_component_count; i++) {
+  //  Append("%c", chan_names[src_swiz & 0x3]);
+  //  src_swiz >>= 2;
+  //}
+  // switch (src_component_count) {
+  //  case 1:
+  //    Append(", 0.0, 0.0, 1.0);\n");
+  //    break;
+  //  case 2:
+  //    Append(", 0.0, 1.0);\n");
+  //    break;
+  //  case 3:
+  //    Append(", 1.0);\n");
+  //    break;
+  //}
 
   Append("  r%u.xyzw = vec4(", tex->dst_reg);
   uint32_t dst_swiz = tex->dst_swiz;
@@ -1524,6 +1512,7 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
     } else if ((dst_swiz & 0x7) == 6) {
       // ?
       Append("?");
+      assert_always();
     } else if ((dst_swiz & 0x7) == 7) {
       Append("r%u.%c", tex->dst_reg, chan_names[i]);
     } else {

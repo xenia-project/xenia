@@ -115,6 +115,8 @@ bool GLContext::Initialize(HWND hwnd) {
     // Clearing errors.
   }
 
+  SetupDebugging();
+
   ClearCurrent();
 
   return true;
@@ -160,9 +162,118 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
     return nullptr;
   }
 
+  SetupDebugging();
+
   new_context->ClearCurrent();
 
   return new_context;
+}
+
+void GLContext::DebugMessage(GLenum source, GLenum type, GLuint id,
+                             GLenum severity, GLsizei length,
+                             const GLchar* message) {
+  const char* source_name = nullptr;
+  switch (source) {
+    case GL_DEBUG_SOURCE_API_ARB:
+      source_name = "OpenGL";
+      break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB:
+      source_name = "Windows";
+      break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER_ARB:
+      source_name = "Shader Compiler";
+      break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY_ARB:
+      source_name = "Third Party";
+      break;
+    case GL_DEBUG_SOURCE_APPLICATION_ARB:
+      source_name = "Application";
+      break;
+    case GL_DEBUG_SOURCE_OTHER_ARB:
+      source_name = "Other";
+      break;
+    default:
+      source_name = "(unknown source)";
+      break;
+  }
+
+  const char* type_name = nullptr;
+  switch (type) {
+    case GL_DEBUG_TYPE_ERROR:
+      type_name = "error";
+      break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+      type_name = "deprecated behavior";
+      break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+      type_name = "undefined behavior";
+      break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+      type_name = "portability";
+      break;
+    case GL_DEBUG_TYPE_PERFORMANCE:
+      type_name = "performance";
+      break;
+    case GL_DEBUG_TYPE_OTHER:
+      type_name = "message";
+      break;
+    case GL_DEBUG_TYPE_MARKER:
+      type_name = "marker";
+      break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+      type_name = "push group";
+      break;
+    case GL_DEBUG_TYPE_POP_GROUP:
+      type_name = "pop group";
+      break;
+    default:
+      type_name = "(unknown type)";
+      break;
+  }
+
+  const char* severity_name = nullptr;
+  switch (severity) {
+    case GL_DEBUG_SEVERITY_HIGH_ARB:
+      severity_name = "high";
+      break;
+    case GL_DEBUG_SEVERITY_MEDIUM_ARB:
+      severity_name = "medium";
+      break;
+    case GL_DEBUG_SEVERITY_LOW_ARB:
+      severity_name = "low";
+      break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+      severity_name = "notification";
+      break;
+    default:
+      severity_name = "(unknown severity)";
+      break;
+  }
+
+  XELOGE("GL4 %s: %s(%s) %d: %s", source_name, type_name, severity_name, id,
+         message);
+}
+
+void GLAPIENTRY
+GLContext::DebugMessageThunk(GLenum source, GLenum type, GLuint id,
+                             GLenum severity, GLsizei length,
+                             const GLchar* message, GLvoid* user_param) {
+  reinterpret_cast<GLContext*>(user_param)
+      ->DebugMessage(source, type, id, severity, length, message);
+}
+
+void GLContext::SetupDebugging() {
+  if (!FLAGS_gl_debug_output) {
+    return;
+  }
+  glEnable(GL_DEBUG_OUTPUT);
+  if (FLAGS_gl_debug_output_synchronous) {
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+  }
+  glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL,
+                        GL_TRUE);
+  glDebugMessageCallback(reinterpret_cast<GLDEBUGPROC>(&DebugMessageThunk),
+                         this);
 }
 
 bool GLContext::MakeCurrent() {

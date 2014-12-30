@@ -172,6 +172,8 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
     return;
   }
 
+  assert_true(vtx->const_index <= 0x1F);
+
   uint32_t fetch_slot = vtx->const_index * 3 + vtx->const_index_sel;
   auto& inputs = buffer_inputs_;
   BufferDescElement* el = nullptr;
@@ -240,10 +242,12 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
 void Shader::GatherTextureFetch(const instr_fetch_tex_t* tex) {
   // TODO(benvanik): check dest_swiz to see if we are writing anything.
 
+  assert_true(tex->const_idx < 0x1F);
+
   assert_true(sampler_inputs_.count + 1 < poly::countof(sampler_inputs_.descs));
   auto& input = sampler_inputs_.descs[sampler_inputs_.count++];
   input.input_index = sampler_inputs_.count - 1;
-  input.fetch_slot = tex->const_idx & 0xF;  // ?
+  input.fetch_slot = tex->const_idx & 0xF;  // ??????????????????????????????
   input.tex_fetch = *tex;
 
   // Format mangling, size estimation, etc.

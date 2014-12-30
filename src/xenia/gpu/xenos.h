@@ -35,6 +35,13 @@ enum class PrimitiveType : uint32_t {
   kQuadList = 0x0D,
 };
 
+enum class Dimension : uint32_t {
+  k1D = 0,
+  k2D = 1,
+  k3D = 2,
+  kCube = 3,
+};
+
 namespace xenos {
 
 typedef enum {

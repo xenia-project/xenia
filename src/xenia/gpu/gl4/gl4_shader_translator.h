@@ -39,7 +39,6 @@ class GL4ShaderTranslator {
 
  protected:
   ShaderType shader_type_;
-  uint32_t tex_fetch_index_;
   const uint32_t* dwords_;
 
   static const int kOutputCapacity = 64 * 1024;
@@ -55,8 +54,6 @@ class GL4ShaderTranslator {
     output_.AppendVarargs(format, args);
     va_end(args);
   }
-
-  void AppendTextureHeader(const GL4Shader::SamplerInputs& sampler_inputs);
 
   void AppendSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
                     uint32_t abs);

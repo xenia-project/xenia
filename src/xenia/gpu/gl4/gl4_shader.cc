@@ -35,7 +35,6 @@ const std::string header =
     "#extension GL_ARB_explicit_uniform_location : require\n"
     "#extension GL_ARB_shading_language_420pack : require\n"
     "#extension GL_ARB_shader_storage_buffer_object : require\n"
-    "#extension GL_NV_shader_buffer_load : require\n"
     "precision highp float;\n"
     "precision highp int;\n"
     "layout(std140, column_major) uniform;\n"
@@ -46,6 +45,7 @@ const std::string header =
     "  vec4 viewport_offset;\n"
     "  vec4 viewport_scale;\n"
     "  vec4 alpha_test;\n"
+    "  uvec2 texture_samplers[32];\n"
     "  vec4 float_consts[512];\n"
     "  uint fetch_consts[32 * 6];\n"
     "  int bool_consts[8];\n"
@@ -55,7 +55,9 @@ const std::string header =
     "  vec4 o[16];\n"
     "};\n"
     "\n"
-    "uniform StateData* state;\n";
+    "layout(binding = 0) buffer State {\n"
+    "  StateData state;\n"
+    "};\n";
 
 bool GL4Shader::PrepareVertexShader(
     const xenos::xe_gpu_program_cntl_t& program_cntl) {
@@ -69,20 +71,20 @@ bool GL4Shader::PrepareVertexShader(
       // TODO(benvanik): piecewise viewport_enable -> offset/scale logic.
       "  if (false) {\n"
       "  } else {\n"
-      /*"    pos.xy = pos.xy / vec2(state->window_offset.z / 2.0, "
-      "-state->window_offset.w / 2.0) + vec2(-1.0, 1.0);\n"
+      /*"    pos.xy = pos.xy / vec2(state.window_offset.z / 2.0, "
+      "-state.window_offset.w / 2.0) + vec2(-1.0, 1.0);\n"
       "    pos.zw = vec2(0.0, 1.0);\n"*/
       "    pos.xy = pos.xy / vec2(1280.0 / 2.0, "
       "-720.0 / 2.0) + vec2(-1.0, 1.0);\n"
       "    //pos.zw = vec2(0.0, 1.0);\n"
       "  }\n"
-      "  pos.x = pos.x * state->viewport_scale.x + \n"
-      "      state->viewport_offset.x;\n"
-      "  pos.y = pos.y * state->viewport_scale.y + \n"
-      "      state->viewport_offset.y;\n"
-      "  pos.z = pos.z * state->viewport_scale.z + \n"
-      "      state->viewport_offset.z;\n"
-      "  pos.xy += state->window_offset.xy;\n"
+      "  pos.x = pos.x * state.viewport_scale.x + \n"
+      "      state.viewport_offset.x;\n"
+      "  pos.y = pos.y * state.viewport_scale.y + \n"
+      "      state.viewport_offset.y;\n"
+      "  pos.z = pos.z * state.viewport_scale.z + \n"
+      "      state.viewport_offset.z;\n"
+      "  pos.xy += state.window_offset.xy;\n"
       "  return pos;\n"
       "}\n";
   std::string source =
@@ -104,6 +106,8 @@ bool GL4Shader::PrepareVertexShader(
       "  processVertex();\n"
       "  gl_Position = applyViewport(gl_Position);\n"
       "}\n";
+
+  // glGetTextureSamplerHandleARB()
 
   std::string translated_source =
       shader_translator_.TranslateVertexShader(this, program_cntl);
@@ -135,9 +139,9 @@ bool GL4Shader::PreparePixelShader(
       "void processFragment();\n"
       "void main() {\n"
       "  for (int i = 0; i < oC.length(); ++i) {\n"
-      "    oC[i] = vec4(0.0, 0.0, 0.0, 0.0);\n"
+      "    oC[i] = vec4(1.0, 0.0, 0.0, 1.0);\n"
       "  }\n" +
-      (program_cntl.ps_export_depth ? "  gl_FragDepth = 0.0\n" : "") +
+      (program_cntl.ps_export_depth ? "  gl_FragDepth = 0.0;\n" : "") +
       "  processFragment();\n"
       "}\n";
 

@@ -16,6 +16,8 @@
     'gl4_shader_translator.h',
     'gl_context.cc',
     'gl_context.h',
+    'texture_cache.cc',
+    'texture_cache.h',
   ],
 
   'conditions': [

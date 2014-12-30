@@ -16,6 +16,8 @@
 #include <xenia/gpu/gl4/gl4_gpu-private.h>
 #include <xenia/gpu/gl4/gl4_graphics_system.h>
 #include <xenia/gpu/gpu-private.h>
+#include <xenia/gpu/sampler_info.h>
+#include <xenia/gpu/texture_info.h>
 #include <xenia/gpu/xenos.h>
 
 #include <third_party/xxhash/xxhash.h>
@@ -36,7 +38,7 @@ const GLuint kAnyTarget = UINT_MAX;
 // All uncached vertex/index data goes here. If it fills up we need to sync
 // with the GPU, so this should be large enough to prevent that in a normal
 // frame.
-const size_t kScratchBufferCapacity = 64 * 1024 * 1024;
+const size_t kScratchBufferCapacity = 256 * 1024 * 1024;
 
 CommandProcessor::CachedPipeline::CachedPipeline() = default;
 
@@ -61,6 +63,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       write_ptr_index_(0),
       bin_select_(0xFFFFFFFFull),
       bin_mask_(0xFFFFFFFFull),
+      has_bindless_vbos_(false),
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
@@ -152,29 +155,34 @@ void CommandProcessor::WorkerMain() {
 }
 
 bool CommandProcessor::SetupGL() {
-  // Uniform buffer that stores the per-draw state (constants, etc).
-  glCreateBuffers(1, &uniform_data_buffer_);
-  glBindBuffer(GL_UNIFORM_BUFFER, uniform_data_buffer_);
-  glNamedBufferStorage(uniform_data_buffer_, 16 * 1024, nullptr,
-                       GL_MAP_WRITE_BIT | GL_DYNAMIC_STORAGE_BIT);
-
   // Circular buffer holding scratch vertex/index data.
   if (!scratch_buffer_.Initialize()) {
     PLOGE("Unable to initialize scratch buffer");
     return false;
   }
 
+  // Texture cache that keeps track of any textures/samplers used.
+  if (!texture_cache_.Initialize(&scratch_buffer_)) {
+    PLOGE("Unable to initialize texture cache");
+    return false;
+  }
+
   GLuint vertex_array;
   glGenVertexArrays(1, &vertex_array);
   glBindVertexArray(vertex_array);
-  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
-  glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
+
+  if (GLEW_NV_vertex_buffer_unified_memory) {
+    has_bindless_vbos_ = true;
+    glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
+    glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
+  }
 
   return true;
 }
 
 void CommandProcessor::ShutdownGL() {
-  glDeleteBuffers(1, &uniform_data_buffer_);
+  texture_cache_.Shutdown();
+  scratch_buffer_.Shutdown();
 }
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
@@ -264,6 +272,7 @@ void CommandProcessor::PrepareForWait() {
   // make interrupt callbacks from the GPU so that we don't have to do a full
   // synchronize here.
   glFlush();
+  glFinish();
 
   if (FLAGS_thread_safe_gl) {
     context_->ClearCurrent();
@@ -1142,6 +1151,8 @@ void CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
   // Generic stuff.
   cmd.start_index = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   cmd.base_vertex = 0;
+
+  cmd.state_data = nullptr;
 }
 
 bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
@@ -1158,6 +1169,18 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     return IssueCopy(draw_command);
   }
 
+  // TODO(benvanik): actually cache things >_>
+  texture_cache_.Clear();
+
+  // Allocate a state data block.
+  // Everything the shaders access lives here.
+  auto allocation = scratch_buffer_.Acquire(sizeof(UniformDataBlock));
+  cmd.state_data = reinterpret_cast<UniformDataBlock*>(allocation.host_ptr);
+  if (!cmd.state_data) {
+    PLOGE("Unable to allocate uniform data buffer");
+    return false;
+  }
+
   if (!UpdateRenderTargets(draw_command)) {
     PLOGE("Unable to setup render targets");
     return false;
@@ -1172,16 +1195,14 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     PLOGE("Unable to setup render state");
     return false;
   }
-
+  if (!UpdateConstants(draw_command)) {
+    PLOGE("Unable to update shader constants");
+    return false;
+  }
   if (!UpdateShaders(draw_command)) {
     PLOGE("Unable to prepare draw shaders");
     return false;
   }
-
-  // if (!PopulateSamplers(draw_command)) {
-  //  XELOGE("Unable to prepare draw samplers");
-  //  return false;
-  //}
 
   if (!PopulateIndexBuffer(draw_command)) {
     PLOGE("Unable to setup index buffer");
@@ -1189,6 +1210,10 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   }
   if (!PopulateVertexBuffers(draw_command)) {
     PLOGE("Unable to setup vertex buffers");
+    return false;
+  }
+  if (!PopulateSamplers(draw_command)) {
+    PLOGE("Unable to prepare draw samplers");
     return false;
   }
 
@@ -1228,6 +1253,7 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
       break;
     case PrimitiveType::kQuadList:
       prim_type = GL_LINES_ADJACENCY;
+      return false;
       /*if
       (vs->DemandGeometryShader(D3D11VertexShaderResource::QUAD_LIST_SHADER,
                                    &geometry_shader)) {
@@ -1237,9 +1263,14 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     default:
     case PrimitiveType::kUnknown0x07:
       prim_type = GL_POINTS;
-      XELOGE("D3D11: unsupported primitive type %d", cmd.prim_type);
+      XELOGE("unsupported primitive type %d", cmd.prim_type);
       break;
   }
+
+  // Commit the state buffer - nothing can change after this.
+  glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, scratch_buffer_.handle(),
+                    allocation.offset, allocation.length);
+  scratch_buffer_.Commit(std::move(allocation));
 
   // HACK HACK HACK
   glDisable(GL_DEPTH_TEST);
@@ -1254,12 +1285,107 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
         prim_type, cmd.index_count,
         cmd.index_buffer.format == IndexFormat::kInt32 ? GL_UNSIGNED_INT
                                                        : GL_UNSIGNED_SHORT,
-        reinterpret_cast<void*>(cmd.start_index * element_size),
+        reinterpret_cast<void*>(cmd.index_buffer.buffer_offset +
+                                cmd.start_index * element_size),
         cmd.base_vertex);
   } else {
     // Auto draw.
     glDrawArrays(prim_type, cmd.start_index, cmd.index_count);
   }
+
+  // Hacky draw counter.
+  if (false) {
+    static int draw_count = 0;
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(20, 0, 20, 20);
+    float red[] = {0, draw_count / 100.0f, 0, 1.0f};
+    draw_count = (draw_count + 1) % 100;
+    glClearNamedFramebufferfv(active_framebuffer_->framebuffer, GL_COLOR, 0,
+                              red);
+    glDisable(GL_SCISSOR_TEST);
+  }
+
+  return true;
+}
+
+bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
+  auto& regs = *register_file_;
+
+  auto enable_mode =
+      static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+
+  // RB_SURFACE_INFO
+  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = surface_info & 0x3FFF;
+  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
+
+  // Get/create all color render targets, if we are using them.
+  // In depth-only mode we don't need them.
+  GLenum draw_buffers[4] = {GL_NONE, GL_NONE, GL_NONE, GL_NONE};
+  GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
+  if (enable_mode == ModeControl::kColorDepth) {
+    uint32_t color_info[4] = {
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
+    };
+    // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
+    uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+    for (int n = 0; n < poly::countof(color_info); n++) {
+      uint32_t write_mask = (color_mask >> (n * 4)) & 0xF;
+      if (!write_mask) {
+        // Unused, so keep disabled and set to wildcard so we'll take any
+        // framebuffer that has it.
+        continue;
+      }
+      uint32_t color_base = color_info[n] & 0xFFF;
+      auto color_format =
+          static_cast<ColorRenderTargetFormat>((color_info[n] >> 16) & 0xF);
+      color_targets[n] = GetColorRenderTarget(surface_pitch, surface_msaa,
+                                              color_base, color_format);
+      draw_buffers[n] = GL_COLOR_ATTACHMENT0 + n;
+      glColorMaski(n, !!(write_mask & 0x1), !!(write_mask & 0x2),
+                   !!(write_mask & 0x4), !!(write_mask & 0x8));
+    }
+  }
+
+  // Get/create depth buffer, but only if we are going to use it.
+  uint32_t depth_control = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  uint32_t stencil_ref_mask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+  bool uses_depth =
+      (depth_control & 0x00000002) || (depth_control & 0x00000004);
+  uint32_t stencil_write_mask = (stencil_ref_mask & 0x00FF0000) >> 16;
+  bool uses_stencil = (depth_control & 0x00000001) || (stencil_write_mask != 0);
+  GLuint depth_target = kAnyTarget;
+  if (uses_depth && uses_stencil) {
+    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+    uint32_t depth_base = depth_info & 0xFFF;
+    auto depth_format =
+        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa, depth_base,
+                                        depth_format);
+    // TODO(benvanik): when a game switches does it expect to keep the same
+    //     depth buffer contents?
+  }
+
+  // Get/create a framebuffer with the required targets.
+  // Note that none may be returned if we really don't need one.
+  auto cached_framebuffer = GetFramebuffer(color_targets, depth_target);
+  active_framebuffer_ = cached_framebuffer;
+  if (!active_framebuffer_) {
+    // Nothing to do.
+    return true;
+  }
+
+  // Setup just the targets we want.
+  glNamedFramebufferDrawBuffers(cached_framebuffer->framebuffer, 4,
+                                draw_buffers);
+
+  // Make active.
+  // TODO(benvanik): can we do this all named?
+  // TODO(benvanik): do we want this on READ too?
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
 
   return true;
 }
@@ -1272,57 +1398,24 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
 
   auto& regs = *register_file_;
 
-  union float4 {
-    float v[4];
-    struct {
-      float x, y, z, w;
-    };
-  };
-  struct UniformDataBlock {
-    float4 window_offset;    // tx,ty,rt_w,rt_h
-    float4 window_scissor;   // x0,y0,x1,y1
-    float4 viewport_offset;  // tx,ty,tz,?
-    float4 viewport_scale;   // sx,sy,sz,?
-    // TODO(benvanik): vertex format xyzw?
-
-    float4 alpha_test;  // alpha test enable, func, ref, ?
-
-    // Register data from 0x4000 to 0x4927.
-    // SHADER_CONSTANT_000_X...
-    float4 float_consts[512];
-    // SHADER_CONSTANT_FETCH_00_0...
-    uint32_t fetch_consts[32 * 6];
-    // SHADER_CONSTANT_BOOL_000_031...
-    int32_t bool_consts[8];
-    // SHADER_CONSTANT_LOOP_00...
-    int32_t loop_consts[32];
-  };
-  static_assert(sizeof(UniformDataBlock) <= 16 * 1024,
-                "Need <=16k uniform data");
-
-  auto allocation = scratch_buffer_.Acquire(16 * 1024);
-  auto buffer_ptr = reinterpret_cast<UniformDataBlock*>(allocation.host_ptr);
-  if (!buffer_ptr) {
-    PLOGE("Unable to allocate uniform data buffer");
-    return false;
-  }
+  auto state_data = draw_command->state_data;
 
   // Window parameters.
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  buffer_ptr->window_offset.x = float(window_offset & 0x7FFF);
-  buffer_ptr->window_offset.y = float((window_offset >> 16) & 0x7FFF);
+  state_data->window_offset.x = float(window_offset & 0x7FFF);
+  state_data->window_offset.y = float((window_offset >> 16) & 0x7FFF);
   uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  buffer_ptr->window_scissor.x = float(window_scissor_tl & 0x7FFF);
-  buffer_ptr->window_scissor.y = float((window_scissor_tl >> 16) & 0x7FFF);
-  buffer_ptr->window_scissor.z = float(window_scissor_br & 0x7FFF);
-  buffer_ptr->window_scissor.w = float((window_scissor_br >> 16) & 0x7FFF);
+  state_data->window_scissor.x = float(window_scissor_tl & 0x7FFF);
+  state_data->window_scissor.y = float((window_scissor_tl >> 16) & 0x7FFF);
+  state_data->window_scissor.z = float(window_scissor_br & 0x7FFF);
+  state_data->window_scissor.w = float((window_scissor_br >> 16) & 0x7FFF);
 
   // HACK: no clue where to get these values.
-  buffer_ptr->window_offset.z = 1280;
-  buffer_ptr->window_offset.w = 720;
+  state_data->window_offset.z = 1280;
+  state_data->window_offset.w = 720;
 
   // Whether each of the viewport settings is enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -1338,20 +1431,20 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
               vport_yoffset_enable == vport_zoffset_enable);
 
   // Viewport scaling. Only enabled if the flags are all set.
-  buffer_ptr->viewport_scale.x =
+  state_data->viewport_scale.x =
       vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1;  // 640
-  buffer_ptr->viewport_offset.x = vport_xoffset_enable
+  state_data->viewport_offset.x = vport_xoffset_enable
                                       ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
                                       : 0;  // 640
-  buffer_ptr->viewport_scale.y = vport_yscale_enable
+  state_data->viewport_scale.y = vport_yscale_enable
                                      ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
                                      : 1;  // -360
-  buffer_ptr->viewport_offset.y = vport_yoffset_enable
+  state_data->viewport_offset.y = vport_yoffset_enable
                                       ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
                                       : 0;  // 360
-  buffer_ptr->viewport_scale.z =
+  state_data->viewport_scale.z =
       vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1;  // 1
-  buffer_ptr->viewport_offset.z =
+  state_data->viewport_offset.z =
       vport_zoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32 : 0;  // 0
   // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
   //            = false: multiply the X, Y coordinates by 1/W0.
@@ -1364,15 +1457,6 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   bool vtx_w0_fmt = (vte_control >> 10) & 0x1;
   // TODO(benvanik): pass to shaders? disable transform? etc?
   glViewport(0, 0, 1280, 720);
-
-  // Copy over all constants.
-  // TODO(benvanik): partial updates, etc. We could use shader constant access
-  // knowledge that we get at compile time to only upload those constants
-  // required.
-  std::memcpy(
-      &buffer_ptr->float_consts, &regs[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
-      sizeof(buffer_ptr->float_consts) + sizeof(buffer_ptr->fetch_consts) +
-          sizeof(buffer_ptr->loop_consts) + sizeof(buffer_ptr->bool_consts));
 
   // Scissoring.
   int32_t screen_scissor_tl = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
@@ -1424,10 +1508,10 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   // Deprecated in GL, implemented in shader.
   // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
   uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-  buffer_ptr->alpha_test.x =
+  state_data->alpha_test.x =
       (color_control & 0x4) ? 1.0f : 0.0f;                // ALPAHTESTENABLE
-  buffer_ptr->alpha_test.y = float(color_control & 0x3);  // ALPHAFUNC
-  buffer_ptr->alpha_test.z = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+  state_data->alpha_test.y = float(color_control & 0x3);  // ALPHAFUNC
+  state_data->alpha_test.z = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
 
   static const GLenum blend_map[] = {
       /*  0 */ GL_ZERO,
@@ -1575,91 +1659,23 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
                 stencil_op_map[(depth_control & 0x0001C000) >> 14]);
   }
 
-  // Stash - program setup will bind this to uniforms.
-  draw_command->state_data_gpu_ptr = allocation.gpu_ptr;
-  scratch_buffer_.Commit(std::move(allocation));
-
   return true;
 }
 
-bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
+bool CommandProcessor::UpdateConstants(DrawCommand* draw_command) {
   auto& regs = *register_file_;
+  auto state_data = draw_command->state_data;
 
-  auto enable_mode =
-      static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+  // TODO(benvanik): partial updates, etc. We could use shader constant access
+  // knowledge that we get at compile time to only upload those constants
+  // required. If we did this as a variable length then we could really cut
+  // down on state block sizes.
 
-  // RB_SURFACE_INFO
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
-  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = surface_info & 0x3FFF;
-  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
-
-  // Get/create all color render targets, if we are using them.
-  // In depth-only mode we don't need them.
-  GLenum draw_buffers[4] = {GL_NONE, GL_NONE, GL_NONE, GL_NONE};
-  GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
-  if (enable_mode == ModeControl::kColorDepth) {
-    uint32_t color_info[4] = {
-        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
-        regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
-        regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
-    };
-    // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
-    uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
-    for (int n = 0; n < poly::countof(color_info); n++) {
-      uint32_t write_mask = (color_mask >> (n * 4)) & 0xF;
-      if (!write_mask) {
-        // Unused, so keep disabled and set to wildcard so we'll take any
-        // framebuffer that has it.
-        continue;
-      }
-      uint32_t color_base = color_info[n] & 0xFFF;
-      auto color_format =
-          static_cast<ColorRenderTargetFormat>((color_info[n] >> 16) & 0xF);
-      color_targets[n] = GetColorRenderTarget(surface_pitch, surface_msaa,
-                                              color_base, color_format);
-      draw_buffers[n] = GL_COLOR_ATTACHMENT0 + n;
-      glColorMaski(n, !!(write_mask & 0x1), !!(write_mask & 0x2),
-                   !!(write_mask & 0x4), !!(write_mask & 0x8));
-    }
-  }
-
-  // Get/create depth buffer, but only if we are going to use it.
-  uint32_t depth_control = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  uint32_t stencil_ref_mask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-  bool uses_depth =
-      (depth_control & 0x00000002) || (depth_control & 0x00000004);
-  uint32_t stencil_write_mask = (stencil_ref_mask & 0x00FF0000) >> 16;
-  bool uses_stencil = (depth_control & 0x00000001) || (stencil_write_mask != 0);
-  GLuint depth_target = kAnyTarget;
-  if (uses_depth && uses_stencil) {
-    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-    uint32_t depth_base = depth_info & 0xFFF;
-    auto depth_format =
-        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
-    depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa, depth_base,
-                                        depth_format);
-    // TODO(benvanik): when a game switches does it expect to keep the same
-    //     depth buffer contents?
-  }
-
-  // Get/create a framebuffer with the required targets.
-  // Note that none may be returned if we really don't need one.
-  auto cached_framebuffer = GetFramebuffer(color_targets, depth_target);
-  active_framebuffer_ = cached_framebuffer;
-  if (!active_framebuffer_) {
-    // Nothing to do.
-    return true;
-  }
-
-  // Setup just the targets we want.
-  glNamedFramebufferDrawBuffers(cached_framebuffer->framebuffer, 4,
-                                draw_buffers);
-
-  // Make active.
-  // TODO(benvanik): can we do this all named?
-  // TODO(benvanik): do we want this on READ too?
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
+  // Copy over all constants.
+  std::memcpy(
+      &state_data->float_consts, &regs[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
+      sizeof(state_data->float_consts) + sizeof(state_data->fetch_consts) +
+          sizeof(state_data->loop_consts) + sizeof(state_data->bool_consts));
 
   return true;
 }
@@ -1718,28 +1734,10 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
     glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT, geometry_program);
     glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
 
-    // HACK: layout(location=0) on a bindless uniform crashes nvidia driver.
-    GLint vertex_state_loc = glGetUniformLocation(vertex_program, "state");
-    assert_true(vertex_state_loc == 0);
-    GLint geometry_state_loc =
-        geometry_program ? glGetUniformLocation(geometry_program, "state") : -1;
-    assert_true(geometry_state_loc == -1 || geometry_state_loc == 0);
-    GLint fragment_state_loc = glGetUniformLocation(fragment_program, "state");
-    assert_true(fragment_state_loc == -1 || fragment_state_loc == 0);
-
     cached_pipeline->handles.default_pipeline = pipeline;
   }
 
-  // TODO(benvanik): do we need to do this for all stages if the locations
-  // match?
-  glProgramUniformHandleui64ARB(vertex_program, 0, cmd.state_data_gpu_ptr);
-  /*if (geometry_program && geometry_state_loc != -1) {
-    glProgramUniformHandleui64ARB(geometry_program, 0, cmd.state_data_gpu_ptr);
-  }*/
-  /*if (fragment_state_loc != -1) {
-    glProgramUniformHandleui64ARB(fragment_program, 0,
-                                  cmd.state_data_gpu_ptr);
-  }*/
+  // NOTE: we don't yet have our state data pointer - that comes at the end.
 
   glBindProgramPipeline(cached_pipeline->handles.default_pipeline);
 
@@ -1759,10 +1757,10 @@ bool CommandProcessor::PopulateIndexBuffer(DrawCommand* draw_command) {
   assert_true(info.endianness == Endian::k8in16 ||
               info.endianness == Endian::k8in32);
 
-  auto allocation = scratch_buffer_.Acquire(cmd.index_count *
-                                            (info.format == IndexFormat::kInt32
-                                                 ? sizeof(uint32_t)
-                                                 : sizeof(uint16_t)));
+  size_t total_size =
+      cmd.index_count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
+                                                            : sizeof(uint16_t));
+  auto allocation = scratch_buffer_.Acquire(total_size);
 
   if (info.format == IndexFormat::kInt32) {
     poly::copy_and_swap_32_aligned(
@@ -1776,9 +1774,14 @@ bool CommandProcessor::PopulateIndexBuffer(DrawCommand* draw_command) {
         cmd.index_count);
   }
 
-  glBufferAddressRangeNV(GL_ELEMENT_ARRAY_ADDRESS_NV, 0, allocation.gpu_ptr,
-                         allocation.length);
-
+  if (has_bindless_vbos_) {
+    glBufferAddressRangeNV(GL_ELEMENT_ARRAY_ADDRESS_NV, 0, allocation.gpu_ptr,
+                           allocation.length);
+  } else {
+    // Offset is used in glDrawElements.
+    cmd.index_buffer.buffer_offset = allocation.offset;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, scratch_buffer_.handle());
+  }
   scratch_buffer_.Commit(std::move(allocation));
 
   return true;
@@ -1792,7 +1795,8 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
 
   const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
 
-  for (size_t n = 0; n < buffer_inputs.count; n++) {
+  uint32_t el_index = 0;
+  for (uint32_t n = 0; n < buffer_inputs.count; n++) {
     const auto& desc = buffer_inputs.descs[n];
 
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
@@ -1826,7 +1830,11 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
         reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
         fetch->size);
 
-    uint32_t el_index = 0;
+    if (!has_bindless_vbos_) {
+      glBindVertexBuffer(n, scratch_buffer_.handle(), allocation.offset,
+                         desc.stride_words * 4);
+    }
+
     for (uint32_t i = 0; i < desc.element_count; ++i) {
       const auto& el = desc.elements[i];
       auto comp_count = GetVertexFormatComponentCount(el.format);
@@ -1882,19 +1890,101 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
           assert_unhandled_case(el.format);
           break;
       }
-      size_t offset = el.offset_words * sizeof(uint32_t);
       glEnableVertexAttribArray(el_index);
-      glVertexAttribFormatNV(el_index, comp_count, comp_type, el.is_normalized,
-                             desc.stride_words * sizeof(uint32_t));
-      glBufferAddressRangeNV(GL_VERTEX_ATTRIB_ARRAY_ADDRESS_NV, el_index,
-                             allocation.gpu_ptr + offset,
-                             allocation.length - offset);
+      if (has_bindless_vbos_) {
+        glVertexAttribFormatNV(el_index, comp_count, comp_type,
+                               el.is_normalized,
+                               desc.stride_words * sizeof(uint32_t));
+        glBufferAddressRangeNV(GL_VERTEX_ATTRIB_ARRAY_ADDRESS_NV, el_index,
+                               allocation.gpu_ptr + (el.offset_words * 4),
+                               allocation.length - (el.offset_words * 4));
+      } else {
+        glVertexAttribBinding(el_index, n);
+        glVertexAttribFormat(el_index, comp_count, comp_type, el.is_normalized,
+                             el.offset_words * 4);
+      }
       ++el_index;
     }
 
     // Flush buffer before we draw.
     scratch_buffer_.Commit(std::move(allocation));
   }
+
+  return true;
+}
+
+bool CommandProcessor::PopulateSamplers(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+
+  auto& regs = *register_file_;
+
+  // VS and PS samplers are shared, but may be used exclusively.
+  // We walk each and setup lazily.
+  bool has_setup_sampler[32] = {false};
+
+  // Vertex texture samplers.
+  const auto& vertex_sampler_inputs = active_vertex_shader_->sampler_inputs();
+  for (size_t i = 0; i < vertex_sampler_inputs.count; ++i) {
+    const auto& desc = vertex_sampler_inputs.descs[i];
+    if (has_setup_sampler[desc.fetch_slot]) {
+      continue;
+    }
+    has_setup_sampler[desc.fetch_slot] = true;
+    if (!PopulateSampler(draw_command, desc)) {
+      return false;
+    }
+  }
+
+  // Pixel shader texture sampler.
+  const auto& pixel_sampler_inputs = active_pixel_shader_->sampler_inputs();
+  for (size_t i = 0; i < pixel_sampler_inputs.count; ++i) {
+    const auto& desc = pixel_sampler_inputs.descs[i];
+    if (has_setup_sampler[desc.fetch_slot]) {
+      continue;
+    }
+    has_setup_sampler[desc.fetch_slot] = true;
+    if (!PopulateSampler(draw_command, desc)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
+                                       const Shader::SamplerDesc& desc) {
+  auto& regs = *register_file_;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + desc.fetch_slot * 6;
+  auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
+  auto& fetch = group->texture_fetch;
+
+  // ?
+  assert_true(fetch.type == 0x2);
+
+  TextureInfo texture_info;
+  if (!TextureInfo::Prepare(fetch, &texture_info)) {
+    XELOGE("Unable to parse texture fetcher info");
+    return false;  // invalid texture used
+  }
+  SamplerInfo sampler_info;
+  if (!SamplerInfo::Prepare(fetch, desc.tex_fetch, &sampler_info)) {
+    XELOGE("Unable to parse sampler info");
+    return false;  // invalid texture used
+  }
+
+  uint32_t guest_base = fetch.address << 12;
+  void* host_base = membase_ + guest_base;
+  auto entry_view = texture_cache_.Demand(host_base, texture_info.input_length,
+                                          texture_info, sampler_info);
+  if (!entry_view) {
+    // Unable to create/fetch/etc.
+    XELOGE("Failed to demand texture");
+    return false;
+  }
+
+  // Shaders will use bindless to fetch right from it.
+  draw_command->state_data->texture_samplers[desc.fetch_slot] =
+      entry_view->texture_sampler_handle;
 
   return true;
 }
@@ -2045,7 +2135,7 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
     case CopyCommand::kConstantOne:
     case CopyCommand::kNull:
     default:
-      assert_unhandled_case(copy_command);
+      // assert_unhandled_case(copy_command);
       return false;
   }
   glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
