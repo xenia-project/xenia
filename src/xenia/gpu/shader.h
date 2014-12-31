@@ -72,6 +72,7 @@ class Shader {
     uint32_t params;
     uint32_t memories;
     bool point_size;
+    bool color_targets[4];
   };
   const AllocCounts& alloc_counts() const { return alloc_counts_; }
   const std::vector<ucode::instr_cf_exec_t>& execs() const { return execs_; }

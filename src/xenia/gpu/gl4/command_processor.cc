@@ -40,10 +40,12 @@ const GLuint kAnyTarget = UINT_MAX;
 // frame.
 const size_t kScratchBufferCapacity = 256 * 1024 * 1024;
 
-CommandProcessor::CachedPipeline::CachedPipeline() = default;
+CommandProcessor::CachedPipeline::CachedPipeline()
+    : vertex_program(0), fragment_program(0), handles({0}) {}
 
 CommandProcessor::CachedPipeline::~CachedPipeline() {
   glDeleteProgramPipelines(1, &handles.default_pipeline);
+  glDeleteProgramPipelines(1, &handles.rect_list_pipeline);
 }
 
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
@@ -67,6 +69,10 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
+      vertex_array_(0),
+      point_list_geometry_program_(0),
+      rect_list_geometry_program_(0),
+      quad_list_geometry_program_(0),
       scratch_buffer_(kScratchBufferCapacity) {
   std::memset(&draw_command_, 0, sizeof(draw_command_));
   LARGE_INTEGER perf_counter;
@@ -167,9 +173,9 @@ bool CommandProcessor::SetupGL() {
     return false;
   }
 
-  GLuint vertex_array;
-  glGenVertexArrays(1, &vertex_array);
-  glBindVertexArray(vertex_array);
+  // TODO(benvanik): cache.
+  glGenVertexArrays(1, &vertex_array_);
+  glBindVertexArray(vertex_array_);
 
   if (GLEW_NV_vertex_buffer_unified_memory) {
     has_bindless_vbos_ = true;
@@ -177,10 +183,131 @@ bool CommandProcessor::SetupGL() {
     glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
   }
 
+  const std::string geometry_header =
+      "#version 450\n"
+      "#extension all : warn\n"
+      "#extension GL_ARB_explicit_uniform_location : require\n"
+      "#extension GL_ARB_shading_language_420pack : require\n"
+      "in gl_PerVertex {\n"
+      "  vec4 gl_Position;\n"
+      "  float gl_PointSize;\n"
+      "  float gl_ClipDistance[];\n"
+      "} gl_in[];\n"
+      "out gl_PerVertex {\n"
+      "  vec4 gl_Position;\n"
+      "  float gl_PointSize;\n"
+      "  float gl_ClipDistance[];\n"
+      "};\n"
+      "struct VertexData {\n"
+      "  vec4 o[16];\n"
+      "};\n"
+      "\n"
+      "layout(location = 0) in VertexData in_vtx[];\n"
+      "layout(location = 0) out VertexData out_vtx;\n";
+  // TODO(benvanik): fetch default point size from register and use that if
+  //     the VS doesn't write oPointSize.
+  // TODO(benvanik): clamp to min/max.
+  // TODO(benvanik): figure out how to see which interpolator gets adjusted.
+  std::string point_list_shader =
+      geometry_header +
+      "layout(points) in;\n"
+      "layout(triangle_strip, max_vertices = 4) out;\n"
+      "void main() {\n"
+      "  const vec2 offsets[4] = {\n"
+      "    vec2(-1.0,  1.0),\n"
+      "    vec2( 1.0,  1.0),\n"
+      "    vec2(-1.0, -1.0),\n"
+      "    vec2( 1.0, -1.0),\n"
+      "  };\n"
+      "  vec4 pos = gl_in[0].gl_Position;\n"
+      "  float psize = gl_in[0].gl_PointSize;\n"
+      "  for (int i = 0; i < 4; ++i) {\n"
+      "    gl_Position = vec4(pos.xy + offsets[i] * psize, pos.zw);\n"
+      "    out_vtx = in_vtx[0];\n"
+      "    EmitVertex();\n"
+      "  }\n"
+      "  EndPrimitive();\n"
+      "}\n";
+  std::string rect_list_shader =
+      geometry_header +
+      "layout(triangles) in;\n"
+      "layout(triangle_strip, max_vertices = 4) out;\n"
+      "void main() {\n"
+      "  gl_Position = gl_in[0].gl_Position;\n"
+      "  gl_PointSize = gl_in[0].gl_PointSize;\n"
+      "  out_vtx = in_vtx[0];\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[1].gl_Position;\n"
+      "  gl_PointSize = gl_in[1].gl_PointSize;\n"
+      "  out_vtx = in_vtx[1];\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[0].gl_Position + \n"
+      "     (gl_in[2].gl_Position - gl_in[1].gl_Position);\n"
+      "  gl_PointSize = gl_in[2].gl_PointSize + \n"
+      "     (gl_in[1].gl_PointSize - gl_in[0].gl_PointSize);\n"
+      "  for (int j = 0; j < 16; ++j) {\n"
+      "    out_vtx.o[j] = in_vtx[0].o[j] + (in_vtx[2].o[j] - in_vtx[1].o[j]);\n"
+      "  }\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[2].gl_Position;\n"
+      "  gl_PointSize = gl_in[2].gl_PointSize;\n"
+      "  out_vtx = in_vtx[2];\n"
+      "  EmitVertex();\n"
+      "  EndPrimitive();\n"
+      "}\n";
+  std::string quad_list_shader =
+      geometry_header +
+      "layout(lines_adjacency) in;\n"
+      "layout(triangle_strip, max_vertices = 4) out;\n"
+      "void main() {\n"
+      "  const int order[4] = { 0, 1, 3, 2 };\n"
+      "  for (int i = 0; i < 4; ++i) {\n"
+      "    int input_index = order[i];\n"
+      "    gl_Position = gl_in[input_index].gl_Position;\n"
+      "    gl_PointSize = gl_in[input_index].gl_PointSize;\n"
+      "    out_vtx = in_vtx[input_index];\n"
+      "    EmitVertex();\n"
+      "  }\n"
+      "  EndPrimitive();\n"
+      "}\n";
+  point_list_geometry_program_ = CreateGeometryProgram(point_list_shader);
+  rect_list_geometry_program_ = CreateGeometryProgram(rect_list_shader);
+  quad_list_geometry_program_ = CreateGeometryProgram(quad_list_shader);
+  if (!point_list_geometry_program_ || !rect_list_geometry_program_ ||
+      !quad_list_geometry_program_) {
+    return false;
+  }
+
   return true;
 }
 
+GLuint CommandProcessor::CreateGeometryProgram(const std::string& source) {
+  auto source_str = source.c_str();
+  GLuint program = glCreateShaderProgramv(GL_GEOMETRY_SHADER, 1, &source_str);
+
+  // Get error log, if we failed to link.
+  GLint link_status = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &link_status);
+  if (!link_status) {
+    GLint log_length = 0;
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
+    std::string info_log;
+    info_log.resize(log_length - 1);
+    glGetProgramInfoLog(program, log_length, &log_length,
+                        const_cast<char*>(info_log.data()));
+    PLOGE("Unable to link program: %s", info_log.c_str());
+    glDeleteProgram(program);
+    return 0;
+  }
+
+  return program;
+}
+
 void CommandProcessor::ShutdownGL() {
+  glDeleteProgram(point_list_geometry_program_);
+  glDeleteProgram(rect_list_geometry_program_);
+  glDeleteProgram(quad_list_geometry_program_);
+  glDeleteVertexArrays(1, &vertex_array_);
   texture_cache_.Shutdown();
   scratch_buffer_.Shutdown();
 }
@@ -1181,6 +1308,10 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     return false;
   }
 
+  if (!UpdateShaders(draw_command)) {
+    PLOGE("Unable to prepare draw shaders");
+    return false;
+  }
   if (!UpdateRenderTargets(draw_command)) {
     PLOGE("Unable to setup render targets");
     return false;
@@ -1199,10 +1330,6 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     PLOGE("Unable to update shader constants");
     return false;
   }
-  if (!UpdateShaders(draw_command)) {
-    PLOGE("Unable to prepare draw shaders");
-    return false;
-  }
 
   if (!PopulateIndexBuffer(draw_command)) {
     PLOGE("Unable to setup index buffer");
@@ -1218,13 +1345,11 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   }
 
   GLenum prim_type = 0;
+  GLuint pipeline = active_pipeline_->handles.default_pipeline;
   switch (cmd.prim_type) {
     case PrimitiveType::kPointList:
       prim_type = GL_POINTS;
-      /*if (vs->DemandGeometryShader(
-        D3D11VertexShaderResource::POINT_SPRITE_SHADER, &geometry_shader)) {
-        return 1;
-      }*/
+      pipeline = active_pipeline_->handles.point_list_pipeline;
       break;
     case PrimitiveType::kLineList:
       prim_type = GL_LINES;
@@ -1246,34 +1371,26 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
       break;
     case PrimitiveType::kRectangleList:
       prim_type = GL_TRIANGLE_STRIP;
-      /*if (vs->DemandGeometryShader(
-        D3D11VertexShaderResource::RECT_LIST_SHADER, &geometry_shader)) {
-        return 1;
-      }*/
+      pipeline = active_pipeline_->handles.rect_list_pipeline;
       break;
     case PrimitiveType::kQuadList:
       prim_type = GL_LINES_ADJACENCY;
-      return false;
-      /*if
-      (vs->DemandGeometryShader(D3D11VertexShaderResource::QUAD_LIST_SHADER,
-                                   &geometry_shader)) {
-        return 1;
-      }*/
+      pipeline = active_pipeline_->handles.quad_list_pipeline;
       break;
     default:
     case PrimitiveType::kUnknown0x07:
       prim_type = GL_POINTS;
       XELOGE("unsupported primitive type %d", cmd.prim_type);
-      break;
+      assert_unhandled_case(cmd.prim_type);
+      return false;
   }
+
+  glBindProgramPipeline(pipeline);
 
   // Commit the state buffer - nothing can change after this.
   glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, scratch_buffer_.handle(),
                     allocation.offset, allocation.length);
   scratch_buffer_.Commit(std::move(allocation));
-
-  // HACK HACK HACK
-  glDisable(GL_DEPTH_TEST);
 
   if (cmd.index_buffer.address) {
     // Indexed draw.
@@ -1322,7 +1439,11 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
 
   // Get/create all color render targets, if we are using them.
   // In depth-only mode we don't need them.
+  // Note that write mask may be more permissive than we want, so we mix that
+  // with the actual targets the pixel shader writes to.
   GLenum draw_buffers[4] = {GL_NONE, GL_NONE, GL_NONE, GL_NONE};
+  const auto& shader_targets =
+      active_pixel_shader_->alloc_counts().color_targets;
   GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   if (enable_mode == ModeControl::kColorDepth) {
     uint32_t color_info[4] = {
@@ -1334,7 +1455,7 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
     uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
     for (int n = 0; n < poly::countof(color_info); n++) {
       uint32_t write_mask = (color_mask >> (n * 4)) & 0xF;
-      if (!write_mask) {
+      if (!write_mask || !shader_targets[n]) {
         // Unused, so keep disabled and set to wildcard so we'll take any
         // framebuffer that has it.
         continue;
@@ -1414,8 +1535,25 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   state_data->window_scissor.w = float((window_scissor_br >> 16) & 0x7FFF);
 
   // HACK: no clue where to get these values.
-  state_data->window_offset.z = 1280;
-  state_data->window_offset.w = 720;
+  // RB_SURFACE_INFO
+  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = surface_info & 0x3FFF;
+  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
+  // TODO(benvanik): ??
+  float viewport_width_scalar = 1;
+  float viewport_height_scalar = 1;
+  switch (surface_msaa) {
+    case MsaaSamples::k1X:
+      break;
+    case MsaaSamples::k2X:
+      viewport_width_scalar /= 2;
+      break;
+    case MsaaSamples::k4X:
+      viewport_width_scalar /= 2;
+      viewport_height_scalar /= 2;
+      break;
+  }
+  glViewport(0, 0, 1280, 720);
 
   // Whether each of the viewport settings is enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -1456,7 +1594,17 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   //                    get 1/W0.
   bool vtx_w0_fmt = (vte_control >> 10) & 0x1;
   // TODO(benvanik): pass to shaders? disable transform? etc?
-  glViewport(0, 0, 1280, 720);
+  if (vtx_xy_fmt) {
+    state_data->pretransform.x = 0;
+    state_data->pretransform.y = 0;
+    state_data->pretransform.z = viewport_width_scalar;
+    state_data->pretransform.w = viewport_height_scalar;
+  } else {
+    state_data->pretransform.x = -1.0;
+    state_data->pretransform.y = 1.0;
+    state_data->pretransform.z = 1280.0f / 2.0f * viewport_width_scalar;
+    state_data->pretransform.w = -720.0f / 2.0f * viewport_height_scalar;
+  }
 
   // Scissoring.
   int32_t screen_scissor_tl = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
@@ -1708,7 +1856,6 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
   }
 
   GLuint vertex_program = active_vertex_shader_->program();
-  GLuint geometry_program = 0;
   GLuint fragment_program = active_pixel_shader_->program();
 
   uint64_t key = (uint64_t(vertex_program) << 32) | fragment_program;
@@ -1731,15 +1878,22 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
     GLuint pipeline;
     glCreateProgramPipelines(1, &pipeline);
     glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT, geometry_program);
     glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
-
     cached_pipeline->handles.default_pipeline = pipeline;
+  }
+  if (!cached_pipeline->handles.rect_list_pipeline) {
+    GLuint pipeline;
+    glCreateProgramPipelines(1, &pipeline);
+    glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT,
+                       rect_list_geometry_program_);
+    glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.rect_list_pipeline = pipeline;
   }
 
   // NOTE: we don't yet have our state data pointer - that comes at the end.
-
-  glBindProgramPipeline(cached_pipeline->handles.default_pipeline);
+  // We also don't know which configuration we want (based on prim type).
+  active_pipeline_ = cached_pipeline;
 
   return true;
 }

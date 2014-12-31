@@ -50,6 +50,7 @@ struct UniformDataBlock {
     };
   };
 
+  float4 pretransform;
   float4 window_offset;    // tx,ty,rt_w,rt_h
   float4 window_scissor;   // x0,y0,x1,y1
   float4 viewport_offset;  // tx,ty,tz,?
@@ -152,6 +153,9 @@ class CommandProcessor {
     GLuint fragment_program;
     struct {
       GLuint default_pipeline;
+      GLuint point_list_pipeline;
+      GLuint rect_list_pipeline;
+      GLuint quad_list_pipeline;
       // TODO(benvanik): others with geometry shaders.
     } handles;
   };
@@ -159,6 +163,7 @@ class CommandProcessor {
   void WorkerMain();
   bool SetupGL();
   void ShutdownGL();
+  GLuint CreateGeometryProgram(const std::string& source);
 
   void WriteRegister(uint32_t packet_ptr, uint32_t index, uint32_t value);
   void MakeCoherent();
@@ -280,7 +285,7 @@ class CommandProcessor {
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
   GL4Shader* active_vertex_shader_;
   GL4Shader* active_pixel_shader_;
-
+  CachedPipeline* active_pipeline_;
   CachedFramebuffer* active_framebuffer_;
 
   std::vector<CachedFramebuffer> cached_framebuffers_;
@@ -288,6 +293,10 @@ class CommandProcessor {
   std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
   std::vector<std::unique_ptr<CachedPipeline>> all_pipelines_;
   std::unordered_map<uint64_t, CachedPipeline*> cached_pipelines_;
+  GLuint vertex_array_;
+  GLuint point_list_geometry_program_;
+  GLuint rect_list_geometry_program_;
+  GLuint quad_list_geometry_program_;
   TextureCache texture_cache_;
   CircularBuffer scratch_buffer_;
 

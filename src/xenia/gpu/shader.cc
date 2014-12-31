@@ -120,14 +120,31 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
       // TODO(benvanik): gather registers used, predicate bits used, etc.
       auto alu =
           reinterpret_cast<const instr_alu_t*>(data_.data() + alu_off * 3);
-      if (alu->vector_write_mask) {
-        if (alu->export_data && alu->vector_dest == 63) {
-          alloc_counts_.point_size = true;
+      if (alu->export_data && alu->vector_write_mask) {
+        switch (alu->vector_dest) {
+          case 0:
+          case 1:
+          case 2:
+          case 3:
+            alloc_counts_.color_targets[alu->vector_dest] = true;
+            break;
+          case 63:
+            alloc_counts_.point_size = true;
+            break;
         }
       }
-      if (alu->scalar_write_mask || !alu->vector_write_mask) {
-        if (alu->export_data && alu->scalar_dest == 63) {
-          alloc_counts_.point_size = true;
+      if (alu->export_data &&
+          (alu->scalar_write_mask || !alu->vector_write_mask)) {
+        switch (alu->scalar_dest) {
+          case 0:
+          case 1:
+          case 2:
+          case 3:
+            alloc_counts_.color_targets[alu->scalar_dest] = true;
+            break;
+          case 63:
+            alloc_counts_.point_size = true;
+            break;
         }
       }
     }

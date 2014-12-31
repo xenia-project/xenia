@@ -40,6 +40,7 @@ const std::string header =
     "layout(std140, column_major) uniform;\n"
     "layout(std430, column_major) buffer;\n"
     "struct StateData {\n"
+    "  vec4 pretransform;\n"
     "  vec4 window_offset;\n"
     "  vec4 window_scissor;\n"
     "  vec4 viewport_offset;\n"
@@ -68,16 +69,7 @@ bool GL4Shader::PrepareVertexShader(
 
   std::string apply_viewport =
       "vec4 applyViewport(vec4 pos) {\n"
-      // TODO(benvanik): piecewise viewport_enable -> offset/scale logic.
-      "  if (false) {\n"
-      "  } else {\n"
-      /*"    pos.xy = pos.xy / vec2(state.window_offset.z / 2.0, "
-      "-state.window_offset.w / 2.0) + vec2(-1.0, 1.0);\n"
-      "    pos.zw = vec2(0.0, 1.0);\n"*/
-      "    pos.xy = pos.xy / vec2(1280.0 / 2.0, "
-      "-720.0 / 2.0) + vec2(-1.0, 1.0);\n"
-      "    //pos.zw = vec2(0.0, 1.0);\n"
-      "  }\n"
+      "  pos.xy = pos.xy / state.pretransform.zw + state.pretransform.xy;\n"
       "  pos.x = pos.x * state.viewport_scale.x + \n"
       "      state.viewport_offset.x;\n"
       "  pos.y = pos.y * state.viewport_scale.y + \n"
@@ -106,8 +98,6 @@ bool GL4Shader::PrepareVertexShader(
       "  processVertex();\n"
       "  gl_Position = applyViewport(gl_Position);\n"
       "}\n";
-
-  // glGetTextureSamplerHandleARB()
 
   std::string translated_source =
       shader_translator_.TranslateVertexShader(this, program_cntl);

@@ -204,7 +204,6 @@ void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
           default:
             // Varying.
             Append("vtx.o[%u]", num);
-            ;
             break;
         }
         break;
