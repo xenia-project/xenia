@@ -428,21 +428,28 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
   auto allocation = scratch_buffer_->Acquire(unpack_length);
 
   if (!texture_info.is_tiled) {
-    TextureSwap(texture_info.endianness, allocation.host_ptr, host_base,
-                unpack_length);
-    /*const uint8_t* src = reinterpret_cast<const uint8_t*>(host_base);
-    uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
-    for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
-      for (uint32_t x = 0; x < texture_info.size_2d.logical_pitch;
-           x += texture_info.texel_pitch) {
-        TextureSwap(texture_info.endianness, dest + x, src + x,
-                    texture_info.texel_pitch);
+    if (texture_info.size_2d.input_pitch ==
+        texture_info.size_2d.logical_pitch) {
+      // Fast path copy entire image.
+      TextureSwap(texture_info.endianness, allocation.host_ptr, host_base,
+                  unpack_length);
+    } else {
+      // Slow path copy row-by-row because strides differ.
+      // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
+      // this exact thing under the covers, so we just always do it here.
+      const uint8_t* src = reinterpret_cast<const uint8_t*>(host_base);
+      uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+      for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
+        TextureSwap(texture_info.endianness, dest, src,
+                    texture_info.size_2d.logical_pitch);
+        src += texture_info.size_2d.input_pitch;
+        dest += texture_info.size_2d.logical_pitch;
       }
-      src += texture_info.size_2d.input_pitch;
-      dest += texture_info.size_2d.input_pitch;
-    }*/
-    // std::memcpy(dest, src, unpack_length);
+    }
   } else {
+    // Untile image.
+    // We could do this in a shader to speed things up, as this is pretty slow.
+    // TODO(benvanik): optimize this inner loop (or work by tiles).
     uint8_t* src = reinterpret_cast<uint8_t*>(host_base);
     uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
     uint32_t output_pitch =
@@ -471,11 +478,6 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
   size_t unpack_offset = allocation.offset;
   scratch_buffer_->Commit(std::move(allocation));
 
-  // glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
-  // glPixelStorei(GL_UNPACK_ALIGNMENT, texture_info.texel_pitch);
-  glPixelStorei(GL_UNPACK_ROW_LENGTH, texture_info.size_2d.input_width);
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, scratch_buffer_->handle());
   if (texture_info.is_compressed) {
     glCompressedTextureSubImage2D(texture, 0, 0, 0,
@@ -484,6 +486,12 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
                                   static_cast<GLsizei>(unpack_length),
                                   reinterpret_cast<void*>(unpack_offset));
   } else {
+    // Most of these don't seem to have an effect on compressed images.
+    // glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
+    // glPixelStorei(GL_UNPACK_ALIGNMENT, texture_info.texel_pitch);
+    // glPixelStorei(GL_UNPACK_ROW_LENGTH, texture_info.size_2d.input_width);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
     glTextureSubImage2D(texture, 0, 0, 0, texture_info.size_2d.output_width,
                         texture_info.size_2d.output_height, format, type,
                         reinterpret_cast<void*>(unpack_offset));
