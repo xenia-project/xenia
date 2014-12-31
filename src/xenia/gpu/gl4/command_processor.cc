@@ -1875,20 +1875,31 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
     cached_pipeline = it->second;
   }
   if (!cached_pipeline->handles.default_pipeline) {
-    GLuint pipeline;
-    glCreateProgramPipelines(1, &pipeline);
-    glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
-    cached_pipeline->handles.default_pipeline = pipeline;
-  }
-  if (!cached_pipeline->handles.rect_list_pipeline) {
-    GLuint pipeline;
-    glCreateProgramPipelines(1, &pipeline);
-    glUseProgramStages(pipeline, GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipeline, GL_GEOMETRY_SHADER_BIT,
+    // Perhaps it's a bit wasteful to do all of these, but oh well.
+    GLuint pipelines[4];
+    glCreateProgramPipelines(GLsizei(poly::countof(pipelines)), pipelines);
+
+    glUseProgramStages(pipelines[0], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[0], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.default_pipeline = pipelines[0];
+
+    glUseProgramStages(pipelines[1], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[1], GL_GEOMETRY_SHADER_BIT,
+                       point_list_geometry_program_);
+    glUseProgramStages(pipelines[1], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.point_list_pipeline = pipelines[1];
+
+    glUseProgramStages(pipelines[2], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[2], GL_GEOMETRY_SHADER_BIT,
                        rect_list_geometry_program_);
-    glUseProgramStages(pipeline, GL_FRAGMENT_SHADER_BIT, fragment_program);
-    cached_pipeline->handles.rect_list_pipeline = pipeline;
+    glUseProgramStages(pipelines[2], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.rect_list_pipeline = pipelines[2];
+
+    glUseProgramStages(pipelines[3], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[3], GL_GEOMETRY_SHADER_BIT,
+                       quad_list_geometry_program_);
+    glUseProgramStages(pipelines[3], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.quad_list_pipeline = pipelines[3];
   }
 
   // NOTE: we don't yet have our state data pointer - that comes at the end.
@@ -2259,7 +2270,7 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
     default:
-      //assert_unhandled_case(copy_dest_endian);
+      // assert_unhandled_case(copy_dest_endian);
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       return false;
   }
@@ -2327,7 +2338,8 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
     GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) / float(0xFFFFFF00)};
     GLint stencil = copy_depth_clear & 0xFF;
     // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
-    //glClearNamedFramebufferfi(source_framebuffer->framebuffer, GL_DEPTH_STENCIL,
+    // glClearNamedFramebufferfi(source_framebuffer->framebuffer,
+    // GL_DEPTH_STENCIL,
     //                          depth, stencil);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, source_framebuffer->framebuffer);
     glClearBufferfi(GL_DEPTH_STENCIL, 0, depth, stencil);
