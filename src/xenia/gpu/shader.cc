@@ -153,8 +153,6 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
 }
 
 void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
-  assert_true(shader_type_ == ShaderType::kVertex);
-
   // dst_reg/dst_swiz
   // src_reg/src_swiz
   // format = a2xx_sq_surfaceformat
@@ -165,6 +163,10 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
   // const_index/const_index_sel -- fetch constant register
   // num_format_all ? integer : fraction
   // exp_adjust_all - [-32,31] - (2^exp_adjust_all)*fetch - 0 = default
+
+  if (!vtx->must_be_one) {
+    return;
+  }
 
   // Sometimes games have fetches that just produce constants. We can
   // ignore those.

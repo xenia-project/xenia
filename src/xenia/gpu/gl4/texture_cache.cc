@@ -281,7 +281,7 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
   switch (texture_info.format) {
     case TextureFormat::k_8:
       internal_format = GL_R8;
-      format = GL_R;
+      format = GL_RED;
       type = GL_UNSIGNED_BYTE;
       break;
     case TextureFormat::k_1_5_5_5:
@@ -341,7 +341,7 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
       break;
     case TextureFormat::k_32_FLOAT:
       internal_format = GL_R32F;
-      format = GL_R;
+      format = GL_RED;
       type = GL_FLOAT;
       break;
     case TextureFormat::k_32_32_FLOAT:

@@ -2167,7 +2167,7 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
   auto copy_dest_format =
       static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
   uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
-  assert_true(copy_dest_number == 0);
+  // assert_true(copy_dest_number == 0); // ?
   uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
   assert_true(copy_dest_bias == 0);
   uint32_t copy_dest_swap = (copy_dest_info >> 25) & 0x1;
@@ -2233,6 +2233,14 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
       read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
       read_type = GL_UNSIGNED_BYTE;
       break;
+    case ColorFormat::k_16_16_16_16_FLOAT:
+      read_format = GL_RGBA;
+      read_type = GL_HALF_FLOAT;
+      break;
+    case ColorFormat::k_32_FLOAT:
+      read_format = GL_R32F;
+      read_type = GL_FLOAT;
+      break;
     default:
       assert_unhandled_case(copy_dest_format);
       return false;
@@ -2251,7 +2259,8 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
     default:
-      assert_unhandled_case(copy_dest_endian);
+      //assert_unhandled_case(copy_dest_endian);
+      glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       return false;
   }
 
@@ -2315,13 +2324,13 @@ bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
   if (depth_clear_enabled) {
     // Clear the current depth buffer.
     // TODO(benvanik): verify format.
-    union {
-      uint32_t uint_value;
-      GLfloat float_value;
-    } depth = {copy_depth_clear & 0xFFFFFF00};
+    GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) / float(0xFFFFFF00)};
     GLint stencil = copy_depth_clear & 0xFF;
-    glClearNamedFramebufferfi(source_framebuffer->framebuffer, GL_DEPTH_STENCIL,
-                              depth.float_value, stencil);
+    // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
+    //glClearNamedFramebufferfi(source_framebuffer->framebuffer, GL_DEPTH_STENCIL,
+    //                          depth, stencil);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, source_framebuffer->framebuffer);
+    glClearBufferfi(GL_DEPTH_STENCIL, 0, depth, stencil);
   }
 
   return true;
@@ -2361,6 +2370,29 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       internal_format = GL_RGBA8;
       break;
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+      internal_format = GL_RGB10_A2UI;
+      break;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+      internal_format = GL_RGB10_A2;
+      break;
+    case ColorRenderTargetFormat::k_16_16:
+      internal_format = GL_RG16;
+      break;
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+      internal_format = GL_RG16F;
+      break;
+    case ColorRenderTargetFormat::k_16_16_16_16:
+      internal_format = GL_RGBA16;
+      break;
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      internal_format = GL_RGBA16F;
+      break;
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      internal_format = GL_R32F;
+      break;
     default:
       assert_unhandled_case(format);
       return 0;
@@ -2399,7 +2431,9 @@ GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
       internal_format = GL_DEPTH24_STENCIL8;
       break;
     case DepthRenderTargetFormat::kD24FS8:
-    // TODO(benvanik): not supported in GL?
+      // TODO(benvanik): not supported in GL?
+      internal_format = GL_DEPTH24_STENCIL8;
+      break;
     default:
       assert_unhandled_case(format);
       return 0;

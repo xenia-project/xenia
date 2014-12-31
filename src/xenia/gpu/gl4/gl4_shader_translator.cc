@@ -69,6 +69,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
   Reset(vertex_shader);
 
   // Normal shaders only, for now.
+  // TODO(benvanik): transform feedback/memexport.
   assert_true(program_cntl.vs_export_mode == 0);
 
   // Add vertex shader input.
@@ -199,7 +200,8 @@ void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
             Append("gl_Position");
             break;
           case 63:
-            Append("gl_PointSize");
+            // Write to t, as we need to splice just x out of it.
+            Append("t");
             break;
           default:
             // Varying.
@@ -242,6 +244,8 @@ void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
   if (num == 61) {
     // gl_FragDepth handling to just get x from the temp result.
     Append("  gl_FragDepth = t.x;\n");
+  } else if (num == 63) {
+    Append("  gl_PointSize = t.x;\n");
   } else if (mask != 0xF) {
     // Masking.
     Append("  ");

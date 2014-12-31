@@ -62,14 +62,15 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
   }
 }
 
+thread_local char log_buffer[2048];
+
 void log_line(const char* file_path, const uint32_t line_number,
               const char level_char, const char* fmt, ...) {
   // SCOPE_profile_cpu_i("emu", "log_line");
 
-  char buffer[2048];
   va_list args;
   va_start(args, fmt);
-  format_log_line(buffer, poly::countof(buffer), file_path, line_number,
+  format_log_line(log_buffer, poly::countof(log_buffer), file_path, line_number,
                   level_char, fmt, args);
   va_end(args);
 
@@ -77,9 +78,9 @@ void log_line(const char* file_path, const uint32_t line_number,
     log_lock.lock();
   }
 #if 0  // defined(OutputDebugString)
-  OutputDebugStringA(buffer);
+  OutputDebugStringA(log_buffer);
 #else
-  fprintf(stdout, "%s", buffer);
+  fprintf(stdout, "%s", log_buffer);
   fflush(stdout);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {

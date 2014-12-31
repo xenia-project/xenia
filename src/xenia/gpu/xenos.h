@@ -81,7 +81,15 @@ enum class MsaaSamples : uint32_t {
 enum class ColorRenderTargetFormat : uint32_t {
   k_8_8_8_8 = 0,        // D3DFMT_A8R8G8B8 (or ABGR?)
   k_8_8_8_8_GAMMA = 1,  // D3DFMT_A8R8G8B8 with gamma correction
-                        // ...
+  k_2_10_10_10 = 2,
+  k_2_10_10_10_FLOAT = 3,
+  k_16_16 = 4,
+  k_16_16_16_16 = 5,
+  k_16_16_FLOAT = 6,
+  k_16_16_16_16_FLOAT = 7,
+  k_2_10_10_10_unknown = 10,
+  k_2_10_10_10_FLOAT_unknown = 12,
+  k_32_FLOAT = 14,
 };
 
 enum class DepthRenderTargetFormat : uint32_t {

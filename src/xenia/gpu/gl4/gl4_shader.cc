@@ -127,11 +127,7 @@ bool GL4Shader::PreparePixelShader(
       "layout(location = 0) in VertexData vtx;\n"
       "layout(location = 0) out vec4 oC[4];\n"
       "void processFragment();\n"
-      "void main() {\n"
-      "  for (int i = 0; i < oC.length(); ++i) {\n"
-      "    oC[i] = vec4(1.0, 0.0, 0.0, 1.0);\n"
-      "  }\n" +
-      (program_cntl.ps_export_depth ? "  gl_FragDepth = 0.0;\n" : "") +
+      "void main() {\n" +
       "  processFragment();\n"
       "}\n";
 
