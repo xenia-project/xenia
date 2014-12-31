@@ -372,6 +372,9 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
     case TextureFormat::k_DXT4_5_AS_16_16_16_16:
       internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
       break;
+    case TextureFormat::k_DXN:
+      internal_format = format = GL_COMPRESSED_RG_RGTC2;
+      break;
     case TextureFormat::k_24_8:
       internal_format = GL_DEPTH24_STENCIL8;
       format = GL_DEPTH_STENCIL;
@@ -410,7 +413,6 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
     case TextureFormat::k_16_INTERLACED:
     case TextureFormat::k_16_MPEG_INTERLACED:
     case TextureFormat::k_16_16_MPEG_INTERLACED:
-    case TextureFormat::k_DXN:
     case TextureFormat::k_DXT3A:
     case TextureFormat::k_DXT5A:
     case TextureFormat::k_CTX1:
