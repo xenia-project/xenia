@@ -2132,15 +2132,19 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
   // ?
   assert_true(fetch.type == 0x2);
 
+  // Reset slot.
+  // If we fail, we still draw but with an invalid texture.
+  draw_command->state_data->texture_samplers[desc.fetch_slot] = 0;
+
   TextureInfo texture_info;
   if (!TextureInfo::Prepare(fetch, &texture_info)) {
     XELOGE("Unable to parse texture fetcher info");
-    return false;  // invalid texture used
+    return true;  // invalid texture used
   }
   SamplerInfo sampler_info;
   if (!SamplerInfo::Prepare(fetch, desc.tex_fetch, &sampler_info)) {
     XELOGE("Unable to parse sampler info");
-    return false;  // invalid texture used
+    return true;  // invalid texture used
   }
 
   uint32_t guest_base = fetch.address << 12;
@@ -2150,7 +2154,7 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
   if (!entry_view) {
     // Unable to create/fetch/etc.
     XELOGE("Failed to demand texture");
-    return false;
+    return true;
   }
 
   // Shaders will use bindless to fetch right from it.

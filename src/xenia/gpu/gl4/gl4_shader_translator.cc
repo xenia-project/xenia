@@ -1472,7 +1472,8 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
 
   // Translate.
   // TODO(benvanik): if sampler == null, set to invalid color.
-  Append("  t = texture(");
+  Append("  if (state.texture_samplers[%d].x != 0) {\n", tex->const_idx & 0xF);
+  Append("    t = texture(");
   Append("%s(state.texture_samplers[%d])", sampler_type, tex->const_idx & 0xF);
   Append(", r%u.", tex->src_reg);
   src_swiz = tex->src_swiz;
@@ -1481,26 +1482,25 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
     src_swiz >>= 2;
   }
   Append(");\n");
-
-  // Output texture coordinates as color.
-  // TODO(benvanik): only if texture is invalid?
-  // Append("  t = vec4(r%u.", tex->src_reg);
-  // src_swiz = tex->src_swiz;
-  // for (int i = 0; i < src_component_count; i++) {
-  //  Append("%c", chan_names[src_swiz & 0x3]);
-  //  src_swiz >>= 2;
-  //}
-  // switch (src_component_count) {
-  //  case 1:
-  //    Append(", 0.0, 0.0, 1.0);\n");
-  //    break;
-  //  case 2:
-  //    Append(", 0.0, 1.0);\n");
-  //    break;
-  //  case 3:
-  //    Append(", 1.0);\n");
-  //    break;
-  //}
+  Append("  } else {\n");
+  Append("    t = vec4(r%u.", tex->src_reg);
+  src_swiz = tex->src_swiz;
+  for (int i = 0; i < src_component_count; i++) {
+    Append("%c", chan_names[src_swiz & 0x3]);
+    src_swiz >>= 2;
+  }
+  switch (src_component_count) {
+    case 1:
+      Append(", 0.0, 0.0, 1.0);\n");
+      break;
+    case 2:
+      Append(", 0.0, 1.0);\n");
+      break;
+    case 3:
+      Append(", 1.0);\n");
+      break;
+  }
+  Append("  }\n");
 
   Append("  r%u.xyzw = vec4(", tex->dst_reg);
   uint32_t dst_swiz = tex->dst_swiz;
