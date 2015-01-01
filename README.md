@@ -89,8 +89,8 @@ until Apple supports OpenGL 4.3 or higher.
 
 ### What kind of GPU do I need?
 
-DirectX 11/OpenGL 4.5 support is required. To get full speed and compatibility
-D3D12 or GL-next may eventually be required.
+OpenGL 4.5 support and drivers are required. To get full speed and compatibility
+GL-next may eventually be required.
 
 ### Have you heard of LLVM/asmjit/jitasm/luajit/etc?
 
