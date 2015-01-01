@@ -50,9 +50,9 @@ struct UniformDataBlock {
     };
   };
 
-  float4 pretransform;
-  float4 window_offset;    // tx,ty,rt_w,rt_h
+  float4 window_offset;    // tx,ty,sx,sy
   float4 window_scissor;   // x0,y0,x1,y1
+  float4 vtx_fmt;
   float4 viewport_offset;  // tx,ty,tz,?
   float4 viewport_scale;   // sx,sy,sz,?
                            // TODO(benvanik): vertex format xyzw?

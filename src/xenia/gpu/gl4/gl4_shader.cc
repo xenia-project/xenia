@@ -40,9 +40,9 @@ const std::string header =
     "layout(std140, column_major) uniform;\n"
     "layout(std430, column_major) buffer;\n"
     "struct StateData {\n"
-    "  vec4 pretransform;\n"
     "  vec4 window_offset;\n"
     "  vec4 window_scissor;\n"
+    "  vec4 vtx_fmt;\n"
     "  vec4 viewport_offset;\n"
     "  vec4 viewport_scale;\n"
     "  vec4 alpha_test;\n"
@@ -67,20 +67,45 @@ bool GL4Shader::PrepareVertexShader(
   }
   has_prepared_ = true;
 
-  std::string apply_viewport =
-      "vec4 applyViewport(vec4 pos) {\n"
-      "  pos.xy = pos.xy / state.pretransform.zw + state.pretransform.xy;\n"
+  std::string apply_transform =
+      "vec4 applyTransform(vec4 pos) {\n"
+      "  // Clip->NDC with perspective divide.\n"
+      "  // We do this here because it's programmable on the 360.\n"
+      "  float w = pos.w;\n"
+      "  if (state.vtx_fmt.w == 0.0) {\n"
+      "    // w is not 1/W0. Common case.\n"
+      "    w = 1.0 / w;\n"
+      "  }\n"
+      "  if (state.vtx_fmt.x == 0.0) {\n"
+      "    // Need to multiply by 1/W0.\n"
+      "    pos.xy /= w;\n"
+      "  }\n"
+      "  if (state.vtx_fmt.z == 0.0) {\n"
+      "    // Need to multiply by 1/W0.\n"
+      "    pos.z /= w;\n"
+      "  }\n"
+      "  pos.w = 1.0;\n"
+      "  // Perform clipping, lest we get weird geometry.\n"
+      // TODO(benvanik): is this right? dxclip mode may change this?
+      "  if (pos.z < gl_DepthRange.near || pos.z > gl_DepthRange.far) {\n"
+      "    // Clipped! w=0 will kill it in the hardware persp divide.\n"
+      "    pos.w = 0.0;\n"
+      "  }\n"
+      "  // NDC transform.\n"
       "  pos.x = pos.x * state.viewport_scale.x + \n"
       "      state.viewport_offset.x;\n"
       "  pos.y = pos.y * state.viewport_scale.y + \n"
       "      state.viewport_offset.y;\n"
       "  pos.z = pos.z * state.viewport_scale.z + \n"
       "      state.viewport_offset.z;\n"
-      "  pos.xy += state.window_offset.xy;\n"
+      "  // NDC->Window with viewport.\n"
+      "  pos.xy = pos.xy * state.window_offset.zw + state.window_offset.xy;\n"
+      "  pos.xy = pos.xy / (vec2(1280.0 - 1.0, -720.0 + 1.0) / 2.0) + vec2(-1.0, 1.0);\n"
+      "  // Window adjustment.\n"
       "  return pos;\n"
       "}\n";
   std::string source =
-      header + apply_viewport +
+      header + apply_transform +
       "out gl_PerVertex {\n"
       "  vec4 gl_Position;\n"
       "  float gl_PointSize;\n"
@@ -96,7 +121,7 @@ bool GL4Shader::PrepareVertexShader(
       "    vtx.o[i] = vec4(0.0, 0.0, 0.0, 0.0);\n"
       "  }\n"
       "  processVertex();\n"
-      "  gl_Position = applyViewport(gl_Position);\n"
+      "  gl_Position = applyTransform(gl_Position);\n"
       "}\n";
 
   std::string translated_source =

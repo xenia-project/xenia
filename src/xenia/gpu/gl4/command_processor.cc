@@ -1521,12 +1521,18 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
 
   auto state_data = draw_command->state_data;
 
+  uint32_t mode_control = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+
   // Window parameters.
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  state_data->window_offset.x = float(window_offset & 0x7FFF);
-  state_data->window_offset.y = float((window_offset >> 16) & 0x7FFF);
+  if ((mode_control >> 17) & 1) {
+    uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+    state_data->window_offset.x = float(window_offset & 0x7FFF);
+    state_data->window_offset.y = float((window_offset >> 16) & 0x7FFF);
+  } else {
+    state_data->window_offset.x = state_data->window_offset.y = 0;
+  }
   uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
   state_data->window_scissor.x = float(window_scissor_tl & 0x7FFF);
@@ -1540,19 +1546,21 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   uint32_t surface_pitch = surface_info & 0x3FFF;
   auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
   // TODO(benvanik): ??
-  float viewport_width_scalar = 1;
-  float viewport_height_scalar = 1;
+  float window_width_scalar = 1;
+  float window_height_scalar = 1;
   switch (surface_msaa) {
     case MsaaSamples::k1X:
       break;
     case MsaaSamples::k2X:
-      viewport_width_scalar /= 2;
+      window_width_scalar = 2;
       break;
     case MsaaSamples::k4X:
-      viewport_width_scalar /= 2;
-      viewport_height_scalar /= 2;
+      window_width_scalar = 2;
+      window_height_scalar = 2;
       break;
   }
+  state_data->window_offset.z = window_width_scalar;
+  state_data->window_offset.w = window_height_scalar;
   glViewport(0, 0, 1280, 720);
 
   // Whether each of the viewport settings is enabled.
@@ -1584,27 +1592,26 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
       vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1;  // 1
   state_data->viewport_offset.z =
       vport_zoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32 : 0;  // 0
+
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
   //            = false: multiply the X, Y coordinates by 1/W0.
-  bool vtx_xy_fmt = (vte_control >> 8) & 0x1;
+  state_data->vtx_fmt.x = state_data->vtx_fmt.y =
+      (vte_control >> 8) & 0x1 ? 1.0f : 0.0f;
   // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
   //           = false: multiply the Z coordinate by 1/W0.
-  bool vtx_z_fmt = (vte_control >> 9) & 0x1;
+  state_data->vtx_fmt.z = (vte_control >> 9) & 0x1 ? 1.0f : 0.0f;
   // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
   //                    get 1/W0.
-  bool vtx_w0_fmt = (vte_control >> 10) & 0x1;
-  // TODO(benvanik): pass to shaders? disable transform? etc?
-  if (vtx_xy_fmt) {
-    state_data->pretransform.x = 0;
-    state_data->pretransform.y = 0;
-    state_data->pretransform.z = viewport_width_scalar;
-    state_data->pretransform.w = viewport_height_scalar;
-  } else {
-    state_data->pretransform.x = -1.0;
-    state_data->pretransform.y = 1.0;
-    state_data->pretransform.z = 1280.0f / 2.0f * viewport_width_scalar;
-    state_data->pretransform.w = -720.0f / 2.0f * viewport_height_scalar;
-  }
+  state_data->vtx_fmt.w = (vte_control >> 10) & 0x1 ? 1.0f : 0.0f;
+
+  // Clipping.
+  // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/14/yamato_genenum.h#L1587
+  uint32_t clip_control = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
+  bool clip_enabled = ((clip_control >> 17) & 0x1) == 0;
+  //assert_true(clip_enabled);
+  bool dx_clip = ((clip_control >> 20) & 0x1) == 0x1;
+  //assert_true(dx_clip);
 
   // Scissoring.
   int32_t screen_scissor_tl = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
@@ -1624,7 +1631,6 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   }
 
   // Rasterizer state.
-  uint32_t mode_control = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
   if (draw_command->prim_type == PrimitiveType::kRectangleList) {
     // Rect lists aren't culled. There may be other things they skip too.
     glDisable(GL_CULL_FACE);
