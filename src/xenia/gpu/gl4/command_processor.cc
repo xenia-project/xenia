@@ -2163,6 +2163,10 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
   // If we fail, we still draw but with an invalid texture.
   draw_command->state_data->texture_samplers[desc.fetch_slot] = 0;
 
+  if (FLAGS_disable_textures) {
+    return true;
+  }
+
   // ?
   if (!fetch.type) {
     return true;

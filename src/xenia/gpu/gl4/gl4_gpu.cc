@@ -19,6 +19,8 @@ DEFINE_bool(gl_debug_output, false, "Dump ARB_debug_output to stderr.");
 DEFINE_bool(gl_debug_output_synchronous, true,
             "ARB_debug_output will synchronize to be thread safe.");
 
+DEFINE_bool(disable_textures, false, "Disable textures and use colors only.");
+
 namespace xe {
 namespace gpu {
 namespace gl4 {
