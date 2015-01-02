@@ -2159,12 +2159,15 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
 
-  // ?
-  assert_true(fetch.type == 0x2);
-
   // Reset slot.
   // If we fail, we still draw but with an invalid texture.
   draw_command->state_data->texture_samplers[desc.fetch_slot] = 0;
+
+  // ?
+  if (!fetch.type) {
+    return true;
+  }
+  assert_true(fetch.type == 0x2);
 
   TextureInfo texture_info;
   if (!TextureInfo::Prepare(fetch, &texture_info)) {

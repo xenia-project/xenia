@@ -96,8 +96,13 @@ class GL4ShaderTranslator {
   bool TranslateALU_SETGTs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETGTEs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETNEs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_FRACs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_TRUNCs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_FLOORs(const ucode::instr_alu_t& alu);
   bool TranslateALU_EXP_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIP_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_RECIPSQ_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETXXs(const ucode::instr_alu_t& alu, const char* op);
   bool TranslateALU_PRED_SETEs(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETGTs(const ucode::instr_alu_t& alu);
@@ -110,6 +115,8 @@ class GL4ShaderTranslator {
   bool TranslateALU_ADD_CONST_1(const ucode::instr_alu_t& alu);
   bool TranslateALU_SUB_CONST_0(const ucode::instr_alu_t& alu);
   bool TranslateALU_SUB_CONST_1(const ucode::instr_alu_t& alu);
+  bool TranslateALU_SIN(const ucode::instr_alu_t& alu);
+  bool TranslateALU_COS(const ucode::instr_alu_t& alu);
   bool TranslateALU_RETAIN_PREV(const ucode::instr_alu_t& alu);
 
   void PrintDestFetch(uint32_t dst_reg, uint32_t dst_swiz);
