@@ -212,6 +212,7 @@ void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
       case ShaderType::kPixel:
         switch (num) {
           case 0:
+          case 63:  // ? masked?
             Append("oC[0]");
             break;
           case 61:
@@ -241,12 +242,24 @@ void GL4ShaderTranslator::AppendDestReg(uint32_t num, uint32_t mask,
 
 void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
                                             uint32_t dst_exp) {
-  if (num == 61) {
-    // gl_FragDepth handling to just get x from the temp result.
-    Append("  gl_FragDepth = t.x;\n");
-  } else if (num == 63) {
-    Append("  gl_PointSize = t.x;\n");
-  } else if (mask != 0xF) {
+  switch (shader_type_) {
+    case ShaderType::kVertex:
+      switch (num) {
+        case 63:
+          Append("  gl_PointSize = t.x;\n");
+          return;
+      }
+      break;
+    case ShaderType::kPixel:
+      switch (num) {
+        case 61:
+          // gl_FragDepth handling to just get x from the temp result.
+          Append("  gl_FragDepth = t.x;\n");
+          return;
+      }
+      break;
+  }
+  if (mask != 0xF) {
     // Masking.
     Append("  ");
     AppendDestRegName(num, dst_exp);
