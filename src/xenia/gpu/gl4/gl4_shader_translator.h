@@ -98,6 +98,11 @@ class GL4ShaderTranslator {
   bool TranslateALU_SETNEs(const ucode::instr_alu_t& alu);
   bool TranslateALU_EXP_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIP_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETXXs(const ucode::instr_alu_t& alu, const char* op);
+  bool TranslateALU_PRED_SETEs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETGTs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETGTEs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETNEs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SQRT_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_MUL_CONST_0(const ucode::instr_alu_t& alu);
   bool TranslateALU_MUL_CONST_1(const ucode::instr_alu_t& alu);
@@ -107,8 +112,13 @@ class GL4ShaderTranslator {
   bool TranslateALU_SUB_CONST_1(const ucode::instr_alu_t& alu);
   bool TranslateALU_RETAIN_PREV(const ucode::instr_alu_t& alu);
 
-  void PrintDestFecth(uint32_t dst_reg, uint32_t dst_swiz);
+  void PrintDestFetch(uint32_t dst_reg, uint32_t dst_swiz);
   void AppendFetchDest(uint32_t dst_reg, uint32_t dst_swiz);
+
+  void AppendPredPre(bool is_cond_cf, uint32_t cf_condition,
+                     uint32_t pred_select, uint32_t condition);
+  void AppendPredPost(bool is_cond_cf, uint32_t cf_condition,
+                      uint32_t pred_select, uint32_t condition);
 
   bool TranslateExec(const ucode::instr_cf_exec_t& cf);
   bool TranslateVertexFetch(const ucode::instr_fetch_vtx_t* vtx, int sync);

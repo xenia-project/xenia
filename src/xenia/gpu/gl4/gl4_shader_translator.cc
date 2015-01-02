@@ -99,6 +99,8 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
     Append("  vec4 r%d = state.float_consts[%d];\n", n, n);
   }
   Append("  vec4 t;\n");
+  Append("  float s;\n");         // scalar result (used for RETAIN_PREV)
+  Append("  bool p = false;\n");  // predicate temp
 
   // Execute blocks.
   const auto& execs = vertex_shader->execs();
@@ -132,7 +134,8 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
     Append("  vec4 r%d = state.float_consts[%d];\n", n, n + 256);
   }
   Append("  vec4 t;\n");
-  Append("  float s;\n");  // scalar result (used for RETAIN_PREV)
+  Append("  float s;\n");         // scalar result (used for RETAIN_PREV)
+  Append("  bool p = false;\n");  // predicate temp
 
   // Bring registers local.
   for (uint32_t n = 0; n < kMaxInterpolators; n++) {
@@ -747,8 +750,7 @@ bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -770,14 +772,12 @@ bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -793,15 +793,13 @@ bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
                                               const char* op) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -814,8 +812,7 @@ bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SETEs(const instr_alu_t& alu) {
@@ -832,8 +829,7 @@ bool GL4ShaderTranslator::TranslateALU_SETNEs(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -846,14 +842,12 @@ bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -866,14 +860,47 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 
+bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(const instr_alu_t& alu,
+                                                   const char* op) {
+  Append("p = ");
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
+               alu.abs_constants);
+  Append(".x %s 0.0;\n", op);
+  if (!alu.scalar_write_mask) {
+    return true;
+  }
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  Append(" = ");
+  if (alu.scalar_clamp) {
+    Append("clamp(");
+  }
+  Append("(p ? 0.0 : 1.0).xxxx");
+  if (alu.scalar_clamp) {
+    Append(", 0.0, 1.0)");
+  }
+  Append(";\n");
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  return true;
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETEs(const instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXXs(alu, "==");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETGTs(const instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXXs(alu, ">");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETGTEs(const instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXXs(alu, ">=");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETNEs(const instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXXs(alu, "!=");
+}
+
 bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -886,14 +913,12 @@ bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -913,8 +938,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
@@ -922,8 +946,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -943,8 +966,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
@@ -952,8 +974,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                alu.export_data);
+  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -973,8 +994,7 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
-                    alu.export_data);
+  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
@@ -985,6 +1005,9 @@ bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
   // TODO(benvanik): figure out how this is used.
   // It seems like vector writes to export regs will use this to write 1's to
   // components (like w in position).
+  if (!alu.scalar_write_mask) {
+    return true;
+  }
   assert_true(alu.export_data == 1);
   AppendDestReg(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
@@ -1065,10 +1088,10 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       ALU_INSTR(MOVA_FLOORs, 1),        // 24
       ALU_INSTR(SUBs, 1),               // 25
       ALU_INSTR(SUB_PREVs, 1),          // 26
-      ALU_INSTR(PRED_SETEs, 1),         // 27
-      ALU_INSTR(PRED_SETNEs, 1),        // 28
-      ALU_INSTR(PRED_SETGTs, 1),        // 29
-      ALU_INSTR(PRED_SETGTEs, 1),       // 30
+      ALU_INSTR_IMPL(PRED_SETEs, 1),    // 27
+      ALU_INSTR_IMPL(PRED_SETNEs, 1),   // 28
+      ALU_INSTR_IMPL(PRED_SETGTs, 1),   // 29
+      ALU_INSTR_IMPL(PRED_SETGTEs, 1),  // 30
       ALU_INSTR(PRED_SET_INVs, 1),      // 31
       ALU_INSTR(PRED_SET_POPs, 1),      // 32
       ALU_INSTR(PRED_SET_CLRs, 1),      // 33
@@ -1092,11 +1115,6 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
   };
 #undef ALU_INSTR
 #undef ALU_INSTR_IMPL
-
-  if (!alu->scalar_write_mask && !alu->vector_write_mask) {
-    Append("  //   <nop>\n");
-    return true;
-  }
 
   if (alu->vector_write_mask) {
     // Disassemble vector op.
@@ -1154,7 +1172,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
     } else {
       Append("\t    \tOP(%u)\t", alu->scalar_opc);
     }
-    PrintDstReg(get_alu_scalar_dest(*alu), alu->scalar_write_mask,
+    PrintDstReg(alu->scalar_dest, alu->scalar_write_mask,
                 alu->export_data);
     Append(" = ");
     if (is.num_srcs == 2) {
@@ -1178,7 +1196,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       Append(" CLAMP");
     }
     if (alu->export_data) {
-      PrintExportComment(get_alu_scalar_dest(*alu));
+      PrintExportComment(alu->scalar_dest);
     }
     Append("\n");
 
@@ -1196,7 +1214,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
   return true;
 }
 
-void GL4ShaderTranslator::PrintDestFecth(uint32_t dst_reg, uint32_t dst_swiz) {
+void GL4ShaderTranslator::PrintDestFetch(uint32_t dst_reg, uint32_t dst_swiz) {
   Append("\tR%u.", dst_reg);
   for (int i = 0; i < 4; i++) {
     Append("%c", chan_names[dst_swiz & 0x7]);
@@ -1247,9 +1265,13 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
     Append(" ABSOLUTE_ADDR");
   }
   if (cf.is_cond_exec()) {
-    Append(" COND(%d)", cf.condition);
+    Append(" COND(%d)", cf.pred_condition);
   }
   Append("\n");
+
+  if (cf.is_cond_exec()) {
+    Append("  if(%cp) {\n", cf.pred_condition ? ' ' : '!');
+  }
 
   uint32_t sequence = cf.serialize;
   for (uint32_t i = 0; i < cf.count; i++) {
@@ -1260,14 +1282,22 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
           (const instr_fetch_t*)(dwords_ + alu_off * 3);
       switch (fetch->opc) {
         case VTX_FETCH:
+          AppendPredPre(cf.is_cond_exec(), cf.pred_condition,
+                        fetch->vtx.pred_select, fetch->vtx.pred_condition);
           if (!TranslateVertexFetch(&fetch->vtx, sync)) {
             return false;
           }
+          AppendPredPost(cf.is_cond_exec(), cf.pred_condition,
+                         fetch->vtx.pred_select, fetch->vtx.pred_condition);
           break;
         case TEX_FETCH:
+          AppendPredPre(cf.is_cond_exec(), cf.pred_condition,
+                        fetch->tex.pred_select, fetch->tex.pred_condition);
           if (!TranslateTextureFetch(&fetch->tex, sync)) {
             return false;
           }
+          AppendPredPost(cf.is_cond_exec(), cf.pred_condition,
+                         fetch->tex.pred_select, fetch->tex.pred_condition);
           break;
         case TEX_GET_BORDER_COLOR_FRAC:
         case TEX_GET_COMP_TEX_LOD:
@@ -1282,14 +1312,38 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
       }
     } else {
       const instr_alu_t* alu = (const instr_alu_t*)(dwords_ + alu_off * 3);
+      AppendPredPre(cf.is_cond_exec(), cf.pred_condition, alu->pred_select,
+                    alu->pred_condition);
       if (!TranslateALU(alu, sync)) {
         return false;
       }
+      AppendPredPost(cf.is_cond_exec(), cf.pred_condition, alu->pred_select,
+                     alu->pred_condition);
     }
     sequence >>= 2;
   }
 
+  if (cf.is_cond_exec()) {
+    Append("  }\n");
+  }
+
   return true;
+}
+
+void GL4ShaderTranslator::AppendPredPre(bool is_cond_cf, uint32_t cf_condition,
+                                        uint32_t pred_select,
+                                        uint32_t condition) {
+  if (pred_select && (!is_cond_cf || cf_condition != condition)) {
+    Append("  if (%cp) {\n", condition ? ' ' : '!');
+  }
+}
+
+void GL4ShaderTranslator::AppendPredPost(bool is_cond_cf, uint32_t cf_condition,
+                                         uint32_t pred_select,
+                                         uint32_t condition) {
+  if (pred_select && (!is_cond_cf || cf_condition != condition)) {
+    Append("  }\n");
+  }
 }
 
 bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
@@ -1365,7 +1419,7 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
   if (vtx->pred_select) {
     Append(vtx->pred_condition ? "EQ" : "NE");
   }
-  PrintDestFecth(vtx->dst_reg, vtx->dst_swiz);
+  PrintDestFetch(vtx->dst_reg, vtx->dst_swiz);
   Append(" = R%u.", vtx->src_reg);
   Append("%c", chan_names[vtx->src_swiz & 0x3]);
   if (fetch_types[vtx->format].name) {
@@ -1481,7 +1535,7 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
   if (tex->pred_select) {
     Append(tex->pred_condition ? "EQ" : "NE");
   }
-  PrintDestFecth(tex->dst_reg, tex->dst_swiz);
+  PrintDestFetch(tex->dst_reg, tex->dst_swiz);
   Append(" = R%u.", tex->src_reg);
   for (int i = 0; i < src_component_count; i++) {
     Append("%c", chan_names[src_swiz & 0x3]);

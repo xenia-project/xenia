@@ -234,7 +234,8 @@ XEPACKEDSTRUCT(instr_alu_t, {
     uint32_t src3_reg_negate : 1;
     uint32_t src2_reg_negate : 1;
     uint32_t src1_reg_negate : 1;
-    uint32_t pred_select : 2;
+    uint32_t pred_condition : 1;
+    uint32_t pred_select : 1;
     uint32_t relative_addr : 1;
     uint32_t const_1_rel_abs : 1;
     uint32_t const_0_rel_abs : 1;
@@ -250,10 +251,6 @@ XEPACKEDSTRUCT(instr_alu_t, {
     uint32_t src1_sel : 1;
   });
 });
-
-inline uint32_t get_alu_scalar_dest(const instr_alu_t& alu) {
-  return alu.vector_write_mask ? alu.scalar_dest : alu.vector_dest;
-}
 
 /*
  * CF instructions:
@@ -301,7 +298,7 @@ XEPACKEDSTRUCT(instr_cf_exec_t, {
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t vc_lo : 2; /* vertex cache? */
     uint32_t bool_addr : 8;
-    uint32_t condition : 1;
+    uint32_t pred_condition : 1;
     uint32_t address_mode : 1;  // instr_addr_mode_t
     uint32_t opc : 4;           // instr_cf_opc_t
   });

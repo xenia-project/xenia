@@ -286,7 +286,9 @@ int disasm_alu(Output* output, const uint32_t* dwords, uint32_t alu_off,
     if (alu->vector_clamp) {
       output->append(" CLAMP");
     }
-
+    if (alu->pred_select) {
+      output->append(" COND(%d)", alu->pred_condition);
+    }
     if (alu->export_data) {
       print_export_comment(output, alu->vector_dest, type);
     }
@@ -308,7 +310,7 @@ int disasm_alu(Output* output, const uint32_t* dwords, uint32_t alu_off,
       output->append("OP(%u)\t", alu->scalar_opc);
     }
 
-    print_dstreg(output, get_alu_scalar_dest(*alu), alu->scalar_write_mask,
+    print_dstreg(output, alu->scalar_dest, alu->scalar_write_mask,
                  alu->export_data);
     output->append(" = ");
     if (scalar_instructions[alu->scalar_opc].num_srcs == 2) {
@@ -335,7 +337,7 @@ int disasm_alu(Output* output, const uint32_t* dwords, uint32_t alu_off,
       output->append(" CLAMP");
     }
     if (alu->export_data) {
-      print_export_comment(output, get_alu_scalar_dest(*alu), type);
+      print_export_comment(output, alu->scalar_dest, type);
     }
     output->append("\n");
   }
@@ -443,6 +445,9 @@ void print_fetch_vtx(Output* output, const instr_fetch_t* fetch) {
     output->append(" OFFSET(%u)", vtx->offset);
   }
   output->append(" CONST(%u, %u)", vtx->const_index, vtx->const_index_sel);
+  if (vtx->pred_select) {
+    output->append(" COND(%d)", vtx->pred_condition);
+  }
   if (1) {
     // XXX
     output->append(" src_reg_am=%u", vtx->src_reg_am);
@@ -537,6 +542,9 @@ void print_fetch_tex(Output* output, const instr_fetch_t* fetch) {
     output->append(" OFFSET(%u,%u,%u)", tex->offset_x, tex->offset_y,
                    tex->offset_z);
   }
+  if (tex->pred_select) {
+    output->append(" COND(%d)", tex->pred_condition);
+  }
 }
 
 struct {
@@ -614,7 +622,7 @@ void print_cf_exec(Output* output, const instr_cf_t* cf) {
     output->append(" ABSOLUTE_ADDR");
   }
   if (cf->is_cond_exec()) {
-    output->append(" COND(%d)", cf->exec.condition);
+    output->append(" COND(%d)", cf->exec.pred_condition);
   }
 }
 
@@ -713,7 +721,7 @@ void disasm_exec(Output* output, const uint32_t* dwords, size_t dword_count,
 }
 
 std::string DisassembleShader(ShaderType type, const uint32_t* dwords,
-                        size_t dword_count) {
+                              size_t dword_count) {
   Output* output = new Output();
 
   instr_cf_t cfa;
