@@ -14,8 +14,9 @@
 
 #include <poly/string.h>
 
-#if XE_LIKE_WIN32
 #define XE_OPTION_PROFILING 1
+#if XE_LIKE_WIN32
+//#define XE_OPTION_PROFILING_UI 1
 #endif  // XE_LIKE_WIN32
 
 #if XE_OPTION_PROFILING

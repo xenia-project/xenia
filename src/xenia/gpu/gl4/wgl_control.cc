@@ -89,7 +89,7 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
         }
 
         // TODO(benvanik): profiler present.
-        // Profiler::Present();
+        Profiler::Present();
 
         // Hacky swap timer.
         static int swap_count = 0;
