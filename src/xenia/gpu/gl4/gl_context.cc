@@ -14,6 +14,7 @@
 #include <poly/assert.h>
 #include <poly/cxx_compat.h>
 #include <poly/logging.h>
+#include <poly/math.h>
 #include <xenia/gpu/gl4/gl4_gpu-private.h>
 
 namespace xe {
@@ -267,12 +268,31 @@ void GLContext::SetupDebugging() {
   if (!FLAGS_gl_debug_output) {
     return;
   }
+
   glEnable(GL_DEBUG_OUTPUT);
+
+  // Synchronous output hurts, but is required if we want to line up the logs.
   if (FLAGS_gl_debug_output_synchronous) {
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+  } else {
+    glDisable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
   }
+
+  // Enable everything by default.
   glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL,
                         GL_TRUE);
+
+  // Disable annoying messages.
+  GLuint disable_message_ids[] = {
+      0x00020004,  // Usage warning: Generic vertex attribute array 0 uses a
+                   // pointer with a small value (0x0000000000000000). Is this
+                   // intended to be used as an offset into a buffer object?
+  };
+  glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER, GL_DONT_CARE,
+                        poly::countof(disable_message_ids), disable_message_ids,
+                        GL_FALSE);
+
+  // Callback will be made from driver threads.
   glDebugMessageCallback(reinterpret_cast<GLDEBUGPROC>(&DebugMessageThunk),
                          this);
 }
