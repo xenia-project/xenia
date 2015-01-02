@@ -58,7 +58,7 @@ bool Win32Window::Create() {
 
   // Create window.
   hwnd_ = CreateWindowEx(window_ex_style, L"XeniaWindowClass", L"Xenia",
-                         window_style, CW_USEDEFAULT, CW_USEDEFAULT,
+                         window_style, rc.left, rc.top,
                          rc.right - rc.left, rc.bottom - rc.top, nullptr,
                          nullptr, hInstance, this);
   if (!hwnd_) {
@@ -140,7 +140,13 @@ void Win32Window::Resize(int32_t width, int32_t height) {
   RECT rc = {0, 0, width, height};
   bool has_menu = main_menu_ ? true : false;
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
-  Window::Resize(rc.right - rc.left, rc.bottom - rc.top);
+  if (true) {
+    rc.right += 100 - rc.left;
+    rc.left = 100;
+    rc.bottom += 100 - rc.top;
+    rc.top = 100;
+  }
+  Window::Resize(rc.left, rc.top, rc.right, rc.bottom);
 }
 
 void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
