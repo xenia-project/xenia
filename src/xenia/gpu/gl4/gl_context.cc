@@ -12,6 +12,7 @@
 #include <mutex>
 
 #include <poly/assert.h>
+#include <poly/cxx_compat.h>
 #include <poly/logging.h>
 #include <xenia/gpu/gl4/gl4_gpu-private.h>
 
