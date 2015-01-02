@@ -255,11 +255,12 @@ void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
       // TODO(benvanik): mask out values? mix in old value as temp?
       // Append("%c", (mask & 0x1) ? chan_names[i] : 'w');
       if (!(mask & 0x1)) {
+        // Don't write - use existing value.
         AppendDestRegName(num, dst_exp);
+        Append(".%c", chan_names[i]);
       } else {
-        Append("t");
+        Append("t.%c", chan_names[i]);
       }
-      Append(".%c", chan_names[i]);
       mask >>= 1;
       if (i < 3) {
         Append(", ");
@@ -817,6 +818,26 @@ bool GL4ShaderTranslator::TranslateALU_SETNEs(const instr_alu_t& alu) {
   return TranslateALU_SETXXs(alu, "!=");
 }
 
+bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
+                alu.export_data);
+  Append(" = ");
+  if (alu.scalar_clamp) {
+    Append("clamp(");
+  }
+  Append("exp(");
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
+               alu.abs_constants);
+  Append(")");
+  if (alu.scalar_clamp) {
+    Append(", 0.0, 1.0)");
+  }
+  Append(";\n");
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
+                    alu.export_data);
+  return true;
+}
+
 bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
   AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
                 alu.export_data);
@@ -825,6 +846,26 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
     Append("clamp(");
   }
   Append("(1.0 / ");
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
+               alu.abs_constants);
+  Append(")");
+  if (alu.scalar_clamp) {
+    Append(", 0.0, 1.0)");
+  }
+  Append(";\n");
+  AppendDestRegPost(get_alu_scalar_dest(alu), alu.scalar_write_mask,
+                    alu.export_data);
+  return true;
+}
+
+bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
+  AppendDestReg(get_alu_scalar_dest(alu), alu.scalar_write_mask,
+                alu.export_data);
+  Append(" = ");
+  if (alu.scalar_clamp) {
+    Append("clamp(");
+  }
+  Append("sqrt(");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
                alu.abs_constants);
   Append(")");
@@ -928,8 +969,15 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
-  // TODO(benvanik): pull out prev value in s.
-  return false;
+  // TODO(benvanik): figure out how this is used.
+  // It seems like vector writes to export regs will use this to write 1's to
+  // components (like w in position).
+  assert_true(alu.export_data == 1);
+  AppendDestReg(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
+  Append(" = ");
+  Append("vec4(1.0, 1.0, 1.0, 1.0);\n");
+  AppendDestRegPost(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
+  return true;
 }
 
 typedef bool (GL4ShaderTranslator::*TranslateFn)(const instr_alu_t& alu);
@@ -991,7 +1039,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       ALU_INSTR(FRACs, 1),              // 11
       ALU_INSTR(TRUNCs, 1),             // 12
       ALU_INSTR(FLOORs, 1),             // 13
-      ALU_INSTR(EXP_IEEE, 1),           // 14
+      ALU_INSTR_IMPL(EXP_IEEE, 1),      // 14
       ALU_INSTR(LOG_CLAMP, 1),          // 15
       ALU_INSTR(LOG_IEEE, 1),           // 16
       ALU_INSTR(RECIP_CLAMP, 1),        // 17
@@ -1017,17 +1065,17 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       ALU_INSTR(KILLGTEs, 1),           // 37
       ALU_INSTR(KILLNEs, 1),            // 38
       ALU_INSTR(KILLONEs, 1),           // 39
-      ALU_INSTR(SQRT_IEEE, 1),          // 40
-      {0, 0, false},
-      ALU_INSTR_IMPL(MUL_CONST_0, 2),  // 42
-      ALU_INSTR_IMPL(MUL_CONST_1, 2),  // 43
-      ALU_INSTR_IMPL(ADD_CONST_0, 2),  // 44
-      ALU_INSTR_IMPL(ADD_CONST_1, 2),  // 45
-      ALU_INSTR_IMPL(SUB_CONST_0, 2),  // 46
-      ALU_INSTR_IMPL(SUB_CONST_1, 2),  // 47
-      ALU_INSTR(SIN, 1),               // 48
-      ALU_INSTR(COS, 1),               // 49
-      ALU_INSTR(RETAIN_PREV, 1),       // 50
+      ALU_INSTR_IMPL(SQRT_IEEE, 1),     // 40
+      {0, 0, false},                    //
+      ALU_INSTR_IMPL(MUL_CONST_0, 2),   // 42
+      ALU_INSTR_IMPL(MUL_CONST_1, 2),   // 43
+      ALU_INSTR_IMPL(ADD_CONST_0, 2),   // 44
+      ALU_INSTR_IMPL(ADD_CONST_1, 2),   // 45
+      ALU_INSTR_IMPL(SUB_CONST_0, 2),   // 46
+      ALU_INSTR_IMPL(SUB_CONST_1, 2),   // 47
+      ALU_INSTR(SIN, 1),                // 48
+      ALU_INSTR(COS, 1),                // 49
+      ALU_INSTR_IMPL(RETAIN_PREV, 1),   // 50
   };
 #undef ALU_INSTR
 #undef ALU_INSTR_IMPL

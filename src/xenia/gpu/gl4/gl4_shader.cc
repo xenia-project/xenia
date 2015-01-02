@@ -100,7 +100,8 @@ bool GL4Shader::PrepareVertexShader(
       "      state.viewport_offset.z;\n"
       "  // NDC->Window with viewport.\n"
       "  pos.xy = pos.xy * state.window_offset.zw + state.window_offset.xy;\n"
-      "  pos.xy = pos.xy / (vec2(1280.0 - 1.0, -720.0 + 1.0) / 2.0) + vec2(-1.0, 1.0);\n"
+      "  pos.xy = pos.xy / (vec2(1280.0 - 1.0, -720.0 + 1.0) / 2.0) +\n"
+      "      vec2(-1.0, 1.0);\n"
       "  // Window adjustment.\n"
       "  return pos;\n"
       "}\n";
@@ -147,14 +148,13 @@ bool GL4Shader::PreparePixelShader(
   }
   has_prepared_ = true;
 
-  std::string source =
-      header +
-      "layout(location = 0) in VertexData vtx;\n"
-      "layout(location = 0) out vec4 oC[4];\n"
-      "void processFragment();\n"
-      "void main() {\n" +
-      "  processFragment();\n"
-      "}\n";
+  std::string source = header +
+                       "layout(location = 0) in VertexData vtx;\n"
+                       "layout(location = 0) out vec4 oC[4];\n"
+                       "void processFragment();\n"
+                       "void main() {\n" +
+                       "  processFragment();\n"
+                       "}\n";
 
   std::string translated_source =
       shader_translator_.TranslatePixelShader(this, program_cntl);

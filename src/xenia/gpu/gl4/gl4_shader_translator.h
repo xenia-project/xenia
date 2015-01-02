@@ -96,7 +96,9 @@ class GL4ShaderTranslator {
   bool TranslateALU_SETGTs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETGTEs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETNEs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_EXP_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIP_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_SQRT_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_MUL_CONST_0(const ucode::instr_alu_t& alu);
   bool TranslateALU_MUL_CONST_1(const ucode::instr_alu_t& alu);
   bool TranslateALU_ADD_CONST_0(const ucode::instr_alu_t& alu);
