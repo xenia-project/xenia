@@ -322,7 +322,7 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
     case TextureFormat::k_4_4_4_4:
       internal_format = GL_RGBA4;
       format = GL_RGBA;
-      type = GL_UNSIGNED_SHORT_4_4_4_4;
+      type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
       break;
     case TextureFormat::k_16_FLOAT:
       internal_format = GL_R16F;
