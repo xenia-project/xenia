@@ -429,7 +429,6 @@ void CommandProcessor::PrepareForWait() {
   // make interrupt callbacks from the GPU so that we don't have to do a full
   // synchronize here.
   glFlush();
-  glFinish();
 
   if (FLAGS_thread_safe_gl) {
     context_->ClearCurrent();
