@@ -1646,7 +1646,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
     state_data->window_offset.x = float(window_offset & 0x7FFF);
     state_data->window_offset.y = float((window_offset >> 16) & 0x7FFF);
   } else {
-    state_data->window_offset.x = state_data->window_offset.y = 0;
+    state_data->window_offset.x = 0;
+    state_data->window_offset.y = 0;
   }
   uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
@@ -1986,10 +1987,13 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateConstants(
   // down on state block sizes.
 
   // Copy over all constants.
+  std::memcpy(&state_data->float_consts,
+              &regs[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
+              sizeof(state_data->float_consts));
   std::memcpy(
-      &state_data->float_consts, &regs[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
-      sizeof(state_data->float_consts) + sizeof(state_data->fetch_consts) +
-          sizeof(state_data->loop_consts) + sizeof(state_data->bool_consts));
+      &state_data->bool_consts,
+      &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].f32,
+      sizeof(state_data->bool_consts) + sizeof(state_data->loop_consts));
 
   return UpdateStatus::kCompatible;
 }

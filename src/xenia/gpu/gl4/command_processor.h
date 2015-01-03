@@ -50,8 +50,8 @@ struct UniformDataBlock {
     };
   };
 
-  float4 window_offset;    // tx,ty,sx,sy
-  float4 window_scissor;   // x0,y0,x1,y1
+  float4 window_offset;   // tx,ty,sx,sy
+  float4 window_scissor;  // x0,y0,x1,y1
   float4 vtx_fmt;
   float4 viewport_offset;  // tx,ty,tz,?
   float4 viewport_scale;   // sx,sy,sz,?
@@ -59,21 +59,22 @@ struct UniformDataBlock {
 
   float4 alpha_test;  // alpha test enable, func, ref, ?
 
-                      // TODO(benvanik): overlay with fetch_consts below?
+  // TODO(benvanik): pack tightly
   uint64_t texture_samplers[32];
 
   // Register data from 0x4000 to 0x4927.
-  // SHADER_CONSTANT_000_X...
-  float4 float_consts[512];
-  // SHADER_CONSTANT_FETCH_00_0...
-  uint32_t fetch_consts[32 * 6];
-  // SHADER_CONSTANT_BOOL_000_031...
-  int32_t bool_consts[8];
-  // SHADER_CONSTANT_LOOP_00...
-  int32_t loop_consts[32];
+  // UpdateConstants relies on the packing of these.
+  struct {
+    // SHADER_CONSTANT_000_X...
+    float4 float_consts[512];
+    // SHADER_CONSTANT_FETCH_00_0 is omitted
+    // SHADER_CONSTANT_BOOL_000_031...
+    int32_t bool_consts[8];
+    // SHADER_CONSTANT_LOOP_00...
+    int32_t loop_consts[32];
+  };
 };
-static_assert(sizeof(UniformDataBlock) <= 16 * 1024,
-              "Need <=16k uniform data");
+static_assert(sizeof(UniformDataBlock) <= 16 * 1024, "Need <=16k uniform data");
 
 // TODO(benvanik): move more of the enums in here?
 struct DrawCommand {
@@ -103,6 +104,7 @@ struct DrawCommand {
   SamplerInput vertex_shader_samplers[32];
   SamplerInput pixel_shader_samplers[32];
 
+  // NOTE: do not read from this - the mapped memory is likely write combined.
   UniformDataBlock* state_data;
 };
 
