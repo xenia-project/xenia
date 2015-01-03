@@ -10,6 +10,8 @@
     'gl4_gpu.h',
     'gl4_graphics_system.cc',
     'gl4_graphics_system.h',
+    'gl4_profiler_display.cc',
+    'gl4_profiler_display.h',
     'gl4_shader.cc',
     'gl4_shader.h',
     'gl4_shader_translator.cc',

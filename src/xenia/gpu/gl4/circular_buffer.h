@@ -20,7 +20,7 @@ namespace gl4 {
 // TODO(benvanik): fences to prevent this from ever flushing.
 class CircularBuffer {
  public:
-  CircularBuffer(size_t capacity);
+  CircularBuffer(size_t capacity, size_t alignment = 256);
   ~CircularBuffer();
 
   struct Allocation {
@@ -42,6 +42,7 @@ class CircularBuffer {
 
  private:
   size_t capacity_;
+  size_t alignment_;
   uintptr_t write_head_;
   GLuint buffer_;
   GLuint64 gpu_base_;

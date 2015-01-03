@@ -342,7 +342,7 @@ bool Win32Control::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
       OnMouseWheel(e);
       break;
   }
-  return true;
+  return e.is_handled();
 }
 
 bool Win32Control::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
@@ -350,13 +350,12 @@ bool Win32Control::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
   switch (message) {
     case WM_KEYDOWN:
       OnKeyDown(e);
-      return true;
+      break;
     case WM_KEYUP:
       OnKeyUp(e);
-      return true;
-    default:
-      return false;
+      break;
   }
+  return e.is_handled();
 }
 
 }  // namespace win32

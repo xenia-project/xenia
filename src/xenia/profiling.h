@@ -16,7 +16,7 @@
 
 #define XE_OPTION_PROFILING 1
 #if XE_LIKE_WIN32
-//#define XE_OPTION_PROFILING_UI 1
+#define XE_OPTION_PROFILING_UI 1
 #endif  // XE_LIKE_WIN32
 
 #if XE_OPTION_PROFILING
@@ -122,13 +122,13 @@ namespace xe {
 
 class ProfilerDisplay {
  public:
-  enum BoxType {
+  enum class BoxType {
 #if XE_OPTION_PROFILING
-    BOX_TYPE_BAR = MicroProfileBoxTypeBar,
-    BOX_TYPE_FLAT = MicroProfileBoxTypeFlat,
+    kBar = MicroProfileBoxTypeBar,
+    kFlat = MicroProfileBoxTypeFlat,
 #else
-    BOX_TYPE_BAR,
-    BOX_TYPE_FLAT,
+    kBar,
+    kFlat,
 #endif  // XE_OPTION_PROFILING
   };
 
@@ -139,7 +139,7 @@ class ProfilerDisplay {
 
   virtual void Begin() = 0;
   virtual void End() = 0;
-  virtual void DrawBox(int x, int y, int x1, int y1, uint32_t color,
+  virtual void DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
                        BoxType type) = 0;
   virtual void DrawLine2D(uint32_t count, float* vertices, uint32_t color) = 0;
   virtual void DrawText(int x, int y, uint32_t color, const char* text,

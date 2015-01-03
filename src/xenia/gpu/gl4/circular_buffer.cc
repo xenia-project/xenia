@@ -20,8 +20,9 @@ namespace gl4 {
 extern "C" GLEWContext* glewGetContext();
 extern "C" WGLEWContext* wglewGetContext();
 
-CircularBuffer::CircularBuffer(size_t capacity)
+CircularBuffer::CircularBuffer(size_t capacity, size_t alignment)
     : capacity_(capacity),
+      alignment_(alignment),
       write_head_(0),
       buffer_(0),
       gpu_base_(0),
@@ -64,11 +65,11 @@ void CircularBuffer::Shutdown() {
 
 CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   // Addresses must always be % 256.
-  length = poly::round_up(length, 256);
+  size_t aligned_length = poly::round_up(length, alignment_);
 
-  assert_true(length <= capacity_, "Request too large");
+  assert_true(aligned_length <= capacity_, "Request too large");
 
-  if (write_head_ + length > capacity_) {
+  if (write_head_ + aligned_length > capacity_) {
     // Flush and wait.
     WaitUntilClean();
   }
@@ -78,7 +79,7 @@ CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   allocation.gpu_ptr = gpu_base_ + write_head_;
   allocation.offset = write_head_;
   allocation.length = length;
-  write_head_ += length;
+  write_head_ += aligned_length;
   return allocation;
 }
 

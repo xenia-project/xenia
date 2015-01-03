@@ -289,8 +289,8 @@ void GLContext::SetupDebugging() {
                    // intended to be used as an offset into a buffer object?
   };
   glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER, GL_DONT_CARE,
-                        poly::countof(disable_message_ids), disable_message_ids,
-                        GL_FALSE);
+                        GLsizei(poly::countof(disable_message_ids)),
+                        disable_message_ids, GL_FALSE);
 
   // Callback will be made from driver threads.
   glDebugMessageCallback(reinterpret_cast<GLDEBUGPROC>(&DebugMessageThunk),
@@ -298,6 +298,7 @@ void GLContext::SetupDebugging() {
 }
 
 bool GLContext::MakeCurrent() {
+  SCOPE_profile_cpu_f("gpu");
   if (FLAGS_thread_safe_gl) {
     global_gl_mutex_.lock();
   }

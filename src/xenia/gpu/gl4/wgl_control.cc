@@ -48,7 +48,7 @@ bool WGLControl::Create() {
   }
 
   // Create window.
-  DWORD window_style = WS_CHILD | WS_VISIBLE;
+  DWORD window_style = WS_CHILD | WS_VISIBLE | SS_NOTIFY;
   DWORD window_ex_style = 0;
   hwnd_ =
       CreateWindowEx(window_ex_style, L"XeniaWglClass", L"Xenia", window_style,
@@ -64,6 +64,8 @@ bool WGLControl::Create() {
     return false;
   }
 
+  SetFocus(hwnd_);
+
   OnCreate();
   return true;
 }
@@ -74,6 +76,7 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
   switch (message) {
     case WM_PAINT: {
+      SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::WGLControl::WM_PAINT");
       {
         GLContextLock context_lock(&context_);
         wglSwapIntervalEXT(0);
@@ -100,7 +103,10 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
         glClearNamedFramebufferfv(0, GL_COLOR, 0, red);
         glDisable(GL_SCISSOR_TEST);
       }
-      SwapBuffers(context_.dc());
+      {
+        SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::WGLControl::SwapBuffers");
+        SwapBuffers(context_.dc());
+      }
     } break;
   }
   return Win32Control::WndProc(hWnd, message, wParam, lParam);

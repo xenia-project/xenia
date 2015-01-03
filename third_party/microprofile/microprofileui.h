@@ -592,7 +592,7 @@ void MicroProfileCenter(int64_t nTickCenter)
   float fCenter = MicroProfileLogTickDifference(nStart, nTickCenter) * fToMs;
   UI.fDetailedOffsetTarget = UI.fDetailedOffset = fCenter - 0.5f * UI.fDetailedRange;
 }
-#ifdef MICROPROFILE_DEBUG
+#if MICROPROFILE_DEBUG
 uint64_t* g_pMicroProfileDumpStart = 0;
 uint64_t* g_pMicroProfileDumpEnd = 0;
 void MicroProfileDebugDumpRange()

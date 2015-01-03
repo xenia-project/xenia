@@ -125,6 +125,7 @@ void CommandProcessor::WorkerMain() {
     uint32_t write_ptr_index = write_ptr_index_.load();
     while (write_ptr_index == 0xBAADF00D ||
            read_ptr_index_ == write_ptr_index) {
+      SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::CommandProcessor::Stall");
       // Check if the pointer has moved.
       // We wait a short bit here to yield time. Since we are also running the
       // main window display we don't want to pause too long, though.
@@ -781,6 +782,8 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(RingbufferReader* reader,
                                                     uint32_t packet_ptr,
                                                     uint32_t packet,
                                                     uint32_t count) {
+  SCOPE_profile_cpu_f("gpu");
+
   // generate interrupt from the command stream
   XETRACECP("[%.8X] Packet(%.8X): PM4_INTERRUPT", packet_ptr, packet);
   reader->TraceData(count);
@@ -797,6 +800,8 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
                                                   uint32_t packet_ptr,
                                                   uint32_t packet,
                                                   uint32_t count) {
+  SCOPE_profile_cpu_f("gpu");
+
   auto& regs = *register_file_;
 
   PLOGI("XE_SWAP");
@@ -858,6 +863,8 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
                                                        uint32_t packet_ptr,
                                                        uint32_t packet,
                                                        uint32_t count) {
+  SCOPE_profile_cpu_f("gpu");
+
   // wait until a register or memory location is a specific value
   XETRACECP("[%.8X] Packet(%.8X): PM4_WAIT_REG_MEM", packet_ptr, packet);
   reader->TraceData(count);
@@ -1315,6 +1322,7 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
   auto& cmd = *draw_command;
+
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
   if (enable_mode == ModeControl::kIgnore) {
@@ -1455,6 +1463,7 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
 }
 
 bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
 
   auto enable_mode =
@@ -1541,14 +1550,14 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
 }
 
 bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
+  auto& regs = *register_file_;
+  auto state_data = draw_command->state_data;
+
   // Much of this state machine is extracted from:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-
-  auto& regs = *register_file_;
-
-  auto state_data = draw_command->state_data;
 
   uint32_t mode_control = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
 
@@ -2115,7 +2124,6 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
 
 bool CommandProcessor::PopulateSamplers(DrawCommand* draw_command) {
   SCOPE_profile_cpu_f("gpu");
-
   auto& regs = *register_file_;
 
   // VS and PS samplers are shared, but may be used exclusively.
@@ -2201,6 +2209,7 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
 }
 
 bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
+  SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
 
   // This is used to resolve surfaces, taking them from EDRAM render targets

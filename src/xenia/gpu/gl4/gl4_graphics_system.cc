@@ -12,6 +12,7 @@
 #include <poly/threading.h>
 #include <xenia/cpu/processor.h>
 #include <xenia/gpu/gl4/gl4_gpu-private.h>
+#include <xenia/gpu/gl4/gl4_profiler_display.h>
 #include <xenia/gpu/gpu-private.h>
 
 namespace xe {
@@ -43,17 +44,16 @@ X_STATUS GL4GraphicsSystem::Setup() {
     control_ = std::make_unique<WGLControl>(loop);
     emulator_->main_window()->AddChild(control_.get());
 
-    if (FLAGS_thread_safe_gl) {
-      control_->context()->MakeCurrent();
-    }
-
     // Setup the GL context the command processor will do all its drawing in.
     // It's shared with the control context so that we can resolve framebuffers
     // from it.
     processor_context = control_->context()->CreateShared();
 
-    if (FLAGS_thread_safe_gl) {
-      control_->context()->ClearCurrent();
+    {
+      GLContextLock context_lock(control_->context());
+      auto profiler_display =
+          std::make_unique<GL4ProfilerDisplay>(control_.get());
+      Profiler::set_display(std::move(profiler_display));
     }
 
     control_ready_fence.Signal();

@@ -7,16 +7,20 @@
  ******************************************************************************
  */
 
-#define MICROPROFILE_IMPL
+#include <xenia/logging.h>
+
+#define MICROPROFILE_ENABLED 1
+#define MICROPROFILEUI_ENABLED 1
+#define MICROPROFILE_IMPL 1
+#define MICROPROFILEUI_IMPL 1
 #define MICROPROFILE_USE_THREAD_NAME_CALLBACK 1
 #define MICROPROFILE_PRINTF PLOGI
+#define MICROPROFILE_WEBSERVER 0
+#define MICROPROFILE_DEBUG 0
 #include <microprofile/microprofile.h>
+#include <microprofile/microprofileui.h>
 
 #include <xenia/profiling.h>
-
-#if XE_OPTION_PROFILING_UI
-#include <microprofile/microprofileui.h>
-#endif  // XE_OPTION_PROFILING_UI
 
 namespace xe {
 
@@ -25,16 +29,38 @@ std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
 #if XE_OPTION_PROFILING
 
 void Profiler::Initialize() {
-  MicroProfileSetForceEnable(true);
-  MicroProfileSetEnableAllGroups(true);
-  MicroProfileSetForceMetaCounters(true);
+  // Custom groups.
+  MicroProfileSetEnableAllGroups(false);
+  MicroProfileForceEnableGroup("alloy", MicroProfileTokenTypeCpu);
+  MicroProfileForceEnableGroup("apu", MicroProfileTokenTypeCpu);
+  MicroProfileForceEnableGroup("cpu", MicroProfileTokenTypeCpu);
+  MicroProfileForceEnableGroup("gpu", MicroProfileTokenTypeCpu);
+  MicroProfileForceEnableGroup("internal", MicroProfileTokenTypeCpu);
+  g_MicroProfile.nGroupMask = g_MicroProfile.nForceGroup;
+  g_MicroProfile.nActiveGroup = g_MicroProfile.nActiveGroupWanted =
+      g_MicroProfile.nGroupMask;
+
+  // Custom timers: time, average.
+  g_MicroProfile.nBars |= 0x1 | 0x2;
+  g_MicroProfile.nActiveBars |= 0x1 | 0x2;
+
 #if XE_OPTION_PROFILING_UI
   MicroProfileInitUI();
+  g_MicroProfileUI.bShowSpikes = true;
+  g_MicroProfileUI.nOpacityBackground = 0x40 << 24;
+  g_MicroProfileUI.nOpacityForeground = 0xc0 << 24;
   MicroProfileSetDisplayMode(1);
+#else
+  MicroProfileSetForceEnable(true);
+  MicroProfileSetEnableAllGroups(true);
+  MicroProfileSetForceMetaCounters(false);
 #endif  // XE_OPTION_PROFILING_UI
 }
 
 void Profiler::Dump() {
+#if XE_OPTION_PROFILING_UI
+  MicroProfileDumpTimers();
+#endif  // XE_OPTION_PROFILING_UI
   MicroProfileDumpHtml("profile.html");
   MicroProfileDumpHtmlToFile();
 }
@@ -116,29 +142,14 @@ void Profiler::set_display(std::unique_ptr<ProfilerDisplay> display) {
 }
 
 void Profiler::Present() {
+  SCOPE_profile_cpu_f("internal");
   MicroProfileFlip();
 #if XE_OPTION_PROFILING_UI
   if (!display_) {
     return;
   }
-  float left = 0.f;
-  float right = display_->width();
-  float bottom = display_->height();
-  float top = 0.f;
-  float near = -1.f;
-  float far = 1.f;
-  float projection[16] = {0};
-  projection[0] = 2.0f / (right - left);
-  projection[5] = 2.0f / (top - bottom);
-  projection[10] = -2.0f / (far - near);
-  projection[12] = -(right + left) / (right - left);
-  projection[13] = -(top + bottom) / (top - bottom);
-  projection[14] = -(far + near) / (far - near);
-  projection[15] = 1.f;
   display_->Begin();
-  MicroProfileBeginDraw(display_->width(), display_->height(), projection);
   MicroProfileDraw(display_->width(), display_->height());
-  MicroProfileEndDraw();
   display_->End();
 #endif  // XE_OPTION_PROFILING_UI
 }
