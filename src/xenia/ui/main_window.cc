@@ -25,6 +25,9 @@ void MainWindow::Start() {
   poly::threading::Fence fence;
 
   loop_.Post([&]() {
+    poly::threading::set_name("Win32 Loop");
+    xe::Profiler::ThreadEnter("Win32 Loop");
+
     if (!Initialize()) {
       PFATAL("Failed to initialize main window");
       exit(1);

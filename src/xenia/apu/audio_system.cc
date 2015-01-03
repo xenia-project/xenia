@@ -62,8 +62,8 @@ X_STATUS AudioSystem::Setup() {
 }
 
 void AudioSystem::ThreadStart() {
-  poly::threading::set_name("AudioSystemThread");
-  xe::Profiler::ThreadEnter("AudioSystemThread");
+  poly::threading::set_name("Audio Worker");
+  xe::Profiler::ThreadEnter("Audio Worker");
 
   // Initialize driver and ringbuffer.
   Initialize();

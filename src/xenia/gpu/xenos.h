@@ -33,6 +33,7 @@ enum class PrimitiveType : uint32_t {
   kRectangleList = 0x08,
   kLineLoop = 0x0C,
   kQuadList = 0x0D,
+  kQuadStrip = 0x0E,
 };
 
 enum class Dimension : uint32_t {
