@@ -123,22 +123,23 @@ void CommandProcessor::WorkerMain() {
 
   while (worker_running_) {
     uint32_t write_ptr_index = write_ptr_index_.load();
-    while (write_ptr_index == 0xBAADF00D ||
-           read_ptr_index_ == write_ptr_index) {
+    if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
       SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::CommandProcessor::Stall");
-      // Check if the pointer has moved.
-      // We wait a short bit here to yield time. Since we are also running the
-      // main window display we don't want to pause too long, though.
-      // YieldProcessor();
-      PrepareForWait();
-      const int wait_time_ms = 5;
-      if (WaitForSingleObject(write_ptr_index_event_, wait_time_ms) ==
-          WAIT_TIMEOUT) {
-        ReturnFromWait();
+      // We've run out of commands to execute.
+      // We spin here waiting for new ones, as the overhead of waiting on our
+      // event is too high.
+      //PrepareForWait();
+      do {
+        // TODO(benvanik): if we go longer than Nms, switch to waiting?
+        // It'll keep us from burning power.
+        // const int wait_time_ms = 5;
+        // WaitForSingleObject(write_ptr_index_event_, wait_time_ms);
+        SwitchToThread();
+        MemoryBarrier();
         write_ptr_index = write_ptr_index_.load();
-        continue;
-      }
-      ReturnFromWait();
+      } while (write_ptr_index == 0xBAADF00D ||
+               read_ptr_index_ == write_ptr_index);
+      //ReturnFromWait();
     }
     assert_true(read_ptr_index_ != write_ptr_index);
 
@@ -925,7 +926,13 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
       // Wait.
       if (wait >= 0x100) {
         PrepareForWait();
-        Sleep(wait / 0x100);
+        if (!FLAGS_vsync) {
+          // User wants it fast and dangerous.
+          SwitchToThread();
+        } else {
+          Sleep(wait / 0x100);
+        }
+        MemoryBarrier();
         ReturnFromWait();
       } else {
         SwitchToThread();

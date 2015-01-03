@@ -17,4 +17,6 @@ DECLARE_string(gpu);
 DECLARE_bool(trace_ring_buffer);
 DECLARE_string(dump_shaders);
 
+DECLARE_bool(vsync);
+
 #endif  // XENIA_GPU_PRIVATE_H_

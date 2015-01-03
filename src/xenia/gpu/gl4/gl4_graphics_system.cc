@@ -77,10 +77,15 @@ X_STATUS GL4GraphicsSystem::Setup() {
       reinterpret_cast<cpu::MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // 60hz vsync timer.
+  DWORD timer_period = 16;
+  if (!FLAGS_vsync) {
+    // DANGER a value too low here will lead to starvation!
+    timer_period = 4;
+  }
   timer_queue_ = CreateTimerQueue();
   CreateTimerQueueTimer(&vsync_timer_, timer_queue_,
-                        (WAITORTIMERCALLBACK)VsyncCallbackThunk, this, 16, 16,
-                        WT_EXECUTEINTIMERTHREAD);
+                        (WAITORTIMERCALLBACK)VsyncCallbackThunk, this, 16,
+                        timer_period, WT_EXECUTEINPERSISTENTTHREAD);
 
   return X_STATUS_SUCCESS;
 }
@@ -138,9 +143,6 @@ void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
                            control_->width(), control_->height(),
                            GL_COLOR_BUFFER_BIT, GL_LINEAR);
   });
-
-  // Roll over vblank.
-  MarkVblank();
 }
 
 uint64_t GL4GraphicsSystem::ReadRegister(uint64_t addr) {
