@@ -1311,8 +1311,15 @@ void CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
   cmd.index_count = 0;
   cmd.index_buffer.address = nullptr;
 
-  // Generic stuff.
+  // Starting index when drawing indexed.
   cmd.start_index = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
+
+  // Min/max index ranges. This is often [0,FFFF|FFFFFF], but if it's not we
+  // can use it to do a glDrawRangeElements.
+  cmd.min_index = regs[XE_GPU_REG_VGT_MIN_VTX_INDX].u32;
+  cmd.max_index = regs[XE_GPU_REG_VGT_MAX_VTX_INDX].u32;
+
+  // ?
   cmd.base_vertex = 0;
 
   cmd.state_data = nullptr;

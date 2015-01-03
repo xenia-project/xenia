@@ -79,6 +79,8 @@ static_assert(sizeof(UniformDataBlock) <= 16 * 1024,
 struct DrawCommand {
   PrimitiveType prim_type;
   uint32_t start_index;
+  uint32_t min_index;
+  uint32_t max_index;
   uint32_t index_count;
   uint32_t base_vertex;
 
