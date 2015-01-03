@@ -1361,6 +1361,7 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   // Allocate a state data block.
   // Everything the shaders access lives here.
   auto allocation = scratch_buffer_.Acquire(sizeof(UniformDataBlock));
+  scratch_buffer_stats_.total_state_data_size += sizeof(UniformDataBlock);
   cmd.state_data = reinterpret_cast<UniformDataBlock*>(allocation.host_ptr);
   if (!cmd.state_data) {
     PLOGE("Unable to allocate uniform data buffer");
@@ -2117,6 +2118,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer(
       cmd.index_count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
                                                             : sizeof(uint16_t));
   auto allocation = scratch_buffer_.Acquire(total_size);
+  scratch_buffer_stats_.total_indices_size += total_size;
 
   if (info.format == IndexFormat::kInt32) {
     poly::copy_and_swap_32_aligned(
@@ -2177,6 +2179,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers(
     assert_not_zero(fetch->size);
 
     auto allocation = scratch_buffer_.Acquire(fetch->size * sizeof(uint32_t));
+    scratch_buffer_stats_.total_vertices_size += fetch->size * sizeof(uint32_t);
 
     // Copy and byte swap the entire buffer.
     // We could be smart about this to save GPU bandwidth by building a CRC

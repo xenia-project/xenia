@@ -308,8 +308,15 @@ class CommandProcessor {
   GLuint point_list_geometry_program_;
   GLuint rect_list_geometry_program_;
   GLuint quad_list_geometry_program_;
+
   TextureCache texture_cache_;
+
   CircularBuffer scratch_buffer_;
+  struct ScratchBufferStats {
+    size_t total_state_data_size = 0;
+    size_t total_indices_size = 0;
+    size_t total_vertices_size = 0;
+  } scratch_buffer_stats_;
 
   DrawCommand draw_command_;
 
