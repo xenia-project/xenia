@@ -1428,6 +1428,7 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
   glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, scratch_buffer_.handle(),
                     allocation.offset, allocation.length);
   scratch_buffer_.Commit(std::move(allocation));
+  scratch_buffer_.Flush();
 
   if (cmd.index_buffer.address) {
     // Indexed draw.

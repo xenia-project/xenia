@@ -382,7 +382,11 @@ GL4ProfilerDisplay::Vertex* GL4ProfilerDisplay::BeginVertices(size_t count) {
   if (draw_command_count_ + 1 > kMaxCommands) {
     Flush();
   }
-  current_allocation_ = vertex_buffer_.Acquire(sizeof(Vertex) * count);
+  size_t total_length = sizeof(Vertex) * count;
+  if (!vertex_buffer_.CanAcquire(total_length)) {
+    Flush();
+  }
+  current_allocation_ = vertex_buffer_.Acquire(total_length);
   return reinterpret_cast<Vertex*>(current_allocation_.host_ptr);
 }
 
@@ -408,12 +412,14 @@ void GL4ProfilerDisplay::Flush() {
   if (!draw_command_count_) {
     return;
   }
+  vertex_buffer_.Flush();
   for (size_t i = 0; i < draw_command_count_; ++i) {
     glDrawArrays(draw_commands_[i].prim_type,
                  GLint(draw_commands_[i].vertex_offset),
                  GLsizei(draw_commands_[i].vertex_count));
   }
   draw_command_count_ = 0;
+  // TODO(benvanik): don't finish here.
   vertex_buffer_.WaitUntilClean();
 }
 

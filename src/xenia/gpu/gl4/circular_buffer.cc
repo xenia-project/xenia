@@ -24,6 +24,8 @@ CircularBuffer::CircularBuffer(size_t capacity, size_t alignment)
     : capacity_(capacity),
       alignment_(alignment),
       write_head_(0),
+      dirty_start_(UINT64_MAX),
+      dirty_end_(0),
       buffer_(0),
       gpu_base_(0),
       host_base_(nullptr) {}
@@ -63,12 +65,15 @@ void CircularBuffer::Shutdown() {
   buffer_ = 0;
 }
 
+bool CircularBuffer::CanAcquire(size_t length) {
+  size_t aligned_length = poly::round_up(length, alignment_);
+  return write_head_ + aligned_length <= capacity_;
+}
+
 CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   // Addresses must always be % 256.
   size_t aligned_length = poly::round_up(length, alignment_);
-
   assert_true(aligned_length <= capacity_, "Request too large");
-
   if (write_head_ + aligned_length > capacity_) {
     // Flush and wait.
     WaitUntilClean();
@@ -79,16 +84,30 @@ CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   allocation.gpu_ptr = gpu_base_ + write_head_;
   allocation.offset = write_head_;
   allocation.length = length;
+  allocation.aligned_length = aligned_length;
   write_head_ += aligned_length;
   return allocation;
 }
 
 void CircularBuffer::Commit(Allocation allocation) {
-  glFlushMappedNamedBufferRange(buffer_, allocation.gpu_ptr - gpu_base_,
-                                allocation.length);
+  uintptr_t start = allocation.gpu_ptr - gpu_base_;
+  uintptr_t end = start + allocation.aligned_length;
+  dirty_start_ = std::min(dirty_start_, start);
+  dirty_end_ = std::max(dirty_end_, end);
+}
+
+void CircularBuffer::Flush() {
+  if (dirty_start_ == dirty_end_ || dirty_start_ == UINT64_MAX) {
+    return;
+  }
+  glFlushMappedNamedBufferRange(buffer_, dirty_start_,
+                                dirty_end_ - dirty_start_);
+  dirty_start_ = UINT64_MAX;
+  dirty_end_ = 0;
 }
 
 void CircularBuffer::WaitUntilClean() {
+  Flush();
   glFinish();
   write_head_ = 0;
 }

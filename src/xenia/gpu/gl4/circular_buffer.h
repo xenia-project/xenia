@@ -28,6 +28,7 @@ class CircularBuffer {
     GLuint64 gpu_ptr;
     size_t offset;
     size_t length;
+    size_t aligned_length;
   };
 
   bool Initialize();
@@ -35,8 +36,10 @@ class CircularBuffer {
 
   GLuint handle() const { return buffer_; }
 
+  bool CanAcquire(size_t length);
   Allocation Acquire(size_t length);
   void Commit(Allocation allocation);
+  void Flush();
 
   void WaitUntilClean();
 
@@ -44,6 +47,8 @@ class CircularBuffer {
   size_t capacity_;
   size_t alignment_;
   uintptr_t write_head_;
+  uintptr_t dirty_start_;
+  uintptr_t dirty_end_;
   GLuint buffer_;
   GLuint64 gpu_base_;
   uint8_t* host_base_;
