@@ -1362,41 +1362,42 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     return false;
   }
 
-  if (!UpdateShaders(draw_command)) {
-    PLOGE("Unable to prepare draw shaders");
-    return false;
+#define CHECK_ISSUE_UPDATE_STATUS(status, mismatch, error_message) \
+  {                                                                \
+    if (status == UpdateStatus::kError) {                          \
+      PLOGE(error_message);                                        \
+      return false;                                                \
+    } else if (status == UpdateStatus::kMismatch) {                \
+      mismatch = true;                                             \
+    }                                                              \
   }
-  if (!UpdateRenderTargets(draw_command)) {
-    PLOGE("Unable to setup render targets");
-    return false;
-  }
+
+  UpdateStatus status;
+  bool mismatch = false;
+  status = UpdateShaders(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to prepare draw shaders");
+  status = UpdateRenderTargets(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render targets");
   if (!active_framebuffer_) {
     // No framebuffer, so nothing we do will actually have an effect.
     // Treat it as a no-op.
     XETRACECP("No-op draw (no framebuffer set)");
     return true;
   }
-  if (!UpdateState(draw_command)) {
-    PLOGE("Unable to setup render state");
-    return false;
-  }
-  if (!UpdateConstants(draw_command)) {
-    PLOGE("Unable to update shader constants");
-    return false;
-  }
 
-  if (!PopulateIndexBuffer(draw_command)) {
-    PLOGE("Unable to setup index buffer");
-    return false;
-  }
-  if (!PopulateVertexBuffers(draw_command)) {
-    PLOGE("Unable to setup vertex buffers");
-    return false;
-  }
-  if (!PopulateSamplers(draw_command)) {
-    PLOGE("Unable to prepare draw samplers");
-    return false;
-  }
+  status = UpdateState(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render state");
+  status = UpdateConstants(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch,
+                            "Unable to update shader constants");
+  status = PopulateSamplers(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch,
+                            "Unable to prepare draw samplers");
+
+  status = PopulateIndexBuffer(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup index buffer");
+  status = PopulateVertexBuffers(draw_command);
+  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup vertex buffers");
 
   GLenum prim_type = 0;
   switch (cmd.prim_type) {
@@ -1481,7 +1482,8 @@ bool CommandProcessor::SetShadowRegister(float& dest, uint32_t register_name) {
   return true;
 }
 
-bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets(
+    DrawCommand* draw_command) {
   auto& regs = update_render_targets_regs_;
 
   bool dirty = false;
@@ -1497,7 +1499,7 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
       SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
   dirty |= SetShadowRegister(regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
   if (!dirty) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
 
   SCOPE_profile_cpu_f("gpu");
@@ -1574,13 +1576,15 @@ bool CommandProcessor::UpdateRenderTargets(DrawCommand* draw_command) {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
   }
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
-  SCOPE_profile_cpu_f("gpu");
+CommandProcessor::UpdateStatus CommandProcessor::UpdateState(
+    DrawCommand* draw_command) {
   auto& regs = *register_file_;
   auto state_data = draw_command->state_data;
+
+  bool mismatch = false;
 
   // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
   // Deprecated in GL, implemented in shader.
@@ -1591,19 +1595,35 @@ bool CommandProcessor::UpdateState(DrawCommand* draw_command) {
   state_data->alpha_test.y = float(color_control & 0x3);  // ALPHAFUNC
   state_data->alpha_test.z = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
 
-  UpdateViewportState(draw_command);
-  UpdateRasterizerState(draw_command);
-  UpdateBlendState(draw_command);
-  UpdateDepthStencilState(draw_command);
+#define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
+  {                                                          \
+    if (status == UpdateStatus::kError) {                    \
+      PLOGE(error_message);                                  \
+      return status;                                         \
+    } else if (status == UpdateStatus::kMismatch) {          \
+      mismatch = true;                                       \
+    }                                                        \
+  }
 
-  return true;
+  UpdateStatus status;
+  status = UpdateViewportState(draw_command);
+  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update viewport state");
+  status = UpdateRasterizerState(draw_command);
+  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterizer state");
+  status = UpdateBlendState(draw_command);
+  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update blend state");
+  status = UpdateDepthStencilState(draw_command);
+  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update depth/stencil state");
+
+  return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
 }
 
-bool CommandProcessor::UpdateViewportState(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
+    DrawCommand* draw_command) {
   auto& regs = *register_file_;
   auto state_data = draw_command->state_data;
 
-  SCOPE_profile_cpu_f("gpu");
+  // NOTE: we don't track state here as this is all cheap to update (ish).
 
   // Much of this state machine is extracted from:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
@@ -1701,10 +1721,11 @@ bool CommandProcessor::UpdateViewportState(DrawCommand* draw_command) {
   bool dx_clip = ((clip_control >> 20) & 0x1) == 0x1;
   // assert_true(dx_clip);
 
-  return true;
+  return UpdateStatus::kCompatible;
 }
 
-bool CommandProcessor::UpdateRasterizerState(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState(
+    DrawCommand* draw_command) {
   auto& regs = update_rasterizer_state_regs_;
 
   bool dirty = false;
@@ -1715,7 +1736,7 @@ bool CommandProcessor::UpdateRasterizerState(DrawCommand* draw_command) {
   dirty |= SetShadowRegister(regs.pa_sc_screen_scissor_br,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
   if (!dirty) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
 
   SCOPE_profile_cpu_f("gpu");
@@ -1765,10 +1786,11 @@ bool CommandProcessor::UpdateRasterizerState(DrawCommand* draw_command) {
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::UpdateBlendState(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState(
+    DrawCommand* draw_command) {
   auto& regs = update_blend_state_regs_;
 
   bool dirty = false;
@@ -1785,7 +1807,7 @@ bool CommandProcessor::UpdateBlendState(DrawCommand* draw_command) {
   dirty |= SetShadowRegister(regs.rb_blend_rgba[2], XE_GPU_REG_RB_BLEND_BLUE);
   dirty |= SetShadowRegister(regs.rb_blend_rgba[3], XE_GPU_REG_RB_BLEND_ALPHA);
   if (!dirty) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
 
   SCOPE_profile_cpu_f("gpu");
@@ -1849,10 +1871,11 @@ bool CommandProcessor::UpdateBlendState(DrawCommand* draw_command) {
   glBlendColor(regs.rb_blend_rgba[0], regs.rb_blend_rgba[1],
                regs.rb_blend_rgba[2], regs.rb_blend_rgba[3]);
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::UpdateDepthStencilState(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState(
+    DrawCommand* draw_command) {
   auto& regs = update_depth_stencil_state_regs_;
 
   bool dirty = false;
@@ -1860,7 +1883,7 @@ bool CommandProcessor::UpdateDepthStencilState(DrawCommand* draw_command) {
   dirty |=
       SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
   if (!dirty) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
 
   SCOPE_profile_cpu_f("gpu");
@@ -1943,10 +1966,11 @@ bool CommandProcessor::UpdateDepthStencilState(DrawCommand* draw_command) {
                 stencil_op_map[(regs.rb_depthcontrol & 0x0001C000) >> 14]);
   }
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::UpdateConstants(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateConstants(
+    DrawCommand* draw_command) {
   auto& regs = *register_file_;
   auto state_data = draw_command->state_data;
 
@@ -1961,10 +1985,11 @@ bool CommandProcessor::UpdateConstants(DrawCommand* draw_command) {
       sizeof(state_data->float_consts) + sizeof(state_data->fetch_consts) +
           sizeof(state_data->loop_consts) + sizeof(state_data->bool_consts));
 
-  return true;
+  return UpdateStatus::kCompatible;
 }
 
-bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
+    DrawCommand* draw_command) {
   auto& regs = update_shaders_regs_;
   auto& cmd = *draw_command;
 
@@ -1974,7 +1999,7 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
   dirty |= regs.pixel_shader != active_pixel_shader_;
   dirty |= regs.prim_type != cmd.prim_type;
   if (!dirty) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
   regs.vertex_shader = active_vertex_shader_;
   regs.pixel_shader = active_pixel_shader_;
@@ -1987,21 +2012,21 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
   if (!active_vertex_shader_->has_prepared()) {
     if (!active_vertex_shader_->PrepareVertexShader(program_cntl)) {
       XELOGE("Unable to prepare vertex shader");
-      return false;
+      return UpdateStatus::kError;
     }
   } else if (!active_vertex_shader_->is_valid()) {
     XELOGE("Vertex shader invalid");
-    return false;
+    return UpdateStatus::kError;
   }
 
   if (!active_pixel_shader_->has_prepared()) {
     if (!active_pixel_shader_->PreparePixelShader(program_cntl)) {
       XELOGE("Unable to prepare pixel shader");
-      return false;
+      return UpdateStatus::kError;
     }
   } else if (!active_pixel_shader_->is_valid()) {
     XELOGE("Pixel shader invalid");
-    return false;
+    return UpdateStatus::kError;
   }
 
   GLuint vertex_program = active_vertex_shader_->program();
@@ -2065,16 +2090,17 @@ bool CommandProcessor::UpdateShaders(DrawCommand* draw_command) {
   }
   glBindProgramPipeline(pipeline);
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::PopulateIndexBuffer(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer(
+    DrawCommand* draw_command) {
   auto& cmd = *draw_command;
 
   auto& info = cmd.index_buffer;
   if (!cmd.index_count || !info.address) {
     // No index buffer or auto draw.
-    return true;
+    return UpdateStatus::kMismatch;  // ?
   }
 
   SCOPE_profile_cpu_f("gpu");
@@ -2109,10 +2135,11 @@ bool CommandProcessor::PopulateIndexBuffer(DrawCommand* draw_command) {
   }
   scratch_buffer_.Commit(std::move(allocation));
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers(
+    DrawCommand* draw_command) {
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
   auto& cmd = *draw_command;
@@ -2235,12 +2262,15 @@ bool CommandProcessor::PopulateVertexBuffers(DrawCommand* draw_command) {
     scratch_buffer_.Commit(std::move(allocation));
   }
 
-  return true;
+  return UpdateStatus::kMismatch;
 }
 
-bool CommandProcessor::PopulateSamplers(DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers(
+    DrawCommand* draw_command) {
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
+
+  bool mismatch = false;
 
   // VS and PS samplers are shared, but may be used exclusively.
   // We walk each and setup lazily.
@@ -2254,8 +2284,11 @@ bool CommandProcessor::PopulateSamplers(DrawCommand* draw_command) {
       continue;
     }
     has_setup_sampler[desc.fetch_slot] = true;
-    if (!PopulateSampler(draw_command, desc)) {
-      return false;
+    auto status = PopulateSampler(draw_command, desc);
+    if (status == UpdateStatus::kError) {
+      return status;
+    } else if (status == UpdateStatus::kMismatch) {
+      mismatch = true;
     }
   }
 
@@ -2267,16 +2300,19 @@ bool CommandProcessor::PopulateSamplers(DrawCommand* draw_command) {
       continue;
     }
     has_setup_sampler[desc.fetch_slot] = true;
-    if (!PopulateSampler(draw_command, desc)) {
-      return false;
+    auto status = PopulateSampler(draw_command, desc);
+    if (status == UpdateStatus::kError) {
+      return UpdateStatus::kError;
+    } else if (status == UpdateStatus::kMismatch) {
+      mismatch = true;
     }
   }
 
-  return true;
+  return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
 }
 
-bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
-                                       const Shader::SamplerDesc& desc) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateSampler(
+    DrawCommand* draw_command, const Shader::SamplerDesc& desc) {
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + desc.fetch_slot * 6;
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
@@ -2287,38 +2323,38 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
   draw_command->state_data->texture_samplers[desc.fetch_slot] = 0;
 
   if (FLAGS_disable_textures) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
 
   // ?
   if (!fetch.type) {
-    return true;
+    return UpdateStatus::kCompatible;
   }
   assert_true(fetch.type == 0x2);
 
   TextureInfo texture_info;
   if (!TextureInfo::Prepare(fetch, &texture_info)) {
     XELOGE("Unable to parse texture fetcher info");
-    return true;  // invalid texture used
+    return UpdateStatus::kCompatible;  // invalid texture used
   }
   SamplerInfo sampler_info;
   if (!SamplerInfo::Prepare(fetch, desc.tex_fetch, &sampler_info)) {
     XELOGE("Unable to parse sampler info");
-    return true;  // invalid texture used
+    return UpdateStatus::kCompatible;  // invalid texture used
   }
 
   auto entry_view = texture_cache_.Demand(texture_info, sampler_info);
   if (!entry_view) {
     // Unable to create/fetch/etc.
     XELOGE("Failed to demand texture");
-    return true;
+    return UpdateStatus::kCompatible;
   }
 
   // Shaders will use bindless to fetch right from it.
   draw_command->state_data->texture_samplers[desc.fetch_slot] =
       entry_view->texture_sampler_handle;
 
-  return true;
+  return UpdateStatus::kCompatible;
 }
 
 bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {

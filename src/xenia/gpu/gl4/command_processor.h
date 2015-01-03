@@ -129,6 +129,12 @@ class CommandProcessor {
  private:
   class RingbufferReader;
 
+  enum class UpdateStatus {
+    kCompatible,
+    kMismatch,
+    kError,
+  };
+
   struct CachedFramebuffer {
     GLuint color_targets[4];
     GLuint depth_target;
@@ -235,19 +241,19 @@ class CommandProcessor {
 
   void PrepareDraw(DrawCommand* draw_command);
   bool IssueDraw(DrawCommand* draw_command);
-  bool UpdateRenderTargets(DrawCommand* draw_command);
-  bool UpdateState(DrawCommand* draw_command);
-  bool UpdateViewportState(DrawCommand* draw_command);
-  bool UpdateRasterizerState(DrawCommand* draw_command);
-  bool UpdateBlendState(DrawCommand* draw_command);
-  bool UpdateDepthStencilState(DrawCommand* draw_command);
-  bool UpdateConstants(DrawCommand* draw_command);
-  bool UpdateShaders(DrawCommand* draw_command);
-  bool PopulateIndexBuffer(DrawCommand* draw_command);
-  bool PopulateVertexBuffers(DrawCommand* draw_command);
-  bool PopulateSamplers(DrawCommand* draw_command);
-  bool PopulateSampler(DrawCommand* draw_command,
-                       const Shader::SamplerDesc& desc);
+  UpdateStatus UpdateRenderTargets(DrawCommand* draw_command);
+  UpdateStatus UpdateState(DrawCommand* draw_command);
+  UpdateStatus UpdateViewportState(DrawCommand* draw_command);
+  UpdateStatus UpdateRasterizerState(DrawCommand* draw_command);
+  UpdateStatus UpdateBlendState(DrawCommand* draw_command);
+  UpdateStatus UpdateDepthStencilState(DrawCommand* draw_command);
+  UpdateStatus UpdateConstants(DrawCommand* draw_command);
+  UpdateStatus UpdateShaders(DrawCommand* draw_command);
+  UpdateStatus PopulateIndexBuffer(DrawCommand* draw_command);
+  UpdateStatus PopulateVertexBuffers(DrawCommand* draw_command);
+  UpdateStatus PopulateSamplers(DrawCommand* draw_command);
+  UpdateStatus PopulateSampler(DrawCommand* draw_command,
+                               const Shader::SamplerDesc& desc);
   bool IssueCopy(DrawCommand* draw_command);
 
   CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],
