@@ -237,6 +237,10 @@ class CommandProcessor {
   bool IssueDraw(DrawCommand* draw_command);
   bool UpdateRenderTargets(DrawCommand* draw_command);
   bool UpdateState(DrawCommand* draw_command);
+  bool UpdateViewportState(DrawCommand* draw_command);
+  bool UpdateRasterizerState(DrawCommand* draw_command);
+  bool UpdateBlendState(DrawCommand* draw_command);
+  bool UpdateDepthStencilState(DrawCommand* draw_command);
   bool UpdateConstants(DrawCommand* draw_command);
   bool UpdateShaders(DrawCommand* draw_command);
   bool PopulateIndexBuffer(DrawCommand* draw_command);
@@ -287,7 +291,6 @@ class CommandProcessor {
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
   GL4Shader* active_vertex_shader_;
   GL4Shader* active_pixel_shader_;
-  CachedPipeline* active_pipeline_;
   CachedFramebuffer* active_framebuffer_;
 
   std::vector<CachedFramebuffer> cached_framebuffers_;
@@ -303,6 +306,68 @@ class CommandProcessor {
   CircularBuffer scratch_buffer_;
 
   DrawCommand draw_command_;
+
+ private:
+  bool SetShadowRegister(uint32_t& dest, uint32_t register_name);
+  bool SetShadowRegister(float& dest, uint32_t register_name);
+  struct UpdateRenderTargetsRegisters {
+    uint32_t rb_modecontrol;
+    uint32_t rb_surface_info;
+    uint32_t rb_color_info;
+    uint32_t rb_color1_info;
+    uint32_t rb_color2_info;
+    uint32_t rb_color3_info;
+    uint32_t rb_color_mask;
+    uint32_t rb_depthcontrol;
+    uint32_t rb_stencilrefmask;
+    uint32_t rb_depth_info;
+
+    UpdateRenderTargetsRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_render_targets_regs_;
+  struct UpdateViewportStateRegisters {
+    //
+    UpdateViewportStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_viewport_state_regs_;
+  struct UpdateRasterizerStateRegisters {
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t pa_sc_screen_scissor_tl;
+    uint32_t pa_sc_screen_scissor_br;
+
+    UpdateRasterizerStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_rasterizer_state_regs_;
+  struct UpdateBlendStateRegisters {
+    uint32_t rb_blendcontrol[4];
+    float rb_blend_rgba[4];
+
+    UpdateBlendStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_blend_state_regs_;
+  struct UpdateDepthStencilStateRegisters {
+    uint32_t rb_depthcontrol;
+    uint32_t rb_stencilrefmask;
+
+    UpdateDepthStencilStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_depth_stencil_state_regs_;
+  // TODO(benvanik): constant bitmask?
+  struct UpdateShadersRegisters {
+    PrimitiveType prim_type;
+    uint32_t sq_program_cntl;
+    GL4Shader* vertex_shader;
+    GL4Shader* pixel_shader;
+
+    UpdateShadersRegisters() { Reset(); }
+    void Reset() {
+      sq_program_cntl = 0;
+      vertex_shader = pixel_shader = nullptr;
+    }
+  } update_shaders_regs_;
+  // ib
+  // vb
+  // samplers
 };
 
 }  // namespace gl4
