@@ -389,7 +389,7 @@ GL4ProfilerDisplay::Vertex* GL4ProfilerDisplay::BeginVertices(size_t count) {
 void GL4ProfilerDisplay::EndVertices(GLenum prim_type) {
   size_t vertex_count = current_allocation_.length / sizeof(Vertex);
 
-  if (false&&draw_command_count_ &&
+  if (draw_command_count_ &&
       draw_commands_[draw_command_count_ - 1].prim_type == prim_type) {
     // Coalesce.
     auto& prev_command = draw_commands_[draw_command_count_ - 1];
@@ -419,10 +419,10 @@ void GL4ProfilerDisplay::Flush() {
 
 void GL4ProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
                                  BoxType type) {
+  auto v = BeginVertices(6);
   if (type == BoxType::kFlat) {
     color =
         ((color & 0xff) << 16) | ((color >> 16) & 0xff) | (0xff00ff00 & color);
-    auto v = BeginVertices(6);
     Q0(v, x, (float)x0);
     Q0(v, y, (float)y0);
     Q0(v, color, color);
@@ -443,7 +443,6 @@ void GL4ProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     Q3(v, color, color);
     Q3(v, u, 2.0f);
     Q3(v, v, 2.0f);
-    EndVertices(GL_TRIANGLES);
   } else {
     uint32_t r = 0xff & (color >> 16);
     uint32_t g = 0xff & (color >> 8);
@@ -460,7 +459,6 @@ void GL4ProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     uint32_t b1 = 0xff & ((b + nMin) / 2);
     uint32_t color0 = (r0 << 0) | (g0 << 8) | (b0 << 16) | (0xff000000 & color);
     uint32_t color1 = (r1 << 0) | (g1 << 8) | (b1 << 16) | (0xff000000 & color);
-    auto v = BeginVertices(6);
     Q0(v, x, (float)x0);
     Q0(v, y, (float)y0);
     Q0(v, color, color0);
@@ -481,8 +479,8 @@ void GL4ProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     Q3(v, color, color1);
     Q3(v, u, 2.0f);
     Q3(v, v, 3.0f);
-    EndVertices(GL_TRIANGLES);
   }
+  EndVertices(GL_TRIANGLES);
 }
 
 void GL4ProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
@@ -511,6 +509,10 @@ void GL4ProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
 
 void GL4ProfilerDisplay::DrawText(int x, int y, uint32_t color,
                                   const char* text, size_t text_length) {
+  if (!text_length) {
+    return;
+  }
+
   const float fOffsetU = 5.0f / 1024.0f;
   float fX = (float)x;
   float fY = (float)y;
