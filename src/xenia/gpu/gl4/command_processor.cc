@@ -169,7 +169,7 @@ bool CommandProcessor::SetupGL() {
   }
 
   // Texture cache that keeps track of any textures/samplers used.
-  if (!texture_cache_.Initialize(&scratch_buffer_)) {
+  if (!texture_cache_.Initialize(membase_, &scratch_buffer_)) {
     PLOGE("Unable to initialize texture cache");
     return false;
   }
@@ -843,6 +843,9 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
     PrepareForWait();
     swap_handler_(swap_params);
     ReturnFromWait();
+
+    // Remove any dead textures, etc.
+    texture_cache_.Scavenge();
   }
   return true;
 }
@@ -1339,9 +1342,6 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
     // Special copy handling.
     return IssueCopy(draw_command);
   }
-
-  // TODO(benvanik): actually cache things >_>
-  texture_cache_.Clear();
 
   // Allocate a state data block.
   // Everything the shaders access lives here.
@@ -2199,10 +2199,7 @@ bool CommandProcessor::PopulateSampler(DrawCommand* draw_command,
     return true;  // invalid texture used
   }
 
-  uint32_t guest_base = fetch.address << 12;
-  void* host_base = membase_ + guest_base;
-  auto entry_view = texture_cache_.Demand(host_base, texture_info.input_length,
-                                          texture_info, sampler_info);
+  auto entry_view = texture_cache_.Demand(texture_info, sampler_info);
   if (!entry_view) {
     // Unable to create/fetch/etc.
     XELOGE("Failed to demand texture");

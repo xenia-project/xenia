@@ -28,6 +28,7 @@ struct SamplerInfo {
                       const ucode::instr_fetch_tex_t& fetch_instr,
                       SamplerInfo* out_info);
 
+  uint64_t hash() const;
   bool operator==(const SamplerInfo& other) const {
     return min_filter == other.min_filter && mag_filter == other.mag_filter &&
            mip_filter == other.mip_filter && clamp_u == other.clamp_u &&

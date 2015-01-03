@@ -198,12 +198,14 @@ LRESULT Win32Control::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                               LPARAM lParam) {
   if (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST) {
     if (HandleMouse(message, wParam, lParam)) {
+      SetFocus(hwnd_);
       return 0;
     } else {
       return DefWindowProc(hWnd, message, wParam, lParam);
     }
   } else if (message >= WM_KEYFIRST && message <= WM_KEYLAST) {
     if (HandleKeyboard(message, wParam, lParam)) {
+      SetFocus(hwnd_);
       return 0;
     } else {
       return DefWindowProc(hWnd, message, wParam, lParam);

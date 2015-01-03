@@ -9,6 +9,8 @@
 
 #include <xenia/gpu/texture_info.h>
 
+#include <third_party/xxhash/xxhash.h>
+
 #include <poly/math.h>
 
 namespace xe {
@@ -19,13 +21,16 @@ using namespace xe::gpu::xenos;
 
 bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
                           TextureInfo* out_info) {
+  std::memset(out_info, 0, sizeof(TextureInfo));
+
   // http://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
   // a2xx_sq_surfaceformat
-
   auto& info = *out_info;
+  info.guest_address = fetch.address << 12;
   info.swizzle = fetch.swizzle;
 
   info.dimension = static_cast<Dimension>(fetch.dimension);
+  info.width = info.height = info.depth = 0;
   switch (info.dimension) {
     case Dimension::k1D:
       info.width = fetch.size_1d.width;
@@ -238,6 +243,10 @@ uint32_t TextureInfo::TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
   uint32_t offset = base_offset + (macro + ((micro & ~15) << 1) + (micro & 15));
   return ((offset & ~511) << 3) + ((offset & 448) << 2) + (offset & 63) +
          ((y & 16) << 7) + (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
+}
+
+uint64_t TextureInfo::hash() const {
+  return XXH64(this, sizeof(TextureInfo), 0);
 }
 
 }  //  namespace gpu

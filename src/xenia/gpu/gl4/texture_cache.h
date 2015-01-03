@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_GL4_TEXTURE_CACHE_H_
 #define XENIA_GPU_GL4_TEXTURE_CACHE_H_
 
+#include <mutex>
+#include <unordered_map>
 #include <vector>
 
 #include <xenia/gpu/gl4/circular_buffer.h>
@@ -23,39 +25,51 @@ namespace gl4 {
 
 class TextureCache {
  public:
-  struct EntryView {
+  struct SamplerEntry {
     SamplerInfo sampler_info;
-    GLuint sampler;
+    GLuint handle;
+  };
+  struct TextureEntryView {
+    SamplerEntry* sampler;
+    uint64_t sampler_hash;
     GLuint64 texture_sampler_handle;
   };
-  struct Entry {
+  struct TextureEntry {
     TextureInfo texture_info;
-    GLuint base_texture;
-    std::vector<EntryView> views;
+    GLuint handle;
+    std::vector<std::unique_ptr<TextureEntryView>> views;
   };
 
   TextureCache();
   ~TextureCache();
 
-  bool Initialize(CircularBuffer* scratch_buffer);
+  bool Initialize(uint8_t* membase, CircularBuffer* scratch_buffer);
   void Shutdown();
+
+  void Scavenge();
   void Clear();
 
-  EntryView* Demand(void* host_base, size_t length,
-                    const TextureInfo& texture_info,
-                    const SamplerInfo& sampler_info);
+  TextureEntryView* Demand(const TextureInfo& texture_info,
+                           const SamplerInfo& sampler_info);
 
  private:
-  bool SetupTexture(GLuint texture, const TextureInfo& texture_info);
-  bool SetupSampler(GLuint sampler, const TextureInfo& texture_info,
-                    const SamplerInfo& sampler_info);
+  SamplerEntry* LookupOrInsertSampler(const SamplerInfo& sampler_info,
+                                      uint64_t opt_hash = 0);
+  void EvictSampler(SamplerEntry* entry);
+  TextureEntry* LookupOrInsertTexture(const TextureInfo& texture_info,
+                                      uint64_t opt_hash = 0);
+  void EvictTexture(TextureEntry* entry);
 
-  bool UploadTexture2D(GLuint texture, void* host_base, size_t length,
-                       const TextureInfo& texture_info,
-                       const SamplerInfo& sampler_info);
+  bool UploadTexture2D(GLuint texture, const TextureInfo& texture_info);
 
+  uint8_t* membase_;
   CircularBuffer* scratch_buffer_;
-  std::vector<Entry> entries_;
+  std::unordered_map<uint64_t, SamplerEntry*> sampler_entries_;
+  std::unordered_map<uint64_t, TextureEntry*> texture_entries_;
+
+  std::mutex invalidated_textures_mutex_;
+  std::vector<TextureEntry*>* invalidated_textures_;
+  std::vector<TextureEntry*> invalidated_textures_sets_[2];
 };
 
 }  // namespace gl4

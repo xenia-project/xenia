@@ -85,6 +85,8 @@ enum class TextureFormat : uint32_t {
 };
 
 struct TextureInfo {
+  uint32_t guest_address;
+  uint32_t input_length;
   uint32_t swizzle;
   Dimension dimension;
   uint32_t width;
@@ -95,7 +97,6 @@ struct TextureInfo {
   xenos::Endian endianness;
   bool is_tiled;
   bool is_compressed;
-  uint32_t input_length;
 
   TextureFormat format;
 
@@ -128,6 +129,11 @@ struct TextureInfo {
                                      uint32_t log_bpp);
   static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
                                      uint32_t base_offset);
+
+  uint64_t hash() const;
+  bool operator==(const TextureInfo& other) const {
+    return std::memcmp(this, &other, sizeof(TextureInfo)) == 0;
+  }
 
  private:
   void CalculateTextureSizes1D(const xenos::xe_gpu_texture_fetch_t& fetch);

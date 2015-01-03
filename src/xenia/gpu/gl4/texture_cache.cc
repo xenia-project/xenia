@@ -22,138 +22,139 @@ using namespace xe::gpu::xenos;
 extern "C" GLEWContext* glewGetContext();
 extern "C" WGLEWContext* wglewGetContext();
 
-TextureCache::TextureCache() {
-  //
+TextureCache::TextureCache() : membase_(nullptr), scratch_buffer_(nullptr) {
+  invalidated_textures_sets_[0].reserve(64);
+  invalidated_textures_sets_[1].reserve(64);
+  invalidated_textures_ = &invalidated_textures_sets_[0];
 }
 
 TextureCache::~TextureCache() { Shutdown(); }
 
-bool TextureCache::Initialize(CircularBuffer* scratch_buffer) {
+bool TextureCache::Initialize(uint8_t* membase,
+                              CircularBuffer* scratch_buffer) {
+  membase_ = membase;
   scratch_buffer_ = scratch_buffer;
   return true;
 }
 
-void TextureCache::Shutdown() {
-  Clear();
-  //
+void TextureCache::Shutdown() { Clear(); }
+
+void TextureCache::Scavenge() {
+  invalidated_textures_mutex_.lock();
+  std::vector<TextureEntry*>& invalidated_textures = *invalidated_textures_;
+  if (invalidated_textures_ == &invalidated_textures_sets_[0]) {
+    invalidated_textures_ = &invalidated_textures_sets_[1];
+  } else {
+    invalidated_textures_ = &invalidated_textures_sets_[0];
+  }
+  invalidated_textures_mutex_.unlock();
+  if (invalidated_textures.empty()) {
+    return;
+  }
+
+  for (auto& entry : invalidated_textures) {
+    EvictTexture(entry);
+  }
+  invalidated_textures.clear();
 }
 
 void TextureCache::Clear() {
-  for (auto& entry : entries_) {
-    for (auto& view : entry.views) {
-      glMakeTextureHandleNonResidentARB(view.texture_sampler_handle);
-      glDeleteSamplers(1, &view.sampler);
-    }
-    glDeleteTextures(1, &entry.base_texture);
+  // Kill all textures - some may be in the eviction list, but that's fine
+  // as we will clear that below.
+  while (texture_entries_.size()) {
+    auto entry = texture_entries_.begin()->second;
+    EvictTexture(entry);
   }
-  entries_.clear();
+
+  // Samplers must go last, as textures depend on them.
+  while (sampler_entries_.size()) {
+    auto entry = sampler_entries_.begin()->second;
+    EvictSampler(entry);
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(invalidated_textures_mutex_);
+    invalidated_textures_sets_[0].clear();
+    invalidated_textures_sets_[1].clear();
+  }
 }
 
-TextureCache::EntryView* TextureCache::Demand(void* host_base, size_t length,
-                                              const TextureInfo& texture_info,
-                                              const SamplerInfo& sampler_info) {
-  entries_.emplace_back(Entry());
-  auto& entry = entries_.back();
-  entry.texture_info = texture_info;
+//typedef void (*WriteWatchCallback)(void* context, void* data, void* address);
+//uintptr_t AddWriteWatch(void* address, size_t length,
+//                        WriteWatchCallback callback, void* callback_context,
+//                        void* callback_data) {
+//  //
+//}
 
-  GLenum target;
-  switch (texture_info.dimension) {
-    case Dimension::k1D:
-      target = GL_TEXTURE_1D;
-      break;
-    case Dimension::k2D:
-      target = GL_TEXTURE_2D;
-      break;
-    case Dimension::k3D:
-      target = GL_TEXTURE_3D;
-      break;
-    case Dimension::kCube:
-      target = GL_TEXTURE_CUBE_MAP;
-      break;
+TextureCache::TextureEntryView* TextureCache::Demand(
+    const TextureInfo& texture_info, const SamplerInfo& sampler_info) {
+  uint64_t texture_hash = texture_info.hash();
+  auto texture_entry = LookupOrInsertTexture(texture_info, texture_hash);
+  if (!texture_entry) {
+    PLOGE("Failed to setup texture");
+    return nullptr;
   }
 
-  // Setup the base texture.
-  glCreateTextures(target, 1, &entry.base_texture);
-  if (!SetupTexture(entry.base_texture, texture_info)) {
-    PLOGE("Unable to setup texture parameters");
-    return false;
+  // We likely have the sampler in the texture view listing, so scan for it.
+  uint64_t sampler_hash = sampler_info.hash();
+  for (auto& it : texture_entry->views) {
+    if (it->sampler_hash == sampler_hash) {
+      // Found.
+      return it.get();
+    }
   }
 
-  // Upload/convert.
-  bool uploaded = false;
-  switch (texture_info.dimension) {
-    case Dimension::k2D:
-      uploaded = UploadTexture2D(entry.base_texture, host_base, length,
-                                 texture_info, sampler_info);
-      break;
-    case Dimension::k1D:
-    case Dimension::k3D:
-    case Dimension::kCube:
-      assert_unhandled_case(texture_info.dimension);
-      return false;
-  }
-  if (!uploaded) {
-    PLOGE("Failed to convert/upload texture");
-    return false;
+  // No existing view found - build it.
+  auto sampler_entry = LookupOrInsertSampler(sampler_info, sampler_hash);
+  if (!sampler_entry) {
+    PLOGE("Failed to setup texture sampler");
+    return nullptr;
   }
 
-  entry.views.emplace_back(EntryView());
-  auto& entry_view = entry.views.back();
-  entry_view.sampler_info = sampler_info;
-
-  // Setup the sampler.
-  glCreateSamplers(1, &entry_view.sampler);
-  if (!SetupSampler(entry_view.sampler, texture_info, sampler_info)) {
-    PLOGE("Unable to setup texture sampler parameters");
-    return false;
-  }
+  auto view = std::make_unique<TextureEntryView>();
+  view->sampler = sampler_entry;
+  view->sampler_hash = sampler_hash;
+  view->texture_sampler_handle = 0;
 
   // Get the uvec2 handle to the texture/sampler pair and make it resident.
   // The handle can be passed directly to the shader.
-  entry_view.texture_sampler_handle =
-      glGetTextureSamplerHandleARB(entry.base_texture, entry_view.sampler);
-  if (!entry_view.texture_sampler_handle) {
+  view->texture_sampler_handle = glGetTextureSamplerHandleARB(
+      texture_entry->handle, sampler_entry->handle);
+  if (!view->texture_sampler_handle) {
     return nullptr;
   }
-  glMakeTextureHandleResidentARB(entry_view.texture_sampler_handle);
+  glMakeTextureHandleResidentARB(view->texture_sampler_handle);
 
-  return &entry_view;
+  // Entry takes ownership.
+  auto view_ptr = view.get();
+  texture_entry->views.push_back(std::move(view));
+  return view_ptr;
 }
 
-bool TextureCache::SetupTexture(GLuint texture,
-                                const TextureInfo& texture_info) {
-  // TODO(benvanik): texture mip levels.
-  glTextureParameteri(texture, GL_TEXTURE_BASE_LEVEL, 0);
-  glTextureParameteri(texture, GL_TEXTURE_MAX_LEVEL, 1);
+TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
+    const SamplerInfo& sampler_info, uint64_t opt_hash) {
+  const uint64_t hash = opt_hash ? opt_hash : sampler_info.hash();
+  for (auto it = sampler_entries_.find(hash); it != sampler_entries_.end();
+       ++it) {
+    if (it->second->sampler_info == sampler_info) {
+      // Found in cache!
+      return it->second;
+    }
+  }
 
-  // Pre-shader swizzle.
-  // TODO(benvanik): can this be dynamic? Maybe per view?
-  // We may have to emulate this in the shader.
-  uint32_t swizzle_r = texture_info.swizzle & 0x7;
-  uint32_t swizzle_g = (texture_info.swizzle >> 3) & 0x7;
-  uint32_t swizzle_b = (texture_info.swizzle >> 6) & 0x7;
-  uint32_t swizzle_a = (texture_info.swizzle >> 9) & 0x7;
-  static const GLenum swizzle_map[] = {
-      GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO, GL_ONE,
-  };
-  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_R, swizzle_map[swizzle_r]);
-  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_G, swizzle_map[swizzle_g]);
-  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_B, swizzle_map[swizzle_b]);
-  glTextureParameteri(texture, GL_TEXTURE_SWIZZLE_A, swizzle_map[swizzle_a]);
+  // Not found, create.
+  auto entry = std::make_unique<SamplerEntry>();
+  entry->sampler_info = sampler_info;
+  glCreateSamplers(1, &entry->handle);
 
-  return true;
-}
-
-bool TextureCache::SetupSampler(GLuint sampler, const TextureInfo& texture_info,
-                                const SamplerInfo& sampler_info) {
   // TODO(benvanik): border color from texture fetch.
   GLfloat border_color[4] = {0.0f};
-  glSamplerParameterfv(sampler, GL_TEXTURE_BORDER_COLOR, border_color);
+  glSamplerParameterfv(entry->handle, GL_TEXTURE_BORDER_COLOR, border_color);
 
   // TODO(benvanik): setup LODs for mipmapping.
-  glSamplerParameterf(sampler, GL_TEXTURE_LOD_BIAS, 0.0f);
-  glSamplerParameterf(sampler, GL_TEXTURE_MIN_LOD, 0.0f);
-  glSamplerParameterf(sampler, GL_TEXTURE_MAX_LOD, 0.0f);
+  glSamplerParameterf(entry->handle, GL_TEXTURE_LOD_BIAS, 0.0f);
+  glSamplerParameterf(entry->handle, GL_TEXTURE_MIN_LOD, 0.0f);
+  glSamplerParameterf(entry->handle, GL_TEXTURE_MAX_LOD, 0.0f);
 
   // Texture wrapping modes.
   // TODO(benvanik): not sure if the middle ones are correct.
@@ -167,11 +168,11 @@ bool TextureCache::SetupSampler(GLuint sampler, const TextureInfo& texture_info,
       GL_CLAMP_TO_BORDER,             //
       GL_MIRROR_CLAMP_TO_BORDER_EXT,  //
   };
-  glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S,
+  glSamplerParameteri(entry->handle, GL_TEXTURE_WRAP_S,
                       wrap_map[sampler_info.clamp_u]);
-  glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T,
+  glSamplerParameteri(entry->handle, GL_TEXTURE_WRAP_T,
                       wrap_map[sampler_info.clamp_v]);
-  glSamplerParameteri(sampler, GL_TEXTURE_WRAP_R,
+  glSamplerParameteri(entry->handle, GL_TEXTURE_WRAP_R,
                       wrap_map[sampler_info.clamp_w]);
 
   // Texture level filtering.
@@ -192,7 +193,7 @@ bool TextureCache::SetupSampler(GLuint sampler, const TextureInfo& texture_info,
           break;
         default:
           assert_unhandled_case(sampler_info.mip_filter);
-          return false;
+          return nullptr;
       }
       break;
     case ucode::TEX_FILTER_LINEAR:
@@ -210,12 +211,12 @@ bool TextureCache::SetupSampler(GLuint sampler, const TextureInfo& texture_info,
           break;
         default:
           assert_unhandled_case(sampler_info.mip_filter);
-          return false;
+          return nullptr;
       }
       break;
     default:
       assert_unhandled_case(sampler_info.min_filter);
-      return false;
+      return nullptr;
   }
   GLenum mag_filter;
   switch (sampler_info.mag_filter) {
@@ -227,15 +228,140 @@ bool TextureCache::SetupSampler(GLuint sampler, const TextureInfo& texture_info,
       break;
     default:
       assert_unhandled_case(mag_filter);
-      return false;
+      return nullptr;
   }
-  glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, min_filter);
-  glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, mag_filter);
+  glSamplerParameteri(entry->handle, GL_TEXTURE_MIN_FILTER, min_filter);
+  glSamplerParameteri(entry->handle, GL_TEXTURE_MAG_FILTER, mag_filter);
 
   // TODO(benvanik): anisotropic filtering.
   // GL_TEXTURE_MAX_ANISOTROPY_EXT
 
-  return true;
+  // Add to map - map takes ownership.
+  auto entry_ptr = entry.get();
+  sampler_entries_.insert({hash, entry.release()});
+  return entry_ptr;
+}
+
+void TextureCache::EvictSampler(SamplerEntry* entry) {
+  glDeleteSamplers(1, &entry->handle);
+
+  for (auto it = sampler_entries_.find(entry->sampler_info.hash());
+       it != sampler_entries_.end(); ++it) {
+    if (it->second == entry) {
+      sampler_entries_.erase(it);
+      break;
+    }
+  }
+
+  delete entry;
+}
+
+TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
+    const TextureInfo& texture_info, uint64_t opt_hash) {
+  const uint64_t hash = opt_hash ? opt_hash : texture_info.hash();
+  for (auto it = texture_entries_.find(hash); it != texture_entries_.end();
+       ++it) {
+    if (it->second->texture_info == texture_info) {
+      // Found in cache!
+      return it->second;
+    }
+  }
+
+  // Not found, create.
+  auto entry = std::make_unique<TextureEntry>();
+  entry->texture_info = texture_info;
+  entry->handle = 0;
+
+  GLenum target;
+  switch (texture_info.dimension) {
+    case Dimension::k1D:
+      target = GL_TEXTURE_1D;
+      break;
+    case Dimension::k2D:
+      target = GL_TEXTURE_2D;
+      break;
+    case Dimension::k3D:
+      target = GL_TEXTURE_3D;
+      break;
+    case Dimension::kCube:
+      target = GL_TEXTURE_CUBE_MAP;
+      break;
+  }
+
+  // Setup the base texture.
+  glCreateTextures(target, 1, &entry->handle);
+
+  // TODO(benvanik): texture mip levels.
+  glTextureParameteri(entry->handle, GL_TEXTURE_BASE_LEVEL, 0);
+  glTextureParameteri(entry->handle, GL_TEXTURE_MAX_LEVEL, 1);
+
+  // Pre-shader swizzle.
+  // TODO(benvanik): can this be dynamic? Maybe per view?
+  // We may have to emulate this in the shader.
+  uint32_t swizzle_r = texture_info.swizzle & 0x7;
+  uint32_t swizzle_g = (texture_info.swizzle >> 3) & 0x7;
+  uint32_t swizzle_b = (texture_info.swizzle >> 6) & 0x7;
+  uint32_t swizzle_a = (texture_info.swizzle >> 9) & 0x7;
+  static const GLenum swizzle_map[] = {
+      GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO, GL_ONE,
+  };
+  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_R,
+                      swizzle_map[swizzle_r]);
+  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_G,
+                      swizzle_map[swizzle_g]);
+  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_B,
+                      swizzle_map[swizzle_b]);
+  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_A,
+                      swizzle_map[swizzle_a]);
+
+  // Upload/convert.
+  bool uploaded = false;
+  switch (texture_info.dimension) {
+    case Dimension::k2D:
+      uploaded = UploadTexture2D(entry->handle, texture_info);
+      break;
+    case Dimension::k1D:
+    case Dimension::k3D:
+    case Dimension::kCube:
+      assert_unhandled_case(texture_info.dimension);
+      return false;
+  }
+  if (!uploaded) {
+    PLOGE("Failed to convert/upload texture");
+    return nullptr;
+  }
+
+  // AddWriteWatch(host_base, length, [](void* context_ptr, void* data_ptr,
+  // void* address) {
+  //  //
+  //}, this, &entry);
+
+  // Add to map - map takes ownership.
+  auto entry_ptr = entry.get();
+  texture_entries_.insert({hash, entry.release()});
+  return entry_ptr;
+}
+
+void TextureCache::EvictTexture(TextureEntry* entry) {
+  /*if (entry->write_watch_handle) {
+  // remove from watch list
+  }*/
+
+  for (auto& view : entry->views) {
+    glMakeTextureHandleNonResidentARB(view->texture_sampler_handle);
+  }
+  glDeleteTextures(1, &entry->handle);
+
+  uint64_t texture_hash = entry->texture_info.hash();
+  for (auto it = texture_entries_.find(texture_hash);
+       it != texture_entries_.end(); ++it) {
+    if (it->second == entry) {
+      texture_entries_.erase(it);
+      break;
+    }
+  }
+
+  delete entry;
 }
 
 void TextureSwap(Endian endianness, void* dest, const void* src,
@@ -266,11 +392,10 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
   }
 }
 
-bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
-                                   size_t length,
-                                   const TextureInfo& texture_info,
-                                   const SamplerInfo& sampler_info) {
-  assert_true(length == texture_info.input_length);
+bool TextureCache::UploadTexture2D(GLuint texture,
+                                   const TextureInfo& texture_info) {
+  auto host_address =
+      reinterpret_cast<const uint8_t*>(membase_ + texture_info.guest_address);
 
   GLenum internal_format = GL_RGBA8;
   GLenum format = GL_RGBA;
@@ -433,13 +558,13 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
     if (texture_info.size_2d.input_pitch ==
         texture_info.size_2d.logical_pitch) {
       // Fast path copy entire image.
-      TextureSwap(texture_info.endianness, allocation.host_ptr, host_base,
+      TextureSwap(texture_info.endianness, allocation.host_ptr, host_address,
                   unpack_length);
     } else {
       // Slow path copy row-by-row because strides differ.
       // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
       // this exact thing under the covers, so we just always do it here.
-      const uint8_t* src = reinterpret_cast<const uint8_t*>(host_base);
+      const uint8_t* src = host_address;
       uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
       for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
         TextureSwap(texture_info.endianness, dest, src,
@@ -452,7 +577,7 @@ bool TextureCache::UploadTexture2D(GLuint texture, void* host_base,
     // Untile image.
     // We could do this in a shader to speed things up, as this is pretty slow.
     // TODO(benvanik): optimize this inner loop (or work by tiles).
-    uint8_t* src = reinterpret_cast<uint8_t*>(host_base);
+    const uint8_t* src = host_address;
     uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
     uint32_t output_pitch =
         (texture_info.size_2d.output_width / texture_info.block_size) *
