@@ -11,6 +11,7 @@
 
 #include <poly/assert.h>
 #include <poly/math.h>
+#include <xenia/gpu/gl4/gl4_gpu-private.h>
 #include <xenia/gpu/gpu-private.h>
 
 namespace xe {
@@ -44,7 +45,7 @@ bool CircularBuffer::Initialize() {
     return false;
   }
 
-  if (GLEW_NV_shader_buffer_load) {
+  if (FLAGS_vendor_gl_extensions && GLEW_NV_shader_buffer_load) {
     // To use this bindlessly we must make it resident.
     glMakeNamedBufferResidentNV(buffer_, GL_WRITE_ONLY);
     glGetNamedBufferParameterui64vNV(buffer_, GL_BUFFER_GPU_ADDRESS_NV,
@@ -58,7 +59,7 @@ void CircularBuffer::Shutdown() {
     return;
   }
   glUnmapNamedBuffer(buffer_);
-  if (GLEW_NV_shader_buffer_load) {
+  if (FLAGS_vendor_gl_extensions && GLEW_NV_shader_buffer_load) {
     glMakeNamedBufferNonResidentNV(buffer_);
   }
   glDeleteBuffers(1, &buffer_);

@@ -20,6 +20,8 @@ DECLARE_bool(thread_safe_gl);
 DECLARE_bool(gl_debug_output);
 DECLARE_bool(gl_debug_output_synchronous);
 
+DECLARE_bool(vendor_gl_extensions);
+
 DECLARE_bool(disable_textures);
 
 namespace xe {

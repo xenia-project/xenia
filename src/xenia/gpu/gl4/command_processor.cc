@@ -181,10 +181,15 @@ bool CommandProcessor::SetupGL() {
   glGenVertexArrays(1, &vertex_array_);
   glBindVertexArray(vertex_array_);
 
-  if (GLEW_NV_vertex_buffer_unified_memory) {
+  if (FLAGS_vendor_gl_extensions && GLEW_NV_vertex_buffer_unified_memory) {
     has_bindless_vbos_ = true;
     glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
     glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
+  }
+  GLint max_vertex_attribs = 0;
+  glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attribs);
+  for (GLint i = 0; i < max_vertex_attribs; ++i) {
+    glEnableVertexAttribArray(i);
   }
 
   const std::string geometry_header =
@@ -2242,7 +2247,6 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers(
           assert_unhandled_case(el.format);
           break;
       }
-      glEnableVertexAttribArray(el_index);
       if (has_bindless_vbos_) {
         glVertexAttribFormatNV(el_index, comp_count, comp_type,
                                el.is_normalized,
