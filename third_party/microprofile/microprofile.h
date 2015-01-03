@@ -1985,7 +1985,11 @@ bool MicroProfileWebServerUpdate()
 	bool bServed = false;
 	if(!MP_INVALID_SOCKET(Connection))
 	{
-		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+    int timeout = 100;
+    setsockopt(Connection, SOL_SOCKET, SO_RCVTIMEO,
+               reinterpret_cast<char*>(&timeout), sizeof(timeout));
+
+    std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 		char Req[8192];
 		MicroProfileSetNonBlocking(Connection, 0);
 		int nReceived = recv(Connection, Req, sizeof(Req)-1, 0);
