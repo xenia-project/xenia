@@ -335,14 +335,33 @@ bool DrawBatcher::Flush(FlushMode mode) {
             batch_state_.command_stride, vertex_buffer_count);
       }
     } else {
-      if (batch_state_.indexed) {
-        glMultiDrawElementsIndirect(prim_type, batch_state_.index_type,
-                                    indirect_offset, batch_state_.draw_count,
-                                    batch_state_.command_stride);
+      if (batch_state_.draw_count == 1) {
+        // Fast path for one draw. Removes MDI overhead when not required.
+        if (batch_state_.indexed) {
+          auto& cmd = active_draw_.draw_elements_cmd;
+          glDrawElementsInstancedBaseVertexBaseInstance(
+              prim_type, cmd->count, batch_state_.index_type,
+              reinterpret_cast<void*>(
+                  uintptr_t(cmd->first_index) *
+                  (batch_state_.index_type == GL_UNSIGNED_SHORT ? 2 : 4)),
+              cmd->instance_count, cmd->base_vertex, cmd->base_instance);
+        } else {
+          auto& cmd = active_draw_.draw_arrays_cmd;
+          glDrawArraysInstancedBaseInstance(prim_type, cmd->first_index,
+                                            cmd->count, cmd->instance_count,
+                                            cmd->base_instance);
+        }
       } else {
-        glMultiDrawArraysIndirect(prim_type, indirect_offset,
-                                  batch_state_.draw_count,
-                                  batch_state_.command_stride);
+        // Full multi-draw.
+        if (batch_state_.indexed) {
+          glMultiDrawElementsIndirect(prim_type, batch_state_.index_type,
+                                      indirect_offset, batch_state_.draw_count,
+                                      batch_state_.command_stride);
+        } else {
+          glMultiDrawArraysIndirect(prim_type, indirect_offset,
+                                    batch_state_.draw_count,
+                                    batch_state_.command_stride);
+        }
       }
     }
 

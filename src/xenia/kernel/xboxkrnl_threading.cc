@@ -287,7 +287,7 @@ SHIM_CALL KeDelayExecutionThread_shim(PPCContext* ppc_state,
 }
 
 SHIM_CALL NtYieldExecution_shim(PPCContext* ppc_state, KernelState* state) {
-  XELOGD("NtYieldExecution()");
+  //XELOGD("NtYieldExecution()");
   XThread* thread = XThread::GetCurrentThread();
   X_STATUS result = thread->Delay(0, 0, 0);
   SHIM_SET_RETURN_64(0);
