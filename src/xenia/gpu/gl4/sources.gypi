@@ -5,6 +5,8 @@
     'circular_buffer.h',
     'command_processor.cc',
     'command_processor.h',
+    'draw_batcher.cc',
+    'draw_batcher.h',
     'gl4_gpu-private.h',
     'gl4_gpu.cc',
     'gl4_gpu.h',

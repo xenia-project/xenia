@@ -35,6 +35,8 @@ class CircularBuffer {
   void Shutdown();
 
   GLuint handle() const { return buffer_; }
+  GLuint64 gpu_handle() const { return gpu_base_; }
+  size_t capacity() const { return capacity_; }
 
   bool CanAcquire(size_t length);
   Allocation Acquire(size_t length);

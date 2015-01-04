@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <xenia/gpu/gl4/circular_buffer.h>
+#include <xenia/gpu/gl4/draw_batcher.h>
 #include <xenia/gpu/gl4/gl_context.h>
 #include <xenia/gpu/gl4/gl4_shader.h>
 #include <xenia/gpu/gl4/texture_cache.h>
@@ -39,73 +40,6 @@ struct SwapParameters {
 
   GLuint framebuffer;
   GLenum attachment;
-};
-
-// This must match the layout in gl4_shader.cc.
-struct UniformDataBlock {
-  union float4 {
-    float v[4];
-    struct {
-      float x, y, z, w;
-    };
-  };
-
-  float4 window_offset;   // tx,ty,sx,sy
-  float4 window_scissor;  // x0,y0,x1,y1
-  float4 vtx_fmt;
-  float4 viewport_offset;  // tx,ty,tz,?
-  float4 viewport_scale;   // sx,sy,sz,?
-                           // TODO(benvanik): vertex format xyzw?
-
-  float4 alpha_test;  // alpha test enable, func, ref, ?
-
-  // TODO(benvanik): pack tightly
-  uint64_t texture_samplers[32];
-
-  // Register data from 0x4000 to 0x4927.
-  // UpdateConstants relies on the packing of these.
-  struct {
-    // SHADER_CONSTANT_000_X...
-    float4 float_consts[512];
-    // SHADER_CONSTANT_FETCH_00_0 is omitted
-    // SHADER_CONSTANT_BOOL_000_031...
-    int32_t bool_consts[8];
-    // SHADER_CONSTANT_LOOP_00...
-    int32_t loop_consts[32];
-  };
-};
-static_assert(sizeof(UniformDataBlock) <= 16 * 1024, "Need <=16k uniform data");
-
-// TODO(benvanik): move more of the enums in here?
-struct DrawCommand {
-  PrimitiveType prim_type;
-  uint32_t start_index;
-  uint32_t min_index;
-  uint32_t max_index;
-  uint32_t index_count;
-  uint32_t base_vertex;
-
-  // Index buffer, if present.
-  // If index_count > 0 but buffer is nullptr then auto draw.
-  struct {
-    const uint8_t* address;
-    size_t size;
-    xenos::Endian endianness;
-    xenos::IndexFormat format;
-    size_t buffer_offset;
-  } index_buffer;
-
-  // Texture samplers.
-  struct SamplerInput {
-    uint32_t input_index;
-    // TextureResource* texture;
-    // SamplerStateResource* sampler_state;
-  };
-  SamplerInput vertex_shader_samplers[32];
-  SamplerInput pixel_shader_samplers[32];
-
-  // NOTE: do not read from this - the mapped memory is likely write combined.
-  UniformDataBlock* state_data;
 };
 
 class CommandProcessor {
@@ -241,22 +175,19 @@ class CommandProcessor {
   bool LoadShader(ShaderType shader_type, const uint32_t* address,
                   uint32_t dword_count);
 
-  void PrepareDraw(DrawCommand* draw_command);
-  bool IssueDraw(DrawCommand* draw_command);
-  UpdateStatus UpdateRenderTargets(DrawCommand* draw_command);
-  UpdateStatus UpdateState(DrawCommand* draw_command);
-  UpdateStatus UpdateViewportState(DrawCommand* draw_command);
-  UpdateStatus UpdateRasterizerState(DrawCommand* draw_command);
-  UpdateStatus UpdateBlendState(DrawCommand* draw_command);
-  UpdateStatus UpdateDepthStencilState(DrawCommand* draw_command);
-  UpdateStatus UpdateConstants(DrawCommand* draw_command);
-  UpdateStatus UpdateShaders(DrawCommand* draw_command);
-  UpdateStatus PopulateIndexBuffer(DrawCommand* draw_command);
-  UpdateStatus PopulateVertexBuffers(DrawCommand* draw_command);
-  UpdateStatus PopulateSamplers(DrawCommand* draw_command);
-  UpdateStatus PopulateSampler(DrawCommand* draw_command,
-                               const Shader::SamplerDesc& desc);
-  bool IssueCopy(DrawCommand* draw_command);
+  bool IssueDraw();
+  UpdateStatus UpdateShaders(PrimitiveType prim_type);
+  UpdateStatus UpdateRenderTargets();
+  UpdateStatus UpdateState();
+  UpdateStatus UpdateViewportState();
+  UpdateStatus UpdateRasterizerState();
+  UpdateStatus UpdateBlendState();
+  UpdateStatus UpdateDepthStencilState();
+  UpdateStatus PopulateIndexBuffer();
+  UpdateStatus PopulateVertexBuffers();
+  UpdateStatus PopulateSamplers();
+  UpdateStatus PopulateSampler(const Shader::SamplerDesc& desc);
+  bool IssueCopy();
 
   CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],
                                     GLuint depth_target);
@@ -306,21 +237,23 @@ class CommandProcessor {
   std::vector<CachedDepthRenderTarget> cached_depth_render_targets_;
   std::vector<std::unique_ptr<CachedPipeline>> all_pipelines_;
   std::unordered_map<uint64_t, CachedPipeline*> cached_pipelines_;
-  GLuint vertex_array_;
   GLuint point_list_geometry_program_;
   GLuint rect_list_geometry_program_;
   GLuint quad_list_geometry_program_;
+  struct {
+    xenos::IndexFormat format;
+    xenos::Endian endianness;
+    uint32_t count;
+    uint32_t guest_base;
+    size_t length;
+    uint32_t max_index_found;
+  } index_buffer_info_;
+  uint32_t draw_index_count_;
 
   TextureCache texture_cache_;
 
+  DrawBatcher draw_batcher_;
   CircularBuffer scratch_buffer_;
-  struct ScratchBufferStats {
-    size_t total_state_data_size = 0;
-    size_t total_indices_size = 0;
-    size_t total_vertices_size = 0;
-  } scratch_buffer_stats_;
-
-  DrawCommand draw_command_;
 
  private:
   bool SetShadowRegister(uint32_t& dest, uint32_t register_name);
@@ -341,7 +274,6 @@ class CommandProcessor {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_render_targets_regs_;
   struct UpdateViewportStateRegisters {
-    //
     UpdateViewportStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_viewport_state_regs_;
@@ -367,7 +299,6 @@ class CommandProcessor {
     UpdateDepthStencilStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_depth_stencil_state_regs_;
-  // TODO(benvanik): constant bitmask?
   struct UpdateShadersRegisters {
     PrimitiveType prim_type;
     uint32_t sq_program_cntl;
@@ -380,9 +311,6 @@ class CommandProcessor {
       vertex_shader = pixel_shader = nullptr;
     }
   } update_shaders_regs_;
-  // ib
-  // vb
-  // samplers
 };
 
 }  // namespace gl4

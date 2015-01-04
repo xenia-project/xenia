@@ -132,12 +132,15 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
     GLContextLock context_lock(this);
 
     int context_flags = 0;
+    //int profile = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+    int profile = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
 #if DEBUG
     context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif                                                          // DEBUG
-    int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, 4,      //
-                         WGL_CONTEXT_MINOR_VERSION_ARB, 5,      //
-                         WGL_CONTEXT_FLAGS_ARB, context_flags,  //
+#endif                                                           // DEBUG
+    int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, 4,       //
+                         WGL_CONTEXT_MINOR_VERSION_ARB, 5,       //
+                         WGL_CONTEXT_FLAGS_ARB, context_flags,   //
+                         WGL_CONTEXT_PROFILE_MASK_ARB, profile,  //
                          0};
     new_glrc = wglCreateContextAttribsARB(dc_, glrc_, attrib_list);
     if (!new_glrc) {

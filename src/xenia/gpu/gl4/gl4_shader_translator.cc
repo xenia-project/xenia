@@ -91,7 +91,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
   const auto& alloc_counts = vertex_shader->alloc_counts();
 
   // Vertex shader main() header.
-  Append("void processVertex() {\n");
+  Append("void processVertex(const in StateData state) {\n");
 
   // Add temporaries for any registers we may use.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
@@ -126,7 +126,7 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   // (and less than the number of required registers), things may die.
 
   // Pixel shader main() header.
-  Append("void processFragment() {\n");
+  Append("void processFragment(const in StateData state) {\n");
 
   // Add temporary registers.
   uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;

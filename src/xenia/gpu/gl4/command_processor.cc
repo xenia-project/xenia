@@ -25,6 +25,8 @@
 #define XETRACECP(fmt, ...) \
   if (FLAGS_trace_ring_buffer) XELOGGPU(fmt, ##__VA_ARGS__)
 
+#define FINE_GRAINED_DRAW_SCOPES 1
+
 namespace xe {
 namespace gpu {
 namespace gl4 {
@@ -39,6 +41,7 @@ const GLuint kAnyTarget = UINT_MAX;
 // with the GPU, so this should be large enough to prevent that in a normal
 // frame.
 const size_t kScratchBufferCapacity = 256 * 1024 * 1024;
+const size_t kScratchBufferAlignment = 256;
 
 CommandProcessor::CachedPipeline::CachedPipeline()
     : vertex_program(0), fragment_program(0), handles({0}) {}
@@ -69,12 +72,12 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
-      vertex_array_(0),
       point_list_geometry_program_(0),
       rect_list_geometry_program_(0),
       quad_list_geometry_program_(0),
-      scratch_buffer_(kScratchBufferCapacity) {
-  std::memset(&draw_command_, 0, sizeof(draw_command_));
+      draw_index_count_(0),
+      draw_batcher_(graphics_system_->register_file()),
+      scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {
   LARGE_INTEGER perf_counter;
   QueryPerformanceCounter(&perf_counter);
   time_base_ = perf_counter.QuadPart;
@@ -163,6 +166,9 @@ void CommandProcessor::WorkerMain() {
 }
 
 bool CommandProcessor::SetupGL() {
+  if (FLAGS_vendor_gl_extensions && GLEW_NV_vertex_buffer_unified_memory) {
+    has_bindless_vbos_ = true;
+  }
 
   // Circular buffer holding scratch vertex/index data.
   if (!scratch_buffer_.Initialize()) {
@@ -170,25 +176,16 @@ bool CommandProcessor::SetupGL() {
     return false;
   }
 
+  // Command buffer.
+  if (!draw_batcher_.Initialize(&scratch_buffer_)) {
+    PLOGE("Unable to initialize command buffer");
+    return false;
+  }
+
   // Texture cache that keeps track of any textures/samplers used.
   if (!texture_cache_.Initialize(membase_, &scratch_buffer_)) {
     PLOGE("Unable to initialize texture cache");
     return false;
-  }
-
-  // TODO(benvanik): cache.
-  glGenVertexArrays(1, &vertex_array_);
-  glBindVertexArray(vertex_array_);
-
-  if (FLAGS_vendor_gl_extensions && GLEW_NV_vertex_buffer_unified_memory) {
-    has_bindless_vbos_ = true;
-    glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
-    glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
-  }
-  GLint max_vertex_attribs = 0;
-  glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attribs);
-  for (GLint i = 0; i < max_vertex_attribs; ++i) {
-    glEnableVertexAttribArray(i);
   }
 
   const std::string geometry_header =
@@ -346,8 +343,8 @@ void CommandProcessor::ShutdownGL() {
   glDeleteProgram(point_list_geometry_program_);
   glDeleteProgram(rect_list_geometry_program_);
   glDeleteProgram(quad_list_geometry_program_);
-  glDeleteVertexArrays(1, &vertex_array_);
   texture_cache_.Shutdown();
+  draw_batcher_.Shutdown();
   scratch_buffer_.Shutdown();
 }
 
@@ -437,7 +434,8 @@ void CommandProcessor::PrepareForWait() {
   // TODO(benvanik): fences and fancy stuff. We should figure out a way to
   // make interrupt callbacks from the GPU so that we don't have to do a full
   // synchronize here.
-  glFlush();
+  //glFlush();
+  glFinish();
 
   if (FLAGS_thread_safe_gl) {
     context_->ClearCurrent();
@@ -1106,46 +1104,45 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
   uint32_t index_count = dword1 >> 16;
   auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
 
-  uint32_t index_base = 0;
-  uint32_t index_size = 0;
-  Endian index_endianness = Endian::kUnspecified;
-  bool index_32bit = false;
   uint32_t src_sel = (dword1 >> 6) & 0x3;
   if (src_sel == 0x0) {
     // Indexed draw.
-    index_base = reader->Read();
-    index_size = reader->Read();
-    index_endianness = static_cast<Endian>(index_size >> 30);
+    index_buffer_info_.guest_base = reader->Read();
+    uint32_t index_size = reader->Read();
+    index_buffer_info_.endianness = static_cast<Endian>(index_size >> 30);
     index_size &= 0x00FFFFFF;
-    index_32bit = (dword1 >> 11) & 0x1;
+    bool index_32bit = (dword1 >> 11) & 0x1;
+    index_buffer_info_.format =
+        index_32bit ? IndexFormat::kInt32 : IndexFormat::kInt16;
     index_size *= index_32bit ? 4 : 2;
+    index_buffer_info_.length = index_size;
+    index_buffer_info_.count = index_count;
   } else if (src_sel == 0x2) {
     // Auto draw.
+    index_buffer_info_.guest_base = 0;
+    index_buffer_info_.length = 0;
   } else {
     // Unknown source select.
     assert_always();
   }
+  draw_index_count_ = index_count;
 
-  PrepareDraw(&draw_command_);
-  draw_command_.prim_type = prim_type;
-  draw_command_.start_index = 0;
-  draw_command_.index_count = index_count;
-  draw_command_.base_vertex = 0;
+  bool draw_valid = false;
   if (src_sel == 0x0) {
     // Indexed draw.
-    draw_command_.index_buffer.address = membase_ + index_base;
-    draw_command_.index_buffer.size = index_size;
-    draw_command_.index_buffer.endianness = index_endianness;
-    draw_command_.index_buffer.format =
-        index_32bit ? IndexFormat::kInt32 : IndexFormat::kInt16;
+    draw_valid = draw_batcher_.BeginDrawElements(prim_type, index_count,
+                                                 index_buffer_info_.format);
   } else if (src_sel == 0x2) {
     // Auto draw.
-    draw_command_.index_buffer.address = nullptr;
+    draw_valid = draw_batcher_.BeginDrawArrays(prim_type, index_count);
   } else {
     // Unknown source select.
     assert_always();
   }
-  return IssueDraw(&draw_command_);
+  if (!draw_valid) {
+    return false;
+  }
+  return IssueDraw();
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
@@ -1164,14 +1161,15 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
   uint32_t indices_size = index_count * (index_32bit ? 4 : 2);
   reader->CheckRead(indices_size / sizeof(uint32_t));
   uint32_t index_ptr = reader->ptr();
+  index_buffer_info_.guest_base = 0;
+  index_buffer_info_.length = 0;
   reader->Advance(count - 1);
-  PrepareDraw(&draw_command_);
-  draw_command_.prim_type = prim_type;
-  draw_command_.start_index = 0;
-  draw_command_.index_count = index_count;
-  draw_command_.base_vertex = 0;
-  draw_command_.index_buffer.address = nullptr;
-  return IssueDraw(&draw_command_);
+  draw_index_count_ = index_count;
+  bool draw_valid = draw_batcher_.BeginDrawArrays(prim_type, index_count);
+  if (!draw_valid) {
+    return false;
+  }
+  return IssueDraw();
 }
 
 bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
@@ -1319,58 +1317,30 @@ bool CommandProcessor::LoadShader(ShaderType shader_type,
   return true;
 }
 
-void CommandProcessor::PrepareDraw(DrawCommand* draw_command) {
-  auto& regs = *register_file_;
-  auto& cmd = *draw_command;
-
-  // Reset the things we don't modify so that we have clean state.
-  cmd.prim_type = PrimitiveType::kPointList;
-  cmd.index_count = 0;
-  cmd.index_buffer.address = nullptr;
-
-  // Starting index when drawing indexed.
-  cmd.start_index = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
-
-  // Min/max index ranges. This is often [0,FFFF|FFFFFF], but if it's not we
-  // can use it to do a glDrawRangeElements.
-  cmd.min_index = regs[XE_GPU_REG_VGT_MIN_VTX_INDX].u32;
-  cmd.max_index = regs[XE_GPU_REG_VGT_MAX_VTX_INDX].u32;
-
-  // ?
-  cmd.base_vertex = 0;
-
-  cmd.state_data = nullptr;
-}
-
-bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
+bool CommandProcessor::IssueDraw() {
+#if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto& regs = *register_file_;
-  auto& cmd = *draw_command;
 
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
   if (enable_mode == ModeControl::kIgnore) {
     // Ignored.
+    draw_batcher_.DiscardDraw();
     return true;
   } else if (enable_mode == ModeControl::kCopy) {
     // Special copy handling.
-    return IssueCopy(draw_command);
-  }
-
-  // Allocate a state data block.
-  // Everything the shaders access lives here.
-  auto allocation = scratch_buffer_.Acquire(sizeof(UniformDataBlock));
-  scratch_buffer_stats_.total_state_data_size += sizeof(UniformDataBlock);
-  cmd.state_data = reinterpret_cast<UniformDataBlock*>(allocation.host_ptr);
-  if (!cmd.state_data) {
-    PLOGE("Unable to allocate uniform data buffer");
-    return false;
+    draw_batcher_.DiscardDraw();
+    return IssueCopy();
   }
 
 #define CHECK_ISSUE_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                                \
     if (status == UpdateStatus::kError) {                          \
       PLOGE(error_message);                                        \
+      draw_batcher_.DiscardDraw();                                 \
       return false;                                                \
     } else if (status == UpdateStatus::kMismatch) {                \
       mismatch = true;                                             \
@@ -1379,93 +1349,31 @@ bool CommandProcessor::IssueDraw(DrawCommand* draw_command) {
 
   UpdateStatus status;
   bool mismatch = false;
-  status = UpdateShaders(draw_command);
+  status = UpdateShaders(draw_batcher_.prim_type());
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to prepare draw shaders");
-  status = UpdateRenderTargets(draw_command);
+  status = UpdateRenderTargets();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render targets");
   if (!active_framebuffer_) {
     // No framebuffer, so nothing we do will actually have an effect.
     // Treat it as a no-op.
+    // TODO(benvanik): if we have a vs export, still allow it to go.
     XETRACECP("No-op draw (no framebuffer set)");
+    draw_batcher_.DiscardDraw();
     return true;
   }
 
-  status = UpdateState(draw_command);
+  status = UpdateState();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render state");
-  status = UpdateConstants(draw_command);
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch,
-                            "Unable to update shader constants");
-  status = PopulateSamplers(draw_command);
+  status = PopulateSamplers();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch,
                             "Unable to prepare draw samplers");
 
-  status = PopulateIndexBuffer(draw_command);
+  status = PopulateIndexBuffer();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup index buffer");
-  status = PopulateVertexBuffers(draw_command);
+  status = PopulateVertexBuffers();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup vertex buffers");
 
-  GLenum prim_type = 0;
-  switch (cmd.prim_type) {
-    case PrimitiveType::kPointList:
-      prim_type = GL_POINTS;
-      break;
-    case PrimitiveType::kLineList:
-      prim_type = GL_LINES;
-      break;
-    case PrimitiveType::kLineStrip:
-      prim_type = GL_LINE_STRIP;
-      break;
-    case PrimitiveType::kLineLoop:
-      prim_type = GL_LINE_LOOP;
-      break;
-    case PrimitiveType::kTriangleList:
-      prim_type = GL_TRIANGLES;
-      break;
-    case PrimitiveType::kTriangleStrip:
-      prim_type = GL_TRIANGLE_STRIP;
-      break;
-    case PrimitiveType::kTriangleFan:
-      prim_type = GL_TRIANGLE_FAN;
-      break;
-    case PrimitiveType::kRectangleList:
-      prim_type = GL_TRIANGLE_STRIP;
-      break;
-    case PrimitiveType::kQuadList:
-      prim_type = GL_LINES_ADJACENCY;
-      break;
-    default:
-    case PrimitiveType::kUnknown0x07:
-      prim_type = GL_POINTS;
-      XELOGE("unsupported primitive type %d", cmd.prim_type);
-      assert_unhandled_case(cmd.prim_type);
-      return false;
-  }
-
-  // Commit the state buffer - nothing can change after this.
-  glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, scratch_buffer_.handle(),
-                    allocation.offset, allocation.length);
-  scratch_buffer_.Commit(std::move(allocation));
-  scratch_buffer_.Flush();
-
-  if (cmd.index_buffer.address) {
-    // Indexed draw.
-    // PopulateIndexBuffer has our element array setup.
-    size_t element_size = cmd.index_buffer.format == IndexFormat::kInt32
-                              ? sizeof(uint32_t)
-                              : sizeof(uint16_t);
-    glDrawElementsBaseVertex(
-        prim_type, cmd.index_count,
-        cmd.index_buffer.format == IndexFormat::kInt32 ? GL_UNSIGNED_INT
-                                                       : GL_UNSIGNED_SHORT,
-        reinterpret_cast<void*>(cmd.index_buffer.buffer_offset +
-                                cmd.start_index * element_size),
-        cmd.base_vertex);
-  } else {
-    // Auto draw.
-    glDrawArrays(prim_type, cmd.start_index, cmd.index_count);
-  }
-
-  return true;
+  return draw_batcher_.CommitDraw();
 }
 
 bool CommandProcessor::SetShadowRegister(uint32_t& dest,
@@ -1487,8 +1395,129 @@ bool CommandProcessor::SetShadowRegister(float& dest, uint32_t register_name) {
   return true;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
+    PrimitiveType prim_type) {
+  auto& regs = update_shaders_regs_;
+
+  bool dirty = false;
+  dirty |= SetShadowRegister(regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
+  dirty |= regs.vertex_shader != active_vertex_shader_;
+  dirty |= regs.pixel_shader != active_pixel_shader_;
+  dirty |= regs.prim_type != prim_type;
+  if (!dirty) {
+    return UpdateStatus::kCompatible;
+  }
+  regs.vertex_shader = active_vertex_shader_;
+  regs.pixel_shader = active_pixel_shader_;
+  regs.prim_type = prim_type;
+
+  SCOPE_profile_cpu_f("gpu");
+
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
+
+  xe_gpu_program_cntl_t program_cntl;
+  program_cntl.dword_0 = regs.sq_program_cntl;
+  if (!active_vertex_shader_->has_prepared()) {
+    if (!active_vertex_shader_->PrepareVertexShader(program_cntl)) {
+      XELOGE("Unable to prepare vertex shader");
+      return UpdateStatus::kError;
+    }
+  } else if (!active_vertex_shader_->is_valid()) {
+    XELOGE("Vertex shader invalid");
+    return UpdateStatus::kError;
+  }
+
+  if (!active_pixel_shader_->has_prepared()) {
+    if (!active_pixel_shader_->PreparePixelShader(program_cntl)) {
+      XELOGE("Unable to prepare pixel shader");
+      return UpdateStatus::kError;
+    }
+  } else if (!active_pixel_shader_->is_valid()) {
+    XELOGE("Pixel shader invalid");
+    return UpdateStatus::kError;
+  }
+
+  GLuint vertex_program = active_vertex_shader_->program();
+  GLuint fragment_program = active_pixel_shader_->program();
+
+  uint64_t key = (uint64_t(vertex_program) << 32) | fragment_program;
+  CachedPipeline* cached_pipeline = nullptr;
+  auto it = cached_pipelines_.find(key);
+  if (it == cached_pipelines_.end()) {
+    // Existing pipeline for these programs not found - create it.
+    auto new_pipeline = std::make_unique<CachedPipeline>();
+    new_pipeline->vertex_program = vertex_program;
+    new_pipeline->fragment_program = fragment_program;
+    new_pipeline->handles.default_pipeline = 0;
+    cached_pipeline = new_pipeline.get();
+    all_pipelines_.emplace_back(std::move(new_pipeline));
+    cached_pipelines_.insert({key, cached_pipeline});
+  } else {
+    // Found a pipeline container - it may or may not have what we want.
+    cached_pipeline = it->second;
+  }
+  if (!cached_pipeline->handles.default_pipeline) {
+    // Perhaps it's a bit wasteful to do all of these, but oh well.
+    GLuint pipelines[4];
+    glCreateProgramPipelines(GLsizei(poly::countof(pipelines)), pipelines);
+
+    glUseProgramStages(pipelines[0], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[0], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.default_pipeline = pipelines[0];
+
+    glUseProgramStages(pipelines[1], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[1], GL_GEOMETRY_SHADER_BIT,
+                       point_list_geometry_program_);
+    glUseProgramStages(pipelines[1], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.point_list_pipeline = pipelines[1];
+
+    glUseProgramStages(pipelines[2], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[2], GL_GEOMETRY_SHADER_BIT,
+                       rect_list_geometry_program_);
+    glUseProgramStages(pipelines[2], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.rect_list_pipeline = pipelines[2];
+
+    glUseProgramStages(pipelines[3], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[3], GL_GEOMETRY_SHADER_BIT,
+                       quad_list_geometry_program_);
+    glUseProgramStages(pipelines[3], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.quad_list_pipeline = pipelines[3];
+
+    // This can be set once, as the buffer never changes.
+    if (has_bindless_vbos_) {
+      glBindVertexArray(active_vertex_shader_->vao());
+      glBufferAddressRangeNV(GL_ELEMENT_ARRAY_ADDRESS_NV, 0,
+                             scratch_buffer_.gpu_handle(),
+                             scratch_buffer_.capacity());
+    } else {
+      glVertexArrayElementBuffer(active_vertex_shader_->vao(),
+                                 scratch_buffer_.handle());
+    }
+  }
+
+  GLuint pipeline = cached_pipeline->handles.default_pipeline;
+  switch (regs.prim_type) {
+    case PrimitiveType::kPointList:
+      pipeline = cached_pipeline->handles.point_list_pipeline;
+      break;
+    case PrimitiveType::kRectangleList:
+      pipeline = cached_pipeline->handles.rect_list_pipeline;
+      break;
+    case PrimitiveType::kQuadList:
+      pipeline = cached_pipeline->handles.quad_list_pipeline;
+      break;
+  }
+
+  draw_batcher_.ReconfigurePipeline(active_vertex_shader_, active_pixel_shader_,
+                                    pipeline);
+
+  glBindProgramPipeline(pipeline);
+  glBindVertexArray(active_vertex_shader_->vao());
+
+  return UpdateStatus::kMismatch;
+}
+
+CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
   auto& regs = update_render_targets_regs_;
 
   bool dirty = false;
@@ -1508,6 +1537,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets(
   }
 
   SCOPE_profile_cpu_f("gpu");
+
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
   auto enable_mode = static_cast<ModeControl>(regs.rb_modecontrol & 0x7);
 
@@ -1586,10 +1617,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets(
   return UpdateStatus::kMismatch;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateState(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateState() {
   auto& regs = *register_file_;
-  auto state_data = draw_command->state_data;
 
   bool mismatch = false;
 
@@ -1597,10 +1626,9 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateState(
   // Deprecated in GL, implemented in shader.
   // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
   uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-  state_data->alpha_test.x =
-      (color_control & 0x4) ? 1.0f : 0.0f;                // ALPAHTESTENABLE
-  state_data->alpha_test.y = float(color_control & 0x3);  // ALPHAFUNC
-  state_data->alpha_test.z = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+  draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  // ALPAHTESTENABLE
+                               color_control & 0x3,         // ALPHAFUNC
+                               regs[XE_GPU_REG_RB_ALPHA_REF].f32);
 
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                          \
@@ -1613,22 +1641,20 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateState(
   }
 
   UpdateStatus status;
-  status = UpdateViewportState(draw_command);
+  status = UpdateViewportState();
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update viewport state");
-  status = UpdateRasterizerState(draw_command);
+  status = UpdateRasterizerState();
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterizer state");
-  status = UpdateBlendState(draw_command);
+  status = UpdateBlendState();
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update blend state");
-  status = UpdateDepthStencilState(draw_command);
+  status = UpdateDepthStencilState();
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update depth/stencil state");
 
   return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   auto& regs = *register_file_;
-  auto state_data = draw_command->state_data;
 
   // NOTE: we don't track state here as this is all cheap to update (ish).
 
@@ -1644,18 +1670,16 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
   if ((mode_control >> 17) & 1) {
     uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-    state_data->window_offset.x = float(window_offset & 0x7FFF);
-    state_data->window_offset.y = float((window_offset >> 16) & 0x7FFF);
+    draw_batcher_.set_window_offset(window_offset & 0x7FFF,
+                                    (window_offset >> 16) & 0x7FFF);
   } else {
-    state_data->window_offset.x = 0;
-    state_data->window_offset.y = 0;
+    draw_batcher_.set_window_offset(0, 0);
   }
   uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  state_data->window_scissor.x = float(window_scissor_tl & 0x7FFF);
-  state_data->window_scissor.y = float((window_scissor_tl >> 16) & 0x7FFF);
-  state_data->window_scissor.z = float(window_scissor_br & 0x7FFF);
-  state_data->window_scissor.w = float((window_scissor_br >> 16) & 0x7FFF);
+  draw_batcher_.set_window_scissor(
+      window_scissor_tl & 0x7FFF, (window_scissor_tl >> 16) & 0x7FFF,
+      window_scissor_br & 0x7FFF, (window_scissor_br >> 16) & 0x7FFF);
 
   // HACK: no clue where to get these values.
   // RB_SURFACE_INFO
@@ -1676,8 +1700,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
       window_height_scalar = 2;
       break;
   }
-  state_data->window_offset.z = window_width_scalar;
-  state_data->window_offset.w = window_height_scalar;
+  draw_batcher_.set_window_scalar(window_width_scalar, window_height_scalar);
 
   // Whether each of the viewport settings is enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -1693,33 +1716,25 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
               vport_yoffset_enable == vport_zoffset_enable);
 
   // Viewport scaling. Only enabled if the flags are all set.
-  state_data->viewport_scale.x =
-      vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1;  // 640
-  state_data->viewport_offset.x = vport_xoffset_enable
-                                      ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
-                                      : 0;  // 640
-  state_data->viewport_scale.y = vport_yscale_enable
-                                     ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
-                                     : 1;  // -360
-  state_data->viewport_offset.y = vport_yoffset_enable
-                                      ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-                                      : 0;  // 360
-  state_data->viewport_scale.z =
-      vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1;  // 1
-  state_data->viewport_offset.z =
-      vport_zoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32 : 0;  // 0
+  draw_batcher_.set_viewport_offset(
+      vport_xoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32 : 0,
+      vport_yoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32 : 0,
+      vport_zoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32 : 0);
+  draw_batcher_.set_viewport_scale(
+      vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1,
+      vport_yscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32 : 1,
+      vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1);
 
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
   //            = false: multiply the X, Y coordinates by 1/W0.
-  state_data->vtx_fmt.x = state_data->vtx_fmt.y =
-      (vte_control >> 8) & 0x1 ? 1.0f : 0.0f;
   // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
   //           = false: multiply the Z coordinate by 1/W0.
-  state_data->vtx_fmt.z = (vte_control >> 9) & 0x1 ? 1.0f : 0.0f;
   // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
   //                    get 1/W0.
-  state_data->vtx_fmt.w = (vte_control >> 10) & 0x1 ? 1.0f : 0.0f;
+  draw_batcher_.set_vtx_fmt((vte_control >> 8) & 0x1 ? 1.0f : 0.0f,
+                            (vte_control >> 9) & 0x1 ? 1.0f : 0.0f,
+                            (vte_control >> 10) & 0x1 ? 1.0f : 0.0f);
 
   // Clipping.
   // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/14/yamato_genenum.h#L1587
@@ -1732,8 +1747,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState(
   return UpdateStatus::kCompatible;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
   auto& regs = update_rasterizer_state_regs_;
 
   bool dirty = false;
@@ -1748,6 +1762,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState(
   }
 
   SCOPE_profile_cpu_f("gpu");
+
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
   // Scissoring.
   if (regs.pa_sc_screen_scissor_tl != 0 &&
@@ -1766,10 +1782,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState(
     glDisable(GL_SCISSOR_TEST);
   }
 
-  // Rect lists aren't culled. There may be other things they skip too.
-  assert_true((regs.pa_su_sc_mode_cntl & 0x3) == 0 ||
-              draw_command->prim_type != PrimitiveType::kRectangleList);
-
   switch (regs.pa_su_sc_mode_cntl & 0x3) {
     case 0:
       glDisable(GL_CULL_FACE);
@@ -1782,6 +1794,12 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState(
       glEnable(GL_CULL_FACE);
       glCullFace(GL_BACK);
       break;
+  }
+
+  if (regs.pa_su_sc_mode_cntl & (1 << 20)) {
+    glProvokingVertex(GL_LAST_VERTEX_CONVENTION);
+  } else {
+    glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
   }
 
   if (regs.pa_su_sc_mode_cntl & 0x4) {
@@ -1797,8 +1815,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState(
   return UpdateStatus::kMismatch;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
   auto& regs = update_blend_state_regs_;
 
   bool dirty = false;
@@ -1819,6 +1836,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState(
   }
 
   SCOPE_profile_cpu_f("gpu");
+
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
   static const GLenum blend_map[] = {
       /*  0 */ GL_ZERO,
@@ -1882,8 +1901,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState(
   return UpdateStatus::kMismatch;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
   auto& regs = update_depth_stencil_state_regs_;
 
   bool dirty = false;
@@ -1895,6 +1913,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState(
   }
 
   SCOPE_profile_cpu_f("gpu");
+
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
   static const GLenum compare_func_map[] = {
       /*  0 */ GL_NEVER,
@@ -1977,192 +1997,72 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState(
   return UpdateStatus::kMismatch;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::UpdateConstants(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer() {
   auto& regs = *register_file_;
-  auto state_data = draw_command->state_data;
-
-  // TODO(benvanik): partial updates, etc. We could use shader constant access
-  // knowledge that we get at compile time to only upload those constants
-  // required. If we did this as a variable length then we could really cut
-  // down on state block sizes.
-
-  // Copy over all constants.
-  std::memcpy(&state_data->float_consts,
-              &regs[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
-              sizeof(state_data->float_consts));
-  std::memcpy(
-      &state_data->bool_consts,
-      &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].f32,
-      sizeof(state_data->bool_consts) + sizeof(state_data->loop_consts));
-
-  return UpdateStatus::kCompatible;
-}
-
-CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
-    DrawCommand* draw_command) {
-  auto& regs = update_shaders_regs_;
-  auto& cmd = *draw_command;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
-  dirty |= regs.vertex_shader != active_vertex_shader_;
-  dirty |= regs.pixel_shader != active_pixel_shader_;
-  dirty |= regs.prim_type != cmd.prim_type;
-  if (!dirty) {
+  auto& info = index_buffer_info_;
+  if (!info.guest_base) {
+    // No index buffer or auto draw.
     return UpdateStatus::kCompatible;
   }
-  regs.vertex_shader = active_vertex_shader_;
-  regs.pixel_shader = active_pixel_shader_;
-  regs.prim_type = cmd.prim_type;
 
+#if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
 
-  xe_gpu_program_cntl_t program_cntl;
-  program_cntl.dword_0 = regs.sq_program_cntl;
-  if (!active_vertex_shader_->has_prepared()) {
-    if (!active_vertex_shader_->PrepareVertexShader(program_cntl)) {
-      XELOGE("Unable to prepare vertex shader");
-      return UpdateStatus::kError;
-    }
-  } else if (!active_vertex_shader_->is_valid()) {
-    XELOGE("Vertex shader invalid");
-    return UpdateStatus::kError;
-  }
-
-  if (!active_pixel_shader_->has_prepared()) {
-    if (!active_pixel_shader_->PreparePixelShader(program_cntl)) {
-      XELOGE("Unable to prepare pixel shader");
-      return UpdateStatus::kError;
-    }
-  } else if (!active_pixel_shader_->is_valid()) {
-    XELOGE("Pixel shader invalid");
-    return UpdateStatus::kError;
-  }
-
-  GLuint vertex_program = active_vertex_shader_->program();
-  GLuint fragment_program = active_pixel_shader_->program();
-
-  uint64_t key = (uint64_t(vertex_program) << 32) | fragment_program;
-  CachedPipeline* cached_pipeline = nullptr;
-  auto it = cached_pipelines_.find(key);
-  if (it == cached_pipelines_.end()) {
-    // Existing pipeline for these programs not found - create it.
-    auto new_pipeline = std::make_unique<CachedPipeline>();
-    new_pipeline->vertex_program = vertex_program;
-    new_pipeline->fragment_program = fragment_program;
-    new_pipeline->handles.default_pipeline = 0;
-    cached_pipeline = new_pipeline.get();
-    all_pipelines_.emplace_back(std::move(new_pipeline));
-    cached_pipelines_.insert({key, cached_pipeline});
-  } else {
-    // Found a pipeline container - it may or may not have what we want.
-    cached_pipeline = it->second;
-  }
-  if (!cached_pipeline->handles.default_pipeline) {
-    // Perhaps it's a bit wasteful to do all of these, but oh well.
-    GLuint pipelines[4];
-    glCreateProgramPipelines(GLsizei(poly::countof(pipelines)), pipelines);
-
-    glUseProgramStages(pipelines[0], GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipelines[0], GL_FRAGMENT_SHADER_BIT, fragment_program);
-    cached_pipeline->handles.default_pipeline = pipelines[0];
-
-    glUseProgramStages(pipelines[1], GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipelines[1], GL_GEOMETRY_SHADER_BIT,
-                       point_list_geometry_program_);
-    glUseProgramStages(pipelines[1], GL_FRAGMENT_SHADER_BIT, fragment_program);
-    cached_pipeline->handles.point_list_pipeline = pipelines[1];
-
-    glUseProgramStages(pipelines[2], GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipelines[2], GL_GEOMETRY_SHADER_BIT,
-                       rect_list_geometry_program_);
-    glUseProgramStages(pipelines[2], GL_FRAGMENT_SHADER_BIT, fragment_program);
-    cached_pipeline->handles.rect_list_pipeline = pipelines[2];
-
-    glUseProgramStages(pipelines[3], GL_VERTEX_SHADER_BIT, vertex_program);
-    glUseProgramStages(pipelines[3], GL_GEOMETRY_SHADER_BIT,
-                       quad_list_geometry_program_);
-    glUseProgramStages(pipelines[3], GL_FRAGMENT_SHADER_BIT, fragment_program);
-    cached_pipeline->handles.quad_list_pipeline = pipelines[3];
-  }
-
-  GLuint pipeline = cached_pipeline->handles.default_pipeline;
-  switch (regs.prim_type) {
-    case PrimitiveType::kPointList:
-      pipeline = cached_pipeline->handles.point_list_pipeline;
-      break;
-    case PrimitiveType::kRectangleList:
-      pipeline = cached_pipeline->handles.rect_list_pipeline;
-      break;
-    case PrimitiveType::kQuadList:
-      pipeline = cached_pipeline->handles.quad_list_pipeline;
-      break;
-  }
-  glBindProgramPipeline(pipeline);
-
-  return UpdateStatus::kMismatch;
-}
-
-CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer(
-    DrawCommand* draw_command) {
-  auto& cmd = *draw_command;
-
-  auto& info = cmd.index_buffer;
-  if (!cmd.index_count || !info.address) {
-    // No index buffer or auto draw.
-    return UpdateStatus::kMismatch;  // ?
-  }
-
-  SCOPE_profile_cpu_f("gpu");
+  // Min/max index ranges. This is often [0g,FFFF|FFFFFF], but if it's not we
+  // can use it to do a glDrawRangeElements.
+  uint32_t min_index = regs[XE_GPU_REG_VGT_MIN_VTX_INDX].u32;
+  uint32_t max_index = regs[XE_GPU_REG_VGT_MAX_VTX_INDX].u32;
+  assert_true(min_index == 0);
+  assert_true(max_index == 0xFFFF || max_index == 0xFFFFFF);
 
   assert_true(info.endianness == Endian::k8in16 ||
               info.endianness == Endian::k8in32);
 
   size_t total_size =
-      cmd.index_count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
-                                                            : sizeof(uint16_t));
+      info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
+                                                       : sizeof(uint16_t));
   auto allocation = scratch_buffer_.Acquire(total_size);
-  scratch_buffer_stats_.total_indices_size += total_size;
 
   if (info.format == IndexFormat::kInt32) {
-    poly::copy_and_swap_32_aligned(
-        reinterpret_cast<uint32_t*>(allocation.host_ptr),
-        reinterpret_cast<const uint32_t*>(cmd.index_buffer.address),
-        cmd.index_count);
+    auto dest = reinterpret_cast<uint32_t*>(allocation.host_ptr);
+    auto src = reinterpret_cast<const uint32_t*>(membase_ + info.guest_base);
+    uint32_t max_index_found;
+    poly::copy_and_swap_32_aligned(dest, src, info.count, &max_index_found);
+    index_buffer_info_.max_index_found = max_index_found;
   } else {
-    poly::copy_and_swap_16_aligned(
-        reinterpret_cast<uint16_t*>(allocation.host_ptr),
-        reinterpret_cast<const uint16_t*>(cmd.index_buffer.address),
-        cmd.index_count);
+    auto dest = reinterpret_cast<uint16_t*>(allocation.host_ptr);
+    auto src = reinterpret_cast<const uint16_t*>(membase_ + info.guest_base);
+    uint16_t max_index_found;
+    poly::copy_and_swap_16_aligned(dest, src, info.count, &max_index_found);
+    index_buffer_info_.max_index_found = max_index_found;
   }
 
-  if (has_bindless_vbos_) {
-    glBufferAddressRangeNV(GL_ELEMENT_ARRAY_ADDRESS_NV, 0, allocation.gpu_ptr,
-                           allocation.length);
-  } else {
-    // Offset is used in glDrawElements.
-    cmd.index_buffer.buffer_offset = allocation.offset;
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, scratch_buffer_.handle());
-  }
+  draw_batcher_.set_index_buffer(allocation);
+
   scratch_buffer_.Commit(std::move(allocation));
 
-  return UpdateStatus::kMismatch;
+  return UpdateStatus::kCompatible;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
+#if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto& regs = *register_file_;
-  auto& cmd = *draw_command;
   assert_not_null(active_vertex_shader_);
 
-  const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
+  if (!has_bindless_vbos_) {
+    // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
+    draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
+  }
 
   uint32_t el_index = 0;
-  for (uint32_t n = 0; n < buffer_inputs.count; n++) {
-    const auto& desc = buffer_inputs.descs[n];
-
+  const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
+  for (uint32_t buffer_index = 0; buffer_index < buffer_inputs.count;
+       ++buffer_index) {
+    const auto& desc = buffer_inputs.descs[buffer_index];
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
     auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
     xe_gpu_vertex_fetch_t* fetch = nullptr;
@@ -2177,14 +2077,16 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers(
         fetch = &group->vertex_fetch_2;
         break;
     }
-    assert_not_null(fetch);
-    assert_true(fetch->type == 0x3);  // must be of type vertex
-    // TODO(benvanik): some games have type 2, which is texture - maybe
-    //                 fetch_slot wrong?
-    assert_not_zero(fetch->size);
 
-    auto allocation = scratch_buffer_.Acquire(fetch->size * sizeof(uint32_t));
-    scratch_buffer_stats_.total_vertices_size += fetch->size * sizeof(uint32_t);
+    // Constrain the vertex upload to just what we are interested in.
+    const size_t kRangeKludge = 5;  // could pick index count based on prim.
+    uint32_t max_index = index_buffer_info_.guest_base
+                             ? index_buffer_info_.max_index_found
+                             : draw_index_count_;
+    size_t valid_range = (max_index + kRangeKludge) * desc.stride_words * 4;
+    valid_range = std::min(valid_range, size_t(fetch->size * 4));
+
+    auto allocation = scratch_buffer_.Acquire(valid_range);
 
     // Copy and byte swap the entire buffer.
     // We could be smart about this to save GPU bandwidth by building a CRC
@@ -2193,93 +2095,35 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers(
     poly::copy_and_swap_32_aligned(
         reinterpret_cast<uint32_t*>(allocation.host_ptr),
         reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
-        fetch->size);
+        valid_range / 4);
 
     if (!has_bindless_vbos_) {
-      glBindVertexBuffer(n, scratch_buffer_.handle(), allocation.offset,
-                         desc.stride_words * 4);
+      // TODO(benvanik): if we could find a way to avoid this, we could use
+      // multidraw without flushing.
+      glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+                                scratch_buffer_.handle(), allocation.offset,
+                                desc.stride_words * 4);
     }
 
-    for (uint32_t i = 0; i < desc.element_count; ++i) {
-      const auto& el = desc.elements[i];
-      auto comp_count = GetVertexFormatComponentCount(el.format);
-      GLenum comp_type;
-      switch (el.format) {
-        case VertexFormat::k_8_8_8_8:
-          comp_type = el.is_signed ? GL_BYTE : GL_UNSIGNED_BYTE;
-          break;
-        case VertexFormat::k_2_10_10_10:
-          comp_type = el.is_signed ? GL_INT_2_10_10_10_REV
-                                   : GL_UNSIGNED_INT_2_10_10_10_REV;
-          break;
-        case VertexFormat::k_10_11_11:
-          assert_false(el.is_signed);
-          comp_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
-          break;
-        /*case VertexFormat::k_11_11_10:
-          break;*/
-        case VertexFormat::k_16_16:
-          comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
-          break;
-        case VertexFormat::k_16_16_FLOAT:
-          comp_type = GL_HALF_FLOAT;
-          break;
-        case VertexFormat::k_16_16_16_16:
-          comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
-          break;
-        case VertexFormat::k_16_16_16_16_FLOAT:
-          comp_type = GL_HALF_FLOAT;
-          break;
-        case VertexFormat::k_32:
-          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
-          break;
-        case VertexFormat::k_32_32:
-          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
-          break;
-        case VertexFormat::k_32_32_32_32:
-          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
-          break;
-        case VertexFormat::k_32_FLOAT:
-          comp_type = GL_FLOAT;
-          break;
-        case VertexFormat::k_32_32_FLOAT:
-          comp_type = GL_FLOAT;
-          break;
-        case VertexFormat::k_32_32_32_FLOAT:
-          comp_type = GL_FLOAT;
-          break;
-        case VertexFormat::k_32_32_32_32_FLOAT:
-          comp_type = GL_FLOAT;
-          break;
-        default:
-          assert_unhandled_case(el.format);
-          break;
+    if (has_bindless_vbos_) {
+      for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
+        const auto& el = desc.elements[i];
+        draw_batcher_.set_vertex_buffer(el_index, 0, desc.stride_words * 4,
+                                        allocation);
       }
-      if (has_bindless_vbos_) {
-        glVertexAttribFormatNV(el_index, comp_count, comp_type,
-                               el.is_normalized,
-                               desc.stride_words * sizeof(uint32_t));
-        glBufferAddressRangeNV(GL_VERTEX_ATTRIB_ARRAY_ADDRESS_NV, el_index,
-                               allocation.gpu_ptr + (el.offset_words * 4),
-                               allocation.length - (el.offset_words * 4));
-      } else {
-        glVertexAttribBinding(el_index, n);
-        glVertexAttribFormat(el_index, comp_count, comp_type, el.is_normalized,
-                             el.offset_words * 4);
-      }
-      ++el_index;
     }
 
-    // Flush buffer before we draw.
     scratch_buffer_.Commit(std::move(allocation));
   }
 
-  return UpdateStatus::kMismatch;
+  return UpdateStatus::kCompatible;
 }
 
-CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers(
-    DrawCommand* draw_command) {
+CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers() {
+#if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto& regs = *register_file_;
 
   bool mismatch = false;
@@ -2296,7 +2140,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers(
       continue;
     }
     has_setup_sampler[desc.fetch_slot] = true;
-    auto status = PopulateSampler(draw_command, desc);
+    auto status = PopulateSampler(desc);
     if (status == UpdateStatus::kError) {
       return status;
     } else if (status == UpdateStatus::kMismatch) {
@@ -2312,7 +2156,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers(
       continue;
     }
     has_setup_sampler[desc.fetch_slot] = true;
-    auto status = PopulateSampler(draw_command, desc);
+    auto status = PopulateSampler(desc);
     if (status == UpdateStatus::kError) {
       return UpdateStatus::kError;
     } else if (status == UpdateStatus::kMismatch) {
@@ -2324,7 +2168,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers(
 }
 
 CommandProcessor::UpdateStatus CommandProcessor::PopulateSampler(
-    DrawCommand* draw_command, const Shader::SamplerDesc& desc) {
+    const Shader::SamplerDesc& desc) {
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + desc.fetch_slot * 6;
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
@@ -2332,7 +2176,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSampler(
 
   // Reset slot.
   // If we fail, we still draw but with an invalid texture.
-  draw_command->state_data->texture_samplers[desc.fetch_slot] = 0;
+  draw_batcher_.set_texture_sampler(desc.fetch_slot, 0);
 
   if (FLAGS_disable_textures) {
     return UpdateStatus::kCompatible;
@@ -2363,13 +2207,13 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSampler(
   }
 
   // Shaders will use bindless to fetch right from it.
-  draw_command->state_data->texture_samplers[desc.fetch_slot] =
-      entry_view->texture_sampler_handle;
+  draw_batcher_.set_texture_sampler(desc.fetch_slot,
+                                    entry_view->texture_sampler_handle);
 
   return UpdateStatus::kCompatible;
 }
 
-bool CommandProcessor::IssueCopy(DrawCommand* draw_command) {
+bool CommandProcessor::IssueCopy() {
   SCOPE_profile_cpu_f("gpu");
   auto& regs = *register_file_;
 

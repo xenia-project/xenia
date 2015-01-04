@@ -11,12 +11,15 @@
 
 #include <poly/cxx_compat.h>
 #include <poly/math.h>
+#include <xenia/gpu/gl4/gl4_gpu-private.h>
 #include <xenia/gpu/gl4/gl4_shader_translator.h>
 #include <xenia/gpu/gpu-private.h>
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
+
+using namespace xe::gpu::xenos;
 
 extern "C" GLEWContext* glewGetContext();
 
@@ -25,41 +28,147 @@ thread_local GL4ShaderTranslator shader_translator_;
 
 GL4Shader::GL4Shader(ShaderType shader_type, uint64_t data_hash,
                      const uint32_t* dword_ptr, uint32_t dword_count)
-    : Shader(shader_type, data_hash, dword_ptr, dword_count), program_(0) {}
+    : Shader(shader_type, data_hash, dword_ptr, dword_count),
+      program_(0),
+      vao_(0) {}
 
-GL4Shader::~GL4Shader() { glDeleteProgram(program_); }
+GL4Shader::~GL4Shader() {
+  glDeleteProgram(program_);
+  glDeleteVertexArrays(1, &vao_);
+}
 
-const std::string header =
-    "#version 450\n"
-    "#extension all : warn\n"
-    "#extension GL_ARB_bindless_texture : require\n"
-    "#extension GL_ARB_explicit_uniform_location : require\n"
-    "#extension GL_ARB_shading_language_420pack : require\n"
-    "#extension GL_ARB_shader_storage_buffer_object : require\n"
-    "precision highp float;\n"
-    "precision highp int;\n"
-    "layout(std140, column_major) uniform;\n"
-    "layout(std430, column_major) buffer;\n"
-    "struct StateData {\n"
-    "  vec4 window_offset;\n"
-    "  vec4 window_scissor;\n"
-    "  vec4 vtx_fmt;\n"
-    "  vec4 viewport_offset;\n"
-    "  vec4 viewport_scale;\n"
-    "  vec4 alpha_test;\n"
-    "  uvec2 texture_samplers[32];\n"
-    "  vec4 float_consts[512];\n"
-    "  uint fetch_consts[32 * 6];\n"
-    "  int bool_consts[8];\n"
-    "  int loop_consts[32];\n"
-    "};\n"
-    "struct VertexData {\n"
-    "  vec4 o[16];\n"
-    "};\n"
-    "\n"
-    "layout(binding = 0) buffer State {\n"
-    "  StateData state;\n"
-    "};\n";
+std::string GL4Shader::GetHeader() {
+  static const std::string header =
+      "#version 450\n"
+      "#extension all : warn\n"
+      "#extension GL_ARB_bindless_texture : require\n"
+      "#extension GL_ARB_explicit_uniform_location : require\n"
+      "#extension GL_ARB_shader_draw_parameters : require\n"
+      "#extension GL_ARB_shader_storage_buffer_object : require\n"
+      "#extension GL_ARB_shading_language_420pack : require\n"
+      "precision highp float;\n"
+      "precision highp int;\n"
+      "layout(std140, column_major) uniform;\n"
+      "layout(std430, column_major) buffer;\n"
+      "\n"
+      // This must match DrawBatcher::CommonHeader.
+      "struct StateData {\n"
+      "  vec4 window_offset;\n"
+      "  vec4 window_scissor;\n"
+      "  vec4 viewport_offset;\n"
+      "  vec4 viewport_scale;\n"
+      "  vec4 vtx_fmt;\n"
+      "  vec4 alpha_test;\n"
+      // TODO(benvanik): variable length.
+      "  uvec2 texture_samplers[32];\n"
+      "  vec4 float_consts[512];\n"
+      "  int bool_consts[8];\n"
+      "  int loop_consts[32];\n"
+      "};\n"
+      "layout(binding = 0) buffer State {\n"
+      "  StateData states[];\n"
+      "};\n"
+      "\n"
+      "struct VertexData {\n"
+      "  vec4 o[16];\n"
+      "};\n";
+  return header;
+}
+
+bool GL4Shader::PrepareVertexArrayObject() {
+  glCreateVertexArrays(1, &vao_);
+
+  bool has_bindless_vbos = false;
+  if (FLAGS_vendor_gl_extensions && GLEW_NV_vertex_buffer_unified_memory) {
+    has_bindless_vbos = true;
+    // Nasty, but no DSA for this.
+    glBindVertexArray(vao_);
+    glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
+    glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
+  }
+
+  uint32_t el_index = 0;
+  for (uint32_t buffer_index = 0; buffer_index < buffer_inputs_.count;
+       ++buffer_index) {
+    const auto& desc = buffer_inputs_.descs[buffer_index];
+
+    for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
+      const auto& el = desc.elements[i];
+      auto comp_count = GetVertexFormatComponentCount(el.format);
+      GLenum comp_type;
+      switch (el.format) {
+        case VertexFormat::k_8_8_8_8:
+          comp_type = el.is_signed ? GL_BYTE : GL_UNSIGNED_BYTE;
+          break;
+        case VertexFormat::k_2_10_10_10:
+          comp_type = el.is_signed ? GL_INT_2_10_10_10_REV
+                                   : GL_UNSIGNED_INT_2_10_10_10_REV;
+          break;
+        case VertexFormat::k_10_11_11:
+          assert_false(el.is_signed);
+          comp_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
+          break;
+        /*case VertexFormat::k_11_11_10:
+        break;*/
+        case VertexFormat::k_16_16:
+          comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
+          break;
+        case VertexFormat::k_16_16_FLOAT:
+          comp_type = GL_HALF_FLOAT;
+          break;
+        case VertexFormat::k_16_16_16_16:
+          comp_type = el.is_signed ? GL_SHORT : GL_UNSIGNED_SHORT;
+          break;
+        case VertexFormat::k_16_16_16_16_FLOAT:
+          comp_type = GL_HALF_FLOAT;
+          break;
+        case VertexFormat::k_32:
+          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
+          break;
+        case VertexFormat::k_32_32:
+          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
+          break;
+        case VertexFormat::k_32_32_32_32:
+          comp_type = el.is_signed ? GL_INT : GL_UNSIGNED_INT;
+          break;
+        case VertexFormat::k_32_FLOAT:
+          comp_type = GL_FLOAT;
+          break;
+        case VertexFormat::k_32_32_FLOAT:
+          comp_type = GL_FLOAT;
+          break;
+        case VertexFormat::k_32_32_32_FLOAT:
+          comp_type = GL_FLOAT;
+          break;
+        case VertexFormat::k_32_32_32_32_FLOAT:
+          comp_type = GL_FLOAT;
+          break;
+        default:
+          assert_unhandled_case(el.format);
+          return false;
+      }
+
+      glEnableVertexArrayAttrib(vao_, el_index);
+      if (has_bindless_vbos) {
+        // NOTE: MultiDrawIndirectBindlessMumble doesn't handle separate
+        // vertex bindings/formats.
+        glVertexAttribFormat(el_index, comp_count, comp_type, el.is_normalized,
+                             el.offset_words * 4);
+        glVertexArrayVertexBuffer(vao_, el_index, 0, 0, desc.stride_words * 4);
+      } else {
+        glVertexArrayAttribBinding(vao_, el_index, buffer_index);
+        glVertexArrayAttribFormat(vao_, el_index, comp_count, comp_type,
+                                  el.is_normalized, el.offset_words * 4);
+      }
+    }
+  }
+
+  if (has_bindless_vbos) {
+    glBindVertexArray(0);
+  }
+
+  return true;
+}
 
 bool GL4Shader::PrepareVertexShader(
     const xenos::xe_gpu_program_cntl_t& program_cntl) {
@@ -68,8 +177,14 @@ bool GL4Shader::PrepareVertexShader(
   }
   has_prepared_ = true;
 
+  // Build static vertex array descriptor.
+  if (!PrepareVertexArrayObject()) {
+    PLOGE("Unable to prepare vertex shader array object");
+    return false;
+  }
+
   std::string apply_transform =
-      "vec4 applyTransform(vec4 pos) {\n"
+      "vec4 applyTransform(const in StateData state, vec4 pos) {\n"
       "  // Clip->NDC with perspective divide.\n"
       "  // We do this here because it's programmable on the 360.\n"
       "  float w = pos.w;\n"
@@ -107,14 +222,15 @@ bool GL4Shader::PrepareVertexShader(
       "  return pos;\n"
       "}\n";
   std::string source =
-      header + apply_transform +
+      GetHeader() + apply_transform +
       "out gl_PerVertex {\n"
       "  vec4 gl_Position;\n"
       "  float gl_PointSize;\n"
       "  float gl_ClipDistance[];\n"
       "};\n"
-      "layout(location = 0) out VertexData vtx;\n"
-      "void processVertex();\n"
+      "layout(location = 0) flat out uint draw_id;\n"
+      "layout(location = 1) out VertexData vtx;\n"
+      "void processVertex(const in StateData state);\n"
       "void main() {\n" +
       (alloc_counts().positions ? "  gl_Position = vec4(0.0, 0.0, 0.0, 1.0);\n"
                                 : "") +
@@ -122,8 +238,10 @@ bool GL4Shader::PrepareVertexShader(
       "  for (int i = 0; i < vtx.o.length(); ++i) {\n"
       "    vtx.o[i] = vec4(0.0, 0.0, 0.0, 0.0);\n"
       "  }\n"
-      "  processVertex();\n"
-      "  gl_Position = applyTransform(gl_Position);\n"
+      "  const StateData state = states[gl_DrawIDARB];\n"
+      "  processVertex(state);\n"
+      "  gl_Position = applyTransform(state, gl_Position);\n"
+      "  draw_id = gl_DrawIDARB;\n"
       "}\n";
 
   std::string translated_source =
@@ -149,12 +267,14 @@ bool GL4Shader::PreparePixelShader(
   }
   has_prepared_ = true;
 
-  std::string source = header +
-                       "layout(location = 0) in VertexData vtx;\n"
+  std::string source = GetHeader() +
+                       "layout(location = 0) flat in uint draw_id;\n"
+                       "layout(location = 1) in VertexData vtx;\n"
                        "layout(location = 0) out vec4 oC[4];\n"
-                       "void processFragment();\n"
+                       "void processFragment(const in StateData state);\n"
                        "void main() {\n" +
-                       "  processFragment();\n"
+                       "  const StateData state = states[draw_id];\n"
+                       "  processFragment(state);\n"
                        "}\n";
 
   std::string translated_source =

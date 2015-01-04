@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_GL4_GL4_SHADER_H_
 #define XENIA_GPU_GL4_GL4_SHADER_H_
 
+#include <string>
+
 #include <xenia/common.h>
 #include <xenia/gpu/gl4/gl_context.h>
 #include <xenia/gpu/shader.h>
@@ -25,14 +27,18 @@ class GL4Shader : public Shader {
   ~GL4Shader() override;
 
   GLuint program() const { return program_; }
+  GLuint vao() const { return vao_; }
 
   bool PrepareVertexShader(const xenos::xe_gpu_program_cntl_t& program_cntl);
   bool PreparePixelShader(const xenos::xe_gpu_program_cntl_t& program_cntl);
 
  protected:
+  std::string GetHeader();
+  bool PrepareVertexArrayObject();
   bool CompileProgram(std::string source);
 
   GLuint program_;
+  GLuint vao_;
 };
 
 }  // namespace gl4
