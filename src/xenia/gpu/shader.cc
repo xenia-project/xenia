@@ -215,6 +215,7 @@ void Shader::GatherVertexFetch(const instr_fetch_vtx_t* vtx) {
     desc.stride_words = vtx->stride;
     el = &desc.elements[desc.element_count++];
   }
+  ++inputs.total_elements_count;
 
   el->vtx_fetch = *vtx;
   el->format = static_cast<VertexFormat>(vtx->format);

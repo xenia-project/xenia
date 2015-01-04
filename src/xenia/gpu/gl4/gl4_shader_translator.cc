@@ -936,7 +936,8 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_RECIPSQ_IEEE(const ucode::instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_RECIPSQ_IEEE(
+    const ucode::instr_alu_t& alu) {
   AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   Append(" = ");
   if (alu.scalar_clamp) {
@@ -1298,8 +1299,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
     } else {
       Append("\t    \tOP(%u)\t", alu->scalar_opc);
     }
-    PrintDstReg(alu->scalar_dest, alu->scalar_write_mask,
-                alu->export_data);
+    PrintDstReg(alu->scalar_dest, alu->scalar_write_mask, alu->export_data);
     Append(" = ");
     if (is.num_srcs == 2) {
       // ADD_CONST_0 dest, [const], [reg]

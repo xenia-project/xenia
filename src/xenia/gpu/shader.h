@@ -51,6 +51,7 @@ class Shader {
   };
   struct BufferInputs {
     uint32_t count;
+    uint32_t total_elements_count;
     BufferDesc descs[32];
   };
   const BufferInputs& buffer_inputs() { return buffer_inputs_; }

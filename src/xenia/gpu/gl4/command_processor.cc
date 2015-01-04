@@ -163,7 +163,6 @@ void CommandProcessor::WorkerMain() {
 }
 
 bool CommandProcessor::SetupGL() {
-  glViewport(0, 0, 1280, 720);
 
   // Circular buffer holding scratch vertex/index data.
   if (!scratch_buffer_.Initialize()) {
@@ -1580,6 +1579,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets(
     // TODO(benvanik): can we do this all named?
     // TODO(benvanik): do we want this on READ too?
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
+
+    glViewport(0, 0, 1280, 720);
   }
 
   return UpdateStatus::kMismatch;

@@ -38,6 +38,7 @@ class CircularBuffer {
 
   bool CanAcquire(size_t length);
   Allocation Acquire(size_t length);
+  void Discard(Allocation allocation);
   void Commit(Allocation allocation);
   void Flush();
 

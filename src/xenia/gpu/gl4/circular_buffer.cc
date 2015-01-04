@@ -47,7 +47,7 @@ bool CircularBuffer::Initialize() {
 
   if (FLAGS_vendor_gl_extensions && GLEW_NV_shader_buffer_load) {
     // To use this bindlessly we must make it resident.
-    glMakeNamedBufferResidentNV(buffer_, GL_WRITE_ONLY);
+    glMakeNamedBufferResidentNV(buffer_, GL_READ_ONLY);
     glGetNamedBufferParameterui64vNV(buffer_, GL_BUFFER_GPU_ADDRESS_NV,
                                      &gpu_base_);
   }
@@ -90,11 +90,16 @@ CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   return allocation;
 }
 
+void CircularBuffer::Discard(Allocation allocation) {
+  write_head_ -= allocation.aligned_length;
+}
+
 void CircularBuffer::Commit(Allocation allocation) {
   uintptr_t start = allocation.gpu_ptr - gpu_base_;
   uintptr_t end = start + allocation.aligned_length;
   dirty_start_ = std::min(dirty_start_, start);
   dirty_end_ = std::max(dirty_end_, end);
+  assert_true(dirty_end_ <= capacity_);
 }
 
 void CircularBuffer::Flush() {
