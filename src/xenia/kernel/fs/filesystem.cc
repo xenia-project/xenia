@@ -32,7 +32,11 @@ FileSystem::~FileSystem() {
 }
 
 fs::FileSystemType FileSystem::InferType(const std::wstring& local_path) {
+  auto last_slash = local_path.find_last_of(poly::path_separator);
   auto last_dot = local_path.find_last_of('.');
+  if (last_dot < last_slash) {
+    last_dot = std::wstring::npos;
+  }
   if (last_dot == std::wstring::npos) {
     // Likely an STFS container.
     return FileSystemType::STFS_TITLE;
