@@ -22,7 +22,7 @@ using namespace xe::gpu::xenos;
 extern "C" GLEWContext* glewGetContext();
 extern "C" WGLEWContext* wglewGetContext();
 
-TextureCache::TextureCache() : membase_(nullptr), scratch_buffer_(nullptr) {
+TextureCache::TextureCache() : memory_(nullptr), scratch_buffer_(nullptr) {
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
@@ -30,9 +30,8 @@ TextureCache::TextureCache() : membase_(nullptr), scratch_buffer_(nullptr) {
 
 TextureCache::~TextureCache() { Shutdown(); }
 
-bool TextureCache::Initialize(uint8_t* membase,
-                              CircularBuffer* scratch_buffer) {
-  membase_ = membase;
+bool TextureCache::Initialize(Memory* memory, CircularBuffer* scratch_buffer) {
+  memory_ = memory;
   scratch_buffer_ = scratch_buffer;
   return true;
 }
@@ -59,17 +58,21 @@ void TextureCache::Scavenge() {
 }
 
 void TextureCache::Clear() {
-  // Kill all textures - some may be in the eviction list, but that's fine
-  // as we will clear that below.
-  while (texture_entries_.size()) {
-    auto entry = texture_entries_.begin()->second;
-    EvictTexture(entry);
-  }
+  EvictAllTextures();
 
   // Samplers must go last, as textures depend on them.
   while (sampler_entries_.size()) {
     auto entry = sampler_entries_.begin()->second;
     EvictSampler(entry);
+  }
+}
+
+void TextureCache::EvictAllTextures() {
+  // Kill all textures - some may be in the eviction list, but that's fine
+  // as we will clear that below.
+  while (texture_entries_.size()) {
+    auto entry = texture_entries_.begin()->second;
+    EvictTexture(entry);
   }
 
   {
@@ -78,13 +81,6 @@ void TextureCache::Clear() {
     invalidated_textures_sets_[1].clear();
   }
 }
-
-//typedef void (*WriteWatchCallback)(void* context, void* data, void* address);
-//uintptr_t AddWriteWatch(void* address, size_t length,
-//                        WriteWatchCallback callback, void* callback_context,
-//                        void* callback_data) {
-//  //
-//}
 
 TextureCache::TextureEntryView* TextureCache::Demand(
     const TextureInfo& texture_info, const SamplerInfo& sampler_info) {
@@ -121,6 +117,7 @@ TextureCache::TextureEntryView* TextureCache::Demand(
   view->texture_sampler_handle = glGetTextureSamplerHandleARB(
       texture_entry->handle, sampler_entry->handle);
   if (!view->texture_sampler_handle) {
+    assert_always("Unable to get texture handle?");
     return nullptr;
   }
   glMakeTextureHandleResidentARB(view->texture_sampler_handle);
@@ -261,6 +258,12 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   const uint64_t hash = opt_hash ? opt_hash : texture_info.hash();
   for (auto it = texture_entries_.find(hash); it != texture_entries_.end();
        ++it) {
+    if (it->second->pending_invalidation) {
+      // Whoa, we've been invalidated! Let's scavenge to cleanup and try again.
+      // TODO(benvanik): reuse existing texture storage.
+      Scavenge();
+      break;
+    }
     if (it->second->texture_info == texture_info) {
       // Found in cache!
       return it->second;
@@ -270,6 +273,8 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   // Not found, create.
   auto entry = std::make_unique<TextureEntry>();
   entry->texture_info = texture_info;
+  entry->write_watch_handle = 0;
+  entry->pending_invalidation = false;
   entry->handle = 0;
 
   GLenum target;
@@ -331,10 +336,24 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
     return nullptr;
   }
 
-  // AddWriteWatch(host_base, length, [](void* context_ptr, void* data_ptr,
-  // void* address) {
-  //  //
-  //}, this, &entry);
+  // Add a write watch. If any data in the given range is touched we'll get a
+  // callback and evict the texture. We could reuse the storage, though the
+  // driver is likely in a better position to pool that kind of stuff.
+  entry->write_watch_handle = memory_->AddWriteWatch(
+      texture_info.guest_address, texture_info.input_length,
+      [](void* context_ptr, void* data_ptr, uint32_t address) {
+        auto self = reinterpret_cast<TextureCache*>(context_ptr);
+        auto touched_entry = reinterpret_cast<TextureEntry*>(data_ptr);
+        // Clear watch handle first so we don't redundantly
+        // remove.
+        touched_entry->write_watch_handle = 0;
+        touched_entry->pending_invalidation = true;
+        // Add to pending list so Scavenge will clean it up.
+        self->invalidated_textures_mutex_.lock();
+        self->invalidated_textures_->push_back(touched_entry);
+        self->invalidated_textures_mutex_.unlock();
+      },
+      this, entry.get());
 
   // Add to map - map takes ownership.
   auto entry_ptr = entry.get();
@@ -343,9 +362,10 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
 }
 
 void TextureCache::EvictTexture(TextureEntry* entry) {
-  /*if (entry->write_watch_handle) {
-  // remove from watch list
-  }*/
+  if (entry->write_watch_handle) {
+    memory_->CancelWriteWatch(entry->write_watch_handle);
+    entry->write_watch_handle = 0;
+  }
 
   for (auto& view : entry->views) {
     glMakeTextureHandleNonResidentARB(view->texture_sampler_handle);
@@ -394,8 +414,7 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
 
 bool TextureCache::UploadTexture2D(GLuint texture,
                                    const TextureInfo& texture_info) {
-  auto host_address =
-      reinterpret_cast<const uint8_t*>(membase_ + texture_info.guest_address);
+  const auto host_address = memory_->Translate(texture_info.guest_address);
 
   GLenum internal_format = GL_RGBA8;
   GLenum format = GL_RGBA;

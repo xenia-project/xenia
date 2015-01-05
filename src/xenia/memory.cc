@@ -209,15 +209,15 @@ const static struct {
   uint64_t virtual_address_end;
   uint64_t target_address;
 } map_info[] = {
-      0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
-      0x40000000, 0x7EFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages (cont)
-      0x7F000000, 0x7F0FFFFF, 0x00000000,  //    (1mb) - GPU writeback
-      0x7F100000, 0x7FFFFFFF, 0x00100000,  //   (15mb) - XPS?
-      0x80000000, 0x8FFFFFFF, 0x80000000,  //  (256mb) - xex 64k pages
-      0x90000000, 0x9FFFFFFF, 0x80000000,  //  (256mb) - xex 4k pages
-      0xA0000000, 0xBFFFFFFF, 0x00000000,  //  (512mb) - physical 64k pages
-      0xC0000000, 0xDFFFFFFF, 0x00000000,  //          - physical 16mb pages
-      0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages
+    0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
+    0x40000000, 0x7EFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages (cont)
+    0x7F000000, 0x7F0FFFFF, 0x00000000,  //    (1mb) - GPU writeback
+    0x7F100000, 0x7FFFFFFF, 0x00100000,  //   (15mb) - XPS?
+    0x80000000, 0x8FFFFFFF, 0x80000000,  //  (256mb) - xex 64k pages
+    0x90000000, 0x9FFFFFFF, 0x80000000,  //  (256mb) - xex 4k pages
+    0xA0000000, 0xBFFFFFFF, 0x00000000,  //  (512mb) - physical 64k pages
+    0xC0000000, 0xDFFFFFFF, 0x00000000,  //          - physical 16mb pages
+    0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages
 };
 int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(poly::countof(map_info) == poly::countof(views_.all_views));
@@ -268,6 +268,17 @@ bool Memory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
   }
   return mmio_handler_->RegisterRange(address, mask, size, context,
                                       read_callback, write_callback);
+}
+
+uintptr_t Memory::AddWriteWatch(uint32_t guest_address, size_t length,
+                                cpu::WriteWatchCallback callback,
+                                void* callback_context, void* callback_data) {
+  return mmio_handler_->AddWriteWatch(guest_address, length, callback,
+                                      callback_context, callback_data);
+}
+
+void Memory::CancelWriteWatch(uintptr_t watch_handle) {
+  mmio_handler_->CancelWriteWatch(watch_handle);
 }
 
 uint8_t Memory::LoadI8(uint64_t address) {

@@ -18,6 +18,7 @@
 #include <xenia/gpu/gl4/gl_context.h>
 #include <xenia/gpu/sampler_info.h>
 #include <xenia/gpu/texture_info.h>
+#include <xenia/memory.h>
 
 namespace xe {
 namespace gpu {
@@ -36,18 +37,21 @@ class TextureCache {
   };
   struct TextureEntry {
     TextureInfo texture_info;
+    uintptr_t write_watch_handle;
     GLuint handle;
+    bool pending_invalidation;
     std::vector<std::unique_ptr<TextureEntryView>> views;
   };
 
   TextureCache();
   ~TextureCache();
 
-  bool Initialize(uint8_t* membase, CircularBuffer* scratch_buffer);
+  bool Initialize(Memory* memory, CircularBuffer* scratch_buffer);
   void Shutdown();
 
   void Scavenge();
   void Clear();
+  void EvictAllTextures();
 
   TextureEntryView* Demand(const TextureInfo& texture_info,
                            const SamplerInfo& sampler_info);
@@ -62,7 +66,7 @@ class TextureCache {
 
   bool UploadTexture2D(GLuint texture, const TextureInfo& texture_info);
 
-  uint8_t* membase_;
+  Memory* memory_;
   CircularBuffer* scratch_buffer_;
   std::unordered_map<uint64_t, SamplerEntry*> sampler_entries_;
   std::unordered_map<uint64_t, TextureEntry*> texture_entries_;

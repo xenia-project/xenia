@@ -78,6 +78,109 @@ bool MMIOHandler::CheckStore(uint64_t address, uint64_t value) {
   return false;
 }
 
+uintptr_t MMIOHandler::AddWriteWatch(uint32_t guest_address, size_t length,
+                                     WriteWatchCallback callback,
+                                     void* callback_context,
+                                     void* callback_data) {
+  uint32_t base_address = guest_address;
+  if (base_address > 0xA0000000) {
+    base_address -= 0xA0000000;
+  }
+
+  // Add to table. The slot reservation may evict a previous watch, which
+  // could include our target, so we do it first.
+  auto entry = new WriteWatchEntry();
+  entry->address = base_address;
+  entry->length = uint32_t(length);
+  entry->callback = callback;
+  entry->callback_context = callback_context;
+  entry->callback_data = callback_data;
+  write_watch_mutex_.lock();
+  write_watches_.push_back(entry);
+  write_watch_mutex_.unlock();
+
+  // Make the desired range read only under all address spaces.
+  auto host_address = mapping_base_ + base_address;
+  DWORD old_protect;
+  VirtualProtect(host_address, length, PAGE_READONLY, &old_protect);
+  VirtualProtect(host_address + 0xA0000000, length, PAGE_READONLY,
+                 &old_protect);
+  VirtualProtect(host_address + 0xC0000000, length, PAGE_READONLY,
+                 &old_protect);
+  VirtualProtect(host_address + 0xE0000000, length, PAGE_READONLY,
+                 &old_protect);
+
+  return reinterpret_cast<uintptr_t>(entry);
+}
+
+void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
+  auto host_address = mapping_base_ + entry->address;
+  DWORD old_protect;
+  VirtualProtect(host_address, entry->length, PAGE_READWRITE, nullptr);
+  VirtualProtect(host_address + 0xA0000000, entry->length, PAGE_READWRITE,
+                 &old_protect);
+  VirtualProtect(host_address + 0xC0000000, entry->length, PAGE_READWRITE,
+                 &old_protect);
+  VirtualProtect(host_address + 0xE0000000, entry->length, PAGE_READWRITE,
+                 &old_protect);
+}
+
+void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
+  auto entry = reinterpret_cast<WriteWatchEntry*>(watch_handle);
+
+  // Allow access to the range again.
+  ClearWriteWatch(entry);
+
+  // Remove from table.
+  write_watch_mutex_.lock();
+  auto it = std::find(write_watches_.begin(), write_watches_.end(), entry);
+  if (it != write_watches_.end()) {
+    write_watches_.erase(it);
+  }
+  write_watch_mutex_.unlock();
+
+  delete entry;
+}
+
+bool MMIOHandler::CheckWriteWatch(void* thread_state, uint64_t fault_address) {
+  uint32_t guest_address = uint32_t(fault_address - uintptr_t(mapping_base_));
+  uint32_t base_address = guest_address;
+  if (base_address > 0xA0000000) {
+    base_address -= 0xA0000000;
+  }
+  std::list<WriteWatchEntry*> pending_invalidates;
+  write_watch_mutex_.lock();
+  for (auto it = write_watches_.begin(); it != write_watches_.end();) {
+    auto entry = *it;
+    if (entry->address <= base_address &&
+        entry->address + entry->length > base_address) {
+      // Hit!
+      pending_invalidates.push_back(entry);
+      // TODO(benvanik): outside of lock?
+      ClearWriteWatch(entry);
+      auto erase_it = it;
+      ++it;
+      write_watches_.erase(erase_it);
+      continue;
+    }
+    ++it;
+  }
+  write_watch_mutex_.unlock();
+  if (pending_invalidates.empty()) {
+    // Rethrow access violation - range was not being watched.
+    return false;
+  }
+  while (!pending_invalidates.empty()) {
+    auto entry = pending_invalidates.back();
+    pending_invalidates.pop_back();
+    entry->callback(entry->callback_context, entry->callback_data,
+                    guest_address);
+    delete entry;
+  }
+  // Range was watched, so lets eat this access violation.
+  return true;
+}
+
 bool MMIOHandler::HandleAccessFault(void* thread_state,
                                     uint64_t fault_address) {
   // Access violations are pretty rare, so we can do a linear search here.
@@ -92,7 +195,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
   if (!range) {
     // Access is not found within any range, so fail and let the caller handle
     // it (likely by aborting).
-    return false;
+    return CheckWriteWatch(thread_state, fault_address);
   }
 
   // TODO(benvanik): replace with simple check of mov (that's all
@@ -175,8 +278,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
     }
     range->write(range->context, fault_address & 0xFFFFFFFF, value);
   } else {
-    // Unknown MMIO instruction type.
-    assert_always();
+    assert_always("Unknown MMIO instruction type");
     return false;
   }
 

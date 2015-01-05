@@ -183,7 +183,7 @@ bool CommandProcessor::SetupGL() {
   }
 
   // Texture cache that keeps track of any textures/samplers used.
-  if (!texture_cache_.Initialize(membase_, &scratch_buffer_)) {
+  if (!texture_cache_.Initialize(memory_, &scratch_buffer_)) {
     PLOGE("Unable to initialize texture cache");
     return false;
   }

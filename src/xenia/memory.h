@@ -53,6 +53,11 @@ class Memory : public alloy::Memory {
                       void* context, cpu::MMIOReadCallback read_callback,
                       cpu::MMIOWriteCallback write_callback);
 
+  uintptr_t AddWriteWatch(uint32_t guest_address, size_t length,
+                          cpu::WriteWatchCallback callback,
+                          void* callback_context, void* callback_data);
+  void CancelWriteWatch(uintptr_t watch_handle);
+
   uint8_t LoadI8(uint64_t address) override;
   uint16_t LoadI16(uint64_t address) override;
   uint32_t LoadI32(uint64_t address) override;
