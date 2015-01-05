@@ -151,12 +151,19 @@ std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
   // TODO(benvanik): normalize path/etc
   // e.g., remove ..'s and such
 
+  // If no path (starts with a slash) do it module-relative.
+  // Which for now, we just make game:.
+  std::string normalized_path = path;
+  if (path[0] == '\\') {
+    normalized_path = "game:" + normalized_path;
+  }
+
   // Resolve symlinks.
   // TODO(benvanik): more robust symlink handling - right now we assume simple
   //     drive path -> device mappings with nothing nested.
-  std::string full_path = path;
+  std::string full_path = normalized_path;
   for (const auto& it : symlinks_) {
-    if (poly::find_first_of_case(path, it.first) == 0) {
+    if (poly::find_first_of_case(normalized_path, it.first) == 0) {
       // Found symlink, fixup by replacing the prefix.
       full_path = it.second + full_path.substr(it.first.size());
       break;
