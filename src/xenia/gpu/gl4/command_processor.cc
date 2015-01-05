@@ -434,8 +434,8 @@ void CommandProcessor::PrepareForWait() {
   // TODO(benvanik): fences and fancy stuff. We should figure out a way to
   // make interrupt callbacks from the GPU so that we don't have to do a full
   // synchronize here.
-  //glFlush();
-  glFinish();
+  glFlush();
+  // glFinish();
 
   if (FLAGS_thread_safe_gl) {
     context_->ClearCurrent();
@@ -820,6 +820,10 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   reader->TraceData(1);
   uint32_t frontbuffer_ptr = reader->Read();
   reader->Advance(count - 1);
+
+  // Ensure we issue any pending draws.
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
+
   if (swap_handler_) {
     SwapParameters swap_params;
 
@@ -1373,7 +1377,14 @@ bool CommandProcessor::IssueDraw() {
   status = PopulateVertexBuffers();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup vertex buffers");
 
-  return draw_batcher_.CommitDraw();
+  if (!draw_batcher_.CommitDraw()) {
+    return false;
+  }
+  if (!has_bindless_vbos_) {
+    // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
+    draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
+  }
+  return true;
 }
 
 bool CommandProcessor::SetShadowRegister(uint32_t& dest,
@@ -2052,11 +2063,6 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
 
   auto& regs = *register_file_;
   assert_not_null(active_vertex_shader_);
-
-  if (!has_bindless_vbos_) {
-    // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
-    draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
-  }
 
   uint32_t el_index = 0;
   const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
