@@ -32,10 +32,6 @@ class STFSContainerDevice : public Device {
 
   std::unique_ptr<Entry> ResolvePath(const char* path) override;
 
-  X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) override;
-  X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
-                                     size_t length) override;
-
  private:
   std::wstring local_path_;
   std::unique_ptr<poly::MappedMemory> mmap_;

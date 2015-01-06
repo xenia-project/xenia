@@ -12,6 +12,7 @@
 #include <poly/math.h>
 #include <xenia/kernel/fs/stfs.h>
 #include <xenia/kernel/fs/devices/stfs_container_entry.h>
+#include <xenia/kernel/objects/xfile.h>
 
 namespace xe {
 namespace kernel {
@@ -66,18 +67,6 @@ std::unique_ptr<Entry> STFSContainerDevice::ResolvePath(const char* path) {
                          : Entry::Type::FILE;
   return std::make_unique<STFSContainerEntry>(type, this, path, mmap_.get(),
                                               stfs_entry);
-}
-
-X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info,
-                                          size_t length) {
-  assert_always();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
-X_STATUS STFSContainerDevice::QueryFileSystemAttributes(
-    XFileSystemAttributeInfo* out_info, size_t length) {
-  assert_always();
-  return X_STATUS_NOT_IMPLEMENTED;
 }
 
 }  // namespace fs

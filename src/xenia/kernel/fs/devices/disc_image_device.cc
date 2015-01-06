@@ -68,17 +68,6 @@ std::unique_ptr<Entry> DiscImageDevice::ResolvePath(const char* path) {
                                           gdfx_entry);
 }
 
-X_STATUS DiscImageDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  assert_always();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
-X_STATUS DiscImageDevice::QueryFileSystemAttributes(
-    XFileSystemAttributeInfo* out_info, size_t length) {
-  assert_always();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe

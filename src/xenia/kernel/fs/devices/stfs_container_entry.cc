@@ -45,30 +45,39 @@ X_STATUS STFSContainerEntry::QueryDirectory(XDirectoryInfo* out_info,
                                             bool restart) {
   assert_not_null(out_info);
 
-  if (restart && stfs_entry_iterator_ != stfs_entry_->children.end()) {
-    stfs_entry_iterator_ = stfs_entry_->children.end();
-  }
-
-  if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
-    stfs_entry_iterator_ = stfs_entry_->children.begin();
-    if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
-      return X_STATUS_UNSUCCESSFUL;
+  // TODO(benvanik): move to common code.
+  STFSEntry* entry = nullptr;
+  if (file_name) {
+    // Specified filename, return just that info.
+    assert_true(std::strchr(file_name, '*') == nullptr);
+    entry = stfs_entry_->GetChild(file_name);
+    if (!entry) {
+      return X_STATUS_NO_SUCH_FILE;
     }
   } else {
-    ++stfs_entry_iterator_;
-    if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
-      return X_STATUS_UNSUCCESSFUL;
+    if (restart && stfs_entry_iterator_ != stfs_entry_->children.end()) {
+      stfs_entry_iterator_ = stfs_entry_->children.end();
     }
-  }
 
-  auto end = (uint8_t*)out_info + length;
+    if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
+      stfs_entry_iterator_ = stfs_entry_->children.begin();
+      if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
+        return X_STATUS_UNSUCCESSFUL;
+      }
+    } else {
+      ++stfs_entry_iterator_;
+      if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
+        return X_STATUS_UNSUCCESSFUL;
+      }
+    }
 
-  auto entry = stfs_entry_iterator_->get();
-  auto entry_name = entry->name;
-
-  if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
-    stfs_entry_iterator_ = stfs_entry_->children.end();
-    return X_STATUS_UNSUCCESSFUL;
+    auto end = (uint8_t*)out_info + length;
+    entry = stfs_entry_iterator_->get();
+    auto entry_name = entry->name;
+    if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
+      stfs_entry_iterator_ = stfs_entry_->children.end();
+      return X_STATUS_NO_MORE_FILES;
+    }
   }
 
   out_info->file_index = 0xCDCDCDCD;
@@ -79,8 +88,8 @@ X_STATUS STFSContainerEntry::QueryDirectory(XDirectoryInfo* out_info,
   out_info->end_of_file = entry->size;
   out_info->allocation_size = 4096;
   out_info->attributes = entry->attributes;
-  out_info->file_name_length = static_cast<uint32_t>(entry_name.size());
-  memcpy(out_info->file_name, entry_name.c_str(), entry_name.size());
+  out_info->file_name_length = static_cast<uint32_t>(entry->name.size());
+  memcpy(out_info->file_name, entry->name.c_str(), entry->name.size());
 
   return X_STATUS_SUCCESS;
 }
