@@ -50,26 +50,28 @@ class X_OBJECT_ATTRIBUTES {
 };
 static_assert_size(X_OBJECT_ATTRIBUTES, 12 + sizeof(X_ANSI_STRING));
 
-SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
-  uint32_t desired_access = SHIM_GET_ARG_32(1);
-  uint32_t object_attributes_ptr = SHIM_GET_ARG_32(2);
-  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(3);
-  uint32_t allocation_size_ptr = SHIM_GET_ARG_32(4);
-  uint32_t file_attributes = SHIM_GET_ARG_32(5);
-  uint32_t share_access = SHIM_GET_ARG_32(6);
-  uint32_t creation_disposition = SHIM_GET_ARG_32(7);
+struct FileDisposition {
+  static const uint32_t X_FILE_SUPERSEDE = 0x00000000;
+  static const uint32_t X_FILE_OPEN = 0x00000001;
+  static const uint32_t X_FILE_CREATE = 0x00000002;
+  static const uint32_t X_FILE_OPEN_IF = 0x00000003;
+  static const uint32_t X_FILE_OVERWRITE = 0x00000004;
+  static const uint32_t X_FILE_OVERWRITE_IF = 0x00000005;
+};
 
-  X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
+struct FileAccess {
+  static const uint32_t X_GENERIC_READ = 1 << 0;
+  static const uint32_t X_GENERIC_WRITE = 1 << 1;
+  static const uint32_t X_GENERIC_EXECUTE = 1 << 2;
+  static const uint32_t X_GENERIC_ALL = 1 << 3;
+};
 
-  char* object_name = attrs.object_name.Duplicate();
-
-  XELOGD("NtCreateFile(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X, %d, %d)",
-         handle_ptr, desired_access, object_attributes_ptr,
-         !object_name ? "(null)" : object_name, io_status_block_ptr,
-         allocation_size_ptr, file_attributes, share_access,
-         creation_disposition);
-
+X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
+                      uint32_t handle_ptr, uint32_t desired_access,
+                      X_OBJECT_ATTRIBUTES* object_attrs,
+                      const char* object_name, uint32_t io_status_block_ptr,
+                      uint32_t allocation_size_ptr, uint32_t file_attributes,
+                      uint32_t share_access, uint32_t creation_disposition) {
   uint64_t allocation_size = 0;  // is this correct???
   if (allocation_size_ptr != 0) {
     allocation_size = SHIM_MEM_64(allocation_size_ptr);
@@ -83,33 +85,37 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
   std::unique_ptr<Entry> entry;
 
   XFile* root_file = NULL;
-  if (attrs.root_directory != 0xFFFFFFFD &&  // ObDosDevices
-      attrs.root_directory != 0) {
-    result = state->object_table()->GetObject(attrs.root_directory,
+  if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
+      object_attrs->root_directory != 0) {
+    result = state->object_table()->GetObject(object_attrs->root_directory,
                                               (XObject**)&root_file);
     assert_true(XSUCCEEDED(result));
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
     auto root_path = root_file->absolute_path();
     auto target_path = root_path + object_name;
-    entry = std::move(fs->ResolvePath(target_path));
+    entry = fs->ResolvePath(target_path);
   } else {
     // Resolve the file using the virtual file system.
-    entry = std::move(fs->ResolvePath(object_name));
+    entry = fs->ResolvePath(object_name);
   }
 
-  auto mode =
-      desired_access & GENERIC_WRITE ? fs::Mode::READ_WRITE : fs::Mode::READ;
-
-  XFile* file = NULL;
-  if (entry && entry->type() == Entry::Type::FILE) {
-    // Open the file.
-    result = fs->Open(std::move(entry), state, mode,
-                      false,  // TODO(benvanik): pick async mode, if needed.
-                      &file);
-  } else {
+  XFile* file = nullptr;
+  if (!entry) {
     result = X_STATUS_NO_SUCH_FILE;
     info = X_FILE_DOES_NOT_EXIST;
+  } else if (creation_disposition != FileDisposition::X_FILE_OPEN ||
+             desired_access & FileAccess::X_GENERIC_WRITE ||
+             desired_access & FileAccess::X_GENERIC_ALL) {
+    // We don't support any write modes.
+    XELOGE("Attempted to open the file/dir for create/write");
+    result = X_STATUS_ACCESS_DENIED;
+    info = entry ? X_FILE_EXISTS : X_FILE_DOES_NOT_EXIST;
+  } else {
+    // Open the file/directory.
+    result = fs->Open(std::move(entry), state, fs::Mode::READ,
+                      false,  // TODO(benvanik): pick async mode, if needed.
+                      &file);
   }
 
   if (XSUCCEEDED(result)) {
@@ -129,6 +135,33 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
       SHIM_SET_MEM_32(handle_ptr, handle);
     }
   }
+
+  return result;
+}
+
+SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t desired_access = SHIM_GET_ARG_32(1);
+  uint32_t object_attributes_ptr = SHIM_GET_ARG_32(2);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(3);
+  uint32_t allocation_size_ptr = SHIM_GET_ARG_32(4);
+  uint32_t file_attributes = SHIM_GET_ARG_32(5);
+  uint32_t share_access = SHIM_GET_ARG_32(6);
+  uint32_t creation_disposition = SHIM_GET_ARG_32(7);
+
+  X_OBJECT_ATTRIBUTES object_attrs(SHIM_MEM_BASE, object_attributes_ptr);
+  char* object_name = object_attrs.object_name.Duplicate();
+
+  XELOGD("NtCreateFile(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X, %d, %d)",
+         handle_ptr, desired_access, object_attributes_ptr,
+         !object_name ? "(null)" : object_name, io_status_block_ptr,
+         allocation_size_ptr, file_attributes, share_access,
+         creation_disposition);
+
+  auto result =
+      NtCreateFile(ppc_state, state, handle_ptr, desired_access, &object_attrs,
+                   object_name, io_status_block_ptr, allocation_size_ptr,
+                   file_attributes, share_access, creation_disposition);
 
   free(object_name);
   SHIM_SET_RETURN_32(result);
@@ -141,62 +174,17 @@ SHIM_CALL NtOpenFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(3);
   uint32_t open_options = SHIM_GET_ARG_32(4);
 
-  X_OBJECT_ATTRIBUTES attrs(SHIM_MEM_BASE, object_attributes_ptr);
-
-  char* object_name = attrs.object_name.Duplicate();
+  X_OBJECT_ATTRIBUTES object_attrs(SHIM_MEM_BASE, object_attributes_ptr);
+  char* object_name = object_attrs.object_name.Duplicate();
 
   XELOGD("NtOpenFile(%.8X, %.8X, %.8X(%s), %.8X, %d)", handle_ptr,
          desired_access, object_attributes_ptr,
          !object_name ? "(null)" : object_name, io_status_block_ptr,
          open_options);
 
-  X_STATUS result = X_STATUS_NO_SUCH_FILE;
-  uint32_t info = X_FILE_DOES_NOT_EXIST;
-  uint32_t handle;
-
-  XFile* root_file = NULL;
-  if (attrs.root_directory != 0xFFFFFFFD) {  // ObDosDevices
-    result = state->object_table()->GetObject(attrs.root_directory,
-                                              (XObject**)&root_file);
-    assert_true(XSUCCEEDED(result));
-    assert_true(root_file->type() == XObject::Type::kTypeFile);
-    assert_always();
-  }
-
-  auto mode =
-      desired_access & GENERIC_WRITE ? fs::Mode::READ_WRITE : fs::Mode::READ;
-
-  // Resolve the file using the virtual file system.
-  FileSystem* fs = state->file_system();
-  auto entry = fs->ResolvePath(object_name);
-  XFile* file = NULL;
-  if (entry && entry->type() == Entry::Type::FILE) {
-    // Open the file.
-    result = fs->Open(std::move(entry), state, mode,
-                      false,  // TODO(benvanik): pick async mode, if needed.
-                      &file);
-  } else {
-    result = X_STATUS_NO_SUCH_FILE;
-    info = X_FILE_DOES_NOT_EXIST;
-  }
-
-  if (XSUCCEEDED(result)) {
-    // Handle ref is incremented, so return that.
-    handle = file->handle();
-    file->Release();
-    result = X_STATUS_SUCCESS;
-    info = X_FILE_OPENED;
-  }
-
-  if (io_status_block_ptr) {
-    SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
-    SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
-  }
-  if (XSUCCEEDED(result)) {
-    if (handle_ptr) {
-      SHIM_SET_MEM_32(handle_ptr, handle);
-    }
-  }
+  auto result = NtCreateFile(ppc_state, state, handle_ptr, desired_access,
+                             &object_attrs, object_name, io_status_block_ptr, 0,
+                             0, 0, FileDisposition::X_FILE_OPEN);
 
   free(object_name);
   SHIM_SET_RETURN_32(result);
