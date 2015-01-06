@@ -100,17 +100,17 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     entry = fs->ResolvePath(object_name);
   }
 
+  if (creation_disposition != FileDisposition::X_FILE_OPEN ||
+      desired_access & FileAccess::X_GENERIC_WRITE ||
+      desired_access & FileAccess::X_GENERIC_ALL) {
+    // We don't support any write modes.
+    XELOGW("Attempted to open the file/dir for create/write");
+  }
+
   XFile* file = nullptr;
   if (!entry) {
     result = X_STATUS_NO_SUCH_FILE;
     info = X_FILE_DOES_NOT_EXIST;
-  } else if (creation_disposition != FileDisposition::X_FILE_OPEN ||
-             desired_access & FileAccess::X_GENERIC_WRITE ||
-             desired_access & FileAccess::X_GENERIC_ALL) {
-    // We don't support any write modes.
-    XELOGE("Attempted to open the file/dir for create/write");
-    result = X_STATUS_ACCESS_DENIED;
-    info = entry ? X_FILE_EXISTS : X_FILE_DOES_NOT_EXIST;
   } else {
     // Open the file/directory.
     result = fs->Open(std::move(entry), state, fs::Mode::READ,

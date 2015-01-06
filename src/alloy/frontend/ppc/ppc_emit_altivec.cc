@@ -464,6 +464,10 @@ XEEMITTER(vavgsh, 0x10000542, VX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vavgsw, 0x10000582, VX)(PPCHIRBuilder& f, InstrData& i) {
+  // do i = 0 to 127 by 32
+  //   aop = EXTS((VRA)i:i + 31)
+  //   bop = EXTS((VRB)i:i + 31)
+  //   VRTi:i + 31 = Chop((aop + int bop + int 1) >> 1, 32)
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
