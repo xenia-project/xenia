@@ -234,6 +234,22 @@ SHIM_CALL KeSetBasePriorityThread_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(prev_priority);
 }
 
+SHIM_CALL KeSetDisableBoostThread_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
+  uint32_t thread_ptr = SHIM_GET_ARG_32(0);
+  uint32_t disabled = SHIM_GET_ARG_32(1);
+
+  XELOGD("KeSetDisableBoostThread(%.8X, %.8X)", thread_ptr, disabled);
+
+  XThread* thread =
+      (XThread*)XObject::GetObject(state, SHIM_MEM_ADDR(thread_ptr));
+  if (thread) {
+    // Uhm?
+  }
+
+  SHIM_SET_RETURN_32(0);
+}
+
 SHIM_CALL KeGetCurrentProcessType_shim(PPCContext* ppc_state,
                                        KernelState* state) {
   // XELOGD(
@@ -1243,6 +1259,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryBasePriorityThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetBasePriorityThread, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetDisableBoostThread, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetCurrentProcessType, state);
