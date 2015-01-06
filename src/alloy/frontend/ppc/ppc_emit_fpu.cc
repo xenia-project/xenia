@@ -255,13 +255,32 @@ XEEMITTER(fmsubsx, 0xEC000038, A)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(fnmaddx, 0xFC00003E, A)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- -([frA x frC] + frB)
+  Value* v = f.Neg(
+    f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
+  f.StoreFPR(i.A.FRT, v);
+  // f.UpdateFPRF(v);
+  if (i.A.Rc) {
+    // e.update_cr_with_cond(1, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  return 0;
 }
 
 XEEMITTER(fnmaddsx, 0xEC00003E, A)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- -([frA x frC] + frB)
+  Value* v = f.Neg(
+    f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
+  v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
+  f.StoreFPR(i.A.FRT, v);
+  // f.UpdateFPRF(v);
+  if (i.A.Rc) {
+    // e.update_cr_with_cond(1, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  return 0;
 }
 
 XEEMITTER(fnmsubx, 0xFC00003C, A)(PPCHIRBuilder& f, InstrData& i) {
