@@ -17,6 +17,7 @@ UserProfile::UserProfile() {
   name_ = "User";
 
   // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
+  // https://github.com/arkem/py360/blob/master/py360/constants.py
   // XPROFILE_GAMER_YAXIS_INVERSION
   AddSetting(std::make_unique<Int32Setting>(0x10040002, 0));
   // XPROFILE_OPTION_CONTROLLER_VIBRATION
@@ -45,6 +46,10 @@ UserProfile::UserProfile() {
   AddSetting(std::make_unique<Int32Setting>(0x10040015, 0));
   // XPROFILE_GAMER_CONTROL_SENSITIVITY
   AddSetting(std::make_unique<Int32Setting>(0x10040018, 0));
+  // Preferred color 1
+  AddSetting(std::make_unique<Int32Setting>(0x1004001D, 0xFFFF0000u));
+  // Preferred color 2
+  AddSetting(std::make_unique<Int32Setting>(0x1004001E, 0xFF00FF00u));
   // XPROFILE_GAMER_ACTION_AUTO_AIM
   AddSetting(std::make_unique<Int32Setting>(0x10040022, 1));
   // XPROFILE_GAMER_ACTION_AUTO_CENTER
@@ -66,7 +71,8 @@ UserProfile::UserProfile() {
 
   // If we set this, games will try to get it.
   // XPROFILE_GAMERCARD_PICTURE_KEY
-  AddSetting(std::make_unique<UnicodeSetting>(0x4064000F, L"gamercard_picture_key"));
+  AddSetting(
+      std::make_unique<UnicodeSetting>(0x4064000F, L"gamercard_picture_key"));
 
   std::vector<uint8_t> zeros;
   zeros.resize(1000);

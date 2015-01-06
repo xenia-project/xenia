@@ -130,6 +130,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
   }
   const auto& user_profile = state->user_profile();
 
+
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.
 
