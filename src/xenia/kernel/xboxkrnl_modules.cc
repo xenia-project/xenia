@@ -246,6 +246,7 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
          out_function_ptr);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
+  SHIM_SET_MEM_32(out_function_ptr, 0xDEADF00D);
 
   XModule* module = NULL;
 

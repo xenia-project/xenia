@@ -30,7 +30,7 @@ X_RESULT XXMPApp::XMPGetStatusEx(uint32_t unk, uint32_t unk_ptr,
                                  uint32_t disabled_ptr) {
   // Some stupid games will hammer this on a thread - induce a delay
   // here to keep from starving real threads.
-  Sleep(1);
+  Sleep(10);
 
   XELOGD("XMPGetStatusEx(%.8X, %.8X, %.8X)", unk, unk_ptr, disabled_ptr);
 

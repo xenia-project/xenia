@@ -555,7 +555,14 @@ XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
       // CTR
       v = f.LoadCTR();
       break;
-    // 268 + 269 = TB + TBU
+    case 268:
+      // TB
+      v = f.LoadClock();
+      break;
+    case 269:
+      // TBU
+      v = f.Shr(f.LoadClock(), 32);
+      break;
     default:
       XEINSTRNOTIMPLEMENTED();
       return 1;
@@ -566,8 +573,14 @@ XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(mftb, 0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   Value* time = f.LoadClock();
+  const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
+  if (n == 268) {
+    // TB - full bits.
+  } else {
+    // TBU - upper bits only.
+    time = f.Shr(time, 32);
+  }
   f.StoreGPR(i.XFX.RT, time);
-
   return 0;
 }
 
