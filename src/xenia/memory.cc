@@ -201,6 +201,11 @@ int Memory::Initialize() {
     return 1;
   }
 
+  // I have no idea what this is, but games try to read/write there.
+  VirtualAlloc(Translate(0x40000000), 0x00010000, MEM_COMMIT, PAGE_READWRITE);
+  StoreI32(0x40000000, 0x00C40000);
+  StoreI32(0x40000004, 0x00010000);
+
   return 0;
 }
 
