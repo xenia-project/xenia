@@ -152,12 +152,16 @@ uint64_t GL4GraphicsSystem::ReadRegister(uint64_t addr) {
   }
 
   switch (r) {
-    case 0x6530:  // ????
-      return 1;
+    case 0x3C00:  // ?
+      return 0x08100748;
+    case 0x3C04:  // ?
+      return 0x0000200E;
+    case 0x6530:  // Scanline?
+      return 0x000002D0;
     case 0x6544:  // ? vblank pending?
       return 1;
-    case 0x6584:  // ????
-      return 1;
+    case 0x6584:  // Screen res - 1280x720
+      return 0x050002D0;
   }
 
   assert_true(r >= 0 && r < RegisterFile::kRegisterCount);
