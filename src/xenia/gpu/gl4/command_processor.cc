@@ -746,6 +746,7 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
 
     // Ignored packets - useful if breaking on the default handler below.
     case 0x50:  // 0xC0015000 usually 2 words, 0xFFFFFFFF / 0x00000000
+    case 0x51:  // 0xC0015100 usually 2 words, 0xFFFFFFFF / 0xFFFFFFFF
       XETRACECP("[%.8X] Packet(%.8X): unknown!", packet_ptr, packet);
       reader->TraceData(count);
       reader->Skip(count);

@@ -97,8 +97,10 @@ void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->is_hi_def = 1;
   video_mode->refresh_rate = 60.0f;
   video_mode->video_standard = 1;  // NTSC
-  video_mode->unknown_0x8a = 0x8A;
+  video_mode->unknown_0x8a = 0x94; // 0x8A;
   video_mode->unknown_0x01 = 0x01;
+  video_mode->reserved[0] = video_mode->reserved[1] = video_mode->reserved[2] =
+      0;
 }
 
 SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
@@ -156,6 +158,13 @@ SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
   // Ignored for now.
   // Games seem to call an Initialize/Shutdown pair to query info, then
   // re-initialize.
+}
+
+SHIM_CALL VdGetGraphicsAsicID_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("VdGetGraphicsAsicID()");
+
+  // Games compare for < 0x10 and do VdInitializeEDRAM, else other (retrain/etc).
+  SHIM_SET_RETURN_64(0x11);
 }
 
 SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_state,
@@ -397,6 +406,7 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
+
 void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
                                                 KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayGamma, state);
@@ -407,6 +417,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetDisplayModeOverride, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeEngines, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdShutdownEngines, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", VdGetGraphicsAsicID, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdEnableDisableClockGating, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSetGraphicsInterruptCallback, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdInitializeRingBuffer, state);
