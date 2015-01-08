@@ -41,6 +41,10 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
 }
 
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
+  if (!interrupt_callback_) {
+    return;
+  }
+
   // Pick a CPU, if needed. We're going to guess 2. Because.
   if (cpu == 0xFFFFFFFF) {
     cpu = 2;
@@ -50,9 +54,6 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
            interrupt_callback_, source, cpu);
 
   // NOTE: we may be executing in some random thread.
-  if (!interrupt_callback_) {
-    return;
-  }
   uint64_t args[] = {source, interrupt_callback_data_};
   processor_->ExecuteInterrupt(cpu, interrupt_callback_, args,
                                poly::countof(args));
