@@ -4192,12 +4192,39 @@ EMITTER(SHR_I64, MATCH(I<OPCODE_SHR, I64<>, I64<>, I8<>>)) {
     EmitShrXX<SHR_I64, Reg64>(e, i);
   }
 };
+EMITTER(SHR_V128, MATCH(I<OPCODE_SHR, V128<>, V128<>, I8<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // TODO(benvanik): native version (with shift magic).
+    if (i.src2.is_constant) {
+      e.mov(e.r9, i.src2.constant());
+    } else {
+      e.mov(e.r9, i.src2);
+    }
+    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
+    e.vmovaps(i.dest, e.xmm0);
+  }
+  static __m128i EmulateShrV128(void*, __m128i src1, uint8_t src2) {
+    // Almost all instances are shamt = 1, but non-constant.
+    // shamt is [0,7]
+    uint8_t shamt = src2 & 0x7;
+    alignas(16) vec128_t value;
+    _mm_store_si128(reinterpret_cast<__m128i*>(&value), src1);
+    value.u8[0 ^ 0x3] = value.u8[0 ^ 0x3] >> shamt;
+    for (int i = 15; i > 0; --i) {
+      value.u8[i ^ 0x3] = (value.u8[i ^ 0x3] >> shamt) |
+                          (value.u8[(i - 1) ^ 0x3] << (8 - shamt));
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(&value));
+  }
+};
 EMITTER_OPCODE_TABLE(
     OPCODE_SHR,
     SHR_I8,
     SHR_I16,
     SHR_I32,
-    SHR_I64);
+    SHR_I64,
+    SHR_V128);
 
 
 // ============================================================================
