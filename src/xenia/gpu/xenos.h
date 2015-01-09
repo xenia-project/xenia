@@ -398,6 +398,7 @@ enum Type3Opcode {
   PM4_EVENT_WRITE           = 0x46,   // generate an event that creates a write to memory when completed
   PM4_EVENT_WRITE_SHD       = 0x58,   // generate a VS|PS_done event
   PM4_EVENT_WRITE_CFL       = 0x59,   // generate a cache flush done event
+  PM4_EVENT_WRITE_EXT       = 0x5a,   // generate a screen extent event
   PM4_EVENT_WRITE_ZPD       = 0x5b,   // generate a z_pass done event
 
   PM4_DRAW_INDX             = 0x22,   // initiate fetch of index buffer and draw

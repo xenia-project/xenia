@@ -686,6 +686,10 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
       result =
           ExecutePacketType3_EVENT_WRITE_SHD(reader, packet_ptr, packet, count);
       break;
+    case PM4_EVENT_WRITE_EXT:
+      result =
+          ExecutePacketType3_EVENT_WRITE_EXT(reader, packet_ptr, packet, count);
+      break;
     case PM4_DRAW_INDX:
       result = ExecutePacketType3_DRAW_INDX(reader, packet_ptr, packet, count);
       break;
@@ -1093,6 +1097,17 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
   poly::store(membase_ + GpuToCpu(address), data_value);
+  return true;
+}
+
+bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
+    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
+    uint32_t count) {
+  // generate a screen extent event
+  XETRACECP("[%.8X] Packet(%.8X): PM4_EVENT_WRITE_EXT", packet_ptr, packet);
+  reader->TraceData(count);
+  uint32_t unk0 = reader->Read();
+  uint32_t unk1 = reader->Read();
   return true;
 }
 

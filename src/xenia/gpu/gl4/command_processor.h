@@ -151,6 +151,9 @@ class CommandProcessor {
   bool ExecutePacketType3_EVENT_WRITE_SHD(RingbufferReader* reader,
                                           uint32_t packet_ptr, uint32_t packet,
                                           uint32_t count);
+  bool ExecutePacketType3_EVENT_WRITE_EXT(RingbufferReader* reader,
+                                          uint32_t packet_ptr, uint32_t packet,
+                                          uint32_t count);
   bool ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
                                     uint32_t packet_ptr, uint32_t packet,
                                     uint32_t count);
