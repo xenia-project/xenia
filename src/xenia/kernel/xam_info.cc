@@ -89,6 +89,11 @@ SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_64(0);
 }
 
+SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("XamLoaderLaunchTitle(?)");
+  assert_always();
+}
+
 SHIM_CALL XamLoaderTerminateTitle_shim(PPCContext* ppc_state,
                                        KernelState* state) {
   XELOGD("XamLoaderTerminateTitle()");
@@ -142,6 +147,7 @@ void xe::kernel::xam::RegisterInfoExports(ExportResolver* export_resolver,
 
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchDataSize, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchData, state);
+  SHIM_SET_MAPPING("xam.xex", XamLoaderLaunchTitle, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderTerminateTitle, state);
 
   SHIM_SET_MAPPING("xam.xex", XamEnumerate, state);
