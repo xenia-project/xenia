@@ -4782,16 +4782,22 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_INSERT
 // ============================================================================
-EMITTER(INSERT_I8, MATCH(I<OPCODE_INSERT, V128<>, V128<>, I64<>, I8<>>)) {
+EMITTER(INSERT_I8, MATCH(I<OPCODE_INSERT, V128<>, V128<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.is_constant);
+    e.vpinsrb(i.dest, i.src3.reg().cvt32(), i.src2.constant() ^ 0x3);
   }
 };
-EMITTER(INSERT_I16, MATCH(I<OPCODE_INSERT, V128<>, V128<>, I64<>, I16<>>)) {
+EMITTER(INSERT_I16, MATCH(I<OPCODE_INSERT, V128<>, V128<>, I8<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.is_constant);
+    e.vpinsrw(i.dest, i.src3.reg().cvt32(), i.src2.constant() ^ 0x1);
   }
 };
-EMITTER(INSERT_I32, MATCH(I<OPCODE_INSERT, V128<>, V128<>, I64<>, I32<>>)) {
+EMITTER(INSERT_I32, MATCH(I<OPCODE_INSERT, V128<>, V128<>, I8<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.is_constant);
+    e.vpinsrd(i.dest, i.src3, i.src2.constant());
   }
 };
 EMITTER_OPCODE_TABLE(

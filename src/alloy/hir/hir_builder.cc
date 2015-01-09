@@ -1809,9 +1809,12 @@ Value* HIRBuilder::CountLeadingZeros(Value* value) {
 Value* HIRBuilder::Insert(Value* value, Value* index, Value* part) {
   // TODO(benvanik): could do some of this as constants.
 
+  Value* trunc_index =
+      index->type != INT8_TYPE ? Truncate(index, INT8_TYPE) : index;
+
   Instr* i = AppendInstr(OPCODE_INSERT_info, 0, AllocValue(value->type));
   i->set_src1(value);
-  i->set_src2(ZeroExtend(index, INT64_TYPE));
+  i->set_src2(trunc_index);
   i->set_src3(part);
   return i->dest;
 }
