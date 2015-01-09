@@ -2036,8 +2036,8 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer() {
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  // Min/max index ranges. This is often [0g,FFFF|FFFFFF], but if it's not we
-  // can use it to do a glDrawRangeElements.
+  // Min/max index ranges for clamping. This is often [0g,FFFF|FFFFFF].
+  // All indices should be clamped to [min,max]. May be a way to do this in GL.
   uint32_t min_index = regs[XE_GPU_REG_VGT_MIN_VTX_INDX].u32;
   uint32_t max_index = regs[XE_GPU_REG_VGT_MAX_VTX_INDX].u32;
   assert_true(min_index == 0);
