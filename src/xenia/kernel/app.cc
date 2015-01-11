@@ -26,12 +26,13 @@ void XAppManager::RegisterApp(std::unique_ptr<XApp> app) {
 }
 
 X_RESULT XAppManager::DispatchMessageSync(uint32_t app_id, uint32_t message,
-                                          uint32_t arg1, uint32_t arg2) {
+                                          uint32_t buffer_ptr,
+                                          uint32_t buffer_length) {
   const auto& it = app_lookup_.find(app_id);
   if (it == app_lookup_.end()) {
     return X_ERROR_NOT_FOUND;
   }
-  return it->second->DispatchMessageSync(message, arg1, arg2);
+  return it->second->DispatchMessageSync(message, buffer_ptr, buffer_length);
 }
 
 X_RESULT XAppManager::DispatchMessageAsync(uint32_t app_id, uint32_t message,
@@ -41,7 +42,7 @@ X_RESULT XAppManager::DispatchMessageAsync(uint32_t app_id, uint32_t message,
   if (it == app_lookup_.end()) {
     return X_ERROR_NOT_FOUND;
   }
-  return it->second->DispatchMessageAsync(message, buffer_ptr, buffer_length);
+  return it->second->DispatchMessageSync(message, buffer_ptr, buffer_length);
 }
 
 }  // namespace kernel

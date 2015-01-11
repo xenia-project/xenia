@@ -26,10 +26,8 @@ class XApp {
  public:
   uint32_t app_id() const { return app_id_; }
 
-  virtual X_RESULT DispatchMessageSync(uint32_t message, uint32_t arg1,
-                                       uint32_t arg2) = 0;
-  virtual X_RESULT DispatchMessageAsync(uint32_t message, uint32_t buffer_ptr,
-                                        size_t buffer_length) = 0;
+  virtual X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                       uint32_t buffer_length) = 0;
 
  protected:
   XApp(KernelState* kernel_state, uint32_t app_id);
@@ -43,8 +41,8 @@ class XAppManager {
  public:
   void RegisterApp(std::unique_ptr<XApp> app);
 
-  X_RESULT DispatchMessageSync(uint32_t app_id, uint32_t message, uint32_t arg1,
-                               uint32_t arg2);
+  X_RESULT DispatchMessageSync(uint32_t app_id, uint32_t message,
+                               uint32_t buffer_ptr, uint32_t buffer_length);
   X_RESULT DispatchMessageAsync(uint32_t app_id, uint32_t message,
                                 uint32_t buffer_ptr, size_t buffer_length);
 
