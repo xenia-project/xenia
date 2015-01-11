@@ -365,9 +365,9 @@ XEEMITTER(mullwx, 0x7C0001D6, XO)(PPCHIRBuilder& f, InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
-  Value* v = f.Mul(
-      f.SignExtend(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), INT64_TYPE),
-      f.SignExtend(f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), INT64_TYPE));
+  Value* v = f.SignExtend(f.Mul(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
+                                f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE)),
+                          INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -743,8 +743,7 @@ XEEMITTER(nandx, 0x7C0003B8, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(norx, 0x7C0000F8, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- ¬((RS) | (RB))
-  Value* ra = f.Or(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
-  ra = f.Not(ra);
+  Value* ra = f.Not(f.Or(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB)));
   f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);

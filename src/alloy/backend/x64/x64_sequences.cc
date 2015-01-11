@@ -2893,6 +2893,8 @@ EMITTER(VECTOR_ADD, MATCH(I<OPCODE_VECTOR_ADD, V128<>, V128<>, V128<>>)){
             }
             break;
           case FLOAT32_TYPE:
+            assert_false(is_unsigned);
+            assert_false(saturate);
             e.vaddps(dest, src1, src2);
             break;
           default: assert_unhandled_case(part_type); break;
