@@ -10,6 +10,12 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_APPS_XMP_APP_H_
 #define XENIA_KERNEL_XBOXKRNL_APPS_XMP_APP_H_
 
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include <xenia/common.h>
 #include <xenia/kernel/app.h>
 #include <xenia/kernel/kernel_state.h>
@@ -18,18 +24,59 @@ namespace xe {
 namespace kernel {
 namespace apps {
 
+// Only source of docs for a lot of these functions:
+// http://freestyledash.googlecode.com/svn-history/r1/trunk/Freestyle/Scenes/Media/Music/ScnMusic.cpp
+
 class XXMPApp : public XApp {
  public:
-  enum class Status : uint32_t {
-    kStopped = 0,
+  enum class State : uint32_t {
+    kIdle = 0,
     kPlaying = 1,
     kPaused = 2,
+  };
+  enum class PlaybackMode : uint32_t {
+    // kInOrder = ?,
+    kUnknown = 0,
+  };
+  enum class RepeatMode : uint32_t {
+    // kNoRepeat = ?,
+    kUnknown = 0,
+  };
+  struct Song {
+    enum class Format : uint32_t {
+      kWma = 0,
+      kMp3 = 1,
+    };
+
+    uint32_t handle;
+    std::wstring file_path;
+    std::wstring name;
+    std::wstring artist;
+    std::wstring album;
+    std::wstring album_artist;
+    std::wstring genre;
+    uint32_t track_number;
+    uint32_t duration_ms;
+    Format format;
+  };
+  struct Playlist {
+    uint32_t handle;
+    std::wstring name;
+    uint32_t flags;
+    std::vector<std::unique_ptr<Song>> songs;
   };
 
   XXMPApp(KernelState* kernel_state);
 
   X_RESULT XMPGetStatus(uint32_t status_ptr);
 
+  X_RESULT XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
+                                  uint32_t playlist_name_ptr,
+                                  std::wstring playlist_name, uint32_t flags,
+                                  uint32_t out_song_handles,
+                                  uint32_t out_playlist_handle);
+  X_RESULT XMPDeleteTitlePlaylist(uint32_t playlist_handle);
+  X_RESULT XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_handle);
   X_RESULT XMPContinue();
   X_RESULT XMPStop(uint32_t unk);
   X_RESULT XMPPause();
@@ -40,18 +87,25 @@ class XXMPApp : public XApp {
                                uint32_t buffer_length) override;
 
  private:
-  static const uint32_t kMsgStatusChanged = 0xA000001;
-  static const uint32_t kMsgStateChanged = 0xA000002;
-  static const uint32_t kMsgDisableChanged = 0xA000003;
+  static const uint32_t kMsgStateChanged = 0x0A000001;
+  static const uint32_t kMsgPlaybackBehaviorChanged = 0x0A000002;
+  static const uint32_t kMsgDisableChanged = 0x0A000003;
 
-  void OnStatusChanged();
+  void OnStateChanged();
 
-  Status status_;
+  State state_;
   uint32_t disabled_;
-  uint32_t unknown_state1_;
-  uint32_t unknown_state2_;
+  PlaybackMode playback_mode_;
+  RepeatMode repeat_mode_;
   uint32_t unknown_flags_;
-  float unknown_float_;
+  float volume_;
+  Playlist* active_playlist_;
+  int active_song_index_;
+
+  std::mutex mutex_;
+  std::unordered_map<uint32_t, Playlist*> playlists_;
+  uint32_t next_playlist_handle_;
+  uint32_t next_song_handle_;
 };
 
 }  // namespace apps

@@ -36,7 +36,7 @@ void XNotifyListener::Initialize(uint64_t mask) {
 
 void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   // Ignore if the notification doesn't match our mask.
-  if ((mask_ & uint64_t(1 << ((id >> 25) + 1))) == 0) {
+  if ((mask_ & uint64_t(1 << (id >> 25))) == 0) {
     return;
   }
 

@@ -37,7 +37,7 @@ X_RESULT XAppManager::DispatchMessageSync(uint32_t app_id, uint32_t message,
 
 X_RESULT XAppManager::DispatchMessageAsync(uint32_t app_id, uint32_t message,
                                            uint32_t buffer_ptr,
-                                           size_t buffer_length) {
+                                           uint32_t buffer_length) {
   const auto& it = app_lookup_.find(app_id);
   if (it == app_lookup_.end()) {
     return X_ERROR_NOT_FOUND;

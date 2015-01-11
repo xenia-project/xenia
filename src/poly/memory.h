@@ -305,6 +305,20 @@ template <>
 inline void store_and_swap<double>(void* mem, double value) {
   *reinterpret_cast<double*>(mem) = byte_swap(value);
 }
+template <>
+inline void store_and_swap<std::string>(void* mem, std::string value) {
+  for (auto i = 0; i < value.size(); ++i) {
+    poly::store_and_swap<uint8_t>(reinterpret_cast<uint8_t*>(mem) + i,
+                                  value[i]);
+  }
+}
+template <>
+inline void store_and_swap<std::wstring>(void* mem, std::wstring value) {
+  for (auto i = 0; i < value.size(); ++i) {
+    poly::store_and_swap<uint16_t>(reinterpret_cast<uint16_t*>(mem) + i,
+                                   value[i]);
+  }
+}
 
 template <typename T>
 struct be {
