@@ -10,13 +10,29 @@
 #include <alloy/frontend/ppc/ppc_instr.h>
 
 #include <sstream>
+#include <vector>
 
 #include <alloy/frontend/ppc/ppc_instr_tables.h>
+#include <alloy/string_buffer.h>
 #include <poly/poly.h>
 
 namespace alloy {
 namespace frontend {
 namespace ppc {
+
+std::vector<InstrType*> all_instrs_;
+
+void DumpAllInstrCounts() {
+  StringBuffer sb;
+  sb.Append("Instruction translation counts:\n");
+  for (auto instr_type : all_instrs_) {
+    if (instr_type->translation_count) {
+      sb.Append("%8d : %s\n", instr_type->translation_count, instr_type->name);
+    }
+  }
+  fprintf(stdout, sb.GetString());
+  fflush(stdout);
+}
 
 void InstrOperand::Dump(std::string& out_str) {
   if (display) {
@@ -322,48 +338,39 @@ InstrType* GetInstrType(uint32_t code) {
   switch (code >> 26) {
     case 4:
       // Opcode = 4, index = bits 10-0 (10)
-      slot =
-          alloy::frontend::ppc::tables::instr_table_4[select_bits(code, 0, 10)];
+      slot = tables::instr_table_4[select_bits(code, 0, 10)];
       break;
     case 19:
       // Opcode = 19, index = bits 10-1 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_19[select_bits(code, 1,
-                                                                      10)];
+      slot = tables::instr_table_19[select_bits(code, 1, 10)];
       break;
     case 30:
       // Opcode = 30, index = bits 4-1 (4)
       // Special cased to an uber instruction.
-      slot =
-          alloy::frontend::ppc::tables::instr_table_30[select_bits(code, 0, 0)];
+      slot = tables::instr_table_30[select_bits(code, 0, 0)];
       break;
     case 31:
       // Opcode = 31, index = bits 10-1 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_31[select_bits(code, 1,
-                                                                      10)];
+      slot = tables::instr_table_31[select_bits(code, 1, 10)];
       break;
     case 58:
       // Opcode = 58, index = bits 1-0 (2)
-      slot =
-          alloy::frontend::ppc::tables::instr_table_58[select_bits(code, 0, 1)];
+      slot = tables::instr_table_58[select_bits(code, 0, 1)];
       break;
     case 59:
       // Opcode = 59, index = bits 5-1 (5)
-      slot =
-          alloy::frontend::ppc::tables::instr_table_59[select_bits(code, 1, 5)];
+      slot = tables::instr_table_59[select_bits(code, 1, 5)];
       break;
     case 62:
       // Opcode = 62, index = bits 1-0 (2)
-      slot =
-          alloy::frontend::ppc::tables::instr_table_62[select_bits(code, 0, 1)];
+      slot = tables::instr_table_62[select_bits(code, 0, 1)];
       break;
     case 63:
       // Opcode = 63, index = bits 10-1 (10)
-      slot = alloy::frontend::ppc::tables::instr_table_63[select_bits(code, 1,
-                                                                      10)];
+      slot = tables::instr_table_63[select_bits(code, 1, 10)];
       break;
     default:
-      slot =
-          alloy::frontend::ppc::tables::instr_table[select_bits(code, 26, 31)];
+      slot = tables::instr_table[select_bits(code, 26, 31)];
       break;
   }
   if (slot && slot->opcode) {
@@ -372,9 +379,8 @@ InstrType* GetInstrType(uint32_t code) {
 
   // Slow lookup via linear scan.
   // This is primarily due to laziness. It could be made fast like the others.
-  for (size_t n = 0;
-       n < poly::countof(alloy::frontend::ppc::tables::instr_table_scan); n++) {
-    slot = &(alloy::frontend::ppc::tables::instr_table_scan[n]);
+  for (size_t n = 0; n < poly::countof(tables::instr_table_scan); n++) {
+    slot = &(tables::instr_table_scan[n]);
     if (slot->opcode == (code & slot->opcode_mask)) {
       return slot;
     }
@@ -389,6 +395,7 @@ int RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
   if (!instr_type) {
     return 1;
   }
+  all_instrs_.push_back(instr_type);
   assert_null(instr_type->emit);
   instr_type->emit = emit;
   return 0;

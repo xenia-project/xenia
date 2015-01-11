@@ -127,7 +127,7 @@ static InstrType** instr_table_prep_63(InstrType* unprep, size_t unprep_count,
 #define INSTRUCTION(name, opcode, format, type, disasm_fn, descr)   \
   {                                                                 \
     opcode, 0, kXEPPCInstrFormat##format, kXEPPCInstrType##type, 0, \
-        Disasm_##disasm_fn, #name,                                  \
+        Disasm_##disasm_fn, #name, 0,                               \
   }
 #define FLAG(t) kXEPPCInstrFlag##t
 
@@ -844,7 +844,7 @@ static InstrType** instr_table = instr_table_prep(
 #define SCAN_INSTRUCTION(name, opcode, format, type, disasm_fn, descr) \
   {                                                                    \
     opcode, kXEPPCInstrMask##format, kXEPPCInstrFormat##format,        \
-        kXEPPCInstrType##type, 0, Disasm_##disasm_fn, #name,           \
+        kXEPPCInstrType##type, 0, Disasm_##disasm_fn, #name, 0,        \
   }
 #define OP(x) ((((uint32_t)(x)) & 0x3f) << 26)
 #define VX128(op, xop) (OP(op) | (((uint32_t)(xop)) & 0x3d0))

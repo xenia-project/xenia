@@ -561,10 +561,12 @@ class InstrType {
   uint32_t flags;        // xe_ppc_instr_flag_e
   InstrDisasmFn disasm;
   char name[16];
+  uint32_t translation_count;
 
   InstrEmitFn emit;
 };
 
+void DumpAllInstrCounts();
 InstrType* GetInstrType(uint32_t code);
 int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
 

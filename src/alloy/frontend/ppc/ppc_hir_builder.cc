@@ -122,6 +122,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
       // TraceInvalidInstruction(i);
       continue;
     }
+    ++i.type->translation_count;
 
     typedef int (*InstrEmitter)(PPCHIRBuilder& f, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;

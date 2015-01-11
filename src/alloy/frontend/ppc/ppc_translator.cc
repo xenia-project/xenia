@@ -124,6 +124,10 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
     string_buffer_.Reset();
   }
 
+  if (false) {
+    alloy::frontend::ppc::DumpAllInstrCounts();
+  }
+
   // Emit function.
   uint32_t emit_flags = 0;
   if (debug_info) {
