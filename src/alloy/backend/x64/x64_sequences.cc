@@ -5007,6 +5007,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
 };
 EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.instr->flags == INT8_TYPE);
     // TODO(benvanik): find out how to do this with only one temp register!
     // Permute bytes between src2 and src3.
     if (i.src3.value->IsConstantZero()) {
@@ -5022,6 +5023,7 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
         } else {
           e.vxorps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
         }
+        e.vpand(e.xmm0, e.GetXmmConstPtr(XMMPermuteByteMask));
         if (i.src2.is_constant) {
           e.LoadConstantXmm(i.dest, i.src2.constant());
           e.vpshufb(i.dest, i.dest, e.xmm0);
@@ -5035,12 +5037,14 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
     } else {
       // General permute.
       // Control mask needs to be shuffled.
+      // TODO(benvanik): do constants here instead of in generated code.
       if (i.src1.is_constant) {
         e.LoadConstantXmm(e.xmm2, i.src1.constant());
         e.vxorps(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSwapWordMask));
       } else {
         e.vxorps(e.xmm2, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
       }
+      e.vpand(e.xmm2, e.GetXmmConstPtr(XMMPermuteByteMask));
       Xmm src2_shuf = e.xmm0;
       if (i.src2.value->IsConstantZero()) {
         e.vpxor(src2_shuf, src2_shuf);
