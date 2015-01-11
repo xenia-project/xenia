@@ -19,6 +19,10 @@ uint64_t ParseInt64(const char* value) {
   return std::strtoull(value, nullptr, 0);
 }
 
+double ParseFloat64(const char* value) {
+  return std::strtod(value, nullptr);
+}
+
 vec128_t ParseVec128(const char* value) {
   vec128_t v;
   char* p = const_cast<char*>(value);
@@ -37,6 +41,8 @@ void PPCContext::SetRegFromString(const char* name, const char* value) {
   int n;
   if (sscanf(name, "r%d", &n) == 1) {
     this->r[n] = ParseInt64(value);
+  } else if (sscanf(name, "f%d", &n) == 1) {
+    this->f[n] = ParseFloat64(value);
   } else if (sscanf(name, "v%d", &n) == 1) {
     this->v[n] = ParseVec128(value);
   } else {
@@ -51,6 +57,14 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
     uint64_t expected = ParseInt64(value);
     if (this->r[n] != expected) {
       snprintf(out_value, out_value_size, "%016llX", this->r[n]);
+      return false;
+    }
+    return true;
+  } else if (sscanf(name, "f%d", &n) == 1) {
+    double expected = ParseFloat64(value);
+    // TODO(benvanik): epsilon
+    if (this->f[n] != expected) {
+      snprintf(out_value, out_value_size, "%f", this->f[n]);
       return false;
     }
     return true;
