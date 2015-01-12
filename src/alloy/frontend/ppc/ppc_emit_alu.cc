@@ -732,8 +732,7 @@ XEEMITTER(extswx, 0x7C0007B4, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(nandx, 0x7C0003B8, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- ¬((RS) & (RB))
-  Value* ra = f.And(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
-  ra = f.Not(ra);
+  Value* ra = f.Not(f.And(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB)));
   f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
