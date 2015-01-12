@@ -1,0 +1,21 @@
+
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_stvew.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_stvew_1>:
+  100000:	7c 60 21 8e 	stvewx  v3,0,r4
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_stvew_2>:
+  100008:	7c 60 21 8e 	stvewx  v3,0,r4
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_stvew_3>:
+  100010:	7c 60 21 8e 	stvewx  v3,0,r4
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_stvew_4>:
+  100018:	7c 60 21 8e 	stvewx  v3,0,r4
+  10001c:	4e 80 00 20 	blr
