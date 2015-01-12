@@ -1344,6 +1344,8 @@ XEEMITTER(vrsqrtefp128, VX128_3(6, 1648), VX128_3)(PPCHIRBuilder& f,
 
 int InstrEmit_vsel_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
                     uint32_t vc) {
+  // For each bit:
+  // VRTi <- ((VRC)i=0) ? (VRA)i : (VRB)i
   Value* v = f.Select(f.LoadVR(vc), f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
