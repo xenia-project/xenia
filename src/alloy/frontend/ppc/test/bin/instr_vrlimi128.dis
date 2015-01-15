@@ -13,7 +13,7 @@ Disassembly of section .text:
   10000c:	4e 80 00 20 	blr
 
 0000000000100010 <test_vrlimi128_3>:
-  100010:	1b 2f d7 55 	vrlimi128 v57,v58,15,0
+  100010:	18 8f 1f 50 	vrlimi128 v4,v3,15,0
   100014:	4e 80 00 20 	blr
 
 0000000000100018 <test_vrlimi128_4>:
@@ -21,7 +21,7 @@ Disassembly of section .text:
   10001c:	4e 80 00 20 	blr
 
 0000000000100020 <test_vrlimi128_5>:
-  100020:	1a ef c7 d5 	vrlimi128 v55,v56,15,2
+  100020:	18 8f 1f d0 	vrlimi128 v4,v3,15,2
   100024:	4e 80 00 20 	blr
 
 0000000000100028 <test_vrlimi128_6>:
