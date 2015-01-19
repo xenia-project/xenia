@@ -5364,8 +5364,11 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     }
     // Shuffle bytes.
     e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackSHORT_2));
+    // Sign extend words.
+    e.vpslld(i.dest, 16);
+    e.vpsrad(i.dest, 16);
     // Add 3,3,0,1.
-    e.vpor(i.dest, e.GetXmmConstPtr(XMM3301));
+    e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
   }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     assert_false(IsPackOutSaturate(flags));
