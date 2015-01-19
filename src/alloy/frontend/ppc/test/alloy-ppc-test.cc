@@ -8,7 +8,6 @@
  */
 
 #include <alloy/alloy.h>
-#include <alloy/backend/ivm/ivm_backend.h>
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>

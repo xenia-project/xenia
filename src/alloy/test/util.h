@@ -11,7 +11,6 @@
 #define ALLOY_TEST_UTIL_H_
 
 #include <alloy/alloy.h>
-#include <alloy/backend/ivm/ivm_backend.h>
 #include <alloy/backend/x64/x64_backend.h>
 #include <alloy/frontend/ppc/ppc_context.h>
 #include <alloy/frontend/ppc/ppc_frontend.h>
@@ -22,7 +21,6 @@
 
 #include <third_party/catch/single_include/catch.hpp>
 
-#define ALLOY_TEST_IVM 1
 #define ALLOY_TEST_X64 1
 
 namespace alloy {
@@ -86,17 +84,6 @@ class TestFunction {
     memory_size = 16 * 1024 * 1024;
     memory.reset(new SimpleMemory(memory_size));
 
-#if ALLOY_TEST_IVM
-    {
-      auto runtime = std::make_unique<Runtime>(memory.get());
-      auto frontend =
-          std::make_unique<alloy::frontend::ppc::PPCFrontend>(runtime.get());
-      auto backend =
-          std::make_unique<alloy::backend::ivm::IVMBackend>(runtime.get());
-      runtime->Initialize(std::move(frontend), std::move(backend));
-      runtimes.emplace_back(std::move(runtime));
-    }
-#endif  // ALLOY_TEST_IVM
 #if ALLOY_TEST_X64
     {
       auto runtime = std::make_unique<Runtime>(memory.get());

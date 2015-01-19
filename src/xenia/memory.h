@@ -58,15 +58,6 @@ class Memory : public alloy::Memory {
                           void* callback_context, void* callback_data);
   void CancelWriteWatch(uintptr_t watch_handle);
 
-  uint8_t LoadI8(uint64_t address) override;
-  uint16_t LoadI16(uint64_t address) override;
-  uint32_t LoadI32(uint64_t address) override;
-  uint64_t LoadI64(uint64_t address) override;
-  void StoreI8(uint64_t address, uint8_t value) override;
-  void StoreI16(uint64_t address, uint16_t value) override;
-  void StoreI32(uint64_t address, uint32_t value) override;
-  void StoreI64(uint64_t address, uint64_t value) override;
-
   uint64_t HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
                      uint32_t alignment = 0x20);
   int HeapFree(uint64_t address, size_t size);

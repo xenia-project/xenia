@@ -26,5 +26,4 @@ A backend takes optimized IR and assembles an implementation-specific result.
 The backend is also responsible for executing the code it generates and supporting
 debugging features (such as breakpoints).
 
-* IVM: bytecode interpreter
 * x64: IA-64 with AVX2 code generator

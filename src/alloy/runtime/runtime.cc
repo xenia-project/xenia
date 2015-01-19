@@ -17,10 +17,9 @@
 #include <xenia/profiling.h>
 
 // TODO(benvanik): based on compiler support
-#include <alloy/backend/ivm/ivm_backend.h>
 #include <alloy/backend/x64/x64_backend.h>
 
-DEFINE_string(runtime_backend, "any", "Runtime backend [any, ivm, x64].");
+DEFINE_string(runtime_backend, "any", "Runtime backend [any, x64].");
 
 namespace alloy {
 namespace runtime {
@@ -81,22 +80,12 @@ int Runtime::Initialize(std::unique_ptr<Frontend> frontend,
       backend.reset(new alloy::backend::x64::X64Backend(this));
     }
 #endif  // ALLOY_HAS_X64_BACKEND
-#if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
-    if (FLAGS_runtime_backend == "ivm") {
-      backend.reset(new alloy::backend::ivm::IVMBackend(this));
-    }
-#endif  // ALLOY_HAS_IVM_BACKEND
     if (FLAGS_runtime_backend == "any") {
 #if defined(ALLOY_HAS_X64_BACKEND) && ALLOY_HAS_X64_BACKEND
       if (!backend) {
         backend.reset(new alloy::backend::x64::X64Backend(this));
       }
 #endif  // ALLOY_HAS_X64_BACKEND
-#if defined(ALLOY_HAS_IVM_BACKEND) && ALLOY_HAS_IVM_BACKEND
-      if (!backend) {
-        backend.reset(new alloy::backend::ivm::IVMBackend(this));
-      }
-#endif  // ALLOY_HAS_IVM_BACKEND
     }
   }
 

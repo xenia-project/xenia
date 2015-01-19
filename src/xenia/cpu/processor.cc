@@ -90,7 +90,6 @@ int Processor::Setup() {
   }
 
   std::unique_ptr<Backend> backend;
-  // backend.reset(new alloy::backend::ivm::IVMBackend(runtime));
   // backend.reset(new alloy::backend::x64::X64Backend(runtime));
   int result = runtime_->Initialize(std::move(backend));
   if (result) {

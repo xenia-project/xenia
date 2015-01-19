@@ -203,8 +203,8 @@ int Memory::Initialize() {
 
   // I have no idea what this is, but games try to read/write there.
   VirtualAlloc(Translate(0x40000000), 0x00010000, MEM_COMMIT, PAGE_READWRITE);
-  StoreI32(0x40000000, 0x00C40000);
-  StoreI32(0x40000004, 0x00010000);
+  poly::store_and_swap<uint32_t>(Translate(0x40000000), 0x00C40000);
+  poly::store_and_swap<uint32_t>(Translate(0x40000004), 0x00010000);
 
   return 0;
 }
@@ -284,62 +284,6 @@ uintptr_t Memory::AddWriteWatch(uint32_t guest_address, size_t length,
 
 void Memory::CancelWriteWatch(uintptr_t watch_handle) {
   mmio_handler_->CancelWriteWatch(watch_handle);
-}
-
-uint8_t Memory::LoadI8(uint64_t address) {
-  uint64_t value;
-  if (!mmio_handler_->CheckLoad(address, &value)) {
-    value = *reinterpret_cast<uint8_t*>(Translate(address));
-  }
-  return static_cast<uint8_t>(value);
-}
-
-uint16_t Memory::LoadI16(uint64_t address) {
-  uint64_t value;
-  if (!mmio_handler_->CheckLoad(address, &value)) {
-    value = *reinterpret_cast<uint16_t*>(Translate(address));
-  }
-  return static_cast<uint16_t>(value);
-}
-
-uint32_t Memory::LoadI32(uint64_t address) {
-  uint64_t value;
-  if (!mmio_handler_->CheckLoad(address, &value)) {
-    value = *reinterpret_cast<uint32_t*>(Translate(address));
-  }
-  return static_cast<uint32_t>(value);
-}
-
-uint64_t Memory::LoadI64(uint64_t address) {
-  uint64_t value;
-  if (!mmio_handler_->CheckLoad(address, &value)) {
-    value = *reinterpret_cast<uint64_t*>(Translate(address));
-  }
-  return static_cast<uint64_t>(value);
-}
-
-void Memory::StoreI8(uint64_t address, uint8_t value) {
-  if (!mmio_handler_->CheckStore(address, value)) {
-    *reinterpret_cast<uint8_t*>(Translate(address)) = value;
-  }
-}
-
-void Memory::StoreI16(uint64_t address, uint16_t value) {
-  if (!mmio_handler_->CheckStore(address, value)) {
-    *reinterpret_cast<uint16_t*>(Translate(address)) = value;
-  }
-}
-
-void Memory::StoreI32(uint64_t address, uint32_t value) {
-  if (!mmio_handler_->CheckStore(address, value)) {
-    *reinterpret_cast<uint32_t*>(Translate(address)) = value;
-  }
-}
-
-void Memory::StoreI64(uint64_t address, uint64_t value) {
-  if (!mmio_handler_->CheckStore(address, value)) {
-    *reinterpret_cast<uint64_t*>(Translate(address)) = value;
-  }
 }
 
 uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,

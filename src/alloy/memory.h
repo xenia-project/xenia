@@ -40,16 +40,6 @@ class Memory {
   uint64_t SearchAligned(uint64_t start, uint64_t end, const uint32_t* values,
                          size_t value_count);
 
-  // TODO(benvanik): remove with IVM.
-  virtual uint8_t LoadI8(uint64_t address) = 0;
-  virtual uint16_t LoadI16(uint64_t address) = 0;
-  virtual uint32_t LoadI32(uint64_t address) = 0;
-  virtual uint64_t LoadI64(uint64_t address) = 0;
-  virtual void StoreI8(uint64_t address, uint8_t value) = 0;
-  virtual void StoreI16(uint64_t address, uint16_t value) = 0;
-  virtual void StoreI32(uint64_t address, uint32_t value) = 0;
-  virtual void StoreI64(uint64_t address, uint64_t value) = 0;
-
  protected:
   size_t system_page_size_;
   uint8_t* membase_;
@@ -62,16 +52,6 @@ class SimpleMemory : public Memory {
  public:
   SimpleMemory(size_t capacity);
   ~SimpleMemory() override;
-
-  // TODO(benvanik): remove with IVM.
-  uint8_t LoadI8(uint64_t address) override;
-  uint16_t LoadI16(uint64_t address) override;
-  uint32_t LoadI32(uint64_t address) override;
-  uint64_t LoadI64(uint64_t address) override;
-  void StoreI8(uint64_t address, uint8_t value) override;
-  void StoreI16(uint64_t address, uint16_t value) override;
-  void StoreI32(uint64_t address, uint32_t value) override;
-  void StoreI64(uint64_t address, uint64_t value) override;
 
  private:
   std::vector<uint8_t> memory_;

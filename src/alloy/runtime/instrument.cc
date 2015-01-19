@@ -53,7 +53,6 @@ bool FunctionInstrument::Attach() {
 
   // Function impl attach:
   // - add instrument to list
-  // IVM: handle in Call()
   // JIT: transition to instrumented state
   //      - rewrite enter/exit to jump to instrumentation thunk
   //      - some sort of locking required?

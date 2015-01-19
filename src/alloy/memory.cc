@@ -73,36 +73,4 @@ SimpleMemory::SimpleMemory(size_t capacity) : memory_(capacity) {
 
 SimpleMemory::~SimpleMemory() = default;
 
-uint8_t SimpleMemory::LoadI8(uint64_t address) {
-  return poly::load<uint8_t>(membase_ + address);
-}
-
-uint16_t SimpleMemory::LoadI16(uint64_t address) {
-  return poly::load<uint16_t>(membase_ + address);
-}
-
-uint32_t SimpleMemory::LoadI32(uint64_t address) {
-  return poly::load<uint32_t>(membase_ + address);
-}
-
-uint64_t SimpleMemory::LoadI64(uint64_t address) {
-  return poly::load<uint64_t>(membase_ + address);
-}
-
-void SimpleMemory::StoreI8(uint64_t address, uint8_t value) {
-  poly::store<uint8_t>(membase_ + address, value);
-}
-
-void SimpleMemory::StoreI16(uint64_t address, uint16_t value) {
-  poly::store<uint16_t>(membase_ + address, value);
-}
-
-void SimpleMemory::StoreI32(uint64_t address, uint32_t value) {
-  poly::store<uint32_t>(membase_ + address, value);
-}
-
-void SimpleMemory::StoreI64(uint64_t address, uint64_t value) {
-  poly::store<uint64_t>(membase_ + address, value);
-}
-
 }  // namespace alloy
