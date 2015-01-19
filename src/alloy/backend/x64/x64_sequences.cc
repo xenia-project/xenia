@@ -4958,6 +4958,7 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.instr->flags == INT32_TYPE);
     // Permute words between src2 and src3.
     // TODO(benvanik): check src3 for zero. if 0, we can use pshufb.
     if (i.src1.is_constant) {
@@ -5006,8 +5007,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
   }
 };
 EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(i.instr->flags == INT8_TYPE);
+  static void EmitByInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): find out how to do this with only one temp register!
     // Permute bytes between src2 and src3.
     if (i.src3.value->IsConstantZero()) {
@@ -5066,6 +5066,65 @@ EMITTER(PERMUTE_V128, MATCH(I<OPCODE_PERMUTE, V128<>, V128<>, V128<>, V128<>>)) 
       // Build a mask with values in src2 having 0 and values in src3 having 1.
       e.vpcmpgtb(i.dest, e.xmm2, e.GetXmmConstPtr(XMMPermuteControl15));
       e.vpblendvb(i.dest, src2_shuf, src3_shuf, i.dest);
+    }
+  }
+
+  static __m128i EmulateByInt16(void*, __m128i control, __m128i src1, __m128i src2) {
+    alignas(16) uint16_t c[8];
+    alignas(16) uint16_t a[8];
+    alignas(16) uint16_t b[8];
+    _mm_store_si128(reinterpret_cast<__m128i*>(c), control);
+    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(b), src2);
+    for (size_t i = 0; i < 8; ++i) {
+      uint16_t si = (c[i] & 0xF) ^ 0x1;
+      c[i] = si >= 8 ? b[si - 8] : a[si];
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(c));
+  }
+  static void EmitByInt16(X64Emitter& e, const EmitArgType& i) {
+    // TODO(benvanik): replace with proper version.
+    assert_true(i.src1.is_constant);
+    if (i.src1.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      e.lea(e.r8, e.StashXmm(0, e.xmm0));
+    } else {
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+    }
+    if (i.src2.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      e.lea(e.r9, e.StashXmm(1, e.xmm0));
+    } else {
+      e.lea(e.r9, e.StashXmm(1, i.src2));
+    }
+    if (i.src3.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src3.constant());
+      e.lea(e.r10, e.StashXmm(2, e.xmm0));
+    } else {
+      e.lea(e.r10, e.StashXmm(2, i.src3));
+    }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateByInt16));
+    e.vmovaps(i.dest, e.xmm0);
+  }
+
+  static void EmitByInt32(X64Emitter& e, const EmitArgType& i) {
+    assert_always();
+  }
+
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    switch (i.instr->flags) {
+    case INT8_TYPE:
+      EmitByInt8(e, i);
+      break;
+    case INT16_TYPE:
+      EmitByInt16(e, i);
+      break;
+    case INT32_TYPE:
+      EmitByInt32(e, i);
+      break;
+    default:
+      assert_unhandled_case(i.instr->flags);
+      return;
     }
   }
 };

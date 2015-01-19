@@ -81,7 +81,7 @@ TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
 TEST_CASE("PERMUTE_V128_BY_V128", "[instr]") {
   TestFunction test([](hir::HIRBuilder& b) {
     StoreVR(b, 3,
-            b.Permute(LoadVR(b, 3), LoadVR(b, 4), LoadVR(b, 5), VEC128_TYPE));
+            b.Permute(LoadVR(b, 3), LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE));
     b.Return();
   });
   test.Run([](PPCContext* ctx) {

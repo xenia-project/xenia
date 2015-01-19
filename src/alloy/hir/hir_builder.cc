@@ -1852,6 +1852,7 @@ Value* HIRBuilder::Splat(Value* value, TypeName target_type) {
 Value* HIRBuilder::Permute(Value* control, Value* value1, Value* value2,
                            TypeName part_type) {
   ASSERT_TYPES_EQUAL(value1, value2);
+  assert_true(part_type >= INT8_TYPE && part_type <= INT32_TYPE);
 
   // TODO(benvanik): could do some of this as constants.
 

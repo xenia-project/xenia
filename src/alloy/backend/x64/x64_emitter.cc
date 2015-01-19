@@ -41,7 +41,7 @@ using alloy::runtime::ThreadState;
 static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
 
 static const size_t STASH_OFFSET = 32;
-static const size_t STASH_OFFSET_HIGH = 32 + 16;
+static const size_t STASH_OFFSET_HIGH = 32 + 32;
 
 // If we are running with tracing on we have to store the EFLAGS in the stack,
 // otherwise our calls out to C to print will clear it before DID_CARRY/etc

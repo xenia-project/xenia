@@ -96,14 +96,14 @@ namespace x64 {
  *  |                  |
  *  |                  |
  *  +------------------+
- *  | scratch, 32b     | rsp + 32
+ *  | scratch, 48b     | rsp + 32
  *  |                  |
  *  +------------------+
- *  | rcx / context    | rsp + 64
+ *  | rcx / context    | rsp + 80
  *  +------------------+
- *  | guest ret addr   | rsp + 72
+ *  | guest ret addr   | rsp + 88
  *  +------------------+
- *  | call ret addr    | rsp + 80
+ *  | call ret addr    | rsp + 96
  *  +------------------+
  *    ... locals ...
  *  +------------------+
@@ -116,10 +116,10 @@ class StackLayout {
  public:
   const static size_t THUNK_STACK_SIZE = 120;
 
-  const static size_t GUEST_STACK_SIZE = 88;
-  const static size_t GUEST_RCX_HOME = 64;
-  const static size_t GUEST_RET_ADDR = 72;
-  const static size_t GUEST_CALL_RET_ADDR = 80;
+  const static size_t GUEST_STACK_SIZE = 104;
+  const static size_t GUEST_RCX_HOME = 80;
+  const static size_t GUEST_RET_ADDR = 88;
+  const static size_t GUEST_CALL_RET_ADDR = 96;
 };
 
 class X64ThunkEmitter : public X64Emitter {

@@ -118,6 +118,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(rax, rdx);
   mov(rdx, r8);
   mov(r8, r9);
+  mov(r9, r10);
   call(rax);
 
   mov(rbx, qword[rsp + 48]);
