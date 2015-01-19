@@ -1,5 +1,5 @@
 
-/cygdrive/d/dev/xenia/src/alloy/frontend/ppc/test/bin//instr_subfic.o:     file format elf64-powerpc
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_subfic.o:     file format elf64-powerpc
 
 
 Disassembly of section .text:
