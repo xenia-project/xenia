@@ -5457,6 +5457,7 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
         }
       }
     }
+    e.vpshufd(i.dest, i.dest, 0xB1);
   }
 };
 EMITTER_OPCODE_TABLE(
