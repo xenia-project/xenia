@@ -837,11 +837,16 @@ XEEMITTER(rld, 0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
     uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
     uint64_t m = XEMASK(mb, 63);
     Value* v = f.LoadGPR(i.MD.RT);
-    if (sh) {
-      v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
-    }
-    if (m != 0xFFFFFFFFFFFFFFFF) {
-      v = f.And(v, f.LoadConstant(m));
+    if (sh == 64 - mb) {
+      // srdi == rldicl ra,rs,64-n,n
+      v = f.Shr(v, int8_t(mb));
+    } else {
+      if (sh) {
+        v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+      }
+      if (m != 0xFFFFFFFFFFFFFFFF) {
+        v = f.And(v, f.LoadConstant(m));
+      }
     }
     f.StoreGPR(i.MD.RA, v);
     if (i.MD.Rc) {
@@ -860,8 +865,8 @@ XEEMITTER(rld, 0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
     uint64_t m = XEMASK(0, mb);
     Value* v = f.LoadGPR(i.MD.RT);
     if (mb == 63 - sh) {
-      // Shift left.
-      v = f.Shl(v, f.LoadConstant((int8_t)sh));
+      // sldi ==  rldicr ra,rs,n,63-n
+      v = f.Shl(v, int8_t(sh));
     } else {
       if (sh) {
         v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
