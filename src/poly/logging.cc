@@ -12,6 +12,7 @@
 #include <mutex>
 
 #include <gflags/gflags.h>
+#include <poly/cxx_compat.h>
 #include <poly/main.h>
 #include <poly/math.h>
 
