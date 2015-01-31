@@ -407,9 +407,6 @@
                   'ole32',
                   'wsock32',
                   'Ws2_32',
-                  'dxgi',
-                  'd3d11',
-                  'd3dcompiler',
                   'xinput',
                   'xaudio2',
                   'Shell32',
@@ -437,19 +434,6 @@
           }],
         ],
       },
-      'conditions': [
-        ['OS == "win"', {
-          'copies': [
-            {
-              'files': [
-                # Depending on which SDK you have...
-                '<(windows_sdk_dir)/redist/d3d/x64/d3dcompiler_47.dll',
-              ],
-              'destination': '<(PRODUCT_DIR)',
-            },
-          ],
-        }],
-      ],
 
       'cflags': [
       ],
