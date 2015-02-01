@@ -277,6 +277,8 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(PPCContext* ppc_state,
   // XELOGD(
   //     "KeQueryPerformanceFrequency()");
 
+  // TODO(benvanik): return fixed 50000000?
+
   uint64_t result = 0;
   LARGE_INTEGER frequency;
   if (QueryPerformanceFrequency(&frequency)) {

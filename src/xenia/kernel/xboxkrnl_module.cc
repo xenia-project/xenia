@@ -24,7 +24,8 @@ namespace xe {
 namespace kernel {
 
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
-    : XKernelModule(kernel_state, "xe:\\xboxkrnl.exe") {
+    : XKernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
+      timestamp_timer_(nullptr) {
 // Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
   static KernelExport xboxkrnl_export_table[] = {
@@ -72,11 +73,13 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
   // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
   // was whether an HDD was present. Not sure what the other flags are.
+  //
+  // aomega08 says the value is 0x02000817, bit 27: debug mode on.
+  // When that is set, though, allocs crash in weird ways.
   uint32_t pXboxHardwareInfo = (uint32_t)memory_->HeapAlloc(0, 16, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxHardwareInfo, pXboxHardwareInfo);
-  poly::store_and_swap<uint32_t>(mem + pXboxHardwareInfo + 0,
-                                 0x00000000);  // flags
+  poly::store_and_swap<uint32_t>(mem + pXboxHardwareInfo + 0, 0);  // flags
   poly::store_and_swap<uint8_t>(mem + pXboxHardwareInfo + 4,
                                 0x06);  // cpu count
   // Remaining 11b are zeroes?
@@ -120,18 +123,34 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 0, 2);
   poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 2, 0xFFFF);
   poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 4, 0xFFFF);
-  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 6, 0xFFFF);
+  poly::store_and_swap<uint8_t>(mem + pXboxKrnlVersion + 6, 0x80);
+  poly::store_and_swap<uint8_t>(mem + pXboxKrnlVersion + 7, 0x00);
 
   // KeTimeStampBundle (ad)
+  // This must be updated during execution, at 1ms intevals.
+  // We setup a system timer here to do that.
   uint32_t pKeTimeStampBundle = (uint32_t)memory_->HeapAlloc(0, 24, 0);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeTimeStampBundle, pKeTimeStampBundle);
   poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 0, 0);
   poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 8, 0);
-  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 12, 0);
+  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 16, GetTickCount());
+  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 20, 0);
+  CreateTimerQueueTimer(&timestamp_timer_, nullptr,
+                        [](PVOID param, BOOLEAN timer_or_wait_fired) {
+                          auto timestamp_bundle =
+                              reinterpret_cast<uint8_t*>(param);
+                          poly::store_and_swap<uint32_t>(timestamp_bundle + 16,
+                                                         GetTickCount());
+                        },
+                        mem + pKeTimeStampBundle, 0,
+                        1,  // 1ms
+                        WT_EXECUTEINTIMERTHREAD);
 }
 
-XboxkrnlModule::~XboxkrnlModule() {}
+XboxkrnlModule::~XboxkrnlModule() {
+  DeleteTimerQueueTimer(nullptr, timestamp_timer_, nullptr);
+}
 
 int XboxkrnlModule::LaunchModule(const char* path) {
   // Create and register the module. We keep it local to this function and

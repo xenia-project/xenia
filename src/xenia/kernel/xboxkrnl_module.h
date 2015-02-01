@@ -31,6 +31,7 @@ class XboxkrnlModule : public XKernelModule {
   int LaunchModule(const char* path);
 
  private:
+  HANDLE timestamp_timer_;
 };
 
 }  // namespace kernel
