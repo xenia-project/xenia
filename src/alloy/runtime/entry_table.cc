@@ -39,6 +39,9 @@ Entry* EntryTable::Get(uint64_t address) {
 }
 
 Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
+  // TODO(benvanik): replace with a map with wait-free for find.
+  // https://github.com/facebook/folly/blob/master/folly/AtomicHashMap.h
+
   lock_.lock();
   const auto& it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : nullptr;
@@ -50,7 +53,7 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
       do {
         lock_.unlock();
         // TODO(benvanik): sleep for less time?
-        poly::threading::Sleep(std::chrono::microseconds(100));
+        poly::threading::Sleep(std::chrono::microseconds(10));
         lock_.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }
