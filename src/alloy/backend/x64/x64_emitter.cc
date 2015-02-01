@@ -9,6 +9,7 @@
 
 #include "alloy/backend/x64/x64_emitter.h"
 
+#include "alloy/alloy-private.h"
 #include "alloy/backend/x64/x64_backend.h"
 #include "alloy/backend/x64/x64_code_cache.h"
 #include "alloy/backend/x64/x64_function.h"
@@ -371,7 +372,9 @@ void X64Emitter::Trap(uint16_t trap_type) {
     case 22:
       // Always trap?
       // TODO(benvanik): post software interrupt to debugger.
-      db(0xCC);
+      if (FLAGS_break_on_debugbreak) {
+        db(0xCC);
+      }
       break;
     default:
       PLOGW("Unknown trap type %d", trap_type);

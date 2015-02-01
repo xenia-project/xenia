@@ -32,3 +32,4 @@ DEFINE_uint64(break_on_instruction, 0,
               "int3 before the given guest address is executed.");
 DEFINE_uint64(break_on_memory, 0,
               "int3 on read/write to the given memory address.");
+DEFINE_bool(break_on_debugbreak, true, "int3 on JITed __debugbreak requests.");
