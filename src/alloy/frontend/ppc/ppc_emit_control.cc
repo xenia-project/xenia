@@ -529,9 +529,42 @@ XEEMITTER(twi, 0x0C000000, D)(PPCHIRBuilder& f, InstrData& i) {
 
 // Processor control (A-26)
 
-XEEMITTER(mfcr, 0x7C000026, X)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+XEEMITTER(mfcr, 0x7C000026, XFX)(PPCHIRBuilder& f, InstrData& i) {
+  // mfocrf RT,FXM
+  // RT <- undefined
+  // count <- 0
+  //  do i = 0 to 7
+  //    if FXMi = 1 then
+  //      n <- i
+  //      count <- count + 1
+  //      if count = 1 then
+  //        RT4un + 32:4un + 35 <- CR4un + 32 : 4un + 35
+
+  // TODO(benvanik): optimize mfcr sequences.
+  // Often look something like this:
+  //   mfocrf  r11, cr6
+  //   not r10, r11
+  //   extrwi    r3, r10, 1, 26
+  // Could recognize this and only load the appropriate CR bit.
+
+  assert_true(i.XFX.spr & (1 << 9));
+  uint32_t bits = (i.XFX.spr & 0x1FF) >> 1;
+  int count = 0;
+  int cri = 0;
+  for (int b = 0; b <= 7; ++b) {
+    if (bits & (1 << b)) {
+      cri = 7 - b;
+      ++count;
+    }
+  }
+  Value* v;
+  if (count == 1) {
+    v = f.LoadCR(cri);
+  } else {
+    v = f.LoadZero(INT64_TYPE);
+  }
+  f.StoreGPR(i.XFX.RT, v);
+  return 0;
 }
 
 XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {

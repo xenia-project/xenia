@@ -22,8 +22,8 @@ namespace ppc {
 #define XEREGISTERINSTR(name, opcode) \
   RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
-#define XEINSTRNOTIMPLEMENTED()
-//#define XEINSTRNOTIMPLEMENTED assert_trueALWAYS
+//#define XEINSTRNOTIMPLEMENTED()
+#define XEINSTRNOTIMPLEMENTED() assert_always("Instruction not implemented");
 //#define XEINSTRNOTIMPLEMENTED() __debugbreak()
 
 }  // namespace ppc

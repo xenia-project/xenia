@@ -253,8 +253,26 @@ void PPCHIRBuilder::StoreCTR(Value* value) {
 }
 
 Value* PPCHIRBuilder::LoadCR(uint32_t n) {
-  assert_always();
-  return 0;
+  // Construct the entire word of just the bits we care about.
+  // This makes it easier for the optimizer to exclude things, though
+  // we could be even more clever and watch sequences.
+  Value* v = Shl(ZeroExtend(LoadContext(offsetof(PPCContext, cr0) + (4 * n) + 0,
+                                        INT8_TYPE),
+                            INT64_TYPE),
+                 4 * (7 - n) + 3);
+  v = Or(v, Shl(ZeroExtend(LoadContext(offsetof(PPCContext, cr0) + (4 * n) + 1,
+                                       INT8_TYPE),
+                           INT64_TYPE),
+                4 * (7 - n) + 2));
+  v = Or(v, Shl(ZeroExtend(LoadContext(offsetof(PPCContext, cr0) + (4 * n) + 2,
+                                       INT8_TYPE),
+                           INT64_TYPE),
+                4 * (7 - n) + 1));
+  v = Or(v, Shl(ZeroExtend(LoadContext(offsetof(PPCContext, cr0) + (4 * n) + 3,
+                                       INT8_TYPE),
+                           INT64_TYPE),
+                4 * (7 - n) + 0));
+  return v;
 }
 
 Value* PPCHIRBuilder::LoadCRField(uint32_t n, uint32_t bit) {
