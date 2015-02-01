@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_emit-private.h>
+#include "alloy/frontend/ppc/ppc_emit-private.h"
 
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_hir_builder.h>
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/frontend/ppc/ppc_hir_builder.h"
 
 namespace alloy {
 namespace frontend {

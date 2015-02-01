@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/register_file.h>
+#include "xenia/gpu/register_file.h"
 
 namespace xe {
 namespace gpu {
@@ -19,7 +19,7 @@ const char* RegisterFile::GetRegisterName(uint32_t index) {
 #define XE_GPU_REGISTER(index, type, name) \
   case index:                              \
     return #name;
-#include <xenia/gpu/register_table.inc>
+#include "xenia/gpu/register_table.inc"
 #undef XE_GPU_REGISTER
     default:
       return nullptr;

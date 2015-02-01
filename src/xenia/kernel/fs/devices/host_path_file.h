@@ -12,8 +12,8 @@
 
 #include <string>
 
-#include <xenia/common.h>
-#include <xenia/kernel/objects/xfile.h>
+#include "xenia/common.h"
+#include "xenia/kernel/objects/xfile.h"
 
 namespace xe {
 namespace kernel {

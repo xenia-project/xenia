@@ -22,12 +22,12 @@
 // load into xmm register:
 // [0F 0E 0D 0C] [0B 0A 09 08] [07 06 05 04] [03 02 01 00] (w, z, y, x)
 
-#include <alloy/backend/x64/x64_sequences.h>
+#include "alloy/backend/x64/x64_sequences.h"
 
-#include <alloy/backend/x64/x64_emitter.h>
-#include <alloy/backend/x64/x64_tracers.h>
-#include <alloy/hir/hir_builder.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/backend/x64/x64_emitter.h"
+#include "alloy/backend/x64/x64_tracers.h"
+#include "alloy/hir/hir_builder.h"
+#include "alloy/runtime/runtime.h"
 
 namespace alloy {
 namespace backend {
@@ -43,7 +43,7 @@ typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*, const Instr**);
 std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
 
 // Utilities/types used only in this file:
-#include <alloy/backend/x64/x64_sequence.inl>
+#include "alloy/backend/x64/x64_sequence.inl"
 
 // Selects the right byte/word/etc from a vector. We need to flip logical
 // indices (0,1,2,3,4,5,6,7,...) = (3,2,1,0,7,6,5,4,...)

@@ -15,9 +15,9 @@
 #include <queue>
 #include <thread>
 
-#include <xenia/common.h>
-#include <xenia/emulator.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/emulator.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace apu {

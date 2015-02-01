@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xam_module.h>
+#include "xenia/kernel/xam_module.h"
 
-#include <poly/math.h>
-#include <xenia/export_resolver.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xam_private.h>
+#include "poly/math.h"
+#include "xenia/export_resolver.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xam_private.h"
 
 namespace xe {
 namespace kernel {
@@ -20,11 +20,11 @@ namespace kernel {
 XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
     : XKernelModule(kernel_state, "xe:\\xam.xex") {
 // Build the export table used for resolution.
-#include <xenia/kernel/util/export_table_pre.inc>
+#include "xenia/kernel/util/export_table_pre.inc"
   static KernelExport xam_export_table[] = {
-#include <xenia/kernel/xam_table.inc>
+#include "xenia/kernel/xam_table.inc"
   };
-#include <xenia/kernel/util/export_table_post.inc>
+#include "xenia/kernel/util/export_table_post.inc"
   export_resolver_->RegisterTable("xam.xex", xam_export_table,
                                   poly::countof(xam_export_table));
 

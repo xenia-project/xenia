@@ -12,8 +12,8 @@
 
 #include <mutex>
 
-#include <alloy/frontend/frontend.h>
-#include <alloy/type_pool.h>
+#include "alloy/frontend/frontend.h"
+#include "alloy/type_pool.h"
 
 namespace alloy {
 namespace frontend {

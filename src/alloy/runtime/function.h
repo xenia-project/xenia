@@ -14,7 +14,7 @@
 #include <mutex>
 #include <vector>
 
-#include <alloy/runtime/debug_info.h>
+#include "alloy/runtime/debug_info.h"
 
 namespace alloy {
 namespace runtime {

@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include <alloy/hir/hir_builder.h>
+#include "alloy/hir/hir_builder.h"
 
 namespace alloy {
 namespace runtime {

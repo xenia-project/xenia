@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_COMPILER_PASS_H_
 #define ALLOY_COMPILER_COMPILER_PASS_H_
 
-#include <alloy/hir/hir_builder.h>
+#include "alloy/hir/hir_builder.h"
 
 namespace alloy {
 namespace runtime {

@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xobject.h>
+#include "xenia/kernel/xobject.h"
 
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/objects/xevent.h>
-#include <xenia/kernel/objects/xmutant.h>
-#include <xenia/kernel/objects/xsemaphore.h>
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/objects/xevent.h"
+#include "xenia/kernel/objects/xmutant.h"
+#include "xenia/kernel/objects/xsemaphore.h"
 
 namespace xe {
 namespace kernel {

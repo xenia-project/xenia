@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/devices/stfs_container_device.h>
+#include "xenia/kernel/fs/devices/stfs_container_device.h"
 
-#include <poly/math.h>
-#include <xenia/kernel/fs/stfs.h>
-#include <xenia/kernel/fs/devices/stfs_container_entry.h>
-#include <xenia/kernel/objects/xfile.h>
+#include "poly/math.h"
+#include "xenia/kernel/fs/stfs.h"
+#include "xenia/kernel/fs/devices/stfs_container_entry.h"
+#include "xenia/kernel/objects/xfile.h"
 
 namespace xe {
 namespace kernel {

@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/xinput/xinput_hid.h>
+#include "xenia/hid/xinput/xinput_hid.h"
 
-#include <xenia/hid/xinput/xinput_input_driver.h>
+#include "xenia/hid/xinput/xinput_input_driver.h"
 
 namespace xe {
 namespace hid {

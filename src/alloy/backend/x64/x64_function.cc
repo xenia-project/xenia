@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_function.h>
+#include "alloy/backend/x64/x64_function.h"
 
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/runtime/runtime.h>
-#include <alloy/runtime/thread_state.h>
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/runtime/runtime.h"
+#include "alloy/runtime/thread_state.h"
 
 namespace alloy {
 namespace backend {

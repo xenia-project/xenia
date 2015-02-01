@@ -14,14 +14,14 @@
 #include <mutex>
 #include <vector>
 
-#include <alloy/backend/backend.h>
-#include <alloy/frontend/frontend.h>
-#include <alloy/memory.h>
-#include <alloy/runtime/debugger.h>
-#include <alloy/runtime/entry_table.h>
-#include <alloy/runtime/module.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/runtime/thread_state.h>
+#include "alloy/backend/backend.h"
+#include "alloy/frontend/frontend.h"
+#include "alloy/memory.h"
+#include "alloy/runtime/debugger.h"
+#include "alloy/runtime/entry_table.h"
+#include "alloy/runtime/module.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/runtime/thread_state.h"
 
 namespace alloy {
 namespace runtime {

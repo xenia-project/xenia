@@ -12,8 +12,8 @@
 
 #include <string>
 
-#include <xenia/gpu/ucode.h>
-#include <xenia/gpu/xenos.h>
+#include "xenia/gpu/ucode.h"
+#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {

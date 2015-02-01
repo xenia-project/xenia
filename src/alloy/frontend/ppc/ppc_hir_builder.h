@@ -10,10 +10,10 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_
 #define ALLOY_FRONTEND_PPC_PPC_HIR_BUILDER_H_
 
-#include <alloy/hir/hir_builder.h>
-#include <alloy/runtime/function.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/string_buffer.h>
+#include "alloy/hir/hir_builder.h"
+#include "alloy/runtime/function.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/string_buffer.h"
 
 namespace alloy {
 namespace frontend {

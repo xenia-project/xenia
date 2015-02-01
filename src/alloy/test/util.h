@@ -10,16 +10,16 @@
 #ifndef ALLOY_TEST_UTIL_H_
 #define ALLOY_TEST_UTIL_H_
 
-#include <alloy/alloy.h>
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/hir/hir_builder.h>
-#include <alloy/runtime/test_module.h>
-#include <poly/main.h>
-#include <poly/poly.h>
+#include "alloy/alloy.h"
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/hir/hir_builder.h"
+#include "alloy/runtime/test_module.h"
+#include "poly/main.h"
+#include "poly/poly.h"
 
-#include <third_party/catch/single_include/catch.hpp>
+#include "third_party/catch/single_include/catch.hpp"
 
 #define ALLOY_TEST_X64 1
 

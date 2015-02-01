@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xmodule.h>
+#include "xenia/kernel/objects/xmodule.h"
 
-#include <xdb/protocol.h>
+#include "xdb/protocol.h"
 
 namespace xe {
 namespace kernel {

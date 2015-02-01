@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/string_buffer.h>
+#include "alloy/string_buffer.h"
 
 #include <algorithm>
 #include <cstdarg>

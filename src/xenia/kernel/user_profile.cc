@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/user_profile.h>
+#include "xenia/kernel/user_profile.h"
 
 namespace xe {
 namespace kernel {

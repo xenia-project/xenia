@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include <poly/string.h>
+#include "poly/string.h"
 
 namespace poly {
 

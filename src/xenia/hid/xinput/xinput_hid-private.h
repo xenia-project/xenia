@@ -10,8 +10,8 @@
 #ifndef XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_
 #define XENIA_HID_XINPUT_XINPUT_HID_PRIVATE_H_
 
-#include <xenia/common.h>
-#include <xenia/hid/xinput/xinput_hid.h>
+#include "xenia/common.h"
+#include "xenia/hid/xinput/xinput_hid.h"
 
 namespace xe {
 namespace hid {

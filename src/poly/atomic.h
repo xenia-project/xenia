@@ -12,8 +12,8 @@
 
 #include <cstdint>
 
-#include <poly/config.h>
-#include <poly/platform.h>
+#include "poly/config.h"
+#include "poly/platform.h"
 
 #if XE_LIKE_OSX
 #include <libkern/OSAtomic.h>

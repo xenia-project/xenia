@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/nop/nop_apu.h>
+#include "xenia/apu/nop/nop_apu.h"
 
-#include <xenia/apu/nop/nop_audio_system.h>
+#include "xenia/apu/nop/nop_audio_system.h"
 
 using namespace xe;
 using namespace xe::apu;

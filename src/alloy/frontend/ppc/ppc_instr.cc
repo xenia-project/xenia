@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_instr.h>
+#include "alloy/frontend/ppc/ppc_instr.h"
 
 #include <sstream>
 #include <vector>
 
-#include <alloy/frontend/ppc/ppc_instr_tables.h>
-#include <alloy/string_buffer.h>
-#include <poly/poly.h>
+#include "alloy/frontend/ppc/ppc_instr_tables.h"
+#include "alloy/string_buffer.h"
+#include "poly/poly.h"
 
 namespace alloy {
 namespace frontend {

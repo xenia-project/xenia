@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <poly/config.h>
+#include "poly/config.h"
 
 // C++11 thread local storage.
 // http://en.cppreference.com/w/cpp/language/storage_duration

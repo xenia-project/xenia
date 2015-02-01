@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_assembler.h>
+#include "alloy/backend/x64/x64_assembler.h"
 
-#include <alloy/reset_scope.h>
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/backend/x64/x64_emitter.h>
-#include <alloy/backend/x64/x64_function.h>
-#include <alloy/hir/hir_builder.h>
-#include <alloy/hir/label.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/reset_scope.h"
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/backend/x64/x64_emitter.h"
+#include "alloy/backend/x64/x64_function.h"
+#include "alloy/hir/hir_builder.h"
+#include "alloy/hir/label.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 namespace BE {
 #include <beaengine/BeaEngine.h>

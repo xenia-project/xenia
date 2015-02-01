@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <alloy/alloy.h>
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/runtime/raw_module.h>
-#include <poly/main.h>
-#include <poly/poly.h>
+#include "alloy/alloy.h"
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/runtime/raw_module.h"
+#include "poly/main.h"
+#include "poly/poly.h"
 
 #if !XE_LIKE_WIN32
 #include <dirent.h>

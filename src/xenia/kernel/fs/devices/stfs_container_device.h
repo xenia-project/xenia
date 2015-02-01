@@ -13,9 +13,9 @@
 #include <memory>
 #include <string>
 
-#include <poly/mapped_memory.h>
-#include <xenia/common.h>
-#include <xenia/kernel/fs/device.h>
+#include "poly/mapped_memory.h"
+#include "xenia/common.h"
+#include "xenia/kernel/fs/device.h"
 
 namespace xe {
 namespace kernel {

@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 #define ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
 #if XE_COMPILER_MSVC
 #pragma warning(push)

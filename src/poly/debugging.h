@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include <poly/config.h>
+#include "poly/config.h"
 
 namespace poly {
 namespace debugging {

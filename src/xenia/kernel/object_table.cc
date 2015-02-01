@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/object_table.h>
+#include "xenia/kernel/object_table.h"
 
 #include <algorithm>
 
-#include <xenia/kernel/xobject.h>
-#include <xenia/kernel/objects/xthread.h>
+#include "xenia/kernel/xobject.h"
+#include "xenia/kernel/objects/xthread.h"
 
 namespace xe {
 namespace kernel {

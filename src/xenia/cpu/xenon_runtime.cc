@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/xenon_runtime.h>
+#include "xenia/cpu/xenon_runtime.h"
 
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <xenia/cpu/xenon_thread_state.h>
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "xenia/cpu/xenon_thread_state.h"
 
 using namespace xe;
 using namespace xe::cpu;

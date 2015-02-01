@@ -10,9 +10,9 @@
 #ifndef ALLOY_ALLOY_H_
 #define ALLOY_ALLOY_H_
 
-#include <alloy/runtime/function.h>
-#include <alloy/runtime/module.h>
-#include <alloy/runtime/runtime.h>
-#include <alloy/runtime/thread_state.h>
+#include "alloy/runtime/function.h"
+#include "alloy/runtime/module.h"
+#include "alloy/runtime/runtime.h"
+#include "alloy/runtime/thread_state.h"
 
 #endif  // ALLOY_ALLOY_H_

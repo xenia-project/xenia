@@ -14,8 +14,8 @@
 #include <bitset>
 #include <vector>
 
-#include <alloy/backend/machine_info.h>
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/backend/machine_info.h"
+#include "alloy/compiler/compiler_pass.h"
 
 namespace alloy {
 namespace compiler {

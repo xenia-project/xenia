@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/debug_agent.h>
+#include "xenia/debug_agent.h"
 
-#include <poly/string.h>
+#include "poly/string.h"
 #include <gflags/gflags.h>
 
 DEFINE_string(trace_file, "", "Trace to the given file.");

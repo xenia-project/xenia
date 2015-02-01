@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/export_resolver.h>
+#include "xenia/export_resolver.h"
 
-#include <poly/math.h>
+#include "poly/math.h"
 
 namespace xe {
 

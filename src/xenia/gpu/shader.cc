@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/shader.h>
+#include "xenia/gpu/shader.h"
 
-#include <poly/math.h>
-#include <xenia/gpu/ucode_disassembler.h>
+#include "poly/math.h"
+#include "xenia/gpu/ucode_disassembler.h"
 
 namespace xe {
 namespace gpu {

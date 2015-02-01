@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/mmio_handler.h>
+#include "xenia/cpu/mmio_handler.h"
 
-#include <poly/poly.h>
+#include "poly/poly.h"
 
 namespace BE {
 #include <beaengine/BeaEngine.h>

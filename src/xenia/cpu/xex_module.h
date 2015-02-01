@@ -12,9 +12,9 @@
 
 #include <string>
 
-#include <alloy/runtime/module.h>
-#include <xenia/common.h>
-#include <xenia/kernel/util/xex2.h>
+#include "alloy/runtime/module.h"
+#include "xenia/common.h"
+#include "xenia/kernel/util/xex2.h"
 
 namespace xe {
 namespace cpu {

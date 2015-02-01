@@ -12,10 +12,10 @@
 
 #include <memory>
 
-#include <alloy/backend/assembler.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/string_buffer.h>
+#include "alloy/backend/assembler.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/string_buffer.h"
 
 namespace alloy {
 namespace frontend {

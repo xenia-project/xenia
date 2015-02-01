@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/constant_propagation_pass.h>
+#include "alloy/compiler/passes/constant_propagation_pass.h"
 
-#include <alloy/runtime/function.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/runtime/function.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace compiler {

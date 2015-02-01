@@ -13,8 +13,8 @@
 #include <functional>
 #include <string>
 
-#include <poly/assert.h>
-#include <poly/byte_order.h>
+#include "poly/assert.h"
+#include "poly/byte_order.h"
 
 namespace poly {
 

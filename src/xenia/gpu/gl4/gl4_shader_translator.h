@@ -12,12 +12,12 @@
 
 #include <string>
 
-#include <alloy/string_buffer.h>
-#include <xenia/common.h>
-#include <xenia/gpu/gl4/gl_context.h>
-#include <xenia/gpu/gl4/gl4_shader.h>
-#include <xenia/gpu/ucode.h>
-#include <xenia/gpu/xenos.h>
+#include "alloy/string_buffer.h"
+#include "xenia/common.h"
+#include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/gpu/gl4/gl4_shader.h"
+#include "xenia/gpu/ucode.h"
+#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {

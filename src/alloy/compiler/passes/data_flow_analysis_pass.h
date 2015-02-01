@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_DATA_FLOW_ANALYSIS_PASS_H_
 #define ALLOY_COMPILER_PASSES_DATA_FLOW_ANALYSIS_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
 
 namespace alloy {

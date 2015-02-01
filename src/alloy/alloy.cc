@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#include <alloy/alloy.h>
-#include <alloy/alloy-private.h>
+#include "alloy/alloy.h"
+#include "alloy/alloy-private.h"
 
 using namespace alloy;
 

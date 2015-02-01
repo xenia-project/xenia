@@ -13,9 +13,9 @@
 #include <memory>
 #include <vector>
 
-#include <xenia/common.h>
-#include <xenia/emulator.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/emulator.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace hid {

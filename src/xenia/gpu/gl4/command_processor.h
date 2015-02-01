@@ -17,14 +17,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include <xenia/gpu/gl4/circular_buffer.h>
-#include <xenia/gpu/gl4/draw_batcher.h>
-#include <xenia/gpu/gl4/gl_context.h>
-#include <xenia/gpu/gl4/gl4_shader.h>
-#include <xenia/gpu/gl4/texture_cache.h>
-#include <xenia/gpu/register_file.h>
-#include <xenia/gpu/xenos.h>
-#include <xenia/memory.h>
+#include "xenia/gpu/gl4/circular_buffer.h"
+#include "xenia/gpu/gl4/draw_batcher.h"
+#include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/gpu/gl4/gl4_shader.h"
+#include "xenia/gpu/gl4/texture_cache.h"
+#include "xenia/gpu/register_file.h"
+#include "xenia/gpu/xenos.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace gpu {

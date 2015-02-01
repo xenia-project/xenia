@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/apps/apps.h>
+#include "xenia/kernel/apps/apps.h"
 
-#include <xenia/kernel/apps/xmp_app.h>
+#include "xenia/kernel/apps/xmp_app.h"
 
 namespace xe {
 namespace kernel {

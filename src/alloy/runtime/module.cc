@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/module.h>
+#include "alloy/runtime/module.h"
 
 #include <fstream>
 #include <sstream>
 
-#include <alloy/runtime/runtime.h>
-#include <poly/poly.h>
-#include <xenia/profiling.h>
+#include "alloy/runtime/runtime.h"
+#include "poly/poly.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace runtime {

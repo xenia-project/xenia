@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/nop/nop_input_driver.h>
+#include "xenia/hid/nop/nop_input_driver.h"
 
-#include <xenia/hid/hid-private.h>
+#include "xenia/hid/hid-private.h"
 
 namespace xe {
 namespace hid {

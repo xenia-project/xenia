@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/test_module.h>
+#include "alloy/runtime/test_module.h"
 
-#include <alloy/compiler/compiler_passes.h>
-#include <alloy/reset_scope.h>
-#include <alloy/runtime/runtime.h>
-#include <poly/platform.h>
-#include <poly/string.h>
+#include "alloy/compiler/compiler_passes.h"
+#include "alloy/reset_scope.h"
+#include "alloy/runtime/runtime.h"
+#include "poly/platform.h"
+#include "poly/string.h"
 
 namespace alloy {
 namespace runtime {

@@ -10,11 +10,11 @@
 #ifndef XENIA_CPU_XENON_RUNTIME_H_
 #define XENIA_CPU_XENON_RUNTIME_H_
 
-#include <alloy/runtime/runtime.h>
-#include <xenia/common.h>
-#include <xenia/cpu/xenon_thread_state.h>
-#include <xenia/export_resolver.h>
-#include <xenia/memory.h>
+#include "alloy/runtime/runtime.h"
+#include "xenia/common.h"
+#include "xenia/cpu/xenon_thread_state.h"
+#include "xenia/export_resolver.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {

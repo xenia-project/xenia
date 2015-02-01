@@ -12,8 +12,8 @@
 
 #include <string>
 
-#include <poly/ui/win32/win32_control.h>
-#include <poly/ui/window.h>
+#include "poly/ui/win32/win32_control.h"
+#include "poly/ui/window.h"
 
 namespace poly {
 namespace ui {

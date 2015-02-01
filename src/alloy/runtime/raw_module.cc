@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/raw_module.h>
+#include "alloy/runtime/raw_module.h"
 
-#include <poly/platform.h>
-#include <poly/string.h>
+#include "poly/platform.h"
+#include "poly/string.h"
 
 namespace alloy {
 namespace runtime {

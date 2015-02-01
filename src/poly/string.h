@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include <poly/platform.h>
+#include "poly/platform.h"
 
 #if XE_LIKE_WIN32
 #define strcasecmp _stricmp

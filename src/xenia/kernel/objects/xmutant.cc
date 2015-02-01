@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xmutant.h>
+#include "xenia/kernel/objects/xmutant.h"
 
 namespace xe {
 namespace kernel {

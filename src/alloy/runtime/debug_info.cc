@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/debug_info.h>
+#include "alloy/runtime/debug_info.h"
 
 #include <cstdlib>
 

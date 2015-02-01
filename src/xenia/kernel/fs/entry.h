@@ -13,8 +13,8 @@
 #include <memory>
 #include <string>
 
-#include <xenia/common.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

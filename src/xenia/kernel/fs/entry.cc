@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/entry.h>
-#include <xenia/kernel/fs/device.h>
+#include "xenia/kernel/fs/entry.h"
+#include "xenia/kernel/fs/device.h"
 
 namespace xe {
 namespace kernel {

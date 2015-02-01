@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xenumerator.h>
+#include "xenia/kernel/objects/xenumerator.h"
 
 namespace xe {
 namespace kernel {

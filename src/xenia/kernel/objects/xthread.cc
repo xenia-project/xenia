@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xthread.h>
+#include "xenia/kernel/objects/xthread.h"
 
-#include <poly/poly.h>
-#include <xdb/protocol.h>
-#include <xenia/cpu/cpu.h>
-#include <xenia/kernel/native_list.h>
-#include <xenia/kernel/objects/xevent.h>
-#include <xenia/kernel/objects/xuser_module.h>
+#include "poly/poly.h"
+#include "xdb/protocol.h"
+#include "xenia/cpu/cpu.h"
+#include "xenia/kernel/native_list.h"
+#include "xenia/kernel/objects/xevent.h"
+#include "xenia/kernel/objects/xuser_module.h"
 
 namespace xe {
 namespace kernel {

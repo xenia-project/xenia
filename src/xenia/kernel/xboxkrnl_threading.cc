@@ -7,19 +7,19 @@
  ******************************************************************************
  */
 
-#include <xenia/common.h>
-#include <xenia/cpu/processor.h>
-#include <xenia/kernel/dispatcher.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/native_list.h>
-#include <xenia/kernel/objects/xevent.h>
-#include <xenia/kernel/objects/xmutant.h>
-#include <xenia/kernel/objects/xsemaphore.h>
-#include <xenia/kernel/objects/xthread.h>
-#include <xenia/kernel/objects/xtimer.h>
-#include <xenia/kernel/util/shim_utils.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/kernel/dispatcher.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/native_list.h"
+#include "xenia/kernel/objects/xevent.h"
+#include "xenia/kernel/objects/xmutant.h"
+#include "xenia/kernel/objects/xsemaphore.h"
+#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/objects/xtimer.h"
+#include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

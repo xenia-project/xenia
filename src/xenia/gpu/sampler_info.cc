@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/sampler_info.h>
+#include "xenia/gpu/sampler_info.h"
 
-#include <third_party/xxhash/xxhash.h>
+#include "third_party/xxhash/xxhash.h"
 
 namespace xe {
 namespace gpu {

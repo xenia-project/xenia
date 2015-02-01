@@ -15,7 +15,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <poly/delegate.h>
+#include "poly/delegate.h"
 
 namespace alloy {
 namespace runtime {

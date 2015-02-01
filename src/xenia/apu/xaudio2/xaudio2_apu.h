@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <xenia/common.h>
+#include "xenia/common.h"
 
 namespace xe {
 class Emulator;

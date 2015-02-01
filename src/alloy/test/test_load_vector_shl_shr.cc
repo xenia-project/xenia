@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/test/util.h>
+#include "alloy/test/util.h"
 
 using namespace alloy;
 using namespace alloy::hir;

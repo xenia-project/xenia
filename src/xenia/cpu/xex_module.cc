@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/xex_module.h>
+#include "xenia/cpu/xex_module.h"
 
 #include <algorithm>
 
-#include <poly/math.h>
-#include <xenia/cpu/cpu-private.h>
-#include <xenia/cpu/xenon_runtime.h>
-#include <xenia/export_resolver.h>
+#include "poly/math.h"
+#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/xenon_runtime.h"
+#include "xenia/export_resolver.h"
 
 using namespace alloy;
 using namespace alloy::runtime;

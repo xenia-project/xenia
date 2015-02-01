@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/value_reduction_pass.h>
+#include "alloy/compiler/passes/value_reduction_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 #if XE_COMPILER_MSVC
 #pragma warning(push)

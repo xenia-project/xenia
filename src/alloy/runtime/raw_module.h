@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include <alloy/runtime/module.h>
+#include "alloy/runtime/module.h"
 
 namespace alloy {
 namespace runtime {

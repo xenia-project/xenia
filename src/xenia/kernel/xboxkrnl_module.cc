@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_module.h>
+#include "xenia/kernel/xboxkrnl_module.h"
 
 #include <gflags/gflags.h>
-#include <poly/math.h>
-#include <xenia/emulator.h>
-#include <xenia/export_resolver.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/objects/xuser_module.h>
+#include "poly/math.h"
+#include "xenia/emulator.h"
+#include "xenia/export_resolver.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/objects/xuser_module.h"
 
 DEFINE_bool(abort_before_entry, false,
             "Abort execution right before launching the module.");
@@ -26,11 +26,11 @@ namespace kernel {
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
     : XKernelModule(kernel_state, "xe:\\xboxkrnl.exe") {
 // Build the export table used for resolution.
-#include <xenia/kernel/util/export_table_pre.inc>
+#include "xenia/kernel/util/export_table_pre.inc"
   static KernelExport xboxkrnl_export_table[] = {
-#include <xenia/kernel/xboxkrnl_table.inc>
+#include "xenia/kernel/xboxkrnl_table.inc"
   };
-#include <xenia/kernel/util/export_table_post.inc>
+#include "xenia/kernel/util/export_table_post.inc"
   export_resolver_->RegisterTable("xboxkrnl.exe", xboxkrnl_export_table,
                                   poly::countof(xboxkrnl_export_table));
 

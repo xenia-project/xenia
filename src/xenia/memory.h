@@ -12,10 +12,10 @@
 
 #include <memory>
 
-#include <alloy/memory.h>
+#include "alloy/memory.h"
 
-#include <xenia/common.h>
-#include <xenia/cpu/mmio_handler.h>
+#include "xenia/common.h"
+#include "xenia/cpu/mmio_handler.h"
 
 typedef struct xe_ppc_state xe_ppc_state_t;
 

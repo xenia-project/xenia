@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <poly/mapped_memory.h>
+#include "poly/mapped_memory.h"
 
 #include <Windows.h>
 

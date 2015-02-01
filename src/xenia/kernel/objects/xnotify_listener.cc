@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xnotify_listener.h>
+#include "xenia/kernel/objects/xnotify_listener.h"
 
 namespace xe {
 namespace kernel {

@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/circular_buffer.h>
+#include "xenia/gpu/gl4/circular_buffer.h"
 
-#include <poly/assert.h>
-#include <poly/math.h>
-#include <xenia/gpu/gl4/gl4_gpu-private.h>
-#include <xenia/gpu/gpu-private.h>
+#include "poly/assert.h"
+#include "poly/math.h"
+#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {

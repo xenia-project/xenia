@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xsemaphore.h>
+#include "xenia/kernel/objects/xsemaphore.h"
 
 namespace xe {
 namespace kernel {

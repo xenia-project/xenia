@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/texture_info.h>
+#include "xenia/gpu/texture_info.h"
 
-#include <third_party/xxhash/xxhash.h>
+#include "third_party/xxhash/xxhash.h"
 
-#include <poly/math.h>
+#include "poly/math.h"
 
 namespace xe {
 namespace gpu {

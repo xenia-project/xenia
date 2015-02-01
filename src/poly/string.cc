@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <poly/string.h>
+#include "poly/string.h"
 
 #include <codecvt>
 #include <locale>

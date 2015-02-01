@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_tracers.h>
+#include "alloy/backend/x64/x64_tracers.h"
 
-#include <alloy/backend/x64/x64_emitter.h>
-#include <alloy/runtime/runtime.h>
-#include <alloy/runtime/thread_state.h>
+#include "alloy/backend/x64/x64_emitter.h"
+#include "alloy/runtime/runtime.h"
+#include "alloy/runtime/thread_state.h"
 
 using namespace alloy;
 using namespace alloy::backend::x64;

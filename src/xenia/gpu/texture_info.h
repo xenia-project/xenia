@@ -10,8 +10,8 @@
 #ifndef XENIA_GPU_TEXTURE_INFO_H_
 #define XENIA_GPU_TEXTURE_INFO_H_
 
-#include <xenia/gpu/ucode.h>
-#include <xenia/gpu/xenos.h>
+#include "xenia/gpu/ucode.h"
+#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {

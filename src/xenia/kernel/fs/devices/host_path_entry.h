@@ -10,8 +10,8 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_HOST_PATH_ENTRY_H_
 #define XENIA_KERNEL_FS_DEVICES_HOST_PATH_ENTRY_H_
 
-#include <xenia/common.h>
-#include <xenia/kernel/fs/entry.h>
+#include "xenia/common.h"
+#include "xenia/kernel/fs/entry.h"
 
 namespace xe {
 namespace kernel {

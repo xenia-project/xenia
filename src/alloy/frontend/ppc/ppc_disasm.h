@@ -10,7 +10,7 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_DISASM_H_
 #define ALLOY_FRONTEND_PPC_PPC_DISASM_H_
 
-#include <alloy/frontend/ppc/ppc_instr.h>
+#include "alloy/frontend/ppc/ppc_instr.h"
 
 namespace alloy {
 namespace frontend {

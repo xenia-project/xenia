@@ -7,20 +7,20 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_emitter.h>
+#include "alloy/backend/x64/x64_emitter.h"
 
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/backend/x64/x64_code_cache.h>
-#include <alloy/backend/x64/x64_function.h>
-#include <alloy/backend/x64/x64_sequences.h>
-#include <alloy/backend/x64/x64_thunk_emitter.h>
-#include <alloy/hir/hir_builder.h>
-#include <alloy/runtime/debug_info.h>
-#include <alloy/runtime/runtime.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/runtime/thread_state.h>
-#include <xdb/protocol.h>
-#include <xenia/profiling.h>
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/backend/x64/x64_code_cache.h"
+#include "alloy/backend/x64/x64_function.h"
+#include "alloy/backend/x64/x64_sequences.h"
+#include "alloy/backend/x64/x64_thunk_emitter.h"
+#include "alloy/hir/hir_builder.h"
+#include "alloy/runtime/debug_info.h"
+#include "alloy/runtime/runtime.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/runtime/thread_state.h"
+#include "xdb/protocol.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace backend {

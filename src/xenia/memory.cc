@@ -7,19 +7,19 @@
  ******************************************************************************
  */
 
-#include <xenia/memory.h>
+#include "xenia/memory.h"
 
 #include <algorithm>
 #include <mutex>
 
 #include <gflags/gflags.h>
-#include <poly/math.h>
-#include <xenia/cpu/mmio_handler.h>
+#include "poly/math.h"
+#include "xenia/cpu/mmio_handler.h"
 
 using namespace xe;
 
 // TODO(benvanik): move xbox.h out
-#include <xenia/xbox.h>
+#include "xenia/xbox.h"
 
 #if !XE_PLATFORM_WIN32
 #include <sys/mman.h>
@@ -38,7 +38,7 @@ using namespace xe;
 #if XE_DEBUG
 #define FOOTERS 0
 #endif  // XE_DEBUG
-#include <third_party/dlmalloc/malloc.c.h>
+#include "third_party/dlmalloc/malloc.c.h"
 
 DEFINE_bool(log_heap, false, "Log heap structure on alloc/free.");
 DEFINE_uint64(

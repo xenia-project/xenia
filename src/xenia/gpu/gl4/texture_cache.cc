@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/texture_cache.h>
+#include "xenia/gpu/gl4/texture_cache.h"
 
-#include <poly/assert.h>
-#include <poly/math.h>
-#include <xenia/gpu/gpu-private.h>
+#include "poly/assert.h"
+#include "poly/math.h"
+#include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {

@@ -7,19 +7,19 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/util/xex2.h>
+#include "xenia/kernel/util/xex2.h"
 
 #include <algorithm>
 #include <vector>
 
 #include <gflags/gflags.h>
-#include <poly/math.h>
-#include <third_party/crypto/rijndael-alg-fst.h>
-#include <third_party/crypto/rijndael-alg-fst.c>
-#include <third_party/mspack/lzx.h>
-#include <third_party/mspack/lzxd.c>
-#include <third_party/mspack/mspack.h>
-#include <third_party/pe/pe_image.h>
+#include "poly/math.h"
+#include "third_party/crypto/rijndael-alg-fst.h"
+#include "third_party/crypto/rijndael-alg-fst.c"
+#include "third_party/mspack/lzx.h"
+#include "third_party/mspack/lzxd.c"
+#include "third_party/mspack/mspack.h"
+#include "third_party/pe/pe_image.h"
 
 // using namespace alloy;
 

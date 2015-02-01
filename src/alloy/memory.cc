@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/memory.h>
+#include "alloy/memory.h"
 
-#include <poly/poly.h>
+#include "poly/poly.h"
 
 namespace alloy {
 

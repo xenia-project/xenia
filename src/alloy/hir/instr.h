@@ -10,8 +10,8 @@
 #ifndef ALLOY_HIR_INSTR_H_
 #define ALLOY_HIR_INSTR_H_
 
-#include <alloy/hir/opcodes.h>
-#include <alloy/hir/value.h>
+#include "alloy/hir/opcodes.h"
+#include "alloy/hir/value.h"
 
 namespace alloy {
 namespace runtime {

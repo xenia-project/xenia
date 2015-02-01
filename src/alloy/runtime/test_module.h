@@ -14,10 +14,10 @@
 #include <memory>
 #include <string>
 
-#include <alloy/backend/assembler.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/hir/hir_builder.h>
-#include <alloy/runtime/module.h>
+#include "alloy/backend/assembler.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/hir/hir_builder.h"
+#include "alloy/runtime/module.h"
 
 namespace alloy {
 namespace runtime {

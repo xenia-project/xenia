@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/devices/host_path_entry.h>
+#include "xenia/kernel/fs/devices/host_path_entry.h"
 
-#include <poly/mapped_memory.h>
-#include <xenia/kernel/fs/devices/host_path_file.h>
+#include "poly/mapped_memory.h"
+#include "xenia/kernel/fs/devices/host_path_file.h"
 
 namespace xe {
 namespace kernel {

@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <xenia/hid/input_system.h>
+#include "xenia/hid/input_system.h"
 
 namespace xe {
 class Emulator;

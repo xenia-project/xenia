@@ -16,8 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <alloy/memory.h>
-#include <alloy/runtime/symbol_info.h>
+#include "alloy/memory.h"
+#include "alloy/runtime/symbol_info.h"
 
 namespace alloy {
 namespace runtime {

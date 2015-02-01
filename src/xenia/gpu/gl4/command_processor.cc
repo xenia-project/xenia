@@ -7,20 +7,20 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/command_processor.h>
+#include "xenia/gpu/gl4/command_processor.h"
 
 #include <algorithm>
 
-#include <poly/logging.h>
-#include <poly/math.h>
-#include <xenia/gpu/gl4/gl4_gpu-private.h>
-#include <xenia/gpu/gl4/gl4_graphics_system.h>
-#include <xenia/gpu/gpu-private.h>
-#include <xenia/gpu/sampler_info.h>
-#include <xenia/gpu/texture_info.h>
-#include <xenia/gpu/xenos.h>
+#include "poly/logging.h"
+#include "poly/math.h"
+#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/gpu/gl4/gl4_graphics_system.h"
+#include "xenia/gpu/gpu-private.h"
+#include "xenia/gpu/sampler_info.h"
+#include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/xenos.h"
 
-#include <third_party/xxhash/xxhash.h>
+#include "third_party/xxhash/xxhash.h"
 
 #define XETRACECP(fmt, ...) \
   if (FLAGS_trace_ring_buffer) XELOGGPU(fmt, ##__VA_ARGS__)

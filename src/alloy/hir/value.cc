@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/hir/value.h>
+#include "alloy/hir/value.h"
 
 #include <cmath>
 

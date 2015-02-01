@@ -12,9 +12,9 @@
 
 #include <xaudio2.h>
 
-#include <xenia/common.h>
-#include <xenia/apu/audio_system.h>
-#include <xenia/apu/xaudio2/xaudio2_apu-private.h>
+#include "xenia/common.h"
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/xaudio2/xaudio2_apu-private.h"
 
 namespace xe {
 namespace apu {

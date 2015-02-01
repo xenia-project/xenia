@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/gl4_graphics_system.h>
+#include "xenia/gpu/gl4/gl4_graphics_system.h"
 
-#include <poly/threading.h>
-#include <xenia/cpu/processor.h>
-#include <xenia/gpu/gl4/gl4_gpu-private.h>
-#include <xenia/gpu/gl4/gl4_profiler_display.h>
-#include <xenia/gpu/gpu-private.h>
+#include "poly/threading.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/gpu/gl4/gl4_profiler_display.h"
+#include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {

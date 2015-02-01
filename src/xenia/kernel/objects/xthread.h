@@ -14,9 +14,9 @@
 #include <mutex>
 #include <string>
 
-#include <xenia/cpu/xenon_thread_state.h>
-#include <xenia/kernel/xobject.h>
-#include <xenia/xbox.h>
+#include "xenia/cpu/xenon_thread_state.h"
+#include "xenia/kernel/xobject.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/arena.h>
+#include "alloy/arena.h"
 
-#include <poly/poly.h>
+#include "poly/poly.h"
 
 namespace alloy {
 

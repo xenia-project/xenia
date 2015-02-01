@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/hir/opcodes.h>
+#include "alloy/hir/opcodes.h"
 
 namespace alloy {
 namespace hir {
@@ -16,7 +16,7 @@ namespace hir {
   const OpcodeInfo num##_info = {            \
       flags, sig, name, num,                 \
   };
-#include <alloy/hir/opcodes.inl>
+#include "alloy/hir/opcodes.inl"
 #undef DEFINE_OPCODE
 
 }  // namespace hir

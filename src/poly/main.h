@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include <poly/platform.h>
+#include "poly/platform.h"
 
 namespace poly {
 

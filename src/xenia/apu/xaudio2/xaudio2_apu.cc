@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/xaudio2/xaudio2_apu.h>
+#include "xenia/apu/xaudio2/xaudio2_apu.h"
 
-#include <xenia/apu/xaudio2/xaudio2_audio_system.h>
+#include "xenia/apu/xaudio2/xaudio2_audio_system.h"
 
 using namespace xe;
 using namespace xe::apu;

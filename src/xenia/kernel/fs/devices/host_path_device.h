@@ -12,8 +12,8 @@
 
 #include <string>
 
-#include <xenia/common.h>
-#include <xenia/kernel/fs/device.h>
+#include "xenia/common.h"
+#include "xenia/kernel/fs/device.h"
 
 namespace xe {
 namespace kernel {

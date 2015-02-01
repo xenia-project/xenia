@@ -13,9 +13,9 @@
 #include <mutex>
 #include <vector>
 
-#include <xenia/common.h>
-#include <xenia/export_resolver.h>
-#include <xenia/memory.h>
+#include "xenia/common.h"
+#include "xenia/export_resolver.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {

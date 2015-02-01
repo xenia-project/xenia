@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <poly/ui/win32/win32_window.h>
+#include "poly/ui/win32/win32_window.h"
 
 #include <dwmapi.h>
 #include <tpcshrd.h>
 #include <windowsx.h>
 
-#include <poly/logging.h>
+#include "poly/logging.h"
 
 namespace poly {
 namespace ui {

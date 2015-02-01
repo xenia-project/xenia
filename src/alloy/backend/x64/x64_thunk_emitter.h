@@ -10,8 +10,8 @@
 #ifndef ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
 #define ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
 
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/backend/x64/x64_emitter.h>
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/backend/x64/x64_emitter.h"
 
 namespace alloy {
 namespace backend {

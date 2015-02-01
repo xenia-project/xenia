@@ -7,17 +7,17 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_scanner.h>
+#include "alloy/frontend/ppc/ppc_scanner.h"
 
 #include <algorithm>
 #include <map>
 
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
-#include <alloy/runtime/runtime.h>
-#include <poly/logging.h>
-#include <poly/memory.h>
-#include <xenia/profiling.h>
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
+#include "alloy/runtime/runtime.h"
+#include "poly/logging.h"
+#include "poly/memory.h"
+#include "xenia/profiling.h"
 
 #if 0
 #define LOGPPC(fmt, ...) PLOGCORE('p', fmt, ##__VA_ARGS__)

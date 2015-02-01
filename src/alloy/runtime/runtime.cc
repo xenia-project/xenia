@@ -7,17 +7,17 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/runtime.h>
+#include "alloy/runtime/runtime.h"
 
 #include <gflags/gflags.h>
 
-#include <alloy/runtime/module.h>
-#include <poly/poly.h>
-#include <xdb/protocol.h>
-#include <xenia/profiling.h>
+#include "alloy/runtime/module.h"
+#include "poly/poly.h"
+#include "xdb/protocol.h"
+#include "xenia/profiling.h"
 
 // TODO(benvanik): based on compiler support
-#include <alloy/backend/x64/x64_backend.h>
+#include "alloy/backend/x64/x64_backend.h"
 
 DEFINE_string(runtime_backend, "any", "Runtime backend [any, x64].");
 

@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/devices/disc_image_device.h>
+#include "xenia/kernel/fs/devices/disc_image_device.h"
 
-#include <poly/math.h>
-#include <xenia/kernel/fs/gdfx.h>
-#include <xenia/kernel/fs/devices/disc_image_entry.h>
+#include "poly/math.h"
+#include "xenia/kernel/fs/gdfx.h"
+#include "xenia/kernel/fs/devices/disc_image_entry.h"
 
 namespace xe {
 namespace kernel {

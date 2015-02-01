@@ -12,10 +12,10 @@
 
 #include <functional>
 
-#include <poly/threading.h>
-#include <poly/ui/loop.h>
-#include <poly/ui/win32/win32_control.h>
-#include <xenia/gpu/gl4/gl_context.h>
+#include "poly/threading.h"
+#include "poly/ui/loop.h"
+#include "poly/ui/win32/win32_control.h"
+#include "xenia/gpu/gl4/gl_context.h"
 
 namespace xe {
 namespace gpu {

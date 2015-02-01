@@ -9,9 +9,9 @@
  * - abgx360
  */
 
-#include <xenia/kernel/fs/gdfx.h>
+#include "xenia/kernel/fs/gdfx.h"
 
-#include <poly/math.h>
+#include "poly/math.h"
 
 namespace xe {
 namespace kernel {

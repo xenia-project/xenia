@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/audio_system.h>
-#include <xenia/apu/audio_driver.h>
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/audio_driver.h"
 
-#include <poly/poly.h>
-#include <xenia/emulator.h>
-#include <xenia/cpu/processor.h>
-#include <xenia/cpu/xenon_thread_state.h>
+#include "poly/poly.h"
+#include "xenia/emulator.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/cpu/xenon_thread_state.h"
 
 using namespace xe;
 using namespace xe::apu;

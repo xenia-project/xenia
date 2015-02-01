@@ -285,7 +285,7 @@ typedef struct {
 } OpcodeInfo;
 
 #define DEFINE_OPCODE(num, name, sig, flags) extern const OpcodeInfo num##_info;
-#include <alloy/hir/opcodes.inl>
+#include "alloy/hir/opcodes.inl"
 #undef DEFINE_OPCODE
 
 }  // namespace hir

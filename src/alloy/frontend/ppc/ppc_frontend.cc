@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_frontend.h>
+#include "alloy/frontend/ppc/ppc_frontend.h"
 
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_disasm.h>
-#include <alloy/frontend/ppc/ppc_emit.h>
-#include <alloy/frontend/ppc/ppc_translator.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/frontend/ppc/ppc_disasm.h"
+#include "alloy/frontend/ppc/ppc_emit.h"
+#include "alloy/frontend/ppc/ppc_translator.h"
+#include "alloy/runtime/runtime.h"
 
 namespace alloy {
 namespace frontend {

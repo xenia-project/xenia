@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/xenon_thread_state.h>
+#include "xenia/cpu/xenon_thread_state.h"
 
-#include <xdb/protocol.h>
-#include <xenia/cpu/xenon_runtime.h>
+#include "xdb/protocol.h"
+#include "xenia/cpu/xenon_runtime.h"
 
 using namespace alloy;
 using namespace alloy::frontend;

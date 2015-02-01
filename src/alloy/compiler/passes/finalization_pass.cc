@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/finalization_pass.h>
+#include "alloy/compiler/passes/finalization_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace compiler {

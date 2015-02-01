@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <windowsx.h>
 
-#include <poly/ui/control.h>
+#include "poly/ui/control.h"
 
 namespace poly {
 namespace ui {

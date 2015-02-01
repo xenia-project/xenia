@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gpu.h>
-#include <xenia/gpu/gpu-private.h>
+#include "xenia/gpu/gpu.h"
+#include "xenia/gpu/gpu-private.h"
 
 // TODO(benvanik): based on platform.
-#include <xenia/gpu/gl4/gl4_gpu.h>
+#include "xenia/gpu/gl4/gl4_gpu.h"
 
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
 

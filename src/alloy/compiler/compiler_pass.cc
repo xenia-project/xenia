@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
-#include <alloy/compiler/compiler.h>
+#include "alloy/compiler/compiler.h"
 
 namespace alloy {
 namespace compiler {

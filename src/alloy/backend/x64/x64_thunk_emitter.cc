@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_thunk_emitter.h>
+#include "alloy/backend/x64/x64_thunk_emitter.h"
 
-#include <third_party/xbyak/xbyak/xbyak.h>
+#include "third_party/xbyak/xbyak/xbyak.h"
 
 namespace alloy {
 namespace backend {

@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/processor.h>
+#include "xenia/cpu/processor.h"
 
-#include <xenia/export_resolver.h>
-#include <xenia/cpu/cpu-private.h>
-#include <xenia/cpu/xenon_runtime.h>
-#include <xenia/cpu/xex_module.h>
+#include "xenia/export_resolver.h"
+#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/xenon_runtime.h"
+#include "xenia/cpu/xex_module.h"
 
 using namespace alloy;
 using namespace alloy::backend;

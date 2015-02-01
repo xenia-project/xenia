@@ -10,8 +10,8 @@
 #ifndef XENIA_HID_INPUT_DRIVER_H_
 #define XENIA_HID_INPUT_DRIVER_H_
 
-#include <xenia/common.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace hid {

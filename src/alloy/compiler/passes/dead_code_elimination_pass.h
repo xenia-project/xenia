@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
 #define ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
 
 namespace alloy {

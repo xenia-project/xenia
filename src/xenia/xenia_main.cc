@@ -8,10 +8,10 @@
  */
 
 #include <gflags/gflags.h>
-#include <poly/main.h>
-#include <xenia/emulator.h>
-#include <xenia/kernel/kernel.h>
-#include <xenia/ui/main_window.h>
+#include "poly/main.h"
+#include "xenia/emulator.h"
+#include "xenia/kernel/kernel.h"
+#include "xenia/ui/main_window.h"
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 

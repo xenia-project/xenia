@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <poly/threading.h>
+#include "poly/threading.h"
 
-#include <poly/platform.h>
+#include "poly/platform.h"
 
 namespace poly {
 namespace threading {

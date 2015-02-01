@@ -12,9 +12,9 @@
 
 #include <string>
 
-#include <poly/delegate.h>
-#include <poly/ui/control.h>
-#include <poly/ui/ui_event.h>
+#include "poly/delegate.h"
+#include "poly/ui/control.h"
+#include "poly/ui/ui_event.h"
 
 namespace poly {
 namespace ui {

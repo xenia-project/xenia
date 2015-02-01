@@ -7,21 +7,21 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/apu.h>
-#include <xenia/apu/apu-private.h>
+#include "xenia/apu/apu.h"
+#include "xenia/apu/apu-private.h"
 
 using namespace xe;
 using namespace xe::apu;
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
 
-#include <xenia/apu/nop/nop_apu.h>
+#include "xenia/apu/nop/nop_apu.h"
 std::unique_ptr<AudioSystem> xe::apu::CreateNop(Emulator* emulator) {
   return xe::apu::nop::Create(emulator);
 }
 
 #if XE_PLATFORM_WIN32
-#include <xenia/apu/xaudio2/xaudio2_apu.h>
+#include "xenia/apu/xaudio2/xaudio2_apu.h"
 std::unique_ptr<AudioSystem> xe::apu::CreateXAudio2(Emulator* emulator) {
   return xe::apu::xaudio2::Create(emulator);
 }

@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <poly/ui/win32/win32_control.h>
+#include "poly/ui/win32/win32_control.h"
 
 namespace poly {
 namespace ui {

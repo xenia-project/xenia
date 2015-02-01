@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/hir/instr.h>
+#include "alloy/hir/instr.h"
 
-#include <alloy/hir/block.h>
+#include "alloy/hir/block.h"
 
 namespace alloy {
 namespace hir {

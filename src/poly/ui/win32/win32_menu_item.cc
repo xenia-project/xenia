@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <poly/ui/win32/win32_menu_item.h>
+#include "poly/ui/win32/win32_menu_item.h"
 
 namespace poly {
 namespace ui {

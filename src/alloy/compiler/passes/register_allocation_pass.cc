@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/register_allocation_pass.h>
+#include "alloy/compiler/passes/register_allocation_pass.h"
 
 #include <algorithm>
 
-#include <xenia/profiling.h>
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace compiler {

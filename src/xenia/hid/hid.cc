@@ -7,19 +7,19 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/hid.h>
-#include <xenia/hid/hid-private.h>
-#include <xenia/hid/input_driver.h>
+#include "xenia/hid/hid.h"
+#include "xenia/hid/hid-private.h"
+#include "xenia/hid/input_driver.h"
 
 using namespace xe;
 using namespace xe::hid;
 
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 
-#include <xenia/hid/nop/nop_hid.h>
+#include "xenia/hid/nop/nop_hid.h"
 #if XE_PLATFORM_WIN32
-#include <xenia/hid/winkey/winkey_hid.h>
-#include <xenia/hid/xinput/xinput_hid.h>
+#include "xenia/hid/winkey/winkey_hid.h"
+#include "xenia/hid/xinput/xinput_hid.h"
 #endif  // WIN32
 
 std::unique_ptr<InputSystem> xe::hid::Create(Emulator* emulator) {

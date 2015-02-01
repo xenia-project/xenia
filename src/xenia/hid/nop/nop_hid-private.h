@@ -10,8 +10,8 @@
 #ifndef XENIA_HID_NOP_NOP_HID_PRIVATE_H_
 #define XENIA_HID_NOP_NOP_HID_PRIVATE_H_
 
-#include <xenia/common.h>
-#include <xenia/hid/nop/nop_hid.h>
+#include "xenia/common.h"
+#include "xenia/hid/nop/nop_hid.h"
 
 namespace xe {
 namespace hid {

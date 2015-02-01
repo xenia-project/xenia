@@ -7,18 +7,18 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_translator.h>
+#include "alloy/frontend/ppc/ppc_translator.h"
 
-#include <alloy/alloy-private.h>
-#include <alloy/compiler/compiler_passes.h>
-#include <alloy/frontend/ppc/ppc_disasm.h>
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/frontend/ppc/ppc_hir_builder.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
-#include <alloy/frontend/ppc/ppc_scanner.h>
-#include <alloy/reset_scope.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/alloy-private.h"
+#include "alloy/compiler/compiler_passes.h"
+#include "alloy/frontend/ppc/ppc_disasm.h"
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/frontend/ppc/ppc_hir_builder.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
+#include "alloy/frontend/ppc/ppc_scanner.h"
+#include "alloy/reset_scope.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace frontend {

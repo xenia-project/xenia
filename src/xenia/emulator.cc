@@ -7,20 +7,20 @@
  ******************************************************************************
  */
 
-#include <xenia/emulator.h>
+#include "xenia/emulator.h"
 
-#include <poly/poly.h>
-#include <xdb/protocol.h>
-#include <xenia/apu/apu.h>
-#include <xenia/cpu/cpu.h>
-#include <xenia/gpu/gpu.h>
-#include <xenia/hid/hid.h>
-#include <xenia/kernel/kernel.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/modules.h>
-#include <xenia/kernel/fs/filesystem.h>
-#include <xenia/memory.h>
-#include <xenia/ui/main_window.h>
+#include "poly/poly.h"
+#include "xdb/protocol.h"
+#include "xenia/apu/apu.h"
+#include "xenia/cpu/cpu.h"
+#include "xenia/gpu/gpu.h"
+#include "xenia/hid/hid.h"
+#include "xenia/kernel/kernel.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/modules.h"
+#include "xenia/kernel/fs/filesystem.h"
+#include "xenia/memory.h"
+#include "xenia/ui/main_window.h"
 
 namespace xe {
 

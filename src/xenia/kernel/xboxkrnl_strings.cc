@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <xenia/common.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/objects/xthread.h>
-#include <xenia/kernel/objects/xuser_module.h>
-#include <xenia/kernel/util/shim_utils.h>
-#include <xenia/kernel/util/xex2.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/util/xex2.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

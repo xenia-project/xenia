@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/function.h>
+#include "alloy/runtime/function.h"
 
-#include <alloy/runtime/debugger.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/runtime/thread_state.h>
-#include <xdb/protocol.h>
+#include "alloy/runtime/debugger.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/runtime/thread_state.h"
+#include "xdb/protocol.h"
 
 namespace alloy {
 namespace runtime {

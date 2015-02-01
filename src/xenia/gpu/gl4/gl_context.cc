@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/gl_context.h>
+#include "xenia/gpu/gl4/gl_context.h"
 
 #include <mutex>
 
-#include <poly/assert.h>
-#include <poly/cxx_compat.h>
-#include <poly/logging.h>
-#include <poly/math.h>
-#include <xenia/gpu/gl4/gl4_gpu-private.h>
+#include "poly/assert.h"
+#include "poly/cxx_compat.h"
+#include "poly/logging.h"
+#include "poly/math.h"
+#include "xenia/gpu/gl4/gl4_gpu-private.h"
 
 namespace xe {
 namespace gpu {

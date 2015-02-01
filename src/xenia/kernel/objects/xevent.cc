@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xevent.h>
+#include "xenia/kernel/objects/xevent.h"
 
 namespace xe {
 namespace kernel {

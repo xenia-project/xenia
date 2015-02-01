@@ -12,9 +12,9 @@
 
 #include <atomic>
 
-#include <xenia/kernel/kernel_state.h>
+#include "xenia/kernel/kernel_state.h"
 
-#include <xenia/xbox.h>
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

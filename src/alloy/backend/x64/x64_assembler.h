@@ -12,8 +12,8 @@
 
 #include <memory>
 
-#include <alloy/backend/assembler.h>
-#include <alloy/string_buffer.h>
+#include "alloy/backend/assembler.h"
+#include "alloy/string_buffer.h"
 
 namespace alloy {
 namespace backend {

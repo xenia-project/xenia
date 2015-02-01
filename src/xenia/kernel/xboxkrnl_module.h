@@ -10,13 +10,13 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_MODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_MODULE_H_
 
-#include <xenia/common.h>
-#include <xenia/export_resolver.h>
-#include <xenia/kernel/objects/xkernel_module.h>
-#include <xenia/kernel/xboxkrnl_ordinals.h>
+#include "xenia/common.h"
+#include "xenia/export_resolver.h"
+#include "xenia/kernel/objects/xkernel_module.h"
+#include "xenia/kernel/xboxkrnl_ordinals.h"
 
 // All of the exported functions:
-#include <xenia/kernel/xboxkrnl_rtl.h>
+#include "xenia/kernel/xboxkrnl_rtl.h"
 
 namespace xe {
 namespace kernel {

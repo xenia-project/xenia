@@ -10,11 +10,11 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XUSER_MODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_XUSER_MODULE_H_
 
-#include <xenia/kernel/objects/xmodule.h>
+#include "xenia/kernel/objects/xmodule.h"
 
-#include <xenia/export_resolver.h>
-#include <xenia/kernel/util/xex2.h>
-#include <xenia/xbox.h>
+#include "xenia/export_resolver.h"
+#include "xenia/kernel/util/xex2.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

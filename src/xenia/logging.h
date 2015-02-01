@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include <poly/logging.h>
+#include "poly/logging.h"
 
 #define XE_OPTION_ENABLE_LOGGING        1
 #define XE_OPTION_LOG_ERROR             1

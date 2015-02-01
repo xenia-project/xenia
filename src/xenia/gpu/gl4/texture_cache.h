@@ -14,11 +14,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include <xenia/gpu/gl4/circular_buffer.h>
-#include <xenia/gpu/gl4/gl_context.h>
-#include <xenia/gpu/sampler_info.h>
-#include <xenia/gpu/texture_info.h>
-#include <xenia/memory.h>
+#include "xenia/gpu/gl4/circular_buffer.h"
+#include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/gpu/sampler_info.h"
+#include "xenia/gpu/texture_info.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace gpu {

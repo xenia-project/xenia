@@ -10,14 +10,14 @@
 #ifndef XENIA_GPU_REGISTER_FILE_H_
 #define XENIA_GPU_REGISTER_FILE_H_
 
-#include <xenia/common.h>
+#include "xenia/common.h"
 
 namespace xe {
 namespace gpu {
 
 enum Register {
 #define XE_GPU_REGISTER(index, type, name) XE_GPU_REG_##name = index,
-#include <xenia/gpu/register_table.inc>
+#include "xenia/gpu/register_table.inc"
 #undef XE_GPU_REGISTER
 };
 

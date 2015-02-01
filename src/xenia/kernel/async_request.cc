@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/async_request.h>
+#include "xenia/kernel/async_request.h"
 
-#include <xenia/kernel/xobject.h>
-#include <xenia/kernel/objects/xevent.h>
+#include "xenia/kernel/xobject.h"
+#include "xenia/kernel/objects/xevent.h"
 
 namespace xe {
 namespace kernel {

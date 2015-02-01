@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <xenia/gpu/graphics_system.h>
+#include "xenia/gpu/graphics_system.h"
 
 namespace xe {
 class Emulator;

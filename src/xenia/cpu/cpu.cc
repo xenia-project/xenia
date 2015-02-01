@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/cpu-private.h>
+#include "xenia/cpu/cpu-private.h"
 
 // Debugging:
 DEFINE_bool(trace_function_generation, false,

@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_backend.h>
+#include "alloy/backend/x64/x64_backend.h"
 
-#include <alloy/backend/x64/x64_assembler.h>
-#include <alloy/backend/x64/x64_code_cache.h>
-#include <alloy/backend/x64/x64_sequences.h>
-#include <alloy/backend/x64/x64_thunk_emitter.h>
+#include "alloy/backend/x64/x64_assembler.h"
+#include "alloy/backend/x64/x64_code_cache.h"
+#include "alloy/backend/x64/x64_sequences.h"
+#include "alloy/backend/x64/x64_thunk_emitter.h"
 
 namespace alloy {
 namespace backend {

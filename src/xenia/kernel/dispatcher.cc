@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/dispatcher.h>
+#include "xenia/kernel/dispatcher.h"
 
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/native_list.h>
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/native_list.h"
 
 namespace xe {
 namespace kernel {

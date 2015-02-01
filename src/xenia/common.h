@@ -10,13 +10,13 @@
 #ifndef XENIA_COMMON_H_
 #define XENIA_COMMON_H_
 
-#include <poly/assert.h>
-#include <poly/atomic.h>
-#include <poly/byte_order.h>
-#include <poly/memory.h>
-#include <poly/string.h>
+#include "poly/assert.h"
+#include "poly/atomic.h"
+#include "poly/byte_order.h"
+#include "poly/memory.h"
+#include "poly/string.h"
 
-#include <xenia/logging.h>
-#include <xenia/profiling.h>
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 
 #endif  // XENIA_COMMON_H_

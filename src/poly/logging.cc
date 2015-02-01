@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <poly/logging.h>
+#include "poly/logging.h"
 
 #include <mutex>
 
 #include <gflags/gflags.h>
-#include <poly/cxx_compat.h>
-#include <poly/main.h>
-#include <poly/math.h>
+#include "poly/cxx_compat.h"
+#include "poly/main.h"
+#include "poly/math.h"
 
 DEFINE_bool(fast_stdout, false,
             "Don't lock around stdout/stderr. May introduce weirdness.");

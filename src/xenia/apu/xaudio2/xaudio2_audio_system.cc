@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/xaudio2/xaudio2_audio_system.h>
-#include <xenia/apu/xaudio2/xaudio2_audio_driver.h>
+#include "xenia/apu/xaudio2/xaudio2_audio_system.h"
+#include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
-#include <xenia/apu/apu-private.h>
+#include "xenia/apu/apu-private.h"
 
-#include <xenia/emulator.h>
+#include "xenia/emulator.h"
 
 using namespace xe;
 using namespace xe::apu;

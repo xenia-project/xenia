@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/app.h>
+#include "xenia/kernel/app.h"
 
-#include <xenia/kernel/kernel_state.h>
+#include "xenia/kernel/kernel_state.h"
 
 namespace xe {
 namespace kernel {

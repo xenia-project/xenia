@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/ui/main_window.h>
+#include "xenia/ui/main_window.h"
 
-#include <poly/logging.h>
-#include <poly/threading.h>
-#include <xenia/emulator.h>
+#include "poly/logging.h"
+#include "poly/threading.h"
+#include "xenia/emulator.h"
 
 namespace xe {
 namespace ui {

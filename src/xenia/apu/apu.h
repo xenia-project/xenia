@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <xenia/apu/audio_system.h>
+#include "xenia/apu/audio_system.h"
 
 namespace xe {
 class Emulator;

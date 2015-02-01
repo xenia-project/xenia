@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/frontend.h>
+#include "alloy/frontend/frontend.h"
 
-#include <alloy/runtime/runtime.h>
+#include "alloy/runtime/runtime.h"
 
 namespace alloy {
 namespace frontend {

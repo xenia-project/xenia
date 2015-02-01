@@ -10,8 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
 
-#include <xenia/emulator.h>
-#include <xenia/kernel/objects/xmodule.h>
+#include "xenia/emulator.h"
+#include "xenia/kernel/objects/xmodule.h"
 
 namespace xe {
 namespace kernel {

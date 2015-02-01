@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include <poly/string.h>
+#include "poly/string.h"
 
 #define XE_OPTION_PROFILING 1
 #if XE_LIKE_WIN32

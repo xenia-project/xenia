@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
 #define XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
 
-#include <xenia/gpu/gl4/gl_context.h>
+#include "xenia/gpu/gl4/gl_context.h"
 
 namespace xe {
 namespace gpu {

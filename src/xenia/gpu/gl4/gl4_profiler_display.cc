@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/gl4_profiler_display.h>
+#include "xenia/gpu/gl4/gl4_profiler_display.h"
 
-#include <third_party/microprofile/microprofileui.h>
+#include "third_party/microprofile/microprofileui.h"
 
-#include <poly/cxx_compat.h>
-#include <poly/math.h>
-#include <xenia/gpu/gpu-private.h>
+#include "poly/cxx_compat.h"
+#include "poly/math.h"
+#include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {

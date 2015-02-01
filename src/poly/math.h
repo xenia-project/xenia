@@ -17,8 +17,8 @@
 #include <cstring>
 #include <type_traits>
 
-#include <poly/config.h>
-#include <poly/platform.h>
+#include "poly/config.h"
+#include "poly/platform.h"
 
 namespace poly {
 

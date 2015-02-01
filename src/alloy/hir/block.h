@@ -10,7 +10,7 @@
 #ifndef ALLOY_HIR_BLOCK_H_
 #define ALLOY_HIR_BLOCK_H_
 
-#include <alloy/arena.h>
+#include "alloy/arena.h"
 
 namespace llvm {
 class BitVector;

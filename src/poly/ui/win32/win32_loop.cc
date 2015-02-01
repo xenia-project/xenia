@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <poly/ui/win32/win32_loop.h>
+#include "poly/ui/win32/win32_loop.h"
 
-#include <poly/assert.h>
+#include "poly/assert.h"
 
 namespace poly {
 namespace ui {

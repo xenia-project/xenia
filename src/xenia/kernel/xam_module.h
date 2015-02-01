@@ -10,10 +10,10 @@
 #ifndef XENIA_KERNEL_XAM_H_
 #define XENIA_KERNEL_XAM_H_
 
-#include <xenia/common.h>
-#include <xenia/export_resolver.h>
-#include <xenia/kernel/objects/xkernel_module.h>
-#include <xenia/kernel/xam_ordinals.h>
+#include "xenia/common.h"
+#include "xenia/export_resolver.h"
+#include "xenia/kernel/objects/xkernel_module.h"
+#include "xenia/kernel/xam_ordinals.h"
 
 namespace xe {
 namespace kernel {

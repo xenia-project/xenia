@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_code_cache.h>
+#include "alloy/backend/x64/x64_code_cache.h"
 
-#include <poly/poly.h>
-#include <xenia/profiling.h>
+#include "poly/poly.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace backend {

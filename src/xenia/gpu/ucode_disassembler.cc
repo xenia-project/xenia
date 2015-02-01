@@ -30,7 +30,7 @@
  * SOFTWARE.
  */
 
-#include <xenia/gpu/ucode_disassembler.h>
+#include "xenia/gpu/ucode_disassembler.h"
 
 #include <stdio.h>
 #include <stdlib.h>

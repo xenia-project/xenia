@@ -10,8 +10,8 @@
 #ifndef XENIA_XBOX_H_
 #define XENIA_XBOX_H_
 
-#include <poly/memory.h>
-#include <xenia/common.h>
+#include "poly/memory.h"
+#include "xenia/common.h"
 
 
 namespace xe {

@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <poly/main.h>
+#include "poly/main.h"
 
 #include <fcntl.h>
 #include <io.h>
 #include <shellapi.h>
 
 #include <gflags/gflags.h>
-#include <poly/string.h>
+#include "poly/string.h"
 
 namespace poly {
 

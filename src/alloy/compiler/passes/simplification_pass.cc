@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/simplification_pass.h>
+#include "alloy/compiler/passes/simplification_pass.h"
 
-#include <xenia/profiling.h>
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace compiler {

@@ -7,20 +7,20 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/kernel_state.h>
+#include "xenia/kernel/kernel_state.h"
 
-#include <xenia/emulator.h>
-#include <xenia/kernel/dispatcher.h>
-#include <xenia/kernel/xam_module.h>
-#include <xenia/kernel/xboxkrnl_module.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/xobject.h>
-#include <xenia/kernel/apps/apps.h>
-#include <xenia/kernel/objects/xevent.h>
-#include <xenia/kernel/objects/xmodule.h>
-#include <xenia/kernel/objects/xnotify_listener.h>
-#include <xenia/kernel/objects/xthread.h>
-#include <xenia/kernel/objects/xuser_module.h>
+#include "xenia/emulator.h"
+#include "xenia/kernel/dispatcher.h"
+#include "xenia/kernel/xam_module.h"
+#include "xenia/kernel/xboxkrnl_module.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/xobject.h"
+#include "xenia/kernel/apps/apps.h"
+#include "xenia/kernel/objects/xevent.h"
+#include "xenia/kernel/objects/xmodule.h"
+#include "xenia/kernel/objects/xnotify_listener.h"
+#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/objects/xuser_module.h"
 
 namespace xe {
 namespace kernel {

@@ -18,8 +18,8 @@
 #include <mutex>
 #include <thread>
 
-#include <poly/threading.h>
-#include <poly/ui/loop.h>
+#include "poly/threading.h"
+#include "poly/ui/loop.h"
 
 namespace poly {
 namespace ui {

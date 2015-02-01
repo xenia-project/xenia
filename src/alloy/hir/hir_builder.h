@@ -12,11 +12,11 @@
 
 #include <vector>
 
-#include <alloy/hir/block.h>
-#include <alloy/hir/instr.h>
-#include <alloy/hir/label.h>
-#include <alloy/hir/opcodes.h>
-#include <alloy/hir/value.h>
+#include "alloy/hir/block.h"
+#include "alloy/hir/instr.h"
+#include "alloy/hir/label.h"
+#include "alloy/hir/opcodes.h"
+#include "alloy/hir/value.h"
 
 namespace alloy {
 class StringBuffer;

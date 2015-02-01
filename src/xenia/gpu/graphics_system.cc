@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/graphics_system.h>
+#include "xenia/gpu/graphics_system.h"
 
-#include <poly/poly.h>
-#include <xenia/emulator.h>
-#include <xenia/cpu/processor.h>
-#include <xenia/gpu/gpu-private.h>
+#include "poly/poly.h"
+#include "xenia/emulator.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {

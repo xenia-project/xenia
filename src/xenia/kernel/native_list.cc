@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/native_list.h>
+#include "xenia/kernel/native_list.h"
 
 namespace xe {
 namespace kernel {

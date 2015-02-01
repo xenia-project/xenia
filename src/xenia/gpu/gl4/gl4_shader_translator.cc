@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/gl4_shader_translator.h>
+#include "xenia/gpu/gl4/gl4_shader_translator.h"
 
-#include <poly/math.h>
-#include <xenia/gpu/gpu-private.h>
+#include "poly/math.h"
+#include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {

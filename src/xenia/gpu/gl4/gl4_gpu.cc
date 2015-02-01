@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/gl4_gpu.h>
+#include "xenia/gpu/gl4/gl4_gpu.h"
 
-#include <xenia/gpu/gl4/gl4_gpu-private.h>
-#include <xenia/gpu/gl4/gl4_graphics_system.h>
+#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/gpu/gl4/gl4_graphics_system.h"
 
 DEFINE_bool(thread_safe_gl, false,
             "Only allow one GL context to be active at a time.");

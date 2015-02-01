@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include <xenia/gpu/gl4/wgl_control.h>
+#include "xenia/gpu/gl4/wgl_control.h"
 
-#include <poly/assert.h>
-#include <poly/logging.h>
-#include <xenia/gpu/gl4/gl4_gpu-private.h>
-#include <xenia/profiling.h>
+#include "poly/assert.h"
+#include "poly/logging.h"
+#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/profiling.h"
 
 namespace xe {
 namespace gpu {

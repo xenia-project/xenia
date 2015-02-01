@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/context_promotion_pass.h>
+#include "alloy/compiler/passes/context_promotion_pass.h"
 
 #include <gflags/gflags.h>
 
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 DEFINE_bool(store_all_context_values, false,
             "Don't strip dead context stores to aid in debugging.");

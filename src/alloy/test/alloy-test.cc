@@ -8,9 +8,9 @@
  */
 
 #define CATCH_CONFIG_RUNNER
-#include <third_party/catch/single_include/catch.hpp>
+#include "third_party/catch/single_include/catch.hpp"
 
-#include <alloy/test/util.h>
+#include "alloy/test/util.h"
 
 namespace alloy {
 namespace test {

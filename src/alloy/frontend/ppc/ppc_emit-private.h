@@ -10,8 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_EMIT_PRIVATE_H_
 #define ALLOY_FRONTEND_PPC_PPC_EMIT_PRIVATE_H_
 
-#include <alloy/frontend/ppc/ppc_emit.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
+#include "alloy/frontend/ppc/ppc_emit.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
 
 namespace alloy {
 namespace frontend {

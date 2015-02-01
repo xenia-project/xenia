@@ -12,10 +12,10 @@
 
 #include <vector>
 
-#include <poly/mapped_memory.h>
-#include <xenia/common.h>
-#include <xenia/xbox.h>
-#include <xenia/kernel/fs/entry.h>
+#include "poly/mapped_memory.h"
+#include "xenia/common.h"
+#include "xenia/xbox.h"
+#include "xenia/kernel/fs/entry.h"
 
 namespace xe {
 namespace kernel {

@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_hir_builder.h>
+#include "alloy/frontend/ppc/ppc_hir_builder.h"
 
-#include <alloy/alloy-private.h>
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_disasm.h>
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
-#include <alloy/hir/label.h>
-#include <alloy/runtime/runtime.h>
-#include <xenia/profiling.h>
+#include "alloy/alloy-private.h"
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/frontend/ppc/ppc_disasm.h"
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
+#include "alloy/hir/label.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace frontend {

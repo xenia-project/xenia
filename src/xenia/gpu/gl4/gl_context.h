@@ -12,8 +12,8 @@
 
 #include <memory>
 
-#include <third_party/GL/glew.h>
-#include <third_party/GL/wglew.h>
+#include "third_party/GL/glew.h"
+#include "third_party/GL/wglew.h"
 
 namespace xe {
 namespace gpu {

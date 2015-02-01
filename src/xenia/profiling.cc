@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <xenia/logging.h>
+#include "xenia/logging.h"
 
 #define MICROPROFILE_ENABLED 1
 #define MICROPROFILEUI_ENABLED 1
@@ -25,7 +25,7 @@
 #include <microprofile/microprofile.h>
 #include <microprofile/microprofileui.h>
 
-#include <xenia/profiling.h>
+#include "xenia/profiling.h"
 
 namespace xe {
 

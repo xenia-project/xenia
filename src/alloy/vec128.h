@@ -10,7 +10,7 @@
 #ifndef ALLOY_VEC128_H_
 #define ALLOY_VEC128_H_
 
-#include <poly/poly.h>
+#include "poly/poly.h"
 
 namespace alloy {
 

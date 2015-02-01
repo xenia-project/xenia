@@ -12,8 +12,8 @@
 
 #include <cmath>
 
-#include <alloy/frontend/ppc/ppc_instr.h>
-#include <poly/poly.h>
+#include "alloy/frontend/ppc/ppc_instr.h"
+#include "poly/poly.h"
 
 namespace alloy {
 namespace frontend {

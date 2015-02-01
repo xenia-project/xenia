@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include <alloy/hir/hir_builder.h>
+#include "alloy/hir/hir_builder.h"
 
-#include <alloy/hir/block.h>
-#include <alloy/hir/instr.h>
-#include <alloy/hir/label.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/string_buffer.h>
-#include <xenia/profiling.h>
+#include "alloy/hir/block.h"
+#include "alloy/hir/instr.h"
+#include "alloy/hir/label.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/string_buffer.h"
+#include "xenia/profiling.h"
 
 namespace alloy {
 namespace hir {

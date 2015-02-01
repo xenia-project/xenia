@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/winkey/winkey_hid.h>
+#include "xenia/hid/winkey/winkey_hid.h"
 
-#include <xenia/hid/winkey/winkey_input_driver.h>
+#include "xenia/hid/winkey/winkey_input_driver.h"
 
 namespace xe {
 namespace hid {

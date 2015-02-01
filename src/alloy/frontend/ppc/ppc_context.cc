@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_context.h>
+#include "alloy/frontend/ppc/ppc_context.h"
 
 #include <cstdlib>
 

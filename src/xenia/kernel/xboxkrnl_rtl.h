@@ -10,8 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_RTL_H_
 #define XENIA_KERNEL_XBOXKRNL_RTL_H_
 
-#include <xenia/common.h>
-#include <xenia/xbox.h>
+#include "xenia/common.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

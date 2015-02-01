@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xkernel_module.h>
+#include "xenia/kernel/objects/xkernel_module.h"
 
-#include <xenia/emulator.h>
-#include <xenia/cpu/cpu.h>
-#include <xenia/kernel/objects/xthread.h>
+#include "xenia/emulator.h"
+#include "xenia/cpu/cpu.h"
+#include "xenia/kernel/objects/xthread.h"
 
 namespace xe {
 namespace kernel {
