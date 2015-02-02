@@ -414,10 +414,11 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_state,
 struct X_RTL_CRITICAL_SECTION {
   uint8_t unknown00;
   uint8_t spin_count_div_256;  // * 256
-  uint8_t __padding[6];
+  uint16_t __padding0;
+  uint32_t __padding1;
   // uint32_t    unknown04; // maybe the handle to the event?
-  uint32_t unknown08;         // head of queue, pointing to this offset
-  uint32_t unknown0C;         // tail of queue?
+  uint32_t queue_head;        // head of queue, pointing to this offset
+  uint32_t queue_tail;        // tail of queue?
   int32_t lock_count;         // -1 -> 0 on first lock 0x10
   uint32_t recursion_count;   //  0 -> 1 on first lock 0x14
   uint32_t owning_thread_id;  // 0 unless locked 0x18
@@ -425,12 +426,15 @@ struct X_RTL_CRITICAL_SECTION {
 #pragma pack(pop)
 static_assert_size(X_RTL_CRITICAL_SECTION, 28);
 
-void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
+void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
+                                    uint32_t cs_ptr) {
   // VOID
   // _Out_  LPCRITICAL_SECTION lpCriticalSection
 
   cs->unknown00 = 1;
   cs->spin_count_div_256 = 0;
+  cs->queue_head = cs_ptr + 8;
+  cs->queue_tail = cs_ptr + 8;
   cs->lock_count = -1;
   cs->recursion_count = 0;
   cs->owning_thread_id = 0;
@@ -443,10 +447,11 @@ SHIM_CALL RtlInitializeCriticalSection_shim(PPCContext* ppc_state,
   XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  xeRtlInitializeCriticalSection(cs);
+  xeRtlInitializeCriticalSection(cs, cs_ptr);
 }
 
 X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
+                                                    uint32_t cs_ptr,
                                                     uint32_t spin_count) {
   // NTSTATUS
   // _Out_  LPCRITICAL_SECTION lpCriticalSection,
@@ -461,6 +466,8 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
 
   cs->unknown00 = 1;
   cs->spin_count_div_256 = spin_count_div_256;
+  cs->queue_head = cs_ptr + 8;
+  cs->queue_tail = cs_ptr + 8;
   cs->lock_count = -1;
   cs->recursion_count = 0;
   cs->owning_thread_id = 0;
@@ -477,14 +484,23 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(PPCContext* ppc_state,
          spin_count);
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  X_STATUS result = xeRtlInitializeCriticalSectionAndSpinCount(cs, spin_count);
+  X_STATUS result =
+      xeRtlInitializeCriticalSectionAndSpinCount(cs, cs_ptr, spin_count);
   SHIM_SET_RETURN_32(result);
 }
 
-// TODO(benvanik): remove the need for passing in thread_id.
-void xeRtlEnterCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t thread_id) {
+SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  // XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
+
+  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
+  uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
+
+  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
 spin:
@@ -515,41 +531,10 @@ spin:
   cs->recursion_count = 1;
 }
 
-SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-
-  // XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
-
-  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
-  uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
-
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  xeRtlEnterCriticalSection(cs, thread_id);
-}
-
-// TODO(benvanik): remove the need for passing in thread_id.
-uint32_t xeRtlTryEnterCriticalSection(X_RTL_CRITICAL_SECTION* cs,
-                                      uint32_t thread_id) {
-  // DWORD
-  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
-
-  if (poly::atomic_cas(-1, 0, &cs->lock_count)) {
-    // Able to steal the lock right away.
-    cs->owning_thread_id = thread_id;
-    cs->recursion_count = 1;
-    return 1;
-  } else if (cs->owning_thread_id == thread_id) {
-    poly::atomic_inc(&cs->lock_count);
-    ++cs->recursion_count;
-    return 1;
-  }
-
-  return 0;
-}
-
 SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_state,
                                           KernelState* state) {
+  // DWORD
+  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
 
   // XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
@@ -558,13 +543,30 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_state,
   uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  uint32_t result = xeRtlTryEnterCriticalSection(cs, thread_id);
+
+  uint32_t result = 0;
+  if (poly::atomic_cas(-1, 0, &cs->lock_count)) {
+    // Able to steal the lock right away.
+    cs->owning_thread_id = thread_id;
+    cs->recursion_count = 1;
+    result = 1;
+  } else if (cs->owning_thread_id == thread_id) {
+    poly::atomic_inc(&cs->lock_count);
+    ++cs->recursion_count;
+    result = 1;
+  }
   SHIM_SET_RETURN_64(result);
 }
 
-void xeRtlLeaveCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
+SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
   // VOID
   // _Inout_  LPCRITICAL_SECTION lpCriticalSection
+  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+
+  // XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
+
+  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
   // Drop recursion count - if we are still not zero'ed return.
   uint32_t recursion_count = --cs->recursion_count;
@@ -580,16 +582,6 @@ void xeRtlLeaveCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
     // TODO(benvanik): wake a waiter.
     XELOGE("RtlLeaveCriticalSection would have woken a waiter");
   }
-}
-
-SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-
-  // XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
-
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  xeRtlLeaveCriticalSection(cs);
 }
 
 SHIM_CALL RtlTimeToTimeFields_shim(PPCContext* ppc_state, KernelState* state) {

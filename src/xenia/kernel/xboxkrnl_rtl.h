@@ -18,13 +18,11 @@ namespace kernel {
 
 struct X_RTL_CRITICAL_SECTION;
 
-void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs);
+void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
+                                    uint32_t cs_ptr);
 X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
+                                                    uint32_t cs_ptr,
                                                     uint32_t spin_count);
-void xeRtlEnterCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t thread_id);
-uint32_t xeRtlTryEnterCriticalSection(X_RTL_CRITICAL_SECTION* cs,
-                                      uint32_t thread_id);
-void xeRtlLeaveCriticalSection(X_RTL_CRITICAL_SECTION* cs);
 
 }  // namespace kernel
 }  // namespace xe

@@ -465,5 +465,6 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
       "xboxkrnl.exe", ordinals::VdHSIOCalibrationLock, pVdHSIOCalibrationLock);
   auto hsio_lock =
       reinterpret_cast<X_RTL_CRITICAL_SECTION*>(mem + pVdHSIOCalibrationLock);
-  xeRtlInitializeCriticalSectionAndSpinCount(hsio_lock, 10000);
+  xeRtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock,
+                                             10000);
 }
