@@ -374,7 +374,7 @@ bool DiscoverTests(std::wstring& test_path,
   WIN32_FIND_DATA ffd;
   HANDLE hFind = FindFirstFile(search_path.c_str(), &ffd);
   if (hFind == INVALID_HANDLE_VALUE) {
-    PLOGE("Unable to find test path %s", test_path.c_str());
+    PLOGE("Unable to find test path %ls", test_path.c_str());
     return false;
   }
   do {
@@ -392,7 +392,7 @@ bool DiscoverTests(std::wstring& test_path,
 #else
   DIR* d = opendir(test_path.c_str());
   if (!d) {
-    PLOGE("Unable to find test path %s", test_path.c_str());
+    PLOGE("Unable to find test path %ls", test_path.c_str());
     return false;
   }
   struct dirent* dir;
