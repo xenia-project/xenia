@@ -41,6 +41,9 @@ inline int16_t byte_swap(int16_t value) {
   return static_cast<int16_t>(POLY_BYTE_SWAP_16(static_cast<int16_t>(value)));
 }
 inline uint16_t byte_swap(uint16_t value) { return POLY_BYTE_SWAP_16(value); }
+inline uint16_t byte_swap(wchar_t value) {
+  return static_cast<wchar_t>(POLY_BYTE_SWAP_16(value));
+}
 inline int32_t byte_swap(int32_t value) {
   return static_cast<int32_t>(POLY_BYTE_SWAP_32(static_cast<int32_t>(value)));
 }

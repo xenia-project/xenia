@@ -25,6 +25,8 @@ SHIM_CALL vsprintf_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
+  XELOGD("_vsprintf(...)");
+
   if (format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
@@ -208,6 +210,8 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
   uint32_t arg_ptr = SHIM_GET_ARG_32(3);
 
+  XELOGD("_vsnprintf(...)");
+
   if (format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
@@ -355,7 +359,7 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_state, KernelState* state) {
       if (arg_extras == 0) {
         uint32_t value = (uint32_t)SHIM_MEM_64(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        SHIM_SET_MEM_32(value, (uint32_t)((b - buffer) / sizeof(char)));
+        SHIM_SET_MEM_32(value, (uint32_t)(b - buffer));
         arg_index++;
       } else {
         assert_true(false);
@@ -386,22 +390,8 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32((uint32_t)(b - buffer));
 }
 
-// TODO: clean me up!
-SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
-  uint32_t format_ptr = SHIM_GET_ARG_32(1);
-  uint32_t arg_ptr = SHIM_GET_ARG_32(2);
-
-  if (format_ptr == 0) {
-    SHIM_SET_RETURN_32(-1);
-    return;
-  }
-
-  wchar_t* buffer =
-      (wchar_t*)SHIM_MEM_ADDR(buffer_ptr);  // TODO: ensure it never writes past
-                                            // the end of the buffer (count)...
-  const wchar_t* format = (const wchar_t*)SHIM_MEM_ADDR(format_ptr);
-
+uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
+                        const uint8_t* arg_ptr, uint8_t* membase) {
   // this will work since a null is the same regardless of endianness
   size_t format_length = wcslen(format);
 
@@ -529,7 +519,7 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
       assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
-          uint64_t value = SHIM_MEM_64(
+          uint64_t value = poly::load_and_swap<uint64_t>(
               arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
           int result = wsprintf(b, local, value);
           b += result;
@@ -539,7 +529,7 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
         }
       } else if (arg_size == 4) {
         if (arg_extras == 0) {
-          uint32_t value = (uint32_t)SHIM_MEM_64(
+          uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
               arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
           int result = wsprintf(b, local, value);
           b += result;
@@ -551,9 +541,9 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
     } else if (*end == 'n') {
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
+        uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        SHIM_SET_MEM_32(value, (uint32_t)((b - buffer) / sizeof(wchar_t)));
+        poly::store_and_swap<uint32_t>(membase + value, (uint32_t)(b - buffer));
         arg_index++;
       } else {
         assert_true(false);
@@ -565,9 +555,9 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
 
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
+        uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const void* pointer = (void*)SHIM_MEM_ADDR(value);
+        const void* pointer = (void*)(membase + value);
         int result = wsprintf(b, local, pointer);
         b += result;
         arg_index++;
@@ -581,9 +571,9 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
 
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
+        uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const wchar_t* data = (const wchar_t*)SHIM_MEM_ADDR(value);
+        const wchar_t* data = (const wchar_t*)(membase + value);
         size_t data_length = wcslen(data);
         wchar_t* swapped_data =
             (wchar_t*)malloc((data_length + 1) * sizeof(wchar_t));
@@ -613,7 +603,50 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
     *swap = poly::byte_swap(*swap);
   }
 
-  SHIM_SET_RETURN_32((uint32_t)((b - buffer) / sizeof(wchar_t)));
+  return uint32_t(b - buffer);
+}
+
+// TODO: clean me up!
+SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
+  uint32_t format_ptr = SHIM_GET_ARG_32(1);
+  uint32_t arg_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD("_vswprintf(...)");
+
+  if (format_ptr == 0) {
+    SHIM_SET_RETURN_32(-1);
+    return;
+  }
+  const wchar_t* format = (const wchar_t*)SHIM_MEM_ADDR(format_ptr);
+
+  wchar_t* buffer =
+      (wchar_t*)SHIM_MEM_ADDR(buffer_ptr);  // TODO: ensure it never writes past
+                                            // the end of the buffer (count)...
+
+  uint32_t ret =
+      vswprintf_core(buffer, format, SHIM_MEM_ADDR(arg_ptr), SHIM_MEM_BASE);
+  SHIM_SET_RETURN_32(ret);
+}
+
+SHIM_CALL _vscwprintf_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t format_ptr = SHIM_GET_ARG_32(0);
+  uint32_t arg_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("_vscwprintf(...)");
+
+  if (format_ptr == 0) {
+    SHIM_SET_RETURN_32(-1);
+    return;
+  }
+  const wchar_t* format = (const wchar_t*)SHIM_MEM_ADDR(format_ptr);
+
+  // HACK: this is the worst.
+  auto temp = new wchar_t[2048];
+  uint32_t ret =
+      vswprintf_core(temp, format, SHIM_MEM_ADDR(arg_ptr), SHIM_MEM_BASE);
+  delete[] temp;
+  SHIM_SET_RETURN_32(ret);
 }
 
 }  // namespace kernel
@@ -624,4 +657,5 @@ void xe::kernel::xboxkrnl::RegisterStringExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vswprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", _vscwprintf, state);
 }
