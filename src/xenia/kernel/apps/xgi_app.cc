@@ -64,9 +64,18 @@ X_RESULT XXGIApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_ERROR_SUCCESS;
     }
     case 0x000B0041: {
-      // TODO(benvanik): reverse.
-      assert_always();
-      XELOGD("XUserGetContext(...) - XGI 0x000B0041, unimplemented");
+      assert_true(!buffer_length || buffer_length == 32);
+      // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340
+      uint32_t user_index =
+          poly::load_and_swap<uint32_t>(membase_ + buffer_ptr + 0);
+      uint32_t context_ptr =
+          poly::load_and_swap<uint32_t>(membase_ + buffer_ptr + 16);
+      uint32_t context_id =
+          poly::load_and_swap<uint32_t>(membase_ + context_ptr + 0);
+      XELOGD("XUserGetContext(%.8X, %.8X(%.8X))", user_index, context_ptr,
+             context_id);
+      uint32_t value = 0;
+      poly::store_and_swap<uint32_t>(membase_ + context_ptr + 4, value);
       return X_ERROR_SUCCESS;
     }
     case 0x000B0071: {
