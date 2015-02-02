@@ -252,6 +252,16 @@ void PPCHIRBuilder::StoreCTR(Value* value) {
   trace_reg.value = value;
 }
 
+Value* PPCHIRBuilder::LoadCR() {
+  // All bits. This is expensive, but seems to be less used than the
+  // field-specific LoadCR.
+  Value* v = LoadCR(0);
+  for (int i = 1; i <= 7; ++i) {
+    v = Or(v, LoadCR(i));
+  }
+  return v;
+}
+
 Value* PPCHIRBuilder::LoadCR(uint32_t n) {
   // Construct the entire word of just the bits we care about.
   // This makes it easier for the optimizer to exclude things, though

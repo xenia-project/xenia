@@ -50,6 +50,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   void StoreLR(Value* value);
   Value* LoadCTR();
   void StoreCTR(Value* value);
+  Value* LoadCR();
   Value* LoadCR(uint32_t n);
   Value* LoadCRField(uint32_t n, uint32_t bit);
   void StoreCR(uint32_t n, Value* value);

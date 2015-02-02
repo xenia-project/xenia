@@ -33,6 +33,7 @@ KernelState* shared_kernel_state_ = nullptr;
 KernelState::KernelState(Emulator* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
+      object_table_(nullptr),
       has_notified_startup_(false),
       process_type_(X_PROCTYPE_USER),
       executable_module_(nullptr) {

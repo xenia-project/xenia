@@ -547,21 +547,24 @@ XEEMITTER(mfcr, 0x7C000026, XFX)(PPCHIRBuilder& f, InstrData& i) {
   //   extrwi    r3, r10, 1, 26
   // Could recognize this and only load the appropriate CR bit.
 
-  assert_true(i.XFX.spr & (1 << 9));
-  uint32_t bits = (i.XFX.spr & 0x1FF) >> 1;
-  int count = 0;
-  int cri = 0;
-  for (int b = 0; b <= 7; ++b) {
-    if (bits & (1 << b)) {
-      cri = 7 - b;
-      ++count;
-    }
-  }
   Value* v;
-  if (count == 1) {
-    v = f.LoadCR(cri);
+  if (i.XFX.spr & (1 << 9)) {
+    uint32_t bits = (i.XFX.spr & 0x1FF) >> 1;
+    int count = 0;
+    int cri = 0;
+    for (int b = 0; b <= 7; ++b) {
+      if (bits & (1 << b)) {
+        cri = 7 - b;
+        ++count;
+      }
+    }
+    if (count == 1) {
+      v = f.LoadCR(cri);
+    } else {
+      v = f.LoadZero(INT64_TYPE);
+    }
   } else {
-    v = f.LoadZero(INT64_TYPE);
+    v = f.LoadCR();
   }
   f.StoreGPR(i.XFX.RT, v);
   return 0;
