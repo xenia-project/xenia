@@ -2352,10 +2352,15 @@ bool CommandProcessor::IssueCopy() {
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
     default:
-      // assert_unhandled_case(copy_dest_endian);
+      assert_unhandled_case(copy_dest_endian);
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
-      return false;
+      break;
   }
+
+  // TODO(benvanik): tweak alignments/strides.
+  // glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  // glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+  // glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
 
   // Destination pointer in guest memory.
   // We have GL throw bytes directly into it.
@@ -2381,10 +2386,10 @@ bool CommandProcessor::IssueCopy() {
         // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
         glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
                                      GL_COLOR_ATTACHMENT0 + copy_src_select);
-        // glReadPixels(x, y, w, h, read_format, read_type, ptr);
+        glReadPixels(x, y, w, h, read_format, read_type, ptr);
       } else {
         // Source from the bound depth/stencil target.
-        // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+        glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
       }
       break;
     case CopyCommand::kRaw:

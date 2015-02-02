@@ -623,6 +623,9 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   }
   size_t unpack_offset = allocation.offset;
   scratch_buffer_->Commit(std::move(allocation));
+  // TODO(benvanik): avoid flush on entire buffer by using another texture
+  // buffer.
+  scratch_buffer_->Flush();
 
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, scratch_buffer_->handle());
   if (texture_info.is_compressed) {
