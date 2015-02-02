@@ -86,7 +86,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_state,
   }
 
   // Allocate.
-  uint32_t flags = (allocation_type & X_MEM_NOZERO);
+  uint32_t flags = (allocation_type & X_MEM_NOZERO) ? 0 : MEMORY_FLAG_ZERO;
   uint32_t addr = (uint32_t)state->memory()->HeapAlloc(base_addr_value,
                                                        adjusted_size, flags);
   if (!addr) {

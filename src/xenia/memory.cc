@@ -447,13 +447,18 @@ int MemoryHeap::Initialize(uint64_t low, uint64_t high) {
 
 uint64_t MemoryHeap::Alloc(uint64_t base_address, size_t size, uint32_t flags,
                            uint32_t alignment) {
-  lock_.lock();
   size_t alloc_size = size;
+  if (int32_t(alloc_size) < 0) {
+    alloc_size = uint32_t(-alloc_size);
+  }
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   if (heap_guard_size) {
     alignment = std::max(alignment, static_cast<uint32_t>(heap_guard_size));
-    alloc_size = static_cast<uint32_t>(poly::round_up(size, heap_guard_size));
+    alloc_size =
+        static_cast<uint32_t>(poly::round_up(alloc_size, heap_guard_size));
   }
+
+  lock_.lock();
   uint8_t* p = (uint8_t*)mspace_memalign(space_, alignment,
                                          alloc_size + heap_guard_size * 2);
   assert_true(reinterpret_cast<uint64_t>(p) <= 0xFFFFFFFFFull);
@@ -477,19 +482,18 @@ uint64_t MemoryHeap::Alloc(uint64_t base_address, size_t size, uint32_t flags,
     // If physical, we need to commit the memory in the physical address ranges
     // so that it can be accessed.
     VirtualAlloc(memory_->views_.vA0000000 + (p - memory_->views_.v00000000),
-                 size, MEM_COMMIT, PAGE_READWRITE);
+                 alloc_size, MEM_COMMIT, PAGE_READWRITE);
     VirtualAlloc(memory_->views_.vC0000000 + (p - memory_->views_.v00000000),
-                 size, MEM_COMMIT, PAGE_READWRITE);
+                 alloc_size, MEM_COMMIT, PAGE_READWRITE);
     VirtualAlloc(memory_->views_.vE0000000 + (p - memory_->views_.v00000000),
-                 size, MEM_COMMIT, PAGE_READWRITE);
+                 alloc_size, MEM_COMMIT, PAGE_READWRITE);
   }
 
-  if ((flags & X_MEM_NOZERO) && FLAGS_scribble_heap) {
+  if (flags & MEMORY_FLAG_ZERO) {
+    memset(p, 0, alloc_size);
+  } else if (FLAGS_scribble_heap) {
     // Trash the memory so that we can see bad read-before-write bugs easier.
     memset(p, 0xCD, alloc_size);
-  } else {
-    // Implicit clear.
-    memset(p, 0, alloc_size);
   }
 
   uint64_t address =
