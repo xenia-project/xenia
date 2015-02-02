@@ -105,7 +105,8 @@ bool GL4Shader::PrepareVertexArrayObject() {
                                    : GL_UNSIGNED_INT_2_10_10_10_REV;
           break;
         case VertexFormat::k_10_11_11:
-          assert_false(el.is_signed);
+          // assert_false(el.is_signed);
+          XELOGW("Signed k_10_11_11 vertex format not supported by GL");
           comp_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
           break;
         /*case VertexFormat::k_11_11_10:

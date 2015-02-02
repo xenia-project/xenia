@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/apps/apps.h"
 
+#include "xenia/kernel/apps/xgi_app.h"
 #include "xenia/kernel/apps/xmp_app.h"
 
 namespace xe {
@@ -16,6 +17,7 @@ namespace kernel {
 namespace apps {
 
 void RegisterApps(KernelState* kernel_state, XAppManager* manager) {
+  manager->RegisterApp(std::make_unique<XXGIApp>(kernel_state));
   manager->RegisterApp(std::make_unique<XXMPApp>(kernel_state));
 }
 

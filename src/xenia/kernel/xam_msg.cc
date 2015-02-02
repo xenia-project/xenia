@@ -43,12 +43,14 @@ SHIM_CALL XMsgStartIORequest_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XMsgStartIORequest(%.8X, %.8X, %.8X, %.8X, %d)", app, message,
          overlapped_ptr, buffer, buffer_length);
 
-  assert_zero(overlapped_ptr);
-
   auto result = state->app_manager()->DispatchMessageAsync(app, message, buffer,
                                                            buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
     XELOGE("XMsgStartIORequest: app %.8X undefined", app);
+  }
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, result);
+    result = X_ERROR_IO_PENDING;
   }
   SHIM_SET_RETURN_32(result);
 }
@@ -64,12 +66,14 @@ SHIM_CALL XMsgStartIORequestEx_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XMsgStartIORequestEx(%.8X, %.8X, %.8X, %.8X, %d, %.8X)", app, message,
          overlapped_ptr, buffer, buffer_length, unknown_ptr);
 
-  assert_zero(overlapped_ptr);
-
   auto result = state->app_manager()->DispatchMessageAsync(app, message, buffer,
                                                            buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
     XELOGE("XMsgStartIORequestEx: app %.8X undefined", app);
+  }
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, result);
+    result = X_ERROR_IO_PENDING;
   }
   SHIM_SET_RETURN_32(result);
 }
