@@ -41,9 +41,16 @@ X_RESULT XXGIApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_ERROR_SUCCESS;
     }
     case 0x000B0007: {
-      // TODO(benvanik): reverse.
-      assert_always();
-      XELOGD("XUserSetPropertyEx(...) - XGI 0x000B0007, unimplemented");
+      uint32_t user_index =
+          poly::load_and_swap<uint32_t>(membase_ + buffer_ptr + 0);
+      uint32_t property_id =
+          poly::load_and_swap<uint32_t>(membase_ + buffer_ptr + 16);
+      uint32_t value_size =
+          poly::load_and_swap<uint32_t>(membase_ + buffer_ptr + 20);
+      uint32_t value_ptr =
+          poly::load_and_swap<uint32_t>(membase_ + buffer_ptr + 24);
+      XELOGD("XUserSetPropertyEx(%.8X, %.8X, %d, %.8X)", user_index,
+             property_id, value_size, value_ptr);
       return X_ERROR_SUCCESS;
     }
     case 0x000B0008: {
