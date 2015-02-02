@@ -33,6 +33,23 @@ SHIM_CALL XMsgInProcessCall_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
+SHIM_CALL XMsgSystemProcessCall_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t app = SHIM_GET_ARG_32(0);
+  uint32_t message = SHIM_GET_ARG_32(1);
+  uint32_t buffer = SHIM_GET_ARG_32(2);
+  uint32_t buffer_length = SHIM_GET_ARG_32(3);
+
+  XELOGD("XMsgSystemProcessCall(%.8X, %.8X, %.8X, %.8X)", app, message, buffer,
+         buffer_length);
+
+  auto result = state->app_manager()->DispatchMessageAsync(app, message, buffer,
+                                                           buffer_length);
+  if (result == X_ERROR_NOT_FOUND) {
+    XELOGE("XMsgSystemProcessCall: app %.8X undefined", app);
+  }
+  SHIM_SET_RETURN_32(result);
+}
+
 SHIM_CALL XMsgStartIORequest_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t app = SHIM_GET_ARG_32(0);
   uint32_t message = SHIM_GET_ARG_32(1);
@@ -103,6 +120,7 @@ SHIM_CALL XMsgCancelIORequest_shim(PPCContext* ppc_state, KernelState* state) {
 void xe::kernel::xam::RegisterMsgExports(ExportResolver* export_resolver,
                                          KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XMsgInProcessCall, state);
+  SHIM_SET_MAPPING("xam.xex", XMsgSystemProcessCall, state);
   SHIM_SET_MAPPING("xam.xex", XMsgStartIORequest, state);
   SHIM_SET_MAPPING("xam.xex", XMsgStartIORequestEx, state);
   SHIM_SET_MAPPING("xam.xex", XMsgCancelIORequest, state);
