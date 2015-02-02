@@ -116,7 +116,7 @@ uintptr_t MMIOHandler::AddWriteWatch(uint32_t guest_address, size_t length,
 void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
   auto host_address = mapping_base_ + entry->address;
   DWORD old_protect;
-  VirtualProtect(host_address, entry->length, PAGE_READWRITE, nullptr);
+  VirtualProtect(host_address, entry->length, PAGE_READWRITE, &old_protect);
   VirtualProtect(host_address + 0xA0000000, entry->length, PAGE_READWRITE,
                  &old_protect);
   VirtualProtect(host_address + 0xC0000000, entry->length, PAGE_READWRITE,
