@@ -10,24 +10,23 @@
 #ifndef XENIA_APU_NOP_NOP_APU_H_
 #define XENIA_APU_NOP_NOP_APU_H_
 
-#include <xenia/core.h>
+#include <memory>
 
+#include "xenia/common.h"
 
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, apu, AudioSystem);
-
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace apu {
+class AudioSystem;
 namespace nop {
 
-
-AudioSystem* Create(Emulator* emulator);
-
+std::unique_ptr<AudioSystem> Create(Emulator* emulator);
 
 }  // namespace nop
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_NOP_NOP_APU_H_

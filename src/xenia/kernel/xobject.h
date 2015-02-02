@@ -10,14 +10,14 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
 #define XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
 
-#include <xenia/kernel/kernel_state.h>
+#include <atomic>
 
-#include <xenia/xbox.h>
+#include "xenia/kernel/kernel_state.h"
 
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
-
 
 // http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
@@ -27,9 +27,8 @@ typedef struct {
   uint32_t wait_list_blink;
 } DISPATCH_HEADER;
 
-
 class XObject {
-public:
+ public:
   enum Type {
     kTypeModule,
     kTypeThread,
@@ -39,6 +38,7 @@ public:
     kTypeNotifyListener,
     kTypeMutant,
     kTypeTimer,
+    kTypeEnumerator,
   };
 
   XObject(KernelState* kernel_state, Type type);
@@ -59,44 +59,38 @@ public:
   // Reference()
   // Dereference()
 
-  X_STATUS Wait(
-      uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
-      uint64_t* opt_timeout);
-  static X_STATUS SignalAndWait(
-      XObject* signal_object, XObject* wait_object,
-      uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
-      uint64_t* opt_timeout);
-  static X_STATUS WaitMultiple(
-      uint32_t count, XObject** objects,
-      uint32_t wait_type, uint32_t wait_reason, uint32_t processor_mode,
-      uint32_t alertable, uint64_t* opt_timeout);
+  X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
+                uint32_t alertable, uint64_t* opt_timeout);
+  static X_STATUS SignalAndWait(XObject* signal_object, XObject* wait_object,
+                                uint32_t wait_reason, uint32_t processor_mode,
+                                uint32_t alertable, uint64_t* opt_timeout);
+  static X_STATUS WaitMultiple(uint32_t count, XObject** objects,
+                               uint32_t wait_type, uint32_t wait_reason,
+                               uint32_t processor_mode, uint32_t alertable,
+                               uint64_t* opt_timeout);
 
-  static void LockType();
-  static void UnlockType();
   static XObject* GetObject(KernelState* kernel_state, void* native_ptr,
                             int32_t as_type = -1);
 
   virtual void* GetWaitHandle() { return 0; }
 
-protected:
+ protected:
   Memory* memory() const;
   void SetNativePointer(uint32_t native_ptr);
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
 
-  KernelState*  kernel_state_;
+  KernelState* kernel_state_;
 
-private:
-  volatile int32_t handle_ref_count_;
-  volatile int32_t pointer_ref_count_;
+ private:
+  std::atomic<int32_t> handle_ref_count_;
+  std::atomic<int32_t> pointer_ref_count_;
 
-  Type          type_;
-  X_HANDLE      handle_;
+  Type type_;
+  X_HANDLE handle_;
 };
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_XOBJECT_H_

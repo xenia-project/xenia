@@ -19,9 +19,10 @@
     'runtime.h',
     'symbol_info.cc',
     'symbol_info.h',
+    'test_module.cc',
+    'test_module.h',
     'thread_state.cc',
     'thread_state.h',
-    'tracing.h',
   ],
 
   'includes': [

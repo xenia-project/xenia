@@ -7,17 +7,13 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xsemaphore.h>
+#include "xenia/kernel/objects/xsemaphore.h"
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::kernel;
-
-
-XSemaphore::XSemaphore(KernelState* kernel_state) :
-    XObject(kernel_state, kTypeSemaphore),
-    handle_(NULL) {
-}
+XSemaphore::XSemaphore(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeSemaphore), handle_(NULL) {}
 
 XSemaphore::~XSemaphore() {
   if (handle_) {
@@ -26,13 +22,13 @@ XSemaphore::~XSemaphore() {
 }
 
 void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   handle_ = CreateSemaphore(NULL, initial_count, maximum_count, NULL);
 }
 
 void XSemaphore::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
-  XEASSERTNULL(handle_);
+  assert_null(handle_);
 
   // NOT IMPLEMENTED
   // We expect Initialize to be called shortly.
@@ -43,3 +39,6 @@ int32_t XSemaphore::ReleaseSemaphore(int32_t release_count) {
   ::ReleaseSemaphore(handle_, release_count, &previous_count);
   return previous_count;
 }
+
+}  // namespace kernel
+}  // namespace xe

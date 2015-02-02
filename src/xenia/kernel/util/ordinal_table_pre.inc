@@ -12,13 +12,13 @@
  * Use this to build tables of constants describing the ordinals:
  *
  * // Build an ordinal enum to make it easy to lookup ordinals.
- * #include <xenia/kernel/util/ordinal_table_pre.inc>
+ * #include "xenia/kernel/util/ordinal_table_pre.inc"
  * namespace ordinals {
  * enum {
- *   #include <xenia/kernel/my_module/my_module_table.inc>
+ *   #include "xenia/kernel/my_module/my_module_table.inc"
  * };
  * }  // namespace ordinals
- * #include <xenia/kernel/util/ordinal_table_post.inc>
+ * #include "xenia/kernel/util/ordinal_table_post.inc"
  */
 
 

@@ -10,10 +10,7 @@
 #ifndef ALLOY_BACKEND_X64_X64_BACKEND_H_
 #define ALLOY_BACKEND_X64_X64_BACKEND_H_
 
-#include <alloy/core.h>
-
-#include <alloy/backend/backend.h>
-
+#include "alloy/backend/backend.h"
 
 namespace alloy {
 namespace backend {
@@ -21,36 +18,32 @@ namespace x64 {
 
 class X64CodeCache;
 
-
 #define ALLOY_HAS_X64_BACKEND 1
-
 
 typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 
 class X64Backend : public Backend {
-public:
+ public:
   X64Backend(runtime::Runtime* runtime);
-  virtual ~X64Backend();
+  ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_; }
   HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
   GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
 
-  virtual int Initialize();
+  int Initialize() override;
 
-  virtual Assembler* CreateAssembler();
+  std::unique_ptr<Assembler> CreateAssembler() override;
 
-private:
+ private:
   X64CodeCache* code_cache_;
   HostToGuestThunk host_to_guest_thunk_;
   GuestToHostThunk guest_to_host_thunk_;
 };
 
-
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_X64_X64_BACKEND_H_

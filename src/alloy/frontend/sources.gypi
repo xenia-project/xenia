@@ -5,7 +5,6 @@
     'context_info.h',
     'frontend.cc',
     'frontend.h',
-    'tracing.h',
   ],
 
   'includes': [

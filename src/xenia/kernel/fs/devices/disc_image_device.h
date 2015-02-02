@@ -10,42 +10,36 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_DEVICE_H_
 #define XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_DEVICE_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <memory>
+#include <string>
 
-#include <xenia/kernel/fs/device.h>
-
+#include "poly/mapped_memory.h"
+#include "xenia/common.h"
+#include "xenia/kernel/fs/device.h"
 
 namespace xe {
 namespace kernel {
 namespace fs {
 
-
 class GDFX;
 
-
 class DiscImageDevice : public Device {
-public:
-  DiscImageDevice(const char* path, const xechar_t* local_path);
-  virtual ~DiscImageDevice();
+ public:
+  DiscImageDevice(const std::string& path, const std::wstring& local_path);
+  ~DiscImageDevice() override;
 
   int Init();
 
-  virtual Entry* ResolvePath(const char* path);
+  std::unique_ptr<Entry> ResolvePath(const char* path) override;
 
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length);
-
-private:
-  xechar_t*   local_path_;
-  xe_mmap_ref mmap_;
-  GDFX*       gdfx_;
+ private:
+  std::wstring local_path_;
+  std::unique_ptr<poly::MappedMemory> mmap_;
+  GDFX* gdfx_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_DEVICE_H_

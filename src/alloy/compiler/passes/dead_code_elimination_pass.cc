@@ -7,20 +7,24 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/dead_code_elimination_pass.h>
+#include "alloy/compiler/passes/dead_code_elimination_pass.h"
 
-using namespace alloy;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
+#include "xenia/profiling.h"
+
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
 
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::Value;
 
-DeadCodeEliminationPass::DeadCodeEliminationPass() :
-    CompilerPass() {
-}
+DeadCodeEliminationPass::DeadCodeEliminationPass() : CompilerPass() {}
 
-DeadCodeEliminationPass::~DeadCodeEliminationPass() {
-}
+DeadCodeEliminationPass::~DeadCodeEliminationPass() {}
 
 int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -63,7 +67,7 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
 
   bool any_instr_removed = false;
   bool any_locals_removed = false;
-  Block* block = builder->first_block();
+  auto block = builder->first_block();
   while (block) {
     // Walk instructions in reverse.
     Instr* i = block->instr_tail;
@@ -71,8 +75,8 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
       auto prev = i->prev;
 
       auto opcode = i->opcode;
-      if (!(opcode->flags & OPCODE_FLAG_VOLATILE) &&
-          i->dest && !i->dest->use_head) {
+      if (!(opcode->flags & OPCODE_FLAG_VOLATILE) && i->dest &&
+          !i->dest->use_head) {
         // Has no uses and is not volatile. This instruction can die!
         MakeNopRecursive(i);
         any_instr_removed = true;
@@ -110,7 +114,7 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
 
   // Remove all nops.
   if (any_instr_removed) {
-    Block* block = builder->first_block();
+    block = builder->first_block();
     while (block) {
       Instr* i = block->instr_head;
       while (i) {
@@ -148,19 +152,19 @@ void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {
   i->dest->def = NULL;
   i->dest = NULL;
 
-#define MAKE_NOP_SRC(n) \
-  if (i->src##n##_use) { \
-    Value::Use* use = i->src##n##_use; \
-    Value* value = i->src##n##.value; \
-    i->src##n##_use = NULL; \
-    i->src##n##.value = NULL; \
-    value->RemoveUse(use); \
-    if (!value->use_head) { \
+#define MAKE_NOP_SRC(n)                                  \
+  if (i->src##n##_use) {                                 \
+    Value::Use* use = i->src##n##_use;                   \
+    Value* value = i->src##n.value;                      \
+    i->src##n##_use = NULL;                              \
+    i->src##n.value = NULL;                              \
+    value->RemoveUse(use);                               \
+    if (!value->use_head) {                              \
       /* Value is now unused, so recursively kill it. */ \
-      if (value->def && value->def != i) { \
-        MakeNopRecursive(value->def); \
-      } \
-    } \
+      if (value->def && value->def != i) {               \
+        MakeNopRecursive(value->def);                    \
+      }                                                  \
+    }                                                    \
   }
   MAKE_NOP_SRC(1);
   MAKE_NOP_SRC(2);
@@ -190,7 +194,6 @@ void DeadCodeEliminationPass::ReplaceAssignment(Instr* i) {
 }
 
 bool DeadCodeEliminationPass::CheckLocalUse(Instr* i) {
-  auto slot = i->src1.value;
   auto src = i->src2.value;
 
   auto use = src->use_head;
@@ -209,3 +212,7 @@ bool DeadCodeEliminationPass::CheckLocalUse(Instr* i) {
 
   return false;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

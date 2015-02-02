@@ -7,31 +7,25 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_hal.h>
-
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/util/shim_utils.h>
-
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
+#include "xenia/common.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
+SHIM_CALL HalReturnToFirmware_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t routine = SHIM_GET_ARG_32(0);
 
-void xeHalReturnToFirmware(uint32_t routine) {
-  KernelState* state = shared_kernel_state_;
-  XEASSERTNOTNULL(state);
+  XELOGD("HalReturnToFirmware(%d)", routine);
 
   // void
   // IN FIRMWARE_REENTRY  Routine
 
   // Routine must be 1 'HalRebootRoutine'
-  XEASSERT(routine == 1);
+  assert_true(routine == 1);
 
   // TODO(benvank): diediedie much more gracefully
   // Not sure how to blast back up the stack in LLVM without exceptions, though.
@@ -39,24 +33,10 @@ void xeHalReturnToFirmware(uint32_t routine) {
   exit(0);
 }
 
-
-SHIM_CALL HalReturnToFirmware_shim(
-    PPCContext* ppc_state, KernelState* state) {
-  uint32_t routine = SHIM_GET_ARG_32(0);
-
-  XELOGD(
-      "HalReturnToFirmware(%d)",
-      routine);
-
-  xeHalReturnToFirmware(routine);
-}
-
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xboxkrnl::RegisterHalExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterHalExports(ExportResolver* export_resolver,
+                                              KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", HalReturnToFirmware, state);
 }

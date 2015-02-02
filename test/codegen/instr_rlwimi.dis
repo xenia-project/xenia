@@ -1,9 +1,0 @@
-
-rlwimi.o:     file format elf64-powerpc
-
-
-Disassembly of section .text:
-
-0000000082010000 <.text>:
-    82010000:	50 86 10 3a 	rlwimi  r6,r4,2,0,29
-    82010004:	4e 80 00 20 	blr

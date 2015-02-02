@@ -7,35 +7,42 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/control_flow_analysis_pass.h>
+#include "alloy/compiler/passes/control_flow_analysis_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::Edge;
+using alloy::hir::HIRBuilder;
 
-ControlFlowAnalysisPass::ControlFlowAnalysisPass() :
-    CompilerPass() {
-}
+ControlFlowAnalysisPass::ControlFlowAnalysisPass() : CompilerPass() {}
 
-ControlFlowAnalysisPass::~ControlFlowAnalysisPass() {
-}
+ControlFlowAnalysisPass::~ControlFlowAnalysisPass() {}
 
 int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
 
-  // TODO(benvanik): reset edges for all blocks? Needed to be re-runnable.
+  // Reset edges for all blocks. Needed to be re-runnable.
+  // Note that this wastes a bunch of arena memory, so we shouldn't
+  // re-run too often.
+  auto block = builder->first_block();
+  while (block) {
+    block->incoming_edge_head = nullptr;
+    block->outgoing_edge_head = nullptr;
+    block = block->next;
+  }
 
   // Add edges.
-  auto block = builder->first_block();
+  block = builder->first_block();
   while (block) {
     auto instr = block->instr_tail;
     while (instr) {
@@ -46,7 +53,7 @@ int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
         auto label = instr->src1.label;
         builder->AddEdge(block, label->block, Edge::UNCONDITIONAL);
       } else if (instr->opcode == &OPCODE_BRANCH_TRUE_info ||
-                  instr->opcode == &OPCODE_BRANCH_FALSE_info) {
+                 instr->opcode == &OPCODE_BRANCH_FALSE_info) {
         auto label = instr->src2.label;
         builder->AddEdge(block, label->block, 0);
       }
@@ -67,3 +74,7 @@ int ControlFlowAnalysisPass::Run(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

@@ -10,8 +10,8 @@
 #ifndef ALLOY_RUNTIME_SYMBOL_INFO_H_
 #define ALLOY_RUNTIME_SYMBOL_INFO_H_
 
-#include <alloy/core.h>
-
+#include <cstdint>
+#include <string>
 
 namespace alloy {
 namespace runtime {
@@ -19,9 +19,8 @@ namespace runtime {
 class Function;
 class Module;
 
-
 class SymbolInfo {
-public:
+ public:
   enum Type {
     TYPE_FUNCTION,
     TYPE_VARIABLE,
@@ -34,7 +33,8 @@ public:
     STATUS_DEFINED,
     STATUS_FAILED,
   };
-public:
+
+ public:
   SymbolInfo(Type type, Module* module, uint64_t address);
   virtual ~SymbolInfo();
 
@@ -44,31 +44,31 @@ public:
   void set_status(Status value) { status_ = value; }
   uint64_t address() const { return address_; }
 
-  const char* name() const { return name_; }
-  void set_name(const char* name);
+  const std::string& name() const { return name_; }
+  void set_name(const std::string& value) { name_ = value; }
 
-protected:
-  Type      type_;
-  Module*   module_;
-  Status    status_;
-  uint64_t  address_;
+ protected:
+  Type type_;
+  Module* module_;
+  Status status_;
+  uint64_t address_;
 
-  char*     name_;
+  std::string name_;
 };
 
 class FunctionInfo : public SymbolInfo {
-public:
+ public:
   enum Behavior {
-    BEHAVIOR_DEFAULT  = 0,
+    BEHAVIOR_DEFAULT = 0,
     BEHAVIOR_PROLOG,
     BEHAVIOR_EPILOG,
     BEHAVIOR_EPILOG_RETURN,
     BEHAVIOR_EXTERN,
   };
 
-public:
+ public:
   FunctionInfo(Module* module, uint64_t address);
-  virtual ~FunctionInfo();
+  ~FunctionInfo() override;
 
   bool has_end_address() const { return end_address_ > 0; }
   uint64_t end_address() const { return end_address_; }
@@ -80,15 +80,15 @@ public:
   Function* function() const { return function_; }
   void set_function(Function* value) { function_ = value; }
 
-  typedef void(*ExternHandler)(void* context, void* arg0, void* arg1);
+  typedef void (*ExternHandler)(void* context, void* arg0, void* arg1);
   void SetupExtern(ExternHandler handler, void* arg0, void* arg1);
   ExternHandler extern_handler() const { return extern_info_.handler; }
   void* extern_arg0() const { return extern_info_.arg0; }
   void* extern_arg1() const { return extern_info_.arg1; }
 
-private:
-  uint64_t  end_address_;
-  Behavior  behavior_;
+ private:
+  uint64_t end_address_;
+  Behavior behavior_;
   Function* function_;
   struct {
     ExternHandler handler;
@@ -98,16 +98,12 @@ private:
 };
 
 class VariableInfo : public SymbolInfo {
-public:
+ public:
   VariableInfo(Module* module, uint64_t address);
-  virtual ~VariableInfo();
-
-private:
+  ~VariableInfo() override;
 };
-
 
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_SYMBOL_INFO_H_

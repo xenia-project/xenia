@@ -6,11 +6,9 @@
     'backend.cc',
     'backend.h',
     'machine_info.h',
-    'tracing.h',
   ],
 
   'includes': [
-    'ivm/sources.gypi',
     'x64/sources.gypi',
   ],
 }

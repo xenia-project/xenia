@@ -7,30 +7,24 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/backend.h>
+#include "alloy/backend/backend.h"
 
-#include <alloy/backend/tracing.h>
+namespace alloy {
+namespace backend {
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::runtime;
+using alloy::runtime::Runtime;
 
-
-Backend::Backend(Runtime* runtime) :
-    runtime_(runtime) {
-  xe_zero_struct(&machine_info_, sizeof(machine_info_));
+Backend::Backend(Runtime* runtime) : runtime_(runtime) {
+  memset(&machine_info_, 0, sizeof(machine_info_));
 }
 
-Backend::~Backend() {
-}
+Backend::~Backend() = default;
 
-int Backend::Initialize() {
-  return 0;
-}
+int Backend::Initialize() { return 0; }
 
-void* Backend::AllocThreadData() {
-  return NULL;
-}
+void* Backend::AllocThreadData() { return nullptr; }
 
-void Backend::FreeThreadData(void* thread_data) {
-}
+void Backend::FreeThreadData(void* thread_data) {}
+
+}  // namespace backend
+}  // namespace alloy

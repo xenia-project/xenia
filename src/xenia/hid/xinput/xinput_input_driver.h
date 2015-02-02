@@ -10,40 +10,33 @@
 #ifndef XENIA_HID_XINPUT_XINPUT_DRIVER_H_
 #define XENIA_HID_XINPUT_XINPUT_DRIVER_H_
 
-#include <xenia/core.h>
-
-#include <xenia/hid/input_driver.h>
-#include <xenia/hid/nop/nop_hid-private.h>
-
+#include "xenia/common.h"
+#include "xenia/hid/input_driver.h"
+#include "xenia/hid/nop/nop_hid-private.h"
 
 namespace xe {
 namespace hid {
 namespace xinput {
 
-
 class XInputInputDriver : public InputDriver {
-public:
+ public:
   XInputInputDriver(InputSystem* input_system);
-  virtual ~XInputInputDriver();
+  ~XInputInputDriver() override;
 
-  virtual X_STATUS Setup();
+  X_STATUS Setup() override;
 
-  virtual X_RESULT GetCapabilities(
-      uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps);
-  virtual X_RESULT GetState(
-      uint32_t user_index, X_INPUT_STATE& out_state);
-  virtual X_RESULT SetState(
-      uint32_t user_index, X_INPUT_VIBRATION& vibration);
-  virtual X_RESULT GetKeystroke(
-      uint32_t user_index, uint32_t flags, X_INPUT_KEYSTROKE& out_keystroke);
+  X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags,
+                           X_INPUT_CAPABILITIES* out_caps) override;
+  X_RESULT GetState(uint32_t user_index, X_INPUT_STATE* out_state) override;
+  X_RESULT SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) override;
+  X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
+                        X_INPUT_KEYSTROKE* out_keystroke) override;
 
-protected:
+ protected:
 };
-
 
 }  // namespace xinput
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_XINPUT_XINPUT_DRIVER_H_

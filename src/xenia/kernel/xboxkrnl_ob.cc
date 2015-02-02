@@ -7,35 +7,25 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_ob.h>
-
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/xobject.h>
-#include <xenia/kernel/objects/xthread.h>
-#include <xenia/kernel/util/shim_utils.h>
-
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
+#include "xenia/common.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/xobject.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-
-SHIM_CALL ObReferenceObjectByHandle_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
+                                         KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t object_type_ptr = SHIM_GET_ARG_32(1);
   uint32_t out_object_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "ObReferenceObjectByHandle(%.8X, %.8X, %.8X)",
-      handle,
-      object_type_ptr,
-      out_object_ptr);
+  XELOGD("ObReferenceObjectByHandle(%.8X, %.8X, %.8X)", handle, object_type_ptr,
+         out_object_ptr);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
@@ -47,12 +37,11 @@ SHIM_CALL ObReferenceObjectByHandle_shim(
     // TODO(benvanik): get native value, if supported.
     uint32_t native_ptr = 0xDEADF00D;
     switch (object_type_ptr) {
-    case 0xD01BBEEF: // ExThreadObjectType
+      case 0xD01BBEEF:  // ExThreadObjectType
       {
         XThread* thread = (XThread*)object;
         native_ptr = thread->thread_state();
-      }
-      break;
+      } break;
     }
 
     if (out_object_ptr) {
@@ -63,14 +52,10 @@ SHIM_CALL ObReferenceObjectByHandle_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
-SHIM_CALL ObDereferenceObject_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t native_ptr = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "ObDereferenceObject(%.8X)",
-      native_ptr);
+  XELOGD("ObDereferenceObject(%.8X)", native_ptr);
 
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
@@ -87,16 +72,13 @@ SHIM_CALL ObDereferenceObject_shim(
   SHIM_SET_RETURN_32(0);
 }
 
-
-SHIM_CALL NtDuplicateObject_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t new_handle_ptr = SHIM_GET_ARG_32(1);
   uint32_t options = SHIM_GET_ARG_32(2);
 
-  XELOGD(
-      "NtDuplicateObject(%.8X, %.8X, %.8X)",
-      handle, new_handle_ptr, options);
+  XELOGD("NtDuplicateObject(%.8X, %.8X, %.8X)", handle, new_handle_ptr,
+         options);
 
   // NOTE: new_handle_ptr can be zero to just close a handle.
   // NOTE: this function seems to be used to get the current thread handle
@@ -127,14 +109,10 @@ SHIM_CALL NtDuplicateObject_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
-SHIM_CALL NtClose_shim(
-    PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtClose_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
 
-  XELOGD(
-      "NtClose(%.8X)",
-      handle);
+  XELOGD("NtClose(%.8X)", handle);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
@@ -143,13 +121,11 @@ SHIM_CALL NtClose_shim(
   SHIM_SET_RETURN_32(result);
 }
 
-
 }  // namespace kernel
 }  // namespace xe
 
-
-void xe::kernel::xboxkrnl::RegisterObExports(
-    ExportResolver* export_resolver, KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterObExports(ExportResolver* export_resolver,
+                                             KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ObReferenceObjectByHandle, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObDereferenceObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtDuplicateObject, state);

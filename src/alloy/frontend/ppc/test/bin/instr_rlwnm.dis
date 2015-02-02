@@ -1,0 +1,45 @@
+
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_rlwnm.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_rlwnm_1>:
+  100000:	5c 83 2a 1e 	rlwnm   r3,r4,r5,8,15
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_rlwnm_2>:
+  100008:	5c 83 28 36 	rlwnm   r3,r4,r5,0,27
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_rlwnm_3>:
+  100010:	5c 83 28 3a 	rlwnm   r3,r4,r5,0,29
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_rlwnm_4>:
+  100018:	5c 83 28 3b 	rlwnm.  r3,r4,r5,0,29
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_rlwnm_5>:
+  100020:	5c 83 29 7a 	rlwnm   r3,r4,r5,5,29
+  100024:	4e 80 00 20 	blr
+
+0000000000100028 <test_rlwnm_6>:
+  100028:	5c 83 28 3e 	rotlw   r3,r4,r5
+  10002c:	4e 80 00 20 	blr
+
+0000000000100030 <test_rlwnm_7>:
+  100030:	5c 83 28 20 	rlwnm   r3,r4,r5,0,16
+  100034:	4e 80 00 20 	blr
+
+0000000000100038 <test_rlwnm_8>:
+  100038:	5c 83 2c 3e 	rlwnm   r3,r4,r5,16,31
+  10003c:	4e 80 00 20 	blr
+
+0000000000100040 <test_rlwnm_9>:
+  100040:	5c 83 2c 3e 	rlwnm   r3,r4,r5,16,31
+  100044:	4e 80 00 20 	blr
+
+0000000000100048 <test_rlwnm_10>:
+  100048:	5c 83 28 3e 	rotlw   r3,r4,r5
+  10004c:	4e 80 00 20 	blr

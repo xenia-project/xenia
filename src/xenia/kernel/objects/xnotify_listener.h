@@ -7,25 +7,23 @@
  ******************************************************************************
  */
 
-// This should probably be in XAM, but I don't want to build an extensible
-// object system. Meh.
-
 #ifndef XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 #define XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 
-#include <xenia/kernel/xobject.h>
+#include <mutex>
 
-#include <xenia/xbox.h>
-
+#include "xenia/kernel/xobject.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-
 class XNotifyListener : public XObject {
-public:
+ public:
   XNotifyListener(KernelState* kernel_state);
   virtual ~XNotifyListener();
+
+  uint64_t mask() const { return mask_; }
 
   void Initialize(uint64_t mask);
 
@@ -35,17 +33,15 @@ public:
 
   virtual void* GetWaitHandle() { return wait_handle_; }
 
-private:
+ private:
   HANDLE wait_handle_;
-  xe_mutex_t* lock_;
+  std::mutex lock_;
   std::unordered_map<XNotificationID, uint32_t> notifications_;
   size_t notification_count_;
   uint64_t mask_;
 };
 
-
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_

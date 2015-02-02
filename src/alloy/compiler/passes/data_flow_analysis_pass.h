@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_DATA_FLOW_ANALYSIS_PASS_H_
 #define ALLOY_COMPILER_PASSES_DATA_FLOW_ANALYSIS_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
 
 namespace alloy {
@@ -21,9 +21,9 @@ namespace passes {
 class DataFlowAnalysisPass : public CompilerPass {
 public:
   DataFlowAnalysisPass();
-  virtual ~DataFlowAnalysisPass();
+  ~DataFlowAnalysisPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
 private:
   uint32_t LinearizeBlocks(hir::HIRBuilder* builder);

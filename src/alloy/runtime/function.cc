@@ -7,45 +7,39 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/function.h>
+#include "alloy/runtime/function.h"
 
-#include <alloy/runtime/debugger.h>
-#include <alloy/runtime/symbol_info.h>
-#include <alloy/runtime/thread_state.h>
+#include "alloy/runtime/debugger.h"
+#include "alloy/runtime/symbol_info.h"
+#include "alloy/runtime/thread_state.h"
+#include "xdb/protocol.h"
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
+Function::Function(FunctionInfo* symbol_info)
+    : address_(symbol_info->address()), symbol_info_(symbol_info) {}
 
-Function::Function(FunctionInfo* symbol_info) :
-    address_(symbol_info->address()),
-    symbol_info_(symbol_info), debug_info_(0) {
-  // TODO(benvanik): create on demand?
-  lock_ = AllocMutex();
-}
-
-Function::~Function() {
-  FreeMutex(lock_);
-}
+Function::~Function() = default;
 
 int Function::AddBreakpoint(Breakpoint* breakpoint) {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   bool found = false;
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-    if (*it == breakpoint) {
+  for (auto other : breakpoints_) {
+    if (other == breakpoint) {
       found = true;
+      break;
     }
   }
   if (!found) {
     breakpoints_.push_back(breakpoint);
     AddBreakpointImpl(breakpoint);
   }
-  UnlockMutex(lock_);
   return found ? 1 : 0;
 }
 
 int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   bool found = false;
   for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
     if (*it == breakpoint) {
@@ -55,26 +49,23 @@ int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
       break;
     }
   }
-  UnlockMutex(lock_);
   return found ? 0 : 1;
 }
 
 Breakpoint* Function::FindBreakpoint(uint64_t address) {
-  LockMutex(lock_);
-  Breakpoint* result = NULL;
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-    Breakpoint* breakpoint = *it;
+  std::lock_guard<std::mutex> guard(lock_);
+  Breakpoint* result = nullptr;
+  for (auto breakpoint : breakpoints_) {
     if (breakpoint->address() == address) {
       result = breakpoint;
       break;
     }
   }
-  UnlockMutex(lock_);
   return result;
 }
 
 int Function::Call(ThreadState* thread_state, uint64_t return_address) {
-  SCOPE_profile_cpu_f("alloy");
+  //SCOPE_profile_cpu_f("alloy");
 
   ThreadState* original_thread_state = ThreadState::Get();
   if (original_thread_state != thread_state) {
@@ -82,21 +73,49 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   }
 
   int result = 0;
-  
+
+  uint64_t trace_base = thread_state->memory()->trace_base();
   if (symbol_info_->behavior() == FunctionInfo::BEHAVIOR_EXTERN) {
     auto handler = symbol_info_->extern_handler();
+
+    if (trace_base && true) {
+      auto ev = xdb::protocol::KernelCallEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::KERNEL_CALL;
+      ev->thread_id = thread_state->thread_id();
+      ev->module_id = 0;
+      ev->ordinal = 0;
+    }
+
     if (handler) {
-      handler(thread_state->raw_context(),
-              symbol_info_->extern_arg0(),
+      handler(thread_state->raw_context(), symbol_info_->extern_arg0(),
               symbol_info_->extern_arg1());
     } else {
-      XELOGW("undefined extern call to %.8X %s",
-             symbol_info_->address(),
-             symbol_info_->name());
+      PLOGW("undefined extern call to %.8llX %s", symbol_info_->address(),
+            symbol_info_->name().c_str());
       result = 1;
     }
+
+    if (trace_base && true) {
+      auto ev = xdb::protocol::KernelCallReturnEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::KERNEL_CALL_RETURN;
+      ev->thread_id = thread_state->thread_id();
+    }
   } else {
+    if (trace_base && true) {
+      auto ev = xdb::protocol::UserCallEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::USER_CALL;
+      ev->call_type = 0; // ?
+      ev->thread_id = thread_state->thread_id();
+      ev->address = static_cast<uint32_t>(symbol_info_->address());
+    }
+
     CallImpl(thread_state, return_address);
+
+    if (trace_base && true) {
+      auto ev = xdb::protocol::UserCallReturnEvent::Append(trace_base);
+      ev->type = xdb::protocol::EventType::USER_CALL_RETURN;
+      ev->thread_id = thread_state->thread_id();
+    }
   }
 
   if (original_thread_state != thread_state) {
@@ -104,3 +123,6 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   }
   return result;
 }
+
+}  // namespace runtime
+}  // namespace alloy

@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/nop/nop_audio_system.h>
+#include "xenia/apu/nop/nop_audio_system.h"
 
-#include <xenia/apu/apu-private.h>
+#include "xenia/apu/apu-private.h"
 
 
 using namespace xe;
@@ -29,5 +29,5 @@ X_STATUS NopAudioSystem::CreateDriver(size_t index, HANDLE wait_handle, AudioDri
 }
 
 void NopAudioSystem::DestroyDriver(AudioDriver* driver) {
-  XEASSERTALWAYS();
+  assert_always();
 }

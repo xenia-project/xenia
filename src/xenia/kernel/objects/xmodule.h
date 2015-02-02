@@ -10,36 +10,34 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XMODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_XMODULE_H_
 
-#include <xenia/kernel/xobject.h>
+#include <string>
 
-#include <xenia/xbox.h>
-
+#include "xenia/kernel/xobject.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-
 class XModule : public XObject {
-public:
-  XModule(KernelState* kernel_state, const char* path);
+ public:
+  XModule(KernelState* kernel_state, const std::string& path);
   virtual ~XModule();
 
-  const char* path() const { return path_; }
-  const char* name() const { return name_; }
+  const std::string& path() const { return path_; }
+  const std::string& name() const { return name_; }
 
   virtual void* GetProcAddressByOrdinal(uint16_t ordinal) = 0;
-  virtual X_STATUS GetSection(
-      const char* name,
-      uint32_t* out_section_data, uint32_t* out_section_size);
+  virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
+                              uint32_t* out_section_size);
 
-protected:
-  char            name_[256];
-  char            path_[XE_MAX_PATH];
+ protected:
+  void OnLoad();
+
+  std::string name_;
+  std::string path_;
 };
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_XMODULE_H_

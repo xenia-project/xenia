@@ -7,38 +7,29 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/symbol_info.h>
+#include "alloy/runtime/symbol_info.h"
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
+SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address)
+    : type_(type),
+      module_(module),
+      status_(STATUS_DEFINING),
+      address_(address),
+      name_("") {}
 
-SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address) :
-    type_(type), status_(STATUS_DEFINING),
-    module_(module), address_(address), name_(0) {
+SymbolInfo::~SymbolInfo() = default;
+
+FunctionInfo::FunctionInfo(Module* module, uint64_t address)
+    : SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address),
+      end_address_(0),
+      behavior_(BEHAVIOR_DEFAULT),
+      function_(0) {
+  memset(&extern_info_, 0, sizeof(extern_info_));
 }
 
-SymbolInfo::~SymbolInfo() {
-  if (name_) {
-    xe_free(name_);
-  }
-}
-
-void SymbolInfo::set_name(const char* name) {
-  if (name_) {
-    xe_free(name_);
-  }
-  name_ = xestrdupa(name);
-}
-
-FunctionInfo::FunctionInfo(Module* module, uint64_t address) :
-    end_address_(0), behavior_(BEHAVIOR_DEFAULT), function_(0),
-    SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address) {
-  xe_zero_struct(&extern_info_, sizeof(extern_info_));
-}
-
-FunctionInfo::~FunctionInfo() {
-}
+FunctionInfo::~FunctionInfo() = default;
 
 void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
   behavior_ = BEHAVIOR_EXTERN;
@@ -47,9 +38,10 @@ void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
   extern_info_.arg1 = arg1;
 }
 
-VariableInfo::VariableInfo(Module* module, uint64_t address) :
-    SymbolInfo(SymbolInfo::TYPE_VARIABLE, module, address) {
-}
+VariableInfo::VariableInfo(Module* module, uint64_t address)
+    : SymbolInfo(SymbolInfo::TYPE_VARIABLE, module, address) {}
 
-VariableInfo::~VariableInfo() {
-}
+VariableInfo::~VariableInfo() = default;
+
+}  // namespace runtime
+}  // namespace alloy

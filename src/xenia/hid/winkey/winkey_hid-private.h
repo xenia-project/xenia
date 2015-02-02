@@ -10,22 +10,17 @@
 #ifndef XENIA_HID_WINKEY_WINKEY_HID_PRIVATE_H_
 #define XENIA_HID_WINKEY_WINKEY_HID_PRIVATE_H_
 
-#include <xenia/core.h>
-
-#include <xenia/hid/winkey/winkey_hid.h>
-
+#include "xenia/common.h"
+#include "xenia/hid/winkey/winkey_hid.h"
 
 namespace xe {
 namespace hid {
 namespace winkey {
 
-
-
-
+//
 
 }  // namespace winkey
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_WINKEY_WINKEY_HID_PRIVATE_H_

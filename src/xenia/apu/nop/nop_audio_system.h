@@ -10,10 +10,10 @@
 #ifndef XENIA_APU_NOP_NOP_AUDIO_SYSTEM_H_
 #define XENIA_APU_NOP_NOP_AUDIO_SYSTEM_H_
 
-#include <xenia/core.h>
+#include "xenia/common.h"
 
-#include <xenia/apu/audio_system.h>
-#include <xenia/apu/nop/nop_apu-private.h>
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/nop/nop_apu-private.h"
 
 
 namespace xe {

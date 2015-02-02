@@ -7,27 +7,27 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/thread_state.h>
+#include "alloy/runtime/thread_state.h"
 
-#include <alloy/runtime/runtime.h>
+#include "alloy/runtime/runtime.h"
+#include "poly/poly.h"
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
+thread_local ThreadState* thread_state_ = nullptr;
 
-namespace {
-__declspec(thread) ThreadState* thread_state_ = NULL;
-}
-
-
-ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id) :
-    runtime_(runtime), memory_(runtime->memory()),
-    thread_id_(thread_id), name_(0),
-    backend_data_(0), raw_context_(0) {
+ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id)
+    : runtime_(runtime),
+      memory_(runtime->memory()),
+      thread_id_(thread_id),
+      name_(""),
+      backend_data_(0),
+      raw_context_(0) {
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
     // set so people know what's up.
-    uint32_t system_thread_handle = GetCurrentThreadId();
+    uint32_t system_thread_handle = poly::threading::current_thread_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
   backend_data_ = runtime->backend()->AllocThreadData();
@@ -38,31 +38,17 @@ ThreadState::~ThreadState() {
     runtime_->backend()->FreeThreadData(backend_data_);
   }
   if (thread_state_ == this) {
-    thread_state_ = NULL;
+    thread_state_ = nullptr;
   }
-  if (name_) {
-    xe_free(name_);
-  }
-}
-
-void ThreadState::set_name(const char* value) {
-  if (value == name_) {
-    return;
-  }
-  if (name_) {
-    xe_free(name_);
-  }
-  name_ = xestrdupa(value);
 }
 
 void ThreadState::Bind(ThreadState* thread_state) {
   thread_state_ = thread_state;
 }
 
-ThreadState* ThreadState::Get() {
-  return thread_state_;
-}
+ThreadState* ThreadState::Get() { return thread_state_; }
 
-uint32_t ThreadState::GetThreadID() {
-  return thread_state_->thread_id_;
-}
+uint32_t ThreadState::GetThreadID() { return thread_state_->thread_id_; }
+
+}  // namespace runtime
+}  // namespace alloy

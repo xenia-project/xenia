@@ -10,8 +10,7 @@
 #ifndef ALLOY_BACKEND_X64_X64_CODE_CACHE_H_
 #define ALLOY_BACKEND_X64_X64_CODE_CACHE_H_
 
-#include <alloy/core.h>
-
+#include <mutex>
 
 namespace alloy {
 namespace backend {
@@ -20,7 +19,7 @@ namespace x64 {
 class X64CodeChunk;
 
 class X64CodeCache {
-public:
+ public:
   X64CodeCache(size_t chunk_size = DEFAULT_CHUNK_SIZE);
   virtual ~X64CodeCache();
 
@@ -32,18 +31,16 @@ public:
 
   void* PlaceCode(void* machine_code, size_t code_size, size_t stack_size);
 
-private:
+ private:
   const static size_t DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
-  Mutex*        lock_;
-  size_t        chunk_size_;
+  std::mutex lock_;
+  size_t chunk_size_;
   X64CodeChunk* head_chunk_;
   X64CodeChunk* active_chunk_;
 };
 
-
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_X64_X64_CODE_CACHE_H_

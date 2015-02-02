@@ -7,40 +7,44 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/value_reduction_pass.h>
+#include "alloy/compiler/passes/value_reduction_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
+#if XE_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable : 4244)
 #pragma warning(disable : 4267)
 #include <llvm/ADT/BitVector.h>
 #pragma warning(pop)
+#else
+#include <llvm/ADT/BitVector.h>
+#endif  // XE_COMPILER_MSVC
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::HIRBuilder;
+using alloy::hir::OpcodeInfo;
+using alloy::hir::Value;
 
-ValueReductionPass::ValueReductionPass() :
-    CompilerPass() {
-}
+ValueReductionPass::ValueReductionPass() : CompilerPass() {}
 
-ValueReductionPass::~ValueReductionPass() {
-}
+ValueReductionPass::~ValueReductionPass() {}
 
 void ValueReductionPass::ComputeLastUse(Value* value) {
   // TODO(benvanik): compute during construction?
   // Note that this list isn't sorted (unfortunately), so we have to scan
   // them all.
   uint32_t max_ordinal = 0;
-  Value::Use* last_use = NULL;
+  Value::Use* last_use = nullptr;
   auto use = value->use_head;
   while (use) {
     if (!last_use || use->instr->ordinal >= max_ordinal) {
@@ -49,7 +53,7 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
     }
     use = use->next;
   }
-  value->last_use = last_use->instr;
+  value->last_use = last_use ? last_use->instr : nullptr;
 }
 
 int ValueReductionPass::Run(HIRBuilder* builder) {
@@ -137,3 +141,7 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

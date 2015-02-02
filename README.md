@@ -20,7 +20,7 @@ that.
 
 ## Status
 
-* Some code runs. [Insert any game name here] doesn't.
+* Some code runs. [Insert any game name here] doesn't. Except Frogger 2. Yep.
 * Asserts! Crashes! Hangs! Blank screens!
 
 ## Disclaimer
@@ -35,7 +35,7 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+:
 
-    # install python 2.7 and VS2013
+    # install python 2.7 and VS2013/2015
     git clone https://github.com/benvanik/xenia.git
     cd xenia
     xb setup
@@ -47,7 +47,8 @@ update gyp files/etc.
 ## Building
 
 See [building](docs/building.md) for setup and information about the
-`xenia-build` script.
+`xenia-build` script. When writing code, check the [style guide](docs/style_guide.md)
+and be sure to clang-format!
 
 ## Contributors Wanted!
 
@@ -55,19 +56,11 @@ Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
 is wide open greenfield fun.
 
-That said, the project is currently undergoing a lot of major foundational
-development and core pieces are changing rapidly and poorly documented.
-It'll be difficult to casually hack things in unless you know what you're
-doing.
-
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
 * Help work through missing functionality/bugs in game [compat](https://github.com/benvanik/xenia/issues?labels=compat)
-* Write an [OpenGL driver](https://github.com/benvanik/xenia/issues/59)
-* Add input drivers for [OSX](https://github.com/benvanik/xenia/issues/61) and [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
-* Start [hacking on audio](https://github.com/benvanik/xenia/issues/62)
-* Build a [virtual LIVE service](https://github.com/benvanik/xenia/issues/64)
+* Add input drivers for [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
 
 See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open). It's a good idea to ask on IRC/the bugs before beginning work
 on something.
@@ -91,15 +84,13 @@ enough to run games at a decent speed the answer is no.
 ### What about Linux/OSX?
 
 The project is designed to support non-Windows platforms but until it's running
-games it's not worth the maintenance burden. If you're a really passionate
-Linux/OSX-based developer and want to help out, run Bootcamp/VM and contribute
-an OpenGL 4 driver - that'll be the most difficult part in porting to
-non-Windows platforms.
+games it's not worth the maintenance burden. OSX will likely remain unsupported
+until Apple supports OpenGL 4.3 or higher.
 
 ### What kind of GPU do I need?
 
-DirectX 11 support is required. To get full speed and compatibility Mantle may
-be required in the future.
+OpenGL 4.5 support and drivers are required. To get full speed and compatibility
+GL-next may eventually be required.
 
 ### Have you heard of LLVM/asmjit/jitasm/luajit/etc?
 

@@ -7,17 +7,32 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_instr.h>
+#include "alloy/frontend/ppc/ppc_instr.h"
 
 #include <sstream>
+#include <vector>
 
-#include <alloy/frontend/ppc/ppc_instr_tables.h>
+#include "alloy/frontend/ppc/ppc_instr_tables.h"
+#include "alloy/string_buffer.h"
+#include "poly/poly.h"
 
+namespace alloy {
+namespace frontend {
+namespace ppc {
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
+std::vector<InstrType*> all_instrs_;
 
+void DumpAllInstrCounts() {
+  StringBuffer sb;
+  sb.Append("Instruction translation counts:\n");
+  for (auto instr_type : all_instrs_) {
+    if (instr_type->translation_count) {
+      sb.Append("%8d : %s\n", instr_type->translation_count, instr_type->name);
+    }
+  }
+  fprintf(stdout, sb.GetString());
+  fflush(stdout);
+}
 
 void InstrOperand::Dump(std::string& out_str) {
   if (display) {
@@ -26,33 +41,33 @@ void InstrOperand::Dump(std::string& out_str) {
   }
 
   char buffer[32];
-  const size_t max_count = XECOUNT(buffer);
+  const size_t max_count = poly::countof(buffer);
   switch (type) {
     case InstrOperand::kRegister:
       switch (reg.set) {
         case InstrRegister::kXER:
-          xesnprintfa(buffer, max_count, "XER");
+          snprintf(buffer, max_count, "XER");
           break;
         case InstrRegister::kLR:
-          xesnprintfa(buffer, max_count, "LR");
+          snprintf(buffer, max_count, "LR");
           break;
         case InstrRegister::kCTR:
-          xesnprintfa(buffer, max_count, "CTR");
+          snprintf(buffer, max_count, "CTR");
           break;
         case InstrRegister::kCR:
-          xesnprintfa(buffer, max_count, "CR%d", reg.ordinal);
+          snprintf(buffer, max_count, "CR%d", reg.ordinal);
           break;
         case InstrRegister::kFPSCR:
-          xesnprintfa(buffer, max_count, "FPSCR");
+          snprintf(buffer, max_count, "FPSCR");
           break;
         case InstrRegister::kGPR:
-          xesnprintfa(buffer, max_count, "r%d", reg.ordinal);
+          snprintf(buffer, max_count, "r%d", reg.ordinal);
           break;
         case InstrRegister::kFPR:
-          xesnprintfa(buffer, max_count, "f%d", reg.ordinal);
+          snprintf(buffer, max_count, "f%d", reg.ordinal);
           break;
         case InstrRegister::kVMX:
-          xesnprintfa(buffer, max_count, "vr%d", reg.ordinal);
+          snprintf(buffer, max_count, "vr%d", reg.ordinal);
           break;
       }
       break;
@@ -60,30 +75,30 @@ void InstrOperand::Dump(std::string& out_str) {
       switch (imm.width) {
         case 1:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%d", (int32_t)(int8_t)imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)(int8_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.2X", (uint8_t)imm.value);
+            snprintf(buffer, max_count, "0x%.2X", (uint8_t)imm.value);
           }
           break;
         case 2:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%d", (int32_t)(int16_t)imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)(int16_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.4X", (uint16_t)imm.value);
+            snprintf(buffer, max_count, "0x%.4X", (uint16_t)imm.value);
           }
           break;
         case 4:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%d", (int32_t)imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.8X", (uint32_t)imm.value);
+            snprintf(buffer, max_count, "0x%.8X", (uint32_t)imm.value);
           }
           break;
         case 8:
           if (imm.is_signed) {
-            xesnprintfa(buffer, max_count, "%lld", (int64_t)imm.value);
+            snprintf(buffer, max_count, "%lld", (int64_t)imm.value);
           } else {
-            xesnprintfa(buffer, max_count, "0x%.16llX", imm.value);
+            snprintf(buffer, max_count, "0x%.16llX", imm.value);
           }
           break;
       }
@@ -92,21 +107,18 @@ void InstrOperand::Dump(std::string& out_str) {
   out_str += buffer;
 }
 
-
-void InstrAccessBits::Clear() {
-  spr = cr = gpr = fpr = 0;
-}
+void InstrAccessBits::Clear() { spr = cr = gpr = fpr = 0; }
 
 void InstrAccessBits::Extend(InstrAccessBits& other) {
-    spr |= other.spr;
-    cr  |= other.cr;
-    gpr |= other.gpr;
-    fpr |= other.fpr;
-    vr31_0    |= other.vr31_0;
-    vr63_32   |= other.vr63_32;
-    vr95_64   |= other.vr95_64;
-    vr127_96  |= other.vr127_96;
-  }
+  spr |= other.spr;
+  cr |= other.cr;
+  gpr |= other.gpr;
+  fpr |= other.fpr;
+  vr31_0 |= other.vr31_0;
+  vr63_32 |= other.vr63_32;
+  vr95_64 |= other.vr95_64;
+  vr127_96 |= other.vr127_96;
+}
 
 void InstrAccessBits::MarkAccess(InstrRegister& reg) {
   uint64_t bits = 0;
@@ -128,7 +140,7 @@ void InstrAccessBits::MarkAccess(InstrRegister& reg) {
       spr |= bits << (2 * 2);
       break;
     case InstrRegister::kCR:
-      cr  |= bits << (2 * reg.ordinal);
+      cr |= bits << (2 * reg.ordinal);
       break;
     case InstrRegister::kFPSCR:
       spr |= bits << (2 * 3);
@@ -151,7 +163,7 @@ void InstrAccessBits::MarkAccess(InstrRegister& reg) {
       }
       break;
     default:
-      XEASSERTALWAYS();
+      assert_unhandled_case(reg.set);
       break;
   }
 }
@@ -281,41 +293,31 @@ void InstrAccessBits::Dump(std::string& out_str) {
   out_str = str.str();
 }
 
-
 void InstrDisasm::Init(const char* name, const char* info, uint32_t flags) {
   this->name = name;
   this->info = info;
   this->flags = flags;
 }
 
-void InstrDisasm::AddLR(InstrRegister::Access access) {
-}
+void InstrDisasm::AddLR(InstrRegister::Access access) {}
 
-void InstrDisasm::AddCTR(InstrRegister::Access access) {
-}
+void InstrDisasm::AddCTR(InstrRegister::Access access) {}
 
-void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {
-}
+void InstrDisasm::AddCR(uint32_t bf, InstrRegister::Access access) {}
 
-void InstrDisasm::AddFPSCR(InstrRegister::Access access) {
-}
+void InstrDisasm::AddFPSCR(InstrRegister::Access access) {}
 
-void InstrDisasm::AddRegOperand(
-    InstrRegister::RegisterSet set, uint32_t ordinal,
-    InstrRegister::Access access, const char* display) {
-}
+void InstrDisasm::AddRegOperand(InstrRegister::RegisterSet set,
+                                uint32_t ordinal, InstrRegister::Access access,
+                                const char* display) {}
 
 void InstrDisasm::AddSImmOperand(uint64_t value, size_t width,
-                                 const char* display) {
-}
+                                 const char* display) {}
 
 void InstrDisasm::AddUImmOperand(uint64_t value, size_t width,
-                                 const char* display) {
-}
+                                 const char* display) {}
 
-int InstrDisasm::Finish() {
-  return 0;
-}
+int InstrDisasm::Finish() { return 0; }
 
 void InstrDisasm::Dump(std::string& out_str, size_t pad) {
   out_str = name;
@@ -330,47 +332,46 @@ void InstrDisasm::Dump(std::string& out_str, size_t pad) {
   }
 }
 
-
-InstrType* alloy::frontend::ppc::GetInstrType(uint32_t code) {
+InstrType* GetInstrType(uint32_t code) {
   // Fast lookup via tables.
   InstrType* slot = NULL;
   switch (code >> 26) {
-  case 4:
-    // Opcode = 4, index = bits 10-0 (10)
-    slot = alloy::frontend::ppc::tables::instr_table_4[XESELECTBITS(code, 0, 10)];
-    break;
-  case 19:
-    // Opcode = 19, index = bits 10-1 (10)
-    slot = alloy::frontend::ppc::tables::instr_table_19[XESELECTBITS(code, 1, 10)];
-    break;
-  case 30:
-    // Opcode = 30, index = bits 4-1 (4)
-    // Special cased to an uber instruction.
-    slot = alloy::frontend::ppc::tables::instr_table_30[XESELECTBITS(code, 0, 0)];
-    break;
-  case 31:
-    // Opcode = 31, index = bits 10-1 (10)
-    slot = alloy::frontend::ppc::tables::instr_table_31[XESELECTBITS(code, 1, 10)];
-    break;
-  case 58:
-    // Opcode = 58, index = bits 1-0 (2)
-    slot = alloy::frontend::ppc::tables::instr_table_58[XESELECTBITS(code, 0, 1)];
-    break;
-  case 59:
-    // Opcode = 59, index = bits 5-1 (5)
-    slot = alloy::frontend::ppc::tables::instr_table_59[XESELECTBITS(code, 1, 5)];
-    break;
-  case 62:
-    // Opcode = 62, index = bits 1-0 (2)
-    slot = alloy::frontend::ppc::tables::instr_table_62[XESELECTBITS(code, 0, 1)];
-    break;
-  case 63:
-    // Opcode = 63, index = bits 10-1 (10)
-    slot = alloy::frontend::ppc::tables::instr_table_63[XESELECTBITS(code, 1, 10)];
-    break;
-  default:
-    slot = alloy::frontend::ppc::tables::instr_table[XESELECTBITS(code, 26, 31)];
-    break;
+    case 4:
+      // Opcode = 4, index = bits 10-0 (10)
+      slot = tables::instr_table_4[select_bits(code, 0, 10)];
+      break;
+    case 19:
+      // Opcode = 19, index = bits 10-1 (10)
+      slot = tables::instr_table_19[select_bits(code, 1, 10)];
+      break;
+    case 30:
+      // Opcode = 30, index = bits 4-1 (4)
+      // Special cased to an uber instruction.
+      slot = tables::instr_table_30[select_bits(code, 0, 0)];
+      break;
+    case 31:
+      // Opcode = 31, index = bits 10-1 (10)
+      slot = tables::instr_table_31[select_bits(code, 1, 10)];
+      break;
+    case 58:
+      // Opcode = 58, index = bits 1-0 (2)
+      slot = tables::instr_table_58[select_bits(code, 0, 1)];
+      break;
+    case 59:
+      // Opcode = 59, index = bits 5-1 (5)
+      slot = tables::instr_table_59[select_bits(code, 1, 5)];
+      break;
+    case 62:
+      // Opcode = 62, index = bits 1-0 (2)
+      slot = tables::instr_table_62[select_bits(code, 0, 1)];
+      break;
+    case 63:
+      // Opcode = 63, index = bits 10-1 (10)
+      slot = tables::instr_table_63[select_bits(code, 1, 10)];
+      break;
+    default:
+      slot = tables::instr_table[select_bits(code, 26, 31)];
+      break;
   }
   if (slot && slot->opcode) {
     return slot;
@@ -378,10 +379,8 @@ InstrType* alloy::frontend::ppc::GetInstrType(uint32_t code) {
 
   // Slow lookup via linear scan.
   // This is primarily due to laziness. It could be made fast like the others.
-  for (size_t n = 0;
-       n < XECOUNT(alloy::frontend::ppc::tables::instr_table_scan);
-       n++) {
-    slot = &(alloy::frontend::ppc::tables::instr_table_scan[n]);
+  for (size_t n = 0; n < poly::countof(tables::instr_table_scan); n++) {
+    slot = &(tables::instr_table_scan[n]);
     if (slot->opcode == (code & slot->opcode_mask)) {
       return slot;
     }
@@ -390,13 +389,18 @@ InstrType* alloy::frontend::ppc::GetInstrType(uint32_t code) {
   return NULL;
 }
 
-int alloy::frontend::ppc::RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
+int RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
   InstrType* instr_type = GetInstrType(code);
-  XEASSERTNOTNULL(instr_type);
+  assert_not_null(instr_type);
   if (!instr_type) {
     return 1;
   }
-  XEASSERTNULL(instr_type->emit);
+  all_instrs_.push_back(instr_type);
+  assert_null(instr_type->emit);
   instr_type->emit = emit;
   return 0;
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

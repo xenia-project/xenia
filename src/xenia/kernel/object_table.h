@@ -10,21 +10,18 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
 #define XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <mutex>
 
-#include <xenia/xbox.h>
-
+#include "xenia/common.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-
 class XObject;
 
-
 class ObjectTable {
-public:
+ public:
   ObjectTable();
   ~ObjectTable();
 
@@ -32,23 +29,19 @@ public:
   X_STATUS RemoveHandle(X_HANDLE handle);
   X_STATUS GetObject(X_HANDLE handle, XObject** out_object);
 
-private:
+ private:
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
 
-  typedef struct {
-    XObject* object;
-  } ObjectTableEntry;
+  typedef struct { XObject* object; } ObjectTableEntry;
 
-  xe_mutex_t*       table_mutex_;
-  uint32_t          table_capacity_;
+  std::mutex table_mutex_;
+  uint32_t table_capacity_;
   ObjectTableEntry* table_;
-  uint32_t          last_free_entry_;
+  uint32_t last_free_entry_;
 };
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_

@@ -7,55 +7,36 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/compiler.h>
+#include "alloy/compiler/compiler.h"
 
-#include <alloy/compiler/compiler_pass.h>
-#include <alloy/compiler/tracing.h>
+#include "alloy/compiler/compiler_pass.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::compiler;
-using namespace alloy::hir;
-using namespace alloy::runtime;
+namespace alloy {
+namespace compiler {
 
+using alloy::hir::HIRBuilder;
+using alloy::runtime::Runtime;
 
-Compiler::Compiler(Runtime* runtime) :
-    runtime_(runtime) {
-  scratch_arena_ = new Arena();
+Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {}
 
-  alloy::tracing::WriteEvent(EventType::Init({
-  }));
-}
+Compiler::~Compiler() { Reset(); }
 
-Compiler::~Compiler() {
-  Reset();
-
-  for (auto it = passes_.begin(); it != passes_.end(); ++it) {
-    CompilerPass* pass = *it;
-    delete pass;
-  }
-
-  delete scratch_arena_;
-
-  alloy::tracing::WriteEvent(EventType::Deinit({
-  }));
-}
-
-void Compiler::AddPass(CompilerPass* pass) {
+void Compiler::AddPass(std::unique_ptr<CompilerPass> pass) {
   pass->Initialize(this);
-  passes_.push_back(pass);
+  passes_.push_back(std::move(pass));
 }
 
-void Compiler::Reset() {
-}
+void Compiler::Reset() {}
 
 int Compiler::Compile(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
 
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
-  for (auto it = passes_.begin(); it != passes_.end(); ++it) {
-    CompilerPass* pass = *it;
-    scratch_arena_->Reset();
+  for (size_t i = 0; i < passes_.size(); ++i) {
+    auto& pass = passes_[i];
+    scratch_arena_.Reset();
     if (pass->Run(builder)) {
       return 1;
     }
@@ -63,3 +44,6 @@ int Compiler::Compile(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace compiler
+}  // namespace alloy

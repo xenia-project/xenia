@@ -10,10 +10,16 @@
 #ifndef XENIA_CPU_XENON_THREAD_STATE_H_
 #define XENIA_CPU_XENON_THREAD_STATE_H_
 
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/runtime/thread_state.h>
-#include <xenia/core.h>
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/runtime/thread_state.h"
+#include "xenia/common.h"
+#include "xenia/memory.h"
 
+namespace xdb {
+namespace protocol {
+struct Registers;
+}  // namespace protocol
+}  // namespace xdb
 
 namespace xe {
 namespace cpu {
@@ -22,37 +28,30 @@ class XenonRuntime;
 
 using PPCContext = alloy::frontend::ppc::PPCContext;
 
-
 class XenonThreadState : public alloy::runtime::ThreadState {
-public:
-  XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
-                   size_t stack_size, uint64_t thread_state_address);
+ public:
+  XenonThreadState(XenonRuntime* runtime, uint32_t thread_id, size_t stack_size,
+                   uint64_t thread_state_address);
   virtual ~XenonThreadState();
 
+  Memory* xenon_memory() { return static_cast<Memory*>(memory_); }
   uint64_t stack_address() const { return stack_address_; }
   size_t stack_size() const { return stack_size_; }
   uint64_t thread_state_address() const { return thread_state_address_; }
   PPCContext* context() const { return context_; }
 
-  virtual volatile int* suspend_flag_address() const;
-  virtual int Suspend(uint32_t timeout_ms = UINT_MAX);
-  virtual int Resume(bool force = false);
-  virtual void EnterSuspend();
+  void WriteRegisters(xdb::protocol::Registers* registers);
 
-private:
-  uint64_t  stack_address_;
-  size_t    stack_size_;
-  uint64_t  thread_state_address_;
+ private:
+  uint64_t stack_address_;
+  size_t stack_size_;
+  uint64_t thread_state_address_;
 
   // NOTE: must be 64b aligned for SSE ops.
   PPCContext* context_;
-
-  HANDLE    debug_break_;
 };
-
 
 }  // namespace cpu
 }  // namespace xe
-
 
 #endif  // XENIA_CPU_XENON_THREAD_STATE_H_

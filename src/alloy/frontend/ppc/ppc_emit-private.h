@@ -10,28 +10,24 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_EMIT_PRIVATE_H_
 #define ALLOY_FRONTEND_PPC_PPC_EMIT_PRIVATE_H_
 
-#include <alloy/frontend/ppc/ppc_emit.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
-
+#include "alloy/frontend/ppc/ppc_emit.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
 
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
-
 #define XEEMITTER(name, opcode, format) int InstrEmit_##name
 
 #define XEREGISTERINSTR(name, opcode) \
-    RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
+  RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
-#define XEINSTRNOTIMPLEMENTED()
-//#define XEINSTRNOTIMPLEMENTED XEASSERTALWAYS
+//#define XEINSTRNOTIMPLEMENTED()
+#define XEINSTRNOTIMPLEMENTED() assert_always("Instruction not implemented");
 //#define XEINSTRNOTIMPLEMENTED() __debugbreak()
-
 
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_EMIT_PRIVATE_H_

@@ -1,0 +1,17 @@
+
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_lvsl.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_lvsl_1>:
+  100000:	7c 64 00 0c 	lvsl    v3,r4,r0
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_lvsl_2>:
+  100008:	7c 64 00 0c 	lvsl    v3,r4,r0
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_lvsl_3>:
+  100010:	7c 64 00 0c 	lvsl    v3,r4,r0
+  100014:	4e 80 00 20 	blr

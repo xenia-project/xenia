@@ -7,38 +7,34 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/nop/nop_apu.h>
+#include "xenia/apu/nop/nop_apu.h"
 
-#include <xenia/apu/nop/nop_audio_system.h>
-
+#include "xenia/apu/nop/nop_audio_system.h"
 
 using namespace xe;
 using namespace xe::apu;
 using namespace xe::apu::nop;
 
-
 namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  //
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
+}
 
-AudioSystem* xe::apu::nop::Create(Emulator* emulator) {
+std::unique_ptr<AudioSystem> xe::apu::nop::Create(Emulator* emulator) {
   InitializeIfNeeded();
-  return new NopAudioSystem(emulator);
+  return std::make_unique<NopAudioSystem>(emulator);
 }

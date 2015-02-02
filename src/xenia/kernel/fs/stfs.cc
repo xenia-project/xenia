@@ -9,58 +9,66 @@
  * - free60
  */
 
-#include <xenia/kernel/fs/stfs.h>
+#include "xenia/kernel/fs/stfs.h"
 
+#include <algorithm>
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
+#define XEGETUINT24BE(p)                                   \
+  (((uint32_t)poly::load_and_swap<uint8_t>((p)+0) << 16) | \
+   ((uint32_t)poly::load_and_swap<uint8_t>((p)+1) << 8) |  \
+   (uint32_t)poly::load_and_swap<uint8_t>((p)+2))
+#define XEGETUINT24LE(p)                          \
+  (((uint32_t)poly::load<uint8_t>((p)+2) << 16) | \
+   ((uint32_t)poly::load<uint8_t>((p)+1) << 8) |  \
+   (uint32_t)poly::load<uint8_t>((p)+0))
 
 bool STFSVolumeDescriptor::Read(const uint8_t* p) {
-  descriptor_size               = XEGETUINT8BE(p + 0x00);
+  descriptor_size = poly::load_and_swap<uint8_t>(p + 0x00);
   if (descriptor_size != 0x24) {
     XELOGE("STFS volume descriptor size mismatch, expected 0x24 but got 0x%X",
            descriptor_size);
     return false;
   }
-  reserved                      = XEGETUINT8BE(p + 0x01);
-  block_separation              = XEGETUINT8BE(p + 0x02);
-  file_table_block_count        = XEGETUINT16BE(p + 0x03);
-  file_table_block_number       = XEGETUINT24BE(p + 0x05);
-  xe_copy_struct(top_hash_table_hash, p + 0x08, 0x14);
-  total_allocated_block_count   = XEGETUINT32BE(p + 0x1C);
-  total_unallocated_block_count = XEGETUINT32BE(p + 0x20);
+  reserved = poly::load_and_swap<uint8_t>(p + 0x01);
+  block_separation = poly::load_and_swap<uint8_t>(p + 0x02);
+  file_table_block_count = poly::load_and_swap<uint16_t>(p + 0x03);
+  file_table_block_number = XEGETUINT24BE(p + 0x05);
+  memcpy(top_hash_table_hash, p + 0x08, 0x14);
+  total_allocated_block_count = poly::load_and_swap<uint32_t>(p + 0x1C);
+  total_unallocated_block_count = poly::load_and_swap<uint32_t>(p + 0x20);
   return true;
 };
 
-
 bool STFSHeader::Read(const uint8_t* p) {
-  xe_copy_struct(license_entries, p + 0x22C, 0x100);
-  xe_copy_struct(header_hash, p + 0x32C, 0x14);
-  header_size       = XEGETUINT32BE(p + 0x340);
-  content_type      = (STFSContentType)XEGETUINT32BE(p + 0x344);
-  metadata_version  = XEGETUINT32BE(p + 0x348);
+  memcpy(license_entries, p + 0x22C, 0x100);
+  memcpy(header_hash, p + 0x32C, 0x14);
+  header_size = poly::load_and_swap<uint32_t>(p + 0x340);
+  content_type = (STFSContentType)poly::load_and_swap<uint32_t>(p + 0x344);
+  metadata_version = poly::load_and_swap<uint32_t>(p + 0x348);
   if (metadata_version > 1) {
     // This is a variant of thumbnail data/etc.
     // Can just ignore it for now (until we parse thumbnails).
     XELOGW("STFSContainer doesn't support version %d yet", metadata_version);
   }
-  content_size      = XEGETUINT32BE(p + 0x34C);
-  media_id          = XEGETUINT32BE(p + 0x354);
-  version           = XEGETUINT32BE(p + 0x358);
-  base_version      = XEGETUINT32BE(p + 0x35C);
-  title_id          = XEGETUINT32BE(p + 0x360);
-  platform          = (STFSPlatform)XEGETUINT8BE(p + 0x364);
-  executable_type   = XEGETUINT8BE(p + 0x365);
-  disc_number       = XEGETUINT8BE(p + 0x366);
-  disc_in_set       = XEGETUINT8BE(p + 0x367);
-  save_game_id      = XEGETUINT32BE(p + 0x368);
-  xe_copy_struct(console_id, p + 0x36C, 0x5);
-  xe_copy_struct(profile_id, p + 0x371, 0x8);
-  data_file_count             = XEGETUINT32BE(p + 0x39D);
-  data_file_combined_size     = XEGETUINT64BE(p + 0x3A1);
-  descriptor_type             = (STFSDescriptorType)XEGETUINT8BE(p + 0x3A9);
+  content_size = poly::load_and_swap<uint32_t>(p + 0x34C);
+  media_id = poly::load_and_swap<uint32_t>(p + 0x354);
+  version = poly::load_and_swap<uint32_t>(p + 0x358);
+  base_version = poly::load_and_swap<uint32_t>(p + 0x35C);
+  title_id = poly::load_and_swap<uint32_t>(p + 0x360);
+  platform = (STFSPlatform)poly::load_and_swap<uint8_t>(p + 0x364);
+  executable_type = poly::load_and_swap<uint8_t>(p + 0x365);
+  disc_number = poly::load_and_swap<uint8_t>(p + 0x366);
+  disc_in_set = poly::load_and_swap<uint8_t>(p + 0x367);
+  save_game_id = poly::load_and_swap<uint32_t>(p + 0x368);
+  memcpy(console_id, p + 0x36C, 0x5);
+  memcpy(profile_id, p + 0x371, 0x8);
+  data_file_count = poly::load_and_swap<uint32_t>(p + 0x39D);
+  data_file_combined_size = poly::load_and_swap<uint64_t>(p + 0x3A1);
+  descriptor_type = (STFSDescriptorType)poly::load_and_swap<uint8_t>(p + 0x3A9);
   if (descriptor_type != STFS_DESCRIPTOR_STFS) {
     XELOGE("STFS descriptor format not supported: %d", descriptor_type);
     return false;
@@ -68,85 +76,65 @@ bool STFSHeader::Read(const uint8_t* p) {
   if (!volume_descriptor.Read(p + 0x379)) {
     return false;
   }
-  xe_copy_struct(device_id, p + 0x3FD, 0x14);
+  memcpy(device_id, p + 0x3FD, 0x14);
   for (size_t n = 0; n < 0x900 / 2; n++) {
-    display_names[n] = XEGETUINT16BE(p + 0x411 + n * 2);
-    display_descs[n] = XEGETUINT16BE(p + 0xD11 + n * 2);
+    display_names[n] = poly::load_and_swap<uint16_t>(p + 0x411 + n * 2);
+    display_descs[n] = poly::load_and_swap<uint16_t>(p + 0xD11 + n * 2);
   }
   for (size_t n = 0; n < 0x80 / 2; n++) {
-    publisher_name[n] = XEGETUINT16BE(p + 0x1611 + n * 2);
-    title_name[n] = XEGETUINT16BE(p + 0x1691 + n * 2);
+    publisher_name[n] = poly::load_and_swap<uint16_t>(p + 0x1611 + n * 2);
+    title_name[n] = poly::load_and_swap<uint16_t>(p + 0x1691 + n * 2);
   }
-  transfer_flags              = XEGETUINT8BE(p + 0x1711);
-  thumbnail_image_size        = XEGETUINT32BE(p + 0x1712);
-  title_thumbnail_image_size  = XEGETUINT32BE(p + 0x1716);
-  xe_copy_struct(thumbnail_image, p + 0x171A, 0x4000);
-  xe_copy_struct(title_thumbnail_image, p + 0x571A, 0x4000);
+  transfer_flags = poly::load_and_swap<uint8_t>(p + 0x1711);
+  thumbnail_image_size = poly::load_and_swap<uint32_t>(p + 0x1712);
+  title_thumbnail_image_size = poly::load_and_swap<uint32_t>(p + 0x1716);
+  memcpy(thumbnail_image, p + 0x171A, 0x4000);
+  memcpy(title_thumbnail_image, p + 0x571A, 0x4000);
   return true;
 }
 
-STFSEntry::STFSEntry() :
-    attributes(X_FILE_ATTRIBUTE_NONE), offset(0), size(0),
-    update_timestamp(0), access_timestamp(0) {
-}
-
-STFSEntry::~STFSEntry() {
-  for (auto it = children.begin(); it != children.end(); ++it) {
-    delete *it;
-  }
-}
+STFSEntry::STFSEntry()
+    : attributes(X_FILE_ATTRIBUTE_NONE),
+      offset(0),
+      size(0),
+      update_timestamp(0),
+      access_timestamp(0) {}
 
 STFSEntry* STFSEntry::GetChild(const char* name) {
   // TODO(benvanik): a faster search
-  for (auto it = children.begin(); it != children.end(); ++it) {
-    STFSEntry* entry = *it;
-    if (xestrcasecmpa(entry->name.c_str(), name) == 0) {
-      return entry;
+  for (const auto& entry : children) {
+    if (strcasecmp(entry->name.c_str(), name) == 0) {
+      return entry.get();
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 void STFSEntry::Dump(int indent) {
   printf("%s%s\n", std::string(indent, ' ').c_str(), name.c_str());
-  for (auto it = children.begin(); it != children.end(); ++it) {
-    STFSEntry* entry = *it;
+  for (const auto& entry : children) {
     entry->Dump(indent + 2);
   }
 }
 
+STFS::STFS(poly::MappedMemory* mmap) : mmap_(mmap) {}
 
-STFS::STFS(xe_mmap_ref mmap) {
-  mmap_ = xe_mmap_retain(mmap);
-
-  root_entry_ = NULL;
-}
-
-STFS::~STFS() {
-  delete root_entry_;
-
-  xe_mmap_release(mmap_);
-}
-
-STFSEntry* STFS::root_entry() {
-  return root_entry_;
-}
+STFS::~STFS() {}
 
 STFS::Error STFS::Load() {
-  Error result = kErrorOutOfMemory;
+  uint8_t* map_ptr = mmap_->data();
 
-  uint8_t* map_ptr = (uint8_t*)xe_mmap_get_addr(mmap_);
-  size_t map_size  = xe_mmap_get_length(mmap_);
-
-  result = ReadHeaderAndVerify(map_ptr);
-  XEEXPECTZERO(result);
+  auto result = ReadHeaderAndVerify(map_ptr);
+  if (result != kSuccess) {
+    return result;
+  }
 
   result = ReadAllEntries(map_ptr);
-  XEEXPECTZERO(result);
+  if (result != kSuccess) {
+    return result;
+  }
 
-  result = kSuccess;
-XECLEANUP:
-  return result;
+  return kSuccess;
 }
 
 void STFS::Dump() {
@@ -183,10 +171,7 @@ STFS::Error STFS::ReadHeaderAndVerify(const uint8_t* map_ptr) {
 }
 
 STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
-  root_entry_ = new STFSEntry();
-  root_entry_->offset = 0;
-  root_entry_->size   = 0;
-  root_entry_->name   = "";
+  root_entry_.reset(new STFSEntry());
   root_entry_->attributes = X_FILE_ATTRIBUTE_DIRECTORY;
 
   std::vector<STFSEntry*> entries;
@@ -198,21 +183,21 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
     const uint8_t* p =
         map_ptr + BlockToOffset(ComputeBlockNumber(table_block_index));
     for (size_t m = 0; m < 0x1000 / 0x40; m++) {
-      const uint8_t* filename = p; // 0x28b
+      const uint8_t* filename = p;  // 0x28b
       if (filename[0] == 0) {
         // Done.
         break;
       }
-      uint8_t filename_length_flags   = XEGETUINT8BE(p + 0x28);
-      uint32_t allocated_block_count  = XEGETUINT24LE(p + 0x29);
-      uint32_t start_block_index      = XEGETUINT24LE(p + 0x2F);
-      uint16_t path_indicator         = XEGETUINT16BE(p + 0x32);
-      uint32_t file_size              = XEGETUINT32BE(p + 0x34);
-      uint32_t update_timestamp       = XEGETUINT32BE(p + 0x38);
-      uint32_t access_timestamp       = XEGETUINT32BE(p + 0x3C);
+      uint8_t filename_length_flags = poly::load_and_swap<uint8_t>(p + 0x28);
+      uint32_t allocated_block_count = XEGETUINT24LE(p + 0x29);
+      uint32_t start_block_index = XEGETUINT24LE(p + 0x2F);
+      uint16_t path_indicator = poly::load_and_swap<uint16_t>(p + 0x32);
+      uint32_t file_size = poly::load_and_swap<uint32_t>(p + 0x34);
+      uint32_t update_timestamp = poly::load_and_swap<uint32_t>(p + 0x38);
+      uint32_t access_timestamp = poly::load_and_swap<uint32_t>(p + 0x3C);
       p += 0x40;
 
-      STFSEntry* entry = new STFSEntry();
+      auto entry = std::make_unique<STFSEntry>();
       entry->name = std::string((char*)filename, filename_length_flags & 0x3F);
       entry->name.append(1, '\0');
       // bit 0x40 = consecutive blocks (not fragmented?)
@@ -220,23 +205,12 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
         entry->attributes = X_FILE_ATTRIBUTE_DIRECTORY;
       } else {
         entry->attributes = X_FILE_ATTRIBUTE_NORMAL;
-        entry->offset     = BlockToOffset(ComputeBlockNumber(start_block_index));
-        entry->size       = file_size;
+        entry->offset = BlockToOffset(ComputeBlockNumber(start_block_index));
+        entry->size = file_size;
       }
       entry->update_timestamp = update_timestamp;
       entry->access_timestamp = access_timestamp;
-      entries.push_back(entry);
-
-      const uint8_t* p = map_ptr + entry->offset;
-
-      if (path_indicator == 0xFFFF) {
-        // Root entry.
-        root_entry_->children.push_back(entry);
-      } else {
-        // Lookup and add.
-        auto parent = entries[path_indicator];
-        parent->children.push_back(entry);
-      }
+      entries.push_back(entry.get());
 
       // Fill in all block records.
       // It's easier to do this now and just look them up later, at the cost
@@ -246,12 +220,10 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
         uint32_t block_index = start_block_index;
         size_t remaining_size = file_size;
         uint32_t info = 0x80;
-        while (remaining_size &&
-                block_index &&
-                info >= 0x80) {
-          size_t block_size = MIN(0x1000, remaining_size);
+        while (remaining_size && block_index && info >= 0x80) {
+          size_t block_size = std::min(0x1000ull, remaining_size);
           size_t offset = BlockToOffset(ComputeBlockNumber(block_index));
-          entry->block_list.push_back({ offset, block_size });
+          entry->block_list.push_back({offset, block_size});
           remaining_size -= block_size;
           auto block_hash = GetBlockHash(map_ptr, block_index, 0);
           if (table_size_shift_ && block_hash.info < 0x80) {
@@ -260,6 +232,15 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
           block_index = block_hash.next_block_index;
           info = block_hash.info;
         }
+      }
+
+      if (path_indicator == 0xFFFF) {
+        // Root entry.
+        root_entry_->children.push_back(std::move(entry));
+      } else {
+        // Lookup and add.
+        auto parent = entries[path_indicator];
+        parent->children.push_back(std::move(entry));
       }
     }
 
@@ -318,12 +299,14 @@ uint32_t STFS::ComputeBlockNumber(uint32_t block_index) {
   return block;
 }
 
-STFS::BlockHash_t STFS::GetBlockHash(
-    const uint8_t* map_ptr,
-    uint32_t block_index, uint32_t table_offset) {
+STFS::BlockHash_t STFS::GetBlockHash(const uint8_t* map_ptr,
+                                     uint32_t block_index,
+                                     uint32_t table_offset) {
   static const uint32_t table_spacing[] = {
-    0xAB, 0x718F, 0xFE7DA, // The distance in blocks between tables
-    0xAC, 0x723A, 0xFD00B, // For when tables are 1 block and when they are 2 blocks
+      0xAB,    0x718F,
+      0xFE7DA,  // The distance in blocks between tables
+      0xAC,    0x723A,
+      0xFD00B,  // For when tables are 1 block and when they are 2 blocks
   };
   uint32_t record = block_index % 0xAA;
   uint32_t table_index =
@@ -334,10 +317,14 @@ STFS::BlockHash_t STFS::GetBlockHash(
       table_index += 1 << table_size_shift_;
     }
   }
-  //table_index += table_offset - (1 << table_size_shift_);
+  // table_index += table_offset - (1 << table_size_shift_);
   const uint8_t* hash_data = map_ptr + BlockToOffset(table_index);
   const uint8_t* record_data = hash_data + record * 0x18;
-  uint32_t info = XEGETUINT8BE(record_data + 0x14);
+  uint32_t info = poly::load_and_swap<uint8_t>(record_data + 0x14);
   uint32_t next_block_index = XEGETUINT24BE(record_data + 0x15);
-  return{ next_block_index, info };
+  return {next_block_index, info};
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

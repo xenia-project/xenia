@@ -10,11 +10,8 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_
 #define XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-
-#include <xenia/kernel/objects/xfile.h>
-
+#include "xenia/common.h"
+#include "xenia/kernel/objects/xfile.h"
 
 namespace xe {
 namespace kernel {
@@ -22,36 +19,33 @@ namespace fs {
 
 class DiscImageEntry;
 
-
 class DiscImageFile : public XFile {
-public:
-  DiscImageFile(KernelState* kernel_state, uint32_t desired_access,
+ public:
+  DiscImageFile(KernelState* kernel_state, Mode desired_access,
                 DiscImageEntry* entry);
-  virtual ~DiscImageFile();
+  ~DiscImageFile() override;
 
-  virtual const char* path(void) const;
-  virtual const char* absolute_path(void) const;
-  virtual const char* name(void) const;
+  const std::string& path() const override;
+  const std::string& absolute_path() const override;
+  const std::string& name() const override;
 
-  virtual X_STATUS QueryInfo(XFileInfo* out_info);
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
-                                  size_t length, const char* file_name, bool restart);
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length);
+  X_STATUS QueryInfo(XFileInfo* out_info) override;
+  X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+                          const char* file_name, bool restart) override;
+  X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) override;
+  X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+                                     size_t length) override;
 
-protected:
-  virtual X_STATUS ReadSync(
-      void* buffer, size_t buffer_length, size_t byte_offset,
-      size_t* out_bytes_read);
+ protected:
+  X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
+                    size_t* out_bytes_read) override;
 
-private:
+ private:
   DiscImageEntry* entry_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_DEVICES_DISC_IMAGE_FILE_H_

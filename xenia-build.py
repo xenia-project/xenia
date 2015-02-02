@@ -35,8 +35,8 @@ def main():
   # Grab Visual Studio version and execute shell to set up environment.
   if sys.platform == 'win32':
     vs_version = import_vs_environment()
-    if not vs_version == 2013:
-      print('ERROR: Visual Studio 2013 not found!')
+    if vs_version != 2013 and vs_version != 2015:
+      print('ERROR: Visual Studio 2013 or 2015 not found!')
       print('Ensure you have the VS120COMNTOOLS environment variable!')
       sys.exit(1)
       return
@@ -75,7 +75,10 @@ def import_vs_environment():
   """
   version = 0
   tools_path = ''
-  if 'VS120COMNTOOLS' in os.environ:
+  if 'VS140COMNTOOLS' in os.environ:
+    version = 2015
+    tools_path = os.environ['VS140COMNTOOLS']
+  elif 'VS120COMNTOOLS' in os.environ:
     version = 2013
     tools_path = os.environ['VS120COMNTOOLS']
   elif 'VS110COMNTOOLS' in os.environ:
@@ -275,35 +278,22 @@ class SetupCommand(Command):
     if (not os.path.exists('third_party/ninja/ninja') and
        not os.path.exists('third_party/ninja/ninja.exe')):
       print('- preparing ninja...')
+      os.chdir('third_party/ninja')
       # Windows needs --x64 to force building the 64-bit ninja.
       extra_args = ''
       #if sys.platform == 'win32':
       #  extra_args = '--x64'
-      shell_call('python third_party/ninja/bootstrap.py ' + extra_args)
+      shell_call('python configure.py --bootstrap ' + extra_args)
+      os.chdir(cwd)
       print('')
 
-    # Binutils.
-    # TODO(benvanik): disable on Windows
-    print('- binutils...')
+    # binutils (with vmx128).
+    print('- Building binutils...')
     if sys.platform == 'win32':
-      print('WARNING: ignoring binutils on Windows... don\'t change tests!')
+      # TODO(benvanik): cygwin or vagrant
+      print('WARNING: binutils build not supported yet')
     else:
-      if not os.path.exists('build/binutils'):
-        os.makedirs('build/binutils')
-      os.chdir('build/binutils')
-      shell_call(' '.join([
-          '../../third_party/binutils/configure',
-          '--disable-debug',
-          '--disable-dependency-tracking',
-          '--disable-werror',
-          '--enable-interwork',
-          '--enable-multilib',
-          '--target=powerpc-none-elf',
-          '--with-gnu-ld',
-          '--with-gnu-as',
-          ]))
-      shell_call('make')
-      os.chdir(cwd)
+      shell_call('third_party/binutils/build.sh')
     print('')
 
     post_update_deps('debug')
@@ -364,7 +354,7 @@ def run_gyp(format):
       '--toplevel-dir=.',
       '--generator-output=build/xenia/',
       # Set the VS version.
-      '-G msvs_version=%s' % (os.environ['VSVERSION'] or 2013),
+      '-G msvs_version=%s' % (os.environ.get('VSVERSION', 2015)),
       #'-D windows_sdk_dir=%s' % (os.environ['WINDOWSSDKDIR']),
       '-D windows_sdk_dir="C:\\Program Files (x86)\\Windows Kits\\8.1"',
       'xenia.gyp',
@@ -414,7 +404,11 @@ class BuildCommand(Command):
     # TODO(benvanik): add arguments:
     # --force
     debug = '--debug' in args
-    config = 'debug' if debug else 'release'
+    config = 'Debug' if debug else 'Release'
+    target = ''
+    for arg in args:
+      if not arg.startswith('--'):
+        target = arg
 
     print('Building %s...' % (config))
     print('')
@@ -423,9 +417,14 @@ class BuildCommand(Command):
     run_gyp('ninja')
     print('')
 
-    print('- building xenia in %s...' % (config))
-    result = shell_call('ninja -C build/xenia/%s' % (config),
-                        throw_on_error=False)
+    if not target:
+      print('- building all:%s...' % (config))
+      result = shell_call('ninja -C build/xenia/%s' % (config),
+                          throw_on_error=False)
+    else:
+      print('- building %s:%s...' % (target, config))
+      result = shell_call('ninja -C build/xenia/%s %s' % (config, target),
+                          throw_on_error=False)
     print('')
     if result != 0:
       return result
@@ -447,18 +446,30 @@ class TestCommand(Command):
     print('Testing...')
     print('')
 
-    # First run make and update all of the test files.
-    # TOOD(benvanik): disable on Windows
-    print('Updating test files...')
-    result = shell_call('make -C test/codegen/')
+    # Run base alloy tests.
+    print('Launching alloy-test runner...')
+    result = shell_call('"build/xenia/Debug/alloy-test"')
     print('')
     if result != 0:
       return result
 
+    # First run make and update all of the test files.
+    if sys.platform == 'win32':
+      # TODO(benvanik): use cygwin/vagrant/whatever
+      print('WARNING: test files not updated!');
+    else:
+      print('Updating test files...')
+      result = shell_call('./src/alloy/frontend/ppc/test/update.sh')
+      print('')
+      if result != 0:
+        return result
+
     # Start the test runner.
-    print('Launching test runner...')
-    result = shell_call('bin/xenia-test')
+    print('Launching alloy-ppc-test runner...')
+    result = shell_call('"build/xenia/Debug/alloy-ppc-test"')
     print('')
+    if result != 0:
+      return result
 
     return result
 

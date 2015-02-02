@@ -7,33 +7,37 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/data_flow_analysis_pass.h>
+#include "alloy/compiler/passes/data_flow_analysis_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
+#if XE_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable : 4244)
 #pragma warning(disable : 4267)
 #include <llvm/ADT/BitVector.h>
 #pragma warning(pop)
+#else
+#include <llvm/ADT/BitVector.h>
+#endif  // XE_COMPILER_MSVC
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::HIRBuilder;
+using alloy::hir::OpcodeSignatureType;
+using alloy::hir::Value;
 
-DataFlowAnalysisPass::DataFlowAnalysisPass() :
-    CompilerPass() {
-}
+DataFlowAnalysisPass::DataFlowAnalysisPass() : CompilerPass() {}
 
-DataFlowAnalysisPass::~DataFlowAnalysisPass() {
-}
+DataFlowAnalysisPass::~DataFlowAnalysisPass() {}
 
 int DataFlowAnalysisPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -66,15 +70,15 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
 
   // Stash for value map. We may want to maintain this during building.
   auto arena = builder->arena();
-  Value** value_map = (Value**)arena->Alloc(
-      sizeof(Value*) * max_value_estimate);
+  Value** value_map =
+      (Value**)arena->Alloc(sizeof(Value*) * max_value_estimate);
 
   // Allocate incoming bitvectors for use by blocks. We don't need outgoing
   // because they are only used during the block iteration.
   // Mapped by block ordinal.
   // TODO(benvanik): cache this list, grow as needed, etc.
-  auto incoming_bitvectors = (llvm::BitVector**)arena->Alloc(
-      sizeof(llvm::BitVector*) * block_count);
+  auto incoming_bitvectors =
+      (llvm::BitVector**)arena->Alloc(sizeof(llvm::BitVector*) * block_count);
   for (auto n = 0u; n < block_count; n++) {
     incoming_bitvectors[n] = new llvm::BitVector(max_value_estimate);
   }
@@ -90,11 +94,11 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     auto instr = block->instr_head;
     while (instr) {
       uint32_t signature = instr->opcode->signature;
-#define SET_INCOMING_VALUE(v) \
-  if (v->def && v->def->block != block) { \
-    incoming_values.set(v->ordinal); \
-  } \
-  XEASSERT(v->ordinal < max_value_estimate); \
+#define SET_INCOMING_VALUE(v)                \
+  if (v->def && v->def->block != block) {    \
+    incoming_values.set(v->ordinal);         \
+  }                                          \
+  assert_true(v->ordinal < max_value_estimate); \
   value_map[v->ordinal] = v;
       if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
         SET_INCOMING_VALUE(instr->src1.value);
@@ -125,7 +129,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     auto outgoing_ordinal = outgoing_values.find_first();
     while (outgoing_ordinal != -1) {
       Value* src_value = value_map[outgoing_ordinal];
-      XEASSERTNOTNULL(src_value);
+      assert_not_null(src_value);
       if (!src_value->local_slot) {
         src_value->local_slot = builder->AllocLocal(src_value->type);
       }
@@ -139,7 +143,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
         while (def_next && def_next->opcode->flags & OPCODE_FLAG_PAIRED_PREV) {
           def_next = def_next->next;
         }
-        XEASSERTNOTNULL(def_next);
+        assert_not_null(def_next);
         builder->last_instr()->MoveBefore(def_next);
 
         // We don't need it in the incoming list.
@@ -150,7 +154,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
         while (tail && tail->opcode->flags & OPCODE_FLAG_BRANCH) {
           tail = tail->prev;
         }
-        XEASSERTNOTZERO(tail);
+        assert_not_zero(tail);
         builder->last_instr()->MoveBefore(tail->next);
       }
 
@@ -161,7 +165,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     auto incoming_ordinal = incoming_values.find_first();
     while (incoming_ordinal != -1) {
       Value* src_value = value_map[incoming_ordinal];
-      XEASSERTNOTNULL(src_value);
+      assert_not_null(src_value);
       if (!src_value->local_slot) {
         src_value->local_slot = builder->AllocLocal(src_value->type);
       }
@@ -169,7 +173,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
       builder->last_instr()->MoveBefore(block->instr_head);
 
       // Swap uses of original value with the local value.
-      auto instr = block->instr_head;
+      instr = block->instr_head;
       while (instr) {
         uint32_t signature = instr->opcode->signature;
         if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
@@ -201,3 +205,7 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     delete incoming_bitvectors[n];
   }
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

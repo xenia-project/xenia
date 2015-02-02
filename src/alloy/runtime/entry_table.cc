@@ -7,55 +7,54 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/entry_table.h>
+#include "alloy/runtime/entry_table.h"
 
-using namespace alloy;
-using namespace alloy::runtime;
+#include "poly/poly.h"
+#include "xenia/profiling.h"
 
+namespace alloy {
+namespace runtime {
 
-EntryTable::EntryTable() {
-  lock_ = AllocMutex(10000);
-}
+EntryTable::EntryTable() = default;
 
 EntryTable::~EntryTable() {
-  LockMutex(lock_);
-  EntryMap::iterator it = map_.begin();
-  for (; it != map_.end(); ++it) {
-    Entry* entry = it->second;
+  std::lock_guard<std::mutex> guard(lock_);
+  for (auto it : map_) {
+    Entry* entry = it.second;
     delete entry;
   }
-  UnlockMutex(lock_);
-  FreeMutex(lock_);
 }
 
 Entry* EntryTable::Get(uint64_t address) {
-  LockMutex(lock_);
-  EntryMap::const_iterator it = map_.find(address);
-  Entry* entry = it != map_.end() ? it->second : NULL;
+  std::lock_guard<std::mutex> guard(lock_);
+  const auto& it = map_.find(address);
+  Entry* entry = it != map_.end() ? it->second : nullptr;
   if (entry) {
     // TODO(benvanik): wait if needed?
     if (entry->status != Entry::STATUS_READY) {
-      entry = NULL;
+      entry = nullptr;
     }
   }
-  UnlockMutex(lock_);
   return entry;
 }
 
 Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
-  LockMutex(lock_);
-  EntryMap::const_iterator it = map_.find(address);
-  Entry* entry = it != map_.end() ? it->second : NULL;
+  // TODO(benvanik): replace with a map with wait-free for find.
+  // https://github.com/facebook/folly/blob/master/folly/AtomicHashMap.h
+
+  lock_.lock();
+  const auto& it = map_.find(address);
+  Entry* entry = it != map_.end() ? it->second : nullptr;
   Entry::Status status;
   if (entry) {
     // If we aren't ready yet spin and wait.
     if (entry->status == Entry::STATUS_COMPILING) {
       // Still compiling, so spin.
       do {
-        UnlockMutex(lock_);
+        lock_.unlock();
         // TODO(benvanik): sleep for less time?
-        Sleep(0);
-        LockMutex(lock_);
+        poly::threading::Sleep(std::chrono::microseconds(10));
+        lock_.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }
     status = entry->status;
@@ -69,25 +68,25 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
     map_[address] = entry;
     status = Entry::STATUS_NEW;
   }
-  UnlockMutex(lock_);
+  lock_.unlock();
   *out_entry = entry;
   return status;
 }
 
 std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
   SCOPE_profile_cpu_f("alloy");
-
+  std::lock_guard<std::mutex> guard(lock_);
   std::vector<Function*> fns;
-  LockMutex(lock_);
-  for (auto it = map_.begin(); it != map_.end(); ++it) {
-    Entry* entry = it->second;
-    if (address >= entry->address &&
-        address <= entry->end_address) {
+  for (auto& it : map_) {
+    Entry* entry = it.second;
+    if (address >= entry->address && address <= entry->end_address) {
       if (entry->status == Entry::STATUS_READY) {
         fns.push_back(entry->function);
       }
     }
   }
-  UnlockMutex(lock_);
   return fns;
 }
+
+}  // namespace runtime
+}  // namespace alloy

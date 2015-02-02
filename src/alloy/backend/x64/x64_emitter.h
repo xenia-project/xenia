@@ -10,18 +10,21 @@
 #ifndef ALLOY_BACKEND_X64_X64_EMITTER_H_
 #define ALLOY_BACKEND_X64_X64_EMITTER_H_
 
-#include <alloy/core.h>
+#include "alloy/hir/value.h"
+#include "third_party/xbyak/xbyak/xbyak.h"
 
-#include <alloy/hir/value.h>
-
-#include <third_party/xbyak/xbyak/xbyak.h>
-
-XEDECLARECLASS2(alloy, hir, HIRBuilder);
-XEDECLARECLASS2(alloy, hir, Instr);
-XEDECLARECLASS2(alloy, runtime, DebugInfo);
-XEDECLARECLASS2(alloy, runtime, FunctionInfo);
-XEDECLARECLASS2(alloy, runtime, Runtime);
-XEDECLARECLASS2(alloy, runtime, SymbolInfo);
+namespace alloy {
+namespace hir {
+class HIRBuilder;
+class Instr;
+}  // namespace hir
+namespace runtime {
+class DebugInfo;
+class FunctionInfo;
+class Runtime;
+class SymbolInfo;
+}  // namespace runtime
+}  // namespace alloy
 
 namespace alloy {
 namespace backend {
@@ -31,47 +34,66 @@ class X64Backend;
 class X64CodeCache;
 
 enum RegisterFlags {
-  REG_DEST  = (1 << 0),
-  REG_ABCD  = (1 << 1),
+  REG_DEST = (1 << 0),
+  REG_ABCD = (1 << 1),
 };
 
 enum XmmConst {
-  XMMZero               = 0,
+  XMMZero = 0,
   XMMOne,
   XMMNegativeOne,
+  XMMFFFF,
   XMMMaskX16Y16,
   XMMFlipX16Y16,
   XMMFixX16Y16,
   XMMNormalizeX16Y16,
   XMM0001,
   XMM3301,
+  XMM3333,
   XMMSignMaskPS,
   XMMSignMaskPD,
   XMMAbsMaskPS,
   XMMAbsMaskPD,
   XMMByteSwapMask,
+  XMMByteOrderMask,
   XMMPermuteControl15,
+  XMMPermuteByteMask,
+  XMMPackD3DCOLORSat,
   XMMPackD3DCOLOR,
   XMMUnpackD3DCOLOR,
+  XMMPackFLOAT16_2,
+  XMMUnpackFLOAT16_2,
+  XMMPackFLOAT16_4,
+  XMMUnpackFLOAT16_4,
+  XMMPackSHORT_2Min,
+  XMMPackSHORT_2Max,
+  XMMPackSHORT_2,
+  XMMUnpackSHORT_2,
   XMMOneOver255,
+  XMMMaskEvenPI16,
+  XMMShiftMaskEvenPI16,
   XMMShiftMaskPS,
   XMMShiftByteMask,
+  XMMSwapWordMask,
   XMMUnsignedDwordMax,
   XMM255,
+  XMMPI32,
   XMMSignMaskI8,
   XMMSignMaskI16,
   XMMSignMaskI32,
   XMMSignMaskF32,
+  XMMShortMinPS,
+  XMMShortMaxPS,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
 class XbyakAllocator : public Xbyak::Allocator {
-public:
-	virtual bool useProtect() const { return false; }
+ public:
+  virtual bool useProtect() const { return false; }
 };
 
 class X64Emitter : public Xbyak::CodeGenerator {
-public:
+ public:
   X64Emitter(X64Backend* backend, XbyakAllocator* allocator);
   virtual ~X64Emitter();
 
@@ -80,11 +102,11 @@ public:
 
   int Initialize();
 
-  int Emit(hir::HIRBuilder* builder,
-           uint32_t debug_info_flags, runtime::DebugInfo* debug_info,
+  int Emit(hir::HIRBuilder* builder, uint32_t debug_info_flags,
+           runtime::DebugInfo* debug_info, uint32_t trace_flags,
            void*& out_code_address, size_t& out_code_size);
 
-public:
+ public:
   // Reserved:  rsp
   // Scratch:   rax/rcx/rdx
   //            xmm0-2 (could be only xmm0 with some trickery)
@@ -117,28 +139,30 @@ public:
   void MarkSourceOffset(const hir::Instr* i);
 
   void DebugBreak();
-  void Trap();
+  void Trap(uint16_t trap_type = 0);
   void UnimplementedInstr(const hir::Instr* i);
   void UnimplementedExtern(const hir::Instr* i);
 
   void Call(const hir::Instr* instr, runtime::FunctionInfo* symbol_info);
   void CallIndirect(const hir::Instr* instr, const Xbyak::Reg64& reg);
-  void CallExtern(const hir::Instr* instr, const runtime::FunctionInfo* symbol_info);
+  void CallExtern(const hir::Instr* instr,
+                  const runtime::FunctionInfo* symbol_info);
   void CallNative(void* fn);
-  void CallNative(uint64_t(*fn)(void* raw_context));
-  void CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0));
-  void CallNative(uint64_t(*fn)(void* raw_context, uint64_t arg0), uint64_t arg0);
+  void CallNative(uint64_t (*fn)(void* raw_context));
+  void CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0));
+  void CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
+                  uint64_t arg0);
   void CallNativeSafe(void* fn);
   void SetReturnAddress(uint64_t value);
   void ReloadECX();
   void ReloadEDX();
 
+  void nop(size_t length = 1);
+
   // TODO(benvanik): Label for epilog (don't use strings).
 
   void LoadEflags();
   void StoreEflags();
-
-  uint32_t page_table_address() const;
 
   // Moves a 64bit immediate into memory.
   bool ConstantFitsIn32Reg(uint64_t v);
@@ -148,36 +172,39 @@ public:
   void LoadConstantXmm(Xbyak::Xmm dest, float v);
   void LoadConstantXmm(Xbyak::Xmm dest, double v);
   void LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v);
-  Xbyak::Address StashXmm(const Xbyak::Xmm& r);
-  Xbyak::Address StashXmm(const vec128_t& v);
+  Xbyak::Address StashXmm(int index, const Xbyak::Xmm& r);
 
   size_t stack_size() const { return stack_size_; }
 
-protected:
+ protected:
   void* Emplace(size_t stack_size);
   int Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
+  void EmitTraceSource(const hir::Instr* instr);
+  void EmitTraceSourceAppendValue(const hir::Value* value, size_t r8_offset);
+  void EmitGetCurrentThreadId();
+  void EmitTraceUserCallReturn();
 
-protected:
+ protected:
   runtime::Runtime* runtime_;
-  X64Backend*       backend_;
-  X64CodeCache*     code_cache_;
-  XbyakAllocator*   allocator_;
+  X64Backend* backend_;
+  X64CodeCache* code_cache_;
+  XbyakAllocator* allocator_;
 
   hir::Instr* current_instr_;
 
-  size_t    source_map_count_;
-  Arena     source_map_arena_;
+  size_t source_map_count_;
+  Arena source_map_arena_;
 
-  size_t    stack_size_;
+  size_t stack_size_;
+
+  uint32_t trace_flags_;
 
   static const uint32_t gpr_reg_map_[GPR_COUNT];
   static const uint32_t xmm_reg_map_[XMM_COUNT];
 };
 
-
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_X64_X64_EMITTER_H_

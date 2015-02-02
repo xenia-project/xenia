@@ -7,30 +7,22 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/x64/x64_backend.h>
+#include "alloy/backend/x64/x64_backend.h"
 
-#include <alloy/backend/x64/tracing.h>
-#include <alloy/backend/x64/x64_assembler.h>
-#include <alloy/backend/x64/x64_code_cache.h>
-#include <alloy/backend/x64/x64_sequences.h>
-#include <alloy/backend/x64/x64_thunk_emitter.h>
+#include "alloy/backend/x64/x64_assembler.h"
+#include "alloy/backend/x64/x64_code_cache.h"
+#include "alloy/backend/x64/x64_sequences.h"
+#include "alloy/backend/x64/x64_thunk_emitter.h"
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::backend::x64;
-using namespace alloy::runtime;
+namespace alloy {
+namespace backend {
+namespace x64 {
 
+using alloy::runtime::Runtime;
 
-X64Backend::X64Backend(Runtime* runtime) :
-    code_cache_(0),
-    Backend(runtime) {
-}
+X64Backend::X64Backend(Runtime* runtime) : Backend(runtime), code_cache_(0) {}
 
-X64Backend::~X64Backend() {
-  alloy::tracing::WriteEvent(EventType::Deinit({
-  }));
-  delete code_cache_;
-}
+X64Backend::~X64Backend() { delete code_cache_; }
 
 int X64Backend::Initialize() {
   int result = Backend::Initialize();
@@ -41,17 +33,12 @@ int X64Backend::Initialize() {
   RegisterSequences();
 
   machine_info_.register_sets[0] = {
-    0,
-    "gpr",
-    MachineInfo::RegisterSet::INT_TYPES,
-    X64Emitter::GPR_COUNT,
+      0, "gpr", MachineInfo::RegisterSet::INT_TYPES, X64Emitter::GPR_COUNT,
   };
   machine_info_.register_sets[1] = {
-    1,
-    "xmm",
-    MachineInfo::RegisterSet::FLOAT_TYPES |
-    MachineInfo::RegisterSet::VEC_TYPES,
-    X64Emitter::XMM_COUNT,
+      1, "xmm", MachineInfo::RegisterSet::FLOAT_TYPES |
+                    MachineInfo::RegisterSet::VEC_TYPES,
+      X64Emitter::XMM_COUNT,
   };
 
   code_cache_ = new X64CodeCache();
@@ -60,19 +47,19 @@ int X64Backend::Initialize() {
     return result;
   }
 
-  auto allocator = new XbyakAllocator();
-  auto thunk_emitter = new X64ThunkEmitter(this, allocator);
+  // Generate thunks used to transition between jitted code and host code.
+  auto allocator = std::make_unique<XbyakAllocator>();
+  auto thunk_emitter = std::make_unique<X64ThunkEmitter>(this, allocator.get());
   host_to_guest_thunk_ = thunk_emitter->EmitHostToGuestThunk();
   guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
-  delete thunk_emitter;
-  delete allocator;
-
-  alloy::tracing::WriteEvent(EventType::Init({
-  }));
 
   return result;
 }
 
-Assembler* X64Backend::CreateAssembler() {
-  return new X64Assembler(this);
+std::unique_ptr<Assembler> X64Backend::CreateAssembler() {
+  return std::make_unique<X64Assembler>(this);
 }
+
+}  // namespace x64
+}  // namespace backend
+}  // namespace alloy

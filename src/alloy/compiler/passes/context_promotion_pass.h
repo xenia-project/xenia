@@ -10,36 +10,43 @@
 #ifndef ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 #define ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
+#if XE_COMPILER_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
+#include <llvm/ADT/BitVector.h>
+#pragma warning(pop)
+#else
+#include <cmath>
+#include <llvm/ADT/BitVector.h>
+#endif  // XE_COMPILER_MSVC
 
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class ContextPromotionPass : public CompilerPass {
-public:
+ public:
   ContextPromotionPass();
-  virtual ~ContextPromotionPass();
+  virtual ~ContextPromotionPass() override;
 
-  virtual int Initialize(Compiler* compiler);
+  int Initialize(Compiler* compiler) override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
-private:
+ private:
   void PromoteBlock(hir::Block* block);
   void RemoveDeadStoresBlock(hir::Block* block);
 
-private:
-  size_t context_values_size_;
-  hir::Value** context_values_;
+ private:
+  std::vector<hir::Value*> context_values_;
+  llvm::BitVector context_validity_;
 };
-
 
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_

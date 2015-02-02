@@ -7,35 +7,28 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/entry.h>
-#include <xenia/kernel/fs/device.h>
+#include "xenia/kernel/fs/entry.h"
+#include "xenia/kernel/fs/device.h"
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
+MemoryMapping::MemoryMapping(uint8_t* address, size_t length)
+    : address_(address), length_(length) {}
 
-MemoryMapping::MemoryMapping(uint8_t* address, size_t length) :
-    address_(address), length_(length) {
-}
+MemoryMapping::~MemoryMapping() {}
 
-MemoryMapping::~MemoryMapping() {
-}
-
-
-Entry::Entry(Type type, Device* device, const char* path) :
-    type_(type),
-    device_(device) {
-  XEASSERTNOTNULL(device);
-  path_ = xestrdupa(path);
-  // TODO(benvanik): *shudder*
-  absolute_path_ = xestrdupa((std::string(device->path()) + std::string(path)).c_str());
+Entry::Entry(Type type, Device* device, const std::string& path)
+    : type_(type), device_(device), path_(path) {
+  assert_not_null(device);
+  absolute_path_ = device->path() + path;
   // TODO(benvanik): last index of \, unless \ at end, then before that
-  name_ = NULL;
+  name_ = "";
 }
 
-Entry::~Entry() {
-  xe_free(name_);
-  xe_free(path_);
-  xe_free(absolute_path_);
-}
+Entry::~Entry() = default;
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

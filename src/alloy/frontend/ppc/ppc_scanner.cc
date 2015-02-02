@@ -7,27 +7,33 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_scanner.h>
+#include "alloy/frontend/ppc/ppc_scanner.h"
 
+#include <algorithm>
 #include <map>
 
-#include <alloy/frontend/tracing.h>
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
+#include "alloy/runtime/runtime.h"
+#include "poly/logging.h"
+#include "poly/memory.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
-using namespace alloy::runtime;
+#if 0
+#define LOGPPC(fmt, ...) PLOGCORE('p', fmt, ##__VA_ARGS__)
+#else
+#define LOGPPC(fmt, ...) POLY_EMPTY_MACRO
+#endif
 
+namespace alloy {
+namespace frontend {
+namespace ppc {
 
-PPCScanner::PPCScanner(PPCFrontend* frontend) :
-    frontend_(frontend) {
-}
+using alloy::runtime::FunctionInfo;
 
-PPCScanner::~PPCScanner() {
-}
+PPCScanner::PPCScanner(PPCFrontend* frontend) : frontend_(frontend) {}
+
+PPCScanner::~PPCScanner() {}
 
 bool PPCScanner::IsRestGprLr(uint64_t address) {
   FunctionInfo* symbol_info;
@@ -50,24 +56,24 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
-  XELOGSDB("Analyzing function %.8X...", symbol_info->address());
+  LOGPPC("Analyzing function %.8X...", symbol_info->address());
 
-  uint64_t start_address = symbol_info->address();
-  uint64_t end_address = symbol_info->end_address();
-  uint64_t address = start_address;
-  uint64_t furthest_target = start_address;
+  uint32_t start_address = static_cast<uint32_t>(symbol_info->address());
+  uint32_t end_address = static_cast<uint32_t>(symbol_info->end_address());
+  uint32_t address = start_address;
+  uint32_t furthest_target = start_address;
   size_t blocks_found = 0;
   bool in_block = false;
   bool starts_with_mfspr_lr = false;
   InstrData i;
   while (true) {
     i.address = address;
-    i.code = XEGETUINT32BE(p + address);
+    i.code = poly::load_and_swap<uint32_t>(p + address);
 
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
     if (!i.code) {
-      XELOGSDB("function end %.8X (0x00000000 read)", address);
+      LOGPPC("function end %.8X (0x00000000 read)", address);
       // Don't include the 0's.
       address -= 4;
       break;
@@ -80,9 +86,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
     // Check if the function starts with a mfspr lr, as that's a good indication
     // of whether or not this is a normal function with a prolog/epilog.
     // Some valid leaf functions won't have this, but most will.
-    if (address == start_address &&
-        i.type &&
-        i.type->opcode == 0x7C0002A6 &&
+    if (address == start_address && i.type && i.type->opcode == 0x7C0002A6 &&
         (((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F)) == 8) {
       starts_with_mfspr_lr = true;
     }
@@ -98,17 +102,16 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
       // Invalid instruction.
       // We can just ignore it because there's (very little)/no chance it'll
       // affect flow control.
-      XELOGSDB("Invalid instruction at %.8X: %.8X", address, i.code);
+      LOGPPC("Invalid instruction at %.8X: %.8X", address, i.code);
     } else if (i.code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
       if (furthest_target > address) {
         // Remaining targets within function, not end.
-        XELOGSDB("ignoring blr %.8X (branch to %.8X)",
-                 address, furthest_target);
+        LOGPPC("ignoring blr %.8X (branch to %.8X)", address, furthest_target);
       } else {
         // Function end point.
-        XELOGSDB("function end %.8X", address);
+        LOGPPC("function end %.8X", address);
         ends_fn = true;
       }
       ends_block = true;
@@ -119,11 +122,10 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
       // TODO(benvanik): decode jump tables.
       if (furthest_target > address) {
         // Remaining targets within function, not end.
-        XELOGSDB("ignoring bctr %.8X (branch to %.8X)", address,
-                 furthest_target);
+        LOGPPC("ignoring bctr %.8X (branch to %.8X)", address, furthest_target);
       } else {
         // Function end point.
-        XELOGSDB("function end %.8X", address);
+        LOGPPC("function end %.8X", address);
         ends_fn = true;
       }
       ends_block = true;
@@ -131,28 +133,27 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
       // b/ba/bl/bla
       uint32_t target =
           (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
-      
+
       if (i.I.LK) {
-        XELOGSDB("bl %.8X -> %.8X", address, target);
+        LOGPPC("bl %.8X -> %.8X", address, target);
         // Queue call target if needed.
         // GetOrInsertFunction(target);
       } else {
-        XELOGSDB("b %.8X -> %.8X", address, target);
+        LOGPPC("b %.8X -> %.8X", address, target);
 
         // If the target is back into the function and there's no further target
         // we are at the end of a function.
         // (Indirect branches may still go beyond, but no way of knowing).
-        if (target >= start_address &&
-            target < address && furthest_target <= address) {
-          XELOGSDB("function end %.8X (back b)", address);
+        if (target >= start_address && target < address &&
+            furthest_target <= address) {
+          LOGPPC("function end %.8X (back b)", address);
           ends_fn = true;
         }
 
         // If the target is not a branch and it goes to before the current
         // address it's definitely a tail call.
-        if (!ends_fn &&
-            target < start_address && furthest_target <= address) {
-          XELOGSDB("function end %.8X (back b before addr)", address);
+        if (!ends_fn && target < start_address && furthest_target <= address) {
+          LOGPPC("function end %.8X (back b before addr)", address);
           ends_fn = true;
         }
 
@@ -160,10 +161,8 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         // Note that sometimes functions stick this in a basic block *inside*
         // of the function somewhere, so ensure we don't have any branches over
         // it.
-        if (!ends_fn &&
-            furthest_target <= address &&
-            IsRestGprLr(target)) {
-          XELOGSDB("function end %.8X (__restgprlr_*)", address);
+        if (!ends_fn && furthest_target <= address && IsRestGprLr(target)) {
+          LOGPPC("function end %.8X (__restgprlr_*)", address);
           ends_fn = true;
         }
 
@@ -174,10 +173,8 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         //   b         KeBugCheck
         // This check may hit on functions that jump over data code, so only
         // trigger this check in leaf functions (no mfspr lr/prolog).
-        if (!ends_fn &&
-            !starts_with_mfspr_lr &&
-            blocks_found == 1) {
-          XELOGSDB("HEURISTIC: ending at simple leaf thunk %.8X", address);
+        if (!ends_fn && !starts_with_mfspr_lr && blocks_found == 1) {
+          LOGPPC("HEURISTIC: ending at simple leaf thunk %.8X", address);
           ends_fn = true;
         }
 
@@ -195,18 +192,18 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
         if (!ends_fn &&
             target > addr &&
             furthest_target < addr) {
-          XELOGSDB("HEURISTIC: ending at tail call branch %.8X", addr);
+          LOGPPC("HEURISTIC: ending at tail call branch %.8X", addr);
           ends_fn = true;
         }
         */
 
         if (!ends_fn && !IsRestGprLr(target)) {
-          furthest_target = MAX(furthest_target, target);
+          furthest_target = std::max(furthest_target, target);
 
           // TODO(benvanik): perhaps queue up for a speculative check? I think
           //     we are running over tail-call functions here that branch to
           //     somewhere else.
-          //GetOrInsertFunction(target);
+          // GetOrInsertFunction(target);
         }
       }
       ends_block = true;
@@ -215,36 +212,36 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
       uint32_t target =
           (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
       if (i.B.LK) {
-        XELOGSDB("bcl %.8X -> %.8X", address, target);
+        LOGPPC("bcl %.8X -> %.8X", address, target);
 
         // Queue call target if needed.
         // TODO(benvanik): see if this is correct - not sure anyone makes
         //     function calls with bcl.
-        //GetOrInsertFunction(target);
+        // GetOrInsertFunction(target);
       } else {
-        XELOGSDB("bc %.8X -> %.8X", address, target);
+        LOGPPC("bc %.8X -> %.8X", address, target);
 
         // TODO(benvanik): GetOrInsertFunction? it's likely a BB
 
         if (!IsRestGprLr(target)) {
-          furthest_target = MAX(furthest_target, target);
+          furthest_target = std::max(furthest_target, target);
         }
       }
       ends_block = true;
     } else if (i.type->opcode == 0x4C000020) {
       // bclr/bclrl
       if (i.XL.LK) {
-        XELOGSDB("bclrl %.8X", address);
+        LOGPPC("bclrl %.8X", address);
       } else {
-        XELOGSDB("bclr %.8X", address);
+        LOGPPC("bclr %.8X", address);
       }
       ends_block = true;
     } else if (i.type->opcode == 0x4C000420) {
       // bcctr/bcctrl
       if (i.XL.LK) {
-        XELOGSDB("bcctrl %.8X", address);
+        LOGPPC("bcctrl %.8X", address);
       } else {
-        XELOGSDB("bcctr %.8X", address);
+        LOGPPC("bcctr %.8X", address);
       }
       ends_block = true;
     }
@@ -259,8 +256,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
     address += 4;
     if (end_address && address > end_address) {
       // Hmm....
-      XELOGSDB("Ran over function bounds! %.8X-%.8X",
-               start_address, end_address);
+      LOGPPC("Ran over function bounds! %.8X-%.8X", start_address, end_address);
       break;
     }
   }
@@ -270,8 +266,8 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
     // from someplace valid (like method hints) this may indicate an error.
     // It's also possible that we guessed in hole-filling and there's another
     // function below this one.
-    XELOGSDB("Function ran under: %.8X-%.8X ended at %.8X",
-             start_address, end_address, address + 4);
+    LOGPPC("Function ran under: %.8X-%.8X ended at %.8X", start_address,
+           end_address, address + 4);
   }
   symbol_info->set_end_address(address);
 
@@ -283,7 +279,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
   // - if present, flag function as needing a stack
   // - record prolog/epilog lengths/stack size/etc
 
-  XELOGSDB("Finished analyzing %.8X", start_address);
+  LOGPPC("Finished analyzing %.8X", start_address);
   return 0;
 }
 
@@ -300,10 +296,9 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   bool in_block = false;
   uint64_t block_start = 0;
   InstrData i;
-  for (uint64_t address = start_address;
-       address <= end_address; address += 4) {
+  for (uint64_t address = start_address; address <= end_address; address += 4) {
     i.address = address;
-    i.code = XEGETUINT32BE(p + address);
+    i.code = poly::load_and_swap<uint32_t>(p + address);
     if (!i.code) {
       continue;
     }
@@ -330,12 +325,12 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
       ends_block = true;
     } else if (i.type->opcode == 0x48000000) {
       // b/ba/bl/bla
-      //uint32_t target =
+      // uint32_t target =
       //    (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
       ends_block = true;
     } else if (i.type->opcode == 0x40000000) {
       // bc/bca/bcl/bcla
-      //uint32_t target =
+      // uint32_t target =
       //    (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
       ends_block = true;
     } else if (i.type->opcode == 0x4C000020) {
@@ -349,16 +344,14 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
     if (ends_block) {
       in_block = false;
       block_map[block_start] = {
-        block_start,
-        address,
+          block_start, address,
       };
     }
   }
 
   if (in_block) {
     block_map[block_start] = {
-      block_start,
-      end_address,
+        block_start, end_address,
     };
   }
 
@@ -368,3 +361,7 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   }
   return blocks;
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

@@ -7,38 +7,36 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/winkey/winkey_hid.h>
+#include "xenia/hid/winkey/winkey_hid.h"
 
-#include <xenia/hid/winkey/winkey_input_driver.h>
+#include "xenia/hid/winkey/winkey_input_driver.h"
 
+namespace xe {
+namespace hid {
+namespace winkey {
 
-using namespace xe;
-using namespace xe::hid;
-using namespace xe::hid::winkey;
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-
-namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
-
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  //
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
 
-InputDriver* xe::hid::winkey::Create(InputSystem* input_system) {
+std::unique_ptr<InputDriver> Create(InputSystem* input_system) {
   InitializeIfNeeded();
-  return new WinKeyInputDriver(input_system);
+  return std::make_unique<WinKeyInputDriver>(input_system);
 }
+
+}  // namespace winkey
+}  // namespace hid
+}  // namespace xe

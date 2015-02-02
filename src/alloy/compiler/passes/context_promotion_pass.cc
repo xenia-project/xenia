@@ -7,35 +7,33 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/context_promotion_pass.h>
+#include "alloy/compiler/passes/context_promotion_pass.h"
 
 #include <gflags/gflags.h>
 
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
-
-using namespace alloy;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
-using namespace alloy::hir;
-using namespace alloy::runtime;
-
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
 DEFINE_bool(store_all_context_values, false,
             "Don't strip dead context stores to aid in debugging.");
 
+namespace alloy {
+namespace compiler {
+namespace passes {
 
-ContextPromotionPass::ContextPromotionPass() :
-    context_values_size_(0), context_values_(0),
-    CompilerPass() {
-}
+// TODO(benvanik): remove when enums redefined.
+using namespace alloy::hir;
 
-ContextPromotionPass::~ContextPromotionPass() {
-  if (context_values_) {
-    xe_free(context_values_);
-  }
-}
+using alloy::frontend::ContextInfo;
+using alloy::hir::Block;
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::Value;
+
+ContextPromotionPass::ContextPromotionPass() : CompilerPass() {}
+
+ContextPromotionPass::~ContextPromotionPass() {}
 
 int ContextPromotionPass::Initialize(Compiler* compiler) {
   if (CompilerPass::Initialize(compiler)) {
@@ -44,8 +42,8 @@ int ContextPromotionPass::Initialize(Compiler* compiler) {
 
   // This is a terrible implementation.
   ContextInfo* context_info = runtime_->frontend()->context_info();
-  context_values_size_ = context_info->size() * sizeof(Value*);
-  context_values_ = (Value**)xe_calloc(context_values_size_);
+  context_values_.resize(context_info->size());
+  context_validity_.resize(static_cast<uint32_t>(context_info->size()));
 
   return 0;
 }
@@ -70,7 +68,7 @@ int ContextPromotionPass::Run(HIRBuilder* builder) {
 
   // Promote loads to values.
   // Process each block independently, for now.
-  Block* block = builder->first_block();
+  auto block = builder->first_block();
   while (block) {
     PromoteBlock(block);
     block = block->next;
@@ -89,50 +87,55 @@ int ContextPromotionPass::Run(HIRBuilder* builder) {
 }
 
 void ContextPromotionPass::PromoteBlock(Block* block) {
-  // Clear the context values list.
-  // TODO(benvanik): new data structure that isn't so stupid.
-  //     Bitvector of validity, perhaps?
-  xe_zero_struct(context_values_, context_values_size_);
+  auto& validity = context_validity_;
+  validity.reset();
 
   Instr* i = block->instr_head;
   while (i) {
-    if (i->opcode == &OPCODE_LOAD_CONTEXT_info) {
+    auto next = i->next;
+    if (i->opcode->flags & OPCODE_FLAG_VOLATILE) {
+      // Volatile instruction - requires all context values be flushed.
+      validity.reset();
+    } else if (i->opcode == &OPCODE_LOAD_CONTEXT_info) {
       size_t offset = i->src1.offset;
-      Value* previous_value = context_values_[offset];
-      if (previous_value) {
+      if (validity.test(static_cast<uint32_t>(offset))) {
         // Legit previous value, reuse.
+        Value* previous_value = context_values_[offset];
         i->opcode = &hir::OPCODE_ASSIGN_info;
         i->set_src1(previous_value);
       } else {
         // Store the loaded value into the table.
         context_values_[offset] = i->dest;
+        validity.set(static_cast<uint32_t>(offset));
       }
     } else if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
       Value* value = i->src2.value;
       // Store value into the table for later.
       context_values_[offset] = value;
+      validity.set(static_cast<uint32_t>(offset));
     }
-
-    i = i->next;
+    i = next;
   }
 }
 
 void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
-  // TODO(benvanik): use a bitvector.
-  // To avoid clearing the structure, we use a token.
-  Value* token = (Value*)block;
+  auto& validity = context_validity_;
+  validity.reset();
 
   // Walk backwards and mark offsets that are written to.
   // If the offset was written to earlier, ignore the store.
   Instr* i = block->instr_tail;
   while (i) {
     Instr* prev = i->prev;
-    if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
+    if (i->opcode->flags & (OPCODE_FLAG_VOLATILE | OPCODE_FLAG_BRANCH)) {
+      // Volatile instruction - requires all context values be flushed.
+      validity.reset();
+    } else if (i->opcode == &OPCODE_STORE_CONTEXT_info) {
       size_t offset = i->src1.offset;
-      if (context_values_[offset] != token) {
-        // Mark offset as written to.
-        context_values_[offset] = token;
+      if (!validity.test(static_cast<uint32_t>(offset))) {
+        // Offset not yet written, mark and continue.
+        validity.set(static_cast<uint32_t>(offset));
       } else {
         // Already written to. Remove this store.
         i->Remove();
@@ -141,3 +144,7 @@ void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
     i = prev;
   }
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

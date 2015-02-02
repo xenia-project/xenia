@@ -10,15 +10,12 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
 #define XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-
-#include <xenia/xbox.h>
-
+#include "xenia/common.h"
+#include "xenia/memory.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
-
 
 // List is designed for storing pointers to objects in the guest heap.
 // All values in the list should be assumed to be in big endian.
@@ -31,7 +28,7 @@ namespace kernel {
 // }
 
 class NativeList {
-public:
+ public:
   NativeList(Memory* memory);
 
   void Insert(uint32_t list_entry_ptr);
@@ -40,17 +37,15 @@ public:
   uint32_t Shift();
   bool HasPending();
 
-private:
+ private:
   const uint32_t kInvalidPointer = 0xE0FE0FFF;
 
-private:
+ private:
   Memory* memory_;
   uint32_t head_;
 };
 
-
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_

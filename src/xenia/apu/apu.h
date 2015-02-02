@@ -10,26 +10,26 @@
 #ifndef XENIA_APU_APU_H_
 #define XENIA_APU_APU_H_
 
-#include <xenia/apu/audio_system.h>
+#include <memory>
 
+#include "xenia/apu/audio_system.h"
 
-XEDECLARECLASS1(xe, Emulator);
-
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace apu {
 
+std::unique_ptr<AudioSystem> Create(Emulator* emulator);
 
-AudioSystem* Create(Emulator* emulator);
-
-AudioSystem* CreateNop(Emulator* emulator);
+std::unique_ptr<AudioSystem> CreateNop(Emulator* emulator);
 
 #if XE_PLATFORM_WIN32
-AudioSystem* CreateXAudio2(Emulator* emulator);
+std::unique_ptr<AudioSystem> CreateXAudio2(Emulator* emulator);
 #endif  // WIN32
 
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_APU_H_

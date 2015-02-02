@@ -10,11 +10,11 @@
 #ifndef XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_ENTRY_H_
 #define XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_ENTRY_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <vector>
 
-#include <xenia/kernel/fs/entry.h>
-
+#include "poly/mapped_memory.h"
+#include "xenia/common.h"
+#include "xenia/kernel/fs/entry.h"
 
 namespace xe {
 namespace kernel {
@@ -22,35 +22,30 @@ namespace fs {
 
 class STFSEntry;
 
-
 class STFSContainerEntry : public Entry {
-public:
+ public:
   STFSContainerEntry(Type type, Device* device, const char* path,
-                     xe_mmap_ref mmap, STFSEntry* stfs_entry);
-  virtual ~STFSContainerEntry();
+                     poly::MappedMemory* mmap, STFSEntry* stfs_entry);
+  ~STFSContainerEntry() override;
 
-  xe_mmap_ref mmap() const { return mmap_; }
+  poly::MappedMemory* mmap() const { return mmap_; }
   STFSEntry* stfs_entry() const { return stfs_entry_; }
 
-  virtual X_STATUS QueryInfo(XFileInfo* out_info);
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info,
-                                  size_t length, const char* file_name, bool restart);
+  X_STATUS QueryInfo(XFileInfo* out_info) override;
+  X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+                          const char* file_name, bool restart) override;
 
-  virtual X_STATUS Open(
-      KernelState* kernel_state,
-      uint32_t desired_access, bool async,
-      XFile** out_file);
+  X_STATUS Open(KernelState* kernel_state, Mode desired_access, bool async,
+                XFile** out_file) override;
 
-private:
-  xe_mmap_ref mmap_;
-  STFSEntry*  stfs_entry_;
-  std::vector<STFSEntry*>::iterator stfs_entry_iterator_;
+ private:
+  poly::MappedMemory* mmap_;
+  STFSEntry* stfs_entry_;
+  std::vector<std::unique_ptr<STFSEntry>>::iterator stfs_entry_iterator_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_ENTRY_H_

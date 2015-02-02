@@ -10,37 +10,35 @@
 #ifndef XENIA_KERNEL_FS_DEVICE_H_
 #define XENIA_KERNEL_FS_DEVICE_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <memory>
+#include <string>
 
-#include <xenia/kernel/fs/entry.h>
-
+#include "xenia/common.h"
+#include "xenia/kernel/fs/entry.h"
 
 namespace xe {
 namespace kernel {
 namespace fs {
 
-
 class Device {
-public:
-  Device(const char* path);
+ public:
+  Device(const std::string& path);
   virtual ~Device();
 
-  const char* path();
+  const std::string& path() const { return path_; }
 
-  virtual Entry* ResolvePath(const char* path) = 0;
+  virtual std::unique_ptr<Entry> ResolvePath(const char* path) = 0;
 
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) = 0;
+  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
+  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+                                             size_t length);
 
-protected:
-  char*       path_;
+ protected:
+  std::string path_;
 };
-
 
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_FS_DEVICE_H_

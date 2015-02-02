@@ -10,7 +10,7 @@
 #ifndef ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
 #define ALLOY_COMPILER_PASSES_DEAD_CODE_ELIMINATION_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
 
 namespace alloy {
@@ -21,9 +21,9 @@ namespace passes {
 class DeadCodeEliminationPass : public CompilerPass {
 public:
   DeadCodeEliminationPass();
-  virtual ~DeadCodeEliminationPass();
+  ~DeadCodeEliminationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
 private:
   void MakeNopRecursive(hir::Instr* i);

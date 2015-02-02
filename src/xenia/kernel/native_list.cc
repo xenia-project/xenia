@@ -7,54 +7,50 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/native_list.h>
+#include "xenia/kernel/native_list.h"
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
-using namespace xe::kernel;
-
-
-NativeList::NativeList(Memory* memory) :
-    memory_(memory),
-    head_(kInvalidPointer) {
-}
+NativeList::NativeList(Memory* memory)
+    : memory_(memory), head_(kInvalidPointer) {}
 
 void NativeList::Insert(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
-  XESETUINT32BE(mem + ptr + 0, head_);
-  XESETUINT32BE(mem + ptr + 4, 0);
+  poly::store_and_swap<uint32_t>(mem + ptr + 0, head_);
+  poly::store_and_swap<uint32_t>(mem + ptr + 4, 0);
   if (head_) {
-    XESETUINT32BE(mem + head_ + 4, ptr);
+    poly::store_and_swap<uint32_t>(mem + head_ + 4, ptr);
   }
   head_ = ptr;
 }
 
 bool NativeList::IsQueued(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
-  uint32_t flink = XEGETUINT32BE(mem + ptr + 0);
-  uint32_t blink = XEGETUINT32BE(mem + ptr + 4);
+  uint32_t flink = poly::load_and_swap<uint32_t>(mem + ptr + 0);
+  uint32_t blink = poly::load_and_swap<uint32_t>(mem + ptr + 4);
   return head_ == ptr || flink || blink;
 }
 
 void NativeList::Remove(uint32_t ptr) {
   uint8_t* mem = memory_->membase();
-  uint32_t flink = XEGETUINT32BE(mem + ptr + 0);
-  uint32_t blink = XEGETUINT32BE(mem + ptr + 4);
+  uint32_t flink = poly::load_and_swap<uint32_t>(mem + ptr + 0);
+  uint32_t blink = poly::load_and_swap<uint32_t>(mem + ptr + 4);
   if (ptr == head_) {
     head_ = flink;
     if (flink) {
-      XESETUINT32BE(mem + flink + 4, 0);
+      poly::store_and_swap<uint32_t>(mem + flink + 4, 0);
     }
   } else {
     if (blink) {
-      XESETUINT32BE(mem + blink + 0, flink);
+      poly::store_and_swap<uint32_t>(mem + blink + 0, flink);
     }
     if (flink) {
-      XESETUINT32BE(mem + flink + 4, blink);
+      poly::store_and_swap<uint32_t>(mem + flink + 4, blink);
     }
   }
-  XESETUINT32BE(mem + ptr + 0, 0);
-  XESETUINT32BE(mem + ptr + 4, 0);
+  poly::store_and_swap<uint32_t>(mem + ptr + 0, 0);
+  poly::store_and_swap<uint32_t>(mem + ptr + 4, 0);
 }
 
 uint32_t NativeList::Shift() {
@@ -67,6 +63,7 @@ uint32_t NativeList::Shift() {
   return ptr;
 }
 
-bool NativeList::HasPending() {
-  return head_ != kInvalidPointer;
-}
+bool NativeList::HasPending() { return head_ != kInvalidPointer; }
+
+}  // namespace kernel
+}  // namespace xe

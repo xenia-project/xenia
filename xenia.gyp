@@ -1,13 +1,15 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'includes': [
+    'src/alloy/frontend/ppc/test/test.gypi',
+    'src/alloy/test/test.gypi',
     'tools/tools.gypi',
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
-    'third_party/jansson.gypi',
+    'third_party/glew.gypi',
     'third_party/llvm.gypi',
     'third_party/sparsehash.gypi',
-    'third_party/wslay.gypi',
+    'third_party/xxhash.gypi',
   ],
 
   'default_configuration': 'release',
@@ -47,6 +49,7 @@
       '__STDC_LIMIT_MACROS=1',
       '__STDC_CONSTANT_MACROS=1',
       '_ISOC99_SOURCE=1',
+      '_CRT_NONSTDC_NO_DEPRECATE=1',
     ],
 
     'conditions': [
@@ -62,7 +65,7 @@
     ],
 
     'cflags': [
-      #'-std=c99',
+      '-std=c++11',
     ],
 
     'configurations': {
@@ -75,7 +78,9 @@
           'IntermediateDirectory': '$(OutDir)\\obj\\$(ProjectName)',
           'CharacterSet': '1',
         },
-        'msvs_disabled_warnings': [],
+        'msvs_disabled_warnings': [
+          4458,  # warning C4458: declaration of 'x' hides class member
+        ],
         'msvs_configuration_platform': 'x64',
         'msvs_cygwin_shell': '0',
         'msvs_settings': {
@@ -91,6 +96,7 @@
             'AdditionalOptions': [
               #'/TP',    # Compile as C++
               '/EHsc',  # C++ exception handling,
+              '/MP',
             ],
           },
           'VCLinkerTool': {
@@ -99,6 +105,7 @@
             'TargetMachine': '17', # x86 - 64
             'AdditionalLibraryDirectories': [
             ],
+            'EntryPointSymbol': 'wWinMainCRTStartup',
           },
         },
 
@@ -110,7 +117,7 @@
           'SYMROOT': '<(DEPTH)/build/xenia/',
           'ALWAYS_SEARCH_USER_PATHS': 'NO',
           'ARCHS': ['x86_64'],
-          'CLANG_CXX_LANGUAGE_STANDARD': 'c++11',
+          'CLANG_CXX_LANGUAGE_STANDARD': 'c++1y',
           'COMBINE_HIDPI_IMAGES': 'YES',
           'GCC_C_LANGUAGE_STANDARD': 'gnu99',
           'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
@@ -195,14 +202,96 @@
 
   'targets': [
     {
-      'target_name': 'alloy',
-      'product_name': 'alloy',
+      'target_name': 'libpoly',
+      'product_name': 'libpoly',
+      'type': 'static_library',
+
+      'dependencies': [
+        'gflags',
+      ],
+
+      'conditions': [
+        ['OS == "mac"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-fno-operator-names',
+            ],
+          },
+        }],
+        ['OS == "linux"', {
+          'cflags': [
+            '-fno-operator-names',
+          ],
+        }],
+      ],
+
+      'export_dependent_settings': [
+        'gflags',
+      ],
+
+      'direct_dependent_settings': {
+        'include_dirs': [
+          'src/',
+        ],
+
+        'target_conditions': [
+          ['_type=="shared_library"', {
+            'cflags': [
+            ],
+          }],
+          ['_type=="executable"', {
+            'conditions': [
+              ['OS == "win"', {
+                'libraries': [
+                  'kernel32',
+                  'user32',
+                  'ole32',
+                  'ntdll',
+                  'advapi32',
+                  'Shell32',
+                ],
+              }],
+              ['OS == "mac"', {
+                'xcode_settings': {
+                  'OTHER_LDFLAGS': [
+                  ],
+                },
+              }],
+              ['OS == "linux"', {
+                'libraries': [
+                  '-lpthread',
+                  '-ldl',
+                ],
+              }],
+            ],
+          }],
+        ],
+      },
+
+      'cflags': [
+      ],
+
+      'include_dirs': [
+        '.',
+        'src/',
+        '<(INTERMEDIATE_DIR)',
+      ],
+
+      'includes': [
+        'src/poly/sources.gypi',
+      ],
+    },
+
+    {
+      'target_name': 'liballoy',
+      'product_name': 'liballoy',
       'type': 'static_library',
 
       'dependencies': [
         'beaengine',
         'gflags',
         'llvm',
+        'libpoly',
       ],
 
       'conditions': [
@@ -224,6 +313,7 @@
         'beaengine',
         'gflags',
         'llvm',
+        'libpoly',
       ],
 
       'direct_dependent_settings': {
@@ -279,21 +369,23 @@
     },
 
     {
-      'target_name': 'xenia',
-      'product_name': 'xenia',
+      'target_name': 'libxenia',
+      'product_name': 'libxenia',
       'type': 'static_library',
 
       'dependencies': [
         'gflags',
-        'jansson',
-        'wslay',
-        'alloy',
+        'glew',
+        'liballoy',
+        'libpoly',
+        'xxhash',
       ],
       'export_dependent_settings': [
         'gflags',
-        'jansson',
-        'wslay',
-        'alloy',
+        'glew',
+        'liballoy',
+        'libpoly',
+        'xxhash',
       ],
 
       'direct_dependent_settings': {
@@ -315,13 +407,13 @@
                   'ole32',
                   'wsock32',
                   'Ws2_32',
-                  'dxgi',
-                  'd3d11',
-                  'd3dcompiler',
                   'xinput',
                   'xaudio2',
                   'Shell32',
                   'advapi32',
+                  'glu32',
+                  'opengl32',
+                  'gdi32',
                 ],
               }],
               ['OS == "mac"', {
@@ -334,25 +426,14 @@
                 'libraries': [
                   '-lpthread',
                   '-ldl',
+                  '-lGLU',
+                  '-lGL',
                 ],
               }],
             ],
           }],
         ],
       },
-      'conditions': [
-        ['OS == "win"', {
-          'copies': [
-            {
-              'files': [
-                # Depending on which SDK you have...
-                '<(windows_sdk_dir)/redist/d3d/x64/d3dcompiler_47.dll',
-              ],
-              'destination': '<(PRODUCT_DIR)',
-            },
-          ],
-        }],
-      ],
 
       'cflags': [
       ],
@@ -364,6 +445,29 @@
 
       'includes': [
         'src/xenia/sources.gypi',
+      ],
+    },
+
+    {
+      'target_name': 'xenia',
+      'type': 'executable',
+
+      'msvs_settings': {
+        'VCLinkerTool': {
+          'SubSystem': '2'
+        },
+      },
+
+      'dependencies': [
+        'libxenia',
+      ],
+
+      'include_dirs': [
+        '.',
+      ],
+
+      'sources': [
+        'src/xenia/xenia_main.cc',
       ],
     },
   ],

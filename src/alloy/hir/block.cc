@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
-#include <alloy/hir/block.h>
+#include "alloy/hir/block.h"
 
-#include <alloy/hir/instr.h>
+#include "alloy/hir/instr.h"
 
-using namespace alloy;
-using namespace alloy::hir;
-
+namespace alloy {
+namespace hir {
 
 void Block::AssertNoCycles() {
   Instr* hare = instr_head;
@@ -21,15 +20,15 @@ void Block::AssertNoCycles() {
   if (!hare) {
     return;
   }
-  while (hare = hare->next) {
+  while ((hare = hare->next)) {
     if (hare == tortoise) {
       // Cycle!
-      XEASSERTALWAYS();
+      assert_always();
     }
     hare = hare->next;
     if (hare == tortoise) {
       // Cycle!
-      XEASSERTALWAYS();
+      assert_always();
     }
     tortoise = tortoise->next;
     if (!hare || !tortoise) {
@@ -37,3 +36,6 @@ void Block::AssertNoCycles() {
     }
   }
 }
+
+}  // namespace hir
+}  // namespace alloy

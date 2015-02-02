@@ -10,84 +10,100 @@
 #ifndef XENIA_EMULATOR_H_
 #define XENIA_EMULATOR_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
-#include <xenia/xbox.h>
-#include <xenia/cpu/xenon_memory.h>
+#include <string>
 
+#include "xenia/common.h"
+#include "xenia/debug_agent.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/memory.h"
+#include "xenia/ui/main_window.h"
+#include "xenia/xbox.h"
 
-XEDECLARECLASS1(xe, ExportResolver);
-XEDECLARECLASS2(xe, apu, AudioSystem);
-XEDECLARECLASS2(xe, cpu, Processor);
-XEDECLARECLASS2(xe, debug, DebugServer);
-XEDECLARECLASS2(xe, gpu, GraphicsSystem);
-XEDECLARECLASS2(xe, hid, InputSystem);
-XEDECLARECLASS2(xe, kernel, KernelState);
-XEDECLARECLASS2(xe, kernel, XamModule);
-XEDECLARECLASS2(xe, kernel, XboxkrnlModule);
-XEDECLARECLASS3(xe, kernel, fs, FileSystem);
-XEDECLARECLASS2(xe, ui, Window);
-
+namespace xe {
+namespace apu {
+class AudioSystem;
+}  // namespace apu
+namespace cpu {
+class Processor;
+class XenonThreadState;
+}  // namespace cpu
+namespace gpu {
+class GraphicsSystem;
+}  // namespace gpu
+namespace hid {
+class InputSystem;
+}  // namespace hid
+namespace kernel {
+class XamModule;
+class XboxkrnlModule;
+}  // namespace kernel
+namespace ui {
+class MainWindow;
+}  // namespace ui
+}  // namespace xe
 
 namespace xe {
 
+class ExportResolver;
 
 class Emulator {
-public:
-  Emulator(const xechar_t* command_line);
+ public:
+  Emulator(const std::wstring& command_line);
   ~Emulator();
 
-  const xechar_t* command_line() const { return command_line_; }
+  const std::wstring& command_line() const { return command_line_; }
 
-  ui::Window* main_window() const { return main_window_; }
-  void set_main_window(ui::Window* window);
+  ui::MainWindow* main_window() const { return main_window_.get(); }
 
-  cpu::XenonMemory* memory() const { return memory_; }
+  Memory* memory() const { return memory_.get(); }
 
-  debug::DebugServer* debug_server() const { return debug_server_; }
+  DebugAgent* debug_agent() const { return debug_agent_.get(); }
 
-  cpu::Processor* processor() const { return processor_; }
-  apu::AudioSystem* audio_system() const { return audio_system_; }
-  gpu::GraphicsSystem* graphics_system() const { return graphics_system_; }
-  hid::InputSystem* input_system() const { return input_system_; }
+  cpu::Processor* processor() const { return processor_.get(); }
+  apu::AudioSystem* audio_system() const { return audio_system_.get(); }
+  gpu::GraphicsSystem* graphics_system() const {
+    return graphics_system_.get();
+  }
+  hid::InputSystem* input_system() const { return input_system_.get(); }
 
-  ExportResolver* export_resolver() const { return export_resolver_; }
-  kernel::fs::FileSystem* file_system() const { return file_system_; }
+  ExportResolver* export_resolver() const { return export_resolver_.get(); }
+  kernel::fs::FileSystem* file_system() const { return file_system_.get(); }
 
-  kernel::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_; }
-  kernel::XamModule* xam() const { return xam_; }
+  kernel::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_.get(); }
+  kernel::XamModule* xam() const { return xam_.get(); }
 
   X_STATUS Setup();
 
   // TODO(benvanik): raw binary.
-  X_STATUS LaunchXexFile(const xechar_t* path);
-  X_STATUS LaunchDiscImage(const xechar_t* path);
-  X_STATUS LaunchSTFSTitle(const xechar_t* path);
+  X_STATUS LaunchXexFile(const std::wstring& path);
+  X_STATUS LaunchDiscImage(const std::wstring& path);
+  X_STATUS LaunchSTFSTitle(const std::wstring& path);
 
-private:
-  xechar_t                command_line_[XE_MAX_PATH];
+ private:
+  X_STATUS CompleteLaunch(const std::wstring& path,
+                          const std::string& module_path);
 
-  ui::Window*             main_window_;
+  std::wstring command_line_;
 
-  cpu::XenonMemory*       memory_;
+  std::unique_ptr<ui::MainWindow> main_window_;
 
-  debug::DebugServer*     debug_server_;
+  std::unique_ptr<Memory> memory_;
 
-  cpu::Processor*         processor_;
-  apu::AudioSystem*       audio_system_;
-  gpu::GraphicsSystem*    graphics_system_;
-  hid::InputSystem*       input_system_;
+  std::unique_ptr<DebugAgent> debug_agent_;
 
-  ExportResolver*         export_resolver_;
-  kernel::fs::FileSystem* file_system_;
+  std::unique_ptr<cpu::Processor> processor_;
+  std::unique_ptr<apu::AudioSystem> audio_system_;
+  std::unique_ptr<gpu::GraphicsSystem> graphics_system_;
+  std::unique_ptr<hid::InputSystem> input_system_;
 
-  kernel::KernelState*    kernel_state_;
-  kernel::XamModule*      xam_;
-  kernel::XboxkrnlModule* xboxkrnl_;
+  std::unique_ptr<ExportResolver> export_resolver_;
+  std::unique_ptr<kernel::fs::FileSystem> file_system_;
+
+  std::unique_ptr<kernel::KernelState> kernel_state_;
+  std::unique_ptr<kernel::XamModule> xam_;
+  std::unique_ptr<kernel::XboxkrnlModule> xboxkrnl_;
 };
 
-
 }  // namespace xe
-
 
 #endif  // XENIA_EMULATOR_H_

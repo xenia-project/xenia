@@ -7,31 +7,24 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/objects/xuser_module.h>
+#include "xenia/kernel/objects/xuser_module.h"
 
-#include <xenia/emulator.h>
-#include <xenia/cpu/cpu.h>
-#include <xenia/kernel/objects/xfile.h>
-#include <xenia/kernel/objects/xthread.h>
+#include "xenia/emulator.h"
+#include "xenia/cpu/cpu.h"
+#include "xenia/kernel/objects/xfile.h"
+#include "xenia/kernel/objects/xthread.h"
 
+namespace xe {
+namespace kernel {
 
-using namespace xe;
 using namespace xe::cpu;
-using namespace xe::kernel;
 
+XUserModule::XUserModule(KernelState* kernel_state, const char* path)
+    : XModule(kernel_state, path), xex_(nullptr) {}
 
-XUserModule::XUserModule(KernelState* kernel_state, const char* path) :
-    XModule(kernel_state, path),
-    xex_(NULL) {
-}
+XUserModule::~XUserModule() { xe_xex2_dealloc(xex_); }
 
-XUserModule::~XUserModule() {
-  xe_xex2_release(xex_);
-}
-
-xe_xex2_ref XUserModule::xex() {
-  return xe_xex2_retain(xex_);
-}
+xe_xex2_ref XUserModule::xex() { return xex_; }
 
 const xe_xex2_header_t* XUserModule::xex_header() {
   return xe_xex2_get_header(xex_);
@@ -40,88 +33,99 @@ const xe_xex2_header_t* XUserModule::xex_header() {
 X_STATUS XUserModule::LoadFromFile(const char* path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   XFile* file = NULL;
-  uint8_t* buffer = 0;
 
   // Resolve the file to open.
   // TODO(benvanik): make this code shared?
-  fs::Entry* fs_entry = kernel_state()->file_system()->ResolvePath(path);
+  auto fs_entry = kernel_state()->file_system()->ResolvePath(path);
   if (!fs_entry) {
     XELOGE("File not found: %s", path);
-    result = X_STATUS_NO_SUCH_FILE;
-    XEFAIL();
+    return X_STATUS_NO_SUCH_FILE;
   }
-  if (fs_entry->type() != fs::Entry::kTypeFile) {
+  if (fs_entry->type() != fs::Entry::Type::FILE) {
     XELOGE("Invalid file type: %s", path);
-    result = X_STATUS_NO_SUCH_FILE;
-    XEFAIL();
+    return X_STATUS_NO_SUCH_FILE;
   }
 
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
     // Map.
-    fs::MemoryMapping* mmap = fs_entry->CreateMemoryMapping(kXEFileModeRead, 0, 0);
-    XEEXPECTNOTNULL(mmap);
+    auto mmap = fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
+    if (!mmap) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     // Load the module.
     result = LoadFromMemory(mmap->address(), mmap->length());
-
-    // Unmap memory and cleanup.
-    delete mmap;
   } else {
     XFileInfo file_info;
     result = fs_entry->QueryInfo(&file_info);
-    XEEXPECTZERO(result);
+    if (result) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
-    size_t buffer_length = file_info.file_length;
-    buffer = (uint8_t*)xe_malloc(buffer_length);
+    std::vector<uint8_t> buffer(file_info.file_length);
 
     // Open file for reading.
-    result = fs_entry->Open(kernel_state(), kXEFileModeRead, false, &file);
-    XEEXPECTZERO(result);
+    result = kernel_state()->file_system()->Open(
+        std::move(fs_entry), kernel_state(), fs::Mode::READ, false, &file);
+    if (result) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     // Read entire file into memory.
     // Ugh.
     size_t bytes_read = 0;
-    result = file->Read(buffer, buffer_length, 0, &bytes_read);
-    XEEXPECTZERO(result);
+    result = file->Read(buffer.data(), buffer.size(), 0, &bytes_read);
+    if (result) {
+      if (file) {
+        file->Release();
+      }
+      return result;
+    }
 
     // Load the module.
-    result = LoadFromMemory(buffer, bytes_read);
+    result = LoadFromMemory(buffer.data(), bytes_read);
   }
 
-XECLEANUP:
-  if (buffer) {
-    xe_free(buffer);
-  }
   if (file) {
     file->Release();
   }
-  delete fs_entry;
   return result;
 }
 
 X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   Processor* processor = kernel_state()->processor();
   XenonRuntime* runtime = processor->runtime();
-  XexModule* xex_module = NULL;
 
   // Load the XEX into memory and decrypt.
-  xe_xex2_options_t xex_options;
-  xe_zero_struct(&xex_options, sizeof(xex_options));
+  xe_xex2_options_t xex_options = {0};
   xex_ = xe_xex2_load(kernel_state()->memory(), addr, length, xex_options);
-  XEEXPECTNOTNULL(xex_);
+  if (!xex_) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
 
   // Prepare the module for execution.
   // Runtime takes ownership.
-  xex_module = new XexModule(runtime);
-  XEEXPECTZERO(xex_module->Load(name_, path_, xex_));
-  XEEXPECTZERO(runtime->AddModule(xex_module));
+  auto xex_module = std::make_unique<XexModule>(runtime);
+  if (xex_module->Load(name_, path_, xex_)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  if (runtime->AddModule(std::move(xex_module))) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  OnLoad();
 
   return X_STATUS_SUCCESS;
-
-XECLEANUP:
-  delete xex_module;
-  return X_STATUS_UNSUCCESSFUL;
 }
 
 void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
@@ -130,13 +134,12 @@ void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   return NULL;
 }
 
-X_STATUS XUserModule::GetSection(
-    const char* name,
-    uint32_t* out_section_data, uint32_t* out_section_size) {
+X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
+                                 uint32_t* out_section_size) {
   auto header = xe_xex2_get_header(xex_);
   for (size_t n = 0; n < header->resource_info_count; n++) {
     auto& res = header->resource_infos[n];
-    if (xestrcmpa(name, res.name) == 0) {
+    if (strcmp(name, res.name) == 0) {
       // Found!
       *out_section_data = res.address;
       *out_section_size = res.size;
@@ -154,12 +157,8 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
   Dump();
 
   // Create a thread to run in.
-  XThread* thread = new XThread(
-      kernel_state(),
-      header->exe_stack_size,
-      0,
-      header->exe_entry_point, NULL,
-      0);
+  XThread* thread = new XThread(kernel_state(), header->exe_stack_size, 0,
+                                header->exe_entry_point, NULL, 0);
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -181,7 +180,7 @@ void XUserModule::Dump() {
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 
   // XEX info.
-  printf("Module %s:\n\n", path_);
+  printf("Module %s:\n\n", path_.c_str());
   printf("    Module Flags: %.8X\n", header->module_flags);
   printf("    System Flags: %.8X\n", header->system_flags);
   printf("\n");
@@ -192,11 +191,10 @@ void XUserModule::Dump() {
   printf("\n");
   printf("  Execution Info:\n");
   printf("        Media ID: %.8X\n", header->execution_info.media_id);
-  printf("         Version: %d.%d.%d.%d\n",
-         header->execution_info.version.major,
-         header->execution_info.version.minor,
-         header->execution_info.version.build,
-         header->execution_info.version.qfe);
+  printf(
+      "         Version: %d.%d.%d.%d\n", header->execution_info.version.major,
+      header->execution_info.version.minor,
+      header->execution_info.version.build, header->execution_info.version.qfe);
   printf("    Base Version: %d.%d.%d.%d\n",
          header->execution_info.base_version.major,
          header->execution_info.base_version.minor,
@@ -218,14 +216,14 @@ void XUserModule::Dump() {
   printf("      Slot Count: %d\n", header->tls_info.slot_count);
   printf("       Data Size: %db\n", header->tls_info.data_size);
   printf("         Address: %.8X, %db\n", header->tls_info.raw_data_address,
-                                          header->tls_info.raw_data_size);
+         header->tls_info.raw_data_size);
   printf("\n");
   printf("  Headers:\n");
   for (size_t n = 0; n < header->header_count; n++) {
     const xe_xex2_opt_header_t* opt_header = &header->headers[n];
-    printf("    %.8X (%.8X, %4db) %.8X = %11d\n",
-           opt_header->key, opt_header->offset, opt_header->length,
-           opt_header->value, opt_header->value);
+    printf("    %.8X (%.8X, %4db) %.8X = %11d\n", opt_header->key,
+           opt_header->offset, opt_header->length, opt_header->value,
+           opt_header->value);
   }
   printf("\n");
 
@@ -233,8 +231,8 @@ void XUserModule::Dump() {
   printf("Resources:\n");
   for (size_t n = 0; n < header->resource_info_count; n++) {
     auto& res = header->resource_infos[n];
-    printf("  %-8s %.8X-%.8X, %db\n",
-           res.name, res.address, res.address + res.size, res.size);
+    printf("  %-8s %.8X-%.8X, %db\n", res.name, res.address,
+           res.address + res.size, res.size);
   }
   printf("\n");
 
@@ -244,23 +242,22 @@ void XUserModule::Dump() {
     const xe_xex2_section_t* section = &header->sections[n];
     const char* type = "UNKNOWN";
     switch (section->info.type) {
-    case XEX_SECTION_CODE:
-      type = "CODE   ";
-      break;
-    case XEX_SECTION_DATA:
-      type = "RWDATA ";
-      break;
-    case XEX_SECTION_READONLY_DATA:
-      type = "RODATA ";
-      break;
+      case XEX_SECTION_CODE:
+        type = "CODE   ";
+        break;
+      case XEX_SECTION_DATA:
+        type = "RWDATA ";
+        break;
+      case XEX_SECTION_READONLY_DATA:
+        type = "RODATA ";
+        break;
     }
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
+    const size_t start_address = header->exe_address + (i * section->page_size);
     const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
-    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n",
-           (int)n, type, section->info.page_count, (int)start_address,
-           (int)end_address, section->info.page_count * xe_xex2_section_length);
+        start_address + (section->info.page_count * section->page_size);
+    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n", (int)n, type,
+           section->info.page_count, (int)start_address, (int)end_address,
+           section->info.page_count * section->page_size);
     i += section->info.page_count;
   }
   printf("\n");
@@ -268,9 +265,8 @@ void XUserModule::Dump() {
   // Static libraries.
   printf("Static Libraries:\n");
   for (size_t n = 0; n < header->static_library_count; n++) {
-    const xe_xex2_static_library_t *library = &header->static_libraries[n];
-    printf("  %-8s : %d.%d.%d.%d\n",
-           library->name, library->major,
+    const xe_xex2_static_library_t* library = &header->static_libraries[n];
+    printf("  %-8s : %d.%d.%d.%d\n", library->name, library->major,
            library->minor, library->build, library->qfe);
   }
   printf("\n");
@@ -282,15 +278,15 @@ void XUserModule::Dump() {
 
     xe_xex2_import_info_t* import_infos;
     size_t import_info_count;
-    if (!xe_xex2_get_import_infos(xex_, library,
-                                  &import_infos, &import_info_count)) {
+    if (!xe_xex2_get_import_infos(xex_, library, &import_infos,
+                                  &import_info_count)) {
       printf(" %s - %d imports\n", library->name, (int)import_info_count);
-      printf("   Version: %d.%d.%d.%d\n",
-             library->version.major, library->version.minor,
-             library->version.build, library->version.qfe);
-      printf("   Min Version: %d.%d.%d.%d\n",
-             library->min_version.major, library->min_version.minor,
-             library->min_version.build, library->min_version.qfe);
+      printf("   Version: %d.%d.%d.%d\n", library->version.major,
+             library->version.minor, library->version.build,
+             library->version.qfe);
+      printf("   Min Version: %d.%d.%d.%d\n", library->min_version.major,
+             library->min_version.minor, library->min_version.build,
+             library->min_version.qfe);
       printf("\n");
 
       // Counts.
@@ -314,35 +310,33 @@ void XUserModule::Dump() {
           unimpl_count++;
         }
       }
-      printf("         Total: %4u\n", import_info_count);
+      printf("         Total: %4u\n", uint32_t(import_info_count));
       printf("         Known:  %3d%% (%d known, %d unknown)\n",
              (int)(known_count / (float)import_info_count * 100.0f),
              known_count, unknown_count);
       printf("   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
-             (int)(impl_count / (float)import_info_count * 100.0f),
-             impl_count, unimpl_count);
+             (int)(impl_count / (float)import_info_count * 100.0f), impl_count,
+             unimpl_count);
       printf("\n");
 
       // Listing.
       for (size_t m = 0; m < import_info_count; m++) {
         const xe_xex2_import_info_t* info = &import_infos[m];
-        KernelExport* kernel_export = export_resolver->GetExportByOrdinal(
-            library->name, info->ordinal);
-        const char *name = "UNKNOWN";
+        KernelExport* kernel_export =
+            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+        const char* name = "UNKNOWN";
         bool implemented = false;
         if (kernel_export) {
           name = kernel_export->name;
           implemented = kernel_export->is_implemented;
         }
         if (kernel_export && kernel_export->type == KernelExport::Variable) {
-          printf("   V %.8X          %.3X (%3d) %s %s\n",
-                 info->value_address, info->ordinal, info->ordinal,
-                 implemented ? "  " : "!!", name);
+          printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
+                 info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {
-          printf("   F %.8X %.8X %.3X (%3d) %s %s\n",
-                 info->value_address, info->thunk_address, info->ordinal,
-                 info->ordinal, implemented ? "  " : "!!", name);
-
+          printf("   F %.8X %.8X %.3X (%3d) %s %s\n", info->value_address,
+                 info->thunk_address, info->ordinal, info->ordinal,
+                 implemented ? "  " : "!!", name);
         }
       }
     }
@@ -355,3 +349,6 @@ void XUserModule::Dump() {
   printf("  TODO\n");
   printf("\n");
 }
+
+}  // namespace kernel
+}  // namespace xe

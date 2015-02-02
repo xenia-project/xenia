@@ -14,23 +14,21 @@
 #include <bitset>
 #include <vector>
 
-#include <alloy/backend/machine_info.h>
-#include <alloy/compiler/compiler_pass.h>
-
+#include "alloy/backend/machine_info.h"
+#include "alloy/compiler/compiler_pass.h"
 
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class RegisterAllocationPass : public CompilerPass {
-public:
+ public:
   RegisterAllocationPass(const backend::MachineInfo* machine_info);
-  virtual ~RegisterAllocationPass();
+  ~RegisterAllocationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
-private:
+ private:
   // TODO(benvanik): rewrite all this set shit -- too much indirection, the
   // complexity is not needed.
   struct RegisterUsage {
@@ -64,14 +62,14 @@ private:
   bool TryAllocateRegister(hir::Value* value,
                            const hir::RegAssignment& preferred_reg);
   bool TryAllocateRegister(hir::Value* value);
-  bool SpillOneRegister(hir::HIRBuilder* builder, hir::TypeName required_type);
+  bool SpillOneRegister(hir::HIRBuilder* builder, hir::Block* block,
+                        hir::TypeName required_type);
 
   RegisterSetUsage* RegisterSetForValue(const hir::Value* value);
 
   void SortUsageList(hir::Value* value);
 
-private:
-  const backend::MachineInfo* machine_info_;
+ private:
   struct {
     RegisterSetUsage* int_set = nullptr;
     RegisterSetUsage* float_set = nullptr;
@@ -80,10 +78,8 @@ private:
   } usage_sets_;
 };
 
-
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_REGISTER_ALLOCATION_PASS_H_

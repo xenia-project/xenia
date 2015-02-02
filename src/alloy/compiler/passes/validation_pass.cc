@@ -7,42 +7,46 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/validation_pass.h>
+#include "alloy/compiler/passes/validation_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::Block;
+using alloy::hir::HIRBuilder;
+using alloy::hir::Instr;
+using alloy::hir::OpcodeSignatureType;
+using alloy::hir::Value;
 
-ValidationPass::ValidationPass() :
-    CompilerPass() {
-}
+ValidationPass::ValidationPass() : CompilerPass() {}
 
-ValidationPass::~ValidationPass() {
-}
+ValidationPass::~ValidationPass() {}
 
 int ValidationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
 
+#if 0
   StringBuffer str;
   builder->Dump(&str);
   printf(str.GetString());
   fflush(stdout);
   str.Reset();
+#endif  // 0
 
   auto block = builder->first_block();
   while (block) {
     auto label = block->label_head;
     while (label) {
-      XEASSERT(label->block == block);
+      assert_true(label->block == block);
       if (label->block != block) {
         return 1;
       }
@@ -64,9 +68,18 @@ int ValidationPass::Run(HIRBuilder* builder) {
 }
 
 int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
-  XEASSERT(instr->block == block);
+  assert_true(instr->block == block);
   if (instr->block != block) {
     return 1;
+  }
+
+  if (instr->dest) {
+    assert_true(instr->dest->def == instr);
+    auto use = instr->dest->use_head;
+    while (use) {
+      assert_true(use->instr->block == block);
+      use = use->next;
+    }
   }
 
   uint32_t signature = instr->opcode->signature;
@@ -90,12 +103,16 @@ int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
 }
 
 int ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
-  //if (value->def) {
+  // if (value->def) {
   //  auto def = value->def;
-  //  XEASSERT(def->block == block);
+  //  assert_true(def->block == block);
   //  if (def->block != block) {
   //    return 1;
   //  }
   //}
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

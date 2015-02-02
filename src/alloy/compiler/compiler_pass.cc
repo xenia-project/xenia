@@ -7,20 +7,16 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/compiler_pass.h>
+#include "alloy/compiler/compiler_pass.h"
 
-#include <alloy/compiler/compiler.h>
+#include "alloy/compiler/compiler.h"
 
-using namespace alloy;
-using namespace alloy::compiler;
+namespace alloy {
+namespace compiler {
 
+CompilerPass::CompilerPass() : runtime_(0), compiler_(0) {}
 
-CompilerPass::CompilerPass() :
-    runtime_(0), compiler_(0) {
-}
-
-CompilerPass::~CompilerPass() {
-}
+CompilerPass::~CompilerPass() = default;
 
 int CompilerPass::Initialize(Compiler* compiler) {
   runtime_ = compiler->runtime();
@@ -31,3 +27,6 @@ int CompilerPass::Initialize(Compiler* compiler) {
 Arena* CompilerPass::scratch_arena() const {
   return compiler_->scratch_arena();
 }
+
+}  // namespace compiler
+}  // namespace alloy

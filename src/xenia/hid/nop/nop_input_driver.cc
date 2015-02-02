@@ -7,46 +7,44 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/nop/nop_input_driver.h>
+#include "xenia/hid/nop/nop_input_driver.h"
 
-#include <xenia/hid/hid-private.h>
+#include "xenia/hid/hid-private.h"
 
+namespace xe {
+namespace hid {
+namespace nop {
 
-using namespace xe;
-using namespace xe::hid;
-using namespace xe::hid::nop;
+NopInputDriver::NopInputDriver(InputSystem* input_system)
+    : InputDriver(input_system) {}
 
+NopInputDriver::~NopInputDriver() {}
 
-NopInputDriver::NopInputDriver(InputSystem* input_system) :
-    InputDriver(input_system) {
-}
-
-NopInputDriver::~NopInputDriver() {
-}
-
-X_STATUS NopInputDriver::Setup() {
-  return X_STATUS_SUCCESS;
-}
+X_STATUS NopInputDriver::Setup() { return X_STATUS_SUCCESS; }
 
 // TODO(benvanik): spoof a device so that games don't stop waiting for
 //     a controller to be plugged in.
 
-X_RESULT NopInputDriver::GetCapabilities(
-    uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) {
+X_RESULT NopInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
+                                         X_INPUT_CAPABILITIES* out_caps) {
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
-X_RESULT NopInputDriver::GetState(
-    uint32_t user_index, X_INPUT_STATE& out_state) {
+X_RESULT NopInputDriver::GetState(uint32_t user_index,
+                                  X_INPUT_STATE* out_state) {
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
-X_RESULT NopInputDriver::SetState(
-    uint32_t user_index, X_INPUT_VIBRATION& vibration) {
+X_RESULT NopInputDriver::SetState(uint32_t user_index,
+                                  X_INPUT_VIBRATION* vibration) {
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
-X_RESULT NopInputDriver::GetKeystroke(
-    uint32_t user_index, uint32_t flags, X_INPUT_KEYSTROKE& out_keystroke) {
+X_RESULT NopInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
+                                      X_INPUT_KEYSTROKE* out_keystroke) {
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
+
+}  // namespace nop
+}  // namespace hid
+}  // namespace xe

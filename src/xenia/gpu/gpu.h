@@ -10,27 +10,22 @@
 #ifndef XENIA_GPU_GPU_H_
 #define XENIA_GPU_GPU_H_
 
-#include <xenia/gpu/graphics_system.h>
+#include <memory>
 
+#include "xenia/gpu/graphics_system.h"
 
-XEDECLARECLASS1(xe, Emulator);
-
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace gpu {
 
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
 
-GraphicsSystem* Create(Emulator* emulator);
-
-GraphicsSystem* CreateNop(Emulator* emulator);
-
-#if XE_PLATFORM_WIN32
-GraphicsSystem* CreateD3D11(Emulator* emulator);
-#endif  // WIN32
-
+std::unique_ptr<GraphicsSystem> CreateGL4(Emulator* emulator);
 
 }  // namespace gpu
 }  // namespace xe
-
 
 #endif  // XENIA_GPU_GPU_H_

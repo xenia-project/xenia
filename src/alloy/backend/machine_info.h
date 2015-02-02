@@ -10,12 +10,10 @@
 #ifndef ALLOY_BACKEND_MACHINE_INFO_H_
 #define ALLOY_BACKEND_MACHINE_INFO_H_
 
-#include <alloy/core.h>
-
+#include <cstdint>
 
 namespace alloy {
 namespace backend {
-
 
 struct MachineInfo {
   struct RegisterSet {
@@ -31,9 +29,7 @@ struct MachineInfo {
   } register_sets[8];
 };
 
-
 }  // namespace backend
 }  // namespace alloy
-
 
 #endif  // ALLOY_BACKEND_MACHINE_INFO_H_

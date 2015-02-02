@@ -1,0 +1,70 @@
+
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_adde.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_adde_1>:
+  100000:	7c 64 29 14 	adde    r3,r4,r5
+  100004:	7c c0 01 14 	adde    r6,r0,r0
+  100008:	4e 80 00 20 	blr
+
+000000000010000c <test_adde_2>:
+  10000c:	7c 63 1a 78 	xor     r3,r3,r3
+  100010:	7c 63 18 f8 	not     r3,r3
+  100014:	30 63 00 01 	addic   r3,r3,1
+  100018:	7c 64 29 14 	adde    r3,r4,r5
+  10001c:	7c c0 01 14 	adde    r6,r0,r0
+  100020:	4e 80 00 20 	blr
+
+0000000000100024 <test_adde_3>:
+  100024:	7c 64 29 14 	adde    r3,r4,r5
+  100028:	7c c0 01 14 	adde    r6,r0,r0
+  10002c:	4e 80 00 20 	blr
+
+0000000000100030 <test_adde_4>:
+  100030:	7c 63 1a 78 	xor     r3,r3,r3
+  100034:	7c 63 18 f8 	not     r3,r3
+  100038:	30 63 00 01 	addic   r3,r3,1
+  10003c:	7c 64 29 14 	adde    r3,r4,r5
+  100040:	7c c0 01 14 	adde    r6,r0,r0
+  100044:	4e 80 00 20 	blr
+
+0000000000100048 <test_adde_5>:
+  100048:	7c 64 29 14 	adde    r3,r4,r5
+  10004c:	7c c0 01 14 	adde    r6,r0,r0
+  100050:	4e 80 00 20 	blr
+
+0000000000100054 <test_adde_6>:
+  100054:	7c 63 1a 78 	xor     r3,r3,r3
+  100058:	7c 63 18 f8 	not     r3,r3
+  10005c:	30 63 00 01 	addic   r3,r3,1
+  100060:	7c 64 29 14 	adde    r3,r4,r5
+  100064:	7c c0 01 14 	adde    r6,r0,r0
+  100068:	4e 80 00 20 	blr
+
+000000000010006c <test_adde_7>:
+  10006c:	7c 64 29 14 	adde    r3,r4,r5
+  100070:	7c c0 01 14 	adde    r6,r0,r0
+  100074:	4e 80 00 20 	blr
+
+0000000000100078 <test_adde_8>:
+  100078:	7c 63 1a 78 	xor     r3,r3,r3
+  10007c:	7c 63 18 f8 	not     r3,r3
+  100080:	30 63 00 01 	addic   r3,r3,1
+  100084:	7c 64 29 14 	adde    r3,r4,r5
+  100088:	7c c0 01 14 	adde    r6,r0,r0
+  10008c:	4e 80 00 20 	blr
+
+0000000000100090 <test_adde_9>:
+  100090:	7c 64 29 14 	adde    r3,r4,r5
+  100094:	7c c0 01 14 	adde    r6,r0,r0
+  100098:	4e 80 00 20 	blr
+
+000000000010009c <test_adde_10>:
+  10009c:	7c 63 1a 78 	xor     r3,r3,r3
+  1000a0:	7c 63 18 f8 	not     r3,r3
+  1000a4:	30 63 00 01 	addic   r3,r3,1
+  1000a8:	7c 64 29 14 	adde    r3,r4,r5
+  1000ac:	7c c0 01 14 	adde    r6,r0,r0
+  1000b0:	4e 80 00 20 	blr

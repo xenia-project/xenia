@@ -7,12 +7,14 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/xex_module.h>
+#include "xenia/cpu/xex_module.h"
 
-#include <alloy/runtime/tracing.h>
-#include <xenia/cpu/cpu-private.h>
-#include <xenia/cpu/xenon_runtime.h>
-#include <xenia/export_resolver.h>
+#include <algorithm>
+
+#include "poly/math.h"
+#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/xenon_runtime.h"
+#include "xenia/export_resolver.h"
 
 using namespace alloy;
 using namespace alloy::runtime;
@@ -25,25 +27,22 @@ void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
 }
 }
 
-
-XexModule::XexModule(
-    XenonRuntime* runtime) :
-    runtime_(runtime),
-    name_(0), path_(0), xex_(0),
-    base_address_(0), low_address_(0), high_address_(0),
-    Module(runtime) {
-}
+XexModule::XexModule(XenonRuntime* runtime)
+    : Module(runtime),
+      runtime_(runtime),
+      xex_(nullptr),
+      base_address_(0),
+      low_address_(0),
+      high_address_(0) {}
 
 XexModule::~XexModule() {
-  xe_xex2_release(xex_);
-  xe_free(name_);
-  xe_free(path_);
+  xe_xex2_dealloc(xex_);
 }
 
-int XexModule::Load(const char* name, const char* path, xe_xex2_ref xex) {
+int XexModule::Load(const std::string& name, const std::string& path, xe_xex2_ref xex) {
   int result;
 
-  xex_ = xe_xex2_retain(xex);
+  xex_ = xex;
   const xe_xex2_header_t* header = xe_xex2_get_header(xex);
 
   // Scan and find the low/high addresses.
@@ -52,13 +51,14 @@ int XexModule::Load(const char* name, const char* path, xe_xex2_ref xex) {
   high_address_ = 0;
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
+    const size_t start_address = header->exe_address + (i * section->page_size);
     const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
+        start_address + (section->info.page_count * section->page_size);
     if (section->info.type == XEX_SECTION_CODE) {
-      low_address_ = (uint32_t)MIN(low_address_, start_address);
-      high_address_ = (uint32_t)MAX(high_address_, end_address);
+      low_address_ =
+          static_cast<uint32_t>(std::min(low_address_, start_address));
+      high_address_ =
+          static_cast<uint32_t>(std::max(high_address_, end_address));
     }
     i += section->info.page_count;
   }
@@ -79,8 +79,8 @@ int XexModule::Load(const char* name, const char* path, xe_xex2_ref xex) {
   }
 
   // Setup debug info.
-  name_ = xestrdupa(name);
-  path_ = xestrdupa(path);
+  name_ = std::string(name);
+  path_ = std::string(path);
   // TODO(benvanik): debug info
 
   // Load a specified module map and diff.
@@ -112,12 +112,12 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (kernel_export) {
       if (info->thunk_address) {
-        xesnprintfa(name, XECOUNT(name), "__imp_%s", kernel_export->name);
+        snprintf(name, poly::countof(name), "__imp_%s", kernel_export->name);
       } else {
-        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+        snprintf(name, poly::countof(name), "%s", kernel_export->name);
       }
     } else {
-      xesnprintfa(name, XECOUNT(name), "__imp_%s_%.3X", library->name,
+      snprintf(name, poly::countof(name), "__imp_%s_%.3X", library->name,
                   info->ordinal);
     }
 
@@ -135,20 +135,20 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       if (kernel_export->type == KernelExport::Function) {
         // Not exactly sure what this should be...
         if (info->thunk_address) {
-          *slot = XESWAP32BE(info->thunk_address);
+          *slot = poly::byte_swap(info->thunk_address);
         } else {
           // TODO(benvanik): find out what import variables are.
           XELOGW("kernel import variable not defined %.8X %s",
                  info->value_address, kernel_export->name);
-          *slot = XESWAP32BE(0xF00DF00D);
+          *slot = poly::byte_swap(0xF00DF00D);
         }
       } else {
         if (kernel_export->is_implemented) {
           // Implemented - replace with pointer.
-          XESETUINT32BE(slot, kernel_export->variable_ptr);
+          poly::store_and_swap<uint32_t>(slot, kernel_export->variable_ptr);
         } else {
           // Not implemented - write with a dummy value.
-          XESETUINT32BE(slot, 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
+          poly::store_and_swap<uint32_t>(slot, 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
           XELOGCPU("WARNING: imported a variable with no value: %s",
                    kernel_export->name);
         }
@@ -157,10 +157,10 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (info->thunk_address) {
       if (kernel_export) {
-        xesnprintfa(name, XECOUNT(name), "%s", kernel_export->name);
+        snprintf(name, poly::countof(name), "%s", kernel_export->name);
       } else {
-        xesnprintfa(name, XECOUNT(name), "__kernel_%s_%.3X", library->name,
-                    info->ordinal);
+        snprintf(name, poly::countof(name), "__kernel_%s_%.3X", library->name,
+                 info->ordinal);
       }
 
       // On load we have something like this in memory:
@@ -178,10 +178,10 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       //     nop
       //     nop
       uint8_t* p = memory()->Translate(info->thunk_address);
-      XESETUINT32BE(p + 0x0, 0x44000002);
-      XESETUINT32BE(p + 0x4, 0x4E800020);
-      XESETUINT32BE(p + 0x8, 0x60000000);
-      XESETUINT32BE(p + 0xC, 0x60000000);
+      poly::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
+      poly::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
+      poly::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
+      poly::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
 
       FunctionInfo::ExternHandler handler = 0;
       void* handler_data = 0;
@@ -389,25 +389,24 @@ int XexModule::FindSaveRest() {
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
   for (size_t n = 0, i = 0; n < header->section_count; n++) {
     const xe_xex2_section_t* section = &header->sections[n];
-    const size_t start_address =
-        header->exe_address + (i * xe_xex2_section_length);
+    const size_t start_address = header->exe_address + (i * section->page_size);
     const size_t end_address =
-        start_address + (section->info.page_count * xe_xex2_section_length);
+        start_address + (section->info.page_count * section->page_size);
     if (section->info.type == XEX_SECTION_CODE) {
       if (!gplr_start) {
-        gplr_start = memory_->SearchAligned(
-            start_address, end_address,
-            gprlr_code_values, XECOUNT(gprlr_code_values));
+        gplr_start = memory_->SearchAligned(start_address, end_address,
+                                            gprlr_code_values,
+                                            poly::countof(gprlr_code_values));
       }
       if (!fpr_start) {
-        fpr_start = memory_->SearchAligned(
-            start_address, end_address,
-            fpr_code_values, XECOUNT(fpr_code_values));
+        fpr_start =
+            memory_->SearchAligned(start_address, end_address, fpr_code_values,
+                                   poly::countof(fpr_code_values));
       }
       if (!vmx_start) {
-        vmx_start = memory_->SearchAligned(
-            start_address, end_address,
-            vmx_code_values, XECOUNT(vmx_code_values));
+        vmx_start =
+            memory_->SearchAligned(start_address, end_address, vmx_code_values,
+                                   poly::countof(vmx_code_values));
       }
       if (gplr_start && fpr_start && vmx_start) {
         break;
@@ -421,7 +420,7 @@ int XexModule::FindSaveRest() {
   if (gplr_start) {
     uint64_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savegprlr_%d", n);
+      snprintf(name, poly::countof(name), "__savegprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 2 * 4);
@@ -434,7 +433,7 @@ int XexModule::FindSaveRest() {
     }
     address = gplr_start + 20 * 4;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restgprlr_%d", n);
+      snprintf(name, poly::countof(name), "__restgprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 3 * 4);
@@ -449,7 +448,7 @@ int XexModule::FindSaveRest() {
   if (fpr_start) {
     uint64_t address = fpr_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savefpr_%d", n);
+      snprintf(name, poly::countof(name), "__savefpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -462,7 +461,7 @@ int XexModule::FindSaveRest() {
     }
     address = fpr_start + (18 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restfpr_%d", n);
+      snprintf(name, poly::countof(name), "__restfpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -482,7 +481,7 @@ int XexModule::FindSaveRest() {
     // 64-127 rest
     uint64_t address = vmx_start;
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savevmx_%d", n);
+      snprintf(name, poly::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -494,7 +493,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      xesnprintfa(name, XECOUNT(name), "__savevmx_%d", n);
+      snprintf(name, poly::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -506,7 +505,7 @@ int XexModule::FindSaveRest() {
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restvmx_%d", n);
+      snprintf(name, poly::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -518,7 +517,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      xesnprintfa(name, XECOUNT(name), "__restvmx_%d", n);
+      snprintf(name, poly::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);

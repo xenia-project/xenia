@@ -7,62 +7,72 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_frontend.h>
+#include "alloy/frontend/ppc/ppc_frontend.h"
 
-#include <alloy/frontend/tracing.h>
-#include <alloy/frontend/ppc/ppc_context.h>
-#include <alloy/frontend/ppc/ppc_disasm.h>
-#include <alloy/frontend/ppc/ppc_emit.h>
-#include <alloy/frontend/ppc/ppc_translator.h>
+#include "alloy/frontend/ppc/ppc_context.h"
+#include "alloy/frontend/ppc/ppc_disasm.h"
+#include "alloy/frontend/ppc/ppc_emit.h"
+#include "alloy/frontend/ppc/ppc_translator.h"
+#include "alloy/runtime/runtime.h"
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
-using namespace alloy::runtime;
+namespace alloy {
+namespace frontend {
+namespace ppc {
 
+using alloy::runtime::Function;
+using alloy::runtime::FunctionInfo;
+using alloy::runtime::Runtime;
 
-namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    RegisterEmitCategoryAltivec();
-    RegisterEmitCategoryALU();
-    RegisterEmitCategoryControl();
-    RegisterEmitCategoryFPU();
-    RegisterEmitCategoryMemory();
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  RegisterEmitCategoryAltivec();
+  RegisterEmitCategoryALU();
+  RegisterEmitCategoryControl();
+  RegisterEmitCategoryFPU();
+  RegisterEmitCategoryMemory();
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
 
-PPCFrontend::PPCFrontend(Runtime* runtime) :
-    Frontend(runtime) {
+PPCFrontend::PPCFrontend(Runtime* runtime) : Frontend(runtime) {
   InitializeIfNeeded();
 
-  ContextInfo* info = new ContextInfo(
-      sizeof(PPCContext),
-      offsetof(PPCContext, thread_state));
+  std::unique_ptr<ContextInfo> context_info(
+      new ContextInfo(sizeof(PPCContext), offsetof(PPCContext, thread_state),
+                      offsetof(PPCContext, thread_id)));
   // Add fields/etc.
-  context_info_ = info;
+  context_info_ = std::move(context_info);
 }
 
 PPCFrontend::~PPCFrontend() {
   // Force cleanup now before we deinit.
   translator_pool_.Reset();
+}
 
-  alloy::tracing::WriteEvent(EventType::Deinit({
-  }));
+void CheckGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
+  ppc_state->scratch = 0x8000;
+}
+void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
+  std::mutex* global_lock = reinterpret_cast<std::mutex*>(arg0);
+  volatile bool* global_lock_taken = reinterpret_cast<bool*>(arg1);
+  uint64_t value = ppc_state->scratch;
+  if (value == 0x8000) {
+    global_lock->unlock();
+    *global_lock_taken = false;
+  } else if (value == ppc_state->r[13]) {
+    global_lock->lock();
+    *global_lock_taken = true;
+  }
 }
 
 int PPCFrontend::Initialize() {
@@ -71,14 +81,19 @@ int PPCFrontend::Initialize() {
     return result;
   }
 
-  alloy::tracing::WriteEvent(EventType::Init({
-  }));
+  void* arg0 = reinterpret_cast<void*>(&builtins_.global_lock);
+  void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_taken);
+  builtins_.check_global_lock = runtime_->DefineBuiltin(
+      "CheckGlobalLock", (FunctionInfo::ExternHandler)CheckGlobalLock, arg0,
+      arg1);
+  builtins_.handle_global_lock = runtime_->DefineBuiltin(
+      "HandleGlobalLock", (FunctionInfo::ExternHandler)HandleGlobalLock, arg0,
+      arg1);
 
   return result;
 }
 
-int PPCFrontend::DeclareFunction(
-    FunctionInfo* symbol_info) {
+int PPCFrontend::DeclareFunction(FunctionInfo* symbol_info) {
   // Could scan or something here.
   // Could also check to see if it's a well-known function type and classify
   // for later.
@@ -87,12 +102,17 @@ int PPCFrontend::DeclareFunction(
   return 0;
 }
 
-int PPCFrontend::DefineFunction(
-    FunctionInfo* symbol_info, uint32_t debug_info_flags,
-    Function** out_function) {
+int PPCFrontend::DefineFunction(FunctionInfo* symbol_info,
+                                uint32_t debug_info_flags,
+                                uint32_t trace_flags,
+                                Function** out_function) {
   PPCTranslator* translator = translator_pool_.Allocate(this);
-  int result = translator->Translate(
-      symbol_info, debug_info_flags, out_function);
+  int result =
+      translator->Translate(symbol_info, debug_info_flags, trace_flags, out_function);
   translator_pool_.Release(translator);
   return result;
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

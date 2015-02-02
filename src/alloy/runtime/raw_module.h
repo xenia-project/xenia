@@ -10,34 +10,32 @@
 #ifndef ALLOY_RUNTIME_RAW_MODULE_H_
 #define ALLOY_RUNTIME_RAW_MODULE_H_
 
-#include <alloy/runtime/module.h>
+#include <string>
 
+#include "alloy/runtime/module.h"
 
 namespace alloy {
 namespace runtime {
 
-
 class RawModule : public Module {
-public:
+ public:
   RawModule(Runtime* runtime);
-  virtual ~RawModule();
+  ~RawModule() override;
 
-  int LoadFile(uint64_t base_address, const char* path);
+  int LoadFile(uint64_t base_address, const std::wstring& path);
 
-  virtual const char* name() const { return name_; }
+  const std::string& name() const override { return name_; }
 
-  virtual bool ContainsAddress(uint64_t address);
+  bool ContainsAddress(uint64_t address) override;
 
-private:
-  char*     name_;
-  uint64_t  base_address_;
-  uint64_t  low_address_;
-  uint64_t  high_address_;
+ private:
+  std::string name_;
+  uint64_t base_address_;
+  uint64_t low_address_;
+  uint64_t high_address_;
 };
-
 
 }  // namespace runtime
 }  // namespace alloy
-
 
 #endif  // ALLOY_RUNTIME_RAW_MODULE_H_

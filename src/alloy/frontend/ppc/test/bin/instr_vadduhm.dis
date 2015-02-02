@@ -1,0 +1,9 @@
+
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_vadduhm.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_vadduhm_1>:
+  100000:	10 63 20 40 	vadduhm v3,v3,v4
+  100004:	4e 80 00 20 	blr

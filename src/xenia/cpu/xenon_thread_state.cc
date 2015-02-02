@@ -7,11 +7,10 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/xenon_thread_state.h>
+#include "xenia/cpu/xenon_thread_state.h"
 
-#include <alloy/runtime/tracing.h>
-
-#include <xenia/cpu/xenon_runtime.h>
+#include "xdb/protocol.h"
+#include "xenia/cpu/xenon_runtime.h"
 
 using namespace alloy;
 using namespace alloy::frontend;
@@ -19,30 +18,29 @@ using namespace alloy::frontend::ppc;
 using namespace alloy::runtime;
 using namespace xe::cpu;
 
-
-XenonThreadState::XenonThreadState(
-    XenonRuntime* runtime, uint32_t thread_id,
-    size_t stack_size, uint64_t thread_state_address) :
-    stack_size_(stack_size), thread_state_address_(thread_state_address),
-    ThreadState(runtime, thread_id) {
-  stack_address_ = memory_->HeapAlloc(
-      0, stack_size, MEMORY_FLAG_ZERO);
-
-  debug_break_ = CreateEvent(NULL, FALSE, FALSE, NULL);
+XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
+                                   size_t stack_size,
+                                   uint64_t thread_state_address)
+    : ThreadState(runtime, thread_id),
+      stack_size_(stack_size),
+      thread_state_address_(thread_state_address) {
+  stack_address_ = xenon_memory()->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
+  assert_not_zero(stack_address_);
 
   // Allocate with 64b alignment.
-  context_ = (PPCContext*)xe_malloc_aligned(sizeof(PPCContext));
-  XEASSERT(((uint64_t)context_ & 0xF) == 0);
-  xe_zero_struct(context_, sizeof(PPCContext));
+  context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
+  assert_true(((uint64_t)context_ & 0xF) == 0);
 
   // Stash pointers to common structures that callbacks may need.
   context_->reserve_address = memory_->reserve_address();
-  context_->membase         = memory_->membase();
-  context_->runtime         = runtime;
-  context_->thread_state    = this;
+  context_->reserve_value = memory_->reserve_value();
+  context_->membase = memory_->membase();
+  context_->runtime = runtime;
+  context_->thread_state = this;
+  context_->thread_id = thread_id_;
 
   // Set initial registers.
-  context_->r[1]  = stack_address_ + stack_size;
+  context_->r[1] = stack_address_ + stack_size;
   context_->r[13] = thread_state_address_;
 
   // Pad out stack a bit, as some games seem to overwrite the caller by about
@@ -51,49 +49,37 @@ XenonThreadState::XenonThreadState(
 
   raw_context_ = context_;
 
-  alloy::tracing::WriteEvent(EventType::ThreadInit({
-  }));
-
   runtime_->debugger()->OnThreadCreated(this);
 }
 
 XenonThreadState::~XenonThreadState() {
   runtime_->debugger()->OnThreadDestroyed(this);
 
-  CloseHandle(debug_break_);
-
-  alloy::tracing::WriteEvent(EventType::ThreadDeinit({
-  }));
-
-  xe_free_aligned(context_);
-  memory_->HeapFree(stack_address_, stack_size_);
+  free(context_);
+  xenon_memory()->HeapFree(stack_address_, stack_size_);
 }
 
-volatile int* XenonThreadState::suspend_flag_address() const {
-  return &context_->suspend_flag;
-}
-
-int XenonThreadState::Suspend(uint32_t timeout_ms) {
-  // Set suspend flag.
-  // One of the checks should call in to OnSuspend() at some point.
-  xe_atomic_inc_32(&context_->suspend_flag);
-  return 0;
-}
-
-int XenonThreadState::Resume(bool force) {
-  if (context_->suspend_flag) {
-    if (force) {
-      context_->suspend_flag = 0;
-      SetEvent(debug_break_);
-    } else {
-      if (!xe_atomic_dec_32(&context_->suspend_flag)) {
-        SetEvent(debug_break_);
-      }
-    }
-  }
-  return 0;
-}
-
-void XenonThreadState::EnterSuspend() {
-  WaitForSingleObject(debug_break_, INFINITE);
+void XenonThreadState::WriteRegisters(xdb::protocol::Registers* registers) {
+  registers->lr = context_->lr;
+  registers->ctr = context_->ctr;
+  registers->xer = 0xFEFEFEFE;
+  registers->cr[0] = context_->cr0.value;
+  registers->cr[1] = context_->cr1.value;
+  registers->cr[2] = context_->cr2.value;
+  registers->cr[3] = context_->cr3.value;
+  registers->cr[4] = context_->cr4.value;
+  registers->cr[5] = context_->cr5.value;
+  registers->cr[6] = context_->cr6.value;
+  registers->cr[7] = context_->cr7.value;
+  registers->fpscr = context_->fpscr.value;
+  registers->vscr = context_->vscr_sat;
+  static_assert(sizeof(registers->gpr) == sizeof(context_->r),
+                "structs must match");
+  static_assert(sizeof(registers->fpr) == sizeof(context_->f),
+                "structs must match");
+  static_assert(sizeof(registers->vr) == sizeof(context_->v),
+                "structs must match");
+  memcpy(registers->gpr, context_->r, sizeof(context_->r));
+  memcpy(registers->fpr, context_->f, sizeof(context_->f));
+  memcpy(registers->vr, context_->v, sizeof(context_->v));
 }

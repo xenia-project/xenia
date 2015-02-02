@@ -10,11 +10,10 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
 #define XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include <mutex>
 
-#include <xenia/xbox.h>
-
+#include "xenia/common.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
@@ -22,9 +21,8 @@ namespace kernel {
 class KernelState;
 class NativeList;
 
-
 class Dispatcher {
-public:
+ public:
   Dispatcher(KernelState* kernel_state);
   virtual ~Dispatcher();
 
@@ -35,18 +33,15 @@ public:
 
   NativeList* dpc_list() const { return dpc_list_; }
 
-private:
+ private:
+ private:
+  KernelState* kernel_state_;
 
-private:
-  KernelState*        kernel_state_;
-
-  xe_mutex_t*         lock_;
-  NativeList*         dpc_list_;
+  std::mutex lock_;
+  NativeList* dpc_list_;
 };
-
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_

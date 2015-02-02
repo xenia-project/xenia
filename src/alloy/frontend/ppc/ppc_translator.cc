@@ -7,86 +7,94 @@
  ******************************************************************************
  */
 
-#include <alloy/frontend/ppc/ppc_translator.h>
+#include "alloy/frontend/ppc/ppc_translator.h"
 
-#include <alloy/alloy-private.h>
-#include <alloy/compiler/compiler_passes.h>
-#include <alloy/frontend/tracing.h>
-#include <alloy/frontend/ppc/ppc_disasm.h>
-#include <alloy/frontend/ppc/ppc_frontend.h>
-#include <alloy/frontend/ppc/ppc_hir_builder.h>
-#include <alloy/frontend/ppc/ppc_instr.h>
-#include <alloy/frontend/ppc/ppc_scanner.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/alloy-private.h"
+#include "alloy/compiler/compiler_passes.h"
+#include "alloy/frontend/ppc/ppc_disasm.h"
+#include "alloy/frontend/ppc/ppc_frontend.h"
+#include "alloy/frontend/ppc/ppc_hir_builder.h"
+#include "alloy/frontend/ppc/ppc_instr.h"
+#include "alloy/frontend/ppc/ppc_scanner.h"
+#include "alloy/reset_scope.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
-using namespace alloy::hir;
+namespace alloy {
+namespace frontend {
+namespace ppc {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::runtime;
 
+using alloy::backend::Backend;
+using alloy::compiler::Compiler;
+using alloy::runtime::Function;
+using alloy::runtime::FunctionInfo;
+namespace passes = alloy::compiler::passes;
 
-PPCTranslator::PPCTranslator(PPCFrontend* frontend) :
-    frontend_(frontend) {
+PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   Backend* backend = frontend->runtime()->backend();
 
-  scanner_ = new PPCScanner(frontend);
-  builder_ = new PPCHIRBuilder(frontend);
-  compiler_ = new Compiler(frontend->runtime());
-  assembler_ = backend->CreateAssembler();
+  scanner_.reset(new PPCScanner(frontend));
+  builder_.reset(new PPCHIRBuilder(frontend));
+  compiler_.reset(new Compiler(frontend->runtime()));
+  assembler_ = std::move(backend->CreateAssembler());
   assembler_->Initialize();
 
   bool validate = FLAGS_validate_hir;
 
-  // Build the CFG first.
-  compiler_->AddPass(new passes::ControlFlowAnalysisPass());
+  // Merge blocks early. This will let us use more context in other passes.
+  // The CFG is required for simplification and dirtied by it.
+  compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
+  compiler_->AddPass(std::make_unique<passes::ControlFlowSimplificationPass>());
+  compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
 
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::ContextPromotionPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::SimplificationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::ConstantPropagationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::SimplificationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
-  //compiler_->AddPass(new passes::DeadStoreEliminationPass());
-  //if (validate) compiler_->AddPass(new passes::ValidationPass());
-  compiler_->AddPass(new passes::DeadCodeEliminationPass());
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::ContextPromotionPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::ConstantPropagationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  // compiler_->AddPass(std::make_unique<passes::DeadStoreEliminationPass>());
+  // if (validate)
+  // compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::DeadCodeEliminationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
 
   //// Removes all unneeded variables. Try not to add new ones after this.
-  //compiler_->AddPass(new passes::ValueReductionPass());
-  //if (validate) compiler_->AddPass(new passes::ValidationPass());
+  // compiler_->AddPass(new passes::ValueReductionPass());
+  // if (validate) compiler_->AddPass(new passes::ValidationPass());
 
   // Register allocation for the target backend.
   // Will modify the HIR to add loads/stores.
   // This should be the last pass before finalization, as after this all
   // registers are assigned and ready to be emitted.
-  compiler_->AddPass(new passes::RegisterAllocationPass(
+  compiler_->AddPass(std::make_unique<passes::RegisterAllocationPass>(
       backend->machine_info()));
-  if (validate) compiler_->AddPass(new passes::ValidationPass());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
 
   // Must come last. The HIR is not really HIR after this.
-  compiler_->AddPass(new passes::FinalizationPass());
+  compiler_->AddPass(std::make_unique<passes::FinalizationPass>());
 }
 
-PPCTranslator::~PPCTranslator() {
-  delete assembler_;
-  delete compiler_;
-  delete builder_;
-  delete scanner_;
-}
+PPCTranslator::~PPCTranslator() = default;
 
-int PPCTranslator::Translate(
-    FunctionInfo* symbol_info,
-    uint32_t debug_info_flags,
-    Function** out_function) {
+int PPCTranslator::Translate(FunctionInfo* symbol_info,
+                             uint32_t debug_info_flags, uint32_t trace_flags,
+                             Function** out_function) {
   SCOPE_profile_cpu_f("alloy");
+
+  // Reset() all caching when we leave.
+  make_reset_scope(builder_);
+  make_reset_scope(compiler_);
+  make_reset_scope(assembler_);
+  make_reset_scope(&string_buffer_);
 
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
@@ -104,9 +112,9 @@ int PPCTranslator::Translate(
   if (FLAGS_always_disasm) {
     debug_info_flags |= DEBUG_INFO_ALL_DISASM;
   }
-  DebugInfo* debug_info = NULL;
+  std::unique_ptr<DebugInfo> debug_info;
   if (debug_info_flags) {
-    debug_info = new DebugInfo();
+    debug_info.reset(new DebugInfo());
   }
 
   // Stash source.
@@ -116,9 +124,24 @@ int PPCTranslator::Translate(
     string_buffer_.Reset();
   }
 
+  if (false) {
+    alloy::frontend::ppc::DumpAllInstrCounts();
+  }
+
   // Emit function.
-  int result = builder_->Emit(symbol_info, debug_info != NULL);
-  XEEXPECTZERO(result);
+  uint32_t emit_flags = 0;
+  if (debug_info) {
+    emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
+  }
+  if (trace_flags & TRACE_SOURCE_VALUES) {
+    emit_flags |= PPCHIRBuilder::EMIT_TRACE_SOURCE_VALUES;
+  } else if (trace_flags & TRACE_SOURCE) {
+    emit_flags |= PPCHIRBuilder::EMIT_TRACE_SOURCE;
+  }
+  int result = builder_->Emit(symbol_info, emit_flags);
+  if (result) {
+    return result;
+  }
 
   // Stash raw HIR.
   if (debug_info_flags & DEBUG_INFO_RAW_HIR_DISASM) {
@@ -128,8 +151,10 @@ int PPCTranslator::Translate(
   }
 
   // Compile/optimize/etc.
-  result = compiler_->Compile(builder_);
-  XEEXPECTZERO(result);
+  result = compiler_->Compile(builder_.get());
+  if (result) {
+    return result;
+  }
 
   // Stash optimized HIR.
   if (debug_info_flags & DEBUG_INFO_HIR_DISASM) {
@@ -139,34 +164,25 @@ int PPCTranslator::Translate(
   }
 
   // Assemble to backend machine code.
-  result = assembler_->Assemble(
-      symbol_info, builder_,
-      debug_info_flags, debug_info,
-      out_function);
-  XEEXPECTZERO(result);
-
-  result = 0;
-
-XECLEANUP:
+  result =
+      assembler_->Assemble(symbol_info, builder_.get(), debug_info_flags,
+                           std::move(debug_info), trace_flags, out_function);
   if (result) {
-    delete debug_info;
+    return result;
   }
-  builder_->Reset();
-  compiler_->Reset();
-  assembler_->Reset();
-  string_buffer_.Reset();
-  return result;
+
+  return 0;
 };
 
-void PPCTranslator::DumpSource(
-    runtime::FunctionInfo* symbol_info, StringBuffer* string_buffer) {
+void PPCTranslator::DumpSource(runtime::FunctionInfo* symbol_info,
+                               StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
   string_buffer->Append("%s fn %.8X-%.8X %s\n",
-      symbol_info->module()->name(),
-      symbol_info->address(), symbol_info->end_address(),
-      symbol_info->name());
+                        symbol_info->module()->name().c_str(),
+                        symbol_info->address(), symbol_info->end_address(),
+                        symbol_info->name().c_str());
 
   auto blocks = scanner_->FindBlocks(symbol_info);
 
@@ -177,15 +193,13 @@ void PPCTranslator::DumpSource(
   for (uint64_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
-    i.code = XEGETUINT32BE(p + address);
+    i.code = poly::load_and_swap<uint32_t>(p + address);
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
 
     // Check labels.
-    if (block_it != blocks.end() &&
-        block_it->start_address == address) {
-      string_buffer->Append(
-          "%.8X          loc_%.8X:\n", address, address);
+    if (block_it != blocks.end() && block_it->start_address == address) {
+      string_buffer->Append("%.8X          loc_%.8X:\n", address, address);
       ++block_it;
     }
 
@@ -194,3 +208,7 @@ void PPCTranslator::DumpSource(
     string_buffer->Append("\n");
   }
 }
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace alloy

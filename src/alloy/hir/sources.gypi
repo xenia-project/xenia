@@ -11,7 +11,6 @@
     'opcodes.cc',
     'opcodes.h',
     'opcodes.inl',
-    'tracing.h',
     'value.cc',
     'value.h',
   ],

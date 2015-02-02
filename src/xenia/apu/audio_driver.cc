@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/audio_driver.h>
+#include "xenia/apu/audio_driver.h"
 
-#include <xenia/emulator.h>
-#include <xenia/cpu/processor.h>
-#include <xenia/cpu/xenon_thread_state.h>
+#include "xenia/emulator.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/cpu/xenon_thread_state.h"
 
 
 using namespace xe;

@@ -9,24 +9,18 @@
  * - abgx360
  */
 
-#include <xenia/kernel/fs/gdfx.h>
+#include "xenia/kernel/fs/gdfx.h"
 
+#include "poly/math.h"
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+namespace xe {
+namespace kernel {
+namespace fs {
 
+const size_t kXESectorSize = 2048;
 
-namespace {
-
-#define kXESectorSize   2048
-
-}
-
-
-GDFXEntry::GDFXEntry() :
-    attributes(X_FILE_ATTRIBUTE_NONE), offset(0), size(0) {
-}
+GDFXEntry::GDFXEntry()
+    : attributes(X_FILE_ATTRIBUTE_NONE), offset(0), size(0) {}
 
 GDFXEntry::~GDFXEntry() {
   for (std::vector<GDFXEntry*>::iterator it = children.begin();
@@ -40,7 +34,7 @@ GDFXEntry* GDFXEntry::GetChild(const char* name) {
   for (std::vector<GDFXEntry*>::iterator it = children.begin();
        it != children.end(); ++it) {
     GDFXEntry* entry = *it;
-    if (xestrcasecmpa(entry->name.c_str(), name) == 0) {
+    if (strcasecmp(entry->name.c_str(), name) == 0) {
       return entry;
     }
   }
@@ -56,41 +50,29 @@ void GDFXEntry::Dump(int indent) {
   }
 }
 
+GDFX::GDFX(poly::MappedMemory* mmap) : mmap_(mmap) { root_entry_ = nullptr; }
 
-GDFX::GDFX(xe_mmap_ref mmap) {
-  mmap_ = xe_mmap_retain(mmap);
+GDFX::~GDFX() { delete root_entry_; }
 
-  root_entry_ = NULL;
-}
-
-GDFX::~GDFX() {
-  delete root_entry_;
-
-  xe_mmap_release(mmap_);
-}
-
-GDFXEntry* GDFX::root_entry() {
-  return root_entry_;
-}
+GDFXEntry* GDFX::root_entry() { return root_entry_; }
 
 GDFX::Error GDFX::Load() {
-  Error result = kErrorOutOfMemory;
+  ParseState state = {0};
 
-  ParseState state;
-  xe_zero_struct(&state, sizeof(state));
+  state.ptr = mmap_->data();
+  state.size = mmap_->size();
 
-  state.ptr   = (uint8_t*)xe_mmap_get_addr(mmap_);
-  state.size  = xe_mmap_get_length(mmap_);
-
-  result = Verify(state);
-  XEEXPECTZERO(result);
+  auto result = Verify(state);
+  if (result != kSuccess) {
+    return result;
+  }
 
   result = ReadAllEntries(state, state.ptr + state.root_offset);
-  XEEXPECTZERO(result);
+  if (result != kSuccess) {
+    return result;
+  }
 
-  result = kSuccess;
-XECLEANUP:
-  return result;
+  return kSuccess;
 }
 
 void GDFX::Dump() {
@@ -102,10 +84,10 @@ void GDFX::Dump() {
 GDFX::Error GDFX::Verify(ParseState& state) {
   // Find sector 32 of the game partition - try at a few points.
   const static size_t likely_offsets[] = {
-    0x00000000, 0x0000FB20, 0x00020600, 0x0FD90000,
+      0x00000000, 0x0000FB20, 0x00020600, 0x0FD90000,
   };
   bool magic_found = false;
-  for (size_t n = 0; n < XECOUNT(likely_offsets); n++) {
+  for (size_t n = 0; n < poly::countof(likely_offsets); n++) {
     state.game_offset = likely_offsets[n];
     if (VerifyMagic(state, state.game_offset + (32 * kXESectorSize))) {
       magic_found = true;
@@ -122,11 +104,10 @@ GDFX::Error GDFX::Verify(ParseState& state) {
     return kErrorReadError;
   }
   uint8_t* fs_ptr = state.ptr + state.game_offset + (32 * kXESectorSize);
-  state.root_sector = XEGETUINT32LE(fs_ptr + 20);
-  state.root_size   = XEGETUINT32LE(fs_ptr + 24);
+  state.root_sector = poly::load<uint32_t>(fs_ptr + 20);
+  state.root_size = poly::load<uint32_t>(fs_ptr + 24);
   state.root_offset = state.game_offset + (state.root_sector * kXESectorSize);
-  if (state.root_size < 13 ||
-      state.root_size > 32 * 1024 * 1024) {
+  if (state.root_size < 13 || state.root_size > 32 * 1024 * 1024) {
     return kErrorDamagedFile;
   }
 
@@ -142,8 +123,8 @@ GDFX::Error GDFX::ReadAllEntries(ParseState& state,
                                  const uint8_t* root_buffer) {
   root_entry_ = new GDFXEntry();
   root_entry_->offset = 0;
-  root_entry_->size   = 0;
-  root_entry_->name   = "";
+  root_entry_->size = 0;
+  root_entry_->name = "";
   root_entry_->attributes = X_FILE_ATTRIBUTE_DIRECTORY;
 
   if (!ReadEntry(state, root_buffer, 0, root_entry_)) {
@@ -157,13 +138,13 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
                      uint16_t entry_ordinal, GDFXEntry* parent) {
   const uint8_t* p = buffer + (entry_ordinal * 4);
 
-  uint16_t  node_l      = XEGETUINT16LE(p + 0);
-  uint16_t  node_r      = XEGETUINT16LE(p + 2);
-  size_t    sector      = XEGETUINT32LE(p + 4);
-  size_t    length      = XEGETUINT32LE(p + 8);
-  uint8_t   attributes  = XEGETUINT8LE(p + 12);
-  uint8_t   name_length = XEGETUINT8LE(p + 13);
-  char*     name        = (char*)(p + 14);
+  uint16_t node_l = poly::load<uint16_t>(p + 0);
+  uint16_t node_r = poly::load<uint16_t>(p + 2);
+  size_t sector = poly::load<uint32_t>(p + 4);
+  size_t length = poly::load<uint32_t>(p + 8);
+  uint8_t attributes = poly::load<uint8_t>(p + 12);
+  uint8_t name_length = poly::load<uint8_t>(p + 13);
+  char* name = (char*)(p + 14);
 
   if (node_l && !ReadEntry(state, buffer, node_l, parent)) {
     return false;
@@ -180,7 +161,7 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
   if (attributes & X_FILE_ATTRIBUTE_DIRECTORY) {
     // Folder.
     entry->offset = 0;
-    entry->size   = 0;
+    entry->size = 0;
     if (length) {
       // Not a leaf - read in children.
       if (state.size < state.game_offset + (sector * kXESectorSize)) {
@@ -197,7 +178,7 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
   } else {
     // File.
     entry->offset = state.game_offset + (sector * kXESectorSize);
-    entry->size   = length;
+    entry->size = length;
   }
 
   // Read next file in the list.
@@ -207,3 +188,7 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
 
   return true;
 }
+
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

@@ -7,155 +7,144 @@
  ******************************************************************************
  */
 
-#include <xenia/emulator.h>
+#include "xenia/emulator.h"
 
-#include <xenia/apu/apu.h>
-#include <xenia/cpu/cpu.h>
-#include <xenia/cpu/xenon_memory.h>
-#include <xenia/debug/debug_server.h>
-#include <xenia/gpu/gpu.h>
-#include <xenia/hid/hid.h>
-#include <xenia/kernel/kernel.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/modules.h>
-#include <xenia/kernel/fs/filesystem.h>
-#include <xenia/ui/window.h>
+#include "poly/poly.h"
+#include "xdb/protocol.h"
+#include "xenia/apu/apu.h"
+#include "xenia/cpu/cpu.h"
+#include "xenia/gpu/gpu.h"
+#include "xenia/hid/hid.h"
+#include "xenia/kernel/kernel.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/modules.h"
+#include "xenia/kernel/fs/filesystem.h"
+#include "xenia/memory.h"
+#include "xenia/ui/main_window.h"
 
+namespace xe {
 
-using namespace xe;
 using namespace xe::apu;
 using namespace xe::cpu;
-using namespace xe::debug;
 using namespace xe::gpu;
 using namespace xe::hid;
 using namespace xe::kernel;
 using namespace xe::kernel::fs;
 using namespace xe::ui;
 
-
-Emulator::Emulator(const xechar_t* command_line) :
-    main_window_(0),
-    memory_(0),
-    debug_server_(0),
-    processor_(0),
-    audio_system_(0), graphics_system_(0), input_system_(0),
-    export_resolver_(0), file_system_(0),
-    kernel_state_(0), xam_(0), xboxkrnl_(0) {
-  XEIGNORE(xestrcpy(command_line_, XECOUNT(command_line_), command_line));
-}
+Emulator::Emulator(const std::wstring& command_line)
+    : command_line_(command_line) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
 
-  if (main_window_) {
-    main_window_->Close();
+  auto ev = xdb::protocol::ProcessExitEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::PROCESS_EXIT;
   }
 
-  // Disconnect all debug clients first.
-  if (debug_server_) {
-    debug_server_->Shutdown();
-  }
+  debug_agent_.reset();
 
-  delete xam_;
-  delete xboxkrnl_;
-  delete kernel_state_;
+  xam_.reset();
+  xboxkrnl_.reset();
+  kernel_state_.reset();
 
-  delete file_system_;
+  file_system_.reset();
 
-  delete input_system_;
+  input_system_.reset();
 
   // Give the systems time to shutdown before we delete them.
   graphics_system_->Shutdown();
   audio_system_->Shutdown();
-  delete graphics_system_;
-  delete audio_system_;
+  graphics_system_.reset();
+  audio_system_.reset();
 
-  delete processor_;
+  processor_.reset();
 
-  delete debug_server_;
+  export_resolver_.reset();
 
-  delete export_resolver_;
+  // Kill the window last, as until the graphics system/etc is dead it's needed.
+  main_window_.reset();
 }
 
 X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
+  // Create the main window. Other parts will hook into this.
+  main_window_ = std::make_unique<ui::MainWindow>(this);
+  main_window_->Start();
+
+  debug_agent_.reset(new DebugAgent(this));
+  result = debug_agent_->Initialize();
+  if (result) {
+    return result;
+  }
+
   // Create memory system first, as it is required for other systems.
-  memory_ = new XenonMemory();
-  XEEXPECTNOTNULL(memory_);
+  memory_ = std::make_unique<Memory>();
   result = memory_->Initialize();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
+  memory_->set_trace_base(debug_agent_->trace_base());
 
   // Shared export resolver used to attach and query for HLE exports.
-  export_resolver_ = new ExportResolver();
-  XEEXPECTNOTNULL(export_resolver_);
-
-  // Create the debugger.
-  debug_server_ = new DebugServer(this);
-  XEEXPECTNOTNULL(debug_server_);
+  export_resolver_ = std::make_unique<ExportResolver>();
 
   // Initialize the CPU.
-  processor_ = new Processor(this);
-  XEEXPECTNOTNULL(processor_);
+  processor_ =
+      std::make_unique<Processor>(memory_.get(), export_resolver_.get());
 
   // Initialize the APU.
-  audio_system_ = xe::apu::Create(this);
-  XEEXPECTNOTNULL(audio_system_);
+  audio_system_ = std::move(xe::apu::Create(this));
+  if (!audio_system_) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // Initialize the GPU.
-  graphics_system_ = xe::gpu::Create(this);
-  XEEXPECTNOTNULL(graphics_system_);
+  graphics_system_ = std::move(xe::gpu::Create(this));
+  if (!graphics_system_) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // Initialize the HID.
-  input_system_ = xe::hid::Create(this);
-  XEEXPECTNOTNULL(input_system_);
+  input_system_ = std::move(xe::hid::Create(this));
+  if (!input_system_) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // Setup the core components.
   result = processor_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   result = audio_system_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   result = graphics_system_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
   result = input_system_->Setup();
-  XEEXPECTZERO(result);
+  if (result) {
+    return result;
+  }
 
   // Bring up the virtual filesystem used by the kernel.
-  file_system_ = new FileSystem();
-  XEEXPECTNOTNULL(file_system_);
+  file_system_ = std::make_unique<FileSystem>();
 
   // Shared kernel state.
-  kernel_state_ = new KernelState(this);
-  XEEXPECTNOTNULL(kernel_state_);
+  kernel_state_ = std::make_unique<KernelState>(this);
 
   // HLE kernel modules.
-  xboxkrnl_ = new XboxkrnlModule(this, kernel_state_);
-  XEEXPECTNOTNULL(xboxkrnl_);
-  xam_ = new XamModule(this, kernel_state_);
-  XEEXPECTNOTNULL(xam_);
+  xboxkrnl_ = std::make_unique<XboxkrnlModule>(this, kernel_state_.get());
+  xam_ = std::make_unique<XamModule>(this, kernel_state_.get());
 
-  // Prepare the debugger.
-  // This may pause waiting for connections.
-  result = debug_server_->Startup();
-  XEEXPECTZERO(result);
-
-  return result;
-
-XECLEANUP:
   return result;
 }
 
-void Emulator::set_main_window(Window* window) {
-  XEASSERTNULL(main_window_);
-  main_window_ = window;
-
-  window->closed.AddListener([](UIEvent& e) {
-    // TODO(benvanik): call module API to kill? this is a bad shutdown.
-    exit(1);
-  });
-}
-
-X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
+X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.
   // e.g., /my/files/foo.xex will get a local fs at:
@@ -163,96 +152,62 @@ X_STATUS Emulator::LaunchXexFile(const xechar_t* path) {
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
-  int result_code = 0;
+  int result_code =
+      file_system_->InitializeFromPath(FileSystemType::XEX_FILE, path);
+  if (result_code) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
   // Get just the filename (foo.xex).
-  const xechar_t* file_name = xestrrchr(path, XE_PATH_SEPARATOR);
-  if (file_name) {
-    // Skip slash.
-    file_name++;
-  } else {
+  std::wstring file_name;
+  auto last_slash = path.find_last_of(poly::path_separator);
+  if (last_slash == std::string::npos) {
     // No slash found, whole thing is a file.
     file_name = path;
+  } else {
+    // Skip slash.
+    file_name = path.substr(last_slash + 1);
   }
-
-  // Get the parent path of the file.
-  xechar_t parent_path[XE_MAX_PATH];
-  XEIGNORE(xestrcpy(parent_path, XECOUNT(parent_path), path));
-  parent_path[file_name - path] = 0;
-
-  // Register the local directory in the virtual filesystem.
-  result_code = file_system_->RegisterHostPathDevice(
-      "\\Device\\Harddisk1\\Partition0", parent_path);
-  if (result_code) {
-    XELOGE("Unable to mount local directory");
-    return result_code;
-  }
-
-  // Create symlinks to the device.
-  file_system_->CreateSymbolicLink(
-      "game:", "\\Device\\Harddisk1\\Partition0");
-  file_system_->CreateSymbolicLink(
-      "d:", "\\Device\\Harddisk1\\Partition0");
-
-  // Get the file name of the module to load from the filesystem.
-  char fs_path[XE_MAX_PATH];
-  XEIGNORE(xestrcpya(fs_path, XECOUNT(fs_path), "game:\\"));
-  char* fs_path_ptr = fs_path + xestrlena(fs_path);
-  *fs_path_ptr = 0;
-#if XE_WCHAR
-  XEIGNORE(xestrnarrow(fs_path_ptr, XECOUNT(fs_path), file_name));
-#else
-  XEIGNORE(xestrcpya(fs_path_ptr, XECOUNT(fs_path), file_name));
-#endif
 
   // Launch the game.
-  return xboxkrnl_->LaunchModule(fs_path);
+  std::string fs_path = "game:\\" + poly::to_string(file_name);
+  return CompleteLaunch(path, fs_path);
 }
 
-X_STATUS Emulator::LaunchDiscImage(const xechar_t* path) {
-  int result_code = 0;
-
-  // Register the disc image in the virtual filesystem.
-  result_code = file_system_->RegisterDiscImageDevice(
-      "\\Device\\Cdrom0", path);
+X_STATUS Emulator::LaunchDiscImage(const std::wstring& path) {
+  int result_code =
+      file_system_->InitializeFromPath(FileSystemType::DISC_IMAGE, path);
   if (result_code) {
-    XELOGE("Unable to mount disc image");
-    return result_code;
+    return X_STATUS_INVALID_PARAMETER;
   }
 
-  // Create symlinks to the device.
-  file_system_->CreateSymbolicLink(
-      "game:",
-      "\\Device\\Cdrom0");
-  file_system_->CreateSymbolicLink(
-      "d:",
-      "\\Device\\Cdrom0");
-
   // Launch the game.
-  return xboxkrnl_->LaunchModule("game:\\default.xex");
+  return CompleteLaunch(path, "game:\\default.xex");
 }
 
-X_STATUS Emulator::LaunchSTFSTitle(const xechar_t* path) {
-  int result_code = 0;
-
-  // TODO(benvanik): figure out paths.
-
-  // Register the disc image in the virtual filesystem.
-  result_code = file_system_->RegisterSTFSContainerDevice(
-      "\\Device\\Cdrom0", path);
+X_STATUS Emulator::LaunchSTFSTitle(const std::wstring& path) {
+  int result_code =
+      file_system_->InitializeFromPath(FileSystemType::STFS_TITLE, path);
   if (result_code) {
-    XELOGE("Unable to mount STFS container");
-    return result_code;
+    return X_STATUS_INVALID_PARAMETER;
   }
 
-  // Create symlinks to the device.
-  file_system_->CreateSymbolicLink(
-      "game:",
-      "\\Device\\Cdrom0");
-  file_system_->CreateSymbolicLink(
-      "d:",
-      "\\Device\\Cdrom0");
-
   // Launch the game.
-  return xboxkrnl_->LaunchModule("game:\\default.xex");
+  return CompleteLaunch(path, "game:\\default.xex");
 }
+
+X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
+                                  const std::string& module_path) {
+  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
+  if (ev) {
+    ev->type = xdb::protocol::EventType::PROCESS_START;
+    ev->membase = reinterpret_cast<uint64_t>(memory()->membase());
+    auto path_length = poly::to_string(path)
+                           .copy(ev->launch_path, sizeof(ev->launch_path) - 1);
+    ev->launch_path[path_length] = 0;
+  }
+
+  return xboxkrnl_->LaunchModule(module_path.c_str());
+}
+
+}  // namespace xe

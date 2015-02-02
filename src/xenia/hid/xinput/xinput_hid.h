@@ -10,24 +10,20 @@
 #ifndef XENIA_HID_XINPUT_XINPUT_HID_H_
 #define XENIA_HID_XINPUT_XINPUT_HID_H_
 
-#include <xenia/core.h>
+#include <memory>
 
-
-XEDECLARECLASS2(xe, hid, InputDriver);
-XEDECLARECLASS2(xe, hid, InputSystem);
-
+#include "xenia/common.h"
 
 namespace xe {
 namespace hid {
+class InputDriver;
+class InputSystem;
 namespace xinput {
 
-
-InputDriver* Create(InputSystem* input_system);
-
+std::unique_ptr<InputDriver> Create(InputSystem* input_system);
 
 }  // namespace xinput
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_XINPUT_XINPUT_HID_H_

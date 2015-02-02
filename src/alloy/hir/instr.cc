@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
-#include <alloy/hir/instr.h>
+#include "alloy/hir/instr.h"
 
-#include <alloy/hir/block.h>
+#include "alloy/hir/block.h"
 
-using namespace alloy;
-using namespace alloy::hir;
-
+namespace alloy {
+namespace hir {
 
 void Instr::set_src1(Value* value) {
   if (src1.value == value) {
@@ -114,3 +113,6 @@ void Instr::Remove() {
     block->instr_tail = prev;
   }
 }
+
+}  // namespace hir
+}  // namespace alloy

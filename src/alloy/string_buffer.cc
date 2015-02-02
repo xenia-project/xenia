@@ -7,25 +7,33 @@
  ******************************************************************************
  */
 
-#include <alloy/string_buffer.h>
+#include "alloy/string_buffer.h"
 
-using namespace alloy;
+#include <algorithm>
+#include <cstdarg>
 
+namespace alloy {
 
-StringBuffer::StringBuffer(size_t initial_capacity) :
-    buffer_(0), capacity_(0), offset_(0) {
-  capacity_ = MAX(initial_capacity, 1024);
-  buffer_ = (char*)xe_calloc(capacity_);
-  buffer_[0] = 0;
+StringBuffer::StringBuffer(size_t initial_capacity) {
+  buffer_.reserve(std::max(initial_capacity, static_cast<size_t>(1024)));
 }
 
-StringBuffer::~StringBuffer() {
-  xe_free(buffer_);
+StringBuffer::~StringBuffer() = default;
+
+void StringBuffer::Reset() { buffer_.resize(0); }
+
+void StringBuffer::Grow(size_t additional_length) {
+  size_t old_capacity = buffer_.capacity();
+  if (buffer_.size() + additional_length <= old_capacity) {
+    return;
+  }
+  size_t new_capacity =
+      std::max(buffer_.size() + additional_length, old_capacity * 2);
+  buffer_.reserve(new_capacity);
 }
 
-void StringBuffer::Reset() {
-  offset_ = 0;
-  buffer_[0] = 0;
+void StringBuffer::Append(const std::string& value) {
+  AppendBytes(reinterpret_cast<const uint8_t*>(value.data()), value.size());
 }
 
 void StringBuffer::Append(const char* format, ...) {
@@ -36,39 +44,26 @@ void StringBuffer::Append(const char* format, ...) {
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
-  while (true) {
-    int len = xevsnprintfa(
-        buffer_ + offset_, capacity_ - offset_ - 1, format, args);
-    if (len == -1) {
-      size_t old_capacity = capacity_;
-      capacity_ = capacity_ * 2;
-      buffer_ = (char*)xe_realloc(buffer_, old_capacity, capacity_);
-      continue;
-    } else {
-      offset_ += len;
-      break;
-    }
-  }
-  buffer_[offset_] = 0;
+  int length = vsnprintf(nullptr, 0, format, args);
+  auto offset = buffer_.size();
+  Grow(length + 1);
+  buffer_.resize(buffer_.size() + length);
+  vsnprintf(buffer_.data() + offset, buffer_.capacity(), format, args);
+  buffer_[buffer_.size()] = 0;
 }
 
 void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
-  if (offset_ + length > capacity_) {
-    size_t old_capacity = capacity_;
-    capacity_ = MAX(capacity_ * 2, capacity_ + length);
-    buffer_ = (char*)xe_realloc(buffer_, old_capacity, capacity_);
-  }
-  xe_copy_memory(
-      buffer_ + offset_, capacity_ - offset_,
-      buffer, length);
-  offset_ += length;
-  buffer_[offset_] = 0;
+  auto offset = buffer_.size();
+  Grow(length + 1);
+  buffer_.resize(buffer_.size() + length);
+  memcpy(buffer_.data() + offset, buffer, length);
+  buffer_[buffer_.size()] = 0;
 }
 
-const char* StringBuffer::GetString() const {
-  return buffer_;
-}
+const char* StringBuffer::GetString() const { return buffer_.data(); }
 
-char* StringBuffer::ToString() {
-  return xestrdupa(buffer_);
-}
+std::string StringBuffer::to_string() { return std::string(buffer_.data(), buffer_.size()); }
+
+char* StringBuffer::ToString() { return strdup(buffer_.data()); }
+
+}  // namespace alloy

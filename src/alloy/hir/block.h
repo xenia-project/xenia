@@ -10,10 +10,11 @@
 #ifndef ALLOY_HIR_BLOCK_H_
 #define ALLOY_HIR_BLOCK_H_
 
-#include <alloy/core.h>
+#include "alloy/arena.h"
 
-XEDECLARECLASS1(llvm, BitVector);
-
+namespace llvm {
+class BitVector;
+}  // namespace llvm
 
 namespace alloy {
 namespace hir {
@@ -23,14 +24,14 @@ class HIRBuilder;
 class Instr;
 class Label;
 
-
 class Edge {
-public:
+ public:
   enum EdgeFlags {
     UNCONDITIONAL = (1 << 0),
     DOMINATES = (1 << 1),
   };
-public:
+
+ public:
   Edge* outgoing_next;
   Edge* outgoing_prev;
   Edge* incoming_next;
@@ -42,9 +43,8 @@ public:
   uint32_t flags;
 };
 
-
 class Block {
-public:
+ public:
   Arena* arena;
 
   Block* next;
@@ -65,9 +65,7 @@ public:
   void AssertNoCycles();
 };
 
-
 }  // namespace hir
 }  // namespace alloy
-
 
 #endif  // ALLOY_HIR_BLOCK_H_

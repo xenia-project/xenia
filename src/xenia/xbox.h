@@ -10,16 +10,24 @@
 #ifndef XENIA_XBOX_H_
 #define XENIA_XBOX_H_
 
-#include <xenia/common.h>
-#include <xenia/core.h>
+#include "poly/memory.h"
+#include "xenia/common.h"
 
 
 namespace xe {
+
+template <typename T>
+using be = poly::be<T>;
+
+
+#pragma pack(push, 4)
 
 
 typedef uint32_t X_HANDLE;
 #define X_INVALID_HANDLE_VALUE  ((X_HANDLE)-1)
 
+
+// TODO(benvanik): type all of this so we get some safety.
 
 // NT_STATUS (STATUS_*)
 // http://msdn.microsoft.com/en-us/library/cc704588.aspx
@@ -60,17 +68,22 @@ typedef uint32_t X_STATUS;
 // Adding as needed.
 typedef uint32_t X_RESULT;
 #define X_FACILITY_WIN32 7
-#define X_HRESULT_FROM_WIN32(x) ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
+#define X_HRESULT_FROM_WIN32(x) x //((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
 #define X_ERROR_SUCCESS                                 X_HRESULT_FROM_WIN32(0x00000000L)
 #define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
+#define X_ERROR_INVALID_HANDLE                          X_HRESULT_FROM_WIN32(0x00000006L)
 #define X_ERROR_NO_MORE_FILES                           X_HRESULT_FROM_WIN32(0x00000018L)
+#define X_ERROR_INVALID_PARAMETER                       X_HRESULT_FROM_WIN32(0x00000057L)
+#define X_ERROR_IO_PENDING                              X_HRESULT_FROM_WIN32(0x000003E5L)
 #define X_ERROR_INSUFFICIENT_BUFFER                     X_HRESULT_FROM_WIN32(0x0000007AL)
 #define X_ERROR_BAD_ARGUMENTS                           X_HRESULT_FROM_WIN32(0x000000A0L)
 #define X_ERROR_BUSY                                    X_HRESULT_FROM_WIN32(0x000000AAL)
 #define X_ERROR_DEVICE_NOT_CONNECTED                    X_HRESULT_FROM_WIN32(0x0000048FL)
 #define X_ERROR_NOT_FOUND                               X_HRESULT_FROM_WIN32(0x00000490L)
 #define X_ERROR_CANCELLED                               X_HRESULT_FROM_WIN32(0x000004C7L)
+#define X_ERROR_NOT_LOGGED_ON                           X_HRESULT_FROM_WIN32(0x000004DDL)
 #define X_ERROR_NO_SUCH_USER                            X_HRESULT_FROM_WIN32(0x00000525L)
+#define X_ERROR_FUNCTION_FAILED                         X_HRESULT_FROM_WIN32(0x0000065BL)
 #define X_ERROR_EMPTY                                   X_HRESULT_FROM_WIN32(0x000010D2L)
 
 // MEM_*, used by NtAllocateVirtualMemory
@@ -134,7 +147,7 @@ typedef uint32_t X_RESULT;
 #define X_LANGUAGE_JAPANESE       2
 
 
-typedef enum _X_FILE_ATTRIBUTES {
+enum X_FILE_ATTRIBUTES {
   X_FILE_ATTRIBUTE_NONE         = 0x0000,
   X_FILE_ATTRIBUTE_READONLY     = 0x0001,
   X_FILE_ATTRIBUTE_HIDDEN       = 0x0002,
@@ -146,11 +159,11 @@ typedef enum _X_FILE_ATTRIBUTES {
   X_FILE_ATTRIBUTE_TEMPORARY    = 0x0100,
   X_FILE_ATTRIBUTE_COMPRESSED   = 0x0800,
   X_FILE_ATTRIBUTE_ENCRYPTED    = 0x4000,
-} X_FILE_ATTRIBUTES;
+};
 
 
 // http://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
-typedef enum _X_FILE_INFORMATION_CLASS {
+enum X_FILE_INFORMATION_CLASS {
   XFileDirectoryInformation = 1,
   XFileFullDirectoryInformation,
   XFileBothDirectoryInformation,
@@ -188,8 +201,40 @@ typedef enum _X_FILE_INFORMATION_CLASS {
   XFileAttributeTagInformation,
   XFileTrackingInformation,
   XFileMaximumInformation
-} X_FILE_INFORMATION_CLASS;
+};
 
+inline void XOverlappedSetResult(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  poly::store_and_swap<uint32_t>(&p[0], value);
+}
+inline void XOverlappedSetLength(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  poly::store_and_swap<uint32_t>(&p[1], value);
+}
+inline uint32_t XOverlappedGetContext(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return poly::load_and_swap<uint32_t>(&p[2]);
+}
+inline void XOverlappedSetContext(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  poly::store_and_swap<uint32_t>(&p[2], value);
+}
+inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  poly::store_and_swap<uint32_t>(&p[7], value);
+}
+inline X_HANDLE XOverlappedGetEvent(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return poly::load_and_swap<uint32_t>(&p[4]);
+}
+inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return poly::load_and_swap<uint32_t>(&p[5]);
+}
+inline uint32_t XOverlappedGetCompletionContext(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return poly::load_and_swap<uint32_t>(&p[6]);
+}
 
 class X_ANSI_STRING {
 private:
@@ -205,10 +250,10 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    length = XEGETUINT16BE(base + p);
-    maximum_length = XEGETUINT16BE(base + p + 2);
+    length = poly::load_and_swap<uint16_t>(base + p);
+    maximum_length = poly::load_and_swap<uint16_t>(base + p + 2);
     if (maximum_length) {
-      buffer = (const char*)(base + XEGETUINT32BE(base + p + 4));
+      buffer = (const char*)(base + poly::load_and_swap<uint32_t>(base + p + 4));
     } else {
       buffer = 0;
     }
@@ -221,233 +266,99 @@ public:
     if (buffer == NULL || length == 0) {
       return NULL;
     }
-    auto copy = (char*)xe_calloc(length+1);
-    xestrncpya(copy, length+1, buffer, length);
+    auto copy = (char*)calloc(length + 1, sizeof(char));
+    std::strncpy(copy, buffer, length);
     return copy;
   }
 };
-
-
-class X_OBJECT_ATTRIBUTES {
-public:
-  uint32_t      root_directory;
-  uint32_t      object_name_ptr;
-  X_ANSI_STRING object_name;
-  uint32_t      attributes;
-
-  X_OBJECT_ATTRIBUTES() {
-    Zero();
-  }
-  X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    root_directory  = XEGETUINT32BE(base + p);
-    object_name_ptr = XEGETUINT32BE(base + p + 4);
-    if (object_name_ptr) {
-      object_name.Read(base, object_name_ptr);
-    } else {
-      object_name.Zero();
-    }
-    attributes      = XEGETUINT32BE(base + p + 8);
-  }
-  void Zero() {
-    root_directory = 0;
-    object_name_ptr = 0;
-    object_name.Zero();
-    attributes = 0;
-  }
-};
+//static_assert_size(X_ANSI_STRING, 8);
 
 
 // Values seem to be all over the place - GUIDs?
 typedef uint32_t XNotificationID;
 
 
-typedef enum _X_INPUT_FLAG {
-  X_INPUT_FLAG_GAMEPAD      = 0x00000001,
-} X_INPUT_FLAG;
-
-typedef enum _X_INPUT_GAMEPAD_BUTTON {
-  X_INPUT_GAMEPAD_DPAD_UP         = 0x0001,
-  X_INPUT_GAMEPAD_DPAD_DOWN       = 0x0002,
-  X_INPUT_GAMEPAD_DPAD_LEFT       = 0x0004,
-  X_INPUT_GAMEPAD_DPAD_RIGHT      = 0x0008,
-  X_INPUT_GAMEPAD_START           = 0x0010,
-  X_INPUT_GAMEPAD_BACK            = 0x0020,
-  X_INPUT_GAMEPAD_LEFT_THUMB      = 0x0040,
-  X_INPUT_GAMEPAD_RIGHT_THUMB     = 0x0080,
-  X_INPUT_GAMEPAD_LEFT_SHOULDER   = 0x0100,
-  X_INPUT_GAMEPAD_RIGHT_SHOULDER  = 0x0200,
-  X_INPUT_GAMEPAD_A               = 0x1000,
-  X_INPUT_GAMEPAD_B               = 0x2000,
-  X_INPUT_GAMEPAD_X               = 0x4000,
-  X_INPUT_GAMEPAD_Y               = 0x8000,
-} X_INPUT_GAMEPAD_BUTTON;
-
-class X_INPUT_GAMEPAD {
-public:
-  uint16_t          buttons;
-  uint8_t           left_trigger;
-  uint8_t           right_trigger;
-  int16_t           thumb_lx;
-  int16_t           thumb_ly;
-  int16_t           thumb_rx;
-  int16_t           thumb_ry;
-
-  X_INPUT_GAMEPAD() {
-    Zero();
-  }
-  X_INPUT_GAMEPAD(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    buttons = XEGETUINT16BE(base + p);
-    left_trigger = XEGETUINT8BE(base + p + 2);
-    right_trigger = XEGETUINT8BE(base + p + 3);
-    thumb_lx = XEGETINT16BE(base + p + 4);
-    thumb_ly = XEGETINT16BE(base + p + 6);
-    thumb_rx = XEGETINT16BE(base + p + 8);
-    thumb_ry = XEGETINT16BE(base + p + 10);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    XESETUINT16BE(base + p, buttons);
-    XESETUINT8BE(base + p + 2, left_trigger);
-    XESETUINT8BE(base + p + 3, right_trigger);
-    XESETINT16BE(base + p + 4, thumb_lx);
-    XESETINT16BE(base + p + 6, thumb_ly);
-    XESETINT16BE(base + p + 8, thumb_rx);
-    XESETINT16BE(base + p + 10, thumb_ry);
-  }
-  void Zero() {
-    buttons = 0;
-    left_trigger = right_trigger = 0;
-    thumb_lx = thumb_ly = thumb_rx = thumb_ry = 0;
-  }
+// http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
+struct X_VIDEO_MODE {
+  be<uint32_t> display_width;
+  be<uint32_t> display_height;
+  be<uint32_t> is_interlaced;
+  be<uint32_t> is_widescreen;
+  be<uint32_t> is_hi_def;
+  be<float> refresh_rate;
+  be<uint32_t> video_standard;
+  be<uint32_t> unknown_0x8a;
+  be<uint32_t> unknown_0x01;
+  be<uint32_t> reserved[3];
 };
-class X_INPUT_STATE {
-public:
-  uint32_t          packet_number;
-  X_INPUT_GAMEPAD   gamepad;
+static_assert_size(X_VIDEO_MODE, 48);
 
-  X_INPUT_STATE() {
-    Zero();
-  }
-  X_INPUT_STATE(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    packet_number = XEGETUINT32BE(base + p);
-    gamepad.Read(base, p + 4);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    XESETUINT32BE(base + p, packet_number);
-    gamepad.Write(base, p + 4);
-  }
-  void Zero() {
-    packet_number = 0;
-    gamepad.Zero();
-  }
+enum X_INPUT_FLAG {
+  X_INPUT_FLAG_GAMEPAD = 0x00000001,
 };
-class X_INPUT_VIBRATION {
-public:
-  uint16_t          left_motor_speed;
-  uint16_t          right_motor_speed;
 
-  X_INPUT_VIBRATION() {
-    Zero();
-  }
-  X_INPUT_VIBRATION(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    left_motor_speed  = XEGETUINT16BE(base + p);
-    right_motor_speed = XEGETUINT16BE(base + p + 2);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    XESETUINT16BE(base + p, left_motor_speed);
-    XESETUINT16BE(base + p + 2, right_motor_speed);
-  }
-  void Zero() {
-    left_motor_speed = right_motor_speed = 0;
-  }
+enum X_INPUT_GAMEPAD_BUTTON {
+  X_INPUT_GAMEPAD_DPAD_UP = 0x0001,
+  X_INPUT_GAMEPAD_DPAD_DOWN = 0x0002,
+  X_INPUT_GAMEPAD_DPAD_LEFT = 0x0004,
+  X_INPUT_GAMEPAD_DPAD_RIGHT = 0x0008,
+  X_INPUT_GAMEPAD_START = 0x0010,
+  X_INPUT_GAMEPAD_BACK = 0x0020,
+  X_INPUT_GAMEPAD_LEFT_THUMB = 0x0040,
+  X_INPUT_GAMEPAD_RIGHT_THUMB = 0x0080,
+  X_INPUT_GAMEPAD_LEFT_SHOULDER = 0x0100,
+  X_INPUT_GAMEPAD_RIGHT_SHOULDER = 0x0200,
+  X_INPUT_GAMEPAD_A = 0x1000,
+  X_INPUT_GAMEPAD_B = 0x2000,
+  X_INPUT_GAMEPAD_X = 0x4000,
+  X_INPUT_GAMEPAD_Y = 0x8000,
 };
-class X_INPUT_CAPABILITIES {
-public:
-  uint8_t           type;
-  uint8_t           sub_type;
-  uint16_t          flags;
-  X_INPUT_GAMEPAD   gamepad;
+
+struct X_INPUT_GAMEPAD {
+  be<uint16_t> buttons;
+  be<uint8_t> left_trigger;
+  be<uint8_t> right_trigger;
+  be<int16_t> thumb_lx;
+  be<int16_t> thumb_ly;
+  be<int16_t> thumb_rx;
+  be<int16_t> thumb_ry;
+};
+static_assert_size(X_INPUT_GAMEPAD, 12);
+
+struct X_INPUT_STATE {
+  be<uint32_t> packet_number;
+  X_INPUT_GAMEPAD gamepad;
+};
+static_assert_size(X_INPUT_STATE, sizeof(X_INPUT_GAMEPAD) + 4);
+
+struct X_INPUT_VIBRATION {
+  be<uint16_t> left_motor_speed;
+  be<uint16_t> right_motor_speed;
+};
+static_assert_size(X_INPUT_VIBRATION, 4);
+
+struct X_INPUT_CAPABILITIES {
+  be<uint8_t> type;
+  be<uint8_t> sub_type;
+  be<uint16_t> flags;
+  X_INPUT_GAMEPAD gamepad;
   X_INPUT_VIBRATION vibration;
-
-  X_INPUT_CAPABILITIES() {
-    Zero();
-  }
-  X_INPUT_CAPABILITIES(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    type      = XEGETUINT8BE(base + p);
-    sub_type  = XEGETUINT8BE(base + p + 1);
-    flags     = XEGETUINT16BE(base + p + 2);
-    gamepad.Read(base, p + 4);
-    vibration.Read(base, p + 4 + 12);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    XESETUINT8BE(base + p, type);
-    XESETUINT8BE(base + p + 1, sub_type);
-    XESETUINT16BE(base + p + 2, flags);
-    gamepad.Write(base, p + 4);
-    vibration.Write(base, p + 4 + 12);
-  }
-  void Zero() {
-    type = 0;
-    sub_type = 0;
-    flags = 0;
-    gamepad.Zero();
-    vibration.Zero();
-  }
 };
+static_assert_size(X_INPUT_CAPABILITIES,
+                   sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
+
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx
-class X_INPUT_KEYSTROKE {
-public:
-  uint16_t  virtual_key;
-  uint16_t  unicode;
-  uint16_t  flags;
-  uint8_t   user_index;
-  uint8_t   hid_code;
-
-  X_INPUT_KEYSTROKE() {
-    Zero();
-  }
-  X_INPUT_KEYSTROKE(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
-  void Read(const uint8_t* base, uint32_t p) {
-    virtual_key = XEGETUINT16BE(base + p + 0);
-    unicode     = XEGETUINT16BE(base + p + 2);
-    flags       = XEGETUINT16BE(base + p + 4);
-    user_index  = XEGETUINT8BE(base + p + 6);
-    hid_code    = XEGETUINT8BE(base + p + 7);
-  }
-  void Write(uint8_t* base, uint32_t p) {
-    XESETUINT16BE(base + p + 0, virtual_key);
-    XESETUINT16BE(base + p + 2, unicode);
-    XESETUINT16BE(base + p + 4, flags);
-    XESETUINT8BE(base + p + 6, user_index);
-    XESETUINT8BE(base + p + 7, hid_code);
-  }
-  void Zero() {
-    virtual_key = 0;
-    unicode = 0;
-    flags = 0;
-    user_index = 0;
-    hid_code = 0;
-  }
+struct X_INPUT_KEYSTROKE {
+  be<uint16_t> virtual_key;
+  be<uint16_t> unicode;
+  be<uint16_t> flags;
+  be<uint8_t> user_index;
+  be<uint8_t> hid_code;
 };
+static_assert_size(X_INPUT_KEYSTROKE, 8);
 
+#pragma pack(pop)
 
 }  // namespace xe
-
 
 #endif  // XENIA_XBOX_H_

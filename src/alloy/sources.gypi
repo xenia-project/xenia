@@ -6,20 +6,18 @@
     'alloy.h',
     'arena.cc',
     'arena.h',
-    'core.h',
-    'delegate.h',
     'memory.cc',
     'memory.h',
-    'mutex.h',
+    'reset_scope.h',
     'string_buffer.cc',
     'string_buffer.h',
     'type_pool.h',
+    'vec128.h',
   ],
 
   'conditions': [
     ['OS == "mac" or OS == "linux"', {
       'sources': [
-        'mutex_posix.cc',
       ],
     }],
     ['OS == "linux"', {
@@ -32,7 +30,6 @@
     }],
     ['OS == "win"', {
       'sources': [
-        'mutex_win.cc',
       ],
     }],
   ],
@@ -43,6 +40,5 @@
     'frontend/sources.gypi',
     'hir/sources.gypi',
     'runtime/sources.gypi',
-    'tracing/sources.gypi',
   ],
 }

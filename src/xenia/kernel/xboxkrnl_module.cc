@@ -7,52 +7,48 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/xboxkrnl_module.h>
+#include "xenia/kernel/xboxkrnl_module.h"
 
 #include <gflags/gflags.h>
-
-#include <xenia/emulator.h>
-#include <xenia/export_resolver.h>
-#include <xenia/debug/debug_server.h>
-#include <xenia/kernel/kernel_state.h>
-#include <xenia/kernel/xboxkrnl_private.h>
-#include <xenia/kernel/objects/xuser_module.h>
-
-
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::xboxkrnl;
-
+#include "poly/math.h"
+#include "xenia/emulator.h"
+#include "xenia/export_resolver.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/objects/xuser_module.h"
 
 DEFINE_bool(abort_before_entry, false,
-    "Abort execution right before launching the module.");
+            "Abort execution right before launching the module.");
 
+namespace xe {
+namespace kernel {
 
-XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
-    XKernelModule(kernel_state, "xe:\\xboxkrnl.exe") {
-  // Build the export table used for resolution.
-  #include <xenia/kernel/util/export_table_pre.inc>
+XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
+    : XKernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
+      timestamp_timer_(nullptr) {
+// Build the export table used for resolution.
+#include "xenia/kernel/util/export_table_pre.inc"
   static KernelExport xboxkrnl_export_table[] = {
-    #include <xenia/kernel/xboxkrnl_table.inc>
+#include "xenia/kernel/xboxkrnl_table.inc"
   };
-  #include <xenia/kernel/util/export_table_post.inc>
-  export_resolver_->RegisterTable(
-      "xboxkrnl.exe", xboxkrnl_export_table, XECOUNT(xboxkrnl_export_table));
+#include "xenia/kernel/util/export_table_post.inc"
+  export_resolver_->RegisterTable("xboxkrnl.exe", xboxkrnl_export_table,
+                                  poly::countof(xboxkrnl_export_table));
 
   // Register all exported functions.
-  RegisterAudioExports(export_resolver_, kernel_state);
-  RegisterDebugExports(export_resolver_, kernel_state);
-  RegisterHalExports(export_resolver_, kernel_state);
-  RegisterIoExports(export_resolver_, kernel_state);
-  RegisterMemoryExports(export_resolver_, kernel_state);
-  RegisterMiscExports(export_resolver_, kernel_state);
-  RegisterModuleExports(export_resolver_, kernel_state);
-  RegisterNtExports(export_resolver_, kernel_state);
-  RegisterObExports(export_resolver_, kernel_state);
-  RegisterRtlExports(export_resolver_, kernel_state_);
-  RegisterStringExports(export_resolver_, kernel_state_);
-  RegisterThreadingExports(export_resolver_, kernel_state);
-  RegisterVideoExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterAudioExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterDebugExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterHalExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterIoExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterMemoryExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterMiscExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterModuleExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterObExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterRtlExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterStringExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterThreadingExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterUsbcamExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterVideoExports(export_resolver_, kernel_state);
 
   uint8_t* mem = memory_->membase();
 
@@ -62,29 +58,30 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   // arguments. If we wanted to see what would happen we could fake that.
   uint32_t pKeDebugMonitorData = (uint32_t)memory_->HeapAlloc(0, 256, 0);
   export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeDebugMonitorData,
-      pKeDebugMonitorData);
-  XESETUINT32BE(mem + pKeDebugMonitorData, 0);
+      "xboxkrnl.exe", ordinals::KeDebugMonitorData, pKeDebugMonitorData);
+  poly::store_and_swap<uint32_t>(mem + pKeDebugMonitorData, 0);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
   uint32_t pKeCertMonitorData = (uint32_t)memory_->HeapAlloc(0, 4, 0);
   export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeCertMonitorData,
-      pKeCertMonitorData);
-  XESETUINT32BE(mem + pKeCertMonitorData, 0);
+      "xboxkrnl.exe", ordinals::KeCertMonitorData, pKeCertMonitorData);
+  poly::store_and_swap<uint32_t>(mem + pKeCertMonitorData, 0);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
   // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
   // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
   // was whether an HDD was present. Not sure what the other flags are.
+  //
+  // aomega08 says the value is 0x02000817, bit 27: debug mode on.
+  // When that is set, though, allocs crash in weird ways.
   uint32_t pXboxHardwareInfo = (uint32_t)memory_->HeapAlloc(0, 16, 0);
   export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::XboxHardwareInfo,
-      pXboxHardwareInfo);
-  XESETUINT32BE(mem + pXboxHardwareInfo + 0, 0x00000000); // flags
-  XESETUINT8BE (mem + pXboxHardwareInfo + 4, 0x06);       // cpu count
+      "xboxkrnl.exe", ordinals::XboxHardwareInfo, pXboxHardwareInfo);
+  poly::store_and_swap<uint32_t>(mem + pXboxHardwareInfo + 0, 0);  // flags
+  poly::store_and_swap<uint8_t>(mem + pXboxHardwareInfo + 4,
+                                0x06);  // cpu count
   // Remaining 11b are zeroes?
 
   // XexExecutableModuleHandle (?**)
@@ -97,13 +94,14 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
   uint32_t ppXexExecutableModuleHandle = (uint32_t)memory_->HeapAlloc(0, 4, 0);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::XexExecutableModuleHandle,
-      ppXexExecutableModuleHandle);
-  uint32_t pXexExecutableModuleHandle =
-      (uint32_t)memory_->HeapAlloc(0, 256, 0);
-  XESETUINT32BE(mem + ppXexExecutableModuleHandle, pXexExecutableModuleHandle);
-  XESETUINT32BE(mem + pXexExecutableModuleHandle + 0x58, 0x80101100);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe",
+                                       ordinals::XexExecutableModuleHandle,
+                                       ppXexExecutableModuleHandle);
+  uint32_t pXexExecutableModuleHandle = (uint32_t)memory_->HeapAlloc(0, 256, 0);
+  poly::store_and_swap<uint32_t>(mem + ppXexExecutableModuleHandle,
+                                 pXexExecutableModuleHandle);
+  poly::store_and_swap<uint32_t>(mem + pXexExecutableModuleHandle + 0x58,
+                                 0x80101100);
 
   // ExLoadedCommandLine (char*)
   // The name of the xex. Not sure this is ever really used on real devices.
@@ -111,35 +109,47 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state) :
   // Always set to "default.xex" (with quotes) for now.
   uint32_t pExLoadedCommandLine = (uint32_t)memory_->HeapAlloc(0, 1024, 0);
   export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::ExLoadedCommandLine,
-      pExLoadedCommandLine);
+      "xboxkrnl.exe", ordinals::ExLoadedCommandLine, pExLoadedCommandLine);
   char command_line[] = "\"default.xex\"";
-  xe_copy_memory(mem + pExLoadedCommandLine, 1024,
-                 command_line, XECOUNT(command_line) + 1);
+  memcpy(mem + pExLoadedCommandLine, command_line,
+         poly::countof(command_line) + 1);
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
   uint32_t pXboxKrnlVersion = (uint32_t)memory_->HeapAlloc(0, 8, 0);
   export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::XboxKrnlVersion,
-      pXboxKrnlVersion);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 0, 2);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 2, 0xFFFF);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 4, 0xFFFF);
-  XESETUINT16BE(mem + pXboxKrnlVersion + 6, 0xFFFF);
+      "xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 0, 2);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 2, 0xFFFF);
+  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 4, 0xFFFF);
+  poly::store_and_swap<uint8_t>(mem + pXboxKrnlVersion + 6, 0x80);
+  poly::store_and_swap<uint8_t>(mem + pXboxKrnlVersion + 7, 0x00);
 
   // KeTimeStampBundle (ad)
+  // This must be updated during execution, at 1ms intevals.
+  // We setup a system timer here to do that.
   uint32_t pKeTimeStampBundle = (uint32_t)memory_->HeapAlloc(0, 24, 0);
   export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeTimeStampBundle,
-      pKeTimeStampBundle);
-  XESETUINT64BE(mem + pKeTimeStampBundle + 0,  0);
-  XESETUINT64BE(mem + pKeTimeStampBundle + 8,  0);
-  XESETUINT32BE(mem + pKeTimeStampBundle + 12, 0);
+      "xboxkrnl.exe", ordinals::KeTimeStampBundle, pKeTimeStampBundle);
+  poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 0, 0);
+  poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 8, 0);
+  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 16, GetTickCount());
+  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 20, 0);
+  CreateTimerQueueTimer(&timestamp_timer_, nullptr,
+                        [](PVOID param, BOOLEAN timer_or_wait_fired) {
+                          auto timestamp_bundle =
+                              reinterpret_cast<uint8_t*>(param);
+                          poly::store_and_swap<uint32_t>(timestamp_bundle + 16,
+                                                         GetTickCount());
+                        },
+                        mem + pKeTimeStampBundle, 0,
+                        1,  // 1ms
+                        WT_EXECUTEINTIMERTHREAD);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {
+  DeleteTimerQueueTimer(nullptr, timestamp_timer_, nullptr);
 }
 
 int XboxkrnlModule::LaunchModule(const char* path) {
@@ -164,12 +174,6 @@ int XboxkrnlModule::LaunchModule(const char* path) {
     return 0;
   }
 
-  // Spin up the debugger and let it know we are starting.
-  if (emulator_->debug_server()->BeforeEntry()) {
-    XELOGE("Debugger failed to startup.");
-    return 2;
-  }
-
   // Launch the module.
   // NOTE: this won't return until the module exits.
   result_code = module->Launch(0);
@@ -184,3 +188,6 @@ int XboxkrnlModule::LaunchModule(const char* path) {
 
   return 0;
 }
+
+}  // namespace kernel
+}  // namespace xe

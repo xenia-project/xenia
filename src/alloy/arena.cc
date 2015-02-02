@@ -7,15 +7,14 @@
  ******************************************************************************
  */
 
-#include <alloy/arena.h>
+#include "alloy/arena.h"
 
-using namespace alloy;
+#include "poly/poly.h"
 
+namespace alloy {
 
-Arena::Arena(size_t chunk_size) :
-    chunk_size_(chunk_size),
-    head_chunk_(NULL), active_chunk_(NULL) {
-}
+Arena::Arena(size_t chunk_size)
+    : chunk_size_(chunk_size), head_chunk_(nullptr), active_chunk_(nullptr) {}
 
 Arena::~Arena() {
   Reset();
@@ -25,7 +24,7 @@ Arena::~Arena() {
     delete chunk;
     chunk = next;
   }
-  head_chunk_ = NULL;
+  head_chunk_ = nullptr;
 }
 
 void Arena::Reset() {
@@ -48,7 +47,7 @@ void* Arena::Alloc(size_t size) {
     if (active_chunk_->capacity - active_chunk_->offset < size + 4096) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        XEASSERT(size < chunk_size_); // need to support larger chunks
+        assert_true(size < chunk_size_, "need to support larger chunks");
         next = new Chunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -74,11 +73,11 @@ void* Arena::CloneContents() {
     }
     chunk = chunk->next;
   }
-  void* result = xe_malloc(total_length);
+  void* result = malloc(total_length);
   uint8_t* p = (uint8_t*)result;
   chunk = head_chunk_;
   while (chunk) {
-    xe_copy_struct(p, chunk->buffer, chunk->offset);
+    memcpy(p, chunk->buffer, chunk->offset);
     p += chunk->offset;
     if (chunk == active_chunk_) {
       break;
@@ -88,14 +87,15 @@ void* Arena::CloneContents() {
   return result;
 }
 
-Arena::Chunk::Chunk(size_t chunk_size) :
-    next(NULL),
-    capacity(chunk_size), buffer(0), offset(0) {
-  buffer = (uint8_t*)xe_malloc(capacity);
+Arena::Chunk::Chunk(size_t chunk_size)
+    : next(nullptr), capacity(chunk_size), buffer(0), offset(0) {
+  buffer = reinterpret_cast<uint8_t*>(malloc(capacity));
 }
 
 Arena::Chunk::~Chunk() {
   if (buffer) {
-    xe_free(buffer);
+    free(buffer);
   }
 }
+
+}  // namespace alloy

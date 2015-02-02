@@ -7,26 +7,18 @@
  ******************************************************************************
  */
 
-#include <alloy/backend/assembler.h>
+#include "alloy/backend/assembler.h"
 
-#include <alloy/backend/tracing.h>
+namespace alloy {
+namespace backend {
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::runtime;
+Assembler::Assembler(Backend* backend) : backend_(backend) {}
 
+Assembler::~Assembler() { Reset(); }
 
-Assembler::Assembler(Backend* backend) :
-    backend_(backend) {
-}
+int Assembler::Initialize() { return 0; }
 
-Assembler::~Assembler() {
-  Reset();
-}
+void Assembler::Reset() {}
 
-int Assembler::Initialize() {
-  return 0;
-}
-
-void Assembler::Reset() {
-}
+}  // namespace backend
+}  // namespace alloy

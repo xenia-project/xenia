@@ -7,23 +7,20 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/audio_system.h>
-#include <xenia/apu/audio_driver.h>
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/audio_driver.h"
 
-#include <xenia/emulator.h>
-#include <xenia/cpu/processor.h>
-#include <xenia/cpu/xenon_thread_state.h>
-
+#include "poly/poly.h"
+#include "xenia/emulator.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/cpu/xenon_thread_state.h"
 
 using namespace xe;
 using namespace xe::apu;
 using namespace xe::cpu;
 
-
-AudioSystem::AudioSystem(Emulator* emulator) :
-    emulator_(emulator), memory_(emulator->memory()),
-    thread_(0), running_(false) {
-  lock_ = xe_mutex_alloc();
+AudioSystem::AudioSystem(Emulator* emulator)
+    : emulator_(emulator), memory_(emulator->memory()), running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -35,7 +32,6 @@ AudioSystem::~AudioSystem() {
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     CloseHandle(client_wait_handles_[i]);
   }
-  xe_mutex_free(lock_);
 }
 
 X_STATUS AudioSystem::Setup() {
@@ -43,19 +39,16 @@ X_STATUS AudioSystem::Setup() {
 
   // Let the processor know we want register access callbacks.
   emulator_->memory()->AddMappedRange(
-      0x7FEA0000,
-      0xFFFF0000,
-      0x0000FFFF,
-      this,
+      0x7FEA0000, 0xFFFF0000, 0x0000FFFF, this,
       reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup worker thread state. This lets us make calls into guest code.
-  thread_state_ = new XenonThreadState(
-      emulator_->processor()->runtime(), 0, 16 * 1024, 0);
+  thread_state_ =
+      new XenonThreadState(emulator_->processor()->runtime(), 0, 16 * 1024, 0);
   thread_state_->set_name("Audio Worker");
-  thread_block_ = (uint32_t)memory_->HeapAlloc(
-      0, 2048, alloy::MEMORY_FLAG_ZERO);
+  thread_block_ =
+      (uint32_t)memory_->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   thread_state_->context()->r[13] = thread_block_;
 
   // Create worker thread.
@@ -63,15 +56,15 @@ X_STATUS AudioSystem::Setup() {
   // Init needs to happen there so that any thread-local stuff
   // is created on the right thread.
   running_ = true;
-  thread_ = xe_thread_create(
-      "AudioSystem",
-      (xe_thread_callback)ThreadStartThunk, this);
-  xe_thread_start(thread_);
+  thread_ = std::thread(std::bind(&AudioSystem::ThreadStart, this));
 
   return X_STATUS_SUCCESS;
 }
 
 void AudioSystem::ThreadStart() {
+  poly::threading::set_name("Audio Worker");
+  xe::Profiler::ThreadEnter("Audio Worker");
+
   // Initialize driver and ringbuffer.
   Initialize();
 
@@ -79,28 +72,33 @@ void AudioSystem::ThreadStart() {
 
   // Main run loop.
   while (running_) {
-    auto result = WaitForMultipleObjectsEx(maximum_client_count_, client_wait_handles_, FALSE, INFINITE, FALSE);
+    auto result = WaitForMultipleObjectsEx(
+        maximum_client_count_, client_wait_handles_, FALSE, INFINITE, FALSE);
     if (result == WAIT_FAILED) {
       DWORD err = GetLastError();
-      XEASSERTALWAYS();
+      assert_always();
       break;
     }
 
     size_t pumped = 0;
-    if (result >= WAIT_OBJECT_0 && result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
+    if (result >= WAIT_OBJECT_0 &&
+        result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
       size_t index = result - WAIT_OBJECT_0;
       do {
-        xe_mutex_lock(lock_);
+        lock_.lock();
         uint32_t client_callback = clients_[index].callback;
         uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
-        xe_mutex_unlock(lock_);
+        lock_.unlock();
         if (client_callback) {
-          uint64_t args[] = { client_callback_arg };
-          processor->Execute(thread_state_, client_callback, args, XECOUNT(args));
+          uint64_t args[] = {client_callback_arg};
+          processor->Execute(thread_state_, client_callback, args,
+                             poly::countof(args));
         }
         pumped++;
         index++;
-      } while (index < maximum_client_count_ && WaitForSingleObject(client_wait_handles_[index], 0) == WAIT_OBJECT_0);
+      } while (index < maximum_client_count_ &&
+               WaitForSingleObject(client_wait_handles_[index], 0) ==
+                   WAIT_OBJECT_0);
     }
 
     if (!running_) {
@@ -115,24 +113,24 @@ void AudioSystem::ThreadStart() {
   running_ = false;
 
   // TODO(benvanik): call module API to kill?
+
+  xe::Profiler::ThreadExit();
 }
 
-void AudioSystem::Initialize() {
-}
+void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
   running_ = false;
-  xe_thread_join(thread_);
-  xe_thread_release(thread_);
+  thread_.join();
 
   delete thread_state_;
   memory()->HeapFree(thread_block_, 0);
 }
 
-X_STATUS AudioSystem::RegisterClient(
-    uint32_t callback, uint32_t callback_arg, size_t* out_index) {
-  XEASSERTTRUE(unused_clients_.size());
-  xe_mutex_lock(lock_);
+X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
+                                     size_t* out_index) {
+  assert_true(unused_clients_.size());
+  std::lock_guard<std::mutex> lock(lock_);
 
   auto index = unused_clients_.front();
 
@@ -143,44 +141,41 @@ X_STATUS AudioSystem::RegisterClient(
   if (XFAILED(result)) {
     return result;
   }
-  XEASSERTNOTNULL(driver != NULL);
+  assert_not_null(driver);
 
   unused_clients_.pop();
 
   uint32_t ptr = (uint32_t)memory()->HeapAlloc(0, 0x4, 0);
   auto mem = memory()->membase();
-  XESETUINT32BE(mem + ptr, callback_arg);
+  poly::store_and_swap<uint32_t>(mem + ptr, callback_arg);
 
-  clients_[index] = { driver, callback, callback_arg, ptr };
+  clients_[index] = {driver, callback, callback_arg, ptr};
 
   if (out_index) {
     *out_index = index;
   }
 
-  xe_mutex_unlock(lock_);
   return X_STATUS_SUCCESS;
 }
 
 void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
   SCOPE_profile_cpu_f("apu");
 
-  xe_mutex_lock(lock_);
-  XEASSERTTRUE(index < maximum_client_count_);
-  XEASSERTTRUE(clients_[index].driver != NULL);
+  std::lock_guard<std::mutex> lock(lock_);
+  assert_true(index < maximum_client_count_);
+  assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
   ResetEvent(client_wait_handles_[index]);
-  xe_mutex_unlock(lock_);
 }
 
 void AudioSystem::UnregisterClient(size_t index) {
   SCOPE_profile_cpu_f("apu");
 
-  xe_mutex_lock(lock_);
-  XEASSERTTRUE(index < maximum_client_count_);
+  std::lock_guard<std::mutex> lock(lock_);
+  assert_true(index < maximum_client_count_);
   DestroyDriver(clients_[index].driver);
-  clients_[index] = { 0 };
+  clients_[index] = {0};
   unused_clients_.push(index);
-  xe_mutex_unlock(lock_);
 }
 
 // free60 may be useful here, however it looks like it's using a different

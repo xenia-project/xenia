@@ -6,7 +6,6 @@
     'compiler_pass.cc',
     'compiler_pass.h',
     'compiler_passes.h',
-    'tracing.h',
   ],
 
   'includes': [

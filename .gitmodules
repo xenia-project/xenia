@@ -1,9 +1,3 @@
-[submodule "third_party/ninja"]
-	path = third_party/ninja
-	url = https://github.com/martine/ninja.git
-[submodule "third_party/gyp"]
-	path = third_party/gyp
-	url = https://github.com/benvanik/gyp.git
 [submodule "third_party/gflags"]
 	path = third_party/gflags
 	url = https://github.com/benvanik/gflags.git
@@ -13,12 +7,15 @@
 [submodule "third_party/beaengine"]
 	path = third_party/beaengine
 	url = https://github.com/benvanik/beaengine.git
-[submodule "third_party/wslay"]
-	path = third_party/wslay
-	url = https://github.com/benvanik/wslay.git
-[submodule "third_party/jansson"]
-	path = third_party/jansson
-	url = https://github.com/akheron/jansson.git
 [submodule "third_party/xbyak"]
 	path = third_party/xbyak
 	url = https://github.com/herumi/xbyak.git
+[submodule "third_party/gyp"]
+	path = third_party/gyp
+	url = https://chromium.googlesource.com/external/gyp
+[submodule "third_party/ninja"]
+	path = third_party/ninja
+	url = https://chromium.googlesource.com/external/martine/ninja
+[submodule "third_party/catch"]
+	path = third_party/catch
+	url = https://github.com/philsquared/Catch.git

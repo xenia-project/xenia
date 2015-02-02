@@ -7,40 +7,31 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/fs/devices/stfs_container_device.h>
+#include "xenia/kernel/fs/devices/stfs_container_device.h"
 
-#include <xenia/kernel/fs/stfs.h>
-#include <xenia/kernel/fs/devices/stfs_container_entry.h>
+#include "poly/math.h"
+#include "xenia/kernel/fs/stfs.h"
+#include "xenia/kernel/fs/devices/stfs_container_entry.h"
+#include "xenia/kernel/objects/xfile.h"
 
+namespace xe {
+namespace kernel {
+namespace fs {
 
-using namespace xe;
-using namespace xe::kernel;
-using namespace xe::kernel::fs;
+STFSContainerDevice::STFSContainerDevice(const std::string& path,
+                                         const std::wstring& local_path)
+    : Device(path), local_path_(local_path), stfs_(nullptr) {}
 
-
-
-STFSContainerDevice::STFSContainerDevice(
-    const char* path, const xechar_t* local_path) :
-    Device(path) {
-  local_path_ = xestrdup(local_path);
-  mmap_ = NULL;
-  stfs_ = NULL;
-}
-
-STFSContainerDevice::~STFSContainerDevice() {
-  delete stfs_;
-  xe_mmap_release(mmap_);
-  xe_free(local_path_);
-}
+STFSContainerDevice::~STFSContainerDevice() { delete stfs_; }
 
 int STFSContainerDevice::Init() {
-  mmap_ = xe_mmap_open(kXEFileModeRead, local_path_, 0, 0);
+  mmap_ = poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::READ);
   if (!mmap_) {
     XELOGE("STFS container could not be mapped");
     return 1;
   }
 
-  stfs_ = new STFS(mmap_);
+  stfs_ = new STFS(mmap_.get());
   STFS::Error error = stfs_->Load();
   if (error != STFS::kSuccess) {
     XELOGE("STFS init failed: %d", error);
@@ -52,7 +43,7 @@ int STFSContainerDevice::Init() {
   return 0;
 }
 
-Entry* STFSContainerDevice::ResolvePath(const char* path) {
+std::unique_ptr<Entry> STFSContainerDevice::ResolvePath(const char* path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
@@ -62,49 +53,22 @@ Entry* STFSContainerDevice::ResolvePath(const char* path) {
   STFSEntry* stfs_entry = stfs_->root_entry();
 
   // Walk the path, one separator at a time.
-  // We copy it into the buffer and shift it left over and over.
-  char remaining[XE_MAX_PATH];
-  XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), path));
-  while (remaining[0]) {
-    char* next_slash = xestrchra(remaining, '\\');
-    if (next_slash == remaining) {
-      // Leading slash - shift
-      XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), remaining + 1));
-      continue;
-    }
-
-    // Make the buffer just the name.
-    if (next_slash) {
-      *next_slash = 0;
-    }
-
-    // Look up in the entry.
-    stfs_entry = stfs_entry->GetChild(remaining);
+  auto path_parts = poly::split_path(path);
+  for (auto& part : path_parts) {
+    stfs_entry = stfs_entry->GetChild(part.c_str());
     if (!stfs_entry) {
       // Not found.
-      return NULL;
+      return nullptr;
     }
-
-    // Shift the buffer down, unless we are at the end.
-    if (!next_slash) {
-      break;
-    }
-    XEIGNORE(xestrcpya(remaining, XECOUNT(remaining), next_slash + 1));
   }
 
-  Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY ?
-      Entry::kTypeDirectory : Entry::kTypeFile;
-  return new STFSContainerEntry(
-      type, this, path, mmap_, stfs_entry);
+  Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
+                         ? Entry::Type::DIRECTORY
+                         : Entry::Type::FILE;
+  return std::make_unique<STFSContainerEntry>(type, this, path, mmap_.get(),
+                                              stfs_entry);
 }
 
-
-X_STATUS STFSContainerDevice::QueryVolume(XVolumeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
-
-X_STATUS STFSContainerDevice::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info, size_t length) {
-  XEASSERTALWAYS();
-  return X_STATUS_NOT_IMPLEMENTED;
-}
+}  // namespace fs
+}  // namespace kernel
+}  // namespace xe

@@ -10,17 +10,14 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
 #define XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
 
-#include <xenia/kernel/xobject.h>
-
-#include <xenia/xbox.h>
-
+#include "xenia/kernel/xobject.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-
 class XMutant : public XObject {
-public:
+ public:
   XMutant(KernelState* kernel_state);
   virtual ~XMutant();
 
@@ -31,13 +28,11 @@ public:
 
   virtual void* GetWaitHandle() { return handle_; }
 
-private:
+ private:
   HANDLE handle_;
 };
 
-
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_XBOXKRNL_XMUTANT_H_

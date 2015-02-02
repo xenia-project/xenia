@@ -12,11 +12,12 @@
 
 #include <memory>
 
-#include <xenia/config.h>
-#include <xenia/platform.h>
-#include <xenia/platform_includes.h>
-#include <xenia/string.h>
-#include <xenia/types.h>
+#include "poly/string.h"
+
+#define XE_OPTION_PROFILING 1
+#if XE_LIKE_WIN32
+#define XE_OPTION_PROFILING_UI 1
+#endif  // XE_LIKE_WIN32
 
 #if XE_OPTION_PROFILING
 // Pollutes the global namespace. Yuck.
@@ -30,7 +31,8 @@ namespace xe {
 // Defines a profiling scope for CPU tasks.
 // Use `SCOPE_profile_cpu(name)` to activate the scope.
 #define DEFINE_profile_cpu(name, group_name, scope_name) \
-    MICROPROFILE_DEFINE(name, group_name, scope_name, xe::Profiler::GetColor(scope_name))
+  MICROPROFILE_DEFINE(name, group_name, scope_name,      \
+                      xe::Profiler::GetColor(scope_name))
 
 // Declares a previously defined profile scope. Use in a translation unit.
 #define DECLARE_profile_cpu(name) MICROPROFILE_DECLARE(name)
@@ -38,40 +40,43 @@ namespace xe {
 // Defines a profiling scope for GPU tasks.
 // Use `COUNT_profile_gpu(name)` to activate the scope.
 #define DEFINE_profile_gpu(name, group_name, scope_name) \
-    MICROPROFILE_DEFINE_GPU(name, group_name, scope_name, xe::Profiler::GetColor(scope_name))
+  MICROPROFILE_DEFINE_GPU(name, group_name, scope_name,  \
+                          xe::Profiler::GetColor(scope_name))
 
 // Declares a previously defined profile scope. Use in a translation unit.
 #define DECLARE_profile_gpu(name) MICROPROFILE_DECLARE_GPU(name)
 
 // Enters a previously defined CPU profiling scope, active for the duration
 // of the containing block.
-#define SCOPE_profile_cpu(name) \
-    MICROPROFILE_SCOPE(name)
+#define SCOPE_profile_cpu(name) MICROPROFILE_SCOPE(name)
 
 // Enters a CPU profiling scope, active for the duration of the containing
 // block. No previous definition required.
 #define SCOPE_profile_cpu_i(group_name, scope_name) \
-    MICROPROFILE_SCOPEI(group_name, scope_name, xe::Profiler::GetColor(scope_name))
+  MICROPROFILE_SCOPEI(group_name, scope_name,       \
+                      xe::Profiler::GetColor(scope_name))
 
 // Enters a CPU profiling scope by function name, active for the duration of
 // the containing block. No previous definition required.
-#define SCOPE_profile_cpu_f(group_name) \
-    MICROPROFILE_SCOPEI(group_name, XE_CURRENT_FUNCTION, xe::Profiler::GetColor(XE_CURRENT_FUNCTION))
+#define SCOPE_profile_cpu_f(group_name)         \
+  MICROPROFILE_SCOPEI(group_name, __FUNCTION__, \
+                      xe::Profiler::GetColor(__FUNCTION__))
 
 // Enters a previously defined GPU profiling scope, active for the duration
 // of the containing block.
-#define SCOPE_profile_gpu(name) \
-    MICROPROFILE_SCOPEGPU(name)
+#define SCOPE_profile_gpu(name) MICROPROFILE_SCOPEGPU(name)
 
 // Enters a GPU profiling scope, active for the duration of the containing
 // block. No previous definition required.
 #define SCOPE_profile_gpu_i(group_name, scope_name) \
-    MICROPROFILE_SCOPEGPUI(group_name, scope_name, xe::Profiler::GetColor(scope_name))
+  MICROPROFILE_SCOPEGPUI(group_name, scope_name,    \
+                         xe::Profiler::GetColor(scope_name))
 
 // Enters a GPU profiling scope by function name, active for the duration of
 // the containing block. No previous definition required.
-#define SCOPE_profile_gpu_f(group_name) \
-    MICROPROFILE_SCOPEGPUI(group_name, XE_CURRENT_FUNCTION, xe::Profiler::GetColor(XE_CURRENT_FUNCTION))
+#define SCOPE_profile_gpu_f(group_name)            \
+  MICROPROFILE_SCOPEGPUI(group_name, __FUNCTION__, \
+                         xe::Profiler::GetColor(__FUNCTION__))
 
 // Tracks a CPU value counter.
 #define COUNT_profile_cpu(name, count) MICROPROFILE_META_CPU(name, count)
@@ -85,14 +90,30 @@ namespace xe {
 #define DEFINE_profile_gpu(name, group_name, scope_name)
 #define DECLARE_profile_cpu(name)
 #define DECLARE_profile_gpu(name)
-#define SCOPE_profile_cpu(name) do {} while (false)
-#define SCOPE_profile_cpu_f(name) do {} while (false)
-#define SCOPE_profile_cpu_i(group_name, scope_name) do {} while (false)
-#define SCOPE_profile_gpu(name) do {} while (false)
-#define SCOPE_profile_gpu_f(name) do {} while (false)
-#define SCOPE_profile_gpu_i(group_name, scope_name) do {} while (false)
-#define COUNT_profile_cpu(name, count) do {} while (false)
-#define COUNT_profile_gpu(name, count) do {} while (false)
+#define SCOPE_profile_cpu(name) \
+  do {                          \
+  } while (false)
+#define SCOPE_profile_cpu_f(name) \
+  do {                            \
+  } while (false)
+#define SCOPE_profile_cpu_i(group_name, scope_name) \
+  do {                                              \
+  } while (false)
+#define SCOPE_profile_gpu(name) \
+  do {                          \
+  } while (false)
+#define SCOPE_profile_gpu_f(name) \
+  do {                            \
+  } while (false)
+#define SCOPE_profile_gpu_i(group_name, scope_name) \
+  do {                                              \
+  } while (false)
+#define COUNT_profile_cpu(name, count) \
+  do {                                 \
+  } while (false)
+#define COUNT_profile_gpu(name, count) \
+  do {                                 \
+  } while (false)
 
 #define MICROPROFILE_TEXT_WIDTH 1
 #define MICROPROFILE_TEXT_HEIGHT 1
@@ -100,14 +121,14 @@ namespace xe {
 #endif  // XE_OPTION_PROFILING
 
 class ProfilerDisplay {
-public:
-  enum BoxType {
+ public:
+  enum class BoxType {
 #if XE_OPTION_PROFILING
-    BOX_TYPE_BAR = MicroProfileBoxTypeBar,
-    BOX_TYPE_FLAT = MicroProfileBoxTypeFlat,
+    kBar = MicroProfileBoxTypeBar,
+    kFlat = MicroProfileBoxTypeFlat,
 #else
-    BOX_TYPE_BAR,
-    BOX_TYPE_FLAT,
+    kBar,
+    kFlat,
 #endif  // XE_OPTION_PROFILING
   };
 
@@ -118,13 +139,15 @@ public:
 
   virtual void Begin() = 0;
   virtual void End() = 0;
-  virtual void DrawBox(int x, int y, int x1, int y1, uint32_t color, BoxType type) = 0;
+  virtual void DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
+                       BoxType type) = 0;
   virtual void DrawLine2D(uint32_t count, float* vertices, uint32_t color) = 0;
-  virtual void DrawText(int x, int y, uint32_t color, const char* text, size_t text_length) = 0;
+  virtual void DrawText(int x, int y, uint32_t color, const char* text,
+                        size_t text_length) = 0;
 };
 
 class Profiler {
-public:
+ public:
 #if XE_OPTION_PROFILING
   static bool is_enabled() { return true; }
 #else
@@ -163,7 +186,7 @@ public:
 
   // TODO(benvanik): display mode/pause/etc?
 
-private:
+ private:
   static std::unique_ptr<ProfilerDisplay> display_;
 };
 

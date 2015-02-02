@@ -1,0 +1,17 @@
+
+/vagrant/src/alloy/frontend/ppc/test/bin//instr_vsplth.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_vsplth_1>:
+  100000:	10 60 22 4c 	vsplth  v3,v4,0
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_vsplth_2>:
+  100008:	10 61 22 4c 	vsplth  v3,v4,1
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_vsplth_3>:
+  100010:	10 67 22 4c 	vsplth  v3,v4,7
+  100014:	4e 80 00 20 	blr

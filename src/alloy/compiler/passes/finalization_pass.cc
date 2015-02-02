@@ -7,27 +7,25 @@
  ******************************************************************************
  */
 
-#include <alloy/compiler/passes/finalization_pass.h>
+#include "alloy/compiler/passes/finalization_pass.h"
 
-#include <alloy/backend/backend.h>
-#include <alloy/compiler/compiler.h>
-#include <alloy/runtime/runtime.h>
+#include "alloy/backend/backend.h"
+#include "alloy/compiler/compiler.h"
+#include "alloy/runtime/runtime.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::compiler;
-using namespace alloy::compiler::passes;
-using namespace alloy::frontend;
+namespace alloy {
+namespace compiler {
+namespace passes {
+
+// TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
-using namespace alloy::runtime;
 
+using alloy::hir::HIRBuilder;
 
-FinalizationPass::FinalizationPass() :
-    CompilerPass() {
-}
+FinalizationPass::FinalizationPass() : CompilerPass() {}
 
-FinalizationPass::~FinalizationPass() {
-}
+FinalizationPass::~FinalizationPass() {}
 
 int FinalizationPass::Run(HIRBuilder* builder) {
   SCOPE_profile_cpu_f("alloy");
@@ -48,7 +46,7 @@ int FinalizationPass::Run(HIRBuilder* builder) {
       if (!label->name) {
         const size_t label_len = 6 + 4 + 1;
         char* name = (char*)arena->Alloc(label_len);
-        xesnprintfa(name, label_len, "_label%d", label->id);
+        snprintf(name, label_len, "_label%d", label->id);
         label->name = name;
       }
       label = label->next;
@@ -70,3 +68,7 @@ int FinalizationPass::Run(HIRBuilder* builder) {
 
   return 0;
 }
+
+}  // namespace passes
+}  // namespace compiler
+}  // namespace alloy

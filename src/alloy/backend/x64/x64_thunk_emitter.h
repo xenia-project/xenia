@@ -7,18 +7,15 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_X64_X64_THUNK_EMITTER_H_
-#define XENIA_CPU_X64_X64_THUNK_EMITTER_H_
+#ifndef ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
+#define ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_
 
-#include <alloy/core.h>
-#include <alloy/backend/x64/x64_backend.h>
-#include <alloy/backend/x64/x64_emitter.h>
-
+#include "alloy/backend/x64/x64_backend.h"
+#include "alloy/backend/x64/x64_emitter.h"
 
 namespace alloy {
 namespace backend {
 namespace x64 {
-
 
 /**
  * Stack Layout
@@ -99,35 +96,34 @@ namespace x64 {
  *  |                  |
  *  |                  |
  *  +------------------+
- *  | scratch, 32b     | rsp + 32
+ *  | scratch, 48b     | rsp + 32
  *  |                  |
  *  +------------------+
- *  | rcx / context    | rsp + 64
+ *  | rcx / context    | rsp + 80
  *  +------------------+
- *  | guest ret addr   | rsp + 72
+ *  | guest ret addr   | rsp + 88
  *  +------------------+
- *  | call ret addr    | rsp + 80
+ *  | call ret addr    | rsp + 96
  *  +------------------+
  *    ... locals ...
  *  +------------------+
  *  | (return address) |
- *  +------------------+ 
+ *  +------------------+
  *
  */
 
 class StackLayout {
-public:
+ public:
   const static size_t THUNK_STACK_SIZE = 120;
 
-  const static size_t GUEST_STACK_SIZE = 88;
-  const static size_t GUEST_RCX_HOME = 64;
-  const static size_t GUEST_RET_ADDR = 72;
-  const static size_t GUEST_CALL_RET_ADDR = 80;
+  const static size_t GUEST_STACK_SIZE = 104;
+  const static size_t GUEST_RCX_HOME = 80;
+  const static size_t GUEST_RET_ADDR = 88;
+  const static size_t GUEST_CALL_RET_ADDR = 96;
 };
 
-
 class X64ThunkEmitter : public X64Emitter {
-public:
+ public:
   X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator);
   virtual ~X64ThunkEmitter();
 
@@ -138,10 +134,8 @@ public:
   GuestToHostThunk EmitGuestToHostThunk();
 };
 
-
 }  // namespace x64
 }  // namespace backend
 }  // namespace alloy
 
-
-#endif  // XENIA_CPU_X64_X64_THUNK_EMITTER_H_
+#endif  // ALLOY_BACKEND_X64_X64_THUNK_EMITTER_H_

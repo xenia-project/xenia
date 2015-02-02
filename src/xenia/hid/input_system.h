@@ -10,22 +10,20 @@
 #ifndef XENIA_HID_INPUT_SYSTEM_H_
 #define XENIA_HID_INPUT_SYSTEM_H_
 
-#include <xenia/core.h>
-#include <xenia/xbox.h>
+#include <memory>
+#include <vector>
 
-
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, cpu, Processor);
-
+#include "xenia/common.h"
+#include "xenia/emulator.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace hid {
 
 class InputDriver;
 
-
 class InputSystem {
-public:
+ public:
   InputSystem(Emulator* emulator);
   ~InputSystem();
 
@@ -35,26 +33,24 @@ public:
 
   X_STATUS Setup();
 
-  void AddDriver(InputDriver* driver);
+  void AddDriver(std::unique_ptr<InputDriver> driver);
 
-  X_RESULT GetCapabilities(
-      uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps);
-  X_RESULT GetState(uint32_t user_index, X_INPUT_STATE& out_state);
-  X_RESULT SetState(uint32_t user_index, X_INPUT_VIBRATION& vibration);
+  X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags,
+                           X_INPUT_CAPABILITIES* out_caps);
+  X_RESULT GetState(uint32_t user_index, X_INPUT_STATE* out_state);
+  X_RESULT SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration);
   X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
-                        X_INPUT_KEYSTROKE& out_keystroke);
+                        X_INPUT_KEYSTROKE* out_keystroke);
 
-private:
-  Emulator*         emulator_;
-  Memory*           memory_;
-  cpu::Processor*   processor_;
+ private:
+  Emulator* emulator_;
+  Memory* memory_;
+  cpu::Processor* processor_;
 
-  std::vector<InputDriver*> drivers_;
+  std::vector<std::unique_ptr<InputDriver>> drivers_;
 };
-
 
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_INPUT_SYSTEM_H_

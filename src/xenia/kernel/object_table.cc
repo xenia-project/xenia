@@ -7,26 +7,21 @@
  ******************************************************************************
  */
 
-#include <xenia/kernel/object_table.h>
+#include "xenia/kernel/object_table.h"
 
-#include <xenia/kernel/xobject.h>
-#include <xenia/kernel/objects/xthread.h>
+#include <algorithm>
 
+#include "xenia/kernel/xobject.h"
+#include "xenia/kernel/objects/xthread.h"
 
-using namespace xe;
-using namespace xe::kernel;
+namespace xe {
+namespace kernel {
 
-
-ObjectTable::ObjectTable() :
-    table_capacity_(0),
-    table_(NULL),
-    last_free_entry_(0) {
-  table_mutex_ = xe_mutex_alloc(0);
-  XEASSERTNOTNULL(table_mutex_);
-}
+ObjectTable::ObjectTable()
+    : table_capacity_(0), table_(nullptr), last_free_entry_(0) {}
 
 ObjectTable::~ObjectTable() {
-  xe_mutex_lock(table_mutex_);
+  std::lock_guard<std::mutex> lock(table_mutex_);
 
   // Release all objects.
   for (uint32_t n = 0; n < table_capacity_; n++) {
@@ -39,13 +34,8 @@ ObjectTable::~ObjectTable() {
 
   table_capacity_ = 0;
   last_free_entry_ = 0;
-  xe_free(table_);
+  free(table_);
   table_ = NULL;
-
-  xe_mutex_unlock(table_mutex_);
-
-  xe_mutex_free(table_mutex_);
-  table_mutex_ = NULL;
 }
 
 X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
@@ -68,13 +58,18 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
   }
 
   // Table out of slots, expand.
-  uint32_t new_table_capacity = MAX(16 * 1024, table_capacity_ * 2);
-  ObjectTableEntry* new_table = (ObjectTableEntry*)xe_recalloc(
-      table_,
-      table_capacity_ * sizeof(ObjectTableEntry),
-      new_table_capacity * sizeof(ObjectTableEntry));
+  uint32_t new_table_capacity = std::max(16 * 1024u, table_capacity_ * 2);
+  size_t new_table_size = new_table_capacity * sizeof(ObjectTableEntry);
+  size_t old_table_size = table_capacity_ * sizeof(ObjectTableEntry);
+  ObjectTableEntry* new_table =
+      (ObjectTableEntry*)realloc(table_, new_table_size);
   if (!new_table) {
     return X_STATUS_NO_MEMORY;
+  }
+  // Zero out new memory.
+  if (new_table_size > old_table_size) {
+    memset(reinterpret_cast<uint8_t*>(new_table) + old_table_size, 0,
+           new_table_size - old_table_size);
   }
   last_free_entry_ = table_capacity_;
   table_capacity_ = new_table_capacity;
@@ -88,27 +83,27 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
 }
 
 X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
-  XEASSERTNOTNULL(out_handle);
+  assert_not_null(out_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  xe_mutex_lock(table_mutex_);
-
-  // Find a free slot.
   uint32_t slot = 0;
-  result = FindFreeSlot(&slot);
+  {
+    std::lock_guard<std::mutex> lock(table_mutex_);
 
-  // Stash.
-  if (XSUCCEEDED(result)) {
-    ObjectTableEntry& entry = table_[slot];
-    entry.object = object;
+    // Find a free slot.
+    result = FindFreeSlot(&slot);
 
-    // Retain so long as the object is in the table.
-    object->RetainHandle();
-    object->Retain();
+    // Stash.
+    if (XSUCCEEDED(result)) {
+      ObjectTableEntry& entry = table_[slot];
+      entry.object = object;
+
+      // Retain so long as the object is in the table.
+      object->RetainHandle();
+      object->Retain();
+    }
   }
-
-  xe_mutex_unlock(table_mutex_);
 
   if (XSUCCEEDED(result)) {
     *out_handle = slot << 2;
@@ -125,26 +120,27 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  xe_mutex_lock(table_mutex_);
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
-
-  // Verify slot.
   XObject* object = NULL;
-  if (slot > table_capacity_) {
-    result = X_STATUS_INVALID_HANDLE;
-  } else {
-    ObjectTableEntry& entry = table_[slot];
-    if (entry.object) {
-      // Release after we lose the lock.
-      object = entry.object;
-    } else {
+  {
+    std::lock_guard<std::mutex> lock(table_mutex_);
+
+    // Lower 2 bits are ignored.
+    uint32_t slot = handle >> 2;
+
+    // Verify slot.
+    if (slot > table_capacity_) {
       result = X_STATUS_INVALID_HANDLE;
+    } else {
+      ObjectTableEntry& entry = table_[slot];
+      if (entry.object) {
+        // Release after we lose the lock.
+        object = entry.object;
+      } else {
+        result = X_STATUS_INVALID_HANDLE;
+      }
+      entry.object = nullptr;
     }
   }
-
-  xe_mutex_unlock(table_mutex_);
 
   if (object) {
     // Release the object handle now that it is out of the table.
@@ -156,7 +152,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
-  XEASSERTNOTNULL(out_object);
+  assert_not_null(out_object);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -165,30 +161,30 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  xe_mutex_lock(table_mutex_);
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
-
-  // Verify slot.
   XObject* object = NULL;
-  if (slot > table_capacity_) {
-    result = X_STATUS_INVALID_HANDLE;
-  } else {
-    ObjectTableEntry& entry = table_[slot];
-    if (entry.object) {
-      object = entry.object;
-    } else {
+  {
+    std::lock_guard<std::mutex> lock(table_mutex_);
+
+    // Lower 2 bits are ignored.
+    uint32_t slot = handle >> 2;
+
+    // Verify slot.
+    if (slot > table_capacity_) {
       result = X_STATUS_INVALID_HANDLE;
+    } else {
+      ObjectTableEntry& entry = table_[slot];
+      if (entry.object) {
+        object = entry.object;
+      } else {
+        result = X_STATUS_INVALID_HANDLE;
+      }
+    }
+
+    // Retain the object pointer.
+    if (object) {
+      object->Retain();
     }
   }
-
-  // Retain the object pointer.
-  if (object) {
-    object->Retain();
-  }
-
-  xe_mutex_unlock(table_mutex_);
 
   *out_object = object;
   return result;
@@ -197,7 +193,7 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object) {
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
   if (handle == 0xFFFFFFFF) {
     // CurrentProcess
-    //XEASSERTALWAYS();
+    // assert_always();
     return 0;
   } else if (handle == 0xFFFFFFFE) {
     // CurrentThread
@@ -206,3 +202,6 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
     return handle;
   }
 }
+
+}  // namespace kernel
+}  // namespace xe

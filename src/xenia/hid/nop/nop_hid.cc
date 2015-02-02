@@ -7,38 +7,36 @@
  ******************************************************************************
  */
 
-#include <xenia/hid/nop/nop_hid.h>
+#include "xenia/hid/nop/nop_hid.h"
 
-#include <xenia/hid/nop/nop_input_driver.h>
+#include "xenia/hid/nop/nop_input_driver.h"
 
+namespace xe {
+namespace hid {
+namespace nop {
 
-using namespace xe;
-using namespace xe::hid;
-using namespace xe::hid::nop;
+void InitializeIfNeeded();
+void CleanupOnShutdown();
 
-
-namespace {
-  void InitializeIfNeeded();
-  void CleanupOnShutdown();
-
-  void InitializeIfNeeded() {
-    static bool has_initialized = false;
-    if (has_initialized) {
-      return;
-    }
-    has_initialized = true;
-
-    //
-
-    atexit(CleanupOnShutdown);
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
   }
+  has_initialized = true;
 
-  void CleanupOnShutdown() {
-  }
+  //
+
+  atexit(CleanupOnShutdown);
 }
 
+void CleanupOnShutdown() {}
 
-InputDriver* xe::hid::nop::Create(InputSystem* input_system) {
+std::unique_ptr<InputDriver> Create(InputSystem* input_system) {
   InitializeIfNeeded();
-  return new NopInputDriver(input_system);
+  return std::make_unique<NopInputDriver>(input_system);
 }
+
+}  // namespace nop
+}  // namespace hid
+}  // namespace xe

@@ -10,41 +10,35 @@
 #ifndef XENIA_HID_INPUT_DRIVER_H_
 #define XENIA_HID_INPUT_DRIVER_H_
 
-#include <xenia/core.h>
-#include <xenia/xbox.h>
-
+#include "xenia/common.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace hid {
 
 class InputSystem;
 
-
 class InputDriver {
-public:
+ public:
   virtual ~InputDriver();
 
   virtual X_STATUS Setup() = 0;
 
-  virtual X_RESULT GetCapabilities(
-      uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES& out_caps) = 0;
-  virtual X_RESULT GetState(
-      uint32_t user_index, X_INPUT_STATE& out_state) = 0;
-  virtual X_RESULT SetState(
-      uint32_t user_index, X_INPUT_VIBRATION& vibration) = 0;
-  virtual X_RESULT GetKeystroke(
-      uint32_t user_index, uint32_t flags,
-      X_INPUT_KEYSTROKE& out_keystroke) = 0;
+  virtual X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags,
+                                   X_INPUT_CAPABILITIES* out_caps) = 0;
+  virtual X_RESULT GetState(uint32_t user_index, X_INPUT_STATE* out_state) = 0;
+  virtual X_RESULT SetState(uint32_t user_index,
+                            X_INPUT_VIBRATION* vibration) = 0;
+  virtual X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
+                                X_INPUT_KEYSTROKE* out_keystroke) = 0;
 
-protected:
+ protected:
   InputDriver(InputSystem* input_system);
 
   InputSystem* input_system_;
 };
 
-
 }  // namespace hid
 }  // namespace xe
-
 
 #endif  // XENIA_HID_INPUT_DRIVER_H_

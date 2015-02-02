@@ -10,22 +10,20 @@
 #ifndef ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
 #define ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_
 
-#include <alloy/compiler/compiler_pass.h>
-
+#include "alloy/compiler/compiler_pass.h"
 
 namespace alloy {
 namespace compiler {
 namespace passes {
 
-
 class SimplificationPass : public CompilerPass {
-public:
+ public:
   SimplificationPass();
-  virtual ~SimplificationPass();
+  ~SimplificationPass() override;
 
-  virtual int Run(hir::HIRBuilder* builder);
+  int Run(hir::HIRBuilder* builder) override;
 
-private:
+ private:
   void EliminateConversions(hir::HIRBuilder* builder);
   void CheckTruncate(hir::Instr* i);
   void CheckByteSwap(hir::Instr* i);
@@ -34,10 +32,8 @@ private:
   hir::Value* CheckValue(hir::Value* value);
 };
 
-
 }  // namespace passes
 }  // namespace compiler
 }  // namespace alloy
-
 
 #endif  // ALLOY_COMPILER_PASSES_SIMPLIFICATION_PASS_H_

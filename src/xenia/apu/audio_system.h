@@ -10,22 +10,22 @@
 #ifndef XENIA_APU_AUDIO_SYSTEM_H_
 #define XENIA_APU_AUDIO_SYSTEM_H_
 
-#include <xenia/core.h>
-#include <xenia/xbox.h>
-
+#include <atomic>
+#include <mutex>
 #include <queue>
+#include <thread>
 
-XEDECLARECLASS1(xe, Emulator);
-XEDECLARECLASS2(xe, cpu, Processor);
-XEDECLARECLASS2(xe, cpu, XenonThreadState);
-XEDECLARECLASS2(xe, apu, AudioDriver);
+#include "xenia/common.h"
+#include "xenia/emulator.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace apu {
 
+class AudioDriver;
 
 class AudioSystem {
-public:
+ public:
   virtual ~AudioSystem();
 
   Emulator* emulator() const { return emulator_; }
@@ -35,23 +35,22 @@ public:
   virtual X_STATUS Setup();
   virtual void Shutdown();
 
-  X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index);
+  X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg,
+                          size_t* out_index);
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
-  virtual X_STATUS CreateDriver(size_t index, HANDLE wait_handle, AudioDriver** out_driver) = 0;
+  virtual X_STATUS CreateDriver(size_t index, HANDLE wait_handle,
+                                AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
   virtual uint64_t ReadRegister(uint64_t addr);
   virtual void WriteRegister(uint64_t addr, uint64_t value);
 
-protected:
+ protected:
   virtual void Initialize();
 
-private:
-  static void ThreadStartThunk(AudioSystem* this_ptr) {
-    this_ptr->ThreadStart();
-  }
+ private:
   void ThreadStart();
 
   static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint64_t addr) {
@@ -62,19 +61,19 @@ private:
     as->WriteRegister(addr, value);
   }
 
-protected:
+ protected:
   AudioSystem(Emulator* emulator);
 
-  Emulator*         emulator_;
-  Memory*           memory_;
-  cpu::Processor*   processor_;
+  Emulator* emulator_;
+  Memory* memory_;
+  cpu::Processor* processor_;
 
-  xe_thread_ref     thread_;
+  std::thread thread_;
   cpu::XenonThreadState* thread_state_;
-  uint32_t          thread_block_;
-  bool              running_;
+  uint32_t thread_block_;
+  std::atomic<bool> running_;
 
-  xe_mutex_t*       lock_;
+  std::mutex lock_;
 
   static const size_t maximum_client_count_ = 8;
 
@@ -88,9 +87,7 @@ protected:
   std::queue<size_t> unused_clients_;
 };
 
-
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_AUDIO_SYSTEM_H_

@@ -10,9 +10,9 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_SCANNER_H_
 #define ALLOY_FRONTEND_PPC_PPC_SCANNER_H_
 
-#include <alloy/core.h>
-#include <alloy/runtime/symbol_info.h>
+#include <vector>
 
+#include "alloy/runtime/symbol_info.h"
 
 namespace alloy {
 namespace frontend {
@@ -25,9 +25,8 @@ typedef struct BlockInfo_t {
   uint64_t end_address;
 } BlockInfo;
 
-
 class PPCScanner {
-public:
+ public:
   PPCScanner(PPCFrontend* frontend);
   ~PPCScanner();
 
@@ -35,17 +34,15 @@ public:
 
   std::vector<BlockInfo> FindBlocks(runtime::FunctionInfo* symbol_info);
 
-private:
+ private:
   bool IsRestGprLr(uint64_t address);
 
-private:
+ private:
   PPCFrontend* frontend_;
 };
-
 
 }  // namespace ppc
 }  // namespace frontend
 }  // namespace alloy
-
 
 #endif  // ALLOY_FRONTEND_PPC_PPC_SCANNER_H_

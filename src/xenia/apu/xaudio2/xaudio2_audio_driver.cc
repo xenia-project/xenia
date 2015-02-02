@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include <xenia/apu/xaudio2/xaudio2_audio_driver.h>
+#include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
-#include <xenia/apu/apu-private.h>
+#include "xenia/apu/apu-private.h"
 
-#include <xenia/emulator.h>
+#include "xenia/emulator.h"
 
 using namespace xe;
 using namespace xe::apu;
@@ -26,7 +26,9 @@ public:
   void OnStreamEnd() {}
   void OnVoiceProcessingPassEnd() {}
   void OnVoiceProcessingPassStart(uint32_t samples_required) {}
-  void OnBufferEnd(void* context);
+  void OnBufferEnd(void* context) {
+    SetEvent(wait_handle_);
+  }
   void OnBufferStart(void* context) {}
   void OnLoopEnd(void* context) {}
   void OnVoiceError(void* context, HRESULT result) {}
@@ -34,10 +36,6 @@ public:
 private:
   HANDLE wait_handle_;
 };
-
-void XAudio2AudioDriver::VoiceCallback::OnBufferEnd(void* context) {
-  SetEvent(wait_handle_);
-}
 
 XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait) :
     audio_(0), mastering_voice_(0), pcm_voice_(0),
@@ -67,7 +65,7 @@ void XAudio2AudioDriver::Initialize() {
   hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
     XELOGE("XAudio2Create failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
@@ -83,7 +81,7 @@ void XAudio2AudioDriver::Initialize() {
   hr = audio_->CreateMasteringVoice(&mastering_voice_);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
@@ -106,14 +104,14 @@ void XAudio2AudioDriver::Initialize() {
                                  voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
   hr = pcm_voice_->Start();
   if (FAILED(hr)) {
     XELOGE("Start failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 
@@ -131,7 +129,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   // interleave the data
   for (int index = 0, o = 0; index < channel_samples_; ++index) {
     for (int channel = 0, table = 0; channel < interleave_channels; ++channel, table += channel_samples_) {
-      output_frame[o++] = XESWAPF32BE(input_frame[table + index]);
+      output_frame[o++] = poly::byte_swap(input_frame[table + index]);
     }
   }
 
@@ -148,7 +146,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   hr = pcm_voice_->SubmitSourceBuffer(&buffer);
   if (FAILED(hr)) {
     XELOGE("SubmitSourceBuffer failed with %.8X", hr);
-    XEASSERTALWAYS();
+    assert_always();
     return;
   }
 }
@@ -162,7 +160,7 @@ void XAudio2AudioDriver::Shutdown() {
   mastering_voice_ = NULL;
 
   audio_->StopEngine();
-  XESAFERELEASE(audio_);
+  audio_->Release();
 
   delete voice_callback_;
   CloseHandle(wait_handle_);

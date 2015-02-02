@@ -7,6 +7,8 @@
     'context_promotion_pass.h',
     'control_flow_analysis_pass.cc',
     'control_flow_analysis_pass.h',
+    'control_flow_simplification_pass.cc',
+    'control_flow_simplification_pass.h',
     'data_flow_analysis_pass.cc',
     'data_flow_analysis_pass.h',
     'dead_code_elimination_pass.cc',

@@ -7,100 +7,89 @@
  ******************************************************************************
  */
 
-#include <alloy/runtime/module.h>
+#include "alloy/runtime/module.h"
 
 #include <fstream>
 #include <sstream>
 
-#include <alloy/runtime/runtime.h>
+#include "alloy/runtime/runtime.h"
+#include "poly/poly.h"
+#include "xenia/profiling.h"
 
-using namespace alloy;
-using namespace alloy::runtime;
+namespace alloy {
+namespace runtime {
 
+Module::Module(Runtime* runtime)
+    : runtime_(runtime), memory_(runtime->memory()) {}
 
-Module::Module(Runtime* runtime) :
-    runtime_(runtime), memory_(runtime->memory()) {
-  lock_ = AllocMutex(10000);
-}
+Module::~Module() = default;
 
-Module::~Module() {
-  LockMutex(lock_);
-  SymbolMap::iterator it = map_.begin();
-  for (; it != map_.end(); ++it) {
-    SymbolInfo* symbol_info = it->second;
-    delete symbol_info;
-  }
-  UnlockMutex(lock_);
-  FreeMutex(lock_);
-}
-
-bool Module::ContainsAddress(uint64_t address) {
-  return true;
-}
+bool Module::ContainsAddress(uint64_t address) { return true; }
 
 SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
-  LockMutex(lock_);
-  SymbolMap::const_iterator it = map_.find(address);
-  SymbolInfo* symbol_info = it != map_.end() ? it->second : NULL;
+  lock_.lock();
+  const auto it = map_.find(address);
+  SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   if (symbol_info) {
     if (symbol_info->status() == SymbolInfo::STATUS_DECLARING) {
       // Some other thread is declaring the symbol - wait.
       if (wait) {
         do {
-          UnlockMutex(lock_);
+          lock_.unlock();
           // TODO(benvanik): sleep for less time?
-          Sleep(0);
-          LockMutex(lock_);
+          poly::threading::Sleep(std::chrono::microseconds(100));
+          lock_.lock();
         } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
       } else {
         // Immediate request, just return.
-        symbol_info = NULL;
+        symbol_info = nullptr;
       }
     }
   }
-  UnlockMutex(lock_);
+  lock_.unlock();
   return symbol_info;
 }
 
-SymbolInfo::Status Module::DeclareSymbol(
-    SymbolInfo::Type type, uint64_t address, SymbolInfo** out_symbol_info) {
-  *out_symbol_info = NULL;
-  LockMutex(lock_);
-  SymbolMap::const_iterator it = map_.find(address);
-  SymbolInfo* symbol_info = it != map_.end() ? it->second : NULL;
+SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
+                                         uint64_t address,
+                                         SymbolInfo** out_symbol_info) {
+  *out_symbol_info = nullptr;
+  lock_.lock();
+  auto it = map_.find(address);
+  SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   SymbolInfo::Status status;
   if (symbol_info) {
     // If we exist but are the wrong type, die.
     if (symbol_info->type() != type) {
-      UnlockMutex(lock_);
+      lock_.unlock();
       return SymbolInfo::STATUS_FAILED;
     }
     // If we aren't ready yet spin and wait.
     if (symbol_info->status() == SymbolInfo::STATUS_DECLARING) {
       // Still declaring, so spin.
       do {
-        UnlockMutex(lock_);
+        lock_.unlock();
         // TODO(benvanik): sleep for less time?
-        Sleep(0);
-        LockMutex(lock_);
+        poly::threading::Sleep(std::chrono::microseconds(100));
+        lock_.lock();
       } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
     }
     status = symbol_info->status();
   } else {
     // Create and return for initialization.
     switch (type) {
-    case SymbolInfo::TYPE_FUNCTION:
-      symbol_info = new FunctionInfo(this, address);
-      break;
-    case SymbolInfo::TYPE_VARIABLE:
-      symbol_info = new VariableInfo(this, address);
-      break;
+      case SymbolInfo::TYPE_FUNCTION:
+        symbol_info = new FunctionInfo(this, address);
+        break;
+      case SymbolInfo::TYPE_VARIABLE:
+        symbol_info = new VariableInfo(this, address);
+        break;
     }
     map_[address] = symbol_info;
-    list_.push_back(symbol_info);
+    list_.emplace_back(symbol_info);
     status = SymbolInfo::STATUS_NEW;
   }
-  UnlockMutex(lock_);
+  lock_.unlock();
   *out_symbol_info = symbol_info;
 
   // Get debug info from providers, if this is new.
@@ -111,26 +100,26 @@ SymbolInfo::Status Module::DeclareSymbol(
   return status;
 }
 
-SymbolInfo::Status Module::DeclareFunction(
-    uint64_t address, FunctionInfo** out_symbol_info) {
+SymbolInfo::Status Module::DeclareFunction(uint64_t address,
+                                           FunctionInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
-  SymbolInfo::Status status = DeclareSymbol(
-      SymbolInfo::TYPE_FUNCTION, address, &symbol_info);
+  SymbolInfo::Status status =
+      DeclareSymbol(SymbolInfo::TYPE_FUNCTION, address, &symbol_info);
   *out_symbol_info = (FunctionInfo*)symbol_info;
   return status;
 }
 
-SymbolInfo::Status Module::DeclareVariable(
-    uint64_t address, VariableInfo** out_symbol_info) {
+SymbolInfo::Status Module::DeclareVariable(uint64_t address,
+                                           VariableInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
-  SymbolInfo::Status status = DeclareSymbol(
-      SymbolInfo::TYPE_VARIABLE, address, &symbol_info);
+  SymbolInfo::Status status =
+      DeclareSymbol(SymbolInfo::TYPE_VARIABLE, address, &symbol_info);
   *out_symbol_info = (VariableInfo*)symbol_info;
   return status;
 }
 
 SymbolInfo::Status Module::DefineSymbol(SymbolInfo* symbol_info) {
-  LockMutex(lock_);
+  lock_.lock();
   SymbolInfo::Status status;
   if (symbol_info->status() == SymbolInfo::STATUS_DECLARED) {
     // Declared but undefined, so request caller define it.
@@ -139,16 +128,16 @@ SymbolInfo::Status Module::DefineSymbol(SymbolInfo* symbol_info) {
   } else if (symbol_info->status() == SymbolInfo::STATUS_DEFINING) {
     // Still defining, so spin.
     do {
-      UnlockMutex(lock_);
+      lock_.unlock();
       // TODO(benvanik): sleep for less time?
-      Sleep(0);
-      LockMutex(lock_);
+      poly::threading::Sleep(std::chrono::microseconds(100));
+      lock_.lock();
     } while (symbol_info->status() == SymbolInfo::STATUS_DEFINING);
     status = symbol_info->status();
   } else {
     status = symbol_info->status();
   }
-  UnlockMutex(lock_);
+  lock_.unlock();
   return status;
 }
 
@@ -160,35 +149,30 @@ SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
   return DefineSymbol((SymbolInfo*)symbol_info);
 }
 
-void Module::ForEachFunction(std::function<void (FunctionInfo*)> callback) {
+void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("alloy");
-
-  LockMutex(lock_);
-  for (auto it = list_.begin(); it != list_.end(); ++it) {
-    SymbolInfo* symbol_info = *it;
+  std::lock_guard<std::mutex> guard(lock_);
+  for (auto& symbol_info : list_) {
     if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
-      FunctionInfo* info = (FunctionInfo*)symbol_info;
+      FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
       callback(info);
     }
   }
-  UnlockMutex(lock_);
 }
 
 void Module::ForEachFunction(size_t since, size_t& version,
-                             std::function<void (FunctionInfo*)> callback) {
+                             std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("alloy");
-
-  LockMutex(lock_);
+  std::lock_guard<std::mutex> guard(lock_);
   size_t count = list_.size();
   version = count;
   for (size_t n = since; n < count; n++) {
-    SymbolInfo* symbol_info = list_[n];
+    auto& symbol_info = list_[n];
     if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
-      FunctionInfo* info = (FunctionInfo*)symbol_info;
+      FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
       callback(info);
     }
   }
-  UnlockMutex(lock_);
 }
 
 int Module::ReadMap(const char* file_name) {
@@ -212,8 +196,7 @@ int Module::ReadMap(const char* file_name) {
   while (std::getline(infile, line)) {
     // Remove newline.
     while (line.size() &&
-           (line[line.size() - 1] == '\r' ||
-            line[line.size() - 1] == '\n')) {
+           (line[line.size() - 1] == '\r' || line[line.size() - 1] == '\n')) {
       line.erase(line.end() - 1);
     }
 
@@ -246,8 +229,8 @@ int Module::ReadMap(const char* file_name) {
         continue;
       }
       // Don't overwrite names we've set elsewhere.
-      if (!fn_info->name()) {
-        // If it's an mangled C++ name (?name@...) just use the name.
+      if (fn_info->name().empty()) {
+        // If it's a mangled C++ name (?name@...) just use the name.
         // TODO(benvanik): better demangling, or leave it to clients.
         /*if (name[0] == '?') {
           size_t at = name.find('@');
@@ -262,3 +245,6 @@ int Module::ReadMap(const char* file_name) {
 
   return 0;
 }
+
+}  // namespace runtime
+}  // namespace alloy
