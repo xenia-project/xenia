@@ -130,7 +130,6 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
   }
   const auto& user_profile = state->user_profile();
 
-
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.
 
@@ -159,7 +158,8 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
       size_needed += extra_size;
     } else {
       any_missing = true;
-      XELOGE("XamUserReadProfileSettings requested unimplemented setting %.8X", setting_id);
+      XELOGE("XamUserReadProfileSettings requested unimplemented setting %.8X",
+             setting_id);
     }
   }
   if (any_missing) {
@@ -329,13 +329,19 @@ SHIM_CALL XamUserCreateAchievementEnumerator_shim(PPCContext* ppc_state,
   uint32_t flags = SHIM_GET_ARG_32(3);
   uint32_t offset = SHIM_GET_ARG_32(4);
   uint32_t count = SHIM_GET_ARG_32(5);
-  uint32_t buffer = SHIM_GET_ARG_32(6);
+  uint32_t buffer_size_ptr = SHIM_GET_ARG_32(6);
   uint32_t handle_ptr = SHIM_GET_ARG_32(7);
 
   XELOGD(
       "XamUserCreateAchievementEnumerator(%.8X, %d, %.8X, %.8X, %d, %d, %.8X, "
       "%.8X)",
-      title_id, user_index, xuid, flags, offset, count, buffer, handle_ptr);
+      title_id, user_index, xuid, flags, offset, count, buffer_size_ptr,
+      handle_ptr);
+
+  if (buffer_size_ptr) {
+    // TODO(benvanik): struct size/etc.
+    SHIM_SET_MEM_32(buffer_size_ptr, 64 * count);
+  }
 
   XEnumerator* e = new XEnumerator(state);
   e->Initialize();
