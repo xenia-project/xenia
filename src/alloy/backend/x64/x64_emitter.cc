@@ -508,6 +508,7 @@ uint64_t ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
   };
 #pragma pack(pop)
   static_assert_size(Asm, kICSlotSize);
+  // TODO(benvanik): quick check table is full (so we don't have to enum slots)
   // The return address points to ReloadRCX work after the call.
   // To get the top of the table, look back a ways.
   uint64_t table_start = return_address - 12 - kICSlotSize * kICSlotCount;
