@@ -219,21 +219,21 @@ inline void XOverlappedSetContext(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
   poly::store_and_swap<uint32_t>(&p[2], value);
 }
-inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  poly::store_and_swap<uint32_t>(&p[7], value);
-}
 inline X_HANDLE XOverlappedGetEvent(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[4]);
+  return poly::load_and_swap<uint32_t>(&p[3]);
 }
 inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[5]);
+  return poly::load_and_swap<uint32_t>(&p[4]);
 }
 inline uint32_t XOverlappedGetCompletionContext(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[6]);
+  return poly::load_and_swap<uint32_t>(&p[5]);
+}
+inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  poly::store_and_swap<uint32_t>(&p[6], value);
 }
 
 class X_ANSI_STRING {
