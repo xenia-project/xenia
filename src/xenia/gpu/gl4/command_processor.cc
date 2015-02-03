@@ -1185,7 +1185,6 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
   assert_true(src_sel == 0x2);  // 'SrcSel=AutoIndex'
   bool index_32bit = (dword0 >> 11) & 0x1;
   uint32_t indices_size = index_count * (index_32bit ? 4 : 2);
-  reader->CheckRead(indices_size / sizeof(uint32_t));
   uint32_t index_ptr = reader->ptr();
   index_buffer_info_.guest_base = 0;
   index_buffer_info_.length = 0;
