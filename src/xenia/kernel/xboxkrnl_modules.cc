@@ -156,7 +156,12 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("XexGetModuleHandle(%s, %.8X)", module_name, module_handle_ptr);
 
-  XModule* module = state->GetModule(module_name);
+  XModule* module = nullptr;
+  if (!module_name) {
+    module = state->GetExecutableModule();
+  } else {
+    module = state->GetModule(module_name);
+  }
   if (!module) {
     SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
     return;
