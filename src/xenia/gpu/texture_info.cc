@@ -194,36 +194,36 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
 
   size_2d.block_width = size_2d.logical_width / block_size;
   size_2d.block_height = size_2d.logical_height / block_size;
-
   if (!is_compressed) {
-    // must be 32x32 but also must have a pitch that is a multiple of 256 bytes
+    // Must be 32x32 but also must have a pitch that is a multiple of 256 bytes.
     uint32_t bytes_per_block = block_size * block_size * texel_pitch;
     uint32_t width_multiple = 32;
-    if (bytes_per_block) {
-      uint32_t minimum_multiple = 256 / bytes_per_block;
-      if (width_multiple < minimum_multiple) {
-        width_multiple = minimum_multiple;
-      }
+    if (!is_tiled) {
+      // 256 stride requirement for untiled textures.
+      width_multiple = poly::round_up(width_multiple, 256 / bytes_per_block);
     }
     size_2d.input_width = poly::round_up(size_2d.logical_width, width_multiple);
     size_2d.input_height = poly::round_up(size_2d.logical_height, 32);
     size_2d.output_width = size_2d.logical_width;
     size_2d.output_height = size_2d.logical_height;
-  } else {
-    // must be 128x128
-    size_2d.input_width = poly::round_up(size_2d.logical_width, 128);
-    size_2d.input_height = poly::round_up(size_2d.logical_height, 128);
-    size_2d.output_width = poly::next_pow2(size_2d.logical_width);
-    size_2d.output_height = poly::next_pow2(size_2d.logical_height);
-  }
 
-  size_2d.logical_pitch = (size_2d.logical_width / block_size) * texel_pitch;
-  size_2d.input_pitch = (size_2d.input_width / block_size) * texel_pitch;
-
-  if (!is_tiled) {
-    input_length = size_2d.block_height * size_2d.logical_pitch;
-  } else {
+    size_2d.logical_pitch = (size_2d.logical_width / block_size) * texel_pitch;
+    size_2d.input_pitch = (size_2d.input_width / block_size) * texel_pitch;
     input_length = size_2d.block_height * size_2d.logical_pitch;  // ?
+  } else {
+    // Must be 128x128 minimum (block_size * 32).
+    size_2d.input_width =
+        poly::round_up(size_2d.logical_width, block_size * 32);
+    size_2d.input_height =
+        poly::round_up(size_2d.logical_height, block_size * 32);
+    size_2d.output_width = size_2d.input_width;
+    size_2d.output_height = size_2d.input_height;
+
+    uint32_t block_count = (size_2d.input_width / block_size) *
+                           (size_2d.input_height / block_size);
+    size_2d.logical_pitch = (size_2d.input_width / block_size) * texel_pitch;
+    size_2d.input_pitch = (size_2d.input_width / block_size) * texel_pitch;
+    input_length = block_count * texel_pitch;
   }
 }
 

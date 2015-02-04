@@ -506,7 +506,7 @@ bool TextureCache::UploadTexture2D(GLuint texture,
     case TextureFormat::k_DXT1:
     case TextureFormat::k_DXT1_AS_16_16_16_16:
       // or GL_COMPRESSED_RGB_S3TC_DXT1_EXT?
-      internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+      internal_format = format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
       break;
     case TextureFormat::k_DXT2_3:
     case TextureFormat::k_DXT2_3_AS_16_16_16_16:
