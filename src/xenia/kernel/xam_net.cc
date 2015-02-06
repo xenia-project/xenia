@@ -255,6 +255,41 @@ SHIM_CALL NetDll_accept_shim(PPCContext* ppc_state, KernelState* state) {
   }
 }
 
+void StoreFdset(const fd_set& src, uint8_t* dest) {
+  if (!dest) {
+    return;
+  }
+  poly::store_and_swap<uint32_t>(dest, src.fd_count);
+  for (int i = 0; i < 64; ++i) {
+    SOCKET socket_handle = src.fd_array[i];
+    assert_true(socket_handle >> 32 == 0);
+    poly::store_and_swap<uint32_t>(dest + 4 + i * 4,
+                                   static_cast<uint32_t>(socket_handle));
+  }
+}
+
+SHIM_CALL NetDll_select_shim(PPCContext* ppc_state, KernelState* state) {
+  assert_always("not tested");
+  uint32_t arg0 = SHIM_GET_ARG_32(0);
+  uint32_t nfds = SHIM_GET_ARG_32(1);
+  uint32_t readfds_ptr = SHIM_GET_ARG_32(2);
+  uint32_t writefds_ptr = SHIM_GET_ARG_32(3);
+  uint32_t exceptfds_ptr = SHIM_GET_ARG_32(4);
+  uint32_t timeout_ptr = SHIM_GET_ARG_32(5);
+  XELOGD("NetDll_select(%d, %d, %.8X, %.8X, %.8X, %.8X)", arg0, nfds,
+         readfds_ptr, writefds_ptr, exceptfds_ptr, timeout_ptr);
+  fd_set readfds;
+  fd_set writefds;
+  fd_set exceptfds;
+  timeval timeout = {static_cast<long>(SHIM_MEM_32(timeout_ptr + 0)),
+                     static_cast<long>(SHIM_MEM_32(timeout_ptr + 4))};
+  int ret = select(nfds, &readfds, &writefds, &exceptfds, &timeout);
+  StoreFdset(readfds, SHIM_MEM_ADDR(readfds_ptr));
+  StoreFdset(writefds, SHIM_MEM_ADDR(writefds_ptr));
+  StoreFdset(exceptfds, SHIM_MEM_ADDR(exceptfds_ptr));
+  SHIM_SET_RETURN_32(ret);
+}
+
 SHIM_CALL NetDll_recv_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t arg0 = SHIM_GET_ARG_32(0);
   uint32_t socket_handle = SHIM_GET_ARG_32(1);
@@ -346,6 +381,7 @@ void xe::kernel::xam::RegisterNetExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", NetDll_connect, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_listen, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_accept, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_select, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_recv, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_recvfrom, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_send, state);
