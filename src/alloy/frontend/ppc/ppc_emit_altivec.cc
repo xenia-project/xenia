@@ -83,19 +83,25 @@ XEEMITTER(dss, 0x7C00066C, XDSS)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(lvebx, 0x7C00000E, X)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Same as lvx.
+  Value* ea = f.And(CalculateEA_0(f, i.X.RA, i.X.RB), f.LoadConstant(~0xFull));
+  f.StoreVR(i.X.RT, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
+  return 0;
 }
 
 XEEMITTER(lvehx, 0x7C00004E, X)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Same as lvx.
+  Value* ea = f.And(CalculateEA_0(f, i.X.RA, i.X.RB), f.LoadConstant(~0xFull));
+  f.StoreVR(i.X.RT, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
+  return 0;
 }
 
 int InstrEmit_lvewx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                      uint32_t rb) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Same as lvx.
+  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstant(~0xFull));
+  f.StoreVR(vd, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
+  return 0;
 }
 XEEMITTER(lvewx, 0x7C00008E, X)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_lvewx_(f, i, i.X.RT, i.X.RA, i.X.RB);
