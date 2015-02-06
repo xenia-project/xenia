@@ -35,7 +35,7 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+:
 
-    # install python 2.7 and VS2013/2015
+    # install python 2.7 and VS2015
     git clone https://github.com/benvanik/xenia.git
     cd xenia
     xb setup
