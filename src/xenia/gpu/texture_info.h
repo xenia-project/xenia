@@ -84,21 +84,35 @@ enum class TextureFormat : uint32_t {
   kUnknown = 0xFFFFFFFFu,
 };
 
+enum class FormatType {
+  kUncompressed,
+  kCompressed,
+};
+
+struct FormatInfo {
+  TextureFormat format;
+  FormatType type;
+  uint32_t block_width;
+  uint32_t block_height;
+  uint32_t bits_per_pixel;
+};
+
 struct TextureInfo {
   uint32_t guest_address;
-  uint32_t input_length;
   uint32_t swizzle;
   Dimension dimension;
   uint32_t width;
   uint32_t height;
   uint32_t depth;
-  uint32_t block_size;
-  uint32_t texel_pitch;
+  const FormatInfo* format_info;
   xenos::Endian endianness;
   bool is_tiled;
-  bool is_compressed;
+  uint32_t input_length;
+  uint32_t output_length;
 
-  TextureFormat format;
+  bool is_compressed() const {
+    return format_info->type == FormatType::kCompressed;
+  }
 
   union {
     struct {
@@ -111,10 +125,10 @@ struct TextureInfo {
       uint32_t block_height;
       uint32_t input_width;
       uint32_t input_height;
+      uint32_t input_pitch;
       uint32_t output_width;
       uint32_t output_height;
-      uint32_t logical_pitch;
-      uint32_t input_pitch;
+      uint32_t output_pitch;
     } size_2d;
     struct {
     } size_3d;

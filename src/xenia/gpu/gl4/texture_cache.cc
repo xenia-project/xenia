@@ -412,161 +412,138 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
   }
 }
 
+struct TextureConfig {
+  TextureFormat texture_format;
+  GLenum internal_format;
+  GLenum format;
+  GLenum type;
+};
+
+// https://code.google.com/p/glsnewton/source/browse/trunk/Source/uDDSLoader.pas?r=62
+// http://dench.flatlib.jp/opengl/textures
+// http://fossies.org/linux/WebKit/Source/ThirdParty/ANGLE/src/libGLESv2/formatutils.cpp
+static const TextureConfig texture_configs[64] = {
+    {TextureFormat::k_1_REVERSE, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8, GL_R8, GL_RED, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_1_5_5_5, GL_RGB5_A1, GL_BGRA,
+     GL_UNSIGNED_SHORT_1_5_5_5_REV},
+    {TextureFormat::k_5_6_5, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
+    {TextureFormat::k_6_5_5, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_8_8_8, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_2_10_10_10, GL_RGB10_A2, GL_RGBA,
+     GL_UNSIGNED_INT_2_10_10_10_REV},
+    {TextureFormat::k_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_B, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_8, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_Cr_Y1_Cb_Y0, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_Y1_Cr_Y0_Cb, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_8_8_8_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_4_4_4_4, GL_RGBA4, GL_RGBA,
+     GL_UNSIGNED_SHORT_4_4_4_4_REV},
+    {TextureFormat::k_10_11_11, GL_R11F_G11F_B10F, GL_RGB,
+     GL_UNSIGNED_INT_10F_11F_11F_REV},  // ?
+    {TextureFormat::k_11_11_10, GL_R11F_G11F_B10F, GL_RGB,
+     GL_UNSIGNED_INT_10F_11F_11F_REV},  // ?
+    {TextureFormat::k_DXT1, GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
+     GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT2_3, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT4_5, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_24_8, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL,
+     GL_UNSIGNED_INT_24_8},
+    {TextureFormat::k_24_8_FLOAT, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL,
+     GL_FLOAT_32_UNSIGNED_INT_24_8_REV},
+    {TextureFormat::k_16, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_16_16, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_16_16, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_16_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_FLOAT, GL_R16F, GL_RED, GL_HALF_FLOAT},
+    {TextureFormat::k_16_16_FLOAT, GL_RG16F, GL_RG, GL_HALF_FLOAT},
+    {TextureFormat::k_16_16_16_16_FLOAT, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT},
+    {TextureFormat::k_32, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_32_32, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_32_32_32_32, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_FLOAT, GL_R32F, GL_RED, GL_FLOAT},
+    {TextureFormat::k_32_32_FLOAT, GL_RG32F, GL_RG, GL_FLOAT},
+    {TextureFormat::k_32_32_32_32_FLOAT, GL_RGBA32F, GL_RGBA, GL_FLOAT},
+    {TextureFormat::k_32_AS_8, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_AS_8_8, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_MPEG, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_MPEG, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_AS_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_AS_8_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_MPEG_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_MPEG_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_DXN, GL_COMPRESSED_RG_RGTC2, GL_COMPRESSED_RG_RGTC2,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_8_8_8_8_AS_16_16_16_16, GL_RGBA8, GL_RGBA,
+     GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT1_AS_16_16_16_16, GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
+     GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT2_3_AS_16_16_16_16, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT4_5_AS_16_16_16_16, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_2_10_10_10_AS_16_16_16_16, GL_RGB10_A2, GL_RGBA,
+     GL_UNSIGNED_INT_2_10_10_10_REV},
+    {TextureFormat::k_10_11_11_AS_16_16_16_16, GL_R11F_G11F_B10F, GL_RGB,
+     GL_UNSIGNED_INT_10F_11F_11F_REV},
+    {TextureFormat::k_11_11_10_AS_16_16_16_16, GL_R11F_G11F_B10F,
+     GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_32_32_32_FLOAT, GL_RGB32F, GL_RGB, GL_FLOAT},
+    {TextureFormat::k_DXT3A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_DXT5A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_CTX1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_DXT3A_AS_1_1_1_1, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+};
+
 bool TextureCache::UploadTexture2D(GLuint texture,
                                    const TextureInfo& texture_info) {
   const auto host_address = memory_->Translate(texture_info.guest_address);
 
-  GLenum internal_format = GL_RGBA8;
-  GLenum format = GL_RGBA;
-  GLenum type = GL_UNSIGNED_BYTE;
-  // https://code.google.com/p/glsnewton/source/browse/trunk/Source/uDDSLoader.pas?r=62
-  // http://dench.flatlib.jp/opengl/textures
-  // http://fossies.org/linux/WebKit/Source/ThirdParty/ANGLE/src/libGLESv2/formatutils.cpp
-  switch (texture_info.format) {
-    case TextureFormat::k_8:
-      internal_format = GL_R8;
-      format = GL_RED;
-      type = GL_UNSIGNED_BYTE;
-      break;
-    case TextureFormat::k_1_5_5_5:
-      internal_format = GL_RGB5_A1;
-      format = GL_BGRA;
-      type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
-      break;
-    case TextureFormat::k_5_6_5:
-      internal_format = GL_RGB565;
-      format = GL_RGB;
-      type = GL_UNSIGNED_SHORT_5_6_5;
-      break;
-    case TextureFormat::k_2_10_10_10:
-    case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
-      internal_format = GL_RGB10_A2;
-      format = GL_RGBA;
-      type = GL_UNSIGNED_INT_2_10_10_10_REV;
-      break;
-    case TextureFormat::k_10_11_11:
-    case TextureFormat::k_10_11_11_AS_16_16_16_16:
-      // ?
-      internal_format = GL_R11F_G11F_B10F;
-      format = GL_RGB;
-      type = GL_UNSIGNED_INT_10F_11F_11F_REV;
-      break;
-    case TextureFormat::k_11_11_10:
-    case TextureFormat::k_11_11_10_AS_16_16_16_16:
-      internal_format = GL_R11F_G11F_B10F;
-      format = GL_RGB;
-      type = GL_UNSIGNED_INT_10F_11F_11F_REV;
-      break;
-    case TextureFormat::k_8_8_8_8:
-    case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
-      internal_format = GL_RGBA8;
-      format = GL_RGBA;
-      type = GL_UNSIGNED_BYTE;
-      break;
-    case TextureFormat::k_4_4_4_4:
-      internal_format = GL_RGBA4;
-      format = GL_RGBA;
-      type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
-      break;
-    case TextureFormat::k_16_FLOAT:
-      internal_format = GL_R16F;
-      format = GL_RED;
-      type = GL_HALF_FLOAT;
-      break;
-    case TextureFormat::k_16_16_FLOAT:
-      internal_format = GL_RG16F;
-      format = GL_RG;
-      type = GL_HALF_FLOAT;
-      break;
-    case TextureFormat::k_16_16_16_16_FLOAT:
-      internal_format = GL_RGBA16F;
-      format = GL_RGBA;
-      type = GL_HALF_FLOAT;
-      break;
-    case TextureFormat::k_32_FLOAT:
-      internal_format = GL_R32F;
-      format = GL_RED;
-      type = GL_FLOAT;
-      break;
-    case TextureFormat::k_32_32_FLOAT:
-      internal_format = GL_RG32F;
-      format = GL_RG;
-      type = GL_FLOAT;
-      break;
-    case TextureFormat::k_32_32_32_FLOAT:
-      internal_format = GL_RGB32F;
-      format = GL_RGB;
-      type = GL_FLOAT;
-      break;
-    case TextureFormat::k_32_32_32_32_FLOAT:
-      internal_format = GL_RGBA32F;
-      format = GL_RGBA;
-      type = GL_FLOAT;
-      break;
-    case TextureFormat::k_DXT1:
-    case TextureFormat::k_DXT1_AS_16_16_16_16:
-      // or GL_COMPRESSED_RGB_S3TC_DXT1_EXT?
-      internal_format = format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
-      break;
-    case TextureFormat::k_DXT2_3:
-    case TextureFormat::k_DXT2_3_AS_16_16_16_16:
-      internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
-      break;
-    case TextureFormat::k_DXT4_5:
-    case TextureFormat::k_DXT4_5_AS_16_16_16_16:
-      internal_format = format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
-      break;
-    case TextureFormat::k_DXN:
-      internal_format = format = GL_COMPRESSED_RG_RGTC2;
-      break;
-    case TextureFormat::k_24_8:
-      internal_format = GL_DEPTH24_STENCIL8;
-      format = GL_DEPTH_STENCIL;
-      type = GL_UNSIGNED_INT_24_8;
-      break;
-    case TextureFormat::k_24_8_FLOAT:
-      internal_format = GL_DEPTH24_STENCIL8;
-      format = GL_DEPTH_STENCIL;
-      type = GL_FLOAT_32_UNSIGNED_INT_24_8_REV;
-      break;
-    default:
-    case TextureFormat::k_1_REVERSE:
-    case TextureFormat::k_1:
-    case TextureFormat::k_6_5_5:
-    case TextureFormat::k_8_A:
-    case TextureFormat::k_8_B:
-    case TextureFormat::k_8_8:
-    case TextureFormat::k_Cr_Y1_Cb_Y0:
-    case TextureFormat::k_Y1_Cr_Y0_Cb:
-    case TextureFormat::k_8_8_8_8_A:
-    case TextureFormat::k_16:
-    case TextureFormat::k_16_16:
-    case TextureFormat::k_16_16_16_16:
-    case TextureFormat::k_16_EXPAND:
-    case TextureFormat::k_16_16_EXPAND:
-    case TextureFormat::k_16_16_16_16_EXPAND:
-    case TextureFormat::k_32_32:
-    case TextureFormat::k_32_32_32_32:
-    case TextureFormat::k_32_AS_8:
-    case TextureFormat::k_32_AS_8_8:
-    case TextureFormat::k_16_MPEG:
-    case TextureFormat::k_16_16_MPEG:
-    case TextureFormat::k_8_INTERLACED:
-    case TextureFormat::k_32_AS_8_INTERLACED:
-    case TextureFormat::k_32_AS_8_8_INTERLACED:
-    case TextureFormat::k_16_INTERLACED:
-    case TextureFormat::k_16_MPEG_INTERLACED:
-    case TextureFormat::k_16_16_MPEG_INTERLACED:
-    case TextureFormat::k_DXT3A:
-    case TextureFormat::k_DXT5A:
-    case TextureFormat::k_CTX1:
-    case TextureFormat::k_DXT3A_AS_1_1_1_1:
-      assert_unhandled_case(texture_info.format);
-      return false;
+  const auto& config =
+      texture_configs[uint32_t(texture_info.format_info->format)];
+  if (config.format == GL_INVALID_ENUM) {
+    assert_always("Unhandled texture format");
+    return false;
   }
 
-  size_t unpack_length = texture_info.input_length;
-  glTextureStorage2D(texture, 1, internal_format,
+  size_t unpack_length = texture_info.output_length;
+  glTextureStorage2D(texture, 1, config.internal_format,
                      texture_info.size_2d.output_width,
                      texture_info.size_2d.output_height);
   assert_true(unpack_length % 4 == 0);
@@ -574,8 +551,7 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   auto allocation = scratch_buffer_->Acquire(unpack_length);
 
   if (!texture_info.is_tiled) {
-    if (texture_info.size_2d.input_pitch ==
-        texture_info.size_2d.logical_pitch) {
+    if (texture_info.size_2d.input_pitch == texture_info.size_2d.output_pitch) {
       // Fast path copy entire image.
       TextureSwap(texture_info.endianness, allocation.host_ptr, host_address,
                   unpack_length);
@@ -585,11 +561,12 @@ bool TextureCache::UploadTexture2D(GLuint texture,
       // this exact thing under the covers, so we just always do it here.
       const uint8_t* src = host_address;
       uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+      uint32_t pitch = std::min(texture_info.size_2d.input_pitch,
+                                texture_info.size_2d.output_pitch);
       for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
-        TextureSwap(texture_info.endianness, dest, src,
-                    texture_info.size_2d.logical_pitch);
+        TextureSwap(texture_info.endianness, dest, src, pitch);
         src += texture_info.size_2d.input_pitch;
-        dest += texture_info.size_2d.logical_pitch;
+        dest += texture_info.size_2d.output_pitch;
       }
     }
   } else {
@@ -598,26 +575,26 @@ bool TextureCache::UploadTexture2D(GLuint texture,
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src = host_address;
     uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
-    uint32_t output_pitch =
-        (texture_info.size_2d.output_width / texture_info.block_size) *
-        texture_info.texel_pitch;
-    auto bpp =
-        (texture_info.texel_pitch >> 2) +
-        ((texture_info.texel_pitch >> 1) >> (texture_info.texel_pitch >> 2));
+    uint32_t bytes_per_block = texture_info.format_info->block_width *
+                               texture_info.format_info->block_height *
+                               texture_info.format_info->bits_per_pixel / 8;
+    auto bpp = (bytes_per_block >> 2) +
+               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
     for (uint32_t y = 0, output_base_offset = 0;
          y < texture_info.size_2d.block_height;
-         y++, output_base_offset += output_pitch) {
+         y++, output_base_offset += texture_info.size_2d.output_pitch) {
       auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-          y, (texture_info.size_2d.input_width / texture_info.block_size), bpp);
+          y, (texture_info.size_2d.input_width /
+              texture_info.format_info->block_width),
+          bpp);
       for (uint32_t x = 0, output_offset = output_base_offset;
            x < texture_info.size_2d.block_width;
-           x++, output_offset += texture_info.texel_pitch) {
+           x++, output_offset += bytes_per_block) {
         auto input_offset =
             TextureInfo::TiledOffset2DInner(x, y, bpp, input_base_offset) >>
             bpp;
         TextureSwap(texture_info.endianness, dest + output_offset,
-                    src + input_offset * texture_info.texel_pitch,
-                    texture_info.texel_pitch);
+                    src + input_offset * bytes_per_block, bytes_per_block);
       }
     }
   }
@@ -628,12 +605,12 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   scratch_buffer_->Flush();
 
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, scratch_buffer_->handle());
-  if (texture_info.is_compressed) {
-    glCompressedTextureSubImage2D(texture, 0, 0, 0,
-                                  texture_info.size_2d.output_width,
-                                  texture_info.size_2d.output_height, format,
-                                  static_cast<GLsizei>(unpack_length),
-                                  reinterpret_cast<void*>(unpack_offset));
+  if (texture_info.is_compressed()) {
+    glCompressedTextureSubImage2D(
+        texture, 0, 0, 0, texture_info.size_2d.output_width,
+        texture_info.size_2d.output_height, config.format,
+        static_cast<GLsizei>(unpack_length),
+        reinterpret_cast<void*>(unpack_offset));
   } else {
     // Most of these don't seem to have an effect on compressed images.
     // glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
@@ -642,8 +619,8 @@ bool TextureCache::UploadTexture2D(GLuint texture,
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     glTextureSubImage2D(texture, 0, 0, 0, texture_info.size_2d.output_width,
-                        texture_info.size_2d.output_height, format, type,
-                        reinterpret_cast<void*>(unpack_offset));
+                        texture_info.size_2d.output_height, config.format,
+                        config.type, reinterpret_cast<void*>(unpack_offset));
   }
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
   return true;

@@ -19,6 +19,78 @@ namespace gpu {
 using namespace xe::gpu::ucode;
 using namespace xe::gpu::xenos;
 
+static const FormatInfo format_infos[64] = {
+    {TextureFormat::k_1_REVERSE, FormatType::kUncompressed, 1, 1, 1},
+    {TextureFormat::k_1, FormatType::kUncompressed, 1, 1, 1},
+    {TextureFormat::k_8, FormatType::kUncompressed, 1, 1, 8},
+    {TextureFormat::k_1_5_5_5, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_5_6_5, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_6_5_5, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_8_8_8_8, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_2_10_10_10, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_8_A, FormatType::kUncompressed, 1, 1, 8},
+    {TextureFormat::k_8_B, FormatType::kUncompressed, 1, 1, 8},
+    {TextureFormat::k_8_8, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_Cr_Y1_Cb_Y0, FormatType::kCompressed, 2, 1, 16},
+    {TextureFormat::k_Y1_Cr_Y0_Cb, FormatType::kCompressed, 2, 1, 16},
+    {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
+    {TextureFormat::k_8_8_8_8_A, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_4_4_4_4, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_10_11_11, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_11_11_10, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_DXT1, FormatType::kCompressed, 4, 4, 4},
+    {TextureFormat::k_DXT2_3, FormatType::kCompressed, 4, 4, 8},
+    {TextureFormat::k_DXT4_5, FormatType::kCompressed, 4, 4, 8},
+    {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
+    {TextureFormat::k_24_8, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_24_8_FLOAT, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_16, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_16_16, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_16_16_16_16, FormatType::kUncompressed, 1, 1, 64},
+    {TextureFormat::k_16_EXPAND, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_16_16_EXPAND, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_16_16_16_16_EXPAND, FormatType::kUncompressed, 1, 1, 64},
+    {TextureFormat::k_16_FLOAT, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_16_16_FLOAT, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_16_16_16_16_FLOAT, FormatType::kUncompressed, 1, 1, 64},
+    {TextureFormat::k_32, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_32_32, FormatType::kUncompressed, 1, 1, 64},
+    {TextureFormat::k_32_32_32_32, FormatType::kUncompressed, 1, 1, 128},
+    {TextureFormat::k_32_FLOAT, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_32_32_FLOAT, FormatType::kUncompressed, 1, 1, 64},
+    {TextureFormat::k_32_32_32_32_FLOAT, FormatType::kUncompressed, 1, 1, 128},
+    {TextureFormat::k_32_AS_8, FormatType::kCompressed, 4, 1, 8},
+    {TextureFormat::k_32_AS_8_8, FormatType::kCompressed, 2, 1, 16},
+    {TextureFormat::k_16_MPEG, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_16_16_MPEG, FormatType::kUncompressed, 1, 1, 32},
+    {TextureFormat::k_8_INTERLACED, FormatType::kUncompressed, 1, 1, 8},
+    {TextureFormat::k_32_AS_8_INTERLACED, FormatType::kCompressed, 4, 1, 8},
+    {TextureFormat::k_32_AS_8_8_INTERLACED, FormatType::kCompressed, 1, 1, 16},
+    {TextureFormat::k_16_INTERLACED, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_16_MPEG_INTERLACED, FormatType::kUncompressed, 1, 1, 16},
+    {TextureFormat::k_16_16_MPEG_INTERLACED, FormatType::kUncompressed, 1, 1,
+     32},
+    {TextureFormat::k_DXN, FormatType::kCompressed, 4, 4, 8},
+    {TextureFormat::k_8_8_8_8_AS_16_16_16_16, FormatType::kUncompressed, 1, 1,
+     32},
+    {TextureFormat::k_DXT1_AS_16_16_16_16, FormatType::kCompressed, 4, 4, 4},
+    {TextureFormat::k_DXT2_3_AS_16_16_16_16, FormatType::kCompressed, 4, 4, 8},
+    {TextureFormat::k_DXT4_5_AS_16_16_16_16, FormatType::kCompressed, 4, 4, 8},
+    {TextureFormat::k_2_10_10_10_AS_16_16_16_16, FormatType::kUncompressed, 1,
+     1, 32},
+    {TextureFormat::k_10_11_11_AS_16_16_16_16, FormatType::kUncompressed, 1, 1,
+     32},
+    {TextureFormat::k_11_11_10_AS_16_16_16_16, FormatType::kUncompressed, 1, 1,
+     32},
+    {TextureFormat::k_32_32_32_FLOAT, FormatType::kUncompressed, 1, 1, 96},
+    {TextureFormat::k_DXT3A, FormatType::kCompressed, 4, 4, 4},
+    {TextureFormat::k_DXT5A, FormatType::kCompressed, 4, 4, 4},
+    {TextureFormat::k_CTX1, FormatType::kCompressed, 4, 4, 4},
+    {TextureFormat::k_DXT3A_AS_1_1_1_1, FormatType::kCompressed, 4, 4, 4},
+    {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
+    {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
+};
+
 bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
                           TextureInfo* out_info) {
   std::memset(out_info, 0, sizeof(TextureInfo));
@@ -46,125 +118,20 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       info.depth = fetch.size_3d.depth;
       break;
   }
+  info.format_info = &format_infos[fetch.format];
   info.endianness = static_cast<Endian>(fetch.endianness);
-
-  info.block_size = 0;
-  info.texel_pitch = 0;
   info.is_tiled = fetch.tiled;
-  info.is_compressed = false;
-  info.input_length = 0;
-  info.format = static_cast<TextureFormat>(fetch.format);
-  switch (fetch.format) {
-    case FMT_8:
-      info.block_size = 1;
-      info.texel_pitch = 1;
-      break;
-    case FMT_1_5_5_5:
-      info.block_size = 1;
-      info.texel_pitch = 2;
-      break;
-    case FMT_8_8_8_8:
-    case FMT_8_8_8_8_AS_16_16_16_16:
-      info.block_size = 1;
-      info.texel_pitch = 4;
-      break;
-    case FMT_4_4_4_4:
-      info.block_size = 1;
-      info.texel_pitch = 2;
-      break;
-    case FMT_16_16_16_16_FLOAT:
-      info.block_size = 1;
-      info.texel_pitch = 8;
-      break;
-    case FMT_32_FLOAT:
-      info.block_size = 1;
-      info.texel_pitch = 4;
-      break;
-    case FMT_DXT1:
-      info.block_size = 4;
-      info.texel_pitch = 8;
-      info.is_compressed = true;
-      break;
-    case FMT_DXT2_3:
-    case FMT_DXT4_5:
-      info.block_size = 4;
-      info.texel_pitch = 16;
-      info.is_compressed = true;
-      break;
-    case FMT_DXN:
-      // BC5
-      info.block_size = 4;
-      info.texel_pitch = 16;
-      info.is_compressed = true;
-      break;
-    case FMT_DXT1_AS_16_16_16_16:
-      // TODO(benvanik): conversion?
-      info.block_size = 4;
-      info.texel_pitch = 8;
-      info.is_compressed = true;
-      break;
-    case FMT_DXT2_3_AS_16_16_16_16:
-    case FMT_DXT4_5_AS_16_16_16_16:
-      // TODO(benvanik): conversion?
-      info.block_size = 4;
-      info.texel_pitch = 16;
-      info.is_compressed = true;
-      break;
-    case FMT_1_REVERSE:
-    case FMT_1:
-    case FMT_5_6_5:
-    case FMT_6_5_5:
-    case FMT_2_10_10_10:
-    case FMT_8_A:
-    case FMT_8_B:
-    case FMT_8_8:
-    case FMT_Cr_Y1_Cb_Y0:
-    case FMT_Y1_Cr_Y0_Cb:
-    case FMT_5_5_5_1:
-    case FMT_8_8_8_8_A:
-    case FMT_10_11_11:
-    case FMT_11_11_10:
-    case FMT_24_8:
-    case FMT_24_8_FLOAT:
-    case FMT_16:
-    case FMT_16_16:
-    case FMT_16_16_16_16:
-    case FMT_16_EXPAND:
-    case FMT_16_16_EXPAND:
-    case FMT_16_16_16_16_EXPAND:
-    case FMT_16_FLOAT:
-    case FMT_16_16_FLOAT:
-    case FMT_32:
-    case FMT_32_32:
-    case FMT_32_32_32_32:
-    case FMT_32_32_FLOAT:
-    case FMT_32_32_32_32_FLOAT:
-    case FMT_32_AS_8:
-    case FMT_32_AS_8_8:
-    case FMT_16_MPEG:
-    case FMT_16_16_MPEG:
-    case FMT_8_INTERLACED:
-    case FMT_32_AS_8_INTERLACED:
-    case FMT_32_AS_8_8_INTERLACED:
-    case FMT_16_INTERLACED:
-    case FMT_16_MPEG_INTERLACED:
-    case FMT_16_16_MPEG_INTERLACED:
-    case FMT_2_10_10_10_AS_16_16_16_16:
-    case FMT_10_11_11_AS_16_16_16_16:
-    case FMT_11_11_10_AS_16_16_16_16:
-    case FMT_32_32_32_FLOAT:
-    case FMT_DXT3A:
-    case FMT_DXT5A:
-    case FMT_CTX1:
-    case FMT_DXT3A_AS_1_1_1_1:
-      PLOGE("Unhandled texture format");
-      return false;
-    default:
-      assert_unhandled_case(fetch.format);
-      return false;
+  info.input_length = 0;  // Populated below.
+  info.output_length = 0;
+
+  if (info.format_info->format == TextureFormat::kUnknown) {
+    assert_true("Unsupported texture format");
+    return false;
   }
 
   // Must be called here when we know the format.
+  info.input_length = 0;  // Populated below.
+  info.output_length = 0;
   switch (info.dimension) {
     case Dimension::k1D:
       info.CalculateTextureSizes1D(fetch);
@@ -192,39 +159,44 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
   size_2d.logical_width = 1 + fetch.size_2d.width;
   size_2d.logical_height = 1 + fetch.size_2d.height;
 
-  size_2d.block_width = size_2d.logical_width / block_size;
-  size_2d.block_height = size_2d.logical_height / block_size;
-  if (!is_compressed) {
-    // Must be 32x32 but also must have a pitch that is a multiple of 256 bytes.
-    uint32_t bytes_per_block = block_size * block_size * texel_pitch;
-    uint32_t width_multiple = 32;
-    if (!is_tiled) {
-      // 256 stride requirement for untiled textures.
-      width_multiple = poly::round_up(width_multiple, 256 / bytes_per_block);
-    }
-    size_2d.input_width = poly::round_up(size_2d.logical_width, width_multiple);
-    size_2d.input_height = poly::round_up(size_2d.logical_height, 32);
-    size_2d.output_width = size_2d.logical_width;
-    size_2d.output_height = size_2d.logical_height;
+  // Here be dragons. The values here are used in texture_cache.cc to copy
+  // images and create GL textures. Changes here will impact that code.
+  // TODO(benvanik): generic texture copying utility.
 
-    size_2d.logical_pitch = (size_2d.logical_width / block_size) * texel_pitch;
-    size_2d.input_pitch = (size_2d.input_width / block_size) * texel_pitch;
-    input_length = size_2d.block_height * size_2d.logical_pitch;  // ?
-  } else {
-    // Must be 128x128 minimum (block_size * 32).
-    size_2d.input_width =
-        poly::round_up(size_2d.logical_width, block_size * 32);
-    size_2d.input_height =
-        poly::round_up(size_2d.logical_height, block_size * 32);
-    size_2d.output_width = size_2d.input_width;
-    size_2d.output_height = size_2d.input_height;
+  // w/h in blocks must be a multiple of block size.
+  uint32_t block_width =
+      poly::round_up(size_2d.logical_width, format_info->block_width) /
+      format_info->block_width;
+  uint32_t block_height =
+      poly::round_up(size_2d.logical_height, format_info->block_height) /
+      format_info->block_height;
 
-    uint32_t block_count = (size_2d.input_width / block_size) *
-                           (size_2d.input_height / block_size);
-    size_2d.logical_pitch = (size_2d.input_width / block_size) * texel_pitch;
-    size_2d.input_pitch = (size_2d.input_width / block_size) * texel_pitch;
-    input_length = block_count * texel_pitch;
+  // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
+  uint32_t tile_width = uint32_t(std::ceilf(block_width / 32.0f));
+  uint32_t tile_height = uint32_t(std::ceilf(block_height / 32.0f));
+  size_2d.block_width = tile_width * 32;
+  size_2d.block_height = tile_height * 32;
+
+  uint32_t bytes_per_block = format_info->block_width *
+                             format_info->block_height *
+                             format_info->bits_per_pixel / 8;
+  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
+  if (!is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = poly::round_up(byte_pitch, 256);
   }
+
+  size_2d.input_width = tile_width * 32 * format_info->block_width;
+  size_2d.input_height = tile_height * 32 * format_info->block_height;
+
+  size_2d.output_width = block_width * format_info->block_width;
+  size_2d.output_height = block_height * format_info->block_height;
+
+  size_2d.input_pitch = byte_pitch;
+  size_2d.output_pitch = block_width * bytes_per_block;
+
+  input_length = size_2d.input_pitch * size_2d.block_height;
+  output_length = size_2d.output_pitch * block_height;
 }
 
 // https://code.google.com/p/crunch/source/browse/trunk/inc/crn_decomp.h#4104
