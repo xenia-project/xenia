@@ -30,7 +30,7 @@ int xenia_main(std::vector<std::wstring>& args) {
   }
 
   // Grab path from the flag or unnamed argument.
-  if (FLAGS_target.size() && args.size() >= 2) {
+  if (FLAGS_target.size() || args.size() >= 2) {
     std::wstring path;
     if (FLAGS_target.size()) {
       // Passed as a named argument.
