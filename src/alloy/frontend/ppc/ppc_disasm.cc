@@ -143,7 +143,7 @@ void Disasm_X_RA_RT(InstrData& i, StringBuffer* str) {
 #define VX128_2_VD128 (i.VX128_2.VD128l | (i.VX128_2.VD128h << 5))
 #define VX128_2_VA128 \
   (i.VX128_2.VA128l | (i.VX128_2.VA128h << 5) | (i.VX128_2.VA128H << 6))
-#define VX128_2_VB128 (i.VX128_2.VB128l | (i.VX128_2.VD128h << 5))
+#define VX128_2_VB128 (i.VX128_2.VB128l | (i.VX128_2.VB128h << 5))
 #define VX128_2_VC (i.VX128_2.VC)
 #define VX128_3_VD128 (i.VX128_3.VD128l | (i.VX128_3.VD128h << 5))
 #define VX128_3_VB128 (i.VX128_3.VB128l | (i.VX128_3.VB128h << 5))
