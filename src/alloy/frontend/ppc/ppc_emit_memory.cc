@@ -79,6 +79,12 @@ Value* CalculateEA_0_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm) {
 #endif  // TRUNCATE_ADDRESSES
 }
 
+void StoreEA(PPCHIRBuilder& f, uint32_t rt, Value* ea) {
+  // Stored back as 64bit right after the add, it seems.
+  // f.StoreGPR(rt, f.ZeroExtend(f.Truncate(ea, INT32_TYPE), INT64_TYPE));
+  f.StoreGPR(rt, ea);
+}
+
 // Integer load (A-13)
 
 XEEMITTER(lbz, 0x88000000, D)(PPCHIRBuilder& f, InstrData& i) {
@@ -101,7 +107,7 @@ XEEMITTER(lbzu, 0x8C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   Value* rt = f.ZeroExtend(f.Load(ea, INT8_TYPE), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -112,7 +118,7 @@ XEEMITTER(lbzux, 0x7C0000EE, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.ZeroExtend(f.Load(ea, INT8_TYPE), INT64_TYPE);
   f.StoreGPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -149,7 +155,7 @@ XEEMITTER(lhau, 0xAC000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -160,7 +166,7 @@ XEEMITTER(lhaux, 0x7C0002EE, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
   f.StoreGPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -197,7 +203,7 @@ XEEMITTER(lhzu, 0xA4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -208,7 +214,7 @@ XEEMITTER(lhzux, 0x7C00026E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
   f.StoreGPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -245,7 +251,7 @@ XEEMITTER(lwaux, 0x7C0002EA, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -282,7 +288,7 @@ XEEMITTER(lwzu, 0x84000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -293,7 +299,7 @@ XEEMITTER(lwzux, 0x7C00006E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -330,7 +336,7 @@ XEEMITTER(ldu, 0xE8000001, DS)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.DS.RA, XEEXTS16(i.DS.DS << 2));
   Value* rt = f.ByteSwap(f.Load(ea, INT64_TYPE));
   f.StoreGPR(i.DS.RT, rt);
-  f.StoreGPR(i.DS.RA, ea);
+  StoreEA(f, i.DS.RA, ea);
   return 0;
 }
 
@@ -341,7 +347,7 @@ XEEMITTER(ldux, 0x7C00006A, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.Load(ea, INT64_TYPE));
   f.StoreGPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -378,7 +384,7 @@ XEEMITTER(stbu, 0x9C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   f.Store(ea, f.Truncate(f.LoadGPR(i.D.RT), INT8_TYPE));
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -388,7 +394,7 @@ XEEMITTER(stbux, 0x7C0001EE, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.Truncate(f.LoadGPR(i.X.RT), INT8_TYPE));
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -422,7 +428,7 @@ XEEMITTER(sthu, 0xB4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT16_TYPE)));
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -432,7 +438,7 @@ XEEMITTER(sthux, 0x7C00036E, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT16_TYPE)));
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -466,7 +472,7 @@ XEEMITTER(stwu, 0x94000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT32_TYPE)));
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -476,7 +482,8 @@ XEEMITTER(stwux, 0x7C00016E, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE)));
-  f.StoreGPR(i.X.RA, ea);
+  f.StoreGPR(i.X.RA, f.ZeroExtend(f.Truncate(ea, INT32_TYPE), INT64_TYPE));
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -510,7 +517,7 @@ XEEMITTER(stdu, 0xF8000001, DS)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA_i(f, i.DS.RA, XEEXTS16(i.DS.DS << 2));
   f.Store(ea, f.ByteSwap(f.LoadGPR(i.DS.RT)));
-  f.StoreGPR(i.DS.RA, ea);
+  StoreEA(f, i.DS.RA, ea);
   return 0;
 }
 
@@ -520,7 +527,7 @@ XEEMITTER(stdux, 0x7C00016A, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.ByteSwap(f.LoadGPR(i.X.RT)));
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -547,7 +554,7 @@ XEEMITTER(lhbrx, 0x7C00062C, X)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- i48.0 || bswap(MEM(EA, 2))
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ZeroExtend(f.Load(ea, INT16_TYPE), INT64_TYPE);
-  f.StoreGPR(i.X.RT, rt);
+  StoreEA(f, i.X.RT, rt);
   return 0;
 }
 
@@ -754,7 +761,7 @@ XEEMITTER(lfdu, 0xCC000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   Value* rt = f.Cast(f.ByteSwap(f.Load(ea, INT64_TYPE)), FLOAT64_TYPE);
   f.StoreFPR(i.D.RT, rt);
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -765,7 +772,7 @@ XEEMITTER(lfdux, 0x7C0004EE, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   Value* rt = f.Cast(f.ByteSwap(f.Load(ea, INT64_TYPE)), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -804,7 +811,7 @@ XEEMITTER(lfsu, 0xC4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* rt = f.Convert(
       f.Cast(f.ByteSwap(f.Load(ea, INT32_TYPE)), FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.D.RT, rt);
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -816,7 +823,7 @@ XEEMITTER(lfsux, 0x7C00046E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* rt = f.Convert(
       f.Cast(f.ByteSwap(f.Load(ea, INT32_TYPE)), FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, rt);
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -854,7 +861,7 @@ XEEMITTER(stfdu, 0xDC000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   f.Store(ea, f.ByteSwap(f.Cast(f.LoadFPR(i.D.RT), INT64_TYPE)));
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -864,7 +871,7 @@ XEEMITTER(stfdux, 0x7C0005EE, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.ByteSwap(f.Cast(f.LoadFPR(i.X.RT), INT64_TYPE)));
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
@@ -913,7 +920,7 @@ XEEMITTER(stfsu, 0xD4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
   f.Store(ea, f.ByteSwap(f.Cast(f.Convert(f.LoadFPR(i.D.RT), FLOAT32_TYPE),
                                 INT32_TYPE)));
-  f.StoreGPR(i.D.RA, ea);
+  StoreEA(f, i.D.RA, ea);
   return 0;
 }
 
@@ -924,7 +931,7 @@ XEEMITTER(stfsux, 0x7C00056E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.ByteSwap(f.Cast(f.Convert(f.LoadFPR(i.X.RT), FLOAT32_TYPE),
                                 INT32_TYPE)));
-  f.StoreGPR(i.X.RA, ea);
+  StoreEA(f, i.X.RA, ea);
   return 0;
 }
 
