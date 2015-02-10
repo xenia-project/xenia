@@ -82,6 +82,15 @@ SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_64(dequeued ? 1 : 0);
 }
 
+SHIM_CALL XNotifyDelayUI_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t delay_ms = SHIM_GET_ARG_32(0);
+
+  XELOGD("XNotifyDelayUI(%d)", delay_ms);
+
+  // Ignored.
+  SHIM_SET_RETURN_32(0);
+}
+
 SHIM_CALL XNotifyPositionUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t position = SHIM_GET_ARG_32(0);
 
@@ -97,5 +106,6 @@ void xe::kernel::xam::RegisterNotifyExports(ExportResolver* export_resolver,
                                             KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamNotifyCreateListener, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyGetNext, state);
+  SHIM_SET_MAPPING("xam.xex", XNotifyDelayUI, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyPositionUI, state);
 }
