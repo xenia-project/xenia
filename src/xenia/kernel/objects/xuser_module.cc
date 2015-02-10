@@ -41,10 +41,6 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
     XELOGE("File not found: %s", path);
     return X_STATUS_NO_SUCH_FILE;
   }
-  if (fs_entry->type() != fs::Entry::Type::FILE) {
-    XELOGE("Invalid file type: %s", path);
-    return X_STATUS_NO_SUCH_FILE;
-  }
 
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {

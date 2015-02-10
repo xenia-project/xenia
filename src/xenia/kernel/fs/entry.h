@@ -53,15 +53,9 @@ class MemoryMapping {
 
 class Entry {
  public:
-  enum class Type {
-    FILE,
-    DIRECTORY,
-  };
-
-  Entry(Type type, Device* device, const std::string& path);
+  Entry(Device* device, const std::string& path);
   virtual ~Entry();
 
-  Type type() const { return type_; }
   Device* device() const { return device_; }
   const std::string& path() const { return path_; }
   const std::string& absolute_path() const { return absolute_path_; }
@@ -82,7 +76,6 @@ class Entry {
                         XFile** out_file) = 0;
 
  private:
-  Type type_;
   Device* device_;
   std::string path_;
   std::string absolute_path_;

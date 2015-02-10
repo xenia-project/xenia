@@ -26,9 +26,9 @@ class DiscImageMemoryMapping : public MemoryMapping {
   ~DiscImageMemoryMapping() override = default;
 };
 
-DiscImageEntry::DiscImageEntry(Type type, Device* device, const char* path,
+DiscImageEntry::DiscImageEntry(Device* device, const char* path,
                                poly::MappedMemory* mmap, GDFXEntry* gdfx_entry)
-    : Entry(type, device, path),
+    : Entry(device, path),
       mmap_(mmap),
       gdfx_entry_(gdfx_entry),
       gdfx_entry_iterator_(gdfx_entry->children.end()) {}

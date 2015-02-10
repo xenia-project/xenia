@@ -24,8 +24,8 @@ class STFSEntry;
 
 class STFSContainerEntry : public Entry {
  public:
-  STFSContainerEntry(Type type, Device* device, const char* path,
-                     poly::MappedMemory* mmap, STFSEntry* stfs_entry);
+  STFSContainerEntry(Device* device, const char* path, poly::MappedMemory* mmap,
+                     STFSEntry* stfs_entry);
   ~STFSContainerEntry() override;
 
   poly::MappedMemory* mmap() const { return mmap_; }

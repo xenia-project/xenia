@@ -37,8 +37,7 @@ std::unique_ptr<Entry> HostPathDevice::ResolvePath(const char* path) {
   // TODO(benvanik): fail if does not exit
   // TODO(benvanik): switch based on type
 
-  auto type = Entry::Type::FILE;
-  return std::make_unique<HostPathEntry>(type, this, path, full_path);
+  return std::make_unique<HostPathEntry>(this, path, full_path);
 }
 
 }  // namespace fs

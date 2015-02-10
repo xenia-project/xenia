@@ -19,7 +19,7 @@ namespace fs {
 
 class HostPathEntry : public Entry {
  public:
-  HostPathEntry(Type type, Device* device, const char* path,
+  HostPathEntry(Device* device, const char* path,
                 const std::wstring& local_path);
   ~HostPathEntry() override;
 

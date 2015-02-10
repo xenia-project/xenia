@@ -469,7 +469,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
   // Resolve the file using the virtual file system.
   FileSystem* fs = state->file_system();
   auto entry = fs->ResolvePath(object_name);
-  if (entry && entry->type() == Entry::Type::FILE) {
+  if (entry) {
     // Found.
     XFileInfo file_info;
     result = entry->QueryInfo(&file_info);

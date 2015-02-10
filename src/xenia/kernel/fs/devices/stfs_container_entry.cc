@@ -16,11 +16,10 @@ namespace xe {
 namespace kernel {
 namespace fs {
 
-STFSContainerEntry::STFSContainerEntry(Type type, Device* device,
-                                       const char* path,
+STFSContainerEntry::STFSContainerEntry(Device* device, const char* path,
                                        poly::MappedMemory* mmap,
                                        STFSEntry* stfs_entry)
-    : Entry(type, device, path),
+    : Entry(device, path),
       mmap_(mmap),
       stfs_entry_(stfs_entry),
       stfs_entry_iterator_(stfs_entry->children.end()) {}

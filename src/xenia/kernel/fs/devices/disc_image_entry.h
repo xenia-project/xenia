@@ -24,8 +24,8 @@ class GDFXEntry;
 
 class DiscImageEntry : public Entry {
  public:
-  DiscImageEntry(Type type, Device* device, const char* path,
-                 poly::MappedMemory* mmap, GDFXEntry* gdfx_entry);
+  DiscImageEntry(Device* device, const char* path, poly::MappedMemory* mmap,
+                 GDFXEntry* gdfx_entry);
   ~DiscImageEntry() override;
 
   poly::MappedMemory* mmap() const { return mmap_; }

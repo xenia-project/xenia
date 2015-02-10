@@ -61,11 +61,7 @@ std::unique_ptr<Entry> DiscImageDevice::ResolvePath(const char* path) {
     }
   }
 
-  Entry::Type type = gdfx_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
-                         ? Entry::Type::DIRECTORY
-                         : Entry::Type::FILE;
-  return std::make_unique<DiscImageEntry>(type, this, path, mmap_.get(),
-                                          gdfx_entry);
+  return std::make_unique<DiscImageEntry>(this, path, mmap_.get(), gdfx_entry);
 }
 
 }  // namespace fs

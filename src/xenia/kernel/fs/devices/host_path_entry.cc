@@ -25,9 +25,9 @@ class HostPathMemoryMapping : public MemoryMapping {
   std::unique_ptr<poly::MappedMemory> mmap_;
 };
 
-HostPathEntry::HostPathEntry(Type type, Device* device, const char* path,
+HostPathEntry::HostPathEntry(Device* device, const char* path,
                              const std::wstring& local_path)
-    : Entry(type, device, path),
+    : Entry(device, path),
       local_path_(local_path),
       find_file_(INVALID_HANDLE_VALUE) {}
 

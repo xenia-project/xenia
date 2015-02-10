@@ -62,10 +62,7 @@ std::unique_ptr<Entry> STFSContainerDevice::ResolvePath(const char* path) {
     }
   }
 
-  Entry::Type type = stfs_entry->attributes & X_FILE_ATTRIBUTE_DIRECTORY
-                         ? Entry::Type::DIRECTORY
-                         : Entry::Type::FILE;
-  return std::make_unique<STFSContainerEntry>(type, this, path, mmap_.get(),
+  return std::make_unique<STFSContainerEntry>(this, path, mmap_.get(),
                                               stfs_entry);
 }
 

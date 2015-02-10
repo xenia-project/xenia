@@ -19,8 +19,8 @@ MemoryMapping::MemoryMapping(uint8_t* address, size_t length)
 
 MemoryMapping::~MemoryMapping() {}
 
-Entry::Entry(Type type, Device* device, const std::string& path)
-    : type_(type), device_(device), path_(path) {
+Entry::Entry(Device* device, const std::string& path)
+    : device_(device), path_(path) {
   assert_not_null(device);
   absolute_path_ = device->path() + path;
   // TODO(benvanik): last index of \, unless \ at end, then before that
