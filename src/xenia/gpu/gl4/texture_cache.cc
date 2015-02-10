@@ -436,7 +436,7 @@ static const TextureConfig texture_configs[64] = {
      GL_UNSIGNED_INT_2_10_10_10_REV},
     {TextureFormat::k_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
     {TextureFormat::k_8_B, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
-    {TextureFormat::k_8_8, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_8, GL_RG8, GL_RG, GL_UNSIGNED_BYTE},
     {TextureFormat::k_Cr_Y1_Cb_Y0, GL_INVALID_ENUM, GL_INVALID_ENUM,
      GL_INVALID_ENUM},
     {TextureFormat::k_Y1_Cr_Y0_Cb, GL_INVALID_ENUM, GL_INVALID_ENUM,
