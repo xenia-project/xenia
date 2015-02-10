@@ -301,7 +301,7 @@ void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
 }
 
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, bool is_signed) {
-  UpdateCR(n, lhs, LoadZero(lhs->type), is_signed);
+  UpdateCR(n, Truncate(lhs, INT32_TYPE), LoadZero(INT32_TYPE), is_signed);
 }
 
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, Value* rhs,
