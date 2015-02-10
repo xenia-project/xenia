@@ -41,23 +41,23 @@ void Disasm_A_FRT_FRA_FRB_FRC(InstrData& i, StringBuffer* str) {
               i.A.Rc ? "." : "", i.A.FRT, i.A.FRA, i.A.FRB, i.A.FRC);
 }
 void Disasm_X_RT_RA_RB(InstrData& i, StringBuffer* str) {
-  str->Append("%-8s r%d, r%d, %d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
+  str->Append("%-8s r%d, r%d, r%d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
 }
 void Disasm_X_RT_RA0_RB(InstrData& i, StringBuffer* str) {
   if (i.X.RA) {
-    str->Append("%-8s r%d, r%d, %d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
+    str->Append("%-8s r%d, r%d, r%d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
   } else {
-    str->Append("%-8s r%d, 0, %d", i.type->name, i.X.RT, i.X.RB);
+    str->Append("%-8s r%d, 0, r%d", i.type->name, i.X.RT, i.X.RB);
   }
 }
 void Disasm_X_FRT_RA_RB(InstrData& i, StringBuffer* str) {
-  str->Append("%-8s f%d, r%d, %d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
+  str->Append("%-8s f%d, r%d, r%d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
 }
 void Disasm_X_FRT_RA0_RB(InstrData& i, StringBuffer* str) {
   if (i.X.RA) {
-    str->Append("%-8s f%d, r%d, %d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
+    str->Append("%-8s f%d, r%d, r%d", i.type->name, i.X.RT, i.X.RA, i.X.RB);
   } else {
-    str->Append("%-8s f%d, 0, %d", i.type->name, i.X.RT, i.X.RB);
+    str->Append("%-8s f%d, 0, r%d", i.type->name, i.X.RT, i.X.RB);
   }
 }
 void Disasm_D_RT_RA_I(InstrData& i, StringBuffer* str) {
