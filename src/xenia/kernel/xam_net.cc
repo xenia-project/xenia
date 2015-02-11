@@ -255,10 +255,16 @@ SHIM_CALL NetDll_accept_shim(PPCContext* ppc_state, KernelState* state) {
   }
 }
 
-void StoreFdset(const fd_set& src, uint8_t* dest) {
-  if (!dest) {
-    return;
+void LoadFdset(const uint8_t* src, fd_set* dest) {
+  dest->fd_count = poly::load_and_swap<uint32_t>(src);
+  for (int i = 0; i < 64; ++i) {
+    auto socket_handle =
+        static_cast<SOCKET>(poly::load_and_swap<uint32_t>(src + 4 + i * 4));
+    dest->fd_array[i] = socket_handle;
   }
+}
+
+void StoreFdset(const fd_set& src, uint8_t* dest) {
   poly::store_and_swap<uint32_t>(dest, src.fd_count);
   for (int i = 0; i < 64; ++i) {
     SOCKET socket_handle = src.fd_array[i];
@@ -269,7 +275,6 @@ void StoreFdset(const fd_set& src, uint8_t* dest) {
 }
 
 SHIM_CALL NetDll_select_shim(PPCContext* ppc_state, KernelState* state) {
-  assert_always("not tested");
   uint32_t arg0 = SHIM_GET_ARG_32(0);
   uint32_t nfds = SHIM_GET_ARG_32(1);
   uint32_t readfds_ptr = SHIM_GET_ARG_32(2);
@@ -278,15 +283,37 @@ SHIM_CALL NetDll_select_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t timeout_ptr = SHIM_GET_ARG_32(5);
   XELOGD("NetDll_select(%d, %d, %.8X, %.8X, %.8X, %.8X)", arg0, nfds,
          readfds_ptr, writefds_ptr, exceptfds_ptr, timeout_ptr);
-  fd_set readfds;
-  fd_set writefds;
-  fd_set exceptfds;
-  timeval timeout = {static_cast<long>(SHIM_MEM_32(timeout_ptr + 0)),
-                     static_cast<long>(SHIM_MEM_32(timeout_ptr + 4))};
-  int ret = select(nfds, &readfds, &writefds, &exceptfds, &timeout);
-  StoreFdset(readfds, SHIM_MEM_ADDR(readfds_ptr));
-  StoreFdset(writefds, SHIM_MEM_ADDR(writefds_ptr));
-  StoreFdset(exceptfds, SHIM_MEM_ADDR(exceptfds_ptr));
+  fd_set readfds = { 0 };
+  if (readfds_ptr) {
+    LoadFdset(SHIM_MEM_ADDR(readfds_ptr), &readfds);
+  }
+  fd_set writefds = {0};
+  if (writefds_ptr) {
+    LoadFdset(SHIM_MEM_ADDR(writefds_ptr), &writefds);
+  }
+  fd_set exceptfds = {0};
+  if (exceptfds_ptr) {
+    LoadFdset(SHIM_MEM_ADDR(exceptfds_ptr), &exceptfds);
+  }
+  timeval* timeout_in = nullptr;
+  timeval timeout;
+  if (timeout_ptr) {
+    timeout = {static_cast<long>(SHIM_MEM_32(timeout_ptr + 0)),
+               static_cast<long>(SHIM_MEM_32(timeout_ptr + 4))};
+    timeout_in = &timeout;
+  }
+  int ret = select(nfds, readfds_ptr ? &readfds : nullptr,
+                   writefds_ptr ? &writefds : nullptr,
+                   exceptfds_ptr ? &exceptfds : nullptr, timeout_in);
+  if (readfds_ptr) {
+    StoreFdset(readfds, SHIM_MEM_ADDR(readfds_ptr));
+  }
+  if (writefds_ptr) {
+    StoreFdset(writefds, SHIM_MEM_ADDR(writefds_ptr));
+  }
+  if (exceptfds_ptr) {
+    StoreFdset(exceptfds, SHIM_MEM_ADDR(exceptfds_ptr));
+  }
   SHIM_SET_RETURN_32(ret);
 }
 
