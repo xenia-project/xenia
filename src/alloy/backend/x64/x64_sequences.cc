@@ -4749,6 +4749,83 @@ EMITTER_OPCODE_TABLE(
 
 
 // ============================================================================
+// OPCODE_VECTOR_AVERAGE
+// ============================================================================
+EMITTER(VECTOR_AVERAGE, MATCH(I<OPCODE_VECTOR_AVERAGE, V128<>, V128<>, V128<>>)) {
+  static __m128i EmulateVectorAverageUnsignedI32(void*, __m128i src1, __m128i src2) {
+    alignas(16) uint32_t src1v[4];
+    alignas(16) uint32_t src2v[4];
+    alignas(16) uint32_t value[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(src1v), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(src2v), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      auto t = (uint64_t(src1v[i]) + uint64_t(src2v[i]) + 1) >> 1;
+      value[i] = uint32_t(t);
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(value));
+  }
+  static __m128i EmulateVectorAverageSignedI32(void*, __m128i src1, __m128i src2) {
+    alignas(16) int32_t src1v[4];
+    alignas(16) int32_t src2v[4];
+    alignas(16) int32_t value[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(src1v), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(src2v), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      auto t = (int64_t(src1v[i]) + int64_t(src2v[i]) + 1) >> 1;
+      value[i] = int32_t(t);
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(value));
+  }
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
+                                          const Xmm& src1, const Xmm& src2) {
+      const TypeName part_type = static_cast<TypeName>(i.instr->flags & 0xFF);
+      const uint32_t arithmetic_flags = i.instr->flags >> 8;
+      bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+      switch (part_type) {
+        case INT8_TYPE:
+          if (is_unsigned) {
+            e.vpavgb(dest, src1, src2);
+          } else {
+            assert_always();
+          }
+          break;
+        case INT16_TYPE:
+          if (is_unsigned) {
+            e.vpavgw(dest, src1, src2);
+          } else {
+            assert_always();
+          }
+          break;
+        case INT32_TYPE:
+          // No 32bit averages in AVX.
+          if (is_unsigned) {
+            e.lea(e.r8, e.StashXmm(0, i.src1));
+            e.lea(e.r9, e.StashXmm(1, i.src2));
+            e.CallNativeSafe(
+              reinterpret_cast<void*>(EmulateVectorAverageUnsignedI32));
+            e.vmovaps(i.dest, e.xmm0);
+          } else {
+            e.lea(e.r8, e.StashXmm(0, i.src1));
+            e.lea(e.r9, e.StashXmm(1, i.src2));
+            e.CallNativeSafe(
+                reinterpret_cast<void*>(EmulateVectorAverageSignedI32));
+            e.vmovaps(i.dest, e.xmm0);
+          }
+          break;
+        default:
+          assert_unhandled_case(part_type);
+          break;
+      }
+    });
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_VECTOR_AVERAGE,
+    VECTOR_AVERAGE);
+
+
+// ============================================================================
 // OPCODE_BYTE_SWAP
 // ============================================================================
 // TODO(benvanik): put dest/src1 together.
@@ -5751,6 +5828,7 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHA);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ROTATE_LEFT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ROTATE_LEFT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_AVERAGE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_BYTE_SWAP);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_CNTLZ);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_INSERT);

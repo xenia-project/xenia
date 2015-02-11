@@ -552,6 +552,12 @@ DEFINE_OPCODE(
     0)
 
 DEFINE_OPCODE(
+    OPCODE_VECTOR_AVERAGE,
+    "vector_average",
+    OPCODE_SIG_V_V_V,
+    0)
+
+DEFINE_OPCODE(
     OPCODE_BYTE_SWAP,
     "byte_swap",
     OPCODE_SIG_V_V,

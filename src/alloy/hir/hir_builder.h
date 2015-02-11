@@ -204,6 +204,8 @@ class HIRBuilder {
   Value* VectorSha(Value* value1, Value* value2, TypeName part_type);
   Value* RotateLeft(Value* value1, Value* value2);
   Value* VectorRotateLeft(Value* value1, Value* value2, TypeName part_type);
+  Value* VectorAverage(Value* value1, Value* value2, TypeName part_type,
+                       uint32_t arithmetic_flags);
   Value* ByteSwap(Value* value);
   Value* CountLeadingZeros(Value* value);
   Value* Insert(Value* value, Value* index, Value* part);

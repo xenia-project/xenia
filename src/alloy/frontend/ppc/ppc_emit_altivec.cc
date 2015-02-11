@@ -460,13 +460,17 @@ XEEMITTER(vandc128, VX128(5, 592), VX128)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(vavgsb, 0x10000502, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v =
+      f.VectorAverage(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE, 0);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vavgsh, 0x10000542, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v =
+      f.VectorAverage(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE, 0);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vavgsw, 0x10000582, VX)(PPCHIRBuilder& f, InstrData& i) {
@@ -474,23 +478,31 @@ XEEMITTER(vavgsw, 0x10000582, VX)(PPCHIRBuilder& f, InstrData& i) {
   //   aop = EXTS((VRA)i:i + 31)
   //   bop = EXTS((VRB)i:i + 31)
   //   VRTi:i + 31 = Chop((aop + int bop + int 1) >> 1, 32)
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v =
+      f.VectorAverage(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE, 0);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vavgub, 0x10000402, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAverage(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE,
+                             ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vavguh, 0x10000442, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAverage(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE,
+                             ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 XEEMITTER(vavguw, 0x10000482, VX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* v = f.VectorAverage(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE,
+                             ARITHMETIC_UNSIGNED);
+  f.StoreVR(i.VX.VD, v);
+  return 0;
 }
 
 int InstrEmit_vcfsx_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
