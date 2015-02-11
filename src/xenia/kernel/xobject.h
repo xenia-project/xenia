@@ -46,9 +46,11 @@ class XObject {
 
   Emulator* emulator() const { return kernel_state_->emulator_; }
   KernelState* kernel_state() const { return kernel_state_; }
+  uint8_t* membase() const { return kernel_state_->memory()->membase(); }
 
   Type type();
   X_HANDLE handle() const;
+  const std::string& name() const { return name_; }
 
   void RetainHandle();
   bool ReleaseHandle();
@@ -58,6 +60,8 @@ class XObject {
 
   // Reference()
   // Dereference()
+
+  void SetAttributes(const uint8_t* obj_attrs_ptr);
 
   X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                 uint32_t alertable, uint64_t* opt_timeout);
@@ -88,6 +92,7 @@ class XObject {
 
   Type type_;
   X_HANDLE handle_;
+  std::string name_;  // May be zero length.
 };
 
 }  // namespace kernel

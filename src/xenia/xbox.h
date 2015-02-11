@@ -10,9 +10,10 @@
 #ifndef XENIA_XBOX_H_
 #define XENIA_XBOX_H_
 
+#include <string>
+
 #include "poly/memory.h"
 #include "xenia/common.h"
-
 
 namespace xe {
 
@@ -41,6 +42,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_ALERTED                                ((X_STATUS)0x00000101L)
 #define X_STATUS_TIMEOUT                                ((X_STATUS)0x00000102L)
 #define X_STATUS_PENDING                                ((X_STATUS)0x00000103L)
+#define X_STATUS_OBJECT_NAME_EXISTS                     ((X_STATUS)0x40000000L)
 #define X_STATUS_TIMER_RESUME_IGNORED                   ((X_STATUS)0x40000025L)
 #define X_STATUS_BUFFER_OVERFLOW                        ((X_STATUS)0x80000005L)
 #define X_STATUS_NO_MORE_FILES                          ((X_STATUS)0x80000006L)
@@ -57,6 +59,8 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_ACCESS_DENIED                          ((X_STATUS)0xC0000022L)
 #define X_STATUS_BUFFER_TOO_SMALL                       ((X_STATUS)0xC0000023L)
 #define X_STATUS_OBJECT_TYPE_MISMATCH                   ((X_STATUS)0xC0000024L)
+#define X_STATUS_OBJECT_NAME_NOT_FOUND                  ((X_STATUS)0xC0000034L)
+#define X_STATUS_OBJECT_NAME_COLLISION                  ((X_STATUS)0xC0000035L)
 #define X_STATUS_INVALID_PAGE_PROTECTION                ((X_STATUS)0xC0000045L)
 #define X_STATUS_MUTANT_NOT_OWNED                       ((X_STATUS)0xC0000046L)
 #define X_STATUS_MEMORY_NOT_ALLOCATED                   ((X_STATUS)0xC00000A0L)
@@ -268,12 +272,19 @@ public:
     buffer = 0;
   }
   char* Duplicate() {
-    if (buffer == NULL || length == 0) {
-      return NULL;
+    if (!buffer || !length) {
+      return nullptr;
     }
     auto copy = (char*)calloc(length + 1, sizeof(char));
     std::strncpy(copy, buffer, length);
     return copy;
+  }
+  std::string to_string() {
+    if (!buffer || !length) {
+      return "";
+    }
+    std::string result(buffer, length);
+    return result;
   }
 };
 //static_assert_size(X_ANSI_STRING, 8);

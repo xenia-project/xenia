@@ -56,7 +56,23 @@ void XObject::Release() {
 }
 
 X_STATUS XObject::Delete() {
+  if (!name_.empty()) {
+    kernel_state_->object_table()->RemoveNameMapping(name_);
+  }
   return kernel_state_->object_table()->RemoveHandle(handle_);
+}
+
+void XObject::SetAttributes(const uint8_t* obj_attrs_ptr) {
+  if (!obj_attrs_ptr) {
+    return;
+  }
+
+  uint32_t name_str_ptr = poly::load_and_swap<uint32_t>(obj_attrs_ptr + 4);
+  if (name_str_ptr) {
+    X_ANSI_STRING name_str(membase(), name_str_ptr);
+    name_ = name_str.to_string();
+    kernel_state_->object_table()->AddNameMapping(name_, handle_);
+  }
 }
 
 uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {

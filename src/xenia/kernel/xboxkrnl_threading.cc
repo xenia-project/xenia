@@ -57,6 +57,26 @@ namespace kernel {
 //   stw r3, 0x160(r11)
 // }
 
+void AssertNoNameCollision(KernelState* state, uint32_t obj_attributes_ptr) {
+  // If the name exists and its type matches, we can return that (ref+1)
+  // with a success of NAME_EXISTS.
+  // If the name exists and its type doesn't match, we do NAME_COLLISION.
+  // Otherwise, we add like normal.
+  auto membase = state->memory()->membase();
+  uint32_t name_str_ptr =
+      poly::load_and_swap<uint32_t>(membase + obj_attributes_ptr + 4);
+  if (name_str_ptr) {
+    X_ANSI_STRING name_str(membase, name_str_ptr);
+    auto name = name_str.to_string();
+    X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+    X_RESULT result = state->object_table()->GetObjectByName(name, &handle);
+    if (XSUCCEEDED(result)) {
+      // Found something!
+      assert_always("Existing names not implemented");
+    }
+  }
+}
+
 SHIM_CALL ExCreateThread_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t stack_size = SHIM_GET_ARG_32(1);
@@ -425,13 +445,16 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtCreateEvent(%.8X, %.8X, %d, %d)", handle_ptr, obj_attributes_ptr,
          event_type, initial_state);
 
+  // TODO(benvanik): check for name collision. May return existing object if
+  // type matches.
+  AssertNoNameCollision(state, obj_attributes_ptr);
+
   XEvent* ev = new XEvent(state);
   ev->Initialize(!event_type, !!initial_state);
 
   // obj_attributes may have a name inside of it, if != NULL.
-  auto obj_attributes = SHIM_MEM_ADDR(obj_attributes_ptr);
-  if (obj_attributes) {
-    // ev->SetName(...);
+  if (obj_attributes_ptr) {
+    ev->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
   }
 
   if (handle_ptr) {
@@ -566,12 +589,16 @@ SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtCreateSemaphore(%.8X, %.8X, %d, %d)", handle_ptr,
          obj_attributes_ptr, count, limit);
 
+  // TODO(benvanik): check for name collision. May return existing object if
+  // type matches.
+  AssertNoNameCollision(state, obj_attributes_ptr);
+
   XSemaphore* sem = new XSemaphore(state);
   sem->Initialize(count, limit);
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    // sem->SetName(...);
+    sem->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
   }
 
   if (handle_ptr) {
@@ -656,12 +683,16 @@ SHIM_CALL NtCreateMutant_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtCreateMutant(%.8X, %.8X, %.1X)", handle_ptr, obj_attributes_ptr,
          initial_owner);
 
+  // TODO(benvanik): check for name collision. May return existing object if
+  // type matches.
+  AssertNoNameCollision(state, obj_attributes_ptr);
+
   XMutant* mutant = new XMutant(state);
   mutant->Initialize(initial_owner ? true : false);
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    // mutant->SetName(...);
+    mutant->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
   }
 
   if (handle_ptr) {
@@ -709,12 +740,16 @@ SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("NtCreateTimer(%.8X, %.8X, %.1X)", handle_ptr, obj_attributes_ptr,
          timer_type);
 
+  // TODO(benvanik): check for name collision. May return existing object if
+  // type matches.
+  AssertNoNameCollision(state, obj_attributes_ptr);
+
   XTimer* timer = new XTimer(state);
   timer->Initialize(timer_type);
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    // timer->SetName(...);
+    timer->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
   }
 
   if (handle_ptr) {

@@ -18,6 +18,35 @@
 namespace xe {
 namespace kernel {
 
+SHIM_CALL ObOpenObjectByName_shim(PPCContext* ppc_state, KernelState* state) {
+  // r3 = ptr to info?
+  //   +0 = -4
+  //   +4 = name ptr
+  //   +8 = 0
+  // r4 = ExEventObjectType | ExSemaphoreObjectType | ExTimerObjectType
+  // r5 = 0
+  // r6 = out_ptr (handle?)
+  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(0);
+  uint32_t object_type_ptr = SHIM_GET_ARG_32(1);
+  uint32_t unk = SHIM_GET_ARG_32(2);
+  uint32_t handle_ptr = SHIM_GET_ARG_32(3);
+
+  uint32_t name_str_ptr = SHIM_MEM_32(obj_attributes_ptr + 4);
+  X_ANSI_STRING name_str(SHIM_MEM_BASE, name_str_ptr);
+  auto name = name_str.to_string();
+
+  XELOGD("ObOpenObjectByName(%.8X(name=%s), %.8X, %.8X, %.8X)",
+         obj_attributes_ptr, name.c_str(), object_type_ptr, unk, handle_ptr);
+
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_STATUS result = state->object_table()->GetObjectByName(name, &handle);
+  if (XSUCCEEDED(result)) {
+    SHIM_SET_MEM_32(handle_ptr, handle);
+  }
+
+  SHIM_SET_RETURN_32(result);
+}
+
 SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
                                          KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
@@ -130,6 +159,7 @@ SHIM_CALL NtClose_shim(PPCContext* ppc_state, KernelState* state) {
 
 void xe::kernel::xboxkrnl::RegisterObExports(ExportResolver* export_resolver,
                                              KernelState* state) {
+  SHIM_SET_MAPPING("xboxkrnl.exe", ObOpenObjectByName, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObReferenceObjectByHandle, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObDereferenceObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtDuplicateObject, state);

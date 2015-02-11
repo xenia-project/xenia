@@ -11,6 +11,8 @@
 #define XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
 
 #include <mutex>
+#include <string>
+#include <unordered_map>
 
 #include "xenia/common.h"
 #include "xenia/xbox.h"
@@ -27,7 +29,12 @@ class ObjectTable {
 
   X_STATUS AddHandle(XObject* object, X_HANDLE* out_handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
-  X_STATUS GetObject(X_HANDLE handle, XObject** out_object);
+  X_STATUS GetObject(X_HANDLE handle, XObject** out_object,
+                     bool already_locked = false);
+
+  X_STATUS AddNameMapping(const std::string& name, X_HANDLE handle);
+  void RemoveNameMapping(const std::string& name);
+  X_STATUS GetObjectByName(const std::string& name, X_HANDLE* out_handle);
 
  private:
   X_HANDLE TranslateHandle(X_HANDLE handle);
@@ -39,6 +46,7 @@ class ObjectTable {
   uint32_t table_capacity_;
   ObjectTableEntry* table_;
   uint32_t last_free_entry_;
+  std::unordered_map<std::string, X_HANDLE> name_table_;
 };
 
 }  // namespace kernel
