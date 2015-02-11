@@ -53,6 +53,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   Value* LoadCR();
   Value* LoadCR(uint32_t n);
   Value* LoadCRField(uint32_t n, uint32_t bit);
+  void StoreCR(Value* value);
   void StoreCR(uint32_t n, Value* value);
   void StoreCRField(uint32_t n, uint32_t bit, Value* value);
   void UpdateCR(uint32_t n, Value* lhs, bool is_signed = true);

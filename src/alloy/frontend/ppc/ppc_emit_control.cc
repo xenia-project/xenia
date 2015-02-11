@@ -533,12 +533,12 @@ XEEMITTER(mfcr, 0x7C000026, XFX)(PPCHIRBuilder& f, InstrData& i) {
   // mfocrf RT,FXM
   // RT <- undefined
   // count <- 0
-  //  do i = 0 to 7
-  //    if FXMi = 1 then
-  //      n <- i
-  //      count <- count + 1
-  //      if count = 1 then
-  //        RT4un + 32:4un + 35 <- CR4un + 32 : 4un + 35
+  // do i = 0 to 7
+  // if FXMi = 1 then
+  //   n <- i
+  //   count <- count + 1
+  // if count = 1 then
+  //   RT4un + 32:4un + 35 <- CR4un + 32 : 4un + 35
 
   // TODO(benvanik): optimize mfcr sequences.
   // Often look something like this:
@@ -621,8 +621,36 @@ XEEMITTER(mftb, 0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(mtcrf, 0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // mtocrf FXM,RS
+  // count <- 0
+  // do i = 0 to 7
+  //   if FXMi = 1 then
+  //     n <- i
+  //     count <- count + 1
+  // if count = 1 then
+  //   CR4un + 32 : 4un + 35 <- RS4un + 32:4un + 35
+
+  Value* v = f.LoadGPR(i.XFX.RT);
+  if (i.XFX.spr & (1 << 9)) {
+    uint32_t bits = (i.XFX.spr & 0x1FF) >> 1;
+    int count = 0;
+    int cri = 0;
+    for (int b = 0; b <= 7; ++b) {
+      if (bits & (1 << b)) {
+        cri = 7 - b;
+        ++count;
+      }
+    }
+    if (count == 1) {
+      f.StoreCR(cri, v);
+    } else {
+      // Invalid; store zero to CR.
+      f.StoreCR(f.LoadZero(INT64_TYPE));
+    }
+  } else {
+    f.StoreCR(v);
+  }
+  return 0;
 }
 
 XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {

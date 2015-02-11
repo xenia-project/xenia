@@ -289,9 +289,25 @@ Value* PPCHIRBuilder::LoadCRField(uint32_t n, uint32_t bit) {
   return LoadContext(offsetof(PPCContext, cr0) + (4 * n) + bit, INT8_TYPE);
 }
 
+void PPCHIRBuilder::StoreCR(Value* value) {
+  // All bits. This is expensive, but seems to be less used than the
+  // field-specific StoreCR.
+  for (int i = 0; i <= 7; ++i) {
+    StoreCR(i, value);
+  }
+}
+
 void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
-  // TODO(benvanik): split bits out and store in values.
-  assert_always();
+  // Pull out the bits we are interested in.
+  // Optimization passes will kill any unneeded stores (mostly).
+  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0,
+               Truncate(Shr(value, 4 * (7 - n) + 3), INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1,
+               Truncate(Shr(value, 4 * (7 - n) + 2), INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 2,
+               Truncate(Shr(value, 4 * (7 - n) + 1), INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 3,
+               Truncate(Shr(value, 4 * (7 - n) + 0), INT8_TYPE));
 }
 
 void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
