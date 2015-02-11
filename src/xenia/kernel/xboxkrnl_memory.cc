@@ -64,8 +64,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_state,
   // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
                       X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
-    SHIM_SET_RETURN_32(X_STATUS_ACCESS_DENIED);
-    return;
+    XELOGW("Game setting EXECUTE bit on allocation");
   }
 
   // Adjust size.
