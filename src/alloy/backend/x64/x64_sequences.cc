@@ -3289,6 +3289,9 @@ EMITTER_OPCODE_TABLE(
 // TODO(benvanik): simplify code!
 EMITTER(DIV_I8, MATCH(I<OPCODE_DIV, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Label skip;
+    e.inLocalLabel();
+
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
@@ -3303,6 +3306,10 @@ EMITTER(DIV_I8, MATCH(I<OPCODE_DIV, I8<>, I8<>, I8<>>)) {
         e.idiv(e.cl);
       }
     } else {
+      // Skip if src2 is zero.
+      e.test(i.src2, i.src2);
+      e.jz(skip, CodeGenerator::T_SHORT);
+
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
           e.mov(e.ax, static_cast<int16_t>(i.src1.constant()));
@@ -3319,6 +3326,9 @@ EMITTER(DIV_I8, MATCH(I<OPCODE_DIV, I8<>, I8<>, I8<>>)) {
         e.idiv(i.src2);
       }
     }
+
+    e.L(skip);
+    e.outLocalLabel();
     e.mov(i.dest, e.al);
     if (clobbered_rcx) {
       e.ReloadECX();
@@ -3328,6 +3338,9 @@ EMITTER(DIV_I8, MATCH(I<OPCODE_DIV, I8<>, I8<>, I8<>>)) {
 };
 EMITTER(DIV_I16, MATCH(I<OPCODE_DIV, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Label skip;
+    e.inLocalLabel();
+
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
@@ -3347,6 +3360,10 @@ EMITTER(DIV_I16, MATCH(I<OPCODE_DIV, I16<>, I16<>, I16<>>)) {
         e.idiv(e.cx);
       }
     } else {
+      // Skip if src2 is zero.
+      e.test(i.src2, i.src2);
+      e.jz(skip, CodeGenerator::T_SHORT);
+
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
           e.mov(e.ax, i.src1.constant());
@@ -3368,6 +3385,9 @@ EMITTER(DIV_I16, MATCH(I<OPCODE_DIV, I16<>, I16<>, I16<>>)) {
         e.idiv(i.src2);
       }
     }
+
+    e.L(skip);
+    e.outLocalLabel();
     e.mov(i.dest, e.ax);
     if (clobbered_rcx) {
       e.ReloadECX();
@@ -3377,6 +3397,9 @@ EMITTER(DIV_I16, MATCH(I<OPCODE_DIV, I16<>, I16<>, I16<>>)) {
 };
 EMITTER(DIV_I32, MATCH(I<OPCODE_DIV, I32<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Label skip;
+    e.inLocalLabel();
+
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
@@ -3396,6 +3419,10 @@ EMITTER(DIV_I32, MATCH(I<OPCODE_DIV, I32<>, I32<>, I32<>>)) {
         e.idiv(e.ecx);
       }
     } else {
+      // Skip if src2 is zero.
+      e.test(i.src2, i.src2);
+      e.jz(skip, CodeGenerator::T_SHORT);
+
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
           e.mov(e.eax, i.src1.constant());
@@ -3417,6 +3444,9 @@ EMITTER(DIV_I32, MATCH(I<OPCODE_DIV, I32<>, I32<>, I32<>>)) {
         e.idiv(i.src2);
       }
     }
+
+    e.L(skip);
+    e.outLocalLabel();
     e.mov(i.dest, e.eax);
     if (clobbered_rcx) {
       e.ReloadECX();
@@ -3426,6 +3456,9 @@ EMITTER(DIV_I32, MATCH(I<OPCODE_DIV, I32<>, I32<>, I32<>>)) {
 };
 EMITTER(DIV_I64, MATCH(I<OPCODE_DIV, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Label skip;
+    e.inLocalLabel();
+
     // NOTE: RDX clobbered.
     bool clobbered_rcx = false;
     if (i.src2.is_constant) {
@@ -3445,6 +3478,10 @@ EMITTER(DIV_I64, MATCH(I<OPCODE_DIV, I64<>, I64<>, I64<>>)) {
         e.idiv(e.rcx);
       }
     } else {
+      // Skip if src2 is zero.
+      e.test(i.src2, i.src2);
+      e.jz(skip, CodeGenerator::T_SHORT);
+
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
           e.mov(e.rax, i.src1.constant());
@@ -3466,6 +3503,9 @@ EMITTER(DIV_I64, MATCH(I<OPCODE_DIV, I64<>, I64<>, I64<>>)) {
         e.idiv(i.src2);
       }
     }
+
+    e.L(skip);
+    e.outLocalLabel();
     e.mov(i.dest, e.rax);
     if (clobbered_rcx) {
       e.ReloadECX();
