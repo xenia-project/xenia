@@ -66,9 +66,11 @@ typedef uint32_t X_STATUS;
 
 // HRESULT (ERROR_*)
 // Adding as needed.
+// For some reason, half of these aren't *actually* HRESULTs.
+// Windows is a weird place.
 typedef uint32_t X_RESULT;
 #define X_FACILITY_WIN32 7
-#define X_HRESULT_FROM_WIN32(x) ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
+#define X_HRESULT_FROM_WIN32(x) x //((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
 #define X_ERROR_SUCCESS                                 X_HRESULT_FROM_WIN32(0x00000000L)
 #define X_ERROR_ACCESS_DENIED                           X_HRESULT_FROM_WIN32(0x00000005L)
 #define X_ERROR_INVALID_HANDLE                          X_HRESULT_FROM_WIN32(0x00000006L)
