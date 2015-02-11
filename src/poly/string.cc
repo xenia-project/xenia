@@ -104,4 +104,26 @@ std::wstring fix_path_separators(const std::wstring& source, wchar_t new_sep) {
   return dest;
 }
 
+std::string fix_path_separators(const std::string& source, char new_sep) {
+  // Swap all separators to new_sep.
+  char old_sep = new_sep == '\\' ? '/' : '\\';
+  std::string::size_type pos = 0;
+  std::string dest = source;
+  while ((pos = source.find_first_of(old_sep, pos)) != std::string::npos) {
+    dest[pos] = new_sep;
+    ++pos;
+  }
+  // Replace redundant separators.
+  pos = 0;
+  while ((pos = dest.find_first_of(new_sep, pos)) != std::string::npos) {
+    if (pos < dest.size() - 1) {
+      if (dest[pos + 1] == new_sep) {
+        dest.erase(pos + 1, 1);
+      }
+    }
+    ++pos;
+  }
+  return dest;
+}
+
 }  // namespace poly

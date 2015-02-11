@@ -146,18 +146,78 @@ int FileSystem::DeleteSymbolicLink(const std::string& path) {
   return 0;
 }
 
-std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
-  // Strip off prefix and pass to device.
-  // e.g., d:\some\PATH.foo -> some\PATH.foo
-  // Support both symlinks and device specifiers, like:
-  // \\Device\Foo\some\PATH.foo, d:\some\PATH.foo, etc.
+std::string FileSystem::CanonicalizePath(const std::string& original_path) const {
+  char path_seperator('\\');
+  std::string path(poly::fix_path_separators(original_path, path_seperator));
 
-  // TODO(benvanik): normalize path/etc
-  // e.g., remove ..'s and such
+  std::vector<std::string::size_type> hints;
+
+  std::string::size_type pos(std::string::npos);
+  while ((pos = path.find_first_of(path_seperator, pos + 1)) != -1) {
+    hints.push_back(pos);
+  }
+
+  if (!hints.empty()) {
+    {
+      const std::string::size_type len(path.size());
+      // Treat last char as a hint for our range indexing
+      if (hints[hints.size() - 1] != len - 1) {
+        hints.push_back(len);
+      }
+    }
+
+    auto it1 = hints.rbegin();
+    auto it2 = it1;
+    ++it1;
+    while (it1 != hints.rend()) {
+      auto diff(*it2 - *it1);
+      switch (diff) {
+      case 2:
+        // Reference to current dir
+        if (path[*it1 + 1] == '.') {
+          path.erase(*it1, 2);
+        }
+        ++it1; ++it2;
+        break;
+      case 3:
+        // Reference to parent dir
+        if (path[*it1 + 1] == '.' && path[*it1 + 2] == '.') {
+          auto it3 = it1 + 1;
+
+          if (it3 != hints.rend()) {
+            diff = (*it1 - *it3);
+            path.erase(*it3, diff + 3);
+            ++it2;
+          } else {
+            path.erase(*it1);
+          }
+
+          it1 = it3;
+        } else {
+          ++it1; ++it2;
+        }
+        break;
+      default:
+        ++it1; ++it2;
+      }
+    }
+  }
+
+  // Sanity checks
+  if ((path.size() == 1 && path[0] == '.')
+    || (path.size() == 2 && path[0] == '.' && path[1] == '.')) {
+    return "";
+  }
+
+  return path;
+}
+
+std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
+  // Resolve relative paths
+  std::string normalized_path(CanonicalizePath(path));
 
   // If no path (starts with a slash) do it module-relative.
   // Which for now, we just make game:.
-  std::string normalized_path = path;
   if (path[0] == '\\') {
     normalized_path = "game:" + normalized_path;
   }

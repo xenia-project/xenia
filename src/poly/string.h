@@ -45,6 +45,8 @@ std::wstring join_paths(const std::wstring& left, const std::wstring& right,
 // separators.
 std::wstring fix_path_separators(const std::wstring& source,
                                  wchar_t new_sep = poly::path_separator);
+std::string fix_path_separators(const std::string& source,
+                                char new_sep = poly::path_separator);
 
 }  // namespace poly
 
