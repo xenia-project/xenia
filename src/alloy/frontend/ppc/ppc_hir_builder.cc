@@ -301,13 +301,17 @@ void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
   // Pull out the bits we are interested in.
   // Optimization passes will kill any unneeded stores (mostly).
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0,
-               Truncate(Shr(value, 4 * (7 - n) + 3), INT8_TYPE));
+               And(Truncate(Shr(value, 4 * (7 - n) + 3), INT8_TYPE),
+                   LoadConstant(uint8_t(1))));
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1,
-               Truncate(Shr(value, 4 * (7 - n) + 2), INT8_TYPE));
+               And(Truncate(Shr(value, 4 * (7 - n) + 2), INT8_TYPE),
+                   LoadConstant(uint8_t(1))));
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 2,
-               Truncate(Shr(value, 4 * (7 - n) + 1), INT8_TYPE));
+               And(Truncate(Shr(value, 4 * (7 - n) + 1), INT8_TYPE),
+                   LoadConstant(uint8_t(1))));
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 3,
-               Truncate(Shr(value, 4 * (7 - n) + 0), INT8_TYPE));
+               And(Truncate(Shr(value, 4 * (7 - n) + 0), INT8_TYPE),
+                   LoadConstant(uint8_t(1))));
 }
 
 void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
