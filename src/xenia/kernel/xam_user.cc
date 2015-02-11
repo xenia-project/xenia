@@ -125,7 +125,12 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
 
   if (user_index) {
     // Only support user 0.
-    SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
+    if (overlapped_ptr) {
+      state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_NOT_FOUND);
+      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    } else {
+      SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
+    }
     return;
   }
   const auto& user_profile = state->user_profile();
@@ -167,8 +172,10 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
     if (overlapped_ptr) {
       state->CompleteOverlappedImmediate(overlapped_ptr,
                                          X_ERROR_INVALID_PARAMETER);
+      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    } else {
+      SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
     }
-    SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
     return;
   }
   SHIM_SET_MEM_32(buffer_size_ptr, size_needed);
@@ -176,8 +183,10 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
     if (overlapped_ptr) {
       state->CompleteOverlappedImmediate(overlapped_ptr,
                                          X_ERROR_INSUFFICIENT_BUFFER);
+      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    } else {
+      SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
     }
-    SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
     return;
   }
 
