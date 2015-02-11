@@ -20,6 +20,10 @@ that.
 
 ## Status
 
+Project tracker:
+[![Stories in Ready](https://badge.waffle.io/benvanik/xenia.svg?label=ready&title=Ready)](http://waffle.io/benvanik/xenia)
+[![Stories in In Progress](https://badge.waffle.io/benvanik/xenia.svg?label=in%20progress&title=In%20Progress)](http://waffle.io/benvanik/xenia)
+
 * Some code runs. [Insert any game name here] doesn't. Except Frogger 2. Yep.
 * Asserts! Crashes! Hangs! Blank screens!
 
