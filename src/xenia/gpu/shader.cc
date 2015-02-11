@@ -264,7 +264,7 @@ void Shader::GatherTextureFetch(const instr_fetch_tex_t* tex) {
 
   assert_true(tex->const_idx < 0x1F);
 
-  assert_true(sampler_inputs_.count + 1 < poly::countof(sampler_inputs_.descs));
+  assert_true(sampler_inputs_.count + 1 <= poly::countof(sampler_inputs_.descs));
   auto& input = sampler_inputs_.descs[sampler_inputs_.count++];
   input.input_index = sampler_inputs_.count - 1;
   input.fetch_slot = tex->const_idx & 0xF;  // ??????????????????????????????
