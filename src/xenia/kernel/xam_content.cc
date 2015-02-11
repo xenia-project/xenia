@@ -17,6 +17,17 @@
 namespace xe {
 namespace kernel {
 
+struct DeviceInfo {
+  uint32_t device_id;
+  uint32_t device_type;
+  uint64_t total_bytes;
+  uint64_t free_bytes;
+  std::wstring name;
+};
+static const DeviceInfo dummy_device_info_ = {
+    0xF00D0000, 1, 1024 * 1024 * 1024, 1024 * 1024 * 1024, L"Dummy HDD",
+};
+
 SHIM_CALL XamContentGetLicenseMask_shim(PPCContext* ppc_state,
                                         KernelState* state) {
   uint32_t mask_ptr = SHIM_GET_ARG_32(0);
@@ -52,13 +63,13 @@ SHIM_CALL XamShowDeviceSelectorUI_shim(PPCContext* ppc_state,
 
   switch (content_type) {
     case 1:  // save game
-      SHIM_SET_MEM_32(device_id_ptr, 0xF00D0001);
+      SHIM_SET_MEM_32(device_id_ptr, dummy_device_info_.device_id | 0x0001);
       break;
     case 2:  // marketplace
-      SHIM_SET_MEM_32(device_id_ptr, 0xF00D0002);
+      SHIM_SET_MEM_32(device_id_ptr, dummy_device_info_.device_id | 0x0002);
       break;
     case 3:  // title/publisher update?
-      SHIM_SET_MEM_32(device_id_ptr, 0xF00D0003);
+      SHIM_SET_MEM_32(device_id_ptr, dummy_device_info_.device_id | 0x0003);
       break;
   }
 
@@ -80,8 +91,20 @@ SHIM_CALL XamContentGetDeviceName_shim(PPCContext* ppc_state,
   XELOGD("XamContentGetDeviceName(%.8X, %.8X, %d)", device_id, name_ptr,
          name_capacity);
 
-  // Always say device not connected.
-  SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+  if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+
+  if (name_capacity < dummy_device_info_.name.size() + 1) {
+    SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
+    return;
+  }
+
+  poly::store_and_swap<std::wstring>(SHIM_MEM_ADDR(name_ptr),
+                                     dummy_device_info_.name);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 SHIM_CALL XamContentGetDeviceState_shim(PPCContext* ppc_state,
@@ -91,17 +114,49 @@ SHIM_CALL XamContentGetDeviceState_shim(PPCContext* ppc_state,
 
   XELOGD("XamContentGetDeviceState(%.8X, %.8X)", device_id, overlapped_ptr);
 
-  // Always say device not connected.
-  // This may cause games to go into an infinite loop trying to show the device
-  // dialog, but we can deal with that later.
+  if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+    if (overlapped_ptr) {
+      state->CompleteOverlappedImmediate(overlapped_ptr,
+                                         X_ERROR_FUNCTION_FAILED);
+      XOverlappedSetExtendedError(SHIM_MEM_BASE + overlapped_ptr,
+                                  X_ERROR_DEVICE_NOT_CONNECTED);
+      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    } else {
+      SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    }
+    return;
+  }
+
   if (overlapped_ptr) {
-    state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_FUNCTION_FAILED);
-    XOverlappedSetExtendedError(SHIM_MEM_BASE + overlapped_ptr,
-                                X_ERROR_DEVICE_NOT_CONNECTED);
+    state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
   } else {
-    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
   }
+}
+
+SHIM_CALL XamContentGetDeviceData_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
+  uint32_t device_id = SHIM_GET_ARG_32(0);
+  uint32_t device_data_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("XamContentGetDeviceData(%.8X, %.8X)", device_id, device_data_ptr);
+
+  if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+    // TODO(benvanik): memset 0 the data?
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+
+  const auto& device_info = dummy_device_info_;
+  SHIM_SET_MEM_32(device_data_ptr + 0, device_info.device_id);
+  SHIM_SET_MEM_32(device_data_ptr + 4, device_info.device_type);
+  SHIM_SET_MEM_64(device_data_ptr + 8, device_info.total_bytes);
+  SHIM_SET_MEM_64(device_data_ptr + 16, device_info.free_bytes);
+  poly::store_and_swap<std::wstring>(SHIM_MEM_ADDR(device_data_ptr + 24),
+                                     device_info.name);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 // http://gameservice.googlecode.com/svn-history/r14/trunk/ContentManager.cpp
@@ -119,8 +174,15 @@ SHIM_CALL XamContentCreateEnumerator_shim(PPCContext* ppc_state,
          user_index, device_id, content_type, content_flags, item_count,
          buffer_size_ptr, handle_ptr);
 
+  if (device_id && (device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+    // TODO(benvanik): memset 0 the data?
+    SHIM_SET_RETURN_32(X_E_INVALIDARG);
+    return;
+  }
+
   // 4 + 4 + 128*2 + 42 = 306
   if (buffer_size_ptr) {
+    uint32_t bp = SHIM_MEM_32(buffer_size_ptr);
     SHIM_SET_MEM_32(buffer_size_ptr, item_count * 306);
   }
 
@@ -141,5 +203,6 @@ void xe::kernel::xam::RegisterContentExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamShowDeviceSelectorUI, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceName, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceState, state);
+  SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceData, state);
   SHIM_SET_MAPPING("xam.xex", XamContentCreateEnumerator, state);
 }
