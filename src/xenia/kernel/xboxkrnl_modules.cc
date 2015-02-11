@@ -163,6 +163,7 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
     module = state->GetModule(module_name);
   }
   if (!module) {
+    SHIM_SET_MEM_32(module_handle_ptr, 0);
     SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
     return;
   }
