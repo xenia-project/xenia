@@ -155,7 +155,7 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_state,
 
   uint32_t user_index = SHIM_MEM_32(user_index_ptr);
 
-  XELOGD("XamInputGetKeystroke(%.8X(%.d), %.8X, %.8X)", user_index_ptr,
+  XELOGD("XamInputGetKeystrokeEx(%.8X(%d), %.8X, %.8X)", user_index_ptr,
          user_index, flags, keystroke_ptr);
 
   if (!keystroke_ptr) {
