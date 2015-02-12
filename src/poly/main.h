@@ -29,8 +29,10 @@ struct EntryInfo {
 };
 EntryInfo GetEntryInfo();
 
-#define DEFINE_ENTRY_POINT(name, usage, entry_point) \
-  poly::EntryInfo poly::GetEntryInfo() { return {name, usage, entry_point}; }
+#define DEFINE_ENTRY_POINT(name, usage, entry_point)    \
+  poly::EntryInfo poly::GetEntryInfo() {                \
+    return poly::EntryInfo({name, usage, entry_point}); \
+  }
 
 }  // namespace poly
 
