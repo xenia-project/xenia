@@ -63,6 +63,16 @@ X_RESULT XXGIApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              achievements_ptr);
       return X_ERROR_SUCCESS;
     }
+    case 0x000B0010: {
+      assert_true(!buffer_length || buffer_length == 28);
+      // Sequence:
+      // - XamSessionCreateHandle
+      // - XamSessionRefObjByHandle
+      // - [this]
+      // - CloseHandle
+      XELOGD("XSessionCreateImpl(...)");
+      return X_ERROR_FUNCTION_FAILED;
+    }
     case 0x000B0041: {
       assert_true(!buffer_length || buffer_length == 32);
       // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340

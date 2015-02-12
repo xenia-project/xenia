@@ -416,6 +416,29 @@ SHIM_CALL XamWriteGamerTile_shim(PPCContext* ppc_state, KernelState* state) {
   }
 }
 
+SHIM_CALL XamSessionCreateHandle_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("XamSessionCreateHandle(%.8X)", handle_ptr);
+
+  SHIM_SET_MEM_32(handle_ptr, 0xCAFEDEAD);
+
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+}
+
+SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t obj_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("XamSessionRefObjByHandle(%.8X, %.8X)", handle, obj_ptr);
+
+  assert_true(handle == 0xCAFEDEAD);
+
+  SHIM_SET_MEM_32(obj_ptr, 0);
+
+  SHIM_SET_RETURN_32(X_ERROR_FUNCTION_FAILED);
+}
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -434,4 +457,6 @@ void xe::kernel::xam::RegisterUserExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamParseGamerTileKey, state);
   SHIM_SET_MAPPING("xam.xex", XamReadTileToTexture, state);
   SHIM_SET_MAPPING("xam.xex", XamWriteGamerTile, state);
+  SHIM_SET_MAPPING("xam.xex", XamSessionCreateHandle, state);
+  SHIM_SET_MAPPING("xam.xex", XamSessionRefObjByHandle, state);
 }
