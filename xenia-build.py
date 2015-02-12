@@ -275,7 +275,8 @@ class SetupCommand(Command):
       print('')
 
     # Run the ninja bootstrap to build it, if it's missing.
-    if (not os.path.exists('third_party/ninja/ninja') and
+    if (not '--no-ninja' in args and
+        not os.path.exists('third_party/ninja/ninja') and
        not os.path.exists('third_party/ninja/ninja.exe')):
       print('- preparing ninja...')
       os.chdir('third_party/ninja')

@@ -1,3 +1,3 @@
-@ECHO OFF
+REM @ECHO OFF
 
-python xenia-build.py setup
+python xenia-build.py setup --no-ninja

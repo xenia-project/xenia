@@ -54,7 +54,7 @@ configuration: Debug
 
 build:
   parallel: true                  # enable MSBuild parallel builds
-  project: MyTestAzureCS.sln      # path to Visual Studio solution or project
+  project: build\xenia\xenia.sln  # path to Visual Studio solution or project
 
   # MSBuild verbosity level
   verbosity: quiet|minimal|normal|detailed
@@ -67,8 +67,8 @@ before_build:
 after_build:
 
 # to run your custom scripts instead of automatic MSBuild
-build_script:
-  - cmd: tools\buildbot\build.bat
+#build_script:
+#  - cmd: tools\buildbot\build.bat
 
 # to disable automatic builds
 #build: off
