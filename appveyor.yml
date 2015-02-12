@@ -57,7 +57,8 @@ build:
   project: build\xenia\xenia.sln  # path to Visual Studio solution or project
 
   # MSBuild verbosity level
-  verbosity: quiet|minimal|normal|detailed
+  #verbosity: quiet|minimal|normal|detailed
+  verbosity: detailed
 
 
 # scripts to run before build
