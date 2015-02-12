@@ -69,6 +69,23 @@ X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
   }
 }
 
+X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
+                                 size_t byte_offset,
+                                 size_t* out_bytes_written) {
+  OVERLAPPED overlapped;
+  overlapped.Pointer = (PVOID)byte_offset;
+  overlapped.hEvent = NULL;
+  DWORD bytes_written = 0;
+  BOOL wrote = WriteFile(file_handle_, buffer, (DWORD)buffer_length,
+                         &bytes_written, &overlapped);
+  if (wrote) {
+    *out_bytes_written = bytes_written;
+    return X_STATUS_SUCCESS;
+  } else {
+    return X_STATUS_END_OF_FILE;
+  }
+}
+
 }  // namespace fs
 }  // namespace kernel
 }  // namespace xe

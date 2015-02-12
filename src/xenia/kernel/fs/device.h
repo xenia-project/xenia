@@ -27,6 +27,8 @@ class Device {
 
   const std::string& path() const { return path_; }
 
+  virtual bool is_read_only() const { return true; }
+
   virtual std::unique_ptr<Entry> ResolvePath(const char* path) = 0;
 
   virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);

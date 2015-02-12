@@ -5,6 +5,8 @@
     'app.h',
     'async_request.cc',
     'async_request.h',
+    'content_manager.cc',
+    'content_manager.h',
     'dispatcher.cc',
     'dispatcher.h',
     'kernel.h',

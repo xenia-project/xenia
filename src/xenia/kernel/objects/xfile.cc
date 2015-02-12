@@ -53,5 +53,19 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
   return result;
 }
 
+X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
+                      size_t byte_offset, size_t* out_bytes_written) {
+  if (byte_offset == -1) {
+    // Write from current position.
+    byte_offset = position_;
+  }
+  X_STATUS result =
+      WriteSync(buffer, buffer_length, byte_offset, out_bytes_written);
+  if (XSUCCEEDED(result)) {
+    position_ += *out_bytes_written;
+  }
+  return result;
+}
+
 }  // namespace kernel
 }  // namespace xe

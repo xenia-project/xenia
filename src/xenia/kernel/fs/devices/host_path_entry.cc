@@ -140,7 +140,7 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
   DWORD desired_access =
       mode == Mode::READ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
   DWORD share_mode = FILE_SHARE_READ;
-  DWORD creation_disposition = OPEN_EXISTING;
+  DWORD creation_disposition = mode == Mode::READ ? OPEN_EXISTING : OPEN_ALWAYS;
   DWORD flags_and_attributes = async ? FILE_FLAG_OVERLAPPED : 0;
   HANDLE file =
       CreateFile(local_path_.c_str(), desired_access, share_mode, NULL,

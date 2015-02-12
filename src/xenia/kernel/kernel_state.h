@@ -16,6 +16,7 @@
 #include "xenia/common.h"
 #include "xenia/export_resolver.h"
 #include "xenia/kernel/app.h"
+#include "xenia/kernel/content_manager.h"
 #include "xenia/kernel/fs/filesystem.h"
 #include "xenia/kernel/object_table.h"
 #include "xenia/kernel/user_profile.h"
@@ -49,11 +50,14 @@ class KernelState {
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
   fs::FileSystem* file_system() const { return file_system_; }
+  
+  uint32_t title_id() const;
 
   Dispatcher* dispatcher() const { return dispatcher_; }
 
   XAppManager* app_manager() const { return app_manager_.get(); }
   UserProfile* user_profile() const { return user_profile_.get(); }
+  ContentManager* content_manager() const { return content_manager_.get(); }
 
   ObjectTable* object_table() const { return object_table_; }
   std::mutex& object_mutex() { return object_mutex_; }
@@ -90,6 +94,7 @@ class KernelState {
 
   std::unique_ptr<XAppManager> app_manager_;
   std::unique_ptr<UserProfile> user_profile_;
+  std::unique_ptr<ContentManager> content_manager_;
 
   ObjectTable* object_table_;
   std::mutex object_mutex_;

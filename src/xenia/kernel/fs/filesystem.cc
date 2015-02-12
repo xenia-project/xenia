@@ -74,7 +74,7 @@ int FileSystem::InitializeFromPath(fs::FileSystemType type,
 
       // Register the local directory in the virtual filesystem.
       int result_code = RegisterHostPathDevice(
-          "\\Device\\Harddisk1\\Partition0", parent_path);
+          "\\Device\\Harddisk1\\Partition0", parent_path, true);
       if (result_code) {
         XELOGE("Unable to mount local directory");
         return result_code;
@@ -108,8 +108,9 @@ int FileSystem::RegisterDevice(const std::string& path, Device* device) {
 }
 
 int FileSystem::RegisterHostPathDevice(const std::string& path,
-                                       const std::wstring& local_path) {
-  Device* device = new HostPathDevice(path, local_path);
+                                       const std::wstring& local_path,
+                                       bool read_only) {
+  Device* device = new HostPathDevice(path, local_path, read_only);
   return RegisterDevice(path, device);
 }
 

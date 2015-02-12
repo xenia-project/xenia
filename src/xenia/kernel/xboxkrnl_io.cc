@@ -103,8 +103,11 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
   if (creation_disposition != FileDisposition::X_FILE_OPEN ||
       desired_access & FileAccess::X_GENERIC_WRITE ||
       desired_access & FileAccess::X_GENERIC_ALL) {
-    // We don't support any write modes.
-    XELOGW("Attempted to open the file/dir for create/write");
+    if (entry->is_read_only()) {
+      // We don't support any write modes.
+      XELOGW("Attempted to open the file/dir for create/write");
+      desired_access = FileAccess::X_GENERIC_READ;
+    }
   }
 
   XFile* file = nullptr;
@@ -113,7 +116,10 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     info = X_FILE_DOES_NOT_EXIST;
   } else {
     // Open the file/directory.
-    result = fs->Open(std::move(entry), state, fs::Mode::READ,
+    result = fs->Open(std::move(entry), state,
+                      desired_access == FileAccess::X_GENERIC_READ
+                          ? fs::Mode::READ
+                          : fs::Mode::READ_WRITE,
                       false,  // TODO(benvanik): pick async mode, if needed.
                       &file);
   }
@@ -271,6 +277,92 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
           (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
           call_state);*/
       // result = file->Read(buffer, buffer_length, byte_offset, request);
+      result = X_STATUS_PENDING;
+      info = 0;
+    }
+  }
+
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
+  }
+
+  if (file) {
+    file->Release();
+  }
+  if (ev) {
+    if (signal_event) {
+      ev->Set(0, false);
+    }
+    ev->Release();
+  }
+
+  SHIM_SET_RETURN_32(result);
+}
+
+SHIM_CALL NtWriteFile_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t event_handle = SHIM_GET_ARG_32(1);
+  uint32_t apc_routine_ptr = SHIM_GET_ARG_32(2);
+  uint32_t apc_context = SHIM_GET_ARG_32(3);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(4);
+  uint32_t buffer = SHIM_GET_ARG_32(5);
+  uint32_t buffer_length = SHIM_GET_ARG_32(6);
+  uint32_t byte_offset_ptr = SHIM_GET_ARG_32(7);
+  size_t byte_offset = byte_offset_ptr ? SHIM_MEM_64(byte_offset_ptr) : 0;
+
+  XELOGD("NtWriteFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X(%d))",
+         file_handle, event_handle, apc_routine_ptr, apc_context,
+         io_status_block_ptr, buffer, buffer_length, byte_offset_ptr,
+         byte_offset);
+
+  // Async not supported yet.
+  assert_zero(apc_routine_ptr);
+
+  X_STATUS result = X_STATUS_SUCCESS;
+  uint32_t info = 0;
+
+  // Grab event to signal.
+  XEvent* ev = NULL;
+  bool signal_event = false;
+  if (event_handle) {
+    result = state->object_table()->GetObject(event_handle, (XObject**)&ev);
+  }
+
+  // Grab file.
+  XFile* file = NULL;
+  if (XSUCCEEDED(result)) {
+    result = state->object_table()->GetObject(file_handle, (XObject**)&file);
+  }
+
+  // Execute write.
+  if (XSUCCEEDED(result)) {
+    // Reset event before we begin.
+    if (ev) {
+      ev->Reset();
+    }
+
+    // TODO(benvanik): async path.
+    if (true) {
+      // Synchronous request.
+      if (!byte_offset_ptr || byte_offset == 0xFFFFFFFFfffffffe) {
+        // FILE_USE_FILE_POINTER_POSITION
+        byte_offset = -1;
+      }
+
+      // Write now.
+      size_t bytes_written = 0;
+      result = file->Write(SHIM_MEM_ADDR(buffer), buffer_length, byte_offset,
+                           &bytes_written);
+      if (XSUCCEEDED(result)) {
+        info = (int32_t)bytes_written;
+      }
+
+      // Mark that we should signal the event now. We do this after
+      // we have written the info out.
+      signal_event = true;
+    } else {
+      // X_STATUS_PENDING if not returning immediately.
       result = X_STATUS_PENDING;
       info = 0;
     }
@@ -629,6 +721,7 @@ void xe::kernel::xboxkrnl::RegisterIoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtOpenFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReadFile, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtWriteFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);

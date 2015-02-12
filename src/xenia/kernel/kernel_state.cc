@@ -9,6 +9,8 @@
 
 #include "xenia/kernel/kernel_state.h"
 
+#include <gflags/gflags.h>
+
 #include "xenia/emulator.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/xam_module.h"
@@ -21,6 +23,9 @@
 #include "xenia/kernel/objects/xnotify_listener.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
+
+DEFINE_string(content_root, "content",
+              "Root path for content (save/etc) storage.");
 
 namespace xe {
 namespace kernel {
@@ -44,6 +49,10 @@ KernelState::KernelState(Emulator* emulator)
 
   app_manager_ = std::make_unique<XAppManager>();
   user_profile_ = std::make_unique<UserProfile>();
+
+  auto content_root = poly::to_wstring(FLAGS_content_root);
+  content_root = poly::to_absolute_path(content_root);
+  content_manager_ = std::make_unique<ContentManager>(this, content_root);
 
   object_table_ = new ObjectTable();
 
@@ -69,6 +78,11 @@ KernelState::~KernelState() {
 }
 
 KernelState* KernelState::shared() { return shared_kernel_state_; }
+
+uint32_t KernelState::title_id() const {
+  assert_not_null(executable_module_);
+  return executable_module_->xex_header()->execution_info.title_id;
+}
 
 void KernelState::RegisterModule(XModule* module) {}
 

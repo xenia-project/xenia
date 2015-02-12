@@ -17,8 +17,8 @@ namespace kernel {
 namespace fs {
 
 HostPathDevice::HostPathDevice(const std::string& path,
-                               const std::wstring& local_path)
-    : Device(path), local_path_(local_path) {}
+                               const std::wstring& local_path, bool read_only)
+    : Device(path), local_path_(local_path), read_only_(read_only) {}
 
 HostPathDevice::~HostPathDevice() {}
 

@@ -61,6 +61,8 @@ class Entry {
   const std::string& absolute_path() const { return absolute_path_; }
   const std::string& name() const { return name_; }
 
+  bool is_read_only() const;
+
   virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;

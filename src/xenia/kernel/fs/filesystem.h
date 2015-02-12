@@ -40,7 +40,8 @@ class FileSystem {
 
   int RegisterDevice(const std::string& path, Device* device);
   int RegisterHostPathDevice(const std::string& path,
-                             const std::wstring& local_path);
+                             const std::wstring& local_path,
+                             bool read_only);
   int RegisterDiscImageDevice(const std::string& path,
                               const std::wstring& local_path);
   int RegisterSTFSContainerDevice(const std::string& path,

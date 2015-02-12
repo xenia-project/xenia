@@ -8,6 +8,7 @@
     'delegate.h',
     'config.h',
     'cxx_compat.h',
+    'fs.h',
     'logging.cc',
     'logging.h',
     'main.h',
@@ -45,6 +46,7 @@
     ['OS == "win"', {
       'sources': [
         'debugging_win.cc',
+        'fs_win.cc',
         'main_win.cc',
         'mapped_memory_win.cc',
         'threading_win.cc',

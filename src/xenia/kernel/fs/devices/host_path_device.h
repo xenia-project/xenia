@@ -21,13 +21,17 @@ namespace fs {
 
 class HostPathDevice : public Device {
  public:
-  HostPathDevice(const std::string& path, const std::wstring& local_path);
+  HostPathDevice(const std::string& path, const std::wstring& local_path,
+                 bool read_only);
   ~HostPathDevice() override;
+
+  bool is_read_only() const { return read_only_; }
 
   std::unique_ptr<Entry> ResolvePath(const char* path) override;
 
  private:
   std::wstring local_path_;
+  bool read_only_;
 };
 
 }  // namespace fs

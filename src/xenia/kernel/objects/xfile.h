@@ -146,12 +146,19 @@ class XFile : public XObject {
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 XAsyncRequest* request);
 
+  X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
+                 size_t* out_bytes_written);
+
   virtual void* GetWaitHandle();
 
  protected:
   XFile(KernelState* kernel_state, fs::Mode mode);
   virtual X_STATUS ReadSync(void* buffer, size_t buffer_length,
                             size_t byte_offset, size_t* out_bytes_read) = 0;
+  virtual X_STATUS WriteSync(const void* buffer, size_t buffer_length,
+                             size_t byte_offset, size_t* out_bytes_written) {
+    return X_STATUS_ACCESS_DENIED;
+  }
 
  private:
   fs::Mode mode_;

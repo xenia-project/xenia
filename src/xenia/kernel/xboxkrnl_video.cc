@@ -295,7 +295,7 @@ SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
   // arg8 is in stack!
   uint32_t sp = (uint32_t)ppc_state->r[1];
   // Points to the first 80000000h where the memcpy sources from.
-  uint32_t dest_ptr = SHIM_MEM_32(sp + 0x64);
+  uint32_t dest_ptr = SHIM_MEM_32(sp + 0x54);
 
   XELOGD(
       "VdInitializeScalerCommandBuffer(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, "
