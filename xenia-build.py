@@ -75,7 +75,11 @@ def import_vs_environment():
   """
   version = 0
   tools_path = ''
-  if 'VS140COMNTOOLS' in os.environ:
+  if 'VS150COMNTOOLS' in os.environ:
+    version = 2015
+    tools_path = os.environ['VS150COMNTOOLS']
+  elif 'VS140COMNTOOLS' in os.environ:
+    # TODO(benvanik): remove preview tools.
     version = 2015
     tools_path = os.environ['VS140COMNTOOLS']
   elif 'VS120COMNTOOLS' in os.environ:
