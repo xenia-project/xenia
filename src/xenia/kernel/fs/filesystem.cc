@@ -147,64 +147,81 @@ int FileSystem::DeleteSymbolicLink(const std::string& path) {
 }
 
 std::string FileSystem::CanonicalizePath(const std::string& original_path) const {
-  char path_seperator('\\');
-  std::string path(poly::fix_path_separators(original_path, path_seperator));
+  char path_separator('\\');
+  std::string path(poly::fix_path_separators(original_path, path_separator));
 
-  std::vector<std::string::size_type> hints;
+  std::vector<std::string::size_type> path_breaks;
 
-  std::string::size_type pos(std::string::npos);
-  while ((pos = path.find_first_of(path_seperator, pos + 1)) != -1) {
-    hints.push_back(pos);
-  }
+  std::string::size_type pos(path.find_first_of(path_separator));
+  std::string::size_type pos_n(std::string::npos);
 
-  if (!hints.empty()) {
+  while (pos != std::string::npos) {
+    if ((pos_n = path.find_first_of(path_separator, pos + 1)) == std::string::npos) {
+      pos_n = path.size();
+    }
+
+    auto diff(pos_n - pos);
+    switch (diff)
     {
-      const std::string::size_type len(path.size());
-      // Treat last char as a hint for our range indexing
-      if (hints[hints.size() - 1] != len - 1) {
-        hints.push_back(len);
+    case 0:
+      pos_n = std::string::npos;
+      break;
+    case 1:
+      // Duplicate separators
+      path.erase(pos, 1);
+      pos_n -= 1;
+      break;
+    case 2:
+      // Potential marker for current directory
+      if (path[pos + 1] == '.') {
+        path.erase(pos, 2);
+        pos_n -= 2;
+      } else {
+        path_breaks.push_back(pos);
       }
-    }
-
-    auto it1 = hints.rbegin();
-    auto it2 = it1;
-    ++it1;
-    while (it1 != hints.rend()) {
-      auto diff(*it2 - *it1);
-      switch (diff) {
-      case 2:
-        // Reference to current dir
-        if (path[*it1 + 1] == '.') {
-          path.erase(*it1, 2);
-        }
-        ++it1; ++it2;
-        break;
-      case 3:
-        // Reference to parent dir
-        if (path[*it1 + 1] == '.' && path[*it1 + 2] == '.') {
-          auto it3 = it1 + 1;
-
-          if (it3 != hints.rend()) {
-            diff = (*it1 - *it3);
-            path.erase(*it3, diff + 3);
-            ++it2;
+      break;
+    case 3:
+      // Potential marker for parent directory
+      if (path[pos + 1] == '.' && path[pos + 2] == '.'){
+        if (path_breaks.empty()) {
+          // Ensure we don't override the device name
+          std::string::size_type loc(path.find_first_of(':'));
+          auto req(pos + 3);
+          if (loc == std::string::npos || loc > req) {
+            path.erase(0, req);
+            pos_n -= req;
           } else {
-            path.erase(*it1);
+            path.erase(loc + 1, req - (loc + 1));
+            pos_n -= req - (loc + 1);
           }
-
-          it1 = it3;
         } else {
-          ++it1; ++it2;
+          auto last(path_breaks.back());
+          auto last_diff((pos + 3) - last);
+          path.erase(last, last_diff);
+          pos_n = last;
+          // Also remove path reference
+          path_breaks.erase(path_breaks.end() - 1);
         }
-        break;
-      default:
-        ++it1; ++it2;
+      } else {
+        path_breaks.push_back(pos);
       }
+      break;
+
+    default:
+      path_breaks.push_back(pos);
+      break;
     }
+
+    pos = pos_n;
   }
 
-  // Sanity checks
-  if ((path.size() == 1 && path[0] == '.')
+  // Remove trailing seperator
+  if (!path.empty() && path.back() == path_separator) {
+    path.erase(path.size() - 1);
+  }
+
+  // Final sanity check for dead paths
+  if ((path.size() == 1 && (path[0] == '.' || path[0] == path_separator))
     || (path.size() == 2 && path[0] == '.' && path[1] == '.')) {
     return "";
   }
@@ -218,7 +235,7 @@ std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
 
   // If no path (starts with a slash) do it module-relative.
   // Which for now, we just make game:.
-  if (path[0] == '\\') {
+  if (normalized_path[0] == '\\') {
     normalized_path = "game:" + normalized_path;
   }
 
