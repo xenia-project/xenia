@@ -39,6 +39,7 @@ environment:
 
 # scripts that run after cloning repository
 install:
+  - cmd: set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
   - cmd: tools\buildbot\setup.bat
 
 
