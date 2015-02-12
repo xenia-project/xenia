@@ -20,9 +20,14 @@ namespace kernel {
 using namespace xe::cpu;
 
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, path), xex_(nullptr) {}
+    : XModule(kernel_state, path), xex_(nullptr), execution_info_ptr_(0) {}
 
-XUserModule::~XUserModule() { xe_xex2_dealloc(xex_); }
+XUserModule::~XUserModule() {
+  if (execution_info_ptr_) {
+    kernel_state()->memory()->HeapFree(execution_info_ptr_, 0);
+  }
+  xe_xex2_dealloc(xex_);
+}
 
 xe_xex2_ref XUserModule::xex() { return xex_; }
 
@@ -108,6 +113,22 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   if (!xex_) {
     return X_STATUS_UNSUCCESSFUL;
   }
+
+  // Store execution info for later use.
+  // TODO(benvanik): just put entire xex header in memory somewhere?
+  execution_info_ptr_ =
+      uint32_t(kernel_state()->memory()->HeapAlloc(0, 24, MEMORY_FLAG_ZERO, 0));
+  auto eip = kernel_state()->memory()->membase() + execution_info_ptr_;
+  const auto& ex = xe_xex2_get_header(xex_)->execution_info;
+  poly::store_and_swap<uint32_t>(eip + 0x00, ex.media_id);
+  poly::store_and_swap<uint32_t>(eip + 0x04, ex.version.value);
+  poly::store_and_swap<uint32_t>(eip + 0x08, ex.base_version.value);
+  poly::store_and_swap<uint32_t>(eip + 0x0C, ex.title_id);
+  poly::store_and_swap<uint8_t>(eip + 0x10, ex.platform);
+  poly::store_and_swap<uint8_t>(eip + 0x11, ex.executable_table);
+  poly::store_and_swap<uint8_t>(eip + 0x12, ex.disc_number);
+  poly::store_and_swap<uint8_t>(eip + 0x13, ex.disc_count);
+  poly::store_and_swap<uint32_t>(eip + 0x14, ex.savegame_id);
 
   // Prepare the module for execution.
   // Runtime takes ownership.

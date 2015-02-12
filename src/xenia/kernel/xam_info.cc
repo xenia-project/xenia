@@ -10,6 +10,7 @@
 #include "xenia/common.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xenumerator.h"
+#include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xam_private.h"
@@ -65,6 +66,21 @@ SHIM_CALL XamVoiceIsActiveProcess_shim(PPCContext* ppc_state,
                                        KernelState* state) {
   XELOGD("XamVoiceIsActiveProcess()");
   // Returning 0 here will short-circuit a bunch of voice stuff.
+  SHIM_SET_RETURN_32(0);
+}
+
+SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t info_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("XamGetExecutionId(%.8X)", info_ptr);
+
+  auto module = state->GetExecutableModule();
+  assert_not_null(module);
+
+  SHIM_SET_MEM_32(info_ptr, module->execution_info_ptr());
+
+  module->Release();
+
   SHIM_SET_RETURN_32(0);
 }
 
@@ -176,6 +192,7 @@ void xe::kernel::xam::RegisterInfoExports(ExportResolver* export_resolver,
 
   SHIM_SET_MAPPING("xam.xex", XamVoiceIsActiveProcess, state);
 
+  SHIM_SET_MAPPING("xam.xex", XamGetExecutionId, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchDataSize, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchData, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderLaunchTitle, state);

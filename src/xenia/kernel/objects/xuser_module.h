@@ -27,6 +27,8 @@ class XUserModule : public XModule {
   xe_xex2_ref xex();
   const xe_xex2_header_t* xex_header();
 
+  uint32_t execution_info_ptr() const { return execution_info_ptr_; }
+
   X_STATUS LoadFromFile(const char* path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
@@ -42,6 +44,7 @@ class XUserModule : public XModule {
   int LoadPE();
 
   xe_xex2_ref xex_;
+  uint32_t execution_info_ptr_;
 };
 
 }  // namespace kernel
