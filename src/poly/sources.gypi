@@ -9,6 +9,7 @@
     'config.h',
     'cxx_compat.h',
     'fs.h',
+    'fs.cc',
     'logging.cc',
     'logging.h',
     'main.h',

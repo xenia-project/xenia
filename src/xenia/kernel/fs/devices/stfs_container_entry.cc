@@ -9,7 +9,6 @@
 
 #include "xenia/kernel/fs/devices/stfs_container_entry.h"
 
-#include "xenia/kernel/fs/stfs.h"
 #include "xenia/kernel/fs/devices/stfs_container_file.h"
 
 namespace xe {
@@ -22,7 +21,8 @@ STFSContainerEntry::STFSContainerEntry(Device* device, const char* path,
     : Entry(device, path),
       mmap_(mmap),
       stfs_entry_(stfs_entry),
-      stfs_entry_iterator_(stfs_entry->children.end()) {}
+      it_(stfs_entry_->children.end())
+{ }
 
 STFSContainerEntry::~STFSContainerEntry() = default;
 
@@ -44,37 +44,33 @@ X_STATUS STFSContainerEntry::QueryDirectory(XDirectoryInfo* out_info,
                                             bool restart) {
   assert_not_null(out_info);
 
-  // TODO(benvanik): move to common code.
-  STFSEntry* entry = nullptr;
-  if (file_name) {
-    // Specified filename, return just that info.
-    assert_true(std::strchr(file_name, '*') == nullptr);
-    entry = stfs_entry_->GetChild(file_name);
+  STFSEntry* entry(nullptr);
+
+  if( file_name != nullptr ) {
+    // Only queries in the current directory are supported for now
+    assert_true(std::strchr(file_name, '\\') == nullptr);
+
+    find_engine_.SetRule(file_name);
+
+    // Always restart the search?
+    it_ = stfs_entry_->children.begin();
+    entry = stfs_entry_->GetChild(find_engine_, it_);
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
   } else {
-    if (restart && stfs_entry_iterator_ != stfs_entry_->children.end()) {
-      stfs_entry_iterator_ = stfs_entry_->children.end();
+    if (restart) {
+      it_ = stfs_entry_->children.begin();
     }
 
-    if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
-      stfs_entry_iterator_ = stfs_entry_->children.begin();
-      if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
-        return X_STATUS_UNSUCCESSFUL;
-      }
-    } else {
-      ++stfs_entry_iterator_;
-      if (stfs_entry_iterator_ == stfs_entry_->children.end()) {
-        return X_STATUS_UNSUCCESSFUL;
-      }
+    entry = stfs_entry_->GetChild(find_engine_, it_);
+    if (!entry) {
+      return X_STATUS_UNSUCCESSFUL;
     }
 
     auto end = (uint8_t*)out_info + length;
-    entry = stfs_entry_iterator_->get();
     auto entry_name = entry->name;
     if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
-      stfs_entry_iterator_ = stfs_entry_->children.end();
       return X_STATUS_NO_MORE_FILES;
     }
   }

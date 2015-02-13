@@ -100,6 +100,20 @@ STFSEntry::STFSEntry()
       update_timestamp(0),
       access_timestamp(0) {}
 
+STFSEntry* STFSEntry::GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it)
+{
+  STFSEntry* child_entry(nullptr);
+  while (ref_it != children.end()) {
+    if (engine.Match((*ref_it)->name)) {
+      child_entry = (*ref_it).get();
+      ++ref_it;
+      break;
+    }
+    ++ref_it;
+  }
+  return child_entry;
+}
+
 STFSEntry* STFSEntry::GetChild(const char* name) {
   // TODO(benvanik): a faster search
   for (const auto& entry : children) {

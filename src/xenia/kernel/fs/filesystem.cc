@@ -13,6 +13,7 @@
 #include "xenia/kernel/fs/devices/disc_image_device.h"
 #include "xenia/kernel/fs/devices/host_path_device.h"
 #include "xenia/kernel/fs/devices/stfs_container_device.h"
+#include "poly/fs.h"
 
 namespace xe {
 namespace kernel {
@@ -147,92 +148,9 @@ int FileSystem::DeleteSymbolicLink(const std::string& path) {
   return 0;
 }
 
-std::string FileSystem::CanonicalizePath(const std::string& original_path) const {
-  char path_separator('\\');
-  std::string path(poly::fix_path_separators(original_path, path_separator));
-
-  std::vector<std::string::size_type> path_breaks;
-
-  std::string::size_type pos(path.find_first_of(path_separator));
-  std::string::size_type pos_n(std::string::npos);
-
-  while (pos != std::string::npos) {
-    if ((pos_n = path.find_first_of(path_separator, pos + 1)) == std::string::npos) {
-      pos_n = path.size();
-    }
-
-    auto diff(pos_n - pos);
-    switch (diff)
-    {
-    case 0:
-      pos_n = std::string::npos;
-      break;
-    case 1:
-      // Duplicate separators
-      path.erase(pos, 1);
-      pos_n -= 1;
-      break;
-    case 2:
-      // Potential marker for current directory
-      if (path[pos + 1] == '.') {
-        path.erase(pos, 2);
-        pos_n -= 2;
-      } else {
-        path_breaks.push_back(pos);
-      }
-      break;
-    case 3:
-      // Potential marker for parent directory
-      if (path[pos + 1] == '.' && path[pos + 2] == '.'){
-        if (path_breaks.empty()) {
-          // Ensure we don't override the device name
-          std::string::size_type loc(path.find_first_of(':'));
-          auto req(pos + 3);
-          if (loc == std::string::npos || loc > req) {
-            path.erase(0, req);
-            pos_n -= req;
-          } else {
-            path.erase(loc + 1, req - (loc + 1));
-            pos_n -= req - (loc + 1);
-          }
-        } else {
-          auto last(path_breaks.back());
-          auto last_diff((pos + 3) - last);
-          path.erase(last, last_diff);
-          pos_n = last;
-          // Also remove path reference
-          path_breaks.erase(path_breaks.end() - 1);
-        }
-      } else {
-        path_breaks.push_back(pos);
-      }
-      break;
-
-    default:
-      path_breaks.push_back(pos);
-      break;
-    }
-
-    pos = pos_n;
-  }
-
-  // Remove trailing seperator
-  if (!path.empty() && path.back() == path_separator) {
-    path.erase(path.size() - 1);
-  }
-
-  // Final sanity check for dead paths
-  if ((path.size() == 1 && (path[0] == '.' || path[0] == path_separator))
-    || (path.size() == 2 && path[0] == '.' && path[1] == '.')) {
-    return "";
-  }
-
-  return path;
-}
-
 std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
   // Resolve relative paths
-  std::string normalized_path(CanonicalizePath(path));
+  std::string normalized_path(poly::fs::CanonicalizePath(path));
 
   // If no path (starts with a slash) do it module-relative.
   // Which for now, we just make game:.

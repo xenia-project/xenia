@@ -11,7 +11,6 @@
 
 #include <algorithm>
 
-#include "xenia/kernel/fs/gdfx.h"
 #include "xenia/kernel/fs/devices/disc_image_file.h"
 
 namespace xe {
@@ -31,7 +30,7 @@ DiscImageEntry::DiscImageEntry(Device* device, const char* path,
     : Entry(device, path),
       mmap_(mmap),
       gdfx_entry_(gdfx_entry),
-      gdfx_entry_iterator_(gdfx_entry->children.end()) {}
+      it_(gdfx_entry->children.end()) {}
 
 DiscImageEntry::~DiscImageEntry() {}
 
@@ -51,39 +50,34 @@ X_STATUS DiscImageEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
                                         const char* file_name, bool restart) {
   assert_not_null(out_info);
 
-  // TODO(benvanik): move to common code.
-  assert_null(file_name);
-  GDFXEntry* entry = nullptr;
-  if (file_name) {
-    // Specified filename, return just that info.
-    assert_true(std::strchr(file_name, '*') == nullptr);
-    entry = gdfx_entry_->GetChild(file_name);
+  GDFXEntry* entry(nullptr);
+
+  if (file_name != nullptr) {
+    // Only queries in the current directory are supported for now
+    assert_true(std::strchr(file_name, '\\') == nullptr);
+
+    find_engine_.SetRule(file_name);
+
+    // Always restart the search?
+    it_ = gdfx_entry_->children.begin();
+    entry = gdfx_entry_->GetChild(find_engine_, it_);
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
-  } else {
-    if (restart == true &&
-        gdfx_entry_iterator_ != gdfx_entry_->children.end()) {
-      gdfx_entry_iterator_ = gdfx_entry_->children.end();
+  }
+  else {
+    if (restart) {
+      it_ = gdfx_entry_->children.begin();
     }
 
-    if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
-      gdfx_entry_iterator_ = gdfx_entry_->children.begin();
-      if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
-        return X_STATUS_UNSUCCESSFUL;
-      }
-    } else {
-      ++gdfx_entry_iterator_;
-      if (gdfx_entry_iterator_ == gdfx_entry_->children.end()) {
-        return X_STATUS_UNSUCCESSFUL;
-      }
+    entry = gdfx_entry_->GetChild(find_engine_, it_);
+    if (!entry) {
+      return X_STATUS_UNSUCCESSFUL;
     }
 
     auto end = (uint8_t*)out_info + length;
-    entry = *gdfx_entry_iterator_;
     auto entry_name = entry->name;
     if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
-      gdfx_entry_iterator_ = gdfx_entry_->children.end();
       return X_STATUS_NO_MORE_FILES;
     }
   }
@@ -96,7 +90,7 @@ X_STATUS DiscImageEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
   out_info->change_time = 0;
   out_info->end_of_file = entry->size;
   out_info->allocation_size = 2048;
-  out_info->attributes = (X_FILE_ATTRIBUTES)entry->attributes;
+  out_info->attributes = entry->attributes;
   out_info->file_name_length = static_cast<uint32_t>(entry->name.size());
   memcpy(out_info->file_name, entry->name.c_str(), entry->name.size());
 

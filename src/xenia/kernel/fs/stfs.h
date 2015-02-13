@@ -17,6 +17,7 @@
 #include "xenia/common.h"
 #include "xenia/xbox.h"
 #include "xenia/kernel/fs/entry.h"
+#include "poly/fs.h"
 
 namespace xe {
 namespace kernel {
@@ -131,6 +132,10 @@ class STFSEntry {
  public:
   STFSEntry();
 
+  typedef std::vector<std::unique_ptr<STFSEntry>> child_t;
+  typedef child_t::iterator child_it_t;
+
+  STFSEntry* GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it);
   STFSEntry* GetChild(const char* name);
 
   void Dump(int indent);
@@ -141,8 +146,7 @@ class STFSEntry {
   size_t size;
   uint32_t update_timestamp;
   uint32_t access_timestamp;
-
-  std::vector<std::unique_ptr<STFSEntry>> children;
+  child_t children;
 
   typedef struct {
     size_t offset;
