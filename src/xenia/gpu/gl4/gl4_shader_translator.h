@@ -60,9 +60,14 @@ class GL4ShaderTranslator {
   void AppendDestRegName(uint32_t num, uint32_t dst_exp);
   void AppendDestReg(uint32_t num, uint32_t mask, uint32_t dst_exp);
   void AppendDestRegPost(uint32_t num, uint32_t mask, uint32_t dst_exp);
+  void AppendVectorDestReg(const ucode::instr_alu_t& alu);
+  void AppendVectorDestRegPost(const ucode::instr_alu_t& alu);
+  void AppendScalarDestReg(const ucode::instr_alu_t& alu);
+  void AppendScalarDestRegPost(const ucode::instr_alu_t& alu);
   void PrintSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
                    uint32_t abs);
-  void PrintDstReg(uint32_t num, uint32_t mask, uint32_t dst_exp);
+  void PrintVectorDstReg(const ucode::instr_alu_t& alu);
+  void PrintScalarDstReg(const ucode::instr_alu_t& alu);
   void PrintExportComment(uint32_t num);
 
   bool TranslateALU(const ucode::instr_alu_t* alu, int sync);

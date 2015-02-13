@@ -286,6 +286,30 @@ void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
   }
 }
 
+void GL4ShaderTranslator::AppendVectorDestReg(const instr_alu_t& alu) {
+  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+}
+
+void GL4ShaderTranslator::AppendVectorDestRegPost(const instr_alu_t& alu) {
+  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+}
+
+void GL4ShaderTranslator::AppendScalarDestReg(const instr_alu_t& alu) {
+  if (alu.export_data) {
+    AppendDestReg(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
+  } else {
+    AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  }
+}
+
+void GL4ShaderTranslator::AppendScalarDestRegPost(const instr_alu_t& alu) {
+  if (alu.export_data) {
+    AppendDestRegPost(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
+  } else {
+    AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  }
+}
+
 void GL4ShaderTranslator::PrintSrcReg(uint32_t num, uint32_t type,
                                       uint32_t swiz, uint32_t negate,
                                       uint32_t abs_constants) {
@@ -319,9 +343,22 @@ void GL4ShaderTranslator::PrintSrcReg(uint32_t num, uint32_t type,
   }
 }
 
-void GL4ShaderTranslator::PrintDstReg(uint32_t num, uint32_t mask,
-                                      uint32_t dst_exp) {
-  Append("%s%u", dst_exp ? "export" : "R", num);
+void GL4ShaderTranslator::PrintVectorDstReg(const instr_alu_t& alu) {
+  Append("%s%u", alu.export_data ? "export" : "R", alu.vector_dest);
+  auto mask = alu.scalar_write_mask;
+  if (mask != 0xf) {
+    Append(".");
+    for (int i = 0; i < 4; i++) {
+      Append("%c", (mask & 0x1) ? chan_names[i] : '_');
+      mask >>= 1;
+    }
+  }
+}
+
+void GL4ShaderTranslator::PrintScalarDstReg(const instr_alu_t& alu) {
+  Append("%s%u", alu.export_data ? "export" : "R",
+         alu.export_data ? alu.vector_dest : alu.scalar_dest);
+  auto mask = alu.scalar_write_mask;
   if (mask != 0xf) {
     Append(".");
     for (int i = 0; i < 4; i++) {
@@ -367,7 +404,7 @@ void GL4ShaderTranslator::PrintExportComment(uint32_t num) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -383,12 +420,12 @@ bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -404,12 +441,12 @@ bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -433,12 +470,12 @@ bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -454,13 +491,13 @@ bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
                                               const char* op) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -494,7 +531,7 @@ bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SETEv(const instr_alu_t& alu) {
@@ -511,7 +548,7 @@ bool GL4ShaderTranslator::TranslateALU_SETNEv(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -524,12 +561,12 @@ bool GL4ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -542,12 +579,12 @@ bool GL4ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -560,12 +597,12 @@ bool GL4ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -583,13 +620,13 @@ bool GL4ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
                                               const char* op) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -637,7 +674,7 @@ bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_CNDEv(const instr_alu_t& alu) {
@@ -651,7 +688,7 @@ bool GL4ShaderTranslator::TranslateALU_CNDGTv(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -667,12 +704,12 @@ bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(".xxxx;\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -688,12 +725,12 @@ bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(".xxxx;\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -712,14 +749,14 @@ bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(".xxxx;\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 // CUBEv
 
 bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestReg(alu);
   Append(" = ");
   if (alu.vector_clamp) {
     Append("clamp(");
@@ -743,14 +780,14 @@ bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
+  AppendVectorDestRegPost(alu);
   return true;
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_ADDs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -766,37 +803,37 @@ bool GL4ShaderTranslator::TranslateALU_ADDs(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_MULs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
   }
   Append("(");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-                alu.abs_constants);
+               alu.abs_constants);
   Append(".x * ");
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-                alu.abs_constants);
+               alu.abs_constants);
   Append(".y).xxxx");
   if (alu.scalar_clamp) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -818,12 +855,12 @@ bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -839,13 +876,13 @@ bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
                                               const char* op) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -858,7 +895,7 @@ bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SETEs(const instr_alu_t& alu) {
@@ -875,7 +912,7 @@ bool GL4ShaderTranslator::TranslateALU_SETNEs(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_FRACs(const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -888,12 +925,12 @@ bool GL4ShaderTranslator::TranslateALU_FRACs(const ucode::instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_TRUNCs(const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -906,12 +943,12 @@ bool GL4ShaderTranslator::TranslateALU_TRUNCs(const ucode::instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_FLOORs(const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -924,12 +961,12 @@ bool GL4ShaderTranslator::TranslateALU_FLOORs(const ucode::instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -942,12 +979,12 @@ bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -960,12 +997,12 @@ bool GL4ShaderTranslator::TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -978,13 +1015,13 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_RECIPSQ_IEEE(
     const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -997,14 +1034,14 @@ bool GL4ShaderTranslator::TranslateALU_RECIPSQ_IEEE(
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_SUBs(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1020,7 +1057,7 @@ bool GL4ShaderTranslator::TranslateALU_SUBs(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
@@ -1035,7 +1072,7 @@ bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(const instr_alu_t& alu,
   if (!alu.scalar_write_mask) {
     return true;
   }
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1045,7 +1082,7 @@ bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(const instr_alu_t& alu,
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_PRED_SETEs(const instr_alu_t& alu) {
@@ -1062,7 +1099,7 @@ bool GL4ShaderTranslator::TranslateALU_PRED_SETNEs(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1075,12 +1112,12 @@ bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1100,7 +1137,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
@@ -1108,7 +1145,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1128,7 +1165,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
@@ -1136,7 +1173,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1156,7 +1193,7 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
@@ -1164,7 +1201,7 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_SIN(const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1177,12 +1214,12 @@ bool GL4ShaderTranslator::TranslateALU_SIN(const ucode::instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_COS(const ucode::instr_alu_t& alu) {
-  AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   if (alu.scalar_clamp) {
     Append("clamp(");
@@ -1195,7 +1232,7 @@ bool GL4ShaderTranslator::TranslateALU_COS(const ucode::instr_alu_t& alu) {
     Append(", 0.0, 1.0)");
   }
   Append(";\n");
-  AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
@@ -1206,11 +1243,10 @@ bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
   if (!alu.scalar_write_mask) {
     return true;
   }
-  assert_true(alu.export_data == 1);
-  AppendDestReg(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestReg(alu);
   Append(" = ");
   Append("vec4(1.0, 1.0, 1.0, 1.0);\n");
-  AppendDestRegPost(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
+  AppendScalarDestRegPost(alu);
   return true;
 }
 
@@ -1325,7 +1361,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       Append((alu->pred_select & 0x1) ? "EQ" : "NE");
     }
     Append("\t");
-    PrintDstReg(alu->vector_dest, alu->vector_write_mask, alu->export_data);
+    PrintVectorDstReg(*alu);
     Append(" = ");
     if (iv.num_srcs == 3) {
       PrintSrcReg(alu->src3_reg, alu->src3_sel, alu->src3_swiz,
@@ -1370,7 +1406,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
     } else {
       Append("\t    \tOP(%u)\t", alu->scalar_opc);
     }
-    PrintDstReg(alu->scalar_dest, alu->scalar_write_mask, alu->export_data);
+    PrintScalarDstReg(*alu);
     Append(" = ");
     if (is.num_srcs == 2) {
       // ADD_CONST_0 dest, [const], [reg]
