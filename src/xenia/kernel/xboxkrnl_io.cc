@@ -103,7 +103,7 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
   if (creation_disposition != FileDisposition::X_FILE_OPEN ||
       desired_access & FileAccess::X_GENERIC_WRITE ||
       desired_access & FileAccess::X_GENERIC_ALL) {
-    if (entry->is_read_only()) {
+    if (entry && entry->is_read_only()) {
       // We don't support any write modes.
       XELOGW("Attempted to open the file/dir for create/write");
       desired_access = FileAccess::X_GENERIC_READ;
