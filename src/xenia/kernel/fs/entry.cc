@@ -23,8 +23,7 @@ Entry::Entry(Device* device, const std::string& path)
     : device_(device), path_(path) {
   assert_not_null(device);
   absolute_path_ = device->path() + path;
-  // TODO(benvanik): last index of \, unless \ at end, then before that
-  name_ = "";
+  name_ = poly::find_name_from_path(path);
 }
 
 Entry::~Entry() = default;
