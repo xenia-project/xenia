@@ -208,7 +208,6 @@ SHIM_CALL XamContentCreateEnumerator_shim(PPCContext* ppc_state,
   }
 
   if (buffer_size_ptr) {
-    uint32_t bp = SHIM_MEM_32(buffer_size_ptr);
     SHIM_SET_MEM_32(buffer_size_ptr, item_count * XCONTENT_DATA::kSize);
   }
 
@@ -232,36 +231,12 @@ SHIM_CALL XamContentCreateEnumerator_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XamContentCreate_shim(PPCContext* ppc_state, KernelState* state) {
-  // uint32_t user_index = SHIM_GET_ARG_32(0);
-  // uint32_t content_data_ptr = SHIM_GET_ARG_32(1);
-  XELOGD("XamContentCreate unimplemented");
-  assert_always();
-}
-
-SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t root_name_ptr = SHIM_GET_ARG_32(1);
-  uint32_t content_data_ptr = SHIM_GET_ARG_32(2);
-  uint32_t flags = SHIM_GET_ARG_32(3);
-  uint32_t disposition_ptr = SHIM_GET_ARG_32(4);
-  uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
-  uint32_t cache_size = SHIM_GET_ARG_32(6);
-  uint64_t content_size = SHIM_GET_ARG_64(7);
-  uint32_t sp = (uint32_t)ppc_state->r[1];
-  uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
-
-  auto root_name =
-      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
-  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
-
-  XELOGD(
-      "XamContentCreateEx(%d, %.8X(%s), %.8X, %.8X, %.8X, %.8X, %.8X, %.8llX, "
-      "%.8X)",
-      user_index, root_name_ptr, root_name.c_str(), content_data_ptr, flags,
-      disposition_ptr, license_mask_ptr, cache_size, content_size,
-      overlapped_ptr);
-
+void XamContentCreateCore(PPCContext* ppc_state, KernelState* state,
+                          uint32_t user_index, std::string root_name,
+                          XCONTENT_DATA content_data, uint32_t flags,
+                          uint32_t disposition_ptr, uint32_t license_mask_ptr,
+                          uint32_t cache_size, uint64_t content_size,
+                          uint32_t overlapped_ptr) {
   assert_zero(license_mask_ptr);
 
   X_RESULT result = X_ERROR_INVALID_PARAMETER;
@@ -271,7 +246,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
   bool open = false;
   switch (flags & 0xF) {
     case 1:  // CREATE_NEW
-      // Fail if exists.
+             // Fail if exists.
       if (content_manager->ContentExists(content_data)) {
         result = X_ERROR_ALREADY_EXISTS;
       } else {
@@ -279,7 +254,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
       }
       break;
     case 2:  // CREATE_ALWAYS
-      // Overwrite existing, if any.
+             // Overwrite existing, if any.
       if (content_manager->ContentExists(content_data)) {
         content_manager->DeleteContent(content_data);
         create = true;
@@ -288,7 +263,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
       }
       break;
     case 3:  // OPEN_EXISTING
-      // Open only if exists.
+             // Open only if exists.
       if (!content_manager->ContentExists(content_data)) {
         result = X_ERROR_FILE_NOT_FOUND;
       } else {
@@ -296,7 +271,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
       }
       break;
     case 4:  // OPEN_ALWAYS
-      // Create if needed.
+             // Create if needed.
       if (!content_manager->ContentExists(content_data)) {
         create = true;
       } else {
@@ -304,7 +279,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
       }
       break;
     case 5:  // TRUNCATE_EXISTING
-      // Fail if doesn't exist, if does exist delete and recreate.
+             // Fail if doesn't exist, if does exist delete and recreate.
       if (!content_manager->ContentExists(content_data)) {
         result = X_ERROR_FILE_NOT_FOUND;
       } else {
@@ -338,6 +313,56 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
   } else {
     SHIM_SET_RETURN_32(result);
   }
+}
+
+SHIM_CALL XamContentCreate_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t root_name_ptr = SHIM_GET_ARG_32(1);
+  uint32_t content_data_ptr = SHIM_GET_ARG_32(2);
+  uint32_t flags = SHIM_GET_ARG_32(3);
+  uint32_t disposition_ptr = SHIM_GET_ARG_32(4);
+  uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(6);
+
+  auto root_name =
+      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
+
+  XELOGD("XamContentCreate(%d, %.8X(%s), %.8X, %.8X, %.8X, %.8X, %.8X)",
+         user_index, root_name_ptr, root_name.c_str(), content_data_ptr, flags,
+         disposition_ptr, license_mask_ptr, overlapped_ptr);
+
+  XamContentCreateCore(ppc_state, state, user_index, root_name, content_data,
+                       flags, disposition_ptr, license_mask_ptr, 0, 0,
+                       overlapped_ptr);
+}
+
+SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t root_name_ptr = SHIM_GET_ARG_32(1);
+  uint32_t content_data_ptr = SHIM_GET_ARG_32(2);
+  uint32_t flags = SHIM_GET_ARG_32(3);
+  uint32_t disposition_ptr = SHIM_GET_ARG_32(4);
+  uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
+  uint32_t cache_size = SHIM_GET_ARG_32(6);
+  uint64_t content_size = SHIM_GET_ARG_64(7);
+  uint32_t sp = (uint32_t)ppc_state->r[1];
+  uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
+
+  auto root_name =
+      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
+
+  XELOGD(
+      "XamContentCreateEx(%d, %.8X(%s), %.8X, %.8X, %.8X, %.8X, %.8X, %.8llX, "
+      "%.8X)",
+      user_index, root_name_ptr, root_name.c_str(), content_data_ptr, flags,
+      disposition_ptr, license_mask_ptr, cache_size, content_size,
+      overlapped_ptr);
+
+  XamContentCreateCore(ppc_state, state, user_index, root_name, content_data,
+                       flags, disposition_ptr, license_mask_ptr, cache_size,
+                       content_size, overlapped_ptr);
 }
 
 SHIM_CALL XamContentClose_shim(PPCContext* ppc_state, KernelState* state) {
