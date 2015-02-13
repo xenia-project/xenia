@@ -2331,6 +2331,10 @@ bool CommandProcessor::IssueCopy() {
       read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
       read_type = GL_UNSIGNED_BYTE;
       break;
+    case ColorFormat::k_16_16:
+      read_format = GL_RG16;
+      read_type = GL_UNSIGNED_SHORT;
+      break;
     case ColorFormat::k_16_16_16_16_FLOAT:
       read_format = GL_RGBA;
       read_type = GL_HALF_FLOAT;
