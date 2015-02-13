@@ -409,7 +409,7 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
       case XFileDispositionInformation: {
         // Used to set deletion flag. Which we don't support. Probably?
         info = 0;
-        bool delete_on_close = SHIM_MEM_8(file_info_ptr);
+        bool delete_on_close = SHIM_MEM_8(file_info_ptr) ? true : false;
         XELOGW("NtSetInformationFile ignoring delete on close: %d",
                delete_on_close);
         break;
