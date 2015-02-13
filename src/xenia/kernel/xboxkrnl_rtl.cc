@@ -141,17 +141,17 @@ SHIM_CALL RtlCompareStringN_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t string_2_len = SHIM_GET_ARG_32(3);
   uint32_t case_insensitive = SHIM_GET_ARG_32(4);
 
-  XELOGD("RtlCompareStringN(%.8X, %d, %.8X, %, %d)", string_1_ptr, string_1_len,
-         string_2_ptr, string_2_len, case_insensitive);
+  XELOGD("RtlCompareStringN(%.8X, %d, %.8X, %d, %d)", string_1_ptr,
+         string_1_len, string_2_ptr, string_2_len, case_insensitive);
 
   auto string_1 = reinterpret_cast<const char*>(SHIM_MEM_ADDR(string_1_ptr));
   auto string_2 = reinterpret_cast<const char*>(SHIM_MEM_ADDR(string_2_ptr));
 
   if (string_1_len == 0xFFFF) {
-    string_1_len = std::strlen(string_1);
+    string_1_len = uint32_t(std::strlen(string_1));
   }
   if (string_2_len == 0xFFFF) {
-    string_2_len = std::strlen(string_2);
+    string_2_len = uint32_t(std::strlen(string_2));
   }
   auto len = std::min(string_1_len, string_2_len);
 
