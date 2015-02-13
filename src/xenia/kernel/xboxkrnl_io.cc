@@ -406,6 +406,14 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
   if (XSUCCEEDED(result)) {
     result = X_STATUS_SUCCESS;
     switch (file_info_class) {
+      case XFileDispositionInformation: {
+        // Used to set deletion flag. Which we don't support. Probably?
+        info = 0;
+        bool delete_on_close = SHIM_MEM_8(file_info_ptr);
+        XELOGW("NtSetInformationFile ignoring delete on close: %d",
+               delete_on_close);
+        break;
+      }
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {
         //   LARGE_INTEGER CurrentByteOffset;
