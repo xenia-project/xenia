@@ -74,9 +74,9 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
   if (handle == INVALID_HANDLE_VALUE) {
     std::wstring target_path = local_path_;
     if (!file_name) {
-      target_path += L"*";
+      target_path = poly::join_paths(target_path, L"*");
     } else {
-      target_path += poly::to_wstring(file_name);
+      target_path = poly::join_paths(target_path, poly::to_wstring(file_name));
     }
     handle = find_file_ = FindFirstFile(target_path.c_str(), &ffd);
     if (handle == INVALID_HANDLE_VALUE) {

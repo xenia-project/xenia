@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/fs/devices/host_path_device.h"
 
+#include "poly/fs.h"
 #include "xenia/kernel/fs/devices/host_path_entry.h"
 #include "xenia/kernel/objects/xfile.h"
 
@@ -33,8 +34,11 @@ std::unique_ptr<Entry> HostPathDevice::ResolvePath(const char* path) {
   auto full_path = poly::join_paths(local_path_, rel_path);
   full_path = poly::fix_path_separators(full_path);
 
+  if (!poly::fs::PathExists(full_path)) {
+    return nullptr;
+  }
+
   // TODO(benvanik): get file info
-  // TODO(benvanik): fail if does not exit
   // TODO(benvanik): switch based on type
 
   return std::make_unique<HostPathEntry>(this, path, full_path);

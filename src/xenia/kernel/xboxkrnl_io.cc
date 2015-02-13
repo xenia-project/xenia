@@ -117,9 +117,9 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
   } else {
     // Open the file/directory.
     result = fs->Open(std::move(entry), state,
-                      desired_access == FileAccess::X_GENERIC_READ
-                          ? fs::Mode::READ
-                          : fs::Mode::READ_WRITE,
+                      desired_access & FileAccess::X_GENERIC_WRITE
+                          ? fs::Mode::READ_WRITE
+                          : fs::Mode::READ,
                       false,  // TODO(benvanik): pick async mode, if needed.
                       &file);
   }
