@@ -701,6 +701,22 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
+SHIM_CALL NtFlushBuffersFile_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t file_handle = SHIM_GET_ARG_32(0);
+  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("NtFlushBuffersFile(%.8X, %.8X)", file_handle, io_status_block_ptr);
+
+  auto result = X_STATUS_SUCCESS;
+
+  if (io_status_block_ptr) {
+    SHIM_SET_MEM_32(io_status_block_ptr, result);  // Status
+    SHIM_SET_MEM_32(io_status_block_ptr + 4, 0);   // Information
+  }
+
+  SHIM_SET_RETURN_32(result);
+}
+
 SHIM_CALL FscSetCacheElementCount_shim(PPCContext* ppc_state,
                                        KernelState* state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);
@@ -727,6 +743,7 @@ void xe::kernel::xboxkrnl::RegisterIoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVolumeInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryDirectoryFile, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", NtFlushBuffersFile, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", FscSetCacheElementCount, state);
 }
