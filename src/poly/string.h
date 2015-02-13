@@ -48,6 +48,9 @@ std::wstring fix_path_separators(const std::wstring& source,
 std::string fix_path_separators(const std::string& source,
                                 char new_sep = poly::path_separator);
 
+// Find the top directory name or filename from a path
+std::string find_name_from_path(const std::string& path);
+
 }  // namespace poly
 
 #endif  // POLY_STRING_H_
