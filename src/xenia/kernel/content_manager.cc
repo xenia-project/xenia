@@ -28,8 +28,7 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
   device_path_ = std::string("\\Device\\Content\\") +
                  std::to_string(++content_device_id_) + "\\";
   kernel_state_->file_system()->RegisterHostPathDevice(device_path_,
-                                                       package_path,
-                                                       false);
+                                                       package_path, false);
   kernel_state_->file_system()->CreateSymbolicLink(root_name_ + ":",
                                                    device_path_);
 }
@@ -45,12 +44,12 @@ ContentManager::ContentManager(KernelState* kernel_state,
 
 ContentManager::~ContentManager() = default;
 
-std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
+std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
   wchar_t title_id[9] = L"00000000";
   std::swprintf(title_id, 9, L"%.8X", kernel_state_->title_id());
 
   std::wstring type_name;
-  switch (data.content_type) {
+  switch (content_type) {
     case 1:
       // Save games.
       type_name = L"00000001";
@@ -68,16 +67,45 @@ std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
       return nullptr;
   }
 
+  // Package root path:
+  // content_root/title_id/type_name/
+  auto package_root =
+      poly::join_paths(root_path_, poly::join_paths(title_id, type_name));
+  return package_root + L"\\";
+}
+
+std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
   // Content path:
   // content_root/title_id/type_name/data_file_name/
-  std::wstring package_path = poly::join_paths(
-      root_path_,
-      poly::join_paths(
-          title_id,
-          poly::join_paths(type_name, poly::to_wstring(data.file_name))));
+  auto package_root = ResolvePackageRoot(data.content_type);
+  auto package_path =
+    poly::join_paths(package_root, poly::to_wstring(data.file_name));
   package_path += poly::path_separator;
-
   return package_path;
+}
+
+std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
+                                                       uint32_t content_type) {
+  std::vector<XCONTENT_DATA> result;
+
+  // Search path:
+  // content_root/title_id/type_name/*
+  auto package_root = ResolvePackageRoot(content_type);
+  auto file_infos = poly::fs::ListFiles(package_root);
+  for (const auto& file_info : file_infos) {
+    if (file_info.type != poly::fs::FileInfo::Type::kDirectory) {
+      // Directories only.
+      continue;
+    }
+    XCONTENT_DATA content_data;
+    content_data.device_id = device_id;
+    content_data.content_type = content_type;
+    content_data.display_name = file_info.name;
+    content_data.file_name = poly::to_string(file_info.name);
+    result.emplace_back(std::move(content_data));
+  }
+
+  return result;
 }
 
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
@@ -174,6 +202,7 @@ X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
     auto file = _wfopen(thumb_path.c_str(), L"rb");
     fseek(file, 0, SEEK_END);
     size_t file_len = ftell(file);
+    fseek(file, 0, SEEK_SET);
     buffer->resize(file_len);
     fread(const_cast<uint8_t*>(buffer->data()), 1, buffer->size(), file);
     fclose(file);

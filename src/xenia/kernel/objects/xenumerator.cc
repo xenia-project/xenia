@@ -12,10 +12,14 @@
 namespace xe {
 namespace kernel {
 
-XEnumerator::XEnumerator(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeEnumerator) {}
+XEnumerator::XEnumerator(KernelState* kernel_state, size_t item_capacity,
+                         size_t item_size)
+    : XObject(kernel_state, kTypeEnumerator),
+      item_capacity_(item_capacity),
+      item_size_(item_size)
+{}
 
-XEnumerator::~XEnumerator() {}
+XEnumerator::~XEnumerator() = default;
 
 void XEnumerator::Initialize() {}
 

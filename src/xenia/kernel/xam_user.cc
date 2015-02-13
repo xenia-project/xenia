@@ -352,7 +352,7 @@ SHIM_CALL XamUserCreateAchievementEnumerator_shim(PPCContext* ppc_state,
     SHIM_SET_MEM_32(buffer_size_ptr, 64 * count);
   }
 
-  XEnumerator* e = new XEnumerator(state);
+  auto e = new XStaticEnumerator(state, count, 64);
   e->Initialize();
 
   SHIM_SET_MEM_32(handle_ptr, e->handle());

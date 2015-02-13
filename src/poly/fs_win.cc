@@ -47,18 +47,25 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
   std::vector<FileInfo> result;
 
   WIN32_FIND_DATA ffd;
-  HANDLE handle = FindFirstFile(path.c_str(), &ffd);
+  HANDLE handle = FindFirstFile((path + L"\\*").c_str(), &ffd);
   if (handle == INVALID_HANDLE_VALUE) {
     return result;
   }
   do {
+    if (std::wcscmp(ffd.cFileName, L".") == 0 ||
+        std::wcscmp(ffd.cFileName, L"..") == 0) {
+      continue;
+    }
     FileInfo info;
     if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
       info.type = FileInfo::Type::kDirectory;
+      info.total_size = 0;
     } else {
       info.type = FileInfo::Type::kFile;
-      info.total_size = (ffd.nFileSizeHigh * (MAXDWORD + 1)) + ffd.nFileSizeLow;
+      info.total_size =
+          (ffd.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + ffd.nFileSizeLow;
     }
+    info.name = ffd.cFileName;
     result.push_back(info);
   } while (FindNextFile(handle, &ffd) != 0);
   FindClose(handle);

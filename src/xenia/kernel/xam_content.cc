@@ -202,15 +202,30 @@ SHIM_CALL XamContentCreateEnumerator_shim(PPCContext* ppc_state,
     SHIM_SET_RETURN_32(X_E_INVALIDARG);
     return;
   }
-
-  // 4 + 4 + 128*2 + 42 = 306
-  if (buffer_size_ptr) {
-    uint32_t bp = SHIM_MEM_32(buffer_size_ptr);
-    SHIM_SET_MEM_32(buffer_size_ptr, item_count * 306);
+  if (!device_id) {
+    // 0 == whatever
+    device_id = dummy_device_info_.device_id;
   }
 
-  XEnumerator* e = new XEnumerator(state);
+  if (buffer_size_ptr) {
+    uint32_t bp = SHIM_MEM_32(buffer_size_ptr);
+    SHIM_SET_MEM_32(buffer_size_ptr, item_count * XCONTENT_DATA::kSize);
+  }
+
+  auto e = new XStaticEnumerator(state, item_count, XCONTENT_DATA::kSize);
   e->Initialize();
+
+  // Get all content data.
+  auto content_datas =
+      state->content_manager()->ListContent(device_id, content_type);
+  for (auto& content_data : content_datas) {
+    auto ptr = e->AppendItem();
+    if (!ptr) {
+      // Too many items.
+      break;
+    }
+    content_data.Write(ptr);
+  }
 
   SHIM_SET_MEM_32(handle_ptr, e->handle());
 
