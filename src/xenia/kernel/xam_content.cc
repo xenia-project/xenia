@@ -386,6 +386,41 @@ SHIM_CALL XamContentClose_shim(PPCContext* ppc_state, KernelState* state) {
   }
 }
 
+SHIM_CALL XamContentGetCreator_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+  uint32_t content_data_ptr = SHIM_GET_ARG_32(1);
+  uint32_t is_creator_ptr = SHIM_GET_ARG_32(2);
+  uint32_t creator_xuid_ptr = SHIM_GET_ARG_32(3);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
+
+  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
+
+  XELOGD("XamContentGetCreator(%d, %.8X, %.8X, %.8X, %.8X)", user_index,
+         content_data_ptr, is_creator_ptr, creator_xuid_ptr, overlapped_ptr);
+
+  auto result = X_ERROR_SUCCESS;
+
+  if (content_data.content_type == 1) {
+    // User always creates saves.
+    SHIM_SET_MEM_32(is_creator_ptr, 1);
+    if (creator_xuid_ptr) {
+      SHIM_SET_MEM_64(creator_xuid_ptr, state->user_profile()->xuid());
+    }
+  } else {
+    SHIM_SET_MEM_32(is_creator_ptr, 0);
+    if (creator_xuid_ptr) {
+      SHIM_SET_MEM_64(creator_xuid_ptr, 0);
+    }
+  }
+
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, result);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  } else {
+    SHIM_SET_RETURN_32(result);
+  }
+}
+
 SHIM_CALL XamContentGetThumbnail_shim(PPCContext* ppc_state,
                                       KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -493,6 +528,7 @@ void xe::kernel::xam::RegisterContentExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamContentCreate, state);
   SHIM_SET_MAPPING("xam.xex", XamContentCreateEx, state);
   SHIM_SET_MAPPING("xam.xex", XamContentClose, state);
+  SHIM_SET_MAPPING("xam.xex", XamContentGetCreator, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetThumbnail, state);
   SHIM_SET_MAPPING("xam.xex", XamContentSetThumbnail, state);
   SHIM_SET_MAPPING("xam.xex", XamContentDelete, state);
