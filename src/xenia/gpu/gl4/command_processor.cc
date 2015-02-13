@@ -1828,21 +1828,31 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
       break;
   }
 
-  if (regs.pa_su_sc_mode_cntl & (1 << 20)) {
-    glProvokingVertex(GL_LAST_VERTEX_CONVENTION);
-  } else {
-    glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
-  }
-
   if (regs.pa_su_sc_mode_cntl & 0x4) {
     glFrontFace(GL_CW);
   } else {
     glFrontFace(GL_CCW);
   }
 
-  // TODO(benvanik): wireframe mode.
-  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  static const GLenum kFillModes[3] = {
+      GL_POINT, GL_LINE, GL_FILL,
+  };
+  bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
+  if (poly_mode) {
+    uint32_t front_poly_mode = (regs.pa_su_sc_mode_cntl >> 5) & 0x7;
+    uint32_t back_poly_mode = (regs.pa_su_sc_mode_cntl >> 8) & 0x7;
+    // GL only supports both matching.
+    assert_true(front_poly_mode == back_poly_mode);
+    glPolygonMode(GL_FRONT_AND_BACK, kFillModes[front_poly_mode]);
+  } else {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
+
+  if (regs.pa_su_sc_mode_cntl & (1 << 20)) {
+    glProvokingVertex(GL_LAST_VERTEX_CONVENTION);
+  } else {
+    glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
+  }
 
   return UpdateStatus::kMismatch;
 }
