@@ -11,16 +11,17 @@
 #define XENIA_KERNEL_FS_DEVICES_STFS_CONTAINER_ENTRY_H_
 
 #include <vector>
+#include <iterator>
 
 #include "poly/mapped_memory.h"
 #include "xenia/common.h"
 #include "xenia/kernel/fs/entry.h"
+#include "poly/fs.h"
+#include "xenia/kernel/fs/stfs.h"
 
 namespace xe {
 namespace kernel {
 namespace fs {
-
-class STFSEntry;
 
 class STFSContainerEntry : public Entry {
  public:
@@ -41,7 +42,9 @@ class STFSContainerEntry : public Entry {
  private:
   poly::MappedMemory* mmap_;
   STFSEntry* stfs_entry_;
-  std::vector<std::unique_ptr<STFSEntry>>::iterator stfs_entry_iterator_;
+  
+  poly::fs::WildcardEngine find_engine_;
+  STFSEntry::child_it_t it_;
 };
 
 }  // namespace fs

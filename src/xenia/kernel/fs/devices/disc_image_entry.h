@@ -15,12 +15,12 @@
 #include "poly/mapped_memory.h"
 #include "xenia/common.h"
 #include "xenia/kernel/fs/entry.h"
+#include "poly/fs.h"
+#include "xenia/kernel/fs/gdfx.h"
 
 namespace xe {
 namespace kernel {
 namespace fs {
-
-class GDFXEntry;
 
 class DiscImageEntry : public Entry {
  public:
@@ -45,7 +45,9 @@ class DiscImageEntry : public Entry {
  private:
   poly::MappedMemory* mmap_;
   GDFXEntry* gdfx_entry_;
-  std::vector<GDFXEntry*>::iterator gdfx_entry_iterator_;
+
+  poly::fs::WildcardEngine find_engine_;
+  GDFXEntry::child_it_t it_;
 };
 
 }  // namespace fs

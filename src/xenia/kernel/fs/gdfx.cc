@@ -29,6 +29,20 @@ GDFXEntry::~GDFXEntry() {
   }
 }
 
+GDFXEntry* GDFXEntry::GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it)
+{
+  GDFXEntry* child_entry(nullptr);
+  while (ref_it != children.end()) {
+    if (engine.Match((*ref_it)->name)) {
+      child_entry = (*ref_it);
+      ++ref_it;
+      break;
+    }
+    ++ref_it;
+  }
+  return child_entry;
+}
+
 GDFXEntry* GDFXEntry::GetChild(const char* name) {
   // TODO(benvanik): a faster search
   for (std::vector<GDFXEntry*>::iterator it = children.begin();

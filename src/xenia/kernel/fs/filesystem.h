@@ -57,8 +57,6 @@ class FileSystem {
  private:
   std::vector<Device*> devices_;
   std::unordered_map<std::string, std::string> symlinks_;
-
-  std::string CanonicalizePath(const std::string& original_path) const;
 };
 
 }  // namespace fs

@@ -16,6 +16,7 @@
 #include "xenia/common.h"
 #include "xenia/xbox.h"
 #include "xenia/kernel/fs/entry.h"
+#include "poly/fs.h"
 
 namespace xe {
 namespace kernel {
@@ -28,6 +29,10 @@ class GDFXEntry {
   GDFXEntry();
   ~GDFXEntry();
 
+  typedef std::vector<GDFXEntry*> child_t;
+  typedef child_t::iterator child_it_t;
+
+  GDFXEntry* GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it);
   GDFXEntry* GetChild(const char* name);
 
   void Dump(int indent);
@@ -36,8 +41,7 @@ class GDFXEntry {
   X_FILE_ATTRIBUTES attributes;
   size_t offset;
   size_t size;
-
-  std::vector<GDFXEntry*> children;
+  child_t children;
 };
 
 class GDFX {

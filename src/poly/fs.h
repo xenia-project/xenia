@@ -15,6 +15,9 @@
 #include "poly/config.h"
 #include "poly/string.h"
 
+#include <vector>
+#include <iterator>
+
 namespace poly {
 namespace fs {
 
@@ -34,6 +37,44 @@ struct FileInfo {
   size_t total_size;
 };
 std::vector<FileInfo> ListFiles(const std::wstring& path);
+
+std::string CanonicalizePath(const std::string& original_path);
+
+class WildcardFlags
+{
+public:
+    bool
+      FromStart: 1,
+      ToEnd : 1,
+      WithCase : 1; // Unused for now
+
+    WildcardFlags();
+    WildcardFlags(bool start, bool end);
+
+    static WildcardFlags FIRST;
+    static WildcardFlags LAST;
+};
+
+class WildcardRule
+{
+public:
+    WildcardRule(std::string str_match, const WildcardFlags &flags);
+    bool Check(std::string& str) const;
+  
+private:
+  std::string match;
+    WildcardFlags rules;
+};
+
+class WildcardEngine
+{
+public:
+  void SetRule(const std::string &pattern);
+  bool Match(const std::string &str) const;
+private:
+  std::vector<WildcardRule> rules;
+  void PreparePattern(const std::string &pattern);
+};
 
 }  // namespace fs
 }  // namespace poly
