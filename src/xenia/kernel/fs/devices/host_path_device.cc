@@ -34,8 +34,11 @@ std::unique_ptr<Entry> HostPathDevice::ResolvePath(const char* path) {
   auto full_path = poly::join_paths(local_path_, rel_path);
   full_path = poly::fix_path_separators(full_path);
 
-  if (!poly::fs::PathExists(full_path)) {
-    return nullptr;
+  // Only check the file exists when the device is read-only
+  if (read_only_) {
+    if (!poly::fs::PathExists(full_path)) {
+      return nullptr;
+    }
   }
 
   // TODO(benvanik): get file info
