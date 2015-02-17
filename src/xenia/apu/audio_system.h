@@ -35,6 +35,9 @@ class AudioSystem {
   virtual X_STATUS Setup();
   virtual void Shutdown();
 
+  uint32_t xma_context_array_ptr() const {
+    return registers_.xma_context_array_ptr;
+  }
   uint32_t AllocateXmaContext();
   void ReleaseXmaContext(uint32_t guest_ptr);
 

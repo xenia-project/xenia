@@ -1610,8 +1610,8 @@ XEEMITTER(vsrh, 0x10000244, VX)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vsro_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) >> (VB.b[F] & 0x78) (by octet)
   // TODO(benvanik): flag for shift-by-octet as optimization.
-  Value* sh =
-      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstant(0x78));
+  Value* sh = f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE),
+                    f.LoadConstant(uint8_t(0x78)));
   Value* v = f.Permute(f.LoadVectorShr(sh), f.LoadVR(va),
                        f.LoadZero(VEC128_TYPE), INT8_TYPE);
   f.StoreVR(vd, v);

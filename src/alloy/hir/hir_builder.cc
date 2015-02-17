@@ -26,7 +26,8 @@ using alloy::runtime::FunctionInfo;
 #define ASSERT_FLOAT_TYPE(value)
 #define ASSERT_NON_VECTOR_TYPE(value)
 #define ASSERT_VECTOR_TYPE(value)
-#define ASSERT_TYPES_EQUAL(value1, value2)
+#define ASSERT_TYPES_EQUAL(value1, value2) \
+  assert_true((value1->type) == (value2->type))
 
 HIRBuilder::HIRBuilder() {
   arena_ = new Arena();

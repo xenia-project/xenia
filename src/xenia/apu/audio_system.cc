@@ -272,8 +272,7 @@ uint64_t AudioSystem::ReadRegister(uint64_t addr) {
     // To prevent games from seeing a stuck XMA context, return a rotating
     // number
     registers_.current_context = registers_.next_context;
-    registers_.next_context =
-        (registers_.next_context + 1) % kXmaContextCount;
+    registers_.next_context = (registers_.next_context + 1) % kXmaContextCount;
     value = registers_.current_context;
   }
 
@@ -290,18 +289,19 @@ void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
   assert_true(r % 4 == 0);
   register_file_[r / 4] = uint32_t(value);
 
-  if (r >= 0x1940 && r <= 0x1949) {
+  if (r >= 0x1940 && r <= 0x1940 + 9 * 4) {
     // Context kick command.
     // This will kick off the given hardware contexts.
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
-        uint32_t context_id = i + (r - 0x1940) * 32;
-        XELOGD("AudioSystem: kicking context %d", context_id);
+        uint32_t context_id = i + (r - 0x1940) / 4 * 32;
+        XELOGAPU("AudioSystem: kicking context %d", context_id);
         // Games check bits 20/21 of context[0].
         // If both bits are set buffer full, otherwise room available.
         // Right after a kick we always set buffers to invalid so games keep
         // feeding data.
-        uint32_t guest_ptr = registers_.xma_context_array_ptr + context_id * kXmaContextSize;
+        uint32_t guest_ptr =
+            registers_.xma_context_array_ptr + context_id * kXmaContextSize;
         auto context_ptr = memory()->Translate(guest_ptr);
         uint32_t dword0 = poly::load_and_swap<uint32_t>(context_ptr + 0);
         bool has_valid_input = (dword0 & 0x00300000) != 0;
@@ -316,24 +316,24 @@ void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
       }
       value >>= 1;
     }
-  } else if (r >= 0x1A40 && r <= 0x1A49) {
+  } else if (r >= 0x1A40 && r <= 0x1A40 + 9 * 4) {
     // Context lock command.
     // This requests a lock by flagging the context.
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
-        uint32_t context_id = i + (r - 0x1A40) * 32;
-        XELOGD("AudioSystem: set context lock %d", context_id);
+        uint32_t context_id = i + (r - 0x1A40) / 4 * 32;
+        XELOGAPU("AudioSystem: set context lock %d", context_id);
         // TODO(benvanik): set lock?
       }
       value >>= 1;
     }
-  } else if (r >= 0x1A80 && r <= 0x1A89) {
+  } else if (r >= 0x1A80 && r <= 0x1A80 + 9 * 4) {
     // Context clear command.
     // This will reset the given hardware contexts.
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
-        uint32_t context_id = i + (r - 0x1A80) * 32;
-        XELOGD("AudioSystem: reset context %d", context_id);
+        uint32_t context_id = i + (r - 0x1A80) / 4 * 32;
+        XELOGAPU("AudioSystem: reset context %d", context_id);
         // TODO(benvanik): something?
       }
       value >>= 1;
