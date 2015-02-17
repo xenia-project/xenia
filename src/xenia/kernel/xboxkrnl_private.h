@@ -21,6 +21,8 @@ class KernelState;
 namespace xboxkrnl {
 // Registration functions, one per file.
 void RegisterAudioExports(ExportResolver* export_resolver, KernelState* state);
+void RegisterAudioXmaExports(ExportResolver* export_resolver,
+                             KernelState* state);
 void RegisterDebugExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterHalExports(ExportResolver* export_resolver, KernelState* state);
 void RegisterIoExports(ExportResolver* export_resolver, KernelState* state);

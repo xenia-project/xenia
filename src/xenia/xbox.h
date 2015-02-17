@@ -96,6 +96,8 @@ typedef uint32_t X_RESULT;
 #define X_ERROR_EMPTY                                   X_RESULT_FROM_WIN32(0x000010D2L)
 
 typedef uint32_t X_HRESULT;
+#define X_E_SUCCESS                                     static_cast<X_HRESULT>(0)
+#define X_E_FALSE                                       static_cast<X_HRESULT>(0x80000000L)
 #define X_E_INVALIDARG                                  static_cast<X_HRESULT>(0x80070057L)
 
 // MEM_*, used by NtAllocateVirtualMemory

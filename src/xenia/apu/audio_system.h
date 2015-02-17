@@ -35,6 +35,9 @@ class AudioSystem {
   virtual X_STATUS Setup();
   virtual void Shutdown();
 
+  uint32_t AllocateXmaContext();
+  void ReleaseXmaContext(uint32_t guest_ptr);
+
   X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg,
                           size_t* out_index);
   void UnregisterClient(size_t index);
@@ -75,6 +78,28 @@ class AudioSystem {
 
   std::mutex lock_;
 
+  // Stored little endian, accessed through 0x7FEA....
+  union {
+    struct {
+      union {
+        struct {
+          uint8_t ignored0[0x1800];
+          // 1800h; points to guest-space physical block of 320 contexts.
+          uint32_t xma_context_array_ptr;
+        };
+        struct {
+          uint8_t ignored1[0x1818];
+          // 1818h; current context ID.
+          uint32_t current_context;
+          // 181Ch; next context ID to process.
+          uint32_t next_context;
+        };
+      };
+    } registers_;
+    uint32_t register_file_[0xFFFF / 4];
+  };
+  std::vector<uint32_t> xma_context_free_list_;
+
   static const size_t maximum_client_count_ = 8;
 
   struct {
@@ -83,7 +108,8 @@ class AudioSystem {
     uint32_t callback_arg;
     uint32_t wrapped_callback_arg;
   } clients_[maximum_client_count_];
-  HANDLE client_wait_handles_[maximum_client_count_];
+  // Last handle is always there in case we have no clients.
+  HANDLE client_wait_handles_[maximum_client_count_ + 1];
   std::queue<size_t> unused_clients_;
 };
 

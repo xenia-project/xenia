@@ -35,6 +35,7 @@
     'xam_video.cc',
     'xam_voice.cc',
     'xboxkrnl_audio.cc',
+    'xboxkrnl_audio_xma.cc',
     'xboxkrnl_debug.cc',
     'xboxkrnl_hal.cc',
     'xboxkrnl_io.cc',

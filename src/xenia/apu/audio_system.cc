@@ -8,28 +8,62 @@
  */
 
 #include "xenia/apu/audio_system.h"
-#include "xenia/apu/audio_driver.h"
 
 #include "poly/poly.h"
+#include "xenia/apu/audio_driver.h"
 #include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/xenon_thread_state.h"
 
-using namespace xe;
-using namespace xe::apu;
+// As with normal Microsoft, there are like twelve different ways to access
+// the audio APIs. Early games use XMA*() methods almost exclusively to touch
+// decoders. Later games use XAudio*() and direct memory writes to the XMA
+// structures (as opposed to the XMA* calls), meaning that we have to support
+// both.
+//
+// For ease of implementation, most audio related processing is handled in
+// AudioSystem, and the functions here call off to it.
+// The XMA*() functions just manipulate the audio system in the guest context
+// and let the normal AudioSystem handling take it, to prevent duplicate
+// implementations. They can be found in xboxkrnl_audio_xma.cc
+//
+// XMA details:
+// https://devel.nuclex.org/external/svn/directx/trunk/include/xma2defs.h
+// https://github.com/gdawg/fsbext/blob/master/src/xma_header.h
+//
+// XAudio2 uses XMA under the covers, and seems to map with the same
+// restrictions of frame/subframe/etc:
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
+//
+// XMA contexts are 64b in size and tight bitfields. They are in physical
+// memory not usually available to games. Games will use MmMapIoSpace to get
+// the 64b pointer in user memory so they can party on it. If the game doesn't
+// do this, it's likely they are either passing the context to XAudio or
+// using the XMA* functions.
+
+namespace xe {
+namespace apu {
+
 using namespace xe::cpu;
+
+// Size of a hardware XMA context.
+const uint32_t kXmaContextSize = 64;
+// Total number of XMA contexts available.
+const uint32_t kXmaContextCount = 320;
 
 AudioSystem::AudioSystem(Emulator* emulator)
     : emulator_(emulator), memory_(emulator->memory()), running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
-    client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
     unused_clients_.push(i);
+  }
+  for (size_t i = 0; i < poly::countof(client_wait_handles_); ++i) {
+    client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
   }
 }
 
 AudioSystem::~AudioSystem() {
-  for (size_t i = 0; i < maximum_client_count_; ++i) {
+  for (size_t i = 0; i < poly::countof(client_wait_handles_); ++i) {
     CloseHandle(client_wait_handles_[i]);
   }
 }
@@ -43,12 +77,22 @@ X_STATUS AudioSystem::Setup() {
       reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
+  // Setup XMA contexts ptr.
+  registers_.xma_context_array_ptr = uint32_t(
+      memory()->HeapAlloc(0, kXmaContextSize * kXmaContextCount,
+                          MEMORY_FLAG_PHYSICAL | MEMORY_FLAG_ZERO, 256));
+  // Add all contexts to the free list.
+  for (int i = kXmaContextCount - 1; i >= 0; --i) {
+    xma_context_free_list_.push_back(registers_.xma_context_array_ptr +
+                                     i * kXmaContextSize);
+  }
+  registers_.next_context = 1;
+
   // Setup worker thread state. This lets us make calls into guest code.
   thread_state_ =
       new XenonThreadState(emulator_->processor()->runtime(), 0, 16 * 1024, 0);
   thread_state_->set_name("Audio Worker");
-  thread_block_ =
-      (uint32_t)memory_->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
+  thread_block_ = (uint32_t)memory()->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   thread_state_->context()->r[13] = thread_block_;
 
   // Create worker thread.
@@ -72,12 +116,12 @@ void AudioSystem::ThreadStart() {
 
   // Main run loop.
   while (running_) {
-    auto result = WaitForMultipleObjectsEx(
-        maximum_client_count_, client_wait_handles_, FALSE, INFINITE, FALSE);
-    if (result == WAIT_FAILED) {
-      DWORD err = GetLastError();
-      assert_always();
-      break;
+    auto result =
+        WaitForMultipleObjectsEx(DWORD(poly::countof(client_wait_handles_)),
+                                 client_wait_handles_, FALSE, INFINITE, FALSE);
+    if (result == WAIT_FAILED ||
+        result == WAIT_OBJECT_0 + maximum_client_count_) {
+      continue;
     }
 
     size_t pumped = 0;
@@ -121,10 +165,38 @@ void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
   running_ = false;
+  ResetEvent(client_wait_handles_[maximum_client_count_]);
   thread_.join();
 
   delete thread_state_;
   memory()->HeapFree(thread_block_, 0);
+
+  memory()->HeapFree(registers_.xma_context_array_ptr, 0);
+}
+
+uint32_t AudioSystem::AllocateXmaContext() {
+  std::lock_guard<std::mutex> lock(lock_);
+  if (xma_context_free_list_.empty()) {
+    // No contexts available.
+    return 0;
+  }
+
+  auto guest_ptr = xma_context_free_list_.back();
+  xma_context_free_list_.pop_back();
+  auto context_ptr = memory()->Translate(guest_ptr);
+
+  // Initialize?
+
+  return guest_ptr;
+}
+
+void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
+  std::lock_guard<std::mutex> lock(lock_);
+
+  auto context_ptr = memory()->Translate(guest_ptr);
+  std::memset(context_ptr, 0, kXmaContextSize);
+
+  xma_context_free_list_.push_back(guest_ptr);
 }
 
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
@@ -176,6 +248,7 @@ void AudioSystem::UnregisterClient(size_t index) {
   DestroyDriver(clients_[index].driver);
   clients_[index] = {0};
   unused_clients_.push(index);
+  ResetEvent(client_wait_handles_[index]);
 }
 
 // free60 may be useful here, however it looks like it's using a different
@@ -187,11 +260,88 @@ uint64_t AudioSystem::ReadRegister(uint64_t addr) {
   XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
   // 1818h is read during a lock?
-  return 0;
+
+  assert_true(r % 4 == 0);
+  uint32_t value = register_file_[r / 4];
+
+  // 1818 is rotating context processing # set to hardware ID of context being
+  // processed.
+  // If bit 200h is set, the locking code will possibly collide on hardware IDs
+  // and error out, so we should never set it (I think?).
+  if (r == 0x1818) {
+    // To prevent games from seeing a stuck XMA context, return a rotating
+    // number
+    registers_.current_context = registers_.next_context;
+    registers_.next_context =
+        (registers_.next_context + 1) % kXmaContextCount;
+    value = registers_.current_context;
+  }
+
+  value = poly::byte_swap(value);
+  return value;
 }
 
 void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
+  value = poly::byte_swap(uint32_t(value));
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
   // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
+
+  assert_true(r % 4 == 0);
+  register_file_[r / 4] = uint32_t(value);
+
+  if (r >= 0x1940 && r <= 0x1949) {
+    // Context kick command.
+    // This will kick off the given hardware contexts.
+    for (int i = 0; value && i < 32; ++i) {
+      if (value & 1) {
+        uint32_t context_id = i + (r - 0x1940) * 32;
+        XELOGD("AudioSystem: kicking context %d", context_id);
+        // Games check bits 20/21 of context[0].
+        // If both bits are set buffer full, otherwise room available.
+        // Right after a kick we always set buffers to invalid so games keep
+        // feeding data.
+        uint32_t guest_ptr = registers_.xma_context_array_ptr + context_id * kXmaContextSize;
+        auto context_ptr = memory()->Translate(guest_ptr);
+        uint32_t dword0 = poly::load_and_swap<uint32_t>(context_ptr + 0);
+        bool has_valid_input = (dword0 & 0x00300000) != 0;
+        if (has_valid_input) {
+          dword0 = dword0 & ~0x00300000;
+          poly::store_and_swap<uint32_t>(context_ptr + 0, dword0);
+          // Set output buffer to invalid.
+          uint32_t dword1 = poly::load_and_swap<uint32_t>(context_ptr + 4);
+          dword1 = dword1 & ~0x80000000;
+          poly::store_and_swap<uint32_t>(context_ptr + 4, dword1);
+        }
+      }
+      value >>= 1;
+    }
+  } else if (r >= 0x1A40 && r <= 0x1A49) {
+    // Context lock command.
+    // This requests a lock by flagging the context.
+    for (int i = 0; value && i < 32; ++i) {
+      if (value & 1) {
+        uint32_t context_id = i + (r - 0x1A40) * 32;
+        XELOGD("AudioSystem: set context lock %d", context_id);
+        // TODO(benvanik): set lock?
+      }
+      value >>= 1;
+    }
+  } else if (r >= 0x1A80 && r <= 0x1A89) {
+    // Context clear command.
+    // This will reset the given hardware contexts.
+    for (int i = 0; value && i < 32; ++i) {
+      if (value & 1) {
+        uint32_t context_id = i + (r - 0x1A80) * 32;
+        XELOGD("AudioSystem: reset context %d", context_id);
+        // TODO(benvanik): something?
+      }
+      value >>= 1;
+    }
+  } else {
+    value = value;
+  }
 }
+
+}  // namespace apu
+}  // namespace xe

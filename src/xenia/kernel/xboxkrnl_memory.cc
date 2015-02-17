@@ -384,6 +384,24 @@ SHIM_CALL MmGetPhysicalAddress_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(base_address);
 }
 
+SHIM_CALL MmMapIoSpace_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t unk0 = SHIM_GET_ARG_32(0);
+  uint32_t src_address = SHIM_GET_ARG_32(1);  // from MmGetPhysicalAddress
+  uint32_t size = SHIM_GET_ARG_32(2);
+  uint32_t flags = SHIM_GET_ARG_32(3);
+
+  XELOGD("MmMapIoSpace(%.8X, %.8X, %d, %.8X)", unk0, src_address, size, flags);
+
+  // I've only seen this used to map XMA audio contexts.
+  // The code seems fine with taking the src address, so this just returns that.
+  // If others start using it there could be problems.
+  assert_true(unk0 == 2);
+  assert_true(size == 0x40);
+  assert_true(flags == 0x404);
+
+  SHIM_SET_RETURN_32(src_address);
+}
+
 SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
                                          KernelState* state) {
   uint32_t size = SHIM_GET_ARG_32(0);
@@ -442,6 +460,7 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAllocationSize, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryStatistics, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmGetPhysicalAddress, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmMapIoSpace, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", ExAllocatePoolTypeWithTag, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ExFreePool, state);

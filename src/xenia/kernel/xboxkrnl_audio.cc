@@ -18,26 +18,6 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL XMACreateContext_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMACreateContext(%.8X)", context_ptr);
-
-  // TODO(benvanik): allocate and return -- see if size required or just dummy?
-  // Games will call MmGetPhysicalAddress on the result.
-  SHIM_SET_MEM_32(context_ptr, 0xAAAABABE);
-
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
-}
-
-SHIM_CALL XMAReleaseContext_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAReleaseContext(%.8X)", context_ptr);
-
-  // TODO(benvanik): free
-}
-
 SHIM_CALL XAudioGetSpeakerConfig_shim(PPCContext* ppc_state,
                                       KernelState* state) {
   uint32_t config_ptr = SHIM_GET_ARG_32(0);
@@ -148,27 +128,7 @@ SHIM_CALL XAudioSubmitRenderDriverFrame_shim(PPCContext* ppc_state,
 
 void xe::kernel::xboxkrnl::RegisterAudioExports(ExportResolver* export_resolver,
                                                 KernelState* state) {
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMACreateContext, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAInitializeContext, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAReleaseContext, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAEnableContext, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMADisableContext, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetOutputBufferWriteOffset, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetOutputBufferReadOffset, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetOutputBufferReadOffset, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetOutputBufferValid, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsOutputBufferValid, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer0Valid, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsInputBuffer0Valid, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer1Valid, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsInputBuffer1Valid, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer0, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer1, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetPacketMetadata, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMABlockWhileInUse, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetLoopData, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBufferReadOffset, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetInputBufferReadOffset, state);
+  // Additional XMA* methods are in xboxkrnl_audio_xma.cc.
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetSpeakerConfig, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetVoiceCategoryVolumeChangeMask,
