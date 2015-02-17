@@ -109,49 +109,49 @@ WildcardFlags WildcardFlags::LAST(false, true);
 WildcardFlags::WildcardFlags()
   : FromStart(false)
   , ToEnd(false)
-  , WithCase(false)
 { }
 
 WildcardFlags::WildcardFlags(bool start, bool end)
   : FromStart(start)
   , ToEnd(end)
-  , WithCase(false)
 { }
 
-WildcardRule::WildcardRule(std::string str_match, const WildcardFlags &flags)
+WildcardRule::WildcardRule(const std::string& str_match, const WildcardFlags& flags)
   : match(str_match)
   , rules(flags)
-{ }
-
-bool WildcardRule::Check(std::string& str) const
 {
-  if( match.empty() ) {
+  std::transform(match.begin(), match.end(), match.begin(), tolower);
+}
+
+bool WildcardRule::Check(const std::string& str_lower, std::string::size_type& offset) const
+{
+  if (match.empty()) {
     return true;
   }
 
-  if( str.size() < match.size() ) {
+  if ((str_lower.size() - offset) < match.size()) {
     return false;
   }
 
-  std::string::size_type result(str.find(match));
+  std::string::size_type result(str_lower.find(match, offset));
 
-  if( result != std::string::npos ) {
-    if( rules.FromStart && result != 0 ) {
+  if (result != std::string::npos) {
+    if (rules.FromStart && result != offset) {
       return false;
     }
 
-    if( rules.ToEnd && result != ( ( str.size() -1 ) - match.size() ) ) {
+    if (rules.ToEnd && result != (str_lower.size() - match.size())) {
       return false;
     }
 
-    str.erase(0, result + match.size());
+    offset = (result + match.size());
     return true;
   }
 
   return false;
 }
 
-void WildcardEngine::PreparePattern(const std::string &pattern)
+void WildcardEngine::PreparePattern(const std::string& pattern)
 {
   rules.clear();
 
@@ -172,17 +172,19 @@ void WildcardEngine::PreparePattern(const std::string &pattern)
   }
 }
 
-void WildcardEngine::SetRule(const std::string &pattern)
+void WildcardEngine::SetRule(const std::string& pattern)
 {
   PreparePattern(pattern);
 }
 
-bool WildcardEngine::Match(const std::string &str) const
+bool WildcardEngine::Match(const std::string& str) const
 {
-  std::string str_copy(str);
+  std::string str_lc;
+  std::transform(str.begin(), str.end(), std::back_inserter(str_lc), tolower);
 
+  std::string::size_type offset(0);
   for (const auto& rule : rules) {
-    if (!(rule.Check(str_copy))) {
+    if (!(rule.Check(str_lc, offset))) {
       return false;
     }
   }
