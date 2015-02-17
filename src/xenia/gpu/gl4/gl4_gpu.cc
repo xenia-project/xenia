@@ -22,6 +22,8 @@ DEFINE_bool(gl_debug_output_synchronous, true,
 DEFINE_bool(vendor_gl_extensions, true,
             "Enable vendor-specific (NV, AMD, etc) GL extensions.");
 
+DEFINE_bool(disable_framebuffer_readback, false,
+            "Disable framebuffer readback.");
 DEFINE_bool(disable_textures, false, "Disable textures and use colors only.");
 
 namespace xe {

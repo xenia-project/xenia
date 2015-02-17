@@ -22,6 +22,7 @@ DECLARE_bool(gl_debug_output_synchronous);
 
 DECLARE_bool(vendor_gl_extensions);
 
+DECLARE_bool(disable_framebuffer_readback);
 DECLARE_bool(disable_textures);
 
 namespace xe {

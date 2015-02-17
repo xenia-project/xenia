@@ -2396,29 +2396,31 @@ bool CommandProcessor::IssueCopy() {
   uint32_t w = copy_dest_pitch;
   uint32_t h = copy_dest_height;
 
-  // Make active so glReadPixels reads from us.
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, source_framebuffer->framebuffer);
-  switch (copy_command) {
-    case CopyCommand::kConvert:
-      if (copy_src_select <= 3) {
-        // Source from a bound render target.
-        // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
-        glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
-                                     GL_COLOR_ATTACHMENT0 + copy_src_select);
-        glReadPixels(x, y, w, h, read_format, read_type, ptr);
-      } else {
-        // Source from the bound depth/stencil target.
-        glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
-      }
-      break;
-    case CopyCommand::kRaw:
-    case CopyCommand::kConstantOne:
-    case CopyCommand::kNull:
-    default:
-      // assert_unhandled_case(copy_command);
-      return false;
+  if (!FLAGS_disable_framebuffer_readback) {
+    // Make active so glReadPixels reads from us.
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, source_framebuffer->framebuffer);
+    switch (copy_command) {
+      case CopyCommand::kConvert:
+        if (copy_src_select <= 3) {
+          // Source from a bound render target.
+          // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
+          glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
+                                       GL_COLOR_ATTACHMENT0 + copy_src_select);
+          glReadPixels(x, y, w, h, read_format, read_type, ptr);
+        } else {
+          // Source from the bound depth/stencil target.
+          glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+        }
+        break;
+      case CopyCommand::kRaw:
+      case CopyCommand::kConstantOne:
+      case CopyCommand::kNull:
+      default:
+        // assert_unhandled_case(copy_command);
+        return false;
+    }
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
   }
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
