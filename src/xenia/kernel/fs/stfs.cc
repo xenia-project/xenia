@@ -213,7 +213,6 @@ STFS::Error STFS::ReadAllEntries(const uint8_t* map_ptr) {
 
       auto entry = std::make_unique<STFSEntry>();
       entry->name = std::string((char*)filename, filename_length_flags & 0x3F);
-      entry->name.append(1, '\0');
       // bit 0x40 = consecutive blocks (not fragmented?)
       if (filename_length_flags & 0x80) {
         entry->attributes = X_FILE_ATTRIBUTE_DIRECTORY;

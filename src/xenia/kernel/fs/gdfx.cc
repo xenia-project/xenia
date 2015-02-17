@@ -166,7 +166,6 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
 
   GDFXEntry* entry = new GDFXEntry();
   entry->name = std::string(name, name_length);
-  entry->name.append(1, '\0');
   entry->attributes = (X_FILE_ATTRIBUTES)attributes;
 
   // Add to parent.

@@ -45,8 +45,7 @@ class WildcardFlags
 public:
     bool
       FromStart: 1,
-      ToEnd : 1,
-      WithCase : 1; // Unused for now
+      ToEnd : 1;
 
     WildcardFlags();
     WildcardFlags(bool start, bool end);
@@ -58,8 +57,8 @@ public:
 class WildcardRule
 {
 public:
-    WildcardRule(std::string str_match, const WildcardFlags &flags);
-    bool Check(std::string& str) const;
+    WildcardRule(const std::string& str_match, const WildcardFlags &flags);
+    bool Check(const std::string& str_lower, std::string::size_type& offset) const;
   
 private:
   std::string match;
@@ -70,6 +69,8 @@ class WildcardEngine
 {
 public:
   void SetRule(const std::string &pattern);
+
+  // Always ignoring case
   bool Match(const std::string &str) const;
 private:
   std::vector<WildcardRule> rules;
