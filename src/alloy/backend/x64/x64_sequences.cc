@@ -5345,13 +5345,35 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>, V128<>>)) {
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2));
   }
+  static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i src1,
+                                              __m128i src2) {
+    alignas(16) uint16_t a[8];
+    alignas(16) uint16_t b[8];
+    alignas(16) uint8_t c[16];
+    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(b), src2);
+    for (int i = 0; i < 8; ++i) {
+      c[i] = uint8_t(std::max(uint16_t(0), std::min(uint16_t(255), a[i])));
+      c[i + 8] = uint8_t(std::max(uint16_t(0), std::min(uint16_t(255), b[i])));
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(c));
+  }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     // TODO(benvanik): handle src2 (or src1) being constant zero
     if (IsPackInUnsigned(flags)) {
       if (IsPackOutUnsigned(flags)) {
         if (IsPackOutSaturate(flags)) {
           // unsigned -> unsigned + saturate
-          assert_always();
+          if (i.src2.is_constant) {
+            e.LoadConstantXmm(e.xmm0, i.src2.constant());
+            e.lea(e.r9, e.StashXmm(1, e.xmm0));
+          } else {
+            e.lea(e.r9, e.StashXmm(1, i.src2));
+          }
+          e.lea(e.r8, e.StashXmm(0, i.src1));
+          e.CallNativeSafe(
+              reinterpret_cast<void*>(EmulatePack8_IN_16_UN_UN_SAT));
+          e.vmovaps(i.dest, e.xmm0);
         } else {
           // unsigned -> unsigned
           assert_always();
