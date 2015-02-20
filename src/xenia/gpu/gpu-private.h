@@ -14,7 +14,8 @@
 
 DECLARE_string(gpu);
 
-DECLARE_bool(trace_ring_buffer);
+DECLARE_string(trace_gpu);
+
 DECLARE_string(dump_shaders);
 
 DECLARE_bool(vsync);

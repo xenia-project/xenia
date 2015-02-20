@@ -470,5 +470,28 @@
         'src/xenia/xenia_main.cc',
       ],
     },
+
+    {
+      'target_name': 'gpu-trace-viewer',
+      'type': 'executable',
+
+      'msvs_settings': {
+        'VCLinkerTool': {
+          'SubSystem': '2'
+        },
+      },
+
+      'dependencies': [
+        'libxenia',
+      ],
+
+      'include_dirs': [
+        '.',
+      ],
+
+      'sources': [
+        'src/xenia/gpu/trace_viewer_main.cc',
+      ],
+    },
   ],
 }

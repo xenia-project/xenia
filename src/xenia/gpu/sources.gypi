@@ -15,6 +15,7 @@
     'shader.h',
     'texture_info.cc',
     'texture_info.h',
+    'tracing.h',
     'ucode.h',
     'ucode_disassembler.cc',
     'ucode_disassembler.h',

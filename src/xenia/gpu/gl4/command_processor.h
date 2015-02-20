@@ -23,6 +23,7 @@
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/gl4/texture_cache.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/tracing.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 
@@ -56,11 +57,17 @@ class CommandProcessor {
 
   bool Initialize(std::unique_ptr<GLContext> context);
   void Shutdown();
+  void CallInThread(std::function<void()> fn);
+
+  void BeginTracing(const std::wstring& root_path);
+  void EndTracing();
 
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   void UpdateWritePointer(uint32_t value);
+
+  void ExecutePacket(uint32_t ptr, uint32_t count);
 
  private:
   class RingbufferReader;
@@ -109,7 +116,7 @@ class CommandProcessor {
   void ShutdownGL();
   GLuint CreateGeometryProgram(const std::string& source);
 
-  void WriteRegister(uint32_t packet_ptr, uint32_t index, uint32_t value);
+  void WriteRegister(uint32_t index, uint32_t value);
   void MakeCoherent();
   void PrepareForWait();
   void ReturnFromWait();
@@ -117,63 +124,48 @@ class CommandProcessor {
   void ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
   bool ExecutePacket(RingbufferReader* reader);
-  bool ExecutePacketType0(RingbufferReader* reader, uint32_t packet_ptr,
-                          uint32_t packet);
-  bool ExecutePacketType1(RingbufferReader* reader, uint32_t packet_ptr,
-                          uint32_t packet);
-  bool ExecutePacketType2(RingbufferReader* reader, uint32_t packet_ptr,
-                          uint32_t packet);
-  bool ExecutePacketType3(RingbufferReader* reader, uint32_t packet_ptr,
-                          uint32_t packet);
-  bool ExecutePacketType3_ME_INIT(RingbufferReader* reader, uint32_t packet_ptr,
-                                  uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_NOP(RingbufferReader* reader, uint32_t packet_ptr,
-                              uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_INTERRUPT(RingbufferReader* reader,
-                                    uint32_t packet_ptr, uint32_t packet,
+  bool ExecutePacketType0(RingbufferReader* reader, uint32_t packet);
+  bool ExecutePacketType1(RingbufferReader* reader, uint32_t packet);
+  bool ExecutePacketType2(RingbufferReader* reader, uint32_t packet);
+  bool ExecutePacketType3(RingbufferReader* reader, uint32_t packet);
+  bool ExecutePacketType3_ME_INIT(RingbufferReader* reader, uint32_t packet,
+                                  uint32_t count);
+  bool ExecutePacketType3_NOP(RingbufferReader* reader, uint32_t packet,
+                              uint32_t count);
+  bool ExecutePacketType3_INTERRUPT(RingbufferReader* reader, uint32_t packet,
                                     uint32_t count);
-  bool ExecutePacketType3_XE_SWAP(RingbufferReader* reader, uint32_t packet_ptr,
-                                  uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_XE_SWAP(RingbufferReader* reader, uint32_t packet,
+                                  uint32_t count);
   bool ExecutePacketType3_INDIRECT_BUFFER(RingbufferReader* reader,
-                                          uint32_t packet_ptr, uint32_t packet,
-                                          uint32_t count);
+                                          uint32_t packet, uint32_t count);
   bool ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
-                                       uint32_t packet_ptr, uint32_t packet,
-                                       uint32_t count);
-  bool ExecutePacketType3_REG_RMW(RingbufferReader* reader, uint32_t packet_ptr,
-                                  uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
-                                     uint32_t packet_ptr, uint32_t packet,
+                                       uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_REG_RMW(RingbufferReader* reader, uint32_t packet,
+                                  uint32_t count);
+  bool ExecutePacketType3_COND_WRITE(RingbufferReader* reader, uint32_t packet,
                                      uint32_t count);
-  bool ExecutePacketType3_EVENT_WRITE(RingbufferReader* reader,
-                                      uint32_t packet_ptr, uint32_t packet,
+  bool ExecutePacketType3_EVENT_WRITE(RingbufferReader* reader, uint32_t packet,
                                       uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE_SHD(RingbufferReader* reader,
-                                          uint32_t packet_ptr, uint32_t packet,
-                                          uint32_t count);
+                                          uint32_t packet, uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE_EXT(RingbufferReader* reader,
-                                          uint32_t packet_ptr, uint32_t packet,
-                                          uint32_t count);
-  bool ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
-                                    uint32_t packet_ptr, uint32_t packet,
+                                          uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_DRAW_INDX(RingbufferReader* reader, uint32_t packet,
                                     uint32_t count);
-  bool ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
-                                      uint32_t packet_ptr, uint32_t packet,
+  bool ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader, uint32_t packet,
                                       uint32_t count);
   bool ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
-                                       uint32_t packet_ptr, uint32_t packet,
-                                       uint32_t count);
+                                       uint32_t packet, uint32_t count);
   bool ExecutePacketType3_LOAD_ALU_CONSTANT(RingbufferReader* reader,
-                                            uint32_t packet_ptr,
+
                                             uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_IM_LOAD(RingbufferReader* reader, uint32_t packet_ptr,
-                                  uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_IM_LOAD(RingbufferReader* reader, uint32_t packet,
+                                  uint32_t count);
   bool ExecutePacketType3_IM_LOAD_IMMEDIATE(RingbufferReader* reader,
-                                            uint32_t packet_ptr,
+
                                             uint32_t packet, uint32_t count);
   bool ExecutePacketType3_INVALIDATE_STATE(RingbufferReader* reader,
-                                           uint32_t packet_ptr, uint32_t packet,
-                                           uint32_t count);
+                                           uint32_t packet, uint32_t count);
 
   bool LoadShader(ShaderType shader_type, const uint32_t* address,
                   uint32_t dword_count);
@@ -206,10 +198,14 @@ class CommandProcessor {
   GL4GraphicsSystem* graphics_system_;
   RegisterFile* register_file_;
 
+  TraceWriter trace_writer_;
+
   std::thread worker_thread_;
   std::atomic<bool> worker_running_;
   std::unique_ptr<GLContext> context_;
   SwapHandler swap_handler_;
+  std::function<void()> pending_fn_;
+  HANDLE pending_fn_event_;
 
   uint64_t time_base_;
   uint32_t counter_;

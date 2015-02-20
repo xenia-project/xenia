@@ -10,23 +10,29 @@
 #include "xenia/gpu/graphics_system.h"
 
 #include "poly/poly.h"
-#include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gpu-private.h"
 
 namespace xe {
 namespace gpu {
 
-GraphicsSystem::GraphicsSystem(Emulator* emulator)
-    : emulator_(emulator),
-      memory_(emulator->memory()),
+GraphicsSystem::GraphicsSystem()
+    : memory_(nullptr),
+      processor_(nullptr),
+      target_loop_(nullptr),
+      target_window_(nullptr),
       interrupt_callback_(0),
       interrupt_callback_data_(0) {}
 
-GraphicsSystem::~GraphicsSystem() {}
+GraphicsSystem::~GraphicsSystem() = default;
 
-X_STATUS GraphicsSystem::Setup() {
-  processor_ = emulator_->processor();
+X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
+                               ui::PlatformLoop* target_loop,
+                               ui::PlatformWindow* target_window) {
+  processor_ = processor;
+  memory_ = processor->memory();
+  target_loop_ = target_loop;
+  target_window_ = target_window;
 
   return X_STATUS_SUCCESS;
 }

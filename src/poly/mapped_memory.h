@@ -18,8 +18,8 @@ namespace poly {
 class MappedMemory {
  public:
   enum class Mode {
-    READ,
-    READ_WRITE,
+    kRead,
+    kReadWrite,
   };
 
   virtual ~MappedMemory() = default;

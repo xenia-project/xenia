@@ -24,7 +24,8 @@ DiscImageDevice::DiscImageDevice(const std::string& path,
 DiscImageDevice::~DiscImageDevice() { delete gdfx_; }
 
 int DiscImageDevice::Init() {
-  mmap_ = poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::READ);
+  mmap_ =
+      poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
     return 1;

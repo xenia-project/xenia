@@ -125,8 +125,8 @@ std::unique_ptr<MemoryMapping> HostPathEntry::CreateMemoryMapping(
     Mode map_mode, const size_t offset, const size_t length) {
   auto mmap = poly::MappedMemory::Open(
       local_path_,
-      map_mode == Mode::READ ? poly::MappedMemory::Mode::READ
-                             : poly::MappedMemory::Mode::READ_WRITE,
+      map_mode == Mode::READ ? poly::MappedMemory::Mode::kRead
+                             : poly::MappedMemory::Mode::kReadWrite,
       offset, length);
   if (!mmap) {
     return nullptr;

@@ -45,14 +45,14 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
   DWORD mapping_protect = 0;
   DWORD view_access = 0;
   switch (mode) {
-    case Mode::READ:
+    case Mode::kRead:
       file_access |= GENERIC_READ;
       file_share |= FILE_SHARE_READ;
       create_mode |= OPEN_EXISTING;
       mapping_protect |= PAGE_READONLY;
       view_access |= FILE_MAP_READ;
       break;
-    case Mode::READ_WRITE:
+    case Mode::kReadWrite:
       file_access |= GENERIC_READ | GENERIC_WRITE;
       file_share |= 0;
       create_mode |= OPEN_EXISTING;

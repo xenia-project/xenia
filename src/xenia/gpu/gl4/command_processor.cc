@@ -22,9 +22,6 @@
 
 #include "third_party/xxhash/xxhash.h"
 
-#define XETRACECP(fmt, ...) \
-  if (FLAGS_trace_ring_buffer) XELOGGPU(fmt, ##__VA_ARGS__)
-
 #define FINE_GRAINED_DRAW_SCOPES 1
 
 namespace xe {
@@ -56,6 +53,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       membase_(graphics_system->memory()->membase()),
       graphics_system_(graphics_system),
       register_file_(graphics_system_->register_file()),
+      trace_writer_(graphics_system->memory()->membase()),
       worker_running_(true),
       time_base_(0),
       counter_(0),
@@ -94,6 +92,8 @@ uint64_t CommandProcessor::QueryTime() {
 bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   context_ = std::move(context);
 
+  pending_fn_event_ = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+
   worker_running_ = true;
   worker_thread_ = std::thread([this]() {
     poly::threading::set_name("GL4 Worker");
@@ -106,6 +106,8 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
 }
 
 void CommandProcessor::Shutdown() {
+  EndTracing();
+
   worker_running_ = false;
   SetEvent(write_ptr_index_event_);
   worker_thread_.join();
@@ -115,6 +117,22 @@ void CommandProcessor::Shutdown() {
   shader_cache_.clear();
 
   context_.reset();
+
+  CloseHandle(pending_fn_event_);
+}
+
+void CommandProcessor::BeginTracing(const std::wstring& root_path) {
+  std::wstring path = poly::join_paths(root_path, L"gpu_trace");
+  trace_writer_.Open(path);
+}
+
+void CommandProcessor::EndTracing() { trace_writer_.Close(); }
+
+void CommandProcessor::CallInThread(std::function<void()> fn) {
+  assert_null(pending_fn_);
+  pending_fn_ = std::move(fn);
+  WaitForSingleObject(pending_fn_event_, INFINITE);
+  ResetEvent(pending_fn_event_);
 }
 
 void CommandProcessor::WorkerMain() {
@@ -125,6 +143,13 @@ void CommandProcessor::WorkerMain() {
   }
 
   while (worker_running_) {
+    if (pending_fn_) {
+      auto fn = std::move(pending_fn_);
+      pending_fn_ = nullptr;
+      fn();
+      SetEvent(pending_fn_event_);
+    }
+
     uint32_t write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
       SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::CommandProcessor::Stall");
@@ -140,14 +165,14 @@ void CommandProcessor::WorkerMain() {
         SwitchToThread();
         MemoryBarrier();
         write_ptr_index = write_ptr_index_.load();
-      } while (write_ptr_index == 0xBAADF00D ||
-               read_ptr_index_ == write_ptr_index);
+      } while (!pending_fn_ && (write_ptr_index == 0xBAADF00D ||
+                                read_ptr_index_ == write_ptr_index));
       // ReturnFromWait();
+      if (pending_fn_) {
+        continue;
+      }
     }
     assert_true(read_ptr_index_ != write_ptr_index);
-
-    // Process the new commands.
-    XETRACECP("Command processor thread work");
 
     // Execute. Note that we handle wraparound transparently.
     ExecutePrimaryBuffer(read_ptr_index_, write_ptr_index);
@@ -378,8 +403,7 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
   SetEvent(write_ptr_index_event_);
 }
 
-void CommandProcessor::WriteRegister(uint32_t packet_ptr, uint32_t index,
-                                     uint32_t value) {
+void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile* regs = register_file_;
   assert_true(index < RegisterFile::kRegisterCount);
   regs->values[index].u32 = value;
@@ -398,8 +422,8 @@ void CommandProcessor::WriteRegister(uint32_t packet_ptr, uint32_t index,
       // Enabled - write to address.
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
-      poly::store_and_swap<uint32_t>(
-          membase_ + xenos::GpuToCpu(primary_buffer_ptr_, mem_addr), value);
+      poly::store_and_swap<uint32_t>(membase_ + xenos::GpuToCpu(mem_addr),
+                                     value);
     }
   }
 }
@@ -426,8 +450,8 @@ void CommandProcessor::MakeCoherent() {
   }
 
   // TODO(benvanik): notify resource cache of base->size and type.
-  XETRACECP("Make %.8X -> %.8X (%db) coherent", base_host,
-            base_host + size_host, size_host);
+  // XELOGD("Make %.8X -> %.8X (%db) coherent", base_host, base_host +
+  // size_host, size_host);
 
   // Mark coherent.
   status_host &= ~0x80000000ul;
@@ -436,6 +460,8 @@ void CommandProcessor::MakeCoherent() {
 
 void CommandProcessor::PrepareForWait() {
   SCOPE_profile_cpu_f("gpu");
+
+  trace_writer_.Flush();
 
   // TODO(benvanik): fences and fancy stuff. We should figure out a way to
   // make interrupt callbacks from the GPU so that we don't have to do a full
@@ -494,14 +520,6 @@ class CommandProcessor::RingbufferReader {
 
   void Skip(uint32_t words) { Advance(words); }
 
-  void TraceData(uint32_t words) {
-    for (uint32_t i = 0; i < words; ++i) {
-      uint32_t i_ptr = ptr_ + i * sizeof(uint32_t);
-      XETRACECP("[%.8X]   %.8X", i_ptr,
-                poly::load_and_swap<uint32_t>(membase_ + i_ptr));
-    }
-  }
-
  private:
   uint8_t* membase_;
 
@@ -523,8 +541,7 @@ void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
   uint32_t end_ptr = primary_buffer_ptr_ + end_index * sizeof(uint32_t);
   end_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (end_ptr & 0x1FFFFFFF);
 
-  XETRACECP("[%.8X] ExecutePrimaryBuffer(%dw -> %dw)", start_ptr, start_index,
-            end_index);
+  trace_writer_.WritePrimaryBufferStart(start_ptr, end_index - start_index);
 
   // Execute commands!
   uint32_t ptr_mask = (primary_buffer_size_ / sizeof(uint32_t)) - 1;
@@ -537,13 +554,13 @@ void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
     assert_true(reader.offset() == (end_index - start_index));
   }
 
-  XETRACECP("           ExecutePrimaryBuffer End");
+  trace_writer_.WritePrimaryBufferEnd();
 }
 
 void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
   SCOPE_profile_cpu_f("gpu");
 
-  XETRACECP("[%.8X] ExecuteIndirectBuffer(%dw)", ptr, length);
+  trace_writer_.WriteIndirectBufferStart(ptr, length / sizeof(uint32_t));
 
   // Execute commands!
   uint32_t ptr_mask = 0;
@@ -553,29 +570,38 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
     ExecutePacket(&reader);
   }
 
-  XETRACECP("           ExecuteIndirectBuffer End");
+  trace_writer_.WriteIndirectBufferEnd();
+}
+
+void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
+  uint32_t ptr_mask = 0;
+  RingbufferReader reader(membase_, primary_buffer_ptr_, ptr_mask, ptr,
+                          ptr + count * sizeof(uint32_t));
+  while (reader.can_read()) {
+    ExecutePacket(&reader);
+  }
 }
 
 bool CommandProcessor::ExecutePacket(RingbufferReader* reader) {
   RegisterFile* regs = register_file_;
 
-  uint32_t packet_ptr = reader->ptr();
   const uint32_t packet = reader->Read();
   const uint32_t packet_type = packet >> 30;
   if (packet == 0) {
-    XETRACECP("[%.8X] Packet(%.8X): 0?", packet_ptr, packet);
+    trace_writer_.WritePacketStart(reader->ptr() - 4, 1);
+    trace_writer_.WritePacketEnd();
     return true;
   }
 
   switch (packet_type) {
     case 0x00:
-      return ExecutePacketType0(reader, packet_ptr, packet);
+      return ExecutePacketType0(reader, packet);
     case 0x01:
-      return ExecutePacketType1(reader, packet_ptr, packet);
+      return ExecutePacketType1(reader, packet);
     case 0x02:
-      return ExecutePacketType2(reader, packet_ptr, packet);
+      return ExecutePacketType2(reader, packet);
     case 0x03:
-      return ExecutePacketType3(reader, packet_ptr, packet);
+      return ExecutePacketType3(reader, packet);
     default:
       assert_unhandled_case(packet_type);
       return false;
@@ -583,75 +609,66 @@ bool CommandProcessor::ExecutePacket(RingbufferReader* reader) {
 }
 
 bool CommandProcessor::ExecutePacketType0(RingbufferReader* reader,
-                                          uint32_t packet_ptr,
                                           uint32_t packet) {
   // Type-0 packet.
   // Write count registers in sequence to the registers starting at
   // (base_index << 2).
-  XETRACECP("[%.8X] Packet(%.8X): set registers:", packet_ptr, packet);
+
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
+  trace_writer_.WritePacketStart(reader->ptr() - 4, 1 + count);
+
   uint32_t base_index = (packet & 0x7FFF);
   uint32_t write_one_reg = (packet >> 15) & 0x1;
   for (uint32_t m = 0; m < count; m++) {
-    uint32_t reg_data = reader->Peek();
+    uint32_t reg_data = reader->Read();
     uint32_t target_index = write_one_reg ? base_index : base_index + m;
-    const char* reg_name = register_file_->GetRegisterName(target_index);
-    XETRACECP("[%.8X]   %.8X -> %.4X %s", reader->ptr(), reg_data, target_index,
-              reg_name ? reg_name : "");
-    reader->Advance(1);
-    WriteRegister(packet_ptr, target_index, reg_data);
+    WriteRegister(target_index, reg_data);
   }
+
+  trace_writer_.WritePacketEnd();
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType1(RingbufferReader* reader,
-                                          uint32_t packet_ptr,
                                           uint32_t packet) {
   // Type-1 packet.
   // Contains two registers of data. Type-0 should be more common.
-  XETRACECP("[%.8X] Packet(%.8X): set registers:", packet_ptr, packet);
+  trace_writer_.WritePacketStart(reader->ptr() - 4, 3);
   uint32_t reg_index_1 = packet & 0x7FF;
   uint32_t reg_index_2 = (packet >> 11) & 0x7FF;
-  uint32_t reg_ptr_1 = reader->ptr();
   uint32_t reg_data_1 = reader->Read();
-  uint32_t reg_ptr_2 = reader->ptr();
   uint32_t reg_data_2 = reader->Read();
-  const char* reg_name_1 = register_file_->GetRegisterName(reg_index_1);
-  const char* reg_name_2 = register_file_->GetRegisterName(reg_index_2);
-  XETRACECP("[%.8X]   %.8X -> %.4X %s", reg_ptr_1, reg_data_1, reg_index_1,
-            reg_name_1 ? reg_name_1 : "");
-  XETRACECP("[%.8X]   %.8X -> %.4X %s", reg_ptr_2, reg_data_2, reg_index_2,
-            reg_name_2 ? reg_name_2 : "");
-  WriteRegister(packet_ptr, reg_index_1, reg_data_1);
-  WriteRegister(packet_ptr, reg_index_2, reg_data_2);
+  WriteRegister(reg_index_1, reg_data_1);
+  WriteRegister(reg_index_2, reg_data_2);
+  trace_writer_.WritePacketEnd();
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType2(RingbufferReader* reader,
-                                          uint32_t packet_ptr,
                                           uint32_t packet) {
   // Type-2 packet.
   // No-op. Do nothing.
-  XETRACECP("[%.8X] Packet(%.8X): padding", packet_ptr, packet);
+  trace_writer_.WritePacketStart(reader->ptr() - 4, 1);
+  trace_writer_.WritePacketEnd();
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
-                                          uint32_t packet_ptr,
                                           uint32_t packet) {
   // Type-3 packet.
   uint32_t opcode = (packet >> 8) & 0x7F;
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   auto data_start_offset = reader->offset();
 
+  trace_writer_.WritePacketStart(reader->ptr() - 4, 1 + count);
+
   // & 1 == predicate - when set, we do bin check to see if we should execute
   // the packet. Only type 3 packets are affected.
   if (packet & 1) {
     bool any_pass = (bin_select_ & bin_mask_) != 0;
     if (!any_pass) {
-      XETRACECP("[%.8X] Packet(%.8X): SKIPPED (predicate fail)", packet_ptr,
-                packet);
       reader->Skip(count);
+      trace_writer_.WritePacketEnd();
       return true;
     }
   }
@@ -659,96 +676,78 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
   bool result = false;
   switch (opcode) {
     case PM4_ME_INIT:
-      result = ExecutePacketType3_ME_INIT(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_ME_INIT(reader, packet, count);
       break;
     case PM4_NOP:
-      result = ExecutePacketType3_NOP(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_NOP(reader, packet, count);
       break;
     case PM4_INTERRUPT:
-      result = ExecutePacketType3_INTERRUPT(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_INTERRUPT(reader, packet, count);
       break;
     case PM4_XE_SWAP:
-      result = ExecutePacketType3_XE_SWAP(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_XE_SWAP(reader, packet, count);
       break;
     case PM4_INDIRECT_BUFFER:
-      result =
-          ExecutePacketType3_INDIRECT_BUFFER(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_INDIRECT_BUFFER(reader, packet, count);
       break;
     case PM4_WAIT_REG_MEM:
-      result =
-          ExecutePacketType3_WAIT_REG_MEM(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_WAIT_REG_MEM(reader, packet, count);
       break;
     case PM4_REG_RMW:
-      result = ExecutePacketType3_REG_RMW(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_REG_RMW(reader, packet, count);
       break;
     case PM4_COND_WRITE:
-      result = ExecutePacketType3_COND_WRITE(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_COND_WRITE(reader, packet, count);
       break;
     case PM4_EVENT_WRITE:
-      result =
-          ExecutePacketType3_EVENT_WRITE(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_EVENT_WRITE(reader, packet, count);
       break;
     case PM4_EVENT_WRITE_SHD:
-      result =
-          ExecutePacketType3_EVENT_WRITE_SHD(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_EVENT_WRITE_SHD(reader, packet, count);
       break;
     case PM4_EVENT_WRITE_EXT:
-      result =
-          ExecutePacketType3_EVENT_WRITE_EXT(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_EVENT_WRITE_EXT(reader, packet, count);
       break;
     case PM4_DRAW_INDX:
-      result = ExecutePacketType3_DRAW_INDX(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_DRAW_INDX(reader, packet, count);
       break;
     case PM4_DRAW_INDX_2:
-      result =
-          ExecutePacketType3_DRAW_INDX_2(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_DRAW_INDX_2(reader, packet, count);
       break;
     case PM4_SET_CONSTANT:
-      result =
-          ExecutePacketType3_SET_CONSTANT(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_SET_CONSTANT(reader, packet, count);
       break;
     case PM4_LOAD_ALU_CONSTANT:
-      result = ExecutePacketType3_LOAD_ALU_CONSTANT(reader, packet_ptr, packet,
-                                                    count);
+      result = ExecutePacketType3_LOAD_ALU_CONSTANT(reader, packet, count);
       break;
     case PM4_IM_LOAD:
-      result = ExecutePacketType3_IM_LOAD(reader, packet_ptr, packet, count);
+      result = ExecutePacketType3_IM_LOAD(reader, packet, count);
       break;
     case PM4_IM_LOAD_IMMEDIATE:
-      result = ExecutePacketType3_IM_LOAD_IMMEDIATE(reader, packet_ptr, packet,
-                                                    count);
+      result = ExecutePacketType3_IM_LOAD_IMMEDIATE(reader, packet, count);
       break;
     case PM4_INVALIDATE_STATE:
-      result = ExecutePacketType3_INVALIDATE_STATE(reader, packet_ptr, packet,
-                                                   count);
+      result = ExecutePacketType3_INVALIDATE_STATE(reader, packet, count);
       break;
 
     case PM4_SET_BIN_MASK_LO: {
       uint32_t value = reader->Read();
-      XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_LO = %.8X", packet_ptr,
-                packet, value);
       bin_mask_ = (bin_mask_ & 0xFFFFFFFF00000000ull) | value;
       result = true;
     } break;
     case PM4_SET_BIN_MASK_HI: {
       uint32_t value = reader->Read();
-      XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_MASK_HI = %.8X", packet_ptr,
-                packet, value);
       bin_mask_ =
           (bin_mask_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
     } break;
     case PM4_SET_BIN_SELECT_LO: {
       uint32_t value = reader->Read();
-      XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_LO = %.8X", packet_ptr,
-                packet, value);
       bin_select_ = (bin_select_ & 0xFFFFFFFF00000000ull) | value;
       result = true;
     } break;
     case PM4_SET_BIN_SELECT_HI: {
       uint32_t value = reader->Read();
-      XETRACECP("[%.8X] Packet(%.8X): PM4_SET_BIN_SELECT_HI = %.8X", packet_ptr,
-                packet, value);
       bin_select_ =
           (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
@@ -757,53 +756,44 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
     // Ignored packets - useful if breaking on the default handler below.
     case 0x50:  // 0xC0015000 usually 2 words, 0xFFFFFFFF / 0x00000000
     case 0x51:  // 0xC0015100 usually 2 words, 0xFFFFFFFF / 0xFFFFFFFF
-      XETRACECP("[%.8X] Packet(%.8X): unknown!", packet_ptr, packet);
-      reader->TraceData(count);
       reader->Skip(count);
       break;
 
     default:
-      XETRACECP("[%.8X] Packet(%.8X): unknown!", packet_ptr, packet);
-      reader->TraceData(count);
       reader->Skip(count);
       break;
   }
 
+  trace_writer_.WritePacketEnd();
   assert_true(reader->offset() == data_start_offset + count);
   return result;
 }
 
 bool CommandProcessor::ExecutePacketType3_ME_INIT(RingbufferReader* reader,
-                                                  uint32_t packet_ptr,
+
                                                   uint32_t packet,
                                                   uint32_t count) {
   // initialize CP's micro-engine
-  XETRACECP("[%.8X] Packet(%.8X): PM4_ME_INIT", packet_ptr, packet);
-  reader->TraceData(count);
   reader->Advance(count);
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_NOP(RingbufferReader* reader,
-                                              uint32_t packet_ptr,
+
                                               uint32_t packet, uint32_t count) {
   // skip N 32-bit words to get to the next packet
   // No-op, ignore some data.
-  XETRACECP("[%.8X] Packet(%.8X): PM4_NOP", packet_ptr, packet);
-  reader->TraceData(count);
   reader->Advance(count);
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_INTERRUPT(RingbufferReader* reader,
-                                                    uint32_t packet_ptr,
+
                                                     uint32_t packet,
                                                     uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
   // generate interrupt from the command stream
-  XETRACECP("[%.8X] Packet(%.8X): PM4_INTERRUPT", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t cpu_mask = reader->Read();
   for (int n = 0; n < 6; n++) {
     if (cpu_mask & (1 << n)) {
@@ -814,7 +804,7 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
-                                                  uint32_t packet_ptr,
+
                                                   uint32_t packet,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
@@ -826,9 +816,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   // Xenia-specific VdSwap hook.
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
-  XETRACECP("[%.8X] Packet(%.8X): PM4_XE_SWAP", packet_ptr, packet);
   // 63 words here, but only the first has any data.
-  reader->TraceData(1);
   uint32_t frontbuffer_ptr = reader->Read();
   reader->Advance(count - 1);
 
@@ -868,30 +856,28 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
     // Remove any dead textures, etc.
     texture_cache_.Scavenge();
   }
+
+  trace_writer_.WriteEvent(EventType::kSwap);
+  trace_writer_.Flush();
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(
-    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
-    uint32_t count) {
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // indirect buffer dispatch
   uint32_t list_ptr = reader->Read();
   uint32_t list_length = reader->Read();
-  XETRACECP("[%.8X] Packet(%.8X): PM4_INDIRECT_BUFFER %.8X (%dw)", packet_ptr,
-            packet, list_ptr, list_length);
   ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
-                                                       uint32_t packet_ptr,
+
                                                        uint32_t packet,
                                                        uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
   // wait until a register or memory location is a specific value
-  XETRACECP("[%.8X] Packet(%.8X): PM4_WAIT_REG_MEM", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t wait_info = reader->Read();
   uint32_t poll_reg_addr = reader->Read();
   uint32_t ref = reader->Read();
@@ -904,9 +890,9 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
       // Memory.
       auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
       poll_reg_addr &= ~0x3;
-      value =
-          poly::load<uint32_t>(membase_ + GpuToCpu(packet_ptr, poll_reg_addr));
+      value = poly::load<uint32_t>(membase_ + GpuToCpu(poll_reg_addr));
       value = GpuSwap(value, endianness);
+      trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
     } else {
       // Register.
       assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
@@ -963,13 +949,11 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_REG_RMW(RingbufferReader* reader,
-                                                  uint32_t packet_ptr,
+
                                                   uint32_t packet,
                                                   uint32_t count) {
   // register read/modify/write
   // ? (used during shader upload and edram setup)
-  XETRACECP("[%.8X] Packet(%.8X): PM4_REG_RMW", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t rmw_info = reader->Read();
   uint32_t and_mask = reader->Read();
   uint32_t or_mask = reader->Read();
@@ -988,17 +972,15 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(RingbufferReader* reader,
     // & imm
     value &= and_mask;
   }
-  WriteRegister(packet_ptr, rmw_info & 0x1FFF, value);
+  WriteRegister(rmw_info & 0x1FFF, value);
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
-                                                     uint32_t packet_ptr,
+
                                                      uint32_t packet,
                                                      uint32_t count) {
   // conditional write to memory or register
-  XETRACECP("[%.8X] Packet(%.8X): PM4_COND_WRITE", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t wait_info = reader->Read();
   uint32_t poll_reg_addr = reader->Read();
   uint32_t ref = reader->Read();
@@ -1010,8 +992,8 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
     // Memory.
     auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
-    value =
-        poly::load<uint32_t>(membase_ + GpuToCpu(packet_ptr, poll_reg_addr));
+    trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
+    value = poly::load<uint32_t>(membase_ + GpuToCpu(poll_reg_addr));
     value = GpuSwap(value, endianness);
   } else {
     // Register.
@@ -1052,23 +1034,21 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
       auto endianness = static_cast<Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
       write_data = GpuSwap(write_data, endianness);
-      poly::store(membase_ + GpuToCpu(packet_ptr, write_reg_addr), write_data);
+      poly::store(membase_ + GpuToCpu(write_reg_addr), write_data);
+      trace_writer_.WriteMemoryWrite(write_reg_addr, 4);
     } else {
       // Register.
-      WriteRegister(packet_ptr, write_reg_addr, write_data);
+      WriteRegister(write_reg_addr, write_data);
     }
   }
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(RingbufferReader* reader,
-                                                      uint32_t packet_ptr,
+
                                                       uint32_t packet,
                                                       uint32_t count) {
   // generate an event that creates a write to memory when completed
-  XETRACECP("[%.8X] Packet(%.8X): PM4_EVENT_WRITE (unimplemented!)", packet_ptr,
-            packet);
-  reader->TraceData(count);
   uint32_t initiator = reader->Read();
   if (count == 1) {
     // Just an event flag? Where does this write?
@@ -1081,16 +1061,13 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
-    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
-    uint32_t count) {
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // generate a VS|PS_done event
-  XETRACECP("[%.8X] Packet(%.8X): PM4_EVENT_WRITE_SHD", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t initiator = reader->Read();
   uint32_t address = reader->Read();
   uint32_t value = reader->Read();
   // Writeback initiator.
-  WriteRegister(packet_ptr, XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
+  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
   uint32_t data_value;
   if ((initiator >> 31) & 0x1) {
     // Write counter (GPU vblank counter?).
@@ -1103,27 +1080,23 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
   poly::store(membase_ + GpuToCpu(address), data_value);
+  trace_writer_.WriteMemoryWrite(address, 4);
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
-    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
-    uint32_t count) {
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // generate a screen extent event
-  XETRACECP("[%.8X] Packet(%.8X): PM4_EVENT_WRITE_EXT", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t unk0 = reader->Read();
   uint32_t unk1 = reader->Read();
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
-                                                    uint32_t packet_ptr,
+
                                                     uint32_t packet,
                                                     uint32_t count) {
   // initiate fetch of index buffer and draw
-  XETRACECP("[%.8X] Packet(%.8X): PM4_DRAW_INDX", packet_ptr, packet);
-  reader->TraceData(count);
   // dword0 = viz query info
   uint32_t dword0 = reader->Read();
   uint32_t dword1 = reader->Read();
@@ -1172,12 +1145,10 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
-                                                      uint32_t packet_ptr,
+
                                                       uint32_t packet,
                                                       uint32_t count) {
   // draw using supplied indices in packet
-  XETRACECP("[%.8X] Packet(%.8X): PM4_DRAW_INDX_2", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t dword0 = reader->Read();
   uint32_t index_count = dword0 >> 16;
   auto prim_type = static_cast<PrimitiveType>(dword0 & 0x3F);
@@ -1198,11 +1169,10 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
-                                                       uint32_t packet_ptr,
+
                                                        uint32_t packet,
                                                        uint32_t count) {
   // load constant into chip and to memory
-  XETRACECP("[%.8X] Packet(%.8X): PM4_SET_CONSTANT", packet_ptr, packet);
   // PM4_REG(reg) ((0x4 << 16) | (GSL_HAL_SUBBLOCK_OFFSET(reg)))
   //                                     reg - 0x2000
   uint32_t offset_type = reader->Read();
@@ -1213,10 +1183,7 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
       index += 0x2000;  // registers
       for (uint32_t n = 0; n < count - 1; n++, index++) {
         uint32_t data = reader->Read();
-        const char* reg_name = register_file_->GetRegisterName(index);
-        XETRACECP("[%.8X]   %.8X -> %.4X %s", packet_ptr + (1 + n) * 4, data,
-                  index, reg_name ? reg_name : "");
-        WriteRegister(packet_ptr, index, data);
+        WriteRegister(index, data);
       }
       break;
     default:
@@ -1227,10 +1194,8 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
-    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
-    uint32_t count) {
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // load constants from memory
-  XETRACECP("[%.8X] Packet(%.8X): PM4_LOAD_ALU_CONSTANT", packet_ptr, packet);
   uint32_t address = reader->Read();
   address &= 0x3FFFFFFF;
   uint32_t offset_type = reader->Read();
@@ -1238,24 +1203,20 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
   uint32_t size = reader->Read();
   size &= 0xFFF;
   index += 0x4000;  // alu constants
+  trace_writer_.WriteMemoryRead(address, size * 4);
   for (uint32_t n = 0; n < size; n++, index++) {
-    uint32_t data = poly::load_and_swap<uint32_t>(
-        membase_ + GpuToCpu(packet_ptr, address + n * 4));
-    const char* reg_name = register_file_->GetRegisterName(index);
-    XETRACECP("[%.8X]   %.8X -> %.4X %s", packet_ptr, data, index,
-              reg_name ? reg_name : "");
-    WriteRegister(packet_ptr, index, data);
+    uint32_t data =
+        poly::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
+    WriteRegister(index, data);
   }
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
-                                                  uint32_t packet_ptr,
+
                                                   uint32_t packet,
                                                   uint32_t count) {
   // load sequencer instruction memory (pointer-based)
-  XETRACECP("[%.8X] Packet(%.8X): PM4_IM_LOAD", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t addr_type = reader->Read();
   auto shader_type = static_cast<ShaderType>(addr_type & 0x3);
   uint32_t addr = addr_type & ~0x3;
@@ -1263,18 +1224,16 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
   uint32_t start = start_size >> 16;
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
+  trace_writer_.WriteMemoryRead(addr, size_dwords * 4);
   LoadShader(shader_type,
-             reinterpret_cast<uint32_t*>(membase_ + GpuToCpu(packet_ptr, addr)),
+             reinterpret_cast<uint32_t*>(membase_ + GpuToCpu(addr)),
              size_dwords);
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(
-    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
-    uint32_t count) {
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // load sequencer instruction memory (code embedded in packet)
-  XETRACECP("[%.8X] Packet(%.8X): PM4_IM_LOAD_IMMEDIATE", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t dword0 = reader->Read();
   uint32_t dword1 = reader->Read();
   auto shader_type = static_cast<ShaderType>(dword0);
@@ -1290,11 +1249,8 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(
 }
 
 bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(
-    RingbufferReader* reader, uint32_t packet_ptr, uint32_t packet,
-    uint32_t count) {
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // selective invalidation of state pointers
-  XETRACECP("[%.8X] Packet(%.8X): PM4_INVALIDATE_STATE", packet_ptr, packet);
-  reader->TraceData(count);
   uint32_t mask = reader->Read();
   // driver_->InvalidateState(mask);
   return true;
@@ -1382,7 +1338,6 @@ bool CommandProcessor::IssueDraw() {
     // No framebuffer, so nothing we do will actually have an effect.
     // Treat it as a no-op.
     // TODO(benvanik): if we have a vs export, still allow it to go.
-    XETRACECP("No-op draw (no framebuffer set)");
     draw_batcher_.DiscardDraw();
     return true;
   }
@@ -2066,6 +2021,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer() {
                                                        : sizeof(uint16_t));
   auto allocation = scratch_buffer_.Acquire(total_size);
 
+  trace_writer_.WriteMemoryRead(info.guest_base, info.length);
   if (info.format == IndexFormat::kInt32) {
     auto dest = reinterpret_cast<uint32_t*>(allocation.host_ptr);
     auto src = reinterpret_cast<const uint32_t*>(membase_ + info.guest_base);
@@ -2124,6 +2080,8 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
     valid_range = std::min(valid_range, size_t(fetch->size * 4));
 
     auto allocation = scratch_buffer_.Acquire(valid_range);
+
+    trace_writer_.WriteMemoryRead(fetch->address << 2, valid_range);
 
     // Copy and byte swap the entire buffer.
     // We could be smart about this to save GPU bandwidth by building a CRC
@@ -2235,6 +2193,9 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSampler(
     XELOGE("Unable to parse sampler info");
     return UpdateStatus::kCompatible;  // invalid texture used
   }
+
+  trace_writer_.WriteMemoryRead(texture_info.guest_address,
+                                texture_info.input_length);
 
   auto entry_view = texture_cache_.Demand(texture_info, sampler_info);
   if (!entry_view) {

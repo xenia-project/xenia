@@ -234,15 +234,6 @@ inline uint32_t GpuToCpu(uint32_t p) {
   return p;
 }
 
-inline uint32_t GpuToCpu(uint32_t base, uint32_t p) {
-  // Some AMD docs say relative to base ptr, some say just this.
-  // Some games use some crazy shift magic, but it seems to nop.
-  uint32_t upper = 0;//base & 0xFF000000;
-  //uint32_t lower = p & 0x01FFFFFF;
-  uint32_t lower = p;
-  return upper + lower;// -(((base >> 20) + 0x200) & 0x1000);
-}
-
 // XE_GPU_REG_SQ_PROGRAM_CNTL
 typedef union {
   XEPACKEDSTRUCTANONYMOUS({

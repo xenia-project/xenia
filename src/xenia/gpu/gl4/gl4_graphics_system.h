@@ -24,16 +24,20 @@ namespace gl4 {
 
 class GL4GraphicsSystem : public GraphicsSystem {
  public:
-  GL4GraphicsSystem(Emulator* emulator);
+  GL4GraphicsSystem();
   ~GL4GraphicsSystem() override;
 
-  X_STATUS Setup() override;
+  X_STATUS Setup(cpu::Processor* processor, ui::PlatformLoop* target_loop,
+                 ui::PlatformWindow* target_window) override;
   void Shutdown() override;
 
   RegisterFile* register_file() { return &register_file_; }
 
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count) override;
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size) override;
+
+  const uint8_t* PlayTrace(const uint8_t* trace_data, size_t trace_size,
+                           TracePlaybackMode playback_mode) override;
 
  private:
   void MarkVblank();

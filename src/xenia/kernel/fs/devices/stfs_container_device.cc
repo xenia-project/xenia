@@ -25,7 +25,8 @@ STFSContainerDevice::STFSContainerDevice(const std::string& path,
 STFSContainerDevice::~STFSContainerDevice() { delete stfs_; }
 
 int STFSContainerDevice::Init() {
-  mmap_ = poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::READ);
+  mmap_ =
+      poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("STFS container could not be mapped");
     return 1;

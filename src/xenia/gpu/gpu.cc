@@ -15,7 +15,8 @@
 
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
 
-DEFINE_bool(trace_ring_buffer, false, "Trace GPU ring buffer packets.");
+DEFINE_string(trace_gpu, "", "Trace GPU data to the given root path.");
+
 DEFINE_string(dump_shaders, "",
               "Path to write GPU shaders to as they are compiled.");
 
@@ -24,14 +25,14 @@ DEFINE_bool(vsync, true, "Enable VSYNC.");
 namespace xe {
 namespace gpu {
 
-std::unique_ptr<GraphicsSystem> Create(Emulator* emulator) {
+std::unique_ptr<GraphicsSystem> Create() {
   if (FLAGS_gpu.compare("gl4") == 0) {
-    return xe::gpu::gl4::Create(emulator);
+    return xe::gpu::gl4::Create();
   } else {
     // Create best available.
     std::unique_ptr<GraphicsSystem> best;
 
-    best = xe::gpu::gl4::Create(emulator);
+    best = xe::gpu::gl4::Create();
     if (best) {
       return best;
     }

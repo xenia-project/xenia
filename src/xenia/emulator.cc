@@ -102,7 +102,7 @@ X_STATUS Emulator::Setup() {
   }
 
   // Initialize the GPU.
-  graphics_system_ = std::move(xe::gpu::Create(this));
+  graphics_system_ = std::move(xe::gpu::Create());
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
@@ -122,7 +122,8 @@ X_STATUS Emulator::Setup() {
   if (result) {
     return result;
   }
-  result = graphics_system_->Setup();
+  result = graphics_system_->Setup(processor_.get(), main_window_->loop(),
+                                   main_window_.get());
   if (result) {
     return result;
   }
