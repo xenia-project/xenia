@@ -69,6 +69,8 @@ void Control::OnResize(UIEvent& e) { on_resize(e); }
 
 void Control::OnLayout(UIEvent& e) { on_layout(e); }
 
+void Control::OnPaint(UIEvent& e) { on_paint(e); }
+
 void Control::OnVisible(UIEvent& e) { on_visible(e); }
 
 void Control::OnHidden(UIEvent& e) { on_hidden(e); }

@@ -47,10 +47,8 @@ class GraphicsSystem {
     kUntilEnd,
     kBreakOnSwap,
   };
-  virtual const uint8_t* PlayTrace(const uint8_t* trace_data, size_t trace_size,
-                                   TracePlaybackMode playback_mode) {
-    return nullptr;
-  }
+  virtual void PlayTrace(const uint8_t* trace_data, size_t trace_size,
+                         TracePlaybackMode playback_mode) {}
 
  protected:
   GraphicsSystem();

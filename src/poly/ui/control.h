@@ -31,6 +31,8 @@ class Control {
 
   Control* parent() const { return parent_; }
 
+  size_t child_count() const { return children_.size(); }
+  Control* child(size_t i) const { return children_[i].get(); }
   void AddChild(Control* child_control);
   void AddChild(std::unique_ptr<Control> child_control);
   void AddChild(ControlPtr child_control);
@@ -65,6 +67,7 @@ class Control {
  public:
   poly::Delegate<UIEvent> on_resize;
   poly::Delegate<UIEvent> on_layout;
+  poly::Delegate<UIEvent> on_paint;
 
   poly::Delegate<UIEvent> on_visible;
   poly::Delegate<UIEvent> on_hidden;
@@ -94,6 +97,7 @@ class Control {
 
   virtual void OnResize(UIEvent& e);
   virtual void OnLayout(UIEvent& e);
+  virtual void OnPaint(UIEvent& e);
 
   virtual void OnVisible(UIEvent& e);
   virtual void OnHidden(UIEvent& e);

@@ -91,6 +91,9 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           current_paint_callback_ = nullptr;
         }
 
+        poly::ui::UIEvent e(this);
+        OnPaint(e);
+
         // TODO(benvanik): profiler present.
         Profiler::Present();
       }

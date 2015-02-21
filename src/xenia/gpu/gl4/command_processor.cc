@@ -93,8 +93,6 @@ uint64_t CommandProcessor::QueryTime() {
 bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   context_ = std::move(context);
 
-  pending_fn_event_ = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-
   worker_running_ = true;
   worker_thread_ = std::thread([this]() {
     poly::threading::set_name("GL4 Worker");
@@ -118,8 +116,6 @@ void CommandProcessor::Shutdown() {
   shader_cache_.clear();
 
   context_.reset();
-
-  CloseHandle(pending_fn_event_);
 }
 
 void CommandProcessor::BeginTracing(const std::wstring& root_path) {
@@ -130,10 +126,12 @@ void CommandProcessor::BeginTracing(const std::wstring& root_path) {
 void CommandProcessor::EndTracing() { trace_writer_.Close(); }
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
-  assert_null(pending_fn_);
-  pending_fn_ = std::move(fn);
-  WaitForSingleObject(pending_fn_event_, INFINITE);
-  ResetEvent(pending_fn_event_);
+  if (pending_fns_.empty() &&
+      worker_thread_.get_id() == std::this_thread::get_id()) {
+    fn();
+  } else {
+    pending_fns_.push(std::move(fn));
+  }
 }
 
 void CommandProcessor::WorkerMain() {
@@ -144,11 +142,10 @@ void CommandProcessor::WorkerMain() {
   }
 
   while (worker_running_) {
-    if (pending_fn_) {
-      auto fn = std::move(pending_fn_);
-      pending_fn_ = nullptr;
+    while (!pending_fns_.empty()) {
+      auto fn = std::move(pending_fns_.front());
+      pending_fns_.pop();
       fn();
-      SetEvent(pending_fn_event_);
     }
 
     uint32_t write_ptr_index = write_ptr_index_.load();
@@ -166,10 +163,10 @@ void CommandProcessor::WorkerMain() {
         SwitchToThread();
         MemoryBarrier();
         write_ptr_index = write_ptr_index_.load();
-      } while (!pending_fn_ && (write_ptr_index == 0xBAADF00D ||
-                                read_ptr_index_ == write_ptr_index));
+      } while (pending_fns_.empty() && (write_ptr_index == 0xBAADF00D ||
+                                        read_ptr_index_ == write_ptr_index));
       // ReturnFromWait();
-      if (pending_fn_) {
+      if (!pending_fns_.empty()) {
         continue;
       }
     }

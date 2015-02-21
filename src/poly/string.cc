@@ -126,16 +126,13 @@ std::string fix_path_separators(const std::string& source, char new_sep) {
   return dest;
 }
 
-std::string find_name_from_path(const std::string& path)
-{
+std::string find_name_from_path(const std::string& path) {
   std::string name(path);
-
   if (!path.empty()) {
     std::string::size_type from(std::string::npos);
     if (path.back() == '\\') {
       from = path.size() - 2;
     }
-
     auto pos(path.find_last_of('\\', from));
     if (pos != std::string::npos) {
       if (from == std::string::npos) {
@@ -146,7 +143,26 @@ std::string find_name_from_path(const std::string& path)
       }
     }
   }
+  return name;
+}
 
+std::wstring find_name_from_path(const std::wstring& path) {
+  std::wstring name(path);
+  if (!path.empty()) {
+    std::wstring::size_type from(std::wstring::npos);
+    if (path.back() == '\\') {
+      from = path.size() - 2;
+    }
+    auto pos(path.find_last_of('\\', from));
+    if (pos != std::wstring::npos) {
+      if (from == std::wstring::npos) {
+        name = path.substr(pos + 1);
+      } else {
+        auto len(from - pos);
+        name = path.substr(pos + 1, len);
+      }
+    }
+  }
   return name;
 }
 

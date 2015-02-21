@@ -50,6 +50,7 @@ std::string fix_path_separators(const std::string& source,
 
 // Find the top directory name or filename from a path
 std::string find_name_from_path(const std::string& path);
+std::wstring find_name_from_path(const std::wstring& path);
 
 }  // namespace poly
 

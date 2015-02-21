@@ -13,6 +13,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <queue>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -212,8 +213,7 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   std::unique_ptr<GLContext> context_;
   SwapHandler swap_handler_;
-  std::function<void()> pending_fn_;
-  HANDLE pending_fn_event_;
+  std::queue<std::function<void()>> pending_fns_;
 
   SwapMode swap_mode_;
 

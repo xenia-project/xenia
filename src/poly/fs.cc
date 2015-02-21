@@ -17,86 +17,81 @@ namespace poly {
 namespace fs {
 
 std::string CanonicalizePath(const std::string& original_path) {
-  char path_separator('\\');
-  std::string path(poly::fix_path_separators(original_path, path_separator));
+  char path_sep('\\');
+  std::string path(poly::fix_path_separators(original_path, path_sep));
 
   std::vector<std::string::size_type> path_breaks;
 
-  std::string::size_type pos(path.find_first_of(path_separator));
+  std::string::size_type pos(path.find_first_of(path_sep));
   std::string::size_type pos_n(std::string::npos);
 
   while (pos != std::string::npos) {
-    if ((pos_n = path.find_first_of(path_separator, pos + 1)) == std::string::npos) {
+    if ((pos_n = path.find_first_of(path_sep, pos + 1)) == std::string::npos) {
       pos_n = path.size();
     }
 
     auto diff(pos_n - pos);
-    switch (diff)
-    {
-    case 0:
-      pos_n = std::string::npos;
-      break;
-    case 1:
-      // Duplicate separators
-      path.erase(pos, 1);
-      pos_n -= 1;
-      break;
-    case 2:
-      // Potential marker for current directory
-      if (path[pos + 1] == '.') {
-        path.erase(pos, 2);
-        pos_n -= 2;
-      }
-      else {
-        path_breaks.push_back(pos);
-      }
-      break;
-    case 3:
-      // Potential marker for parent directory
-      if (path[pos + 1] == '.' && path[pos + 2] == '.'){
-        if (path_breaks.empty()) {
-          // Ensure we don't override the device name
-          std::string::size_type loc(path.find_first_of(':'));
-          auto req(pos + 3);
-          if (loc == std::string::npos || loc > req) {
-            path.erase(0, req);
-            pos_n -= req;
-          }
-          else {
-            path.erase(loc + 1, req - (loc + 1));
-            pos_n -= req - (loc + 1);
-          }
+    switch (diff) {
+      case 0:
+        pos_n = std::string::npos;
+        break;
+      case 1:
+        // Duplicate separators
+        path.erase(pos, 1);
+        pos_n -= 1;
+        break;
+      case 2:
+        // Potential marker for current directory
+        if (path[pos + 1] == '.') {
+          path.erase(pos, 2);
+          pos_n -= 2;
+        } else {
+          path_breaks.push_back(pos);
         }
-        else {
-          auto last(path_breaks.back());
-          auto last_diff((pos + 3) - last);
-          path.erase(last, last_diff);
-          pos_n = last;
-          // Also remove path reference
-          path_breaks.erase(path_breaks.end() - 1);
+        break;
+      case 3:
+        // Potential marker for parent directory
+        if (path[pos + 1] == '.' && path[pos + 2] == '.') {
+          if (path_breaks.empty()) {
+            // Ensure we don't override the device name
+            std::string::size_type loc(path.find_first_of(':'));
+            auto req(pos + 3);
+            if (loc == std::string::npos || loc > req) {
+              path.erase(0, req);
+              pos_n -= req;
+            } else {
+              path.erase(loc + 1, req - (loc + 1));
+              pos_n -= req - (loc + 1);
+            }
+          } else {
+            auto last(path_breaks.back());
+            auto last_diff((pos + 3) - last);
+            path.erase(last, last_diff);
+            pos_n = last;
+            // Also remove path reference
+            path_breaks.erase(path_breaks.end() - 1);
+          }
+        } else {
+          path_breaks.push_back(pos);
         }
-      }
-      else {
-        path_breaks.push_back(pos);
-      }
-      break;
+        break;
 
-    default:
-      path_breaks.push_back(pos);
-      break;
+      default:
+        path_breaks.push_back(pos);
+        break;
     }
 
     pos = pos_n;
   }
 
   // Remove trailing seperator
-  if (!path.empty() && path.back() == path_separator) {
+  if (!path.empty() && path.back() == path_sep) {
     path.erase(path.size() - 1);
   }
 
   // Final sanity check for dead paths
-  if ((path.size() == 1 && (path[0] == '.' || path[0] == path_separator))
-    || (path.size() == 2 && path[0] == '.' && path[1] == '.')) {
+  if ((path.size() == 1 && (path[0] == '.' || path[0] == path_sep)) ||
+      (path.size() == 2 && path[0] == '.' && path[1] == '.')) {
     return "";
   }
 
@@ -106,25 +101,19 @@ std::string CanonicalizePath(const std::string& original_path) {
 WildcardFlags WildcardFlags::FIRST(true, false);
 WildcardFlags WildcardFlags::LAST(false, true);
 
-WildcardFlags::WildcardFlags()
-  : FromStart(false)
-  , ToEnd(false)
-{ }
+WildcardFlags::WildcardFlags() : FromStart(false), ToEnd(false) {}
 
 WildcardFlags::WildcardFlags(bool start, bool end)
-  : FromStart(start)
-  , ToEnd(end)
-{ }
+    : FromStart(start), ToEnd(end) {}
 
-WildcardRule::WildcardRule(const std::string& str_match, const WildcardFlags& flags)
-  : match(str_match)
-  , rules(flags)
-{
+WildcardRule::WildcardRule(const std::string& str_match,
+                           const WildcardFlags& flags)
+    : match(str_match), rules(flags) {
   std::transform(match.begin(), match.end(), match.begin(), tolower);
 }
 
-bool WildcardRule::Check(const std::string& str_lower, std::string::size_type& offset) const
-{
+bool WildcardRule::Check(const std::string& str_lower,
+                         std::string::size_type& offset) const {
   if (match.empty()) {
     return true;
   }
@@ -151,8 +140,7 @@ bool WildcardRule::Check(const std::string& str_lower, std::string::size_type& o
   return false;
 }
 
-void WildcardEngine::PreparePattern(const std::string& pattern)
-{
+void WildcardEngine::PreparePattern(const std::string& pattern) {
   rules.clear();
 
   WildcardFlags flags(WildcardFlags::FIRST);
@@ -172,13 +160,11 @@ void WildcardEngine::PreparePattern(const std::string& pattern)
   }
 }
 
-void WildcardEngine::SetRule(const std::string& pattern)
-{
+void WildcardEngine::SetRule(const std::string& pattern) {
   PreparePattern(pattern);
 }
 
-bool WildcardEngine::Match(const std::string& str) const
-{
+bool WildcardEngine::Match(const std::string& str) const {
   std::string str_lc;
   std::transform(str.begin(), str.end(), std::back_inserter(str_lc), tolower);
 

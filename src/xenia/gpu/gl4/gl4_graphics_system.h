@@ -38,8 +38,8 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
   void RequestSwap() override;
 
-  const uint8_t* PlayTrace(const uint8_t* trace_data, size_t trace_size,
-                           TracePlaybackMode playback_mode) override;
+  void PlayTrace(const uint8_t* trace_data, size_t trace_size,
+                 TracePlaybackMode playback_mode) override;
 
  private:
   void MarkVblank();
