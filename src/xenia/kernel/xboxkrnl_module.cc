@@ -26,30 +26,23 @@ namespace kernel {
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
     : XKernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
       timestamp_timer_(nullptr) {
-// Build the export table used for resolution.
-#include "xenia/kernel/util/export_table_pre.inc"
-  static KernelExport xboxkrnl_export_table[] = {
-#include "xenia/kernel/xboxkrnl_table.inc"
-  };
-#include "xenia/kernel/util/export_table_post.inc"
-  export_resolver_->RegisterTable("xboxkrnl.exe", xboxkrnl_export_table,
-                                  poly::countof(xboxkrnl_export_table));
+  RegisterExportTable(export_resolver_);
 
   // Register all exported functions.
-  xboxkrnl::RegisterAudioExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterAudioXmaExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterDebugExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterHalExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterIoExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterMemoryExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterMiscExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterModuleExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterObExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterAudioExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterAudioXmaExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterDebugExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterHalExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterIoExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterMemoryExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterMiscExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterModuleExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterObExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterRtlExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterStringExports(export_resolver_, kernel_state_);
-  xboxkrnl::RegisterThreadingExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterUsbcamExports(export_resolver_, kernel_state);
-  xboxkrnl::RegisterVideoExports(export_resolver_, kernel_state);
+  xboxkrnl::RegisterThreadingExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterUsbcamExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterVideoExports(export_resolver_, kernel_state_);
 
   uint8_t* mem = memory_->membase();
 
@@ -147,6 +140,23 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
                         mem + pKeTimeStampBundle, 0,
                         1,  // 1ms
                         WT_EXECUTEINTIMERTHREAD);
+}
+
+void XboxkrnlModule::RegisterExportTable(ExportResolver* export_resolver) {
+  assert_not_null(export_resolver);
+
+  if (!export_resolver) {
+    return;
+  }
+
+  // Build the export table used for resolution.
+#include "xenia/kernel/util/export_table_pre.inc"
+  static KernelExport xboxkrnl_export_table[] = {
+#include "xenia/kernel/xboxkrnl_table.inc"
+  };
+#include "xenia/kernel/util/export_table_post.inc"
+  export_resolver->RegisterTable("xboxkrnl.exe", xboxkrnl_export_table,
+    poly::countof(xboxkrnl_export_table));
 }
 
 XboxkrnlModule::~XboxkrnlModule() {

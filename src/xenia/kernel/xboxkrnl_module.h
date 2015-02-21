@@ -28,6 +28,8 @@ class XboxkrnlModule : public XKernelModule {
   XboxkrnlModule(Emulator* emulator, KernelState* kernel_state);
   virtual ~XboxkrnlModule();
 
+  static void RegisterExportTable(ExportResolver* export_resolver);
+
   int LaunchModule(const char* path);
 
  private:

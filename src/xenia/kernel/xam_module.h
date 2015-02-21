@@ -23,6 +23,7 @@ class XamModule : public XKernelModule {
   XamModule(Emulator* emulator, KernelState* kernel_state);
   virtual ~XamModule();
 
+  static void RegisterExportTable(ExportResolver* export_resolver);
  private:
 };
 
