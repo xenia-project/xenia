@@ -23,6 +23,14 @@ clang-format with the Google style is used to format all files. I recommend
 installing/wiring it up to your editor of choice so that you don't even have to
 think about tabs and wrapping and such.
 
+#### Command Line
+
+To use the `xb format` auto-formatter, you need to have a `clang-format` on your
+PATH. If you're on Windows you can do this by installing an LLVM binary package
+from [the LLVM downloads page](http://llvm.org/releases/download.html). If you
+install it to the default location the `xb format` command will find it
+automatically even if you don't choose to put all of LLVM onto your PATH.
+
 #### Visual Studio
 
 Grab the official [experimental Visual Studio plugin](http://llvm.org/builds/).

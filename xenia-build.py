@@ -139,6 +139,7 @@ def discover_commands():
       'test': TestCommand(),
       'clean': CleanCommand(),
       'nuke': NukeCommand(),
+      'format': FormatCommand(),
       }
   return commands
 
@@ -520,6 +521,39 @@ class NukeCommand(Command):
     print('')
 
     print('Success!')
+    return 0
+
+
+class FormatCommand(Command):
+  """'format' command."""
+
+  def __init__(self, *args, **kwargs):
+    super(FormatCommand, self).__init__(
+        name='format',
+        help_short='Reformats staged code with clang-format.',
+        *args, **kwargs)
+
+  def execute(self, args, cwd):
+    print('Formatting staged code...')
+    print('')
+
+    binary = 'clang-format'
+    win32_binary = 'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe'
+    if os.path.exists(win32_binary):
+      binary = win32_binary
+
+    if not has_bin(binary):
+      print 'ERROR: clang-format is not on PATH'
+      print 'LLVM is available from http://llvm.org/releases/download.html'
+      print 'See docs/style_guide.md for instructions on how to get it'
+      return 1
+
+    shell_call(' '.join([
+        'python third_party/clang-format/git-clang-format',
+        '--binary="%s"' % (binary),
+        '--commit=HEAD',
+        ]))
+
     return 0
 
 
