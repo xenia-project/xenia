@@ -19,3 +19,6 @@
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/philsquared/Catch.git
+[submodule "third_party/imgui"]
+	path = third_party/imgui
+	url = https://github.com/ocornut/imgui.git
