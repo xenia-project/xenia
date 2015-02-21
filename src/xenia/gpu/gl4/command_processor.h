@@ -43,6 +43,11 @@ struct SwapParameters {
   GLenum attachment;
 };
 
+enum class SwapMode {
+  kNormal,
+  kIgnored,
+};
+
 class CommandProcessor {
  public:
   CommandProcessor(GL4GraphicsSystem* graphics_system);
@@ -58,6 +63,9 @@ class CommandProcessor {
   bool Initialize(std::unique_ptr<GLContext> context);
   void Shutdown();
   void CallInThread(std::function<void()> fn);
+
+  void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
+  void IssueSwap();
 
   void BeginTracing(const std::wstring& root_path);
   void EndTracing();
@@ -206,6 +214,8 @@ class CommandProcessor {
   SwapHandler swap_handler_;
   std::function<void()> pending_fn_;
   HANDLE pending_fn_event_;
+
+  SwapMode swap_mode_;
 
   uint64_t time_base_;
   uint32_t counter_;

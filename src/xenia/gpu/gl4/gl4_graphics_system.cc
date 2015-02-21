@@ -122,6 +122,10 @@ void GL4GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
   command_processor_->EnableReadPointerWriteBack(ptr, block_size);
 }
 
+void GL4GraphicsSystem::RequestSwap() {
+  command_processor_->CallInThread([&]() { command_processor_->IssueSwap(); });
+}
+
 const uint8_t* GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data,
                                             size_t trace_size,
                                             TracePlaybackMode playback_mode) {

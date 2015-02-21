@@ -36,6 +36,8 @@ class GL4GraphicsSystem : public GraphicsSystem {
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count) override;
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size) override;
 
+  void RequestSwap() override;
+
   const uint8_t* PlayTrace(const uint8_t* trace_data, size_t trace_size,
                            TracePlaybackMode playback_mode) override;
 

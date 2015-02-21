@@ -39,6 +39,8 @@ class GraphicsSystem {
   virtual void EnableReadPointerWriteBack(uint32_t ptr,
                                           uint32_t block_size) = 0;
 
+  virtual void RequestSwap() = 0;
+
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   enum class TracePlaybackMode {

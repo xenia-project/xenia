@@ -55,6 +55,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       register_file_(graphics_system_->register_file()),
       trace_writer_(graphics_system->memory()->membase()),
       worker_running_(true),
+      swap_mode_(SwapMode::kNormal),
       time_base_(0),
       counter_(0),
       primary_buffer_ptr_(0),
@@ -480,6 +481,45 @@ void CommandProcessor::ReturnFromWait() {
   }
 }
 
+void CommandProcessor::IssueSwap() {
+  if (!swap_handler_) {
+    return;
+  }
+
+  auto& regs = *register_file_;
+  SwapParameters swap_params;
+
+  // Lookup the framebuffer in the recently-resolved list.
+  // TODO(benvanik): make this much more sophisticated.
+  // TODO(benvanik): handle not found cases.
+  // TODO(benvanik): handle dirty cases (resolved to sysmem, touched).
+  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  // HACK: just use whatever our current framebuffer is.
+  if (active_framebuffer_) {
+    swap_params.framebuffer = active_framebuffer_->framebuffer;
+    // TODO(benvanik): pick the right one?
+    swap_params.attachment = GL_COLOR_ATTACHMENT0;
+  } else {
+    swap_params.framebuffer = 0;
+  }
+
+  // Guess frontbuffer dimensions.
+  // Command buffer seems to set these right before the XE_SWAP.
+  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  swap_params.x = window_scissor_tl & 0x7FFF;
+  swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
+  swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
+  swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
+
+  PrepareForWait();
+  swap_handler_(swap_params);
+  ReturnFromWait();
+
+  // Remove any dead textures, etc.
+  texture_cache_.Scavenge();
+}
+
 class CommandProcessor::RingbufferReader {
  public:
   RingbufferReader(uint8_t* membase, uint32_t base_ptr, uint32_t ptr_mask,
@@ -809,8 +849,6 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  auto& regs = *register_file_;
-
   PLOGI("XE_SWAP");
 
   // Xenia-specific VdSwap hook.
@@ -823,38 +861,8 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   // Ensure we issue any pending draws.
   draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
 
-  if (swap_handler_) {
-    SwapParameters swap_params;
-
-    // Lookup the framebuffer in the recently-resolved list.
-    // TODO(benvanik): make this much more sophisticated.
-    // TODO(benvanik): handle not found cases.
-    // TODO(benvanik): handle dirty cases (resolved to sysmem, touched).
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // HACK: just use whatever our current framebuffer is.
-    if (active_framebuffer_) {
-      swap_params.framebuffer = active_framebuffer_->framebuffer;
-      // TODO(benvanik): pick the right one?
-      swap_params.attachment = GL_COLOR_ATTACHMENT0;
-    } else {
-      swap_params.framebuffer = 0;
-    }
-
-    // Guess frontbuffer dimensions.
-    // Command buffer seems to set these right before the XE_SWAP.
-    uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-    uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-    swap_params.x = window_scissor_tl & 0x7FFF;
-    swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
-    swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
-    swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
-
-    PrepareForWait();
-    swap_handler_(swap_params);
-    ReturnFromWait();
-
-    // Remove any dead textures, etc.
-    texture_cache_.Scavenge();
+  if (swap_mode_ == SwapMode::kNormal) {
+    IssueSwap();
   }
 
   trace_writer_.WriteEvent(EventType::kSwap);
