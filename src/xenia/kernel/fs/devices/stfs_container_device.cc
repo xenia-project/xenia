@@ -39,7 +39,7 @@ int STFSContainerDevice::Init() {
     return 1;
   }
 
-  stfs_->Dump();
+  //stfs_->Dump();
 
   return 0;
 }

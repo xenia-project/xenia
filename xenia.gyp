@@ -493,5 +493,28 @@
         'src/xenia/gpu/trace_viewer_main.cc',
       ],
     },
+
+    {
+      'target_name': 'api-scanner',
+      'type': 'executable',
+
+      'msvs_settings': {
+        'VCLinkerTool': {
+          'SubSystem': '1'
+        },
+      },
+
+      'dependencies': [
+        'libxenia',
+      ],
+
+      'include_dirs': [
+        '.',
+      ],
+
+      'includes': [
+        'src/xenia/tools/api-scanner/sources.gypi',
+      ],
+    },
   ],
 }

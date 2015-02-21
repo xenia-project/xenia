@@ -23,7 +23,11 @@ XObject::XObject(KernelState* kernel_state, Type type)
       pointer_ref_count_(1),
       type_(type),
       handle_(X_INVALID_HANDLE_VALUE) {
-  kernel_state->object_table()->AddHandle(this, &handle_);
+
+  // Added pointer check to support usage without a kernel_state
+  if (kernel_state != nullptr){
+    kernel_state->object_table()->AddHandle(this, &handle_);
+  }
 }
 
 XObject::~XObject() {
@@ -56,10 +60,15 @@ void XObject::Release() {
 }
 
 X_STATUS XObject::Delete() {
-  if (!name_.empty()) {
-    kernel_state_->object_table()->RemoveNameMapping(name_);
+  if (kernel_state_ == nullptr) {
+    // Fake return value for api-scanner
+    return X_STATUS_SUCCESS;
+  } else {
+    if (!name_.empty()) {
+      kernel_state_->object_table()->RemoveNameMapping(name_);
+    }
+    return kernel_state_->object_table()->RemoveHandle(handle_);
   }
-  return kernel_state_->object_table()->RemoveHandle(handle_);
 }
 
 void XObject::SetAttributes(const uint8_t* obj_attrs_ptr) {
