@@ -318,6 +318,7 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
     window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
 
     auto graphics_system = emulator->graphics_system();
+    Profiler::set_display(nullptr);
 
     TracePlayer player(loop, emulator->graphics_system());
     if (!player.Open(abs_path)) {
@@ -326,8 +327,13 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
     }
 
     auto control = window->child(0);
-    control->on_key_down.AddListener([](poly::ui::KeyEvent& e) {});
-    control->on_key_up.AddListener([](poly::ui::KeyEvent& e) {});
+    control->on_key_char.AddListener([](poly::ui::KeyEvent& e) {
+      auto& io = ImGui::GetIO();
+      if (e.key_code() > 0 && e.key_code() < 0x10000) {
+        io.AddInputCharacter(e.key_code());
+      }
+      e.set_handled(true);
+    });
     control->on_mouse_down.AddListener([](poly::ui::MouseEvent& e) {
       auto& io = ImGui::GetIO();
       io.MousePos = ImVec2(float(e.x()), float(e.y()));
@@ -377,6 +383,12 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
 
       io.DisplaySize =
           ImVec2(float(e.control()->width()), float(e.control()->height()));
+
+      BYTE keystate[256];
+      GetKeyboardState(keystate);
+      for (int i = 0; i < 256; i++) io.KeysDown[i] = (keystate[i] & 0x80) != 0;
+      io.KeyCtrl = (keystate[VK_CONTROL] & 0x80) != 0;
+      io.KeyShift = (keystate[VK_SHIFT] & 0x80) != 0;
 
       ImGui::NewFrame();
 
@@ -546,6 +558,24 @@ void ImImpl_Setup() {
       ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
   style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.00f, 0.00f, 1.00f, 0.35f);
   style.Colors[ImGuiCol_TooltipBg] = ImVec4(0.05f, 0.05f, 0.10f, 0.90f);
+
+  io.KeyMap[ImGuiKey_Tab] = VK_TAB;
+  io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
+  io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
+  io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
+  io.KeyMap[ImGuiKey_DownArrow] = VK_UP;
+  io.KeyMap[ImGuiKey_Home] = VK_HOME;
+  io.KeyMap[ImGuiKey_End] = VK_END;
+  io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
+  io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
+  io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
+  io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
+  io.KeyMap[ImGuiKey_A] = 'A';
+  io.KeyMap[ImGuiKey_C] = 'C';
+  io.KeyMap[ImGuiKey_V] = 'V';
+  io.KeyMap[ImGuiKey_X] = 'X';
+  io.KeyMap[ImGuiKey_Y] = 'Y';
+  io.KeyMap[ImGuiKey_Z] = 'Z';
 }
 void ImImpl_Shutdown() {
   ImGuiIO& io = ImGui::GetIO();

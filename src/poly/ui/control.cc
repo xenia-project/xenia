@@ -83,6 +83,8 @@ void Control::OnKeyDown(KeyEvent& e) { on_key_down(e); }
 
 void Control::OnKeyUp(KeyEvent& e) { on_key_up(e); }
 
+void Control::OnKeyChar(KeyEvent& e) { on_key_char(e); }
+
 void Control::OnMouseDown(MouseEvent& e) { on_mouse_down(e); }
 
 void Control::OnMouseMove(MouseEvent& e) { on_mouse_move(e); }

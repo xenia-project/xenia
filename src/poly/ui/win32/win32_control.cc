@@ -356,6 +356,9 @@ bool Win32Control::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
     case WM_KEYUP:
       OnKeyUp(e);
       break;
+    case WM_CHAR:
+      OnKeyChar(e);
+      break;
   }
   return e.is_handled();
 }

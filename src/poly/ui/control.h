@@ -77,6 +77,7 @@ class Control {
 
   poly::Delegate<KeyEvent> on_key_down;
   poly::Delegate<KeyEvent> on_key_up;
+  poly::Delegate<KeyEvent> on_key_char;
 
   poly::Delegate<MouseEvent> on_mouse_down;
   poly::Delegate<MouseEvent> on_mouse_move;
@@ -107,6 +108,7 @@ class Control {
 
   virtual void OnKeyDown(KeyEvent& e);
   virtual void OnKeyUp(KeyEvent& e);
+  virtual void OnKeyChar(KeyEvent& e);
 
   virtual void OnMouseDown(MouseEvent& e);
   virtual void OnMouseMove(MouseEvent& e);
