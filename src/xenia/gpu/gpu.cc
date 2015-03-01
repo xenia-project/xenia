@@ -15,7 +15,9 @@
 
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
 
-DEFINE_string(trace_gpu, "", "Trace GPU data to the given root path.");
+DEFINE_string(trace_gpu_prefix, "scratch/gpu/gpu_trace_",
+              "Prefix path for GPU trace files.");
+DEFINE_bool(trace_gpu_stream, false, "Trace all GPU packets.");
 
 DEFINE_string(dump_shaders, "",
               "Path to write GPU shaders to as they are compiled.");

@@ -79,19 +79,54 @@ void Control::OnGotFocus(UIEvent& e) { on_got_focus(e); }
 
 void Control::OnLostFocus(UIEvent& e) { on_lost_focus(e); }
 
-void Control::OnKeyDown(KeyEvent& e) { on_key_down(e); }
+void Control::OnKeyDown(KeyEvent& e) {
+  on_key_down(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnKeyDown(e);
+  }
+}
 
-void Control::OnKeyUp(KeyEvent& e) { on_key_up(e); }
+void Control::OnKeyUp(KeyEvent& e) {
+  on_key_up(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnKeyUp(e);
+  }
+}
 
-void Control::OnKeyChar(KeyEvent& e) { on_key_char(e); }
+void Control::OnKeyChar(KeyEvent& e) {
+  on_key_char(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnKeyChar(e);
+  }
+}
 
-void Control::OnMouseDown(MouseEvent& e) { on_mouse_down(e); }
+void Control::OnMouseDown(MouseEvent& e) {
+  on_mouse_down(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnMouseDown(e);
+  }
+}
 
-void Control::OnMouseMove(MouseEvent& e) { on_mouse_move(e); }
+void Control::OnMouseMove(MouseEvent& e) {
+  on_mouse_move(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnMouseMove(e);
+  }
+}
 
-void Control::OnMouseUp(MouseEvent& e) { on_mouse_up(e); }
+void Control::OnMouseUp(MouseEvent& e) {
+  on_mouse_up(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnMouseUp(e);
+  }
+}
 
-void Control::OnMouseWheel(MouseEvent& e) { on_mouse_wheel(e); }
+void Control::OnMouseWheel(MouseEvent& e) {
+  on_mouse_wheel(e);
+  if (parent_ && !e.is_handled()) {
+    parent_->OnMouseWheel(e);
+  }
+}
 
 }  // namespace ui
 }  // namespace poly

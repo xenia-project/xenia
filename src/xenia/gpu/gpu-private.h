@@ -14,7 +14,8 @@
 
 DECLARE_string(gpu);
 
-DECLARE_string(trace_gpu);
+DECLARE_string(trace_gpu_prefix);
+DECLARE_bool(trace_gpu_stream);
 
 DECLARE_string(dump_shaders);
 

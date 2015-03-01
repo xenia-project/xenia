@@ -352,29 +352,30 @@ bool GL4Shader::CompileProgram(std::string source) {
     glGetProgramBinary(program_, binary_length, &binary_length, &binary_format,
                        translated_binary_.data());
 
+    // If we are on nvidia, we can find the disassembly string.
+    // I haven't been able to figure out from the format how to do this
+    // without a search like this.
+    const char* disasm_start = nullptr;
+    size_t search_offset = 0;
+    char* search_start = reinterpret_cast<char*>(translated_binary_.data());
+    while (true) {
+      auto p = reinterpret_cast<char*>(
+        memchr(translated_binary_.data() + search_offset, '!',
+        translated_binary_.size() - search_offset));
+      if (!p) {
+        break;
+      }
+      if (p[0] == '!' && p[1] == '!' && p[2] == 'N' && p[3] == 'V') {
+        disasm_start = p;
+        break;
+      }
+      search_offset = p - search_start;
+      ++search_offset;
+    }
+    host_disassembly_ = std::string(disasm_start);
+
     // Append to shader dump.
     if (FLAGS_dump_shaders.size()) {
-      // If we are on nvidia, we can find the disassembly string.
-      // I haven't been able to figure out from the format how to do this
-      // without a search like this.
-      const char* disasm_start = nullptr;
-      size_t search_offset = 0;
-      char* search_start = reinterpret_cast<char*>(translated_binary_.data());
-      while (true) {
-        auto p = reinterpret_cast<char*>(
-            memchr(translated_binary_.data() + search_offset, '!',
-                   translated_binary_.size() - search_offset));
-        if (!p) {
-          break;
-        }
-        if (p[0] == '!' && p[1] == '!' && p[2] == 'N' && p[3] == 'V') {
-          disasm_start = p;
-          break;
-        }
-        search_offset = p - search_start;
-        ++search_offset;
-      }
-
       if (disasm_start) {
         FILE* f = fopen(file_name, "a");
         fprintf(f, "\n\n/*\n");

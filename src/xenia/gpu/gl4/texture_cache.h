@@ -26,11 +26,13 @@ namespace gl4 {
 
 class TextureCache {
  public:
+  struct TextureEntry;
   struct SamplerEntry {
     SamplerInfo sampler_info;
     GLuint handle;
   };
   struct TextureEntryView {
+    TextureEntry* texture;
     SamplerEntry* sampler;
     uint64_t sampler_hash;
     GLuint64 texture_sampler_handle;

@@ -72,10 +72,6 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
   command_processor_->set_swap_handler(
       [this](const SwapParameters& swap_params) { SwapHandler(swap_params); });
 
-  if (!FLAGS_trace_gpu.empty()) {
-    command_processor_->BeginTracing(poly::to_wstring(FLAGS_trace_gpu));
-  }
-
   // Let the processor know we want register access callbacks.
   memory_->AddMappedRange(
       0x7FC80000, 0xFFFF0000, 0x0000FFFF, this,
@@ -93,11 +89,15 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
                         (WAITORTIMERCALLBACK)VsyncCallbackThunk, this, 16,
                         timer_period, WT_EXECUTEINPERSISTENTTHREAD);
 
+  if (FLAGS_trace_gpu_stream) {
+    BeginTracing();
+  }
+
   return X_STATUS_SUCCESS;
 }
 
 void GL4GraphicsSystem::Shutdown() {
-  command_processor_->EndTracing();
+  EndTracing();
 
   DeleteTimerQueueTimer(timer_queue_, vsync_timer_, nullptr);
   DeleteTimerQueue(timer_queue_);
@@ -125,6 +125,17 @@ void GL4GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
 void GL4GraphicsSystem::RequestSwap() {
   command_processor_->CallInThread([&]() { command_processor_->IssueSwap(); });
 }
+
+void GL4GraphicsSystem::RequestFrameTrace() {
+  command_processor_->RequestFrameTrace(
+      poly::to_wstring(FLAGS_trace_gpu_prefix));
+}
+
+void GL4GraphicsSystem::BeginTracing() {
+  command_processor_->BeginTracing(poly::to_wstring(FLAGS_trace_gpu_prefix));
+}
+
+void GL4GraphicsSystem::EndTracing() { command_processor_->EndTracing(); }
 
 void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
                                   TracePlaybackMode playback_mode) {

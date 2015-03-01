@@ -31,6 +31,7 @@ class Shader {
     return translated_disassembly_;
   }
   const std::vector<uint8_t> translated_binary() { return translated_binary_; }
+  const std::string& host_disassembly() const { return host_disassembly_; }
 
   const uint32_t* data() const { return data_.data(); }
 
@@ -98,6 +99,7 @@ class Shader {
   std::string ucode_disassembly_;
   std::string translated_disassembly_;
   std::vector<uint8_t> translated_binary_;
+  std::string host_disassembly_;
   std::string error_log_;
 
   AllocCounts alloc_counts_;

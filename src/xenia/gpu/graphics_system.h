@@ -43,6 +43,9 @@ class GraphicsSystem {
 
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
+  virtual void RequestFrameTrace() {}
+  virtual void BeginTracing() {}
+  virtual void EndTracing() {}
   enum class TracePlaybackMode {
     kUntilEnd,
     kBreakOnSwap,

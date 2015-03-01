@@ -108,6 +108,7 @@ TextureCache::TextureEntryView* TextureCache::Demand(
   }
 
   auto view = std::make_unique<TextureEntryView>();
+  view->texture = texture_entry;
   view->sampler = sampler_entry;
   view->sampler_hash = sampler_hash;
   view->texture_sampler_handle = 0;

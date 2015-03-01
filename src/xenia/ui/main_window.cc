@@ -11,6 +11,7 @@
 
 #include "poly/logging.h"
 #include "poly/threading.h"
+#include "xenia/gpu/graphics_system.h"
 #include "xenia/emulator.h"
 
 namespace xe {
@@ -44,6 +45,13 @@ bool MainWindow::Initialize() {
     return false;
   }
   Resize(1280, 720);
+  on_key_down.AddListener([this](poly::ui::KeyEvent& e) {
+    if (e.key_code() == 115) {
+      emulator()->graphics_system()->RequestFrameTrace();
+      e.set_handled(true);
+      return;
+    }
+  });
   return true;
 }
 

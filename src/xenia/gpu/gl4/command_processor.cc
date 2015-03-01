@@ -54,6 +54,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       graphics_system_(graphics_system),
       register_file_(graphics_system_->register_file()),
       trace_writer_(graphics_system->memory()->membase()),
+      trace_state_(TraceState::kDisabled),
       worker_running_(true),
       swap_mode_(SwapMode::kNormal),
       time_base_(0),
@@ -118,12 +119,40 @@ void CommandProcessor::Shutdown() {
   context_.reset();
 }
 
+void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
+  if (trace_state_ == TraceState::kStreaming) {
+    XELOGE("Streaming trace; cannot also trace frame.");
+    return;
+  }
+  if (trace_state_ == TraceState::kSingleFrame) {
+    XELOGE("Frame trace already pending; ignoring.");
+    return;
+  }
+  trace_state_ = TraceState::kSingleFrame;
+  trace_frame_path_ = root_path;
+}
+
 void CommandProcessor::BeginTracing(const std::wstring& root_path) {
-  std::wstring path = poly::join_paths(root_path, L"gpu_trace");
+  if (trace_state_ == TraceState::kStreaming) {
+    XELOGE("Streaming already active; ignoring request.");
+    return;
+  }
+  if (trace_state_ == TraceState::kSingleFrame) {
+    XELOGE("Frame trace pending; ignoring streaming request.");
+    return;
+  }
+  std::wstring path = poly::join_paths(root_path, L"stream");
+  trace_state_ = TraceState::kStreaming;
   trace_writer_.Open(path);
 }
 
-void CommandProcessor::EndTracing() { trace_writer_.Close(); }
+void CommandProcessor::EndTracing() {
+  if (!trace_writer_.is_open()) {
+    return;
+  }
+  assert_true(trace_state_ == TraceState::kStreaming);
+  trace_writer_.Close();
+}
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
   if (pending_fns_.empty() &&
@@ -862,8 +891,20 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
     IssueSwap();
   }
 
-  trace_writer_.WriteEvent(EventType::kSwap);
-  trace_writer_.Flush();
+  if (trace_writer_.is_open()) {
+    trace_writer_.WriteEvent(EventType::kSwap);
+    trace_writer_.Flush();
+    if (trace_state_ == TraceState::kSingleFrame) {
+      trace_state_ = TraceState::kDisabled;
+      trace_writer_.Close();
+    }
+  } else if (trace_state_ == TraceState::kSingleFrame) {
+    // New trace request - we only start tracing at the beginning of a frame.
+    auto frame_number = L"frame_" + std::to_wstring(counter_);
+    auto path = trace_frame_path_ + frame_number;
+    trace_writer_.Open(path);
+  }
+  ++counter_;
   return true;
 }
 
@@ -1098,7 +1139,6 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
-
                                                     uint32_t packet,
                                                     uint32_t count) {
   // initiate fetch of index buffer and draw
@@ -1107,7 +1147,6 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
   uint32_t dword1 = reader->Read();
   uint32_t index_count = dword1 >> 16;
   auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
-
   uint32_t src_sel = (dword1 >> 6) & 0x3;
   if (src_sel == 0x0) {
     // Indexed draw.
@@ -1655,12 +1694,12 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
 
-  uint32_t mode_control = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
 
   // Window parameters.
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  if ((mode_control >> 17) & 1) {
+  if ((pa_su_sc_mode_cntl >> 17) & 1) {
     uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
     draw_batcher_.set_window_offset(window_offset & 0x7FFF,
                                     (window_offset >> 16) & 0x7FFF);

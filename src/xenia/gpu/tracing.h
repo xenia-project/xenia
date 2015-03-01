@@ -85,6 +85,8 @@ class TraceWriter {
   TraceWriter(uint8_t* membase) : membase_(membase), file_(nullptr) {}
   ~TraceWriter() = default;
 
+  bool is_open() const { return file_ != nullptr; }
+
   bool Open(const std::wstring& path) {
     Close();
     file_ = _wfopen(path.c_str(), L"wb");

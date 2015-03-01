@@ -170,11 +170,11 @@ GL4ProfilerDisplay::GL4ProfilerDisplay(WGLControl* control)
   // Watch for toggle/mode keys and such.
   control->on_key_down.AddListener([](poly::ui::KeyEvent& e) {
     Profiler::OnKeyDown(e.key_code());
-    e.set_handled(true);
+    //e.set_handled(true);
   });
   control->on_key_up.AddListener([](poly::ui::KeyEvent& e) {
     Profiler::OnKeyUp(e.key_code());
-    e.set_handled(true);
+    //e.set_handled(true);
   });
 }
 

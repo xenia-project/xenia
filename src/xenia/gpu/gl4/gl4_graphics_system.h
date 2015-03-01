@@ -32,12 +32,18 @@ class GL4GraphicsSystem : public GraphicsSystem {
   void Shutdown() override;
 
   RegisterFile* register_file() { return &register_file_; }
+  CommandProcessor* command_processor() const {
+    return command_processor_.get();
+  }
 
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count) override;
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size) override;
 
   void RequestSwap() override;
 
+  void RequestFrameTrace() override;
+  void BeginTracing() override;
+  void EndTracing() override;
   void PlayTrace(const uint8_t* trace_data, size_t trace_size,
                  TracePlaybackMode playback_mode) override;
 

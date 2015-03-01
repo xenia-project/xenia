@@ -68,6 +68,7 @@ class CommandProcessor {
   void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
   void IssueSwap();
 
+  void RequestFrameTrace(const std::wstring& root_path);
   void BeginTracing(const std::wstring& root_path);
   void EndTracing();
 
@@ -77,6 +78,11 @@ class CommandProcessor {
   void UpdateWritePointer(uint32_t value);
 
   void ExecutePacket(uint32_t ptr, uint32_t count);
+
+  // HACK: for debugging; would be good to have this in a base type.
+  TextureCache* texture_cache() { return &texture_cache_; }
+  GL4Shader* active_vertex_shader() const { return active_vertex_shader_; }
+  GL4Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
  private:
   class RingbufferReader;
@@ -208,6 +214,13 @@ class CommandProcessor {
   RegisterFile* register_file_;
 
   TraceWriter trace_writer_;
+  enum class TraceState {
+    kDisabled,
+    kStreaming,
+    kSingleFrame,
+  };
+  TraceState trace_state_;
+  std::wstring trace_frame_path_;
 
   std::thread worker_thread_;
   std::atomic<bool> worker_running_;
