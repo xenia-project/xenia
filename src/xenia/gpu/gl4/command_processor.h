@@ -122,6 +122,7 @@ class CommandProcessor {
       GLuint point_list_pipeline;
       GLuint rect_list_pipeline;
       GLuint quad_list_pipeline;
+      GLuint line_quad_list_pipeline;
       // TODO(benvanik): others with geometry shaders.
     } handles;
   };
@@ -262,6 +263,7 @@ class CommandProcessor {
   GLuint point_list_geometry_program_;
   GLuint rect_list_geometry_program_;
   GLuint quad_list_geometry_program_;
+  GLuint line_quad_list_geometry_program_;
   struct {
     xenos::IndexFormat format;
     xenos::Endian endianness;
@@ -323,6 +325,7 @@ class CommandProcessor {
   } update_depth_stencil_state_regs_;
   struct UpdateShadersRegisters {
     PrimitiveType prim_type;
+    uint32_t pa_su_sc_mode_cntl;
     uint32_t sq_program_cntl;
     GL4Shader* vertex_shader;
     GL4Shader* pixel_shader;

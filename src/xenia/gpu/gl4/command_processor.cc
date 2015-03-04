@@ -45,7 +45,10 @@ CommandProcessor::CachedPipeline::CachedPipeline()
 
 CommandProcessor::CachedPipeline::~CachedPipeline() {
   glDeleteProgramPipelines(1, &handles.default_pipeline);
+  glDeleteProgramPipelines(1, &handles.point_list_pipeline);
   glDeleteProgramPipelines(1, &handles.rect_list_pipeline);
+  glDeleteProgramPipelines(1, &handles.quad_list_pipeline);
+  glDeleteProgramPipelines(1, &handles.line_quad_list_pipeline);
 }
 
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
@@ -364,11 +367,40 @@ bool CommandProcessor::SetupGL() {
       "  }\n"
       "  EndPrimitive();\n"
       "}\n";
+  std::string line_quad_list_shader =
+      geometry_header +
+      "layout(lines_adjacency) in;\n"
+      "layout(line_strip, max_vertices = 5) out;\n"
+      "void main() {\n"
+      "  gl_Position = gl_in[0].gl_Position;\n"
+      "  gl_PointSize = gl_in[0].gl_PointSize;\n"
+      "  out_vtx = in_vtx[0];\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[1].gl_Position;\n"
+      "  gl_PointSize = gl_in[1].gl_PointSize;\n"
+      "  out_vtx = in_vtx[1];\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[2].gl_Position;\n"
+      "  gl_PointSize = gl_in[2].gl_PointSize;\n"
+      "  out_vtx = in_vtx[2];\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[3].gl_Position;\n"
+      "  gl_PointSize = gl_in[3].gl_PointSize;\n"
+      "  out_vtx = in_vtx[3];\n"
+      "  EmitVertex();\n"
+      "  gl_Position = gl_in[0].gl_Position;\n"
+      "  gl_PointSize = gl_in[0].gl_PointSize;\n"
+      "  out_vtx = in_vtx[0];\n"
+      "  EmitVertex();\n"
+      "  EndPrimitive();\n"
+      "}\n";
   point_list_geometry_program_ = CreateGeometryProgram(point_list_shader);
   rect_list_geometry_program_ = CreateGeometryProgram(rect_list_shader);
   quad_list_geometry_program_ = CreateGeometryProgram(quad_list_shader);
+  line_quad_list_geometry_program_ =
+      CreateGeometryProgram(line_quad_list_shader);
   if (!point_list_geometry_program_ || !rect_list_geometry_program_ ||
-      !quad_list_geometry_program_) {
+      !quad_list_geometry_program_ || !line_quad_list_geometry_program_) {
     return false;
   }
 
@@ -401,6 +433,7 @@ void CommandProcessor::ShutdownGL() {
   glDeleteProgram(point_list_geometry_program_);
   glDeleteProgram(rect_list_geometry_program_);
   glDeleteProgram(quad_list_geometry_program_);
+  glDeleteProgram(line_quad_list_geometry_program_);
   texture_cache_.Shutdown();
   draw_batcher_.Shutdown();
   scratch_buffer_.Shutdown();
@@ -1431,6 +1464,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
   auto& regs = update_shaders_regs_;
 
   bool dirty = false;
+  dirty |=
+      SetShadowRegister(regs.pa_su_sc_mode_cntl, XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
   dirty |= regs.vertex_shader != active_vertex_shader_;
   dirty |= regs.pixel_shader != active_pixel_shader_;
@@ -1489,7 +1524,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
   }
   if (!cached_pipeline->handles.default_pipeline) {
     // Perhaps it's a bit wasteful to do all of these, but oh well.
-    GLuint pipelines[4];
+    GLuint pipelines[5];
     glCreateProgramPipelines(GLsizei(poly::countof(pipelines)), pipelines);
 
     glUseProgramStages(pipelines[0], GL_VERTEX_SHADER_BIT, vertex_program);
@@ -1514,6 +1549,12 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
     glUseProgramStages(pipelines[3], GL_FRAGMENT_SHADER_BIT, fragment_program);
     cached_pipeline->handles.quad_list_pipeline = pipelines[3];
 
+    glUseProgramStages(pipelines[4], GL_VERTEX_SHADER_BIT, vertex_program);
+    glUseProgramStages(pipelines[4], GL_GEOMETRY_SHADER_BIT,
+                       line_quad_list_geometry_program_);
+    glUseProgramStages(pipelines[4], GL_FRAGMENT_SHADER_BIT, fragment_program);
+    cached_pipeline->handles.line_quad_list_pipeline = pipelines[4];
+
     // This can be set once, as the buffer never changes.
     if (has_bindless_vbos_) {
       glBindVertexArray(active_vertex_shader_->vao());
@@ -1526,6 +1567,14 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
     }
   }
 
+  bool line_mode = false;
+  if (((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0) {
+    uint32_t front_poly_mode = (regs.pa_su_sc_mode_cntl >> 5) & 0x7;
+    if (front_poly_mode == 1) {
+      line_mode = true;
+    }
+  }
+
   GLuint pipeline = cached_pipeline->handles.default_pipeline;
   switch (regs.prim_type) {
     case PrimitiveType::kPointList:
@@ -1534,9 +1583,14 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
     case PrimitiveType::kRectangleList:
       pipeline = cached_pipeline->handles.rect_list_pipeline;
       break;
-    case PrimitiveType::kQuadList:
-      pipeline = cached_pipeline->handles.quad_list_pipeline;
+    case PrimitiveType::kQuadList: {
+      if (line_mode) {
+        pipeline = cached_pipeline->handles.line_quad_list_pipeline;
+      } else {
+        pipeline = cached_pipeline->handles.quad_list_pipeline;
+      }
       break;
+    }
   }
 
   draw_batcher_.ReconfigurePipeline(active_vertex_shader_, active_pixel_shader_,
