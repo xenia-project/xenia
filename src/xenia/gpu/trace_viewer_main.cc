@@ -82,6 +82,7 @@ bool DisasmPacketType0(const uint8_t* base_ptr, uint32_t packet,
     uint32_t target_index = write_one_reg ? base_index : base_index + m;
     out_info->actions.emplace_back(
         PacketAction::RegisterWrite(target_index, reg_data));
+    ptr += 4;
   }
 
   return true;
