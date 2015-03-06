@@ -466,6 +466,18 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile* regs = register_file_;
   assert_true(index < RegisterFile::kRegisterCount);
+
+  // The command buffers will have multiple scissor updates before each draw.
+  // Only the first one ever seems valid, and the following are 8192x8192.
+  // As we need the valid scissor to do the draw, ignore those weird ones here.
+  if (index == XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL ||
+      index == XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR) {
+    if (value == 0x20002000) {
+      // Ignored?
+      return;
+    }
+  }
+
   regs->values[index].u32 = value;
 
   // If this is a COHER register, set the dirty flag.
@@ -570,6 +582,10 @@ void CommandProcessor::IssueSwap() {
   swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
   swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
   swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
+
+  // This is just so that we draw reasonable garbage when drawing garbage.
+  swap_params.width = std::min(swap_params.width, 2560u);
+  swap_params.height = std::min(swap_params.height, 2560u);
 
   PrepareForWait();
   swap_handler_(swap_params);
@@ -1695,8 +1711,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
     // TODO(benvanik): can we do this all named?
     // TODO(benvanik): do we want this on READ too?
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
-
-    glViewport(0, 0, 1280, 720);
   }
 
   return UpdateStatus::kMismatch;
@@ -1751,6 +1765,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
 
   // Window parameters.
+  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
   if ((pa_su_sc_mode_cntl >> 17) & 1) {
@@ -1828,8 +1843,27 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   // assert_true(clip_enabled);
   bool dx_clip = ((clip_control >> 20) & 0x1) == 0x1;
   // assert_true(dx_clip);
+  // glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE);
 
-  return UpdateStatus::kCompatible;
+  auto& state_regs = update_viewport_state_regs_;
+
+  bool dirty = false;
+  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_tl,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
+  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_br,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  if (!dirty) {
+    return UpdateStatus::kCompatible;
+  }
+
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
+
+  // TODO(benvanik): better scissor rect?
+  glViewport(
+      0, 0, std::min(2560u, state_regs.pa_sc_window_scissor_br & 0x7FFF),
+      std::min(2560u, (state_regs.pa_sc_window_scissor_br >> 16) & 0x7FFF));
+
+  return UpdateStatus::kMismatch;
 }
 
 CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {

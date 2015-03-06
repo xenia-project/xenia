@@ -298,6 +298,9 @@ class CommandProcessor {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_render_targets_regs_;
   struct UpdateViewportStateRegisters {
+    uint32_t pa_sc_window_scissor_tl;
+    uint32_t pa_sc_window_scissor_br;
+
     UpdateViewportStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_viewport_state_regs_;
