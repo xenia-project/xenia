@@ -547,7 +547,6 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   glTextureStorage2D(texture, 1, config.internal_format,
                      texture_info.size_2d.output_width,
                      texture_info.size_2d.output_height);
-  assert_true(unpack_length % 4 == 0);
 
   auto allocation = scratch_buffer_->Acquire(unpack_length);
 
@@ -573,26 +572,34 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   } else {
     // Untile image.
     // We could do this in a shader to speed things up, as this is pretty slow.
+
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src = host_address;
     uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
     uint32_t bytes_per_block = texture_info.format_info->block_width *
                                texture_info.format_info->block_height *
                                texture_info.format_info->bits_per_pixel / 8;
+
+    // Tiled textures can be packed; get the offset into the packed texture.
+    uint32_t offset_x;
+    uint32_t offset_y;
+    TextureInfo::GetPackedTileOffset(texture_info, &offset_x, &offset_y);
+
     auto bpp = (bytes_per_block >> 2) +
                ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
     for (uint32_t y = 0, output_base_offset = 0;
          y < texture_info.size_2d.block_height;
          y++, output_base_offset += texture_info.size_2d.output_pitch) {
       auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-          y, (texture_info.size_2d.input_width /
-              texture_info.format_info->block_width),
+          offset_y + y, (texture_info.size_2d.input_width /
+                         texture_info.format_info->block_width),
           bpp);
       for (uint32_t x = 0, output_offset = output_base_offset;
            x < texture_info.size_2d.block_width;
            x++, output_offset += bytes_per_block) {
         auto input_offset =
-            TextureInfo::TiledOffset2DInner(x, y, bpp, input_base_offset) >>
+            TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
+                                            input_base_offset) >>
             bpp;
         TextureSwap(texture_info.endianness, dest + output_offset,
                     src + input_offset * bytes_per_block, bytes_per_block);

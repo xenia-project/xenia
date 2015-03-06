@@ -146,6 +146,15 @@ inline bool bit_scan_forward(int64_t v, uint32_t* out_first_set_index) {
 }
 
 template <typename T>
+inline T log2_floor(T v) {
+  return sizeof(T) * 8 - 1 - lzcnt(v);
+}
+template <typename T>
+inline T log2_ceil(T v) {
+  return sizeof(T) * 8 - lzcnt(v - 1);
+}
+
+template <typename T>
 inline T rotate_left(T v, uint8_t sh) {
   return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
 }

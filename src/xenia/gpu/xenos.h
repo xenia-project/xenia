@@ -318,9 +318,12 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t mip_filter         :  2;
     uint32_t unk3_2             :  6;
     uint32_t border             :  1;
-    uint32_t unk4;                    // dword_4
-    uint32_t unk5               : 9;  // dword_5
-    uint32_t dimension          : 2;
+    uint32_t unk4_0             :  2; // dword_4
+    uint32_t mip_min_level      :  4;
+    uint32_t mip_max_level      :  4;
+    uint32_t unk4_1             : 22;
+    uint32_t unk5               :  9;  // dword_5
+    uint32_t dimension          :  2;
     uint32_t unk5b              : 21;
   });
   XEPACKEDSTRUCTANONYMOUS({

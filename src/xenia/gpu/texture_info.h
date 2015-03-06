@@ -95,6 +95,8 @@ struct FormatInfo {
   uint32_t block_width;
   uint32_t block_height;
   uint32_t bits_per_pixel;
+
+  static const FormatInfo* Get(uint32_t gpu_format);
 };
 
 struct TextureInfo {
@@ -139,6 +141,9 @@ struct TextureInfo {
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       TextureInfo* out_info);
 
+  static void GetPackedTileOffset(const TextureInfo& texture_info,
+                                  uint32_t* out_offset_x,
+                                  uint32_t* out_offset_y);
   static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
                                      uint32_t log_bpp);
   static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
