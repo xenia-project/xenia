@@ -784,6 +784,10 @@ void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
 
   static const TracePlayer::Frame* previous_frame = nullptr;
   auto frame = player.current_frame();
+  if (!frame) {
+    ImGui::End();
+    return;
+  }
   bool did_seek = false;
   if (previous_frame != frame) {
     did_seek = true;
@@ -1516,10 +1520,15 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
     return;
   }
 
+  auto frame = player.current_frame();
+  if (!frame) {
+    ImGui::End();
+    return;
+  }
+
   ImGui::Text("Frame #%d", player.current_frame_index());
   ImGui::Separator();
   ImGui::BeginChild("packet_disassembler_list");
-  auto frame = player.current_frame();
   const PacketStartCommand* pending_packet = nullptr;
   auto trace_ptr = frame->start_ptr;
   while (trace_ptr < frame->end_ptr) {

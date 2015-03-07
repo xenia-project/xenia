@@ -19,7 +19,7 @@ DEFINE_bool(gl_debug_output, false, "Dump ARB_debug_output to stderr.");
 DEFINE_bool(gl_debug_output_synchronous, true,
             "ARB_debug_output will synchronize to be thread safe.");
 
-DEFINE_bool(vendor_gl_extensions, true,
+DEFINE_bool(vendor_gl_extensions, false,
             "Enable vendor-specific (NV, AMD, etc) GL extensions.");
 
 DEFINE_bool(disable_framebuffer_readback, false,

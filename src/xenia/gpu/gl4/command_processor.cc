@@ -144,7 +144,7 @@ void CommandProcessor::BeginTracing(const std::wstring& root_path) {
     XELOGE("Frame trace pending; ignoring streaming request.");
     return;
   }
-  std::wstring path = poly::join_paths(root_path, L"stream");
+  std::wstring path = root_path + L"stream";
   trace_state_ = TraceState::kStreaming;
   trace_writer_.Open(path);
 }
