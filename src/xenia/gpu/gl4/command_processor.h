@@ -300,6 +300,7 @@ class CommandProcessor {
   struct UpdateViewportStateRegisters {
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
+    uint32_t pa_cl_clip_cntl;
 
     UpdateViewportStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

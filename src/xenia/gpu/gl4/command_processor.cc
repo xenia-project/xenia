@@ -1836,15 +1836,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
                             (vte_control >> 9) & 0x1 ? 1.0f : 0.0f,
                             (vte_control >> 10) & 0x1 ? 1.0f : 0.0f);
 
-  // Clipping.
-  // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/14/yamato_genenum.h#L1587
-  uint32_t clip_control = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
-  bool clip_enabled = ((clip_control >> 17) & 0x1) == 0;
-  // assert_true(clip_enabled);
-  bool dx_clip = ((clip_control >> 20) & 0x1) == 0x1;
-  // assert_true(dx_clip);
-  // glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE);
-
   auto& state_regs = update_viewport_state_regs_;
 
   bool dirty = false;
@@ -1852,6 +1843,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_br,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  // dirty |= SetShadowRegister(state_regs.pa_cl_clip_cntl,
+  //     XE_GPU_REG_PA_CL_CLIP_CNTL);
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1862,6 +1855,17 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   glViewport(
       0, 0, std::min(2560u, state_regs.pa_sc_window_scissor_br & 0x7FFF),
       std::min(2560u, (state_regs.pa_sc_window_scissor_br >> 16) & 0x7FFF));
+
+  // Clipping.
+  // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/14/yamato_genenum.h#L1587
+  // bool clip_enabled = ((state_regs.pa_cl_clip_cntl >> 17) & 0x1) == 0;
+  // bool dx_clip = ((state_regs.pa_cl_clip_cntl >> 19) & 0x1) == 0x1;
+  //// TODO(benvanik): depth range?
+  // if (dx_clip) {
+  //  glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE);
+  //} else {
+  //  glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+  //}
 
   return UpdateStatus::kMismatch;
 }
