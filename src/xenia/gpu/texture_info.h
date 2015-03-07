@@ -80,9 +80,59 @@ enum class TextureFormat : uint32_t {
   k_DXT5A = 59,
   k_CTX1 = 60,
   k_DXT3A_AS_1_1_1_1 = 61,
+  k_2_10_10_10_FLOAT = 62,
 
   kUnknown = 0xFFFFFFFFu,
 };
+
+inline TextureFormat ColorFormatToTextureFormat(
+    xenos::ColorFormat color_format) {
+  return static_cast<TextureFormat>(color_format);
+}
+
+inline TextureFormat ColorRenderTargetToTextureFormat(
+    xenos::ColorRenderTargetFormat color_format) {
+  switch (color_format) {
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+      return TextureFormat::k_8_8_8_8;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return TextureFormat::k_8_8_8_8;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+      return TextureFormat::k_2_10_10_10;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+      return TextureFormat::k_2_10_10_10_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_16_16:
+      return TextureFormat::k_16_16;
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
+      return TextureFormat::k_16_16_16_16;
+    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
+      return TextureFormat::k_16_16_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      return TextureFormat::k_16_16_16_16_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_unknown:
+      return TextureFormat::k_2_10_10_10;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+      return TextureFormat::k_2_10_10_10_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
+      return TextureFormat::k_32_FLOAT;
+    default:
+      assert_unhandled_case(color_format);
+      return TextureFormat::kUnknown;
+  }
+}
+
+inline TextureFormat DepthRenderTargetToTextureFormat(
+    xenos::DepthRenderTargetFormat depth_format) {
+  switch (depth_format) {
+    case xenos::DepthRenderTargetFormat::kD24S8:
+      return TextureFormat::k_24_8;
+    case xenos::DepthRenderTargetFormat::kD24FS8:
+      return TextureFormat::k_24_8_FLOAT;
+    default:
+      assert_unhandled_case(depth_format);
+      return TextureFormat::kUnknown;
+  }
+}
 
 enum class FormatType {
   kUncompressed,

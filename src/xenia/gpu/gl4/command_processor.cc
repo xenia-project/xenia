@@ -2400,6 +2400,7 @@ bool CommandProcessor::IssueCopy() {
 
   // Depending on the source, pick the buffer we'll be sourcing.
   // We then query for a cached framebuffer setup with that buffer active.
+  TextureFormat src_format = TextureFormat::kUnknown;
   GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   GLuint depth_target = kAnyTarget;
   if (copy_src_select <= 3) {
@@ -2414,6 +2415,7 @@ bool CommandProcessor::IssueCopy() {
         (color_info[copy_src_select] >> 16) & 0xF);
     color_targets[copy_src_select] = GetColorRenderTarget(
         surface_pitch, surface_msaa, color_base, color_format);
+    src_format = ColorRenderTargetToTextureFormat(color_format);
   } else {
     // Source from depth/stencil.
     uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
@@ -2422,6 +2424,7 @@ bool CommandProcessor::IssueCopy() {
         static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
     depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa, depth_base,
                                         depth_format);
+    src_format = DepthRenderTargetToTextureFormat(depth_format);
   }
   auto source_framebuffer = GetFramebuffer(color_targets, depth_target);
   if (!source_framebuffer) {
@@ -2468,7 +2471,7 @@ bool CommandProcessor::IssueCopy() {
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
     default:
-      assert_unhandled_case(copy_dest_endian);
+      //assert_unhandled_case(copy_dest_endian);
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
   }
@@ -2493,31 +2496,68 @@ bool CommandProcessor::IssueCopy() {
   uint32_t w = copy_dest_pitch;
   uint32_t h = copy_dest_height;
 
-  if (!FLAGS_disable_framebuffer_readback) {
-    // Make active so glReadPixels reads from us.
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, source_framebuffer->framebuffer);
-    switch (copy_command) {
-      case CopyCommand::kConvert:
-        if (copy_src_select <= 3) {
-          // Source from a bound render target.
-          // glBindBuffer(GL_READ_FRAMEBUFFER, framebuffer)
-          glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
-                                       GL_COLOR_ATTACHMENT0 + copy_src_select);
-          glReadPixels(x, y, w, h, read_format, read_type, ptr);
-        } else {
-          // Source from the bound depth/stencil target.
-          glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+  // Make active so glReadPixels reads from us.
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, source_framebuffer->framebuffer);
+  switch (copy_command) {
+    case CopyCommand::kRaw: {
+      // This performs a byte-for-byte copy of the textures from src to dest
+      // with no conversion. Byte swapping may still occur.
+      if (copy_src_select <= 3) {
+        // Source from a bound render target.
+        glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
+                                     GL_COLOR_ATTACHMENT0 + copy_src_select);
+        // TODO(benvanik): RAW copy.
+        texture_cache_.CopyReadBufferTexture(
+            copy_dest_base, x, y, w, h,
+            ColorFormatToTextureFormat(copy_dest_format),
+            copy_dest_swap ? true : false);
+        if (!FLAGS_disable_framebuffer_readback) {
+          // glReadPixels(x, y, w, h, read_format, read_type, ptr);
         }
-        break;
-      case CopyCommand::kRaw:
-      case CopyCommand::kConstantOne:
-      case CopyCommand::kNull:
-      default:
-        // assert_unhandled_case(copy_command);
-        return false;
+      } else {
+        // Source from the bound depth/stencil target.
+        // TODO(benvanik): RAW copy.
+        texture_cache_.CopyReadBufferTexture(copy_dest_base, x, y, w, h,
+                                             src_format,
+                                             copy_dest_swap ? true : false);
+        if (!FLAGS_disable_framebuffer_readback) {
+          // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+        }
+      }
+      break;
     }
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    case CopyCommand::kConvert: {
+      if (copy_src_select <= 3) {
+        // Source from a bound render target.
+        glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
+                                     GL_COLOR_ATTACHMENT0 + copy_src_select);
+        // Either copy the readbuffer into an existing texture or create a new
+        // one in the cache so we can service future upload requests.
+        texture_cache_.CopyReadBufferTexture(
+            copy_dest_base, x, y, w, h,
+            ColorFormatToTextureFormat(copy_dest_format),
+            copy_dest_swap ? true : false);
+        if (!FLAGS_disable_framebuffer_readback) {
+          // glReadPixels(x, y, w, h, read_format, read_type, ptr);
+        }
+      } else {
+        // Source from the bound depth/stencil target.
+        texture_cache_.CopyReadBufferTexture(copy_dest_base, x, y, w, h,
+                                             src_format,
+                                             copy_dest_swap ? true : false);
+        if (!FLAGS_disable_framebuffer_readback) {
+          // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+        }
+      }
+      break;
+    }
+    case CopyCommand::kConstantOne:
+    case CopyCommand::kNull:
+    default:
+      // assert_unhandled_case(copy_command);
+      return false;
   }
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;

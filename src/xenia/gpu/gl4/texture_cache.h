@@ -57,13 +57,26 @@ class TextureCache {
 
   TextureEntryView* Demand(const TextureInfo& texture_info,
                            const SamplerInfo& sampler_info);
+  void CopyReadBufferTexture(uint32_t guest_address, uint32_t x, uint32_t y,
+                             uint32_t width, uint32_t height,
+                             TextureFormat format, bool swap_channels);
 
  private:
+  struct ReadBufferTexture {
+    uint32_t guest_address;
+    uint32_t width;
+    uint32_t height;
+    TextureFormat format;
+    GLuint handle;
+  };
+
   SamplerEntry* LookupOrInsertSampler(const SamplerInfo& sampler_info,
                                       uint64_t opt_hash = 0);
   void EvictSampler(SamplerEntry* entry);
   TextureEntry* LookupOrInsertTexture(const TextureInfo& texture_info,
                                       uint64_t opt_hash = 0);
+  TextureEntry* LookupAddress(uint32_t guest_address, uint32_t width,
+                              uint32_t height, TextureFormat format);
   void EvictTexture(TextureEntry* entry);
 
   bool UploadTexture2D(GLuint texture, const TextureInfo& texture_info);
@@ -72,6 +85,8 @@ class TextureCache {
   CircularBuffer* scratch_buffer_;
   std::unordered_map<uint64_t, SamplerEntry*> sampler_entries_;
   std::unordered_map<uint64_t, TextureEntry*> texture_entries_;
+
+  std::vector<ReadBufferTexture*> read_buffer_textures_;
 
   std::mutex invalidated_textures_mutex_;
   std::vector<TextureEntry*>* invalidated_textures_;
