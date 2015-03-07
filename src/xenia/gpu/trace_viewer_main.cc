@@ -665,7 +665,7 @@ class TraceReader {
           break;
       }
     }
-    if (pending_break) {
+    if (pending_break || current_frame.command_count) {
       current_frame.end_ptr = trace_ptr;
       frames_.push_back(std::move(current_frame));
     }

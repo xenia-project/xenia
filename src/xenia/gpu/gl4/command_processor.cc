@@ -775,7 +775,12 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   auto data_start_offset = reader->offset();
 
-  trace_writer_.WritePacketStart(reader->ptr() - 4, 1 + count);
+  // To handle nesting behavior when tracing we special case indirect buffers.
+  if (opcode == PM4_INDIRECT_BUFFER) {
+    trace_writer_.WritePacketStart(reader->ptr() - 4, 2);
+  } else {
+    trace_writer_.WritePacketStart(reader->ptr() - 4, 1 + count);
+  }
 
   // & 1 == predicate - when set, we do bin check to see if we should execute
   // the packet. Only type 3 packets are affected.

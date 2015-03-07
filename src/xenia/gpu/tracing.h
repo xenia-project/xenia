@@ -112,10 +112,9 @@ class TraceWriter {
       return;
     }
     auto cmd = PrimaryBufferStartCommand({
-        TraceCommandType::kPrimaryBufferStart, base_ptr, count,
+        TraceCommandType::kPrimaryBufferStart, base_ptr, 0,
     });
     fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(membase_ + base_ptr, 4, count, file_);
   }
 
   void WritePrimaryBufferEnd() {
@@ -133,10 +132,9 @@ class TraceWriter {
       return;
     }
     auto cmd = IndirectBufferStartCommand({
-        TraceCommandType::kIndirectBufferStart, base_ptr, count,
+        TraceCommandType::kIndirectBufferStart, base_ptr, 0,
     });
     fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(membase_ + base_ptr, 4, count, file_);
   }
 
   void WriteIndirectBufferEnd() {
