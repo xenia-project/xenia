@@ -36,7 +36,9 @@ GLContext::GLContext(HWND hwnd, HGLRC glrc)
 }
 
 GLContext::~GLContext() {
-  wglMakeCurrent(nullptr, nullptr);
+  MakeCurrent();
+  blitter_.Shutdown();
+  ClearCurrent();
   if (glrc_) {
     wglDeleteContext(glrc_);
   }
@@ -119,6 +121,12 @@ bool GLContext::Initialize(HWND hwnd) {
 
   SetupDebugging();
 
+  if (!blitter_.Initialize()) {
+    PLOGE("Unable to initialize blitter");
+    ClearCurrent();
+    return false;
+  }
+
   ClearCurrent();
 
   return true;
@@ -168,6 +176,11 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
   }
 
   SetupDebugging();
+
+  if (!new_context->blitter_.Initialize()) {
+    PLOGE("Unable to initialize blitter");
+    return nullptr;
+  }
 
   new_context->ClearCurrent();
 

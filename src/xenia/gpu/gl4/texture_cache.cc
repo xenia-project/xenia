@@ -526,11 +526,11 @@ TextureCache::TextureEntry* TextureCache::LookupAddress(uint32_t guest_address,
   return nullptr;
 }
 
-void TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
-                                         uint32_t y, uint32_t width,
-                                         uint32_t height,
-                                         TextureFormat format,
-                                         bool swap_channels) {
+GLuint TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
+                                           uint32_t y, uint32_t width,
+                                           uint32_t height,
+                                           TextureFormat format,
+                                           bool swap_channels) {
   // See if we have used a texture at this address before. If we have, we can
   // reuse it.
   // TODO(benvanik): better lookup matching format/etc?
@@ -546,7 +546,7 @@ void TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
       memory_->CancelWriteWatch(texture_entry->write_watch_handle);
       texture_entry->write_watch_handle = 0;
     }
-    return;
+    return texture_entry->handle;
   }
 
   // Check pending read buffer textures (for multiple resolves with no
@@ -558,14 +558,14 @@ void TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
         entry->height == height && entry->format == format) {
       // Found an existing entry - just reupload.
       glCopyTextureSubImage2D(entry->handle, 0, 0, 0, x, y, width, height);
-      return;
+      return entry->handle;
     }
   }
 
   const auto& config = texture_configs[uint32_t(format)];
   if (config.format == GL_INVALID_ENUM) {
     assert_always("Unhandled destination texture format");
-    return;
+    return 0;
   }
 
   // Need to create a new texture.
@@ -584,7 +584,9 @@ void TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
   glTextureStorage2D(entry->handle, 1, config.internal_format, width, height);
   glCopyTextureSubImage2D(entry->handle, 0, 0, 0, x, y, width, height);
 
+  GLuint handle = entry->handle;
   read_buffer_textures_.push_back(entry.release());
+  return handle;
 }
 
 void TextureCache::EvictTexture(TextureEntry* entry) {

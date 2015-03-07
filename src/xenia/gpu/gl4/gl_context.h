@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include "xenia/gpu/gl4/blitter.h"
+
 #include "third_party/GL/glew.h"
 #include "third_party/GL/wglew.h"
 
@@ -34,6 +36,8 @@ class GLContext {
   bool MakeCurrent();
   void ClearCurrent();
 
+  Blitter* blitter() { return &blitter_; }
+
  private:
   void SetupDebugging();
   void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
@@ -48,6 +52,8 @@ class GLContext {
 
   GLEWContext glew_context_;
   WGLEWContext wglew_context_;
+
+  Blitter blitter_;
 };
 
 struct GLContextLock {

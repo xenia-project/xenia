@@ -40,8 +40,7 @@ struct SwapParameters {
   uint32_t width;
   uint32_t height;
 
-  GLuint framebuffer;
-  GLenum attachment;
+  GLuint framebuffer_texture;
 };
 
 enum class SwapMode {
@@ -254,6 +253,7 @@ class CommandProcessor {
   GL4Shader* active_vertex_shader_;
   GL4Shader* active_pixel_shader_;
   CachedFramebuffer* active_framebuffer_;
+  GLuint last_framebuffer_texture_;
 
   std::vector<CachedFramebuffer> cached_framebuffers_;
   std::vector<CachedColorRenderTarget> cached_color_render_targets_;

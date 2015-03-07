@@ -244,14 +244,14 @@ bool GL4ProfilerDisplay::SetupShaders() {
   const std::string header =
       "\n\
 #version 450 \n\
-#extension GL_ARB_bindless_texture : require\n\
-#extension GL_ARB_explicit_uniform_location : require\n\
-#extension GL_ARB_shading_language_420pack : require\n\
+#extension GL_ARB_bindless_texture : require \n\
+#extension GL_ARB_explicit_uniform_location : require \n\
+#extension GL_ARB_shading_language_420pack : require \n\
 precision highp float; \n\
-precision highp int;\n\
-layout(std140, column_major) uniform;\n\
-layout(std430, column_major) buffer;\n\
-struct VertexData {\n\
+precision highp int; \n\
+layout(std140, column_major) uniform; \n\
+layout(std430, column_major) buffer; \n\
+struct VertexData { \n\
   vec4 color; \n\
   vec2 uv; \n\
 };\n\

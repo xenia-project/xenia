@@ -258,11 +258,10 @@ void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
   // Swap requested. Synchronously post a request to the loop so that
   // we do the swap in the right thread.
   control_->SynchronousRepaint([&]() {
-    glBlitNamedFramebuffer(swap_params.framebuffer, 0, swap_params.x,
-                           swap_params.y, swap_params.x + swap_params.width,
-                           swap_params.y + swap_params.height, 0, 0,
-                           control_->width(), control_->height(),
-                           GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    control_->context()->blitter()->BlitTexture2D(
+        swap_params.framebuffer_texture, swap_params.x, swap_params.y,
+        swap_params.width, swap_params.height, 0, 0, control_->width(),
+        control_->height(), GL_LINEAR);
   });
 }
 

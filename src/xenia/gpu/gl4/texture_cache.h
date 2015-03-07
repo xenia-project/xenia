@@ -57,9 +57,9 @@ class TextureCache {
 
   TextureEntryView* Demand(const TextureInfo& texture_info,
                            const SamplerInfo& sampler_info);
-  void CopyReadBufferTexture(uint32_t guest_address, uint32_t x, uint32_t y,
-                             uint32_t width, uint32_t height,
-                             TextureFormat format, bool swap_channels);
+  GLuint CopyReadBufferTexture(uint32_t guest_address, uint32_t x, uint32_t y,
+                               uint32_t width, uint32_t height,
+                               TextureFormat format, bool swap_channels);
 
  private:
   struct ReadBufferTexture {

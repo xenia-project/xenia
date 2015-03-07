@@ -1,6 +1,8 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'blitter.cc',
+    'blitter.h',
     'circular_buffer.cc',
     'circular_buffer.h',
     'command_processor.cc',

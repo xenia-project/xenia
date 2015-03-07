@@ -75,6 +75,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
+      last_framebuffer_texture_(0),
       point_list_geometry_program_(0),
       rect_list_geometry_program_(0),
       quad_list_geometry_program_(0),
@@ -566,13 +567,7 @@ void CommandProcessor::IssueSwap() {
   // TODO(benvanik): handle dirty cases (resolved to sysmem, touched).
   // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   // HACK: just use whatever our current framebuffer is.
-  if (active_framebuffer_) {
-    swap_params.framebuffer = active_framebuffer_->framebuffer;
-    // TODO(benvanik): pick the right one?
-    swap_params.attachment = GL_COLOR_ATTACHMENT0;
-  } else {
-    swap_params.framebuffer = 0;
-  }
+  swap_params.framebuffer_texture = last_framebuffer_texture_;
 
   // Guess frontbuffer dimensions.
   // Command buffer seems to set these right before the XE_SWAP.
@@ -2513,7 +2508,7 @@ bool CommandProcessor::IssueCopy() {
         glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
                                      GL_COLOR_ATTACHMENT0 + copy_src_select);
         // TODO(benvanik): RAW copy.
-        texture_cache_.CopyReadBufferTexture(
+        last_framebuffer_texture_ = texture_cache_.CopyReadBufferTexture(
             copy_dest_base, x, y, w, h,
             ColorFormatToTextureFormat(copy_dest_format),
             copy_dest_swap ? true : false);
@@ -2539,7 +2534,7 @@ bool CommandProcessor::IssueCopy() {
                                      GL_COLOR_ATTACHMENT0 + copy_src_select);
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
-        texture_cache_.CopyReadBufferTexture(
+        last_framebuffer_texture_ = texture_cache_.CopyReadBufferTexture(
             copy_dest_base, x, y, w, h,
             ColorFormatToTextureFormat(copy_dest_format),
             copy_dest_swap ? true : false);
