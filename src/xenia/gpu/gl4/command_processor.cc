@@ -784,9 +784,10 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
 
   // & 1 == predicate - when set, we do bin check to see if we should execute
   // the packet. Only type 3 packets are affected.
+  // We also skip predicated swaps, as they are never valid (probably?).
   if (packet & 1) {
     bool any_pass = (bin_select_ & bin_mask_) != 0;
-    if (!any_pass) {
+    if (!any_pass || opcode == PM4_XE_SWAP) {
       reader->Skip(count);
       trace_writer_.WritePacketEnd();
       return true;
