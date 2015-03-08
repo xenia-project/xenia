@@ -32,22 +32,30 @@ class Blitter {
                      uint32_t dest_y, uint32_t dest_width, uint32_t dest_height,
                      GLenum filter);
 
-  void CopyTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                     uint32_t src_width, uint32_t src_height,
-                     uint32_t dest_texture, uint32_t dest_x, uint32_t dest_y,
-                     uint32_t dest_width, uint32_t dest_height, GLenum filter);
+  void CopyColorTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
+                          uint32_t src_width, uint32_t src_height,
+                          uint32_t dest_texture, uint32_t dest_x,
+                          uint32_t dest_y, uint32_t dest_width,
+                          uint32_t dest_height, GLenum filter);
+  void CopyDepthTexture(GLuint src_texture, uint32_t src_x, uint32_t src_y,
+                        uint32_t src_width, uint32_t src_height,
+                        uint32_t dest_texture, uint32_t dest_x, uint32_t dest_y,
+                        uint32_t dest_width, uint32_t dest_height);
 
  private:
   void Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
             uint32_t src_width, uint32_t src_height, GLenum filter);
 
   GLuint vertex_program_;
-  GLuint fragment_program_;
-  GLuint pipeline_;
+  GLuint color_fragment_program_;
+  GLuint depth_fragment_program_;
+  GLuint color_pipeline_;
+  GLuint depth_pipeline_;
   GLuint vbo_;
   GLuint vao_;
   GLuint nearest_sampler_;
   GLuint linear_sampler_;
+  GLuint scratch_framebuffer_;
 };
 
 }  // namespace gl4

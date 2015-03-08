@@ -33,112 +33,112 @@ struct TextureConfig {
 // http://dench.flatlib.jp/opengl/textures
 // http://fossies.org/linux/WebKit/Source/ThirdParty/ANGLE/src/libGLESv2/formatutils.cpp
 static const TextureConfig texture_configs[64] = {
-  { TextureFormat::k_1_REVERSE, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_8, GL_R8, GL_RED, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_1_5_5_5, GL_RGB5_A1, GL_RGBA,
-  GL_UNSIGNED_SHORT_1_5_5_5_REV },
-  { TextureFormat::k_5_6_5, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5 },
-  { TextureFormat::k_6_5_5, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_8_8_8_8, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_2_10_10_10, GL_RGB10_A2, GL_RGBA,
-  GL_UNSIGNED_INT_2_10_10_10_REV },
-  { TextureFormat::k_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_8_B, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_8_8, GL_RG8, GL_RG, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_Cr_Y1_Cb_Y0, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_Y1_Cr_Y0_Cb, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_8_8_8_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_4_4_4_4, GL_RGBA4, GL_RGBA,
-  GL_UNSIGNED_SHORT_4_4_4_4_REV },
-  { TextureFormat::k_10_11_11, GL_R11F_G11F_B10F, GL_RGB,
-  GL_UNSIGNED_INT_10F_11F_11F_REV },  // ?
-  { TextureFormat::k_11_11_10, GL_R11F_G11F_B10F, GL_RGB,
-  GL_UNSIGNED_INT_10F_11F_11F_REV },  // ?
-  { TextureFormat::k_DXT1, GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
-  GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_DXT2_3, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
-  GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_DXT4_5, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
-  GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE },
-  { TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_24_8, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL,
-  GL_UNSIGNED_INT_24_8 },
-  { TextureFormat::k_24_8_FLOAT, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL,
-  GL_FLOAT_32_UNSIGNED_INT_24_8_REV },
-  { TextureFormat::k_16, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_16_16, GL_RG16, GL_RG, GL_UNSIGNED_SHORT },
-  { TextureFormat::k_16_16_16_16, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_16_16_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_FLOAT, GL_R16F, GL_RED, GL_HALF_FLOAT },
-  { TextureFormat::k_16_16_FLOAT, GL_RG16F, GL_RG, GL_HALF_FLOAT },
-  { TextureFormat::k_16_16_16_16_FLOAT, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT },
-  { TextureFormat::k_32, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_32_32, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_32_32_32_32, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_32_FLOAT, GL_R32F, GL_RED, GL_FLOAT },
-  { TextureFormat::k_32_32_FLOAT, GL_RG32F, GL_RG, GL_FLOAT },
-  { TextureFormat::k_32_32_32_32_FLOAT, GL_RGBA32F, GL_RGBA, GL_FLOAT },
-  { TextureFormat::k_32_AS_8, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_32_AS_8_8, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_MPEG, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_16_MPEG, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_32_AS_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_32_AS_8_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_MPEG_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_16_16_MPEG_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_DXN, GL_COMPRESSED_RG_RGTC2, GL_COMPRESSED_RG_RGTC2,
-  GL_INVALID_ENUM },
-  { TextureFormat::k_8_8_8_8_AS_16_16_16_16, GL_RGBA8, GL_RGBA,
-  GL_UNSIGNED_BYTE },
-  { TextureFormat::k_DXT1_AS_16_16_16_16, GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
-  GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_DXT2_3_AS_16_16_16_16, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
-  GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_DXT4_5_AS_16_16_16_16, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
-  GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE },
-  { TextureFormat::k_2_10_10_10_AS_16_16_16_16, GL_RGB10_A2, GL_RGBA,
-  GL_UNSIGNED_INT_2_10_10_10_REV },
-  { TextureFormat::k_10_11_11_AS_16_16_16_16, GL_R11F_G11F_B10F, GL_RGB,
-  GL_UNSIGNED_INT_10F_11F_11F_REV },
-  { TextureFormat::k_11_11_10_AS_16_16_16_16, GL_R11F_G11F_B10F,
-  GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_32_32_32_FLOAT, GL_RGB32F, GL_RGB, GL_FLOAT },
-  { TextureFormat::k_DXT3A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_DXT5A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_CTX1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM },
-  { TextureFormat::k_DXT3A_AS_1_1_1_1, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
-  { TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
-  GL_INVALID_ENUM },
+    {TextureFormat::k_1_REVERSE, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8, GL_R8, GL_RED, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_1_5_5_5, GL_RGB5_A1, GL_RGBA,
+     GL_UNSIGNED_SHORT_1_5_5_5_REV},
+    {TextureFormat::k_5_6_5, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
+    {TextureFormat::k_6_5_5, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_8_8_8, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_2_10_10_10, GL_RGB10_A2, GL_RGBA,
+     GL_UNSIGNED_INT_2_10_10_10_REV},
+    {TextureFormat::k_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_B, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_8_8, GL_RG8, GL_RG, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_Cr_Y1_Cb_Y0, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_Y1_Cr_Y0_Cb, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_8_8_8_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_4_4_4_4, GL_RGBA4, GL_RGBA,
+     GL_UNSIGNED_SHORT_4_4_4_4_REV},
+    {TextureFormat::k_10_11_11, GL_R11F_G11F_B10F, GL_RGB,
+     GL_UNSIGNED_INT_10F_11F_11F_REV},  // ?
+    {TextureFormat::k_11_11_10, GL_R11F_G11F_B10F, GL_RGB,
+     GL_UNSIGNED_INT_10F_11F_11F_REV},  // ?
+    {TextureFormat::k_DXT1, GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
+     GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT2_3, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT4_5, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_24_8, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL,
+     GL_UNSIGNED_INT_24_8},
+    {TextureFormat::k_24_8_FLOAT, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL,
+     GL_FLOAT_32_UNSIGNED_INT_24_8_REV},
+    {TextureFormat::k_16, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_16_16, GL_RG16, GL_RG, GL_UNSIGNED_SHORT},
+    {TextureFormat::k_16_16_16_16, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_16_16_EXPAND, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_FLOAT, GL_R16F, GL_RED, GL_HALF_FLOAT},
+    {TextureFormat::k_16_16_FLOAT, GL_RG16F, GL_RG, GL_HALF_FLOAT},
+    {TextureFormat::k_16_16_16_16_FLOAT, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT},
+    {TextureFormat::k_32, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_32_32, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_32_32_32_32, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_FLOAT, GL_R32F, GL_RED, GL_FLOAT},
+    {TextureFormat::k_32_32_FLOAT, GL_RG32F, GL_RG, GL_FLOAT},
+    {TextureFormat::k_32_32_32_32_FLOAT, GL_RGBA32F, GL_RGBA, GL_FLOAT},
+    {TextureFormat::k_32_AS_8, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_AS_8_8, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_MPEG, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_MPEG, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_AS_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_32_AS_8_8_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_MPEG_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_16_16_MPEG_INTERLACED, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_DXN, GL_COMPRESSED_RG_RGTC2, GL_COMPRESSED_RG_RGTC2,
+     GL_INVALID_ENUM},
+    {TextureFormat::k_8_8_8_8_AS_16_16_16_16, GL_RGBA8, GL_RGBA,
+     GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT1_AS_16_16_16_16, GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
+     GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT2_3_AS_16_16_16_16, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_DXT4_5_AS_16_16_16_16, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_2_10_10_10_AS_16_16_16_16, GL_RGB10_A2, GL_RGBA,
+     GL_UNSIGNED_INT_2_10_10_10_REV},
+    {TextureFormat::k_10_11_11_AS_16_16_16_16, GL_R11F_G11F_B10F, GL_RGB,
+     GL_UNSIGNED_INT_10F_11F_11F_REV},
+    {TextureFormat::k_11_11_10_AS_16_16_16_16, GL_R11F_G11F_B10F,
+     GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_32_32_32_FLOAT, GL_RGB32F, GL_RGB, GL_FLOAT},
+    {TextureFormat::k_DXT3A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_DXT5A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_CTX1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_DXT3A_AS_1_1_1_1, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
+    {TextureFormat::kUnknown, GL_INVALID_ENUM, GL_INVALID_ENUM,
+     GL_INVALID_ENUM},
 };
 
 TextureCache::TextureCache() : memory_(nullptr), scratch_buffer_(nullptr) {
@@ -526,11 +526,24 @@ TextureCache::TextureEntry* TextureCache::LookupAddress(uint32_t guest_address,
   return nullptr;
 }
 
-GLuint TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
-                                           uint32_t y, uint32_t width,
-                                           uint32_t height,
-                                           TextureFormat format,
-                                           bool swap_channels) {
+GLuint TextureCache::CopyTexture(Blitter* blitter, uint32_t guest_address,
+                                 uint32_t x, uint32_t y, uint32_t width,
+                                 uint32_t height, TextureFormat format,
+                                 bool swap_channels, GLuint src_texture) {
+  return ConvertTexture(blitter, guest_address, x, y, width, height, format,
+                        swap_channels, src_texture);
+}
+
+GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
+                                    uint32_t x, uint32_t y, uint32_t width,
+                                    uint32_t height, TextureFormat format,
+                                    bool swap_channels, GLuint src_texture) {
+  const auto& config = texture_configs[uint32_t(format)];
+  if (config.format == GL_INVALID_ENUM) {
+    assert_always("Unhandled destination texture format");
+    return 0;
+  }
+
   // See if we have used a texture at this address before. If we have, we can
   // reuse it.
   // TODO(benvanik): better lookup matching format/etc?
@@ -538,8 +551,14 @@ GLuint TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
   if (texture_entry) {
     // Have existing texture.
     assert_false(texture_entry->pending_invalidation);
-    glCopyTextureSubImage2D(texture_entry->handle, 0, 0, 0, x, y, width,
-                            height);
+    if (config.format == GL_DEPTH_STENCIL) {
+      blitter->CopyDepthTexture(src_texture, x, y, width, height,
+                                texture_entry->handle, 0, 0, width, height);
+    } else {
+      blitter->CopyColorTexture2D(src_texture, x, y, width, height,
+                                  texture_entry->handle, 0, 0, width, height,
+                                  GL_LINEAR);
+    }
 
     // HACK: remove texture from write watch list so readback won't kill us.
     if (texture_entry->write_watch_handle) {
@@ -557,15 +576,16 @@ GLuint TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
     if (entry->guest_address == guest_address && entry->width == width &&
         entry->height == height && entry->format == format) {
       // Found an existing entry - just reupload.
-      glCopyTextureSubImage2D(entry->handle, 0, 0, 0, x, y, width, height);
+      if (config.format == GL_DEPTH_STENCIL) {
+        blitter->CopyDepthTexture(src_texture, x, y, width, height,
+                                  entry->handle, 0, 0, width, height);
+      } else {
+        blitter->CopyColorTexture2D(src_texture, x, y, width, height,
+                                    entry->handle, 0, 0, width, height,
+                                    GL_LINEAR);
+      }
       return entry->handle;
     }
-  }
-
-  const auto& config = texture_configs[uint32_t(format)];
-  if (config.format == GL_INVALID_ENUM) {
-    assert_always("Unhandled destination texture format");
-    return 0;
   }
 
   // Need to create a new texture.
@@ -582,7 +602,13 @@ GLuint TextureCache::CopyReadBufferTexture(uint32_t guest_address, uint32_t x,
   glTextureParameteri(entry->handle, GL_TEXTURE_BASE_LEVEL, 0);
   glTextureParameteri(entry->handle, GL_TEXTURE_MAX_LEVEL, 1);
   glTextureStorage2D(entry->handle, 1, config.internal_format, width, height);
-  glCopyTextureSubImage2D(entry->handle, 0, 0, 0, x, y, width, height);
+  if (config.format == GL_DEPTH_STENCIL) {
+    blitter->CopyDepthTexture(src_texture, x, y, width, height, entry->handle,
+                              0, 0, width, height);
+  } else {
+    blitter->CopyColorTexture2D(src_texture, x, y, width, height, entry->handle,
+                                0, 0, width, height, GL_LINEAR);
+  }
 
   GLuint handle = entry->handle;
   read_buffer_textures_.push_back(entry.release());

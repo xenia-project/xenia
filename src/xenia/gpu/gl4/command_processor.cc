@@ -2472,7 +2472,7 @@ bool CommandProcessor::IssueCopy() {
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
     default:
-      //assert_unhandled_case(copy_dest_endian);
+      // assert_unhandled_case(copy_dest_endian);
       glPixelStorei(GL_PACK_SWAP_BYTES, GL_TRUE);
       break;
   }
@@ -2498,29 +2498,26 @@ bool CommandProcessor::IssueCopy() {
   uint32_t h = copy_dest_height;
 
   // Make active so glReadPixels reads from us.
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, source_framebuffer->framebuffer);
   switch (copy_command) {
     case CopyCommand::kRaw: {
       // This performs a byte-for-byte copy of the textures from src to dest
       // with no conversion. Byte swapping may still occur.
       if (copy_src_select <= 3) {
         // Source from a bound render target.
-        glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
-                                     GL_COLOR_ATTACHMENT0 + copy_src_select);
         // TODO(benvanik): RAW copy.
-        last_framebuffer_texture_ = texture_cache_.CopyReadBufferTexture(
-            copy_dest_base, x, y, w, h,
+        last_framebuffer_texture_ = texture_cache_.CopyTexture(
+            context_->blitter(), copy_dest_base, x, y, w, h,
             ColorFormatToTextureFormat(copy_dest_format),
-            copy_dest_swap ? true : false);
+            copy_dest_swap ? true : false, color_targets[copy_src_select]);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, read_format, read_type, ptr);
         }
       } else {
         // Source from the bound depth/stencil target.
         // TODO(benvanik): RAW copy.
-        texture_cache_.CopyReadBufferTexture(copy_dest_base, x, y, w, h,
-                                             src_format,
-                                             copy_dest_swap ? true : false);
+        texture_cache_.CopyTexture(context_->blitter(), copy_dest_base, x, y, w,
+                                   h, src_format, copy_dest_swap ? true : false,
+                                   depth_target);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }
@@ -2530,22 +2527,20 @@ bool CommandProcessor::IssueCopy() {
     case CopyCommand::kConvert: {
       if (copy_src_select <= 3) {
         // Source from a bound render target.
-        glNamedFramebufferReadBuffer(source_framebuffer->framebuffer,
-                                     GL_COLOR_ATTACHMENT0 + copy_src_select);
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
-        last_framebuffer_texture_ = texture_cache_.CopyReadBufferTexture(
-            copy_dest_base, x, y, w, h,
+        last_framebuffer_texture_ = texture_cache_.ConvertTexture(
+            context_->blitter(), copy_dest_base, x, y, w, h,
             ColorFormatToTextureFormat(copy_dest_format),
-            copy_dest_swap ? true : false);
+            copy_dest_swap ? true : false, color_targets[copy_src_select]);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, read_format, read_type, ptr);
         }
       } else {
         // Source from the bound depth/stencil target.
-        texture_cache_.CopyReadBufferTexture(copy_dest_base, x, y, w, h,
-                                             src_format,
-                                             copy_dest_swap ? true : false);
+        texture_cache_.ConvertTexture(
+            context_->blitter(), copy_dest_base, x, y, w, h, src_format,
+            copy_dest_swap ? true : false, depth_target);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }
@@ -2558,7 +2553,6 @@ bool CommandProcessor::IssueCopy() {
       // assert_unhandled_case(copy_command);
       return false;
   }
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;

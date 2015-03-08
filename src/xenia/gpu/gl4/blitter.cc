@@ -23,12 +23,15 @@ extern "C" WGLEWContext* wglewGetContext();
 
 Blitter::Blitter()
     : vertex_program_(0),
-      fragment_program_(0),
-      pipeline_(0),
+      color_fragment_program_(0),
+      depth_fragment_program_(0),
+      color_pipeline_(0),
+      depth_pipeline_(0),
       vbo_(0),
       vao_(0),
       nearest_sampler_(0),
-      linear_sampler_(0) {}
+      linear_sampler_(0),
+      scratch_framebuffer_(0) {}
 
 Blitter::~Blitter() = default;
 
@@ -43,7 +46,7 @@ precision highp int; \n\
 layout(std140, column_major) uniform; \n\
 layout(std430, column_major) buffer; \n\
 struct VertexData { \n\
-vec2 uv; \n\
+  vec2 uv; \n\
 }; \n\
 ";
   const std::string vs_source = header +
@@ -55,37 +58,51 @@ out gl_PerVertex { \n\
   float gl_ClipDistance[]; \n\
 }; \n\
 struct VertexFetch { \n\
-vec2 pos; \n\
+  vec2 pos; \n\
 };\n\
 layout(location = 0) in VertexFetch vfetch; \n\
 layout(location = 0) out VertexData vtx; \n\
 void main() { \n\
-  gl_Position = vec4(vfetch.pos.xy * vec2(2.0, 2.0) - vec2(1.0, 1.0), 0.0, 1.0); \n\
+  gl_Position = vec4(vfetch.pos.xy * vec2(2.0, -2.0) - vec2(1.0, -1.0), 0.0, 1.0); \n\
   vtx.uv = vfetch.pos.xy * src_uv_params.zw + src_uv_params.xy; \n\
 } \n\
 ";
-  const std::string fs_source = header +
-                                "\n\
+  const std::string color_fs_source = header +
+                                      "\n\
 layout(location = 1) uniform sampler2D src_texture; \n\
 layout(location = 0) in VertexData vtx; \n\
 layout(location = 0) out vec4 oC; \n\
 void main() { \n\
-vec4 color = texture(src_texture, vtx.uv); \n\
-oC = color; \n\
+  oC = texture(src_texture, vtx.uv); \n\
+} \n\
+";
+  const std::string depth_fs_source = header +
+    "\n\
+layout(location = 1) uniform sampler2D src_texture; \n\
+layout(location = 0) in VertexData vtx; \n\
+layout(location = 0) out vec4 oC; \n\
+void main() { \n\
+  vec4 c = texture(src_texture, vtx.uv); \n\
+  gl_FragDepth = c.r; \n\
 } \n\
 ";
 
   auto vs_source_str = vs_source.c_str();
   vertex_program_ = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vs_source_str);
-  auto fs_source_str = fs_source.c_str();
-  fragment_program_ =
-      glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &fs_source_str);
-  char log[2048];
-  GLsizei log_length;
-  glGetProgramInfoLog(vertex_program_, 2048, &log_length, log);
-  glCreateProgramPipelines(1, &pipeline_);
-  glUseProgramStages(pipeline_, GL_VERTEX_SHADER_BIT, vertex_program_);
-  glUseProgramStages(pipeline_, GL_FRAGMENT_SHADER_BIT, fragment_program_);
+  auto color_fs_source_str = color_fs_source.c_str();
+  color_fragment_program_ =
+      glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &color_fs_source_str);
+  auto depth_fs_source_str = depth_fs_source.c_str();
+  depth_fragment_program_ =
+      glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &depth_fs_source_str);
+  glCreateProgramPipelines(1, &color_pipeline_);
+  glUseProgramStages(color_pipeline_, GL_VERTEX_SHADER_BIT, vertex_program_);
+  glUseProgramStages(color_pipeline_, GL_FRAGMENT_SHADER_BIT,
+                     color_fragment_program_);
+  glCreateProgramPipelines(1, &depth_pipeline_);
+  glUseProgramStages(depth_pipeline_, GL_VERTEX_SHADER_BIT, vertex_program_);
+  glUseProgramStages(depth_pipeline_, GL_FRAGMENT_SHADER_BIT,
+                     depth_fragment_program_);
 
   glCreateBuffers(1, &vbo_);
   static const GLfloat vbo_data[] = {
@@ -110,38 +127,96 @@ oC = color; \n\
   glSamplerParameteri(linear_sampler_, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glSamplerParameteri(linear_sampler_, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+  glCreateFramebuffers(1, &scratch_framebuffer_);
+
   return true;
 }
 
 void Blitter::Shutdown() {
-  if (vertex_program_) {
-    glDeleteProgram(vertex_program_);
-  }
-  if (fragment_program_) {
-    glDeleteProgram(fragment_program_);
-  }
-  if (pipeline_) {
-    glDeleteProgramPipelines(1, &pipeline_);
-  }
-  if (vbo_) {
-    glDeleteBuffers(1, &vbo_);
-  }
-  if (vao_) {
-    glDeleteVertexArrays(1, &vao_);
-  }
-  if (nearest_sampler_) {
-    glDeleteSamplers(1, &nearest_sampler_);
-  }
-  if (linear_sampler_) {
-    glDeleteSamplers(1, &linear_sampler_);
-  }
+  glDeleteFramebuffers(1, &scratch_framebuffer_);
+  glDeleteProgram(vertex_program_);
+  glDeleteProgram(color_fragment_program_);
+  glDeleteProgram(depth_fragment_program_);
+  glDeleteProgramPipelines(1, &color_pipeline_);
+  glDeleteProgramPipelines(1, &depth_pipeline_);
+  glDeleteBuffers(1, &vbo_);
+  glDeleteVertexArrays(1, &vao_);
+  glDeleteSamplers(1, &nearest_sampler_);
+  glDeleteSamplers(1, &linear_sampler_);
 }
+
+struct SavedState {
+  GLboolean scissor_test_enabled;
+  GLboolean depth_test_enabled;
+  GLboolean depth_mask_enabled;
+  GLint depth_func;
+  GLboolean stencil_test_enabled;
+  GLboolean cull_face_enabled;
+  GLint cull_face;
+  GLint front_face;
+  GLint polygon_mode;
+  GLboolean color_mask_0_enabled[4];
+  GLboolean blend_0_enabled;
+  GLint draw_buffer;
+  GLfloat viewport[4];
+  GLint program_pipeline;
+  GLint vertex_array;
+  GLint texture_0;
+  GLint sampler_0;
+
+  void Save() {
+    scissor_test_enabled = glIsEnabled(GL_SCISSOR_TEST);
+    depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_mask_enabled);
+    glGetIntegerv(GL_DEPTH_FUNC, &depth_func);
+    stencil_test_enabled = glIsEnabled(GL_STENCIL_TEST);
+    cull_face_enabled = glIsEnabled(GL_CULL_FACE);
+    glGetIntegerv(GL_CULL_FACE_MODE, &cull_face);
+    glGetIntegerv(GL_FRONT_FACE, &front_face);
+    glGetIntegerv(GL_POLYGON_MODE, &polygon_mode);
+    glGetBooleani_v(GL_COLOR_WRITEMASK, 0, (GLboolean*)&color_mask_0_enabled);
+    blend_0_enabled = glIsEnabledi(GL_BLEND, 0);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_buffer);
+    glGetFloati_v(GL_VIEWPORT, 0, viewport);
+    glGetIntegerv(GL_PROGRAM_PIPELINE_BINDING, &program_pipeline);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vertex_array);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture_0);
+    glGetIntegeri_v(GL_SAMPLER_BINDING, 0, &sampler_0);
+  }
+
+  void Restore() {
+    scissor_test_enabled ? glEnable(GL_SCISSOR_TEST)
+                         : glDisable(GL_SCISSOR_TEST);
+    depth_test_enabled ? glEnable(GL_DEPTH_TEST) : glDisable(GL_DEPTH_TEST);
+    glDepthMask(depth_mask_enabled);
+    glDepthFunc(depth_func);
+    stencil_test_enabled ? glEnable(GL_STENCIL_TEST)
+                         : glDisable(GL_STENCIL_TEST);
+    cull_face_enabled ? glEnable(GL_CULL_FACE) : glDisable(GL_CULL_FACE);
+    glCullFace(cull_face);
+    glFrontFace(front_face);
+    glPolygonMode(GL_FRONT_AND_BACK, polygon_mode);
+    glColorMaski(0, color_mask_0_enabled[0], color_mask_0_enabled[1],
+                 color_mask_0_enabled[2], color_mask_0_enabled[3]);
+    blend_0_enabled ? glEnablei(GL_BLEND, 0) : glDisablei(GL_BLEND, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_buffer);
+    glViewportIndexedf(0, viewport[0], viewport[1], viewport[2], viewport[3]);
+    glBindProgramPipeline(program_pipeline);
+    glBindVertexArray(vertex_array);
+    glBindTexture(GL_TEXTURE_2D, texture_0);
+    glBindSampler(0, sampler_0);
+  }
+};
 
 void Blitter::Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
                    uint32_t src_width, uint32_t src_height, GLenum filter) {
+  glDisable(GL_SCISSOR_TEST);
+  glDisable(GL_STENCIL_TEST);
   glDisablei(GL_BLEND, 0);
-  glDisable(GL_DEPTH_TEST);
-  glBindProgramPipeline(pipeline_);
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+  glFrontFace(GL_CW);
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   glBindVertexArray(vao_);
   glBindTextures(0, 1, &src_texture);
   switch (filter) {
@@ -167,12 +242,6 @@ void Blitter::Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
                      src_height / float(src_texture_height));
 
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-  glBindProgramPipeline(0);
-  glBindVertexArray(0);
-  GLuint zero = 0;
-  glBindTextures(0, 1, &zero);
-  glBindSampler(0, 0);
 }
 
 void Blitter::BlitTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
@@ -180,17 +249,70 @@ void Blitter::BlitTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
                             uint32_t dest_x, uint32_t dest_y,
                             uint32_t dest_width, uint32_t dest_height,
                             GLenum filter) {
+  SavedState state;
+  state.Save();
+
   glViewport(dest_x, dest_y, dest_width, dest_height);
+  glColorMaski(0, true, true, true, true);
+  glDisable(GL_DEPTH_TEST);
+  glDepthMask(false);
+  glBindProgramPipeline(color_pipeline_);
+
   Draw(src_texture, src_x, src_y, src_width, src_height, filter);
+
+  state.Restore();
 }
 
-void Blitter::CopyTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                            uint32_t src_width, uint32_t src_height,
-                            uint32_t dest_texture, uint32_t dest_x,
-                            uint32_t dest_y, uint32_t dest_width,
-                            uint32_t dest_height, GLenum filter) {
+void Blitter::CopyColorTexture2D(GLuint src_texture, uint32_t src_x,
+                                 uint32_t src_y, uint32_t src_width,
+                                 uint32_t src_height, uint32_t dest_texture,
+                                 uint32_t dest_x, uint32_t dest_y,
+                                 uint32_t dest_width, uint32_t dest_height,
+                                 GLenum filter) {
+  SavedState state;
+  state.Save();
+
   glViewport(dest_x, dest_y, dest_width, dest_height);
-  //
+  glColorMaski(0, true, true, true, true);
+  glDisable(GL_DEPTH_TEST);
+  glDepthMask(false);
+  glBindProgramPipeline(color_pipeline_);
+
+  glNamedFramebufferTexture(scratch_framebuffer_, GL_COLOR_ATTACHMENT0,
+                            dest_texture, 0);
+  glNamedFramebufferDrawBuffer(scratch_framebuffer_, GL_COLOR_ATTACHMENT0);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_framebuffer_);
+  Draw(src_texture, src_x, src_y, src_width, src_height, filter);
+  glNamedFramebufferDrawBuffer(scratch_framebuffer_, GL_NONE);
+  glNamedFramebufferTexture(scratch_framebuffer_, GL_COLOR_ATTACHMENT0, GL_NONE,
+                            0);
+
+  state.Restore();
+}
+
+void Blitter::CopyDepthTexture(GLuint src_texture, uint32_t src_x,
+                               uint32_t src_y, uint32_t src_width,
+                               uint32_t src_height, uint32_t dest_texture,
+                               uint32_t dest_x, uint32_t dest_y,
+                               uint32_t dest_width, uint32_t dest_height) {
+  SavedState state;
+  state.Save();
+
+  glViewport(dest_x, dest_y, dest_width, dest_height);
+  glColorMaski(0, false, false, false, false);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_ALWAYS);
+  glDepthMask(true);
+  glBindProgramPipeline(depth_pipeline_);
+
+  glNamedFramebufferTexture(scratch_framebuffer_, GL_DEPTH_STENCIL_ATTACHMENT,
+                            dest_texture, 0);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_framebuffer_);
+  Draw(src_texture, src_x, src_y, src_width, src_height, GL_NEAREST);
+  glNamedFramebufferTexture(scratch_framebuffer_, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_NONE, 0);
+
+  state.Restore();
 }
 
 }  // namespace gl4

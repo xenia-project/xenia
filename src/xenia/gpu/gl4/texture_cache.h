@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/gpu/gl4/blitter.h"
 #include "xenia/gpu/gl4/circular_buffer.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/sampler_info.h"
@@ -57,9 +58,15 @@ class TextureCache {
 
   TextureEntryView* Demand(const TextureInfo& texture_info,
                            const SamplerInfo& sampler_info);
-  GLuint CopyReadBufferTexture(uint32_t guest_address, uint32_t x, uint32_t y,
-                               uint32_t width, uint32_t height,
-                               TextureFormat format, bool swap_channels);
+
+  GLuint CopyTexture(Blitter* blitter, uint32_t guest_address, uint32_t x,
+                     uint32_t y, uint32_t width, uint32_t height,
+                     TextureFormat format, bool swap_channels,
+                     GLuint src_texture);
+  GLuint ConvertTexture(Blitter* blitter, uint32_t guest_address, uint32_t x,
+                        uint32_t y, uint32_t width, uint32_t height,
+                        TextureFormat format, bool swap_channels,
+                        GLuint src_texture);
 
  private:
   struct ReadBufferTexture {
