@@ -57,13 +57,6 @@ class GL4ShaderTranslator {
 
   void AppendSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
                     uint32_t abs);
-  void AppendDestRegName(uint32_t num, uint32_t dst_exp);
-  void AppendDestReg(uint32_t num, uint32_t mask, uint32_t dst_exp);
-  void AppendDestRegPost(uint32_t num, uint32_t mask, uint32_t dst_exp);
-  void AppendVectorDestReg(const ucode::instr_alu_t& alu);
-  void AppendVectorDestRegPost(const ucode::instr_alu_t& alu);
-  void AppendScalarDestReg(const ucode::instr_alu_t& alu);
-  void AppendScalarDestRegPost(const ucode::instr_alu_t& alu);
   void PrintSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
                    uint32_t abs);
   void PrintVectorDstReg(const ucode::instr_alu_t& alu);
@@ -77,9 +70,9 @@ class GL4ShaderTranslator {
   bool TranslateALU_MINv(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETXXv(const ucode::instr_alu_t& alu, const char* op);
   bool TranslateALU_SETEv(const ucode::instr_alu_t& alu);
+  bool TranslateALU_SETNEv(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETGTv(const ucode::instr_alu_t& alu);
   bool TranslateALU_SETGTEv(const ucode::instr_alu_t& alu);
-  bool TranslateALU_SETNEv(const ucode::instr_alu_t& alu);
   bool TranslateALU_FRACv(const ucode::instr_alu_t& alu);
   bool TranslateALU_TRUNCv(const ucode::instr_alu_t& alu);
   bool TranslateALU_FLOORv(const ucode::instr_alu_t& alu);
@@ -93,10 +86,17 @@ class GL4ShaderTranslator {
   bool TranslateALU_DOT2ADDv(const ucode::instr_alu_t& alu);
   // CUBEv
   bool TranslateALU_MAX4v(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETXX_PUSHv(const ucode::instr_alu_t& alu,
+                                     const char* op);
+  bool TranslateALU_PRED_SETE_PUSHv(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETNE_PUSHv(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETGT_PUSHv(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETGTE_PUSHv(const ucode::instr_alu_t& alu);
   // ...
   bool TranslateALU_ADDs(const ucode::instr_alu_t& alu);
-  // ...
+  bool TranslateALU_ADD_PREVs(const ucode::instr_alu_t& alu);
   bool TranslateALU_MULs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_MUL_PREVs(const ucode::instr_alu_t& alu);
   // ...
   bool TranslateALU_MAXs(const ucode::instr_alu_t& alu);
   bool TranslateALU_MINs(const ucode::instr_alu_t& alu);
@@ -114,12 +114,14 @@ class GL4ShaderTranslator {
   bool TranslateALU_RECIPSQ_IEEE(const ucode::instr_alu_t& alu);
   // ...
   bool TranslateALU_SUBs(const ucode::instr_alu_t& alu);
-  // ...
+  bool TranslateALU_SUB_PREVs(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETXXs(const ucode::instr_alu_t& alu, const char* op);
   bool TranslateALU_PRED_SETEs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SETNEs(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETGTs(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETGTEs(const ucode::instr_alu_t& alu);
-  bool TranslateALU_PRED_SETNEs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SET_INVs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_PRED_SET_POPs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SQRT_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_MUL_CONST_0(const ucode::instr_alu_t& alu);
   bool TranslateALU_MUL_CONST_1(const ucode::instr_alu_t& alu);
@@ -130,6 +132,17 @@ class GL4ShaderTranslator {
   bool TranslateALU_SIN(const ucode::instr_alu_t& alu);
   bool TranslateALU_COS(const ucode::instr_alu_t& alu);
   bool TranslateALU_RETAIN_PREV(const ucode::instr_alu_t& alu);
+
+  struct AppendFlag {};
+  void BeginAppendVectorOp(const ucode::instr_alu_t& op);
+  void AppendVectorOpSrcReg(const ucode::instr_alu_t& op, int i);
+  void EndAppendVectorOp(const ucode::instr_alu_t& op,
+                         uint32_t append_flags = 0);
+  void BeginAppendScalarOp(const ucode::instr_alu_t& op);
+  void AppendScalarOpSrcReg(const ucode::instr_alu_t& op, int i);
+  void EndAppendScalarOp(const ucode::instr_alu_t& op,
+                         uint32_t append_flags = 0);
+  void AppendOpDestRegName(const ucode::instr_alu_t& op, uint32_t dest_num);
 
   void PrintDestFetch(uint32_t dst_reg, uint32_t dst_swiz);
   void AppendFetchDest(uint32_t dst_reg, uint32_t dst_swiz);

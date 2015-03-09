@@ -99,8 +99,9 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
     Append("  vec4 r%d = state.float_consts[%d];\n", n, n);
   }
   Append("  vec4 t;\n");
-  Append("  float s;\n");         // scalar result (used for RETAIN_PREV)
-  Append("  bool p = false;\n");  // predicate temp
+  Append("  vec4 pv;\n");   // Previous Vector result.
+  Append("  float ps;\n");  // Previous Scalar result (used for RETAIN_PREV).
+  Append("  bool p = false;\n");  // Predicate temp, clause-local.
 
   // Execute blocks.
   const auto& execs = vertex_shader->execs();
@@ -134,8 +135,9 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
     Append("  vec4 r%d = state.float_consts[%d];\n", n, n + 256);
   }
   Append("  vec4 t;\n");
-  Append("  float s;\n");         // scalar result (used for RETAIN_PREV)
-  Append("  bool p = false;\n");  // predicate temp
+  Append("  vec4 pv;\n");   // Previous Vector result.
+  Append("  float ps;\n");  // Previous Scalar result (used for RETAIN_PREV).
+  Append("  bool p = false;\n");  // Predicate temp, clause-local.
 
   // Bring registers local.
   for (uint32_t n = 0; n < kMaxInterpolators; n++) {
@@ -187,126 +189,6 @@ void GL4ShaderTranslator::AppendSrcReg(uint32_t num, uint32_t type,
       Append("%c", chan_names[(swiz + i) & 0x3]);
       swiz >>= 2;
     }
-  }
-}
-
-void GL4ShaderTranslator::AppendDestRegName(uint32_t num, uint32_t dst_exp) {
-  if (!dst_exp) {
-    // Register.
-    Append("r%u", num);
-  } else {
-    // Export.
-    switch (shader_type_) {
-      case ShaderType::kVertex:
-        switch (num) {
-          case 62:
-            Append("gl_Position");
-            break;
-          case 63:
-            // Write to t, as we need to splice just x out of it.
-            Append("t");
-            break;
-          default:
-            // Varying.
-            Append("vtx.o[%u]", num);
-            break;
-        }
-        break;
-      case ShaderType::kPixel:
-        switch (num) {
-          case 0:
-          case 63:  // ? masked?
-            Append("oC[0]");
-            break;
-          case 61:
-            // Write to t, as we need to splice just x out of it.
-            Append("t");
-            break;
-          default:
-            // TODO(benvanik): other render targets?
-            assert_always();
-            break;
-        }
-        break;
-    }
-  }
-}
-
-void GL4ShaderTranslator::AppendDestReg(uint32_t num, uint32_t mask,
-                                        uint32_t dst_exp) {
-  if (mask != 0xF) {
-    // If masking, store to a temporary variable and clean it up later.
-    Append("t");
-  } else {
-    // Store directly to output.
-    AppendDestRegName(num, dst_exp);
-  }
-}
-
-void GL4ShaderTranslator::AppendDestRegPost(uint32_t num, uint32_t mask,
-                                            uint32_t dst_exp) {
-  switch (shader_type_) {
-    case ShaderType::kVertex:
-      switch (num) {
-        case 63:
-          Append("  gl_PointSize = t.x;\n");
-          return;
-      }
-      break;
-    case ShaderType::kPixel:
-      switch (num) {
-        case 61:
-          // gl_FragDepth handling to just get x from the temp result.
-          Append("  gl_FragDepth = t.x;\n");
-          return;
-      }
-      break;
-  }
-  if (mask != 0xF) {
-    // Masking.
-    Append("  ");
-    AppendDestRegName(num, dst_exp);
-    Append(" = vec4(");
-    for (int i = 0; i < 4; i++) {
-      // TODO(benvanik): mask out values? mix in old value as temp?
-      // Append("%c", (mask & 0x1) ? chan_names[i] : 'w');
-      if (!(mask & 0x1)) {
-        // Don't write - use existing value.
-        AppendDestRegName(num, dst_exp);
-        Append(".%c", chan_names[i]);
-      } else {
-        Append("t.%c", chan_names[i]);
-      }
-      mask >>= 1;
-      if (i < 3) {
-        Append(", ");
-      }
-    }
-    Append(");\n");
-  }
-}
-
-void GL4ShaderTranslator::AppendVectorDestReg(const instr_alu_t& alu) {
-  AppendDestReg(alu.vector_dest, alu.vector_write_mask, alu.export_data);
-}
-
-void GL4ShaderTranslator::AppendVectorDestRegPost(const instr_alu_t& alu) {
-  AppendDestRegPost(alu.vector_dest, alu.vector_write_mask, alu.export_data);
-}
-
-void GL4ShaderTranslator::AppendScalarDestReg(const instr_alu_t& alu) {
-  if (alu.export_data) {
-    AppendDestReg(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
-  } else {
-    AppendDestReg(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
-  }
-}
-
-void GL4ShaderTranslator::AppendScalarDestRegPost(const instr_alu_t& alu) {
-  if (alu.export_data) {
-    AppendDestRegPost(alu.vector_dest, alu.scalar_write_mask, alu.export_data);
-  } else {
-    AppendDestRegPost(alu.scalar_dest, alu.scalar_write_mask, alu.export_data);
   }
 }
 
@@ -403,135 +285,254 @@ void GL4ShaderTranslator::PrintExportComment(uint32_t num) {
   }
 }
 
+void GL4ShaderTranslator::BeginAppendVectorOp(const ucode::instr_alu_t& op) {
+  Append("  pv = (");
+}
+
+void GL4ShaderTranslator::AppendVectorOpSrcReg(const ucode::instr_alu_t& op,
+                                               int i) {
+  switch (i) {
+    case 1:
+      AppendSrcReg(op.src1_reg, op.src1_sel, op.src1_swiz, op.src1_reg_negate,
+                   op.abs_constants);
+      break;
+    case 2:
+      AppendSrcReg(op.src2_reg, op.src2_sel, op.src2_swiz, op.src2_reg_negate,
+                   op.abs_constants);
+      break;
+    case 3:
+      AppendSrcReg(op.src3_reg, op.src3_sel, op.src3_swiz, op.src3_reg_negate,
+                   op.abs_constants);
+      break;
+  }
+}
+
+void GL4ShaderTranslator::EndAppendVectorOp(const ucode::instr_alu_t& op,
+                                            uint32_t append_flags) {
+  Append(");\n");
+  if (op.vector_clamp) {
+    Append("  pv = clamp(pv, 0.0, 1.0);\n");
+  }
+
+  // Special case exports.
+  // TODO(benvanik): special write that only chooses one field -- what field? x?
+  if (op.export_data) {
+    switch (shader_type_) {
+      case ShaderType::kVertex:
+        switch (op.vector_dest) {
+          case 63:
+            // Append("  gl_PointSize = pv.x;\n");
+            assert_zero(op.vector_write_mask);
+            return;
+        }
+        break;
+      case ShaderType::kPixel:
+        switch (op.vector_dest) {
+          case 61:
+            // Append("  gl_FragDepth = pv.x;\n");
+            assert_zero(op.vector_write_mask);
+            return;
+        }
+        break;
+    }
+  }
+
+  if (op.export_data) {
+    // Export; this does some weird stuff to do special consts 0 and 1.
+    uint32_t write_mask = op.vector_write_mask;
+    uint32_t const_1_mask = op.scalar_write_mask;
+    for (int i = 0; i < 4; ++i, write_mask >>= 1, const_1_mask >>= 1) {
+      if (write_mask & 0x1) {
+        Append("  ");
+        AppendOpDestRegName(op, op.vector_dest);
+        Append(".%c = ", chan_names[i]);
+        if (const_1_mask & 0x1) {
+          // Special export of constant 1.
+          Append("1.0");
+        } else {
+          // Normal source from calculated pv.
+          Append("pv.%c", chan_names[i]);
+        }
+        Append(";\n");
+      } else if (op.scalar_dest_rel) {
+        // Special export of constant value 0.
+        Append("  ");
+        AppendOpDestRegName(op, op.vector_dest);
+        Append(".%c = 0.0;\n", chan_names[i]);
+      }
+    }
+  } else {
+    // Normal reg; just mask.
+    uint32_t write_mask = op.vector_write_mask;
+    for (int i = 0; i < 4; ++i, write_mask >>= 1) {
+      if (write_mask & 0x1) {
+        Append("  ");
+        AppendOpDestRegName(op, op.vector_dest);
+        Append(".%c = pv.%c;\n", chan_names[i], chan_names[i]);
+      }
+    }
+  }
+}
+
+void GL4ShaderTranslator::BeginAppendScalarOp(const ucode::instr_alu_t& op) {
+  Append("  ps = (");
+}
+
+void GL4ShaderTranslator::AppendScalarOpSrcReg(const ucode::instr_alu_t& op,
+                                               int i) {
+  switch (i) {
+    case 1:
+      AppendSrcReg(op.src1_reg, op.src1_sel, op.src1_swiz, op.src1_reg_negate,
+                   op.abs_constants);
+      break;
+    case 2:
+      AppendSrcReg(op.src2_reg, op.src2_sel, op.src2_swiz, op.src2_reg_negate,
+                   op.abs_constants);
+      break;
+    case 3:
+      AppendSrcReg(op.src3_reg, op.src3_sel, op.src3_swiz, op.src3_reg_negate,
+                   op.abs_constants);
+      break;
+  }
+}
+
+void GL4ShaderTranslator::EndAppendScalarOp(const ucode::instr_alu_t& op,
+                                            uint32_t append_flags) {
+  Append(").x;\n");
+  if (op.scalar_clamp) {
+    Append("  ps = clamp(ps, 0.0, 1.0);\n");
+  }
+
+  uint32_t dest_num;
+  uint32_t write_mask;
+  if (op.export_data) {
+    dest_num = op.vector_dest;
+    write_mask = op.scalar_write_mask & ~op.vector_write_mask;
+  } else {
+    dest_num = op.scalar_dest;
+    write_mask = op.scalar_write_mask;
+  }
+
+  // Mask out certain fields.
+  for (int i = 0; i < 4; ++i, write_mask >>= 1) {
+    if (write_mask & 0x1) {
+      Append("  ");
+      AppendOpDestRegName(op, dest_num);
+      Append(".%c = ps;\n", chan_names[i]);
+    }
+  }
+}
+
+void GL4ShaderTranslator::AppendOpDestRegName(const ucode::instr_alu_t& op,
+                                              uint32_t dest_num) {
+  if (!op.export_data) {
+    // Register.
+    // TODO(benvanik): relative? abs? etc
+    Append("r%u", dest_num);
+  } else {
+    // Export.
+    switch (shader_type_) {
+      case ShaderType::kVertex:
+        switch (dest_num) {
+          case 62:
+            Append("gl_Position");
+            break;
+          case 63:
+            Append("gl_PointSize");
+            break;
+          default:
+            // Varying.
+            Append("vtx.o[%u]", dest_num);
+            break;
+        }
+        break;
+      case ShaderType::kPixel:
+        switch (dest_num) {
+          case 0:
+          case 63:  // ? masked?
+            Append("oC[0]");
+            break;
+          case 61:
+            Append("gl_FragDepth");
+            break;
+          default:
+            // TODO(benvanik): other render targets?
+            assert_always();
+            break;
+        }
+        break;
+    }
+  }
+}
+
 bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
-  Append("(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  BeginAppendVectorOp(alu);
+  AppendVectorOpSrcReg(alu, 1);
   Append(" + ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
-  Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 2);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
-  Append("(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  BeginAppendVectorOp(alu);
+  AppendVectorOpSrcReg(alu, 1);
   Append(" * ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
-  Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 2);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   if (alu.src1_reg == alu.src2_reg && alu.src1_sel == alu.src2_sel &&
       alu.src1_swiz == alu.src2_swiz &&
       alu.src1_reg_negate == alu.src2_reg_negate) {
     // This is a mov.
-    AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-                 alu.abs_constants);
+    AppendVectorOpSrcReg(alu, 1);
   } else {
     Append("max(");
-    AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-                 alu.abs_constants);
+    AppendVectorOpSrcReg(alu, 1);
     Append(", ");
-    AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-                 alu.abs_constants);
+    AppendVectorOpSrcReg(alu, 2);
     Append(")");
   }
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("min(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(", ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
                                               const char* op) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("vec4((");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").x %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").x ? 1.0 : 0.0, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").y %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").y ? 1.0 : 0.0, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").z %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").z ? 1.0 : 0.0, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").w %s (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").w ? 1.0 : 0.0)");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SETEv(const instr_alu_t& alu) {
@@ -548,133 +549,75 @@ bool GL4ShaderTranslator::TranslateALU_SETNEv(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("fract(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("trunc(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("floor(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(" * ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(") + ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 3);
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
                                               const char* op) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   // TODO(benvanik): check argument order - could be 3 as compare and 1 and 2 as
   // values.
   Append("vec4((");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").x %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").x : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 3);
   Append(").x, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").y %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").y : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 3);
   Append(").y, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").z %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").z : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 3);
   Append(").z, (");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").w %s 0.0 ? (", op);
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 2);
   Append(").w : (");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 3);
   Append(").w)");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  EndAppendVectorOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_CNDEv(const instr_alu_t& alu) {
@@ -688,214 +631,170 @@ bool GL4ShaderTranslator::TranslateALU_CNDGTv(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("dot(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(", ");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
-  Append(")");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(".xxxx;\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 2);
+  Append(").xxxx");
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("dot(vec4(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").xyz, vec4(");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
-  Append(").xyz)");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(".xxxx;\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 2);
+  Append(").xyz).xxxx");
+  EndAppendVectorOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("dot(vec4(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(").xy, vec4(");
-  AppendSrcReg(alu.src2_reg, alu.src2_sel, alu.src2_swiz, alu.src2_reg_negate,
-               alu.abs_constants);
-  Append(").xy) + ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(".xxxx;\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 2);
+  Append(").xy).xxxx + ");
+  AppendVectorOpSrcReg(alu, 3);
+  Append(".xxxx");
+  EndAppendVectorOp(alu);
   return true;
 }
 
 // CUBEv
 
 bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
-  AppendVectorDestReg(alu);
-  Append(" = ");
-  if (alu.vector_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendVectorOp(alu);
   Append("max(");
   Append("max(");
   Append("max(");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(".x, ");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(".y), ");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
+  AppendVectorOpSrcReg(alu, 1);
   Append(".z), ");
-  AppendSrcReg(alu.src1_reg, alu.src1_sel, alu.src1_swiz, alu.src1_reg_negate,
-               alu.abs_constants);
-  Append(".w)");
-  if (alu.vector_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendVectorDestRegPost(alu);
+  AppendVectorOpSrcReg(alu, 1);
+  Append(".w).xxxx");
+  EndAppendVectorOp(alu);
   return true;
+}
+
+bool GL4ShaderTranslator::TranslateALU_PRED_SETXX_PUSHv(
+    const ucode::instr_alu_t& alu, const char* op) {
+  Append("  p = ((");
+  AppendVectorOpSrcReg(alu, 1);
+  Append(".w == 0.0) && (");
+  AppendVectorOpSrcReg(alu, 2);
+  Append(".w %s 0.0)) ? true : false;\n", op);
+  BeginAppendVectorOp(alu);
+  Append("((");
+  AppendVectorOpSrcReg(alu, 1);
+  Append(".x == 0.0) && (");
+  AppendVectorOpSrcReg(alu, 2);
+  Append(".x %s 0.0)) ? vec4(0.0) : ", op);
+  AppendVectorOpSrcReg(alu, 1);
+  Append(" + vec4(1.0)");
+  EndAppendVectorOp(alu);
+  return true;
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETE_PUSHv(
+    const ucode::instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXX_PUSHv(alu, "==");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETNE_PUSHv(
+    const ucode::instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXX_PUSHv(alu, "!=");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETGT_PUSHv(
+    const ucode::instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXX_PUSHv(alu, ">");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETGTE_PUSHv(
+    const ucode::instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXX_PUSHv(alu, ">=");
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_ADDs(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
-  Append("(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  BeginAppendScalarOp(alu);
+  AppendScalarOpSrcReg(alu, 3);
   Append(".x + ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".y).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".y");
+  EndAppendScalarOp(alu);
   return true;
 }
 
-// ...
+bool GL4ShaderTranslator::TranslateALU_ADD_PREVs(const instr_alu_t& alu) {
+  BeginAppendScalarOp(alu);
+  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
+               alu.abs_constants);
+  Append(".x + ps");
+  EndAppendScalarOp(alu);
+  return true;
+}
 
 bool GL4ShaderTranslator::TranslateALU_MULs(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
-  Append("(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  BeginAppendScalarOp(alu);
+  AppendScalarOpSrcReg(alu, 3);
   Append(".x * ");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".y");
+  EndAppendScalarOp(alu);
+  return true;
+}
+
+bool GL4ShaderTranslator::TranslateALU_MUL_PREVs(const instr_alu_t& alu) {
+  BeginAppendScalarOp(alu);
   AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
                alu.abs_constants);
-  Append(".y).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  Append(".x * ps");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   if ((alu.src3_swiz & 0x3) == (((alu.src3_swiz >> 2) + 1) & 0x3)) {
     // This is a mov.
-    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-                 alu.abs_constants);
+    AppendScalarOpSrcReg(alu, 3);
   } else {
     Append("max(");
-    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-                 alu.abs_constants);
+    AppendScalarOpSrcReg(alu, 3);
     Append(".x, ");
-    AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-                 alu.abs_constants);
-    Append(".y).xxxx");
+    AppendScalarOpSrcReg(alu, 3);
+    Append(".y)");
   }
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("min(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  AppendScalarOpSrcReg(alu, 3);
   Append(".x, ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".y).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".y)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
                                               const char* op) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
-  Append("((");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x %s 0.0) ? 1.0 : 0.0).xxxx", op);
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  BeginAppendScalarOp(alu);
+  Append("(");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x %s 0.0) ? 1.0 : 0.0", op);
+  EndAppendScalarOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SETEs(const instr_alu_t& alu) {
@@ -912,181 +811,104 @@ bool GL4ShaderTranslator::TranslateALU_SETNEs(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_FRACs(const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("fract(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_TRUNCs(const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("trunc(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_FLOORs(const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("floor(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("pow(2.0, ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("log2(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
-  Append("(1.0 / ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(").xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  BeginAppendScalarOp(alu);
+  Append("1.0 / ");
+  AppendScalarOpSrcReg(alu, 3);
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_RECIPSQ_IEEE(
     const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
-  Append("(1.0 / sqrt(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x)).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  BeginAppendScalarOp(alu);
+  Append("1.0 / sqrt(");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 // ...
 
 bool GL4ShaderTranslator::TranslateALU_SUBs(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
-  Append("(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  BeginAppendScalarOp(alu);
+  AppendScalarOpSrcReg(alu, 3);
   Append(".x - ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".y).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".y");
+  EndAppendScalarOp(alu);
   return true;
 }
 
-// ...
+bool GL4ShaderTranslator::TranslateALU_SUB_PREVs(
+    const ucode::instr_alu_t& alu) {
+  BeginAppendScalarOp(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x - ps");
+  EndAppendScalarOp(alu);
+  return true;
+}
 
 bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(const instr_alu_t& alu,
                                                    const char* op) {
-  Append("p = ");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
+  Append("  p = ");
+  AppendScalarOpSrcReg(alu, 3);
   Append(".x %s 0.0;\n", op);
-  if (!alu.scalar_write_mask) {
-    return true;
-  }
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("(p ? 0.0 : 1.0).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  EndAppendScalarOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_PRED_SETEs(const instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, "==");
+}
+bool GL4ShaderTranslator::TranslateALU_PRED_SETNEs(const instr_alu_t& alu) {
+  return TranslateALU_PRED_SETXXs(alu, "!=");
 }
 bool GL4ShaderTranslator::TranslateALU_PRED_SETGTs(const instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, ">");
@@ -1094,50 +916,54 @@ bool GL4ShaderTranslator::TranslateALU_PRED_SETGTs(const instr_alu_t& alu) {
 bool GL4ShaderTranslator::TranslateALU_PRED_SETGTEs(const instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, ">=");
 }
-bool GL4ShaderTranslator::TranslateALU_PRED_SETNEs(const instr_alu_t& alu) {
-  return TranslateALU_PRED_SETXXs(alu, "!=");
+
+bool GL4ShaderTranslator::TranslateALU_PRED_SET_INVs(
+    const ucode::instr_alu_t& alu) {
+  Append("  ps = ");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x;\n");
+  Append("  if (ps == 1.0) { p = true; ps = 0.0; }\n");
+  Append("  else { p = false; ps = (ps == 0.0) ? 1.0 : ps; }\n");
+  BeginAppendScalarOp(alu);
+  Append("ps");
+  EndAppendScalarOp(alu);
+  return true;
+}
+
+bool GL4ShaderTranslator::TranslateALU_PRED_SET_POPs(
+    const ucode::instr_alu_t& alu) {
+  Append("  ps = ");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x - 1.0;\n");
+  Append("  if (ps <= 0.0) { p = true; ps = 0.0; }\n");
+  Append("  else { p = false; }\n");
+  BeginAppendScalarOp(alu);
+  Append("ps");
+  EndAppendScalarOp(alu);
+  return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("sqrt(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 =
       (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
-  Append("(");
   AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.abs_constants);
   Append(".%c * ", chan_names[swiz_a]);
   AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.abs_constants);
   Append(".%c", chan_names[swiz_b]);
-  Append(").xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  EndAppendScalarOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
@@ -1145,27 +971,17 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 =
       (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
-  Append("(");
   AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.abs_constants);
   Append(".%c + ", chan_names[swiz_a]);
   AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.abs_constants);
   Append(".%c", chan_names[swiz_b]);
-  Append(").xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  EndAppendScalarOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
@@ -1173,66 +989,39 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
 }
 
 bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 =
       (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
-  Append("(");
   AppendSrcReg(alu.src3_reg, 0, 0, alu.src3_reg_negate, alu.abs_constants);
   Append(".%c - ", chan_names[swiz_a]);
   AppendSrcReg(reg2, 1, 0, alu.src3_reg_negate, alu.abs_constants);
   Append(".%c", chan_names[swiz_b]);
-  Append(").xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  EndAppendScalarOp(alu);
   return true;
 }
 bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
+  // Handled as switch on scalar_opc.
   return TranslateALU_SUB_CONST_0(alu);
 }
 
 bool GL4ShaderTranslator::TranslateALU_SIN(const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("sin(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
 bool GL4ShaderTranslator::TranslateALU_COS(const ucode::instr_alu_t& alu) {
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  if (alu.scalar_clamp) {
-    Append("clamp(");
-  }
+  BeginAppendScalarOp(alu);
   Append("cos(");
-  AppendSrcReg(alu.src3_reg, alu.src3_sel, alu.src3_swiz, alu.src3_reg_negate,
-               alu.abs_constants);
-  Append(".x).xxxx");
-  if (alu.scalar_clamp) {
-    Append(", 0.0, 1.0)");
-  }
-  Append(";\n");
-  AppendScalarDestRegPost(alu);
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
   return true;
 }
 
@@ -1240,13 +1029,9 @@ bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
   // TODO(benvanik): figure out how this is used.
   // It seems like vector writes to export regs will use this to write 1's to
   // components (like w in position).
-  if (!alu.scalar_write_mask) {
-    return true;
-  }
-  AppendScalarDestReg(alu);
-  Append(" = ");
-  Append("vec4(1.0, 1.0, 1.0, 1.0);\n");
-  AppendScalarDestRegPost(alu);
+  BeginAppendScalarOp(alu);
+  Append("ps");
+  EndAppendScalarOp(alu);
   return true;
 }
 
@@ -1263,102 +1048,103 @@ typedef struct {
 
 bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
   static TranslateInfo vector_alu_instrs[0x20] = {
-      ALU_INSTR_IMPL(ADDv, 2),          // 0
-      ALU_INSTR_IMPL(MULv, 2),          // 1
-      ALU_INSTR_IMPL(MAXv, 2),          // 2
-      ALU_INSTR_IMPL(MINv, 2),          // 3
-      ALU_INSTR_IMPL(SETEv, 2),         // 4
-      ALU_INSTR_IMPL(SETGTv, 2),        // 5
-      ALU_INSTR_IMPL(SETGTEv, 2),       // 6
-      ALU_INSTR_IMPL(SETNEv, 2),        // 7
-      ALU_INSTR_IMPL(FRACv, 1),         // 8
-      ALU_INSTR_IMPL(TRUNCv, 1),        // 9
-      ALU_INSTR_IMPL(FLOORv, 1),        // 10
-      ALU_INSTR_IMPL(MULADDv, 3),       // 11
-      ALU_INSTR_IMPL(CNDEv, 3),         // 12
-      ALU_INSTR_IMPL(CNDGTEv, 3),       // 13
-      ALU_INSTR_IMPL(CNDGTv, 3),        // 14
-      ALU_INSTR_IMPL(DOT4v, 2),         // 15
-      ALU_INSTR_IMPL(DOT3v, 2),         // 16
-      ALU_INSTR_IMPL(DOT2ADDv, 3),      // 17 -- ???
-      ALU_INSTR(CUBEv, 2),              // 18
-      ALU_INSTR_IMPL(MAX4v, 1),         // 19
-      ALU_INSTR(PRED_SETE_PUSHv, 2),    // 20
-      ALU_INSTR(PRED_SETNE_PUSHv, 2),   // 21
-      ALU_INSTR(PRED_SETGT_PUSHv, 2),   // 22
-      ALU_INSTR(PRED_SETGTE_PUSHv, 2),  // 23
-      ALU_INSTR(KILLEv, 2),             // 24
-      ALU_INSTR(KILLGTv, 2),            // 25
-      ALU_INSTR(KILLGTEv, 2),           // 26
-      ALU_INSTR(KILLNEv, 2),            // 27
-      ALU_INSTR(DSTv, 2),               // 28
-      ALU_INSTR(MOVAv, 1),              // 29
+      ALU_INSTR_IMPL(ADDv, 2),               // 0
+      ALU_INSTR_IMPL(MULv, 2),               // 1
+      ALU_INSTR_IMPL(MAXv, 2),               // 2
+      ALU_INSTR_IMPL(MINv, 2),               // 3
+      ALU_INSTR_IMPL(SETEv, 2),              // 4
+      ALU_INSTR_IMPL(SETGTv, 2),             // 5
+      ALU_INSTR_IMPL(SETGTEv, 2),            // 6
+      ALU_INSTR_IMPL(SETNEv, 2),             // 7
+      ALU_INSTR_IMPL(FRACv, 1),              // 8
+      ALU_INSTR_IMPL(TRUNCv, 1),             // 9
+      ALU_INSTR_IMPL(FLOORv, 1),             // 10
+      ALU_INSTR_IMPL(MULADDv, 3),            // 11
+      ALU_INSTR_IMPL(CNDEv, 3),              // 12
+      ALU_INSTR_IMPL(CNDGTEv, 3),            // 13
+      ALU_INSTR_IMPL(CNDGTv, 3),             // 14
+      ALU_INSTR_IMPL(DOT4v, 2),              // 15
+      ALU_INSTR_IMPL(DOT3v, 2),              // 16
+      ALU_INSTR_IMPL(DOT2ADDv, 3),           // 17 -- ???
+      ALU_INSTR(CUBEv, 2),                   // 18
+      ALU_INSTR_IMPL(MAX4v, 1),              // 19
+      ALU_INSTR_IMPL(PRED_SETE_PUSHv, 2),    // 20
+      ALU_INSTR_IMPL(PRED_SETNE_PUSHv, 2),   // 21
+      ALU_INSTR_IMPL(PRED_SETGT_PUSHv, 2),   // 22
+      ALU_INSTR_IMPL(PRED_SETGTE_PUSHv, 2),  // 23
+      ALU_INSTR(KILLEv, 2),                  // 24
+      ALU_INSTR(KILLGTv, 2),                 // 25
+      ALU_INSTR(KILLGTEv, 2),                // 26
+      ALU_INSTR(KILLNEv, 2),                 // 27
+      ALU_INSTR(DSTv, 2),                    // 28
+      ALU_INSTR(MOVAv, 1),                   // 29
   };
   static TranslateInfo scalar_alu_instrs[0x40] = {
-      ALU_INSTR_IMPL(ADDs, 1),          // 0
-      ALU_INSTR(ADD_PREVs, 1),          // 1
-      ALU_INSTR_IMPL(MULs, 1),          // 2
-      ALU_INSTR(MUL_PREVs, 1),          // 3
-      ALU_INSTR(MUL_PREV2s, 1),         // 4
-      ALU_INSTR_IMPL(MAXs, 1),          // 5
-      ALU_INSTR_IMPL(MINs, 1),          // 6
-      ALU_INSTR_IMPL(SETEs, 1),         // 7
-      ALU_INSTR_IMPL(SETGTs, 1),        // 8
-      ALU_INSTR_IMPL(SETGTEs, 1),       // 9
-      ALU_INSTR_IMPL(SETNEs, 1),        // 10
-      ALU_INSTR_IMPL(FRACs, 1),         // 11
-      ALU_INSTR_IMPL(TRUNCs, 1),        // 12
-      ALU_INSTR_IMPL(FLOORs, 1),        // 13
-      ALU_INSTR_IMPL(EXP_IEEE, 1),      // 14
-      ALU_INSTR(LOG_CLAMP, 1),          // 15
-      ALU_INSTR_IMPL(LOG_IEEE, 1),      // 16
-      ALU_INSTR(RECIP_CLAMP, 1),        // 17
-      ALU_INSTR(RECIP_FF, 1),           // 18
-      ALU_INSTR_IMPL(RECIP_IEEE, 1),    // 19
-      ALU_INSTR(RECIPSQ_CLAMP, 1),      // 20
-      ALU_INSTR(RECIPSQ_FF, 1),         // 21
-      ALU_INSTR_IMPL(RECIPSQ_IEEE, 1),  // 22
-      ALU_INSTR(MOVAs, 1),              // 23
-      ALU_INSTR(MOVA_FLOORs, 1),        // 24
-      ALU_INSTR_IMPL(SUBs, 1),          // 25
-      ALU_INSTR(SUB_PREVs, 1),          // 26
-      ALU_INSTR_IMPL(PRED_SETEs, 1),    // 27
-      ALU_INSTR_IMPL(PRED_SETNEs, 1),   // 28
-      ALU_INSTR_IMPL(PRED_SETGTs, 1),   // 29
-      ALU_INSTR_IMPL(PRED_SETGTEs, 1),  // 30
-      ALU_INSTR(PRED_SET_INVs, 1),      // 31
-      ALU_INSTR(PRED_SET_POPs, 1),      // 32
-      ALU_INSTR(PRED_SET_CLRs, 1),      // 33
-      ALU_INSTR(PRED_SET_RESTOREs, 1),  // 34
-      ALU_INSTR(KILLEs, 1),             // 35
-      ALU_INSTR(KILLGTs, 1),            // 36
-      ALU_INSTR(KILLGTEs, 1),           // 37
-      ALU_INSTR(KILLNEs, 1),            // 38
-      ALU_INSTR(KILLONEs, 1),           // 39
-      ALU_INSTR_IMPL(SQRT_IEEE, 1),     // 40
-      {0, 0, false},                    //
-      ALU_INSTR_IMPL(MUL_CONST_0, 2),   // 42
-      ALU_INSTR_IMPL(MUL_CONST_1, 2),   // 43
-      ALU_INSTR_IMPL(ADD_CONST_0, 2),   // 44
-      ALU_INSTR_IMPL(ADD_CONST_1, 2),   // 45
-      ALU_INSTR_IMPL(SUB_CONST_0, 2),   // 46
-      ALU_INSTR_IMPL(SUB_CONST_1, 2),   // 47
-      ALU_INSTR_IMPL(SIN, 1),           // 48
-      ALU_INSTR_IMPL(COS, 1),           // 49
-      ALU_INSTR_IMPL(RETAIN_PREV, 1),   // 50
+      ALU_INSTR_IMPL(ADDs, 1),           // 0
+      ALU_INSTR_IMPL(ADD_PREVs, 1),      // 1
+      ALU_INSTR_IMPL(MULs, 1),           // 2
+      ALU_INSTR_IMPL(MUL_PREVs, 1),      // 3
+      ALU_INSTR(MUL_PREV2s, 1),          // 4
+      ALU_INSTR_IMPL(MAXs, 1),           // 5
+      ALU_INSTR_IMPL(MINs, 1),           // 6
+      ALU_INSTR_IMPL(SETEs, 1),          // 7
+      ALU_INSTR_IMPL(SETGTs, 1),         // 8
+      ALU_INSTR_IMPL(SETGTEs, 1),        // 9
+      ALU_INSTR_IMPL(SETNEs, 1),         // 10
+      ALU_INSTR_IMPL(FRACs, 1),          // 11
+      ALU_INSTR_IMPL(TRUNCs, 1),         // 12
+      ALU_INSTR_IMPL(FLOORs, 1),         // 13
+      ALU_INSTR_IMPL(EXP_IEEE, 1),       // 14
+      ALU_INSTR(LOG_CLAMP, 1),           // 15
+      ALU_INSTR_IMPL(LOG_IEEE, 1),       // 16
+      ALU_INSTR(RECIP_CLAMP, 1),         // 17
+      ALU_INSTR(RECIP_FF, 1),            // 18
+      ALU_INSTR_IMPL(RECIP_IEEE, 1),     // 19
+      ALU_INSTR(RECIPSQ_CLAMP, 1),       // 20
+      ALU_INSTR(RECIPSQ_FF, 1),          // 21
+      ALU_INSTR_IMPL(RECIPSQ_IEEE, 1),   // 22
+      ALU_INSTR(MOVAs, 1),               // 23
+      ALU_INSTR(MOVA_FLOORs, 1),         // 24
+      ALU_INSTR_IMPL(SUBs, 1),           // 25
+      ALU_INSTR_IMPL(SUB_PREVs, 1),      // 26
+      ALU_INSTR_IMPL(PRED_SETEs, 1),     // 27
+      ALU_INSTR_IMPL(PRED_SETNEs, 1),    // 28
+      ALU_INSTR_IMPL(PRED_SETGTs, 1),    // 29
+      ALU_INSTR_IMPL(PRED_SETGTEs, 1),   // 30
+      ALU_INSTR_IMPL(PRED_SET_INVs, 1),  // 31
+      ALU_INSTR_IMPL(PRED_SET_POPs, 1),  // 32
+      ALU_INSTR(PRED_SET_CLRs, 1),       // 33
+      ALU_INSTR(PRED_SET_RESTOREs, 1),   // 34
+      ALU_INSTR(KILLEs, 1),              // 35
+      ALU_INSTR(KILLGTs, 1),             // 36
+      ALU_INSTR(KILLGTEs, 1),            // 37
+      ALU_INSTR(KILLNEs, 1),             // 38
+      ALU_INSTR(KILLONEs, 1),            // 39
+      ALU_INSTR_IMPL(SQRT_IEEE, 1),      // 40
+      {0, 0, false},                     //
+      ALU_INSTR_IMPL(MUL_CONST_0, 2),    // 42
+      ALU_INSTR_IMPL(MUL_CONST_1, 2),    // 43
+      ALU_INSTR_IMPL(ADD_CONST_0, 2),    // 44
+      ALU_INSTR_IMPL(ADD_CONST_1, 2),    // 45
+      ALU_INSTR_IMPL(SUB_CONST_0, 2),    // 46
+      ALU_INSTR_IMPL(SUB_CONST_1, 2),    // 47
+      ALU_INSTR_IMPL(SIN, 1),            // 48
+      ALU_INSTR_IMPL(COS, 1),            // 49
+      ALU_INSTR_IMPL(RETAIN_PREV, 1),    // 50
   };
 #undef ALU_INSTR
 #undef ALU_INSTR_IMPL
 
-  if (alu->vector_write_mask) {
+  // If not an export we can fast kill if there is no write mask.
+  if (alu->vector_write_mask || (alu->export_data && alu->scalar_dest_rel)) {
     // Disassemble vector op.
     const auto& iv = vector_alu_instrs[alu->vector_opc];
     Append("  //   %sALU:\t", sync ? "(S)" : "   ");
     Append("%s", iv.name);
-    if (alu->pred_select & 0x2) {
+    if (alu->pred_select) {
       // seems to work similar to conditional execution in ARM instruction
       // set, so let's use a similar syntax for now:
-      Append((alu->pred_select & 0x1) ? "EQ" : "NE");
+      Append(alu->pred_condition ? "EQ" : "NE");
     }
     Append("\t");
     PrintVectorDstReg(*alu);
@@ -1385,7 +1171,6 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
 
     // Translate vector op.
     if (iv.fn) {
-      Append("  ");
       if (!(this->*iv.fn)(*alu)) {
         return false;
       }
@@ -1395,7 +1180,8 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
     }
   }
 
-  if (alu->scalar_write_mask || !alu->vector_write_mask) {
+  // TODO(benvanik): see if there's a better way to no-op this.
+  if (true) {  // alu->scalar_write_mask || alu->export_data) {
     // 2nd optional scalar op:
 
     // Disassemble scalar op.
@@ -1436,7 +1222,6 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
 
     // Translate scalar op.
     if (is.fn) {
-      Append("  ");
       if (!(this->*is.fn)(*alu)) {
         return false;
       }
