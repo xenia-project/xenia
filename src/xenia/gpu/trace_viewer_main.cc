@@ -1043,13 +1043,14 @@ void DrawTextureInfo(TracePlayer& player, const Shader::SamplerDesc& desc) {
   }
   auto texture = entry_view->texture;
 
-  ImGui::Columns(4);
-  ImVec2 button_size(64, 64);
+  ImGui::Columns(2);
+  ImVec2 button_size(256, 256);
   if (ImGui::ImageButton(ImTextureID(GLuint64(texture->handle)), button_size,
                          ImVec2(0, 0), ImVec2(1, 1))) {
     // show viewer
   }
   ImGui::NextColumn();
+  ImGui::Text("Fetch Slot: %d", desc.fetch_slot);
   switch (texture_info.dimension) {
     case Dimension::k1D:
       ImGui::Text("1D: %dpx", texture_info.width + 1);
@@ -1066,10 +1067,6 @@ void DrawTextureInfo(TracePlayer& player, const Shader::SamplerDesc& desc) {
       ImGui::Text("Cube: ?");
       break;
   }
-  ImGui::NextColumn();
-  //
-  ImGui::NextColumn();
-  //
   ImGui::Columns(1);
 }
 
