@@ -337,6 +337,7 @@ bool GL4Shader::CompileProgram(std::string source) {
                         const_cast<char*>(info_log.data()));
     PLOGE("Unable to link program: %s", info_log.c_str());
     error_log_ = std::move(info_log);
+    assert_always("Unable to link generated shader");
     return false;
   }
 
