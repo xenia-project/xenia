@@ -1712,6 +1712,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
     // TODO(benvanik): can we do this all named?
     // TODO(benvanik): do we want this on READ too?
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
+
+    glViewport(0, 0, 2560, 2560);
   }
 
   return UpdateStatus::kMismatch;
@@ -1840,10 +1842,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   auto& state_regs = update_viewport_state_regs_;
 
   bool dirty = false;
-  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_tl,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
-  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_br,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
   // dirty |= SetShadowRegister(state_regs.pa_cl_clip_cntl,
   //     XE_GPU_REG_PA_CL_CLIP_CNTL);
   if (!dirty) {
@@ -1851,11 +1849,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   }
 
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
-
-  // TODO(benvanik): better scissor rect?
-  glViewport(
-      0, 0, std::min(2560u, state_regs.pa_sc_window_scissor_br & 0x7FFF),
-      std::min(2560u, (state_regs.pa_sc_window_scissor_br >> 16) & 0x7FFF));
 
   // Clipping.
   // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/14/yamato_genenum.h#L1587
@@ -2493,7 +2486,7 @@ bool CommandProcessor::IssueCopy() {
   // but I can't seem to find something similar.
   // Maybe scissor rect/window offset?
   uint32_t x = 0;
-  uint32_t y = 0;
+  uint32_t y = 2560 - copy_dest_height;
   uint32_t w = copy_dest_pitch;
   uint32_t h = copy_dest_height;
 

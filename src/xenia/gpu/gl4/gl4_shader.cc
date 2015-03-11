@@ -185,39 +185,40 @@ bool GL4Shader::PrepareVertexShader(
   }
 
   std::string apply_transform =
-      "vec4 applyTransform(const in StateData state, vec4 pos) {\n"
+      "vec4 applyTransform(const in StateData state, vec4 Pclip) {\n"
       "  // Clip->NDC with perspective divide.\n"
       "  // We do this here because it's programmable on the 360.\n"
-      "  float w = pos.w;\n"
-      "  if (state.vtx_fmt.w == 0.0) {\n"
+      "  if (state.vtx_fmt.w != 0.0) {\n"
       "    // w is not 1/W0. Common case.\n"
-      "    w = 1.0 / w;\n"
+      "    Pclip.w = 1.0 / Pclip.w;\n"
       "  }\n"
-      "  if (state.vtx_fmt.x != 0.0) {\n"
+      "  vec3 Pndc = Pclip.xyz;\n"
+      "  if (state.vtx_fmt.x == 0.0) {\n"
       "    // Need to multiply by 1/W0.\n"
-      "    pos.xy *= w;\n"
+      "    Pndc.xy *= Pclip.w;\n"
       "  }\n"
-      "  if (state.vtx_fmt.z != 0.0) {\n"
+      "  if (state.vtx_fmt.z == 0.0) {\n"
       "    // Need to multiply by 1/W0.\n"
-      "    pos.z *= w;\n"
+      "    Pndc.z *= Pclip.w;\n"
       "  }\n"
-      "  pos.w = w;\n"
       "  // Perform clipping, lest we get weird geometry.\n"
       // TODO(benvanik): is this right? dxclip mode may change this?
-      //"  if (pos.z < gl_DepthRange.near || pos.z > gl_DepthRange.far) {\n"
-      //"    // Clipped! w=0 will kill it in the hardware persp divide.\n"
-      //"    pos.w = 0.0;\n"
-      //"  }\n"
-      "  // NDC transform.\n"
-      "  pos.xyz = pos.xyz * state.viewport_scale.xyz + \n"
+      "  Pclip.w = 1.0;\n"
+      "  if (Pndc.z < gl_DepthRange.near || Pndc.z > gl_DepthRange.far) {\n"
+      "    // Clipped! w=0 will kill it in the hardware persp divide.\n"
+      "    Pclip.w = 0.0;\n"
+      "  }\n"
+      "  vec3 Pwnd = Pndc.xyz * state.viewport_scale.xyz + \n"
       "      state.viewport_offset.xyz;\n"
-      "  // NDC->Window with viewport.\n"
-      "  pos.xy = pos.xy * state.window_offset.zw + state.window_offset.xy;\n"
-      "  // Put back in to ndc for glViewport to then take it back out again.\n"
-      "  // Note the 1px scaling adjustment to fully fill the window.\n"
-      "  pos.xy = pos.xy / ((state.window_scissor.zw - 1.0) /\n"
-      "      vec2(2.0, -2.0)) + vec2(-1.0, 1.0);\n"
-      "  return pos;\n"
+      "  // 1px padding required for pixel offset issue.\n"
+      "  Pwnd.xy += 1.0;\n"
+      "  vec3 Pwnd2 = vec3(Pwnd.xy * state.window_offset.zw + \n"
+      "      state.window_offset.xy, Pwnd.z);\n"
+      "  Pwnd2.y = 2560.0 - Pwnd2.y;\n"
+      "  vec3 fb_offset = vec3(2560.0 / 2.0, 2560.0 / 2.0, 0.0);\n"
+      "  vec3 fb_scale = vec3(2560.0 / 2.0, 2560.0 / 2.0, 1.0);\n"
+      "  vec3 Pndc2 = (Pwnd2.xyz - fb_offset.xyz) / fb_scale.xyz;\n"
+      "  return vec4(Pndc2.xy, Pndc2.z, Pclip.w);\n"
       "}\n";
   std::string source =
       GetHeader() + apply_transform +
@@ -265,15 +266,24 @@ bool GL4Shader::PreparePixelShader(
   }
   has_prepared_ = true;
 
-  std::string source = GetHeader() +
-                       "layout(location = 0) flat in uint draw_id;\n"
-                       "layout(location = 1) in VertexData vtx;\n"
-                       "layout(location = 0) out vec4 oC[4];\n"
-                       "void processFragment(const in StateData state);\n"
-                       "void main() {\n" +
-                       "  const StateData state = states[draw_id];\n"
-                       "  processFragment(state);\n"
-                       "}\n";
+  std::string source =
+      GetHeader() +
+      "layout(origin_upper_left) in vec4 gl_FragCoord;\n"
+      "layout(location = 0) flat in uint draw_id;\n"
+      "layout(location = 1) in VertexData vtx;\n"
+      "layout(location = 0) out vec4 oC[4];\n"
+      "void processFragment(const in StateData state);\n"
+      "void main() {\n" +
+      "  const StateData state = states[draw_id];\n"
+      "  // Custom scissoring. Doing it here avoids the need for glScissor.\n"
+      "  if (gl_FragCoord.x < state.window_scissor.x ||\n"
+      "      gl_FragCoord.x > state.window_scissor.z ||\n"
+      "      gl_FragCoord.y < state.window_scissor.y ||\n"
+      "      gl_FragCoord.y > state.window_scissor.w) {\n"
+      "    discard;\n"
+      "  }\n"
+      "  processFragment(state);\n"
+      "}\n";
 
   std::string translated_source =
       shader_translator_.TranslatePixelShader(this, program_cntl);
@@ -358,8 +368,8 @@ bool GL4Shader::CompileProgram(std::string source) {
     char* search_start = reinterpret_cast<char*>(translated_binary_.data());
     while (true) {
       auto p = reinterpret_cast<char*>(
-        memchr(translated_binary_.data() + search_offset, '!',
-        translated_binary_.size() - search_offset));
+          memchr(translated_binary_.data() + search_offset, '!',
+                 translated_binary_.size() - search_offset));
       if (!p) {
         break;
       }

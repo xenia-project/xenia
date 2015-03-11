@@ -50,7 +50,7 @@ struct VertexData { \n\
 }; \n\
 ";
   const std::string vs_source = header +
-                                "\n\
+    "\n\
 layout(location = 0) uniform vec4 src_uv_params; \n\
 out gl_PerVertex { \n\
   vec4 gl_Position; \n\
@@ -77,13 +77,12 @@ void main() { \n\
 } \n\
 ";
   const std::string depth_fs_source = header +
-    "\n\
+                                      "\n\
 layout(location = 1) uniform sampler2D src_texture; \n\
 layout(location = 0) in VertexData vtx; \n\
 layout(location = 0) out vec4 oC; \n\
 void main() { \n\
-  vec4 c = texture(src_texture, vtx.uv); \n\
-  gl_FragDepth = c.r; \n\
+  gl_FragDepth = texture(src_texture, vtx.uv).r; \n\
 } \n\
 ";
 
