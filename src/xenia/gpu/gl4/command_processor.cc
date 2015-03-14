@@ -1144,11 +1144,12 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(RingbufferReader* reader,
-
                                                       uint32_t packet,
                                                       uint32_t count) {
   // generate an event that creates a write to memory when completed
   uint32_t initiator = reader->Read();
+  // Writeback initiator.
+  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
   if (count == 1) {
     // Just an event flag? Where does this write?
   } else {
@@ -1186,8 +1187,26 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
     RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // generate a screen extent event
-  uint32_t unk0 = reader->Read();
-  uint32_t unk1 = reader->Read();
+  uint32_t initiator = reader->Read();
+  uint32_t address = reader->Read();
+  // Writeback initiator.
+  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
+  auto endianness = static_cast<Endian>(address & 0x3);
+  address &= ~0x3;
+  // Let us hope we can fake this.
+  uint16_t extents[] = {
+      0 / 8,     // min x
+      2560 / 8,  // max x
+      0 / 8,     // min y
+      2560 / 8,  // max y
+      0,         // min z
+      0,         // max z
+  };
+  assert_true(endianness == xenos::Endian::k8in16);
+  poly::copy_and_swap_16_aligned(
+      reinterpret_cast<uint16_t*>(membase_ + GpuToCpu(address)), extents,
+      poly::countof(extents));
+  trace_writer_.WriteMemoryWrite(address, sizeof(extents));
   return true;
 }
 

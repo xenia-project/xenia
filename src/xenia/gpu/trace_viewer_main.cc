@@ -1259,9 +1259,9 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
       int32_t screen_scissor_x = pa_sc_screen_scissor_tl & 0x7FFF;
       int32_t screen_scissor_y = (pa_sc_screen_scissor_tl >> 16) & 0x7FFF;
       int32_t screen_scissor_w =
-          pa_sc_screen_scissor_br & 0x7FFF - screen_scissor_x;
+          (pa_sc_screen_scissor_br & 0x7FFF) - screen_scissor_x;
       int32_t screen_scissor_h =
-          (pa_sc_screen_scissor_br >> 16) & 0x7FFF - screen_scissor_y;
+          ((pa_sc_screen_scissor_br >> 16) & 0x7FFF) - screen_scissor_y;
       ImGui::BulletText("Scissor: %d,%d to %d,%d (%d x %d)", screen_scissor_x,
                         screen_scissor_y, screen_scissor_x + screen_scissor_w,
                         screen_scissor_y + screen_scissor_h, screen_scissor_w,
