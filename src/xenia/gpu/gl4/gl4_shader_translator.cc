@@ -855,6 +855,26 @@ bool GL4ShaderTranslator::TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu) {
   return true;
 }
 
+bool GL4ShaderTranslator::TranslateALU_RECIP_CLAMP(const instr_alu_t& alu) {
+  // if result == -inf result = -flt_max
+  // if result == +inf result = flt_max
+  BeginAppendScalarOp(alu);
+  Append("1.0 / ");
+  AppendScalarOpSrcReg(alu, 3);
+  EndAppendScalarOp(alu);
+  return true;
+}
+
+bool GL4ShaderTranslator::TranslateALU_RECIP_FF(const instr_alu_t& alu) {
+  // if result == -inf result = -zero
+  // if result == +inf result = zero
+  BeginAppendScalarOp(alu);
+  Append("1.0 / ");
+  AppendScalarOpSrcReg(alu, 3);
+  EndAppendScalarOp(alu);
+  return true;
+}
+
 bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   Append("1.0 / ");
@@ -863,10 +883,34 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
   return true;
 }
 
+bool GL4ShaderTranslator::TranslateALU_RECIPSQ_CLAMP(
+    const ucode::instr_alu_t& alu) {
+  // if result == -inf result = -flt_max
+  // if result == +inf result = flt_max
+  BeginAppendScalarOp(alu);
+  Append("inversesqrt(");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
+  return true;
+}
+
+bool GL4ShaderTranslator::TranslateALU_RECIPSQ_FF(
+    const ucode::instr_alu_t& alu) {
+  // if result == -inf result = -zero
+  // if result == +inf result = zero
+  BeginAppendScalarOp(alu);
+  Append("inversesqrt(");
+  AppendScalarOpSrcReg(alu, 3);
+  Append(".x)");
+  EndAppendScalarOp(alu);
+  return true;
+}
+
 bool GL4ShaderTranslator::TranslateALU_RECIPSQ_IEEE(
     const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
-  Append("1.0 / sqrt(");
+  Append("inversesqrt(");
   AppendScalarOpSrcReg(alu, 3);
   Append(".x)");
   EndAppendScalarOp(alu);
@@ -1097,11 +1141,11 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       ALU_INSTR_IMPL(EXP_IEEE, 1),       // 14
       ALU_INSTR(LOG_CLAMP, 1),           // 15
       ALU_INSTR_IMPL(LOG_IEEE, 1),       // 16
-      ALU_INSTR(RECIP_CLAMP, 1),         // 17
-      ALU_INSTR(RECIP_FF, 1),            // 18
+      ALU_INSTR_IMPL(RECIP_CLAMP, 1),    // 17
+      ALU_INSTR_IMPL(RECIP_FF, 1),       // 18
       ALU_INSTR_IMPL(RECIP_IEEE, 1),     // 19
-      ALU_INSTR(RECIPSQ_CLAMP, 1),       // 20
-      ALU_INSTR(RECIPSQ_FF, 1),          // 21
+      ALU_INSTR_IMPL(RECIPSQ_CLAMP, 1),  // 20
+      ALU_INSTR_IMPL(RECIPSQ_FF, 1),     // 21
       ALU_INSTR_IMPL(RECIPSQ_IEEE, 1),   // 22
       ALU_INSTR(MOVAs, 1),               // 23
       ALU_INSTR(MOVA_FLOORs, 1),         // 24

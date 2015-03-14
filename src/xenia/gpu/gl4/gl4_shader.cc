@@ -54,9 +54,6 @@ std::string GL4Shader::GetHeader() {
       // This must match DrawBatcher::CommonHeader.
       "struct StateData {\n"
       "  vec4 window_offset;\n"
-      "  vec4 window_scissor;\n"
-      "  vec4 viewport_offset;\n"
-      "  vec4 viewport_scale;\n"
       "  vec4 vtx_fmt;\n"
       "  vec4 alpha_test;\n"
       // TODO(benvanik): variable length.
@@ -185,40 +182,21 @@ bool GL4Shader::PrepareVertexShader(
   }
 
   std::string apply_transform =
-      "vec4 applyTransform(const in StateData state, vec4 Pclip) {\n"
-      "  // Clip->NDC with perspective divide.\n"
-      "  // We do this here because it's programmable on the 360.\n"
-      "  if (state.vtx_fmt.w != 0.0) {\n"
-      "    // w is not 1/W0. Common case.\n"
-      "    Pclip.w = 1.0 / Pclip.w;\n"
+      "vec4 applyTransform(const in StateData state, vec4 pos) {\n"
+      "  if (state.vtx_fmt.w == 0.0) {\n"
+      "    // w is 1/W0, so fix it.\n"
+      "    pos.w = 1.0 / pos.w;\n"
       "  }\n"
-      "  vec3 Pndc = Pclip.xyz;\n"
-      "  if (state.vtx_fmt.x == 0.0) {\n"
-      "    // Need to multiply by 1/W0.\n"
-      "    Pndc.xy *= Pclip.w;\n"
+      "  if (state.vtx_fmt.x != 0.0) {\n"
+      "    // Already multiplied by 1/W0, so pull it out.\n"
+      "    pos.xy /= pos.w;\n"
       "  }\n"
-      "  if (state.vtx_fmt.z == 0.0) {\n"
-      "    // Need to multiply by 1/W0.\n"
-      "    Pndc.z *= Pclip.w;\n"
+      "  if (state.vtx_fmt.z != 0.0) {\n"
+      "    // Already multiplied by 1/W0, so pull it out.\n"
+      "    pos.z /= pos.w;\n"
       "  }\n"
-      "  // Perform clipping, lest we get weird geometry.\n"
-      // TODO(benvanik): is this right? dxclip mode may change this?
-      "  Pclip.w = 1.0;\n"
-      "  if (Pndc.z < gl_DepthRange.near || Pndc.z > gl_DepthRange.far) {\n"
-      "    // Clipped! w=0 will kill it in the hardware persp divide.\n"
-      "    Pclip.w = 0.0;\n"
-      "  }\n"
-      "  vec3 Pwnd = Pndc.xyz * state.viewport_scale.xyz + \n"
-      "      state.viewport_offset.xyz;\n"
-      "  // 1px padding required for pixel offset issue.\n"
-      "  Pwnd.xy += 1.0;\n"
-      "  vec3 Pwnd2 = vec3(Pwnd.xy * state.window_offset.zw + \n"
-      "      state.window_offset.xy, Pwnd.z);\n"
-      "  Pwnd2.y = 2560.0 - Pwnd2.y;\n"
-      "  vec3 fb_offset = vec3(2560.0 / 2.0, 2560.0 / 2.0, 0.0);\n"
-      "  vec3 fb_scale = vec3(2560.0 / 2.0, 2560.0 / 2.0, 1.0);\n"
-      "  vec3 Pndc2 = (Pwnd2.xyz - fb_offset.xyz) / fb_scale.xyz;\n"
-      "  return vec4(Pndc2.xy, Pndc2.z, Pclip.w);\n"
+      "  pos.xy *= state.window_offset.zw;\n"
+      "  return pos;\n"
       "}\n";
   std::string source =
       GetHeader() + apply_transform +
@@ -275,13 +253,6 @@ bool GL4Shader::PreparePixelShader(
       "void processFragment(const in StateData state);\n"
       "void main() {\n" +
       "  const StateData state = states[draw_id];\n"
-      "  // Custom scissoring. Doing it here avoids the need for glScissor.\n"
-      "  if (gl_FragCoord.x < state.window_scissor.x ||\n"
-      "      gl_FragCoord.x > state.window_scissor.z ||\n"
-      "      gl_FragCoord.y < state.window_scissor.y ||\n"
-      "      gl_FragCoord.y > state.window_scissor.w) {\n"
-      "    discard;\n"
-      "  }\n"
       "  processFragment(state);\n"
       "}\n";
 

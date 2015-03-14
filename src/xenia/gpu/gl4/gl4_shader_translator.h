@@ -110,7 +110,11 @@ class GL4ShaderTranslator {
   bool TranslateALU_FLOORs(const ucode::instr_alu_t& alu);
   bool TranslateALU_EXP_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_RECIP_CLAMP(const ucode::instr_alu_t& alu);
+  bool TranslateALU_RECIP_FF(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIP_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_RECIPSQ_CLAMP(const ucode::instr_alu_t& alu);
+  bool TranslateALU_RECIPSQ_FF(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIPSQ_IEEE(const ucode::instr_alu_t& alu);
   // ...
   bool TranslateALU_SUBs(const ucode::instr_alu_t& alu);

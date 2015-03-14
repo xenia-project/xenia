@@ -298,7 +298,17 @@ class CommandProcessor {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_render_targets_regs_;
   struct UpdateViewportStateRegisters {
-    uint32_t pa_cl_clip_cntl;
+    // uint32_t pa_cl_clip_cntl;
+    uint32_t rb_surface_info;
+    uint32_t pa_cl_vte_cntl;
+    uint32_t pa_sc_window_scissor_tl;
+    uint32_t pa_sc_window_scissor_br;
+    float pa_cl_vport_xoffset;
+    float pa_cl_vport_yoffset;
+    float pa_cl_vport_zoffset;
+    float pa_cl_vport_xscale;
+    float pa_cl_vport_yscale;
+    float pa_cl_vport_zscale;
 
     UpdateViewportStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

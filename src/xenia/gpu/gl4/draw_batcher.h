@@ -81,26 +81,9 @@ class DrawBatcher {
     active_draw_.header->window_offset.x = float(x);
     active_draw_.header->window_offset.y = float(y);
   }
-  void set_window_scissor(uint32_t left, uint32_t top, uint32_t right,
-                          uint32_t bottom) {
-    active_draw_.header->window_scissor.x = float(left);
-    active_draw_.header->window_scissor.y = float(top);
-    active_draw_.header->window_scissor.z = float(right);
-    active_draw_.header->window_scissor.w = float(bottom);
-  }
   void set_window_scalar(float width_scalar, float height_scalar) {
     active_draw_.header->window_offset.z = width_scalar;
     active_draw_.header->window_offset.w = height_scalar;
-  }
-  void set_viewport_offset(float offset_x, float offset_y, float offset_z) {
-    active_draw_.header->viewport_offset.x = offset_x;
-    active_draw_.header->viewport_offset.y = offset_y;
-    active_draw_.header->viewport_offset.z = offset_z;
-  }
-  void set_viewport_scale(float scale_x, float scale_y, float scale_z) {
-    active_draw_.header->viewport_scale.x = scale_x;
-    active_draw_.header->viewport_scale.y = scale_y;
-    active_draw_.header->viewport_scale.z = scale_z;
   }
   void set_vtx_fmt(float xy, float z, float w) {
     active_draw_.header->vtx_fmt.x = xy;
@@ -193,9 +176,6 @@ class DrawBatcher {
   // This must match GL4Shader's header.
   struct CommonHeader {
     float4 window_offset;    // tx,ty,sx,sy
-    float4 window_scissor;   // x0,y0,x1,y1
-    float4 viewport_offset;  // tx,ty,tz,?
-    float4 viewport_scale;   // sx,sy,sz,?
     float4 vtx_fmt;          //
     float4 alpha_test;       // alpha test enable, func, ref, ?
 

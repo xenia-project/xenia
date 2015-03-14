@@ -50,7 +50,7 @@ struct VertexData { \n\
 }; \n\
 ";
   const std::string vs_source = header +
-    "\n\
+                                "\n\
 layout(location = 0) uniform vec4 src_uv_params; \n\
 out gl_PerVertex { \n\
   vec4 gl_Position; \n\
@@ -239,6 +239,9 @@ void Blitter::Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
                      src_y / float(src_texture_height),
                      src_width / float(src_texture_width),
                      src_height / float(src_texture_height));
+
+  // Useful for seeing the entire framebuffer/etc:
+  // glProgramUniform4f(vertex_program_, 0, 0.0f, 0.0f, 1.0f, 1.0f);
 
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }

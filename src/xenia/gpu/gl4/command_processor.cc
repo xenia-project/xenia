@@ -405,6 +405,10 @@ bool CommandProcessor::SetupGL() {
     return false;
   }
 
+  glEnable(GL_SCISSOR_TEST);
+  glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+  glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, GL_UPPER_LEFT);
+
   return true;
 }
 
@@ -568,6 +572,9 @@ void CommandProcessor::IssueSwap() {
   // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   // HACK: just use whatever our current framebuffer is.
   swap_params.framebuffer_texture = last_framebuffer_texture_;
+  /*swap_params.framebuffer_texture = active_framebuffer_
+                                        ? active_framebuffer_->color_targets[0]
+                                        : last_framebuffer_texture_;*/
 
   // Guess frontbuffer dimensions.
   // Command buffer seems to set these right before the XE_SWAP.
@@ -577,10 +584,6 @@ void CommandProcessor::IssueSwap() {
   swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
   swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
   swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
-
-  // This is just so that we draw reasonable garbage when drawing garbage.
-  swap_params.width = std::min(swap_params.width, 2560u);
-  swap_params.height = std::min(swap_params.height, 2560u);
 
   PrepareForWait();
   swap_handler_(swap_params);
@@ -1712,8 +1715,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
     // TODO(benvanik): can we do this all named?
     // TODO(benvanik): do we want this on READ too?
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cached_framebuffer->framebuffer);
-
-    glViewport(0, 0, 2560, 2560);
   }
 
   return UpdateStatus::kMismatch;
@@ -1771,62 +1772,16 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
+  uint32_t window_offset_x = 0;
+  uint32_t window_offset_y = 0;
   if ((pa_su_sc_mode_cntl >> 17) & 1) {
     uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-    draw_batcher_.set_window_offset(window_offset & 0x7FFF,
-                                    (window_offset >> 16) & 0x7FFF);
+    window_offset_x = window_offset & 0x7FFF;
+    window_offset_y = (window_offset >> 16) & 0x7FFF;
+    draw_batcher_.set_window_offset(window_offset_x, window_offset_y);
   } else {
     draw_batcher_.set_window_offset(0, 0);
   }
-  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  draw_batcher_.set_window_scissor(
-      window_scissor_tl & 0x7FFF, (window_scissor_tl >> 16) & 0x7FFF,
-      window_scissor_br & 0x7FFF, (window_scissor_br >> 16) & 0x7FFF);
-
-  // HACK: no clue where to get these values.
-  // RB_SURFACE_INFO
-  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = surface_info & 0x3FFF;
-  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
-  // TODO(benvanik): ??
-  float window_width_scalar = 1;
-  float window_height_scalar = 1;
-  switch (surface_msaa) {
-    case MsaaSamples::k1X:
-      break;
-    case MsaaSamples::k2X:
-      window_width_scalar = 2;
-      break;
-    case MsaaSamples::k4X:
-      window_width_scalar = 2;
-      window_height_scalar = 2;
-      break;
-  }
-  draw_batcher_.set_window_scalar(window_width_scalar, window_height_scalar);
-
-  // Whether each of the viewport settings is enabled.
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
-  bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
-  bool vport_xoffset_enable = (vte_control & (1 << 1)) > 0;
-  bool vport_yscale_enable = (vte_control & (1 << 2)) > 0;
-  bool vport_yoffset_enable = (vte_control & (1 << 3)) > 0;
-  bool vport_zscale_enable = (vte_control & (1 << 4)) > 0;
-  bool vport_zoffset_enable = (vte_control & (1 << 5)) > 0;
-  assert_true(vport_xscale_enable == vport_yscale_enable ==
-              vport_zscale_enable == vport_xoffset_enable ==
-              vport_yoffset_enable == vport_zoffset_enable);
-
-  // Viewport scaling. Only enabled if the flags are all set.
-  draw_batcher_.set_viewport_offset(
-      vport_xoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32 : 0,
-      vport_yoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32 : 0,
-      vport_zoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32 : 0);
-  draw_batcher_.set_viewport_scale(
-      vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1,
-      vport_yscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32 : 1,
-      vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1);
 
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
@@ -1835,6 +1790,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   //           = false: multiply the Z coordinate by 1/W0.
   // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
   //                    get 1/W0.
+  uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   draw_batcher_.set_vtx_fmt((vte_control >> 8) & 0x1 ? 1.0f : 0.0f,
                             (vte_control >> 9) & 0x1 ? 1.0f : 0.0f,
                             (vte_control >> 10) & 0x1 ? 1.0f : 0.0f);
@@ -1844,7 +1800,32 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   bool dirty = false;
   // dirty |= SetShadowRegister(state_regs.pa_cl_clip_cntl,
   //     XE_GPU_REG_PA_CL_CLIP_CNTL);
+  dirty |=
+      SetShadowRegister(state_regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |=
+      SetShadowRegister(state_regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
+  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_tl,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
+  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_br,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  dirty |= SetShadowRegister(state_regs.pa_cl_vport_xoffset,
+                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
+  dirty |= SetShadowRegister(state_regs.pa_cl_vport_yoffset,
+                             XE_GPU_REG_PA_CL_VPORT_YOFFSET);
+  dirty |= SetShadowRegister(state_regs.pa_cl_vport_zoffset,
+                             XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
+  dirty |= SetShadowRegister(state_regs.pa_cl_vport_xscale,
+                             XE_GPU_REG_PA_CL_VPORT_XSCALE);
+  dirty |= SetShadowRegister(state_regs.pa_cl_vport_yscale,
+                             XE_GPU_REG_PA_CL_VPORT_YSCALE);
+  dirty |= SetShadowRegister(state_regs.pa_cl_vport_zscale,
+                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
   if (!dirty) {
+    if ((state_regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
+      draw_batcher_.set_window_scalar(1.0f, 1.0f);
+    } else {
+      draw_batcher_.set_window_scalar(1.0f / 2560.0f, -1.0f / 2560.0f);
+    }
     return UpdateStatus::kCompatible;
   }
 
@@ -1860,6 +1841,69 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   //} else {
   //  glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
   //}
+
+  GLint ws_x = state_regs.pa_sc_window_scissor_tl & 0x7FFF;
+  GLint ws_y = (state_regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
+  GLsizei ws_w = (state_regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
+  GLsizei ws_h = ((state_regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
+  glScissorIndexed(0, ws_x, ws_y, ws_w, ws_h);
+
+  // HACK: no clue where to get these values.
+  // RB_SURFACE_INFO
+  auto surface_msaa =
+      static_cast<MsaaSamples>((state_regs.rb_surface_info >> 16) & 0x3);
+  // TODO(benvanik): ??
+  float window_width_scalar = 1;
+  float window_height_scalar = 1;
+  switch (surface_msaa) {
+    case MsaaSamples::k1X:
+      break;
+    case MsaaSamples::k2X:
+      // window_width_scalar = 2;
+      break;
+    case MsaaSamples::k4X:
+      window_width_scalar = 2;
+      window_height_scalar = 2;
+      break;
+  }
+
+  // Whether each of the viewport settings are enabled.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  bool vport_xscale_enable = (state_regs.pa_cl_vte_cntl & (1 << 0)) > 0;
+  bool vport_xoffset_enable = (state_regs.pa_cl_vte_cntl & (1 << 1)) > 0;
+  bool vport_yscale_enable = (state_regs.pa_cl_vte_cntl & (1 << 2)) > 0;
+  bool vport_yoffset_enable = (state_regs.pa_cl_vte_cntl & (1 << 3)) > 0;
+  bool vport_zscale_enable = (state_regs.pa_cl_vte_cntl & (1 << 4)) > 0;
+  bool vport_zoffset_enable = (state_regs.pa_cl_vte_cntl & (1 << 5)) > 0;
+  assert_true(vport_xscale_enable == vport_yscale_enable ==
+              vport_zscale_enable == vport_xoffset_enable ==
+              vport_yoffset_enable == vport_zoffset_enable);
+
+  if (vport_xscale_enable) {
+    float texel_offset_x = 0.0f;
+    float texel_offset_y = 0.0f;
+    float vox = vport_xoffset_enable ? state_regs.pa_cl_vport_xoffset : 0;
+    float voy = vport_yoffset_enable ? state_regs.pa_cl_vport_yoffset : 0;
+    float voz = vport_zoffset_enable ? state_regs.pa_cl_vport_zoffset : 0;
+    float vsx = vport_xscale_enable ? state_regs.pa_cl_vport_xscale : 1;
+    float vsy = vport_yscale_enable ? state_regs.pa_cl_vport_yscale : 1;
+    float vsz = vport_zscale_enable ? state_regs.pa_cl_vport_zscale : 1;
+    float vpw = 2 * window_width_scalar * vsx;
+    float vph = -2 * window_height_scalar * vsy;
+    float vpx = window_width_scalar * vox - vpw / 2;
+    float vpy = window_height_scalar * voy - vph / 2;
+    glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
+    draw_batcher_.set_window_scalar(1.0f, 1.0f);
+  } else {
+    float texel_offset_x = 0.0f;
+    float texel_offset_y = 0.0f;
+    float vpw = 2 * 2560.0f * window_width_scalar;
+    float vph = 2 * 2560.0f * window_height_scalar;
+    float vpx = -2560.0f * window_width_scalar;
+    float vpy = -2560.0f * window_height_scalar;
+    glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
+    draw_batcher_.set_window_scalar(1.0f / 2560.0f, -1.0f / 2560.0f);
+  }
 
   return UpdateStatus::kMismatch;
 }
@@ -1883,9 +1927,11 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
   // Scissoring.
+  // TODO(benvanik): is this used? we are using scissoring for window scissor.
   if (regs.pa_sc_screen_scissor_tl != 0 &&
       regs.pa_sc_screen_scissor_br != 0x20002000) {
-    glEnable(GL_SCISSOR_TEST);
+    assert_always();
+    // glEnable(GL_SCISSOR_TEST);
     // TODO(benvanik): signed?
     int32_t screen_scissor_x = regs.pa_sc_screen_scissor_tl & 0x7FFF;
     int32_t screen_scissor_y = (regs.pa_sc_screen_scissor_tl >> 16) & 0x7FFF;
@@ -1896,7 +1942,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
     glScissor(screen_scissor_x, screen_scissor_y, screen_scissor_w,
               screen_scissor_h);
   } else {
-    glDisable(GL_SCISSOR_TEST);
+    // glDisable(GL_SCISSOR_TEST);
   }
 
   switch (regs.pa_su_sc_mode_cntl & 0x3) {
@@ -1912,7 +1958,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
       glCullFace(GL_BACK);
       break;
   }
-
   if (regs.pa_su_sc_mode_cntl & 0x4) {
     glFrontFace(GL_CW);
   } else {
@@ -2486,7 +2531,7 @@ bool CommandProcessor::IssueCopy() {
   // but I can't seem to find something similar.
   // Maybe scissor rect/window offset?
   uint32_t x = 0;
-  uint32_t y = 2560 - copy_dest_height;
+  uint32_t y = 0;
   uint32_t w = copy_dest_pitch;
   uint32_t h = copy_dest_height;
 
