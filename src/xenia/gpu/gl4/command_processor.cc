@@ -839,6 +839,9 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
     case PM4_LOAD_ALU_CONSTANT:
       result = ExecutePacketType3_LOAD_ALU_CONSTANT(reader, packet, count);
       break;
+    case PM4_SET_SHADER_CONSTANTS:
+      result = ExecutePacketType3_SET_SHADER_CONSTANTS(reader, packet, count);
+      break;
     case PM4_IM_LOAD:
       result = ExecutePacketType3_IM_LOAD(reader, packet, count);
       break;
@@ -1360,8 +1363,18 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
+bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
+  uint32_t offset_type = reader->Read();
+  uint32_t index = offset_type & 0xFFFF;
+  for (uint32_t n = 0; n < count - 1; n++, index++) {
+    uint32_t data = reader->Read();
+    WriteRegister(index, data);
+  }
+  return true;
+}
 
+bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
                                                   uint32_t packet,
                                                   uint32_t count) {
   // load sequencer instruction memory (pointer-based)
@@ -1536,8 +1549,12 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
 
   // These are the constant base addresses/ranges for shaders.
   // We have these hardcoded right now cause nothing seems to differ.
-  assert_true(register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000);
-  assert_true(register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100);
+  assert_true(register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 ==
+                  0x000FF000 ||
+              register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
+  assert_true(register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 ==
+                  0x000FF100 ||
+              register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
 
   bool dirty = false;
   dirty |=
