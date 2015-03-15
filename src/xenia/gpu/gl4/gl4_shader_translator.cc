@@ -455,6 +455,15 @@ void GL4ShaderTranslator::AppendOpDestRegName(const ucode::instr_alu_t& op,
           case 63:  // ? masked?
             Append("oC[0]");
             break;
+          case 1:
+            Append("oC[1]");
+            break;
+          case 2:
+            Append("oC[2]");
+            break;
+          case 3:
+            Append("oC[3]");
+            break;
           case 61:
             Append("gl_FragDepth");
             break;
