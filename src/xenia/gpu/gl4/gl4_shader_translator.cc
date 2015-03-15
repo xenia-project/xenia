@@ -108,14 +108,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
   Append("  int a0 = 0;\n");      // Address register.
 
   // Execute blocks.
-  const auto& execs = vertex_shader->execs();
-  for (auto it = execs.begin(); it != execs.end(); ++it) {
-    const instr_cf_exec_t& cf = *it;
-    // TODO(benvanik): figure out how sequences/jmps/loops/etc work.
-    if (!TranslateExec(cf)) {
-      return "";
-    }
-  }
+  TranslateBlocks(vertex_shader);
 
   Append("}\n");
   return output_.to_string();
@@ -150,14 +143,7 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   }
 
   // Execute blocks.
-  const auto& execs = pixel_shader->execs();
-  for (auto it = execs.begin(); it != execs.end(); ++it) {
-    const instr_cf_exec_t& cf = *it;
-    // TODO(benvanik): figure out how sequences/jmps/loops/etc work.
-    if (!TranslateExec(cf)) {
-      return "";
-    }
-  }
+  TranslateBlocks(pixel_shader);
 
   Append("}\n");
   return output_.to_string();
@@ -1404,25 +1390,115 @@ void GL4ShaderTranslator::AppendFetchDest(uint32_t dst_reg, uint32_t dst_swiz) {
   }
 }
 
-bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
-  static const struct {
-    const char* name;
-  } cf_instructions[] = {
+void GL4ShaderTranslator::AppendPredPre(bool is_cond_cf, uint32_t cf_condition,
+                                        uint32_t pred_select,
+                                        uint32_t condition) {
+  if (pred_select && (!is_cond_cf || cf_condition != condition)) {
+    Append("  if (%cp) {\n", condition ? ' ' : '!');
+  }
+}
+
+void GL4ShaderTranslator::AppendPredPost(bool is_cond_cf, uint32_t cf_condition,
+                                         uint32_t pred_select,
+                                         uint32_t condition) {
+  if (pred_select && (!is_cond_cf || cf_condition != condition)) {
+    Append("  }\n");
+  }
+}
+
+bool GL4ShaderTranslator::TranslateBlocks(GL4Shader* shader) {
+  Append(" int pc = 0;\n");
+
+#if FLOW_CONTROL
+  Append(" while (pc != 0xFFFF) {\n");
+  Append(" switch (pc) {\n");
+
+  // Start here; fall through to begin.
+  Append(" case 0:\n");
+#endif  // FLOW_CONTROL
+
+  // Process all execution blocks.
+  instr_cf_t cfa;
+  instr_cf_t cfb;
+  auto data = shader->data();
+  bool needs_break = false;
+  for (uint32_t idx = 0; idx < shader->dword_count(); idx += 3) {
+    uint32_t dword_0 = data[idx + 0];
+    uint32_t dword_1 = data[idx + 1];
+    uint32_t dword_2 = data[idx + 2];
+    cfa.dword_0 = dword_0;
+    cfa.dword_1 = dword_1 & 0xFFFF;
+    cfb.dword_0 = (dword_1 >> 16) | (dword_2 << 16);
+    cfb.dword_1 = dword_2 >> 16;
+    if (cfa.opc == ALLOC) {
+      // ?
+    } else if (cfa.is_exec()) {
+      if (needs_break) {
+#if FLOW_CONTROL
+        Append(" break;\n");
+#endif  // FLOW_CONTROL
+        needs_break = false;
+      }
+      TranslateExec(cfa.exec);
+      needs_break = true;
+    } else if (cfa.opc == COND_JMP) {
+      TranslateJmp(cfa.jmp_call);
+    }
+    if (cfb.opc == ALLOC) {
+      // ?
+    } else if (cfb.is_exec()) {
+      if (needs_break) {
+#if FLOW_CONTROL
+        Append(" break;\n");
+#endif  // FLOW_CONTROL
+        needs_break = false;
+      }
+      needs_break = true;
+      TranslateExec(cfb.exec);
+    } else if (cfb.opc == COND_JMP) {
+      TranslateJmp(cfb.jmp_call);
+    }
+    if (cfa.opc == EXEC_END || cfb.opc == EXEC_END) {
+      break;
+    }
+  }
+
+#if FLOW_CONTROL
+  if (needs_break) {
+    Append(" break;\n");
+    needs_break = false;
+  }
+
+  // Fall-through and exit.
+  Append(" default:\n");
+  Append(" pc = 0xFFFF;\n");
+  Append(" break;\n");
+
+  Append("};\n");
+  Append("}\n");
+#endif  // FLOW_CONTROL
+
+  return true;
+}
+
+static const struct {
+  const char* name;
+} cf_instructions[] = {
 #define INSTR(opc, fxn) \
   { #opc }
-      INSTR(NOP, print_cf_nop), INSTR(EXEC, print_cf_exec),
-      INSTR(EXEC_END, print_cf_exec), INSTR(COND_EXEC, print_cf_exec),
-      INSTR(COND_EXEC_END, print_cf_exec), INSTR(COND_PRED_EXEC, print_cf_exec),
-      INSTR(COND_PRED_EXEC_END, print_cf_exec),
-      INSTR(LOOP_START, print_cf_loop), INSTR(LOOP_END, print_cf_loop),
-      INSTR(COND_CALL, print_cf_jmp_call), INSTR(RETURN, print_cf_jmp_call),
-      INSTR(COND_JMP, print_cf_jmp_call), INSTR(ALLOC, print_cf_alloc),
-      INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
-      INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
-      INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
+    INSTR(NOP, print_cf_nop), INSTR(EXEC, print_cf_exec),
+    INSTR(EXEC_END, print_cf_exec), INSTR(COND_EXEC, print_cf_exec),
+    INSTR(COND_EXEC_END, print_cf_exec), INSTR(COND_PRED_EXEC, print_cf_exec),
+    INSTR(COND_PRED_EXEC_END, print_cf_exec), INSTR(LOOP_START, print_cf_loop),
+    INSTR(LOOP_END, print_cf_loop), INSTR(COND_CALL, print_cf_jmp_call),
+    INSTR(RETURN, print_cf_jmp_call), INSTR(COND_JMP, print_cf_jmp_call),
+    INSTR(ALLOC, print_cf_alloc), INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
+    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
+    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
 #undef INSTR
-  };
+};
 
+bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
   Append("  // %s ADDR(0x%x) CNT(0x%x)", cf_instructions[cf.opc].name,
          cf.address, cf.count);
   if (cf.yeild) {
@@ -1442,6 +1518,10 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
     Append(" COND(%d)", cf.pred_condition);
   }
   Append("\n");
+
+#if FLOW_CONTROL
+  Append(" case 0x%x:\n", cf.address);
+#endif  // FLOW_CONTROL
 
   if (cf.is_cond_exec()) {
     if (cf.opc == COND_EXEC_PRED_CLEAN || cf.opc == COND_EXEC_PRED_CLEAN_END) {
@@ -1505,23 +1585,53 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
     Append("  }\n");
   }
 
+  if (cf.opc == EXEC_END) {
+    Append(" pc = 0xFFFF;\n");
+  } else {
+    Append(" pc = 0x%x;\n", cf.address + cf.count);
+  }
+
   return true;
 }
 
-void GL4ShaderTranslator::AppendPredPre(bool is_cond_cf, uint32_t cf_condition,
-                                        uint32_t pred_select,
-                                        uint32_t condition) {
-  if (pred_select && (!is_cond_cf || cf_condition != condition)) {
-    Append("  if (%cp) {\n", condition ? ' ' : '!');
+bool GL4ShaderTranslator::TranslateJmp(const ucode::instr_cf_jmp_call_t& cf) {
+  assert_true(cf.direction == 0);
+  assert_true(cf.address_mode == 0);
+  Append("  // %s", cf_instructions[cf.opc].name);
+  Append(" ADDR(0x%x) DIR(%d)", cf.address, cf.direction);
+  if (cf.address_mode == ABSOLUTE_ADDR) {
+    Append(" ABSOLUTE_ADDR");
   }
-}
+  if (cf.force_call) {
+    Append(" FORCE_CALL");
+  } else {
+    if (!cf.predicated_jmp) {
+      Append(" BOOL_ADDR(0x%x)", cf.bool_addr);
+    }
+    Append(" COND(%d)", cf.condition);
+  }
+  Append("\n");
 
-void GL4ShaderTranslator::AppendPredPost(bool is_cond_cf, uint32_t cf_condition,
-                                         uint32_t pred_select,
-                                         uint32_t condition) {
-  if (pred_select && (!is_cond_cf || cf_condition != condition)) {
-    Append("  }\n");
+  if (!cf.force_call) {
+    if (!cf.predicated_jmp) {
+      Append(" p = (state.bool_consts[%d] & (1 << %d)) != 0;\n",
+             cf.bool_addr / 32, cf.bool_addr % 32);
+    }
+    Append(" if(%cp) {\n", cf.condition ? ' ' : '!');
   }
+  if (cf.address_mode == ABSOLUTE_ADDR) {
+    Append(" pc = 0x%x;\n", cf.address);
+  } else {
+    Append(" pc = pc + 0x%x;\n", cf.address);
+  }
+  if (!cf.force_call) {
+#if FLOW_CONTROL
+    Append(" break;\n");
+#endif  // FLOW_CONTROL
+    Append(" }\n");
+  }
+
+  return true;
 }
 
 bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,

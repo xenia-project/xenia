@@ -160,7 +160,9 @@ class GL4ShaderTranslator {
   void AppendPredPost(bool is_cond_cf, uint32_t cf_condition,
                       uint32_t pred_select, uint32_t condition);
 
+  bool TranslateBlocks(GL4Shader* shader);
   bool TranslateExec(const ucode::instr_cf_exec_t& cf);
+  bool TranslateJmp(const ucode::instr_cf_jmp_call_t& cf);
   bool TranslateVertexFetch(const ucode::instr_fetch_vtx_t* vtx, int sync);
   bool TranslateTextureFetch(const ucode::instr_fetch_tex_t* tex, int sync);
 };

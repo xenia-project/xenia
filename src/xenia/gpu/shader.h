@@ -34,6 +34,7 @@ class Shader {
   const std::string& host_disassembly() const { return host_disassembly_; }
 
   const uint32_t* data() const { return data_.data(); }
+  uint32_t dword_count() const { return uint32_t(data_.size()); }
 
   struct BufferDescElement {
     ucode::instr_fetch_vtx_t vtx_fetch;
@@ -77,7 +78,6 @@ class Shader {
     bool color_targets[4];
   };
   const AllocCounts& alloc_counts() const { return alloc_counts_; }
-  const std::vector<ucode::instr_cf_exec_t>& execs() const { return execs_; }
   const std::vector<ucode::instr_cf_alloc_t>& allocs() const { return allocs_; }
 
  protected:
@@ -103,7 +103,6 @@ class Shader {
   std::string error_log_;
 
   AllocCounts alloc_counts_;
-  std::vector<ucode::instr_cf_exec_t> execs_;
   std::vector<ucode::instr_cf_alloc_t> allocs_;
   BufferInputs buffer_inputs_;
   SamplerInputs sampler_inputs_;

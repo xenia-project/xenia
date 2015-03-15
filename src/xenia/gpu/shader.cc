@@ -89,8 +89,6 @@ void Shader::GatherAlloc(const instr_cf_alloc_t* cf) {
 }
 
 void Shader::GatherExec(const instr_cf_exec_t* cf) {
-  execs_.push_back(*cf);
-
   uint32_t sequence = cf->serialize;
   for (uint32_t i = 0; i < cf->count; i++) {
     uint32_t alu_off = (cf->address + i);
