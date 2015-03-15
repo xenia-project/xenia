@@ -365,6 +365,25 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
                        content_size, overlapped_ptr);
 }
 
+SHIM_CALL XamContentFlush_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t root_name_ptr = SHIM_GET_ARG_32(0);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(1);
+
+  auto root_name =
+      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+
+  XELOGD("XamContentFlush(%.8X(%s), %.8X)", root_name_ptr, root_name.c_str(),
+         overlapped_ptr);
+
+  X_RESULT result = X_ERROR_SUCCESS;
+  if (overlapped_ptr) {
+    state->CompleteOverlappedImmediate(overlapped_ptr, result);
+    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  } else {
+    SHIM_SET_RETURN_32(result);
+  }
+}
+
 SHIM_CALL XamContentClose_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t root_name_ptr = SHIM_GET_ARG_32(0);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(1);
@@ -527,6 +546,7 @@ void xe::kernel::xam::RegisterContentExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamContentCreateEnumerator, state);
   SHIM_SET_MAPPING("xam.xex", XamContentCreate, state);
   SHIM_SET_MAPPING("xam.xex", XamContentCreateEx, state);
+  SHIM_SET_MAPPING("xam.xex", XamContentFlush, state);
   SHIM_SET_MAPPING("xam.xex", XamContentClose, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetCreator, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetThumbnail, state);
