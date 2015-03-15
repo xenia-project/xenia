@@ -137,8 +137,10 @@ std::unique_ptr<MemoryMapping> HostPathEntry::CreateMemoryMapping(
 
 X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
                              XFile** out_file) {
+  // TODO(benvanik): plumb through proper disposition/access mode.
   DWORD desired_access =
-      mode == Mode::READ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
+      is_read_only() ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
+  // mode == Mode::READ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
   DWORD share_mode = FILE_SHARE_READ;
   DWORD creation_disposition = mode == Mode::READ ? OPEN_EXISTING : OPEN_ALWAYS;
   DWORD flags_and_attributes = async ? FILE_FLAG_OVERLAPPED : 0;
