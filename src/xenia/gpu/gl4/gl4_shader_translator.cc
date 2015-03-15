@@ -70,7 +70,10 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
 
   // Normal shaders only, for now.
   // TODO(benvanik): transform feedback/memexport.
-  assert_true(program_cntl.vs_export_mode == 0);
+  // 0 = normal
+  // 2 = point size
+  assert_true(program_cntl.vs_export_mode == 0 ||
+              program_cntl.vs_export_mode == 2);
 
   // Add vertex shader input.
   uint32_t el_index = 0;
