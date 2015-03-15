@@ -1328,8 +1328,8 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
   address &= 0x3FFFFFFF;
   uint32_t offset_type = reader->Read();
   uint32_t index = offset_type & 0x7FF;
-  uint32_t size = reader->Read();
-  size &= 0xFFF;
+  uint32_t size_dwords = reader->Read();
+  size_dwords &= 0xFFF;
   uint32_t type = (offset_type >> 16) & 0xFF;
   switch (type) {
     case 0:  // ALU
@@ -1351,8 +1351,8 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
       assert_always();
       return true;
   }
-  trace_writer_.WriteMemoryRead(address, size);
-  for (uint32_t n = 0; n < size; n++, index++) {
+  trace_writer_.WriteMemoryRead(address, size_dwords * 4);
+  for (uint32_t n = 0; n < size_dwords; n++, index++) {
     uint32_t data =
         poly::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
     WriteRegister(index, data);
