@@ -1534,6 +1534,11 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
     PrimitiveType prim_type) {
   auto& regs = update_shaders_regs_;
 
+  // These are the constant base addresses/ranges for shaders.
+  // We have these hardcoded right now cause nothing seems to differ.
+  assert_true(register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000);
+  assert_true(register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100);
+
   bool dirty = false;
   dirty |=
       SetShadowRegister(regs.pa_su_sc_mode_cntl, XE_GPU_REG_PA_SU_SC_MODE_CNTL);
