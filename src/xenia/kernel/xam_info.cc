@@ -165,14 +165,13 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
   auto item_count = e->item_count();
   e->WriteItems(SHIM_MEM_ADDR(buffer_ptr));
 
-  X_RESULT result;
+  X_RESULT result = item_count ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
   if (item_count_ptr) {
     assert_zero(overlapped_ptr);
     SHIM_SET_MEM_32(item_count_ptr, item_count);
-    result = X_ERROR_SUCCESS;
   } else if (overlapped_ptr) {
     assert_zero(item_count_ptr);
-    state->CompleteOverlappedImmediate(overlapped_ptr, 0, item_count);
+    state->CompleteOverlappedImmediate(overlapped_ptr, result, item_count);
     result = X_ERROR_IO_PENDING;
   } else {
     assert_always();
