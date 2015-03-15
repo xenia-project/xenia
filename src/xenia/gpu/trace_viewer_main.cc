@@ -716,6 +716,7 @@ class TracePlayer : public TraceReader {
     if (current_command_index_ == target_command) {
       return;
     }
+    int previous_command_index = current_command_index_;
     current_command_index_ = target_command;
     if (current_command_index_ == -1) {
       return;
@@ -723,9 +724,18 @@ class TracePlayer : public TraceReader {
     auto frame = current_frame();
     const auto& command = frame->commands[target_command];
     assert_true(frame->start_ptr <= command.end_ptr);
-    graphics_system_->PlayTrace(
-        frame->start_ptr, command.end_ptr - frame->start_ptr,
-        GraphicsSystem::TracePlaybackMode::kBreakOnSwap);
+    if (target_command && previous_command_index == target_command - 1) {
+      // Seek forward.
+      const auto& previous_command = frame->commands[target_command - 1];
+      graphics_system_->PlayTrace(
+          previous_command.end_ptr, command.end_ptr - previous_command.end_ptr,
+          GraphicsSystem::TracePlaybackMode::kBreakOnSwap);
+    } else {
+      // Full playback from frame start.
+      graphics_system_->PlayTrace(
+          frame->start_ptr, command.end_ptr - frame->start_ptr,
+          GraphicsSystem::TracePlaybackMode::kBreakOnSwap);
+    }
   }
 
  private:
