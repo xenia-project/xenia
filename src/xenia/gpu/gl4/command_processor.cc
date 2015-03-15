@@ -1285,7 +1285,6 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
-
                                                        uint32_t packet,
                                                        uint32_t count) {
   // load constant into chip and to memory
@@ -1911,11 +1910,11 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     case MsaaSamples::k1X:
       break;
     case MsaaSamples::k2X:
-      // window_width_scalar = 2;
+      window_width_scalar = 2;
       break;
     case MsaaSamples::k4X:
-      window_width_scalar = 1;
-      window_height_scalar = 1;
+      window_width_scalar = 2;
+      window_height_scalar = 2;
       break;
   }
 
@@ -1940,6 +1939,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     float vsx = vport_xscale_enable ? state_regs.pa_cl_vport_xscale : 1;
     float vsy = vport_yscale_enable ? state_regs.pa_cl_vport_yscale : 1;
     float vsz = vport_zscale_enable ? state_regs.pa_cl_vport_zscale : 1;
+    window_width_scalar = window_height_scalar = 1;
     float vpw = 2 * window_width_scalar * vsx;
     float vph = -2 * window_height_scalar * vsy;
     float vpx = window_width_scalar * vox - vpw / 2;
@@ -2540,6 +2540,14 @@ bool CommandProcessor::IssueCopy() {
     case ColorFormat::k_8_8_8_8:
       read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
       read_type = GL_UNSIGNED_BYTE;
+      break;
+    case ColorFormat::k_16:
+      read_format = GL_R16;
+      read_type = GL_UNSIGNED_SHORT;
+      break;
+    case ColorFormat::k_16_FLOAT:
+      read_format = GL_R16;
+      read_type = GL_HALF_FLOAT;
       break;
     case ColorFormat::k_16_16:
       read_format = GL_RG16;
