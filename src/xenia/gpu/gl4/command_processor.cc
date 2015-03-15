@@ -1881,8 +1881,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
       // window_width_scalar = 2;
       break;
     case MsaaSamples::k4X:
-      window_width_scalar = 2;
-      window_height_scalar = 2;
+      window_width_scalar = 1;
+      window_height_scalar = 1;
       break;
   }
 
