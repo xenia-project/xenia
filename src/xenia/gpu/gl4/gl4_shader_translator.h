@@ -55,8 +55,9 @@ class GL4ShaderTranslator {
     va_end(args);
   }
 
+  void AppendSrcReg(const ucode::instr_alu_t& op, int i);
   void AppendSrcReg(const ucode::instr_alu_t& op, uint32_t num, uint32_t type,
-                    uint32_t swiz, uint32_t negate);
+                    uint32_t swiz, uint32_t negate, int const_slot);
   void PrintSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
                    uint32_t abs);
   void PrintVectorDstReg(const ucode::instr_alu_t& alu);

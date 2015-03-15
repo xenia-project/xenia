@@ -163,9 +163,32 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   return output_.to_string();
 }
 
+void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, int i) {
+  switch (i) {
+    case 1: {
+      int const_slot = 0;
+      AppendSrcReg(op, op.src1_reg, op.src1_sel, op.src1_swiz,
+                   op.src1_reg_negate, const_slot);
+      break;
+    }
+    case 2: {
+      int const_slot = op.src1_sel ? 1 : 0;
+      AppendSrcReg(op, op.src2_reg, op.src2_sel, op.src2_swiz,
+                   op.src2_reg_negate, const_slot);
+      break;
+    }
+    case 3: {
+      int const_slot = (op.src1_sel || op.src2_sel) ? 1 : 0;
+      AppendSrcReg(op, op.src3_reg, op.src3_sel, op.src3_swiz,
+                   op.src3_reg_negate, const_slot);
+      break;
+    }
+  }
+}
+
 void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, uint32_t num,
                                        uint32_t type, uint32_t swiz,
-                                       uint32_t negate) {
+                                       uint32_t negate, int const_slot) {
   if (negate) {
     Append("-");
   }
@@ -184,8 +207,8 @@ void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, uint32_t num,
       Append("abs(");
     }
     Append("state.float_consts[");
-    assert_true(op.const_1_rel_abs == 0);
-    if (op.const_0_rel_abs) {
+    if ((const_slot == 0 && op.const_0_rel_abs) ||
+        (const_slot == 1 && op.const_1_rel_abs)) {
       if (op.relative_addr) {
         assert_true(num < 256);
         Append("a0 + %u", is_pixel_shader() ? num + 256 : num);
@@ -309,20 +332,7 @@ void GL4ShaderTranslator::BeginAppendVectorOp(const ucode::instr_alu_t& op) {
 
 void GL4ShaderTranslator::AppendVectorOpSrcReg(const ucode::instr_alu_t& op,
                                                int i) {
-  switch (i) {
-    case 1:
-      AppendSrcReg(op, op.src1_reg, op.src1_sel, op.src1_swiz,
-                   op.src1_reg_negate);
-      break;
-    case 2:
-      AppendSrcReg(op, op.src2_reg, op.src2_sel, op.src2_swiz,
-                   op.src2_reg_negate);
-      break;
-    case 3:
-      AppendSrcReg(op, op.src3_reg, op.src3_sel, op.src3_swiz,
-                   op.src3_reg_negate);
-      break;
-  }
+  AppendSrcReg(op, i);
 }
 
 void GL4ShaderTranslator::EndAppendVectorOp(const ucode::instr_alu_t& op,
@@ -398,20 +408,7 @@ void GL4ShaderTranslator::BeginAppendScalarOp(const ucode::instr_alu_t& op) {
 
 void GL4ShaderTranslator::AppendScalarOpSrcReg(const ucode::instr_alu_t& op,
                                                int i) {
-  switch (i) {
-    case 1:
-      AppendSrcReg(op, op.src1_reg, op.src1_sel, op.src1_swiz,
-                   op.src1_reg_negate);
-      break;
-    case 2:
-      AppendSrcReg(op, op.src2_reg, op.src2_sel, op.src2_swiz,
-                   op.src2_reg_negate);
-      break;
-    case 3:
-      AppendSrcReg(op, op.src3_reg, op.src3_sel, op.src3_swiz,
-                   op.src3_reg_negate);
-      break;
-  }
+  AppendSrcReg(op, i);
 }
 
 void GL4ShaderTranslator::EndAppendScalarOp(const ucode::instr_alu_t& op,
@@ -794,8 +791,7 @@ bool GL4ShaderTranslator::TranslateALU_ADDs(const instr_alu_t& alu) {
 
 bool GL4ShaderTranslator::TranslateALU_ADD_PREVs(const instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
-  AppendSrcReg(alu, alu.src3_reg, alu.src3_sel, alu.src3_swiz,
-               alu.src3_reg_negate);
+  AppendSrcReg(alu, 3);
   Append(".x + ps");
   EndAppendScalarOp(alu);
   return true;
@@ -813,8 +809,7 @@ bool GL4ShaderTranslator::TranslateALU_MULs(const instr_alu_t& alu) {
 
 bool GL4ShaderTranslator::TranslateALU_MUL_PREVs(const instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
-  AppendSrcReg(alu, alu.src3_reg, alu.src3_sel, alu.src3_swiz,
-               alu.src3_reg_negate);
+  AppendSrcReg(alu, 3);
   Append(".x * ps");
   EndAppendScalarOp(alu);
   return true;
@@ -1112,9 +1107,11 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 =
       (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
-  AppendSrcReg(alu, alu.src3_reg, 0, 0, alu.src3_reg_negate);
+  // TODO(benvanik): const slot?
+  int const_slot = (alu.src1_sel || alu.src2_sel) ? 1 : 0;
+  AppendSrcReg(alu, alu.src3_reg, 0, 0, alu.src3_reg_negate, 0);
   Append(".%c * ", chan_names[swiz_a]);
-  AppendSrcReg(alu, reg2, 1, 0, alu.src3_reg_negate);
+  AppendSrcReg(alu, reg2, 1, 0, alu.src3_reg_negate, const_slot);
   Append(".%c", chan_names[swiz_b]);
   EndAppendScalarOp(alu);
   return true;
@@ -1130,9 +1127,11 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 =
       (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
-  AppendSrcReg(alu, alu.src3_reg, 0, 0, alu.src3_reg_negate);
+  // TODO(benvanik): const slot?
+  int const_slot = (alu.src1_sel || alu.src2_sel) ? 1 : 0;
+  AppendSrcReg(alu, alu.src3_reg, 0, 0, alu.src3_reg_negate, 0);
   Append(".%c + ", chan_names[swiz_a]);
-  AppendSrcReg(alu, reg2, 1, 0, alu.src3_reg_negate);
+  AppendSrcReg(alu, reg2, 1, 0, alu.src3_reg_negate, const_slot);
   Append(".%c", chan_names[swiz_b]);
   EndAppendScalarOp(alu);
   return true;
@@ -1148,9 +1147,11 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
   uint32_t swiz_b = (src3_swiz & 0x3);
   uint32_t reg2 =
       (alu.scalar_opc & 1) | (alu.src3_swiz & 0x3C) | (alu.src3_sel << 1);
-  AppendSrcReg(alu, alu.src3_reg, 0, 0, alu.src3_reg_negate);
+  // TODO(benvanik): const slot?
+  int const_slot = (alu.src1_sel || alu.src2_sel) ? 1 : 0;
+  AppendSrcReg(alu, alu.src3_reg, 0, 0, alu.src3_reg_negate, 0);
   Append(".%c - ", chan_names[swiz_a]);
-  AppendSrcReg(alu, reg2, 1, 0, alu.src3_reg_negate);
+  AppendSrcReg(alu, reg2, 1, 0, alu.src3_reg_negate, const_slot);
   Append(".%c", chan_names[swiz_b]);
   EndAppendScalarOp(alu);
   return true;
