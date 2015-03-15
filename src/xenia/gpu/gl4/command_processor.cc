@@ -1297,43 +1297,27 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
   switch (type) {
     case 0:  // ALU
       index += 0x4000;
-      for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = reader->Read();
-        WriteRegister(index, data);
-      }
       break;
     case 1:  // FETCH
       index += 0x4800;
-      for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = reader->Read();
-        WriteRegister(index, data);
-      }
       break;
     case 2:  // BOOL
       index += 0x4900;
-      for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = reader->Read();
-        WriteRegister(index, data);
-      }
       break;
     case 3:  // LOOP
       index += 0x4908;
-      for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = reader->Read();
-        WriteRegister(index, data);
-      }
       break;
-    case 4:             // REGISTER
-      index += 0x2000;  // registers
-      for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = reader->Read();
-        WriteRegister(index, data);
-      }
+    case 4:  // REGISTERS
+      index += 0x2000;
       break;
     default:
       assert_always();
       reader->Skip(count - 1);
-      break;
+      return true;
+  }
+  for (uint32_t n = 0; n < count - 1; n++, index++) {
+    uint32_t data = reader->Read();
+    WriteRegister(index, data);
   }
   return true;
 }
@@ -1347,8 +1331,28 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
   uint32_t index = offset_type & 0x7FF;
   uint32_t size = reader->Read();
   size &= 0xFFF;
-  index += 0x4000;  // alu constants
-  trace_writer_.WriteMemoryRead(address, size * 4);
+  uint32_t type = (offset_type >> 16) & 0xFF;
+  switch (type) {
+    case 0:  // ALU
+      index += 0x4000;
+      break;
+    case 1:  // FETCH
+      index += 0x4800;
+      break;
+    case 2:  // BOOL
+      index += 0x4900;
+      break;
+    case 3:  // LOOP
+      index += 0x4908;
+      break;
+    case 4:  // REGISTERS
+      index += 0x2000;
+      break;
+    default:
+      assert_always();
+      return true;
+  }
+  trace_writer_.WriteMemoryRead(address, size);
   for (uint32_t n = 0; n < size; n++, index++) {
     uint32_t data =
         poly::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
