@@ -1325,7 +1325,7 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
   if (vc) {
     Append(" VC(0x%x)", vc);
   }
-  if (cf.bool_addr) {
+  if (cf.is_cond_exec()) {
     Append(" BOOL_ADDR(0x%x)", cf.bool_addr);
   }
   if (cf.address_mode == ABSOLUTE_ADDR) {
@@ -1337,6 +1337,10 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
   Append("\n");
 
   if (cf.is_cond_exec()) {
+    if (cf.opc == COND_EXEC_PRED_CLEAN || cf.opc == COND_EXEC_PRED_CLEAN_END) {
+      Append("  p = (state.bool_consts[%d] & (1 << %d)) != 0;\n",
+             cf.bool_addr / 32, cf.bool_addr % 32);
+    }
     Append("  if(%cp) {\n", cf.pred_condition ? ' ' : '!');
   }
 

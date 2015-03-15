@@ -2264,6 +2264,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
         fetch = &group->vertex_fetch_2;
         break;
     }
+    assert_true(fetch->endian == 2);
 
     // Constrain the vertex upload to just what we are interested in.
     const size_t kRangeKludge = 5;  // could pick index count based on prim.

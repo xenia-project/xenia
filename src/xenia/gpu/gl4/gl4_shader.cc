@@ -244,17 +244,16 @@ bool GL4Shader::PreparePixelShader(
   }
   has_prepared_ = true;
 
-  std::string source =
-      GetHeader() +
-      "layout(origin_upper_left) in vec4 gl_FragCoord;\n"
-      "layout(location = 0) flat in uint draw_id;\n"
-      "layout(location = 1) in VertexData vtx;\n"
-      "layout(location = 0) out vec4 oC[4];\n"
-      "void processFragment(const in StateData state);\n"
-      "void main() {\n" +
-      "  const StateData state = states[draw_id];\n"
-      "  processFragment(state);\n"
-      "}\n";
+  std::string source = GetHeader() +
+                       "layout(origin_upper_left) in vec4 gl_FragCoord;\n"
+                       "layout(location = 0) flat in uint draw_id;\n"
+                       "layout(location = 1) in VertexData vtx;\n"
+                       "layout(location = 0) out vec4 oC[4];\n"
+                       "void processFragment(const in StateData state);\n"
+                       "void main() {\n" +
+                       "  const StateData state = states[draw_id];\n"
+                       "  processFragment(state);\n"
+                       "}\n";
 
   std::string translated_source =
       shader_translator_.TranslatePixelShader(this, program_cntl);
