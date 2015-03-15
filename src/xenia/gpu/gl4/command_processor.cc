@@ -1295,7 +1295,35 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
   uint32_t index = offset_type & 0x7FF;
   uint32_t type = (offset_type >> 16) & 0xFF;
   switch (type) {
-    case 0x4:           // REGISTER
+    case 0:  // ALU
+      index += 0x4000;
+      for (uint32_t n = 0; n < count - 1; n++, index++) {
+        uint32_t data = reader->Read();
+        WriteRegister(index, data);
+      }
+      break;
+    case 1:  // FETCH
+      index += 0x4800;
+      for (uint32_t n = 0; n < count - 1; n++, index++) {
+        uint32_t data = reader->Read();
+        WriteRegister(index, data);
+      }
+      break;
+    case 2:  // BOOL
+      index += 0x4900;
+      for (uint32_t n = 0; n < count - 1; n++, index++) {
+        uint32_t data = reader->Read();
+        WriteRegister(index, data);
+      }
+      break;
+    case 3:  // LOOP
+      index += 0x4908;
+      for (uint32_t n = 0; n < count - 1; n++, index++) {
+        uint32_t data = reader->Read();
+        WriteRegister(index, data);
+      }
+      break;
+    case 4:             // REGISTER
       index += 0x2000;  // registers
       for (uint32_t n = 0; n < count - 1; n++, index++) {
         uint32_t data = reader->Read();
@@ -1304,6 +1332,7 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
       break;
     default:
       assert_always();
+      reader->Skip(count - 1);
       break;
   }
   return true;
