@@ -2495,6 +2495,14 @@ bool CommandProcessor::IssueCopy() {
   GLenum read_format;
   GLenum read_type;
   switch (copy_dest_format) {
+    case ColorFormat::k_4_4_4_4:
+      read_format = GL_RGBA4;
+      read_type = GL_UNSIGNED_SHORT_4_4_4_4;
+      break;
+    case ColorFormat::k_8:
+      read_format = GL_R8;
+      read_type = GL_UNSIGNED_BYTE;
+      break;
     case ColorFormat::k_8_8_8_8:
       read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
       read_type = GL_UNSIGNED_BYTE;
