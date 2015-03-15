@@ -55,8 +55,8 @@ class GL4ShaderTranslator {
     va_end(args);
   }
 
-  void AppendSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
-                    uint32_t abs);
+  void AppendSrcReg(const ucode::instr_alu_t& op, uint32_t num, uint32_t type,
+                    uint32_t swiz, uint32_t negate);
   void PrintSrcReg(uint32_t num, uint32_t type, uint32_t swiz, uint32_t negate,
                    uint32_t abs);
   void PrintVectorDstReg(const ucode::instr_alu_t& alu);
@@ -92,7 +92,8 @@ class GL4ShaderTranslator {
   bool TranslateALU_PRED_SETNE_PUSHv(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETGT_PUSHv(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETGTE_PUSHv(const ucode::instr_alu_t& alu);
-  // ...
+  bool TranslateALU_DSTv(const ucode::instr_alu_t& alu);
+  bool TranslateALU_MOVAv(const ucode::instr_alu_t& alu);
   bool TranslateALU_ADDs(const ucode::instr_alu_t& alu);
   bool TranslateALU_ADD_PREVs(const ucode::instr_alu_t& alu);
   bool TranslateALU_MULs(const ucode::instr_alu_t& alu);
@@ -109,6 +110,7 @@ class GL4ShaderTranslator {
   bool TranslateALU_TRUNCs(const ucode::instr_alu_t& alu);
   bool TranslateALU_FLOORs(const ucode::instr_alu_t& alu);
   bool TranslateALU_EXP_IEEE(const ucode::instr_alu_t& alu);
+  bool TranslateALU_LOG_CLAMP(const ucode::instr_alu_t& alu);
   bool TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIP_CLAMP(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIP_FF(const ucode::instr_alu_t& alu);
@@ -116,7 +118,8 @@ class GL4ShaderTranslator {
   bool TranslateALU_RECIPSQ_CLAMP(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIPSQ_FF(const ucode::instr_alu_t& alu);
   bool TranslateALU_RECIPSQ_IEEE(const ucode::instr_alu_t& alu);
-  // ...
+  bool TranslateALU_MOVAs(const ucode::instr_alu_t& alu);
+  bool TranslateALU_MOVA_FLOORs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SUBs(const ucode::instr_alu_t& alu);
   bool TranslateALU_SUB_PREVs(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETXXs(const ucode::instr_alu_t& alu, const char* op);

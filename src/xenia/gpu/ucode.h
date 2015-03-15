@@ -32,6 +32,10 @@ namespace ucode {
 #define XEPACKEDUNION(name, value) union __attribute__((packed)) name
 #endif  // MSVC
 
+// Closest AMD doc:
+// http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
+// Microcode format differs, but most fields/enums are the same.
+
 // This code comes from the freedreno project:
 // https://github.com/freedreno/freedreno/blob/master/includes/instr-a2xx.h
 /*

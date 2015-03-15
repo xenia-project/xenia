@@ -46,6 +46,7 @@ std::string GL4Shader::GetHeader() {
       "#extension GL_ARB_shader_draw_parameters : require\n"
       "#extension GL_ARB_shader_storage_buffer_object : require\n"
       "#extension GL_ARB_shading_language_420pack : require\n"
+      "#define FLT_MAX 3.402823466e+38\n"
       "precision highp float;\n"
       "precision highp int;\n"
       "layout(std140, column_major) uniform;\n"
