@@ -299,17 +299,30 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       uint32_t index = offset_type & 0x7FF;
       uint32_t type = (offset_type >> 16) & 0xFF;
       switch (type) {
-        case 0x4:           // REGISTER
-          index += 0x2000;  // registers
-          for (uint32_t n = 0; n < count - 1; n++, index++) {
-            uint32_t data = poly::load_and_swap<uint32_t>(ptr + 4 + n * 4);
-            out_info->actions.emplace_back(
-                PacketAction::RegisterWrite(index, data));
-          }
+        case 0:  // ALU
+          index += 0x4000;
+          break;
+        case 1:  // FETCH
+          index += 0x4800;
+          break;
+        case 2:  // BOOL
+          index += 0x4900;
+          break;
+        case 3:  // LOOP
+          index += 0x4908;
+          break;
+        case 4:  // REGISTERS
+          index += 0x2000;
           break;
         default:
           assert_always();
+          result = false;
           break;
+      }
+      for (uint32_t n = 0; n < count - 1; n++, index++) {
+        uint32_t data = poly::load_and_swap<uint32_t>(ptr + 4 + n * 4);
+        out_info->actions.emplace_back(
+            PacketAction::RegisterWrite(index, data));
       }
       break;
     }
@@ -322,10 +335,30 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       address &= 0x3FFFFFFF;
       uint32_t offset_type = poly::load_and_swap<uint32_t>(ptr + 4);
       uint32_t index = offset_type & 0x7FF;
-      uint32_t size = poly::load_and_swap<uint32_t>(ptr + 8);
-      size &= 0xFFF;
-      index += 0x4000;  // alu constants
-      for (uint32_t n = 0; n < size; n++, index++) {
+      uint32_t size_dwords = poly::load_and_swap<uint32_t>(ptr + 8);
+      size_dwords &= 0xFFF;
+      uint32_t type = (offset_type >> 16) & 0xFF;
+      switch (type) {
+        case 0:  // ALU
+          index += 0x4000;
+          break;
+        case 1:  // FETCH
+          index += 0x4800;
+          break;
+        case 2:  // BOOL
+          index += 0x4900;
+          break;
+        case 3:  // LOOP
+          index += 0x4908;
+          break;
+        case 4:  // REGISTERS
+          index += 0x2000;
+          break;
+        default:
+          assert_always();
+          return true;
+      }
+      for (uint32_t n = 0; n < size_dwords; n++, index++) {
         // Hrm, ?
         // poly::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
         uint32_t data = 0xDEADBEEF;
@@ -497,6 +530,7 @@ class TraceReader {
         kDraw,
         kSwap,
       };
+      const uint8_t* head_ptr;
       const uint8_t* start_ptr;
       const uint8_t* end_ptr;
       Type type;
@@ -582,6 +616,7 @@ class TraceReader {
     };
     const PacketStartCommand* packet_start = nullptr;
     const uint8_t* packet_start_ptr = nullptr;
+    const uint8_t* last_ptr = trace_ptr;
     bool pending_break = false;
     while (trace_ptr < trace_data_ + trace_size_) {
       ++current_frame.command_count;
@@ -631,9 +666,11 @@ class TraceReader {
             case PacketCategory::kDraw: {
               Frame::Command command;
               command.type = Frame::Command::Type::kDraw;
-              command.start_ptr = packet_start_ptr;
+              command.head_ptr = packet_start_ptr;
+              command.start_ptr = last_ptr;
               command.end_ptr = trace_ptr;
               current_frame.commands.push_back(std::move(command));
+              last_ptr = trace_ptr;
               break;
             }
             case PacketCategory::kSwap: {
@@ -1114,7 +1151,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
 
   auto frame = player.current_frame();
   const auto& command = frame->commands[player.current_command_index()];
-  auto packet_head = command.start_ptr + sizeof(PacketStartCommand);
+  auto packet_head = command.head_ptr + sizeof(PacketStartCommand);
   uint32_t packet = poly::load_and_swap<uint32_t>(packet_head);
   uint32_t packet_type = packet >> 30;
   assert_true(packet_type == 0x03);
@@ -1539,19 +1576,24 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::End();
     return;
   }
-
-  auto frame = player.current_frame();
-  if (!frame) {
+  if (!player.current_frame() || player.current_command_index() == -1) {
+    ImGui::Text("No frame/command selected");
     ImGui::End();
     return;
   }
 
-  ImGui::Text("Frame #%d", player.current_frame_index());
+  auto frame = player.current_frame();
+  const auto& command = frame->commands[player.current_command_index()];
+  const uint8_t* start_ptr = command.start_ptr;
+  const uint8_t* end_ptr = command.end_ptr;
+
+  ImGui::Text("Frame #%d, command %d", player.current_frame_index(),
+              player.current_command_index());
   ImGui::Separator();
   ImGui::BeginChild("packet_disassembler_list");
   const PacketStartCommand* pending_packet = nullptr;
-  auto trace_ptr = frame->start_ptr;
-  while (trace_ptr < frame->end_ptr) {
+  auto trace_ptr = start_ptr;
+  while (trace_ptr < end_ptr) {
     auto type = static_cast<TraceCommandType>(poly::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
