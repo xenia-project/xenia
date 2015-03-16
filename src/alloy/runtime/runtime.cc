@@ -14,7 +14,6 @@
 #include "alloy/runtime/module.h"
 #include "poly/poly.h"
 #include "xdb/protocol.h"
-#include "xenia/profiling.h"
 
 // TODO(benvanik): based on compiler support
 #include "alloy/backend/x64/x64_backend.h"
@@ -155,8 +154,6 @@ std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {
 }
 
 int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
-  SCOPE_profile_cpu_f("alloy");
-
   *out_function = nullptr;
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
@@ -190,8 +187,6 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
 
 int Runtime::LookupFunctionInfo(uint64_t address,
                                 FunctionInfo** out_symbol_info) {
-  SCOPE_profile_cpu_f("alloy");
-
   *out_symbol_info = nullptr;
 
   // TODO(benvanik): fast reject invalid addresses/log errors.
@@ -219,8 +214,6 @@ int Runtime::LookupFunctionInfo(uint64_t address,
 
 int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
                                 FunctionInfo** out_symbol_info) {
-  SCOPE_profile_cpu_f("alloy");
-
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
   FunctionInfo* symbol_info = nullptr;
@@ -242,8 +235,6 @@ int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
 
 int Runtime::DemandFunction(FunctionInfo* symbol_info,
                             Function** out_function) {
-  SCOPE_profile_cpu_f("alloy");
-
   *out_function = nullptr;
 
   // Lock function for generation. If it's already being generated

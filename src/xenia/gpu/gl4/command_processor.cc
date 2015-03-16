@@ -22,7 +22,7 @@
 
 #include "third_party/xxhash/xxhash.h"
 
-#define FINE_GRAINED_DRAW_SCOPES 1
+#define FINE_GRAINED_DRAW_SCOPES 0
 
 namespace xe {
 namespace gpu {
