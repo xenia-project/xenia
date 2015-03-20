@@ -207,8 +207,8 @@ struct SavedState {
   }
 };
 
-void Blitter::Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                   uint32_t src_width, uint32_t src_height, GLenum filter) {
+void Blitter::Draw(GLuint src_texture, int32_t src_x, int32_t src_y,
+                   int32_t src_width, int32_t src_height, GLenum filter) {
   glDisable(GL_SCISSOR_TEST);
   glDisable(GL_STENCIL_TEST);
   glDisablei(GL_BLEND, 0);
@@ -246,11 +246,10 @@ void Blitter::Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-void Blitter::BlitTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                            uint32_t src_width, uint32_t src_height,
-                            uint32_t dest_x, uint32_t dest_y,
-                            uint32_t dest_width, uint32_t dest_height,
-                            GLenum filter) {
+void Blitter::BlitTexture2D(GLuint src_texture, int32_t src_x, int32_t src_y,
+                            int32_t src_width, int32_t src_height,
+                            int32_t dest_x, int32_t dest_y, int32_t dest_width,
+                            int32_t dest_height, GLenum filter) {
   SavedState state;
   state.Save();
 
@@ -265,11 +264,11 @@ void Blitter::BlitTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
   state.Restore();
 }
 
-void Blitter::CopyColorTexture2D(GLuint src_texture, uint32_t src_x,
-                                 uint32_t src_y, uint32_t src_width,
-                                 uint32_t src_height, uint32_t dest_texture,
-                                 uint32_t dest_x, uint32_t dest_y,
-                                 uint32_t dest_width, uint32_t dest_height,
+void Blitter::CopyColorTexture2D(GLuint src_texture, int32_t src_x,
+                                 int32_t src_y, int32_t src_width,
+                                 int32_t src_height, GLuint dest_texture,
+                                 int32_t dest_x, int32_t dest_y,
+                                 int32_t dest_width, int32_t dest_height,
                                  GLenum filter) {
   SavedState state;
   state.Save();
@@ -292,11 +291,11 @@ void Blitter::CopyColorTexture2D(GLuint src_texture, uint32_t src_x,
   state.Restore();
 }
 
-void Blitter::CopyDepthTexture(GLuint src_texture, uint32_t src_x,
-                               uint32_t src_y, uint32_t src_width,
-                               uint32_t src_height, uint32_t dest_texture,
-                               uint32_t dest_x, uint32_t dest_y,
-                               uint32_t dest_width, uint32_t dest_height) {
+void Blitter::CopyDepthTexture(GLuint src_texture, int32_t src_x, int32_t src_y,
+                               int32_t src_width, int32_t src_height,
+                               GLuint dest_texture, int32_t dest_x,
+                               int32_t dest_y, int32_t dest_width,
+                               int32_t dest_height) {
   SavedState state;
   state.Save();
 

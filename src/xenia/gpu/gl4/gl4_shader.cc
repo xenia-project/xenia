@@ -54,7 +54,7 @@ std::string GL4Shader::GetHeader() {
       "\n"
       // This must match DrawBatcher::CommonHeader.
       "struct StateData {\n"
-      "  vec4 window_offset;\n"
+      "  vec4 window_scale;\n"
       "  vec4 vtx_fmt;\n"
       "  vec4 alpha_test;\n"
       // TODO(benvanik): variable length.
@@ -196,7 +196,7 @@ bool GL4Shader::PrepareVertexShader(
       "    // Already multiplied by 1/W0, so pull it out.\n"
       "    pos.z /= pos.w;\n"
       "  }\n"
-      "  pos.xy *= state.window_offset.zw;\n"
+      "  pos.xy *= state.window_scale.xy;\n"
       "  return pos;\n"
       "}\n";
   std::string source =

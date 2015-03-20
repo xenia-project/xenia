@@ -77,13 +77,9 @@ class DrawBatcher {
 
   PrimitiveType prim_type() const { return batch_state_.prim_type; }
 
-  void set_window_offset(uint32_t x, uint32_t y) {
-    active_draw_.header->window_offset.x = float(x);
-    active_draw_.header->window_offset.y = float(y);
-  }
   void set_window_scalar(float width_scalar, float height_scalar) {
-    active_draw_.header->window_offset.z = width_scalar;
-    active_draw_.header->window_offset.w = height_scalar;
+    active_draw_.header->window_scale.x = width_scalar;
+    active_draw_.header->window_scale.y = height_scalar;
   }
   void set_vtx_fmt(float xy, float z, float w) {
     active_draw_.header->vtx_fmt.x = xy;
@@ -175,7 +171,7 @@ class DrawBatcher {
 
   // This must match GL4Shader's header.
   struct CommonHeader {
-    float4 window_offset;    // tx,ty,sx,sy
+    float4 window_scale;     // sx,sy, ?, ?
     float4 vtx_fmt;          //
     float4 alpha_test;       // alpha test enable, func, ref, ?
 

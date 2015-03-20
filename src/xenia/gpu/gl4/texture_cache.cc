@@ -524,16 +524,16 @@ TextureCache::TextureEntry* TextureCache::LookupAddress(uint32_t guest_address,
 }
 
 GLuint TextureCache::CopyTexture(Blitter* blitter, uint32_t guest_address,
-                                 uint32_t x, uint32_t y, uint32_t width,
-                                 uint32_t height, TextureFormat format,
+                                 int32_t x, int32_t y, int32_t width,
+                                 int32_t height, TextureFormat format,
                                  bool swap_channels, GLuint src_texture) {
   return ConvertTexture(blitter, guest_address, x, y, width, height, format,
                         swap_channels, src_texture);
 }
 
 GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
-                                    uint32_t x, uint32_t y, uint32_t width,
-                                    uint32_t height, TextureFormat format,
+                                    int32_t x, int32_t y, int32_t width,
+                                    int32_t height, TextureFormat format,
                                     bool swap_channels, GLuint src_texture) {
   const auto& config = texture_configs[uint32_t(format)];
   if (config.format == GL_INVALID_ENUM) {

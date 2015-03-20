@@ -1865,9 +1865,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
     window_offset_x = window_offset & 0x7FFF;
     window_offset_y = (window_offset >> 16) & 0x7FFF;
-    draw_batcher_.set_window_offset(window_offset_x, window_offset_y);
-  } else {
-    draw_batcher_.set_window_offset(0, 0);
   }
 
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf

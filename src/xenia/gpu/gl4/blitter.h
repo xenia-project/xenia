@@ -27,24 +27,24 @@ class Blitter {
   bool Initialize();
   void Shutdown();
 
-  void BlitTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                     uint32_t src_width, uint32_t src_height, uint32_t dest_x,
-                     uint32_t dest_y, uint32_t dest_width, uint32_t dest_height,
+  void BlitTexture2D(GLuint src_texture, int32_t src_x, int32_t src_y,
+                     int32_t src_width, int32_t src_height, int32_t dest_x,
+                     int32_t dest_y, int32_t dest_width, int32_t dest_height,
                      GLenum filter);
 
-  void CopyColorTexture2D(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                          uint32_t src_width, uint32_t src_height,
-                          uint32_t dest_texture, uint32_t dest_x,
-                          uint32_t dest_y, uint32_t dest_width,
-                          uint32_t dest_height, GLenum filter);
-  void CopyDepthTexture(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-                        uint32_t src_width, uint32_t src_height,
-                        uint32_t dest_texture, uint32_t dest_x, uint32_t dest_y,
-                        uint32_t dest_width, uint32_t dest_height);
+  void CopyColorTexture2D(GLuint src_texture, int32_t src_x, int32_t src_y,
+                          int32_t src_width, int32_t src_height,
+                          GLuint dest_texture, int32_t dest_x, int32_t dest_y,
+                          int32_t dest_width, int32_t dest_height,
+                          GLenum filter);
+  void CopyDepthTexture(GLuint src_texture, int32_t src_x, int32_t src_y,
+                        int32_t src_width, int32_t src_height,
+                        GLuint dest_texture, int32_t dest_x, int32_t dest_y,
+                        int32_t dest_width, int32_t dest_height);
 
  private:
-  void Draw(GLuint src_texture, uint32_t src_x, uint32_t src_y,
-            uint32_t src_width, uint32_t src_height, GLenum filter);
+  void Draw(GLuint src_texture, int32_t src_x, int32_t src_y, int32_t src_width,
+            int32_t src_height, GLenum filter);
 
   GLuint vertex_program_;
   GLuint color_fragment_program_;

@@ -59,12 +59,12 @@ class TextureCache {
   TextureEntryView* Demand(const TextureInfo& texture_info,
                            const SamplerInfo& sampler_info);
 
-  GLuint CopyTexture(Blitter* blitter, uint32_t guest_address, uint32_t x,
-                     uint32_t y, uint32_t width, uint32_t height,
+  GLuint CopyTexture(Blitter* blitter, uint32_t guest_address, int32_t x,
+                     int32_t y, int32_t width, int32_t height,
                      TextureFormat format, bool swap_channels,
                      GLuint src_texture);
-  GLuint ConvertTexture(Blitter* blitter, uint32_t guest_address, uint32_t x,
-                        uint32_t y, uint32_t width, uint32_t height,
+  GLuint ConvertTexture(Blitter* blitter, uint32_t guest_address, int32_t x,
+                        int32_t y, int32_t width, int32_t height,
                         TextureFormat format, bool swap_channels,
                         GLuint src_texture);
 
