@@ -43,6 +43,8 @@ struct PacketTypeInfo {
 struct PacketAction {
   enum class Type {
     kRegisterWrite,
+    kSetBinMask,
+    kSetBinSelect,
   };
   Type type;
   union {
@@ -50,12 +52,30 @@ struct PacketAction {
       uint32_t index;
       RegisterFile::RegisterValue value;
     } register_write;
+    struct {
+      uint64_t value;
+    } set_bin_mask;
+    struct {
+      uint64_t value;
+    } set_bin_select;
   };
   static PacketAction RegisterWrite(uint32_t index, uint32_t value) {
     PacketAction action;
     action.type = Type::kRegisterWrite;
     action.register_write.index = index;
     action.register_write.value.u32 = value;
+    return action;
+  }
+  static PacketAction SetBinMask(uint64_t value) {
+    PacketAction action;
+    action.type = Type::kSetBinMask;
+    action.set_bin_mask.value = value;
+    return action;
+  }
+  static PacketAction SetBinSelect(uint64_t value) {
+    PacketAction action;
+    action.type = Type::kSetBinSelect;
+    action.set_bin_select.value = value;
     return action;
   }
 };
@@ -436,6 +456,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       out_info->type_info = &op_info;
       uint32_t value = poly::load_and_swap<uint32_t>(ptr);
       // bin_mask_ = (bin_mask_ & 0xFFFFFFFF00000000ull) | value;
+      out_info->actions.emplace_back(PacketAction::SetBinMask(value));
       break;
     }
     case PM4_SET_BIN_MASK_HI: {
@@ -453,6 +474,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       out_info->type_info = &op_info;
       uint32_t value = poly::load_and_swap<uint32_t>(ptr);
       // bin_select_ = (bin_select_ & 0xFFFFFFFF00000000ull) | value;
+      out_info->actions.emplace_back(PacketAction::SetBinSelect(value));
       break;
     }
     case PM4_SET_BIN_SELECT_HI: {
@@ -1650,6 +1672,9 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
           if (DisasmPacket(reinterpret_cast<const uint8_t*>(pending_packet) +
                                sizeof(PacketStartCommand),
                            &packet_info)) {
+            if (packet_info.predicated) {
+              ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
+            }
             ImGui::BulletText(packet_info.type_info->name);
             ImGui::TreePush((const char*)0);
             for (auto& action : packet_info.actions) {
@@ -1670,9 +1695,20 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
                   ImGui::Columns(1);
                   break;
                 }
+                case PacketAction::Type::kSetBinMask: {
+                  ImGui::Text("%.16llX", action.set_bin_mask.value);
+                  break;
+                }
+                case PacketAction::Type::kSetBinSelect: {
+                  ImGui::Text("%.16llX", action.set_bin_select.value);
+                  break;
+                }
               }
             }
             ImGui::TreePop();
+            if (packet_info.predicated) {
+              ImGui::PopStyleColor();
+            }
           } else {
             ImGui::BulletText("<invalid packet>");
           }
