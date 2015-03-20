@@ -404,6 +404,7 @@ enum Type3Opcode {
   PM4_VIZ_QUERY             = 0x23,   // begin/end initiator for viz query extent processing
   PM4_SET_STATE             = 0x25,   // fetch state sub-blocks and initiate shader code DMAs
   PM4_SET_CONSTANT          = 0x2d,   // load constant into chip and to memory
+  PM4_SET_CONSTANT2         = 0x55,
   PM4_LOAD_ALU_CONSTANT     = 0x2f,   // load constants from memory
   PM4_SET_SHADER_CONSTANTS  = 0x56,   // ?? constant values
   PM4_IM_LOAD               = 0x27,   // load sequencer instruction memory (pointer-based)
@@ -419,7 +420,7 @@ enum Type3Opcode {
   PM4_CONTEXT_UPDATE        = 0x5e,   // updates the current context, if needed
   PM4_INTERRUPT             = 0x54,   // generate interrupt from the command stream
 
-  PM4_XE_SWAP               = 0x55,   // Xenia only: VdSwap uses this to trigger a swap.
+  PM4_XE_SWAP               = 0x64,   // Xenia only: VdSwap uses this to trigger a swap.
 
   PM4_IM_STORE              = 0x2c,   // copy sequencer instruction memory to system memory
 

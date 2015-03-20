@@ -396,7 +396,7 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   // use this method.
   memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
-  dwords[0] = poly::byte_swap((0x03 << 30) | ((63 - 1) << 16) |
+  dwords[0] = poly::byte_swap((0x3 << 30) | ((63 - 1) << 16) |
                               (xe::gpu::xenos::PM4_XE_SWAP << 8));
   dwords[1] = poly::byte_swap(frontbuffer);
 

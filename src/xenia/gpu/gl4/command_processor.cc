@@ -836,6 +836,9 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
     case PM4_SET_CONSTANT:
       result = ExecutePacketType3_SET_CONSTANT(reader, packet, count);
       break;
+    case PM4_SET_CONSTANT2:
+      result = ExecutePacketType3_SET_CONSTANT2(reader, packet, count);
+      break;
     case PM4_LOAD_ALU_CONSTANT:
       result = ExecutePacketType3_LOAD_ALU_CONSTANT(reader, packet, count);
       break;
@@ -1198,12 +1201,12 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
   address &= ~0x3;
   // Let us hope we can fake this.
   uint16_t extents[] = {
-      0 / 8,     // min x
-      2560 / 8,  // max x
-      0 / 8,     // min y
-      2560 / 8,  // max y
+      0 >> 3,     // min x
+      2560 >> 3,  // max x
+      0 >> 3,     // min y
+      2560 >> 3,  // max y
       0,         // min z
-      0,         // max z
+      1,         // max z
   };
   assert_true(endianness == xenos::Endian::k8in16);
   poly::copy_and_swap_16_aligned(
@@ -1317,6 +1320,17 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
       reader->Skip(count - 1);
       return true;
   }
+  for (uint32_t n = 0; n < count - 1; n++, index++) {
+    uint32_t data = reader->Read();
+    WriteRegister(index, data);
+  }
+  return true;
+}
+
+bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(
+    RingbufferReader* reader, uint32_t packet, uint32_t count) {
+  uint32_t offset_type = reader->Read();
+  uint32_t index = offset_type & 0xFFFF;
   for (uint32_t n = 0; n < count - 1; n++, index++) {
     uint32_t data = reader->Read();
     WriteRegister(index, data);

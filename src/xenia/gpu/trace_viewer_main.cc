@@ -326,6 +326,20 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       }
       break;
     }
+    case PM4_SET_CONSTANT2: {
+      static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
+                                             "PM4_SET_CONSTANT2"};
+      out_info->type_info = &op_info;
+      uint32_t offset_type = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t index = offset_type & 0xFFFF;
+      for (uint32_t n = 0; n < count - 1; n++, index++) {
+        uint32_t data = poly::load_and_swap<uint32_t>(ptr + 4 + n * 4);
+        out_info->actions.emplace_back(
+            PacketAction::RegisterWrite(index, data));
+      }
+      return true;
+      break;
+    }
     case PM4_LOAD_ALU_CONSTANT: {
       // load constants from memory
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,

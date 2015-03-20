@@ -171,6 +171,8 @@ class CommandProcessor {
                                       uint32_t count);
   bool ExecutePacketType3_SET_CONSTANT(RingbufferReader* reader,
                                        uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_SET_CONSTANT2(RingbufferReader* reader,
+                                        uint32_t packet, uint32_t count);
   bool ExecutePacketType3_LOAD_ALU_CONSTANT(RingbufferReader* reader,
                                             uint32_t packet, uint32_t count);
   bool ExecutePacketType3_SET_SHADER_CONSTANTS(RingbufferReader* reader,
