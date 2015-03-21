@@ -83,6 +83,13 @@ class CommandProcessor {
   GL4Shader* active_vertex_shader() const { return active_vertex_shader_; }
   GL4Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
+  GLuint GetColorRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
+                              uint32_t base,
+                              xenos::ColorRenderTargetFormat format);
+  GLuint GetDepthRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
+                              uint32_t base,
+                              xenos::DepthRenderTargetFormat format);
+
  private:
   class RingbufferReader;
 
@@ -204,12 +211,6 @@ class CommandProcessor {
 
   CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],
                                     GLuint depth_target);
-  GLuint GetColorRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
-                              uint32_t base,
-                              xenos::ColorRenderTargetFormat format);
-  GLuint GetDepthRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
-                              uint32_t base,
-                              xenos::DepthRenderTargetFormat format);
 
   Memory* memory_;
   uint8_t* membase_;

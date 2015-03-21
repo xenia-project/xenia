@@ -1458,38 +1458,32 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
   const char* mode_name = "Unknown";
   switch (enable_mode) {
     case ModeControl::kIgnore:
-      mode_name = "Ignored";
+      ImGui::Text("Ignored Command %d", player.current_command_index());
       break;
     case ModeControl::kColorDepth:
-      mode_name = "Color + Depth";
+    case ModeControl::kDepth: {
+      static const char* kPrimNames[] = {
+          "<none>",         "point list",   "line list",      "line strip",
+          "triangle list",  "triangle fan", "triangle strip", "unknown 0x7",
+          "rectangle list", "unknown 0x9",  "unknown 0xA",    "unknown 0xB",
+          "line loop",      "quad list",    "quad strip",     "unknown 0xF",
+      };
+      ImGui::Text("%s Command %d: %s, %d indices",
+                  enable_mode == ModeControl::kColorDepth ? "Color-Depth"
+                                                          : "Depth-only",
+                  player.current_command_index(),
+                  kPrimNames[int(draw_info.prim_type)], draw_info.index_count);
       break;
-    case ModeControl::kDepth:
-      mode_name = "Depth-only";
-      break;
+    }
     case ModeControl::kCopy:
-      mode_name = "Copy";
+      ImGui::Text("Copy Command %d", player.current_command_index());
       break;
-  }
-  ImGui::Text("%s Command %d", mode_name, player.current_command_index());
-  static const char* kPrimNames[] = {
-      "<none>",         "point list",   "line list",      "line strip",
-      "triangle list",  "triangle fan", "triangle strip", "unknown 0x7",
-      "rectangle list", "unknown 0x9",  "unknown 0xA",    "unknown 0xB",
-      "line loop",      "quad list",    "quad strip",     "unknown 0xF",
-  };
-  ImGui::Text("Primitive Type: %s", kPrimNames[int(draw_info.prim_type)]);
-  ImGui::Text("Indices: %d", draw_info.index_count);
-  ImGui::SameLine();
-  if (draw_info.is_auto_index) {
-    ImGui::Text("auto-indexed");
-  } else {
-    ImGui::Text("from buffer %.8X (%db), %s, %s", draw_info.index_buffer_ptr,
-                draw_info.index_buffer_size,
-                kIndexFormatNames[int(draw_info.index_format)],
-                kEndiannessNames[int(draw_info.index_endianness)]);
   }
 
-  if (ImGui::TreeNode("Viewport State")) {
+  ImGui::Columns(2);
+  ImGui::BulletText("Viewport State:");
+  if (true) {
+    ImGui::TreePush((const void*)0);
     uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
     if ((pa_su_sc_mode_cntl >> 16) & 1) {
       uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
@@ -1542,24 +1536,23 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
         vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1,
         vport_yscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32 : 1,
         vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1);
-    ImGui::BulletText("XY Vertex Format: %s", ((vte_control >> 8) & 0x1)
-                                                  ? "premultipied by 1/w0"
-                                                  : "unmultiplied");
-    ImGui::BulletText("Z Vertex Format: %s", ((vte_control >> 9) & 0x1)
-                                                 ? "premultipied by 1/w0"
-                                                 : "unmultiplied");
-    ImGui::BulletText("W0 Vertex Format: %s", ((vte_control >> 10) & 0x1)
-                                                  ? "w0 is not 1/w0"
-                                                  : "already divided");
+    ImGui::BulletText("Vertex Format: %s, %s, %s, %s",
+                      ((vte_control >> 8) & 0x1) ? "x/w0" : "x",
+                      ((vte_control >> 8) & 0x1) ? "y/w0" : "y",
+                      ((vte_control >> 9) & 0x1) ? "z/w0" : "z",
+                      ((vte_control >> 10) & 0x1) ? "w0" : "1/w0");
     uint32_t clip_control = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
     bool clip_enabled = ((clip_control >> 17) & 0x1) == 0;
-    ImGui::BulletText("Clip Enabled: %s", clip_enabled ? "true" : "false");
     bool dx_clip = ((clip_control >> 20) & 0x1) == 0x1;
-    ImGui::BulletText("DX Clip: %s", dx_clip ? "true" : "false");
+    ImGui::BulletText("Clip Enabled: %s, DX Clip: %s",
+                      clip_enabled ? "true" : "false",
+                      dx_clip ? "true" : "false");
     ImGui::TreePop();
   }
-
-  if (ImGui::TreeNode("Rasterizer State")) {
+  ImGui::NextColumn();
+  ImGui::BulletText("Rasterizer State:");
+  if (true) {
+    ImGui::TreePush((const void*)0);
     uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
     uint32_t pa_sc_screen_scissor_tl =
         regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL].u32;
@@ -1615,80 +1608,152 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     }
     ImGui::TreePop();
   }
-  if (ImGui::TreeNode("Blend State")) {
-    uint32_t rb_blendcontrol[4] = {
-        regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
-        regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
-        regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
-        regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
-    };
-    for (int i = 0; i < poly::countof(rb_blendcontrol); ++i) {
-      uint32_t blend_control = rb_blendcontrol[i];
-      // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
-      auto src_blend = (blend_control & 0x0000001F) >> 0;
-      // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
-      auto dest_blend = (blend_control & 0x00001F00) >> 8;
-      // A2XX_RB_BLEND_CONTROL_COLOR_COMB_FCN
-      auto blend_op = (blend_control & 0x000000E0) >> 5;
-      // A2XX_RB_BLEND_CONTROL_ALPHA_SRCBLEND
-      auto src_blend_alpha = (blend_control & 0x001F0000) >> 16;
-      // A2XX_RB_BLEND_CONTROL_ALPHA_DESTBLEND
-      auto dest_blend_alpha = (blend_control & 0x1F000000) >> 24;
-      // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
-      auto blend_op_alpha = (blend_control & 0x00E00000) >> 21;
-      // A2XX_RB_COLORCONTROL_BLEND_DISABLE ?? Can't find this!
-      // Just guess based on actions.
-      bool blend_enable = !((src_blend == 1) && (dest_blend == 0) &&
-                            (blend_op == 0) && (src_blend_alpha == 1) &&
-                            (dest_blend_alpha == 0) && (blend_op_alpha == 0));
-      if (blend_enable) {
-        if (src_blend == src_blend_alpha && dest_blend == dest_blend_alpha &&
-            blend_op == blend_op_alpha) {
-          ImGui::BulletText("Blend %d: ", i);
-          ImGui::SameLine();
-          DrawBlendMode(src_blend, dest_blend, blend_op);
-        } else {
-          ImGui::BulletText("Blend %d:", i);
-          ImGui::BulletText("  Color: ");
-          ImGui::SameLine();
-          DrawBlendMode(src_blend, dest_blend, blend_op);
-          ImGui::BulletText("  Alpha: ");
-          ImGui::SameLine();
-          DrawBlendMode(src_blend_alpha, dest_blend_alpha, blend_op_alpha);
-        }
+  ImGui::Columns(1);
+
+  auto rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+  auto surface_msaa = static_cast<MsaaSamples>((rb_surface_info >> 16) & 0x3);
+
+  if (ImGui::CollapsingHeader("Color Targets")) {
+    if (enable_mode != ModeControl::kDepth) {
+      // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
+      // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
+      uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
+      if ((color_control & 0x4) != 0) {
+        ImGui::BulletText("Alpha Test: %s %.2f",
+                          kCompareFuncNames[color_control & 0x7],
+                          regs[XE_GPU_REG_RB_ALPHA_REF].f32);
       } else {
         ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
-        ImGui::BulletText("Blend %d: disabled", i);
+        ImGui::BulletText("Alpha Test: disabled");
         ImGui::PopStyleColor();
       }
-    }
-    auto blend_color = ImVec4(regs[XE_GPU_REG_RB_BLEND_RED].f32,
-                              regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
-                              regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
-                              regs[XE_GPU_REG_RB_BLEND_ALPHA].f32);
-    ImGui::BulletText("Blend Color: (%.2f,%.2f,%.2f,%.2f)", blend_color.x,
-                      blend_color.y, blend_color.z, blend_color.w);
-    ImGui::SameLine();
-    ImGui::ColorButton(blend_color, true);
 
-    // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-    // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
-    uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-    if ((color_control & 0x4) != 0) {
-      ImGui::BulletText("Alpha Test: %s %.2f",
-                        kCompareFuncNames[color_control & 0x7],
-                        regs[XE_GPU_REG_RB_ALPHA_REF].f32);
+      auto blend_color = ImVec4(regs[XE_GPU_REG_RB_BLEND_RED].f32,
+                                regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
+                                regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
+                                regs[XE_GPU_REG_RB_BLEND_ALPHA].f32);
+      ImGui::BulletText("Blend Color: (%.2f,%.2f,%.2f,%.2f)", blend_color.x,
+                        blend_color.y, blend_color.z, blend_color.w);
+      ImGui::SameLine();
+      ImGui::ColorButton(blend_color, true);
+
+      uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+      uint32_t color_info[4] = {
+          regs[XE_GPU_REG_RB_COLOR_INFO].u32,
+          regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+          regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
+          regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
+      };
+      uint32_t rb_blendcontrol[4] = {
+          regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
+      };
+      ImGui::Columns(2);
+      for (int i = 0; i < poly::countof(color_info); ++i) {
+        uint32_t blend_control = rb_blendcontrol[i];
+        // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
+        auto src_blend = (blend_control & 0x0000001F) >> 0;
+        // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
+        auto dest_blend = (blend_control & 0x00001F00) >> 8;
+        // A2XX_RB_BLEND_CONTROL_COLOR_COMB_FCN
+        auto blend_op = (blend_control & 0x000000E0) >> 5;
+        // A2XX_RB_BLEND_CONTROL_ALPHA_SRCBLEND
+        auto src_blend_alpha = (blend_control & 0x001F0000) >> 16;
+        // A2XX_RB_BLEND_CONTROL_ALPHA_DESTBLEND
+        auto dest_blend_alpha = (blend_control & 0x1F000000) >> 24;
+        // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
+        auto blend_op_alpha = (blend_control & 0x00E00000) >> 21;
+        // A2XX_RB_COLORCONTROL_BLEND_DISABLE ?? Can't find this!
+        // Just guess based on actions.
+        bool blend_enable = !((src_blend == 1) && (dest_blend == 0) &&
+                              (blend_op == 0) && (src_blend_alpha == 1) &&
+                              (dest_blend_alpha == 0) && (blend_op_alpha == 0));
+        if (blend_enable) {
+          if (src_blend == src_blend_alpha && dest_blend == dest_blend_alpha &&
+              blend_op == blend_op_alpha) {
+            ImGui::BulletText("Blend %d: ", i);
+            ImGui::SameLine();
+            DrawBlendMode(src_blend, dest_blend, blend_op);
+          } else {
+            ImGui::BulletText("Blend %d:", i);
+            ImGui::BulletText("  Color: ");
+            ImGui::SameLine();
+            DrawBlendMode(src_blend, dest_blend, blend_op);
+            ImGui::BulletText("  Alpha: ");
+            ImGui::SameLine();
+            DrawBlendMode(src_blend_alpha, dest_blend_alpha, blend_op_alpha);
+          }
+        } else {
+          ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
+          ImGui::BulletText("Blend %d: disabled", i);
+          ImGui::PopStyleColor();
+        }
+        ImGui::NextColumn();
+        uint32_t write_mask = (rb_color_mask >> (i * 4)) & 0xF;
+        if (write_mask) {
+          ImGui::BulletText("Write Mask %d: %s, %s, %s, %s", i,
+                            !!(write_mask & 0x1) ? "true" : "false",
+                            !!(write_mask & 0x2) ? "true" : "false",
+                            !!(write_mask & 0x4) ? "true" : "false",
+                            !!(write_mask & 0x8) ? "true" : "false");
+        } else {
+          ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
+          ImGui::BulletText("Write Mask %d: disabled", i);
+          ImGui::PopStyleColor();
+        }
+        ImGui::NextColumn();
+      }
+      ImGui::Columns(1);
+
+      ImGui::Columns(4);
+      for (int i = 0; i < poly::countof(color_info); ++i) {
+        uint32_t write_mask = (rb_color_mask >> (i * 4)) & 0xF;
+        uint32_t color_base = color_info[i] & 0xFFF;
+        auto color_format =
+            static_cast<ColorRenderTargetFormat>((color_info[i] >> 16) & 0xF);
+        ImVec2 button_size(256, 256);
+        if (write_mask) {
+          GLuint color_target = cp->GetColorRenderTarget(
+              surface_pitch, surface_msaa, color_base, color_format);
+          if (ImGui::ImageButton(ImTextureID(GLuint64(color_target)),
+                                 button_size, ImVec2(0, 0), ImVec2(1, 1))) {
+            // show viewer
+          }
+        } else {
+          ImGui::ImageButton(ImTextureID(GLuint64(0)), button_size,
+                             ImVec2(0, 0), ImVec2(1, 1), -1, ImVec4(0, 0, 0, 0),
+                             ImVec4(0, 0, 0, 0));
+        }
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Color Target %d (%s), base %.4X, pitch %d", i,
+                            write_mask ? "enabled" : "disabled", color_base,
+                            surface_pitch);
+        }
+        ImGui::NextColumn();
+      }
+      ImGui::Columns(1);
     } else {
       ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
-      ImGui::BulletText("Alpha Test: disabled");
+      ImGui::Text("Depth-only mode, no color targets");
       ImGui::PopStyleColor();
     }
-
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("Depth-Stencil State")) {
+
+  if (ImGui::CollapsingHeader("Depth/Stencil Target")) {
     auto rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
     auto rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+    auto rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+    bool uses_depth =
+        (rb_depthcontrol & 0x00000002) || (rb_depthcontrol & 0x00000004);
+    uint32_t stencil_write_mask = (rb_stencilrefmask & 0x00FF0000) >> 16;
+    bool uses_stencil =
+        (rb_depthcontrol & 0x00000001) || (stencil_write_mask != 0);
+
+    ImGui::Columns(2);
+
     if (rb_depthcontrol & 0x00000002) {
       ImGui::BulletText("Depth Test: enabled");
     } else {
@@ -1718,7 +1783,25 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     if (!(rb_depthcontrol & 0x00000001)) {
       ImGui::PopStyleColor();
     }
-    ImGui::TreePop();
+
+    ImGui::NextColumn();
+
+    if (uses_depth || uses_stencil) {
+      uint32_t depth_base = rb_depth_info & 0xFFF;
+      auto depth_format =
+          static_cast<DepthRenderTargetFormat>((rb_depth_info >> 16) & 0x1);
+      GLuint depth_target = cp->GetDepthRenderTarget(
+          surface_pitch, surface_msaa, depth_base, depth_format);
+      ImVec2 button_size(256, 256);
+      if (ImGui::ImageButton(ImTextureID(GLuint64(depth_target)), button_size,
+                             ImVec2(0, 0), ImVec2(1, 1))) {
+        // show viewer
+      }
+    } else {
+      ImGui::Text("No depth target");
+    }
+
+    ImGui::Columns(1);
   }
 
   if (ImGui::CollapsingHeader("Vertex Shader")) {

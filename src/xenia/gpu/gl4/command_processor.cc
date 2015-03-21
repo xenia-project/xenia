@@ -1783,7 +1783,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
   bool uses_stencil =
       (regs.rb_depthcontrol & 0x00000001) || (stencil_write_mask != 0);
   GLuint depth_target = kAnyTarget;
-  if (uses_depth && uses_stencil) {
+  if (uses_depth || uses_stencil) {
     uint32_t depth_base = regs.rb_depth_info & 0xFFF;
     auto depth_format =
         static_cast<DepthRenderTargetFormat>((regs.rb_depth_info >> 16) & 0x1);
