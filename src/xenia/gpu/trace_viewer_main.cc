@@ -1166,6 +1166,10 @@ void DrawTextureInfo(TracePlayer& player, const Shader::SamplerDesc& desc) {
   ImGui::Columns(1);
 }
 
+static const char* kCompareFuncNames[] = {
+    "<false>", "<", "==", "<=", ">", "!=", ">=", "<true>",
+};
+
 void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
                  uint8_t* membase) {
   auto gs = static_cast<gl4::GL4GraphicsSystem*>(player.graphics_system());
@@ -1464,14 +1468,25 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
                       blend_color.y, blend_color.z, blend_color.w);
     ImGui::SameLine();
     ImGui::ColorButton(blend_color, true);
+
+    // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
+    // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
+    uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
+    if ((color_control & 0x4) != 0) {
+      ImGui::BulletText("Alpha Test: discard if %s %.2f",
+                        kCompareFuncNames[color_control & 0x3],
+                        regs[XE_GPU_REG_RB_ALPHA_REF].f32);
+    } else {
+      ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
+      ImGui::BulletText("Alpha Test: disabled");
+      ImGui::PopStyleColor();
+    }
+
     ImGui::TreePop();
   }
   if (ImGui::TreeNode("Depth-Stencil State")) {
     auto rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
     auto rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-    static const char* kCompareFuncNames[] = {
-        "<false>", "<", "==", "<=", ">", "!=", ">=", "<true>",
-    };
     if (rb_depthcontrol & 0x00000002) {
       ImGui::BulletText("Depth Test: enabled");
     } else {

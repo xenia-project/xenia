@@ -171,9 +171,9 @@ class DrawBatcher {
 
   // This must match GL4Shader's header.
   struct CommonHeader {
-    float4 window_scale;     // sx,sy, ?, ?
-    float4 vtx_fmt;          //
-    float4 alpha_test;       // alpha test enable, func, ref, ?
+    float4 window_scale;  // sx,sy, ?, ?
+    float4 vtx_fmt;       //
+    float4 alpha_test;    // alpha test enable, func, ref, ?
 
     // TODO(benvanik): pack tightly
     GLuint64 texture_samplers[32];

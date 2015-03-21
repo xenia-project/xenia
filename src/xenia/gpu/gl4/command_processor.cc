@@ -1812,14 +1812,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateState() {
 
   bool mismatch = false;
 
-  // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-  // Deprecated in GL, implemented in shader.
-  // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
-  uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-  draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  // ALPAHTESTENABLE
-                               color_control & 0x3,         // ALPHAFUNC
-                               regs[XE_GPU_REG_RB_ALPHA_REF].f32);
-
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                          \
     if (status == UpdateStatus::kError) {                    \
@@ -2075,7 +2067,16 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
 }
 
 CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
+  auto& reg_file = *register_file_;
   auto& regs = update_blend_state_regs_;
+
+  // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
+  // Deprecated in GL, implemented in shader.
+  // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
+  uint32_t color_control = reg_file[XE_GPU_REG_RB_COLORCONTROL].u32;
+  draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  // ALPAHTESTENABLE
+                               color_control & 0x3,         // ALPHAFUNC
+                               reg_file[XE_GPU_REG_RB_ALPHA_REF].f32);
 
   bool dirty = false;
   dirty |=

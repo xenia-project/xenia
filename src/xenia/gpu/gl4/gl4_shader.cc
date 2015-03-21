@@ -245,16 +245,32 @@ bool GL4Shader::PreparePixelShader(
   }
   has_prepared_ = true;
 
-  std::string source = GetHeader() +
-                       "layout(origin_upper_left) in vec4 gl_FragCoord;\n"
-                       "layout(location = 0) flat in uint draw_id;\n"
-                       "layout(location = 1) in VertexData vtx;\n"
-                       "layout(location = 0) out vec4 oC[4];\n"
-                       "void processFragment(const in StateData state);\n"
-                       "void main() {\n" +
-                       "  const StateData state = states[draw_id];\n"
-                       "  processFragment(state);\n"
-                       "}\n";
+  std::string source =
+      GetHeader() +
+      "layout(origin_upper_left) in vec4 gl_FragCoord;\n"
+      "layout(location = 0) flat in uint draw_id;\n"
+      "layout(location = 1) in VertexData vtx;\n"
+      "layout(location = 0) out vec4 oC[4];\n"
+      "void processFragment(const in StateData state);\n"
+      "void applyAlphaTest(int alpha_func, float alpha_ref) {\n"
+      "  switch (alpha_func) {\n"
+      "  case 0:                           discard;\n"
+      "  case 1: if (oC[0].a <  alpha_ref) discard; break;\n"
+      "  case 2: if (oC[0].a == alpha_ref) discard; break;\n"
+      "  case 3: if (oC[0].a <= alpha_ref) discard; break;\n"
+      "  case 4: if (oC[0].a >  alpha_ref) discard; break;\n"
+      "  case 5: if (oC[0].a != alpha_ref) discard; break;\n"
+      "  case 6: if (oC[0].a >= alpha_ref) discard; break;\n"
+      "  case 7:                           break;\n"
+      "  };\n"
+      "}\n"
+      "void main() {\n" +
+      "  const StateData state = states[draw_id];\n"
+      "  processFragment(state);\n"
+      "  if (state.alpha_test.x != 0.0) {\n"
+      "    applyAlphaTest(int(state.alpha_test.y), state.alpha_test.z);\n"
+      "  }\n"
+      "}\n";
 
   std::string translated_source =
       shader_translator_.TranslatePixelShader(this, program_cntl);
