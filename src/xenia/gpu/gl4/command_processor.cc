@@ -1926,6 +1926,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   GLint ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
   GLsizei ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
   GLsizei ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
+  ws_x += window_offset_x;
+  ws_y += window_offset_y;
   glScissorIndexed(0, ws_x, ws_y, ws_w, ws_h);
 
   // HACK: no clue where to get these values.
@@ -1971,16 +1973,16 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     window_width_scalar = window_height_scalar = 1;
     float vpw = 2 * window_width_scalar * vsx;
     float vph = -2 * window_height_scalar * vsy;
-    float vpx = window_width_scalar * vox - vpw / 2;
-    float vpy = window_height_scalar * voy - vph / 2;
+    float vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
+    float vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
     glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
   } else {
     float texel_offset_x = 0.0f;
     float texel_offset_y = 0.0f;
     float vpw = 2 * 2560.0f * window_width_scalar;
     float vph = 2 * 2560.0f * window_height_scalar;
-    float vpx = -2560.0f * window_width_scalar;
-    float vpy = -2560.0f * window_height_scalar;
+    float vpx = -2560.0f * window_width_scalar + window_offset_x;
+    float vpy = -2560.0f * window_height_scalar + window_offset_y;
     glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
   }
 
