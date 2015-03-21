@@ -2320,8 +2320,8 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
        ++buffer_index) {
     const auto& desc = buffer_inputs.descs[buffer_index];
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
-    auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
-    xe_gpu_vertex_fetch_t* fetch = nullptr;
+    const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+    const xe_gpu_vertex_fetch_t* fetch = nullptr;
     switch (desc.fetch_slot % 3) {
       case 0:
         fetch = &group->vertex_fetch_0;

@@ -1166,6 +1166,208 @@ void DrawTextureInfo(TracePlayer& player, const Shader::SamplerDesc& desc) {
   ImGui::Columns(1);
 }
 
+void DrawVertexFetcher(const uint8_t* membase, gl4::GL4Shader* shader,
+                       const Shader::BufferDesc& desc,
+                       const xe_gpu_vertex_fetch_t* fetch) {
+  const uint8_t* addr = membase + (fetch->address << 2);
+  uint32_t vertex_count = (fetch->size * 4) / desc.stride_words;
+  int column_count = 0;
+  for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
+    const auto& el = desc.elements[el_index];
+    switch (el.format) {
+      case VertexFormat::k_32:
+      case VertexFormat::k_32_FLOAT:
+        ++column_count;
+        break;
+      case VertexFormat::k_16_16:
+      case VertexFormat::k_16_16_FLOAT:
+      case VertexFormat::k_32_32:
+      case VertexFormat::k_32_32_FLOAT:
+        column_count += 2;
+        break;
+      case VertexFormat::k_10_11_11:
+      case VertexFormat::k_11_11_10:
+      case VertexFormat::k_32_32_32_FLOAT:
+        column_count += 3;
+        break;
+      case VertexFormat::k_8_8_8_8:
+        ++column_count;
+        break;
+      case VertexFormat::k_2_10_10_10:
+      case VertexFormat::k_16_16_16_16:
+      case VertexFormat::k_32_32_32_32:
+      case VertexFormat::k_16_16_16_16_FLOAT:
+      case VertexFormat::k_32_32_32_32_FLOAT:
+        column_count += 4;
+        break;
+    }
+  }
+  ImGui::BeginChild("#indices", ImVec2(0, 300));
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+  int display_start, display_end;
+  ImGui::CalcListClipping(1 + vertex_count, ImGui::GetTextLineHeight(),
+                          &display_start, &display_end);
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                       (display_start)*ImGui::GetTextLineHeight());
+  ImGui::Columns(column_count);
+  if (display_start <= 1) {
+    for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
+      const auto& el = desc.elements[el_index];
+      switch (el.format) {
+        case VertexFormat::k_32:
+        case VertexFormat::k_32_FLOAT:
+          ImGui::Text("e%d.x", el_index);
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_16_16:
+        case VertexFormat::k_16_16_FLOAT:
+        case VertexFormat::k_32_32:
+        case VertexFormat::k_32_32_FLOAT:
+          ImGui::Text("e%d.x", el_index);
+          ImGui::NextColumn();
+          ImGui::Text("e%d.y", el_index);
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_10_11_11:
+        case VertexFormat::k_11_11_10:
+        case VertexFormat::k_32_32_32_FLOAT:
+          ImGui::Text("e%d.x", el_index);
+          ImGui::NextColumn();
+          ImGui::Text("e%d.y", el_index);
+          ImGui::NextColumn();
+          ImGui::Text("e%d.z", el_index);
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_8_8_8_8:
+          ImGui::Text("e%d.xyzw", el_index);
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_2_10_10_10:
+        case VertexFormat::k_16_16_16_16:
+        case VertexFormat::k_32_32_32_32:
+        case VertexFormat::k_16_16_16_16_FLOAT:
+        case VertexFormat::k_32_32_32_32_FLOAT:
+          ImGui::Text("e%d.x", el_index);
+          ImGui::NextColumn();
+          ImGui::Text("e%d.y", el_index);
+          ImGui::NextColumn();
+          ImGui::Text("e%d.z", el_index);
+          ImGui::NextColumn();
+          ImGui::Text("e%d.w", el_index);
+          ImGui::NextColumn();
+          break;
+      }
+    }
+    ImGui::Separator();
+  }
+  for (int i = display_start; i < display_end; ++i) {
+    const uint8_t* vstart = addr + i * desc.stride_words * 4;
+    for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
+      const auto& el = desc.elements[el_index];
+#define LOADEL(type, wo)                                         \
+  GpuSwap(poly::load<type>(vstart + (el.offset_words + wo) * 4), \
+          Endian(fetch->endian))
+      switch (el.format) {
+        case VertexFormat::k_32:
+          ImGui::Text("%.8X", LOADEL(uint32_t, 0));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_32_FLOAT:
+          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_16_16:
+        case VertexFormat::k_16_16_FLOAT:
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_32_32:
+          ImGui::Text("%.8X", LOADEL(uint32_t, 0));
+          ImGui::NextColumn();
+          ImGui::Text("%.8X", LOADEL(uint32_t, 1));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_32_32_FLOAT:
+          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f", LOADEL(float, 1));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_10_11_11:
+        case VertexFormat::k_11_11_10:
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_32_32_32_FLOAT:
+          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f", LOADEL(float, 1));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f", LOADEL(float, 2));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_8_8_8_8:
+          ImGui::Text("%.8X", LOADEL(uint32_t, 0));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_2_10_10_10:
+        case VertexFormat::k_16_16_16_16:
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_32_32_32_32:
+          ImGui::Text("%.8X", LOADEL(uint32_t, 0));
+          ImGui::NextColumn();
+          ImGui::Text("%.8X", LOADEL(uint32_t, 1));
+          ImGui::NextColumn();
+          ImGui::Text("%.8X", LOADEL(uint32_t, 2));
+          ImGui::NextColumn();
+          ImGui::Text("%.8X", LOADEL(uint32_t, 3));
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_16_16_16_16_FLOAT:
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          ImGui::Text("??");
+          ImGui::NextColumn();
+          break;
+        case VertexFormat::k_32_32_32_32_FLOAT:
+          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f", LOADEL(float, 1));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f", LOADEL(float, 2));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f", LOADEL(float, 3));
+          ImGui::NextColumn();
+          break;
+      }
+    }
+  }
+  ImGui::Columns(1);
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                       (vertex_count - display_end) *
+                           ImGui::GetTextLineHeight());
+  ImGui::PopStyleVar();
+  ImGui::EndChild();
+}
+
 static const char* kCompareFuncNames[] = {
     "<false>", "<", "==", "<=", ">", "!=", ">=", "<true>",
 };
@@ -1600,7 +1802,44 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     }
   }
   if (ImGui::CollapsingHeader("Vertex Buffers")) {
-    ImGui::Text("vertex buffers");
+    auto shader = cp->active_vertex_shader();
+    if (shader) {
+      const auto& buffer_inputs = shader->buffer_inputs();
+      for (uint32_t buffer_index = 0; buffer_index < buffer_inputs.count;
+           ++buffer_index) {
+        const auto& desc = buffer_inputs.descs[buffer_index];
+        int r =
+            XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
+        const auto group =
+            reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+        const xe_gpu_vertex_fetch_t* fetch = nullptr;
+        switch (desc.fetch_slot % 3) {
+          case 0:
+            fetch = &group->vertex_fetch_0;
+            break;
+          case 1:
+            fetch = &group->vertex_fetch_1;
+            break;
+          case 2:
+            fetch = &group->vertex_fetch_2;
+            break;
+        }
+        assert_true(fetch->endian == 2);
+        char tree_root_id[32];
+        sprintf(tree_root_id, "#vertices_root_%d", desc.fetch_slot);
+        if (ImGui::TreeNode(tree_root_id, "vf%d: 0x%.8X (%db), %s",
+                            desc.fetch_slot, fetch->address << 2,
+                            fetch->size * 4,
+                            kEndiannessNames[int(fetch->endian)])) {
+          ImGui::BeginChild("#vertices", ImVec2(0, 300));
+          DrawVertexFetcher(membase, shader, desc, fetch);
+          ImGui::EndChild();
+          ImGui::TreePop();
+        }
+      }
+    } else {
+      ImGui::TextColored(kColorError, "ERROR: no vertex shader set");
+    }
   }
   if (ImGui::CollapsingHeader("Vertex Textures")) {
     auto shader = cp->active_vertex_shader();

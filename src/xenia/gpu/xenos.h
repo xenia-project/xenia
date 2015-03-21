@@ -211,6 +211,20 @@ typedef enum {
   XE_GPU_SWIZZLE_R000 = XE_GPU_MAKE_SWIZZLE(R, 0, 0, 0),
 } XE_GPU_SWIZZLE;
 
+inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
+  switch (endianness) {
+    case Endian::kUnspecified:
+      // No swap.
+      return value;
+    case Endian::k8in16:
+      // Swap bytes in half words.
+      return ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0x00FF00FF);
+    default:
+      assert_unhandled_case(endianness);
+      return value;
+  }
+}
+
 inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
   switch (endianness) {
     default:
@@ -230,9 +244,17 @@ inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
   }
 }
 
-inline uint32_t GpuToCpu(uint32_t p) {
-  return p;
+inline float GpuSwap(float value, Endian endianness) {
+  union {
+    uint32_t i;
+    float f;
+  } v;
+  v.f = value;
+  v.i = GpuSwap(v.i, endianness);
+  return v.f;
 }
+
+inline uint32_t GpuToCpu(uint32_t p) { return p; }
 
 // XE_GPU_REG_SQ_PROGRAM_CNTL
 typedef union {
