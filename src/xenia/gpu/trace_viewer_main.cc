@@ -1675,8 +1675,8 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
     uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
     if ((color_control & 0x4) != 0) {
-      ImGui::BulletText("Alpha Test: discard if %s %.2f",
-                        kCompareFuncNames[color_control & 0x3],
+      ImGui::BulletText("Alpha Test: %s %.2f",
+                        kCompareFuncNames[color_control & 0x7],
                         regs[XE_GPU_REG_RB_ALPHA_REF].f32);
     } else {
       ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);

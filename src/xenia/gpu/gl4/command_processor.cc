@@ -2081,7 +2081,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
   // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
   uint32_t color_control = reg_file[XE_GPU_REG_RB_COLORCONTROL].u32;
   draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  // ALPAHTESTENABLE
-                               color_control & 0x3,         // ALPHAFUNC
+                               color_control & 0x7,         // ALPHAFUNC
                                reg_file[XE_GPU_REG_RB_ALPHA_REF].f32);
 
   bool dirty = false;
