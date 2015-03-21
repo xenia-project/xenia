@@ -1169,6 +1169,12 @@ void DrawTextureInfo(TracePlayer& player, const Shader::SamplerDesc& desc) {
 static const char* kCompareFuncNames[] = {
     "<false>", "<", "==", "<=", ">", "!=", ">=", "<true>",
 };
+static const char* kIndexFormatNames[] = {
+    "uint16", "uint32",
+};
+static const char* kEndiannessNames[] = {
+    "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
+};
 
 void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
                  uint8_t* membase) {
@@ -1275,12 +1281,6 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
   if (draw_info.is_auto_index) {
     ImGui::Text("auto-indexed");
   } else {
-    static const char* kIndexFormatNames[] = {
-        "uint16", "uint32",
-    };
-    static const char* kEndiannessNames[] = {
-        "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
-    };
     ImGui::Text("from buffer %.8X (%db), %s, %s", draw_info.index_buffer_ptr,
                 draw_info.index_buffer_size,
                 kIndexFormatNames[int(draw_info.index_format)],
@@ -1541,8 +1541,66 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     }
     ImGui::EndChild();
   }
-  if (ImGui::CollapsingHeader("Buffers")) {
-    ImGui::Text("vertex/index buffers");
+  if (ImGui::CollapsingHeader("Index Buffer")) {
+    if (draw_info.is_auto_index) {
+      ImGui::Text("%d indices, auto-indexed", draw_info.index_count);
+    } else {
+      ImGui::Text("%d indices from buffer %.8X (%db), %s, %s",
+                  draw_info.index_count, draw_info.index_buffer_ptr,
+                  draw_info.index_buffer_size,
+                  kIndexFormatNames[int(draw_info.index_format)],
+                  kEndiannessNames[int(draw_info.index_endianness)]);
+      ImGui::BeginChild("#indices", ImVec2(0, 300));
+      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+      int display_start, display_end;
+      ImGui::CalcListClipping(1 + draw_info.index_count,
+                              ImGui::GetTextLineHeight(), &display_start,
+                              &display_end);
+      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                           (display_start)*ImGui::GetTextLineHeight());
+      ImGui::Columns(2, "#indices", true);
+      ImGui::SetColumnOffset(1, 60);
+      if (display_start <= 1) {
+        ImGui::Text("Ordinal");
+        ImGui::NextColumn();
+        ImGui::Text(" Value");
+        ImGui::NextColumn();
+        ImGui::Separator();
+      }
+      size_t element_size =
+          draw_info.index_format == IndexFormat::kInt32 ? 4 : 2;
+      const uint8_t* data_ptr =
+          membase + draw_info.index_buffer_ptr + (display_start * element_size);
+      for (int i = display_start; i < display_end;
+           ++i, data_ptr += element_size) {
+        if (i < 10) {
+          ImGui::Text("     %d", i);
+        } else if (i < 100) {
+          ImGui::Text("    %d", i);
+        } else if (i < 1000) {
+          ImGui::Text("   %d", i);
+        } else {
+          ImGui::Text("  %d", i);
+        }
+        ImGui::NextColumn();
+        uint32_t value = element_size == 4
+                             ? GpuSwap(poly::load<uint32_t>(data_ptr),
+                                       draw_info.index_endianness)
+                             : GpuSwap(poly::load<uint16_t>(data_ptr),
+                                       draw_info.index_endianness);
+        ImGui::Text(" %d", value);
+        ImGui::NextColumn();
+      }
+      ImGui::Columns(1);
+      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                           (draw_info.index_count - display_end) *
+                               ImGui::GetTextLineHeight());
+      ImGui::PopStyleVar();
+      ImGui::EndChild();
+    }
+  }
+  if (ImGui::CollapsingHeader("Vertex Buffers")) {
+    ImGui::Text("vertex buffers");
   }
   if (ImGui::CollapsingHeader("Vertex Textures")) {
     auto shader = cp->active_vertex_shader();
