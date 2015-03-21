@@ -81,8 +81,6 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
         GLContextLock context_lock(&context_);
         wglSwapIntervalEXT(0);
 
-        // TODO(benvanik): is viewport needed?
-        glViewport(0, 0, width_, height_);
         float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
         glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
 
