@@ -51,7 +51,8 @@ struct VertexData { \n\
 ";
   const std::string vs_source = header +
                                 "\n\
-layout(location = 0) uniform vec4 src_uv_params; \n\
+layout(location = 0) uniform vec4 src_uv; \n\
+layout(location = 1) uniform vec4 dest_rect; \n\
 out gl_PerVertex { \n\
   vec4 gl_Position; \n\
   float gl_PointSize; \n\
@@ -64,7 +65,7 @@ layout(location = 0) in VertexFetch vfetch; \n\
 layout(location = 0) out VertexData vtx; \n\
 void main() { \n\
   gl_Position = vec4(vfetch.pos.xy * vec2(2.0, -2.0) - vec2(1.0, -1.0), 0.0, 1.0); \n\
-  vtx.uv = vfetch.pos.xy * src_uv_params.zw + src_uv_params.xy; \n\
+  vtx.uv = vfetch.pos.xy * src_uv.zw + src_uv.xy; \n\
 } \n\
 ";
   const std::string color_fs_source = header +
@@ -207,8 +208,8 @@ struct SavedState {
   }
 };
 
-void Blitter::Draw(GLuint src_texture, int32_t src_x, int32_t src_y,
-                   int32_t src_width, int32_t src_height, GLenum filter) {
+void Blitter::Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
+                   GLenum filter) {
   glDisable(GL_SCISSOR_TEST);
   glDisable(GL_STENCIL_TEST);
   glDisablei(GL_BLEND, 0);
@@ -228,6 +229,8 @@ void Blitter::Draw(GLuint src_texture, int32_t src_x, int32_t src_y,
       break;
   }
 
+  glViewport(0, 0, dest_rect.width, dest_rect.height);
+
   // TODO(benvanik): avoid this?
   GLint src_texture_width;
   glGetTextureLevelParameteriv(src_texture, 0, GL_TEXTURE_WIDTH,
@@ -235,10 +238,12 @@ void Blitter::Draw(GLuint src_texture, int32_t src_x, int32_t src_y,
   GLint src_texture_height;
   glGetTextureLevelParameteriv(src_texture, 0, GL_TEXTURE_HEIGHT,
                                &src_texture_height);
-  glProgramUniform4f(vertex_program_, 0, src_x / float(src_texture_width),
-                     src_y / float(src_texture_height),
-                     src_width / float(src_texture_width),
-                     src_height / float(src_texture_height));
+  glProgramUniform4f(vertex_program_, 0, src_rect.x / float(src_texture_width),
+                     src_rect.y / float(src_texture_height),
+                     src_rect.width / float(src_texture_width),
+                     src_rect.height / float(src_texture_height));
+  glProgramUniform4f(vertex_program_, 1, float(dest_rect.x), float(dest_rect.y),
+                     float(dest_rect.width), float(dest_rect.height));
 
   // Useful for seeing the entire framebuffer/etc:
   // glProgramUniform4f(vertex_program_, 0, 0.0f, 0.0f, 1.0f, 1.0f);
@@ -246,34 +251,27 @@ void Blitter::Draw(GLuint src_texture, int32_t src_x, int32_t src_y,
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-void Blitter::BlitTexture2D(GLuint src_texture, int32_t src_x, int32_t src_y,
-                            int32_t src_width, int32_t src_height,
-                            int32_t dest_x, int32_t dest_y, int32_t dest_width,
-                            int32_t dest_height, GLenum filter) {
+void Blitter::BlitTexture2D(GLuint src_texture, Rect2D src_rect,
+                            Rect2D dest_rect, GLenum filter) {
   SavedState state;
   state.Save();
 
-  glViewport(dest_x, dest_y, dest_width, dest_height);
   glColorMaski(0, true, true, true, true);
   glDisable(GL_DEPTH_TEST);
   glDepthMask(false);
   glBindProgramPipeline(color_pipeline_);
 
-  Draw(src_texture, src_x, src_y, src_width, src_height, filter);
+  Draw(src_texture, src_rect, dest_rect, filter);
 
   state.Restore();
 }
 
-void Blitter::CopyColorTexture2D(GLuint src_texture, int32_t src_x,
-                                 int32_t src_y, int32_t src_width,
-                                 int32_t src_height, GLuint dest_texture,
-                                 int32_t dest_x, int32_t dest_y,
-                                 int32_t dest_width, int32_t dest_height,
+void Blitter::CopyColorTexture2D(GLuint src_texture, Rect2D src_rect,
+                                 GLuint dest_texture, Rect2D dest_rect,
                                  GLenum filter) {
   SavedState state;
   state.Save();
 
-  glViewport(dest_x, dest_y, dest_width, dest_height);
   glColorMaski(0, true, true, true, true);
   glDisable(GL_DEPTH_TEST);
   glDepthMask(false);
@@ -283,7 +281,7 @@ void Blitter::CopyColorTexture2D(GLuint src_texture, int32_t src_x,
                             dest_texture, 0);
   glNamedFramebufferDrawBuffer(scratch_framebuffer_, GL_COLOR_ATTACHMENT0);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_framebuffer_);
-  Draw(src_texture, src_x, src_y, src_width, src_height, filter);
+  Draw(src_texture, src_rect, dest_rect, filter);
   glNamedFramebufferDrawBuffer(scratch_framebuffer_, GL_NONE);
   glNamedFramebufferTexture(scratch_framebuffer_, GL_COLOR_ATTACHMENT0, GL_NONE,
                             0);
@@ -291,15 +289,11 @@ void Blitter::CopyColorTexture2D(GLuint src_texture, int32_t src_x,
   state.Restore();
 }
 
-void Blitter::CopyDepthTexture(GLuint src_texture, int32_t src_x, int32_t src_y,
-                               int32_t src_width, int32_t src_height,
-                               GLuint dest_texture, int32_t dest_x,
-                               int32_t dest_y, int32_t dest_width,
-                               int32_t dest_height) {
+void Blitter::CopyDepthTexture(GLuint src_texture, Rect2D src_rect,
+                               GLuint dest_texture, Rect2D dest_rect) {
   SavedState state;
   state.Save();
 
-  glViewport(dest_x, dest_y, dest_width, dest_height);
   glColorMaski(0, false, false, false, false);
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_ALWAYS);
@@ -309,7 +303,7 @@ void Blitter::CopyDepthTexture(GLuint src_texture, int32_t src_x, int32_t src_y,
   glNamedFramebufferTexture(scratch_framebuffer_, GL_DEPTH_STENCIL_ATTACHMENT,
                             dest_texture, 0);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratch_framebuffer_);
-  Draw(src_texture, src_x, src_y, src_width, src_height, GL_NEAREST);
+  Draw(src_texture, src_rect, dest_rect, GL_NEAREST);
   glNamedFramebufferTexture(scratch_framebuffer_, GL_DEPTH_STENCIL_ATTACHMENT,
                             GL_NONE, 0);
 

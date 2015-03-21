@@ -578,12 +578,16 @@ void CommandProcessor::IssueSwap() {
 
   // Guess frontbuffer dimensions.
   // Command buffer seems to set these right before the XE_SWAP.
-  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  swap_params.x = window_scissor_tl & 0x7FFF;
-  swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
-  swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
-  swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
+  // uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  // uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  // swap_params.x = window_scissor_tl & 0x7FFF;
+  // swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
+  // swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
+  // swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
+  swap_params.x = 0;
+  swap_params.y = 0;
+  swap_params.width = 1280;
+  swap_params.height = 720;
 
   PrepareForWait();
   swap_handler_(swap_params);
@@ -2636,11 +2640,8 @@ bool CommandProcessor::IssueCopy() {
   // REG_A2XX_RB_COPY_DEST_OFFSET = A2XX_RB_COPY_DEST_OFFSET_X(tile->xoff) |
   //                                A2XX_RB_COPY_DEST_OFFSET_Y(tile->yoff);
   // but I can't seem to find something similar.
-  // Maybe scissor rect/window offset?
-  uint32_t x = 0;
-  uint32_t y = 0;
-  uint32_t w = copy_dest_pitch;
-  uint32_t h = copy_dest_height;
+  uint32_t width = copy_dest_pitch;
+  uint32_t height = copy_dest_height;
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
@@ -2651,8 +2652,52 @@ bool CommandProcessor::IssueCopy() {
   if (window_offset_y & 0x4000) {
     window_offset_y |= 0x8000;
   }
-  // x = window_offset_x;
-  // y = window_offset_y;
+
+  // HACK: vertices to use are always in vf0.
+  int copy_vertex_fetch_slot = 0;
+  int r =
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (copy_vertex_fetch_slot / 3) * 6;
+  const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+  const xe_gpu_vertex_fetch_t* fetch = nullptr;
+  switch (copy_vertex_fetch_slot % 3) {
+    case 0:
+      fetch = &group->vertex_fetch_0;
+      break;
+    case 1:
+      fetch = &group->vertex_fetch_1;
+      break;
+    case 2:
+      fetch = &group->vertex_fetch_2;
+      break;
+  }
+  assert_true(fetch->type == 3);
+  assert_true(fetch->endian == 2);
+  assert_true(fetch->size == 6);
+  const uint8_t* vertex_addr = membase_ + (fetch->address << 2);
+  trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
+  int32_t dest_min_x = int32_t(std::ceilf(std::min(
+      std::min(
+          GpuSwap(poly::load<float>(vertex_addr + 0), Endian(fetch->endian)),
+          GpuSwap(poly::load<float>(vertex_addr + 8), Endian(fetch->endian))),
+      GpuSwap(poly::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
+  int32_t dest_max_x = int32_t(std::ceilf(std::max(
+      std::max(
+          GpuSwap(poly::load<float>(vertex_addr + 0), Endian(fetch->endian)),
+          GpuSwap(poly::load<float>(vertex_addr + 8), Endian(fetch->endian))),
+      GpuSwap(poly::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
+  int32_t dest_min_y = int32_t(std::ceilf(std::min(
+      std::min(
+          GpuSwap(poly::load<float>(vertex_addr + 4), Endian(fetch->endian)),
+          GpuSwap(poly::load<float>(vertex_addr + 12), Endian(fetch->endian))),
+      GpuSwap(poly::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+  int32_t dest_max_y = int32_t(std::ceilf(std::max(
+      std::max(
+          GpuSwap(poly::load<float>(vertex_addr + 4), Endian(fetch->endian)),
+          GpuSwap(poly::load<float>(vertex_addr + 12), Endian(fetch->endian))),
+      GpuSwap(poly::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+  Rect2D dest_rect(dest_min_x, dest_min_y, dest_max_x - dest_min_x,
+                   dest_max_y - dest_min_y);
+  Rect2D src_rect(0, 0, dest_rect.width, dest_rect.height);
 
   // Make active so glReadPixels reads from us.
   switch (copy_command) {
@@ -2663,18 +2708,19 @@ bool CommandProcessor::IssueCopy() {
         // Source from a bound render target.
         // TODO(benvanik): RAW copy.
         last_framebuffer_texture_ = texture_cache_.CopyTexture(
-            context_->blitter(), copy_dest_base, x, y, w, h,
+            context_->blitter(), copy_dest_base, width, height,
             ColorFormatToTextureFormat(copy_dest_format),
-            copy_dest_swap ? true : false, color_targets[copy_src_select]);
+            copy_dest_swap ? true : false, color_targets[copy_src_select],
+            src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, read_format, read_type, ptr);
         }
       } else {
         // Source from the bound depth/stencil target.
         // TODO(benvanik): RAW copy.
-        texture_cache_.CopyTexture(context_->blitter(), copy_dest_base, x, y, w,
-                                   h, src_format, copy_dest_swap ? true : false,
-                                   depth_target);
+        texture_cache_.CopyTexture(
+            context_->blitter(), copy_dest_base, width, height, src_format,
+            copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }
@@ -2687,17 +2733,18 @@ bool CommandProcessor::IssueCopy() {
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
         last_framebuffer_texture_ = texture_cache_.ConvertTexture(
-            context_->blitter(), copy_dest_base, x, y, w, h,
+            context_->blitter(), copy_dest_base, width, height,
             ColorFormatToTextureFormat(copy_dest_format),
-            copy_dest_swap ? true : false, color_targets[copy_src_select]);
+            copy_dest_swap ? true : false, color_targets[copy_src_select],
+            src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, read_format, read_type, ptr);
         }
       } else {
         // Source from the bound depth/stencil target.
         texture_cache_.ConvertTexture(
-            context_->blitter(), copy_dest_base, x, y, w, h, src_format,
-            copy_dest_swap ? true : false, depth_target);
+            context_->blitter(), copy_dest_base, width, height, src_format,
+            copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }

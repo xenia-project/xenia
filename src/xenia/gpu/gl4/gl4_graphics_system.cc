@@ -262,10 +262,11 @@ void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
       // no-op.
       return;
     }
+    Rect2D src_rect(swap_params.x, swap_params.y, swap_params.width,
+                    swap_params.height);
+    Rect2D dest_rect(0, 0, control_->width(), control_->height());
     control_->context()->blitter()->BlitTexture2D(
-        swap_params.framebuffer_texture, swap_params.x, swap_params.y,
-        swap_params.width, swap_params.height, 0, 0, control_->width(),
-        control_->height(), GL_LINEAR);
+        swap_params.framebuffer_texture, src_rect, dest_rect, GL_LINEAR);
   });
 }
 

@@ -19,6 +19,18 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
+struct Rect2D {
+  int32_t x;
+  int32_t y;
+  int32_t width;
+  int32_t height;
+  Rect2D() : x(0), y(0), width(0), height(0) {}
+  Rect2D(int32_t x_, int32_t y_, int32_t width_, int32_t height_)
+      : x(x_), y(y_), width(width_), height(height_) {}
+  int32_t right() const { return x + width; }
+  int32_t bottom() const { return y + height; }
+};
+
 class Blitter {
  public:
   Blitter();
@@ -27,24 +39,16 @@ class Blitter {
   bool Initialize();
   void Shutdown();
 
-  void BlitTexture2D(GLuint src_texture, int32_t src_x, int32_t src_y,
-                     int32_t src_width, int32_t src_height, int32_t dest_x,
-                     int32_t dest_y, int32_t dest_width, int32_t dest_height,
+  void BlitTexture2D(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
                      GLenum filter);
 
-  void CopyColorTexture2D(GLuint src_texture, int32_t src_x, int32_t src_y,
-                          int32_t src_width, int32_t src_height,
-                          GLuint dest_texture, int32_t dest_x, int32_t dest_y,
-                          int32_t dest_width, int32_t dest_height,
-                          GLenum filter);
-  void CopyDepthTexture(GLuint src_texture, int32_t src_x, int32_t src_y,
-                        int32_t src_width, int32_t src_height,
-                        GLuint dest_texture, int32_t dest_x, int32_t dest_y,
-                        int32_t dest_width, int32_t dest_height);
+  void CopyColorTexture2D(GLuint src_texture, Rect2D src_rect,
+                          GLuint dest_texture, Rect2D dest_rect, GLenum filter);
+  void CopyDepthTexture(GLuint src_texture, Rect2D src_rect,
+                        GLuint dest_texture, Rect2D dest_rect);
 
  private:
-  void Draw(GLuint src_texture, int32_t src_x, int32_t src_y, int32_t src_width,
-            int32_t src_height, GLenum filter);
+  void Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect, GLenum filter);
 
   GLuint vertex_program_;
   GLuint color_fragment_program_;

@@ -524,17 +524,19 @@ TextureCache::TextureEntry* TextureCache::LookupAddress(uint32_t guest_address,
 }
 
 GLuint TextureCache::CopyTexture(Blitter* blitter, uint32_t guest_address,
-                                 int32_t x, int32_t y, int32_t width,
-                                 int32_t height, TextureFormat format,
-                                 bool swap_channels, GLuint src_texture) {
-  return ConvertTexture(blitter, guest_address, x, y, width, height, format,
-                        swap_channels, src_texture);
+                                 uint32_t width, uint32_t height,
+                                 TextureFormat format, bool swap_channels,
+                                 GLuint src_texture, Rect2D src_rect,
+                                 Rect2D dest_rect) {
+  return ConvertTexture(blitter, guest_address, width, height, format,
+                        swap_channels, src_texture, src_rect, dest_rect);
 }
 
 GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
-                                    int32_t x, int32_t y, int32_t width,
-                                    int32_t height, TextureFormat format,
-                                    bool swap_channels, GLuint src_texture) {
+                                    uint32_t width, uint32_t height,
+                                    TextureFormat format, bool swap_channels,
+                                    GLuint src_texture, Rect2D src_rect,
+                                    Rect2D dest_rect) {
   const auto& config = texture_configs[uint32_t(format)];
   if (config.format == GL_INVALID_ENUM) {
     assert_always("Unhandled destination texture format");
@@ -549,12 +551,11 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
     // Have existing texture.
     assert_false(texture_entry->pending_invalidation);
     if (config.format == GL_DEPTH_STENCIL) {
-      blitter->CopyDepthTexture(src_texture, x, y, width, height,
-                                texture_entry->handle, 0, 0, width, height);
+      blitter->CopyDepthTexture(src_texture, src_rect, texture_entry->handle,
+                                dest_rect);
     } else {
-      blitter->CopyColorTexture2D(src_texture, x, y, width, height,
-                                  texture_entry->handle, 0, 0, width, height,
-                                  GL_LINEAR);
+      blitter->CopyColorTexture2D(src_texture, src_rect, texture_entry->handle,
+                                  dest_rect, GL_LINEAR);
     }
 
     // HACK: remove texture from write watch list so readback won't kill us.
@@ -574,12 +575,11 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
         entry->height == height && entry->format == format) {
       // Found an existing entry - just reupload.
       if (config.format == GL_DEPTH_STENCIL) {
-        blitter->CopyDepthTexture(src_texture, x, y, width, height,
-                                  entry->handle, 0, 0, width, height);
+        blitter->CopyDepthTexture(src_texture, src_rect, entry->handle,
+                                  dest_rect);
       } else {
-        blitter->CopyColorTexture2D(src_texture, x, y, width, height,
-                                    entry->handle, 0, 0, width, height,
-                                    GL_LINEAR);
+        blitter->CopyColorTexture2D(src_texture, src_rect, entry->handle,
+                                    dest_rect, GL_LINEAR);
       }
       return entry->handle;
     }
@@ -600,11 +600,10 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
   glTextureParameteri(entry->handle, GL_TEXTURE_MAX_LEVEL, 1);
   glTextureStorage2D(entry->handle, 1, config.internal_format, width, height);
   if (config.format == GL_DEPTH_STENCIL) {
-    blitter->CopyDepthTexture(src_texture, x, y, width, height, entry->handle,
-                              0, 0, width, height);
+    blitter->CopyDepthTexture(src_texture, src_rect, entry->handle, dest_rect);
   } else {
-    blitter->CopyColorTexture2D(src_texture, x, y, width, height, entry->handle,
-                                0, 0, width, height, GL_LINEAR);
+    blitter->CopyColorTexture2D(src_texture, src_rect, entry->handle, dest_rect,
+                                GL_LINEAR);
   }
 
   GLuint handle = entry->handle;
