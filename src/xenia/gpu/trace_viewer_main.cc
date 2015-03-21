@@ -1285,10 +1285,18 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
 
   if (ImGui::TreeNode("Viewport State")) {
     uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
-    if ((pa_su_sc_mode_cntl >> 17) & 1) {
+    if ((pa_su_sc_mode_cntl >> 16) & 1) {
       uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-      ImGui::BulletText("Window Offset: %d,%d", window_offset & 0x7FFF,
-                        (window_offset >> 16) & 0x7FFF);
+      int16_t window_offset_x = window_offset & 0x7FFF;
+      int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
+      if (window_offset_x & 0x4000) {
+        window_offset_x |= 0x8000;
+      }
+      if (window_offset_y & 0x4000) {
+        window_offset_y |= 0x8000;
+      }
+      ImGui::BulletText("Window Offset: %d, %d", window_offset_x,
+                        window_offset_y);
     } else {
       ImGui::BulletText("Window Offset: disabled");
     }

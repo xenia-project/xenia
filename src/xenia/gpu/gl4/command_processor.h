@@ -304,6 +304,8 @@ class CommandProcessor {
     // uint32_t pa_cl_clip_cntl;
     uint32_t rb_surface_info;
     uint32_t pa_cl_vte_cntl;
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t pa_sc_window_offset;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
     float pa_cl_vport_xoffset;

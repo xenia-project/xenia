@@ -1205,8 +1205,8 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
       2560 >> 3,  // max x
       0 >> 3,     // min y
       2560 >> 3,  // max y
-      0,         // min z
-      1,         // max z
+      0,          // min z
+      1,          // max z
   };
   assert_true(endianness == xenos::Endian::k8in16);
   poly::copy_and_swap_16_aligned(
@@ -1844,28 +1844,39 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateState() {
 }
 
 CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
-  auto& regs = *register_file_;
+  auto& reg_file = *register_file_;
+  auto& regs = update_viewport_state_regs_;
 
-  // NOTE: we don't track state here as this is all cheap to update (ish).
+  bool dirty = false;
+  // dirty |= SetShadowRegister(state_regs.pa_cl_clip_cntl,
+  //     XE_GPU_REG_PA_CL_CLIP_CNTL);
+  dirty |= SetShadowRegister(regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |= SetShadowRegister(regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
+  dirty |=
+      SetShadowRegister(regs.pa_su_sc_mode_cntl, XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(regs.pa_sc_window_offset,
+                             XE_GPU_REG_PA_SC_WINDOW_OFFSET);
+  dirty |= SetShadowRegister(regs.pa_sc_window_scissor_tl,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
+  dirty |= SetShadowRegister(regs.pa_sc_window_scissor_br,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  dirty |= SetShadowRegister(regs.pa_cl_vport_xoffset,
+                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
+  dirty |= SetShadowRegister(regs.pa_cl_vport_yoffset,
+                             XE_GPU_REG_PA_CL_VPORT_YOFFSET);
+  dirty |= SetShadowRegister(regs.pa_cl_vport_zoffset,
+                             XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
+  dirty |=
+      SetShadowRegister(regs.pa_cl_vport_xscale, XE_GPU_REG_PA_CL_VPORT_XSCALE);
+  dirty |=
+      SetShadowRegister(regs.pa_cl_vport_yscale, XE_GPU_REG_PA_CL_VPORT_YSCALE);
+  dirty |=
+      SetShadowRegister(regs.pa_cl_vport_zscale, XE_GPU_REG_PA_CL_VPORT_ZSCALE);
 
   // Much of this state machine is extracted from:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-
-  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
-
-  // Window parameters.
-  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
-  // See r200UpdateWindow:
-  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  uint32_t window_offset_x = 0;
-  uint32_t window_offset_y = 0;
-  if ((pa_su_sc_mode_cntl >> 17) & 1) {
-    uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-    window_offset_x = window_offset & 0x7FFF;
-    window_offset_y = (window_offset >> 16) & 0x7FFF;
-  }
 
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
@@ -1874,42 +1885,18 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   //           = false: multiply the Z coordinate by 1/W0.
   // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
   //                    get 1/W0.
-  uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
-  draw_batcher_.set_vtx_fmt((vte_control >> 8) & 0x1 ? 1.0f : 0.0f,
-                            (vte_control >> 9) & 0x1 ? 1.0f : 0.0f,
-                            (vte_control >> 10) & 0x1 ? 1.0f : 0.0f);
+  draw_batcher_.set_vtx_fmt((regs.pa_cl_vte_cntl >> 8) & 0x1 ? 1.0f : 0.0f,
+                            (regs.pa_cl_vte_cntl >> 9) & 0x1 ? 1.0f : 0.0f,
+                            (regs.pa_cl_vte_cntl >> 10) & 0x1 ? 1.0f : 0.0f);
 
-  auto& state_regs = update_viewport_state_regs_;
+  // Done in VS, no need to flush state.
+  if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
+    draw_batcher_.set_window_scalar(1.0f, 1.0f);
+  } else {
+    draw_batcher_.set_window_scalar(1.0f / 2560.0f, -1.0f / 2560.0f);
+  }
 
-  bool dirty = false;
-  // dirty |= SetShadowRegister(state_regs.pa_cl_clip_cntl,
-  //     XE_GPU_REG_PA_CL_CLIP_CNTL);
-  dirty |=
-      SetShadowRegister(state_regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |=
-      SetShadowRegister(state_regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
-  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_tl,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
-  dirty |= SetShadowRegister(state_regs.pa_sc_window_scissor_br,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
-  dirty |= SetShadowRegister(state_regs.pa_cl_vport_xoffset,
-                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
-  dirty |= SetShadowRegister(state_regs.pa_cl_vport_yoffset,
-                             XE_GPU_REG_PA_CL_VPORT_YOFFSET);
-  dirty |= SetShadowRegister(state_regs.pa_cl_vport_zoffset,
-                             XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
-  dirty |= SetShadowRegister(state_regs.pa_cl_vport_xscale,
-                             XE_GPU_REG_PA_CL_VPORT_XSCALE);
-  dirty |= SetShadowRegister(state_regs.pa_cl_vport_yscale,
-                             XE_GPU_REG_PA_CL_VPORT_YSCALE);
-  dirty |= SetShadowRegister(state_regs.pa_cl_vport_zscale,
-                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
   if (!dirty) {
-    if ((state_regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
-      draw_batcher_.set_window_scalar(1.0f, 1.0f);
-    } else {
-      draw_batcher_.set_window_scalar(1.0f / 2560.0f, -1.0f / 2560.0f);
-    }
     return UpdateStatus::kCompatible;
   }
 
@@ -1917,8 +1904,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
 
   // Clipping.
   // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/14/yamato_genenum.h#L1587
-  // bool clip_enabled = ((state_regs.pa_cl_clip_cntl >> 17) & 0x1) == 0;
-  // bool dx_clip = ((state_regs.pa_cl_clip_cntl >> 19) & 0x1) == 0x1;
+  // bool clip_enabled = ((regs.pa_cl_clip_cntl >> 17) & 0x1) == 0;
+  // bool dx_clip = ((regs.pa_cl_clip_cntl >> 19) & 0x1) == 0x1;
   //// TODO(benvanik): depth range?
   // if (dx_clip) {
   //  glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE);
@@ -1926,16 +1913,33 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   //  glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
   //}
 
-  GLint ws_x = state_regs.pa_sc_window_scissor_tl & 0x7FFF;
-  GLint ws_y = (state_regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
-  GLsizei ws_w = (state_regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
-  GLsizei ws_h = ((state_regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
+  // Window parameters.
+  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
+  // See r200UpdateWindow:
+  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
+  int16_t window_offset_x = 0;
+  int16_t window_offset_y = 0;
+  if ((regs.pa_su_sc_mode_cntl >> 16) & 1) {
+    window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
+    window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
+    if (window_offset_x & 0x4000) {
+      window_offset_x |= 0x8000;
+    }
+    if (window_offset_y & 0x4000) {
+      window_offset_y |= 0x8000;
+    }
+  }
+
+  GLint ws_x = regs.pa_sc_window_scissor_tl & 0x7FFF;
+  GLint ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
+  GLsizei ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
+  GLsizei ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
   glScissorIndexed(0, ws_x, ws_y, ws_w, ws_h);
 
   // HACK: no clue where to get these values.
   // RB_SURFACE_INFO
   auto surface_msaa =
-      static_cast<MsaaSamples>((state_regs.rb_surface_info >> 16) & 0x3);
+      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
   // TODO(benvanik): ??
   float window_width_scalar = 1;
   float window_height_scalar = 1;
@@ -1953,12 +1957,12 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
 
   // Whether each of the viewport settings are enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  bool vport_xscale_enable = (state_regs.pa_cl_vte_cntl & (1 << 0)) > 0;
-  bool vport_xoffset_enable = (state_regs.pa_cl_vte_cntl & (1 << 1)) > 0;
-  bool vport_yscale_enable = (state_regs.pa_cl_vte_cntl & (1 << 2)) > 0;
-  bool vport_yoffset_enable = (state_regs.pa_cl_vte_cntl & (1 << 3)) > 0;
-  bool vport_zscale_enable = (state_regs.pa_cl_vte_cntl & (1 << 4)) > 0;
-  bool vport_zoffset_enable = (state_regs.pa_cl_vte_cntl & (1 << 5)) > 0;
+  bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
+  bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
+  bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
+  bool vport_yoffset_enable = (regs.pa_cl_vte_cntl & (1 << 3)) > 0;
+  bool vport_zscale_enable = (regs.pa_cl_vte_cntl & (1 << 4)) > 0;
+  bool vport_zoffset_enable = (regs.pa_cl_vte_cntl & (1 << 5)) > 0;
   assert_true(vport_xscale_enable == vport_yscale_enable ==
               vport_zscale_enable == vport_xoffset_enable ==
               vport_yoffset_enable == vport_zoffset_enable);
@@ -1966,19 +1970,18 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   if (vport_xscale_enable) {
     float texel_offset_x = 0.0f;
     float texel_offset_y = 0.0f;
-    float vox = vport_xoffset_enable ? state_regs.pa_cl_vport_xoffset : 0;
-    float voy = vport_yoffset_enable ? state_regs.pa_cl_vport_yoffset : 0;
-    float voz = vport_zoffset_enable ? state_regs.pa_cl_vport_zoffset : 0;
-    float vsx = vport_xscale_enable ? state_regs.pa_cl_vport_xscale : 1;
-    float vsy = vport_yscale_enable ? state_regs.pa_cl_vport_yscale : 1;
-    float vsz = vport_zscale_enable ? state_regs.pa_cl_vport_zscale : 1;
+    float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
+    float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
+    float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
+    float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
+    float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
+    float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
     window_width_scalar = window_height_scalar = 1;
     float vpw = 2 * window_width_scalar * vsx;
     float vph = -2 * window_height_scalar * vsy;
     float vpx = window_width_scalar * vox - vpw / 2;
     float vpy = window_height_scalar * voy - vph / 2;
     glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
-    draw_batcher_.set_window_scalar(1.0f, 1.0f);
   } else {
     float texel_offset_x = 0.0f;
     float texel_offset_y = 0.0f;
@@ -1987,7 +1990,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     float vpx = -2560.0f * window_width_scalar;
     float vpy = -2560.0f * window_height_scalar;
     glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
-    draw_batcher_.set_window_scalar(1.0f / 2560.0f, -1.0f / 2560.0f);
   }
 
   return UpdateStatus::kMismatch;
@@ -2636,6 +2638,18 @@ bool CommandProcessor::IssueCopy() {
   uint32_t y = 0;
   uint32_t w = copy_dest_pitch;
   uint32_t h = copy_dest_height;
+
+  uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+  int16_t window_offset_x = window_offset & 0x7FFF;
+  int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
+  }
+  // x = window_offset_x;
+  // y = window_offset_y;
 
   // Make active so glReadPixels reads from us.
   switch (copy_command) {
