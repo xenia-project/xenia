@@ -1601,7 +1601,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     } else {
       ImGui::BulletText("Polygon Mode: fill");
     }
-    if (pa_su_sc_mode_cntl & (1 << 20)) {
+    if (pa_su_sc_mode_cntl & (1 << 19)) {
       ImGui::BulletText("Provoking Vertex: last");
     } else {
       ImGui::BulletText("Provoking Vertex: first");
@@ -1835,6 +1835,18 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
                   draw_info.index_buffer_size,
                   kIndexFormatNames[int(draw_info.index_format)],
                   kEndiannessNames[int(draw_info.index_endianness)]);
+      uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+      if (pa_su_sc_mode_cntl & (1 << 21)) {
+        uint32_t reset_index =
+            regs[XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX].u32;
+        if (draw_info.index_format == IndexFormat::kInt16) {
+          ImGui::Text("Reset Index: %.4X", reset_index & 0xFFFF);
+        } else {
+          ImGui::Text("Reset Index: %.8X", reset_index);
+        }
+      } else {
+        ImGui::Text("Reset Index: disabled");
+      }
       ImGui::BeginChild("#indices", ImVec2(0, 300));
       ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
       int display_start, display_end;

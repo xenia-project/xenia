@@ -1999,6 +1999,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL);
   dirty |= SetShadowRegister(regs.pa_sc_screen_scissor_br,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
+  dirty |= SetShadowRegister(regs.multi_prim_ib_reset_index,
+                             XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -2059,11 +2061,18 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 
-  if (regs.pa_su_sc_mode_cntl & (1 << 20)) {
+  if (regs.pa_su_sc_mode_cntl & (1 << 19)) {
     glProvokingVertex(GL_LAST_VERTEX_CONVENTION);
   } else {
     glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
   }
+
+  if (regs.pa_su_sc_mode_cntl & (1 << 21)) {
+    glEnable(GL_PRIMITIVE_RESTART);
+  } else {
+    glDisable(GL_PRIMITIVE_RESTART);
+  }
+  glPrimitiveRestartIndex(regs.multi_prim_ib_reset_index);
 
   return UpdateStatus::kMismatch;
 }
