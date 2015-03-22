@@ -474,17 +474,6 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile* regs = register_file_;
   assert_true(index < RegisterFile::kRegisterCount);
 
-  // The command buffers will have multiple scissor updates before each draw.
-  // Only the first one ever seems valid, and the following are 8192x8192.
-  // As we need the valid scissor to do the draw, ignore those weird ones here.
-  if (index == XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL ||
-      index == XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR) {
-    if (value == 0x20002000) {
-      // Ignored?
-      return;
-    }
-  }
-
   regs->values[index].u32 = value;
 
   // If this is a COHER register, set the dirty flag.
