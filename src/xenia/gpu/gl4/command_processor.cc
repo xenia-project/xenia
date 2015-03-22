@@ -2669,22 +2669,22 @@ bool CommandProcessor::IssueCopy() {
   assert_true(fetch->size == 6);
   const uint8_t* vertex_addr = membase_ + (fetch->address << 2);
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
-  int32_t dest_min_x = int32_t(std::ceilf(std::min(
+  int32_t dest_min_x = int32_t((std::min(
       std::min(
           GpuSwap(poly::load<float>(vertex_addr + 0), Endian(fetch->endian)),
           GpuSwap(poly::load<float>(vertex_addr + 8), Endian(fetch->endian))),
       GpuSwap(poly::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
-  int32_t dest_max_x = int32_t(std::ceilf(std::max(
+  int32_t dest_max_x = int32_t((std::max(
       std::max(
           GpuSwap(poly::load<float>(vertex_addr + 0), Endian(fetch->endian)),
           GpuSwap(poly::load<float>(vertex_addr + 8), Endian(fetch->endian))),
       GpuSwap(poly::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
-  int32_t dest_min_y = int32_t(std::ceilf(std::min(
+  int32_t dest_min_y = int32_t((std::min(
       std::min(
           GpuSwap(poly::load<float>(vertex_addr + 4), Endian(fetch->endian)),
           GpuSwap(poly::load<float>(vertex_addr + 12), Endian(fetch->endian))),
       GpuSwap(poly::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
-  int32_t dest_max_y = int32_t(std::ceilf(std::max(
+  int32_t dest_max_y = int32_t((std::max(
       std::max(
           GpuSwap(poly::load<float>(vertex_addr + 4), Endian(fetch->endian)),
           GpuSwap(poly::load<float>(vertex_addr + 12), Endian(fetch->endian))),

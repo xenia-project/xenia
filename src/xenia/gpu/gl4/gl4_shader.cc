@@ -46,6 +46,7 @@ std::string GL4Shader::GetHeader() {
       "#extension GL_ARB_shader_draw_parameters : require\n"
       "#extension GL_ARB_shader_storage_buffer_object : require\n"
       "#extension GL_ARB_shading_language_420pack : require\n"
+      "#extension GL_ARB_fragment_coord_conventions : require\n"
       "#define FLT_MAX 3.402823466e+38\n"
       "precision highp float;\n"
       "precision highp int;\n"
@@ -247,7 +248,7 @@ bool GL4Shader::PreparePixelShader(
 
   std::string source =
       GetHeader() +
-      "layout(origin_upper_left) in vec4 gl_FragCoord;\n"
+      "layout(origin_upper_left, pixel_center_integer) in vec4 gl_FragCoord;\n"
       "layout(location = 0) flat in uint draw_id;\n"
       "layout(location = 1) in VertexData vtx;\n"
       "layout(location = 0) out vec4 oC[4];\n"

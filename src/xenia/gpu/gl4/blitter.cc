@@ -52,7 +52,6 @@ struct VertexData { \n\
   const std::string vs_source = header +
                                 "\n\
 layout(location = 0) uniform vec4 src_uv; \n\
-layout(location = 1) uniform vec4 dest_rect; \n\
 out gl_PerVertex { \n\
   vec4 gl_Position; \n\
   float gl_PointSize; \n\
@@ -229,7 +228,8 @@ void Blitter::Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
       break;
   }
 
-  glViewport(dest_rect.x, dest_rect.y, dest_rect.width, dest_rect.height);
+  glViewportIndexedf(0, GLfloat(dest_rect.x), GLfloat(dest_rect.y),
+                     GLfloat(dest_rect.width), GLfloat(dest_rect.height));
 
   // TODO(benvanik): avoid this?
   GLint src_texture_width;
@@ -242,8 +242,6 @@ void Blitter::Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
                      src_rect.y / float(src_texture_height),
                      src_rect.width / float(src_texture_width),
                      src_rect.height / float(src_texture_height));
-  glProgramUniform4f(vertex_program_, 1, float(dest_rect.x), float(dest_rect.y),
-                     float(dest_rect.width), float(dest_rect.height));
 
   // Useful for seeing the entire framebuffer/etc:
   // glProgramUniform4f(vertex_program_, 0, 0.0f, 0.0f, 1.0f, 1.0f);
