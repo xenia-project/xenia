@@ -406,7 +406,7 @@ bool CommandProcessor::SetupGL() {
   }
 
   glEnable(GL_SCISSOR_TEST);
-  glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+  glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE);
   glPointParameteri(GL_POINT_SPRITE_COORD_ORIGIN, GL_UPPER_LEFT);
 
   return true;
@@ -1980,6 +1980,9 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     float vpy = -2560.0f * window_height_scalar + window_offset_y;
     glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
   }
+  float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
+  float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
+  glDepthRangef(voz, voz + vsz);
 
   return UpdateStatus::kMismatch;
 }
