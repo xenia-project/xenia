@@ -76,6 +76,8 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
       last_framebuffer_texture_(0),
+      last_swap_width_(0),
+      last_swap_height_(0),
       point_list_geometry_program_(0),
       rect_list_geometry_program_(0),
       quad_list_geometry_program_(0),
@@ -558,6 +560,11 @@ void CommandProcessor::ReturnFromWait() {
 }
 
 void CommandProcessor::IssueSwap() {
+  IssueSwap(last_swap_width_, last_swap_height_);
+}
+
+void CommandProcessor::IssueSwap(uint32_t frontbuffer_width,
+                                 uint32_t frontbuffer_height) {
   if (!swap_handler_) {
     return;
   }
@@ -576,14 +583,11 @@ void CommandProcessor::IssueSwap() {
                                         ? active_framebuffer_->color_targets[0]
                                         : last_framebuffer_texture_;*/
 
-  // Guess frontbuffer dimensions.
-  // Command buffer seems to set these right before the XE_SWAP.
-  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  swap_params.x = window_scissor_tl & 0x7FFF;
-  swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
-  swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
-  swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
+  // Frontbuffer dimensions, if valid.
+  swap_params.x = 0;
+  swap_params.y = 0;
+  swap_params.width = frontbuffer_width ? frontbuffer_width : 1280;
+  swap_params.height = frontbuffer_height ? frontbuffer_height : 720;
 
   PrepareForWait();
   swap_handler_(swap_params);
@@ -941,13 +945,17 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   // interrupt.
   // 63 words here, but only the first has any data.
   uint32_t frontbuffer_ptr = reader->Read();
-  reader->Advance(count - 1);
+  uint32_t frontbuffer_width = reader->Read();
+  uint32_t frontbuffer_height = reader->Read();
+  reader->Advance(count - 3);
+  last_swap_width_ = frontbuffer_width;
+  last_swap_height_ = frontbuffer_height;
 
   // Ensure we issue any pending draws.
   draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
 
   if (swap_mode_ == SwapMode::kNormal) {
-    IssueSwap();
+    IssueSwap(frontbuffer_width, frontbuffer_height);
   }
 
   if (trace_writer_.is_open()) {

@@ -66,6 +66,7 @@ class CommandProcessor {
 
   void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
   void IssueSwap();
+  void IssueSwap(uint32_t frontbuffer_width, uint32_t frontbuffer_height);
 
   void RequestFrameTrace(const std::wstring& root_path);
   void BeginTracing(const std::wstring& root_path);
@@ -258,6 +259,8 @@ class CommandProcessor {
   GL4Shader* active_pixel_shader_;
   CachedFramebuffer* active_framebuffer_;
   GLuint last_framebuffer_texture_;
+  uint32_t last_swap_width_;
+  uint32_t last_swap_height_;
 
   std::vector<CachedFramebuffer> cached_framebuffers_;
   std::vector<CachedColorRenderTarget> cached_color_render_targets_;

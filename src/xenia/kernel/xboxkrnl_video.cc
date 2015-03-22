@@ -96,8 +96,8 @@ void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->is_widescreen = 1;
   video_mode->is_hi_def = 1;
   video_mode->refresh_rate = 60.0f;
-  video_mode->video_standard = 1;  // NTSC
-  video_mode->unknown_0x8a = 0x94; // 0x8A;
+  video_mode->video_standard = 1;   // NTSC
+  video_mode->unknown_0x8a = 0x94;  // 0x8A;
   video_mode->unknown_0x01 = 0x01;
   video_mode->reserved[0] = video_mode->reserved[1] = video_mode->reserved[2] =
       0;
@@ -163,7 +163,8 @@ SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
 SHIM_CALL VdGetGraphicsAsicID_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("VdGetGraphicsAsicID()");
 
-  // Games compare for < 0x10 and do VdInitializeEDRAM, else other (retrain/etc).
+  // Games compare for < 0x10 and do VdInitializeEDRAM, else other
+  // (retrain/etc).
   SHIM_SET_RETURN_64(0x11);
 }
 
@@ -284,14 +285,14 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 
 SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
                                                KernelState* state) {
-  uint32_t unk0 = SHIM_GET_ARG_32(0); // 0?
-  uint32_t unk1 = SHIM_GET_ARG_32(1); // 0x050002d0 size of ?
-  uint32_t unk2 = SHIM_GET_ARG_32(2); // 0?
-  uint32_t unk3 = SHIM_GET_ARG_32(3); // 0x050002d0 size of ?
-  uint32_t unk4 = SHIM_GET_ARG_32(4); // 0x050002d0 size of ?
-  uint32_t unk5 = SHIM_GET_ARG_32(5); // 7?
-  uint32_t unk6 = SHIM_GET_ARG_32(6); // 0x2004909c <-- points to zeros?
-  uint32_t unk7 = SHIM_GET_ARG_32(7); // 7?
+  uint32_t unk0 = SHIM_GET_ARG_32(0);  // 0?
+  uint32_t unk1 = SHIM_GET_ARG_32(1);  // 0x050002d0 size of ?
+  uint32_t unk2 = SHIM_GET_ARG_32(2);  // 0?
+  uint32_t unk3 = SHIM_GET_ARG_32(3);  // 0x050002d0 size of ?
+  uint32_t unk4 = SHIM_GET_ARG_32(4);  // 0x050002d0 size of ?
+  uint32_t unk5 = SHIM_GET_ARG_32(5);  // 7?
+  uint32_t unk6 = SHIM_GET_ARG_32(6);  // 0x2004909c <-- points to zeros?
+  uint32_t unk7 = SHIM_GET_ARG_32(7);  // 7?
   // arg8 is in stack!
   uint32_t sp = (uint32_t)ppc_state->r[1];
   // Points to the first 80000000h where the memcpy sources from.
@@ -315,6 +316,11 @@ SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_64(total_words >> 2);
 }
 
+// We use these to shuffle data to VdSwap.
+// This way it gets properly stored in the command buffer (for replay/etc).
+static uint32_t last_frontbuffer_width_ = 1280;
+static uint32_t last_frontbuffer_height_ = 720;
+
 SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
                                                   KernelState* state) {
   uint32_t unk_1 = SHIM_GET_ARG_32(0);
@@ -332,6 +338,10 @@ SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
 
   // TODO(benvanik): what does this mean, I forget:
   // callbacks get 0, r3, r4
+
+  // For use by VdSwap.
+  last_frontbuffer_width_ = fb_width;
+  last_frontbuffer_height_ = fb_height;
 
   SHIM_SET_RETURN_64(0);
 }
@@ -400,12 +410,15 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
                               (xe::gpu::xenos::PM4_XE_SWAP << 8));
   dwords[1] = poly::byte_swap(frontbuffer);
 
+  // Set by VdCallGraphicsNotificationRoutines.
+  dwords[2] = poly::byte_swap(last_frontbuffer_width_);
+  dwords[3] = poly::byte_swap(last_frontbuffer_height_);
+
   SHIM_SET_RETURN_64(0);
 }
 
 }  // namespace kernel
 }  // namespace xe
-
 
 void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
                                                 KernelState* state) {
