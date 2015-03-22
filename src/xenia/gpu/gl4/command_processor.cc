@@ -2615,6 +2615,10 @@ bool CommandProcessor::IssueCopy() {
       read_format = GL_R32F;
       read_type = GL_FLOAT;
       break;
+    case ColorFormat::k_32_32_FLOAT:
+      read_format = GL_RG32F;
+      read_type = GL_FLOAT;
+      break;
     default:
       assert_unhandled_case(copy_dest_format);
       return false;
@@ -2897,6 +2901,9 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
       break;
     case ColorRenderTargetFormat::k_32_FLOAT:
       internal_format = GL_R32F;
+      break;
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      internal_format = GL_RG32F;
       break;
     default:
       assert_unhandled_case(format);

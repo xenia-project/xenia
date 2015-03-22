@@ -91,6 +91,7 @@ enum class ColorRenderTargetFormat : uint32_t {
   k_2_10_10_10_unknown = 10,
   k_2_10_10_10_FLOAT_unknown = 12,
   k_32_FLOAT = 14,
+  k_32_32_FLOAT = 15,
 };
 
 enum class DepthRenderTargetFormat : uint32_t {

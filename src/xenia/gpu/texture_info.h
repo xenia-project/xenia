@@ -115,6 +115,8 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
       return TextureFormat::k_2_10_10_10_FLOAT;
     case xenos::ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
+      return TextureFormat::k_32_32_FLOAT;
     default:
       assert_unhandled_case(color_format);
       return TextureFormat::kUnknown;
