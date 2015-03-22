@@ -351,6 +351,10 @@ void GL4ProfilerDisplay::Begin() {
   glEnablei(GL_BLEND, 0);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glDisable(GL_DEPTH_TEST);
+  glDisable(GL_STENCIL_TEST);
+  glDisable(GL_SCISSOR_TEST);
+
+  glViewport(0, 0, control_->width(), control_->height());
 
   float left = 0.0f;
   float right = float(width());
