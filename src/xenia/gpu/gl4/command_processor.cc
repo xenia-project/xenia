@@ -2785,8 +2785,14 @@ bool CommandProcessor::IssueCopy() {
                      ((copy_color_clear >> 8) & 0xFF) / 255.0f,
                      ((copy_color_clear >> 16) & 0xFF) / 255.0f,
                      ((copy_color_clear >> 24) & 0xFF) / 255.0f};
+    // TODO(benvanik): remove query.
+    GLboolean old_color_mask[4];
+    glGetBooleani_v(GL_COLOR_WRITEMASK, copy_src_select, old_color_mask);
+    glColorMaski(copy_src_select, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_COLOR,
                               copy_src_select, color);
+    glColorMaski(copy_src_select, old_color_mask[0], old_color_mask[1],
+                 old_color_mask[2], old_color_mask[3]);
   }
 
   if (depth_clear_enabled) {
@@ -2794,15 +2800,23 @@ bool CommandProcessor::IssueCopy() {
     // TODO(benvanik): verify format.
     GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) / float(0xFFFFFF00)};
     GLint stencil = copy_depth_clear & 0xFF;
-    // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
-    // glClearNamedFramebufferfi(source_framebuffer->framebuffer,
-    //                           GL_DEPTH_STENCIL,
-    //                           depth, stencil);
     GLint old_draw_framebuffer;
+    GLboolean old_depth_mask;
+    GLint old_stencil_mask;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &old_draw_framebuffer);
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &old_depth_mask);
+    glGetIntegerv(GL_STENCIL_WRITEMASK, &old_stencil_mask);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, source_framebuffer->framebuffer);
+    glDepthMask(GL_TRUE);
+    glStencilMask(0xFF);
+    // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
+    /* glClearNamedFramebufferfi(source_framebuffer->framebuffer,
+                             GL_DEPTH_STENCIL,
+                             depth, stencil);*/
     glClearBufferfi(GL_DEPTH_STENCIL, 0, depth, stencil);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, old_draw_framebuffer);
+    glDepthMask(old_depth_mask);
+    glStencilMask(old_stencil_mask);
   }
 
   return true;

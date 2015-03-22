@@ -254,9 +254,10 @@ void Blitter::BlitTexture2D(GLuint src_texture, Rect2D src_rect,
   SavedState state;
   state.Save();
 
-  glColorMaski(0, true, true, true, true);
+  glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
   glDisable(GL_DEPTH_TEST);
-  glDepthMask(false);
+  glDepthMask(GL_FALSE);
+  glStencilMask(0xFF);
   glBindProgramPipeline(color_pipeline_);
 
   Draw(src_texture, src_rect, dest_rect, filter);
@@ -270,9 +271,9 @@ void Blitter::CopyColorTexture2D(GLuint src_texture, Rect2D src_rect,
   SavedState state;
   state.Save();
 
-  glColorMaski(0, true, true, true, true);
+  glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
   glDisable(GL_DEPTH_TEST);
-  glDepthMask(false);
+  glDepthMask(GL_FALSE);
   glBindProgramPipeline(color_pipeline_);
 
   glNamedFramebufferTexture(scratch_framebuffer_, GL_COLOR_ATTACHMENT0,
@@ -292,10 +293,10 @@ void Blitter::CopyDepthTexture(GLuint src_texture, Rect2D src_rect,
   SavedState state;
   state.Save();
 
-  glColorMaski(0, false, false, false, false);
+  glColorMaski(0, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_ALWAYS);
-  glDepthMask(true);
+  glDepthMask(GL_TRUE);
   glBindProgramPipeline(depth_pipeline_);
 
   glNamedFramebufferTexture(scratch_framebuffer_, GL_DEPTH_STENCIL_ATTACHMENT,
