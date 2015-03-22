@@ -277,7 +277,6 @@ class CommandProcessor {
     uint32_t count;
     uint32_t guest_base;
     size_t length;
-    uint32_t max_index_found;
   } index_buffer_info_;
   uint32_t draw_index_count_;
 

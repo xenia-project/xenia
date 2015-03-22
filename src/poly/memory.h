@@ -29,21 +29,18 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
 
 size_t page_size();
 
-void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src, size_t count,
-                              uint16_t* out_max_value = nullptr);
+void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
+                              size_t count);
 void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,
-                                size_t count,
-                                uint16_t* out_max_value = nullptr);
-void copy_and_swap_32_aligned(uint32_t* dest, const uint32_t* src, size_t count,
-                              uint32_t* out_max_value = nullptr);
+                                size_t count);
+void copy_and_swap_32_aligned(uint32_t* dest, const uint32_t* src,
+                              size_t count);
 void copy_and_swap_32_unaligned(uint32_t* dest, const uint32_t* src,
-                                size_t count,
-                                uint32_t* out_max_value = nullptr);
-void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src, size_t count,
-                              uint64_t* out_max_value = nullptr);
+                                size_t count);
+void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src,
+                              size_t count);
 void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
-                                size_t count,
-                                uint64_t* out_max_value = nullptr);
+                                size_t count);
 
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {

@@ -86,8 +86,30 @@ CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   allocation.offset = write_head_;
   allocation.length = length;
   allocation.aligned_length = aligned_length;
+  allocation.cache_key = 0;
   write_head_ += aligned_length;
   return allocation;
+}
+
+bool CircularBuffer::AcquireCached(uint32_t key, size_t length,
+                                   Allocation* out_allocation) {
+  uint64_t full_key = key | (length << 32);
+  auto& it = allocation_cache_.find(full_key);
+  if (it != allocation_cache_.end()) {
+    uintptr_t write_head = it->second;
+    size_t aligned_length = poly::round_up(length, alignment_);
+    out_allocation->host_ptr = host_base_ + write_head;
+    out_allocation->gpu_ptr = gpu_base_ + write_head;
+    out_allocation->offset = write_head;
+    out_allocation->length = length;
+    out_allocation->aligned_length = aligned_length;
+    out_allocation->cache_key = full_key;
+    return true;
+  } else {
+    *out_allocation = Acquire(length);
+    out_allocation->cache_key = full_key;
+    return false;
+  }
 }
 
 void CircularBuffer::Discard(Allocation allocation) {
@@ -100,6 +122,9 @@ void CircularBuffer::Commit(Allocation allocation) {
   dirty_start_ = std::min(dirty_start_, start);
   dirty_end_ = std::max(dirty_end_, end);
   assert_true(dirty_end_ <= capacity_);
+  if (allocation.cache_key) {
+    allocation_cache_.insert({allocation.cache_key, allocation.offset});
+  }
 }
 
 void CircularBuffer::Flush() {
@@ -112,10 +137,13 @@ void CircularBuffer::Flush() {
   dirty_end_ = 0;
 }
 
+void CircularBuffer::ClearCache() { allocation_cache_.clear(); }
+
 void CircularBuffer::WaitUntilClean() {
   Flush();
   glFinish();
   write_head_ = 0;
+  ClearCache();
 }
 
 }  // namespace gl4

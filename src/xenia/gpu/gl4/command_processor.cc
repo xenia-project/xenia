@@ -524,6 +524,8 @@ void CommandProcessor::MakeCoherent() {
   // Mark coherent.
   status_host &= ~0x80000000ul;
   regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32 = status_host;
+
+  scratch_buffer_.ClearCache();
 }
 
 void CommandProcessor::PrepareForWait() {
@@ -1431,8 +1433,6 @@ bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(
 bool CommandProcessor::LoadShader(ShaderType shader_type,
                                   const uint32_t* address,
                                   uint32_t dword_count) {
-  SCOPE_profile_cpu_f("gpu");
-
   // Hash the input memory and lookup the shader.
   GL4Shader* shader_ptr = nullptr;
   uint64_t hash = XXH64(address, dword_count * sizeof(uint32_t), 0);
@@ -2288,29 +2288,28 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer() {
   assert_true(info.endianness == Endian::k8in16 ||
               info.endianness == Endian::k8in32);
 
+  trace_writer_.WriteMemoryRead(info.guest_base, info.length);
+
   size_t total_size =
       info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
                                                        : sizeof(uint16_t));
-  auto allocation = scratch_buffer_.Acquire(total_size);
-
-  trace_writer_.WriteMemoryRead(info.guest_base, info.length);
-  if (info.format == IndexFormat::kInt32) {
-    auto dest = reinterpret_cast<uint32_t*>(allocation.host_ptr);
-    auto src = reinterpret_cast<const uint32_t*>(membase_ + info.guest_base);
-    uint32_t max_index_found;
-    poly::copy_and_swap_32_aligned(dest, src, info.count, &max_index_found);
-    index_buffer_info_.max_index_found = max_index_found;
+  CircularBuffer::Allocation allocation;
+  if (!scratch_buffer_.AcquireCached(info.guest_base, total_size,
+                                     &allocation)) {
+    if (info.format == IndexFormat::kInt32) {
+      auto dest = reinterpret_cast<uint32_t*>(allocation.host_ptr);
+      auto src = reinterpret_cast<const uint32_t*>(membase_ + info.guest_base);
+      poly::copy_and_swap_32_aligned(dest, src, info.count);
+    } else {
+      auto dest = reinterpret_cast<uint16_t*>(allocation.host_ptr);
+      auto src = reinterpret_cast<const uint16_t*>(membase_ + info.guest_base);
+      poly::copy_and_swap_16_aligned(dest, src, info.count);
+    }
+    draw_batcher_.set_index_buffer(allocation);
+    scratch_buffer_.Commit(std::move(allocation));
   } else {
-    auto dest = reinterpret_cast<uint16_t*>(allocation.host_ptr);
-    auto src = reinterpret_cast<const uint16_t*>(membase_ + info.guest_base);
-    uint16_t max_index_found;
-    poly::copy_and_swap_16_aligned(dest, src, info.count, &max_index_found);
-    index_buffer_info_.max_index_found = max_index_found;
+    draw_batcher_.set_index_buffer(allocation);
   }
-
-  draw_batcher_.set_index_buffer(allocation);
-
-  scratch_buffer_.Commit(std::move(allocation));
 
   return UpdateStatus::kCompatible;
 }
@@ -2344,44 +2343,56 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
     }
     assert_true(fetch->endian == 2);
 
-    // Constrain the vertex upload to just what we are interested in.
-    const size_t kRangeKludge = 5;  // could pick index count based on prim.
-    uint32_t max_index = index_buffer_info_.guest_base
-                             ? index_buffer_info_.max_index_found
-                             : draw_index_count_;
-    size_t valid_range = (max_index + kRangeKludge) * desc.stride_words * 4;
-    valid_range = std::min(valid_range, size_t(fetch->size * 4));
-
-    auto allocation = scratch_buffer_.Acquire(valid_range);
+    size_t valid_range = size_t(fetch->size * 4);
 
     trace_writer_.WriteMemoryRead(fetch->address << 2, valid_range);
 
-    // Copy and byte swap the entire buffer.
-    // We could be smart about this to save GPU bandwidth by building a CRC
-    // as we copy and only if it differs from the previous value committing
-    // it (and if it matches just discard and reuse).
-    poly::copy_and_swap_32_aligned(
-        reinterpret_cast<uint32_t*>(allocation.host_ptr),
-        reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
-        valid_range / 4);
+    CircularBuffer::Allocation allocation;
+    if (!scratch_buffer_.AcquireCached(fetch->address << 2, valid_range,
+                                       &allocation)) {
+      // Copy and byte swap the entire buffer.
+      // We could be smart about this to save GPU bandwidth by building a CRC
+      // as we copy and only if it differs from the previous value committing
+      // it (and if it matches just discard and reuse).
+      poly::copy_and_swap_32_aligned(
+          reinterpret_cast<uint32_t*>(allocation.host_ptr),
+          reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
+          valid_range / 4);
 
-    if (!has_bindless_vbos_) {
-      // TODO(benvanik): if we could find a way to avoid this, we could use
-      // multidraw without flushing.
-      glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
-                                scratch_buffer_.handle(), allocation.offset,
-                                desc.stride_words * 4);
-    }
+      if (!has_bindless_vbos_) {
+        // TODO(benvanik): if we could find a way to avoid this, we could use
+        // multidraw without flushing.
+        glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+                                  scratch_buffer_.handle(), allocation.offset,
+                                  desc.stride_words * 4);
+      }
 
-    if (has_bindless_vbos_) {
-      for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
-        const auto& el = desc.elements[i];
-        draw_batcher_.set_vertex_buffer(el_index, 0, desc.stride_words * 4,
-                                        allocation);
+      if (has_bindless_vbos_) {
+        for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
+          const auto& el = desc.elements[i];
+          draw_batcher_.set_vertex_buffer(el_index, 0, desc.stride_words * 4,
+                                          allocation);
+        }
+      }
+
+      scratch_buffer_.Commit(std::move(allocation));
+    } else {
+      if (!has_bindless_vbos_) {
+        // TODO(benvanik): if we could find a way to avoid this, we could use
+        // multidraw without flushing.
+        glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+                                  scratch_buffer_.handle(), allocation.offset,
+                                  desc.stride_words * 4);
+      }
+
+      if (has_bindless_vbos_) {
+        for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
+          const auto& el = desc.elements[i];
+          draw_batcher_.set_vertex_buffer(el_index, 0, desc.stride_words * 4,
+                                          allocation);
+        }
       }
     }
-
-    scratch_buffer_.Commit(std::move(allocation));
   }
 
   return UpdateStatus::kCompatible;

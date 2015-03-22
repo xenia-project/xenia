@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
 #define XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
 
+#include <unordered_map>
+
 #include "xenia/gpu/gl4/gl_context.h"
 
 namespace xe {
@@ -29,6 +31,7 @@ class CircularBuffer {
     size_t offset;
     size_t length;
     size_t aligned_length;
+    uint64_t cache_key;  // 0 if caching disabled.
   };
 
   bool Initialize();
@@ -40,9 +43,11 @@ class CircularBuffer {
 
   bool CanAcquire(size_t length);
   Allocation Acquire(size_t length);
+  bool AcquireCached(uint32_t key, size_t length, Allocation* out_allocation);
   void Discard(Allocation allocation);
   void Commit(Allocation allocation);
   void Flush();
+  void ClearCache();
 
   void WaitUntilClean();
 
@@ -55,6 +60,8 @@ class CircularBuffer {
   GLuint buffer_;
   GLuint64 gpu_base_;
   uint8_t* host_base_;
+
+  std::unordered_map<uint64_t, uintptr_t> allocation_cache_;
 };
 
 }  // namespace gl4
