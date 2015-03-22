@@ -259,7 +259,9 @@ bool DrawBatcher::CommitDraw() {
 
 bool DrawBatcher::Flush(FlushMode mode) {
   if (batch_state_.draw_count) {
+#if FINE_GRAINED_DRAW_SCOPES
     SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
 
     assert_not_zero(batch_state_.command_stride);
     assert_not_zero(batch_state_.state_stride);

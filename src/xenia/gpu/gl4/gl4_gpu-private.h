@@ -25,6 +25,8 @@ DECLARE_bool(vendor_gl_extensions);
 DECLARE_bool(disable_framebuffer_readback);
 DECLARE_bool(disable_textures);
 
+#define FINE_GRAINED_DRAW_SCOPES 0
+
 namespace xe {
 namespace gpu {
 namespace gl4 {
