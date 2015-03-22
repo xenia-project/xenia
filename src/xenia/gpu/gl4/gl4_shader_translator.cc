@@ -1366,7 +1366,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
         return false;
       }
     } else {
-      // assert_always();
+      assert_always();
       Append("  // <UNIMPLEMENTED>\n");
     }
   }
