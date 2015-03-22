@@ -578,16 +578,12 @@ void CommandProcessor::IssueSwap() {
 
   // Guess frontbuffer dimensions.
   // Command buffer seems to set these right before the XE_SWAP.
-  // uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  // uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  // swap_params.x = window_scissor_tl & 0x7FFF;
-  // swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
-  // swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
-  // swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
-  swap_params.x = 0;
-  swap_params.y = 0;
-  swap_params.width = 1280;
-  swap_params.height = 720;
+  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  swap_params.x = window_scissor_tl & 0x7FFF;
+  swap_params.y = (window_scissor_tl >> 16) & 0x7FFF;
+  swap_params.width = window_scissor_br & 0x7FFF - swap_params.x;
+  swap_params.height = (window_scissor_br >> 16) & 0x7FFF - swap_params.y;
 
   PrepareForWait();
   swap_handler_(swap_params);
@@ -2208,6 +2204,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
   } else {
     glDisable(GL_DEPTH_TEST);
   }
+  // glDisable(GL_DEPTH_TEST);
   // A2XX_RB_DEPTHCONTROL_Z_WRITE_ENABLE
   glDepthMask((regs.rb_depthcontrol & 0x00000004) ? GL_TRUE : GL_FALSE);
   // A2XX_RB_DEPTHCONTROL_EARLY_Z_ENABLE
@@ -2631,17 +2628,14 @@ bool CommandProcessor::IssueCopy() {
   // glPixelStorei(GL_PACK_ROW_LENGTH, 0);
   // glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
 
-  // Destination pointer in guest memory.
-  // We have GL throw bytes directly into it.
-  // TODO(benvanik): copy to staging texture then PBO back?
-  void* ptr = membase_ + GpuToCpu(copy_dest_base);
-
   // TODO(benvanik): any way to scissor this? a200 has:
   // REG_A2XX_RB_COPY_DEST_OFFSET = A2XX_RB_COPY_DEST_OFFSET_X(tile->xoff) |
   //                                A2XX_RB_COPY_DEST_OFFSET_Y(tile->yoff);
   // but I can't seem to find something similar.
-  uint32_t width = copy_dest_pitch;
-  uint32_t height = copy_dest_height;
+  uint32_t dest_logical_width = copy_dest_pitch;
+  uint32_t dest_logical_height = copy_dest_height;
+  uint32_t dest_block_width = poly::round_up(dest_logical_width, 32);
+  uint32_t dest_block_height = poly::round_up(dest_logical_height, 32);
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
@@ -2699,6 +2693,19 @@ bool CommandProcessor::IssueCopy() {
                    dest_max_y - dest_min_y);
   Rect2D src_rect(0, 0, dest_rect.width, dest_rect.height);
 
+  // The dest base address passed in has already been offset by the window
+  // offset, so to ensure texture lookup works we need to offset it.
+  // TODO(benvanik): allow texture cache to lookup partial textures.
+  // TODO(benvanik): change based on format.
+  int32_t dest_offset = window_offset_y * copy_dest_pitch * 4;
+  dest_offset += window_offset_x * 32 * 4;
+  copy_dest_base += dest_offset;
+
+  // Destination pointer in guest memory.
+  // We have GL throw bytes directly into it.
+  // TODO(benvanik): copy to staging texture then PBO back?
+  void* ptr = membase_ + GpuToCpu(copy_dest_base);
+
   // Make active so glReadPixels reads from us.
   switch (copy_command) {
     case CopyCommand::kRaw: {
@@ -2708,7 +2715,8 @@ bool CommandProcessor::IssueCopy() {
         // Source from a bound render target.
         // TODO(benvanik): RAW copy.
         last_framebuffer_texture_ = texture_cache_.CopyTexture(
-            context_->blitter(), copy_dest_base, width, height,
+            context_->blitter(), copy_dest_base, dest_logical_width,
+            dest_logical_height, dest_block_width, dest_block_height,
             ColorFormatToTextureFormat(copy_dest_format),
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
@@ -2718,9 +2726,11 @@ bool CommandProcessor::IssueCopy() {
       } else {
         // Source from the bound depth/stencil target.
         // TODO(benvanik): RAW copy.
-        texture_cache_.CopyTexture(
-            context_->blitter(), copy_dest_base, width, height, src_format,
-            copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
+        texture_cache_.CopyTexture(context_->blitter(), copy_dest_base,
+                                   dest_logical_width, dest_logical_height,
+                                   dest_block_width, dest_block_height,
+                                   src_format, copy_dest_swap ? true : false,
+                                   depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }
@@ -2733,7 +2743,8 @@ bool CommandProcessor::IssueCopy() {
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
         last_framebuffer_texture_ = texture_cache_.ConvertTexture(
-            context_->blitter(), copy_dest_base, width, height,
+            context_->blitter(), copy_dest_base, dest_logical_width,
+            dest_logical_height, dest_block_width, dest_block_height,
             ColorFormatToTextureFormat(copy_dest_format),
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
@@ -2742,9 +2753,11 @@ bool CommandProcessor::IssueCopy() {
         }
       } else {
         // Source from the bound depth/stencil target.
-        texture_cache_.ConvertTexture(
-            context_->blitter(), copy_dest_base, width, height, src_format,
-            copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
+        texture_cache_.ConvertTexture(context_->blitter(), copy_dest_base,
+                                      dest_logical_width, dest_logical_height,
+                                      dest_block_width, dest_block_height,
+                                      src_format, copy_dest_swap ? true : false,
+                                      depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }

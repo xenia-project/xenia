@@ -409,8 +409,8 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
        it != read_buffer_textures_.end(); ++it) {
     auto read_buffer_entry = *it;
     if (read_buffer_entry->guest_address == texture_info.guest_address &&
-        read_buffer_entry->width == texture_info.size_2d.logical_width &&
-        read_buffer_entry->height == texture_info.size_2d.logical_height) {
+        read_buffer_entry->block_width == texture_info.size_2d.block_width &&
+        read_buffer_entry->block_height == texture_info.size_2d.block_height) {
       // Found! Acquire the handle and remove the readbuffer entry.
       read_buffer_textures_.erase(it);
       entry->handle = read_buffer_entry->handle;
@@ -515,8 +515,8 @@ TextureCache::TextureEntry* TextureCache::LookupAddress(uint32_t guest_address,
     const auto& texture_info = it->second->texture_info;
     if (texture_info.guest_address == guest_address &&
         texture_info.dimension == Dimension::k2D &&
-        texture_info.size_2d.logical_width == width &&
-        texture_info.size_2d.logical_height == height) {
+        texture_info.size_2d.input_width == width &&
+        texture_info.size_2d.input_height == height) {
       return it->second;
     }
   }
@@ -524,16 +524,20 @@ TextureCache::TextureEntry* TextureCache::LookupAddress(uint32_t guest_address,
 }
 
 GLuint TextureCache::CopyTexture(Blitter* blitter, uint32_t guest_address,
-                                 uint32_t width, uint32_t height,
-                                 TextureFormat format, bool swap_channels,
-                                 GLuint src_texture, Rect2D src_rect,
-                                 Rect2D dest_rect) {
-  return ConvertTexture(blitter, guest_address, width, height, format,
-                        swap_channels, src_texture, src_rect, dest_rect);
+                                 uint32_t logical_width,
+                                 uint32_t logical_height, uint32_t block_width,
+                                 uint32_t block_height, TextureFormat format,
+                                 bool swap_channels, GLuint src_texture,
+                                 Rect2D src_rect, Rect2D dest_rect) {
+  return ConvertTexture(blitter, guest_address, logical_width, logical_height,
+                        block_width, block_height, format, swap_channels,
+                        src_texture, src_rect, dest_rect);
 }
 
 GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
-                                    uint32_t width, uint32_t height,
+                                    uint32_t logical_width,
+                                    uint32_t logical_height,
+                                    uint32_t block_width, uint32_t block_height,
                                     TextureFormat format, bool swap_channels,
                                     GLuint src_texture, Rect2D src_rect,
                                     Rect2D dest_rect) {
@@ -546,7 +550,8 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
   // See if we have used a texture at this address before. If we have, we can
   // reuse it.
   // TODO(benvanik): better lookup matching format/etc?
-  auto texture_entry = LookupAddress(guest_address, width, height, format);
+  auto texture_entry =
+      LookupAddress(guest_address, block_width, block_height, format);
   if (texture_entry) {
     // Have existing texture.
     assert_false(texture_entry->pending_invalidation);
@@ -571,8 +576,9 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
   for (auto it = read_buffer_textures_.begin();
        it != read_buffer_textures_.end(); ++it) {
     const auto& entry = *it;
-    if (entry->guest_address == guest_address && entry->width == width &&
-        entry->height == height && entry->format == format) {
+    if (entry->guest_address == guest_address &&
+        entry->logical_width == logical_width &&
+        entry->logical_height == logical_height && entry->format == format) {
       // Found an existing entry - just reupload.
       if (config.format == GL_DEPTH_STENCIL) {
         blitter->CopyDepthTexture(src_texture, src_rect, entry->handle,
@@ -591,14 +597,17 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
   // of time we'll dump it.
   auto entry = std::make_unique<ReadBufferTexture>();
   entry->guest_address = guest_address;
-  entry->width = width;
-  entry->height = height;
+  entry->logical_width = logical_width;
+  entry->logical_height = logical_height;
+  entry->block_width = block_width;
+  entry->block_height = block_height;
   entry->format = format;
 
   glCreateTextures(GL_TEXTURE_2D, 1, &entry->handle);
   glTextureParameteri(entry->handle, GL_TEXTURE_BASE_LEVEL, 0);
   glTextureParameteri(entry->handle, GL_TEXTURE_MAX_LEVEL, 1);
-  glTextureStorage2D(entry->handle, 1, config.internal_format, width, height);
+  glTextureStorage2D(entry->handle, 1, config.internal_format, logical_width,
+                     logical_height);
   if (config.format == GL_DEPTH_STENCIL) {
     blitter->CopyDepthTexture(src_texture, src_rect, entry->handle, dest_rect);
   } else {

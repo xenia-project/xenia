@@ -229,7 +229,7 @@ void Blitter::Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
       break;
   }
 
-  glViewport(0, 0, dest_rect.width, dest_rect.height);
+  glViewport(dest_rect.x, dest_rect.y, dest_rect.width, dest_rect.height);
 
   // TODO(benvanik): avoid this?
   GLint src_texture_width;

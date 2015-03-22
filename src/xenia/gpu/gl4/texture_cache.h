@@ -59,19 +59,24 @@ class TextureCache {
   TextureEntryView* Demand(const TextureInfo& texture_info,
                            const SamplerInfo& sampler_info);
 
-  GLuint CopyTexture(Blitter* blitter, uint32_t guest_address, uint32_t width,
-                     uint32_t height, TextureFormat format, bool swap_channels,
+  GLuint CopyTexture(Blitter* blitter, uint32_t guest_address,
+                     uint32_t logical_width, uint32_t logical_height,
+                     uint32_t block_width, uint32_t block_height,
+                     TextureFormat format, bool swap_channels,
                      GLuint src_texture, Rect2D src_rect, Rect2D dest_rect);
   GLuint ConvertTexture(Blitter* blitter, uint32_t guest_address,
-                        uint32_t width, uint32_t height, TextureFormat format,
-                        bool swap_channels, GLuint src_texture, Rect2D src_rect,
-                        Rect2D dest_rect);
+                        uint32_t logical_width, uint32_t logical_height,
+                        uint32_t block_width, uint32_t block_height,
+                        TextureFormat format, bool swap_channels,
+                        GLuint src_texture, Rect2D src_rect, Rect2D dest_rect);
 
  private:
   struct ReadBufferTexture {
     uint32_t guest_address;
-    uint32_t width;
-    uint32_t height;
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t block_width;
+    uint32_t block_height;
     TextureFormat format;
     GLuint handle;
   };
