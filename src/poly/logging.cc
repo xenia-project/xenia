@@ -18,6 +18,7 @@
 
 DEFINE_bool(fast_stdout, false,
             "Don't lock around stdout/stderr. May introduce weirdness.");
+DEFINE_bool(flush_stdout, true, "Flush stdout after each log line.");
 DEFINE_bool(log_filenames, false,
             "Log filenames/line numbers in log statements.");
 
@@ -82,7 +83,9 @@ void log_line(const char* file_path, const uint32_t line_number,
   OutputDebugStringA(log_buffer);
 #else
   fprintf(stdout, "%s", log_buffer);
-  fflush(stdout);
+  if (FLAGS_flush_stdout) {
+    fflush(stdout);
+  }
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
     log_lock.unlock();
