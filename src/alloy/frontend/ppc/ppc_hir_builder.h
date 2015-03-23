@@ -13,7 +13,7 @@
 #include "alloy/hir/hir_builder.h"
 #include "alloy/runtime/function.h"
 #include "alloy/runtime/symbol_info.h"
-#include "alloy/string_buffer.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace frontend {
@@ -91,7 +91,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   PPCFrontend* frontend_;
 
   // Reset whenever needed:
-  StringBuffer comment_buffer_;
+  poly::StringBuffer comment_buffer_;
 
   // Reset each Emit:
   bool with_debug_info_;

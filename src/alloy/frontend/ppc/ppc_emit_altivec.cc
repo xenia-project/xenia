@@ -18,6 +18,10 @@ namespace ppc {
 
 // TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
+using poly::vec128b;
+using poly::vec128f;
+using poly::vec128i;
+using poly::vec128s;
 
 using alloy::hir::Value;
 

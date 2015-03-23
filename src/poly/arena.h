@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_ARENA_H_
-#define ALLOY_ARENA_H_
+#ifndef POLY_ARENA_H_
+#define POLY_ARENA_H_
 
 #include <cstddef>
 #include <cstdint>
 
-namespace alloy {
+namespace poly {
 
 class Arena {
  public:
@@ -50,6 +50,6 @@ class Arena {
   Chunk* active_chunk_;
 };
 
-}  // namespace alloy
+}  // namespace poly
 
-#endif  // ALLOY_ARENA_H_
+#endif  // POLY_ARENA_H_

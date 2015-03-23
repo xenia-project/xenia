@@ -12,6 +12,7 @@
 #include "alloy/runtime/debugger.h"
 #include "alloy/runtime/symbol_info.h"
 #include "alloy/runtime/thread_state.h"
+#include "poly/logging.h"
 #include "xdb/protocol.h"
 
 namespace alloy {

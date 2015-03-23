@@ -11,6 +11,7 @@
 #define ALLOY_COMPILER_COMPILER_PASS_H_
 
 #include "alloy/hir/hir_builder.h"
+#include "poly/arena.h"
 
 namespace alloy {
 namespace runtime {
@@ -33,7 +34,7 @@ class CompilerPass {
   virtual int Run(hir::HIRBuilder* builder) = 0;
 
  protected:
-  Arena* scratch_arena() const;
+  poly::Arena* scratch_arena() const;
 
  protected:
   runtime::Runtime* runtime_;

@@ -16,6 +16,7 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 using namespace alloy::test;
 using alloy::frontend::ppc::PPCContext;
+using namespace poly;
 
 TEST_CASE("VECTOR_MAX_I8_SIGNED", "[instr]") {
   TestFunction test([](hir::HIRBuilder& b) {

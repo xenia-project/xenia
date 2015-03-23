@@ -14,6 +14,7 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 using namespace alloy::test;
 using alloy::frontend::ppc::PPCContext;
+using namespace poly;
 
 TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
   {

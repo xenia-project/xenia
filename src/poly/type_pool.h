@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_TYPE_POOL_H_
-#define ALLOY_TYPE_POOL_H_
+#ifndef POLY_TYPE_POOL_H_
+#define POLY_TYPE_POOL_H_
 
 #include <mutex>
 #include <vector>
 
-namespace alloy {
+namespace poly {
 
 template <class T, typename A>
 class TypePool {
@@ -54,6 +54,6 @@ class TypePool {
   std::vector<T*> list_;
 };
 
-}  // namespace alloy
+}  // namespace poly
 
-#endif  // ALLOY_TYPE_POOL_H_
+#endif  // POLY_TYPE_POOL_H_

@@ -16,6 +16,7 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 using namespace alloy::test;
 using alloy::frontend::ppc::PPCContext;
+using namespace poly;
 
 TEST_CASE("INSERT_INT8", "[instr]") {
   for (int i = 0; i < 16; ++i) {

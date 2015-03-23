@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_VEC128_H_
-#define ALLOY_VEC128_H_
+#ifndef POLY_VEC128_H_
+#define POLY_VEC128_H_
 
-#include "poly/poly.h"
+#include <cstddef>
 
-namespace alloy {
+namespace poly {
 
 // The first rule of vector programming is to only rely on exact positions
 // when absolutely required - prefer dumb loops to exact offsets.
@@ -191,6 +191,6 @@ static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
   return v;
 }
 
-}  // namespace alloy
+}  // namespace poly
 
-#endif  // ALLOY_VEC128_H_
+#endif  // POLY_VEC128_H_

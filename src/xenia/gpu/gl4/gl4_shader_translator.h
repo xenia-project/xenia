@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "alloy/string_buffer.h"
+#include "poly/string_buffer.h"
 #include "xenia/common.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
@@ -42,7 +42,7 @@ class GL4ShaderTranslator {
   const uint32_t* dwords_;
 
   static const int kOutputCapacity = 64 * 1024;
-  alloy::StringBuffer output_;
+  poly::StringBuffer output_;
 
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }

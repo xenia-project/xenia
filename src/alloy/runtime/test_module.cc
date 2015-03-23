@@ -10,9 +10,9 @@
 #include "alloy/runtime/test_module.h"
 
 #include "alloy/compiler/compiler_passes.h"
-#include "alloy/reset_scope.h"
 #include "alloy/runtime/runtime.h"
 #include "poly/platform.h"
+#include "poly/reset_scope.h"
 #include "poly/string.h"
 
 namespace alloy {
@@ -79,8 +79,8 @@ SymbolInfo::Status TestModule::DeclareFunction(uint64_t address,
     auto symbol_info = *out_symbol_info;
 
     // Reset() all caching when we leave.
-    make_reset_scope(compiler_);
-    make_reset_scope(assembler_);
+    poly::make_reset_scope(compiler_);
+    poly::make_reset_scope(assembler_);
 
     if (!generate_(*builder_.get())) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);

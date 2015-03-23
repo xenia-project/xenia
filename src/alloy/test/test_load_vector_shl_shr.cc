@@ -14,6 +14,7 @@ using namespace alloy::hir;
 using namespace alloy::runtime;
 using namespace alloy::test;
 using alloy::frontend::ppc::PPCContext;
+using namespace poly;
 
 TEST_CASE("LOAD_VECTOR_SHL", "[instr]") {
   TestFunction test([](hir::HIRBuilder& b) {

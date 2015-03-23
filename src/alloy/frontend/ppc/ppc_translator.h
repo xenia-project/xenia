@@ -15,7 +15,7 @@
 #include "alloy/backend/assembler.h"
 #include "alloy/compiler/compiler.h"
 #include "alloy/runtime/symbol_info.h"
-#include "alloy/string_buffer.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace frontend {
@@ -35,7 +35,7 @@ class PPCTranslator {
 
  private:
   void DumpSource(runtime::FunctionInfo* symbol_info,
-                  StringBuffer* string_buffer);
+                  poly::StringBuffer* string_buffer);
 
  private:
   PPCFrontend* frontend_;
@@ -44,7 +44,7 @@ class PPCTranslator {
   std::unique_ptr<compiler::Compiler> compiler_;
   std::unique_ptr<backend::Assembler> assembler_;
 
-  StringBuffer string_buffer_;
+  poly::StringBuffer string_buffer_;
 };
 
 }  // namespace ppc

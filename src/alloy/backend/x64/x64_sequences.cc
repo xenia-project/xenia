@@ -39,6 +39,8 @@ using namespace Xbyak;
 using namespace alloy::hir;
 using namespace alloy::runtime;
 
+using poly::vec128b;
+
 typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*, const Instr**);
 std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
 

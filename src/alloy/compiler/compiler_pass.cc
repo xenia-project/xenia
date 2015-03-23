@@ -24,7 +24,7 @@ int CompilerPass::Initialize(Compiler* compiler) {
   return 0;
 }
 
-Arena* CompilerPass::scratch_arena() const {
+poly::Arena* CompilerPass::scratch_arena() const {
   return compiler_->scratch_arena();
 }
 

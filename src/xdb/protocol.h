@@ -12,13 +12,13 @@
 
 #include <cstdint>
 
-#include <alloy/vec128.h>
-#include <poly/atomic.h>
+#include "poly/atomic.h"
+#include "poly/vec128.h"
 
 namespace xdb {
 namespace protocol {
 
-using vec128_t = alloy::vec128_t;
+using vec128_t = poly::vec128_t;
 
 #pragma pack(push, 4)
 
@@ -96,7 +96,7 @@ struct Registers {
   uint32_t vscr;
   uint64_t gpr[32];
   double fpr[32];
-  alloy::vec128_t vr[128];
+  poly::vec128_t vr[128];
 };
 
 struct ThreadCreateEvent : public Event<ThreadCreateEvent> {

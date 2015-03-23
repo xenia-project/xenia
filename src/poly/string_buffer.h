@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_STRING_BUFFER_H_
-#define ALLOY_STRING_BUFFER_H_
+#ifndef POLY_STRING_BUFFER_H_
+#define POLY_STRING_BUFFER_H_
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace alloy {
+namespace poly {
 
 class StringBuffer {
  public:
@@ -41,6 +41,6 @@ class StringBuffer {
   std::vector<char> buffer_;
 };
 
-}  // namespace alloy
+}  // namespace poly
 
-#endif  // ALLOY_STRING_BUFFER_H_
+#endif  // POLY_STRING_BUFFER_H_

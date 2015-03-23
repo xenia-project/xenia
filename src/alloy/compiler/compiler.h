@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "alloy/hir/hir_builder.h"
+#include "poly/arena.h"
 
 namespace alloy {
 namespace runtime {
@@ -32,7 +33,7 @@ class Compiler {
   ~Compiler();
 
   runtime::Runtime* runtime() const { return runtime_; }
-  Arena* scratch_arena() { return &scratch_arena_; }
+  poly::Arena* scratch_arena() { return &scratch_arena_; }
 
   void AddPass(std::unique_ptr<CompilerPass> pass);
 
@@ -42,7 +43,7 @@ class Compiler {
 
  private:
   runtime::Runtime* runtime_;
-  Arena scratch_arena_;
+  poly::Arena scratch_arena_;
 
   std::vector<std::unique_ptr<CompilerPass>> passes_;
 };

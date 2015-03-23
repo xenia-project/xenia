@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef ALLOY_RESET_SCOPE_H_
-#define ALLOY_RESET_SCOPE_H_
+#ifndef POLY_RESET_SCOPE_H_
+#define POLY_RESET_SCOPE_H_
 
 #include <mutex>
 
-namespace alloy {
+namespace poly {
 
 template <typename T>
 class ResetScope {
@@ -38,6 +38,6 @@ inline ResetScope<T> make_reset_scope(const std::unique_ptr<T>& value) {
   return ResetScope<T>(value.get());
 }
 
-}  // namespace alloy
+}  // namespace poly
 
-#endif  // ALLOY_RESET_SCOPE_H_
+#endif  // POLY_RESET_SCOPE_H_

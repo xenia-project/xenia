@@ -23,6 +23,7 @@
 #include "poly/platform.h"
 #include "poly/string.h"
 #include "poly/threading.h"
+#include "poly/vec128.h"
 
 namespace poly {}  // namespace poly
 

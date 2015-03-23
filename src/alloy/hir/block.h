@@ -10,7 +10,7 @@
 #ifndef ALLOY_HIR_BLOCK_H_
 #define ALLOY_HIR_BLOCK_H_
 
-#include "alloy/arena.h"
+#include "poly/arena.h"
 
 namespace llvm {
 class BitVector;
@@ -45,7 +45,7 @@ class Edge {
 
 class Block {
  public:
-  Arena* arena;
+  poly::Arena* arena;
 
   Block* next;
   Block* prev;

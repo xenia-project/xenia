@@ -10,16 +10,18 @@
 #ifndef ALLOY_HIR_VALUE_H_
 #define ALLOY_HIR_VALUE_H_
 
-#include "alloy/arena.h"
 #include "alloy/backend/machine_info.h"
 #include "alloy/hir/opcodes.h"
-#include "alloy/vec128.h"
+#include "poly/arena.h"
 #include "poly/poly.h"
+#include "poly/vec128.h"
 
 namespace alloy {
 namespace hir {
 
 class Instr;
+
+using vec128_t = poly::vec128_t;
 
 enum TypeName {
   // Many tables rely on this ordering.
@@ -99,7 +101,7 @@ class Value {
   // TODO(benvanik): remove to shrink size.
   void* tag;
 
-  Use* AddUse(Arena* arena, Instr* instr);
+  Use* AddUse(poly::Arena* arena, Instr* instr);
   void RemoveUse(Use* use);
 
   int8_t get_constant(int8_t) const { return constant.i8; }

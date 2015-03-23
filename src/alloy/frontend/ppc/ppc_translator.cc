@@ -16,8 +16,8 @@
 #include "alloy/frontend/ppc/ppc_hir_builder.h"
 #include "alloy/frontend/ppc/ppc_instr.h"
 #include "alloy/frontend/ppc/ppc_scanner.h"
-#include "alloy/reset_scope.h"
 #include "alloy/runtime/runtime.h"
+#include "poly/reset_scope.h"
 #include "xenia/profiling.h"
 
 namespace alloy {
@@ -91,10 +91,10 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   SCOPE_profile_cpu_f("alloy");
 
   // Reset() all caching when we leave.
-  make_reset_scope(builder_);
-  make_reset_scope(compiler_);
-  make_reset_scope(assembler_);
-  make_reset_scope(&string_buffer_);
+  poly::make_reset_scope(builder_);
+  poly::make_reset_scope(compiler_);
+  poly::make_reset_scope(assembler_);
+  poly::make_reset_scope(&string_buffer_);
 
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
@@ -175,7 +175,7 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
 };
 
 void PPCTranslator::DumpSource(runtime::FunctionInfo* symbol_info,
-                               StringBuffer* string_buffer) {
+                               poly::StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 

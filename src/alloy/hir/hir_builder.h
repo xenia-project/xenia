@@ -17,10 +17,8 @@
 #include "alloy/hir/label.h"
 #include "alloy/hir/opcodes.h"
 #include "alloy/hir/value.h"
-
-namespace alloy {
-class StringBuffer;
-}  // namespace alloy
+#include "poly/arena.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace hir {
@@ -37,10 +35,10 @@ class HIRBuilder {
   virtual void Reset();
   virtual int Finalize();
 
-  void Dump(StringBuffer* str);
+  void Dump(poly::StringBuffer* str);
   void AssertNoCycles();
 
-  Arena* arena() const { return arena_; }
+  poly::Arena* arena() const { return arena_; }
 
   uint32_t attributes() const { return attributes_; }
   void set_attributes(uint32_t value) { attributes_ = value; }
@@ -230,8 +228,9 @@ class HIRBuilder {
   Value* AtomicSub(Value* address, Value* value);
 
  protected:
-  void DumpValue(StringBuffer* str, Value* value);
-  void DumpOp(StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);
+  void DumpValue(poly::StringBuffer* str, Value* value);
+  void DumpOp(poly::StringBuffer* str, OpcodeSignatureType sig_type,
+              Instr::Op* op);
 
   Value* AllocValue(TypeName type = INT64_TYPE);
   Value* CloneValue(Value* source);
@@ -246,7 +245,7 @@ class HIRBuilder {
                          TypeName part_type);
 
  protected:
-  Arena* arena_;
+  poly::Arena* arena_;
 
   uint32_t attributes_;
 

@@ -7,11 +7,13 @@
  ******************************************************************************
  */
 
-#include "alloy/arena.h"
+#include "poly/arena.h"
 
-#include "poly/poly.h"
+#include <memory>
 
-namespace alloy {
+#include "poly/assert.h"
+
+namespace poly {
 
 Arena::Arena(size_t chunk_size)
     : chunk_size_(chunk_size), head_chunk_(nullptr), active_chunk_(nullptr) {}
@@ -37,7 +39,7 @@ void Arena::Reset() {
 void Arena::DebugFill() {
   auto chunk = head_chunk_;
   while (chunk) {
-    memset(chunk->buffer, 0xCD, chunk->capacity);
+    std::memset(chunk->buffer, 0xCD, chunk->capacity);
     chunk = chunk->next;
   }
 }
@@ -77,7 +79,7 @@ void* Arena::CloneContents() {
   uint8_t* p = (uint8_t*)result;
   chunk = head_chunk_;
   while (chunk) {
-    memcpy(p, chunk->buffer, chunk->offset);
+    std::memcpy(p, chunk->buffer, chunk->offset);
     p += chunk->offset;
     if (chunk == active_chunk_) {
       break;
@@ -98,4 +100,4 @@ Arena::Chunk::~Chunk() {
   }
 }
 
-}  // namespace alloy
+}  // namespace poly

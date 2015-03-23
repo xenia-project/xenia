@@ -10,8 +10,8 @@
 #ifndef ALLOY_FRONTEND_PPC_PPC_CONTEXT_H_
 #define ALLOY_FRONTEND_PPC_PPC_CONTEXT_H_
 
-#include "alloy/vec128.h"
 #include "poly/poly.h"
+#include "poly/vec128.h"
 
 namespace alloy { namespace runtime {
   class Runtime;
@@ -22,7 +22,7 @@ namespace alloy {
 namespace frontend {
 namespace ppc {
 
-using vec128_t = alloy::vec128_t;
+using vec128_t = poly::vec128_t;
 
 // Map:
 // 0-31: GPR

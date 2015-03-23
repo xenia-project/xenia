@@ -13,7 +13,7 @@
 #include <mutex>
 
 #include "alloy/frontend/frontend.h"
-#include "alloy/type_pool.h"
+#include "poly/type_pool.h"
 
 namespace alloy {
 namespace frontend {
@@ -43,7 +43,7 @@ class PPCFrontend : public Frontend {
                      runtime::Function** out_function) override;
 
  private:
-  TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
+  poly::TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
   PPCBuiltins builtins_;
 };
 

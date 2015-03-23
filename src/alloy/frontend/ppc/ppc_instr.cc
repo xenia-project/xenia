@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "alloy/frontend/ppc/ppc_instr_tables.h"
-#include "alloy/string_buffer.h"
 #include "poly/poly.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace frontend {
@@ -23,7 +23,7 @@ namespace ppc {
 std::vector<InstrType*> all_instrs_;
 
 void DumpAllInstrCounts() {
-  StringBuffer sb;
+  poly::StringBuffer sb;
   sb.Append("Instruction translation counts:\n");
   for (auto instr_type : all_instrs_) {
     if (instr_type->translation_count) {

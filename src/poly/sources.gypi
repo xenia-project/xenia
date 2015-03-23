@@ -1,6 +1,8 @@
 # Copyright 2014 Ben Vanik. All Rights Reserved.
 {
   'sources': [
+    'arena.cc',
+    'arena.h',
     'assert.h',
     'atomic.h',
     'byte_order.h',
@@ -20,10 +22,15 @@
     'memory.h',
     'platform.h',
     'poly.h',
+    'reset_scope.h',
     'string.cc',
     'string.h',
+    'string_buffer.cc',
+    'string_buffer.h',
     'threading.cc',
     'threading.h',
+    'type_pool.h',
+    'vec128.h',
   ],
 
   'conditions': [

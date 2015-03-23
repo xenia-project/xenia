@@ -20,6 +20,7 @@
 #include "alloy/runtime/runtime.h"
 #include "alloy/runtime/symbol_info.h"
 #include "alloy/runtime/thread_state.h"
+#include "poly/vec128.h"
 #include "xdb/protocol.h"
 #include "xenia/profiling.h"
 
@@ -30,6 +31,10 @@ namespace x64 {
 // TODO(benvanik): remove when enums redefined.
 using namespace alloy::hir;
 using namespace alloy::runtime;
+
+using poly::vec128b;
+using poly::vec128f;
+using poly::vec128i;
 
 using namespace Xbyak;
 using alloy::hir::HIRBuilder;

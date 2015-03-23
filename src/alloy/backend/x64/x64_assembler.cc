@@ -9,13 +9,13 @@
 
 #include "alloy/backend/x64/x64_assembler.h"
 
-#include "alloy/reset_scope.h"
 #include "alloy/backend/x64/x64_backend.h"
 #include "alloy/backend/x64/x64_emitter.h"
 #include "alloy/backend/x64/x64_function.h"
 #include "alloy/hir/hir_builder.h"
 #include "alloy/hir/label.h"
 #include "alloy/runtime/runtime.h"
+#include "poly/reset_scope.h"
 #include "xenia/profiling.h"
 
 namespace BE {
@@ -67,7 +67,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   SCOPE_profile_cpu_f("alloy");
 
   // Reset when we leave.
-  make_reset_scope(this);
+  poly::make_reset_scope(this);
 
   // Lower HIR -> x64.
   void* machine_code = 0;
@@ -97,7 +97,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
 }
 
 void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
-                                   size_t code_size, StringBuffer* str) {
+                                   size_t code_size, poly::StringBuffer* str) {
   BE::DISASM disasm = {0};
   disasm.Archi = 64;
   disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;

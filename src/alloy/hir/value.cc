@@ -14,7 +14,7 @@
 namespace alloy {
 namespace hir {
 
-Value::Use* Value::AddUse(Arena* arena, Instr* instr) {
+Value::Use* Value::AddUse(poly::Arena* arena, Instr* instr) {
   Use* use = arena->Alloc<Use>();
   use->instr = instr;
   use->prev = NULL;

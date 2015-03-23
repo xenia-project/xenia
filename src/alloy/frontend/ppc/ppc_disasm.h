@@ -11,12 +11,13 @@
 #define ALLOY_FRONTEND_PPC_PPC_DISASM_H_
 
 #include "alloy/frontend/ppc/ppc_instr.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
-int DisasmPPC(InstrData& i, StringBuffer* str);
+int DisasmPPC(InstrData& i, poly::StringBuffer* str);
 
 }  // namespace ppc
 }  // namespace frontend

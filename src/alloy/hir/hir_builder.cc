@@ -13,7 +13,6 @@
 #include "alloy/hir/instr.h"
 #include "alloy/hir/label.h"
 #include "alloy/runtime/symbol_info.h"
-#include "alloy/string_buffer.h"
 #include "xenia/profiling.h"
 
 namespace alloy {
@@ -30,7 +29,7 @@ using alloy::runtime::FunctionInfo;
   assert_true((value1->type) == (value2->type))
 
 HIRBuilder::HIRBuilder() {
-  arena_ = new Arena();
+  arena_ = new poly::Arena();
   Reset();
 }
 
@@ -90,7 +89,7 @@ int HIRBuilder::Finalize() {
   return 0;
 }
 
-void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
+void HIRBuilder::DumpValue(poly::StringBuffer* str, Value* value) {
   if (value->IsConstant()) {
     switch (value->type) {
       case INT8_TYPE:
@@ -131,7 +130,7 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
   }
 }
 
-void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
+void HIRBuilder::DumpOp(poly::StringBuffer* str, OpcodeSignatureType sig_type,
                         Instr::Op* op) {
   switch (sig_type) {
     case OPCODE_SIG_TYPE_X:
@@ -158,7 +157,7 @@ void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
   }
 }
 
-void HIRBuilder::Dump(StringBuffer* str) {
+void HIRBuilder::Dump(poly::StringBuffer* str) {
   SCOPE_profile_cpu_f("alloy");
 
   if (attributes_) {
@@ -1910,12 +1909,12 @@ Value* HIRBuilder::Pack(Value* value1, Value* value2, uint32_t pack_flags) {
   ASSERT_VECTOR_TYPE(value1);
   ASSERT_VECTOR_TYPE(value2);
   switch (pack_flags & PACK_TYPE_MODE) {
-  case PACK_TYPE_D3DCOLOR:
-  case PACK_TYPE_FLOAT16_2:
-  case PACK_TYPE_FLOAT16_4:
-  case PACK_TYPE_SHORT_2:
-    assert_true(value2->IsConstantZero());
-    break;
+    case PACK_TYPE_D3DCOLOR:
+    case PACK_TYPE_FLOAT16_2:
+    case PACK_TYPE_FLOAT16_4:
+    case PACK_TYPE_SHORT_2:
+      assert_true(value2->IsConstantZero());
+      break;
   }
   Instr* i = AppendInstr(OPCODE_PACK_info, pack_flags, AllocValue(VEC128_TYPE));
   i->set_src1(value1);

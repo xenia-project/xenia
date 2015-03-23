@@ -14,81 +14,82 @@
 
 #include "alloy/frontend/ppc/ppc_instr.h"
 #include "poly/poly.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace frontend {
 namespace ppc {
 
-void Disasm_0(InstrData& i, StringBuffer* str);
-void Disasm__(InstrData& i, StringBuffer* str);
-void Disasm_X_FRT_FRB(InstrData& i, StringBuffer* str);
-void Disasm_A_FRT_FRB(InstrData& i, StringBuffer* str);
-void Disasm_A_FRT_FRA_FRB(InstrData& i, StringBuffer* str);
-void Disasm_A_FRT_FRA_FRB_FRC(InstrData& i, StringBuffer* str);
-void Disasm_X_RT_RA_RB(InstrData& i, StringBuffer* str);
-void Disasm_X_RT_RA0_RB(InstrData& i, StringBuffer* str);
-void Disasm_X_FRT_RA_RB(InstrData& i, StringBuffer* str);
-void Disasm_X_FRT_RA0_RB(InstrData& i, StringBuffer* str);
-void Disasm_D_RT_RA_I(InstrData& i, StringBuffer* str);
-void Disasm_D_RT_RA0_I(InstrData& i, StringBuffer* str);
-void Disasm_D_FRT_RA_I(InstrData& i, StringBuffer* str);
-void Disasm_D_FRT_RA0_I(InstrData& i, StringBuffer* str);
-void Disasm_DS_RT_RA_I(InstrData& i, StringBuffer* str);
-void Disasm_DS_RT_RA0_I(InstrData& i, StringBuffer* str);
-void Disasm_D_RA(InstrData& i, StringBuffer* str);
-void Disasm_X_RA_RB(InstrData& i, StringBuffer* str);
-void Disasm_XO_RT_RA_RB(InstrData& i, StringBuffer* str);
-void Disasm_XO_RT_RA(InstrData& i, StringBuffer* str);
-void Disasm_X_RA_RT_RB(InstrData& i, StringBuffer* str);
-void Disasm_D_RA_RT_I(InstrData& i, StringBuffer* str);
-void Disasm_X_RA_RT(InstrData& i, StringBuffer* str);
-void Disasm_X_VX_RA0_RB(InstrData& i, StringBuffer* str);
-void Disasm_VX1281_VD_RA0_RB(InstrData& i, StringBuffer* str);
-void Disasm_VX1283_VD_VB(InstrData& i, StringBuffer* str);
-void Disasm_VX1283_VD_VB_I(InstrData& i, StringBuffer* str);
-void Disasm_VX_VD_VA_VB(InstrData& i, StringBuffer* str);
-void Disasm_VX128_VD_VA_VB(InstrData& i, StringBuffer* str);
-void Disasm_VX128_VD_VA_VD_VB(InstrData& i, StringBuffer* str);
-void Disasm_VX1282_VD_VA_VB_VC(InstrData& i, StringBuffer* str);
-void Disasm_VXA_VD_VA_VB_VC(InstrData& i, StringBuffer* str);
+void Disasm_0(InstrData& i, poly::StringBuffer* str);
+void Disasm__(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_FRT_FRB(InstrData& i, poly::StringBuffer* str);
+void Disasm_A_FRT_FRB(InstrData& i, poly::StringBuffer* str);
+void Disasm_A_FRT_FRA_FRB(InstrData& i, poly::StringBuffer* str);
+void Disasm_A_FRT_FRA_FRB_FRC(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_RT_RA_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_RT_RA0_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_FRT_RA_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_FRT_RA0_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_D_RT_RA_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_D_RT_RA0_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_D_FRT_RA_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_D_FRT_RA0_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_DS_RT_RA_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_DS_RT_RA0_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_D_RA(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_RA_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_XO_RT_RA_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_XO_RT_RA(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_RA_RT_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_D_RA_RT_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_RA_RT(InstrData& i, poly::StringBuffer* str);
+void Disasm_X_VX_RA0_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX1281_VD_RA0_RB(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX1283_VD_VB(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX1283_VD_VB_I(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX_VD_VA_VB(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX128_VD_VA_VB(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX128_VD_VA_VD_VB(InstrData& i, poly::StringBuffer* str);
+void Disasm_VX1282_VD_VA_VB_VC(InstrData& i, poly::StringBuffer* str);
+void Disasm_VXA_VD_VA_VB_VC(InstrData& i, poly::StringBuffer* str);
 
-void Disasm_sync(InstrData& i, StringBuffer* str);
-void Disasm_dcbf(InstrData& i, StringBuffer* str);
-void Disasm_dcbz(InstrData& i, StringBuffer* str);
-void Disasm_fcmp(InstrData& i, StringBuffer* str);
+void Disasm_sync(InstrData& i, poly::StringBuffer* str);
+void Disasm_dcbf(InstrData& i, poly::StringBuffer* str);
+void Disasm_dcbz(InstrData& i, poly::StringBuffer* str);
+void Disasm_fcmp(InstrData& i, poly::StringBuffer* str);
 
-void Disasm_bx(InstrData& i, StringBuffer* str);
-void Disasm_bcx(InstrData& i, StringBuffer* str);
-void Disasm_bcctrx(InstrData& i, StringBuffer* str);
-void Disasm_bclrx(InstrData& i, StringBuffer* str);
+void Disasm_bx(InstrData& i, poly::StringBuffer* str);
+void Disasm_bcx(InstrData& i, poly::StringBuffer* str);
+void Disasm_bcctrx(InstrData& i, poly::StringBuffer* str);
+void Disasm_bclrx(InstrData& i, poly::StringBuffer* str);
 
-void Disasm_mfcr(InstrData& i, StringBuffer* str);
-void Disasm_mfspr(InstrData& i, StringBuffer* str);
-void Disasm_mtspr(InstrData& i, StringBuffer* str);
-void Disasm_mftb(InstrData& i, StringBuffer* str);
-void Disasm_mfmsr(InstrData& i, StringBuffer* str);
-void Disasm_mtmsr(InstrData& i, StringBuffer* str);
+void Disasm_mfcr(InstrData& i, poly::StringBuffer* str);
+void Disasm_mfspr(InstrData& i, poly::StringBuffer* str);
+void Disasm_mtspr(InstrData& i, poly::StringBuffer* str);
+void Disasm_mftb(InstrData& i, poly::StringBuffer* str);
+void Disasm_mfmsr(InstrData& i, poly::StringBuffer* str);
+void Disasm_mtmsr(InstrData& i, poly::StringBuffer* str);
 
-void Disasm_cmp(InstrData& i, StringBuffer* str);
-void Disasm_cmpi(InstrData& i, StringBuffer* str);
-void Disasm_cmpli(InstrData& i, StringBuffer* str);
+void Disasm_cmp(InstrData& i, poly::StringBuffer* str);
+void Disasm_cmpi(InstrData& i, poly::StringBuffer* str);
+void Disasm_cmpli(InstrData& i, poly::StringBuffer* str);
 
-void Disasm_rld(InstrData& i, StringBuffer* str);
-void Disasm_rlwim(InstrData& i, StringBuffer* str);
-void Disasm_rlwnmx(InstrData& i, StringBuffer* str);
-void Disasm_srawix(InstrData& i, StringBuffer* str);
-void Disasm_sradix(InstrData& i, StringBuffer* str);
+void Disasm_rld(InstrData& i, poly::StringBuffer* str);
+void Disasm_rlwim(InstrData& i, poly::StringBuffer* str);
+void Disasm_rlwnmx(InstrData& i, poly::StringBuffer* str);
+void Disasm_srawix(InstrData& i, poly::StringBuffer* str);
+void Disasm_sradix(InstrData& i, poly::StringBuffer* str);
 
-void Disasm_vpermwi128(InstrData& i, StringBuffer* str);
-void Disasm_vrfin128(InstrData& i, StringBuffer* str);
-void Disasm_vrlimi128(InstrData& i, StringBuffer* str);
-void Disasm_vsldoi128(InstrData& i, StringBuffer* str);
-void Disasm_vspltb(InstrData& i, StringBuffer* str);
-void Disasm_vsplth(InstrData& i, StringBuffer* str);
-void Disasm_vspltw(InstrData& i, StringBuffer* str);
-void Disasm_vspltisb(InstrData& i, StringBuffer* str);
-void Disasm_vspltish(InstrData& i, StringBuffer* str);
-void Disasm_vspltisw(InstrData& i, StringBuffer* str);
+void Disasm_vpermwi128(InstrData& i, poly::StringBuffer* str);
+void Disasm_vrfin128(InstrData& i, poly::StringBuffer* str);
+void Disasm_vrlimi128(InstrData& i, poly::StringBuffer* str);
+void Disasm_vsldoi128(InstrData& i, poly::StringBuffer* str);
+void Disasm_vspltb(InstrData& i, poly::StringBuffer* str);
+void Disasm_vsplth(InstrData& i, poly::StringBuffer* str);
+void Disasm_vspltw(InstrData& i, poly::StringBuffer* str);
+void Disasm_vspltisb(InstrData& i, poly::StringBuffer* str);
+void Disasm_vspltish(InstrData& i, poly::StringBuffer* str);
+void Disasm_vspltisw(InstrData& i, poly::StringBuffer* str);
 
 namespace tables {
 

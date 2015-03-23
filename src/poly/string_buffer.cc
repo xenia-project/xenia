@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#include "alloy/string_buffer.h"
+#include "poly/string_buffer.h"
 
 #include <algorithm>
 #include <cstdarg>
 
-namespace alloy {
+namespace poly {
 
 StringBuffer::StringBuffer(size_t initial_capacity) {
   buffer_.reserve(std::max(initial_capacity, static_cast<size_t>(1024)));
@@ -62,8 +62,10 @@ void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
 
 const char* StringBuffer::GetString() const { return buffer_.data(); }
 
-std::string StringBuffer::to_string() { return std::string(buffer_.data(), buffer_.size()); }
+std::string StringBuffer::to_string() {
+  return std::string(buffer_.data(), buffer_.size());
+}
 
 char* StringBuffer::ToString() { return strdup(buffer_.data()); }
 
-}  // namespace alloy
+}  // namespace poly

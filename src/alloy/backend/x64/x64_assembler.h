@@ -13,7 +13,7 @@
 #include <memory>
 
 #include "alloy/backend/assembler.h"
-#include "alloy/string_buffer.h"
+#include "poly/string_buffer.h"
 
 namespace alloy {
 namespace backend {
@@ -39,14 +39,14 @@ class X64Assembler : public Assembler {
 
  private:
   void DumpMachineCode(runtime::DebugInfo* debug_info, void* machine_code,
-                       size_t code_size, StringBuffer* str);
+                       size_t code_size, poly::StringBuffer* str);
 
  private:
   X64Backend* x64_backend_;
   std::unique_ptr<X64Emitter> emitter_;
   std::unique_ptr<XbyakAllocator> allocator_;
 
-  StringBuffer string_buffer_;
+  poly::StringBuffer string_buffer_;
 };
 
 }  // namespace x64
