@@ -34,6 +34,7 @@ class GL4Shader : public Shader {
 
  protected:
   std::string GetHeader();
+  std::string GetFooter();
   bool PrepareVertexArrayObject();
   bool CompileProgram(std::string source);
 

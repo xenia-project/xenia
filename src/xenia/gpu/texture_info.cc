@@ -121,10 +121,14 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       info.height = fetch.size_2d.height;
       break;
     case Dimension::k3D:
-    case Dimension::kCube:
       info.width = fetch.size_3d.width;
       info.height = fetch.size_3d.height;
       info.depth = fetch.size_3d.depth;
+      break;
+    case Dimension::kCube:
+      info.width = fetch.size_stack.width;
+      info.height = fetch.size_stack.height;
+      info.depth = fetch.size_stack.depth;
       break;
   }
   info.format_info = FormatInfo::Get(fetch.format);
@@ -152,8 +156,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       // TODO(benvanik): calculate size.
       return false;
     case Dimension::kCube:
-      // TODO(benvanik): calculate size.
-      return false;
+      info.CalculateTextureSizesCube(fetch);
+      break;
   }
 
   return true;
@@ -206,6 +210,49 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
 
   input_length = size_2d.input_pitch * size_2d.block_height;
   output_length = size_2d.output_pitch * block_height;
+}
+
+void TextureInfo::CalculateTextureSizesCube(const xe_gpu_texture_fetch_t& fetch) {
+  assert_true(fetch.size_stack.depth + 1 == 6);
+  size_cube.logical_width = 1 + fetch.size_stack.width;
+  size_cube.logical_height = 1 + fetch.size_stack.height;
+
+  // w/h in blocks must be a multiple of block size.
+  uint32_t block_width =
+    poly::round_up(size_cube.logical_width, format_info->block_width) /
+    format_info->block_width;
+  uint32_t block_height =
+    poly::round_up(size_cube.logical_height, format_info->block_height) /
+    format_info->block_height;
+
+  // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
+  uint32_t tile_width = uint32_t(std::ceilf(block_width / 32.0f));
+  uint32_t tile_height = uint32_t(std::ceilf(block_height / 32.0f));
+  size_cube.block_width = tile_width * 32;
+  size_cube.block_height = tile_height * 32;
+
+  uint32_t bytes_per_block = format_info->block_width *
+    format_info->block_height *
+    format_info->bits_per_pixel / 8;
+  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
+  if (!is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = poly::round_up(byte_pitch, 256);
+  }
+
+  size_cube.input_width = tile_width * 32 * format_info->block_width;
+  size_cube.input_height = tile_height * 32 * format_info->block_height;
+
+  size_cube.output_width = block_width * format_info->block_width;
+  size_cube.output_height = block_height * format_info->block_height;
+
+  size_cube.input_pitch = byte_pitch;
+  size_cube.output_pitch = block_width * bytes_per_block;
+
+  size_cube.input_face_length = size_cube.input_pitch * size_cube.block_height;
+  input_length = size_cube.input_face_length * 6;
+  size_cube.output_face_length = size_cube.output_pitch * block_height;
+  output_length = size_cube.output_face_length * 6;
 }
 
 void TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,

@@ -187,6 +187,18 @@ struct TextureInfo {
     struct {
     } size_3d;
     struct {
+      uint32_t logical_width;
+      uint32_t logical_height;
+      uint32_t block_width;
+      uint32_t block_height;
+      uint32_t input_width;
+      uint32_t input_height;
+      uint32_t input_pitch;
+      uint32_t output_width;
+      uint32_t output_height;
+      uint32_t output_pitch;
+      uint32_t input_face_length;
+      uint32_t output_face_length;
     } size_cube;
   };
 
@@ -209,6 +221,7 @@ struct TextureInfo {
  private:
   void CalculateTextureSizes1D(const xenos::xe_gpu_texture_fetch_t& fetch);
   void CalculateTextureSizes2D(const xenos::xe_gpu_texture_fetch_t& fetch);
+  void CalculateTextureSizesCube(const xenos::xe_gpu_texture_fetch_t& fetch);
 };
 
 }  // namespace gpu

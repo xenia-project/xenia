@@ -91,6 +91,7 @@ class TextureCache {
   void EvictTexture(TextureEntry* entry);
 
   bool UploadTexture2D(GLuint texture, const TextureInfo& texture_info);
+  bool UploadTextureCube(GLuint texture, const TextureInfo& texture_info);
 
   Memory* memory_;
   CircularBuffer* scratch_buffer_;

@@ -85,7 +85,7 @@ class GL4ShaderTranslator {
   bool TranslateALU_DOT4v(const ucode::instr_alu_t& alu);
   bool TranslateALU_DOT3v(const ucode::instr_alu_t& alu);
   bool TranslateALU_DOT2ADDv(const ucode::instr_alu_t& alu);
-  // CUBEv
+  bool TranslateALU_CUBEv(const ucode::instr_alu_t& alu);
   bool TranslateALU_MAX4v(const ucode::instr_alu_t& alu);
   bool TranslateALU_PRED_SETXX_PUSHv(const ucode::instr_alu_t& alu,
                                      const char* op);

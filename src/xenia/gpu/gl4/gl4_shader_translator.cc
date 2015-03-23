@@ -675,7 +675,16 @@ bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
   return true;
 }
 
-// CUBEv
+bool GL4ShaderTranslator::TranslateALU_CUBEv(const instr_alu_t& alu) {
+  BeginAppendVectorOp(alu);
+  Append("cube(");
+  AppendVectorOpSrcReg(alu, 1);
+  Append(", ");
+  AppendVectorOpSrcReg(alu, 2);
+  Append(")");
+  EndAppendVectorOp(alu);
+  return true;
+}
 
 bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
@@ -1206,7 +1215,7 @@ bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
       ALU_INSTR_IMPL(DOT4v, 2),              // 15
       ALU_INSTR_IMPL(DOT3v, 2),              // 16
       ALU_INSTR_IMPL(DOT2ADDv, 3),           // 17 -- ???
-      ALU_INSTR(CUBEv, 2),                   // 18
+      ALU_INSTR_IMPL(CUBEv, 2),              // 18
       ALU_INSTR_IMPL(MAX4v, 1),              // 19
       ALU_INSTR_IMPL(PRED_SETE_PUSHv, 2),    // 20
       ALU_INSTR_IMPL(PRED_SETNE_PUSHv, 2),   // 21
@@ -1876,15 +1885,29 @@ bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
   // Translate.
   // TODO(benvanik): if sampler == null, set to invalid color.
   Append("  if (state.texture_samplers[%d].x != 0) {\n", tex->const_idx & 0xF);
-  Append("    t = texture(");
-  Append("%s(state.texture_samplers[%d])", sampler_type, tex->const_idx & 0xF);
-  Append(", r%u.", tex->src_reg);
-  src_swiz = tex->src_swiz;
-  for (int i = 0; i < src_component_count; i++) {
-    Append("%c", chan_names[src_swiz & 0x3]);
-    src_swiz >>= 2;
+  if (tex->dimension == DIMENSION_CUBE) {
+    Append("    t.xyz = r%u.", tex->src_reg);
+    src_swiz = tex->src_swiz;
+    for (int i = 0; i < src_component_count; i++) {
+      Append("%c", chan_names[src_swiz & 0x3]);
+      src_swiz >>= 2;
+    }
+    Append(";\n");
+    // TODO(benvanik): undo CUBEv logic on t? (s,t,faceid)
+    Append("    t = texture(%s(state.texture_samplers[%d]), t.xyz);\n",
+           sampler_type, tex->const_idx & 0xF);
+  } else {
+    Append("    t = texture(");
+    Append("%s(state.texture_samplers[%d])", sampler_type,
+           tex->const_idx & 0xF);
+    Append(", r%u.", tex->src_reg);
+    src_swiz = tex->src_swiz;
+    for (int i = 0; i < src_component_count; i++) {
+      Append("%c", chan_names[src_swiz & 0x3]);
+      src_swiz >>= 2;
+    }
+    Append(");\n");
   }
-  Append(");\n");
   Append("  } else {\n");
   Append("    t = vec4(r%u.", tex->src_reg);
   src_swiz = tex->src_swiz;

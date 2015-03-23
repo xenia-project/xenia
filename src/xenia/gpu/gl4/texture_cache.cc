@@ -128,7 +128,8 @@ static const TextureConfig texture_configs[64] = {
      GL_INVALID_ENUM, GL_INVALID_ENUM},
     {TextureFormat::k_32_32_32_FLOAT, GL_RGB32F, GL_RGB, GL_FLOAT},
     {TextureFormat::k_DXT3A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
-    {TextureFormat::k_DXT5A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
+    {TextureFormat::k_DXT5A, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+     GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_UNSIGNED_BYTE},
     {TextureFormat::k_CTX1, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
     {TextureFormat::k_DXT3A_AS_1_1_1_1, GL_INVALID_ENUM, GL_INVALID_ENUM,
      GL_INVALID_ENUM},
@@ -470,9 +471,11 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
     case Dimension::k2D:
       uploaded = UploadTexture2D(entry->handle, texture_info);
       break;
+    case Dimension::kCube:
+      uploaded = UploadTextureCube(entry->handle, texture_info);
+      break;
     case Dimension::k1D:
     case Dimension::k3D:
-    case Dimension::kCube:
       assert_unhandled_case(texture_info.dimension);
       return false;
   }
@@ -767,6 +770,110 @@ bool TextureCache::UploadTexture2D(GLuint texture,
 
     glTextureSubImage2D(texture, 0, 0, 0, texture_info.size_2d.output_width,
                         texture_info.size_2d.output_height, config.format,
+                        config.type, reinterpret_cast<void*>(unpack_offset));
+  }
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+  return true;
+}
+
+bool TextureCache::UploadTextureCube(GLuint texture,
+                                     const TextureInfo& texture_info) {
+  const auto host_address = memory_->Translate(texture_info.guest_address);
+
+  const auto& config =
+      texture_configs[uint32_t(texture_info.format_info->format)];
+  if (config.format == GL_INVALID_ENUM) {
+    assert_always("Unhandled texture format");
+    return false;
+  }
+
+  size_t unpack_length = texture_info.output_length;
+  glTextureStorage2D(texture, 1, config.internal_format,
+                     texture_info.size_cube.output_width,
+                     texture_info.size_cube.output_height);
+
+  auto allocation = scratch_buffer_->Acquire(unpack_length);
+  if (!texture_info.is_tiled) {
+    if (texture_info.size_cube.input_pitch ==
+        texture_info.size_cube.output_pitch) {
+      // Fast path copy entire image.
+      TextureSwap(texture_info.endianness, allocation.host_ptr, host_address,
+                  unpack_length);
+    } else {
+      // Slow path copy row-by-row because strides differ.
+      // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
+      // this exact thing under the covers, so we just always do it here.
+      const uint8_t* src = host_address;
+      uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+      for (int face = 0; face < 6; ++face) {
+        uint32_t pitch = std::min(texture_info.size_cube.input_pitch,
+                                  texture_info.size_cube.output_pitch);
+        for (uint32_t y = 0; y < texture_info.size_cube.block_height; y++) {
+          TextureSwap(texture_info.endianness, dest, src, pitch);
+          src += texture_info.size_cube.input_pitch;
+          dest += texture_info.size_cube.output_pitch;
+        }
+      }
+    }
+  } else {
+    // TODO(benvanik): optimize this inner loop (or work by tiles).
+    const uint8_t* src = host_address;
+    uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+    uint32_t bytes_per_block = texture_info.format_info->block_width *
+                               texture_info.format_info->block_height *
+                               texture_info.format_info->bits_per_pixel / 8;
+    // Tiled textures can be packed; get the offset into the packed texture.
+    uint32_t offset_x;
+    uint32_t offset_y;
+    TextureInfo::GetPackedTileOffset(texture_info, &offset_x, &offset_y);
+    auto bpp = (bytes_per_block >> 2) +
+               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+    for (int face = 0; face < 6; ++face) {
+      for (uint32_t y = 0, output_base_offset = 0;
+           y < texture_info.size_cube.block_height;
+           y++, output_base_offset += texture_info.size_cube.output_pitch) {
+        auto input_base_offset = TextureInfo::TiledOffset2DOuter(
+            offset_y + y, (texture_info.size_cube.input_width /
+                           texture_info.format_info->block_width),
+            bpp);
+        for (uint32_t x = 0, output_offset = output_base_offset;
+             x < texture_info.size_cube.block_width;
+             x++, output_offset += bytes_per_block) {
+          auto input_offset =
+              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
+                                              input_base_offset) >>
+              bpp;
+          TextureSwap(texture_info.endianness, dest + output_offset,
+                      src + input_offset * bytes_per_block, bytes_per_block);
+        }
+      }
+      src += texture_info.size_cube.input_face_length;
+      dest += texture_info.size_cube.output_face_length;
+    }
+  }
+  size_t unpack_offset = allocation.offset;
+  scratch_buffer_->Commit(std::move(allocation));
+  // TODO(benvanik): avoid flush on entire buffer by using another texture
+  // buffer.
+  scratch_buffer_->Flush();
+
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, scratch_buffer_->handle());
+  if (texture_info.is_compressed()) {
+    glCompressedTextureSubImage3D(
+        texture, 0, 0, 0, 0, texture_info.size_cube.output_width,
+        texture_info.size_cube.output_height, 6, config.format,
+        static_cast<GLsizei>(unpack_length),
+        reinterpret_cast<void*>(unpack_offset));
+  } else {
+    // Most of these don't seem to have an effect on compressed images.
+    // glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
+    // glPixelStorei(GL_UNPACK_ALIGNMENT, texture_info.texel_pitch);
+    // glPixelStorei(GL_UNPACK_ROW_LENGTH, texture_info.size_2d.input_width);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTextureSubImage3D(texture, 0, 0, 0, 0,
+                        texture_info.size_cube.output_width,
+                        texture_info.size_cube.output_height, 6, config.format,
                         config.type, reinterpret_cast<void*>(unpack_offset));
   }
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);

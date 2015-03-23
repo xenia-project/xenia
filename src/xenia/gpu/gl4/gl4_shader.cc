@@ -74,6 +74,59 @@ std::string GL4Shader::GetHeader() {
   return header;
 }
 
+std::string GL4Shader::GetFooter() {
+  // http://www.nvidia.com/object/cube_map_ogl_tutorial.html
+  // http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
+  // src0 = Rn.zzxy, src1 = Rn.yxzz
+  // dst.W = FaceId;
+  // dst.Z = 2.0f * MajorAxis;
+  // dst.Y = S cube coordinate;
+  // dst.X = T cube coordinate;
+  /*
+  major axis
+  direction     target                                sc     tc    ma
+  ----------   ------------------------------------   ---    ---   ---
+  +rx          GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT=0   -rz    -ry   rx
+  -rx          GL_TEXTURE_CUBE_MAP_NEGATIVE_X_EXT=1   +rz    -ry   rx
+  +ry          GL_TEXTURE_CUBE_MAP_POSITIVE_Y_EXT=2   +rx    +rz   ry
+  -ry          GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_EXT=3   +rx    -rz   ry
+  +rz          GL_TEXTURE_CUBE_MAP_POSITIVE_Z_EXT=4   +rx    -ry   rz
+  -rz          GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_EXT=5   -rx    -ry   rz
+  */
+  static const std::string footer =
+      "vec4 cube(vec4 src0, vec4 src1) {\n"
+      "  vec3 src = vec3(src1.y, src1.x, src1.z);\n"
+      "  vec3 abs_src = abs(src);\n"
+      "  int face_id;\n"
+      "  float sc;\n"
+      "  float tc;\n"
+      "  float ma;\n"
+      "  if (abs_src.x > abs_src.y && abs_src.x > abs_src.z) {\n"
+      "    if (src.x > 0.0) {\n"
+      "      face_id = 0; sc = -abs_src.z; tc = -abs_src.y; ma = abs_src.x;\n"
+      "    } else {\n"
+      "      face_id = 1; sc =  abs_src.z; tc = -abs_src.y; ma = abs_src.x;\n"
+      "    }\n"
+      "  } else if (abs_src.y > abs_src.x && abs_src.y > abs_src.z) {\n"
+      "    if (src.y > 0.0) {\n"
+      "      face_id = 2; sc =  abs_src.x; tc =  abs_src.z; ma = abs_src.y;\n"
+      "    } else {\n"
+      "      face_id = 3; sc =  abs_src.x; tc = -abs_src.z; ma = abs_src.y;\n"
+      "    }\n"
+      "  } else {\n"
+      "    if (src.z > 0.0) {\n"
+      "      face_id = 4; sc =  abs_src.x; tc = -abs_src.y; ma = abs_src.z;\n"
+      "    } else {\n"
+      "      face_id = 5; sc = -abs_src.x; tc = -abs_src.y; ma = abs_src.z;\n"
+      "    }\n"
+      "  }\n"
+      "  float s = (sc / ma + 1.0) / 2.0;\n"
+      "  float t = (tc / ma + 1.0) / 2.0;\n"
+      "  return vec4(t, s, 2.0 * ma, float(face_id));\n"
+      "}\n";
+  return footer;
+}
+
 bool GL4Shader::PrepareVertexArrayObject() {
   glCreateVertexArrays(1, &vao_);
 
@@ -182,7 +235,6 @@ bool GL4Shader::PrepareVertexShader(
     PLOGE("Unable to prepare vertex shader array object");
     return false;
   }
-
   std::string apply_transform =
       "vec4 applyTransform(const in StateData state, vec4 pos) {\n"
       "  if (state.vtx_fmt.w == 0.0) {\n"
@@ -221,7 +273,8 @@ bool GL4Shader::PrepareVertexShader(
       "  processVertex(state);\n"
       "  gl_Position = applyTransform(state, gl_Position);\n"
       "  draw_id = gl_DrawIDARB;\n"
-      "}\n";
+      "}\n" +
+      GetFooter();
 
   std::string translated_source =
       shader_translator_.TranslateVertexShader(this, program_cntl);
@@ -273,7 +326,8 @@ bool GL4Shader::PreparePixelShader(
       "  if (state.alpha_test.x != 0.0) {\n"
       "    applyAlphaTest(int(state.alpha_test.y), state.alpha_test.z);\n"
       "  }\n"
-      "}\n";
+      "}\n" +
+      GetFooter();
 
   std::string translated_source =
       shader_translator_.TranslatePixelShader(this, program_cntl);
