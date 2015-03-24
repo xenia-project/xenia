@@ -14,7 +14,7 @@
 #include "xenia/cpu/backend/x64/x64_function.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/label.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "poly/reset_scope.h"
 #include "xenia/profiling.h"
 
@@ -28,12 +28,9 @@ namespace backend {
 namespace x64 {
 
 // TODO(benvanik): remove when enums redefined.
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 
 using xe::cpu::hir::HIRBuilder;
-using xe::cpu::runtime::DebugInfo;
-using xe::cpu::runtime::Function;
-using xe::cpu::runtime::FunctionInfo;
 
 X64Assembler::X64Assembler(X64Backend* backend)
     : Assembler(backend), x64_backend_(backend) {}

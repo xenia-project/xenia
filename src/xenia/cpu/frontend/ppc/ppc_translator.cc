@@ -16,7 +16,7 @@
 #include "xenia/cpu/frontend/ppc/ppc_hir_builder.h"
 #include "xenia/cpu/frontend/ppc/ppc_instr.h"
 #include "xenia/cpu/frontend/ppc/ppc_scanner.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "poly/reset_scope.h"
 #include "xenia/profiling.h"
 
@@ -26,12 +26,10 @@ namespace frontend {
 namespace ppc {
 
 // TODO(benvanik): remove when enums redefined.
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 
 using xe::cpu::backend::Backend;
 using xe::cpu::compiler::Compiler;
-using xe::cpu::runtime::Function;
-using xe::cpu::runtime::FunctionInfo;
 namespace passes = xe::cpu::compiler::passes;
 
 PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
@@ -175,7 +173,7 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   return 0;
 };
 
-void PPCTranslator::DumpSource(runtime::FunctionInfo* symbol_info,
+void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
                                poly::StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();

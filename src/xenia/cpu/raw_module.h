@@ -7,16 +7,15 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_RUNTIME_RAW_MODULE_H_
-#define XENIA_RUNTIME_RAW_MODULE_H_
+#ifndef XENIA_CPU_RAW_MODULE_H_
+#define XENIA_CPU_RAW_MODULE_H_
 
 #include <string>
 
-#include "xenia/cpu/runtime/module.h"
+#include "xenia/cpu/module.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 class RawModule : public Module {
  public:
@@ -36,8 +35,7 @@ class RawModule : public Module {
   uint64_t high_address_;
 };
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_RUNTIME_RAW_MODULE_H_
+#endif  // XENIA_CPU_RAW_MODULE_H_

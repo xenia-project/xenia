@@ -10,7 +10,7 @@
 #include "xenia/cpu/test/util.h"
 
 using namespace xe::cpu::hir;
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 using namespace xe::cpu::test;
 using xe::cpu::frontend::ppc::PPCContext;
 

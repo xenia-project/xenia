@@ -7,18 +7,17 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/module.h"
+#include "xenia/cpu/module.h"
 
 #include <fstream>
 #include <sstream>
 
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "poly/poly.h"
 #include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 Module::Module(Runtime* runtime)
     : runtime_(runtime), memory_(runtime->memory()) {}
@@ -247,6 +246,5 @@ int Module::ReadMap(const char* file_name) {
   return 0;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

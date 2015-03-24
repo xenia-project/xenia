@@ -25,23 +25,22 @@ class PPCTranslator;
 struct PPCBuiltins {
   std::mutex global_lock;
   bool global_lock_taken;
-  runtime::FunctionInfo* check_global_lock;
-  runtime::FunctionInfo* handle_global_lock;
+  FunctionInfo* check_global_lock;
+  FunctionInfo* handle_global_lock;
 };
 
 class PPCFrontend : public Frontend {
  public:
-  PPCFrontend(runtime::Runtime* runtime);
+  PPCFrontend(Runtime* runtime);
   ~PPCFrontend() override;
 
   int Initialize() override;
 
   PPCBuiltins* builtins() { return &builtins_; }
 
-  int DeclareFunction(runtime::FunctionInfo* symbol_info) override;
-  int DefineFunction(runtime::FunctionInfo* symbol_info,
-                     uint32_t debug_info_flags, uint32_t trace_flags,
-                     runtime::Function** out_function) override;
+  int DeclareFunction(FunctionInfo* symbol_info) override;
+  int DefineFunction(FunctionInfo* symbol_info, uint32_t debug_info_flags,
+                     uint32_t trace_flags, Function** out_function) override;
 
  private:
   poly::TypePool<PPCTranslator, PPCFrontend*> translator_pool_;

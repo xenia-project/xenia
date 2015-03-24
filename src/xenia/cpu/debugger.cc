@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/debugger.h"
+#include "xenia/cpu/debugger.h"
 
 #include <mutex>
 
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 Breakpoint::Breakpoint(Type type, uint64_t address)
     : type_(type), address_(address) {}
@@ -195,6 +195,5 @@ void Debugger::OnBreakpointHit(ThreadState* thread_state,
   // Note that we stay suspended.
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

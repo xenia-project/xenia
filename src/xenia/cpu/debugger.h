@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_RUNTIME_DEBUGGER_H_
-#define XENIA_RUNTIME_DEBUGGER_H_
+#ifndef XENIA_CPU_DEBUGGER_H_
+#define XENIA_CPU_DEBUGGER_H_
 
 #include <map>
 #include <mutex>
@@ -16,16 +16,15 @@
 #include <unordered_map>
 
 #include "poly/delegate.h"
+#include "xenia/cpu/thread_state.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 class Debugger;
 class Function;
 class FunctionInfo;
 class Runtime;
-class ThreadState;
 
 class Breakpoint {
  public:
@@ -117,8 +116,7 @@ class Debugger {
   std::multimap<uint64_t, Breakpoint*> breakpoints_;
 };
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_RUNTIME_DEBUGGER_H_
+#endif  // XENIA_CPU_DEBUGGER_H_

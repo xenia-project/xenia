@@ -27,7 +27,7 @@
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/hir/hir_builder.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {
@@ -38,7 +38,7 @@ using namespace Xbyak;
 
 // TODO(benvanik): direct usings.
 using namespace xe::cpu::hir;
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 
 using poly::vec128b;
 

@@ -15,7 +15,7 @@
 #include "xenia/cpu/frontend/ppc/ppc_context.h"
 #include "xenia/cpu/frontend/ppc/ppc_frontend.h"
 #include "xenia/cpu/hir/hir_builder.h"
-#include "xenia/cpu/runtime/test_module.h"
+#include "xenia/cpu/test_module.h"
 #include "poly/main.h"
 #include "poly/poly.h"
 
@@ -28,56 +28,7 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::frontend::ppc::PPCContext;
-using xe::cpu::runtime::Runtime;
-
-class ThreadState : public xe::cpu::runtime::ThreadState {
- public:
-  ThreadState(Runtime* runtime, uint32_t thread_id, uint64_t stack_address,
-              size_t stack_size, uint64_t thread_state_address)
-      : xe::cpu::runtime::ThreadState(runtime, thread_id),
-        stack_address_(stack_address),
-        stack_size_(stack_size),
-        thread_state_address_(thread_state_address) {
-    memset(memory_->Translate(stack_address_), 0, stack_size_);
-
-    // Allocate with 64b alignment.
-    context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
-    assert_true((reinterpret_cast<uint64_t>(context_) & 0xF) == 0);
-
-    // Stash pointers to common structures that callbacks may need.
-    context_->reserve_address = memory_->reserve_address();
-    context_->reserve_value = memory_->reserve_value();
-    context_->membase = memory_->membase();
-    context_->runtime = runtime;
-    context_->thread_state = this;
-
-    // Set initial registers.
-    context_->r[1] = stack_address_ + stack_size;
-    context_->r[13] = thread_state_address_;
-
-    // Pad out stack a bit, as some games seem to overwrite the caller by about
-    // 16 to 32b.
-    context_->r[1] -= 64;
-
-    raw_context_ = context_;
-
-    runtime_->debugger()->OnThreadCreated(this);
-  }
-  ~ThreadState() override {
-    runtime_->debugger()->OnThreadDestroyed(this);
-    free(context_);
-  }
-
-  PPCContext* context() const { return context_; }
-
- private:
-  uint64_t stack_address_;
-  size_t stack_size_;
-  uint64_t thread_state_address_;
-
-  // NOTE: must be 64b aligned for SSE ops.
-  PPCContext* context_;
-};
+using xe::cpu::Runtime;
 
 class TestFunction {
  public:
@@ -88,18 +39,16 @@ class TestFunction {
 
 #if XENIA_TEST_X64
     {
-      auto runtime = std::make_unique<Runtime>(memory.get());
-      auto frontend =
-          std::make_unique<xe::cpu::frontend::ppc::PPCFrontend>(runtime.get());
+      auto runtime = std::make_unique<Runtime>(memory.get(), nullptr, 0, 0);
       auto backend =
           std::make_unique<xe::cpu::backend::x64::X64Backend>(runtime.get());
-      runtime->Initialize(std::move(frontend), std::move(backend));
+      runtime->Initialize(std::move(backend));
       runtimes.emplace_back(std::move(runtime));
     }
 #endif  // XENIA_TEST_X64
 
     for (auto& runtime : runtimes) {
-      auto module = std::make_unique<xe::cpu::runtime::TestModule>(
+      auto module = std::make_unique<xe::cpu::TestModule>(
           runtime.get(), "Test",
           [](uint64_t address) { return address == 0x1000; },
           [generator](hir::HIRBuilder& b) {
@@ -120,7 +69,7 @@ class TestFunction {
     for (auto& runtime : runtimes) {
       memory->Zero(0, memory_size);
 
-      xe::cpu::runtime::Function* fn;
+      xe::cpu::Function* fn;
       runtime->ResolveFunction(0x1000, &fn);
 
       uint64_t stack_size = 64 * 1024;

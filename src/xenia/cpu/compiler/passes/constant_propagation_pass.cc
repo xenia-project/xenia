@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/compiler/passes/constant_propagation_pass.h"
 
-#include "xenia/cpu/runtime/function.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/runtime.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -96,7 +96,7 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
         case OPCODE_CALL_INDIRECT:
           if (i->src1.value->IsConstant()) {
-            runtime::FunctionInfo* symbol_info;
+            FunctionInfo* symbol_info;
             if (runtime_->LookupFunctionInfo(
                     (uint32_t)i->src1.value->constant.i32, &symbol_info)) {
               break;

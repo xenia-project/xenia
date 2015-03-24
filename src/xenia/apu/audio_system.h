@@ -75,7 +75,7 @@ class AudioSystem {
   cpu::Processor* processor_;
 
   std::thread thread_;
-  cpu::XenonThreadState* thread_state_;
+  cpu::ThreadState* thread_state_;
   uint32_t thread_block_;
   std::atomic<bool> running_;
 

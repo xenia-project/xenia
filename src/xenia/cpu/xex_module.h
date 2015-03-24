@@ -12,18 +12,18 @@
 
 #include <string>
 
-#include "xenia/cpu/runtime/module.h"
+#include "xenia/cpu/module.h"
 #include "xenia/common.h"
 #include "xenia/kernel/util/xex2.h"
 
 namespace xe {
 namespace cpu {
 
-class XenonRuntime;
+class Runtime;
 
-class XexModule : public xe::cpu::runtime::Module {
+class XexModule : public xe::cpu::Module {
 public:
-  XexModule(XenonRuntime* runtime);
+ XexModule(Runtime* runtime);
   virtual ~XexModule();
 
   xe_xex2_ref xex() const { return xex_; }
@@ -40,7 +40,7 @@ private:
   int FindSaveRest();
 
 private:
-  XenonRuntime* runtime_;
+ Runtime* runtime_;
   std::string   name_;
   std::string   path_;
   xe_xex2_ref   xex_;

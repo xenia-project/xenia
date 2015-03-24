@@ -14,7 +14,7 @@
 
 #include "xenia/cpu/backend/assembler.h"
 #include "xenia/cpu/compiler/compiler.h"
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/symbol_info.h"
 #include "poly/string_buffer.h"
 
 namespace xe {
@@ -31,12 +31,11 @@ class PPCTranslator {
   PPCTranslator(PPCFrontend* frontend);
   ~PPCTranslator();
 
-  int Translate(runtime::FunctionInfo* symbol_info, uint32_t debug_info_flags,
-                uint32_t trace_flags, runtime::Function** out_function);
+  int Translate(FunctionInfo* symbol_info, uint32_t debug_info_flags,
+                uint32_t trace_flags, Function** out_function);
 
  private:
-  void DumpSource(runtime::FunctionInfo* symbol_info,
-                  poly::StringBuffer* string_buffer);
+  void DumpSource(FunctionInfo* symbol_info, poly::StringBuffer* string_buffer);
 
  private:
   PPCFrontend* frontend_;

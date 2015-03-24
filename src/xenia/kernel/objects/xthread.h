@@ -14,7 +14,7 @@
 #include <mutex>
 #include <string>
 
-#include "xenia/cpu/xenon_thread_state.h"
+#include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -89,7 +89,7 @@ class XThread : public XObject {
   uint32_t scratch_size_;
   uint32_t tls_address_;
   uint32_t thread_state_address_;
-  cpu::XenonThreadState* thread_state_;
+  cpu::ThreadState* thread_state_;
 
   std::string name_;
 

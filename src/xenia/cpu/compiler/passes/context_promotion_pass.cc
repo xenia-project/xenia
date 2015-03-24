@@ -12,7 +12,7 @@
 #include <gflags/gflags.h>
 
 #include "xenia/cpu/compiler/compiler.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "xenia/profiling.h"
 
 DEFINE_bool(store_all_context_values, false,

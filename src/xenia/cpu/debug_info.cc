@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/debug_info.h"
+#include "xenia/cpu/debug_info.h"
 
 #include <cstdlib>
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 DebugInfo::DebugInfo()
     : source_disasm_(nullptr),
@@ -72,6 +71,5 @@ SourceMapEntry* DebugInfo::LookupCodeOffset(uint64_t offset) {
   return nullptr;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

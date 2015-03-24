@@ -7,17 +7,16 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/function.h"
+#include "xenia/cpu/function.h"
 
-#include "xenia/cpu/runtime/debugger.h"
-#include "xenia/cpu/runtime/symbol_info.h"
-#include "xenia/cpu/runtime/thread_state.h"
+#include "xenia/cpu/debugger.h"
+#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/thread_state.h"
 #include "poly/logging.h"
 #include "xdb/protocol.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 Function::Function(FunctionInfo* symbol_info)
     : address_(symbol_info->address()), symbol_info_(symbol_info) {}
@@ -126,6 +125,5 @@ int Function::Call(ThreadState* thread_state, uint64_t return_address) {
   return result;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

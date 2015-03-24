@@ -15,7 +15,7 @@
 #include "xenia/cpu/frontend/ppc/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc/ppc_instr.h"
 #include "xenia/cpu/hir/label.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -29,8 +29,6 @@ using namespace xe::cpu::hir;
 using xe::cpu::hir::Label;
 using xe::cpu::hir::TypeName;
 using xe::cpu::hir::Value;
-using xe::cpu::runtime::Runtime;
-using xe::cpu::runtime::FunctionInfo;
 
 PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
     : HIRBuilder(), frontend_(frontend), comment_buffer_(4096) {}

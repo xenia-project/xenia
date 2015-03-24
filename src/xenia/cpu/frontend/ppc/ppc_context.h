@@ -15,10 +15,8 @@
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 class Runtime;
 class ThreadState;
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
@@ -45,7 +43,7 @@ using vec128_t = poly::vec128_t;
 typedef struct alignas(64) PPCContext_s {
   // Must be stored at 0x0 for now.
   // TODO(benvanik): find a nice way to describe this to the JIT.
-  runtime::ThreadState* thread_state;
+  ThreadState* thread_state;
   // TODO(benvanik): this is getting nasty. Must be here.
   uint8_t* membase;
 
@@ -211,7 +209,7 @@ typedef struct alignas(64) PPCContext_s {
 
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
-  runtime::Runtime* runtime;
+  Runtime* runtime;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,

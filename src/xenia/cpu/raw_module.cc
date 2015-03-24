@@ -7,14 +7,13 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/raw_module.h"
+#include "xenia/cpu/raw_module.h"
 
 #include "poly/platform.h"
 #include "poly/string.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 RawModule::RawModule(Runtime* runtime)
     : Module(runtime), base_address_(0), low_address_(0), high_address_(0) {}
@@ -57,6 +56,5 @@ bool RawModule::ContainsAddress(uint64_t address) {
   return address >= low_address_ && address < high_address_;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

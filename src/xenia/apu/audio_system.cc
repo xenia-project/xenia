@@ -13,7 +13,7 @@
 #include "xenia/apu/audio_driver.h"
 #include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/cpu/xenon_thread_state.h"
+#include "xenia/cpu/thread_state.h"
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -90,7 +90,7 @@ X_STATUS AudioSystem::Setup() {
 
   // Setup worker thread state. This lets us make calls into guest code.
   thread_state_ =
-      new XenonThreadState(emulator_->processor()->runtime(), 0, 16 * 1024, 0);
+      new ThreadState(emulator_->processor()->runtime(), 0, 0, 16 * 1024, 0);
   thread_state_->set_name("Audio Worker");
   thread_block_ = (uint32_t)memory()->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   thread_state_->context()->r[13] = thread_block_;

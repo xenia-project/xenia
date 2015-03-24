@@ -7,15 +7,14 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/instrument.h"
+#include "xenia/cpu/instrument.h"
 
 #include "xenia/memory.h"
-#include "xenia/cpu/runtime/function.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 Instrument::Instrument(Runtime* runtime)
     : runtime_(runtime), memory_(runtime->memory()), is_attached_(false) {}
@@ -109,6 +108,5 @@ void MemoryInstrument::Access(ThreadState* thread_state, uint64_t address,
   // TODO(benvanik): get thread local instance
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

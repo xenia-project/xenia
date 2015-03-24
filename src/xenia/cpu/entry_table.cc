@@ -7,14 +7,13 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/entry_table.h"
+#include "xenia/cpu/entry_table.h"
 
 #include "poly/poly.h"
 #include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 EntryTable::EntryTable() = default;
 
@@ -88,6 +87,5 @@ std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
   return fns;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

@@ -64,7 +64,7 @@ DEFINE_bool(scribble_heap, false,
  * sizes or use madvice to let the OS know what to expect.
  *
  * We create our own heap of committed memory that lives at
- * XENON_MEMORY_HEAP_LOW to XENON_MEMORY_HEAP_HIGH - all normal user allocations
+ * memory_HEAP_LOW to memory_HEAP_HIGH - all normal user allocations
  * come from there. Since the Xbox has no paging, we know that the size of this
  * heap will never need to be larger than ~512MB (realistically, smaller than
  * that). We place it far away from the XEX data and keep the memory around it
@@ -80,10 +80,10 @@ DEFINE_bool(scribble_heap, false,
  * this.
  */
 
-#define XENON_MEMORY_PHYSICAL_HEAP_LOW 0x00010000
-#define XENON_MEMORY_PHYSICAL_HEAP_HIGH 0x20000000
-#define XENON_MEMORY_VIRTUAL_HEAP_LOW 0x20000000
-#define XENON_MEMORY_VIRTUAL_HEAP_HIGH 0x40000000
+#define MEMORY_PHYSICAL_HEAP_LOW 0x00010000
+#define MEMORY_PHYSICAL_HEAP_HIGH 0x20000000
+#define MEMORY_VIRTUAL_HEAP_LOW 0x20000000
+#define MEMORY_VIRTUAL_HEAP_HIGH 0x40000000
 
 class xe::MemoryHeap {
  public:
@@ -187,10 +187,9 @@ int Memory::Initialize() {
   membase_ = mapping_base_;
 
   // Prepare heaps.
-  virtual_heap_->Initialize(XENON_MEMORY_VIRTUAL_HEAP_LOW,
-                            XENON_MEMORY_VIRTUAL_HEAP_HIGH);
-  physical_heap_->Initialize(XENON_MEMORY_PHYSICAL_HEAP_LOW,
-                             XENON_MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
+  virtual_heap_->Initialize(MEMORY_VIRTUAL_HEAP_LOW, MEMORY_VIRTUAL_HEAP_HIGH);
+  physical_heap_->Initialize(MEMORY_PHYSICAL_HEAP_LOW,
+                             MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
@@ -348,14 +347,14 @@ uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
     }
     return result;
   } else {
-    if (base_address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
-        base_address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
+    if (base_address >= MEMORY_VIRTUAL_HEAP_LOW &&
+        base_address < MEMORY_VIRTUAL_HEAP_HIGH) {
       // Overlapping managed heap.
       assert_always();
       return 0;
     }
-    if (base_address >= XENON_MEMORY_PHYSICAL_HEAP_LOW &&
-        base_address < XENON_MEMORY_PHYSICAL_HEAP_HIGH) {
+    if (base_address >= MEMORY_PHYSICAL_HEAP_LOW &&
+        base_address < MEMORY_PHYSICAL_HEAP_HIGH) {
       // Overlapping managed heap.
       assert_always();
       return 0;
@@ -380,11 +379,11 @@ uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
 }
 
 int Memory::HeapFree(uint64_t address, size_t size) {
-  if (address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
-      address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
+  if (address >= MEMORY_VIRTUAL_HEAP_LOW &&
+      address < MEMORY_VIRTUAL_HEAP_HIGH) {
     return virtual_heap_->Free(address, size) ? 0 : 1;
-  } else if (address >= XENON_MEMORY_PHYSICAL_HEAP_LOW &&
-             address < XENON_MEMORY_PHYSICAL_HEAP_HIGH) {
+  } else if (address >= MEMORY_PHYSICAL_HEAP_LOW &&
+             address < MEMORY_PHYSICAL_HEAP_HIGH) {
     return physical_heap_->Free(address, size) ? 0 : 1;
   } else {
     // A placed address. Decommit.
@@ -411,11 +410,11 @@ bool Memory::QueryInformation(uint64_t base_address, AllocationInfo* mem_info) {
 }
 
 size_t Memory::QuerySize(uint64_t base_address) {
-  if (base_address >= XENON_MEMORY_VIRTUAL_HEAP_LOW &&
-      base_address < XENON_MEMORY_VIRTUAL_HEAP_HIGH) {
+  if (base_address >= MEMORY_VIRTUAL_HEAP_LOW &&
+      base_address < MEMORY_VIRTUAL_HEAP_HIGH) {
     return virtual_heap_->QuerySize(base_address);
-  } else if (base_address >= XENON_MEMORY_PHYSICAL_HEAP_LOW &&
-             base_address < XENON_MEMORY_PHYSICAL_HEAP_HIGH) {
+  } else if (base_address >= MEMORY_PHYSICAL_HEAP_LOW &&
+             base_address < MEMORY_PHYSICAL_HEAP_HIGH) {
     return physical_heap_->QuerySize(base_address);
   } else {
     // A placed address.

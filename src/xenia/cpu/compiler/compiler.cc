@@ -17,7 +17,7 @@ namespace cpu {
 namespace compiler {
 
 using xe::cpu::hir::HIRBuilder;
-using xe::cpu::runtime::Runtime;
+using xe::cpu::Runtime;
 
 Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {}
 

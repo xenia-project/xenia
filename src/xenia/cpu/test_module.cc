@@ -7,23 +7,20 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/test_module.h"
+#include "xenia/cpu/test_module.h"
 
 #include "xenia/cpu/compiler/compiler_passes.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "poly/platform.h"
 #include "poly/reset_scope.h"
 #include "poly/string.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 using xe::cpu::backend::Backend;
 using xe::cpu::compiler::Compiler;
 using xe::cpu::hir::HIRBuilder;
-using xe::cpu::runtime::Function;
-using xe::cpu::runtime::FunctionInfo;
 namespace passes = xe::cpu::compiler::passes;
 
 TestModule::TestModule(Runtime* runtime, const std::string& name,
@@ -100,6 +97,5 @@ SymbolInfo::Status TestModule::DeclareFunction(uint64_t address,
   return status;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

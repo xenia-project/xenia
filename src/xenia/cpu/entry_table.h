@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_RUNTIME_ENTRY_TABLE_H_
-#define XENIA_RUNTIME_ENTRY_TABLE_H_
+#ifndef XENIA_CPU_ENTRY_TABLE_H_
+#define XENIA_CPU_ENTRY_TABLE_H_
 
 #include <mutex>
 #include <unordered_map>
@@ -16,7 +16,6 @@
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 class Function;
 
@@ -50,8 +49,7 @@ class EntryTable {
   std::unordered_map<uint64_t, Entry*> map_;
 };
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_RUNTIME_ENTRY_TABLE_H_
+#endif  // XENIA_CPU_ENTRY_TABLE_H_

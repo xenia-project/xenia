@@ -16,10 +16,10 @@
 #include "xenia/cpu/backend/x64/x64_thunk_emitter.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/hir/hir_builder.h"
-#include "xenia/cpu/runtime/debug_info.h"
-#include "xenia/cpu/runtime/runtime.h"
-#include "xenia/cpu/runtime/symbol_info.h"
-#include "xenia/cpu/runtime/thread_state.h"
+#include "xenia/cpu/debug_info.h"
+#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/thread_state.h"
 #include "poly/vec128.h"
 #include "xdb/protocol.h"
 #include "xenia/profiling.h"
@@ -31,7 +31,7 @@ namespace x64 {
 
 // TODO(benvanik): remove when enums redefined.
 using namespace xe::cpu::hir;
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 
 using poly::vec128b;
 using poly::vec128f;
@@ -40,10 +40,6 @@ using poly::vec128i;
 using namespace Xbyak;
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
-using xe::cpu::runtime::Function;
-using xe::cpu::runtime::FunctionInfo;
-using xe::cpu::runtime::SourceMapEntry;
-using xe::cpu::runtime::ThreadState;
 
 static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
 
@@ -76,7 +72,7 @@ X64Emitter::~X64Emitter() {}
 int X64Emitter::Initialize() { return 0; }
 
 int X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
-                     runtime::DebugInfo* debug_info, uint32_t trace_flags,
+                     DebugInfo* debug_info, uint32_t trace_flags,
                      void*& out_code_address, size_t& out_code_size) {
   SCOPE_profile_cpu_f("cpu");
 
@@ -439,8 +435,7 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
   return addr;
 }
 
-void X64Emitter::Call(const hir::Instr* instr,
-                      runtime::FunctionInfo* symbol_info) {
+void X64Emitter::Call(const hir::Instr* instr, FunctionInfo* symbol_info) {
   auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
   // Resolve address to the function to call and store in rax.
   if (fn) {

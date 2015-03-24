@@ -7,13 +7,15 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 
 #include <gflags/gflags.h>
 
-#include "xenia/cpu/runtime/module.h"
 #include "poly/poly.h"
 #include "xdb/protocol.h"
+#include "xenia/cpu/frontend/ppc/ppc_frontend.h"
+#include "xenia/cpu/module.h"
+#include "xenia/cpu/thread_state.h"
 
 // TODO(benvanik): based on compiler support
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -22,7 +24,6 @@ DEFINE_string(runtime_backend, "any", "Runtime backend [any, x64].");
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 using xe::cpu::backend::Backend;
 using xe::cpu::frontend::Frontend;
@@ -39,13 +40,14 @@ class BuiltinModule : public Module {
   std::string name_;
 };
 
-Runtime::Runtime(Memory* memory, uint32_t debug_info_flags,
-                 uint32_t trace_flags)
+Runtime::Runtime(Memory* memory, ExportResolver* export_resolver,
+                 uint32_t debug_info_flags, uint32_t trace_flags)
     : memory_(memory),
       debug_info_flags_(debug_info_flags),
       trace_flags_(trace_flags),
       builtin_module_(nullptr),
-      next_builtin_address_(0x100000000ull) {}
+      next_builtin_address_(0x100000000ull),
+      export_resolver_(export_resolver) {}
 
 Runtime::~Runtime() {
   {
@@ -58,8 +60,10 @@ Runtime::~Runtime() {
   backend_.reset();
 }
 
-int Runtime::Initialize(std::unique_ptr<Frontend> frontend,
-                        std::unique_ptr<Backend> backend) {
+int Runtime::Initialize(std::unique_ptr<xe::cpu::backend::Backend> backend) {
+  auto frontend = std::make_unique<xe::cpu::frontend::ppc::PPCFrontend>(this);
+  // TODO(benvanik): set options/etc.
+
   // Must be initialized by subclass before calling into this.
   assert_not_null(memory_);
 
@@ -145,7 +149,7 @@ FunctionInfo* Runtime::DefineBuiltin(const std::string& name,
   fn_info->set_end_address(address + 4);
   fn_info->set_name(name);
   fn_info->SetupExtern(handler, arg0, arg1);
-  fn_info->set_status(runtime::SymbolInfo::STATUS_DECLARED);
+  fn_info->set_status(SymbolInfo::STATUS_DECLARED);
 
   return fn_info;
 }
@@ -280,6 +284,5 @@ int Runtime::DemandFunction(FunctionInfo* symbol_info,
   return 0;
 }
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

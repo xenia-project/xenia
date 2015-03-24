@@ -7,24 +7,47 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/xenon_thread_state.h"
+#include "xenia/cpu/thread_state.h"
 
 #include "xdb/protocol.h"
-#include "xenia/cpu/xenon_runtime.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {
 
 using namespace xe::cpu::frontend;
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 
-XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
-                                   size_t stack_size,
-                                   uint64_t thread_state_address)
-    : ThreadState(runtime, thread_id),
+using PPCContext = xe::cpu::frontend::ppc::PPCContext;
+
+thread_local ThreadState* thread_state_ = nullptr;
+
+ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
+                         uint64_t stack_address, size_t stack_size,
+                         uint64_t thread_state_address)
+    : runtime_(runtime),
+      memory_(runtime->memory()),
+      thread_id_(thread_id),
+      name_(""),
+      backend_data_(0),
+      raw_context_(0),
       stack_size_(stack_size),
       thread_state_address_(thread_state_address) {
-  stack_address_ = xenon_memory()->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
+  if (thread_id_ == UINT_MAX) {
+    // System thread. Assign the system thread ID with a high bit
+    // set so people know what's up.
+    uint32_t system_thread_handle = poly::threading::current_thread_id();
+    thread_id_ = 0x80000000 | system_thread_handle;
+  }
+  backend_data_ = runtime->backend()->AllocThreadData();
+
+  if (!stack_address) {
+    stack_address_ = memory()->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
+    stack_allocated_ = true;
+  } else {
+    stack_address_ = stack_address;
+    stack_allocated_ = false;
+  }
   assert_not_zero(stack_address_);
 
   // Allocate with 64b alignment.
@@ -52,14 +75,31 @@ XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
   runtime_->debugger()->OnThreadCreated(this);
 }
 
-XenonThreadState::~XenonThreadState() {
+ThreadState::~ThreadState() {
   runtime_->debugger()->OnThreadDestroyed(this);
 
+  if (backend_data_) {
+    runtime_->backend()->FreeThreadData(backend_data_);
+  }
+  if (thread_state_ == this) {
+    thread_state_ = nullptr;
+  }
+
   free(context_);
-  xenon_memory()->HeapFree(stack_address_, stack_size_);
+  if (stack_allocated_) {
+    memory()->HeapFree(stack_address_, stack_size_);
+  }
 }
 
-void XenonThreadState::WriteRegisters(xdb::protocol::Registers* registers) {
+void ThreadState::Bind(ThreadState* thread_state) {
+  thread_state_ = thread_state;
+}
+
+ThreadState* ThreadState::Get() { return thread_state_; }
+
+uint32_t ThreadState::GetThreadID() { return thread_state_->thread_id_; }
+
+void ThreadState::WriteRegisters(xdb::protocol::Registers* registers) {
   registers->lr = context_->lr;
   registers->ctr = context_->ctr;
   registers->xer = 0xFEFEFEFE;

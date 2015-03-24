@@ -11,8 +11,7 @@
 
 #include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/cpu/xenon_thread_state.h"
-
+#include "xenia/cpu/thread_state.h"
 
 using namespace xe;
 using namespace xe::apu;

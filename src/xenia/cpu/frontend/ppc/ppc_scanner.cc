@@ -14,7 +14,7 @@
 
 #include "xenia/cpu/frontend/ppc/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc/ppc_instr.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "poly/logging.h"
 #include "poly/memory.h"
 #include "xenia/profiling.h"
@@ -29,8 +29,6 @@ namespace xe {
 namespace cpu {
 namespace frontend {
 namespace ppc {
-
-using xe::cpu::runtime::FunctionInfo;
 
 PPCScanner::PPCScanner(PPCFrontend* frontend) : frontend_(frontend) {}
 

@@ -11,7 +11,7 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc/ppc_context.h"
 #include "xenia/cpu/frontend/ppc/ppc_frontend.h"
-#include "xenia/cpu/runtime/raw_module.h"
+#include "xenia/cpu/raw_module.h"
 #include "poly/main.h"
 #include "poly/poly.h"
 
@@ -30,60 +30,11 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::frontend::ppc::PPCContext;
-using xe::cpu::runtime::Runtime;
+using xe::cpu::Runtime;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 
 const uint32_t START_ADDRESS = 0x100000;
-
-class ThreadState : public xe::cpu::runtime::ThreadState {
- public:
-  ThreadState(Runtime* runtime, uint32_t thread_id, uint64_t stack_address,
-              size_t stack_size, uint64_t thread_state_address)
-      : xe::cpu::runtime::ThreadState(runtime, thread_id),
-        stack_address_(stack_address),
-        stack_size_(stack_size),
-        thread_state_address_(thread_state_address) {
-    memset(memory_->Translate(stack_address_), 0, stack_size_);
-
-    // Allocate with 64b alignment.
-    context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
-    assert_true((reinterpret_cast<uint64_t>(context_) & 0xF) == 0);
-
-    // Stash pointers to common structures that callbacks may need.
-    context_->reserve_address = memory_->reserve_address();
-    context_->reserve_value = memory_->reserve_value();
-    context_->membase = memory_->membase();
-    context_->runtime = runtime;
-    context_->thread_state = this;
-
-    // Set initial registers.
-    context_->r[1] = stack_address_ + stack_size;
-    context_->r[13] = thread_state_address_;
-
-    // Pad out stack a bit, as some games seem to overwrite the caller by about
-    // 16 to 32b.
-    context_->r[1] -= 64;
-
-    raw_context_ = context_;
-
-    runtime_->debugger()->OnThreadCreated(this);
-  }
-  ~ThreadState() override {
-    runtime_->debugger()->OnThreadDestroyed(this);
-    free(context_);
-  }
-
-  PPCContext* context() const { return context_; }
-
- private:
-  uint64_t stack_address_;
-  size_t stack_size_;
-  uint64_t thread_state_address_;
-
-  // NOTE: must be 64b aligned for SSE ops.
-  PPCContext* context_;
-};
 
 struct TestCase {
   TestCase(uint64_t address, std::string& name)
@@ -224,10 +175,8 @@ class TestRunner {
     memory.reset(new Memory());
     memory->Initialize();
 
-    runtime.reset(new Runtime(memory.get()));
-    auto frontend =
-        std::make_unique<xe::cpu::frontend::ppc::PPCFrontend>(runtime.get());
-    runtime->Initialize(std::move(frontend), nullptr);
+    runtime.reset(new Runtime(memory.get(), nullptr, 0, 0));
+    runtime->Initialize(nullptr);
   }
 
   ~TestRunner() {
@@ -238,7 +187,7 @@ class TestRunner {
 
   bool Setup(TestSuite& suite) {
     // Load the binary module.
-    auto module = std::make_unique<xe::cpu::runtime::RawModule>(runtime.get());
+    auto module = std::make_unique<xe::cpu::RawModule>(runtime.get());
     if (module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
       PLOGE("Unable to load test binary %ls", suite.bin_file_path.c_str());
       return false;
@@ -263,7 +212,7 @@ class TestRunner {
     }
 
     // Execute test.
-    xe::cpu::runtime::Function* fn;
+    xe::cpu::Function* fn;
     runtime->ResolveFunction(test_case.address, &fn);
     if (!fn) {
       PLOGE("Entry function not found");

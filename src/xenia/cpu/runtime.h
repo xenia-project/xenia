@@ -7,39 +7,36 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_RUNTIME_RUNTIME_H_
-#define XENIA_RUNTIME_RUNTIME_H_
+#ifndef XENIA_CPU_RUNTIME_H_
+#define XENIA_CPU_RUNTIME_H_
 
-#include <memory>
-#include <mutex>
-#include <vector>
-
+#include "xenia/common.h"
 #include "xenia/cpu/backend/backend.h"
+#include "xenia/cpu/debugger.h"
+#include "xenia/cpu/entry_table.h"
 #include "xenia/cpu/frontend/frontend.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/module.h"
+#include "xenia/cpu/thread_state.h"
+#include "xenia/export_resolver.h"
 #include "xenia/memory.h"
-#include "xenia/cpu/runtime/debugger.h"
-#include "xenia/cpu/runtime/entry_table.h"
-#include "xenia/cpu/runtime/module.h"
-#include "xenia/cpu/runtime/symbol_info.h"
-#include "xenia/cpu/runtime/thread_state.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 class Runtime {
  public:
-  explicit Runtime(Memory* memory, uint32_t debug_info_flags = 0,
-                   uint32_t trace_flags = 0);
-  virtual ~Runtime();
+  Runtime(Memory* memory, ExportResolver* export_resolver,
+          uint32_t debug_info_flags, uint32_t trace_flags);
+  ~Runtime();
 
   Memory* memory() const { return memory_; }
   Debugger* debugger() const { return debugger_.get(); }
   frontend::Frontend* frontend() const { return frontend_.get(); }
   backend::Backend* backend() const { return backend_.get(); }
+  ExportResolver* export_resolver() const { return export_resolver_; }
 
-  int Initialize(std::unique_ptr<frontend::Frontend> frontend,
-                 std::unique_ptr<backend::Backend> backend = 0);
+  int Initialize(std::unique_ptr<backend::Backend> backend = 0);
 
   int AddModule(std::unique_ptr<Module> module);
   Module* GetModule(const char* name);
@@ -63,7 +60,6 @@ class Runtime {
  private:
   int DemandFunction(FunctionInfo* symbol_info, Function** out_function);
 
- protected:
   Memory* memory_;
 
   uint32_t debug_info_flags_;
@@ -73,6 +69,7 @@ class Runtime {
 
   std::unique_ptr<frontend::Frontend> frontend_;
   std::unique_ptr<backend::Backend> backend_;
+  ExportResolver* export_resolver_;
 
   EntryTable entry_table_;
   std::mutex modules_lock_;
@@ -81,8 +78,7 @@ class Runtime {
   uint64_t next_builtin_address_;
 };
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_RUNTIME_RUNTIME_H_
+#endif  // XENIA_CPU_RUNTIME_H_

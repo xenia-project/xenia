@@ -33,13 +33,12 @@ class X64Assembler : public Assembler {
 
   void Reset() override;
 
-  int Assemble(runtime::FunctionInfo* symbol_info, hir::HIRBuilder* builder,
-               uint32_t debug_info_flags,
-               std::unique_ptr<runtime::DebugInfo> debug_info,
-               uint32_t trace_flags, runtime::Function** out_function) override;
+  int Assemble(FunctionInfo* symbol_info, hir::HIRBuilder* builder,
+               uint32_t debug_info_flags, std::unique_ptr<DebugInfo> debug_info,
+               uint32_t trace_flags, Function** out_function) override;
 
  private:
-  void DumpMachineCode(runtime::DebugInfo* debug_info, void* machine_code,
+  void DumpMachineCode(DebugInfo* debug_info, void* machine_code,
                        size_t code_size, poly::StringBuffer* str);
 
  private:

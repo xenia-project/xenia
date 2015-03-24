@@ -10,15 +10,18 @@
 #include "xenia/cpu/processor.h"
 
 #include "xenia/cpu/cpu-private.h"
-#include "xenia/cpu/xenon_runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/export_resolver.h"
 
 namespace xe {
 namespace cpu {
 
+// TODO(benvanik): remove when enums converted.
+using namespace xe::cpu;
 using namespace xe::cpu::backend;
-using namespace xe::cpu::runtime;
+
+using PPCContext = xe::cpu::frontend::ppc::PPCContext;
 
 void InitializeIfNeeded();
 void CleanupOnShutdown();
@@ -80,8 +83,8 @@ int Processor::Setup() {
     trace_flags |= TRACE_SOURCE_VALUES;
   }
 
-  runtime_ = new XenonRuntime(memory_, export_resolver_, debug_info_flags,
-                              trace_flags);
+  runtime_ =
+      new Runtime(memory_, export_resolver_, debug_info_flags, trace_flags);
   if (!runtime_) {
     return 1;
   }
@@ -93,7 +96,7 @@ int Processor::Setup() {
     return result;
   }
 
-  interrupt_thread_state_ = new XenonThreadState(runtime_, 0, 16 * 1024, 0);
+  interrupt_thread_state_ = new ThreadState(runtime_, 0, 0, 16 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
   interrupt_thread_block_ = memory_->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
@@ -101,7 +104,7 @@ int Processor::Setup() {
   return 0;
 }
 
-int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
+int Processor::Execute(ThreadState* thread_state, uint64_t address) {
   SCOPE_profile_cpu_f("cpu");
 
   // Attempt to get the function.
@@ -126,7 +129,7 @@ int Processor::Execute(XenonThreadState* thread_state, uint64_t address) {
   return 0;
 }
 
-uint64_t Processor::Execute(XenonThreadState* thread_state, uint64_t address,
+uint64_t Processor::Execute(ThreadState* thread_state, uint64_t address,
                             uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 

@@ -105,7 +105,7 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
 
 X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   Processor* processor = kernel_state()->processor();
-  XenonRuntime* runtime = processor->runtime();
+  Runtime* runtime = processor->runtime();
 
   // Load the XEX into memory and decrypt.
   xe_xex2_options_t xex_options = {0};

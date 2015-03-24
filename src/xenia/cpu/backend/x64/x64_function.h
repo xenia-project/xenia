@@ -10,17 +10,18 @@
 #ifndef XENIA_BACKEND_X64_X64_FUNCTION_H_
 #define XENIA_BACKEND_X64_X64_FUNCTION_H_
 
-#include "xenia/cpu/runtime/function.h"
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/thread_state.h"
 
 namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
 
-class X64Function : public runtime::Function {
+class X64Function : public Function {
  public:
-  X64Function(runtime::FunctionInfo* symbol_info);
+  X64Function(FunctionInfo* symbol_info);
   virtual ~X64Function();
 
   void* machine_code() const { return machine_code_; }
@@ -29,10 +30,9 @@ class X64Function : public runtime::Function {
   void Setup(void* machine_code, size_t code_size);
 
  protected:
-  virtual int AddBreakpointImpl(runtime::Breakpoint* breakpoint);
-  virtual int RemoveBreakpointImpl(runtime::Breakpoint* breakpoint);
-  virtual int CallImpl(runtime::ThreadState* thread_state,
-                       uint64_t return_address);
+  virtual int AddBreakpointImpl(Breakpoint* breakpoint);
+  virtual int RemoveBreakpointImpl(Breakpoint* breakpoint);
+  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address);
 
  private:
   void* machine_code_;

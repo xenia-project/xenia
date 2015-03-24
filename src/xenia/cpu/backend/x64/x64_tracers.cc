@@ -10,12 +10,12 @@
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
-#include "xenia/cpu/runtime/runtime.h"
-#include "xenia/cpu/runtime/thread_state.h"
+#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/thread_state.h"
 
 using namespace xe;
 using namespace xe::cpu::backend::x64;
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
 
 namespace xe {
 namespace cpu {

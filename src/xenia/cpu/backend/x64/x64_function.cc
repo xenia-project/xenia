@@ -10,18 +10,13 @@
 #include "xenia/cpu/backend/x64/x64_function.h"
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
-#include "xenia/cpu/runtime/runtime.h"
-#include "xenia/cpu/runtime/thread_state.h"
+#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/thread_state.h"
 
 namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
-
-using xe::cpu::runtime::Breakpoint;
-using xe::cpu::runtime::Function;
-using xe::cpu::runtime::FunctionInfo;
-using xe::cpu::runtime::ThreadState;
 
 X64Function::X64Function(FunctionInfo* symbol_info)
     : Function(symbol_info), machine_code_(nullptr), code_size_(0) {}

@@ -7,11 +7,10 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/symbol_info.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address)
     : type_(type),
@@ -44,6 +43,5 @@ VariableInfo::VariableInfo(Module* module, uint64_t address)
 
 VariableInfo::~VariableInfo() = default;
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe

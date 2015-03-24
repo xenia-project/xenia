@@ -14,14 +14,12 @@
 
 #include "xenia/cpu/frontend/context_info.h"
 #include "xenia/memory.h"
-#include "xenia/cpu/runtime/function.h"
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/symbol_info.h"
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 class Runtime;
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
@@ -31,22 +29,22 @@ namespace frontend {
 
 class Frontend {
  public:
-  Frontend(runtime::Runtime* runtime);
+  Frontend(Runtime* runtime);
   virtual ~Frontend();
 
-  runtime::Runtime* runtime() const { return runtime_; }
+  Runtime* runtime() const { return runtime_; }
   Memory* memory() const;
   ContextInfo* context_info() const { return context_info_.get(); }
 
   virtual int Initialize();
 
-  virtual int DeclareFunction(runtime::FunctionInfo* symbol_info) = 0;
-  virtual int DefineFunction(runtime::FunctionInfo* symbol_info,
+  virtual int DeclareFunction(FunctionInfo* symbol_info) = 0;
+  virtual int DefineFunction(FunctionInfo* symbol_info,
                              uint32_t debug_info_flags, uint32_t trace_flags,
-                             runtime::Function** out_function) = 0;
+                             Function** out_function) = 0;
 
  protected:
-  runtime::Runtime* runtime_;
+  Runtime* runtime_;
   std::unique_ptr<ContextInfo> context_info_;
 };
 

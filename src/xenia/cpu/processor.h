@@ -20,8 +20,8 @@
 namespace xe {
 namespace cpu {
 
-class XenonRuntime;
-class XenonThreadState;
+class Runtime;
+class ThreadState;
 class XexModule;
 
 enum class Irql : uint32_t {
@@ -37,14 +37,14 @@ class Processor {
   ~Processor();
 
   ExportResolver* export_resolver() const { return export_resolver_; }
-  XenonRuntime* runtime() const { return runtime_; }
+  Runtime* runtime() const { return runtime_; }
   Memory* memory() const { return memory_; }
 
   int Setup();
 
-  int Execute(XenonThreadState* thread_state, uint64_t address);
-  uint64_t Execute(XenonThreadState* thread_state, uint64_t address,
-                   uint64_t args[], size_t arg_count);
+  int Execute(ThreadState* thread_state, uint64_t address);
+  uint64_t Execute(ThreadState* thread_state, uint64_t address, uint64_t args[],
+                   size_t arg_count);
 
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
@@ -55,12 +55,12 @@ class Processor {
  private:
   ExportResolver* export_resolver_;
 
-  XenonRuntime* runtime_;
+  Runtime* runtime_;
   Memory* memory_;
 
   Irql irql_;
   std::mutex interrupt_thread_lock_;
-  XenonThreadState* interrupt_thread_state_;
+  ThreadState* interrupt_thread_state_;
   uint64_t interrupt_thread_block_;
 };
 

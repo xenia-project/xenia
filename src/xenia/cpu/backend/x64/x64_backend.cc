@@ -19,7 +19,7 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-using xe::cpu::runtime::Runtime;
+using xe::cpu::Runtime;
 
 X64Backend::X64Backend(Runtime* runtime) : Backend(runtime), code_cache_(0) {}
 

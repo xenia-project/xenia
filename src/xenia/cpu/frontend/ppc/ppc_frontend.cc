@@ -13,16 +13,14 @@
 #include "xenia/cpu/frontend/ppc/ppc_disasm.h"
 #include "xenia/cpu/frontend/ppc/ppc_emit.h"
 #include "xenia/cpu/frontend/ppc/ppc_translator.h"
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {
 namespace frontend {
 namespace ppc {
 
-using xe::cpu::runtime::Function;
-using xe::cpu::runtime::FunctionInfo;
-using xe::cpu::runtime::Runtime;
+using xe::cpu::Runtime;
 
 void InitializeIfNeeded();
 void CleanupOnShutdown();

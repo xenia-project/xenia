@@ -13,19 +13,21 @@
 
 #include "poly/math.h"
 #include "xenia/cpu/cpu-private.h"
-#include "xenia/cpu/xenon_runtime.h"
+#include "xenia/cpu/runtime.h"
 #include "xenia/export_resolver.h"
 
 namespace xe {
 namespace cpu {
 
-using namespace xe::cpu::runtime;
+using namespace xe::cpu;
+
+using PPCContext = xe::cpu::frontend::ppc::PPCContext;
 
 void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
   XELOGE("call to undefined kernel import");
 }
 
-XexModule::XexModule(XenonRuntime* runtime)
+XexModule::XexModule(Runtime* runtime)
     : Module(runtime),
       runtime_(runtime),
       xex_(nullptr),

@@ -16,16 +16,14 @@
 
 namespace xe {
 namespace cpu {
-namespace hir {
-class HIRBuilder;
-class Instr;
-}  // namespace hir
-namespace runtime {
 class DebugInfo;
 class FunctionInfo;
 class Runtime;
 class SymbolInfo;
-}  // namespace runtime
+namespace hir {
+class HIRBuilder;
+class Instr;
+}  // namespace hir
 }  // namespace cpu
 }  // namespace xe
 
@@ -103,14 +101,14 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Emitter(X64Backend* backend, XbyakAllocator* allocator);
   virtual ~X64Emitter();
 
-  runtime::Runtime* runtime() const { return runtime_; }
+  Runtime* runtime() const { return runtime_; }
   X64Backend* backend() const { return backend_; }
 
   int Initialize();
 
   int Emit(hir::HIRBuilder* builder, uint32_t debug_info_flags,
-           runtime::DebugInfo* debug_info, uint32_t trace_flags,
-           void*& out_code_address, size_t& out_code_size);
+           DebugInfo* debug_info, uint32_t trace_flags, void*& out_code_address,
+           size_t& out_code_size);
 
  public:
   // Reserved:  rsp
@@ -149,10 +147,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void UnimplementedInstr(const hir::Instr* i);
   void UnimplementedExtern(const hir::Instr* i);
 
-  void Call(const hir::Instr* instr, runtime::FunctionInfo* symbol_info);
+  void Call(const hir::Instr* instr, FunctionInfo* symbol_info);
   void CallIndirect(const hir::Instr* instr, const Xbyak::Reg64& reg);
-  void CallExtern(const hir::Instr* instr,
-                  const runtime::FunctionInfo* symbol_info);
+  void CallExtern(const hir::Instr* instr, const FunctionInfo* symbol_info);
   void CallNative(void* fn);
   void CallNative(uint64_t (*fn)(void* raw_context));
   void CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0));
@@ -191,7 +188,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitTraceUserCallReturn();
 
  protected:
-  runtime::Runtime* runtime_;
+  Runtime* runtime_;
   X64Backend* backend_;
   X64CodeCache* code_cache_;
   XbyakAllocator* allocator_;

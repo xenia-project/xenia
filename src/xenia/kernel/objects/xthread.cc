@@ -194,8 +194,8 @@ X_STATUS XThread::Create() {
   // Allocate processor thread state.
   // This is thread safe.
   thread_state_ =
-      new XenonThreadState(kernel_state()->processor()->runtime(), thread_id_,
-                           creation_params_.stack_size, thread_state_address_);
+      new ThreadState(kernel_state()->processor()->runtime(), thread_id_, 0,
+                      creation_params_.stack_size, thread_state_address_);
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {

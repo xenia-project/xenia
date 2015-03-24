@@ -17,7 +17,7 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::frontend::ppc::PPCContext;
-using xe::cpu::runtime::Runtime;
+using xe::cpu::Runtime;
 
 int main(std::vector<std::wstring>& args) {
   std::vector<std::string> narrow_args;

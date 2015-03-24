@@ -15,9 +15,7 @@
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 class Runtime;
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
@@ -40,7 +38,7 @@ class CompilerPass {
   poly::Arena* scratch_arena() const;
 
  protected:
-  runtime::Runtime* runtime_;
+  Runtime* runtime_;
   Compiler* compiler_;
 };
 

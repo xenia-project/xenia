@@ -12,14 +12,12 @@
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/symbol_info.h"
 #include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {
 namespace hir {
-
-using xe::cpu::runtime::FunctionInfo;
 
 #define ASSERT_ADDRESS_TYPE(value)
 #define ASSERT_INTEGER_TYPE(value)

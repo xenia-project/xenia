@@ -9,13 +9,13 @@
 
 #include "xenia/cpu/frontend/frontend.h"
 
-#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {
 namespace frontend {
 
-Frontend::Frontend(runtime::Runtime* runtime) : runtime_(runtime) {}
+Frontend::Frontend(Runtime* runtime) : runtime_(runtime) {}
 
 Frontend::~Frontend() = default;
 

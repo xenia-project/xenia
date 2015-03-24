@@ -7,15 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_RUNTIME_DEBUG_INFO_H_
-#define XENIA_RUNTIME_DEBUG_INFO_H_
+#ifndef XENIA_CPU_DEBUG_INFO_H_
+#define XENIA_CPU_DEBUG_INFO_H_
 
 #include <cstddef>
 #include <cstdint>
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 enum DebugInfoFlags {
   DEBUG_INFO_NONE = 0,
@@ -72,8 +71,7 @@ class DebugInfo {
   SourceMapEntry* source_map_;
 };
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_RUNTIME_DEBUG_INFO_H_
+#endif  // XENIA_CPU_DEBUG_INFO_H_

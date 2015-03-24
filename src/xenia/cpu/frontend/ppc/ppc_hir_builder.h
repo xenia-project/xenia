@@ -11,8 +11,8 @@
 #define XENIA_FRONTEND_PPC_PPC_HIR_BUILDER_H_
 
 #include "xenia/cpu/hir/hir_builder.h"
-#include "xenia/cpu/runtime/function.h"
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/symbol_info.h"
 #include "poly/string_buffer.h"
 
 namespace xe {
@@ -41,10 +41,10 @@ class PPCHIRBuilder : public hir::HIRBuilder {
     // Emit TraceSource nodes with the resulting values of the operations.
     EMIT_TRACE_SOURCE_VALUES = EMIT_TRACE_SOURCE | (1 << 2),
   };
-  int Emit(runtime::FunctionInfo* symbol_info, uint32_t flags);
+  int Emit(FunctionInfo* symbol_info, uint32_t flags);
 
-  runtime::FunctionInfo* symbol_info() const { return symbol_info_; }
-  runtime::FunctionInfo* LookupFunction(uint64_t address);
+  FunctionInfo* symbol_info() const { return symbol_info_; }
+  FunctionInfo* LookupFunction(uint64_t address);
   Label* LookupLabel(uint64_t address);
 
   Value* LoadLR();
@@ -96,7 +96,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
 
   // Reset each Emit:
   bool with_debug_info_;
-  runtime::FunctionInfo* symbol_info_;
+  FunctionInfo* symbol_info_;
   uint64_t start_address_;
   uint64_t instr_count_;
   Instr** instr_offset_list_;

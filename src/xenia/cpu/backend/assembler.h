@@ -14,15 +14,13 @@
 
 namespace xe {
 namespace cpu {
-namespace hir {
-class HIRBuilder;
-}  // namespace hir
-namespace runtime {
 class DebugInfo;
 class Function;
 class FunctionInfo;
 class Runtime;
-}  // namespace runtime
+namespace hir {
+class HIRBuilder;
+}  // namespace hir
 }  // namespace cpu
 }  // namespace xe
 
@@ -41,11 +39,10 @@ class Assembler {
 
   virtual void Reset();
 
-  virtual int Assemble(runtime::FunctionInfo* symbol_info,
-                       hir::HIRBuilder* builder, uint32_t debug_info_flags,
-                       std::unique_ptr<runtime::DebugInfo> debug_info,
-                       uint32_t trace_flags,
-                       runtime::Function** out_function) = 0;
+  virtual int Assemble(FunctionInfo* symbol_info, hir::HIRBuilder* builder,
+                       uint32_t debug_info_flags,
+                       std::unique_ptr<DebugInfo> debug_info,
+                       uint32_t trace_flags, Function** out_function) = 0;
 
  protected:
   Backend* backend_;

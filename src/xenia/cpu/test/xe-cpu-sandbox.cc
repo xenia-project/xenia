@@ -11,7 +11,7 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc/ppc_context.h"
 #include "xenia/cpu/frontend/ppc/ppc_frontend.h"
-#include "xenia/cpu/runtime/raw_module.h"
+#include "xenia/cpu/raw_module.h"
 #include "poly/main.h"
 #include "poly/poly.h"
 
@@ -22,55 +22,7 @@ namespace cpu {
 namespace sandbox {
 
 using xe::cpu::frontend::ppc::PPCContext;
-using xe::cpu::runtime::Runtime;
-
-class ThreadState : public xe::cpu::runtime::ThreadState {
- public:
-  ThreadState(Runtime* runtime, uint32_t thread_id, uint64_t stack_address,
-              size_t stack_size, uint64_t thread_state_address)
-      : xe::cpu::runtime::ThreadState(runtime, thread_id),
-        stack_address_(stack_address),
-        stack_size_(stack_size),
-        thread_state_address_(thread_state_address) {
-    memset(memory_->Translate(stack_address_), 0, stack_size_);
-
-    // Allocate with 64b alignment.
-    context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
-    assert_true((reinterpret_cast<uint64_t>(context_) & 0xF) == 0);
-
-    // Stash pointers to common structures that callbacks may need.
-    context_->reserve_address = memory_->reserve_address();
-    context_->membase = memory_->membase();
-    context_->runtime = runtime;
-    context_->thread_state = this;
-
-    // Set initial registers.
-    context_->r[1] = stack_address_ + stack_size;
-    context_->r[13] = thread_state_address_;
-
-    // Pad out stack a bit, as some games seem to overwrite the caller by about
-    // 16 to 32b.
-    context_->r[1] -= 64;
-
-    raw_context_ = context_;
-
-    runtime_->debugger()->OnThreadCreated(this);
-  }
-  ~ThreadState() override {
-    runtime_->debugger()->OnThreadDestroyed(this);
-    free(context_);
-  }
-
-  PPCContext* context() const { return context_; }
-
- private:
-  uint64_t stack_address_;
-  size_t stack_size_;
-  uint64_t thread_state_address_;
-
-  // NOTE: must be 64b aligned for SSE ops.
-  PPCContext* context_;
-};
+using xe::cpu::Runtime;
 
 // TODO(benvanik): simple memory? move more into core?
 
@@ -93,7 +45,7 @@ int main(std::vector<std::wstring>& args) {
   //     std::make_unique<xe::cpu::backend::x64::X64Backend>(runtime.get());
   runtime->Initialize(std::move(frontend), std::move(backend));
 
-  auto module = std::make_unique<xe::cpu::runtime::RawModule>(runtime.get());
+  auto module = std::make_unique<xe::cpu::RawModule>(runtime.get());
   module->LoadFile(0x00001000, L"test\\codegen\\instr_add.bin");
   runtime->AddModule(std::move(module));
 
@@ -104,7 +56,7 @@ int main(std::vector<std::wstring>& args) {
     auto thread_state = std::make_unique<ThreadState>(
         runtime.get(), 100, stack_address, stack_size, thread_state_address);
 
-    xe::cpu::runtime::Function* fn;
+    xe::cpu::Function* fn;
     runtime->ResolveFunction(0x1000, &fn);
     auto ctx = thread_state->context();
     ctx->lr = 0xBEBEBEBE;

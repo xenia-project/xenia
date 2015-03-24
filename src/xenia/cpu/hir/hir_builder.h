@@ -81,12 +81,12 @@ class HIRBuilder {
   void Trap(uint16_t trap_code = 0);
   void TrapTrue(Value* cond, uint16_t trap_code = 0);
 
-  void Call(runtime::FunctionInfo* symbol_info, uint32_t call_flags = 0);
-  void CallTrue(Value* cond, runtime::FunctionInfo* symbol_info,
+  void Call(FunctionInfo* symbol_info, uint32_t call_flags = 0);
+  void CallTrue(Value* cond, FunctionInfo* symbol_info,
                 uint32_t call_flags = 0);
   void CallIndirect(Value* value, uint32_t call_flags = 0);
   void CallIndirectTrue(Value* cond, Value* value, uint32_t call_flags = 0);
-  void CallExtern(runtime::FunctionInfo* symbol_info);
+  void CallExtern(FunctionInfo* symbol_info);
   void Return();
   void ReturnTrue(Value* cond);
   void SetReturnAddress(Value* value);

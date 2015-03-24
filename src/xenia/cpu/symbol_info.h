@@ -7,15 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_RUNTIME_SYMBOL_INFO_H_
-#define XENIA_RUNTIME_SYMBOL_INFO_H_
+#ifndef XENIA_CPU_SYMBOL_INFO_H_
+#define XENIA_CPU_SYMBOL_INFO_H_
 
 #include <cstdint>
 #include <string>
 
 namespace xe {
 namespace cpu {
-namespace runtime {
 
 class Function;
 class Module;
@@ -104,8 +103,7 @@ class VariableInfo : public SymbolInfo {
   ~VariableInfo() override;
 };
 
-}  // namespace runtime
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_RUNTIME_SYMBOL_INFO_H_
+#endif  // XENIA_CPU_SYMBOL_INFO_H_

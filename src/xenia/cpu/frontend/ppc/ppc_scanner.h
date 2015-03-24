@@ -12,7 +12,7 @@
 
 #include <vector>
 
-#include "xenia/cpu/runtime/symbol_info.h"
+#include "xenia/cpu/symbol_info.h"
 
 namespace xe {
 namespace cpu {
@@ -31,9 +31,9 @@ class PPCScanner {
   PPCScanner(PPCFrontend* frontend);
   ~PPCScanner();
 
-  int FindExtents(runtime::FunctionInfo* symbol_info);
+  int FindExtents(FunctionInfo* symbol_info);
 
-  std::vector<BlockInfo> FindBlocks(runtime::FunctionInfo* symbol_info);
+  std::vector<BlockInfo> FindBlocks(FunctionInfo* symbol_info);
 
  private:
   bool IsRestGprLr(uint64_t address);
