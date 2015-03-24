@@ -1,9 +1,0 @@
-
-/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_rlwimi.o:     file format elf64-powerpc
-
-
-Disassembly of section .text:
-
-0000000000100000 <test_rlwimi>:
-  100000:	50 86 10 3a 	rlwimi  r6,r4,2,0,29
-  100004:	4e 80 00 20 	blr

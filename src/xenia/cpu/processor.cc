@@ -21,7 +21,7 @@ namespace cpu {
 using namespace xe::cpu;
 using namespace xe::cpu::backend;
 
-using PPCContext = xe::cpu::frontend::ppc::PPCContext;
+using PPCContext = xe::cpu::frontend::PPCContext;
 
 void InitializeIfNeeded();
 void CleanupOnShutdown();

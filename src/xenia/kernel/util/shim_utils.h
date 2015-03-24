@@ -10,14 +10,14 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
-#include "xenia/cpu/frontend/ppc/ppc_context.h"
+#include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/common.h"
 #include "xenia/export_resolver.h"
 
 namespace xe {
 namespace kernel {
 
-using PPCContext = xe::cpu::frontend::ppc::PPCContext;
+using PPCContext = xe::cpu::frontend::PPCContext;
 
 #define SHIM_CALL             void _cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \

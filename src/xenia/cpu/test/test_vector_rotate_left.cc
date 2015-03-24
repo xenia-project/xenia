@@ -13,7 +13,7 @@
 using namespace xe::cpu::hir;
 using namespace xe::cpu;
 using namespace xe::cpu::test;
-using xe::cpu::frontend::ppc::PPCContext;
+using xe::cpu::frontend::PPCContext;
 using namespace poly;
 
 TEST_CASE("VECTOR_ROTATE_LEFT_I8", "[instr]") {

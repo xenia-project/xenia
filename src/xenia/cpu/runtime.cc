@@ -13,7 +13,7 @@
 
 #include "poly/poly.h"
 #include "xdb/protocol.h"
-#include "xenia/cpu/frontend/ppc/ppc_frontend.h"
+#include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
 
@@ -24,9 +24,6 @@ DEFINE_string(runtime_backend, "any", "Runtime backend [any, x64].");
 
 namespace xe {
 namespace cpu {
-
-using xe::cpu::backend::Backend;
-using xe::cpu::frontend::Frontend;
 
 class BuiltinModule : public Module {
  public:
@@ -61,7 +58,7 @@ Runtime::~Runtime() {
 }
 
 int Runtime::Initialize(std::unique_ptr<xe::cpu::backend::Backend> backend) {
-  auto frontend = std::make_unique<xe::cpu::frontend::ppc::PPCFrontend>(this);
+  auto frontend = std::make_unique<xe::cpu::frontend::PPCFrontend>(this);
   // TODO(benvanik): set options/etc.
 
   // Must be initialized by subclass before calling into this.

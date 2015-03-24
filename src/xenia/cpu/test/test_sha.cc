@@ -12,7 +12,7 @@
 using namespace xe::cpu::hir;
 using namespace xe::cpu;
 using namespace xe::cpu::test;
-using xe::cpu::frontend::ppc::PPCContext;
+using xe::cpu::frontend::PPCContext;
 
 TEST_CASE("SHA_I8", "[instr]") {
   TestFunction test([](HIRBuilder& b) {

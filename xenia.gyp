@@ -1,7 +1,7 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'includes': [
-    'src/xenia/cpu/frontend/ppc/test/test.gypi',
+    'src/xenia/cpu/frontend/test/test.gypi',
     'src/xenia/cpu/test/test.gypi',
     'tools/tools.gypi',
     'third_party/beaengine.gypi',

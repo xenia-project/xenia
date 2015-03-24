@@ -21,7 +21,7 @@ namespace cpu {
 
 using namespace xe::cpu;
 
-using PPCContext = xe::cpu::frontend::ppc::PPCContext;
+using PPCContext = xe::cpu::frontend::PPCContext;
 
 void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
   XELOGE("call to undefined kernel import");

@@ -1,0 +1,29 @@
+
+/vagrant/src/xenia/cpu/frontend/test/bin//instr_lvexx.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_lvebx_1>:
+  100000:	7c 60 20 0e 	lvebx   v3,0,r4
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_lvebx_2>:
+  100008:	7c 60 20 0e 	lvebx   v3,0,r4
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_lvehx_1>:
+  100010:	7c 60 20 4e 	lvehx   v3,0,r4
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_lvehx_2>:
+  100018:	7c 60 20 4e 	lvehx   v3,0,r4
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_lvewx_1>:
+  100020:	7c 60 20 8e 	lvewx   v3,0,r4
+  100024:	4e 80 00 20 	blr
+
+0000000000100028 <test_lvewx_2>:
+  100028:	7c 60 20 8e 	lvewx   v3,0,r4
+  10002c:	4e 80 00 20 	blr

@@ -14,7 +14,7 @@
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/debugger.h"
 #include "xenia/cpu/entry_table.h"
-#include "xenia/cpu/frontend/frontend.h"
+#include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
@@ -32,7 +32,7 @@ class Runtime {
 
   Memory* memory() const { return memory_; }
   Debugger* debugger() const { return debugger_.get(); }
-  frontend::Frontend* frontend() const { return frontend_.get(); }
+  frontend::PPCFrontend* frontend() const { return frontend_.get(); }
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
 
@@ -67,7 +67,7 @@ class Runtime {
 
   std::unique_ptr<Debugger> debugger_;
 
-  std::unique_ptr<frontend::Frontend> frontend_;
+  std::unique_ptr<frontend::PPCFrontend> frontend_;
   std::unique_ptr<backend::Backend> backend_;
   ExportResolver* export_resolver_;
 

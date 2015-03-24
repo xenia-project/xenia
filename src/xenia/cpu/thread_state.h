@@ -10,7 +10,7 @@
 #ifndef XENIA_CPU_thread_state_H_
 #define XENIA_CPU_thread_state_H_
 
-#include "xenia/cpu/frontend/ppc/ppc_context.h"
+#include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/common.h"
 #include "xenia/memory.h"
@@ -42,7 +42,7 @@ class ThreadState {
   uint64_t stack_address() const { return stack_address_; }
   size_t stack_size() const { return stack_size_; }
   uint64_t thread_state_address() const { return thread_state_address_; }
-  xe::cpu::frontend::ppc::PPCContext* context() const { return context_; }
+  xe::cpu::frontend::PPCContext* context() const { return context_; }
 
   int Suspend() { return Suspend(~0); }
   int Suspend(uint32_t timeout_ms) { return 1; }
@@ -67,7 +67,7 @@ class ThreadState {
   uint64_t thread_state_address_;
 
   // NOTE: must be 64b aligned for SSE ops.
-  xe::cpu::frontend::ppc::PPCContext* context_;
+  xe::cpu::frontend::PPCContext* context_;
 };
 
 }  // namespace cpu

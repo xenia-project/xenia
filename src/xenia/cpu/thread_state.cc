@@ -15,10 +15,9 @@
 namespace xe {
 namespace cpu {
 
-using namespace xe::cpu::frontend;
 using namespace xe::cpu;
 
-using PPCContext = xe::cpu::frontend::ppc::PPCContext;
+using PPCContext = xe::cpu::frontend::PPCContext;
 
 thread_local ThreadState* thread_state_ = nullptr;
 

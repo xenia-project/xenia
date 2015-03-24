@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
-#include "xenia/cpu/frontend/ppc/ppc_context.h"
-#include "xenia/cpu/frontend/ppc/ppc_frontend.h"
+#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/raw_module.h"
 #include "poly/main.h"
 #include "poly/poly.h"
@@ -21,7 +21,7 @@ namespace xe {
 namespace cpu {
 namespace sandbox {
 
-using xe::cpu::frontend::ppc::PPCContext;
+using xe::cpu::frontend::PPCContext;
 using xe::cpu::Runtime;
 
 // TODO(benvanik): simple memory? move more into core?
