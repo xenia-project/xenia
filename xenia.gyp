@@ -1,8 +1,8 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'includes': [
-    'src/alloy/frontend/ppc/test/test.gypi',
-    'src/alloy/test/test.gypi',
+    'src/xenia/cpu/frontend/ppc/test/test.gypi',
+    'src/xenia/cpu/test/test.gypi',
     'tools/tools.gypi',
     'third_party/beaengine.gypi',
     'third_party/gflags.gypi',
@@ -284,107 +284,23 @@
     },
 
     {
-      'target_name': 'liballoy',
-      'product_name': 'liballoy',
-      'type': 'static_library',
-
-      'dependencies': [
-        'beaengine',
-        'gflags',
-        'llvm',
-        'libpoly',
-      ],
-
-      'conditions': [
-        ['OS == "mac"', {
-          'xcode_settings': {
-            'OTHER_CFLAGS': [
-              '-fno-operator-names',
-            ],
-          },
-        }],
-        ['OS == "linux"', {
-          'cflags': [
-            '-fno-operator-names',
-          ],
-        }],
-      ],
-
-      'export_dependent_settings': [
-        'beaengine',
-        'gflags',
-        'llvm',
-        'libpoly',
-      ],
-
-      'direct_dependent_settings': {
-        'include_dirs': [
-          'src/',
-        ],
-
-        'target_conditions': [
-          ['_type=="shared_library"', {
-            'cflags': [
-            ],
-          }],
-          ['_type=="executable"', {
-            'conditions': [
-              ['OS == "win"', {
-                'libraries': [
-                  'kernel32',
-                  'user32',
-                  'ole32',
-                  'ntdll',
-                  'advapi32',
-                ],
-              }],
-              ['OS == "mac"', {
-                'xcode_settings': {
-                  'OTHER_LDFLAGS': [
-                  ],
-                },
-              }],
-              ['OS == "linux"', {
-                'libraries': [
-                  '-lpthread',
-                  '-ldl',
-                ],
-              }],
-            ],
-          }],
-        ],
-      },
-
-      'cflags': [
-      ],
-
-      'include_dirs': [
-        '.',
-        'src/',
-        '<(INTERMEDIATE_DIR)',
-      ],
-
-      'includes': [
-        'src/alloy/sources.gypi',
-      ],
-    },
-
-    {
       'target_name': 'libxenia',
       'product_name': 'libxenia',
       'type': 'static_library',
 
       'dependencies': [
+        'beaengine',
         'gflags',
         'glew',
-        'liballoy',
+        'llvm',
         'libpoly',
         'xxhash',
       ],
       'export_dependent_settings': [
+        'beaengine',
         'gflags',
         'glew',
-        'liballoy',
+        'llvm',
         'libpoly',
         'xxhash',
       ],
@@ -435,6 +351,21 @@
           }],
         ],
       },
+
+      'conditions': [
+        ['OS == "mac"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-fno-operator-names',
+            ],
+          },
+        }],
+        ['OS == "linux"', {
+          'cflags': [
+            '-fno-operator-names',
+          ],
+        }],
+      ],
 
       'cflags': [
       ],

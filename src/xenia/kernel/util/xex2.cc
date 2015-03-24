@@ -21,8 +21,6 @@
 #include "third_party/mspack/mspack.h"
 #include "third_party/pe/pe_image.h"
 
-// using namespace alloy;
-
 // TODO(benvanik): remove.
 #define XEEXPECTZERO(expr) \
   if ((expr) != 0) {       \

@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#include <xenia/cpu/mmio_handler.h>
+#include "xenia/cpu/mmio_handler.h"
 
 #include <mach/mach.h>
 #include <signal.h>
 
 #include <thread>
 
-#include <poly/poly.h>
-#include <xenia/logging.h>
+#include "poly/poly.h"
+#include "xenia/logging.h"
 
 // Mach internal function, not defined in any header.
 // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/exc_server.html

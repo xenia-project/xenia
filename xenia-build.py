@@ -452,9 +452,9 @@ class TestCommand(Command):
     print('Testing...')
     print('')
 
-    # Run base alloy tests.
-    print('Launching alloy-test runner...')
-    result = shell_call('"build/xenia/Debug/alloy-test"')
+    # Run base CPU tests.
+    print('Launching xe-cpu-hir-test runner...')
+    result = shell_call('"build/xenia/Debug/xe-cpu-hir-test"')
     print('')
     if result != 0:
       return result
@@ -465,14 +465,14 @@ class TestCommand(Command):
       print('WARNING: test files not updated!');
     else:
       print('Updating test files...')
-      result = shell_call('./src/alloy/frontend/ppc/test/update.sh')
+      result = shell_call('./src/xenia/cpu/frontend/ppc/test/update.sh')
       print('')
       if result != 0:
         return result
 
     # Start the test runner.
-    print('Launching alloy-ppc-test runner...')
-    result = shell_call('"build/xenia/Debug/alloy-ppc-test"')
+    print('Launching xe-cpu-ppc-test runner...')
+    result = shell_call('"build/xenia/Debug/xe-cpu-ppc-test"')
     print('')
     if result != 0:
       return result

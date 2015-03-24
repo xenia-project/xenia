@@ -16,15 +16,13 @@
 #include "xenia/cpu/xenon_runtime.h"
 #include "xenia/export_resolver.h"
 
-using namespace alloy;
-using namespace alloy::runtime;
-using namespace xe::cpu;
+namespace xe {
+namespace cpu {
 
+using namespace xe::cpu::runtime;
 
-namespace {
 void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
   XELOGE("call to undefined kernel import");
-}
 }
 
 XexModule::XexModule(XenonRuntime* runtime)
@@ -171,7 +169,7 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       // Real consoles rewrite this with some code that sets r11.
       // If we did that we'd still have to put a thunk somewhere and do the
       // dynamic lookup. Instead, we rewrite it to use syscalls, as they
-      // aren't used on the 360. Alloy backends can either take the syscall
+      // aren't used on the 360. CPU backends can either take the syscall
       // or do something smarter.
       //     sc
       //     blr
@@ -531,3 +529,6 @@ int XexModule::FindSaveRest() {
 
   return 0;
 }
+
+}  // namespace cpu
+}  // namespace xe

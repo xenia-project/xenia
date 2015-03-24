@@ -11,6 +11,10 @@
 #define XENIA_CPU_CPU_H_
 
 #include "xenia/cpu/processor.h"
+#include "xenia/cpu/runtime/function.h"
+#include "xenia/cpu/runtime/module.h"
+#include "xenia/cpu/runtime/runtime.h"
+#include "xenia/cpu/runtime/thread_state.h"
 #include "xenia/cpu/xenon_runtime.h"
 #include "xenia/cpu/xenon_thread_state.h"
 #include "xenia/cpu/xex_module.h"

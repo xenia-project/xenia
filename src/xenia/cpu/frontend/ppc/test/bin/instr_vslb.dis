@@ -1,0 +1,25 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_vslb.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_vslb_1>:
+  100000:	10 63 21 04 	vslb    v3,v3,v4
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_vslb_2>:
+  100008:	10 63 21 04 	vslb    v3,v3,v4
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_vslb_3>:
+  100010:	10 63 21 04 	vslb    v3,v3,v4
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_vslb_4>:
+  100018:	10 63 21 04 	vslb    v3,v3,v4
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_vslb_5>:
+  100020:	10 63 21 04 	vslb    v3,v3,v4
+  100024:	4e 80 00 20 	blr

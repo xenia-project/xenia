@@ -1,0 +1,15 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_addic.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_addic_1>:
+  100000:	30 84 00 01 	addic   r4,r4,1
+  100004:	7c c0 01 14 	adde    r6,r0,r0
+  100008:	4e 80 00 20 	blr
+
+000000000010000c <test_addic_2>:
+  10000c:	30 84 00 01 	addic   r4,r4,1
+  100010:	7c c0 01 14 	adde    r6,r0,r0
+  100014:	4e 80 00 20 	blr

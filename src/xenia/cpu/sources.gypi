@@ -36,4 +36,12 @@
       ],
     }],
   ],
+
+  'includes': [
+    'backend/sources.gypi',
+    'compiler/sources.gypi',
+    'frontend/sources.gypi',
+    'hir/sources.gypi',
+    'runtime/sources.gypi',
+  ],
 }

@@ -10,16 +10,14 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
-#include "alloy/frontend/ppc/ppc_context.h"
+#include "xenia/cpu/frontend/ppc/ppc_context.h"
 #include "xenia/common.h"
 #include "xenia/export_resolver.h"
-
 
 namespace xe {
 namespace kernel {
 
-using PPCContext = alloy::frontend::ppc::PPCContext;
-
+using PPCContext = xe::cpu::frontend::ppc::PPCContext;
 
 #define SHIM_CALL             void _cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
@@ -61,6 +59,5 @@ using PPCContext = alloy::frontend::ppc::PPCContext;
 
 }  // namespace kernel
 }  // namespace xe
-
 
 #endif  // XENIA_KERNEL_UTIL_SHIM_UTILS_H_

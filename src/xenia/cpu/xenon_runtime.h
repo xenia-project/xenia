@@ -10,7 +10,7 @@
 #ifndef XENIA_CPU_XENON_RUNTIME_H_
 #define XENIA_CPU_XENON_RUNTIME_H_
 
-#include "alloy/runtime/runtime.h"
+#include "xenia/cpu/runtime/runtime.h"
 #include "xenia/common.h"
 #include "xenia/cpu/xenon_thread_state.h"
 #include "xenia/export_resolver.h"
@@ -21,7 +21,7 @@ namespace cpu {
 
 class XenonThreadState;
 
-class XenonRuntime : public alloy::runtime::Runtime {
+class XenonRuntime : public xe::cpu::runtime::Runtime {
  public:
   XenonRuntime(Memory* memory, ExportResolver* export_resolver,
                uint32_t debug_info_flags, uint32_t trace_flags);
@@ -29,7 +29,8 @@ class XenonRuntime : public alloy::runtime::Runtime {
 
   ExportResolver* export_resolver() const { return export_resolver_; }
 
-  virtual int Initialize(std::unique_ptr<alloy::backend::Backend> backend = 0);
+  virtual int Initialize(
+      std::unique_ptr<xe::cpu::backend::Backend> backend = 0);
 
  private:
   ExportResolver* export_resolver_;

@@ -1,0 +1,17 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_vspltw.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_vspltw_1>:
+  100000:	10 60 22 8c 	vspltw  v3,v4,0
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_vspltw_2>:
+  100008:	10 61 22 8c 	vspltw  v3,v4,1
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_vspltw_3>:
+  100010:	10 63 22 8c 	vspltw  v3,v4,3
+  100014:	4e 80 00 20 	blr

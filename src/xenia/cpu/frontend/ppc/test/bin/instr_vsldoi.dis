@@ -1,0 +1,17 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_vsldoi.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_vsldoi_1>:
+  100000:	10 a3 20 2c 	vsldoi  v5,v3,v4,0
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_vsldoi_2>:
+  100008:	10 a3 20 6c 	vsldoi  v5,v3,v4,1
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_vsldoi_3>:
+  100010:	10 a3 23 ec 	vsldoi  v5,v3,v4,15
+  100014:	4e 80 00 20 	blr

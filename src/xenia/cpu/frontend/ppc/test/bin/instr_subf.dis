@@ -1,0 +1,25 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_subf.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_subf_1>:
+  100000:	7c 6a 58 50 	subf    r3,r10,r11
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_subf_2>:
+  100008:	7c 6a 58 50 	subf    r3,r10,r11
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_subf_3>:
+  100010:	7c 6a 58 50 	subf    r3,r10,r11
+  100014:	4e 80 00 20 	blr
+
+0000000000100018 <test_subf_4>:
+  100018:	7c 6a 58 50 	subf    r3,r10,r11
+  10001c:	4e 80 00 20 	blr
+
+0000000000100020 <test_subf_5>:
+  100020:	7c 6a 58 50 	subf    r3,r10,r11
+  100024:	4e 80 00 20 	blr

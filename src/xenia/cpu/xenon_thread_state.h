@@ -10,8 +10,8 @@
 #ifndef XENIA_CPU_XENON_THREAD_STATE_H_
 #define XENIA_CPU_XENON_THREAD_STATE_H_
 
-#include "alloy/frontend/ppc/ppc_context.h"
-#include "alloy/runtime/thread_state.h"
+#include "xenia/cpu/frontend/ppc/ppc_context.h"
+#include "xenia/cpu/runtime/thread_state.h"
 #include "xenia/common.h"
 #include "xenia/memory.h"
 
@@ -26,9 +26,9 @@ namespace cpu {
 
 class XenonRuntime;
 
-using PPCContext = alloy::frontend::ppc::PPCContext;
+using PPCContext = xe::cpu::frontend::ppc::PPCContext;
 
-class XenonThreadState : public alloy::runtime::ThreadState {
+class XenonThreadState : public xe::cpu::runtime::ThreadState {
  public:
   XenonThreadState(XenonRuntime* runtime, uint32_t thread_id, size_t stack_size,
                    uint64_t thread_state_address);

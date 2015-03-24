@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "alloy/runtime/module.h"
+#include "xenia/cpu/runtime/module.h"
 #include "xenia/common.h"
 #include "xenia/kernel/util/xex2.h"
 
@@ -21,7 +21,7 @@ namespace cpu {
 
 class XenonRuntime;
 
-class XexModule : public alloy::runtime::Module {
+class XexModule : public xe::cpu::runtime::Module {
 public:
   XexModule(XenonRuntime* runtime);
   virtual ~XexModule();

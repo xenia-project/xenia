@@ -1,0 +1,227 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#ifndef XENIA_FRONTEND_PPC_PPC_CONTEXT_H_
+#define XENIA_FRONTEND_PPC_PPC_CONTEXT_H_
+
+#include "poly/poly.h"
+#include "poly/vec128.h"
+
+namespace xe {
+namespace cpu {
+namespace runtime {
+class Runtime;
+class ThreadState;
+}  // namespace runtime
+}  // namespace cpu
+}  // namespace xe
+
+namespace xe {
+namespace cpu {
+namespace frontend {
+namespace ppc {
+
+using vec128_t = poly::vec128_t;
+
+// Map:
+// 0-31: GPR
+// 32-63: FPR
+// 64: LR
+// 65: CTR
+// 66: XER
+// 67: FPSCR
+// 68: VSCR
+// 69-76: CR0-7
+// 100: invalid
+// 128-256: VR
+
+#pragma pack(push, 4)
+typedef struct alignas(64) PPCContext_s {
+  // Must be stored at 0x0 for now.
+  // TODO(benvanik): find a nice way to describe this to the JIT.
+  runtime::ThreadState* thread_state;
+  // TODO(benvanik): this is getting nasty. Must be here.
+  uint8_t* membase;
+
+  // Most frequently used registers first.
+  uint64_t r[32];  // General purpose registers
+  uint64_t lr;     // Link register
+  uint64_t ctr;    // Count register
+
+  // XER register
+  // Split to make it easier to do individual updates.
+  uint8_t xer_ca;
+  uint8_t xer_ov;
+  uint8_t xer_so;
+
+  // Condition registers
+  // These are split to make it easier to do DCE on unused stores.
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr0_lt;  // Negative (LT) - result is negative
+      uint8_t cr0_gt;  // Positive (GT) - result is positive (and not zero)
+      uint8_t cr0_eq;  // Zero (EQ) - result is zero or a stwcx/stdcx completed
+                       // successfully
+      uint8_t cr0_so;  // Summary Overflow (SO) - copy of XER[SO]
+    };
+  } cr0;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr1_fx;   // FP exception summary - copy of FPSCR[FX]
+      uint8_t cr1_fex;  // FP enabled exception summary - copy of FPSCR[FEX]
+      uint8_t
+          cr1_vx;  // FP invalid operation exception summary - copy of FPSCR[VX]
+      uint8_t cr1_ox;  // FP overflow exception - copy of FPSCR[OX]
+    };
+  } cr1;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr2_0;
+      uint8_t cr2_1;
+      uint8_t cr2_2;
+      uint8_t cr2_3;
+    };
+  } cr2;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr3_0;
+      uint8_t cr3_1;
+      uint8_t cr3_2;
+      uint8_t cr3_3;
+    };
+  } cr3;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr4_0;
+      uint8_t cr4_1;
+      uint8_t cr4_2;
+      uint8_t cr4_3;
+    };
+  } cr4;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr5_0;
+      uint8_t cr5_1;
+      uint8_t cr5_2;
+      uint8_t cr5_3;
+    };
+  } cr5;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr6_all_equal;
+      uint8_t cr6_1;
+      uint8_t cr6_none_equal;
+      uint8_t cr6_3;
+    };
+  } cr6;
+  union {
+    uint32_t value;
+    struct {
+      uint8_t cr7_0;
+      uint8_t cr7_1;
+      uint8_t cr7_2;
+      uint8_t cr7_3;
+    };
+  } cr7;
+
+  union {
+    uint32_t value;
+    struct {
+      uint32_t rn : 2;      // FP rounding control: 00 = nearest
+                            //                      01 = toward zero
+                            //                      10 = toward +infinity
+                            //                      11 = toward -infinity
+      uint32_t ni : 1;      // Floating-point non-IEEE mode
+      uint32_t xe : 1;      // IEEE floating-point inexact exception enable
+      uint32_t ze : 1;      // IEEE floating-point zero divide exception enable
+      uint32_t ue : 1;      // IEEE floating-point underflow exception enable
+      uint32_t oe : 1;      // IEEE floating-point overflow exception enable
+      uint32_t ve : 1;      // FP invalid op exception enable
+      uint32_t vxcvi : 1;   // FP invalid op exception: invalid integer convert
+                            // -- sticky
+      uint32_t vxsqrt : 1;  // FP invalid op exception: invalid sqrt -- sticky
+      uint32_t vxsoft : 1;  // FP invalid op exception: software request
+                            // -- sticky
+      uint32_t reserved : 1;
+      uint32_t fprf_un : 1;  // FP result unordered or NaN (FU or ?)
+      uint32_t fprf_eq : 1;  // FP result equal or zero (FE or =)
+      uint32_t fprf_gt : 1;  // FP result greater than or positive (FG or >)
+      uint32_t fprf_lt : 1;  // FP result less than or negative (FL or <)
+      uint32_t fprf_c : 1;   // FP result class
+      uint32_t fi : 1;       // FP fraction inexact
+      uint32_t fr : 1;       // FP fraction rounded
+      uint32_t vxvc : 1;  // FP invalid op exception: invalid compare         --
+                          // sticky
+      uint32_t vximz : 1;   // FP invalid op exception: infinity * 0 -- sticky
+      uint32_t vxzdz : 1;   // FP invalid op exception: 0 / 0 -- sticky
+      uint32_t vxidi : 1;   // FP invalid op exception: infinity / infinity
+                            // -- sticky
+      uint32_t vxisi : 1;   // FP invalid op exception: infinity - infinity
+                            // -- sticky
+      uint32_t vxsnan : 1;  // FP invalid op exception: SNaN -- sticky
+      uint32_t
+          xx : 1;  // FP inexact exception                             -- sticky
+      uint32_t
+          zx : 1;  // FP zero divide exception                         -- sticky
+      uint32_t
+          ux : 1;  // FP underflow exception                           -- sticky
+      uint32_t
+          ox : 1;  // FP overflow exception                            -- sticky
+      uint32_t vx : 1;   // FP invalid operation exception summary
+      uint32_t fex : 1;  // FP enabled exception summary
+      uint32_t
+          fx : 1;  // FP exception summary                             -- sticky
+    } bits;
+  } fpscr;  // Floating-point status and control register
+
+  uint8_t vscr_sat;
+
+  double f[32];     // Floating-point registers
+  vec128_t v[128];  // VMX128 vector registers
+
+  // uint32_t get_fprf() {
+  //   return fpscr.value & 0x000F8000;
+  // }
+  // void set_fprf(const uint32_t v) {
+  //   fpscr.value = (fpscr.value & ~0x000F8000) | v;
+  // }
+
+  // Thread ID assigned to this context.
+  uint32_t thread_id;
+
+  // Reserve address for load acquire/store release. Shared.
+  uint64_t* reserve_address;
+  uint64_t* reserve_value;
+
+  // Used to shuttle data into externs. Contents volatile.
+  uint64_t scratch;
+
+  // Runtime-specific data pointer. Used on callbacks to get access to the
+  // current runtime and its data.
+  runtime::Runtime* runtime;
+
+  void SetRegFromString(const char* name, const char* value);
+  bool CompareRegWithString(const char* name, const char* value,
+                            char* out_value, size_t out_value_size);
+} PPCContext;
+#pragma pack(pop)
+
+}  // namespace ppc
+}  // namespace frontend
+}  // namespace cpu
+}  // namespace xe
+
+#endif  // XENIA_FRONTEND_PPC_PPC_CONTEXT_H_

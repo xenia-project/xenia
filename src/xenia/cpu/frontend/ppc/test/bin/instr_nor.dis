@@ -1,0 +1,14 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_nor.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_nor_cr_1>:
+  100000:	7c 63 18 f9 	not.    r3,r3
+  100004:	38 60 00 00 	li      r3,0
+  100008:	40 82 00 08 	bne     100010 <.nor_cr_1_ne>
+  10000c:	38 60 00 01 	li      r3,1
+
+0000000000100010 <.nor_cr_1_ne>:
+  100010:	4e 80 00 20 	blr

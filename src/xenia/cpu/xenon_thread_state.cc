@@ -12,11 +12,11 @@
 #include "xdb/protocol.h"
 #include "xenia/cpu/xenon_runtime.h"
 
-using namespace alloy;
-using namespace alloy::frontend;
-using namespace alloy::frontend::ppc;
-using namespace alloy::runtime;
-using namespace xe::cpu;
+namespace xe {
+namespace cpu {
+
+using namespace xe::cpu::frontend;
+using namespace xe::cpu::runtime;
 
 XenonThreadState::XenonThreadState(XenonRuntime* runtime, uint32_t thread_id,
                                    size_t stack_size,
@@ -83,3 +83,6 @@ void XenonThreadState::WriteRegisters(xdb::protocol::Registers* registers) {
   memcpy(registers->fpr, context_->f, sizeof(context_->f));
   memcpy(registers->vr, context_->v, sizeof(context_->v));
 }
+
+}  // namespace cpu
+}  // namespace xe

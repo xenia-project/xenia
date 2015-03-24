@@ -1,0 +1,17 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_fabs.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_fabs_1>:
+  100000:	fc 20 0a 10 	fabs    f1,f1
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_fabs_2>:
+  100008:	fc 20 0a 10 	fabs    f1,f1
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_fabs_3>:
+  100010:	fc 20 0a 10 	fabs    f1,f1
+  100014:	4e 80 00 20 	blr

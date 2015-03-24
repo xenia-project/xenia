@@ -36,7 +36,6 @@ std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
 void Profiler::Initialize() {
   // Custom groups.
   MicroProfileSetEnableAllGroups(false);
-  MicroProfileForceEnableGroup("alloy", MicroProfileTokenTypeCpu);
   MicroProfileForceEnableGroup("apu", MicroProfileTokenTypeCpu);
   MicroProfileForceEnableGroup("cpu", MicroProfileTokenTypeCpu);
   MicroProfileForceEnableGroup("gpu", MicroProfileTokenTypeCpu);

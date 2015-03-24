@@ -9,19 +9,17 @@
 
 #include "xenia/cpu/processor.h"
 
-#include "xenia/export_resolver.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/xenon_runtime.h"
 #include "xenia/cpu/xex_module.h"
+#include "xenia/export_resolver.h"
 
-using namespace alloy;
-using namespace alloy::backend;
-using namespace alloy::frontend::ppc;
-using namespace alloy::runtime;
-using namespace xe;
-using namespace xe::cpu;
+namespace xe {
+namespace cpu {
 
-namespace {
+using namespace xe::cpu::backend;
+using namespace xe::cpu::runtime;
+
 void InitializeIfNeeded();
 void CleanupOnShutdown();
 
@@ -42,7 +40,6 @@ void InitializeIfNeeded() {
 }
 
 void CleanupOnShutdown() {}
-}
 
 Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
     : export_resolver_(export_resolver),
@@ -90,7 +87,7 @@ int Processor::Setup() {
   }
 
   std::unique_ptr<Backend> backend;
-  // backend.reset(new alloy::backend::x64::X64Backend(runtime));
+  // backend.reset(new xe::cpu::backend::x64::X64Backend(runtime));
   int result = runtime_->Initialize(std::move(backend));
   if (result) {
     return result;
@@ -171,3 +168,6 @@ uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint64_t address,
 
   return result;
 }
+
+}  // namespace cpu
+}  // namespace xe

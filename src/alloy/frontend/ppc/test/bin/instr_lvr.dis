@@ -1,9 +1,0 @@
-
-/vagrant/src/alloy/frontend/ppc/test/bin//instr_lvr.o:     file format elf64-powerpc
-
-
-Disassembly of section .text:
-
-0000000000100000 <test_lvr_1>:
-  100000:	7c 64 2c 4e 	lvrx    v3,r4,r5
-  100004:	4e 80 00 20 	blr

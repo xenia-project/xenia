@@ -1,0 +1,17 @@
+
+/vagrant/src/xenia/cpu/frontend/ppc/test/bin//instr_vcfsx.o:     file format elf64-powerpc
+
+
+Disassembly of section .text:
+
+0000000000100000 <test_vcfsx_1>:
+  100000:	10 60 1b 4a 	vcfsx   v3,v3,0
+  100004:	4e 80 00 20 	blr
+
+0000000000100008 <test_vcfsx_2>:
+  100008:	10 61 1b 4a 	vcfsx   v3,v3,1
+  10000c:	4e 80 00 20 	blr
+
+0000000000100010 <test_vcfsx_3>:
+  100010:	10 6a 1b 4a 	vcfsx   v3,v3,10
+  100014:	4e 80 00 20 	blr

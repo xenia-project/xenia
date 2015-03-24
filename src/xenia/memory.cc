@@ -9,10 +9,11 @@
 
 #include "xenia/memory.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <mutex>
 
-#include <gflags/gflags.h>
 #include "poly/math.h"
 #include "xenia/cpu/mmio_handler.h"
 
@@ -114,7 +115,14 @@ class xe::MemoryHeap {
 };
 uint32_t MemoryHeap::next_heap_id_ = 1;
 
-Memory::Memory() : mapping_(0), mapping_base_(nullptr) {
+Memory::Memory()
+    : membase_(nullptr),
+      reserve_address_(0),
+      reserve_value_(0),
+      trace_base_(0),
+      mapping_(0),
+      mapping_base_(nullptr) {
+  system_page_size_ = poly::page_size();
   virtual_heap_ = new MemoryHeap(this, false);
   physical_heap_ = new MemoryHeap(this, true);
 }
@@ -142,11 +150,6 @@ Memory::~Memory() {
 }
 
 int Memory::Initialize() {
-  int result = alloy::Memory::Initialize();
-  if (result) {
-    return result;
-  }
-
 // Create main page file-backed mapping. This is all reserved but
 // uncommitted (so it shouldn't expand page file).
 #if XE_PLATFORM_WIN32
@@ -261,6 +264,46 @@ void Memory::UnmapViews() {
 #endif  // XE_PLATFORM_WIN32
     }
   }
+}
+
+void Memory::Zero(uint64_t address, size_t size) {
+  uint8_t* p = membase_ + address;
+  memset(p, 0, size);
+}
+
+void Memory::Fill(uint64_t address, size_t size, uint8_t value) {
+  uint8_t* p = membase_ + address;
+  memset(p, value, size);
+}
+
+void Memory::Copy(uint64_t dest, uint64_t src, size_t size) {
+  uint8_t* pdest = membase_ + dest;
+  const uint8_t* psrc = membase_ + src;
+  memcpy(pdest, psrc, size);
+}
+
+uint64_t Memory::SearchAligned(uint64_t start, uint64_t end,
+                               const uint32_t* values, size_t value_count) {
+  assert_true(start <= end);
+  const uint32_t* p = reinterpret_cast<const uint32_t*>(membase_ + start);
+  const uint32_t* pe = reinterpret_cast<const uint32_t*>(membase_ + end);
+  while (p != pe) {
+    if (*p == values[0]) {
+      const uint32_t* pc = p + 1;
+      size_t matched = 1;
+      for (size_t n = 1; n < value_count; n++, pc++) {
+        if (*pc != values[n]) {
+          break;
+        }
+        matched++;
+      }
+      if (matched == value_count) {
+        return uint64_t(reinterpret_cast<const uint8_t*>(p) - membase_);
+      }
+    }
+    p++;
+  }
+  return 0;
 }
 
 bool Memory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
