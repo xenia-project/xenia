@@ -30,7 +30,7 @@ class BuiltinModule : public Module {
   BuiltinModule(Runtime* runtime) : Module(runtime), name_("builtin") {}
   const std::string& name() const override { return name_; }
   bool ContainsAddress(uint32_t address) override {
-    return (address & 0x1FFFFFFF0) == 0x100000000;
+    return (address & 0xFFFFFFF0) == 0xFFFFFFF0;
   }
 
  private:
