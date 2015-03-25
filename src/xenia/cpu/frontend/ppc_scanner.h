@@ -21,8 +21,8 @@ namespace frontend {
 class PPCFrontend;
 
 typedef struct BlockInfo_t {
-  uint64_t start_address;
-  uint64_t end_address;
+  uint32_t start_address;
+  uint32_t end_address;
 } BlockInfo;
 
 class PPCScanner {
@@ -35,7 +35,7 @@ class PPCScanner {
   std::vector<BlockInfo> FindBlocks(FunctionInfo* symbol_info);
 
  private:
-  bool IsRestGprLr(uint64_t address);
+  bool IsRestGprLr(uint32_t address);
 
  private:
   PPCFrontend* frontend_;

@@ -34,18 +34,18 @@ class Breakpoint {
   };
 
  public:
-  Breakpoint(Type type, uint64_t address);
+  Breakpoint(Type type, uint32_t address);
   ~Breakpoint();
 
   Type type() const { return type_; }
-  uint64_t address() const { return address_; }
+  uint32_t address() const { return address_; }
 
   const char* id() const { return id_.c_str(); }
   void set_id(const char* id) { id_ = std::string(id); }
 
  private:
   Type type_;
-  uint64_t address_;
+  uint32_t address_;
 
   std::string id_;
 };
@@ -91,7 +91,7 @@ class Debugger {
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
-  void FindBreakpoints(uint64_t address,
+  void FindBreakpoints(uint32_t address,
                        std::vector<Breakpoint*>& out_breakpoints);
 
   // TODO(benvanik): utility functions for modification (make function ignored,
@@ -113,7 +113,7 @@ class Debugger {
   std::unordered_map<uint32_t, ThreadState*> threads_;
 
   std::mutex breakpoints_lock_;
-  std::multimap<uint64_t, Breakpoint*> breakpoints_;
+  std::multimap<uint32_t, Breakpoint*> breakpoints_;
 };
 
 }  // namespace cpu

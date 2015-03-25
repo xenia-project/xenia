@@ -24,7 +24,7 @@ using xe::cpu::hir::HIRBuilder;
 namespace passes = xe::cpu::compiler::passes;
 
 TestModule::TestModule(Runtime* runtime, const std::string& name,
-                       std::function<bool(uint64_t)> contains_address,
+                       std::function<bool(uint32_t)> contains_address,
                        std::function<bool(hir::HIRBuilder&)> generate)
     : Module(runtime),
       name_(name),
@@ -66,11 +66,11 @@ TestModule::TestModule(Runtime* runtime, const std::string& name,
 
 TestModule::~TestModule() = default;
 
-bool TestModule::ContainsAddress(uint64_t address) {
+bool TestModule::ContainsAddress(uint32_t address) {
   return contains_address_(address);
 }
 
-SymbolInfo::Status TestModule::DeclareFunction(uint64_t address,
+SymbolInfo::Status TestModule::DeclareFunction(uint32_t address,
                                                FunctionInfo** out_symbol_info) {
   SymbolInfo::Status status = Module::DeclareFunction(address, out_symbol_info);
   if (status == SymbolInfo::STATUS_NEW) {

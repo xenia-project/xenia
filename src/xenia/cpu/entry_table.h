@@ -27,8 +27,8 @@ typedef struct Entry_t {
     STATUS_FAILED,
   } Status;
 
-  uint64_t address;
-  uint64_t end_address;
+  uint32_t address;
+  uint32_t end_address;
   Status status;
   Function* function;
 } Entry;
@@ -38,15 +38,15 @@ class EntryTable {
   EntryTable();
   ~EntryTable();
 
-  Entry* Get(uint64_t address);
-  Entry::Status GetOrCreate(uint64_t address, Entry** out_entry);
+  Entry* Get(uint32_t address);
+  Entry::Status GetOrCreate(uint32_t address, Entry** out_entry);
 
-  std::vector<Function*> FindWithAddress(uint64_t address);
+  std::vector<Function*> FindWithAddress(uint32_t address);
 
  private:
   // TODO(benvanik): replace with a better data structure.
   std::mutex lock_;
-  std::unordered_map<uint64_t, Entry*> map_;
+  std::unordered_map<uint32_t, Entry*> map_;
 };
 
 }  // namespace cpu

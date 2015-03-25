@@ -410,7 +410,7 @@ typedef enum {
 } xe_xex2_section_type;
 
 typedef struct {
-  size_t page_size;
+  uint32_t page_size;
   union {
     struct {
       xe_xex2_section_type  type          : 4;

@@ -42,14 +42,14 @@ class Processor {
 
   int Setup();
 
-  int Execute(ThreadState* thread_state, uint64_t address);
-  uint64_t Execute(ThreadState* thread_state, uint64_t address, uint64_t args[],
+  int Execute(ThreadState* thread_state, uint32_t address);
+  uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                    size_t arg_count);
 
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
-  uint64_t ExecuteInterrupt(uint32_t cpu, uint64_t address, uint64_t args[],
+  uint64_t ExecuteInterrupt(uint32_t cpu, uint32_t address, uint64_t args[],
                             size_t arg_count);
 
  private:
@@ -61,7 +61,7 @@ class Processor {
   Irql irql_;
   std::mutex interrupt_thread_lock_;
   ThreadState* interrupt_thread_state_;
-  uint64_t interrupt_thread_block_;
+  uint32_t interrupt_thread_block_;
 };
 
 }  // namespace cpu

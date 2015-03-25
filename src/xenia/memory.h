@@ -19,8 +19,6 @@
 #include "xenia/common.h"
 #include "xenia/cpu/mmio_handler.h"
 
-typedef struct xe_ppc_state xe_ppc_state_t;
-
 namespace xe {
 
 class MemoryHeap;
@@ -35,8 +33,8 @@ enum {
 // TODO(benvanik): move to heap.
 // Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct.
 struct AllocationInfo {
-  uint64_t base_address;
-  uint64_t allocation_base;
+  uint32_t base_address;
+  uint32_t allocation_base;
   uint32_t allocation_protect;  // TBD
   size_t region_size;
   uint32_t state;    // TBD
@@ -62,37 +60,37 @@ class Memory {
   void set_trace_base(uint64_t value) { trace_base_ = value; }
 
   // TODO(benvanik): make poly memory utils for these.
-  void Zero(uint64_t address, size_t size);
-  void Fill(uint64_t address, size_t size, uint8_t value);
-  void Copy(uint64_t dest, uint64_t src, size_t size);
-  uint64_t SearchAligned(uint64_t start, uint64_t end, const uint32_t* values,
+  void Zero(uint32_t address, uint32_t size);
+  void Fill(uint32_t address, uint32_t size, uint8_t value);
+  void Copy(uint32_t dest, uint32_t src, uint32_t size);
+  uint32_t SearchAligned(uint32_t start, uint32_t end, const uint32_t* values,
                          size_t value_count);
 
-  bool AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
+  bool AddMappedRange(uint32_t address, uint32_t mask, uint32_t size,
                       void* context, cpu::MMIOReadCallback read_callback,
                       cpu::MMIOWriteCallback write_callback);
 
-  uintptr_t AddWriteWatch(uint32_t guest_address, size_t length,
+  uintptr_t AddWriteWatch(uint32_t guest_address, uint32_t length,
                           cpu::WriteWatchCallback callback,
                           void* callback_context, void* callback_data);
   void CancelWriteWatch(uintptr_t watch_handle);
 
-  uint64_t HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
+  uint32_t HeapAlloc(uint32_t base_address, uint32_t size, uint32_t flags,
                      uint32_t alignment = 0x20);
-  int HeapFree(uint64_t address, size_t size);
+  int HeapFree(uint32_t address, uint32_t size);
 
-  bool QueryInformation(uint64_t base_address, AllocationInfo* mem_info);
-  size_t QuerySize(uint64_t base_address);
+  bool QueryInformation(uint32_t base_address, AllocationInfo* mem_info);
+  uint32_t QuerySize(uint32_t base_address);
 
-  int Protect(uint64_t address, size_t size, uint32_t access);
-  uint32_t QueryProtect(uint64_t address);
+  int Protect(uint32_t address, uint32_t size, uint32_t access);
+  uint32_t QueryProtect(uint32_t address);
 
  private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
 
  private:
-  size_t system_page_size_;
+  uint32_t system_page_size_;
   uint8_t* membase_;
   uint64_t reserve_address_;
   uint64_t reserve_value_;

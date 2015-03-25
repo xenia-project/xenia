@@ -80,22 +80,22 @@ DEFINE_bool(scribble_heap, false,
  * this.
  */
 
-#define MEMORY_PHYSICAL_HEAP_LOW 0x00010000
-#define MEMORY_PHYSICAL_HEAP_HIGH 0x20000000
-#define MEMORY_VIRTUAL_HEAP_LOW 0x20000000
-#define MEMORY_VIRTUAL_HEAP_HIGH 0x40000000
+const uint32_t kMemoryPhysicalHeapLow = 0x00010000;
+const uint32_t kMemoryPhysicalHeapHigh = 0x20000000;
+const uint32_t kMemoryVirtualHeapLow = 0x20000000;
+const uint32_t kMemoryVirtualHeapHigh = 0x40000000;
 
 class xe::MemoryHeap {
  public:
   MemoryHeap(Memory* memory, bool is_physical);
   ~MemoryHeap();
 
-  int Initialize(uint64_t low, uint64_t high);
+  int Initialize(uint32_t low, uint32_t high);
 
-  uint64_t Alloc(uint64_t base_address, size_t size, uint32_t flags,
+  uint32_t Alloc(uint32_t base_address, uint32_t size, uint32_t flags,
                  uint32_t alignment);
-  uint64_t Free(uint64_t address, size_t size);
-  size_t QuerySize(uint64_t base_address);
+  uint32_t Free(uint32_t address, uint32_t size);
+  uint32_t QuerySize(uint32_t base_address);
 
   void Dump();
 
@@ -109,7 +109,7 @@ class xe::MemoryHeap {
   uint32_t heap_id_;
   bool is_physical_;
   std::mutex lock_;
-  size_t size_;
+  uint32_t size_;
   uint8_t* ptr_;
   mspace space_;
 };
@@ -122,7 +122,7 @@ Memory::Memory()
       trace_base_(0),
       mapping_(0),
       mapping_base_(nullptr) {
-  system_page_size_ = poly::page_size();
+  system_page_size_ = uint32_t(poly::page_size());
   virtual_heap_ = new MemoryHeap(this, false);
   physical_heap_ = new MemoryHeap(this, true);
 }
@@ -187,9 +187,9 @@ int Memory::Initialize() {
   membase_ = mapping_base_;
 
   // Prepare heaps.
-  virtual_heap_->Initialize(MEMORY_VIRTUAL_HEAP_LOW, MEMORY_VIRTUAL_HEAP_HIGH);
-  physical_heap_->Initialize(MEMORY_PHYSICAL_HEAP_LOW,
-                             MEMORY_PHYSICAL_HEAP_HIGH - 0x1000);
+  virtual_heap_->Initialize(kMemoryVirtualHeapLow, kMemoryVirtualHeapHigh);
+  physical_heap_->Initialize(kMemoryPhysicalHeapLow,
+                             kMemoryPhysicalHeapHigh - 0x1000);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
@@ -212,9 +212,9 @@ int Memory::Initialize() {
 }
 
 const static struct {
-  uint64_t virtual_address_start;
-  uint64_t virtual_address_end;
-  uint64_t target_address;
+  uint32_t virtual_address_start;
+  uint32_t virtual_address_end;
+  uint32_t target_address;
 } map_info[] = {
     0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
     0x40000000, 0x7EFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages (cont)
@@ -265,23 +265,23 @@ void Memory::UnmapViews() {
   }
 }
 
-void Memory::Zero(uint64_t address, size_t size) {
+void Memory::Zero(uint32_t address, uint32_t size) {
   uint8_t* p = membase_ + address;
   memset(p, 0, size);
 }
 
-void Memory::Fill(uint64_t address, size_t size, uint8_t value) {
+void Memory::Fill(uint32_t address, uint32_t size, uint8_t value) {
   uint8_t* p = membase_ + address;
   memset(p, value, size);
 }
 
-void Memory::Copy(uint64_t dest, uint64_t src, size_t size) {
+void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) {
   uint8_t* pdest = membase_ + dest;
   const uint8_t* psrc = membase_ + src;
   memcpy(pdest, psrc, size);
 }
 
-uint64_t Memory::SearchAligned(uint64_t start, uint64_t end,
+uint32_t Memory::SearchAligned(uint32_t start, uint32_t end,
                                const uint32_t* values, size_t value_count) {
   assert_true(start <= end);
   const uint32_t* p = reinterpret_cast<const uint32_t*>(membase_ + start);
@@ -297,7 +297,7 @@ uint64_t Memory::SearchAligned(uint64_t start, uint64_t end,
         matched++;
       }
       if (matched == value_count) {
-        return uint64_t(reinterpret_cast<const uint8_t*>(p) - membase_);
+        return uint32_t(reinterpret_cast<const uint8_t*>(p) - membase_);
       }
     }
     p++;
@@ -305,7 +305,7 @@ uint64_t Memory::SearchAligned(uint64_t start, uint64_t end,
   return 0;
 }
 
-bool Memory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
+bool Memory::AddMappedRange(uint32_t address, uint32_t mask, uint32_t size,
                             void* context, cpu::MMIOReadCallback read_callback,
                             cpu::MMIOWriteCallback write_callback) {
   DWORD protect = PAGE_NOACCESS;
@@ -317,7 +317,7 @@ bool Memory::AddMappedRange(uint64_t address, uint64_t mask, uint64_t size,
                                       read_callback, write_callback);
 }
 
-uintptr_t Memory::AddWriteWatch(uint32_t guest_address, size_t length,
+uintptr_t Memory::AddWriteWatch(uint32_t guest_address, uint32_t length,
                                 cpu::WriteWatchCallback callback,
                                 void* callback_context, void* callback_data) {
   return mmio_handler_->AddWriteWatch(guest_address, length, callback,
@@ -328,13 +328,13 @@ void Memory::CancelWriteWatch(uintptr_t watch_handle) {
   mmio_handler_->CancelWriteWatch(watch_handle);
 }
 
-uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
+uint32_t Memory::HeapAlloc(uint32_t base_address, uint32_t size, uint32_t flags,
                            uint32_t alignment) {
   // If we were given a base address we are outside of the normal heap and
   // will place wherever asked (so long as it doesn't overlap the heap).
   if (!base_address) {
     // Normal allocation from the managed heap.
-    uint64_t result;
+    uint32_t result;
     if (flags & MEMORY_FLAG_PHYSICAL) {
       result = physical_heap_->Alloc(base_address, size, flags, alignment);
     } else {
@@ -347,14 +347,14 @@ uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
     }
     return result;
   } else {
-    if (base_address >= MEMORY_VIRTUAL_HEAP_LOW &&
-        base_address < MEMORY_VIRTUAL_HEAP_HIGH) {
+    if (base_address >= kMemoryVirtualHeapLow &&
+        base_address < kMemoryVirtualHeapHigh) {
       // Overlapping managed heap.
       assert_always();
       return 0;
     }
-    if (base_address >= MEMORY_PHYSICAL_HEAP_LOW &&
-        base_address < MEMORY_PHYSICAL_HEAP_HIGH) {
+    if (base_address >= kMemoryPhysicalHeapLow &&
+        base_address < kMemoryPhysicalHeapHigh) {
       // Overlapping managed heap.
       assert_always();
       return 0;
@@ -378,12 +378,11 @@ uint64_t Memory::HeapAlloc(uint64_t base_address, size_t size, uint32_t flags,
   }
 }
 
-int Memory::HeapFree(uint64_t address, size_t size) {
-  if (address >= MEMORY_VIRTUAL_HEAP_LOW &&
-      address < MEMORY_VIRTUAL_HEAP_HIGH) {
+int Memory::HeapFree(uint32_t address, uint32_t size) {
+  if (address >= kMemoryVirtualHeapLow && address < kMemoryVirtualHeapHigh) {
     return virtual_heap_->Free(address, size) ? 0 : 1;
-  } else if (address >= MEMORY_PHYSICAL_HEAP_LOW &&
-             address < MEMORY_PHYSICAL_HEAP_HIGH) {
+  } else if (address >= kMemoryPhysicalHeapLow &&
+             address < kMemoryPhysicalHeapHigh) {
     return physical_heap_->Free(address, size) ? 0 : 1;
   } else {
     // A placed address. Decommit.
@@ -392,14 +391,14 @@ int Memory::HeapFree(uint64_t address, size_t size) {
   }
 }
 
-bool Memory::QueryInformation(uint64_t base_address, AllocationInfo* mem_info) {
+bool Memory::QueryInformation(uint32_t base_address, AllocationInfo* mem_info) {
   uint8_t* p = Translate(base_address);
   MEMORY_BASIC_INFORMATION mbi;
   if (!VirtualQuery(p, &mbi, sizeof(mbi))) {
     return false;
   }
   mem_info->base_address = base_address;
-  mem_info->allocation_base = static_cast<uint64_t>(
+  mem_info->allocation_base = static_cast<uint32_t>(
       reinterpret_cast<uint8_t*>(mbi.AllocationBase) - membase_);
   mem_info->allocation_protect = mbi.AllocationProtect;
   mem_info->region_size = mbi.RegionSize;
@@ -409,19 +408,19 @@ bool Memory::QueryInformation(uint64_t base_address, AllocationInfo* mem_info) {
   return true;
 }
 
-size_t Memory::QuerySize(uint64_t base_address) {
-  if (base_address >= MEMORY_VIRTUAL_HEAP_LOW &&
-      base_address < MEMORY_VIRTUAL_HEAP_HIGH) {
+uint32_t Memory::QuerySize(uint32_t base_address) {
+  if (base_address >= kMemoryVirtualHeapLow &&
+      base_address < kMemoryVirtualHeapHigh) {
     return virtual_heap_->QuerySize(base_address);
-  } else if (base_address >= MEMORY_PHYSICAL_HEAP_LOW &&
-             base_address < MEMORY_PHYSICAL_HEAP_HIGH) {
+  } else if (base_address >= kMemoryPhysicalHeapLow &&
+             base_address < kMemoryPhysicalHeapHigh) {
     return physical_heap_->QuerySize(base_address);
   } else {
     // A placed address.
     uint8_t* p = Translate(base_address);
     MEMORY_BASIC_INFORMATION mem_info;
     if (VirtualQuery(p, &mem_info, sizeof(mem_info))) {
-      return mem_info.RegionSize;
+      return uint32_t(mem_info.RegionSize);
     } else {
       // Error.
       return 0;
@@ -429,7 +428,7 @@ size_t Memory::QuerySize(uint64_t base_address) {
   }
 }
 
-int Memory::Protect(uint64_t address, size_t size, uint32_t access) {
+int Memory::Protect(uint32_t address, uint32_t size, uint32_t access) {
   uint8_t* p = Translate(address);
 
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -445,7 +444,7 @@ int Memory::Protect(uint64_t address, size_t size, uint32_t access) {
   return VirtualProtect(p, size, new_protect, &old_protect) == TRUE ? 0 : 1;
 }
 
-uint32_t Memory::QueryProtect(uint64_t address) {
+uint32_t Memory::QueryProtect(uint32_t address) {
   uint8_t* p = Translate(address);
   MEMORY_BASIC_INFORMATION info;
   size_t info_size = VirtualQuery((void*)p, &info, sizeof(info));
@@ -472,7 +471,7 @@ MemoryHeap::~MemoryHeap() {
   }
 }
 
-int MemoryHeap::Initialize(uint64_t low, uint64_t high) {
+int MemoryHeap::Initialize(uint32_t low, uint32_t high) {
   // Commit the memory where our heap will live and allocate it.
   // TODO(benvanik): replace dlmalloc with an implementation that can commit
   //     as it goes.
@@ -487,7 +486,7 @@ int MemoryHeap::Initialize(uint64_t low, uint64_t high) {
   return 0;
 }
 
-uint64_t MemoryHeap::Alloc(uint64_t base_address, size_t size, uint32_t flags,
+uint32_t MemoryHeap::Alloc(uint32_t base_address, uint32_t size, uint32_t flags,
                            uint32_t alignment) {
   size_t alloc_size = size;
   if (int32_t(alloc_size) < 0) {
@@ -538,13 +537,13 @@ uint64_t MemoryHeap::Alloc(uint64_t base_address, size_t size, uint32_t flags,
     memset(p, 0xCD, alloc_size);
   }
 
-  uint64_t address =
-      (uint64_t)((uintptr_t)p - (uintptr_t)memory_->mapping_base_);
+  uint32_t address =
+      (uint32_t)((uintptr_t)p - (uintptr_t)memory_->mapping_base_);
 
   return address;
 }
 
-uint64_t MemoryHeap::Free(uint64_t address, size_t size) {
+uint32_t MemoryHeap::Free(uint32_t address, uint32_t size) {
   uint8_t* p = memory_->Translate(address);
 
   // Heap allocated address.
@@ -584,16 +583,16 @@ uint64_t MemoryHeap::Free(uint64_t address, size_t size) {
                 size, MEM_DECOMMIT);
   }
 
-  return (uint64_t)real_size;
+  return static_cast<uint32_t>(real_size);
 }
 
-size_t MemoryHeap::QuerySize(uint64_t base_address) {
+uint32_t MemoryHeap::QuerySize(uint32_t base_address) {
   uint8_t* p = memory_->Translate(base_address);
 
   // Heap allocated address.
-  size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
+  uint32_t heap_guard_size = uint32_t(FLAGS_heap_guard_pages * 4096);
   p -= heap_guard_size;
-  size_t real_size = mspace_usable_size(p);
+  uint32_t real_size = uint32_t(mspace_usable_size(p));
   real_size -= heap_guard_size * 2;
   if (!real_size) {
     return 0;

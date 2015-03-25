@@ -20,11 +20,11 @@ RawModule::RawModule(Runtime* runtime)
 
 RawModule::~RawModule() {}
 
-int RawModule::LoadFile(uint64_t base_address, const std::wstring& path) {
+int RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   auto fixed_path = poly::to_string(poly::fix_path_separators(path));
   FILE* file = fopen(fixed_path.c_str(), "rb");
   fseek(file, 0, SEEK_END);
-  size_t file_length = ftell(file);
+  uint32_t file_length = static_cast<uint32_t>(ftell(file));
   fseek(file, 0, SEEK_SET);
 
   // Allocate memory.
@@ -52,7 +52,7 @@ int RawModule::LoadFile(uint64_t base_address, const std::wstring& path) {
   return 0;
 }
 
-bool RawModule::ContainsAddress(uint64_t address) {
+bool RawModule::ContainsAddress(uint32_t address) {
   return address >= low_address_ && address < high_address_;
 }
 

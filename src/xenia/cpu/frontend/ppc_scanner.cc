@@ -33,7 +33,7 @@ PPCScanner::PPCScanner(PPCFrontend* frontend) : frontend_(frontend) {}
 
 PPCScanner::~PPCScanner() {}
 
-bool PPCScanner::IsRestGprLr(uint64_t address) {
+bool PPCScanner::IsRestGprLr(uint32_t address) {
   FunctionInfo* symbol_info;
   if (frontend_->runtime()->LookupFunctionInfo(address, &symbol_info)) {
     return false;
@@ -283,14 +283,14 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   Memory* memory = frontend_->memory();
   const uint8_t* p = memory->membase();
 
-  std::map<uint64_t, BlockInfo> block_map;
+  std::map<uint32_t, BlockInfo> block_map;
 
-  uint64_t start_address = symbol_info->address();
-  uint64_t end_address = symbol_info->end_address();
+  uint32_t start_address = symbol_info->address();
+  uint32_t end_address = symbol_info->end_address();
   bool in_block = false;
-  uint64_t block_start = 0;
+  uint32_t block_start = 0;
   InstrData i;
-  for (uint64_t address = start_address; address <= end_address; address += 4) {
+  for (uint32_t address = start_address; address <= end_address; address += 4) {
     i.address = address;
     i.code = poly::load_and_swap<uint32_t>(p + address);
     if (!i.code) {

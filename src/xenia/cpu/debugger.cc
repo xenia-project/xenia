@@ -17,7 +17,7 @@
 namespace xe {
 namespace cpu {
 
-Breakpoint::Breakpoint(Type type, uint64_t address)
+Breakpoint::Breakpoint(Type type, uint32_t address)
     : type_(type), address_(address) {}
 
 Breakpoint::~Breakpoint() = default;
@@ -78,7 +78,7 @@ int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
   {
     std::lock_guard<std::mutex> guard(breakpoints_lock_);
     breakpoints_.insert(
-        std::pair<uint64_t, Breakpoint*>(breakpoint->address(), breakpoint));
+        std::pair<uint32_t, Breakpoint*>(breakpoint->address(), breakpoint));
   }
 
   // Find all functions that contain the breakpoint address.
@@ -126,7 +126,7 @@ int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
   return 0;
 }
 
-void Debugger::FindBreakpoints(uint64_t address,
+void Debugger::FindBreakpoints(uint32_t address,
                                std::vector<Breakpoint*>& out_breakpoints) {
   std::lock_guard<std::mutex> guard(breakpoints_lock_);
 
@@ -162,7 +162,7 @@ void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
   std::vector<Breakpoint*> breakpoints;
   {
     std::lock_guard<std::mutex> guard(breakpoints_lock_);
-    for (uint64_t address = symbol_info->address();
+    for (uint32_t address = symbol_info->address();
          address <= symbol_info->end_address(); address += 4) {
       auto range = breakpoints_.equal_range(address);
       if (range.first == range.second) {

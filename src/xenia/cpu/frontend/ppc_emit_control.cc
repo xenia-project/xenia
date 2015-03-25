@@ -50,7 +50,7 @@ int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
     // If it's a block inside of ourself, setup a fast jump.
     // Unless it's to ourselves directly, in which case it's
     // recursion.
-    uint64_t nia_value = nia->AsUint64() & 0xFFFFFFFF;
+    uint32_t nia_value = nia->AsUint64() & 0xFFFFFFFF;
     bool is_recursion = false;
     if (nia_value == f.symbol_info()->address() && lk) {
       is_recursion = true;

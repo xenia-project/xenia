@@ -43,8 +43,8 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   int Emit(FunctionInfo* symbol_info, uint32_t flags);
 
   FunctionInfo* symbol_info() const { return symbol_info_; }
-  FunctionInfo* LookupFunction(uint64_t address);
-  Label* LookupLabel(uint64_t address);
+  FunctionInfo* LookupFunction(uint32_t address);
+  Label* LookupLabel(uint32_t address);
 
   Value* LoadLR();
   void StoreLR(Value* value);
@@ -85,7 +85,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   Value* StoreRelease(Value* address, Value* value, uint32_t store_flags = 0);
 
  private:
-  void AnnotateLabel(uint64_t address, Label* label);
+  void AnnotateLabel(uint32_t address, Label* label);
 
  private:
   PPCFrontend* frontend_;

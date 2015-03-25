@@ -229,7 +229,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
 
 void X64Emitter::MarkSourceOffset(const Instr* i) {
   auto entry = source_map_arena_.Alloc<SourceMapEntry>();
-  entry->source_offset = i->src1.offset;
+  entry->source_offset = static_cast<uint32_t>(i->src1.offset);
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
   entry->code_offset = getSize();
   source_map_count_++;
@@ -477,12 +477,11 @@ const int kICSlotCount = 4;
 const int kICSlotSize = 23;
 const uint64_t kICSlotInvalidTargetAddress = 0x0F0F0F0F0F0F0F0F;
 
-uint64_t ResolveFunctionAddress(void* raw_context, uint64_t target_address) {
+uint64_t ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   // TODO(benvanik): generate this thunk at runtime? or a shim?
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
-  target_address &= 0xFFFFFFFF;
   assert_not_zero(target_address);
 
   Function* fn = NULL;

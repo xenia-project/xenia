@@ -12,7 +12,7 @@
 namespace xe {
 namespace cpu {
 
-SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address)
+SymbolInfo::SymbolInfo(Type type, Module* module, uint32_t address)
     : type_(type),
       module_(module),
       status_(STATUS_DEFINING),
@@ -21,7 +21,7 @@ SymbolInfo::SymbolInfo(Type type, Module* module, uint64_t address)
 
 SymbolInfo::~SymbolInfo() = default;
 
-FunctionInfo::FunctionInfo(Module* module, uint64_t address)
+FunctionInfo::FunctionInfo(Module* module, uint32_t address)
     : SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address),
       end_address_(0),
       behavior_(BEHAVIOR_DEFAULT),
@@ -38,7 +38,7 @@ void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
   extern_info_.arg1 = arg1;
 }
 
-VariableInfo::VariableInfo(Module* module, uint64_t address)
+VariableInfo::VariableInfo(Module* module, uint32_t address)
     : SymbolInfo(SymbolInfo::TYPE_VARIABLE, module, address) {}
 
 VariableInfo::~VariableInfo() = default;

@@ -48,12 +48,12 @@ class Runtime {
                               FunctionInfo::ExternHandler handler, void* arg0,
                               void* arg1);
 
-  std::vector<Function*> FindFunctionsWithAddress(uint64_t address);
+  std::vector<Function*> FindFunctionsWithAddress(uint32_t address);
 
-  int LookupFunctionInfo(uint64_t address, FunctionInfo** out_symbol_info);
-  int LookupFunctionInfo(Module* module, uint64_t address,
+  int LookupFunctionInfo(uint32_t address, FunctionInfo** out_symbol_info);
+  int LookupFunctionInfo(Module* module, uint32_t address,
                          FunctionInfo** out_symbol_info);
-  int ResolveFunction(uint64_t address, Function** out_function);
+  int ResolveFunction(uint32_t address, Function** out_function);
 
   // uint32_t CreateCallback(void (*callback)(void* data), void* data);
 
@@ -75,7 +75,7 @@ class Runtime {
   std::mutex modules_lock_;
   std::vector<std::unique_ptr<Module>> modules_;
   Module* builtin_module_;
-  uint64_t next_builtin_address_;
+  uint32_t next_builtin_address_;
 };
 
 }  // namespace cpu

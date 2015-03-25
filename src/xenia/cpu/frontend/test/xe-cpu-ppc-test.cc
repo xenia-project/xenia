@@ -37,9 +37,9 @@ typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 const uint32_t START_ADDRESS = 0x100000;
 
 struct TestCase {
-  TestCase(uint64_t address, std::string& name)
+  TestCase(uint32_t address, std::string& name)
       : address(address), name(name) {}
-  uint64_t address;
+  uint32_t address;
   std::string name;
   AnnotationList annotations;
 };
@@ -111,8 +111,7 @@ class TestSuite {
       }
       std::string address(line_buffer, t_test_ - line_buffer);
       std::string name(t_test_ + strlen(" t test_"));
-      test_cases.emplace_back(START_ADDRESS + std::stoull(address, 0, 16),
-                              name);
+      test_cases.emplace_back(START_ADDRESS + std::stoul(address, 0, 16), name);
     }
     fclose(f);
     return true;
@@ -195,9 +194,9 @@ class TestRunner {
     runtime->AddModule(std::move(module));
 
     // Simulate a thread.
-    uint64_t stack_size = 64 * 1024;
-    uint64_t stack_address = START_ADDRESS - stack_size;
-    uint64_t thread_state_address = stack_address - 0x1000;
+    uint32_t stack_size = 64 * 1024;
+    uint32_t stack_address = START_ADDRESS - stack_size;
+    uint32_t thread_state_address = stack_address - 0x1000;
     thread_state.reset(new ThreadState(runtime.get(), 0x100, stack_address,
                                        stack_size, thread_state_address));
 
@@ -221,7 +220,7 @@ class TestRunner {
 
     auto ctx = thread_state->context();
     ctx->lr = 0xBEBEBEBE;
-    fn->Call(thread_state.get(), ctx->lr);
+    fn->Call(thread_state.get(), uint32_t(ctx->lr));
 
     // Assert test state expectations.
     bool result = CheckTestResults(test_case);

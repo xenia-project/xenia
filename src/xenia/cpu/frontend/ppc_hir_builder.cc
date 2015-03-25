@@ -74,10 +74,10 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   // Always mark entry with label.
   label_list_[0] = NewLabel();
 
-  uint64_t start_address = symbol_info->address();
-  uint64_t end_address = symbol_info->end_address();
+  uint32_t start_address = symbol_info->address();
+  uint32_t end_address = symbol_info->end_address();
   InstrData i;
-  for (uint64_t address = start_address, offset = 0; address <= end_address;
+  for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
     i.code = poly::load_and_swap<uint32_t>(p + address);
@@ -166,15 +166,14 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   return Finalize();
 }
 
-void PPCHIRBuilder::AnnotateLabel(uint64_t address, Label* label) {
+void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
   char name_buffer[13];
-  snprintf(name_buffer, poly::countof(name_buffer), "loc_%.8X",
-           (uint32_t)address);
+  snprintf(name_buffer, poly::countof(name_buffer), "loc_%.8X", address);
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
   memcpy(label->name, name_buffer, sizeof(name_buffer));
 }
 
-FunctionInfo* PPCHIRBuilder::LookupFunction(uint64_t address) {
+FunctionInfo* PPCHIRBuilder::LookupFunction(uint32_t address) {
   Runtime* runtime = frontend_->runtime();
   FunctionInfo* symbol_info;
   if (runtime->LookupFunctionInfo(address, &symbol_info)) {
@@ -183,7 +182,7 @@ FunctionInfo* PPCHIRBuilder::LookupFunction(uint64_t address) {
   return symbol_info;
 }
 
-Label* PPCHIRBuilder::LookupLabel(uint64_t address) {
+Label* PPCHIRBuilder::LookupLabel(uint32_t address) {
   if (address < start_address_) {
     return NULL;
   }

@@ -78,8 +78,8 @@ void FunctionInstrument::Exit(ThreadState* thread_state) {
   //
 }
 
-MemoryInstrument::MemoryInstrument(Runtime* runtime, uint64_t address,
-                                   uint64_t end_address)
+MemoryInstrument::MemoryInstrument(Runtime* runtime, uint32_t address,
+                                   uint32_t end_address)
     : Instrument(runtime), address_(address), end_address_(end_address) {}
 
 bool MemoryInstrument::Attach() {
@@ -103,7 +103,7 @@ bool MemoryInstrument::Detach() {
   return true;
 }
 
-void MemoryInstrument::Access(ThreadState* thread_state, uint64_t address,
+void MemoryInstrument::Access(ThreadState* thread_state, uint32_t address,
                               AccessType type) {
   // TODO(benvanik): get thread local instance
 }

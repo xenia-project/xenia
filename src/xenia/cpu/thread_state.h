@@ -28,8 +28,8 @@ class Runtime;
 
 class ThreadState {
  public:
-  ThreadState(Runtime* runtime, uint32_t thread_id, uint64_t stack_address,
-              size_t stack_size, uint64_t thread_state_address);
+  ThreadState(Runtime* runtime, uint32_t thread_id, uint32_t stack_address,
+              uint32_t stack_size, uint32_t thread_state_address);
   ~ThreadState();
 
   Runtime* runtime() const { return runtime_; }
@@ -39,9 +39,9 @@ class ThreadState {
   void set_name(const std::string& value) { name_ = value; }
   void* backend_data() const { return backend_data_; }
   void* raw_context() const { return raw_context_; }
-  uint64_t stack_address() const { return stack_address_; }
+  uint32_t stack_address() const { return stack_address_; }
   size_t stack_size() const { return stack_size_; }
-  uint64_t thread_state_address() const { return thread_state_address_; }
+  uint32_t thread_state_address() const { return thread_state_address_; }
   xe::cpu::frontend::PPCContext* context() const { return context_; }
 
   int Suspend() { return Suspend(~0); }
@@ -61,10 +61,10 @@ class ThreadState {
   std::string name_;
   void* backend_data_;
   void* raw_context_;
-  uint64_t stack_address_;
+  uint32_t stack_address_;
   bool stack_allocated_;
-  size_t stack_size_;
-  uint64_t thread_state_address_;
+  uint32_t stack_size_;
+  uint32_t thread_state_address_;
 
   // NOTE: must be 64b aligned for SSE ops.
   xe::cpu::frontend::PPCContext* context_;

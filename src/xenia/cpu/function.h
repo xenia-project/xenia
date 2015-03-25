@@ -28,7 +28,7 @@ class Function {
   Function(FunctionInfo* symbol_info);
   virtual ~Function();
 
-  uint64_t address() const { return address_; }
+  uint32_t address() const { return address_; }
   FunctionInfo* symbol_info() const { return symbol_info_; }
 
   DebugInfo* debug_info() const { return debug_info_.get(); }
@@ -39,16 +39,16 @@ class Function {
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
 
-  int Call(ThreadState* thread_state, uint64_t return_address);
+  int Call(ThreadState* thread_state, uint32_t return_address);
 
  protected:
-  Breakpoint* FindBreakpoint(uint64_t address);
+  Breakpoint* FindBreakpoint(uint32_t address);
   virtual int AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
   virtual int RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
-  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address) = 0;
+  virtual int CallImpl(ThreadState* thread_state, uint32_t return_address) = 0;
 
  protected:
-  uint64_t address_;
+  uint32_t address_;
   FunctionInfo* symbol_info_;
   std::unique_ptr<DebugInfo> debug_info_;
 

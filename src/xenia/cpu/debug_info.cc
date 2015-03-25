@@ -38,7 +38,7 @@ void DebugInfo::InitializeSourceMap(size_t source_map_count,
   // TODO(benvanik): ensure sorted in some way? MC offset?
 }
 
-SourceMapEntry* DebugInfo::LookupSourceOffset(uint64_t offset) {
+SourceMapEntry* DebugInfo::LookupSourceOffset(uint32_t offset) {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (size_t n = 0; n < source_map_count_; n++) {
     auto entry = &source_map_[n];

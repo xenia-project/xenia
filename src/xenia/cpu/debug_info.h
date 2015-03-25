@@ -37,7 +37,7 @@ enum TraceFlags {
 };
 
 typedef struct SourceMapEntry_s {
-  uint64_t source_offset;  // Original source address/offset.
+  uint32_t source_offset;  // Original source address/offset.
   uint64_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
   uint64_t code_offset;    // Offset from emitted code start.
 } SourceMapEntry;
@@ -57,7 +57,7 @@ class DebugInfo {
   void set_machine_code_disasm(char* value) { machine_code_disasm_ = value; }
 
   void InitializeSourceMap(size_t source_map_count, SourceMapEntry* source_map);
-  SourceMapEntry* LookupSourceOffset(uint64_t offset);
+  SourceMapEntry* LookupSourceOffset(uint32_t offset);
   SourceMapEntry* LookupHIROffset(uint64_t offset);
   SourceMapEntry* LookupCodeOffset(uint64_t offset);
 

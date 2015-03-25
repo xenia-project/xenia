@@ -53,7 +53,7 @@ int Function::RemoveBreakpoint(Breakpoint* breakpoint) {
   return found ? 0 : 1;
 }
 
-Breakpoint* Function::FindBreakpoint(uint64_t address) {
+Breakpoint* Function::FindBreakpoint(uint32_t address) {
   std::lock_guard<std::mutex> guard(lock_);
   Breakpoint* result = nullptr;
   for (auto breakpoint : breakpoints_) {
@@ -65,7 +65,7 @@ Breakpoint* Function::FindBreakpoint(uint64_t address) {
   return result;
 }
 
-int Function::Call(ThreadState* thread_state, uint64_t return_address) {
+int Function::Call(ThreadState* thread_state, uint32_t return_address) {
   // SCOPE_profile_cpu_f("cpu");
 
   ThreadState* original_thread_state = ThreadState::Get();

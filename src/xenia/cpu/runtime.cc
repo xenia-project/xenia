@@ -29,7 +29,7 @@ class BuiltinModule : public Module {
  public:
   BuiltinModule(Runtime* runtime) : Module(runtime), name_("builtin") {}
   const std::string& name() const override { return name_; }
-  bool ContainsAddress(uint64_t address) override {
+  bool ContainsAddress(uint32_t address) override {
     return (address & 0x1FFFFFFF0) == 0x100000000;
   }
 
@@ -43,7 +43,7 @@ Runtime::Runtime(Memory* memory, ExportResolver* export_resolver,
       debug_info_flags_(debug_info_flags),
       trace_flags_(trace_flags),
       builtin_module_(nullptr),
-      next_builtin_address_(0x100000000ull),
+      next_builtin_address_(0xFFFF0000ul),
       export_resolver_(export_resolver) {}
 
 Runtime::~Runtime() {
@@ -138,7 +138,7 @@ std::vector<Module*> Runtime::GetModules() {
 FunctionInfo* Runtime::DefineBuiltin(const std::string& name,
                                      FunctionInfo::ExternHandler handler,
                                      void* arg0, void* arg1) {
-  uint64_t address = next_builtin_address_;
+  uint32_t address = next_builtin_address_;
   next_builtin_address_ += 4;
 
   FunctionInfo* fn_info;
@@ -151,11 +151,11 @@ FunctionInfo* Runtime::DefineBuiltin(const std::string& name,
   return fn_info;
 }
 
-std::vector<Function*> Runtime::FindFunctionsWithAddress(uint64_t address) {
+std::vector<Function*> Runtime::FindFunctionsWithAddress(uint32_t address) {
   return entry_table_.FindWithAddress(address);
 }
 
-int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
+int Runtime::ResolveFunction(uint32_t address, Function** out_function) {
   *out_function = nullptr;
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
@@ -187,7 +187,7 @@ int Runtime::ResolveFunction(uint64_t address, Function** out_function) {
   }
 }
 
-int Runtime::LookupFunctionInfo(uint64_t address,
+int Runtime::LookupFunctionInfo(uint32_t address,
                                 FunctionInfo** out_symbol_info) {
   *out_symbol_info = nullptr;
 
@@ -214,7 +214,7 @@ int Runtime::LookupFunctionInfo(uint64_t address,
   return LookupFunctionInfo(code_module, address, out_symbol_info);
 }
 
-int Runtime::LookupFunctionInfo(Module* module, uint64_t address,
+int Runtime::LookupFunctionInfo(Module* module, uint32_t address,
                                 FunctionInfo** out_symbol_info) {
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.

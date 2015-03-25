@@ -86,7 +86,7 @@ class FunctionInstrument : public Instrument {
 
 class MemoryInstrument : public Instrument {
  public:
-  MemoryInstrument(Runtime* runtime, uint64_t address, uint64_t end_address);
+  MemoryInstrument(Runtime* runtime, uint32_t address, uint32_t end_address);
   virtual ~MemoryInstrument() {}
 
   uint64_t address() const { return address_; }
@@ -100,7 +100,7 @@ class MemoryInstrument : public Instrument {
     ACCESS_READ = (1 << 1),
     ACCESS_WRITE = (1 << 2),
   };
-  void Access(ThreadState* thread_state, uint64_t address, AccessType type);
+  void Access(ThreadState* thread_state, uint32_t address, AccessType type);
 
  protected:
   class Instance {
@@ -110,7 +110,7 @@ class MemoryInstrument : public Instrument {
 
     MemoryInstrument* instrument() const { return instrument_; }
 
-    virtual void OnAccess(ThreadState* thread_state, uint64_t address,
+    virtual void OnAccess(ThreadState* thread_state, uint32_t address,
                           AccessType type) = 0;
 
    private:
@@ -118,8 +118,8 @@ class MemoryInstrument : public Instrument {
   };
 
  private:
-  uint64_t address_;
-  uint64_t end_address_;
+  uint32_t address_;
+  uint32_t end_address_;
 };
 
 // ThreadInstrument

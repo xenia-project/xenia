@@ -25,7 +25,7 @@ EntryTable::~EntryTable() {
   }
 }
 
-Entry* EntryTable::Get(uint64_t address) {
+Entry* EntryTable::Get(uint32_t address) {
   std::lock_guard<std::mutex> guard(lock_);
   const auto& it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : nullptr;
@@ -38,7 +38,7 @@ Entry* EntryTable::Get(uint64_t address) {
   return entry;
 }
 
-Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
+Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
   // TODO(benvanik): replace with a map with wait-free for find.
   // https://github.com/facebook/folly/blob/master/folly/AtomicHashMap.h
 
@@ -73,7 +73,7 @@ Entry::Status EntryTable::GetOrCreate(uint64_t address, Entry** out_entry) {
   return status;
 }
 
-std::vector<Function*> EntryTable::FindWithAddress(uint64_t address) {
+std::vector<Function*> EntryTable::FindWithAddress(uint32_t address) {
   std::lock_guard<std::mutex> guard(lock_);
   std::vector<Function*> fns;
   for (auto& it : map_) {

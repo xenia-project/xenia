@@ -25,20 +25,20 @@ namespace cpu {
 class TestModule : public Module {
  public:
   TestModule(Runtime* runtime, const std::string& name,
-             std::function<bool(uint64_t)> contains_address,
+             std::function<bool(uint32_t)> contains_address,
              std::function<bool(hir::HIRBuilder&)> generate);
   ~TestModule() override;
 
   const std::string& name() const override { return name_; }
 
-  bool ContainsAddress(uint64_t address) override;
+  bool ContainsAddress(uint32_t address) override;
 
-  SymbolInfo::Status DeclareFunction(uint64_t address,
+  SymbolInfo::Status DeclareFunction(uint32_t address,
                                      FunctionInfo** out_symbol_info) override;
 
  private:
   std::string name_;
-  std::function<bool(uint64_t)> contains_address_;
+  std::function<bool(uint32_t)> contains_address_;
   std::function<bool(hir::HIRBuilder&)> generate_;
 
   std::unique_ptr<hir::HIRBuilder> builder_;

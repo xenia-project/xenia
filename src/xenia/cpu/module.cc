@@ -24,9 +24,9 @@ Module::Module(Runtime* runtime)
 
 Module::~Module() = default;
 
-bool Module::ContainsAddress(uint64_t address) { return true; }
+bool Module::ContainsAddress(uint32_t address) { return true; }
 
-SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
+SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
   lock_.lock();
   const auto it = map_.find(address);
   SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
@@ -51,7 +51,7 @@ SymbolInfo* Module::LookupSymbol(uint64_t address, bool wait) {
 }
 
 SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
-                                         uint64_t address,
+                                         uint32_t address,
                                          SymbolInfo** out_symbol_info) {
   *out_symbol_info = nullptr;
   lock_.lock();
@@ -100,7 +100,7 @@ SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
   return status;
 }
 
-SymbolInfo::Status Module::DeclareFunction(uint64_t address,
+SymbolInfo::Status Module::DeclareFunction(uint32_t address,
                                            FunctionInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
   SymbolInfo::Status status =
@@ -109,7 +109,7 @@ SymbolInfo::Status Module::DeclareFunction(uint64_t address,
   return status;
 }
 
-SymbolInfo::Status Module::DeclareVariable(uint64_t address,
+SymbolInfo::Status Module::DeclareVariable(uint32_t address,
                                            VariableInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
   SymbolInfo::Status status =

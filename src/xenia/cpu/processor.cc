@@ -104,7 +104,7 @@ int Processor::Setup() {
   return 0;
 }
 
-int Processor::Execute(ThreadState* thread_state, uint64_t address) {
+int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   SCOPE_profile_cpu_f("cpu");
 
   // Attempt to get the function.
@@ -129,7 +129,7 @@ int Processor::Execute(ThreadState* thread_state, uint64_t address) {
   return 0;
 }
 
-uint64_t Processor::Execute(ThreadState* thread_state, uint64_t address,
+uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
                             uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
@@ -155,7 +155,7 @@ void Processor::LowerIrql(Irql old_value) {
                         reinterpret_cast<volatile uint32_t*>(&irql_));
 }
 
-uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint64_t address,
+uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint32_t address,
                                      uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 

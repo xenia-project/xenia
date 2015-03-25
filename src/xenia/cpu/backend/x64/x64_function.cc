@@ -34,10 +34,11 @@ int X64Function::AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
 
 int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
 
-int X64Function::CallImpl(ThreadState* thread_state, uint64_t return_address) {
+int X64Function::CallImpl(ThreadState* thread_state, uint32_t return_address) {
   auto backend = (X64Backend*)thread_state->runtime()->backend();
   auto thunk = backend->host_to_guest_thunk();
-  thunk(machine_code_, thread_state->raw_context(), (void*)return_address);
+  thunk(machine_code_, thread_state->raw_context(),
+        reinterpret_cast<void*>(uintptr_t(return_address)));
   return 0;
 }
 

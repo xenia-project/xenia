@@ -15,11 +15,9 @@
 #include <string>
 #include <vector>
 
-typedef struct xe_ppc_state xe_ppc_state_t;
-
 namespace xe {
 
-typedef void (*xe_kernel_export_shim_fn)(xe_ppc_state_t*, void*);
+typedef void (*xe_kernel_export_shim_fn)(void*, void*);
 
 class KernelExport {
  public:

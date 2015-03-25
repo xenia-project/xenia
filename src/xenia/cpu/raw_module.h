@@ -22,17 +22,17 @@ class RawModule : public Module {
   RawModule(Runtime* runtime);
   ~RawModule() override;
 
-  int LoadFile(uint64_t base_address, const std::wstring& path);
+  int LoadFile(uint32_t base_address, const std::wstring& path);
 
   const std::string& name() const override { return name_; }
 
-  bool ContainsAddress(uint64_t address) override;
+  bool ContainsAddress(uint32_t address) override;
 
  private:
   std::string name_;
-  uint64_t base_address_;
-  uint64_t low_address_;
-  uint64_t high_address_;
+  uint32_t base_address_;
+  uint32_t low_address_;
+  uint32_t high_address_;
 };
 
 }  // namespace cpu

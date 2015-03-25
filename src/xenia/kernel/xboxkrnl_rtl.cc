@@ -292,7 +292,8 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
-    auto buffer_ptr = state->memory()->HeapAlloc(0, ansi_str.size() + 1, 0);
+    auto buffer_ptr =
+        state->memory()->HeapAlloc(0, uint32_t(ansi_str.size() + 1), 0);
     memcpy(SHIM_MEM_ADDR(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
     SHIM_SET_MEM_16(destination_ptr + 0,
                     static_cast<uint16_t>(ansi_str.size()));

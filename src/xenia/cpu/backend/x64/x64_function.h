@@ -32,7 +32,7 @@ class X64Function : public Function {
  protected:
   virtual int AddBreakpointImpl(Breakpoint* breakpoint);
   virtual int RemoveBreakpointImpl(Breakpoint* breakpoint);
-  virtual int CallImpl(ThreadState* thread_state, uint64_t return_address);
+  virtual int CallImpl(ThreadState* thread_state, uint32_t return_address);
 
  private:
   void* machine_code_;

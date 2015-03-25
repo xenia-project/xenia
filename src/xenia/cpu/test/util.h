@@ -72,9 +72,9 @@ class TestFunction {
       xe::cpu::Function* fn;
       runtime->ResolveFunction(0x1000, &fn);
 
-      uint64_t stack_size = 64 * 1024;
-      uint64_t stack_address = memory_size - stack_size;
-      uint64_t thread_state_address = stack_address - 0x1000;
+      uint32_t stack_size = 64 * 1024;
+      uint32_t stack_address = memory_size - stack_size;
+      uint32_t thread_state_address = stack_address - 0x1000;
       auto thread_state =
           std::make_unique<ThreadState>(runtime.get(), 0x100, stack_address,
                                         stack_size, thread_state_address);
@@ -83,13 +83,13 @@ class TestFunction {
 
       pre_call(ctx);
 
-      fn->Call(thread_state.get(), ctx->lr);
+      fn->Call(thread_state.get(), uint32_t(ctx->lr));
 
       post_call(ctx);
     }
   }
 
-  size_t memory_size;
+  uint32_t memory_size;
   std::unique_ptr<Memory> memory;
   std::vector<std::unique_ptr<Runtime>> runtimes;
 };

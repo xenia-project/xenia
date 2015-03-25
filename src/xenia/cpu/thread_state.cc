@@ -22,8 +22,8 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 thread_local ThreadState* thread_state_ = nullptr;
 
 ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
-                         uint64_t stack_address, size_t stack_size,
-                         uint64_t thread_state_address)
+                         uint32_t stack_address, uint32_t stack_size,
+                         uint32_t thread_state_address)
     : runtime_(runtime),
       memory_(runtime->memory()),
       thread_id_(thread_id),

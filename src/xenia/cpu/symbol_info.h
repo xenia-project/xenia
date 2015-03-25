@@ -35,14 +35,14 @@ class SymbolInfo {
   };
 
  public:
-  SymbolInfo(Type type, Module* module, uint64_t address);
+  SymbolInfo(Type type, Module* module, uint32_t address);
   virtual ~SymbolInfo();
 
   Type type() const { return type_; }
   Module* module() const { return module_; }
   Status status() const { return status_; }
   void set_status(Status value) { status_ = value; }
-  uint64_t address() const { return address_; }
+  uint32_t address() const { return address_; }
 
   const std::string& name() const { return name_; }
   void set_name(const std::string& value) { name_ = value; }
@@ -51,7 +51,7 @@ class SymbolInfo {
   Type type_;
   Module* module_;
   Status status_;
-  uint64_t address_;
+  uint32_t address_;
 
   std::string name_;
 };
@@ -67,12 +67,12 @@ class FunctionInfo : public SymbolInfo {
   };
 
  public:
-  FunctionInfo(Module* module, uint64_t address);
+  FunctionInfo(Module* module, uint32_t address);
   ~FunctionInfo() override;
 
   bool has_end_address() const { return end_address_ > 0; }
-  uint64_t end_address() const { return end_address_; }
-  void set_end_address(uint64_t value) { end_address_ = value; }
+  uint32_t end_address() const { return end_address_; }
+  void set_end_address(uint32_t value) { end_address_ = value; }
 
   Behavior behavior() const { return behavior_; }
   void set_behavior(Behavior value) { behavior_ = value; }
@@ -87,7 +87,7 @@ class FunctionInfo : public SymbolInfo {
   void* extern_arg1() const { return extern_info_.arg1; }
 
  private:
-  uint64_t end_address_;
+  uint32_t end_address_;
   Behavior behavior_;
   Function* function_;
   struct {
@@ -99,7 +99,7 @@ class FunctionInfo : public SymbolInfo {
 
 class VariableInfo : public SymbolInfo {
  public:
-  VariableInfo(Module* module, uint64_t address);
+  VariableInfo(Module* module, uint32_t address);
   ~VariableInfo() override;
 };
 

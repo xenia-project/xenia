@@ -34,12 +34,12 @@ class Module {
 
   virtual const std::string& name() const = 0;
 
-  virtual bool ContainsAddress(uint64_t address);
+  virtual bool ContainsAddress(uint32_t address);
 
-  SymbolInfo* LookupSymbol(uint64_t address, bool wait = true);
-  virtual SymbolInfo::Status DeclareFunction(uint64_t address,
+  SymbolInfo* LookupSymbol(uint32_t address, bool wait = true);
+  virtual SymbolInfo::Status DeclareFunction(uint32_t address,
                                              FunctionInfo** out_symbol_info);
-  virtual SymbolInfo::Status DeclareVariable(uint64_t address,
+  virtual SymbolInfo::Status DeclareVariable(uint32_t address,
                                              VariableInfo** out_symbol_info);
 
   SymbolInfo::Status DefineFunction(FunctionInfo* symbol_info);
@@ -52,7 +52,7 @@ class Module {
   int ReadMap(const char* file_name);
 
  private:
-  SymbolInfo::Status DeclareSymbol(SymbolInfo::Type type, uint64_t address,
+  SymbolInfo::Status DeclareSymbol(SymbolInfo::Type type, uint32_t address,
                                    SymbolInfo** out_symbol_info);
   SymbolInfo::Status DefineSymbol(SymbolInfo* symbol_info);
 
@@ -63,7 +63,7 @@ class Module {
  private:
   // TODO(benvanik): replace with a better data structure.
   std::mutex lock_;
-  std::unordered_map<uint64_t, SymbolInfo*> map_;
+  std::unordered_map<uint32_t, SymbolInfo*> map_;
   std::vector<std::unique_ptr<SymbolInfo>> list_;
 };
 
