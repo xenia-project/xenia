@@ -114,8 +114,18 @@ XEEMITTER(fmulsx, 0xEC000032, A)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(fresx, 0xEC000030, A)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- 1.0 / (frB)
+  Value* v = f.Convert(
+      f.Div(f.LoadConstant(1.0f), f.Convert(f.LoadFPR(i.A.FRB), FLOAT32_TYPE)),
+      FLOAT64_TYPE);
+  f.StoreFPR(i.A.FRT, v);
+  // f.UpdateFPRF(v);
+  if (i.A.Rc) {
+    // e.update_cr_with_cond(1, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  return 0;
 }
 
 XEEMITTER(frsqrtex, 0xFC000034, A)(PPCHIRBuilder& f, InstrData& i) {

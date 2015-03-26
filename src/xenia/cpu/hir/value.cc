@@ -357,6 +357,11 @@ void Value::Neg() {
     case FLOAT64_TYPE:
       constant.f64 = -constant.f64;
       break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; ++i) {
+        constant.v128.f32[i] = -constant.v128.f32[i];
+      }
+      break;
     default:
       assert_unhandled_case(type);
       break;
@@ -382,6 +387,11 @@ void Value::Abs() {
       break;
     case FLOAT64_TYPE:
       constant.f64 = abs(constant.f64);
+      break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; ++i) {
+        constant.v128.f32[i] = std::fabsf(constant.v128.f32[i]);
+      }
       break;
     default:
       assert_unhandled_case(type);
