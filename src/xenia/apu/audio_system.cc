@@ -78,9 +78,8 @@ X_STATUS AudioSystem::Setup() {
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup XMA contexts ptr.
-  registers_.xma_context_array_ptr = uint32_t(
-      memory()->HeapAlloc(0, kXmaContextSize * kXmaContextCount,
-                          MEMORY_FLAG_PHYSICAL | MEMORY_FLAG_ZERO, 256));
+  registers_.xma_context_array_ptr = memory()->SystemHeapAlloc(
+      kXmaContextSize * kXmaContextCount, 256, kSystemHeapPhysical);
   // Add all contexts to the free list.
   for (int i = kXmaContextCount - 1; i >= 0; --i) {
     xma_context_free_list_.push_back(registers_.xma_context_array_ptr +
@@ -92,7 +91,7 @@ X_STATUS AudioSystem::Setup() {
   thread_state_ =
       new ThreadState(emulator_->processor()->runtime(), 0, 0, 16 * 1024, 0);
   thread_state_->set_name("Audio Worker");
-  thread_block_ = (uint32_t)memory()->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
+  thread_block_ = memory()->SystemHeapAlloc(2048);
   thread_state_->context()->r[13] = thread_block_;
 
   // Create worker thread.
@@ -169,9 +168,9 @@ void AudioSystem::Shutdown() {
   thread_.join();
 
   delete thread_state_;
-  memory()->HeapFree(thread_block_, 0);
+  memory()->SystemHeapFree(thread_block_);
 
-  memory()->HeapFree(registers_.xma_context_array_ptr, 0);
+  memory()->SystemHeapFree(registers_.xma_context_array_ptr);
 }
 
 uint32_t AudioSystem::AllocateXmaContext() {
@@ -217,7 +216,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
 
   unused_clients_.pop();
 
-  uint32_t ptr = (uint32_t)memory()->HeapAlloc(0, 0x4, 0);
+  uint32_t ptr = memory()->SystemHeapAlloc(0x4);
   auto mem = memory()->membase();
   poly::store_and_swap<uint32_t>(mem + ptr, callback_arg);
 

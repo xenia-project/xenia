@@ -78,15 +78,9 @@ XThread::~XThread() {
   if (thread_state_) {
     delete thread_state_;
   }
-  if (scratch_address_) {
-    kernel_state()->memory()->HeapFree(scratch_address_, 0);
-  }
-  if (tls_address_) {
-    kernel_state()->memory()->HeapFree(tls_address_, 0);
-  }
-  if (thread_state_address_) {
-    kernel_state()->memory()->HeapFree(thread_state_address_, 0);
-  }
+  kernel_state()->memory()->SystemHeapFree(scratch_address_);
+  kernel_state()->memory()->SystemHeapFree(tls_address_);
+  kernel_state()->memory()->SystemHeapFree(thread_state_address_);
 
   if (thread_handle_) {
     // TODO(benvanik): platform kill
@@ -151,8 +145,7 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  thread_state_address_ =
-      (uint32_t)memory()->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
+  thread_state_address_ = memory()->SystemHeapAlloc(2048);
   if (!thread_state_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -166,13 +159,12 @@ X_STATUS XThread::Create() {
   // Allocate thread scratch.
   // This is used by interrupts/APCs/etc so we can round-trip pointers through.
   scratch_size_ = 4 * 16;
-  scratch_address_ =
-      (uint32_t)memory()->HeapAlloc(0, scratch_size_, MEMORY_FLAG_ZERO);
+  scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
 
   // Allocate TLS block.
   const xe_xex2_header_t* header = module->xex_header();
   uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
-  tls_address_ = (uint32_t)memory()->HeapAlloc(0, tls_size, MEMORY_FLAG_ZERO);
+  tls_address_ = memory()->SystemHeapAlloc(tls_size);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     module->Release();
@@ -421,9 +413,8 @@ void XThread::DeliverAPCs(void* data) {
     // kernel_routine(apc_address, &normal_routine, &normal_context,
     // &system_arg1, &system_arg2)
     uint64_t kernel_args[] = {
-        apc_address,                   thread->scratch_address_ + 0,
-        thread->scratch_address_ + 4,  thread->scratch_address_ + 8,
-        thread->scratch_address_ + 12,
+        apc_address, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
+        thread->scratch_address_ + 8, thread->scratch_address_ + 12,
     };
     processor->ExecuteInterrupt(0, kernel_routine, kernel_args,
                                 poly::countof(kernel_args));

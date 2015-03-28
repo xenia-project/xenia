@@ -127,8 +127,8 @@ SHIM_CALL XamAlloc_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
-  uint64_t ptr = state->memory()->HeapAlloc(0, size, MEMORY_FLAG_ZERO);
-  SHIM_SET_MEM_32(out_ptr, uint32_t(ptr));
+  uint32_t ptr = state->memory()->SystemHeapAlloc(size);
+  SHIM_SET_MEM_32(out_ptr, ptr);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
@@ -138,7 +138,7 @@ SHIM_CALL XamFree_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("XamFree(%.8X)", ptr);
 
-  state->memory()->HeapFree(ptr, 0);
+  state->memory()->SystemHeapFree(ptr);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }

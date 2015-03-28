@@ -452,28 +452,32 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't
   // have to do anything. We may want to read it back later, though.
-  uint32_t pVdGlobalDevice = (uint32_t)memory->HeapAlloc(0, 4, 0);
+  uint32_t pVdGlobalDevice =
+      memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalDevice,
                                       pVdGlobalDevice);
   poly::store_and_swap<uint32_t>(mem + pVdGlobalDevice, 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
-  uint32_t pVdGlobalXamDevice = (uint32_t)memory->HeapAlloc(0, 4, 0);
+  uint32_t pVdGlobalXamDevice =
+      memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalXamDevice, pVdGlobalXamDevice);
   poly::store_and_swap<uint32_t>(mem + pVdGlobalXamDevice, 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
-  uint32_t pVdGpuClockInMHz = (uint32_t)memory->HeapAlloc(0, 4, 0);
+  uint32_t pVdGpuClockInMHz =
+      memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGpuClockInMHz,
                                       pVdGpuClockInMHz);
   poly::store_and_swap<uint32_t>(mem + pVdGpuClockInMHz, 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.
-  uint32_t pVdHSIOCalibrationLock = (uint32_t)memory->HeapAlloc(0, 28, 0);
+  uint32_t pVdHSIOCalibrationLock =
+      memory->SystemHeapAlloc(28, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdHSIOCalibrationLock, pVdHSIOCalibrationLock);
   auto hsio_lock =

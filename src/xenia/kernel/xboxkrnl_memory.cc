@@ -418,8 +418,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
     alignment = 4 * 1024;
   }
 
-  uint32_t addr = (uint32_t)state->memory()->HeapAlloc(
-      0, adjusted_size, MEMORY_FLAG_ZERO, alignment);
+  uint32_t addr = state->memory()->SystemHeapAlloc(adjusted_size, alignment);
 
   SHIM_SET_RETURN_32(addr);
 }
@@ -429,7 +428,7 @@ SHIM_CALL ExFreePool_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("ExFreePool(%.8X)", base_address);
 
-  state->memory()->HeapFree(base_address, 0);
+  state->memory()->SystemHeapFree(base_address);
 }
 
 SHIM_CALL KeLockL2_shim(PPCContext* ppc_state, KernelState* state) {

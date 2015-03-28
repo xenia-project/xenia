@@ -41,7 +41,7 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
   backend_data_ = runtime->backend()->AllocThreadData();
 
   if (!stack_address) {
-    stack_address_ = memory()->HeapAlloc(0, stack_size, MEMORY_FLAG_ZERO);
+    stack_address_ = memory()->SystemHeapAlloc(stack_size);
     stack_allocated_ = true;
   } else {
     stack_address_ = stack_address;
@@ -86,7 +86,7 @@ ThreadState::~ThreadState() {
 
   free(context_);
   if (stack_allocated_) {
-    memory()->HeapFree(stack_address_, stack_size_);
+    memory()->SystemHeapFree(stack_address_);
   }
 }
 

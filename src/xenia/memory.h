@@ -21,6 +21,12 @@
 
 namespace xe {
 
+enum SystemHeapFlag : uint32_t {
+  kSystemHeapVirtual = 1 << 0,
+  kSystemHeapPhysical = 1 << 1,
+
+  kSystemHeapDefault = kSystemHeapVirtual,
+};
 class MemoryHeap;
 
 // TODO(benvanik): move to heap.
@@ -75,6 +81,9 @@ class Memory {
                           void* callback_context, void* callback_data);
   void CancelWriteWatch(uintptr_t watch_handle);
 
+  uint32_t SystemHeapAlloc(uint32_t size, uint32_t alignment = 0x20,
+                           uint32_t system_heap_flags = kSystemHeapDefault);
+  void SystemHeapFree(uint32_t address);
   uint32_t HeapAlloc(uint32_t base_address, uint32_t size, uint32_t flags,
                      uint32_t alignment = 0x20);
   int HeapFree(uint32_t address, uint32_t size);

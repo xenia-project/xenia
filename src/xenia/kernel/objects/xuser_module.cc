@@ -23,9 +23,7 @@ XUserModule::XUserModule(KernelState* kernel_state, const char* path)
     : XModule(kernel_state, path), xex_(nullptr), execution_info_ptr_(0) {}
 
 XUserModule::~XUserModule() {
-  if (execution_info_ptr_) {
-    kernel_state()->memory()->HeapFree(execution_info_ptr_, 0);
-  }
+  kernel_state()->memory()->SystemHeapFree(execution_info_ptr_);
   xe_xex2_dealloc(xex_);
 }
 
@@ -116,8 +114,7 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 
   // Store execution info for later use.
   // TODO(benvanik): just put entire xex header in memory somewhere?
-  execution_info_ptr_ =
-      uint32_t(kernel_state()->memory()->HeapAlloc(0, 24, MEMORY_FLAG_ZERO, 0));
+  execution_info_ptr_ = kernel_state()->memory()->SystemHeapAlloc(24);
   auto eip = kernel_state()->memory()->membase() + execution_info_ptr_;
   const auto& ex = xe_xex2_get_header(xex_)->execution_info;
   poly::store_and_swap<uint32_t>(eip + 0x00, ex.media_id);

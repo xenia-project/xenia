@@ -205,7 +205,7 @@ SHIM_CALL RtlFreeAnsiString_shim(PPCContext* ppc_state, KernelState* state) {
     return;
   }
   uint32_t length = SHIM_MEM_16(string_ptr + 2);
-  state->memory()->HeapFree(buffer, length);
+  state->memory()->SystemHeapFree(buffer);
 
   SHIM_SET_MEM_16(string_ptr + 0, 0);
   SHIM_SET_MEM_16(string_ptr + 2, 0);
@@ -260,7 +260,7 @@ SHIM_CALL RtlFreeUnicodeString_shim(PPCContext* ppc_state, KernelState* state) {
     return;
   }
   uint32_t length = SHIM_MEM_16(string_ptr + 2);
-  state->memory()->HeapFree(buffer, length);
+  state->memory()->SystemHeapFree(buffer);
 
   SHIM_SET_MEM_16(string_ptr + 0, 0);
   SHIM_SET_MEM_16(string_ptr + 2, 0);
@@ -292,8 +292,8 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
-    auto buffer_ptr =
-        state->memory()->HeapAlloc(0, uint32_t(ansi_str.size() + 1), 0);
+    uint32_t buffer_ptr =
+        state->memory()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
     memcpy(SHIM_MEM_ADDR(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
     SHIM_SET_MEM_16(destination_ptr + 0,
                     static_cast<uint16_t>(ansi_str.size()));

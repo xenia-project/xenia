@@ -267,18 +267,18 @@ void Memory::UnmapViews() {
 
 void Memory::Zero(uint32_t address, uint32_t size) {
   uint8_t* p = membase_ + address;
-  memset(p, 0, size);
+  std::memset(p, 0, size);
 }
 
 void Memory::Fill(uint32_t address, uint32_t size, uint8_t value) {
   uint8_t* p = membase_ + address;
-  memset(p, value, size);
+  std::memset(p, value, size);
 }
 
 void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) {
   uint8_t* pdest = membase_ + dest;
   const uint8_t* psrc = membase_ + src;
-  memcpy(pdest, psrc, size);
+  std::memcpy(pdest, psrc, size);
 }
 
 uint32_t Memory::SearchAligned(uint32_t start, uint32_t end,
@@ -326,6 +326,25 @@ uintptr_t Memory::AddWriteWatch(uint32_t guest_address, uint32_t length,
 
 void Memory::CancelWriteWatch(uintptr_t watch_handle) {
   mmio_handler_->CancelWriteWatch(watch_handle);
+}
+
+uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
+                                 uint32_t system_heap_flags) {
+  // TODO(benvanik): lightweight pool.
+  bool is_physical = !!(system_heap_flags & kSystemHeapPhysical);
+  uint32_t flags = MEMORY_FLAG_ZERO;
+  if (is_physical) {
+    flags |= MEMORY_FLAG_PHYSICAL;
+  }
+  return HeapAlloc(0, size, flags, alignment);
+}
+
+void Memory::SystemHeapFree(uint32_t address) {
+  if (!address) {
+    return;
+  }
+  // TODO(benvanik): lightweight pool.
+  HeapFree(address, 0);
 }
 
 uint32_t Memory::HeapAlloc(uint32_t base_address, uint32_t size, uint32_t flags,

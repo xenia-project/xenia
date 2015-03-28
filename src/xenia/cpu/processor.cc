@@ -55,7 +55,7 @@ Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
 
 Processor::~Processor() {
   if (interrupt_thread_block_) {
-    memory_->HeapFree(interrupt_thread_block_, 2048);
+    memory_->SystemHeapFree(interrupt_thread_block_);
     delete interrupt_thread_state_;
   }
 
@@ -98,7 +98,7 @@ int Processor::Setup() {
 
   interrupt_thread_state_ = new ThreadState(runtime_, 0, 0, 16 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
-  interrupt_thread_block_ = memory_->HeapAlloc(0, 2048, MEMORY_FLAG_ZERO);
+  interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
 
   return 0;
