@@ -539,6 +539,7 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
     return 2;
   }
   uint8_t *buffer = memory->Translate(header->exe_address);
+  std::memset(buffer, 0, uncompressed_size);
 
   const uint8_t *p = (const uint8_t *)xex_addr + header->exe_offset;
 
@@ -589,6 +590,7 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
   }
   uint8_t *buffer = memory->Translate(header->exe_address);
   uint8_t *d = buffer;
+  std::memset(buffer, 0, uncompressed_size);
 
   uint32_t rk[4 * (MAXNR + 1)];
   uint8_t ivec[16] = {0};
@@ -725,6 +727,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
     goto XECLEANUP;
   }
   uint8_t *buffer = memory->Translate(header->exe_address);
+  std::memset(buffer, 0, uncompressed_size);
 
   // Setup decompressor and decompress.
   sys = mspack_memory_sys_create();

@@ -60,7 +60,7 @@ class XThread : public XObject {
   void SetPriority(int32_t increment);
   void SetAffinity(uint32_t affinity);
 
-  X_STATUS Resume(uint32_t* out_suspend_count);
+  X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
   X_STATUS Suspend(uint32_t* out_suspend_count);
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable,
                  uint64_t interval);

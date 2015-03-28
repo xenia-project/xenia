@@ -159,21 +159,14 @@ SHIM_CALL NtResumeThread_shim(PPCContext* ppc_state, KernelState* state) {
 
 SHIM_CALL KeResumeThread_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t thread_ptr = SHIM_GET_ARG_32(0);
-  uint32_t suspend_count_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("KeResumeThread(%.8X, %.8X)", thread_ptr, suspend_count_ptr);
+  XELOGD("KeResumeThread(%.8X)", thread_ptr);
 
   X_STATUS result;
   XThread* thread =
       (XThread*)XObject::GetObject(state, SHIM_MEM_ADDR(thread_ptr));
-  uint32_t suspend_count;
   if (thread) {
-    result = thread->Resume(&suspend_count);
-  }
-  if (XSUCCEEDED(result)) {
-    if (suspend_count_ptr) {
-      SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
-    }
+    result = thread->Resume();
   }
 
   SHIM_SET_RETURN_32(result);
@@ -447,7 +440,9 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  AssertNoNameCollision(state, obj_attributes_ptr);
+  if (obj_attributes_ptr) {
+    AssertNoNameCollision(state, obj_attributes_ptr);
+  }
 
   XEvent* ev = new XEvent(state);
   ev->Initialize(!event_type, !!initial_state);
