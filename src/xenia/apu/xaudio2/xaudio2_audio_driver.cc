@@ -10,51 +10,49 @@
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
 #include "xenia/apu/apu-private.h"
-
 #include "xenia/emulator.h"
 
-using namespace xe;
-using namespace xe::apu;
-using namespace xe::apu::xaudio2;
-
+namespace xe {
+namespace apu {
+namespace xaudio2 {
 
 class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
-public:
+ public:
   VoiceCallback(HANDLE wait_handle) : wait_handle_(wait_handle) {}
   ~VoiceCallback() {}
 
   void OnStreamEnd() {}
   void OnVoiceProcessingPassEnd() {}
   void OnVoiceProcessingPassStart(uint32_t samples_required) {}
-  void OnBufferEnd(void* context) {
-    SetEvent(wait_handle_);
-  }
+  void OnBufferEnd(void* context) { SetEvent(wait_handle_); }
   void OnBufferStart(void* context) {}
   void OnLoopEnd(void* context) {}
   void OnVoiceError(void* context, HRESULT result) {}
 
-private:
+ private:
   HANDLE wait_handle_;
 };
 
-XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait) :
-    audio_(0), mastering_voice_(0), pcm_voice_(0),
-    wait_handle_(wait), voice_callback_(0),
-    AudioDriver(emulator) {
-}
+XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait)
+    : audio_(0),
+      mastering_voice_(0),
+      pcm_voice_(0),
+      wait_handle_(wait),
+      voice_callback_(0),
+      AudioDriver(emulator) {}
 
-XAudio2AudioDriver::~XAudio2AudioDriver() {
-}
+XAudio2AudioDriver::~XAudio2AudioDriver() {}
 
 const DWORD ChannelMasks[] = {
-  0, // TODO: fixme
-  0, // TODO: fixme
-  SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY,
-  0, // TODO: fixme
-  0, // TODO: fixme
-  0, // TODO: fixme
-  SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT,
-  0, // TODO: fixme
+    0,  // TODO: fixme
+    0,  // TODO: fixme
+    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY,
+    0,  // TODO: fixme
+    0,  // TODO: fixme
+    0,  // TODO: fixme
+    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
+        SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT,
+    0,  // TODO: fixme
 };
 
 void XAudio2AudioDriver::Initialize() {
@@ -70,12 +68,12 @@ void XAudio2AudioDriver::Initialize() {
   }
 
   XAUDIO2_DEBUG_CONFIGURATION config;
-  config.TraceMask        = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS;
-  config.BreakMask        = 0;
-  config.LogThreadID      = FALSE;
-  config.LogTiming        = TRUE;
-  config.LogFunctionName  = TRUE;
-  config.LogFileline      = TRUE;
+  config.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS;
+  config.BreakMask = 0;
+  config.LogThreadID = FALSE;
+  config.LogTiming = TRUE;
+  config.LogFunctionName = TRUE;
+  config.LogFileline = TRUE;
   audio_->SetDebugConfiguration(&config);
 
   hr = audio_->CreateMasteringVoice(&mastering_voice_);
@@ -91,17 +89,19 @@ void XAudio2AudioDriver::Initialize() {
   waveformat.Format.nChannels = frame_channels_;
   waveformat.Format.nSamplesPerSec = 48000;
   waveformat.Format.wBitsPerSample = 32;
-  waveformat.Format.nBlockAlign = (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8;
-  waveformat.Format.nAvgBytesPerSec = waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign;
-  waveformat.Format.cbSize = sizeof(WAVEFORMATIEEEFLOATEX) - sizeof(WAVEFORMATEX);
+  waveformat.Format.nBlockAlign =
+      (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8;
+  waveformat.Format.nAvgBytesPerSec =
+      waveformat.Format.nSamplesPerSec * waveformat.Format.nBlockAlign;
+  waveformat.Format.cbSize =
+      sizeof(WAVEFORMATIEEEFLOATEX) - sizeof(WAVEFORMATEX);
 
   waveformat.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
   waveformat.dwChannelMask = ChannelMasks[waveformat.Format.nChannels];
 
-  hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format,
-                                 0, XAUDIO2_DEFAULT_FREQ_RATIO,
-                                 voice_callback_);
+  hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format, 0,
+                                 XAUDIO2_DEFAULT_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
     assert_always();
@@ -128,7 +128,8 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   // interleave the data
   for (int index = 0, o = 0; index < channel_samples_; ++index) {
-    for (int channel = 0, table = 0; channel < interleave_channels; ++channel, table += channel_samples_) {
+    for (int channel = 0, table = 0; channel < interleave_channels;
+         ++channel, table += channel_samples_) {
       output_frame[o++] = poly::byte_swap(input_frame[table + index]);
     }
   }
@@ -165,3 +166,7 @@ void XAudio2AudioDriver::Shutdown() {
   delete voice_callback_;
   CloseHandle(wait_handle_);
 }
+
+}  // namespace xaudio2
+}  // namespace apu
+}  // namespace xe

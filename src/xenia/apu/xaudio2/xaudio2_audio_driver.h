@@ -21,7 +21,7 @@ namespace apu {
 namespace xaudio2 {
 
 class XAudio2AudioDriver : public AudioDriver {
-public:
+ public:
   XAudio2AudioDriver(Emulator* emulator, HANDLE wait);
   virtual ~XAudio2AudioDriver();
 
@@ -29,7 +29,7 @@ public:
   virtual void SubmitFrame(uint32_t frame_ptr);
   virtual void Shutdown();
 
-private:
+ private:
   IXAudio2* audio_;
   IXAudio2MasteringVoice* mastering_voice_;
   IXAudio2SourceVoice* pcm_voice_;
