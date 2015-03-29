@@ -241,7 +241,7 @@ class TestRunner {
         auto address_str = it.second.substr(0, space_pos);
         auto bytes_str = it.second.substr(space_pos + 1);
         uint32_t address = std::strtoul(address_str.c_str(), nullptr, 16);
-        auto p = memory->Translate(address);
+        auto p = memory->TranslateVirtual(address);
         const char* c = bytes_str.c_str();
         while (*c) {
           while (*c == ' ') ++c;
@@ -283,7 +283,7 @@ class TestRunner {
         auto address_str = it.second.substr(0, space_pos);
         auto bytes_str = it.second.substr(space_pos + 1);
         uint32_t address = std::strtoul(address_str.c_str(), nullptr, 16);
-        auto base_address = memory->Translate(address);
+        auto base_address = memory->TranslateVirtual(address);
         auto p = base_address;
         const char* c = bytes_str.c_str();
         while (*c) {

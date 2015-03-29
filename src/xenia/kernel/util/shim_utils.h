@@ -26,8 +26,8 @@ using PPCContext = xe::cpu::frontend::PPCContext;
       shim_data, \
       (xe_kernel_export_shim_fn)export_name##_shim);
 
-#define SHIM_MEM_BASE         ppc_state->membase
-#define SHIM_MEM_ADDR(a)      (a ? (ppc_state->membase + a) : nullptr)
+#define SHIM_MEM_BASE ppc_state->virtual_membase
+#define SHIM_MEM_ADDR(a) (a ? (ppc_state->virtual_membase + a) : nullptr)
 
 #define SHIM_MEM_8(a)         poly::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a)        poly::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))

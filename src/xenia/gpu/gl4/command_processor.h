@@ -193,8 +193,8 @@ class CommandProcessor {
   bool ExecutePacketType3_INVALIDATE_STATE(RingbufferReader* reader,
                                            uint32_t packet, uint32_t count);
 
-  bool LoadShader(ShaderType shader_type, const uint32_t* address,
-                  uint32_t dword_count);
+  bool LoadShader(ShaderType shader_type, uint32_t guest_address,
+                  const uint32_t* host_address, uint32_t dword_count);
 
   bool IssueDraw();
   UpdateStatus UpdateShaders(PrimitiveType prim_type);
@@ -214,7 +214,6 @@ class CommandProcessor {
                                     GLuint depth_target);
 
   Memory* memory_;
-  uint8_t* membase_;
   GL4GraphicsSystem* graphics_system_;
   RegisterFile* register_file_;
 

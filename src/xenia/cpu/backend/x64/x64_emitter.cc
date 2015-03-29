@@ -368,8 +368,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   uint32_t str_ptr = uint32_t(thread_state->context()->r[3]);
   uint16_t str_len = uint16_t(thread_state->context()->r[4]);
-  const char* str =
-      reinterpret_cast<const char*>(thread_state->memory()->Translate(str_ptr));
+  auto str = thread_state->memory()->TranslateVirtual<const char*>(str_ptr);
   // TODO(benvanik): truncate to length?
   PLOGD("(DebugPrint) %s", str);
   return 0;

@@ -538,7 +538,7 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
            uncompressed_size);
     return 2;
   }
-  uint8_t *buffer = memory->Translate(header->exe_address);
+  uint8_t *buffer = memory->TranslateVirtual(header->exe_address);
   std::memset(buffer, 0, uncompressed_size);
 
   const uint8_t *p = (const uint8_t *)xex_addr + header->exe_offset;
@@ -588,7 +588,7 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
            uncompressed_size);
     return 1;
   }
-  uint8_t *buffer = memory->Translate(header->exe_address);
+  uint8_t *buffer = memory->TranslateVirtual(header->exe_address);
   uint8_t *d = buffer;
   std::memset(buffer, 0, uncompressed_size);
 
@@ -726,7 +726,7 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
     result_code = 2;
     goto XECLEANUP;
   }
-  uint8_t *buffer = memory->Translate(header->exe_address);
+  uint8_t *buffer = memory->TranslateVirtual(header->exe_address);
   std::memset(buffer, 0, uncompressed_size);
 
   // Setup decompressor and decompress.
@@ -792,7 +792,7 @@ int xe_xex2_read_image(xe_xex2_ref xex, const uint8_t *xex_addr,
 
 int xe_xex2_load_pe(xe_xex2_ref xex) {
   const xe_xex2_header_t *header = &xex->header;
-  const uint8_t *p = xex->memory->Translate(header->exe_address);
+  const uint8_t *p = xex->memory->TranslateVirtual(header->exe_address);
 
   // Verify DOS signature (MZ).
   const IMAGE_DOS_HEADER *doshdr = (const IMAGE_DOS_HEADER *)p;
@@ -886,7 +886,6 @@ const PESection *xe_xex2_get_pe_section(xe_xex2_ref xex, const char *name) {
 
 int xe_xex2_find_import_infos(xe_xex2_ref xex,
                               const xe_xex2_import_library_t *library) {
-  uint8_t *mem = xex->memory->membase();
   auto header = xe_xex2_get_header(xex);
 
   // Find library index for verification.
@@ -910,7 +909,8 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   size_t info_count = 0;
   for (size_t n = 0; n < library->record_count; n++) {
     const uint32_t record = library->records[n];
-    const uint32_t value = poly::load_and_swap<uint32_t>(mem + record);
+    const uint32_t value =
+        poly::load_and_swap<uint32_t>(xex->memory->TranslateVirtual(record));
     if (value & 0xFF000000) {
       // Thunk for previous record - ignore.
     } else {
@@ -929,7 +929,8 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   // Construct infos.
   for (size_t n = 0, i = 0; n < library->record_count; n++) {
     const uint32_t record = library->records[n];
-    const uint32_t value = poly::load_and_swap<uint32_t>(mem + record);
+    const uint32_t value =
+        poly::load_and_swap<uint32_t>(xex->memory->TranslateVirtual(record));
     const uint32_t type = (value & 0xFF000000) >> 24;
 
     // Verify library index matches given library.

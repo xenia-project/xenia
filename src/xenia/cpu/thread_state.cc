@@ -29,7 +29,6 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
       thread_id_(thread_id),
       name_(""),
       backend_data_(0),
-      raw_context_(0),
       stack_size_(stack_size),
       thread_state_address_(thread_state_address) {
   if (thread_id_ == UINT_MAX) {
@@ -50,13 +49,16 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
   assert_not_zero(stack_address_);
 
   // Allocate with 64b alignment.
-  context_ = (PPCContext*)calloc(1, sizeof(PPCContext));
-  assert_true(((uint64_t)context_ & 0xF) == 0);
+  context_ =
+      reinterpret_cast<PPCContext*>(_aligned_malloc(sizeof(PPCContext), 64));
+  assert_true(((uint64_t)context_ & 0x3F) == 0);
+  std::memset(context_, 0, sizeof(PPCContext));
 
   // Stash pointers to common structures that callbacks may need.
   context_->reserve_address = memory_->reserve_address();
   context_->reserve_value = memory_->reserve_value();
-  context_->membase = memory_->membase();
+  context_->virtual_membase = memory_->virtual_membase();
+  context_->physical_membase = memory_->physical_membase();
   context_->runtime = runtime;
   context_->thread_state = this;
   context_->thread_id = thread_id_;
@@ -68,8 +70,6 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
   // Pad out stack a bit, as some games seem to overwrite the caller by about
   // 16 to 32b.
   context_->r[1] -= 64;
-
-  raw_context_ = context_;
 
   runtime_->debugger()->OnThreadCreated(this);
 }
@@ -84,7 +84,7 @@ ThreadState::~ThreadState() {
     thread_state_ = nullptr;
   }
 
-  free(context_);
+  _aligned_free(context_);
   if (stack_allocated_) {
     memory()->SystemHeapFree(stack_address_);
   }

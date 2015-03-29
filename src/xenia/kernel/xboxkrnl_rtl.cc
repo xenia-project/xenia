@@ -541,7 +541,7 @@ SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_state,
 
   // XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
 
-  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
+  const uint8_t* thread_state_block = SHIM_MEM_ADDR(ppc_state->r[13]);
   uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
@@ -583,7 +583,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_state,
 
   // XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
 
-  const uint8_t* thread_state_block = ppc_state->membase + ppc_state->r[13];
+  const uint8_t* thread_state_block = SHIM_MEM_ADDR(ppc_state->r[13]);
   uint32_t thread_id = XThread::GetCurrentThreadId(thread_state_block);
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);

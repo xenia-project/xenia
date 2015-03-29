@@ -13,7 +13,6 @@
 #include <atomic>
 
 #include "xenia/kernel/kernel_state.h"
-
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -46,7 +45,7 @@ class XObject {
 
   Emulator* emulator() const { return kernel_state_->emulator_; }
   KernelState* kernel_state() const { return kernel_state_; }
-  uint8_t* membase() const { return kernel_state_->memory()->membase(); }
+  Memory* memory() const { return kernel_state_->memory(); }
 
   Type type();
   X_HANDLE handle() const;
@@ -79,7 +78,6 @@ class XObject {
   virtual void* GetWaitHandle() { return 0; }
 
  protected:
-  Memory* memory() const;
   void SetNativePointer(uint32_t native_ptr);
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);

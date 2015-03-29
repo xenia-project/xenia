@@ -51,10 +51,9 @@ CommandProcessor::CachedPipeline::~CachedPipeline() {
 
 CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
     : memory_(graphics_system->memory()),
-      membase_(graphics_system->memory()->membase()),
       graphics_system_(graphics_system),
       register_file_(graphics_system_->register_file()),
-      trace_writer_(graphics_system->memory()->membase()),
+      trace_writer_(graphics_system->memory()->physical_membase()),
       trace_state_(TraceState::kDisabled),
       worker_running_(true),
       swap_mode_(SwapMode::kNormal),
@@ -212,8 +211,8 @@ void CommandProcessor::WorkerMain() {
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.
     if (read_ptr_writeback_ptr_) {
-      poly::store_and_swap<uint32_t>(membase_ + read_ptr_writeback_ptr_,
-                                     read_ptr_index_);
+      poly::store_and_swap<uint32_t>(
+          memory_->TranslatePhysical(read_ptr_writeback_ptr_), read_ptr_index_);
     }
   }
 
@@ -488,7 +487,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       // Enabled - write to address.
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
-      poly::store_and_swap<uint32_t>(membase_ + xenos::GpuToCpu(mem_addr),
+      poly::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr),
                                      value);
     }
   }
@@ -651,8 +650,8 @@ void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
 
   // Execute commands!
   uint32_t ptr_mask = (primary_buffer_size_ / sizeof(uint32_t)) - 1;
-  RingbufferReader reader(membase_, primary_buffer_ptr_, ptr_mask, start_ptr,
-                          end_ptr);
+  RingbufferReader reader(memory_->physical_membase(), primary_buffer_ptr_,
+                          ptr_mask, start_ptr, end_ptr);
   while (reader.can_read()) {
     ExecutePacket(&reader);
   }
@@ -670,8 +669,8 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
 
   // Execute commands!
   uint32_t ptr_mask = 0;
-  RingbufferReader reader(membase_, primary_buffer_ptr_, ptr_mask, ptr,
-                          ptr + length * sizeof(uint32_t));
+  RingbufferReader reader(memory_->physical_membase(), primary_buffer_ptr_,
+                          ptr_mask, ptr, ptr + length * sizeof(uint32_t));
   while (reader.can_read()) {
     ExecutePacket(&reader);
   }
@@ -681,8 +680,8 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
 
 void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
   uint32_t ptr_mask = 0;
-  RingbufferReader reader(membase_, primary_buffer_ptr_, ptr_mask, ptr,
-                          ptr + count * sizeof(uint32_t));
+  RingbufferReader reader(memory_->physical_membase(), primary_buffer_ptr_,
+                          ptr_mask, ptr, ptr + count * sizeof(uint32_t));
   while (reader.can_read()) {
     ExecutePacket(&reader);
   }
@@ -992,7 +991,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
       // Memory.
       auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
       poll_reg_addr &= ~0x3;
-      value = poly::load<uint32_t>(membase_ + GpuToCpu(poll_reg_addr));
+      value = poly::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
       value = GpuSwap(value, endianness);
       trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
     } else {
@@ -1095,7 +1094,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
     auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
     trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
-    value = poly::load<uint32_t>(membase_ + GpuToCpu(poll_reg_addr));
+    value = poly::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
     value = GpuSwap(value, endianness);
   } else {
     // Register.
@@ -1136,7 +1135,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
       auto endianness = static_cast<Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
       write_data = GpuSwap(write_data, endianness);
-      poly::store(membase_ + GpuToCpu(write_reg_addr), write_data);
+      poly::store(memory_->TranslatePhysical(write_reg_addr), write_data);
       trace_writer_.WriteMemoryWrite(write_reg_addr, 4);
     } else {
       // Register.
@@ -1182,7 +1181,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
   auto endianness = static_cast<Endian>(address & 0x3);
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
-  poly::store(membase_ + GpuToCpu(address), data_value);
+  poly::store(memory_->TranslatePhysical(address), data_value);
   trace_writer_.WriteMemoryWrite(address, 4);
   return true;
 }
@@ -1207,7 +1206,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
   };
   assert_true(endianness == xenos::Endian::k8in16);
   poly::copy_and_swap_16_aligned(
-      reinterpret_cast<uint16_t*>(membase_ + GpuToCpu(address)), extents,
+      reinterpret_cast<uint16_t*>(memory_->TranslatePhysical(address)), extents,
       poly::countof(extents));
   trace_writer_.WriteMemoryWrite(address, sizeof(extents));
   return true;
@@ -1367,8 +1366,8 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
   }
   trace_writer_.WriteMemoryRead(address, size_dwords * 4);
   for (uint32_t n = 0; n < size_dwords; n++, index++) {
-    uint32_t data =
-        poly::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
+    uint32_t data = poly::load_and_swap<uint32_t>(
+        memory_->TranslatePhysical(address + n * 4));
     WriteRegister(index, data);
   }
   return true;
@@ -1397,8 +1396,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
   trace_writer_.WriteMemoryRead(addr, size_dwords * 4);
-  LoadShader(shader_type,
-             reinterpret_cast<uint32_t*>(membase_ + GpuToCpu(addr)),
+  LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
              size_dwords);
   return true;
 }
@@ -1414,8 +1412,8 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
   reader->CheckRead(size_dwords);
-  LoadShader(shader_type, reinterpret_cast<uint32_t*>(membase_ + reader->ptr()),
-             size_dwords);
+  LoadShader(shader_type, reader->ptr(),
+             memory_->TranslatePhysical<uint32_t*>(reader->ptr()), size_dwords);
   reader->Advance(size_dwords);
   return true;
 }
@@ -1429,11 +1427,12 @@ bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(
 }
 
 bool CommandProcessor::LoadShader(ShaderType shader_type,
-                                  const uint32_t* address,
+                                  uint32_t guest_address,
+                                  const uint32_t* host_address,
                                   uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   GL4Shader* shader_ptr = nullptr;
-  uint64_t hash = XXH64(address, dword_count * sizeof(uint32_t), 0);
+  uint64_t hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
   auto it = shader_cache_.find(hash);
   if (it != shader_cache_.end()) {
     // Found in the cache.
@@ -1442,17 +1441,16 @@ bool CommandProcessor::LoadShader(ShaderType shader_type,
   } else {
     // Not found in cache.
     // No translation is performed here, as it depends on program_cntl.
-    auto shader =
-        std::make_unique<GL4Shader>(shader_type, hash, address, dword_count);
+    auto shader = std::make_unique<GL4Shader>(shader_type, hash, host_address,
+                                              dword_count);
     shader_ptr = shader.get();
     shader_cache_.insert({hash, shader_ptr});
     all_shaders_.emplace_back(std::move(shader));
 
     XELOGGPU("Set %s shader at %0.8X (%db):\n%s",
              shader_type == ShaderType::kVertex ? "vertex" : "pixel",
-             uint32_t(reinterpret_cast<uintptr_t>(address) -
-                      reinterpret_cast<uintptr_t>(membase_)),
-             dword_count * 4, shader_ptr->ucode_disassembly().c_str());
+             guest_address, dword_count * 4,
+             shader_ptr->ucode_disassembly().c_str());
   }
   switch (shader_type) {
     case ShaderType::kVertex:
@@ -2299,11 +2297,11 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer() {
                                      &allocation)) {
     if (info.format == IndexFormat::kInt32) {
       auto dest = reinterpret_cast<uint32_t*>(allocation.host_ptr);
-      auto src = reinterpret_cast<const uint32_t*>(membase_ + info.guest_base);
+      auto src = memory_->TranslatePhysical<const uint32_t*>(info.guest_base);
       poly::copy_and_swap_32_aligned(dest, src, info.count);
     } else {
       auto dest = reinterpret_cast<uint16_t*>(allocation.host_ptr);
-      auto src = reinterpret_cast<const uint16_t*>(membase_ + info.guest_base);
+      auto src = memory_->TranslatePhysical<const uint16_t*>(info.guest_base);
       poly::copy_and_swap_16_aligned(dest, src, info.count);
     }
     draw_batcher_.set_index_buffer(allocation);
@@ -2357,7 +2355,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
       // it (and if it matches just discard and reuse).
       poly::copy_and_swap_32_aligned(
           reinterpret_cast<uint32_t*>(allocation.host_ptr),
-          reinterpret_cast<const uint32_t*>(membase_ + (fetch->address << 2)),
+          memory_->TranslatePhysical<const uint32_t*>(fetch->address << 2),
           valid_range / 4);
 
       if (!has_bindless_vbos_) {
@@ -2697,7 +2695,7 @@ bool CommandProcessor::IssueCopy() {
   assert_true(fetch->type == 3);
   assert_true(fetch->endian == 2);
   assert_true(fetch->size == 6);
-  const uint8_t* vertex_addr = membase_ + (fetch->address << 2);
+  const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
   int32_t dest_min_x = int32_t((std::min(
       std::min(
@@ -2734,7 +2732,7 @@ bool CommandProcessor::IssueCopy() {
   // Destination pointer in guest memory.
   // We have GL throw bytes directly into it.
   // TODO(benvanik): copy to staging texture then PBO back?
-  void* ptr = membase_ + GpuToCpu(copy_dest_base);
+  void* ptr = memory_->TranslatePhysical(copy_dest_base);
 
   // Make active so glReadPixels reads from us.
   switch (copy_command) {

@@ -175,7 +175,6 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
 void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
                                poly::StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
-  const uint8_t* p = memory->membase();
 
   string_buffer->Append("%s fn %.8X-%.8X %s\n",
                         symbol_info->module()->name().c_str(),
@@ -184,14 +183,14 @@ void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
 
   auto blocks = scanner_->FindBlocks(symbol_info);
 
-  uint64_t start_address = symbol_info->address();
-  uint64_t end_address = symbol_info->end_address();
+  uint32_t start_address = symbol_info->address();
+  uint32_t end_address = symbol_info->end_address();
   InstrData i;
   auto block_it = blocks.begin();
-  for (uint64_t address = start_address, offset = 0; address <= end_address;
+  for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(p + address);
+    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
 

@@ -24,12 +24,13 @@ X_RESULT XXLiveBaseApp::DispatchMessageSync(uint32_t message,
                                             uint32_t buffer_ptr,
                                             uint32_t buffer_length) {
   // NOTE: buffer_length may be zero or valid.
+  auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x00058004: {
       // Called on startup, seems to just return a bool in the buffer.
       assert_true(!buffer_length || buffer_length == 4);
       XELOGD("XLiveBaseGetLogonId(%.8X)", buffer_ptr);
-      poly::store_and_swap<uint32_t>(membase_ + buffer_ptr + 0, 1);  // ?
+      poly::store_and_swap<uint32_t>(buffer + 0, 1);  // ?
       return X_ERROR_SUCCESS;
     }
     case 0x00058020: {

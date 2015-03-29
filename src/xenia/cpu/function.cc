@@ -88,7 +88,7 @@ int Function::Call(ThreadState* thread_state, uint32_t return_address) {
     }
 
     if (handler) {
-      handler(thread_state->raw_context(), symbol_info_->extern_arg0(),
+      handler(thread_state->context(), symbol_info_->extern_arg0(),
               symbol_info_->extern_arg1());
     } else {
       PLOGW("undefined extern call to %.8llX %s", symbol_info_->address(),

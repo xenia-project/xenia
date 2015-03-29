@@ -832,7 +832,7 @@ class TracePlayer : public TraceReader {
 };
 
 void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
-                      uint8_t* membase) {
+                      Memory* memory) {
   ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCondition_FirstUseEver);
   if (!ImGui::Begin("Controller", nullptr, ImVec2(340, 60))) {
     ImGui::End();
@@ -871,7 +871,7 @@ void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
 }
 
 void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
-                       uint8_t* membase) {
+                       Memory* memory) {
   ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCondition_FirstUseEver);
   if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
     ImGui::End();
@@ -1013,7 +1013,7 @@ ShaderDisplayType DrawShaderTypeUI() {
 }
 
 void DrawShaderUI(xe::ui::MainWindow* window, TracePlayer& player,
-                  uint8_t* membase, gl4::GL4Shader* shader,
+                  Memory* memory, gl4::GL4Shader* shader,
                   ShaderDisplayType display_type) {
   // Must be prepared for advanced display modes.
   if (display_type != ShaderDisplayType::kUcode) {
@@ -1166,10 +1166,10 @@ void DrawTextureInfo(TracePlayer& player, const Shader::SamplerDesc& desc) {
   ImGui::Columns(1);
 }
 
-void DrawVertexFetcher(const uint8_t* membase, gl4::GL4Shader* shader,
+void DrawVertexFetcher(const Memory* memory, gl4::GL4Shader* shader,
                        const Shader::BufferDesc& desc,
                        const xe_gpu_vertex_fetch_t* fetch) {
-  const uint8_t* addr = membase + (fetch->address << 2);
+  const uint8_t* addr = memory->TranslatePhysical(fetch->address << 2);
   uint32_t vertex_count = (fetch->size * 4) / desc.stride_words;
   int column_count = 0;
   for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
@@ -1379,7 +1379,7 @@ static const char* kEndiannessNames[] = {
 };
 
 void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
-                 uint8_t* membase) {
+                 Memory* memory) {
   auto gs = static_cast<gl4::GL4GraphicsSystem*>(player.graphics_system());
   auto cp = gs->command_processor();
   auto& regs = *gs->register_file();
@@ -1809,7 +1809,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::BeginChild("#vertex_shader_text", ImVec2(0, 400));
     auto shader = cp->active_vertex_shader();
     if (shader) {
-      DrawShaderUI(window, player, membase, shader, shader_display_type);
+      DrawShaderUI(window, player, memory, shader, shader_display_type);
     } else {
       ImGui::TextColored(kColorError, "ERROR: no vertex shader set");
     }
@@ -1820,7 +1820,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::BeginChild("#pixel_shader_text", ImVec2(0, 400));
     auto shader = cp->active_pixel_shader();
     if (shader) {
-      DrawShaderUI(window, player, membase, shader, shader_display_type);
+      DrawShaderUI(window, player, memory, shader, shader_display_type);
     } else {
       ImGui::TextColored(kColorError, "ERROR: no pixel shader set");
     }
@@ -1864,10 +1864,10 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
         ImGui::NextColumn();
         ImGui::Separator();
       }
-      size_t element_size =
+      uint32_t element_size =
           draw_info.index_format == IndexFormat::kInt32 ? 4 : 2;
-      const uint8_t* data_ptr =
-          membase + draw_info.index_buffer_ptr + (display_start * element_size);
+      const uint8_t* data_ptr = memory->TranslatePhysical(
+          draw_info.index_buffer_ptr + (display_start * element_size));
       for (int i = display_start; i < display_end;
            ++i, data_ptr += element_size) {
         if (i < 10) {
@@ -1927,7 +1927,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
                             fetch->size * 4,
                             kEndiannessNames[int(fetch->endian)])) {
           ImGui::BeginChild("#vertices", ImVec2(0, 300));
-          DrawVertexFetcher(membase, shader, desc, fetch);
+          DrawVertexFetcher(memory, shader, desc, fetch);
           ImGui::EndChild();
           ImGui::TreePop();
         }
@@ -2019,7 +2019,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
 }
 
 void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
-                              uint8_t* membase) {
+                              Memory* memory) {
   ImGui::SetNextWindowCollapsed(true, ImGuiSetCondition_FirstUseEver);
   ImGui::SetNextWindowPos(ImVec2(float(window->width()) - 500 - 5, 5),
                           ImGuiSetCondition_FirstUseEver);
@@ -2160,13 +2160,13 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
   ImGui::End();
 }
 
-void DrawUI(xe::ui::MainWindow* window, TracePlayer& player, uint8_t* membase) {
+void DrawUI(xe::ui::MainWindow* window, TracePlayer& player, Memory* memory) {
   ImGui::ShowTestWindow();
 
-  DrawControllerUI(window, player, membase);
-  DrawCommandListUI(window, player, membase);
-  DrawStateUI(window, player, membase);
-  DrawPacketDisassemblerUI(window, player, membase);
+  DrawControllerUI(window, player, memory);
+  DrawCommandListUI(window, player, memory);
+  DrawStateUI(window, player, memory);
+  DrawPacketDisassemblerUI(window, player, memory);
 }
 
 void ImImpl_Setup();
@@ -2276,7 +2276,7 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
 
       ImGui::NewFrame();
 
-      DrawUI(window, player, emulator->memory()->membase());
+      DrawUI(window, player, emulator->memory());
 
       glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
       ImGui::Render();

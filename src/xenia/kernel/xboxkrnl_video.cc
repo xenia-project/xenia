@@ -447,7 +447,6 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSwap, state);
 
   Memory* memory = state->memory();
-  uint8_t* mem = memory->membase();
 
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't
@@ -456,7 +455,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
       memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalDevice,
                                       pVdGlobalDevice);
-  poly::store_and_swap<uint32_t>(mem + pVdGlobalDevice, 0);
+  poly::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
@@ -464,7 +463,8 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
       memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalXamDevice, pVdGlobalXamDevice);
-  poly::store_and_swap<uint32_t>(mem + pVdGlobalXamDevice, 0);
+  poly::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice),
+                                 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
@@ -472,7 +472,8 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
       memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGpuClockInMHz,
                                       pVdGpuClockInMHz);
-  poly::store_and_swap<uint32_t>(mem + pVdGpuClockInMHz, 500);
+  poly::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz),
+                                 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.
@@ -481,7 +482,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdHSIOCalibrationLock, pVdHSIOCalibrationLock);
   auto hsio_lock =
-      reinterpret_cast<X_RTL_CRITICAL_SECTION*>(mem + pVdHSIOCalibrationLock);
+      memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
   xeRtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock,
                                              10000);
 }

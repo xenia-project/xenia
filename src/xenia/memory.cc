@@ -116,7 +116,8 @@ class xe::MemoryHeap {
 uint32_t MemoryHeap::next_heap_id_ = 1;
 
 Memory::Memory()
-    : membase_(nullptr),
+    : virtual_membase_(nullptr),
+      physical_membase_(nullptr),
       reserve_address_(0),
       reserve_value_(0),
       trace_base_(0),
@@ -134,7 +135,7 @@ Memory::~Memory() {
 
   if (mapping_base_) {
     // GPU writeback.
-    VirtualFree(Translate(0xC0000000), 0x00100000, MEM_DECOMMIT);
+    VirtualFree(TranslateVirtual(0xC0000000), 0x00100000, MEM_DECOMMIT);
   }
 
   delete physical_heap_;
@@ -147,6 +148,9 @@ Memory::~Memory() {
     mapping_base_ = 0;
     mapping_ = 0;
   }
+
+  virtual_membase_ = nullptr;
+  physical_membase_ = nullptr;
 }
 
 int Memory::Initialize() {
@@ -184,7 +188,8 @@ int Memory::Initialize() {
     assert_always();
     return 1;
   }
-  membase_ = mapping_base_;
+  virtual_membase_ = mapping_base_;
+  physical_membase_ = virtual_membase_;
 
   // Prepare heaps.
   virtual_heap_->Initialize(kMemoryVirtualHeapLow, kMemoryVirtualHeapHigh);
@@ -193,7 +198,8 @@ int Memory::Initialize() {
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
-  VirtualAlloc(Translate(0x00000000), 0x00100000, MEM_COMMIT, PAGE_READWRITE);
+  VirtualAlloc(TranslatePhysical(0x00000000), 0x00100000, MEM_COMMIT,
+               PAGE_READWRITE);
 
   // Add handlers for MMIO.
   mmio_handler_ = cpu::MMIOHandler::Install(mapping_base_);
@@ -204,9 +210,10 @@ int Memory::Initialize() {
   }
 
   // I have no idea what this is, but games try to read/write there.
-  VirtualAlloc(Translate(0x40000000), 0x00010000, MEM_COMMIT, PAGE_READWRITE);
-  poly::store_and_swap<uint32_t>(Translate(0x40000000), 0x00C40000);
-  poly::store_and_swap<uint32_t>(Translate(0x40000004), 0x00010000);
+  VirtualAlloc(TranslateVirtual(0x40000000), 0x00010000, MEM_COMMIT,
+               PAGE_READWRITE);
+  poly::store_and_swap<uint32_t>(TranslateVirtual(0x40000000), 0x00C40000);
+  poly::store_and_swap<uint32_t>(TranslateVirtual(0x40000004), 0x00010000);
 
   return 0;
 }
@@ -266,26 +273,24 @@ void Memory::UnmapViews() {
 }
 
 void Memory::Zero(uint32_t address, uint32_t size) {
-  uint8_t* p = membase_ + address;
-  std::memset(p, 0, size);
+  std::memset(TranslateVirtual(address), 0, size);
 }
 
 void Memory::Fill(uint32_t address, uint32_t size, uint8_t value) {
-  uint8_t* p = membase_ + address;
-  std::memset(p, value, size);
+  std::memset(TranslateVirtual(address), value, size);
 }
 
 void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) {
-  uint8_t* pdest = membase_ + dest;
-  const uint8_t* psrc = membase_ + src;
+  uint8_t* pdest = TranslateVirtual(dest);
+  const uint8_t* psrc = TranslateVirtual(src);
   std::memcpy(pdest, psrc, size);
 }
 
 uint32_t Memory::SearchAligned(uint32_t start, uint32_t end,
                                const uint32_t* values, size_t value_count) {
   assert_true(start <= end);
-  const uint32_t* p = reinterpret_cast<const uint32_t*>(membase_ + start);
-  const uint32_t* pe = reinterpret_cast<const uint32_t*>(membase_ + end);
+  auto p = TranslateVirtual<const uint32_t*>(start);
+  auto pe = TranslateVirtual<const uint32_t*>(end);
   while (p != pe) {
     if (*p == values[0]) {
       const uint32_t* pc = p + 1;
@@ -297,7 +302,7 @@ uint32_t Memory::SearchAligned(uint32_t start, uint32_t end,
         matched++;
       }
       if (matched == value_count) {
-        return uint32_t(reinterpret_cast<const uint8_t*>(p) - membase_);
+        return uint32_t(reinterpret_cast<const uint8_t*>(p) - virtual_membase_);
       }
     }
     p++;
@@ -309,7 +314,7 @@ bool Memory::AddMappedRange(uint32_t address, uint32_t mask, uint32_t size,
                             void* context, cpu::MMIOReadCallback read_callback,
                             cpu::MMIOWriteCallback write_callback) {
   DWORD protect = PAGE_NOACCESS;
-  if (!VirtualAlloc(Translate(address), size, MEM_COMMIT, protect)) {
+  if (!VirtualAlloc(TranslateVirtual(address), size, MEM_COMMIT, protect)) {
     XELOGE("Unable to map range; commit/protect failed");
     return false;
   }
@@ -361,7 +366,7 @@ uint32_t Memory::HeapAlloc(uint32_t base_address, uint32_t size, uint32_t flags,
     }
     if (result) {
       if (flags & MEMORY_FLAG_ZERO) {
-        memset(Translate(result), 0, size);
+        memset(TranslateVirtual(result), 0, size);
       }
     }
     return result;
@@ -379,7 +384,7 @@ uint32_t Memory::HeapAlloc(uint32_t base_address, uint32_t size, uint32_t flags,
       return 0;
     }
 
-    uint8_t* p = Translate(base_address);
+    uint8_t* p = TranslateVirtual(base_address);
     // TODO(benvanik): check if address range is in use with a query.
 
     void* pv = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
@@ -405,20 +410,20 @@ int Memory::HeapFree(uint32_t address, uint32_t size) {
     return physical_heap_->Free(address, size) ? 0 : 1;
   } else {
     // A placed address. Decommit.
-    uint8_t* p = Translate(address);
+    uint8_t* p = TranslateVirtual(address);
     return VirtualFree(p, size, MEM_DECOMMIT) ? 0 : 1;
   }
 }
 
 bool Memory::QueryInformation(uint32_t base_address, AllocationInfo* mem_info) {
-  uint8_t* p = Translate(base_address);
+  uint8_t* p = TranslateVirtual(base_address);
   MEMORY_BASIC_INFORMATION mbi;
   if (!VirtualQuery(p, &mbi, sizeof(mbi))) {
     return false;
   }
   mem_info->base_address = base_address;
   mem_info->allocation_base = static_cast<uint32_t>(
-      reinterpret_cast<uint8_t*>(mbi.AllocationBase) - membase_);
+      reinterpret_cast<uint8_t*>(mbi.AllocationBase) - virtual_membase_);
   mem_info->allocation_protect = mbi.AllocationProtect;
   mem_info->region_size = mbi.RegionSize;
   mem_info->state = mbi.State;
@@ -436,7 +441,7 @@ uint32_t Memory::QuerySize(uint32_t base_address) {
     return physical_heap_->QuerySize(base_address);
   } else {
     // A placed address.
-    uint8_t* p = Translate(base_address);
+    uint8_t* p = TranslateVirtual(base_address);
     MEMORY_BASIC_INFORMATION mem_info;
     if (VirtualQuery(p, &mem_info, sizeof(mem_info))) {
       return uint32_t(mem_info.RegionSize);
@@ -448,7 +453,7 @@ uint32_t Memory::QuerySize(uint32_t base_address) {
 }
 
 int Memory::Protect(uint32_t address, uint32_t size, uint32_t access) {
-  uint8_t* p = Translate(address);
+  uint8_t* p = TranslateVirtual(address);
 
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
   p += heap_guard_size;
@@ -464,7 +469,7 @@ int Memory::Protect(uint32_t address, uint32_t size, uint32_t access) {
 }
 
 uint32_t Memory::QueryProtect(uint32_t address) {
-  uint8_t* p = Translate(address);
+  uint8_t* p = TranslateVirtual(address);
   MEMORY_BASIC_INFORMATION info;
   size_t info_size = VirtualQuery((void*)p, &info, sizeof(info));
   if (!info_size) {
@@ -563,7 +568,7 @@ uint32_t MemoryHeap::Alloc(uint32_t base_address, uint32_t size, uint32_t flags,
 }
 
 uint32_t MemoryHeap::Free(uint32_t address, uint32_t size) {
-  uint8_t* p = memory_->Translate(address);
+  uint8_t* p = memory_->TranslateVirtual(address);
 
   // Heap allocated address.
   size_t heap_guard_size = FLAGS_heap_guard_pages * 4096;
@@ -606,7 +611,7 @@ uint32_t MemoryHeap::Free(uint32_t address, uint32_t size) {
 }
 
 uint32_t MemoryHeap::QuerySize(uint32_t base_address) {
-  uint8_t* p = memory_->Translate(base_address);
+  uint8_t* p = memory_->TranslateVirtual(base_address);
 
   // Heap allocated address.
   uint32_t heap_guard_size = uint32_t(FLAGS_heap_guard_pages * 4096);

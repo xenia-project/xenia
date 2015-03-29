@@ -99,8 +99,6 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
     return 1;
   }
 
-  uint8_t* membase = memory_->membase();
-
   char name[128];
   for (size_t n = 0; n < import_info_count; n++) {
     const xe_xex2_import_info_t* info = &import_infos[n];
@@ -129,7 +127,7 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     // Grab, if available.
     if (kernel_export) {
-      uint32_t* slot = (uint32_t*)(membase + info->value_address);
+      auto slot = memory_->TranslateVirtual<uint32_t*>(info->value_address);
       if (kernel_export->type == KernelExport::Function) {
         // Not exactly sure what this should be...
         if (info->thunk_address) {
@@ -176,7 +174,7 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       //     blr
       //     nop
       //     nop
-      uint8_t* p = memory()->Translate(info->thunk_address);
+      uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
       poly::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
       poly::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
       poly::store_and_swap<uint32_t>(p + 0x8, 0x60000000);

@@ -46,7 +46,6 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   SCOPE_profile_cpu_f("cpu");
 
   Memory* memory = frontend_->memory();
-  const uint8_t* p = memory->membase();
 
   symbol_info_ = symbol_info;
   start_address_ = symbol_info->address();
@@ -80,7 +79,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(p + address);
+    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
     trace_info_.dest_count = 0;

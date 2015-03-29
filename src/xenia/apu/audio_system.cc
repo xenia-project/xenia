@@ -182,7 +182,7 @@ uint32_t AudioSystem::AllocateXmaContext() {
 
   auto guest_ptr = xma_context_free_list_.back();
   xma_context_free_list_.pop_back();
-  auto context_ptr = memory()->Translate(guest_ptr);
+  auto context_ptr = memory()->TranslateVirtual(guest_ptr);
 
   // Initialize?
 
@@ -192,7 +192,7 @@ uint32_t AudioSystem::AllocateXmaContext() {
 void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
   std::lock_guard<std::mutex> lock(lock_);
 
-  auto context_ptr = memory()->Translate(guest_ptr);
+  auto context_ptr = memory()->TranslateVirtual(guest_ptr);
   std::memset(context_ptr, 0, kXmaContextSize);
 
   xma_context_free_list_.push_back(guest_ptr);
@@ -217,8 +217,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   unused_clients_.pop();
 
   uint32_t ptr = memory()->SystemHeapAlloc(0x4);
-  auto mem = memory()->membase();
-  poly::store_and_swap<uint32_t>(mem + ptr, callback_arg);
+  poly::store_and_swap<uint32_t>(memory()->TranslateVirtual(ptr), callback_arg);
 
   clients_[index] = {driver, callback, callback_arg, ptr};
 
@@ -301,7 +300,7 @@ void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
         // feeding data.
         uint32_t guest_ptr =
             registers_.xma_context_array_ptr + context_id * kXmaContextSize;
-        auto context_ptr = memory()->Translate(guest_ptr);
+        auto context_ptr = memory()->TranslateVirtual(guest_ptr);
         uint32_t dword0 = poly::load_and_swap<uint32_t>(context_ptr + 0);
         bool has_valid_input = (dword0 & 0x00300000) != 0;
         if (has_valid_input) {

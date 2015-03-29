@@ -204,7 +204,7 @@ void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
 
 void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result,
                                      uint32_t length) {
-  auto ptr = memory()->membase() + overlapped_ptr;
+  auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, result);
   XOverlappedSetLength(ptr, length);
   XOverlappedSetExtendedError(ptr, result);
@@ -233,7 +233,7 @@ void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result,
 void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr,
                                               X_RESULT result,
                                               uint32_t length) {
-  auto ptr = memory()->membase() + overlapped_ptr;
+  auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
   CompleteOverlapped(overlapped_ptr, result, length);
 }

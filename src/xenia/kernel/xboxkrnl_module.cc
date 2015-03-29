@@ -44,23 +44,23 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xboxkrnl::RegisterUsbcamExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterVideoExports(export_resolver_, kernel_state_);
 
-  uint8_t* mem = memory_->membase();
-
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.
   // Offset 0x18 is a 4b pointer to a handler function that seems to take two
   // arguments. If we wanted to see what would happen we could fake that.
   uint32_t pKeDebugMonitorData = memory_->SystemHeapAlloc(256);
+  auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeDebugMonitorData, pKeDebugMonitorData);
-  poly::store_and_swap<uint32_t>(mem + pKeDebugMonitorData, 0);
+  poly::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
   uint32_t pKeCertMonitorData = memory_->SystemHeapAlloc(4);
+  auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeCertMonitorData, pKeCertMonitorData);
-  poly::store_and_swap<uint32_t>(mem + pKeCertMonitorData, 0);
+  poly::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
@@ -71,11 +71,11 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // aomega08 says the value is 0x02000817, bit 27: debug mode on.
   // When that is set, though, allocs crash in weird ways.
   uint32_t pXboxHardwareInfo = memory_->SystemHeapAlloc(16);
+  auto lpXboxHardwareInfo = memory_->TranslateVirtual(pXboxHardwareInfo);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxHardwareInfo, pXboxHardwareInfo);
-  poly::store_and_swap<uint32_t>(mem + pXboxHardwareInfo + 0, 0);  // flags
-  poly::store_and_swap<uint8_t>(mem + pXboxHardwareInfo + 4,
-                                0x06);  // cpu count
+  poly::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0);    // flags
+  poly::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);  // cpu count
   // Remaining 11b are zeroes?
 
   // XexExecutableModuleHandle (?**)
@@ -88,13 +88,17 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
   uint32_t ppXexExecutableModuleHandle = memory_->SystemHeapAlloc(4);
+  auto lppXexExecutableModuleHandle =
+      memory_->TranslateVirtual(ppXexExecutableModuleHandle);
   export_resolver_->SetVariableMapping("xboxkrnl.exe",
                                        ordinals::XexExecutableModuleHandle,
                                        ppXexExecutableModuleHandle);
   uint32_t pXexExecutableModuleHandle = memory_->SystemHeapAlloc(256);
-  poly::store_and_swap<uint32_t>(mem + ppXexExecutableModuleHandle,
+  auto lpXexExecutableModuleHandle =
+      memory_->TranslateVirtual(pXexExecutableModuleHandle);
+  poly::store_and_swap<uint32_t>(lppXexExecutableModuleHandle,
                                  pXexExecutableModuleHandle);
-  poly::store_and_swap<uint32_t>(mem + pXexExecutableModuleHandle + 0x58,
+  poly::store_and_swap<uint32_t>(lpXexExecutableModuleHandle + 0x58,
                                  0x80101100);
 
   // ExLoadedCommandLine (char*)
@@ -102,41 +106,44 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // Perhaps it's how swap disc/etc data is sent?
   // Always set to "default.xex" (with quotes) for now.
   uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(1024);
+  auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::ExLoadedCommandLine, pExLoadedCommandLine);
   char command_line[] = "\"default.xex\"";
-  memcpy(mem + pExLoadedCommandLine, command_line,
-         poly::countof(command_line) + 1);
+  std::memcpy(lpExLoadedCommandLine, command_line,
+              poly::countof(command_line) + 1);
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
   uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(8);
+  auto lpXboxKrnlVersion = memory_->TranslateVirtual(pXboxKrnlVersion);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
-  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 0, 2);
-  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 2, 0xFFFF);
-  poly::store_and_swap<uint16_t>(mem + pXboxKrnlVersion + 4, 0xFFFF);
-  poly::store_and_swap<uint8_t>(mem + pXboxKrnlVersion + 6, 0x80);
-  poly::store_and_swap<uint8_t>(mem + pXboxKrnlVersion + 7, 0x00);
+  poly::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 2);
+  poly::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0xFFFF);
+  poly::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0xFFFF);
+  poly::store_and_swap<uint8_t>(lpXboxKrnlVersion + 6, 0x80);
+  poly::store_and_swap<uint8_t>(lpXboxKrnlVersion + 7, 0x00);
 
   // KeTimeStampBundle (ad)
   // This must be updated during execution, at 1ms intevals.
   // We setup a system timer here to do that.
   uint32_t pKeTimeStampBundle = memory_->SystemHeapAlloc(24);
+  auto lpKeTimeStampBundle = memory_->TranslateVirtual(pKeTimeStampBundle);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeTimeStampBundle, pKeTimeStampBundle);
-  poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 0, 0);
-  poly::store_and_swap<uint64_t>(mem + pKeTimeStampBundle + 8, 0);
-  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 16, GetTickCount());
-  poly::store_and_swap<uint32_t>(mem + pKeTimeStampBundle + 20, 0);
+  poly::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
+  poly::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
+  poly::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16, GetTickCount());
+  poly::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
   CreateTimerQueueTimer(
       &timestamp_timer_, nullptr,
       [](PVOID param, BOOLEAN timer_or_wait_fired) {
         auto timestamp_bundle = reinterpret_cast<uint8_t*>(param);
         poly::store_and_swap<uint32_t>(timestamp_bundle + 16, GetTickCount());
       },
-      mem + pKeTimeStampBundle, 0,
+      lpKeTimeStampBundle, 0,
       1,  // 1ms
       WT_EXECUTEINTIMERTHREAD);
 }

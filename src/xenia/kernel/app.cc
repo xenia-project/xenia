@@ -16,8 +16,8 @@ namespace kernel {
 
 XApp::XApp(KernelState* kernel_state, uint32_t app_id)
     : kernel_state_(kernel_state),
-      app_id_(app_id),
-      membase_(kernel_state->memory()->membase()) {}
+      memory_(kernel_state->memory()),
+      app_id_(app_id) {}
 
 void XAppManager::RegisterApp(std::unique_ptr<XApp> app) {
   assert_zero(app_lookup_.count(app->app_id()));

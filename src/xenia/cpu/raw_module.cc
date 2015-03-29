@@ -30,8 +30,8 @@ int RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   // Allocate memory.
   // Since we have no real heap just load it wherever.
   base_address_ = base_address;
-  uint8_t* p = memory_->Translate(base_address_);
-  memset(p, 0, file_length);
+  uint8_t* p = memory_->TranslateVirtual(base_address_);
+  std::memset(p, 0, file_length);
 
   // Read into memory.
   fread(p, file_length, 1, file);

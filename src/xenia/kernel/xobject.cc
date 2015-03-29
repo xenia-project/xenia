@@ -23,9 +23,8 @@ XObject::XObject(KernelState* kernel_state, Type type)
       pointer_ref_count_(1),
       type_(type),
       handle_(X_INVALID_HANDLE_VALUE) {
-
   // Added pointer check to support usage without a kernel_state
-  if (kernel_state != nullptr){
+  if (kernel_state != nullptr) {
     kernel_state->object_table()->AddHandle(this, &handle_);
   }
 }
@@ -34,8 +33,6 @@ XObject::~XObject() {
   assert_zero(handle_ref_count_);
   assert_zero(pointer_ref_count_);
 }
-
-Memory* XObject::memory() const { return kernel_state_->memory(); }
 
 XObject::Type XObject::type() { return type_; }
 
@@ -78,7 +75,7 @@ void XObject::SetAttributes(const uint8_t* obj_attrs_ptr) {
 
   uint32_t name_str_ptr = poly::load_and_swap<uint32_t>(obj_attrs_ptr + 4);
   if (name_str_ptr) {
-    X_ANSI_STRING name_str(membase(), name_str_ptr);
+    X_ANSI_STRING name_str(memory()->virtual_membase(), name_str_ptr);
     name_ = name_str.to_string();
     kernel_state_->object_table()->AddNameMapping(name_, handle_);
   }
@@ -157,8 +154,8 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
 void XObject::SetNativePointer(uint32_t native_ptr) {
   std::lock_guard<std::mutex> lock(kernel_state_->object_mutex());
 
-  DISPATCH_HEADER* header_be =
-      (DISPATCH_HEADER*)kernel_state_->memory()->Translate(native_ptr);
+  auto header_be =
+      kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
   DISPATCH_HEADER header;
   header.type_flags = poly::byte_swap(header_be->type_flags);
   header.signal_state = poly::byte_swap(header_be->signal_state);

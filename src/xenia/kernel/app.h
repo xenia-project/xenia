@@ -33,8 +33,8 @@ class XApp {
   XApp(KernelState* kernel_state, uint32_t app_id);
 
   KernelState* kernel_state_;
+  Memory* memory_;
   uint32_t app_id_;
-  uint8_t* membase_;
 };
 
 class XAppManager {

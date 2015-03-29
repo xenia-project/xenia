@@ -50,7 +50,6 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
   // split up and the second half is treated as another function.
 
   Memory* memory = frontend_->memory();
-  const uint8_t* p = memory->membase();
 
   LOGPPC("Analyzing function %.8X...", symbol_info->address());
 
@@ -64,7 +63,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
   InstrData i;
   while (true) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(p + address);
+    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
 
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
@@ -281,7 +280,6 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
 
 std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   Memory* memory = frontend_->memory();
-  const uint8_t* p = memory->membase();
 
   std::map<uint32_t, BlockInfo> block_map;
 
@@ -292,7 +290,7 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   InstrData i;
   for (uint32_t address = start_address; address <= end_address; address += 4) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(p + address);
+    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     if (!i.code) {
       continue;
     }

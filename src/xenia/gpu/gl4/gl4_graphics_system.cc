@@ -181,7 +181,7 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
             case TraceCommandType::kPacketStart: {
               auto cmd = reinterpret_cast<const PacketStartCommand*>(trace_ptr);
               trace_ptr += sizeof(*cmd);
-              std::memcpy(memory()->Translate(cmd->base_ptr), trace_ptr,
+              std::memcpy(memory()->TranslatePhysical(cmd->base_ptr), trace_ptr,
                           cmd->count * 4);
               trace_ptr += cmd->count * 4;
               pending_packet = cmd;
@@ -203,7 +203,7 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
             case TraceCommandType::kMemoryRead: {
               auto cmd = reinterpret_cast<const MemoryReadCommand*>(trace_ptr);
               trace_ptr += sizeof(*cmd);
-              std::memcpy(memory()->Translate(cmd->base_ptr), trace_ptr,
+              std::memcpy(memory()->TranslatePhysical(cmd->base_ptr), trace_ptr,
                           cmd->length);
               trace_ptr += cmd->length;
               break;

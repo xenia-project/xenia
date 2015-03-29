@@ -62,11 +62,10 @@ void AssertNoNameCollision(KernelState* state, uint32_t obj_attributes_ptr) {
   // with a success of NAME_EXISTS.
   // If the name exists and its type doesn't match, we do NAME_COLLISION.
   // Otherwise, we add like normal.
-  auto membase = state->memory()->membase();
-  uint32_t name_str_ptr =
-      poly::load_and_swap<uint32_t>(membase + obj_attributes_ptr + 4);
+  uint32_t name_str_ptr = poly::load_and_swap<uint32_t>(
+      state->memory()->TranslateVirtual(obj_attributes_ptr + 4));
   if (name_str_ptr) {
-    X_ANSI_STRING name_str(membase, name_str_ptr);
+    X_ANSI_STRING name_str(state->memory()->virtual_membase(), name_str_ptr);
     auto name = name_str.to_string();
     X_HANDLE handle = X_INVALID_HANDLE_VALUE;
     X_RESULT result = state->object_table()->GetObjectByName(name, &handle);

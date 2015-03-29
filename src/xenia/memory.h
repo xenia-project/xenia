@@ -55,10 +55,25 @@ class Memory {
 
   int Initialize();
 
-  inline uint8_t* membase() const { return membase_; }
-  inline uint8_t* Translate(uint64_t guest_address) const {
-    return membase_ + guest_address;
+  inline uint8_t* virtual_membase() const { return virtual_membase_; }
+  inline uint8_t* TranslateVirtual(uint32_t guest_address) const {
+    return virtual_membase_ + guest_address;
   };
+  template <typename T>
+  inline T TranslateVirtual(uint32_t guest_address) const {
+    return reinterpret_cast<T>(virtual_membase_ + guest_address);
+  };
+
+  inline uint8_t* physical_membase() const { return physical_membase_; }
+  inline uint8_t* TranslatePhysical(uint32_t guest_address) const {
+    return physical_membase_ + (guest_address & 0x1FFFFFFF);
+  }
+  template <typename T>
+  inline T TranslatePhysical(uint32_t guest_address) const {
+    return reinterpret_cast<T>(physical_membase_ +
+                               (guest_address & 0x1FFFFFFF));
+  }
+
   inline uint64_t* reserve_address() { return &reserve_address_; }
   inline uint64_t* reserve_value() { return &reserve_value_; }
 
@@ -100,7 +115,8 @@ class Memory {
 
  private:
   uint32_t system_page_size_;
-  uint8_t* membase_;
+  uint8_t* virtual_membase_;
+  uint8_t* physical_membase_;
   uint64_t reserve_address_;
   uint64_t reserve_value_;
   uint64_t trace_base_;

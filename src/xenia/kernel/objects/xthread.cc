@@ -118,12 +118,12 @@ uint32_t XThread::thread_state() { return thread_state_address_; }
 uint32_t XThread::thread_id() { return thread_id_; }
 
 uint32_t XThread::last_error() {
-  uint8_t* p = memory()->Translate(thread_state_address_);
+  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   return poly::load_and_swap<uint32_t>(p + 0x160);
 }
 
 void XThread::set_last_error(uint32_t error_code) {
-  uint8_t* p = memory()->Translate(thread_state_address_);
+  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   poly::store_and_swap<uint32_t>(p + 0x160, error_code);
 }
 
@@ -176,7 +176,7 @@ X_STATUS XThread::Create() {
   memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
 
   // Setup the thread state block (last error/etc).
-  uint8_t* p = memory()->Translate(thread_state_address_);
+  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   poly::store_and_swap<uint32_t>(p + 0x000, tls_address_);
   poly::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
   poly::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
@@ -382,7 +382,7 @@ void XThread::DeliverAPCs(void* data) {
   // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
   // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
   XThread* thread = reinterpret_cast<XThread*>(data);
-  auto membase = thread->memory()->membase();
+  auto memory = thread->memory();
   auto processor = thread->kernel_state()->processor();
   auto apc_list = thread->apc_list();
   thread->LockApc();
@@ -390,7 +390,7 @@ void XThread::DeliverAPCs(void* data) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_address = apc_list->Shift() - 8;
-    uint8_t* apc_ptr = membase + apc_address;
+    uint8_t* apc_ptr = memory->TranslateVirtual(apc_address);
     uint32_t kernel_routine = poly::load_and_swap<uint32_t>(apc_ptr + 16);
     uint32_t normal_routine = poly::load_and_swap<uint32_t>(apc_ptr + 24);
     uint32_t normal_context = poly::load_and_swap<uint32_t>(apc_ptr + 28);
@@ -405,7 +405,7 @@ void XThread::DeliverAPCs(void* data) {
     // The routine can modify all of its arguments before passing it on.
     // Since we need to give guest accessible pointers over, we copy things
     // into and out of scratch.
-    uint8_t* scratch_ptr = membase + thread->scratch_address_;
+    uint8_t* scratch_ptr = memory->TranslateVirtual(thread->scratch_address_);
     poly::store_and_swap<uint32_t>(scratch_ptr + 0, normal_routine);
     poly::store_and_swap<uint32_t>(scratch_ptr + 4, normal_context);
     poly::store_and_swap<uint32_t>(scratch_ptr + 8, system_arg1);
@@ -438,13 +438,12 @@ void XThread::DeliverAPCs(void* data) {
 }
 
 void XThread::RundownAPCs() {
-  auto membase = memory()->membase();
   LockApc();
   while (apc_list_->HasPending()) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_address = apc_list_->Shift() - 8;
-    uint8_t* apc_ptr = membase + apc_address;
+    uint8_t* apc_ptr = memory()->TranslateVirtual(apc_address);
     uint32_t rundown_routine = poly::load_and_swap<uint32_t>(apc_ptr + 20);
 
     // Mark as uninserted so that it can be reinserted again by the routine.

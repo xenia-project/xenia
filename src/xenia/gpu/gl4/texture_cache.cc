@@ -676,7 +676,8 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
 
 bool TextureCache::UploadTexture2D(GLuint texture,
                                    const TextureInfo& texture_info) {
-  const auto host_address = memory_->Translate(texture_info.guest_address);
+  const auto host_address =
+      memory_->TranslatePhysical(texture_info.guest_address);
 
   const auto& config =
       texture_configs[uint32_t(texture_info.format_info->format)];
@@ -778,7 +779,8 @@ bool TextureCache::UploadTexture2D(GLuint texture,
 
 bool TextureCache::UploadTextureCube(GLuint texture,
                                      const TextureInfo& texture_info) {
-  const auto host_address = memory_->Translate(texture_info.guest_address);
+  const auto host_address =
+      memory_->TranslatePhysical(texture_info.guest_address);
 
   const auto& config =
       texture_configs[uint32_t(texture_info.format_info->format)];

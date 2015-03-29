@@ -122,7 +122,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   // Process samples! They are big-endian floats.
   HRESULT hr;
 
-  auto input_frame = reinterpret_cast<float*>(emulator_->memory()->membase() + frame_ptr);
+  auto input_frame = memory_->TranslatePhysical<float*>(frame_ptr);
   auto output_frame = reinterpret_cast<float*>(frame_);
   auto interleave_channels = frame_channels_;
 

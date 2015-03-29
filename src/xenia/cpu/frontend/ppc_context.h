@@ -44,7 +44,7 @@ typedef struct alignas(64) PPCContext_s {
   // TODO(benvanik): find a nice way to describe this to the JIT.
   ThreadState* thread_state;
   // TODO(benvanik): this is getting nasty. Must be here.
-  uint8_t* membase;
+  uint8_t* virtual_membase;
 
   // Most frequently used registers first.
   uint64_t r[32];  // General purpose registers
@@ -209,6 +209,8 @@ typedef struct alignas(64) PPCContext_s {
   // Runtime-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
   Runtime* runtime;
+
+  uint8_t* physical_membase;
 
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,

@@ -107,15 +107,15 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 
   // Load the XEX into memory and decrypt.
   xe_xex2_options_t xex_options = {0};
-  xex_ = xe_xex2_load(kernel_state()->memory(), addr, length, xex_options);
+  xex_ = xe_xex2_load(memory(), addr, length, xex_options);
   if (!xex_) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
   // Store execution info for later use.
   // TODO(benvanik): just put entire xex header in memory somewhere?
-  execution_info_ptr_ = kernel_state()->memory()->SystemHeapAlloc(24);
-  auto eip = kernel_state()->memory()->membase() + execution_info_ptr_;
+  execution_info_ptr_ = memory()->SystemHeapAlloc(24);
+  auto eip = memory()->TranslateVirtual(execution_info_ptr_);
   const auto& ex = xe_xex2_get_header(xex_)->execution_info;
   poly::store_and_swap<uint32_t>(eip + 0x00, ex.media_id);
   poly::store_and_swap<uint32_t>(eip + 0x04, ex.version.value);

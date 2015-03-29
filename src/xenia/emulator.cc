@@ -202,7 +202,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
   auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
   if (ev) {
     ev->type = xdb::protocol::EventType::PROCESS_START;
-    ev->membase = reinterpret_cast<uint64_t>(memory()->membase());
+    ev->membase = reinterpret_cast<uint64_t>(memory()->virtual_membase());
     auto path_length = poly::to_string(path)
                            .copy(ev->launch_path, sizeof(ev->launch_path) - 1);
     ev->launch_path[path_length] = 0;

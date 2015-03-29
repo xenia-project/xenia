@@ -151,10 +151,6 @@ struct XMAContextData {
 };
 static_assert(sizeof(XMAContextData) == 4 * 10, "Must be packed");
 
-void StoreXmaRegister(uint8_t* membase, uint32_t num, uint32_t value) {
-  poly::store<uint32_t>(membase + (0x7FEA0000 + num), value);
-}
-
 void StoreXmaContextIndexedRegister(KernelState* state, uint32_t base_reg,
                                     uint32_t context_ptr) {
   auto audio_system = state->emulator()->audio_system();
@@ -162,7 +158,8 @@ void StoreXmaContextIndexedRegister(KernelState* state, uint32_t base_reg,
                       XMAContextData::kSize;
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
-  StoreXmaRegister(state->memory()->membase(), reg_num, reg_value);
+  poly::store<uint32_t>(state->memory()->TranslateVirtual(0x7FEA0000 + reg_num),
+                        reg_value);
 }
 
 SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_state, KernelState* state) {
