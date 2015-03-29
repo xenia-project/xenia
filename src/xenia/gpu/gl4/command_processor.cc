@@ -2523,7 +2523,7 @@ bool CommandProcessor::IssueCopy() {
   uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
   // assert_true(copy_dest_number == 0); // ?
   uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
-  assert_true(copy_dest_bias == 0);
+  // assert_true(copy_dest_bias == 0);
   uint32_t copy_dest_swap = (copy_dest_info >> 25) & 0x1;
 
   uint32_t copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
@@ -2586,9 +2586,17 @@ bool CommandProcessor::IssueCopy() {
   GLenum read_format;
   GLenum read_type;
   switch (copy_dest_format) {
+    case ColorFormat::k_2_10_10_10:
+      read_format = GL_RGB10_A2;
+      read_type = GL_UNSIGNED_INT_10_10_10_2;
+      break;
     case ColorFormat::k_4_4_4_4:
       read_format = GL_RGBA4;
       read_type = GL_UNSIGNED_SHORT_4_4_4_4;
+      break;
+    case ColorFormat::k_5_6_5:
+      read_format = GL_RGB565;
+      read_type = GL_UNSIGNED_SHORT_5_6_5;
       break;
     case ColorFormat::k_8:
       read_format = GL_R8;

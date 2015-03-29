@@ -43,7 +43,7 @@ namespace gpu {
 using namespace xe::gpu::ucode;
 using namespace xe::gpu::xenos;
 
-const int OUTPUT_CAPACITY = 32 * 1024;
+const int OUTPUT_CAPACITY = 256 * 1024;
 struct Output {
   char buffer[OUTPUT_CAPACITY];
   size_t capacity;
@@ -54,6 +54,7 @@ struct Output {
     va_start(args, format);
     int len = vsnprintf(buffer + offset, capacity - offset, format, args);
     va_end(args);
+    assert_true(offset + len < capacity);
     offset += len;
     buffer[offset] = 0;
   }
