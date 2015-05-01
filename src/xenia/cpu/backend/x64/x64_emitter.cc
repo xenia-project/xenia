@@ -67,7 +67,8 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       current_instr_(0),
       source_map_count_(0),
       stack_size_(0),
-      trace_flags_(0) {}
+      trace_flags_(0),
+      cpu_() {}
 
 X64Emitter::~X64Emitter() {}
 

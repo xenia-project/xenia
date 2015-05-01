@@ -11,6 +11,7 @@
 #define XENIA_BACKEND_X64_X64_EMITTER_H_
 
 #include "third_party/xbyak/xbyak/xbyak.h"
+#include "third_party/xbyak/xbyak/xbyak_util.h"
 
 #include "xenia/base/arena.h"
 #include "xenia/cpu/hir/value.h"
@@ -102,6 +103,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Runtime* runtime() const { return runtime_; }
   X64Backend* backend() const { return backend_; }
+  const Xbyak::util::Cpu *cpu() const { return &cpu_; }
 
   int Initialize();
 
@@ -191,6 +193,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Backend* backend_;
   X64CodeCache* code_cache_;
   XbyakAllocator* allocator_;
+  Xbyak::util::Cpu cpu_; // Host CPU info
 
   hir::Instr* current_instr_;
 
