@@ -291,6 +291,10 @@
       'include_dirs': [
         '.',
         'src/',
+		
+        # TODO(benvanik): remove when xbyak fixed:
+        # https://github.com/herumi/xbyak/issues/20
+        'third_party/xbyak/',
       ],
 
       'includes': [

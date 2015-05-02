@@ -3075,79 +3075,189 @@ EMITTER_OPCODE_TABLE(
 EMITTER(MUL_I8, MATCH(I<OPCODE_MUL, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * edx
-    // TODO(benvanik): place src2 in edx?
-    if (i.src1.is_constant) {
-      assert_true(!i.src2.is_constant);
-      e.movzx(e.edx, i.src2);
-      e.mov(e.eax, static_cast<uint8_t>(i.src1.constant()));
-      e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
-    } else if (i.src2.is_constant) {
-      e.movzx(e.edx, i.src1);
-      e.mov(e.eax, static_cast<uint8_t>(i.src2.constant()));
-      e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
+
+    // TODO(justin): Find a way to shorten this has call
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      // TODO(benvanik): place src2 in edx?
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant);
+        e.movzx(e.edx, i.src2);
+        e.mov(e.eax, static_cast<uint8_t>(i.src1.constant()));
+        e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
+      } else if (i.src2.is_constant) {
+        e.movzx(e.edx, i.src1);
+        e.mov(e.eax, static_cast<uint8_t>(i.src2.constant()));
+        e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
+      } else {
+        e.movzx(e.edx, i.src2);
+        e.mulx(e.edx, i.dest.reg().cvt32(), i.src1.reg().cvt32());
+      }
     } else {
-      e.movzx(e.edx, i.src2);
-      e.mulx(e.edx, i.dest.reg().cvt32(), i.src1.reg().cvt32());
+      // x86 mul instruction
+      // EDX:EAX <- EAX * $1;
+      //e.DebugBreak();
+
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant);
+
+        e.mov(e.eax, i.src1);
+        e.mul(i.src2);
+        e.mov(i.dest, e.eax);
+      } else if (i.src2.is_constant) {
+        assert_true(!i.src1.is_constant);
+
+        e.mov(e.eax, i.src2);
+        e.mul(i.src1);
+        e.mov(i.dest, e.eax);
+      } else {
+        e.movzx(e.eax, i.src1);
+        e.mul(i.src2);
+        e.mov(i.dest, e.eax);
+      }
     }
+
+    e.ReloadEDX();
   }
 };
 EMITTER(MUL_I16, MATCH(I<OPCODE_MUL, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * edx
-    // TODO(benvanik): place src2 in edx?
-    if (i.src1.is_constant) {
-      assert_true(!i.src2.is_constant);
-      e.movzx(e.edx, i.src2);
-      e.mov(e.ax, static_cast<uint16_t>(i.src1.constant()));
-      e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
-    } else if (i.src2.is_constant) {
-      e.movzx(e.edx, i.src1);
-      e.mov(e.ax, static_cast<uint16_t>(i.src2.constant()));
-      e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
+
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      // TODO(benvanik): place src2 in edx?
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant);
+        e.movzx(e.edx, i.src2);
+        e.mov(e.ax, static_cast<uint16_t>(i.src1.constant()));
+        e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
+      } else if (i.src2.is_constant) {
+        e.movzx(e.edx, i.src1);
+        e.mov(e.ax, static_cast<uint16_t>(i.src2.constant()));
+        e.mulx(e.edx, i.dest.reg().cvt32(), e.eax);
+      } else {
+        e.movzx(e.edx, i.src2);
+        e.mulx(e.edx, i.dest.reg().cvt32(), i.src1.reg().cvt32());
+      }
     } else {
-      e.movzx(e.edx, i.src2);
-      e.mulx(e.edx, i.dest.reg().cvt32(), i.src1.reg().cvt32());
+      // x86 mul instruction
+      // EDX:EAX <- EAX * REG;
+      //e.DebugBreak();
+
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant);
+
+        e.mov(e.eax, i.src1.constant());
+        e.mul(i.src2);
+        e.mov(i.dest, e.eax);
+      } else if (i.src2.is_constant) {
+        assert_true(!i.src1.is_constant);
+
+        e.mov(e.eax, i.src2.constant());
+        e.mul(i.src1);
+        e.mov(i.dest, e.eax);
+      } else {
+        e.movzx(e.eax, i.src1);
+        e.mul(i.src2);
+        e.mov(i.dest, e.eax);
+      }
     }
+
     e.ReloadEDX();
   }
 };
 EMITTER(MUL_I32, MATCH(I<OPCODE_MUL, I32<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * edx
-    // TODO(benvanik): place src2 in edx?
-    if (i.src1.is_constant) {
-      assert_true(!i.src2.is_constant);
-      e.mov(e.edx, i.src2);
-      e.mov(e.eax, i.src1.constant());
-      e.mulx(e.edx, i.dest, e.eax);
-    } else if (i.src2.is_constant) {
-      e.mov(e.edx, i.src1);
-      e.mov(e.eax, i.src2.constant());
-      e.mulx(e.edx, i.dest, e.eax);
+    // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
+
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      // TODO(benvanik): place src2 in edx?
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant);
+        e.mov(e.edx, i.src2);
+        e.mov(e.eax, i.src1.constant());
+        e.mulx(e.edx, i.dest, e.eax);
+      } else if (i.src2.is_constant) {
+        e.mov(e.edx, i.src1);
+        e.mov(e.eax, i.src2.constant());
+        e.mulx(e.edx, i.dest, e.eax);
+      } else {
+        e.mov(e.edx, i.src2);
+        e.mulx(e.edx, i.dest, i.src1);
+      }
     } else {
-      e.mov(e.edx, i.src2);
-      e.mulx(e.edx, i.dest, i.src1);
+      // x86 mul instruction
+      // EDX:EAX < EAX * REG(op1);
+      //e.DebugBreak();
+
+      // is_constant AKA not a register
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant); // can't multiply 2 constants
+
+        e.mov(e.eax, i.src1.constant());
+        e.mul(i.src2);
+        e.mov(i.dest, e.eax);
+      } else if (i.src2.is_constant) {
+        assert_true(!i.src1.is_constant); // can't multiply 2 constants
+
+        e.mov(e.eax, i.src2.constant());
+        e.mul(i.src1);
+        e.mov(i.dest, e.eax);
+      } else {
+        e.mov(e.eax, i.src1);
+        e.mul(i.src2);
+        e.mov(i.dest, e.eax);
+      }
     }
+
     e.ReloadEDX();
   }
 };
 EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * rdx
-    // TODO(benvanik): place src2 in edx?
-    if (i.src1.is_constant) {
-      assert_true(!i.src2.is_constant);
-      e.mov(e.rdx, i.src2);
-      e.mov(e.rax, i.src1.constant());
-      e.mulx(e.rdx, i.dest, e.rax);
-    } else if (i.src2.is_constant) {
-      e.mov(e.rdx, i.src1);
-      e.mov(e.rax, i.src2.constant());
-      e.mulx(e.rdx, i.dest, e.rax);
+
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
+
+      // TODO(benvanik): place src2 in edx?
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant);
+        e.mov(e.rdx, i.src2);
+        e.mov(e.rax, i.src1.constant());
+        e.mulx(e.rdx, i.dest, e.rax);
+      } else if (i.src2.is_constant) {
+        e.mov(e.rdx, i.src1);
+        e.mov(e.rax, i.src2.constant());
+        e.mulx(e.rdx, i.dest, e.rax);
+      } else {
+        e.mov(e.rdx, i.src2);
+        e.mulx(e.rdx, i.dest, i.src1);
+      }
     } else {
-      e.mov(e.rdx, i.src2);
-      e.mulx(e.rdx, i.dest, i.src1);
+      // x86 mul instruction
+      // EDX:EAX < EAX * REG(op1);
+      //e.DebugBreak();
+
+      if (i.src1.is_constant) {
+        assert_true(!i.src2.is_constant); // can't multiply 2 constants
+
+        e.mov(e.rax, i.src1.constant());
+        e.mul(i.src2);
+        e.mov(i.dest, e.rax);
+      } else if (i.src2.is_constant) {
+        assert_true(!i.src1.is_constant); // can't multiply 2 constants
+        
+        e.mov(e.rax, i.src2.constant());
+        e.mul(i.src1);
+        e.mov(i.dest, e.rax);
+      } else {
+        e.mov(e.rax, i.src1);
+        e.mul(i.src2);
+        e.mov(i.dest, e.rax);
+      }
     }
+
     e.ReloadEDX();
   }
 };
@@ -3194,10 +3304,38 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // dest hi, dest low = src * rdx
+    // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
+
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.movzx(e.edx, i.src1);
-      e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
+      // TODO(justin): Find a way to shorten this has call
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // TODO(benvanik): place src1 in eax? still need to sign extend
+        e.movzx(e.edx, i.src1);
+        e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
+      } else {
+        // x86 mul instruction
+        // EDX:EAX < EAX * REG(op1);
+
+        // is_constant AKA not a register
+        if (i.src1.is_constant) {
+          assert_true(!i.src2.is_constant); // can't multiply 2 constants
+
+          e.mov(e.eax, i.src1.constant());
+          e.mul(i.src2);
+          e.mov(i.dest, e.edx);
+        } else if (i.src2.is_constant) {
+          assert_true(!i.src1.is_constant); // can't multiply 2 constants
+
+          e.mov(e.eax, i.src2.constant());
+          e.mul(i.src1);
+          e.mov(i.dest, e.edx);
+        } else {
+          e.movzx(e.eax, i.src1);
+          e.mul(i.src2);
+          e.mov(i.dest, e.edx);
+        }
+      }
     } else {
       e.mov(e.al, i.src1);
       if (i.src2.is_constant) {
@@ -3214,9 +3352,34 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
 EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.movzx(e.edx, i.src1);
-      e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
+      // TODO(justin): Find a way to shorten this has call
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // TODO(benvanik): place src1 in eax? still need to sign extend
+        e.movzx(e.edx, i.src1);
+        e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
+      } else {
+        // x86 mul instruction
+        // EDX:EAX < EAX * REG(op1);
+
+        // is_constant AKA not a register
+        if (i.src1.is_constant) {
+          assert_true(!i.src2.is_constant); // can't multiply 2 constants
+
+          e.mov(e.eax, i.src1.constant());
+          e.mul(i.src2);
+          e.mov(i.dest, e.edx);
+        } else if (i.src2.is_constant) {
+          assert_true(!i.src1.is_constant); // can't multiply 2 constants
+
+          e.mov(e.eax, i.src2.constant());
+          e.mul(i.src1);
+          e.mov(i.dest, e.edx);
+        } else {
+          e.movzx(e.eax, i.src1);
+          e.mul(i.src2);
+          e.mov(i.dest, e.edx);
+        }
+      }
     } else {
       e.mov(e.ax, i.src1);
       if (i.src2.is_constant) {
@@ -3233,13 +3396,38 @@ EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
 EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.mov(e.edx, i.src1);
-      if (i.src2.is_constant) {
-        e.mov(e.eax, i.src2.constant());
-        e.mulx(i.dest, e.edx, e.eax);
+      // TODO(justin): Find a way to shorten this has call
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // TODO(benvanik): place src1 in eax? still need to sign extend
+        e.mov(e.edx, i.src1);
+        if (i.src2.is_constant) {
+          e.mov(e.eax, i.src2.constant());
+          e.mulx(i.dest, e.edx, e.eax);
+        } else {
+          e.mulx(i.dest, e.edx, i.src2);
+        }
       } else {
-        e.mulx(i.dest, e.edx, i.src2);
+        // x86 mul instruction
+        // EDX:EAX < EAX * REG(op1);
+
+        // is_constant AKA not a register
+        if (i.src1.is_constant) {
+          assert_true(!i.src2.is_constant); // can't multiply 2 constants
+
+          e.mov(e.eax, i.src1.constant());
+          e.mul(i.src2);
+          e.mov(i.dest, e.edx);
+        } else if (i.src2.is_constant) {
+          assert_true(!i.src1.is_constant); // can't multiply 2 constants
+
+          e.mov(e.eax, i.src2.constant());
+          e.mul(i.src1);
+          e.mov(i.dest, e.edx);
+        } else {
+          e.mov(e.eax, i.src1);
+          e.mul(i.src2);
+          e.mov(i.dest, e.edx);
+        }
       }
     } else {
       e.mov(e.eax, i.src1);
@@ -3257,13 +3445,38 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
 EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(benvanik): place src1 in eax? still need to sign extend
-      e.mov(e.rdx, i.src1);
-      if (i.src2.is_constant) {
-        e.mov(e.rax, i.src2.constant());
-        e.mulx(i.dest, e.rdx, e.rax);
+      // TODO(justin): Find a way to shorten this has call
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // TODO(benvanik): place src1 in eax? still need to sign extend
+        e.mov(e.rdx, i.src1);
+        if (i.src2.is_constant) {
+          e.mov(e.rax, i.src2.constant());
+          e.mulx(i.dest, e.rdx, e.rax);
+        } else {
+          e.mulx(i.dest, e.rax, i.src2);
+        }
       } else {
-        e.mulx(i.dest, e.rax, i.src2);
+        // x86 mul instruction
+        // EDX:EAX < EAX * REG(op1);
+
+        // is_constant AKA not a register
+        if (i.src1.is_constant) {
+          assert_true(!i.src2.is_constant); // can't multiply 2 constants
+
+          e.mov(e.rax, i.src1.constant());
+          e.mul(i.src2);
+          e.mov(i.dest, e.rdx);
+        } else if (i.src2.is_constant) {
+          assert_true(!i.src1.is_constant); // can't multiply 2 constants
+
+          e.mov(e.rax, i.src2.constant());
+          e.mul(i.src1);
+          e.mov(i.dest, e.rdx);
+        } else {
+          e.mov(e.rax, i.src1);
+          e.mul(i.src2);
+          e.mov(i.dest, e.rdx);
+        }
       }
     } else {
       e.mov(e.rax, i.src1);
@@ -3565,48 +3778,93 @@ EMITTER_OPCODE_TABLE(
 // perhaps use other 132/213/etc
 EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.dest == i.src1) {
-      e.vfmadd213ss(i.dest, i.src2, i.src3);
-    } else {
-      if (i.dest != i.src2 && i.dest != i.src3) {
-        e.vmovss(i.dest, i.src1);
+    // FMA extension
+    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+      if (i.dest == i.src1) {
         e.vfmadd213ss(i.dest, i.src2, i.src3);
       } else {
-        e.vmovss(e.xmm0, i.src1);
-        e.vfmadd213ss(e.xmm0, i.src2, i.src3);
-        e.vmovss(i.dest, e.xmm0);
+        if (i.dest != i.src2 && i.dest != i.src3) {
+          e.vmovss(i.dest, i.src1);
+          e.vfmadd213ss(i.dest, i.src2, i.src3);
+        } else {
+          e.vmovss(e.xmm0, i.src1);
+          e.vfmadd213ss(e.xmm0, i.src2, i.src3);
+          e.vmovss(i.dest, e.xmm0);
+        }
+      }
+    } else {
+      // TODO(justin): Test this
+      //e.DebugBreak();
+
+      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      if (i.dest == i.src3) {
+        e.vmovss(e.xmm0, i.src3);
+        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vaddss(i.dest, i.dest, e.xmm0); // $0 = $1 + $2
+      } else {
+        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vaddss(i.dest, i.dest, i.src3); // $0 = $1 + $2
       }
     }
   }
 };
 EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.dest == i.src1) {
-      e.vfmadd213sd(i.dest, i.src2, i.src3);
-    } else {
-      if (i.dest != i.src2 && i.dest != i.src3) {
-        e.vmovsd(i.dest, i.src1);
+    // FMA extension
+    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+      if (i.dest == i.src1) {
         e.vfmadd213sd(i.dest, i.src2, i.src3);
       } else {
-        e.vmovsd(e.xmm0, i.src1);
-        e.vfmadd213sd(e.xmm0, i.src2, i.src3);
-        e.vmovsd(i.dest, e.xmm0);
+        if (i.dest != i.src2 && i.dest != i.src3) {
+          e.vmovsd(i.dest, i.src1);
+          e.vfmadd213sd(i.dest, i.src2, i.src3);
+        } else {
+          e.vmovsd(e.xmm0, i.src1);
+          e.vfmadd213sd(e.xmm0, i.src2, i.src3);
+          e.vmovsd(i.dest, e.xmm0);
+        }
+      }
+    } else {
+      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      if (i.dest == i.src3) {
+        e.vmovsd(e.xmm0, i.src3);
+        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vaddsd(i.dest, i.dest, e.xmm0); // $0 = $1 + $2
+      } else {
+        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vaddsd(i.dest, i.dest, i.src3); // $0 = $1 + $2
       }
     }
   }
 };
 EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.dest == i.src1) {
-      e.vfmadd213ps(i.dest, i.src2, i.src3);
-    } else {
-      if (i.dest != i.src2 && i.dest != i.src3) {
-        e.vmovdqa(i.dest, i.src1);
+    // FMA extension
+    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+      if (i.dest == i.src1) {
         e.vfmadd213ps(i.dest, i.src2, i.src3);
       } else {
-        e.vmovdqa(e.xmm0, i.src1);
-        e.vfmadd213ps(e.xmm0, i.src2, i.src3);
-        e.vmovdqa(i.dest, e.xmm0);
+        if (i.dest != i.src2 && i.dest != i.src3) {
+          e.vmovdqa(i.dest, i.src1);
+          e.vfmadd213ps(i.dest, i.src2, i.src3);
+        } else {
+          e.vmovdqa(e.xmm0, i.src1);
+          e.vfmadd213ps(e.xmm0, i.src2, i.src3);
+          e.vmovdqa(i.dest, e.xmm0);
+        }
+      }
+    } else {
+      // TODO(justin): Test this
+      //e.DebugBreak();
+
+      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      if (i.dest == i.src3) {
+        e.vmovdqa(e.xmm0, i.src3);
+        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vaddps(i.dest, i.dest, e.xmm0); // $0 = $1 + $2
+      } else {
+        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vaddps(i.dest, i.dest, i.src3); // $0 = $1 + $2
       }
     }
   }
@@ -3628,48 +3886,96 @@ EMITTER_OPCODE_TABLE(
 // perhaps use other 132/213/etc
 EMITTER(MUL_SUB_F32, MATCH(I<OPCODE_MUL_SUB, F32<>, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.dest == i.src1) {
-      e.vfmsub213ss(i.dest, i.src2, i.src3);
-    } else {
-      if (i.dest != i.src2 && i.dest != i.src3) {
-        e.vmovss(i.dest, i.src1);
+    // FMA extension
+    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+      if (i.dest == i.src1) {
         e.vfmsub213ss(i.dest, i.src2, i.src3);
       } else {
-        e.vmovss(e.xmm0, i.src1);
-        e.vfmsub213ss(e.xmm0, i.src2, i.src3);
-        e.vmovss(i.dest, e.xmm0);
+        if (i.dest != i.src2 && i.dest != i.src3) {
+          e.vmovss(i.dest, i.src1);
+          e.vfmsub213ss(i.dest, i.src2, i.src3);
+        } else {
+          e.vmovss(e.xmm0, i.src1);
+          e.vfmsub213ss(e.xmm0, i.src2, i.src3);
+          e.vmovss(i.dest, e.xmm0);
+        }
+      }
+    } else {
+      // TODO(justin): Test this
+      //e.DebugBreak();
+
+      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      if (i.dest == i.src3) {
+        e.vmovss(e.xmm0, i.src3);
+        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vsubss(i.dest, i.dest, e.xmm0); // $0 = $1 - $2
+      } else {
+        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vsubss(i.dest, i.dest, i.src3); // $0 = $1 - $2
       }
     }
   }
 };
 EMITTER(MUL_SUB_F64, MATCH(I<OPCODE_MUL_SUB, F64<>, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.dest == i.src1) {
-      e.vfmsub213sd(i.dest, i.src2, i.src3);
-    } else {
-      if (i.dest != i.src2 && i.dest != i.src3) {
-        e.vmovsd(i.dest, i.src1);
+    // FMA extension
+    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+      if (i.dest == i.src1) {
         e.vfmsub213sd(i.dest, i.src2, i.src3);
       } else {
-        e.vmovsd(e.xmm0, i.src1);
-        e.vfmsub213sd(e.xmm0, i.src2, i.src3);
-        e.vmovsd(i.dest, e.xmm0);
+        if (i.dest != i.src2 && i.dest != i.src3) {
+          e.vmovsd(i.dest, i.src1);
+          e.vfmsub213sd(i.dest, i.src2, i.src3);
+        } else {
+          e.vmovsd(e.xmm0, i.src1);
+          e.vfmsub213sd(e.xmm0, i.src2, i.src3);
+          e.vmovsd(i.dest, e.xmm0);
+        }
+      }
+    } else {
+      // TODO(justin): Test this
+      //e.DebugBreak();
+
+      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      if (i.dest == i.src3) {
+        e.vmovdqa(e.xmm0, i.src3);
+        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vsubsd(i.dest, i.dest, e.xmm0); // $0 = $1 - $2
+      } else {
+        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vsubsd(i.dest, i.dest, i.src3); // $0 = $1 - $2
       }
     }
   }
 };
 EMITTER(MUL_SUB_V128, MATCH(I<OPCODE_MUL_SUB, V128<>, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.dest == i.src1) {
-      e.vfmsub213ps(i.dest, i.src2, i.src3);
-    } else {
-      if (i.dest != i.src2 && i.dest != i.src3) {
-        e.vmovdqa(i.dest, i.src1);
+    // FMA extension
+    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+      if (i.dest == i.src1) {
         e.vfmsub213ps(i.dest, i.src2, i.src3);
       } else {
-        e.vmovdqa(e.xmm0, i.src1);
-        e.vfmsub213ps(e.xmm0, i.src2, i.src3);
-        e.vmovdqa(i.dest, e.xmm0);
+        if (i.dest != i.src2 && i.dest != i.src3) {
+          e.vmovdqa(i.dest, i.src1);
+          e.vfmsub213ps(i.dest, i.src2, i.src3);
+        } else {
+          e.vmovdqa(e.xmm0, i.src1);
+          e.vfmsub213ps(e.xmm0, i.src2, i.src3);
+          e.vmovdqa(i.dest, e.xmm0);
+        }
+      }
+    } else {
+      // TODO(justin): Test this
+      //e.DebugBreak();
+
+      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      if (i.dest == i.src3) {
+        e.vmovdqa(e.xmm0, i.src3);
+        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vsubps(i.dest, i.dest, e.xmm0); // $0 = $1 - $2
+      } else {
+        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
+        e.vsubps(i.dest, i.dest, i.src3); // $0 = $1 - $2
       }
     }
   }
@@ -4160,10 +4466,22 @@ void EmitShlXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitAssociativeBinaryOp(
         e, i,
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
-          if (dest_src.getBit() == 64) {
-            e.shlx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
+          // shlx: $1 = $2 << $3
+          // shl: $1 = $1 << $2
+          if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+            if (dest_src.getBit() == 64) {
+              e.shlx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
+            } else {
+              e.shlx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            }
           } else {
-            e.shlx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            // back up ecx...
+            e.mov(e.al, e.cl);
+            e.mov(e.cl, src);
+
+            e.shl(dest_src, e.cl);
+
+            e.mov(e.cl, e.al);
           }
         }, [](X64Emitter& e, const REG& dest_src, int8_t constant) {
           e.shl(dest_src, constant);
@@ -4206,13 +4524,25 @@ void EmitShrXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitAssociativeBinaryOp(
         e, i,
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
-          if (dest_src.getBit() == 64) {
-            e.shrx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
-          } else if (dest_src.getBit() == 32) {
-            e.shrx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+          // shrx: op1 dest, op2 src, op3 count
+          // shr: op1 src/dest, op2 count
+          if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+            if (dest_src.getBit() == 64) {
+              e.shrx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
+            } else if (dest_src.getBit() == 32) {
+              e.shrx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            } else {
+              e.movzx(dest_src.cvt32(), dest_src);
+              e.shrx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            }
           } else {
-            e.movzx(dest_src.cvt32(), dest_src);
-            e.shrx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            // back up ecx...
+            e.mov(e.al, e.cl);
+            e.mov(e.cl, src);
+
+            e.shr(dest_src, e.cl);
+
+            e.mov(e.cl, e.al);
           }
         }, [](X64Emitter& e, const REG& dest_src, int8_t constant) {
           e.shr(dest_src, constant);
@@ -4873,25 +5203,118 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(CNTLZ_I8, MATCH(I<OPCODE_CNTLZ, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // No 8bit lzcnt, so do 16 and sub 8.
-    e.movzx(i.dest.reg().cvt16(), i.src1);
-    e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
-    e.sub(i.dest, 8);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      // No 8bit lzcnt, so do 16 and sub 8.
+      e.movzx(i.dest.reg().cvt16(), i.src1);
+      e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
+      e.sub(i.dest, 8);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 8); // If it's 0, the result should be 8
+      e.jmp(".lb");
+
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.ebx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 7 from e.eax
+      e.mov(e.eax, 7);
+      e.sub(e.eax, e.ebx);
+      e.mov(i.dest, e.eax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER(CNTLZ_I16, MATCH(I<OPCODE_CNTLZ, I8<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      // LZCNT: searches $2 until MSB 1 found, stores idx (from last bit) in $1
+      e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 16); // If it's 0, the result should be 16
+      e.jmp(".lb");
+      
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.ebx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 16 from e.eax
+      e.mov(e.eax, 15);
+      e.sub(e.eax, e.ebx);
+      e.mov(i.dest, e.eax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER(CNTLZ_I32, MATCH(I<OPCODE_CNTLZ, I8<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 32); // If it's 0, the result should be 32
+      e.jmp(".lb");
+
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.ebx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 32 from e.eax
+      e.mov(e.eax, 31);
+      e.sub(e.eax, e.ebx);
+      e.mov(i.dest, e.eax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER(CNTLZ_I64, MATCH(I<OPCODE_CNTLZ, I8<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lzcnt(i.dest.reg().cvt64(), i.src1);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      e.lzcnt(i.dest.reg().cvt64(), i.src1);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 64); // If it's 0, the result should be 64
+      e.jmp(".lb");
+
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.rbx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 64 from e.rax
+      e.mov(e.rax, 63);
+      e.sub(e.rax, e.ebx);
+      e.mov(i.dest, e.rax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -5015,54 +5438,96 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 // OPCODE_SPLAT
 // ============================================================================
+// Copy a value into all elements of a vector
 EMITTER(SPLAT_I8, MATCH(I<OPCODE_SPLAT, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.src1.is_constant) {
-      // TODO(benvanik): faster constant splats.
-      e.mov(e.al, i.src1.constant());
-      e.vmovd(e.xmm0, e.eax);
-      e.vpbroadcastb(i.dest, e.xmm0);
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (i.src1.is_constant) {
+        // TODO(benvanik): faster constant splats.
+        e.mov(e.al, i.src1.constant());
+        e.vmovd(e.xmm0, e.eax);
+        e.vpbroadcastb(i.dest, e.xmm0);
+      } else {
+        e.vmovd(e.xmm0, i.src1.reg().cvt32());
+        e.vpbroadcastb(i.dest, e.xmm0);
+      }
     } else {
-      e.vmovd(e.xmm0, i.src1.reg().cvt32());
-      e.vpbroadcastb(i.dest, e.xmm0);
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.constant());
+        e.movd(e.xmm0, e.eax);
+      } else {
+        e.movd(e.xmm0, i.src1.reg().cvt32());
+      }
+
+      // Credits: VC++ compiler (i love you so much)
+      e.punpcklbw(e.xmm0, e.xmm0);
+      e.punpcklwd(e.xmm0, e.xmm0);
+      e.pshufd(i.dest, e.xmm0, 0);
     }
   }
 };
 EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.src1.is_constant) {
-      // TODO(benvanik): faster constant splats.
-      e.mov(e.ax, i.src1.constant());
-      e.vmovd(e.xmm0, e.eax);
-      e.vpbroadcastw(i.dest, e.xmm0);
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (i.src1.is_constant) {
+        // TODO(benvanik): faster constant splats.
+        e.mov(e.ax, i.src1.constant());
+        e.vmovd(e.xmm0, e.eax);
+        e.vpbroadcastw(i.dest, e.xmm0);
+      } else {
+        e.vmovd(e.xmm0, i.src1.reg().cvt32());
+        e.vpbroadcastw(i.dest, e.xmm0);
+      }
     } else {
-      e.vmovd(e.xmm0, i.src1.reg().cvt32());
-      e.vpbroadcastw(i.dest, e.xmm0);
+      // TODO(justin)
+      e.DebugBreak();
     }
   }
 };
 EMITTER(SPLAT_I32, MATCH(I<OPCODE_SPLAT, V128<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.src1.is_constant) {
-      // TODO(benvanik): faster constant splats.
-      e.mov(e.eax, i.src1.constant());
-      e.vmovd(e.xmm0, e.eax);
-      e.vpbroadcastd(i.dest, e.xmm0);
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (i.src1.is_constant) {
+        // TODO(benvanik): faster constant splats.
+        e.mov(e.eax, i.src1.constant());
+        e.vmovd(e.xmm0, e.eax);
+        e.vpbroadcastd(i.dest, e.xmm0);
+      } else {
+        e.vmovd(e.xmm0, i.src1);
+        e.vpbroadcastd(i.dest, e.xmm0);
+      }
     } else {
-      e.vmovd(e.xmm0, i.src1);
-      e.vpbroadcastd(i.dest, e.xmm0);
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.constant());
+        e.vmovd(e.xmm0, e.eax);
+        e.pshufd(i.dest, e.xmm0, 0);
+      } else {
+        e.vmovd(e.xmm0, i.src1.reg().cvt32());
+        e.pshufd(i.dest, e.xmm0, 0);
+      }
     }
   }
 };
 EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.src1.is_constant) {
-      // TODO(benvanik): faster constant splats.
-      e.mov(e.eax, i.src1.value->constant.i32);
-      e.vmovd(e.xmm0, e.eax);
-      e.vbroadcastss(i.dest, e.xmm0);
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (i.src1.is_constant) {
+        // TODO(benvanik): faster constant splats.
+        e.mov(e.eax, i.src1.value->constant.i32);
+        e.vmovd(e.xmm0, e.eax);
+        e.vbroadcastss(i.dest, e.xmm0);
+      } else {
+        e.vbroadcastss(i.dest, i.src1);
+      }
     } else {
-      e.vbroadcastss(i.dest, i.src1);
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.value->constant.i32);
+        e.vmovd(i.dest, e.eax);
+        e.shufps(i.dest, i.dest, 0);
+      } else {
+        e.vmovd(i.dest, i.src1.reg().cvt32());
+        e.shufps(i.dest, i.dest, 0);
+      }
     }
   }
 };
@@ -5114,7 +5579,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
       if (i.dest != src3) {
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, src3, src_control);
-        e.vpblendd(i.dest, e.xmm0, blend_control);
+        e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
       } else {
         e.vmovaps(e.xmm0, src3);
         e.vpshufd(i.dest, src2, src_control);
