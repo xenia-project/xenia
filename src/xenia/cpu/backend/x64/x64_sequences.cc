@@ -5203,25 +5203,119 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(CNTLZ_I8, MATCH(I<OPCODE_CNTLZ, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // No 8bit lzcnt, so do 16 and sub 8.
-    e.movzx(i.dest.reg().cvt16(), i.src1);
-    e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
-    e.sub(i.dest, 8);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      // No 8bit lzcnt, so do 16 and sub 8.
+      e.movzx(i.dest.reg().cvt16(), i.src1);
+      e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
+      e.sub(i.dest, 8);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 8); // If it's 0, the result should be 8
+      e.jmp(".lb");
+
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.ebx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 7 from e.eax
+      e.mov(e.eax, 7);
+      e.sub(e.eax, e.ebx);
+      e.mov(i.dest, e.eax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER(CNTLZ_I16, MATCH(I<OPCODE_CNTLZ, I8<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      // LZCNT: searches $2 until MSB 1 found, stores idx (from last bit) in $1
+      e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 16); // If it's 0, the result should be 16
+      e.jmp(".lb");
+      
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.ebx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 16 from e.eax
+      e.mov(e.eax, 15);
+      e.sub(e.eax, e.ebx);
+      e.mov(i.dest, e.eax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER(CNTLZ_I32, MATCH(I<OPCODE_CNTLZ, I8<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      e.lzcnt(i.dest.reg().cvt32(), i.src1);
+    } else {
+      e.DebugBreak();
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 32); // If it's 0, the result should be 32
+      e.jmp(".lb");
+
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.ebx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 32 from e.eax
+      e.mov(e.eax, 31);
+      e.sub(e.eax, e.ebx);
+      e.mov(i.dest, e.eax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER(CNTLZ_I64, MATCH(I<OPCODE_CNTLZ, I8<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lzcnt(i.dest.reg().cvt64(), i.src1);
+    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+      e.lzcnt(i.dest.reg().cvt64(), i.src1);
+    } else {
+      e.inLocalLabel();
+
+      e.cmp(i.src1, 0); // Special case if number is 0
+      e.jne(".la"); // not 0, use bsr
+      e.mov(i.src1, 64); // If it's 0, the result should be 64
+      e.jmp(".lb");
+
+      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
+      // if input is 0, results are undefined
+      e.L(".la");
+      e.bsr(e.rbx, i.src1);
+
+      // sub: $1 = $1 - $2
+      // sub 64 from e.rax
+      e.mov(e.rax, 63);
+      e.sub(e.rax, e.ebx);
+      e.mov(i.dest, e.rax);
+
+      e.L(".lb");
+      e.outLocalLabel();
+    }
   }
 };
 EMITTER_OPCODE_TABLE(
