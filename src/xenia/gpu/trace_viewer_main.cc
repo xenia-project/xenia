@@ -19,6 +19,8 @@
 #include "xenia/gpu/tracing.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/emulator.h"
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 #include "xenia/ui/main_window.h"
 
 // HACK: until we have another impl, we just use gl4 directly.

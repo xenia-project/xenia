@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "poly/mapped_memory.h"
-#include "xenia/common.h"
 #include "xenia/xbox.h"
 #include "xenia/kernel/fs/entry.h"
 #include "poly/fs.h"

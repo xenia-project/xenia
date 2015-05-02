@@ -12,6 +12,7 @@
 #include "poly/math.h"
 #include "xenia/kernel/fs/gdfx.h"
 #include "xenia/kernel/fs/devices/disc_image_entry.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

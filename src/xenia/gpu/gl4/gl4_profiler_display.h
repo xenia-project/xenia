@@ -10,7 +10,6 @@
 #ifndef XENIA_GPU_GL4_GL4_PROFILER_DISPLAY_H_
 #define XENIA_GPU_GL4_GL4_PROFILER_DISPLAY_H_
 
-#include "xenia/common.h"
 #include "xenia/gpu/gl4/circular_buffer.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/wgl_control.h"

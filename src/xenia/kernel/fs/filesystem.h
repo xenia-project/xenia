@@ -15,7 +15,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/common.h"
 #include "xenia/kernel/fs/entry.h"
 
 namespace xe {

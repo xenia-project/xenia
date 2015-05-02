@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
 #define XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
 
-#include "xenia/common.h"
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
 

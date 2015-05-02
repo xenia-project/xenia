@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "poly/memory.h"
-#include "xenia/common.h"
 #include "xenia/xbox.h"
 
 namespace xe {

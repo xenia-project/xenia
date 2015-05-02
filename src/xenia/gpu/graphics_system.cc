@@ -12,6 +12,7 @@
 #include "poly/poly.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gpu-private.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {

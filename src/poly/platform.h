@@ -152,6 +152,11 @@ XE_CPU:         32BIT | 64BIT | BIGENDIAN | LITTLEENDIAN
 #include <x86intrin.h>
 #endif  // XE_COMPILER_MSVC
 
+#if XE_LIKE_WIN32
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#endif  // XE_LIKE_WIN32
+
 namespace poly {
 
 #if XE_LIKE_WIN32

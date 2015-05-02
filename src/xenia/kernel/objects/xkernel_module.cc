@@ -12,6 +12,7 @@
 #include "xenia/emulator.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/kernel/objects/xthread.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

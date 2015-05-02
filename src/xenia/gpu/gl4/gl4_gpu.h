@@ -12,7 +12,6 @@
 
 #include <memory>
 
-#include "xenia/common.h"
 #include "xenia/gpu/graphics_system.h"
 
 namespace xe {

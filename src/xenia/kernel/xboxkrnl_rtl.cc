@@ -16,6 +16,7 @@
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

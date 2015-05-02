@@ -15,6 +15,7 @@
 #include "xenia/gpu/gl4/gl4_profiler_display.h"
 #include "xenia/gpu/gpu-private.h"
 #include "xenia/gpu/tracing.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {

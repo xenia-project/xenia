@@ -10,6 +10,7 @@
 #include "xenia/kernel/fs/devices/host_path_entry.h"
 
 #include "poly/mapped_memory.h"
+#include "poly/string.h"
 #include "xenia/kernel/fs/devices/host_path_file.h"
 
 namespace xe {

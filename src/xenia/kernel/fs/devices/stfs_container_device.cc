@@ -13,6 +13,7 @@
 #include "xenia/kernel/fs/stfs.h"
 #include "xenia/kernel/fs/devices/stfs_container_entry.h"
 #include "xenia/kernel/objects/xfile.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

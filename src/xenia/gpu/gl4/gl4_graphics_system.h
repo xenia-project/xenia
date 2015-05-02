@@ -12,7 +12,6 @@
 
 #include <memory>
 
-#include "xenia/common.h"
 #include "xenia/gpu/gl4/command_processor.h"
 #include "xenia/gpu/gl4/wgl_control.h"
 #include "xenia/gpu/graphics_system.h"

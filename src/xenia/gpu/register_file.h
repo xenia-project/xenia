@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_REGISTER_FILE_H_
 #define XENIA_GPU_REGISTER_FILE_H_
 
-#include "xenia/common.h"
+#include <cstdint>
 
 namespace xe {
 namespace gpu {

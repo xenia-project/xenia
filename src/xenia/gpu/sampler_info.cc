@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/sampler_info.h"
 
+#include <memory>
+
 #include "third_party/xxhash/xxhash.h"
 
 namespace xe {

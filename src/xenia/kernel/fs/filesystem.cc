@@ -9,11 +9,12 @@
 
 #include "xenia/kernel/fs/filesystem.h"
 
+#include "poly/fs.h"
 #include "poly/string.h"
 #include "xenia/kernel/fs/devices/disc_image_device.h"
 #include "xenia/kernel/fs/devices/host_path_device.h"
 #include "xenia/kernel/fs/devices/stfs_container_device.h"
-#include "poly/fs.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

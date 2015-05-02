@@ -12,7 +12,6 @@
 
 #include <string>
 
-#include "xenia/common.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/shader.h"
 

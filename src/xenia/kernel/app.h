@@ -13,7 +13,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/common.h"
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
 

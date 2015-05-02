@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_PRIVATE_H_
 #define XENIA_KERNEL_XBOXKRNL_PRIVATE_H_
 
-#include "xenia/common.h"
 #include "xenia/kernel/xboxkrnl_ordinals.h"
 
 namespace xe {

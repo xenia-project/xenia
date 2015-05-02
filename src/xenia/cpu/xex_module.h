@@ -13,7 +13,6 @@
 #include <string>
 
 #include "xenia/cpu/module.h"
-#include "xenia/common.h"
 #include "xenia/kernel/util/xex2.h"
 
 namespace xe {

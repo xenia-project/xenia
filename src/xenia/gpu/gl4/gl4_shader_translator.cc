@@ -9,8 +9,10 @@
 
 #include "xenia/gpu/gl4/gl4_shader_translator.h"
 
+#include "poly/assert.h"
 #include "poly/math.h"
 #include "xenia/gpu/gpu-private.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {

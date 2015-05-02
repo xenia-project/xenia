@@ -16,12 +16,6 @@
 
 #include "poly/platform.h"
 
-#if XE_LIKE_WIN32
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
-#define snprintf _snprintf
-#endif  // XE_LIKE_WIN32
-
 namespace poly {
 
 std::string to_string(const std::wstring& source);

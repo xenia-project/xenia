@@ -15,6 +15,7 @@
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/export_resolver.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {

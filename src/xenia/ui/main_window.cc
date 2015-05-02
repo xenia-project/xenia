@@ -13,6 +13,7 @@
 #include "poly/threading.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/emulator.h"
+#include "xenia/profiling.h"
 
 namespace xe {
 namespace ui {

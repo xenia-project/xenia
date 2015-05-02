@@ -15,6 +15,8 @@
 #include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 
 namespace xe {
 namespace kernel {

@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
 #include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/common.h"
 #include "xenia/export_resolver.h"
 
 namespace xe {

@@ -12,6 +12,7 @@
 #include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/hid/input_driver.h"
+#include "xenia/profiling.h"
 
 namespace xe {
 namespace hid {

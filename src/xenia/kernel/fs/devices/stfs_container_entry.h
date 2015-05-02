@@ -14,7 +14,6 @@
 #include <iterator>
 
 #include "poly/mapped_memory.h"
-#include "xenia/common.h"
 #include "xenia/kernel/fs/entry.h"
 #include "poly/fs.h"
 #include "xenia/kernel/fs/stfs.h"

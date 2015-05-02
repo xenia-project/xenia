@@ -13,7 +13,6 @@
 #include <memory>
 #include <mutex>
 
-#include "xenia/common.h"
 #include "xenia/export_resolver.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/content_manager.h"

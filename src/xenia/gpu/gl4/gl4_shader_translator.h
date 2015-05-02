@@ -13,7 +13,6 @@
 #include <string>
 
 #include "poly/string_buffer.h"
-#include "xenia/common.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/ucode.h"

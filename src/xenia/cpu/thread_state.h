@@ -12,7 +12,6 @@
 
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/common.h"
 #include "xenia/memory.h"
 
 namespace xdb {

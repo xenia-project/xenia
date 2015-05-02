@@ -9,8 +9,11 @@
 
 #include "xenia/debug_agent.h"
 
-#include "poly/string.h"
 #include <gflags/gflags.h>
+
+#include "poly/memory.h"
+#include "poly/string.h"
+#include "xenia/logging.h"
 
 DEFINE_string(trace_file, "", "Trace to the given file.");
 DEFINE_uint64(trace_capacity, 0x40000000, "Trace file capacity to allocate.");

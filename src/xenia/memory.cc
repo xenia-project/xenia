@@ -16,6 +16,7 @@
 
 #include "poly/math.h"
 #include "xenia/cpu/mmio_handler.h"
+#include "xenia/logging.h"
 
 using namespace xe;
 

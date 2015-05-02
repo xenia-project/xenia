@@ -7,7 +7,6 @@
  ******************************************************************************
  */
 
-#include "xenia/common.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
@@ -16,6 +15,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl_rtl.h"
+#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {

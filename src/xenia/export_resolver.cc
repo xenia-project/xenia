@@ -9,6 +9,7 @@
 
 #include "xenia/export_resolver.h"
 
+#include "poly/assert.h"
 #include "poly/math.h"
 
 namespace xe {

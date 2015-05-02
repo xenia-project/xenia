@@ -11,7 +11,9 @@
 
 #include "poly/assert.h"
 #include "poly/math.h"
+#include "poly/memory.h"
 #include "xenia/gpu/gpu-private.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {

@@ -10,7 +10,6 @@
 #ifndef XENIA_CPU_RUNTIME_H_
 #define XENIA_CPU_RUNTIME_H_
 
-#include "xenia/common.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/debugger.h"
 #include "xenia/cpu/entry_table.h"

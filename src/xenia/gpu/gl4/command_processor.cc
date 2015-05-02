@@ -19,6 +19,8 @@
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 
 #include "third_party/xxhash/xxhash.h"
 

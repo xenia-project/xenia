@@ -15,7 +15,6 @@
 #include <queue>
 #include <thread>
 
-#include "xenia/common.h"
 #include "xenia/emulator.h"
 #include "xenia/xbox.h"
 

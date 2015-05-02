@@ -10,7 +10,8 @@
 #ifndef XENIA_GPU_XENOS_H_
 #define XENIA_GPU_XENOS_H_
 
-#include "xenia/common.h"
+#include "poly/assert.h"
+#include "poly/byte_order.h"
 #include "xenia/gpu/ucode.h"
 
 namespace xe {

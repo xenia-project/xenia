@@ -13,6 +13,7 @@
 #include "poly/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gpu-private.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {

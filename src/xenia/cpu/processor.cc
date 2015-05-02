@@ -13,6 +13,8 @@
 #include "xenia/cpu/runtime.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/export_resolver.h"
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {

@@ -12,7 +12,6 @@
 
 #include <gflags/gflags.h>
 
-#include "xenia/common.h"
 #include "xenia/gpu/gl4/gl4_gpu.h"
 
 DECLARE_bool(thread_safe_gl);

@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XEX2_INFO_H_
 #define XENIA_KERNEL_XEX2_INFO_H_
 
-#include "xenia/common.h"
+#include <cstdint>
 
 typedef enum {
   XEX_HEADER_RESOURCE_INFO                        = 0x000002FF,

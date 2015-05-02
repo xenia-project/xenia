@@ -8,6 +8,8 @@
  */
 
 #include "xenia/kernel/fs/entry.h"
+
+#include "poly/string.h"
 #include "xenia/kernel/fs/device.h"
 
 namespace xe {

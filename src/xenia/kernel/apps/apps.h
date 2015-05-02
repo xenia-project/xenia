@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_APPS_APPS_H_
 #define XENIA_KERNEL_XBOXKRNL_APPS_APPS_H_
 
-#include "xenia/common.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/kernel_state.h"
 

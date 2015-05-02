@@ -10,6 +10,7 @@
 #include "xenia/gpu/shader.h"
 
 #include "poly/math.h"
+#include "poly/memory.h"
 #include "xenia/gpu/ucode_disassembler.h"
 
 namespace xe {

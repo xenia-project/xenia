@@ -10,10 +10,10 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 #include <winsock2.h>
 
-#include "xenia/common.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
+#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {

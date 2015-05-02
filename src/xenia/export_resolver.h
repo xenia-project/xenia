@@ -10,7 +10,6 @@
 #ifndef XENIA_EXPORT_RESOLVER_H_
 #define XENIA_EXPORT_RESOLVER_H_
 
-#include "xenia/common.h"
 
 #include <string>
 #include <vector>

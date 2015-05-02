@@ -12,12 +12,10 @@
 
 #include <memory>
 
-#include "xenia/common.h"
+#include "xenia/hid/input_system.h"
 
 namespace xe {
 namespace hid {
-class InputDriver;
-class InputSystem;
 namespace nop {
 
 std::unique_ptr<InputDriver> Create(InputSystem* input_system);

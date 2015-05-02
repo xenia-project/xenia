@@ -14,7 +14,6 @@
 #include <string>
 #include <unordered_map>
 
-#include "xenia/common.h"
 #include "xenia/xbox.h"
 
 namespace xe {

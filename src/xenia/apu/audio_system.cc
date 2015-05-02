@@ -14,6 +14,8 @@
 #include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch

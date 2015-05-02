@@ -16,6 +16,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/logging.h"
 
 DEFINE_bool(abort_before_entry, false,
             "Abort execution right before launching the module.");

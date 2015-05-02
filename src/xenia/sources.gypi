@@ -1,7 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'common.h',
     'debug_agent.cc',
     'debug_agent.h',
     'emulator.cc',

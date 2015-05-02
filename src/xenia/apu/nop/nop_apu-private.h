@@ -10,22 +10,16 @@
 #ifndef XENIA_APU_NOP_NOP_APU_PRIVATE_H_
 #define XENIA_APU_NOP_NOP_APU_PRIVATE_H_
 
-#include "xenia/common.h"
-
 #include "xenia/apu/nop/nop_apu.h"
-
 
 namespace xe {
 namespace apu {
 namespace nop {
 
-
-
-
+//
 
 }  // namespace nop
 }  // namespace apu
 }  // namespace xe
-
 
 #endif  // XENIA_APU_NOP_NOP_APU_PRIVATE_H_

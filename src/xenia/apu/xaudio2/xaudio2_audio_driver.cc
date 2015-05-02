@@ -11,6 +11,7 @@
 
 #include "xenia/apu/apu-private.h"
 #include "xenia/emulator.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace apu {

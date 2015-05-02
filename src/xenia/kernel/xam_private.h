@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_XAM_PRIVATE_H_
 #define XENIA_KERNEL_XAM_PRIVATE_H_
 
-#include "xenia/common.h"
 #include "xenia/kernel/xam_ordinals.h"
 
 namespace xe {

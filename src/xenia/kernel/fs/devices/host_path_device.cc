@@ -12,6 +12,7 @@
 #include "poly/fs.h"
 #include "xenia/kernel/fs/devices/host_path_entry.h"
 #include "xenia/kernel/objects/xfile.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

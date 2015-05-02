@@ -13,7 +13,6 @@
 #include <string>
 
 #include "poly/memory.h"
-#include "xenia/common.h"
 
 namespace xe {
 

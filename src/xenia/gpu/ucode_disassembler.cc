@@ -37,6 +37,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "poly/assert.h"
+
 namespace xe {
 namespace gpu {
 

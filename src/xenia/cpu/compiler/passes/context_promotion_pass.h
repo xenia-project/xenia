@@ -10,6 +10,7 @@
 #ifndef XENIA_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 #define XENIA_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
+#include "poly/platform.h"
 #include "xenia/cpu/compiler/compiler_pass.h"
 
 #if XE_COMPILER_MSVC

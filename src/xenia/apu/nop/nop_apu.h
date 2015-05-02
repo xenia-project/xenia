@@ -12,15 +12,11 @@
 
 #include <memory>
 
-#include "xenia/common.h"
-
-namespace xe {
-class Emulator;
-}  // namespace xe
+#include "xenia/apu/audio_system.h"
+#include "xenia/emulator.h"
 
 namespace xe {
 namespace apu {
-class AudioSystem;
 namespace nop {
 
 std::unique_ptr<AudioSystem> Create(Emulator* emulator);

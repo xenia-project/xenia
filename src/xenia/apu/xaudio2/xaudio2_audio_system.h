@@ -12,7 +12,6 @@
 
 #include <xaudio2.h>
 
-#include "xenia/common.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/apu/xaudio2/xaudio2_apu-private.h"
 
@@ -21,14 +20,15 @@ namespace apu {
 namespace xaudio2 {
 
 class XAudio2AudioSystem : public AudioSystem {
-public:
+ public:
   XAudio2AudioSystem(Emulator* emulator);
   virtual ~XAudio2AudioSystem();
 
-  virtual X_RESULT CreateDriver(size_t index, HANDLE wait, AudioDriver** out_driver);
+  virtual X_RESULT CreateDriver(size_t index, HANDLE wait,
+                                AudioDriver** out_driver);
   virtual void DestroyDriver(AudioDriver* driver);
 
-protected:
+ protected:
   virtual void Initialize();
 };
 

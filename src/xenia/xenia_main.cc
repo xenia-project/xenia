@@ -11,6 +11,8 @@
 #include "poly/main.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel.h"
+#include "xenia/logging.h"
+#include "xenia/profiling.h"
 #include "xenia/ui/main_window.h"
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");

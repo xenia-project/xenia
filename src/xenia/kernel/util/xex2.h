@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_UTIL_XEX2_H_
 #define XENIA_KERNEL_UTIL_XEX2_H_
 
-#include "xenia/common.h"
 #include "xenia/kernel/util/xex2_info.h"
 #include "xenia/memory.h"
 

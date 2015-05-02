@@ -13,6 +13,8 @@
 
 #include <algorithm>
 
+#include "xenia/logging.h"
+
 namespace xe {
 namespace kernel {
 namespace fs {

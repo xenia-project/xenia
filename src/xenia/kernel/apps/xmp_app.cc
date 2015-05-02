@@ -10,6 +10,7 @@
 #include "xenia/kernel/apps/xmp_app.h"
 
 #include "poly/threading.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

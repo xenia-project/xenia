@@ -13,7 +13,6 @@
 #include <atomic>
 #include <thread>
 
-#include "xenia/common.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/memory.h"
 #include "xenia/ui/main_window.h"
