@@ -833,7 +833,7 @@ class TracePlayer : public TraceReader {
 
 void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
                       Memory* memory) {
-  ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCondition_FirstUseEver);
+  ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Controller", nullptr, ImVec2(340, 60))) {
     ImGui::End();
     return;
@@ -872,7 +872,7 @@ void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
 
 void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
                        Memory* memory) {
-  ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCondition_FirstUseEver);
+  ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
     ImGui::End();
     return;
@@ -1385,7 +1385,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
   auto& regs = *gs->register_file();
 
   ImGui::SetNextWindowPos(ImVec2(float(window->width()) - 500 - 5, 30),
-                          ImGuiSetCondition_FirstUseEver);
+                          ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("State", nullptr, ImVec2(500, 680))) {
     ImGui::End();
     return;
@@ -2020,9 +2020,9 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
 
 void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
                               Memory* memory) {
-  ImGui::SetNextWindowCollapsed(true, ImGuiSetCondition_FirstUseEver);
+  ImGui::SetNextWindowCollapsed(true, ImGuiSetCond_FirstUseEver);
   ImGui::SetNextWindowPos(ImVec2(float(window->width()) - 500 - 5, 5),
-                          ImGuiSetCondition_FirstUseEver);
+                          ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Packet Disassembler", nullptr, ImVec2(500, 300))) {
     ImGui::End();
     return;
@@ -2414,8 +2414,6 @@ void ImImpl_Setup() {
   style.Colors[ImGuiCol_ScrollbarGrabActive] =
       ImVec4(0.00f, 0.91f, 0.09f, 0.40f);
   style.Colors[ImGuiCol_ComboBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.99f);
-  style.Colors[ImGuiCol_CheckHovered] = ImVec4(0.23f, 0.64f, 0.13f, 0.45f);
-  style.Colors[ImGuiCol_CheckActive] = ImVec4(0.21f, 0.93f, 0.13f, 0.55f);
   style.Colors[ImGuiCol_CheckMark] = ImVec4(0.74f, 0.90f, 0.72f, 0.50f);
   style.Colors[ImGuiCol_SliderGrab] = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
   style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.34f, 0.75f, 0.11f, 1.00f);
