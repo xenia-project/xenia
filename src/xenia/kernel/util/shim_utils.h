@@ -10,8 +10,8 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
+#include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/export_resolver.h"
 
 namespace xe {
 namespace kernel {
@@ -20,10 +20,9 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 
 #define SHIM_CALL             void _cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
-  export_resolver->SetFunctionMapping( \
-      library_name, ordinals::##export_name, \
-      shim_data, \
-      (xe_kernel_export_shim_fn)export_name##_shim);
+  export_resolver->SetFunctionMapping(                         \
+      library_name, ordinals::##export_name, shim_data,        \
+      (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
 
 #define SHIM_MEM_BASE ppc_state->virtual_membase
 #define SHIM_MEM_ADDR(a) (a ? (ppc_state->virtual_membase + a) : nullptr)

@@ -13,7 +13,7 @@
 #include <mutex>
 #include <vector>
 
-#include "xenia/export_resolver.h"
+#include "xenia/cpu/export_resolver.h"
 #include "xenia/memory.h"
 
 namespace xe {

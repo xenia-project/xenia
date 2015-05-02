@@ -61,7 +61,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterUIExports(ExportResolver* export_resolver,
-                                        KernelState* state) {
+void xe::kernel::xam::RegisterUIExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamShowMessageBoxUI, state);
 }

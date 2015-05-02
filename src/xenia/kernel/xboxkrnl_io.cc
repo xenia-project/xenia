@@ -740,8 +740,8 @@ SHIM_CALL FscSetCacheElementCount_shim(PPCContext* ppc_state,
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterIoExports(ExportResolver* export_resolver,
-                                             KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterIoExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtOpenFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReadFile, state);

@@ -389,8 +389,8 @@ SHIM_CALL NetDll_sendto_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterNetExports(ExportResolver* export_resolver,
-                                         KernelState* state) {
+void xe::kernel::xam::RegisterNetExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetCleanup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetRandom, state);

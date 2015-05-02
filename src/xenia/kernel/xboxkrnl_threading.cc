@@ -1282,7 +1282,7 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterThreadingExports(
-    ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ExTerminateThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtResumeThread, state);

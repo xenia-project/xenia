@@ -468,7 +468,7 @@ SHIM_CALL XMABlockWhileInUse_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterAudioXmaExports(
-    ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   // Used for both XMA* methods and direct register access.
   SHIM_SET_MAPPING("xboxkrnl.exe", XMACreateContext, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAReleaseContext, state);

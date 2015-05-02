@@ -12,7 +12,7 @@
 
 #include "xenia/kernel/objects/xmodule.h"
 
-#include "xenia/export_resolver.h"
+#include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/xbox.h"
 

@@ -37,7 +37,7 @@ SHIM_CALL XUsbcamGetState_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterUsbcamExports(
-    ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", XUsbcamCreate, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XUsbcamGetState, state);
 }

@@ -10,7 +10,6 @@
 #include "xenia/kernel/xam_module.h"
 
 #include "poly/math.h"
-#include "xenia/export_resolver.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam_private.h"
 
@@ -34,7 +33,7 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   xam::RegisterVoiceExports(export_resolver_, kernel_state_);
 }
 
-void XamModule::RegisterExportTable(ExportResolver* export_resolver) {
+void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
   assert_not_null(export_resolver);
 
   if (!export_resolver) {
@@ -43,7 +42,7 @@ void XamModule::RegisterExportTable(ExportResolver* export_resolver) {
 
   // Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
-  static KernelExport xam_export_table[] = {
+  static xe::cpu::KernelExport xam_export_table[] = {
 #include "xenia/kernel/xam_table.inc"
   };
 #include "xenia/kernel/util/export_table_post.inc"

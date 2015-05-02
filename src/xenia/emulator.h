@@ -23,6 +23,7 @@ namespace apu {
 class AudioSystem;
 }  // namespace apu
 namespace cpu {
+class ExportResolver;
 class Processor;
 class ThreadState;
 }  // namespace cpu
@@ -42,8 +43,6 @@ class MainWindow;
 }  // namespace xe
 
 namespace xe {
-
-class ExportResolver;
 
 class Emulator {
  public:
@@ -65,7 +64,9 @@ class Emulator {
   }
   hid::InputSystem* input_system() const { return input_system_.get(); }
 
-  ExportResolver* export_resolver() const { return export_resolver_.get(); }
+  cpu::ExportResolver* export_resolver() const {
+    return export_resolver_.get();
+  }
   kernel::fs::FileSystem* file_system() const { return file_system_.get(); }
 
   kernel::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_.get(); }
@@ -95,7 +96,7 @@ class Emulator {
   std::unique_ptr<gpu::GraphicsSystem> graphics_system_;
   std::unique_ptr<hid::InputSystem> input_system_;
 
-  std::unique_ptr<ExportResolver> export_resolver_;
+  std::unique_ptr<cpu::ExportResolver> export_resolver_;
   std::unique_ptr<kernel::fs::FileSystem> file_system_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;

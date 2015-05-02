@@ -7,20 +7,17 @@
  ******************************************************************************
  */
 
-#include "poly/main.h"
-#include "poly/string.h"
-#include "poly/math.h"
-
-#include "xenia/kernel/fs/filesystem.h"
-#include "xenia/memory.h"
-
-#include "xenia/kernel/objects/xfile.h"
-
-#include "xenia/export_resolver.h"
-#include "xenia/kernel/util/xex2.h"
-#include "xenia/xbox.h"
-
 #include <vector>
+
+#include "poly/main.h"
+#include "poly/math.h"
+#include "poly/string.h"
+#include "xenia/cpu/export_resolver.h"
+#include "xenia/kernel/fs/filesystem.h"
+#include "xenia/kernel/objects/xfile.h"
+#include "xenia/kernel/util/xex2.h"
+#include "xenia/memory.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace tools {
@@ -42,7 +39,8 @@ namespace tools {
     kernel::fs::FileSystem file_system;
     apiscanner_logger log;
     std::unique_ptr<Memory> memory_;
-    std::unique_ptr<ExportResolver> export_resolver;
+    std::unique_ptr<xe::cpu::ExportResolver> export_resolver;
+
   public:
     apiscanner_loader();
     ~apiscanner_loader();

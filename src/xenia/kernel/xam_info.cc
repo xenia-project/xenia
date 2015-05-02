@@ -186,8 +186,8 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterInfoExports(ExportResolver* export_resolver,
-                                          KernelState* state) {
+void xe::kernel::xam::RegisterInfoExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamGetSystemVersion, state);
   SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
   SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);

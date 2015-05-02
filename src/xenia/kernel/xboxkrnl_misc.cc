@@ -27,7 +27,7 @@ SHIM_CALL KeEnableFpuExceptions_shim(PPCContext* ppc_state,
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterMiscExports(ExportResolver* export_resolver,
-                                               KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterMiscExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnableFpuExceptions, state);
 }

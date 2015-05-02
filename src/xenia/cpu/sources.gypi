@@ -10,6 +10,8 @@
     'debugger.h',
     'entry_table.cc',
     'entry_table.h',
+    'export_resolver.cc',
+    'export_resolver.h',
     'function.cc',
     'function.h',
     'instrument.cc',

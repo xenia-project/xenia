@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
 #define XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
 
-#include "xenia/export_resolver.h"
+#include "xenia/cpu/export_resolver.h"
 
 // Build an ordinal enum to make it easy to lookup ordinals.
 #include "xenia/kernel/util/ordinal_table_pre.inc"

@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_EXPORT_RESOLVER_H_
-#define XENIA_EXPORT_RESOLVER_H_
-
+#ifndef XENIA_CPU_EXPORT_RESOLVER_H_
+#define XENIA_CPU_EXPORT_RESOLVER_H_
 
 #include <string>
 #include <vector>
 
 namespace xe {
+namespace cpu {
 
 typedef void (*xe_kernel_export_shim_fn)(void*, void*);
 
@@ -78,6 +78,7 @@ class ExportResolver {
   std::vector<ExportTable> tables_;
 };
 
+}  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_EXPORT_RESOLVER_H_
+#endif  // XENIA_CPU_EXPORT_RESOLVER_H_

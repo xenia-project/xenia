@@ -283,8 +283,8 @@ SHIM_CALL KeBugCheckEx_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterDebugExports(ExportResolver* export_resolver,
-                                                KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterDebugExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgBreakPoint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlRaiseException, state);

@@ -535,8 +535,8 @@ SHIM_CALL XamContentDelete_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterContentExports(ExportResolver* export_resolver,
-                                             KernelState* state) {
+void xe::kernel::xam::RegisterContentExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamContentGetLicenseMask, state);
   SHIM_SET_MAPPING("xam.xex", XamShowDeviceSelectorUI, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceName, state);

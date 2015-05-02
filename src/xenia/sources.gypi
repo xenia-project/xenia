@@ -5,8 +5,6 @@
     'debug_agent.h',
     'emulator.cc',
     'emulator.h',
-    'export_resolver.cc',
-    'export_resolver.h',
     'logging.cc',
     'logging.h',
     'memory.cc',

@@ -157,8 +157,8 @@ SHIM_CALL NtClose_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterObExports(ExportResolver* export_resolver,
-                                             KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterObExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ObOpenObjectByName, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObReferenceObjectByHandle, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObDereferenceObject, state);

@@ -301,7 +301,7 @@ SHIM_CALL ExRegisterTitleTerminateNotification_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterModuleExports(
-    ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExGetXConfigSetting, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XexCheckExecutablePrivilege, state);

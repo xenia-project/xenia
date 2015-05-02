@@ -195,8 +195,8 @@ SHIM_CALL XamUserGetDeviceContext_shim(PPCContext* ppc_state,
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterInputExports(ExportResolver* export_resolver,
-                                           KernelState* state) {
+void xe::kernel::xam::RegisterInputExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamResetInactivity, state);
   SHIM_SET_MAPPING("xam.xex", XamEnableInactivityProcessing, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);

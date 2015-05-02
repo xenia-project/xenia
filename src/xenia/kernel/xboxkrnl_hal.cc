@@ -36,7 +36,7 @@ SHIM_CALL HalReturnToFirmware_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterHalExports(ExportResolver* export_resolver,
-                                              KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterHalExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", HalReturnToFirmware, state);
 }

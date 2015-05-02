@@ -89,7 +89,7 @@ X_STATUS Emulator::Setup() {
   memory_->set_trace_base(debug_agent_->trace_base());
 
   // Shared export resolver used to attach and query for HLE exports.
-  export_resolver_ = std::make_unique<ExportResolver>();
+  export_resolver_ = std::make_unique<xe::cpu::ExportResolver>();
 
   // Initialize the CPU.
   processor_ =

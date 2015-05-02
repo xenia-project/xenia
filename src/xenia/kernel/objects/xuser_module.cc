@@ -190,7 +190,7 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
 }
 
 void XUserModule::Dump() {
-  ExportResolver* export_resolver =
+  xe::cpu::ExportResolver* export_resolver =
       kernel_state_->emulator()->export_resolver();
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 

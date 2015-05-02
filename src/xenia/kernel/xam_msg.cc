@@ -117,8 +117,8 @@ SHIM_CALL XMsgCancelIORequest_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterMsgExports(ExportResolver* export_resolver,
-                                         KernelState* state) {
+void xe::kernel::xam::RegisterMsgExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XMsgInProcessCall, state);
   SHIM_SET_MAPPING("xam.xex", XMsgSystemProcessCall, state);
   SHIM_SET_MAPPING("xam.xex", XMsgStartIORequest, state);

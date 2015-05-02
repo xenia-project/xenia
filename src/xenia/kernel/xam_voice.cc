@@ -50,8 +50,8 @@ SHIM_CALL XamVoiceHeadsetPresent_shim(PPCContext* ppc_state,
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterVoiceExports(ExportResolver* export_resolver,
-                                           KernelState* state) {
+void xe::kernel::xam::RegisterVoiceExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamVoiceCreate, state);
   SHIM_SET_MAPPING("xam.xex", XamVoiceClose, state);
   SHIM_SET_MAPPING("xam.xex", XamVoiceHeadsetPresent, state);

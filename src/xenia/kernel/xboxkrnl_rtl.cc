@@ -682,8 +682,8 @@ SHIM_CALL RtlTimeFieldsToTime_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterRtlExports(ExportResolver* export_resolver,
-                                              KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterRtlExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareMemoryUlong, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlFillMemoryUlong, state);

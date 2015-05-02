@@ -26,7 +26,7 @@ SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterVideoExports(ExportResolver* export_resolver,
-                                           KernelState* state) {
+void xe::kernel::xam::RegisterVideoExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XGetVideoMode, state);
 }

@@ -28,7 +28,7 @@ class XKernelModule : public XModule {
  protected:
   Emulator* emulator_;
   Memory* memory_;
-  ExportResolver* export_resolver_;
+  xe::cpu::ExportResolver* export_resolver_;
 };
 
 }  // namespace kernel

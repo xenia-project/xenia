@@ -126,8 +126,8 @@ SHIM_CALL XAudioSubmitRenderDriverFrame_shim(PPCContext* ppc_state,
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterAudioExports(ExportResolver* export_resolver,
-                                                KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterAudioExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   // Additional XMA* methods are in xboxkrnl_audio_xma.cc.
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XAudioGetSpeakerConfig, state);

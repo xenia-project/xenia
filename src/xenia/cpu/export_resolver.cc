@@ -7,12 +7,13 @@
  ******************************************************************************
  */
 
-#include "xenia/export_resolver.h"
+#include "xenia/cpu/export_resolver.h"
 
 #include "poly/assert.h"
 #include "poly/math.h"
 
 namespace xe {
+namespace cpu {
 
 ExportResolver::ExportResolver() {}
 
@@ -65,4 +66,5 @@ void ExportResolver::SetFunctionMapping(const std::string& library_name,
   kernel_export->function_data.shim = shim;
 }
 
+}  // namespace cpu
 }  // namespace xe

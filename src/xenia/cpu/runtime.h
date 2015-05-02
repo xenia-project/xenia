@@ -13,11 +13,11 @@
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/debugger.h"
 #include "xenia/cpu/entry_table.h"
+#include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/export_resolver.h"
 #include "xenia/memory.h"
 
 namespace xe {

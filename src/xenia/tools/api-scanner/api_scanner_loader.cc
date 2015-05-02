@@ -31,7 +31,7 @@ apiscanner_loader::apiscanner_loader()
   : export_resolver(nullptr)
   , memory_(nullptr)
 {
-  export_resolver = std::make_unique<ExportResolver>();
+  export_resolver = std::make_unique<xe::cpu::ExportResolver>();
 
   kernel::XamModule::RegisterExportTable(export_resolver.get());
   kernel::XboxkrnlModule::RegisterExportTable(export_resolver.get());
@@ -167,11 +167,12 @@ bool apiscanner_loader::ExtractImports(const void* addr, const size_t length,
       for (size_t m = 0; m < import_info_count; m++) {
         const xe_xex2_import_info_t* import_info = &import_infos[m];
 
-        KernelExport* kernel_export = export_resolver->GetExportByOrdinal(
-          library->name, import_info->ordinal);
+        auto kernel_export = export_resolver->GetExportByOrdinal(
+            library->name, import_info->ordinal);
 
-        if ((kernel_export && kernel_export->type == KernelExport::Variable)
-          || import_info->thunk_address) {
+        if ((kernel_export &&
+             kernel_export->type == xe::cpu::KernelExport::Variable) ||
+            import_info->thunk_address) {
           const std::string named(kernel_export ? kernel_export->name : "");
           info.imports.push_back(named);
         }

@@ -442,8 +442,8 @@ SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_state, KernelState* stat
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterUserExports(ExportResolver* export_resolver,
-                                          KernelState* state) {
+void xe::kernel::xam::RegisterUserExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamUserGetXUID, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninState, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);

@@ -13,7 +13,7 @@
 #include <memory>
 #include <mutex>
 
-#include "xenia/export_resolver.h"
+#include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/content_manager.h"
 #include "xenia/kernel/fs/filesystem.h"
@@ -49,7 +49,7 @@ class KernelState {
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
   fs::FileSystem* file_system() const { return file_system_; }
-  
+
   uint32_t title_id() const;
 
   Dispatcher* dispatcher() const { return dispatcher_; }

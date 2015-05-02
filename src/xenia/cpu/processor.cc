@@ -10,9 +10,9 @@
 #include "xenia/cpu/processor.h"
 
 #include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/cpu/xex_module.h"
-#include "xenia/export_resolver.h"
 #include "xenia/logging.h"
 #include "xenia/profiling.h"
 

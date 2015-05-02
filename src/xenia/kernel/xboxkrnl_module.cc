@@ -12,7 +12,6 @@
 #include <gflags/gflags.h>
 #include "poly/math.h"
 #include "xenia/emulator.h"
-#include "xenia/export_resolver.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/objects/xuser_module.h"
@@ -149,7 +148,8 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
       WT_EXECUTEINTIMERTHREAD);
 }
 
-void XboxkrnlModule::RegisterExportTable(ExportResolver* export_resolver) {
+void XboxkrnlModule::RegisterExportTable(
+    xe::cpu::ExportResolver* export_resolver) {
   assert_not_null(export_resolver);
 
   if (!export_resolver) {
@@ -158,7 +158,7 @@ void XboxkrnlModule::RegisterExportTable(ExportResolver* export_resolver) {
 
 // Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
-  static KernelExport xboxkrnl_export_table[] = {
+  static xe::cpu::KernelExport xboxkrnl_export_table[] = {
 #include "xenia/kernel/xboxkrnl_table.inc"
   };
 #include "xenia/kernel/util/export_table_post.inc"

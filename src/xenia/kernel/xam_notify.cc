@@ -102,8 +102,8 @@ SHIM_CALL XNotifyPositionUI_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterNotifyExports(ExportResolver* export_resolver,
-                                            KernelState* state) {
+void xe::kernel::xam::RegisterNotifyExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamNotifyCreateListener, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyGetNext, state);
   SHIM_SET_MAPPING("xam.xex", XNotifyDelayUI, state);

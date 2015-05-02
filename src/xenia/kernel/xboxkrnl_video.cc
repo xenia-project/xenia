@@ -433,8 +433,8 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xboxkrnl::RegisterVideoExports(ExportResolver* export_resolver,
-                                                KernelState* state) {
+void xe::kernel::xboxkrnl::RegisterVideoExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayGamma, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayInformation, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);

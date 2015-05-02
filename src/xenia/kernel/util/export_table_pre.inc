@@ -26,7 +26,7 @@
 #define XE_EXPORT(module, ordinal, name, type, flags) \
   { \
     ordinal, \
-    KernelExport::type, \
+    xe::cpu::KernelExport::type, \
     flags, \
     #name, \
   }
