@@ -5579,12 +5579,12 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
       if (i.dest != src3) {
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, src3, src_control);
-        //e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
+        e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
       } else {
         e.vmovaps(e.xmm0, src3);
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, e.xmm0, src_control);
-        //e.vpblendd(i.dest, e.xmm0, blend_control);
+        e.vpblendd(i.dest, e.xmm0, blend_control);
       }
     } else {
       // Permute by non-constant.
