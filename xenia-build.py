@@ -35,9 +35,9 @@ def main():
   # Grab Visual Studio version and execute shell to set up environment.
   if sys.platform == 'win32':
     vs_version = import_vs_environment()
-    if vs_version != 2013 and vs_version != 2015:
-      print('ERROR: Visual Studio 2013 or 2015 not found!')
-      print('Ensure you have the VS120COMNTOOLS environment variable!')
+    if vs_version != 2015:
+      print('ERROR: Visual Studio 2015 not found!')
+      print('Ensure you have the VS140COMNTOOLS environment variable!')
       sys.exit(1)
       return
 
@@ -71,7 +71,7 @@ def import_vs_environment():
   interesting environment variables into os.environ.
 
   Returns:
-    A version such as 2010, 2012, or 2013 or None if no VS is found.
+    A version such as 2015 or None if no VS is found.
   """
   version = 0
   tools_path = ''
@@ -82,15 +82,6 @@ def import_vs_environment():
     # TODO(benvanik): remove preview tools.
     version = 2015
     tools_path = os.environ['VS140COMNTOOLS']
-  elif 'VS120COMNTOOLS' in os.environ:
-    version = 2013
-    tools_path = os.environ['VS120COMNTOOLS']
-  elif 'VS110COMNTOOLS' in os.environ:
-    version = 2012
-    tools_path = os.environ['VS110COMNTOOLS']
-  elif 'VS100COMNTOOLS' in os.environ:
-    version = 2010
-    tools_path = os.environ['VS100COMNTOOLS']
   if version == 0:
     return None
   tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
