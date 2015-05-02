@@ -28,6 +28,7 @@
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/runtime.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {
@@ -5877,7 +5878,7 @@ bool SelectSequence(X64Emitter& e, const Instr* i, const Instr** new_tail) {
       return true;
     }
   }
-  PLOGE("No sequence match for variant %s", i->opcode->name);
+  XELOGE("No sequence match for variant %s", i->opcode->name);
   return false;
 }
 

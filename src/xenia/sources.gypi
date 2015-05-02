@@ -7,6 +7,7 @@
     'emulator.h',
     'export_resolver.cc',
     'export_resolver.h',
+    'logging.cc',
     'logging.h',
     'memory.cc',
     'memory.h',

@@ -12,7 +12,9 @@
 
 #include <cstdint>
 
-#include "poly/logging.h"
+#include "poly/string.h"
+
+namespace xe {
 
 #define XE_OPTION_ENABLE_LOGGING        1
 #define XE_OPTION_LOG_ERROR             1
@@ -25,51 +27,82 @@
 #define XE_OPTION_LOG_KERNEL            1
 #define XE_OPTION_LOG_FS                1
 
-#if XE_OPTION_LOG_ERROR
-#define XELOGE PLOGE
+#define XE_EMPTY_MACRO \
+  do {                 \
+  } while (false)
+
+#if XE_COMPILER_GNUC
+#define XE_LOG_LINE_ATTRIBUTE __attribute__((format(printf, 5, 6)))
 #else
-#define XELOGE(fmt, ...) POLY_EMPTY_MACRO
+#define XE_LOG_LINE_ATTRIBUTE
+#endif  // XE_COMPILER_GNUC
+void log_line(const char* file_path, const uint32_t line_number,
+              const char level_char, const char* fmt,
+              ...) XE_LOG_LINE_ATTRIBUTE;
+#undef XE_LOG_LINE_ATTRIBUTE
+
+void handle_fatal(const char* file_path, const uint32_t line_number,
+                  const char* fmt, ...);
+
+#if XE_OPTION_ENABLE_LOGGING
+#define XELOGCORE(level, fmt, ...) \
+  xe::log_line(__FILE__, __LINE__, level, fmt, ##__VA_ARGS__)
+#else
+#define XELOGCORE(level, fmt, ...) XE_EMPTY_MACRO
+#endif  // ENABLE_LOGGING
+
+#define XEFATAL(fmt, ...)                                     \
+  do {                                                        \
+    xe::handle_fatal(__FILE__, __LINE__, fmt, ##__VA_ARGS__); \
+  } while (false)
+
+#if XE_OPTION_LOG_ERROR
+#define XELOGE(fmt, ...) XELOGCORE('!', fmt, ##__VA_ARGS__)
+#else
+#define XELOGE(fmt, ...) XE_EMPTY_MACRO
 #endif
 #if XE_OPTION_LOG_WARNING
-#define XELOGW PLOGW
+#define XELOGW(fmt, ...) XELOGCORE('w', fmt, ##__VA_ARGS__)
 #else
-#define XELOGW(fmt, ...) POLY_EMPTY_MACRO
+#define XELOGW(fmt, ...) XE_EMPTY_MACRO
 #endif
 #if XE_OPTION_LOG_INFO
-#define XELOGI PLOGI
+#define XELOGI(fmt, ...) XELOGCORE('i', fmt, ##__VA_ARGS__)
 #else
-#define XELOGI(fmt, ...) POLY_EMPTY_MACRO
+#define XELOGI(fmt, ...) XE_EMPTY_MACRO
 #endif
 #if XE_OPTION_LOG_DEBUG
-#define XELOGD PLOGD
+#define XELOGD(fmt, ...) XELOGCORE('d', fmt, ##__VA_ARGS__)
 #else
-#define XELOGD(fmt, ...) POLY_EMPTY_MACRO
-#endif
-#if XE_OPTION_LOG_CPU
-#define XELOGCPU(fmt, ...) PLOGCORE('C', fmt, ##__VA_ARGS__)
-#else
-#define XELOGCPU(fmt, ...) POLY_EMPTY_MACRO
-#endif
-#if XE_OPTION_LOG_APU
-#define XELOGAPU(fmt, ...) PLOGCORE('A', fmt, ##__VA_ARGS__)
-#else
-#define XELOGAPU(fmt, ...) POLY_EMPTY_MACRO
-#endif
-#if XE_OPTION_LOG_GPU
-#define XELOGGPU(fmt, ...) PLOGCORE('G', fmt, ##__VA_ARGS__)
-#else
-#define XELOGGPU(fmt, ...) POLY_EMPTY_MACRO
-#endif
-#if XE_OPTION_LOG_KERNEL
-#define XELOGKERNEL(fmt, ...) PLOGCORE('K', fmt, ##__VA_ARGS__)
-#else
-#define XELOGKERNEL(fmt, ...) POLY_EMPTY_MACRO
-#endif
-#if XE_OPTION_LOG_FS
-#define XELOGFS(fmt, ...) PLOGCORE('F', fmt, ##__VA_ARGS__)
-#else
-#define XELOGFS(fmt, ...) POLY_EMPTY_MACRO
+#define XELOGD(fmt, ...) XE_EMPTY_MACRO
 #endif
 
+#if XE_OPTION_LOG_CPU
+#define XELOGCPU(fmt, ...) XELOGCORE('C', fmt, ##__VA_ARGS__)
+#else
+#define XELOGCPU(fmt, ...) XE_EMPTY_MACRO
+#endif
+#if XE_OPTION_LOG_APU
+#define XELOGAPU(fmt, ...) XELOGCORE('A', fmt, ##__VA_ARGS__)
+#else
+#define XELOGAPU(fmt, ...) XE_EMPTY_MACRO
+#endif
+#if XE_OPTION_LOG_GPU
+#define XELOGGPU(fmt, ...) XELOGCORE('G', fmt, ##__VA_ARGS__)
+#else
+#define XELOGGPU(fmt, ...) XE_EMPTY_MACRO
+#endif
+#if XE_OPTION_LOG_KERNEL
+#define XELOGKERNEL(fmt, ...) XELOGCORE('K', fmt, ##__VA_ARGS__)
+#else
+#define XELOGKERNEL(fmt, ...) XE_EMPTY_MACRO
+#endif
+#if XE_OPTION_LOG_FS
+#define XELOGFS(fmt, ...) XELOGCORE('F', fmt, ##__VA_ARGS__)
+#else
+#define XELOGFS(fmt, ...) XE_EMPTY_MACRO
+#endif
+
+}  // namespace xe
 
 #endif  // XENIA_LOGGING_H_

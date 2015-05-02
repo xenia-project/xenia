@@ -10,6 +10,7 @@
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 
 #include "poly/poly.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {
@@ -193,7 +194,7 @@ void X64CodeChunk::AddTableEntry(uint8_t* code, size_t code_size,
   if (fn_table_count + 1 > fn_table_capacity) {
     // Table exhausted, need to realloc. If this happens a lot we should tune
     // the table size to prevent this.
-    PLOGW("X64CodeCache growing FunctionTable - adjust ESTIMATED_FN_SIZE");
+    XELOGW("X64CodeCache growing FunctionTable - adjust ESTIMATED_FN_SIZE");
     RtlDeleteGrowableFunctionTable(fn_table_handle);
     size_t old_size = fn_table_capacity * sizeof(RUNTIME_FUNCTION);
     size_t new_size = old_size * 2;

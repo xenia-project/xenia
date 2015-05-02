@@ -215,7 +215,7 @@ TextureCache::TextureEntryView* TextureCache::Demand(
   uint64_t texture_hash = texture_info.hash();
   auto texture_entry = LookupOrInsertTexture(texture_info, texture_hash);
   if (!texture_entry) {
-    PLOGE("Failed to setup texture");
+    XELOGE("Failed to setup texture");
     return nullptr;
   }
 
@@ -231,7 +231,7 @@ TextureCache::TextureEntryView* TextureCache::Demand(
   // No existing view found - build it.
   auto sampler_entry = LookupOrInsertSampler(sampler_info, sampler_hash);
   if (!sampler_entry) {
-    PLOGE("Failed to setup texture sampler");
+    XELOGE("Failed to setup texture sampler");
     return nullptr;
   }
 
@@ -482,7 +482,7 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
       return false;
   }
   if (!uploaded) {
-    PLOGE("Failed to convert/upload texture");
+    XELOGE("Failed to convert/upload texture");
     return nullptr;
   }
 

@@ -13,7 +13,7 @@
 #include <tpcshrd.h>
 #include <windowsx.h>
 
-#include "poly/logging.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace ui {
@@ -46,7 +46,7 @@ bool Win32Window::Create() {
   wcex.lpszMenuName = nullptr;
   wcex.lpszClassName = L"XeniaWindowClass";
   if (!RegisterClassEx(&wcex)) {
-    PLOGE("RegisterClassEx failed");
+    XELOGE("RegisterClassEx failed");
     return false;
   }
 
@@ -61,7 +61,7 @@ bool Win32Window::Create() {
                          window_style, rc.left, rc.top, rc.right - rc.left,
                          rc.bottom - rc.top, nullptr, nullptr, hInstance, this);
   if (!hwnd_) {
-    PLOGE("CreateWindow failed");
+    XELOGE("CreateWindow failed");
     return false;
   }
 

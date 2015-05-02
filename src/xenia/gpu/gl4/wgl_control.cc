@@ -10,8 +10,8 @@
 #include "xenia/gpu/gl4/wgl_control.h"
 
 #include "poly/assert.h"
-#include "poly/logging.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -43,7 +43,7 @@ bool WGLControl::Create() {
   wcex.lpszMenuName = nullptr;
   wcex.lpszClassName = L"XeniaWglClass";
   if (!RegisterClassEx(&wcex)) {
-    PLOGE("WGL RegisterClassEx failed");
+    XELOGE("WGL RegisterClassEx failed");
     return false;
   }
 
@@ -55,12 +55,12 @@ bool WGLControl::Create() {
                      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                      parent_hwnd(), nullptr, hInstance, this);
   if (!hwnd_) {
-    PLOGE("WGL CreateWindow failed");
+    XELOGE("WGL CreateWindow failed");
     return false;
   }
 
   if (!context_.Initialize(hwnd_)) {
-    PFATAL("Unable to initialize GL context");
+    XEFATAL("Unable to initialize GL context");
     return false;
   }
 

@@ -7,13 +7,14 @@
  ******************************************************************************
  */
 
+#include "poly/main.h"
+#include "poly/poly.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/raw_module.h"
-#include "poly/main.h"
-#include "poly/poly.h"
+#include "xenia/logging.h"
 
 #if !XE_PLATFORM_WIN32
 #include <dirent.h>
@@ -56,11 +57,11 @@ class TestSuite {
 
   bool Load() {
     if (!ReadMap(map_file_path)) {
-      PLOGE("Unable to read map for test %ls", src_file_path.c_str());
+      XELOGE("Unable to read map for test %ls", src_file_path.c_str());
       return false;
     }
     if (!ReadAnnotations(src_file_path)) {
-      PLOGE("Unable to read annotations for test %ls", src_file_path.c_str());
+      XELOGE("Unable to read annotations for test %ls", src_file_path.c_str());
       return false;
     }
     return true;
@@ -138,8 +139,8 @@ class TestSuite {
         std::string label(start + strlen("test_"), strchr(start, ':'));
         current_test_case = FindTestCase(label);
         if (!current_test_case) {
-          PLOGE("Test case %s not found in corresponding map for %ls",
-                label.c_str(), src_file_path.c_str());
+          XELOGE("Test case %s not found in corresponding map for %ls",
+                 label.c_str(), src_file_path.c_str());
           return false;
         }
       } else if (strlen(start) > 3 && start[0] == '#' && start[1] == '_') {
@@ -154,8 +155,8 @@ class TestSuite {
             value.erase(value.end() - 1);
           }
           if (!current_test_case) {
-            PLOGE("Annotation outside of test case in %ls",
-                  src_file_path.c_str());
+            XELOGE("Annotation outside of test case in %ls",
+                   src_file_path.c_str());
             return false;
           }
           current_test_case->annotations.emplace_back(key, value);
@@ -188,7 +189,7 @@ class TestRunner {
     // Load the binary module.
     auto module = std::make_unique<xe::cpu::RawModule>(runtime.get());
     if (module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
-      PLOGE("Unable to load test binary %ls", suite.bin_file_path.c_str());
+      XELOGE("Unable to load test binary %ls", suite.bin_file_path.c_str());
       return false;
     }
     runtime->AddModule(std::move(module));
@@ -206,7 +207,7 @@ class TestRunner {
   bool Run(TestCase& test_case) {
     // Setup test state from annotations.
     if (!SetupTestState(test_case)) {
-      PLOGE("Test setup failed");
+      XELOGE("Test setup failed");
       return false;
     }
 
@@ -214,7 +215,7 @@ class TestRunner {
     xe::cpu::Function* fn;
     runtime->ResolveFunction(test_case.address, &fn);
     if (!fn) {
-      PLOGE("Entry function not found");
+      XELOGE("Entry function not found");
       return false;
     }
 
@@ -325,7 +326,7 @@ bool DiscoverTests(std::wstring& test_path,
   WIN32_FIND_DATA ffd;
   HANDLE hFind = FindFirstFile(search_path.c_str(), &ffd);
   if (hFind == INVALID_HANDLE_VALUE) {
-    PLOGE("Unable to find test path %ls", test_path.c_str());
+    XELOGE("Unable to find test path %ls", test_path.c_str());
     return false;
   }
   do {
@@ -343,7 +344,7 @@ bool DiscoverTests(std::wstring& test_path,
 #else
   DIR* d = opendir(test_path.c_str());
   if (!d) {
-    PLOGE("Unable to find test path %ls", test_path.c_str());
+    XELOGE("Unable to find test path %ls", test_path.c_str());
     return false;
   }
   struct dirent* dir;
@@ -378,11 +379,11 @@ bool RunTests(const std::wstring& test_name) {
     return false;
   }
   if (!test_files.size()) {
-    PLOGE("No tests discovered - invalid path?");
+    XELOGE("No tests discovered - invalid path?");
     return false;
   }
-  PLOGI("%d tests discovered.", (int)test_files.size());
-  PLOGI("");
+  XELOGI("%d tests discovered.", (int)test_files.size());
+  XELOGI("");
 
   std::vector<TestSuite> test_suites;
   bool load_failed = false;
@@ -392,7 +393,7 @@ bool RunTests(const std::wstring& test_name) {
       continue;
     }
     if (!test_suite.Load()) {
-      PLOGE("TEST SUITE %ls FAILED TO LOAD", test_path.c_str());
+      XELOGE("TEST SUITE %ls FAILED TO LOAD", test_path.c_str());
       load_failed = true;
       continue;
     }
@@ -403,30 +404,30 @@ bool RunTests(const std::wstring& test_name) {
   }
 
   for (auto& test_suite : test_suites) {
-    PLOGI("%ls.s:", test_suite.name.c_str());
+    XELOGI("%ls.s:", test_suite.name.c_str());
 
     for (auto& test_case : test_suite.test_cases) {
-      PLOGI("  - %s", test_case.name.c_str());
+      XELOGI("  - %s", test_case.name.c_str());
       TestRunner runner;
       if (!runner.Setup(test_suite)) {
-        PLOGE("    TEST FAILED SETUP");
+        XELOGE("    TEST FAILED SETUP");
         ++failed_count;
       }
       if (runner.Run(test_case)) {
         ++passed_count;
       } else {
-        PLOGE("    TEST FAILED");
+        XELOGE("    TEST FAILED");
         ++failed_count;
       }
     }
 
-    PLOGI("");
+    XELOGI("");
   }
 
-  PLOGI("");
-  PLOGI("Total tests: %d", failed_count + passed_count);
-  PLOGI("Passed: %d", passed_count);
-  PLOGI("Failed: %d", failed_count);
+  XELOGI("");
+  XELOGI("Total tests: %d", failed_count + passed_count);
+  XELOGI("Passed: %d", passed_count);
+  XELOGI("Failed: %d", failed_count);
 
   return failed_count ? false : true;
 }

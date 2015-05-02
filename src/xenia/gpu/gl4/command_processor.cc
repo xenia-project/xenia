@@ -11,7 +11,6 @@
 
 #include <algorithm>
 
-#include "poly/logging.h"
 #include "poly/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
@@ -171,7 +170,7 @@ void CommandProcessor::CallInThread(std::function<void()> fn) {
 void CommandProcessor::WorkerMain() {
   context_->MakeCurrent();
   if (!SetupGL()) {
-    PFATAL("Unable to setup command processor GL state");
+    XEFATAL("Unable to setup command processor GL state");
     return;
   }
 
@@ -229,19 +228,19 @@ bool CommandProcessor::SetupGL() {
 
   // Circular buffer holding scratch vertex/index data.
   if (!scratch_buffer_.Initialize()) {
-    PLOGE("Unable to initialize scratch buffer");
+    XELOGE("Unable to initialize scratch buffer");
     return false;
   }
 
   // Command buffer.
   if (!draw_batcher_.Initialize(&scratch_buffer_)) {
-    PLOGE("Unable to initialize command buffer");
+    XELOGE("Unable to initialize command buffer");
     return false;
   }
 
   // Texture cache that keeps track of any textures/samplers used.
   if (!texture_cache_.Initialize(memory_, &scratch_buffer_)) {
-    PLOGE("Unable to initialize texture cache");
+    XELOGE("Unable to initialize texture cache");
     return false;
   }
 
@@ -427,7 +426,7 @@ GLuint CommandProcessor::CreateGeometryProgram(const std::string& source) {
     info_log.resize(log_length - 1);
     glGetProgramInfoLog(program, log_length, &log_length,
                         const_cast<char*>(info_log.data()));
-    PLOGE("Unable to link program: %s", info_log.c_str());
+    XELOGE("Unable to link program: %s", info_log.c_str());
     glDeleteProgram(program);
     return 0;
   }
@@ -928,7 +927,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  PLOGI("XE_SWAP");
+  XELOGI("XE_SWAP");
 
   // Xenia-specific VdSwap hook.
   // VdSwap will post this to tell us we need to swap the screen/fire an
@@ -1490,7 +1489,7 @@ bool CommandProcessor::IssueDraw() {
 #define CHECK_ISSUE_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                                \
     if (status == UpdateStatus::kError) {                          \
-      PLOGE(error_message);                                        \
+      XELOGE(error_message);                                       \
       draw_batcher_.DiscardDraw();                                 \
       return false;                                                \
     } else if (status == UpdateStatus::kMismatch) {                \
@@ -1810,7 +1809,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateState() {
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                          \
     if (status == UpdateStatus::kError) {                    \
-      PLOGE(error_message);                                  \
+      XELOGE(error_message);                                 \
       return status;                                         \
     } else if (status == UpdateStatus::kMismatch) {          \
       mismatch = true;                                       \
@@ -2579,7 +2578,7 @@ bool CommandProcessor::IssueCopy() {
   if (!source_framebuffer) {
     // If we get here we are likely missing some state checks.
     assert_always("No framebuffer for copy source? no-op copy?");
-    PLOGE("No framebuffer for copy source");
+    XELOGE("No framebuffer for copy source");
     return false;
   }
 

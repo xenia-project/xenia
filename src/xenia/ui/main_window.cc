@@ -9,10 +9,10 @@
 
 #include "xenia/ui/main_window.h"
 
-#include "poly/logging.h"
 #include "poly/threading.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/emulator.h"
+#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -31,7 +31,7 @@ void MainWindow::Start() {
     xe::Profiler::ThreadEnter("Win32 Loop");
 
     if (!Initialize()) {
-      PFATAL("Failed to initialize main window");
+      XEFATAL("Failed to initialize main window");
       exit(1);
     }
 
@@ -71,7 +71,7 @@ void MainWindow::OnClose() {
   loop_.Quit();
 
   // TODO(benvanik): proper exit.
-  PLOGI("User-initiated death!");
+  XELOGI("User-initiated death!");
   exit(1);
 }
 

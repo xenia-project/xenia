@@ -11,8 +11,6 @@
     'cxx_compat.h',
     'fs.h',
     'fs.cc',
-    'logging.cc',
-    'logging.h',
     'main.h',
     'mapped_memory.h',
     'math.cc',

@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
+#include "poly/vec128.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
@@ -20,9 +21,9 @@
 #include "xenia/cpu/runtime.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
-#include "poly/vec128.h"
-#include "xdb/protocol.h"
+#include "xenia/logging.h"
 #include "xenia/profiling.h"
+#include "xdb/protocol.h"
 
 namespace xe {
 namespace cpu {
@@ -201,7 +202,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
       if (!SelectSequence(*this, instr, &new_tail)) {
         // No sequence found!
         assert_always();
-        PLOGE("Unable to process HIR opcode %s", instr->opcode->name);
+        XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
         break;
       }
       instr = new_tail;
@@ -373,7 +374,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   uint16_t str_len = uint16_t(thread_state->context()->r[4]);
   auto str = thread_state->memory()->TranslateVirtual<const char*>(str_ptr);
   // TODO(benvanik): truncate to length?
-  PLOGD("(DebugPrint) %s", str);
+  XELOGD("(DebugPrint) %s", str);
   return 0;
 }
 void X64Emitter::Trap(uint16_t trap_type) {
@@ -395,7 +396,7 @@ void X64Emitter::Trap(uint16_t trap_type) {
       // ?
       break;
     default:
-      PLOGW("Unknown trap type %d", trap_type);
+      XELOGW("Unknown trap type %d", trap_type);
       db(0xCC);
       break;
   }
@@ -620,8 +621,8 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
   auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
-  PLOGW("undefined extern call to %.8llX %s", symbol_info->address(),
-        symbol_info->name().c_str());
+  XELOGW("undefined extern call to %.8llX %s", symbol_info->address(),
+         symbol_info->name().c_str());
   return 0;
 }
 void X64Emitter::CallExtern(const hir::Instr* instr,

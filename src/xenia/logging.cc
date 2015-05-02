@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "poly/logging.h"
+#include "xenia/logging.h"
 
 #include <gflags/gflags.h>
 
@@ -24,7 +24,7 @@ DEFINE_bool(flush_stdout, true, "Flush stdout after each log line.");
 DEFINE_bool(log_filenames, false,
             "Log filenames/line numbers in log statements.");
 
-namespace poly {
+namespace xe {
 
 std::mutex log_lock;
 
@@ -130,4 +130,4 @@ void handle_fatal(const char* file_path, const uint32_t line_number,
   exit(1);
 }
 
-}  // namespace poly
+}  // namespace xe

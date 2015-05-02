@@ -233,7 +233,7 @@ bool GL4Shader::PrepareVertexShader(
 
   // Build static vertex array descriptor.
   if (!PrepareVertexArrayObject()) {
-    PLOGE("Unable to prepare vertex shader array object");
+    XELOGE("Unable to prepare vertex shader array object");
     return false;
   }
   std::string apply_transform =
@@ -280,7 +280,7 @@ bool GL4Shader::PrepareVertexShader(
   std::string translated_source =
       shader_translator_.TranslateVertexShader(this, program_cntl);
   if (translated_source.empty()) {
-    PLOGE("Vertex shader failed translation");
+    XELOGE("Vertex shader failed translation");
     return false;
   }
   source += translated_source;
@@ -333,7 +333,7 @@ bool GL4Shader::PreparePixelShader(
   std::string translated_source =
       shader_translator_.TranslatePixelShader(this, program_cntl);
   if (translated_source.empty()) {
-    PLOGE("Pixel shader failed translation");
+    XELOGE("Pixel shader failed translation");
     return false;
   }
 
@@ -375,7 +375,7 @@ bool GL4Shader::CompileProgram(std::string source) {
                                         : GL_FRAGMENT_SHADER,
                                     1, &source_str);
   if (!program_) {
-    PLOGE("Unable to create shader program");
+    XELOGE("Unable to create shader program");
     return false;
   }
 
@@ -390,7 +390,7 @@ bool GL4Shader::CompileProgram(std::string source) {
     info_log.resize(log_length - 1);
     glGetProgramInfoLog(program_, log_length, &log_length,
                         const_cast<char*>(info_log.data()));
-    PLOGE("Unable to link program: %s", info_log.c_str());
+    XELOGE("Unable to link program: %s", info_log.c_str());
     error_log_ = std::move(info_log);
     assert_always("Unable to link generated shader");
     return false;
@@ -436,7 +436,7 @@ bool GL4Shader::CompileProgram(std::string source) {
         fprintf(f, "\n*/\n");
         fclose(f);
       } else {
-        PLOGW("Got program binary but unable to find disassembly");
+        XELOGW("Got program binary but unable to find disassembly");
       }
     }
   }

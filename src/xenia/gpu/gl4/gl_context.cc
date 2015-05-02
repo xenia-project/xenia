@@ -13,7 +13,6 @@
 
 #include "poly/assert.h"
 #include "poly/cxx_compat.h"
-#include "poly/logging.h"
 #include "poly/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/logging.h"
@@ -63,17 +62,17 @@ bool GLContext::Initialize(HWND hwnd) {
   pfd.iLayerType = PFD_MAIN_PLANE;
   int pixel_format = ChoosePixelFormat(dc_, &pfd);
   if (!pixel_format) {
-    PLOGE("Unable to choose pixel format");
+    XELOGE("Unable to choose pixel format");
     return false;
   }
   if (!SetPixelFormat(dc_, pixel_format, &pfd)) {
-    PLOGE("Unable to set pixel format");
+    XELOGE("Unable to set pixel format");
     return false;
   }
 
   HGLRC temp_context = wglCreateContext(dc_);
   if (!temp_context) {
-    PLOGE("Unable to create temporary GL context");
+    XELOGE("Unable to create temporary GL context");
     return false;
   }
   wglMakeCurrent(dc_, temp_context);
@@ -82,16 +81,16 @@ bool GLContext::Initialize(HWND hwnd) {
   tls_wglew_context_ = &wglew_context_;
   glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
-    PLOGE("Unable to initialize GLEW");
+    XELOGE("Unable to initialize GLEW");
     return false;
   }
   if (wglewInit() != GLEW_OK) {
-    PLOGE("Unable to initialize WGLEW");
+    XELOGE("Unable to initialize WGLEW");
     return false;
   }
 
   if (!WGLEW_ARB_create_context) {
-    PLOGE("WGL_ARG_create_context not supported by GL ICD");
+    XELOGE("WGL_ARG_create_context not supported by GL ICD");
     return false;
   }
 
@@ -108,12 +107,12 @@ bool GLContext::Initialize(HWND hwnd) {
   wglMakeCurrent(nullptr, nullptr);
   wglDeleteContext(temp_context);
   if (!glrc_) {
-    PLOGE("Unable to create real GL context");
+    XELOGE("Unable to create real GL context");
     return false;
   }
 
   if (!MakeCurrent()) {
-    PLOGE("Could not make real GL context current");
+    XELOGE("Could not make real GL context current");
     return false;
   }
 
@@ -124,7 +123,7 @@ bool GLContext::Initialize(HWND hwnd) {
   SetupDebugging();
 
   if (!blitter_.Initialize()) {
-    PLOGE("Unable to initialize blitter");
+    XELOGE("Unable to initialize blitter");
     ClearCurrent();
     return false;
   }
@@ -154,33 +153,33 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
                          0};
     new_glrc = wglCreateContextAttribsARB(dc_, glrc_, attrib_list);
     if (!new_glrc) {
-      PLOGE("Could not create shared context");
+      XELOGE("Could not create shared context");
       return nullptr;
     }
   }
 
   auto new_context = std::make_unique<GLContext>(hwnd_, new_glrc);
   if (!new_context->MakeCurrent()) {
-    PLOGE("Could not make new GL context current");
+    XELOGE("Could not make new GL context current");
     return nullptr;
   }
 
   glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
     new_context->ClearCurrent();
-    PLOGE("Unable to initialize GLEW");
+    XELOGE("Unable to initialize GLEW");
     return nullptr;
   }
   if (wglewInit() != GLEW_OK) {
     new_context->ClearCurrent();
-    PLOGE("Unable to initialize WGLEW");
+    XELOGE("Unable to initialize WGLEW");
     return nullptr;
   }
 
   SetupDebugging();
 
   if (!new_context->blitter_.Initialize()) {
-    PLOGE("Unable to initialize blitter");
+    XELOGE("Unable to initialize blitter");
     return nullptr;
   }
 
@@ -325,7 +324,7 @@ bool GLContext::MakeCurrent() {
     if (FLAGS_thread_safe_gl) {
       global_gl_mutex_.unlock();
     }
-    PLOGE("Unable to make GL context current");
+    XELOGE("Unable to make GL context current");
     return false;
   }
   tls_glew_context_ = &glew_context_;

@@ -9,11 +9,11 @@
 
 #include "xenia/cpu/function.h"
 
+#include "xdb/protocol.h"
 #include "xenia/cpu/debugger.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
-#include "poly/logging.h"
-#include "xdb/protocol.h"
+#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {
@@ -91,8 +91,8 @@ int Function::Call(ThreadState* thread_state, uint32_t return_address) {
       handler(thread_state->context(), symbol_info_->extern_arg0(),
               symbol_info_->extern_arg1());
     } else {
-      PLOGW("undefined extern call to %.8llX %s", symbol_info_->address(),
-            symbol_info_->name().c_str());
+      XELOGW("undefined extern call to %.8llX %s", symbol_info_->address(),
+             symbol_info_->name().c_str());
       result = 1;
     }
 

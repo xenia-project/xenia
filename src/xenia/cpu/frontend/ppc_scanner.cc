@@ -12,17 +12,17 @@
 #include <algorithm>
 #include <map>
 
+#include "poly/memory.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/runtime.h"
-#include "poly/logging.h"
-#include "poly/memory.h"
+#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 #if 0
-#define LOGPPC(fmt, ...) PLOGCORE('p', fmt, ##__VA_ARGS__)
+#define LOGPPC(fmt, ...) XELOGCORE('p', fmt, ##__VA_ARGS__)
 #else
-#define LOGPPC(fmt, ...) POLY_EMPTY_MACRO
+#define LOGPPC(fmt, ...) XE_EMPTY_MACRO
 #endif
 
 namespace xe {

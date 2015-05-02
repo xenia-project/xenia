@@ -67,7 +67,7 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
   // incoming ringbuffer packets.
   command_processor_ = std::make_unique<CommandProcessor>(this);
   if (!command_processor_->Initialize(std::move(processor_context))) {
-    PLOGE("Unable to initialize command processor");
+    XELOGE("Unable to initialize command processor");
     return X_STATUS_UNSUCCESSFUL;
   }
   command_processor_->set_swap_handler(
