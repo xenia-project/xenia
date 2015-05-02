@@ -1,7 +1,7 @@
 Xenia - Xbox 360 Emulator Research Project
 ==========================================
 
-Xenia is an experimental emulator for the Xbox 360. It does not run games (yet).
+Xenia is an experimental emulator for the Xbox 360.
 
 Pull requests are welcome but the code is in a very high churn state and may not
 be accepted, so ask in IRC before taking on anything big. Contributions are
@@ -11,21 +11,19 @@ be better to wait a bit until things calm down and more of the code is documente
 
 Come chat with us **about development topics** in [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
 
-## NOTE
-
-I'd much rather write code than entertain jerks. If you're ignored or treated with
-curtness perhaps you should reflect upon what you did that would cause that to
-happen. This is a project done for fun and random internet arguments diminish
-that.
-
 ## Status
+
+Buildbot:
+[![Build status](https://badge.buildkite.com/0c382884111ea2bc85e97d1db04aba9712a0776d15195712a4.svg)](https://buildkite.com/benvanik/xenia)
 
 Project tracker:
 [![Stories in Ready](https://badge.waffle.io/benvanik/xenia.svg?label=ready&title=Ready)](http://waffle.io/benvanik/xenia)
 [![Stories in In Progress](https://badge.waffle.io/benvanik/xenia.svg?label=in%20progress&title=In%20Progress)](http://waffle.io/benvanik/xenia)
 
-* Some code runs. [Insert any game name here] doesn't. Except Frogger 2. Yep.
-* Asserts! Crashes! Hangs! Blank screens!
+Some real games run. Most don't. Don't ask if GTA or whatever runs. [Game compatibility list](https://github.com/benvanik/xenia/wiki/Compatibility-List).
+
+Watch A-Train HX running at ~60fps (check YouTube playback quality setting):
+[![A-Train HX first run](http://img.youtube.com/vi/vE32Z9ytbgU/0.jpg)](http://www.youtube.com/watch?v=vE32Z9ytbgU)
 
 ## Disclaimer
 
