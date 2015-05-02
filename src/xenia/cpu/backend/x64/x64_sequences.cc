@@ -5266,7 +5266,6 @@ EMITTER(CNTLZ_I32, MATCH(I<OPCODE_CNTLZ, I8<>, I32<>>)) {
     if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
-      e.DebugBreak();
       e.inLocalLabel();
 
       e.cmp(i.src1, 0); // Special case if number is 0
