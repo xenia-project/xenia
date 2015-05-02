@@ -5452,17 +5452,17 @@ EMITTER(SPLAT_I8, MATCH(I<OPCODE_SPLAT, V128<>, I8<>>)) {
         e.vpbroadcastb(i.dest, e.xmm0);
       }
     } else {
-      // TODO(justin): Test this (is this proper behavior?)
-      //e.DebugBreak();
-
       if (i.src1.is_constant) {
         e.mov(e.eax, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-        e.vshufps(i.dest, e.xmm0, e.xmm0, 0);
+        e.movd(e.xmm0, e.eax);
       } else {
-        e.vmovd(e.xmm0, i.src1.reg().cvt32());
-        e.vshufps(i.dest, e.xmm0, e.xmm0, 0);
+        e.movd(e.xmm0, i.src1.reg().cvt32());
       }
+
+      // Credits: VC++ compiler (i love you so much)
+      e.punpcklbw(e.xmm0, e.xmm0);
+      e.punpcklwd(e.xmm0, e.xmm0);
+      e.pshufd(i.dest, e.xmm0, 0);
     }
   }
 };
@@ -5497,8 +5497,14 @@ EMITTER(SPLAT_I32, MATCH(I<OPCODE_SPLAT, V128<>, I32<>>)) {
         e.vpbroadcastd(i.dest, e.xmm0);
       }
     } else {
-      // TODO(justin)
-      e.DebugBreak();
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.constant());
+        e.vmovd(e.xmm0, e.eax);
+        e.pshufd(i.dest, e.xmm0, 0);
+      } else {
+        e.vmovd(e.xmm0, i.src1.reg().cvt32());
+        e.pshufd(i.dest, e.xmm0, 0);
+      }
     }
   }
 };
@@ -5514,8 +5520,14 @@ EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
         e.vbroadcastss(i.dest, i.src1);
       }
     } else {
-      // TODO(justin)
-      e.DebugBreak();
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.constant());
+        e.vmovd(i.dest, e.eax);
+        e.shufps(i.dest, i.dest, 0);
+      } else {
+        e.vmovd(i.dest, i.src1.reg().cvt32());
+        e.shufps(i.dest, i.dest, 0);
+      }
     }
   }
 };
@@ -5567,12 +5579,12 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
       if (i.dest != src3) {
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, src3, src_control);
-        e.vpblendd(i.dest, e.xmm0, blend_control);
+        //e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
       } else {
         e.vmovaps(e.xmm0, src3);
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, e.xmm0, src_control);
-        e.vpblendd(i.dest, e.xmm0, blend_control);
+        //e.vpblendd(i.dest, e.xmm0, blend_control);
       }
     } else {
       // Permute by non-constant.
